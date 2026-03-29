@@ -1,0 +1,38 @@
+%%{
+  init: {
+    'theme': 'base',
+    'themeVariables': {
+      'primaryColor': '#ffffff',
+      'primaryBorderColor': '#005CE6',
+      'lineColor': '#333333',
+      'tertiaryColor': '#f4f4f4',
+      'fontFamily': 'system-ui, -apple-system, sans-serif'
+    }
+  }
+}%%
+graph TD
+    Client([Client Application]) --> Gateway[API Gateway]
+
+    Gateway --> UserService[User Context Service]
+    Gateway --> PortService[Portfolio Context Service]
+    Gateway --> MarketService[Market Data Service]
+    Gateway --> InsightService[Insight Service]
+
+    subgraph Event Driven Messaging
+        Kafka[[Apache Kafka]]
+    end
+
+    MarketService -->|Publishes PriceUpdated Event| Kafka
+    Kafka -->|Consumes PriceUpdated Event| PortService
+
+    subgraph Serverless / Async
+        EventBridge((AWS EventBridge)) -->|Triggers| Lambda[AWS Lambda: AI Weekly Report]
+    end
+
+    InsightService -.-> Lambda
+
+    subgraph Polyglot Persistence
+        UserService --> PostgresUser[(PostgreSQL: User DB)]
+        PortService --> PostgresPort[(PostgreSQL: Portfolio DB)]
+        MarketService --> Dynamo[(MongoDB / DynamoDB)]
+    end
