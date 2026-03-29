@@ -1,0 +1,37 @@
+%%{
+  init: {
+    'theme': 'base',
+    'themeVariables': {
+      'primaryColor': '#ffffff',
+      'primaryBorderColor': '#005CE6',
+      'lineColor': '#333333',
+      'tertiaryColor': '#f4f4f4',
+      'fontFamily': 'system-ui, -apple-system, sans-serif'
+    }
+  }
+}%%
+graph TD
+    Client([Client Application]) --> App[Spring Boot Application]
+
+    subgraph App [Spring Boot: Modular Monolith]
+        direction TB
+        User[User Context Module]
+        Portfolio[Portfolio Context Module]
+        Market[Market Data Context Module]
+        Insight[Insight Context Module]
+
+        Market -.->|Spring Application Events| Portfolio
+        Portfolio -.->|Spring Application Events| Insight
+    end
+
+    App --> DB[(PostgreSQL)]
+
+    subgraph DB [PostgreSQL Single Instance]
+        UserDB[(User Schema)]
+        PortDB[(Portfolio Schema)]
+        MarketDB[(Market Data Schema)]
+    end
+
+    User --> UserDB
+    Portfolio --> PortDB
+    Market --> MarketDB
