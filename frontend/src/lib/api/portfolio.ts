@@ -15,7 +15,7 @@ import type {
 
 // ── Config ───────────────────────────────────────────────────────────────────
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
+// const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
 
 /** Simulated network round-trip (ms). Set to 0 for instant mock responses. */
 const MOCK_DELAY_MS = 800;
@@ -210,7 +210,7 @@ function generatePerformanceData(days: number, endValue: number): PortfolioPerfo
  * Fetch the full portfolio (holdings + summary).
  * TODO: replace body with `fetch(`${API_BASE}/api/v1/portfolios/${portfolioId}`)` when backend is live.
  */
-export async function fetchPortfolio(portfolioId = "p-001"): Promise<PortfolioResponseDTO> {
+export async function fetchPortfolio(_portfolioId = "p-001"): Promise<PortfolioResponseDTO> {
   await sleep(MOCK_DELAY_MS);
   // Real implementation:
   // const res = await fetch(`${API_BASE}/api/v1/portfolios/${portfolioId}`);
