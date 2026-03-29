@@ -23,3 +23,7 @@ spring:
         # `event_publication` table on startup — the backing store for the Outbox Pattern.
         schema-initialization:
           enabled: true
+
+logging:
+  level:
+    org.flywaydb: DEBUG
