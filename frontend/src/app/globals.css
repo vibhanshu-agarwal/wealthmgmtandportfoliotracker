@@ -1,0 +1,186 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* ── Core backgrounds & surfaces ─────────────────────────────────── */
+    --background:        220 20% 97%;   /* slate-50  – page canvas        */
+    --foreground:        222 47% 11%;   /* slate-900 – primary text       */
+
+    --card:              0 0% 100%;     /* white cards                    */
+    --card-foreground:   222 47% 11%;
+
+    --popover:           0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+
+    /* ── Brand / interactive ─────────────────────────────────────────── */
+    --primary:           160 84% 39%;   /* emerald-600                    */
+    --primary-foreground: 0 0% 100%;
+
+    --secondary:         215 20% 94%;   /* slate-100                      */
+    --secondary-foreground: 222 47% 11%;
+
+    --muted:             215 20% 94%;   /* slate-100                      */
+    --muted-foreground:  215 16% 47%;   /* slate-500                      */
+
+    --accent:            160 84% 39%;   /* emerald-600                    */
+    --accent-foreground: 0 0% 100%;
+
+    --destructive:       0 84% 60%;     /* red-500                        */
+    --destructive-foreground: 0 0% 100%;
+
+    /* ── Chrome ──────────────────────────────────────────────────────── */
+    --border:            215 20% 89%;   /* slate-200                      */
+    --input:             215 20% 89%;
+    --ring:              160 84% 39%;   /* emerald focus ring             */
+    --radius:            0.625rem;
+
+    /* ── Fintech semantic: profit / loss ─────────────────────────────── */
+    --profit:            142 71% 45%;   /* emerald-500                    */
+    --profit-foreground: 0 0% 100%;
+    --profit-muted:      142 76% 95%;   /* emerald-50                     */
+
+    --loss:              0 72% 51%;     /* red-500                        */
+    --loss-foreground:   0 0% 100%;
+    --loss-muted:        0 86% 97%;     /* red-50                         */
+
+    /* ── Chart palette ───────────────────────────────────────────────── */
+    --chart-1:           160 84% 39%;   /* emerald – stocks               */
+    --chart-2:           217 91% 60%;   /* blue-500 – bonds               */
+    --chart-3:           37  91% 55%;   /* amber-500 – crypto             */
+    --chart-4:           270 95% 75%;   /* violet-400 – alternatives      */
+    --chart-5:           215 16% 47%;   /* slate-500 – cash               */
+
+    /* ── Sidebar ─────────────────────────────────────────────────────── */
+    --sidebar:           222 47% 11%;   /* slate-900 dark sidebar (light mode) */
+    --sidebar-foreground: 215 20% 82%;  /* slate-300                      */
+    --sidebar-border:    215 25% 18%;   /* slate-800                      */
+    --sidebar-accent:    215 25% 18%;
+    --sidebar-accent-foreground: 0 0% 100%;
+  }
+
+  .dark {
+    /* ── Core backgrounds & surfaces ─────────────────────────────────── */
+    --background:        222 47% 7%;    /* near-black with slate tint     */
+    --foreground:        215 20% 93%;   /* slate-100                      */
+
+    --card:              222 47% 10%;   /* slate-900                      */
+    --card-foreground:   215 20% 93%;
+
+    --popover:           222 47% 10%;
+    --popover-foreground: 215 20% 93%;
+
+    /* ── Brand / interactive ─────────────────────────────────────────── */
+    --primary:           160 84% 39%;   /* emerald-600 – same in dark     */
+    --primary-foreground: 0 0% 100%;
+
+    --secondary:         215 25% 16%;   /* slate-800                      */
+    --secondary-foreground: 215 20% 93%;
+
+    --muted:             215 25% 16%;   /* slate-800                      */
+    --muted-foreground:  215 16% 55%;   /* slate-400                      */
+
+    --accent:            160 84% 39%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive:       0 62% 55%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* ── Chrome ──────────────────────────────────────────────────────── */
+    --border:            215 25% 18%;   /* slate-800                      */
+    --input:             215 25% 18%;
+    --ring:              160 84% 39%;
+
+    /* ── Fintech semantic: profit / loss ─────────────────────────────── */
+    --profit:            142 71% 45%;
+    --profit-foreground: 0 0% 100%;
+    --profit-muted:      142 76% 10%;   /* dark emerald tint              */
+
+    --loss:              0 72% 51%;
+    --loss-foreground:   0 0% 100%;
+    --loss-muted:        0 86% 10%;     /* dark red tint                  */
+
+    /* ── Chart palette ───────────────────────────────────────────────── */
+    --chart-1:           160 84% 45%;
+    --chart-2:           217 91% 65%;
+    --chart-3:           37  91% 60%;
+    --chart-4:           270 95% 78%;
+    --chart-5:           215 16% 55%;
+
+    /* ── Sidebar ─────────────────────────────────────────────────────── */
+    --sidebar:           222 47% 6%;    /* deepest dark for sidebar       */
+    --sidebar-foreground: 215 20% 75%;
+    --sidebar-border:    215 25% 14%;
+    --sidebar-accent:    215 25% 14%;
+    --sidebar-accent-foreground: 215 20% 93%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "rlig" 1, "calt" 1, "tnum" 1; /* tabular nums for financials */
+  }
+
+  /* Scrollbar styling */
+  ::-webkit-scrollbar {
+    @apply w-1.5 h-1.5;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-border rounded-full;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-muted-foreground/40;
+  }
+}
+
+/* ── Fintech utility classes ─────────────────────────────────────────────── */
+@layer utilities {
+  .text-profit {
+    color: hsl(var(--profit));
+  }
+  .text-loss {
+    color: hsl(var(--loss));
+  }
+  .bg-profit-muted {
+    background-color: hsl(var(--profit-muted));
+  }
+  .bg-loss-muted {
+    background-color: hsl(var(--loss-muted));
+  }
+
+  /* Numeric data should always use tabular figures */
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Glass-morphism card variant */
+  .card-glass {
+    @apply bg-card/60 backdrop-blur-md border border-border/50;
+  }
+
+  /* Gradient shimmer for loading skeletons */
+  .shimmer {
+    background: linear-gradient(
+      90deg,
+      hsl(var(--muted)) 25%,
+      hsl(var(--muted-foreground) / 0.1) 50%,
+      hsl(var(--muted)) 75%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+  }
+
+  @keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+}

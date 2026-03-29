@@ -1,0 +1,186 @@
+"use client";
+
+import { TrendingUp, TrendingDown, Wallet, Activity, Star } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
+import { usePortfolio } from "@/lib/hooks/usePortfolio";
+import {
+  formatCurrency,
+  formatPercent,
+  formatSignedCurrency,
+} from "@/lib/utils/format";
+import { cn } from "@/lib/utils/cn";
+
+// ── Individual card components ────────────────────────────────────────────────
+
+function StatCard({
+  title,
+  icon: Icon,
+  children,
+  className,
+}: {
+  title: string;
+  icon: React.ElementType;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <Card className={cn("relative overflow-hidden", className)}>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <CardTitle className="text-sm font-medium text-muted-foreground">
+          {title}
+        </CardTitle>
+        <div className="flex h-8 w-8 items-center justify-center rounded-md bg-muted">
+          <Icon className="h-4 w-4 text-muted-foreground" />
+        </div>
+      </CardHeader>
+      <CardContent>{children}</CardContent>
+    </Card>
+  );
+}
+
+function ChangeIndicator({
+  value,
+  showSign = true,
+  size = "sm",
+}: {
+  value: number;
+  showSign?: boolean;
+  size?: "sm" | "lg";
+}) {
+  const isPositive = value >= 0;
+  const Icon = isPositive ? TrendingUp : TrendingDown;
+
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 font-semibold tabular-nums",
+        isPositive ? "text-profit" : "text-loss",
+        size === "lg" ? "text-base" : "text-xs"
+      )}
+    >
+      <Icon className={size === "lg" ? "h-4 w-4" : "h-3 w-3"} />
+      {showSign && (isPositive ? "+" : "")}
+      {formatPercent(value).replace("+", "")}
+    </span>
+  );
+}
+
+// ── Skeleton state ────────────────────────────────────────────────────────────
+
+function SummaryCardsSkeleton() {
+  return (
+    <>
+      {[0, 1, 2].map((i) => (
+        <Card key={i}>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <Skeleton className="h-4 w-32" />
+            <Skeleton className="h-8 w-8 rounded-md" />
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <Skeleton className="h-8 w-40" />
+            <Skeleton className="h-4 w-24" />
+          </CardContent>
+        </Card>
+      ))}
+    </>
+  );
+}
+
+// ── Main component ────────────────────────────────────────────────────────────
+
+export function SummaryCards() {
+  const { data: portfolio, isLoading, isError } = usePortfolio();
+
+  if (isLoading) return <SummaryCardsSkeleton />;
+
+  if (isError || !portfolio) {
+    return (
+      <Card className="col-span-3 flex items-center justify-center p-8 text-muted-foreground">
+        Failed to load portfolio data. Please try again.
+      </Card>
+    );
+  }
+
+  const { summary } = portfolio;
+  const pnlIsPositive = summary.change24hAbsolute >= 0;
+
+  return (
+    <>
+      {/* ── Card 1: Total Balance ── */}
+      <StatCard title="Total Balance" icon={Wallet}>
+        <div className="space-y-1">
+          <p className="text-3xl font-bold tracking-tight tabular-nums">
+            {formatCurrency(summary.totalValue)}
+          </p>
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <ChangeIndicator value={summary.totalUnrealizedPnLPercent} />
+            <span>all-time return</span>
+          </div>
+        </div>
+        {/* Subtle gradient accent */}
+        <div className="absolute -right-4 -top-4 h-20 w-20 rounded-full bg-profit/5 blur-xl" />
+      </StatCard>
+
+      {/* ── Card 2: 24h Profit / Loss ── */}
+      <StatCard
+        title="24h Profit / Loss"
+        icon={Activity}
+        className={pnlIsPositive ? "border-profit/20" : "border-loss/20"}
+      >
+        <div className="space-y-1">
+          <p
+            className={cn(
+              "text-3xl font-bold tracking-tight tabular-nums",
+              pnlIsPositive ? "text-profit" : "text-loss"
+            )}
+          >
+            {formatSignedCurrency(summary.change24hAbsolute)}
+          </p>
+          <div className="flex items-center gap-2">
+            <ChangeIndicator value={summary.change24hPercent} />
+            <span className="text-xs text-muted-foreground">since yesterday</span>
+          </div>
+        </div>
+        <div
+          className={cn(
+            "absolute -right-4 -top-4 h-20 w-20 rounded-full blur-xl",
+            pnlIsPositive ? "bg-profit/8" : "bg-loss/8"
+          )}
+        />
+      </StatCard>
+
+      {/* ── Card 3: Best Performing Asset ── */}
+      <StatCard title="Best Performing Asset" icon={Star}>
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-2">
+            <Badge
+              variant="secondary"
+              className="font-mono text-sm font-bold px-2"
+            >
+              {summary.bestPerformer.ticker}
+            </Badge>
+            <ChangeIndicator
+              value={summary.bestPerformer.change24hPercent}
+              size="lg"
+            />
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {summary.bestPerformer.name}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Worst:{" "}
+            <span className="font-mono font-semibold text-foreground">
+              {summary.worstPerformer.ticker}
+            </span>{" "}
+            <span className="text-loss">
+              {formatPercent(summary.worstPerformer.change24hPercent)}
+            </span>
+          </p>
+        </div>
+        <div className="absolute -right-4 -top-4 h-20 w-20 rounded-full bg-profit/5 blur-xl" />
+      </StatCard>
+    </>
+  );
+}
