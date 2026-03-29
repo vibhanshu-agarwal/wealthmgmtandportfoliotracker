@@ -51,6 +51,11 @@ dependencyManagement {
     }
 }
 
+tasks.named('bootRun') {
+    jvmArgs = ['-Duser.timezone=Asia/Kolkata']
+}
+
 tasks.named('test') {
     useJUnitPlatform()
+    jvmArgs = ['-Duser.timezone=Asia/Kolkata']
 }
