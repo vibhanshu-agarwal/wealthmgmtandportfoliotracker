@@ -1,26 +1,28 @@
-# Dependencies
-node_modules/
-.pnp
+# dependencies
+/node_modules
+/.pnp
 .pnp.js
 
-# Next.js
-.next/
-out/
-build/
+# testing
+/coverage
 
-# Env files (never commit secrets)
-.env*.local
+# next.js build output
+/.next/
+/out/
 
-# Misc
+# production artifacts
+build
+dist
+
+# misc
 .DS_Store
 *.pem
-Thumbs.db
 
-# Debug
+# debug
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# TypeScript
-*.tsbuildinfo
-next-env.d.ts
+# local env files (Never commit secrets!)
+.env*.local
+.env
