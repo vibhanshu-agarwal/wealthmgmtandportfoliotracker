@@ -35,3 +35,20 @@ out/
 
 ### VS Code ###
 .vscode/
+
+### Spring Boot ###
+HELP.md
+.springBeans
+
+###  OS generated files ###
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+### Local Environment Variables (Keep secrets out of version control!) ###
+.env
+*.env.local
