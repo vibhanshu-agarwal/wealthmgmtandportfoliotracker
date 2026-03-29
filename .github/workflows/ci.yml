@@ -1,0 +1,38 @@
+name: Java CI with Gradle and Spring Modulith
+
+# Run this workflow on all pushes to main, and on all PRs targeting main
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Set up JDK 25
+      uses: actions/setup-java@v4
+      with:
+        java-version: '25'
+        distribution: 'temurin'
+        cache: gradle # Speeds up builds by caching dependencies
+
+    - name: Make gradlew executable
+      run: chmod +x ./gradlew
+
+    - name: Execute Build and Architectural Tests
+      # This runs standard tests, Testcontainers integration tests, 
+      # and the Spring Modulith ArchUnit boundaries.
+      run: ./gradlew build --no-daemon
+
+    - name: Upload Test Results on Failure
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-results
+        path: build/reports/tests/
