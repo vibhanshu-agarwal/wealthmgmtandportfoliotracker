@@ -2,6 +2,7 @@ package com.wealth.portfolio;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -18,6 +19,9 @@ class PortfolioServiceTest {
     @Mock
     private PortfolioRepository portfolioRepository;
 
+    @Mock
+    private JdbcTemplate jdbcTemplate;
+
     @InjectMocks
     private PortfolioService portfolioService;
 
@@ -27,6 +31,9 @@ class PortfolioServiceTest {
         var second = new Portfolio("user-001");
 
         when(portfolioRepository.findByUserId("user-001")).thenReturn(List.of(first, second));
+        when(jdbcTemplate.queryForObject(org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.eq(BigDecimal.class),
+                org.mockito.ArgumentMatchers.eq("user-001"))).thenReturn(BigDecimal.ZERO);
 
         var summary = portfolioService.getSummary("user-001");
 

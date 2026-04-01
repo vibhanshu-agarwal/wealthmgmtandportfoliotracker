@@ -1,6 +1,7 @@
 package com.wealth.portfolio;
 
 import com.wealth.portfolio.dto.PortfolioSummaryDto;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -11,9 +12,11 @@ import java.util.List;
 public class PortfolioService {
 
     private final PortfolioRepository portfolioRepository;
+    private final JdbcTemplate jdbcTemplate;
 
-    public PortfolioService(PortfolioRepository portfolioRepository) {
+    public PortfolioService(PortfolioRepository portfolioRepository, JdbcTemplate jdbcTemplate) {
         this.portfolioRepository = portfolioRepository;
+        this.jdbcTemplate = jdbcTemplate;
     }
 
     /**
@@ -46,12 +49,24 @@ public class PortfolioService {
                 .mapToInt(p -> p.getHoldings().size())
                 .sum();
 
-        var totalValue = portfolios.stream()
-                .flatMap(p -> p.getHoldings().stream())
-                .map(AssetHolding::getQuantity)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        var totalValue = jdbcTemplate.queryForObject(
+                """
+                SELECT COALESCE(SUM(h.quantity * COALESCE(mp.current_price, 0)), 0)
+                FROM asset_holdings h
+                JOIN portfolios p ON p.id = h.portfolio_id
+                LEFT JOIN market_prices mp ON mp.ticker = h.asset_ticker
+                WHERE p.user_id = ?
+                """,
+                BigDecimal.class,
+                userId
+        );
 
-        return new PortfolioSummaryDto(userId, portfolios.size(), totalHoldings, totalValue);
+        return new PortfolioSummaryDto(
+                userId,
+                portfolios.size(),
+                totalHoldings,
+                totalValue == null ? BigDecimal.ZERO : totalValue
+        );
     }
 
     private PortfolioResponse toResponse(Portfolio portfolio) {

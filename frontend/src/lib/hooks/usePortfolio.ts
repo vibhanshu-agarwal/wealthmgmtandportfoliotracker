@@ -12,9 +12,9 @@ import { fetchPortfolioSummary } from "@/lib/apiService";
 // Centralised here so invalidation is consistent across the app.
 
 export const portfolioKeys = {
-  all:         (id: string)             => ["portfolio", id]         as const,
-  performance: (id: string, days: number) => ["portfolio", id, "performance", days] as const,
-  allocation:  (id: string)             => ["portfolio", id, "allocation"]  as const,
+  all:         (userId: string)             => ["portfolio", userId]         as const,
+  performance: (userId: string, days: number) => ["portfolio", userId, "performance", days] as const,
+  allocation:  (userId: string)             => ["portfolio", userId, "allocation"]  as const,
   summary:     (userId: string)         => ["portfolio", "summary", userId] as const,
 };
 
@@ -23,10 +23,10 @@ export const portfolioKeys = {
 /**
  * Full portfolio data: summary + holdings list.
  */
-export function usePortfolio(portfolioId = "p-001") {
+export function usePortfolio(userId = "user-001") {
   return useQuery({
-    queryKey: portfolioKeys.all(portfolioId),
-    queryFn: () => fetchPortfolio(portfolioId),
+    queryKey: portfolioKeys.all(userId),
+    queryFn: () => fetchPortfolio(userId),
     staleTime: 30_000,      // treat data as fresh for 30 s
     refetchInterval: 60_000, // background refetch every 60 s
   });
@@ -36,10 +36,10 @@ export function usePortfolio(portfolioId = "p-001") {
  * Historical performance data for the area chart.
  * @param days Number of calendar days to fetch (default 30)
  */
-export function usePortfolioPerformance(portfolioId = "p-001", days = 30) {
+export function usePortfolioPerformance(userId = "user-001", days = 30) {
   return useQuery({
-    queryKey: portfolioKeys.performance(portfolioId, days),
-    queryFn: () => fetchPortfolioPerformance(portfolioId, days),
+    queryKey: portfolioKeys.performance(userId, days),
+    queryFn: () => fetchPortfolioPerformance(userId, days),
     staleTime: 60_000,
   });
 }
@@ -47,10 +47,10 @@ export function usePortfolioPerformance(portfolioId = "p-001", days = 30) {
 /**
  * Asset-class allocation breakdown for the donut chart.
  */
-export function useAssetAllocation(portfolioId = "p-001") {
+export function useAssetAllocation(userId = "user-001") {
   return useQuery({
-    queryKey: portfolioKeys.allocation(portfolioId),
-    queryFn: () => fetchAssetAllocation(portfolioId),
+    queryKey: portfolioKeys.allocation(userId),
+    queryFn: () => fetchAssetAllocation(userId),
     staleTime: 60_000,
   });
 }

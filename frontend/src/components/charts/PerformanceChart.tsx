@@ -81,7 +81,7 @@ interface PerformanceChartProps {
 }
 
 export function PerformanceChart({ days = 30 }: PerformanceChartProps) {
-  const { data, isLoading, isError } = usePortfolioPerformance("p-001", days);
+  const { data, isLoading, isError } = usePortfolioPerformance("user-001", days);
 
   if (isLoading) return <PerformanceChartSkeleton />;
 
