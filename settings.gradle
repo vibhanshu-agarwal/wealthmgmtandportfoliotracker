@@ -1,1 +1,6 @@
 rootProject.name = 'wealthmgmtandportfoliotracker'
+include 'api-gateway'
+include 'portfolio-service'
+include 'market-data-service'
+include 'insight-service'
+include 'common-dto'

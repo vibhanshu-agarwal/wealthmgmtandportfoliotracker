@@ -1,0 +1,37 @@
+spring:
+  application:
+    name: api-gateway
+  data:
+    redis:
+      host: localhost
+      port: 6379
+  cloud:
+    gateway:
+      routes:
+        - id: portfolio-service
+          uri: http://localhost:8081
+          predicates:
+            - Path=/api/portfolio/**
+        - id: market-data-service
+          uri: http://localhost:8082
+          predicates:
+            - Path=/api/market/**
+          filters:
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 10
+                redis-rate-limiter.burstCapacity: 20
+                key-resolver: "#{@userKeyResolver}"
+        - id: insight-service
+          uri: http://localhost:8083
+          predicates:
+            - Path=/api/insight/**
+
+server:
+  port: 8080
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"

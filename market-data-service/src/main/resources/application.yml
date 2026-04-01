@@ -1,0 +1,21 @@
+spring:
+  application:
+    name: market-data-service
+  data:
+    mongodb:
+      uri: mongodb://localhost:27017/market_db
+  kafka:
+    bootstrap-servers: localhost:9094
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        spring.json.add.type.headers: true
+
+server:
+  port: 8082
+
+logging:
+  level:
+    org.springframework.data.mongodb: DEBUG
+    org.springframework.kafka: INFO

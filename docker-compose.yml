@@ -1,0 +1,53 @@
+services:
+  postgres:
+    image: 'postgres:16'
+    container_name: portfolio-db
+    environment:
+      POSTGRES_DB: portfolio_db
+      POSTGRES_USER: wealth_user
+      POSTGRES_PASSWORD: wealth_pass
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+  mongodb:
+    image: 'mongo:7.0'
+    container_name: market-db
+    environment:
+      MONGO_INITDB_DATABASE: market_db
+    ports:
+      - '27017:27017'
+    volumes:
+      - mongodb-data:/data/db
+
+  kafka:
+    image: 'bitnami/kafka:3.7'
+    container_name: event-broker
+    ports:
+      - '9092:9092'
+      - '9094:9094'
+    environment:
+      # KRaft mode settings
+      - KAFKA_CFG_NODE_ID=1
+      - KAFKA_CFG_PROCESS_ROLES=controller,broker
+      - KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=1@kafka:9093
+      # Listeners configuration
+      - KAFKA_CFG_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093,EXTERNAL://:9094
+      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092,EXTERNAL://localhost:9094
+      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
+      - KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER
+      - KAFKA_KRAFT_CLUSTER_ID=NjY0NmE0NjY0NmE0NjY0Ng==
+    volumes:
+      - kafka-data:/bitnami/kafka
+
+  redis:
+    image: 'redis:7.2'
+    container_name: gateway-cache
+    ports:
+      - '6379:6379'
+
+volumes:
+  postgres-data:
+  mongodb-data:
+  kafka-data:
