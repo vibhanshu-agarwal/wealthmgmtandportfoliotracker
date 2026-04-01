@@ -1,6 +1,7 @@
 package com.wealth.portfolio;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 import org.springframework.modulith.test.ApplicationModuleTest;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -9,6 +10,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 @ApplicationModuleTest
+@Tag("integration")
 @Testcontainers(disabledWithoutDocker = true)
 class PortfolioModuleSmokeTest {
 

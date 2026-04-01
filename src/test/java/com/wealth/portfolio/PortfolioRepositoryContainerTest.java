@@ -1,7 +1,9 @@
 package com.wealth.portfolio;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
@@ -11,6 +13,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 @SpringBootTest
+@Tag("integration")
 @Testcontainers(disabledWithoutDocker = true)
 class PortfolioRepositoryContainerTest {
 
@@ -25,11 +28,8 @@ class PortfolioRepositoryContainerTest {
         registry.add("spring.datasource.password", postgres::getPassword);
     }
 
-    private final PortfolioRepository portfolioRepository;
-
-    PortfolioRepositoryContainerTest(PortfolioRepository portfolioRepository) {
-        this.portfolioRepository = portfolioRepository;
-    }
+    @Autowired
+    private PortfolioRepository portfolioRepository;
 
     @Test
     void shouldPersistAndFetchByUserId() {

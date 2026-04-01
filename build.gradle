@@ -68,6 +68,17 @@ tasks.named('bootRun') {
 }
 
 tasks.named('test') {
-    useJUnitPlatform()
+    useJUnitPlatform {
+        excludeTags 'integration'
+    }
     jvmArgs = ['-Duser.timezone=Asia/Kolkata']
+}
+
+tasks.register('integrationTest', Test) {
+    description = 'Runs integration tests (tagged with integration).'
+    group = 'verification'
+    useJUnitPlatform {
+        includeTags 'integration'
+    }
+    shouldRunAfter(tasks.named('test'))
 }
