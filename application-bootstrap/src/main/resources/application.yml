@@ -1,0 +1,18 @@
+spring:
+  application:
+    name: wealth-management-app
+  datasource:
+    url: jdbc:postgresql://localhost:5432/wealthdb
+    username: ${DB_USERNAME:wealth_user}
+    password: ${DB_PASSWORD:wealth_pass}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        default_schema: public
+    open-in-view: false
+
+server:
+  port: 8080

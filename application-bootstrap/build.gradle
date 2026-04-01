@@ -1,0 +1,20 @@
+plugins {
+    id 'org.springframework.boot'
+}
+
+description = 'Application Bootstrap - Entry point for the Wealth Management Modular Monolith'
+
+dependencies {
+    implementation project(':user-context')
+    implementation project(':portfolio-context')
+    implementation project(':market-data-context')
+    implementation project(':insight-context')
+
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    runtimeOnly 'org.postgresql:postgresql'
+    developmentOnly 'org.springframework.boot:spring-boot-devtools'
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
