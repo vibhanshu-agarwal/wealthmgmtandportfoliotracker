@@ -59,3 +59,40 @@ This project heavily utilizes `spring-boot-docker-compose` and Testcontainers fo
 **To start the application:**
 ```bash
 ./gradlew bootRun
+```
+
+## ✅ Testing
+
+Run these commands from the repository root unless noted.
+
+1. Backend test suite
+```bash
+./gradlew test
+```
+Expected output:
+```text
+BUILD SUCCESSFUL
+```
+
+2. Frontend unit/component tests (Vitest + RTL + MSW)
+```bash
+cd frontend
+npm install
+npm test
+```
+Expected output:
+```text
+Test Files  1 passed
+Tests       1 passed
+```
+
+3. Frontend E2E smoke test (Playwright standalone build check)
+```bash
+cd frontend
+npx playwright install chromium
+npm run test:e2e
+```
+Expected output:
+```text
+1 passed
+```
