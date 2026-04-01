@@ -4,7 +4,7 @@ import { TrendingUp, TrendingDown, Wallet, Activity, Star } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { usePortfolio } from "@/lib/hooks/usePortfolio";
+import { usePortfolio, usePortfolioSummary } from "@/lib/hooks/usePortfolio";
 import {
   formatCurrency,
   formatPercent,
@@ -92,8 +92,9 @@ function SummaryCardsSkeleton() {
 
 export function SummaryCards() {
   const { data: portfolio, isLoading, isError } = usePortfolio();
+  const { data: portfolioSummary, isLoading: isSummaryLoading } = usePortfolioSummary();
 
-  if (isLoading) return <SummaryCardsSkeleton />;
+  if (isLoading || isSummaryLoading) return <SummaryCardsSkeleton />;
 
   if (isError || !portfolio) {
     return (
@@ -105,14 +106,15 @@ export function SummaryCards() {
 
   const { summary } = portfolio;
   const pnlIsPositive = summary.change24hAbsolute >= 0;
+  const portfolioTotal = portfolioSummary?.totalValue ?? portfolio.summary.totalValue;
 
   return (
     <>
-      {/* ── Card 1: Total Balance ── */}
-      <StatCard title="Total Balance" icon={Wallet}>
+      {/* ── Card 1: Portfolio Total ── */}
+      <StatCard title="Portfolio Total" icon={Wallet}>
         <div className="space-y-1">
           <p className="text-3xl font-bold tracking-tight tabular-nums">
-            {formatCurrency(summary.totalValue)}
+            {formatCurrency(portfolioTotal)}
           </p>
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <ChangeIndicator value={summary.totalUnrealizedPnLPercent} />

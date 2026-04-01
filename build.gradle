@@ -20,6 +20,8 @@ repositories {
 ext {
     // Align with the Spring Modulith release train for Spring Boot 4.x
     set('springModulithVersion', '2.0.5')
+    set('junitVersion', '6.0.0')
+    set('mockitoVersion', '5.20.0')
 }
 
 dependencies {
@@ -37,8 +39,13 @@ dependencies {
     developmentOnly 'org.springframework.boot:spring-boot-devtools'
     developmentOnly 'org.springframework.boot:spring-boot-docker-compose'
 
+    testImplementation platform("org.junit:junit-bom:${junitVersion}")
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testImplementation 'org.junit.jupiter:junit-jupiter-params'
     testImplementation 'org.springframework.modulith:spring-modulith-starter-test'
+    testImplementation "org.mockito:mockito-core:${mockitoVersion}"
+    testImplementation "org.mockito:mockito-junit-jupiter:${mockitoVersion}"
     testImplementation 'org.springframework.boot:spring-boot-testcontainers'
     testImplementation 'org.testcontainers:junit-jupiter'
     testImplementation 'org.testcontainers:postgresql'

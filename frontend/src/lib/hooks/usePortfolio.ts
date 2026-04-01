@@ -6,6 +6,7 @@ import {
   fetchPortfolioPerformance,
   fetchAssetAllocation,
 } from "@/lib/api/portfolio";
+import { fetchPortfolioSummary } from "@/lib/apiService";
 
 // ── Query keys ────────────────────────────────────────────────────────────────
 // Centralised here so invalidation is consistent across the app.
@@ -14,6 +15,7 @@ export const portfolioKeys = {
   all:         (id: string)             => ["portfolio", id]         as const,
   performance: (id: string, days: number) => ["portfolio", id, "performance", days] as const,
   allocation:  (id: string)             => ["portfolio", id, "allocation"]  as const,
+  summary:     (userId: string)         => ["portfolio", "summary", userId] as const,
 };
 
 // ── Hooks ─────────────────────────────────────────────────────────────────────
@@ -50,5 +52,14 @@ export function useAssetAllocation(portfolioId = "p-001") {
     queryKey: portfolioKeys.allocation(portfolioId),
     queryFn: () => fetchAssetAllocation(portfolioId),
     staleTime: 60_000,
+  });
+}
+
+export function usePortfolioSummary(userId = "user-001") {
+  return useQuery({
+    queryKey: portfolioKeys.summary(userId),
+    queryFn: () => fetchPortfolioSummary(userId),
+    staleTime: 30_000,
+    retry: 1,
   });
 }
