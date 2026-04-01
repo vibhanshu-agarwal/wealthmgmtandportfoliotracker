@@ -2,7 +2,7 @@ spring:
   application:
     name: portfolio-service
   datasource:
-    url: jdbc:postgresql://localhost:5432/portfolio_db
+    url: jdbc:postgresql://localhost:5432/portfolio_db?options=-c%20timezone=Asia/Kolkata
     username: wealth_user
     password: wealth_pass
     driver-class-name: org.postgresql.Driver
