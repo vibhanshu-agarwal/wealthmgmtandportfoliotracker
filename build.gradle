@@ -7,6 +7,10 @@ plugins {
 group = 'com.wealth'
 version = '0.0.1-SNAPSHOT'
 
+springBoot {
+    mainClass = 'com.wealth.WealthManagementApplication'
+}
+
 java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(25)
