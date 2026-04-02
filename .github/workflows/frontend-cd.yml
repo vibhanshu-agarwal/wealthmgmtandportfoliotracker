@@ -2,7 +2,7 @@ name: Frontend CD (Publish Docker Image)
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "architecture/**" ]
 
 permissions:
   contents: read

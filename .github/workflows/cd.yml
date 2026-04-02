@@ -3,7 +3,7 @@ name: Continuous Deployment (Publish Docker Image)
 # This pipeline only runs AFTER code is successfully merged to main
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "architecture/**" ]
 
 # Define permissions needed to push to GitHub's Container Registry
 permissions:

@@ -3,9 +3,9 @@ name: Java CI with Gradle and Spring Modulith
 # Run this workflow on all pushes to main, and on all PRs targeting main
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "architecture/**" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "main", "architecture/**" ]
 
 jobs:
   build-and-test:
