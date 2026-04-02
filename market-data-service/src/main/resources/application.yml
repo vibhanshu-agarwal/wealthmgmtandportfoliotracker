@@ -1,9 +1,8 @@
 spring:
   application:
     name: market-data-service
-  data:
-    mongodb:
-      connection-string: mongodb://localhost:27017/market_db
+  mongodb:
+      uri: mongodb://localhost:27017/market_db
   kafka:
     bootstrap-servers: localhost:9094
     producer:
