@@ -15,10 +15,11 @@ public class MarketPriceService {
     private static final String TOPIC = "market-prices";
 
     private final AssetPriceRepository assetPriceRepository;
-    private final KafkaTemplate<String, Object> kafkaTemplate;
+
+    private final KafkaTemplate<Object, Object> kafkaTemplate;
 
     public MarketPriceService(AssetPriceRepository assetPriceRepository,
-                              KafkaTemplate<String, Object> kafkaTemplate) {
+                              KafkaTemplate<Object, Object> kafkaTemplate) {
         this.assetPriceRepository = assetPriceRepository;
         this.kafkaTemplate = kafkaTemplate;
     }

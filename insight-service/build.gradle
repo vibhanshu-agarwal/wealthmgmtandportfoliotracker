@@ -4,6 +4,9 @@ plugins {
 
 dependencies {
     implementation project(':common-dto')
-    implementation 'org.springframework.boot:spring-boot-starter-web'
-    implementation 'org.springframework.kafka:spring-kafka'
+    implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+    implementation 'org.springframework.boot:spring-boot-starter-kafka'
+}
+tasks.withType(Test).configureEach {
+    useJUnitPlatform()
 }

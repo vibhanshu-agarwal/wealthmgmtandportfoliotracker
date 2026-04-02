@@ -13,7 +13,7 @@ Execute the following steps sequentially. Do not proceed to the next step until 
 Modify the root `build.gradle` to include the OpenRewrite plugin and the latest Spring recipes.
 
 1. Add the plugin to the `plugins` block using the latest stable 6.x version:
-   `id("org.openrewrite.rewrite") version("6.20.0")`
+   `id("org.openrewrite.rewrite") version("latest.release")`
 2. Add the `rewrite` configuration block to activate the standard Spring Boot 4 cleanup and migration recipes:
    ```gradle
    rewrite {
