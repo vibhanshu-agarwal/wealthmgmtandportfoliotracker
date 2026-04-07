@@ -2,10 +2,7 @@ package com.wealth.portfolio;
 
 import jakarta.persistence.*;
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 
 @Entity
 @Table(name = "portfolios")
@@ -45,4 +42,6 @@ public class Portfolio {
     public String getUserId() { return userId; }
     public Instant getCreatedAt() { return createdAt; }
     public List<AssetHolding> getHoldings() { return Collections.unmodifiableList(holdings); }
+
+
 }
