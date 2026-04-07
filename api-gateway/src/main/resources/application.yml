@@ -3,19 +3,19 @@ spring:
     name: api-gateway
   data:
     redis:
-      host: localhost
-      port: 6379
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
   cloud:
     gateway:
       server:
         webflux:
           routes:
             - id: portfolio-service
-              uri: http://localhost:8081
+              uri: ${PORTFOLIO_SERVICE_URL:http://localhost:8081}
               predicates:
                 - Path=/api/portfolio/**
             - id: market-data-service
-              uri: http://localhost:8082
+              uri: ${MARKET_DATA_SERVICE_URL:http://localhost:8082}
               predicates:
                 - Path=/api/market/**
               filters:
@@ -25,7 +25,7 @@ spring:
                     redis-rate-limiter.burstCapacity: 40
                     key-resolver: "#{@ipKeyResolver}"
             - id: insight-service
-              uri: http://localhost:8083
+              uri: ${INSIGHT_SERVICE_URL:http://localhost:8083}
               predicates:
                 - Path=/api/insight/**
 

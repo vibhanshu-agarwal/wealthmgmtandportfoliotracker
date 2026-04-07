@@ -2,9 +2,9 @@ spring:
   application:
     name: market-data-service
   mongodb:
-      uri: mongodb://localhost:27017/market_db
+    uri: ${SPRING_MONGODB_URI:mongodb://localhost:27017/market_db}
   kafka:
-    bootstrap-servers: localhost:9094
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9094}
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JacksonJsonSerializer
