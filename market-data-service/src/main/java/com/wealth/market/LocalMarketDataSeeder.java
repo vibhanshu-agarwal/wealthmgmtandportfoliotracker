@@ -8,7 +8,9 @@ import org.springframework.boot.ApplicationRunner;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 @Component
 class LocalMarketDataSeeder implements ApplicationRunner {
@@ -34,11 +36,6 @@ class LocalMarketDataSeeder implements ApplicationRunner {
             return;
         }
 
-        if (assetPriceRepository.count() > 0) {
-            log.info("Market data seed skipped: collection already contains data");
-            return;
-        }
-
         Map<String, BigDecimal> seedPrices = Map.of(
                 "AAPL", new BigDecimal("212.5000"),
                 "TSLA", new BigDecimal("276.0000"),
@@ -48,7 +45,24 @@ class LocalMarketDataSeeder implements ApplicationRunner {
                 "ETH", new BigDecimal("3540.5000")
         );
 
-        seedPrices.forEach(marketPriceService::updatePrice);
-        log.info("Seeded {} market prices into MongoDB", seedPrices.size());
+        Set<String> existingTickers = new HashSet<>(
+                assetPriceRepository.findAll().stream().map(AssetPrice::getTicker).toList()
+        );
+
+        int seeded = 0;
+        for (Map.Entry<String, BigDecimal> entry : seedPrices.entrySet()) {
+            if (existingTickers.contains(entry.getKey())) {
+                continue;
+            }
+            marketPriceService.updatePrice(entry.getKey(), entry.getValue());
+            seeded++;
+        }
+
+        if (seeded == 0) {
+            log.info("Market data seed skipped: all baseline tickers already present");
+            return;
+        }
+
+        log.info("Seeded {} missing market prices into MongoDB", seeded);
     }
 }
