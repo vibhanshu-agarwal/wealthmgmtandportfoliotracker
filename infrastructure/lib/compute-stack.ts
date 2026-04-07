@@ -70,9 +70,8 @@ export class ComputeStack extends cdk.Stack {
     );
 
     portfolioTaskDefinition.addContainer('PortfolioContainer', {
-      image: ecs.ContainerImage.fromRegistry(
-        `${cdk.Aws.ACCOUNT_ID}.dkr.ecr.${cdk.Aws.REGION}.${cdk.Aws.URL_SUFFIX}/portfolio-service:latest`,
-      ),
+      // Tell CDK to look one folder up, find the portfolio-service Dockerfile, and build it!
+      image: ecs.ContainerImage.fromAsset('../portfolio-service'),
       environment: {
         SPRING_PROFILES_ACTIVE: 'aws',
         SPRING_DATASOURCE_URL: props.postgresJdbcUrl,
@@ -94,9 +93,7 @@ export class ComputeStack extends cdk.Stack {
     );
 
     marketDataTaskDefinition.addContainer('MarketDataContainer', {
-      image: ecs.ContainerImage.fromRegistry(
-        `${cdk.Aws.ACCOUNT_ID}.dkr.ecr.${cdk.Aws.REGION}.${cdk.Aws.URL_SUFFIX}/market-data-service:latest`,
-      ),
+      image: ecs.ContainerImage.fromAsset('../market-data-service'),
       environment: {
         SPRING_PROFILES_ACTIVE: 'aws',
         MARKET_DATA_TABLE_NAME: props.marketDataTable.tableName,
@@ -114,9 +111,7 @@ export class ComputeStack extends cdk.Stack {
     );
 
     apiGatewayTaskDefinition.addContainer('ApiGatewayContainer', {
-      image: ecs.ContainerImage.fromRegistry(
-        `${cdk.Aws.ACCOUNT_ID}.dkr.ecr.${cdk.Aws.REGION}.${cdk.Aws.URL_SUFFIX}/api-gateway:latest`,
-      ),
+      image: ecs.ContainerImage.fromAsset('../api-gateway'),
       environment: {
         SPRING_PROFILES_ACTIVE: 'aws',
         REDIS_HOST: props.redisEndpointAddress,
