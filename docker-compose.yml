@@ -45,7 +45,7 @@ services:
       - kafka-data:/var/lib/kafka/data
 
   redis:
-    image: 'redis:7.2'
+    image: 'redis:alpine'
     container_name: gateway-cache
     ports:
       - '6379:6379'
