@@ -16,10 +16,10 @@ public class MarketPriceService {
 
     private final AssetPriceRepository assetPriceRepository;
 
-    private final KafkaTemplate<Object, Object> kafkaTemplate;
+    private final KafkaTemplate<String, PriceUpdatedEvent> kafkaTemplate;
 
     public MarketPriceService(AssetPriceRepository assetPriceRepository,
-                              KafkaTemplate<Object, Object> kafkaTemplate) {
+                              KafkaTemplate<String, PriceUpdatedEvent> kafkaTemplate) {
         this.assetPriceRepository = assetPriceRepository;
         this.kafkaTemplate = kafkaTemplate;
     }
