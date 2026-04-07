@@ -18,3 +18,7 @@ logging:
   level:
     org.springframework.data.mongodb: DEBUG
     org.springframework.kafka: INFO
+
+market:
+  seed:
+    enabled: true

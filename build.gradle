@@ -56,6 +56,15 @@ subprojects {
 
     // --- NEW: Test Task Configurations ---
 
+    // Keep JVM timezone explicit to avoid PostgreSQL rejecting Asia/Calcutta from host defaults.
+    tasks.withType(Test).configureEach {
+        jvmArgs '-Duser.timezone=Asia/Kolkata'
+    }
+
+    tasks.matching { it.name == 'bootRun' }.configureEach {
+        jvmArgs '-Duser.timezone=Asia/Kolkata'
+    }
+
     // 1. Configure the standard 'test' task to run fast (ignore integration tags)
     tasks.named('test', Test) {
         useJUnitPlatform {

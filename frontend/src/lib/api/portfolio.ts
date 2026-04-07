@@ -52,7 +52,7 @@ async function fetchJson<T>(path: string): Promise<T> {
 }
 
 async function loadBackendPortfolio(userId: string): Promise<BackendPortfolio | null> {
-  const portfolios = await fetchJson<BackendPortfolio[]>(`/api/v1/portfolios/${userId}`);
+  const portfolios = await fetchJson<BackendPortfolio[]>(`/api/portfolio/${userId}`);
   return portfolios.length > 0 ? portfolios[0] : null;
 }
 
