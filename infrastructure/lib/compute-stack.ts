@@ -5,6 +5,7 @@ import * as ecs from 'aws-cdk-lib/aws-ecs';
 import * as elbv2 from 'aws-cdk-lib/aws-elasticloadbalancingv2';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
+import * as iam from 'aws-cdk-lib/aws-iam';
 
 export interface ComputeStackProps extends cdk.StackProps {
   readonly vpc: ec2.IVpc;
@@ -64,6 +65,9 @@ export class ComputeStack extends cdk.Stack {
       cpu: 256,
       memoryLimitMiB: 512,
     });
+    portfolioTaskDefinition.executionRole?.addManagedPolicy(
+      iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AmazonECSTaskExecutionRolePolicy'),
+    );
 
     portfolioTaskDefinition.addContainer('PortfolioContainer', {
       image: ecs.ContainerImage.fromRegistry(
@@ -85,6 +89,9 @@ export class ComputeStack extends cdk.Stack {
       cpu: 256,
       memoryLimitMiB: 512,
     });
+    marketDataTaskDefinition.executionRole?.addManagedPolicy(
+      iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AmazonECSTaskExecutionRolePolicy'),
+    );
 
     marketDataTaskDefinition.addContainer('MarketDataContainer', {
       image: ecs.ContainerImage.fromRegistry(
@@ -102,6 +109,9 @@ export class ComputeStack extends cdk.Stack {
       cpu: 256,
       memoryLimitMiB: 512,
     });
+    apiGatewayTaskDefinition.executionRole?.addManagedPolicy(
+      iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AmazonECSTaskExecutionRolePolicy'),
+    );
 
     apiGatewayTaskDefinition.addContainer('ApiGatewayContainer', {
       image: ecs.ContainerImage.fromRegistry(
