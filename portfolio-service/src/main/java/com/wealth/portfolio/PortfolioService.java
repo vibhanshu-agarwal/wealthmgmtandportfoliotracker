@@ -49,6 +49,7 @@ public class PortfolioService {
                 .mapToInt(p -> p.getHoldings().size())
                 .sum();
 
+        // Valuation joins local latest-price projection table updated asynchronously from Kafka events.
         var totalValue = jdbcTemplate.queryForObject(
                 """
                 SELECT COALESCE(SUM(h.quantity * COALESCE(mp.current_price, 0)), 0)
@@ -60,6 +61,7 @@ public class PortfolioService {
                 BigDecimal.class,
                 userId
         );
+        // TODO: Add currency conversion + FX handling for multi-currency portfolios.
 
         return new PortfolioSummaryDto(
                 userId,

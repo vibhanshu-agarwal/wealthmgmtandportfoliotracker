@@ -82,6 +82,7 @@ interface PerformanceChartProps {
 
 export function PerformanceChart({ days = 30 }: PerformanceChartProps) {
   const { data, isLoading, isError } = usePortfolioPerformance("user-001", days);
+  // TODO: Enable interactive period switching once parent state + query key wiring is finalized.
 
   if (isLoading) return <PerformanceChartSkeleton />;
 

@@ -12,6 +12,11 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+/**
+ * Local bootstrap seeder for baseline market prices.
+ *
+ * <p>This runs at startup and backfills missing symbols only, so repeated runs remain idempotent.
+ */
 @Component
 class LocalMarketDataSeeder implements ApplicationRunner {
 
@@ -44,6 +49,7 @@ class LocalMarketDataSeeder implements ApplicationRunner {
                 "NVDA", new BigDecimal("938.6000"),
                 "ETH", new BigDecimal("3540.5000")
         );
+        // TODO: Replace static seed map with configurable fixture profiles or external feed snapshots.
 
         Set<String> existingTickers = new HashSet<>(
                 assetPriceRepository.findAll().stream().map(AssetPrice::getTicker).toList()

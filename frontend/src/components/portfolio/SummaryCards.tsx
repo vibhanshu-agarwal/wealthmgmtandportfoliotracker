@@ -106,6 +106,7 @@ export function SummaryCards() {
 
   const { summary } = portfolio;
   const pnlIsPositive = summary.change24hAbsolute >= 0;
+  // Prefer backend aggregate from /api/portfolio/summary when available, fallback to local aggregate.
   const portfolioTotal = portfolioSummary?.totalValue ?? portfolio.summary.totalValue;
 
   return (
@@ -154,6 +155,7 @@ export function SummaryCards() {
       </StatCard>
 
       {/* ── Card 3: Best Performing Asset ── */}
+      {/* TODO: Source best/worst performer and 24h deltas from backend analytics endpoint. */}
       <StatCard title="Best Performing Asset" icon={Star}>
         <div className="space-y-1.5">
           <div className="flex items-center gap-2">

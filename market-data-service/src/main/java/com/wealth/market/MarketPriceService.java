@@ -8,6 +8,13 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 
+/**
+ * Application service that owns the market price write path.
+ *
+ * <p>It performs two actions in sequence:
+ * 1) persists the latest ticker price in MongoDB
+ * 2) publishes a {@link PriceUpdatedEvent} to Kafka for downstream consumers
+ */
 @Service
 public class MarketPriceService {
 
@@ -36,6 +43,7 @@ public class MarketPriceService {
         price.setCurrentPrice(newPrice);
         assetPriceRepository.save(price);
 
+        // Publish with ticker as key to preserve partition-level ordering per asset symbol.
         var event = new PriceUpdatedEvent(ticker, newPrice);
         kafkaTemplate.send(TOPIC, ticker, event);
         

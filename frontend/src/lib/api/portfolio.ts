@@ -8,6 +8,10 @@ import type {
   PortfolioResponseDTO,
 } from "@/types/portfolio";
 
+// Frontend aggregation adapter:
+// combines portfolio-service holdings with market-data-service prices into UI-ready DTOs.
+// This keeps components simple and isolates backend contract translation in one place.
+
 interface BackendHolding {
   id: string;
   assetTicker: string;
@@ -67,6 +71,7 @@ async function loadMarketPrices(tickers: string[]): Promise<Map<string, BackendM
 }
 
 function buildPerformanceSeries(days: number, totalValue: number): PerformanceDataPoint[] {
+  // TODO: Replace synthetic curve generation with backend-provided historical performance series.
   if (totalValue <= 0) {
     const today = new Date().toISOString().split("T")[0];
     return [{ date: today, value: 0, change: 0 }];
@@ -141,7 +146,9 @@ export async function fetchPortfolio(userId = "user-001"): Promise<PortfolioResp
       quantity: h.quantity,
       currentPrice,
       totalValue,
+      // TODO: Wire true cost basis from transaction history once trade ledger API is available.
       avgCostBasis: currentPrice,
+      // TODO: Compute unrealized P&L and 24h change from historical and cost-basis data.
       unrealizedPnL: 0,
       change24hPercent: 0,
       change24hAbsolute: 0,
@@ -159,6 +166,7 @@ export async function fetchPortfolio(userId = "user-001"): Promise<PortfolioResp
   const firstHolding = holdingsWithWeight[0];
   const summary = {
     totalValue,
+    // TODO: Replace placeholder summary metrics with backend-computed analytics.
     totalCostBasis: totalValue,
     totalUnrealizedPnL: 0,
     totalUnrealizedPnLPercent: 0,

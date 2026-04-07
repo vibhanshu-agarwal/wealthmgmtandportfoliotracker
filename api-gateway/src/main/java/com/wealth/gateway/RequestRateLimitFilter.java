@@ -17,6 +17,11 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
+/**
+ * Lightweight in-memory rate limiter for gateway API routes.
+ *
+ * <p>Suitable for local/single-instance deployments.
+ */
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE)
 class RequestRateLimitFilter extends OncePerRequestFilter {
@@ -73,6 +78,7 @@ class RequestRateLimitFilter extends OncePerRequestFilter {
             response.setContentType(MediaType.APPLICATION_JSON_VALUE);
             response.setHeader("Retry-After", String.valueOf(retryAfterSeconds));
             response.getWriter().write("{\"error\":\"rate_limit_exceeded\"}");
+            // TODO: Replace this local counter limiter with Redis-backed distributed rate limiting.
             return;
         }
 

@@ -7,6 +7,9 @@ import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.List;
 
+/**
+ * REST adapter for market price queries and updates.
+ */
 @RestController
 @RequestMapping("/api/market")
 public class MarketPriceController {
@@ -29,6 +32,7 @@ public class MarketPriceController {
     public ResponseEntity<List<MarketPriceDto>> getPrices(
             @RequestParam(required = false) String tickers
     ) {
+        // If no ticker filter is provided we return all known prices.
         var prices = (tickers == null || tickers.isBlank())
                 ? assetPriceRepository.findAll()
                 : assetPriceRepository.findByTickerIn(Arrays.stream(tickers.split(","))

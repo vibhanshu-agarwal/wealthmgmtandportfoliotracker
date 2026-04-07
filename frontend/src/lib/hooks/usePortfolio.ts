@@ -24,6 +24,7 @@ export const portfolioKeys = {
  * Full portfolio data: summary + holdings list.
  */
 export function usePortfolio(userId = "user-001") {
+  // TODO: Replace hard-coded fallback user with authenticated user context once auth is integrated.
   return useQuery({
     queryKey: portfolioKeys.all(userId),
     queryFn: () => fetchPortfolio(userId),

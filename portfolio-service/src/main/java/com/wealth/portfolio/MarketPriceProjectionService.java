@@ -8,6 +8,11 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+/**
+ * Maintains the portfolio-service read model of latest market prices.
+ *
+ * <p>Writes are intentionally idempotent so duplicate Kafka delivery does not corrupt valuation state.
+ */
 @Service
 class MarketPriceProjectionService {
 
@@ -22,6 +27,7 @@ class MarketPriceProjectionService {
     @Async
     @Transactional
     public void upsertLatestPrice(PriceUpdatedEvent event) {
+        // "IS DISTINCT FROM" handles both inequality and null-safe comparison for idempotent updates.
         var rowsChanged = jdbcTemplate.update(
                 """
                 INSERT INTO market_prices (ticker, current_price, updated_at)
