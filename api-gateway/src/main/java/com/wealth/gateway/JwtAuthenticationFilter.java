@@ -20,12 +20,13 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
     private static final String X_USER_ID = "X-User-Id";
 
     /**
-     * Runs after Spring Security (which validates the JWT) but before routing.
-     * HIGHEST_PRECEDENCE + 1 ensures Spring Security's WebFilter runs first.
+     * Runs after CloudFront origin verification and Spring Security (which validates the JWT)
+     * but before routing. HIGHEST_PRECEDENCE + 2 ensures CloudFrontOriginVerifyFilter runs
+     * first, followed by Spring Security's WebFilter.
      */
     @Override
     public int getOrder() {
-        return Ordered.HIGHEST_PRECEDENCE + 1;
+        return Ordered.HIGHEST_PRECEDENCE + 2;
     }
 
     @Override

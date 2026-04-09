@@ -1,0 +1,13 @@
+# LocalStack overlay for Terraform integration testing.
+# Usage: docker compose -f docker-compose.yml -f docker-compose.localstack.yml up -d localstack
+services:
+  localstack:
+    image: localstack/localstack:latest
+    ports:
+      - "4566:4566"
+    environment:
+      SERVICES: lambda,s3,dynamodb,cloudfront,iam,acm,route53
+      DEFAULT_REGION: us-east-1
+      LAMBDA_EXECUTOR: local
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
