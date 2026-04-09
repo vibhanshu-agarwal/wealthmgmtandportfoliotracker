@@ -9,12 +9,23 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { TrendingUp, TrendingDown } from "lucide-react";
 import { usePortfolioPerformance } from "@/lib/hooks/usePortfolio";
-import { formatCurrency, formatDateShort, formatSignedCurrency, formatPercent } from "@/lib/utils/format";
+import {
+  formatCurrency,
+  formatDateShort,
+  formatSignedCurrency,
+  formatPercent,
+} from "@/lib/utils/format";
 import { cn } from "@/lib/utils/cn";
 import type { PerformanceDataPoint } from "@/types/portfolio";
 
@@ -42,7 +53,12 @@ function ChartTooltip({
       <p className="font-semibold tabular-nums text-foreground">
         {formatCurrency(point.value)}
       </p>
-      <p className={cn("text-xs tabular-nums mt-0.5", isPositive ? "text-profit" : "text-loss")}>
+      <p
+        className={cn(
+          "text-xs tabular-nums mt-0.5",
+          isPositive ? "text-profit" : "text-loss",
+        )}
+      >
         {isPositive ? "+" : ""}
         {formatCurrency(point.change)} today
       </p>
@@ -53,7 +69,7 @@ function ChartTooltip({
 // ── Period selector ───────────────────────────────────────────────────────────
 
 const PERIODS = [
-  { label: "7D",  days: 7  },
+  { label: "7D", days: 7 },
   { label: "30D", days: 30 },
   { label: "90D", days: 90 },
 ] as const;
@@ -81,7 +97,7 @@ interface PerformanceChartProps {
 }
 
 export function PerformanceChart({ days = 30 }: PerformanceChartProps) {
-  const { data, isLoading, isError } = usePortfolioPerformance("user-001", days);
+  const { data, isLoading, isError } = usePortfolioPerformance(days);
   // TODO: Enable interactive period switching once parent state + query key wiring is finalized.
 
   if (isLoading) return <PerformanceChartSkeleton />;
@@ -107,7 +123,7 @@ export function PerformanceChart({ days = 30 }: PerformanceChartProps) {
               <span
                 className={cn(
                   "inline-flex items-center gap-1 font-semibold tabular-nums",
-                  isPositivePeriod ? "text-profit" : "text-loss"
+                  isPositivePeriod ? "text-profit" : "text-loss",
                 )}
               >
                 {isPositivePeriod ? (
@@ -115,7 +131,8 @@ export function PerformanceChart({ days = 30 }: PerformanceChartProps) {
                 ) : (
                   <TrendingDown className="h-3 w-3" />
                 )}
-                {formatSignedCurrency(data.periodReturn)} ({formatPercent(data.periodReturnPercent)})
+                {formatSignedCurrency(data.periodReturn)} (
+                {formatPercent(data.periodReturnPercent)})
               </span>
             </CardDescription>
           </div>
@@ -142,15 +159,25 @@ export function PerformanceChart({ days = 30 }: PerformanceChartProps) {
             margin={{ top: 4, right: 4, left: 0, bottom: 0 }}
           >
             <defs>
-              <linearGradient id="portfolioGradient" x1="0" y1="0" x2="0" y2="1">
+              <linearGradient
+                id="portfolioGradient"
+                x1="0"
+                y1="0"
+                x2="0"
+                y2="1"
+              >
                 <stop
                   offset="5%"
-                  stopColor={isPositivePeriod ? "hsl(160 84% 39%)" : "hsl(0 72% 51%)"}
+                  stopColor={
+                    isPositivePeriod ? "hsl(160 84% 39%)" : "hsl(0 72% 51%)"
+                  }
                   stopOpacity={0.25}
                 />
                 <stop
                   offset="95%"
-                  stopColor={isPositivePeriod ? "hsl(160 84% 39%)" : "hsl(0 72% 51%)"}
+                  stopColor={
+                    isPositivePeriod ? "hsl(160 84% 39%)" : "hsl(0 72% 51%)"
+                  }
                   stopOpacity={0}
                 />
               </linearGradient>
@@ -184,7 +211,9 @@ export function PerformanceChart({ days = 30 }: PerformanceChartProps) {
             <Tooltip
               content={<ChartTooltip />}
               cursor={{
-                stroke: isPositivePeriod ? "hsl(160 84% 39%)" : "hsl(0 72% 51%)",
+                stroke: isPositivePeriod
+                  ? "hsl(160 84% 39%)"
+                  : "hsl(0 72% 51%)",
                 strokeWidth: 1,
                 strokeDasharray: "4 2",
               }}

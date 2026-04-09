@@ -7,6 +7,7 @@ import type {
   PortfolioPerformanceDTO,
   PortfolioResponseDTO,
 } from "@/types/portfolio";
+import { fetchWithAuthClient } from "@/lib/api/fetchWithAuth";
 
 // Frontend aggregation adapter:
 // combines portfolio-service holdings with market-data-service prices into UI-ready DTOs.
@@ -41,32 +42,22 @@ function getTickerMeta(ticker: string): { name: string; assetClass: AssetClass }
   return TICKER_META[ticker] ?? { name: ticker, assetClass: "STOCK" };
 }
 
-async function fetchJson<T>(path: string): Promise<T> {
-  const response = await fetch(path, {
-    method: "GET",
-    headers: { "Content-Type": "application/json" },
-    cache: "no-store",
-  });
-
-  if (!response.ok) {
-    throw new Error(`Request failed (${response.status}) for ${path}`);
-  }
-
-  return (await response.json()) as T;
+async function fetchJson<T>(path: string, token: string): Promise<T> {
+  return fetchWithAuthClient<T>(path, token);
 }
 
-async function loadBackendPortfolio(userId: string): Promise<BackendPortfolio | null> {
-  const portfolios = await fetchJson<BackendPortfolio[]>(`/api/portfolio/${userId}`);
+async function loadBackendPortfolio(userId: string, token: string): Promise<BackendPortfolio | null> {
+  const portfolios = await fetchJson<BackendPortfolio[]>(`/api/portfolio`, token);
   return portfolios.length > 0 ? portfolios[0] : null;
 }
 
-async function loadMarketPrices(tickers: string[]): Promise<Map<string, BackendMarketPrice>> {
+async function loadMarketPrices(tickers: string[], token: string): Promise<Map<string, BackendMarketPrice>> {
   if (tickers.length === 0) {
     return new Map<string, BackendMarketPrice>();
   }
 
   const params = new URLSearchParams({ tickers: tickers.join(",") });
-  const prices = await fetchJson<BackendMarketPrice[]>(`/api/market/prices?${params.toString()}`);
+  const prices = await fetchJson<BackendMarketPrice[]>(`/api/market/prices?${params.toString()}`, token);
   return new Map(prices.map((p) => [p.ticker, p]));
 }
 
@@ -106,8 +97,8 @@ function buildPerformanceSeries(days: number, totalValue: number): PerformanceDa
   return points;
 }
 
-export async function fetchPortfolio(userId = "user-001"): Promise<PortfolioResponseDTO> {
-  const backendPortfolio = await loadBackendPortfolio(userId);
+export async function fetchPortfolio(userId: string, token: string): Promise<PortfolioResponseDTO> {
+  const backendPortfolio = await loadBackendPortfolio(userId, token);
   if (!backendPortfolio) {
     return {
       portfolioId: "n/a",
@@ -130,7 +121,7 @@ export async function fetchPortfolio(userId = "user-001"): Promise<PortfolioResp
   }
 
   const tickers = [...new Set(backendPortfolio.holdings.map((h) => h.assetTicker))];
-  const pricesByTicker = await loadMarketPrices(tickers);
+  const pricesByTicker = await loadMarketPrices(tickers, token);
 
   const holdings: AssetHoldingDTO[] = backendPortfolio.holdings.map((h) => {
     const meta = getTickerMeta(h.assetTicker);
@@ -192,10 +183,11 @@ export async function fetchPortfolio(userId = "user-001"): Promise<PortfolioResp
 }
 
 export async function fetchPortfolioPerformance(
-  userId = "user-001",
-  days = 30
+  userId: string,
+  token: string,
+  days = 30,
 ): Promise<PortfolioPerformanceDTO> {
-  const portfolio = await fetchPortfolio(userId);
+  const portfolio = await fetchPortfolio(userId, token);
   const dataPoints = buildPerformanceSeries(days, portfolio.summary.totalValue);
   const first = dataPoints[0]?.value ?? 0;
   const periodReturn = portfolio.summary.totalValue - first;
@@ -210,8 +202,8 @@ export async function fetchPortfolioPerformance(
   };
 }
 
-export async function fetchAssetAllocation(userId = "user-001"): Promise<AssetAllocationDTO> {
-  const portfolio = await fetchPortfolio(userId);
+export async function fetchAssetAllocation(userId: string, token: string): Promise<AssetAllocationDTO> {
+  const portfolio = await fetchPortfolio(userId, token);
   const byClass = portfolio.holdings.reduce<Record<string, number>>((acc, h) => {
     acc[h.assetClass] = (acc[h.assetClass] ?? 0) + h.totalValue;
     return acc;
