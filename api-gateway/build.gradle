@@ -7,7 +7,13 @@ dependencies {
     implementation 'org.springframework.cloud:spring-cloud-starter-gateway-server-webflux'
     implementation 'org.springframework.boot:spring-boot-starter-data-redis-reactive'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
+
+    // Testcontainers — versions managed by testcontainers-bom in root build.gradle
+    testImplementation 'org.testcontainers:testcontainers'
 }
-tasks.withType(Test).configureEach {
-    useJUnitPlatform()
+
+// Wire the integrationTest task (registered in root build.gradle) to the compiled test classes
+tasks.named('integrationTest', Test) {
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
 }

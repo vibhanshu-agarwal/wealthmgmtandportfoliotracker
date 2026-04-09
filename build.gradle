@@ -46,11 +46,8 @@ subprojects {
             mavenBom "org.springframework.cloud:spring-cloud-dependencies:${springCloudVersion}"
             mavenBom "org.testcontainers:testcontainers-bom:2.0.4" // Or your latest version
         }
-        dependencies {
-            dependency 'com.fasterxml.jackson.core:jackson-core:2.18.2'
-            dependency 'com.fasterxml.jackson.core:jackson-databind:2.18.2'
-            dependency 'com.fasterxml.jackson.core:jackson-annotations:2.18.2'
-        }
+        // Jackson 2.x pins removed — Spring Boot 4 manages Jackson 3 (tools.jackson) via its BOM.
+        // Pinning com.fasterxml.jackson 2.x here caused Jackson 3 class initialization failures.
     }
 
     dependencies {

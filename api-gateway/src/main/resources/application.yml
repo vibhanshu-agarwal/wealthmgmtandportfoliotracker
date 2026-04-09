@@ -1,10 +1,10 @@
 spring:
   application:
     name: api-gateway
-  data:
-    redis:
-      host: ${SPRING_DATA_REDIS_HOST:localhost}
-      port: ${SPRING_DATA_REDIS_PORT:6379}
+  # spring.data.redis.* intentionally absent — lives only in application-local.yml
+  # No default-filters here — any RequestRateLimiter reference triggers Redis autoconfiguration
+  # on startup, which crashes deployments where no Redis is present (e.g. AWS without ElastiCache)
+
   cloud:
     gateway:
       server:
@@ -18,12 +18,6 @@ spring:
               uri: ${MARKET_DATA_SERVICE_URL:http://localhost:8082}
               predicates:
                 - Path=/api/market/**
-              filters:
-                - name: RequestRateLimiter
-                  args:
-                    redis-rate-limiter.replenishRate: 20
-                    redis-rate-limiter.burstCapacity: 40
-                    key-resolver: "#{@ipKeyResolver}"
             - id: insight-service
               uri: ${INSIGHT_SERVICE_URL:http://localhost:8083}
               predicates:

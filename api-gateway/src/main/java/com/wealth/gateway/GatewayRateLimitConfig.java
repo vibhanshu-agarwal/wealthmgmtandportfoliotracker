@@ -15,20 +15,31 @@ public class GatewayRateLimitConfig {
     }
 
     private String resolveClientIp(ServerWebExchange exchange) {
-        var headers = exchange.getRequest().getHeaders();
-        var forwardedFor = headers.getFirst("X-Forwarded-For");
+        var forwardedFor = exchange.getRequest().getHeaders().getFirst("X-Forwarded-For");
+        var remoteAddress = exchange.getRequest().getRemoteAddress();
+        return resolveKey(
+                forwardedFor,
+                remoteAddress != null && remoteAddress.getAddress() != null
+                        ? remoteAddress.getAddress().getHostAddress()
+                        : null);
+    }
 
-        // Extracts first IP from X-Forwarded-For header
+    /**
+     * Pure key-resolution logic — package-private for unit testing without
+     * requiring a full ServerWebExchange / codec stack.
+     *
+     * @param forwardedFor value of the X-Forwarded-For header, or null if absent
+     * @param remoteHost   remote address host string, or null if unavailable
+     * @return non-null, non-empty rate-limit key
+     */
+    static String resolveKey(String forwardedFor, String remoteHost) {
         if (forwardedFor != null && !forwardedFor.isBlank()) {
             var comma = forwardedFor.indexOf(',');
             return (comma >= 0 ? forwardedFor.substring(0, comma) : forwardedFor).trim();
         }
-
-        var remoteAddress = exchange.getRequest().getRemoteAddress();
-        if (remoteAddress != null && remoteAddress.getAddress() != null) {
-            return remoteAddress.getAddress().getHostAddress();
+        if (remoteHost != null && !remoteHost.isBlank()) {
+            return remoteHost;
         }
-
         return "anonymous";
     }
 }
