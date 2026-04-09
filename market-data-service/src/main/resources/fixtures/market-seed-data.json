@@ -1,0 +1,10 @@
+{
+  "assets": [
+    { "ticker": "AAPL",  "basePrice": 212.5,    "currency": "USD" },
+    { "ticker": "TSLA",  "basePrice": 276.0,    "currency": "USD" },
+    { "ticker": "BTC",   "basePrice": 70775.0,  "currency": "USD" },
+    { "ticker": "MSFT",  "basePrice": 425.3,    "currency": "USD" },
+    { "ticker": "NVDA",  "basePrice": 938.6,    "currency": "USD" },
+    { "ticker": "ETH",   "basePrice": 3540.5,   "currency": "USD" }
+  ]
+}

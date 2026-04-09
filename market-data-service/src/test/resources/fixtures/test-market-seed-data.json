@@ -1,0 +1,6 @@
+{
+  "assets": [
+    { "ticker": "TEST1", "basePrice": 100.0, "currency": "USD" },
+    { "ticker": "TEST2", "basePrice": 200.0, "currency": "USD" }
+  ]
+}

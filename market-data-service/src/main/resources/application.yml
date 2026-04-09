@@ -22,3 +22,4 @@ logging:
 market:
   seed:
     enabled: true
+    fixture-path: classpath:fixtures/market-seed-data.json

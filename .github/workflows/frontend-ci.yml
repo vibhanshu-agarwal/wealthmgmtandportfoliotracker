@@ -12,6 +12,13 @@ jobs:
     defaults:
       run:
         working-directory: ./frontend
+    env:
+      # NextAuth requires NEXTAUTH_SECRET at build time and test time.
+      # AUTH_JWT_SECRET must match the value used by the API Gateway.
+      # These are non-sensitive placeholder values safe for CI — real secrets
+      # are injected via GitHub Secrets in production deployments.
+      NEXTAUTH_SECRET: ci-nextauth-secret-not-for-production
+      AUTH_JWT_SECRET: ci-jwt-secret-placeholder-min-32-chars!!
 
     steps:
     - name: Checkout Repository

@@ -1,6 +1,6 @@
 import { http, HttpResponse } from "msw";
 
-function requireBearer(request: Request): HttpResponse | null {
+function requireBearer(request: Request): Response | null {
   const auth = request.headers.get("Authorization");
   if (!auth?.startsWith("Bearer ")) {
     return new HttpResponse(null, { status: 401 });
