@@ -1,6 +1,7 @@
-export { auth as default } from "@/auth";
+import { auth } from "@/auth";
 
 // Route protection logic lives in the `authorized` callback in auth.config.ts.
+export default auth;
 
 export const config = {
   // Match all routes except Next.js internals and static assets.
