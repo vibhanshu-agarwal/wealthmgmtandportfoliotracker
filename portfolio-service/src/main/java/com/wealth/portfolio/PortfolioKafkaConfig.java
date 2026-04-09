@@ -1,6 +1,7 @@
 package com.wealth.portfolio;
 
 import com.wealth.market.events.PriceUpdatedEvent;
+import com.wealth.portfolio.kafka.MalformedEventException;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.TopicPartition;
@@ -62,7 +63,9 @@ class PortfolioKafkaConfig {
         );
 
         // Retry 3 times with a short backoff before publishing to DLT.
-        return new DefaultErrorHandler(recoverer, new FixedBackOff(1000L, 3L));
+        DefaultErrorHandler handler = new DefaultErrorHandler(recoverer, new FixedBackOff(1000L, 3L));
+        handler.addNotRetryableExceptions(MalformedEventException.class);
+        return handler;
     }
 
     @Bean

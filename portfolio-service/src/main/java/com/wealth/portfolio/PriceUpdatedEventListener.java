@@ -1,6 +1,7 @@
 package com.wealth.portfolio;
 
 import com.wealth.market.events.PriceUpdatedEvent;
+import com.wealth.portfolio.kafka.MalformedEventException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -8,11 +9,14 @@ import org.springframework.kafka.support.KafkaHeaders;
 import org.springframework.stereotype.Service;
 import org.springframework.messaging.handler.annotation.Header;
 
+import java.math.BigDecimal;
+
 /**
  * Kafka consumer boundary for market price updates.
  *
- * <p>The listener stays thin and delegates business-side projection writes to
- * {@link MarketPriceProjectionService}.
+ * <p>The listener validates the incoming event before delegating to
+ * {@link MarketPriceProjectionService}. Invalid events throw {@link MalformedEventException},
+ * which is registered as non-retryable and routes directly to {@code market-prices.DLT}.
  */
 @Service
 class PriceUpdatedEventListener {
@@ -31,6 +35,23 @@ class PriceUpdatedEventListener {
             containerFactory = "priceUpdatedKafkaListenerContainerFactory"
     )
     void on(PriceUpdatedEvent event) {
+        if (event == null) {
+            throw new MalformedEventException("PriceUpdatedEvent must not be null");
+        }
+        if (event.ticker() == null || event.ticker().isBlank()) {
+            throw new MalformedEventException(
+                    "PriceUpdatedEvent.ticker must not be null or blank, got: " + event.ticker());
+        }
+        if (event.newPrice() == null) {
+            throw new MalformedEventException(
+                    "PriceUpdatedEvent.newPrice must not be null for ticker: " + event.ticker());
+        }
+        if (event.newPrice().compareTo(BigDecimal.ZERO) <= 0) {
+            throw new MalformedEventException(
+                    "PriceUpdatedEvent.newPrice must be positive, got: " + event.newPrice()
+                    + " for ticker: " + event.ticker());
+        }
+
         log.info("Kafka: Price update received: {} @ {}", event.ticker(), event.newPrice());
         marketPriceProjectionService.upsertLatestPrice(event);
     }
@@ -43,7 +64,7 @@ class PriceUpdatedEventListener {
             @Header(KafkaHeaders.OFFSET) long offset
     ) {
         log.error(
-                "DLT message consumed from topic={} partition={} offset={} payload={}",
+                "DLT: Failed record received — topic={} partition={} offset={} payload={}",
                 topic,
                 partition,
                 offset,
