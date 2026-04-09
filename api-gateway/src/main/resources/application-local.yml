@@ -10,7 +10,11 @@ spring:
           default-filters:
             - name: RequestRateLimiter
               args:
-                key-resolver: "#{@ipKeyResolver}"
+                key-resolver: "#{@userOrIpKeyResolver}"
                 redis-rate-limiter.replenishRate: 20
                 redis-rate-limiter.burstCapacity: 40
                 redis-rate-limiter.requestedTokens: 1
+
+auth:
+  jwt:
+    secret: ${AUTH_JWT_SECRET:local-dev-secret-change-me-min-32-chars}

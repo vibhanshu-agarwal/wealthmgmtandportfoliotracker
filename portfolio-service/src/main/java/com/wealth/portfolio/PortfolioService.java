@@ -1,55 +1,47 @@
 package com.wealth.portfolio;
 
 import com.wealth.portfolio.dto.PortfolioSummaryDto;
+import com.wealth.user.UserRepository;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.UUID;
 
 @Service
 public class PortfolioService {
 
     private final PortfolioRepository portfolioRepository;
     private final JdbcTemplate jdbcTemplate;
+    private final UserRepository userRepository;
 
-    public PortfolioService(PortfolioRepository portfolioRepository, JdbcTemplate jdbcTemplate) {
+    public PortfolioService(PortfolioRepository portfolioRepository,
+                            JdbcTemplate jdbcTemplate,
+                            UserRepository userRepository) {
         this.portfolioRepository = portfolioRepository;
         this.jdbcTemplate = jdbcTemplate;
+        this.userRepository = userRepository;
     }
 
-    /**
-     * Returns all portfolios owned by the given user, with their holdings.
-     *
-     * <p>{@code readOnly = true} lets the JPA provider skip dirty-checking and use
-     * a read-optimised flush mode, reducing overhead on pure query paths.
-     *
-     * @param userId the owner's ID
-     * @return list of portfolio responses; empty if the user has no portfolios
-     */
     @Transactional(readOnly = true)
     public List<PortfolioResponse> getByUserId(String userId) {
+        requireUserExists(userId);
         return portfolioRepository.findByUserId(userId)
                 .stream()
                 .map(this::toResponse)
                 .toList();
     }
 
-    /**
-     * Returns a lightweight summary used by the UI "Portfolio Total" widget.
-     *
-     * <p>The current value is derived from holding quantities only. Price-based valuation
-     * is intentionally deferred to the dedicated valuation phase.
-     */
     @Transactional(readOnly = true)
     public PortfolioSummaryDto getSummary(String userId) {
+        requireUserExists(userId);
         var portfolios = portfolioRepository.findByUserId(userId);
         var totalHoldings = portfolios.stream()
                 .mapToInt(p -> p.getHoldings().size())
                 .sum();
 
-        // Valuation joins local latest-price projection table updated asynchronously from Kafka events.
         var totalValue = jdbcTemplate.queryForObject(
                 """
                 SELECT COALESCE(SUM(h.quantity * COALESCE(mp.current_price, 0)), 0)
@@ -69,6 +61,17 @@ public class PortfolioService {
                 totalHoldings,
                 totalValue == null ? BigDecimal.ZERO : totalValue
         );
+    }
+
+    private void requireUserExists(String userId) {
+        try {
+            UUID uuid = UUID.fromString(userId);
+            if (!userRepository.existsById(uuid)) {
+                throw new UserNotFoundException(userId);
+            }
+        } catch (IllegalArgumentException ex) {
+            throw new UserNotFoundException(userId);
+        }
     }
 
     private PortfolioResponse toResponse(Portfolio portfolio) {

@@ -31,3 +31,8 @@ management:
     web:
       exposure:
         include: "*"
+
+auth:
+  jwt:
+    secret: ${AUTH_JWT_SECRET:}   # local profile only — blank triggers startup failure in JwtDecoderConfig
+  jwk-uri: ${AUTH_JWK_URI:}       # aws profile only — blank triggers startup failure in JwtDecoderConfig

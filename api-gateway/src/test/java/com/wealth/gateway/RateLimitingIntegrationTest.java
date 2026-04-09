@@ -16,6 +16,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -41,6 +42,9 @@ class RateLimitingIntegrationTest {
     private static final int TEST_BURST_CAPACITY = 3;
     private static final String XFF = "X-Forwarded-For";
     private static final String PORTFOLIO_PATH = "/api/portfolio/holdings";
+    // All rate-limit tests must carry a valid JWT — Spring Security now guards /api/** routes.
+    // We use a unique sub per test to avoid cross-test bucket interference.
+    private static final String VALID_TOKEN = TestJwtFactory.validSeedUserToken();
 
     @Container
     @SuppressWarnings("resource")
@@ -93,6 +97,7 @@ class RateLimitingIntegrationTest {
             final int requestNum = i + 1;
             webTestClient.get()
                     .uri(PORTFOLIO_PATH)
+                    .header("Authorization", "Bearer " + TestJwtFactory.mint("rate-limit-user-within", Duration.ofHours(1)))
                     .header(XFF, "10.10.10.10")
                     .exchange()
                     .expectStatus().value(status ->
@@ -108,10 +113,13 @@ class RateLimitingIntegrationTest {
     @Test
     void requestsExceedingBurstAreThrottled() {
         List<Integer> statuses = new ArrayList<>();
+        // Use a unique sub so this test has its own rate-limit bucket
+        String token = TestJwtFactory.mint("rate-limit-user-throttle", Duration.ofHours(1));
 
         for (int i = 0; i < TEST_BURST_CAPACITY + 5; i++) {
             webTestClient.get()
                     .uri("/api/market/prices")
+                    .header("Authorization", "Bearer " + token)
                     .header(XFF, "20.20.20.20")
                     .exchange()
                     .expectStatus().value(statuses::add);
@@ -127,21 +135,26 @@ class RateLimitingIntegrationTest {
 
     @Test
     void differentIpsHaveIndependentBuckets() {
-        // Exhaust IP-A's bucket
+        String tokenA = TestJwtFactory.mint("rate-limit-user-ip-a", Duration.ofHours(1));
+        String tokenB = TestJwtFactory.mint("rate-limit-user-ip-b", Duration.ofHours(1));
+
+        // Exhaust user-A's bucket
         for (int i = 0; i < TEST_BURST_CAPACITY + 3; i++) {
             webTestClient.get()
                     .uri(PORTFOLIO_PATH)
+                    .header("Authorization", "Bearer " + tokenA)
                     .header(XFF, "30.30.30.30")
                     .exchange();
         }
 
-        // IP-B should still be allowed (its bucket is independent)
+        // user-B should still be allowed (its bucket is independent)
         webTestClient.get()
                 .uri(PORTFOLIO_PATH)
+                .header("Authorization", "Bearer " + tokenB)
                 .header(XFF, "40.40.40.40")
                 .exchange()
                 .expectStatus().value(status ->
-                        assertThat(status).as("IP-B should not be rate-limited by IP-A's exhausted bucket")
+                        assertThat(status).as("user-B should not be rate-limited by user-A's exhausted bucket")
                                 .isNotEqualTo(429));
     }
 
@@ -153,6 +166,7 @@ class RateLimitingIntegrationTest {
     void rateLimitHeadersPresent() {
         webTestClient.get()
                 .uri("/api/insight/summary")
+                .header("Authorization", "Bearer " + TestJwtFactory.mint("rate-limit-user-headers", Duration.ofHours(1)))
                 .header(XFF, "50.50.50.50")
                 .exchange()
                 .expectStatus().value(status -> assertThat(status).isNotEqualTo(429))

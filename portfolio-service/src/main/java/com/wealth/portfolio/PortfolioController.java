@@ -2,7 +2,7 @@ package com.wealth.portfolio;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -19,33 +19,26 @@ public class PortfolioController {
     }
 
     /**
-     * Returns all portfolios belonging to a user, including their asset holdings.
+     * Returns all portfolios belonging to the authenticated user.
      *
-     * <p>An empty list is returned when the user exists but has no portfolios (HTTP 200).
-     * The caller is responsible for resolving whether the userId refers to a known user —
-     * this module stores userId as a plain string and performs no user validation
-     * (cross-module entity lookup is prohibited by the Modulith mandate).
+     * <p>The user identity is extracted from the {@code X-User-Id} header injected by the
+     * API Gateway JWT filter. Callers must not supply this header directly — it is stripped
+     * and re-injected by the gateway after JWT validation.
      *
      * <pre>
-     * GET /api/v1/portfolios/{userId}
+     * GET /api/portfolio
+     * X-User-Id: &lt;uuid&gt;
      *
-     * 200 OK
-     * [
-     *   {
-     *     "id": "...",
-     *     "userId": "...",
-     *     "createdAt": "...",
-     *     "holdings": [
-     *       { "id": "...", "assetTicker": "AAPL", "quantity": 10.00000000 }
-     *     ]
-     *   }
-     * ]
+     * 200 OK  — list of portfolios (empty list if user has no portfolios)
+     * 400     — X-User-Id header missing (request bypassed the API Gateway)
+     * 404     — userId not found in users table
      * </pre>
      *
-     * @param userId the owner's ID
+     * @param userId the authenticated user's UUID, injected by the API Gateway
      */
-    @GetMapping("/{userId}")
-    public ResponseEntity<List<PortfolioResponse>> getByUserId(@PathVariable String userId) {
+    @GetMapping
+    public ResponseEntity<List<PortfolioResponse>> getPortfolios(
+            @RequestHeader("X-User-Id") String userId) {
         return ResponseEntity.ok(portfolioService.getByUserId(userId));
     }
 }
