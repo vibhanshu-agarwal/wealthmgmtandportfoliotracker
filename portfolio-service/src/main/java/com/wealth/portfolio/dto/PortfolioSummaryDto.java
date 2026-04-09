@@ -6,6 +6,7 @@ public record PortfolioSummaryDto(
         String userId,
         int portfolioCount,
         int totalHoldings,
-        BigDecimal totalValue
+        BigDecimal totalValue,
+        String baseCurrency
 ) {
 }

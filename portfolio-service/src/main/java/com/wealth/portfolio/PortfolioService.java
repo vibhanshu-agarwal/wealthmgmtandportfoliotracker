@@ -1,12 +1,14 @@
 package com.wealth.portfolio;
 
 import com.wealth.portfolio.dto.PortfolioSummaryDto;
+import com.wealth.portfolio.fx.FxProperties;
 import com.wealth.user.UserRepository;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.List;
 import java.util.UUID;
 
@@ -16,13 +18,19 @@ public class PortfolioService {
     private final PortfolioRepository portfolioRepository;
     private final JdbcTemplate jdbcTemplate;
     private final UserRepository userRepository;
+    private final FxRateProvider fxRateProvider;
+    private final FxProperties fxProperties;
 
     public PortfolioService(PortfolioRepository portfolioRepository,
                             JdbcTemplate jdbcTemplate,
-                            UserRepository userRepository) {
+                            UserRepository userRepository,
+                            FxRateProvider fxRateProvider,
+                            FxProperties fxProperties) {
         this.portfolioRepository = portfolioRepository;
         this.jdbcTemplate = jdbcTemplate;
         this.userRepository = userRepository;
+        this.fxRateProvider = fxRateProvider;
+        this.fxProperties = fxProperties;
     }
 
     @Transactional(readOnly = true)
@@ -37,29 +45,56 @@ public class PortfolioService {
     @Transactional(readOnly = true)
     public PortfolioSummaryDto getSummary(String userId) {
         requireUserExists(userId);
-        var portfolios = portfolioRepository.findByUserId(userId);
-        var totalHoldings = portfolios.stream()
-                .mapToInt(p -> p.getHoldings().size())
-                .sum();
 
-        var totalValue = jdbcTemplate.queryForObject(
+        String baseCurrency = fxProperties.baseCurrency();
+
+        // Fetch per-row holding data including each asset's quote currency
+        List<HoldingValuationRow> rows = jdbcTemplate.query(
                 """
-                SELECT COALESCE(SUM(h.quantity * COALESCE(mp.current_price, 0)), 0)
+                SELECT h.asset_ticker,
+                       h.quantity,
+                       COALESCE(mp.current_price, 0)      AS current_price,
+                       COALESCE(mp.quote_currency, 'USD') AS quote_currency
                 FROM asset_holdings h
                 JOIN portfolios p ON p.id = h.portfolio_id
                 LEFT JOIN market_prices mp ON mp.ticker = h.asset_ticker
                 WHERE p.user_id = ?
                 """,
-                BigDecimal.class,
+                (rs, i) -> new HoldingValuationRow(
+                        rs.getString("asset_ticker"),
+                        rs.getBigDecimal("quantity"),
+                        rs.getBigDecimal("current_price"),
+                        rs.getString("quote_currency")
+                ),
                 userId
         );
-        // TODO: Add currency conversion + FX handling for multi-currency portfolios.
+
+        // FX conversion loop — loop invariant: totalValue = sum of converted values so far
+        BigDecimal totalValue = BigDecimal.ZERO;
+        for (HoldingValuationRow row : rows) {
+            BigDecimal rate = row.quoteCurrency().equals(baseCurrency)
+                    ? BigDecimal.ONE  // same-currency short-circuit: no FX call
+                    : fxRateProvider.getRate(row.quoteCurrency(), baseCurrency);
+
+            BigDecimal holdingValue = row.quantity()
+                    .multiply(row.currentPrice())
+                    .multiply(rate)
+                    .setScale(4, RoundingMode.HALF_UP);
+
+            totalValue = totalValue.add(holdingValue);
+        }
+
+        var portfolios = portfolioRepository.findByUserId(userId);
+        int totalHoldings = portfolios.stream()
+                .mapToInt(p -> p.getHoldings().size())
+                .sum();
 
         return new PortfolioSummaryDto(
                 userId,
                 portfolios.size(),
                 totalHoldings,
-                totalValue == null ? BigDecimal.ZERO : totalValue
+                totalValue,
+                baseCurrency
         );
     }
 
