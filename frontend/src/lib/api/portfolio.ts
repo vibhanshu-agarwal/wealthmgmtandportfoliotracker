@@ -4,6 +4,7 @@ import type {
   AssetClass,
   AssetHoldingDTO,
   PerformanceDataPoint,
+  PortfolioAnalyticsDTO,
   PortfolioPerformanceDTO,
   PortfolioResponseDTO,
 } from "@/types/portfolio";
@@ -240,4 +241,15 @@ export async function fetchAssetAllocation(userId: string, token: string): Promi
     totalValue: portfolio.summary.totalValue,
     slices,
   };
+}
+
+/**
+ * Fetches the unified portfolio analytics payload from the backend.
+ * Replaces the frontend-synthesised placeholders for bestPerformer, worstPerformer,
+ * unrealizedPnL, and performanceSeries.
+ *
+ * @param token Bearer token for the authenticated user
+ */
+export async function fetchPortfolioAnalytics(token: string): Promise<PortfolioAnalyticsDTO> {
+  return fetchWithAuthClient<PortfolioAnalyticsDTO>("/api/portfolio/analytics", token);
 }

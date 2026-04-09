@@ -19,7 +19,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { TrendingUp, TrendingDown } from "lucide-react";
-import { usePortfolioPerformance } from "@/lib/hooks/usePortfolio";
+import { usePortfolioAnalytics } from "@/lib/hooks/usePortfolio";
 import {
   formatCurrency,
   formatDateShort,
@@ -71,7 +71,7 @@ function ChartTooltip({
 const PERIODS = [
   { label: "7D", days: 7 },
   { label: "30D", days: 30 },
-  { label: "90D", days: 90 },
+  { label: "50D", days: 50 },
 ] as const;
 
 // ── Skeleton ──────────────────────────────────────────────────────────────────
@@ -92,17 +92,12 @@ function PerformanceChartSkeleton() {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-interface PerformanceChartProps {
-  days?: number;
-}
-
-export function PerformanceChart({ days = 30 }: PerformanceChartProps) {
-  const { data, isLoading, isError } = usePortfolioPerformance(days);
-  // TODO: Enable interactive period switching once parent state + query key wiring is finalized.
+export function PerformanceChart() {
+  const { data: analytics, isLoading, isError } = usePortfolioAnalytics();
 
   if (isLoading) return <PerformanceChartSkeleton />;
 
-  if (isError || !data) {
+  if (isError || !analytics) {
     return (
       <Card className="col-span-2 flex items-center justify-center p-8 text-muted-foreground">
         Failed to load performance data.
@@ -110,7 +105,22 @@ export function PerformanceChart({ days = 30 }: PerformanceChartProps) {
     );
   }
 
-  const isPositivePeriod = data.periodReturn >= 0;
+  const dataPoints = analytics.performanceSeries;
+
+  if (dataPoints.length === 0) {
+    return (
+      <Card className="col-span-2 flex items-center justify-center p-8 text-muted-foreground">
+        No performance data available yet.
+      </Card>
+    );
+  }
+
+  const firstValue = dataPoints[0]?.value ?? 0;
+  const lastValue = dataPoints.at(-1)?.value ?? 0;
+  const periodReturn = lastValue - firstValue;
+  const periodReturnPercent =
+    firstValue > 0 ? (periodReturn / firstValue) * 100 : 0;
+  const isPositivePeriod = periodReturn >= 0;
 
   return (
     <Card className="col-span-2">
@@ -119,7 +129,7 @@ export function PerformanceChart({ days = 30 }: PerformanceChartProps) {
           <div>
             <CardTitle className="text-base">Portfolio Performance</CardTitle>
             <CardDescription className="mt-1 flex items-center gap-2">
-              <span>{days}-day return:</span>
+              <span>{dataPoints.length}-day return:</span>
               <span
                 className={cn(
                   "inline-flex items-center gap-1 font-semibold tabular-nums",
@@ -131,19 +141,19 @@ export function PerformanceChart({ days = 30 }: PerformanceChartProps) {
                 ) : (
                   <TrendingDown className="h-3 w-3" />
                 )}
-                {formatSignedCurrency(data.periodReturn)} (
-                {formatPercent(data.periodReturnPercent)})
+                {formatSignedCurrency(periodReturn)} (
+                {formatPercent(periodReturnPercent)})
               </span>
             </CardDescription>
           </div>
 
-          {/* Period badges — wired up in a parent if state is needed */}
+          {/* Period badges — informational only; backend controls the series length */}
           <div className="flex gap-1">
             {PERIODS.map((p) => (
               <Badge
                 key={p.label}
-                variant={p.days === days ? "default" : "secondary"}
-                className="cursor-pointer text-xs"
+                variant={dataPoints.length <= p.days ? "default" : "secondary"}
+                className="cursor-default text-xs"
               >
                 {p.label}
               </Badge>
@@ -155,7 +165,7 @@ export function PerformanceChart({ days = 30 }: PerformanceChartProps) {
       <CardContent className="pt-0">
         <ResponsiveContainer width="100%" height={224}>
           <AreaChart
-            data={data.dataPoints}
+            data={dataPoints}
             margin={{ top: 4, right: 4, left: 0, bottom: 0 }}
           >
             <defs>
@@ -196,11 +206,11 @@ export function PerformanceChart({ days = 30 }: PerformanceChartProps) {
               tick={{ fontSize: 11, fill: "hsl(215 16% 47%)" }}
               tickLine={false}
               axisLine={false}
-              interval={Math.floor(data.dataPoints.length / 6)}
+              interval={Math.floor(dataPoints.length / 6)}
             />
 
             <YAxis
-              tickFormatter={(v) => `$${(v / 1000).toFixed(0)}K`}
+              tickFormatter={(v) => `${(v / 1000).toFixed(0)}K`}
               tick={{ fontSize: 11, fill: "hsl(215 16% 47%)" }}
               tickLine={false}
               axisLine={false}

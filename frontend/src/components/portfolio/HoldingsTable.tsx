@@ -18,11 +18,17 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { usePortfolio } from "@/lib/hooks/usePortfolio";
+import { usePortfolio, usePortfolioAnalytics } from "@/lib/hooks/usePortfolio";
 import {
   formatCurrency,
   formatPercent,
@@ -34,7 +40,13 @@ import type { AssetClass, AssetHoldingDTO } from "@/types/portfolio";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type SortKey = "ticker" | "quantity" | "currentPrice" | "totalValue" | "change24hPercent" | "unrealizedPnL";
+type SortKey =
+  | "ticker"
+  | "quantity"
+  | "currentPrice"
+  | "totalValue"
+  | "change24hPercent"
+  | "unrealizedPnL";
 type SortDir = "asc" | "desc";
 
 // ── Asset class config ────────────────────────────────────────────────────────
@@ -43,21 +55,57 @@ const ASSET_CLASS_CONFIG: Record<
   AssetClass,
   { label: string; color: string; bgClass: string; textClass: string }
 > = {
-  STOCK:     { label: "Stock",     color: "hsl(160 84% 39%)", bgClass: "bg-emerald-500/10", textClass: "text-emerald-600 dark:text-emerald-400" },
-  ETF:       { label: "ETF",       color: "hsl(217 91% 60%)", bgClass: "bg-blue-500/10",    textClass: "text-blue-600 dark:text-blue-400" },
-  CRYPTO:    { label: "Crypto",    color: "hsl(37 91% 55%)",  bgClass: "bg-amber-500/10",   textClass: "text-amber-600 dark:text-amber-400" },
-  BOND:      { label: "Bond",      color: "hsl(270 95% 75%)", bgClass: "bg-violet-500/10",  textClass: "text-violet-600 dark:text-violet-400" },
-  CASH:      { label: "Cash",      color: "hsl(215 16% 47%)", bgClass: "bg-slate-500/10",   textClass: "text-slate-500" },
-  COMMODITY: { label: "Commodity", color: "hsl(0 72% 51%)",   bgClass: "bg-red-500/10",     textClass: "text-red-600 dark:text-red-400" },
+  STOCK: {
+    label: "Stock",
+    color: "hsl(160 84% 39%)",
+    bgClass: "bg-emerald-500/10",
+    textClass: "text-emerald-600 dark:text-emerald-400",
+  },
+  ETF: {
+    label: "ETF",
+    color: "hsl(217 91% 60%)",
+    bgClass: "bg-blue-500/10",
+    textClass: "text-blue-600 dark:text-blue-400",
+  },
+  CRYPTO: {
+    label: "Crypto",
+    color: "hsl(37 91% 55%)",
+    bgClass: "bg-amber-500/10",
+    textClass: "text-amber-600 dark:text-amber-400",
+  },
+  BOND: {
+    label: "Bond",
+    color: "hsl(270 95% 75%)",
+    bgClass: "bg-violet-500/10",
+    textClass: "text-violet-600 dark:text-violet-400",
+  },
+  CASH: {
+    label: "Cash",
+    color: "hsl(215 16% 47%)",
+    bgClass: "bg-slate-500/10",
+    textClass: "text-slate-500",
+  },
+  COMMODITY: {
+    label: "Commodity",
+    color: "hsl(0 72% 51%)",
+    bgClass: "bg-red-500/10",
+    textClass: "text-red-600 dark:text-red-400",
+  },
 };
 
 const ALL_ASSET_CLASSES = Object.keys(ASSET_CLASS_CONFIG) as AssetClass[];
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
-function ChangeCell({ percent, absolute }: { percent: number; absolute: number }) {
+function ChangeCell({
+  percent,
+  absolute,
+}: {
+  percent: number;
+  absolute: number;
+}) {
   const isPositive = percent > 0;
-  const isNeutral  = percent === 0;
+  const isNeutral = percent === 0;
   const Icon = isNeutral ? Minus : isPositive ? TrendingUp : TrendingDown;
 
   return (
@@ -65,9 +113,9 @@ function ChangeCell({ percent, absolute }: { percent: number; absolute: number }
       <span
         className={cn(
           "inline-flex items-center gap-1 text-sm font-semibold tabular-nums",
-          isNeutral  && "text-muted-foreground",
+          isNeutral && "text-muted-foreground",
           isPositive && "text-profit",
-          !isPositive && !isNeutral && "text-loss"
+          !isPositive && !isNeutral && "text-loss",
         )}
       >
         <Icon className="h-3.5 w-3.5 shrink-0" />
@@ -77,9 +125,9 @@ function ChangeCell({ percent, absolute }: { percent: number; absolute: number }
       <span
         className={cn(
           "text-xs tabular-nums",
-          isNeutral  && "text-muted-foreground",
+          isNeutral && "text-muted-foreground",
           isPositive && "text-profit/70",
-          !isPositive && !isNeutral && "text-loss/70"
+          !isPositive && !isNeutral && "text-loss/70",
         )}
       >
         {formatSignedCurrency(absolute)}
@@ -88,11 +136,22 @@ function ChangeCell({ percent, absolute }: { percent: number; absolute: number }
   );
 }
 
-function SortIcon({ column, sortKey, sortDir }: { column: SortKey; sortKey: SortKey; sortDir: SortDir }) {
-  if (column !== sortKey) return <ArrowUpDown className="ml-1.5 h-3 w-3 text-muted-foreground/50" />;
-  return sortDir === "asc"
-    ? <ArrowUp   className="ml-1.5 h-3 w-3 text-foreground" />
-    : <ArrowDown className="ml-1.5 h-3 w-3 text-foreground" />;
+function SortIcon({
+  column,
+  sortKey,
+  sortDir,
+}: {
+  column: SortKey;
+  sortKey: SortKey;
+  sortDir: SortDir;
+}) {
+  if (column !== sortKey)
+    return <ArrowUpDown className="ml-1.5 h-3 w-3 text-muted-foreground/50" />;
+  return sortDir === "asc" ? (
+    <ArrowUp className="ml-1.5 h-3 w-3 text-foreground" />
+  ) : (
+    <ArrowDown className="ml-1.5 h-3 w-3 text-foreground" />
+  );
 }
 
 // ── Column header button ──────────────────────────────────────────────────────
@@ -118,7 +177,7 @@ function ColHeader({
         onClick={() => onSort(column)}
         className={cn(
           "inline-flex items-center gap-0 text-xs font-semibold uppercase tracking-wide text-muted-foreground hover:text-foreground transition-colors",
-          align === "right" && "flex-row-reverse"
+          align === "right" && "flex-row-reverse",
         )}
       >
         {label}
@@ -153,10 +212,16 @@ function HoldingsTableSkeleton() {
 
 export function HoldingsTable() {
   const { data: portfolio, isLoading, isError } = usePortfolio();
+  const { data: analytics } = usePortfolioAnalytics();
+
+  // Build a ticker → analytics holding lookup for merging real P&L and 24h change data.
+  const analyticsByTicker = new Map(
+    (analytics?.holdings ?? []).map((h) => [h.ticker, h]),
+  );
 
   const [sortKey, setSortKey] = useState<SortKey>("totalValue");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
-  const [search, setSearch]   = useState("");
+  const [search, setSearch] = useState("");
   const [activeClass, setActiveClass] = useState<AssetClass | "ALL">("ALL");
 
   function handleSort(col: SortKey) {
@@ -171,7 +236,17 @@ export function HoldingsTable() {
   const rows = useMemo<AssetHoldingDTO[]>(() => {
     if (!portfolio) return [];
 
-    let filtered = portfolio.holdings;
+    let filtered = portfolio.holdings.map((h) => {
+      // Merge backend-computed analytics fields by ticker when available.
+      const analyticsHolding = analyticsByTicker.get(h.ticker);
+      if (!analyticsHolding) return h;
+      return {
+        ...h,
+        unrealizedPnL: analyticsHolding.unrealizedPnL,
+        change24hPercent: analyticsHolding.change24hPercent,
+        change24hAbsolute: analyticsHolding.change24hAbsolute,
+      };
+    });
 
     // Asset class filter
     if (activeClass !== "ALL") {
@@ -184,7 +259,7 @@ export function HoldingsTable() {
       filtered = filtered.filter(
         (h) =>
           h.ticker.toLowerCase().includes(q) ||
-          h.name.toLowerCase().includes(q)
+          h.name.toLowerCase().includes(q),
       );
     }
 
@@ -195,7 +270,7 @@ export function HoldingsTable() {
       const cmp = aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
       return sortDir === "asc" ? cmp : -cmp;
     });
-  }, [portfolio, sortKey, sortDir, search, activeClass]);
+  }, [portfolio, sortKey, sortDir, search, activeClass, analyticsByTicker]);
 
   if (isLoading) return <HoldingsTableSkeleton />;
 
@@ -211,10 +286,10 @@ export function HoldingsTable() {
   const totals = rows.reduce(
     (acc, h) => ({
       value: acc.value + h.totalValue,
-      pnl:   acc.pnl   + h.unrealizedPnL,
+      pnl: acc.pnl + h.unrealizedPnL,
       abs24h: acc.abs24h + h.change24hAbsolute,
     }),
-    { value: 0, pnl: 0, abs24h: 0 }
+    { value: 0, pnl: 0, abs24h: 0 },
   );
 
   return (
@@ -249,24 +324,26 @@ export function HoldingsTable() {
               "rounded-full px-3 py-0.5 text-xs font-semibold transition-colors",
               activeClass === "ALL"
                 ? "bg-foreground text-background"
-                : "bg-muted text-muted-foreground hover:text-foreground"
+                : "bg-muted text-muted-foreground hover:text-foreground",
             )}
           >
             All
           </button>
           {ALL_ASSET_CLASSES.filter((cls) =>
-            portfolio.holdings.some((h) => h.assetClass === cls)
+            portfolio.holdings.some((h) => h.assetClass === cls),
           ).map((cls) => {
             const cfg = ASSET_CLASS_CONFIG[cls];
             return (
               <button
                 key={cls}
-                onClick={() => setActiveClass(activeClass === cls ? "ALL" : cls)}
+                onClick={() =>
+                  setActiveClass(activeClass === cls ? "ALL" : cls)
+                }
                 className={cn(
                   "rounded-full px-3 py-0.5 text-xs font-semibold transition-colors",
                   activeClass === cls
                     ? `${cfg.bgClass} ${cfg.textClass}`
-                    : "bg-muted text-muted-foreground hover:text-foreground"
+                    : "bg-muted text-muted-foreground hover:text-foreground",
                 )}
               >
                 {cfg.label}
@@ -281,12 +358,53 @@ export function HoldingsTable() {
           <Table>
             <TableHeader>
               <TableRow className="border-b border-border hover:bg-transparent">
-                <ColHeader label="Asset"    column="ticker"         sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
-                <ColHeader label="Quantity" column="quantity"       sortKey={sortKey} sortDir={sortDir} onSort={handleSort} align="right" />
-                <ColHeader label="Price"    column="currentPrice"   sortKey={sortKey} sortDir={sortDir} onSort={handleSort} align="right" />
-                <ColHeader label="Value"    column="totalValue"     sortKey={sortKey} sortDir={sortDir} onSort={handleSort} align="right" />
-                <ColHeader label="Unr. P&L" column="unrealizedPnL" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} align="right" />
-                <ColHeader label="24h Change" column="change24hPercent" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} align="right" />
+                <ColHeader
+                  label="Asset"
+                  column="ticker"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onSort={handleSort}
+                />
+                <ColHeader
+                  label="Quantity"
+                  column="quantity"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onSort={handleSort}
+                  align="right"
+                />
+                <ColHeader
+                  label="Price"
+                  column="currentPrice"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onSort={handleSort}
+                  align="right"
+                />
+                <ColHeader
+                  label="Value"
+                  column="totalValue"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onSort={handleSort}
+                  align="right"
+                />
+                <ColHeader
+                  label="Unr. P&L"
+                  column="unrealizedPnL"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onSort={handleSort}
+                  align="right"
+                />
+                <ColHeader
+                  label="24h Change"
+                  column="change24hPercent"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onSort={handleSort}
+                  align="right"
+                />
               </TableRow>
             </TableHeader>
 
@@ -327,7 +445,7 @@ export function HoldingsTable() {
                                 className={cn(
                                   "rounded-full px-2 py-0.5 text-[10px] font-semibold",
                                   cfg.bgClass,
-                                  cfg.textClass
+                                  cfg.textClass,
                                 )}
                               >
                                 {cfg.label}
@@ -371,7 +489,7 @@ export function HoldingsTable() {
                           <span
                             className={cn(
                               "tabular-nums text-sm font-semibold",
-                              pnlPositive ? "text-profit" : "text-loss"
+                              pnlPositive ? "text-profit" : "text-loss",
                             )}
                           >
                             {formatSignedCurrency(holding.unrealizedPnL)}
@@ -379,13 +497,14 @@ export function HoldingsTable() {
                           <span
                             className={cn(
                               "text-xs tabular-nums",
-                              pnlPositive ? "text-profit/70" : "text-loss/70"
+                              pnlPositive ? "text-profit/70" : "text-loss/70",
                             )}
                           >
                             {formatPercent(
-                              ((holding.totalValue - holding.avgCostBasis * holding.quantity) /
+                              ((holding.totalValue -
+                                holding.avgCostBasis * holding.quantity) /
                                 (holding.avgCostBasis * holding.quantity)) *
-                                100
+                                100,
                             )}
                           </span>
                         </div>
@@ -414,26 +533,34 @@ export function HoldingsTable() {
             </span>
             <div className="flex items-center gap-8">
               <div className="text-right">
-                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Value</p>
-                <p className="font-bold tabular-nums">{formatCurrency(totals.value)}</p>
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                  Value
+                </p>
+                <p className="font-bold tabular-nums">
+                  {formatCurrency(totals.value)}
+                </p>
               </div>
               <div className="text-right">
-                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Unr. P&L</p>
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                  Unr. P&L
+                </p>
                 <p
                   className={cn(
                     "font-bold tabular-nums",
-                    totals.pnl >= 0 ? "text-profit" : "text-loss"
+                    totals.pnl >= 0 ? "text-profit" : "text-loss",
                   )}
                 >
                   {formatSignedCurrency(totals.pnl)}
                 </p>
               </div>
               <div className="text-right">
-                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">24h</p>
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                  24h
+                </p>
                 <p
                   className={cn(
                     "font-bold tabular-nums",
-                    totals.abs24h >= 0 ? "text-profit" : "text-loss"
+                    totals.abs24h >= 0 ? "text-profit" : "text-loss",
                   )}
                 >
                   {formatSignedCurrency(totals.abs24h)}

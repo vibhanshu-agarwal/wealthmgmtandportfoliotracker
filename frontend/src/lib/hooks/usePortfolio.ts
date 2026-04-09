@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import {
   fetchPortfolio,
+  fetchPortfolioAnalytics,
   fetchPortfolioPerformance,
   fetchAssetAllocation,
 } from "@/lib/api/portfolio";
@@ -18,6 +19,7 @@ export const portfolioKeys = {
   performance: (userId: string, days: number) => ["portfolio", userId, "performance", days]   as const,
   allocation:  (userId: string)               => ["portfolio", userId, "allocation"]           as const,
   summary:     (userId: string)               => ["portfolio", "summary", userId]              as const,
+  analytics:   (userId: string)               => ["portfolio", userId, "analytics"]            as const,
 };
 
 // ── Hooks ─────────────────────────────────────────────────────────────────────
@@ -75,5 +77,23 @@ export function usePortfolioSummary() {
     enabled: status === "authenticated",
     staleTime: 30_000,
     retry: 1,
+  });
+}
+
+/**
+ * Unified portfolio analytics: best/worst performers, unrealized P&L,
+ * per-holding 24h change, and historical performance series.
+ *
+ * Replaces the frontend-synthesised placeholder data in PerformanceChart,
+ * SummaryCards, and HoldingsTable.
+ */
+export function usePortfolioAnalytics() {
+  const { userId, token, status } = useAuthenticatedUserId();
+  return useQuery({
+    queryKey: portfolioKeys.analytics(userId),
+    queryFn: () => fetchPortfolioAnalytics(token),
+    enabled: status === "authenticated",
+    staleTime: 30_000,
+    refetchInterval: 60_000,
   });
 }

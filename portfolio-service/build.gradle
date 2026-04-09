@@ -11,6 +11,8 @@ dependencies {
     implementation 'org.flywaydb:flyway-database-postgresql'
     implementation 'org.springframework.boot:spring-boot-starter-kafka'
     implementation 'org.springframework.boot:spring-boot-starter-cache'
+    implementation 'com.github.ben-manes.caffeine:caffeine'
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
     implementation 'com.fasterxml.jackson.core:jackson-databind'
     runtimeOnly 'org.postgresql:postgresql'
 
@@ -21,4 +23,11 @@ dependencies {
 }
 tasks.withType(Test).configureEach {
     useJUnitPlatform()
+}
+
+// Wire the integrationTest task to the compiled test source set so it can discover
+// @Tag("integration") tests. Without this, the task reports NO-SOURCE.
+tasks.named('integrationTest', Test) {
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
 }

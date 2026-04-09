@@ -85,7 +85,49 @@ export interface PortfolioPerformanceDTO {
   periodReturnPercent: number;
 }
 
-// ── Asset allocation (donut chart) ────────────────────────────────────────────
+// ── Portfolio Analytics (GET /api/portfolio/analytics) ───────────────────────
+
+export interface HoldingAnalyticsDTO {
+  /** Exchange ticker symbol */
+  ticker: string;
+  /** Number of units held */
+  quantity: number;
+  /** Current market price per unit in quoteCurrency */
+  currentPrice: number;
+  /** FX-converted total value in baseCurrency */
+  currentValueBase: number;
+  /** Average cost per unit — placeholder equals currentPrice until trade ledger exists */
+  avgCostBasis: number;
+  /** currentValueBase - (quantity × avgCostBasis × fxRate) */
+  unrealizedPnL: number;
+  /** currentPrice - price24hAgo (in quoteCurrency) */
+  change24hAbsolute: number;
+  /** (change24hAbsolute / price24hAgo) × 100, scaled to 4 d.p. */
+  change24hPercent: number;
+  /** ISO 4217 currency code in which currentPrice is denominated */
+  quoteCurrency: string;
+}
+
+export interface PortfolioAnalyticsDTO {
+  /** Sum of all HoldingAnalyticsDTO.currentValueBase in baseCurrency */
+  totalValue: number;
+  /** Sum of all cost bases in baseCurrency */
+  totalCostBasis: number;
+  /** totalValue - totalCostBasis */
+  totalUnrealizedPnL: number;
+  /** (totalUnrealizedPnL / totalCostBasis) × 100; 0 when totalCostBasis is 0 */
+  totalUnrealizedPnLPercent: number;
+  /** ISO 4217 base currency for all monetary aggregates */
+  baseCurrency: string;
+  /** Holding with the highest change24hPercent */
+  bestPerformer: { ticker: string; change24hPercent: number };
+  /** Holding with the lowest change24hPercent */
+  worstPerformer: { ticker: string; change24hPercent: number };
+  /** Per-holding analytics snapshots */
+  holdings: HoldingAnalyticsDTO[];
+  /** Historical performance series, ascending by date */
+  performanceSeries: PerformanceDataPoint[];
+}
 
 export interface AllocationSliceDTO {
   assetClass: AssetClass;

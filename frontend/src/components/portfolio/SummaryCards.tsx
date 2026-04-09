@@ -4,7 +4,11 @@ import { TrendingUp, TrendingDown, Wallet, Activity, Star } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { usePortfolio, usePortfolioSummary } from "@/lib/hooks/usePortfolio";
+import {
+  usePortfolio,
+  usePortfolioSummary,
+  usePortfolioAnalytics,
+} from "@/lib/hooks/usePortfolio";
 import {
   formatCurrency,
   formatPercent,
@@ -57,7 +61,7 @@ function ChangeIndicator({
       className={cn(
         "inline-flex items-center gap-1 font-semibold tabular-nums",
         isPositive ? "text-profit" : "text-loss",
-        size === "lg" ? "text-base" : "text-xs"
+        size === "lg" ? "text-base" : "text-xs",
       )}
     >
       <Icon className={size === "lg" ? "h-4 w-4" : "h-3 w-3"} />
@@ -92,7 +96,9 @@ function SummaryCardsSkeleton() {
 
 export function SummaryCards() {
   const { data: portfolio, isLoading, isError } = usePortfolio();
-  const { data: portfolioSummary, isLoading: isSummaryLoading } = usePortfolioSummary();
+  const { data: portfolioSummary, isLoading: isSummaryLoading } =
+    usePortfolioSummary();
+  const { data: analytics } = usePortfolioAnalytics();
 
   if (isLoading || isSummaryLoading) return <SummaryCardsSkeleton />;
 
@@ -107,7 +113,15 @@ export function SummaryCards() {
   const { summary } = portfolio;
   const pnlIsPositive = summary.change24hAbsolute >= 0;
   // Prefer backend aggregate from /api/portfolio/summary when available, fallback to local aggregate.
-  const portfolioTotal = portfolioSummary?.totalValue ?? portfolio.summary.totalValue;
+  const portfolioTotal =
+    portfolioSummary?.totalValue ?? portfolio.summary.totalValue;
+
+  // Use backend-computed performers when available; fall back to placeholder from fetchPortfolio.
+  const bestPerformer = analytics?.bestPerformer ?? summary.bestPerformer;
+  const worstPerformer = analytics?.worstPerformer ?? summary.worstPerformer;
+  // Use backend-computed unrealized P&L percent when available.
+  const unrealizedPnLPercent =
+    analytics?.totalUnrealizedPnLPercent ?? summary.totalUnrealizedPnLPercent;
 
   return (
     <>
@@ -118,7 +132,7 @@ export function SummaryCards() {
             {formatCurrency(portfolioTotal)}
           </p>
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <ChangeIndicator value={summary.totalUnrealizedPnLPercent} />
+            <ChangeIndicator value={unrealizedPnLPercent} />
             <span>all-time return</span>
           </div>
         </div>
@@ -136,26 +150,27 @@ export function SummaryCards() {
           <p
             className={cn(
               "text-3xl font-bold tracking-tight tabular-nums",
-              pnlIsPositive ? "text-profit" : "text-loss"
+              pnlIsPositive ? "text-profit" : "text-loss",
             )}
           >
             {formatSignedCurrency(summary.change24hAbsolute)}
           </p>
           <div className="flex items-center gap-2">
             <ChangeIndicator value={summary.change24hPercent} />
-            <span className="text-xs text-muted-foreground">since yesterday</span>
+            <span className="text-xs text-muted-foreground">
+              since yesterday
+            </span>
           </div>
         </div>
         <div
           className={cn(
             "absolute -right-4 -top-4 h-20 w-20 rounded-full blur-xl",
-            pnlIsPositive ? "bg-profit/8" : "bg-loss/8"
+            pnlIsPositive ? "bg-profit/8" : "bg-loss/8",
           )}
         />
       </StatCard>
 
       {/* ── Card 3: Best Performing Asset ── */}
-      {/* TODO: Source best/worst performer and 24h deltas from backend analytics endpoint. */}
       <StatCard title="Best Performing Asset" icon={Star}>
         <div className="space-y-1.5">
           <div className="flex items-center gap-2">
@@ -163,23 +178,22 @@ export function SummaryCards() {
               variant="secondary"
               className="font-mono text-sm font-bold px-2"
             >
-              {summary.bestPerformer.ticker}
+              {bestPerformer.ticker}
             </Badge>
-            <ChangeIndicator
-              value={summary.bestPerformer.change24hPercent}
-              size="lg"
-            />
+            <ChangeIndicator value={bestPerformer.change24hPercent} size="lg" />
           </div>
-          <p className="text-xs text-muted-foreground">
-            {summary.bestPerformer.name}
-          </p>
+          {"name" in bestPerformer && (
+            <p className="text-xs text-muted-foreground">
+              {(bestPerformer as { name: string }).name}
+            </p>
+          )}
           <p className="text-xs text-muted-foreground">
             Worst:{" "}
             <span className="font-mono font-semibold text-foreground">
-              {summary.worstPerformer.ticker}
+              {worstPerformer.ticker}
             </span>{" "}
             <span className="text-loss">
-              {formatPercent(summary.worstPerformer.change24hPercent)}
+              {formatPercent(worstPerformer.change24hPercent)}
             </span>
           </p>
         </div>
