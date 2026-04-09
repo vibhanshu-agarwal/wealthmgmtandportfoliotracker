@@ -30,7 +30,7 @@ export default function PortfolioPage() {
 
       {/* ── Row 2: Performance chart + Allocation donut ── */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <PerformanceChart days={30} />
+        <PerformanceChart />
         <AllocationChart />
       </div>
 

@@ -9,13 +9,10 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-# Build-time secrets required by NextAuth — injected via --build-arg in CI/CD.
-# These are NOT baked into the final image; they are only needed during `npm run build`.
-ARG NEXTAUTH_SECRET
-ARG AUTH_JWT_SECRET
-ENV NEXTAUTH_SECRET=$NEXTAUTH_SECRET
-ENV AUTH_JWT_SECRET=$AUTH_JWT_SECRET
-# We disable telemetry to speed up the build
+# Build-time env — only NEXT_TELEMETRY_DISABLED is needed at build time.
+# AUTH_SECRET, AUTH_JWT_SECRET, and AUTH_URL are runtime secrets; inject them
+# via your container orchestrator (ECS task definition, docker run -e, etc.)
+# and never bake them into the image.
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 
