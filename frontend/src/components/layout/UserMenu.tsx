@@ -1,5 +1,7 @@
 "use client";
 
+import { useSession, signOut } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,18 +12,28 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
-import { LogOut, Settings, User, CreditCard, Bell } from "lucide-react";
+import { LogOut, Settings, User, Bell } from "lucide-react";
 
-// Mock user — will be replaced by auth session in Phase 2
-const MOCK_USER = {
-  name: "Alex Morgan",
-  email: "alex.morgan@example.com",
-  avatarUrl: "",
-  plan: "Pro",
-};
+function getInitials(name: string) {
+  return name
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .toUpperCase();
+}
 
 export function UserMenu() {
+  const { data: session, status } = useSession();
+  const router = useRouter();
+
+  const name = session?.user?.name ?? session?.user?.email ?? "User";
+  const email = session?.user?.email ?? "";
+  const initials = getInitials(name);
+
+  if (status === "loading") {
+    return <div className="h-7 w-7 rounded-full bg-white/10 animate-pulse" />;
+  }
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -30,36 +42,24 @@ export function UserMenu() {
           aria-label="User menu"
         >
           <Avatar className="h-7 w-7 ring-2 ring-profit/40">
-            <AvatarImage src={MOCK_USER.avatarUrl} alt={MOCK_USER.name} />
+            <AvatarImage src={session?.user?.image ?? ""} alt={name} />
             <AvatarFallback className="bg-profit text-white text-xs font-semibold">
-              {MOCK_USER.name
-                .split(" ")
-                .map((n) => n[0])
-                .join("")}
+              {initials}
             </AvatarFallback>
           </Avatar>
           <div className="hidden md:block text-left leading-none">
-            <p className="text-xs font-semibold text-white">{MOCK_USER.name}</p>
-            <p className="text-[10px] text-white/50 mt-0.5">{MOCK_USER.plan} Plan</p>
+            <p className="text-xs font-semibold text-white">{name}</p>
+            <p className="text-[10px] text-white/50 mt-0.5">{email}</p>
           </div>
         </button>
       </DropdownMenuTrigger>
 
-      <DropdownMenuContent
-        className="w-60"
-        align="end"
-        sideOffset={8}
-      >
+      <DropdownMenuContent className="w-60" align="end" sideOffset={8}>
         <DropdownMenuLabel className="font-normal">
           <div className="flex flex-col space-y-1">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-semibold leading-none">{MOCK_USER.name}</p>
-              <Badge variant="secondary" className="text-[10px] h-4 px-1.5">
-                {MOCK_USER.plan}
-              </Badge>
-            </div>
+            <p className="text-sm font-semibold leading-none">{name}</p>
             <p className="text-xs leading-none text-muted-foreground">
-              {MOCK_USER.email}
+              {email}
             </p>
           </div>
         </DropdownMenuLabel>
@@ -67,19 +67,15 @@ export function UserMenu() {
         <DropdownMenuSeparator />
 
         <DropdownMenuGroup>
-          <DropdownMenuItem>
+          <DropdownMenuItem onClick={() => router.push("/settings")}>
             <User className="mr-2 h-4 w-4" />
             Profile
           </DropdownMenuItem>
-          <DropdownMenuItem>
-            <CreditCard className="mr-2 h-4 w-4" />
-            Billing
-          </DropdownMenuItem>
-          <DropdownMenuItem>
+          <DropdownMenuItem onClick={() => router.push("/settings")}>
             <Bell className="mr-2 h-4 w-4" />
             Notifications
           </DropdownMenuItem>
-          <DropdownMenuItem>
+          <DropdownMenuItem onClick={() => router.push("/settings")}>
             <Settings className="mr-2 h-4 w-4" />
             Settings
           </DropdownMenuItem>
@@ -87,7 +83,10 @@ export function UserMenu() {
 
         <DropdownMenuSeparator />
 
-        <DropdownMenuItem className="text-loss focus:text-loss focus:bg-loss-muted">
+        <DropdownMenuItem
+          className="text-loss focus:text-loss focus:bg-loss-muted"
+          onClick={() => signOut({ callbackUrl: "/login" })}
+        >
           <LogOut className="mr-2 h-4 w-4" />
           Sign out
         </DropdownMenuItem>

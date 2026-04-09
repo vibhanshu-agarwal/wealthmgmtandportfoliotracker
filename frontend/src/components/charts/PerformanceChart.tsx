@@ -19,7 +19,10 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { TrendingUp, TrendingDown } from "lucide-react";
-import { usePortfolioAnalytics } from "@/lib/hooks/usePortfolio";
+import {
+  usePortfolioAnalytics,
+  usePortfolioPerformance,
+} from "@/lib/hooks/usePortfolio";
 import {
   formatCurrency,
   formatDateShort,
@@ -93,19 +96,18 @@ function PerformanceChartSkeleton() {
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function PerformanceChart() {
-  const { data: analytics, isLoading, isError } = usePortfolioAnalytics();
+  const { data: analytics, isLoading: analyticsLoading } =
+    usePortfolioAnalytics();
+  const { data: performance, isLoading: perfLoading } =
+    usePortfolioPerformance(30);
+
+  const isLoading = analyticsLoading && perfLoading;
 
   if (isLoading) return <PerformanceChartSkeleton />;
 
-  if (isError || !analytics) {
-    return (
-      <Card className="col-span-2 flex items-center justify-center p-8 text-muted-foreground">
-        Failed to load performance data.
-      </Card>
-    );
-  }
-
-  const dataPoints = analytics.performanceSeries;
+  // Prefer backend analytics series; fall back to synthetic performance series
+  const dataPoints =
+    analytics?.performanceSeries ?? performance?.dataPoints ?? [];
 
   if (dataPoints.length === 0) {
     return (

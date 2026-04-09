@@ -211,7 +211,7 @@ function HoldingsTableSkeleton() {
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function HoldingsTable() {
-  const { data: portfolio, isLoading, isError } = usePortfolio();
+  const { data: portfolio, isLoading } = usePortfolio();
   const { data: analytics } = usePortfolioAnalytics();
 
   // Build a ticker → analytics holding lookup for merging real P&L and 24h change data.
@@ -274,10 +274,19 @@ export function HoldingsTable() {
 
   if (isLoading) return <HoldingsTableSkeleton />;
 
-  if (isError || !portfolio) {
+  // Show empty table when backend is unreachable rather than a hard error
+  if (!portfolio) {
     return (
-      <Card className="flex items-center justify-center p-8 text-muted-foreground text-sm">
-        Failed to load holdings data.
+      <Card>
+        <CardHeader className="pb-4">
+          <CardTitle className="text-base">Holdings</CardTitle>
+          <CardDescription className="mt-1">
+            No holdings data available
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex items-center justify-center p-8 text-sm text-muted-foreground">
+          Connect to the backend to view your holdings.
+        </CardContent>
       </Card>
     );
   }

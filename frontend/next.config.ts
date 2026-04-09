@@ -4,11 +4,12 @@ const nextConfig: NextConfig = {
 // Enables the optimized multi-stage Docker build
   output: 'standalone',
 
-  // Point to the Spring Boot backend (update port as needed)
+  // Proxy /api/* to the Spring Boot backend, but exclude /api/auth/*
+  // which is handled locally by the NextAuth route handler.
   async rewrites() {
     return [
       {
-        source: "/api/:path*",
+        source: "/api/((?!auth/).*)",
         destination: "http://localhost:8080/api/:path*",
       },
     ];

@@ -1,6 +1,8 @@
 spring:
   application:
     name: api-gateway
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:local}
   # spring.data.redis.* intentionally absent — lives only in application-local.yml
   # No default-filters here — any RequestRateLimiter reference triggers Redis autoconfiguration
   # on startup, which crashes deployments where no Redis is present (e.g. AWS without ElastiCache)

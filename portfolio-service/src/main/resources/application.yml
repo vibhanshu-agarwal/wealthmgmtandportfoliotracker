@@ -1,6 +1,8 @@
 spring:
   application:
     name: portfolio-service
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:local}
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/portfolio_db?options=-c%20timezone=Asia/Kolkata}
     username: ${SPRING_DATASOURCE_USERNAME:wealth_user}
