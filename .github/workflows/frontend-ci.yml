@@ -101,7 +101,7 @@ jobs:
           npx playwright test \
             tests/e2e/dashboard-smoke.spec.ts \
             tests/e2e/dashboard-data.spec.ts \
-            --grep "[1-4]\." \
+            --grep-invert "5\. Synthetic" \
             --reporter=list
 
       - name: Upload Playwright report on failure
