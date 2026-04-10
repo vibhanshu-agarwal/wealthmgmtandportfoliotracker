@@ -1,7 +1,8 @@
 package com.wealth.market;
 
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.StreamReadFeature;
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.json.JsonMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
@@ -12,6 +13,7 @@ import org.springframework.core.io.Resource;
 import org.springframework.core.io.ResourceLoader;
 import org.springframework.stereotype.Component;
 
+import java.io.FileNotFoundException;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -35,19 +37,21 @@ class LocalMarketDataSeeder implements ApplicationRunner, ResourceLoaderAware {
 
     private final AssetPriceRepository assetPriceRepository;
     private final MarketPriceService marketPriceService;
-    private final ObjectMapper objectMapper;
+    private final JsonMapper objectMapper;
     private final MarketSeedProperties props;
     private ResourceLoader resourceLoader;
 
     LocalMarketDataSeeder(AssetPriceRepository assetPriceRepository,
                           MarketPriceService marketPriceService,
-                          ObjectMapper objectMapper,
+                          JsonMapper jsonMapper,
                           MarketSeedProperties props) {
         this.assetPriceRepository = assetPriceRepository;
         this.marketPriceService = marketPriceService;
         // Ensure BigDecimal precision is preserved for basePrice values
-        this.objectMapper = objectMapper.copy()
-                .enable(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS);
+        this.objectMapper = jsonMapper.rebuild()
+                .enable(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS)
+                .enable(StreamReadFeature.INCLUDE_SOURCE_IN_LOCATION)
+                .build();
         this.props = props;
     }
 
@@ -69,11 +73,15 @@ class LocalMarketDataSeeder implements ApplicationRunner, ResourceLoaderAware {
             fixture = objectMapper.readValue(resource.getInputStream(), MarketSeedFixture.class);
         } catch (IllegalArgumentException e) {
             log.error("Market data seeder: invalid fixture path '{}' — {}",
-                    props.fixturePath(), e.getMessage(), e);
+                    props.fixturePath(), e.getMessage());
+            return;
+        } catch (FileNotFoundException e) {
+            log.error("Market data seeder: fixture file missing at '{}'",
+                    props.fixturePath());
             return;
         } catch (Exception e) {
             log.error("Market data seeder: failed to load or parse fixture '{}' — {}",
-                    props.fixturePath(), e.getMessage(), e);
+                    props.fixturePath(), e.getMessage());
             return;
         }
 

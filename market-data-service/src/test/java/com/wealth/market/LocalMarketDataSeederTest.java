@@ -4,9 +4,9 @@ import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
-
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.StreamReadFeature;
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.json.JsonMapper;
 import java.math.BigDecimal;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -27,15 +27,16 @@ class LocalMarketDataSeederTest {
 
   @Mock private MarketPriceService marketPriceService;
 
-  private ObjectMapper objectMapper;
+  private JsonMapper objectMapper;
   private ResourceLoader resourceLoader;
 
   @BeforeEach
   void setUp() {
     objectMapper =
-        new ObjectMapper()
+        JsonMapper.builder()
             .enable(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS)
-            .findAndRegisterModules();
+            .enable(StreamReadFeature.INCLUDE_SOURCE_IN_LOCATION)
+            .build();
     resourceLoader = new DefaultResourceLoader();
   }
 

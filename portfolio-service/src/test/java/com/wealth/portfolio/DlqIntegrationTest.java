@@ -2,7 +2,7 @@ package com.wealth.portfolio;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 import com.wealth.market.events.PriceUpdatedEvent;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
@@ -82,11 +82,11 @@ class DlqIntegrationTest {
 
   private KafkaProducer<String, byte[]> producer;
   private KafkaConsumer<String, byte[]> dltConsumer;
-  private ObjectMapper objectMapper;
+  private JsonMapper objectMapper;
 
   @BeforeEach
   void setUp() {
-    objectMapper = new ObjectMapper();
+    objectMapper = JsonMapper.builder().build();
 
     producer =
         new KafkaProducer<>(
