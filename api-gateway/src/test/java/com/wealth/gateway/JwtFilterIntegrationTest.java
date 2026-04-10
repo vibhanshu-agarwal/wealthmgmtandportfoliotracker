@@ -292,7 +292,7 @@ class JwtFilterIntegrationTest {
         if (parts.length != 3) return jwt;
         byte[] sigBytes = Base64.getUrlDecoder().decode(parts[2]);
         int idx = byteIndex < 0 ? sigBytes.length + byteIndex : byteIndex;
-        idx = Math.max(0, Math.min(idx, sigBytes.length - 1));
+        idx = Math.clamp(idx, 0, sigBytes.length - 1);
         sigBytes[idx] = (byte) (sigBytes[idx] ^ 0xFF);
         parts[2] = Base64.getUrlEncoder().withoutPadding().encodeToString(sigBytes);
         return String.join(".", parts);
