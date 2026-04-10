@@ -215,8 +215,9 @@ export function HoldingsTable() {
   const { data: analytics } = usePortfolioAnalytics();
 
   // Build a ticker → analytics holding lookup for merging real P&L and 24h change data.
-  const analyticsByTicker = new Map(
-    (analytics?.holdings ?? []).map((h) => [h.ticker, h]),
+  const analyticsByTicker = useMemo(
+    () => new Map((analytics?.holdings ?? []).map((h) => [h.ticker, h])),
+    [analytics?.holdings],
   );
 
   const [sortKey, setSortKey] = useState<SortKey>("totalValue");
