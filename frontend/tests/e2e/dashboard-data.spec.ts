@@ -36,12 +36,15 @@ function mintJwt(userId = "user-001"): string {
 
 /** Perform a real credential login via the UI and return the page. */
 async function loginViaUI(page: Page): Promise<void> {
-  await page.goto(`${BASE_URL}/login`);
+  // networkidle ensures React hydration is complete before we interact.
+  // Without this, clicking submit pre-hydration triggers a native HTML form
+  // submission (no e.preventDefault()) which reloads the page at /login.
+  await page.goto(`${BASE_URL}/login`, { waitUntil: "networkidle" });
   await page.fill('input[name="username"]', "user-001");
   await page.fill('input[name="password"]', "password");
   await page.click('button[type="submit"]');
   // Wait for redirect away from /login
-  await page.waitForURL((url) => !url.pathname.includes("/login"), { timeout: 10_000 });
+  await page.waitForURL((url) => !url.pathname.includes("/login"), { timeout: 15_000 });
 }
 
 // ── Network capture ───────────────────────────────────────────────────────────
