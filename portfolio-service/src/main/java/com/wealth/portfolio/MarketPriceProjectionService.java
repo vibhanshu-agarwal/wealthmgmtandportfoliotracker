@@ -11,7 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * Maintains the portfolio-service read model of latest market prices.
  *
- * <p>Writes are intentionally idempotent so duplicate Kafka delivery does not corrupt valuation state.
+ * <p>Writes are intentionally idempotent so duplicate Kafka delivery does not corrupt the valuation state.
  */
 @Service
 class MarketPriceProjectionService {
