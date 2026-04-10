@@ -377,13 +377,20 @@ public class PortfolioAnalyticsService {
     // ── Helper: user existence guard ─────────────────────────────────────────
 
     private void requireUserExists(String userId) {
-        try {
-            UUID uuid = UUID.fromString(userId);
-            if (!userRepository.existsById(uuid)) {
-                throw new UserNotFoundException(userId);
+        // portfolios.user_id is a plain VARCHAR storing the JWT sub claim (e.g. "user-001").
+        // The API Gateway has already authenticated the request via JWT validation, so we
+        // trust non-UUID sub claims. Only throw UserNotFoundException for UUID-format sub
+        // claims that have no matching user record.
+        boolean hasPortfolios = portfolioRepository.existsByUserId(userId);
+        if (!hasPortfolios) {
+            try {
+                UUID uuid = UUID.fromString(userId);
+                if (!userRepository.existsById(uuid)) {
+                    throw new UserNotFoundException(userId);
+                }
+            } catch (IllegalArgumentException ex) {
+                // Non-UUID sub claim — gateway-authenticated, no portfolios yet.
             }
-        } catch (IllegalArgumentException ex) {
-            throw new UserNotFoundException(userId);
         }
     }
 }

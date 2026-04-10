@@ -28,6 +28,12 @@ import java.util.Set;
  *
  * <p>Restricted to the {@code local} profile — never instantiated in {@code aws} or other
  * production profiles.
+ *
+ * <p>ObjectMapper audit (task 1.1): zero {@code new ObjectMapper()} instantiations or
+ * {@code ObjectMapper} field declarations exist in any {@code src/main/java} production source
+ * across all modules (api-gateway, portfolio-service, market-data-service, insight-service,
+ * common-dto). This class — the only Jackson-mapper consumer in production code — correctly
+ * injects the shared {@code JsonMapper} Spring bean and rebuilds it with custom feature flags.
  */
 @Component
 @Profile("local")

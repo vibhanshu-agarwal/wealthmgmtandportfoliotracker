@@ -41,7 +41,13 @@ public class Portfolio {
     public UUID getId() { return id; }
     public String getUserId() { return userId; }
     public Instant getCreatedAt() { return createdAt; }
-    public List<AssetHolding> getHoldings() { return Collections.unmodifiableList(holdings); }
 
+    // Returns the live mutable list — required for JPA dirty-checking and cascade hydration.
+    public List<AssetHolding> getHoldings() { return holdings; }
 
+    /** Package-private helper so service-layer code never manipulates the collection directly. */
+    void addHolding(AssetHolding h) {
+        holdings.add(h);
+        h.setPortfolio(this);
+    }
 }

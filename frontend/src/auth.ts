@@ -21,6 +21,19 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (user?.id) {
         token.sub = user.id;
       }
+      // Ensure __rawJwt is always populated so session() can surface it as accessToken.
+      // When a raw JWT cookie is injected directly (e.g. Playwright E2E auth helper),
+      // encode() never runs, so __rawJwt is not stashed. Re-sign here as a fallback.
+      if (!token.__rawJwt) {
+        const payload = { ...(token as Record<string, unknown>) };
+        delete payload.__rawJwt;
+        const reissued = await new SignJWT(payload)
+          .setProtectedHeader({ alg: "HS256" })
+          .setIssuedAt()
+          .setExpirationTime("1h")
+          .sign(secret);
+        token.__rawJwt = reissued;
+      }
       return token;
     },
 

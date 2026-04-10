@@ -41,4 +41,8 @@ public class AssetHolding {
     public void setQuantity(BigDecimal quantity) {
         this.quantity = quantity;
     }
+
+    public void setPortfolio(Portfolio portfolio) {
+        this.portfolio = portfolio;
+    }
 }

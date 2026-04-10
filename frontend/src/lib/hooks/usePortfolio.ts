@@ -33,7 +33,7 @@ export function usePortfolio() {
   return useQuery({
     queryKey: portfolioKeys.all(userId),
     queryFn: () => fetchPortfolio(userId, token),
-    enabled: status === "authenticated",
+    enabled: status === "authenticated" && !!token,
     staleTime: 30_000,
     refetchInterval: 60_000,
   });
@@ -74,9 +74,10 @@ export function usePortfolioSummary() {
   return useQuery({
     queryKey: portfolioKeys.summary(userId),
     queryFn: () => fetchPortfolioSummary(userId, token),
-    enabled: status === "authenticated",
+    enabled: status === "authenticated" && !!token,
     staleTime: 30_000,
-    retry: 1,
+    retry: 3,
+    retryDelay: 1000,
   });
 }
 
@@ -92,7 +93,7 @@ export function usePortfolioAnalytics() {
   return useQuery({
     queryKey: portfolioKeys.analytics(userId),
     queryFn: () => fetchPortfolioAnalytics(token),
-    enabled: status === "authenticated",
+    enabled: status === "authenticated" && !!token,
     staleTime: 30_000,
     refetchInterval: 60_000,
   });
