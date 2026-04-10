@@ -8,6 +8,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
+import static com.wealth.portfolio.PortfolioConstants.X_USER_ID_HEADER;
+
 @RestController
 @RequestMapping("/api/portfolio")
 public class PortfolioController {
@@ -38,7 +40,7 @@ public class PortfolioController {
      */
     @GetMapping
     public ResponseEntity<List<PortfolioResponse>> getPortfolios(
-            @RequestHeader("X-User-Id") String userId) {
+            @RequestHeader(X_USER_ID_HEADER) String userId) {
         return ResponseEntity.ok(portfolioService.getByUserId(userId));
     }
 }

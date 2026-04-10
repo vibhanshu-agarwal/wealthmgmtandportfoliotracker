@@ -7,6 +7,8 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import static com.wealth.portfolio.PortfolioConstants.X_USER_ID_HEADER;
+
 @RestController
 @RequestMapping("/api/portfolio")
 public class PortfolioSummaryController {
@@ -36,7 +38,7 @@ public class PortfolioSummaryController {
      */
     @GetMapping("/summary")
     public ResponseEntity<PortfolioSummaryDto> getSummary(
-            @RequestHeader("X-User-Id") String userId) {
+            @RequestHeader(X_USER_ID_HEADER) String userId) {
         return ResponseEntity.ok(portfolioService.getSummary(userId));
     }
 }
