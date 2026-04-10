@@ -32,6 +32,7 @@ class PortfolioAnalyticsServiceTest {
 
   private JdbcTemplate jdbcTemplate;
   private UserRepository userRepository;
+  private PortfolioRepository portfolioRepository;
   private FxRateProvider fxRateProvider;
   private FxProperties fxProperties;
   private PortfolioAnalyticsService service;
@@ -46,6 +47,7 @@ class PortfolioAnalyticsServiceTest {
     fxRateProvider = mock(FxRateProvider.class);
     fxProperties = mock(FxProperties.class);
     PortfolioRepository portfolioRepository = mock(PortfolioRepository.class);
+    this.portfolioRepository = portfolioRepository;
 
     when(fxProperties.baseCurrency()).thenReturn(BASE_CURRENCY);
     when(userRepository.existsById(UUID.fromString(USER_ID))).thenReturn(true);
@@ -165,6 +167,7 @@ class PortfolioAnalyticsServiceTest {
 
   @Test
   void userNotFound_throwsUserNotFoundException() {
+    when(portfolioRepository.existsByUserId(USER_ID)).thenReturn(false);
     when(userRepository.existsById(UUID.fromString(USER_ID))).thenReturn(false);
 
     assertThatThrownBy(() -> service.getAnalytics(USER_ID))
