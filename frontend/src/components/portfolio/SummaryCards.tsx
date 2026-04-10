@@ -142,6 +142,9 @@ export function SummaryCards() {
         {/* Subtle gradient accent */}
         <div className="absolute -right-4 -top-4 h-20 w-20 rounded-full bg-profit/5 blur-xl" />
       </StatCard>
+                        data-testid="total-value"
+                    >
+                        {formatCurrency(portfolioTotal)}
 
       {/* ── Card 2: 24h Profit / Loss ── */}
       <StatCard
