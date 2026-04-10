@@ -2,43 +2,112 @@ name: Frontend CI (Next.js)
 
 on:
   push:
-    branches: [ "main", "architecture/**" ]
+    branches: [ "main", "architecture/**", "architecture/cloud-native-extract" ]
   pull_request:
-    branches: [ "main", "architecture/**" ]
+    branches: [ "main", "architecture/**", "architecture/cloud-native-extract" ]
 
 jobs:
+  # ── Job 1: Lint, type-check, unit tests, standalone build ────────────────────
   build-and-test:
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: ./frontend
     env:
-      # NextAuth requires NEXTAUTH_SECRET at build time and test time.
-      # AUTH_JWT_SECRET must match the value used by the API Gateway.
-      # These are non-sensitive placeholder values safe for CI — real secrets
-      # are injected via GitHub Secrets in production deployments.
       NEXTAUTH_SECRET: ci-nextauth-secret-not-for-production
+      AUTH_SECRET: ci-nextauth-secret-not-for-production
       AUTH_JWT_SECRET: ci-jwt-secret-placeholder-min-32-chars!!
+      AUTH_URL: http://localhost:3000
 
     steps:
-    - name: Checkout Repository
-      uses: actions/checkout@v4
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
-    - name: Set up Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '20'
-        cache: 'npm' # Speeds up builds by caching dependencies
-        cache-dependency-path: './frontend/package-lock.json'
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: './frontend/package-lock.json'
 
-    - name: Install Dependencies
-      run: npm ci
+      - name: Install Dependencies
+        run: npm ci
 
-    - name: Run ESLint
-      run: npm run lint
+      - name: Run ESLint
+        run: npm run lint
 
-    - name: Check TypeScript Types
-      run: npx tsc --noEmit
+      - name: Check TypeScript Types
+        run: npx tsc --noEmit
 
-    - name: Build Next.js Application
-      run: npm run build
+      - name: Run Unit Tests (Vitest)
+        run: npm run test
+
+      - name: Build Next.js Application (standalone)
+        run: npm run build
+
+      - name: Upload standalone build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: next-standalone
+          retention-days: 1
+          path: |
+            frontend/.next/standalone
+            frontend/.next/static
+            frontend/public
+
+  # ── Job 2: E2E smoke tests — Next.js only, no backend ────────────────────────
+  # Validates: login flow, session cookie, auth header attachment on API calls.
+  # The Spring Boot Gateway is NOT running — /api/* calls will get ECONNREFUSED,
+  # which is exactly what tests 3 & 4 surface as diagnostic output.
+  # Tests 1–3 must pass; test 5 (direct Gateway fetch) is excluded here.
+  e2e-smoke:
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    defaults:
+      run:
+        working-directory: ./frontend
+    env:
+      NEXTAUTH_SECRET: ci-nextauth-secret-not-for-production
+      AUTH_SECRET: ci-nextauth-secret-not-for-production
+      AUTH_JWT_SECRET: ci-jwt-secret-placeholder-min-32-chars!!
+      AUTH_URL: http://localhost:3000
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: './frontend/package-lock.json'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Download standalone build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: next-standalone
+          path: frontend/
+
+      - name: Install Playwright browsers (Chromium only)
+        run: npx playwright install --with-deps chromium
+
+      - name: Run E2E smoke tests
+        # Runs: smoke spec + auth/header diagnostic tests (excludes Gateway-dependent test 5)
+        run: |
+          npx playwright test \
+            tests/e2e/dashboard-smoke.spec.ts \
+            tests/e2e/dashboard-data.spec.ts \
+            --grep "Login flow|session|Authorization header" \
+            --reporter=list
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-smoke-report
+          retention-days: 7
+          path: frontend/playwright-report/
