@@ -1,3 +1,5 @@
+import org.springframework.boot.gradle.tasks.run.BootRun
+
 plugins {
     id 'java'
     id 'org.springframework.boot' version '4.0.5' apply false
@@ -63,8 +65,7 @@ subprojects {
         jvmArgs '-Duser.timezone=Asia/Kolkata'
     }
 
-
-    tasks.matching { it.name == 'bootRun' }.configureEach {
+    tasks.withType(BootRun).configureEach {
         jvmArgs '-Duser.timezone=Asia/Kolkata'
     }
 
@@ -85,7 +86,7 @@ subprojects {
         }
 
         // Ensure standard fast tests run before the heavy integration tests
-        shouldRunAfter tasks.named('test')
+        mustRunAfter tasks.named('test')
     }
 
     // 3. Ensure 'integrationTest' runs automatically when you run a full build/check
