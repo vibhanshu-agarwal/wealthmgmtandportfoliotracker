@@ -335,7 +335,7 @@ public class PortfolioAnalyticsService {
 
         // Pin the last point to anchorValue
         if (!points.isEmpty()) {
-            PerformancePointDto last = points.get(points.size() - 1);
+            PerformancePointDto last = points.getLast();
             BigDecimal prevValue = points.size() > 1
                     ? points.get(points.size() - 2).value()
                     : anchorValue;
