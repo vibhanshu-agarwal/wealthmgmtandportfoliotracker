@@ -45,12 +45,14 @@ class PortfolioAnalyticsServiceTest {
     userRepository = mock(UserRepository.class);
     fxRateProvider = mock(FxRateProvider.class);
     fxProperties = mock(FxProperties.class);
+    PortfolioRepository portfolioRepository = mock(PortfolioRepository.class);
 
     when(fxProperties.baseCurrency()).thenReturn(BASE_CURRENCY);
     when(userRepository.existsById(UUID.fromString(USER_ID))).thenReturn(true);
+    when(portfolioRepository.existsByUserId(USER_ID)).thenReturn(true);
 
     service =
-        new PortfolioAnalyticsService(jdbcTemplate, userRepository, fxRateProvider, fxProperties);
+        new PortfolioAnalyticsService(jdbcTemplate, userRepository, portfolioRepository, fxRateProvider, fxProperties);
   }
 
   // ── Core behaviour tests ─────────────────────────────────────────────────
