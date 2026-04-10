@@ -87,15 +87,18 @@ public class PortfolioAnalyticsService {
 
     private final JdbcTemplate jdbcTemplate;
     private final UserRepository userRepository;
+    private final PortfolioRepository portfolioRepository;
     private final FxRateProvider fxRateProvider;
     private final FxProperties fxProperties;
 
     public PortfolioAnalyticsService(JdbcTemplate jdbcTemplate,
                                      UserRepository userRepository,
+                                     PortfolioRepository portfolioRepository,
                                      FxRateProvider fxRateProvider,
                                      FxProperties fxProperties) {
         this.jdbcTemplate = jdbcTemplate;
         this.userRepository = userRepository;
+        this.portfolioRepository = portfolioRepository;
         this.fxRateProvider = fxRateProvider;
         this.fxProperties = fxProperties;
     }
