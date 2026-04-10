@@ -1,0 +1,106 @@
+name: Frontend E2E Integration (Full Stack)
+
+# Only runs on pushes to main — after the PR smoke tests have already passed.
+# Spins up the complete Docker Compose stack and runs all 5 diagnostic tests
+# including the direct API Gateway JWT validation (test 5).
+on:
+  push:
+    branches: [ "main", "architecture/cloud-native-extract" ]
+
+jobs:
+  e2e-full-stack:
+    runs-on: ubuntu-latest
+
+    env:
+      # Must match auth.jwt.secret in api-gateway/src/main/resources/application-local.yml
+      AUTH_JWT_SECRET: ${{ secrets.AUTH_JWT_SECRET }}
+      AUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
+      NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
+      AUTH_URL: http://localhost:3000
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:8080
+      API_PROXY_TARGET: http://localhost:8080
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      # ── Backend: build all Spring Boot images and start the full stack ────────
+      - name: Set up JDK 25
+        uses: actions/setup-java@v4
+        with:
+          java-version: '25'
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
+      - name: Build Spring Boot services (skip tests — already run in CI)
+        run: ./gradlew build -x test --no-daemon
+
+      - name: Start full Docker Compose stack
+        run: docker compose up -d --build
+
+      - name: Wait for API Gateway to be healthy
+        # Polls /actuator/health until the gateway is ready or times out after 120s
+        run: |
+          echo "Waiting for API Gateway on :8080..."
+          for i in $(seq 1 24); do
+            if curl -sf http://localhost:8080/actuator/health > /dev/null 2>&1; then
+              echo "Gateway is up."
+              exit 0
+            fi
+            echo "  attempt $i/24 — sleeping 5s"
+            sleep 5
+          done
+          echo "Gateway did not become healthy in time."
+          docker compose logs api-gateway
+          exit 1
+
+      # ── Frontend: build and start standalone server ───────────────────────────
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: './frontend/package-lock.json'
+
+      - name: Install frontend dependencies
+        working-directory: ./frontend
+        run: npm ci
+
+      - name: Build Next.js standalone
+        working-directory: ./frontend
+        run: npm run build
+
+      - name: Install Playwright browsers (Chromium only)
+        working-directory: ./frontend
+        run: npx playwright install --with-deps chromium
+
+      # ── E2E: run all 5 diagnostic tests ──────────────────────────────────────
+      - name: Run full E2E diagnostic suite
+        working-directory: ./frontend
+        # Playwright's webServer block starts the standalone server automatically.
+        # All 5 tests run: login, total-value assertion, auth headers,
+        # CORS/401 check, and direct Gateway JWT validation.
+        run: npx playwright test tests/e2e/dashboard-data.spec.ts --reporter=list
+
+      # ── Cleanup & artifacts ───────────────────────────────────────────────────
+      - name: Dump Docker logs on failure
+        if: failure()
+        run: |
+          echo "=== api-gateway ===" && docker compose logs api-gateway
+          echo "=== portfolio-service ===" && docker compose logs portfolio-service
+          echo "=== market-data-service ===" && docker compose logs market-data-service
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-integration-report
+          retention-days: 7
+          path: frontend/playwright-report/
+
+      - name: Stop Docker Compose stack
+        if: always()
+        run: docker compose down -v
