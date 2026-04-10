@@ -26,3 +26,6 @@ yarn-error.log*
 # local env files (Never commit secrets!)
 .env*.local
 .env
+
+# build cache
+*.tsbuildinfo
