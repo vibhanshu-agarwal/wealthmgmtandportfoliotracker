@@ -10,6 +10,7 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.slf4j.Logger;
 
 import java.math.BigDecimal;
 import java.math.MathContext;
@@ -27,6 +28,7 @@ import java.util.stream.Collectors;
  */
 @Service
 public class PortfolioAnalyticsService {
+    private static final Logger log = org.slf4j.LoggerFactory.getLogger(PortfolioAnalyticsService.class);
 
     private static final int DEFAULT_PERIOD_DAYS = 50;
     private static final int SYNTHETIC_THRESHOLD = 7;
@@ -36,7 +38,7 @@ public class PortfolioAnalyticsService {
     /**
      * Single SQL query returning two row types:
      * <ul>
-     *   <li>HOLDING — one row per holding with current price and closest 24h-ago price.</li>
+     *   <li>HOLDING — one row per holding with the current price and the closest 24h-ago price.</li>
      *   <li>HISTORY — one row per (ticker, date) within the requested period.</li>
      * </ul>
      */
@@ -105,11 +107,11 @@ public class PortfolioAnalyticsService {
 
     /**
      * Returns the full analytics payload for the given user.
-     * Results are cached per-user; cache key is scoped to prevent cross-user leakage.
+     * Results are cached per-user; the cache key is scoped to prevent cross-user leakage.
      *
      * @param userId authenticated user UUID (from X-User-Id header)
      * @return assembled {@link PortfolioAnalyticsDto}
-     * @throws UserNotFoundException if userId is not present in the users table
+     * @throws UserNotFoundException if userId is not present in the user's table
      */
     @Cacheable(value = "portfolio-analytics", key = "#userId")
     @Transactional(readOnly = true)
@@ -380,9 +382,9 @@ public class PortfolioAnalyticsService {
     // ── Helper: user existence guard ─────────────────────────────────────────
 
     private void requireUserExists(String userId) {
-        // portfolios.user_id is a plain VARCHAR storing the JWT sub claim (e.g. "user-001").
+        // portfolios.user_id is a plain VARCHAR storing the JWT subclaim (e.g. "user-001").
         // The API Gateway has already authenticated the request via JWT validation, so we
-        // trust non-UUID sub claims. Only throw UserNotFoundException for UUID-format sub
+        // trust non-UUID subclaims. Only throw UserNotFoundException for UUID-format sub
         // claims that have no matching user record.
         boolean hasPortfolios = portfolioRepository.existsByUserId(userId);
         if (!hasPortfolios) {
@@ -392,7 +394,8 @@ public class PortfolioAnalyticsService {
                     throw new UserNotFoundException(userId);
                 }
             } catch (IllegalArgumentException ex) {
-                // Non-UUID sub claim — gateway-authenticated, no portfolios yet.
+                // Non-UUID subclaim — gateway-authenticated, no portfolios yet.
+                log.debug("Non-UUID user ID: {}", userId);
             }
         }
     }
