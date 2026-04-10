@@ -1,6 +1,6 @@
 name: Frontend E2E Integration (Full Stack)
 
-# Only runs on pushes to main — after the PR smoke tests have already passed.
+# Only runs  after the PR smoke tests have already passed.
 # Spins up the complete Docker Compose stack and runs all 5 diagnostic tests
 # including the direct API Gateway JWT validation (test 5).
 on:
