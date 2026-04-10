@@ -96,14 +96,12 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Run E2E smoke tests
-        # Runs: smoke spec + first 3 diagnostic tests (excludes Gateway-dependent test 5)
+        # Runs: smoke spec + first 4 diagnostic tests (excludes Gateway-dependent test 5)
         run: |
           npx playwright test \
             tests/e2e/dashboard-smoke.spec.ts \
-            --reporter=list && \
-          npx playwright test \
             tests/e2e/dashboard-data.spec.ts \
-            --grep "^(?!5\.)" \
+            --grep "^[1-4]\." \
             --reporter=list
 
       - name: Upload Playwright report on failure
