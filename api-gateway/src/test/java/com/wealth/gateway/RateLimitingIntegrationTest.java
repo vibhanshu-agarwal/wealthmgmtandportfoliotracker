@@ -24,12 +24,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Integration tests for Redis-backed distributed rate limiting.
- *
- * Uses a real Redis instance via Testcontainers and a low burst capacity (3)
+ * <p>
+ * Uses a real Redis instance via Testcontainers and a low-burst capacity (3)
  * to keep the test fast. The gateway routes to non-existent upstreams — we only
  * care about the rate-limiter response (429 vs. anything else), not the proxied
  * response body.
- *
+ * <p>
  * Run via: ./gradlew :api-gateway:integrationTest
  */
 @Tag("integration")
