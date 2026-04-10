@@ -4,8 +4,10 @@ import com.wealth.portfolio.FxRateProvider;
 import com.wealth.portfolio.FxRateUnavailableException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.context.annotation.Profile;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -40,6 +42,10 @@ public class EcbFxRateProvider implements FxRateProvider {
     private static final Map<String, BigDecimal> FALLBACK_RATES = Map.of("USD", BigDecimal.ONE);
 
     private final RestClient restClient;
+
+    @Autowired
+    @Lazy
+    private EcbFxRateProvider self;
 
     public EcbFxRateProvider(RestClient.Builder builder, FxProperties props) {
         String ratesUrl = props.aws() != null && props.aws().ratesUrl() != null
@@ -105,7 +111,7 @@ public class EcbFxRateProvider implements FxRateProvider {
             return BigDecimal.ONE;
         }
 
-        Map<String, BigDecimal> rates = fetchRateMap();
+        Map<String, BigDecimal> rates = self.fetchRateMap();
 
         BigDecimal rateFrom = rates.get(fromCurrency);
         BigDecimal rateTo   = rates.get(toCurrency);

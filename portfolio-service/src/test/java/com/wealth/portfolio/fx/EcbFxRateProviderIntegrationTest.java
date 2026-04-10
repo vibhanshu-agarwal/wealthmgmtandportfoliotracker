@@ -9,6 +9,7 @@ import org.springframework.cache.CacheManager;
 import org.springframework.cache.concurrent.ConcurrentMapCacheManager;
 import org.springframework.web.client.RestClient;
 
+import org.springframework.test.util.ReflectionTestUtils;
 import java.math.BigDecimal;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.*;
@@ -63,15 +64,12 @@ class EcbFxRateProviderIntegrationTest {
         // Build provider with a Spring proxy that honours @Cacheable via the cache manager
         // For a direct unit-style integration test we call fetchRateMap() manually and
         // verify HTTP call count via WireMock's verify API.
-        provider = new EcbFxRateProvider(RestClient.builder(), props) {
-            // Override to use our test cache manager
-        };
-
-        // Replace the RestClient with one pointing at WireMock
         provider = new EcbFxRateProvider(
                 RestClient.builder().baseUrl("http://localhost:" + wireMock.port()),
                 props
         );
+        // Manually set the 'self' reference for unit test environment
+        ReflectionTestUtils.setField(provider, "self", provider);
     }
 
     @AfterEach
