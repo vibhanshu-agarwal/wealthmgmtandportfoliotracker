@@ -104,12 +104,10 @@ export function SummaryCards() {
   } = usePortfolioSummary();
   const { data: analytics } = usePortfolioAnalytics();
 
-  // Show skeleton only while actively fetching — not while the query is
-  // disabled/pending waiting for the session. isFetching is true only when
-  // a network request is actually in flight.
+  // Show skeleton only while the summary query is actively fetching its first result.
+  // Do NOT gate on usePortfolio's isLoading — the total-value card only needs
+  // portfolioSummary, and usePortfolio may be retrying market prices independently.
   if (isSummaryFetching && !portfolioSummary) return <SummaryCardsSkeleton />;
-  const showFullSkeleton = isLoading && !portfolioSummary;
-  if (showFullSkeleton) return <SummaryCardsSkeleton />;
 
   // If portfolio fetch failed, render cards with zero/placeholder values
   // rather than a hard error — backend may simply be unavailable in local dev.

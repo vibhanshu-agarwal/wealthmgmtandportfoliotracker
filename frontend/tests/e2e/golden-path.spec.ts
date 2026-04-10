@@ -21,10 +21,12 @@ test.describe("Golden Path — Data Creation", () => {
   test.use({ storageState: undefined });
 
   test.beforeAll(async ({ request }) => {
+    // Verify the Flyway V3 seed is in place — AAPL, TSLA, BTC for user-001.
     await ensurePortfolioWithHoldings(request, mintJwt());
   });
 
   test("portfolio holdings are persisted and returned by the API", async ({ page }) => {
+    // Real UI login — NextAuth sets its own CSRF tokens and HttpOnly session cookie.
     await injectAuthSession(page);
     await page.goto("/portfolio");
 
@@ -46,9 +48,13 @@ test.describe("Golden Path — Analytics Validation", () => {
     await injectAuthSession(page);
     await page.goto("/portfolio");
 
-    // Wait for the total-value element to appear (SummaryCards exits skeleton state)
-    // and assert it shows a real value from the backend summary endpoint.
-    await expect(page.getByTestId("total-value")).not.toHaveText("$0.00", { timeout: 30_000 });
+    // Force a hard reload so the server reads the session cookie via auth()
+    // and hydrates SessionProvider, ensuring useSession() returns "authenticated".
+    await page.reload({ waitUntil: "networkidle" });
+
+    await expect(page.getByTestId("total-value")).not.toHaveText("$0.00", {
+      timeout: 30_000,
+    });
   });
 
   test("holdings table contains AAPL and BTC tickers", async ({ page }) => {

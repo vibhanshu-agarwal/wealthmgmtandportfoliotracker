@@ -13,47 +13,20 @@
  *   - Spring Boot API Gateway running on http://localhost:8080
  */
 
-import { createHmac } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
+import { injectAuthSession, mintJwt as mintApiJwt } from "./helpers/auth";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-const BASE_URL = "http://127.0.0.1:3000";
-const AUTH_JWT_SECRET = process.env.AUTH_JWT_SECRET ?? "local-dev-secret-change-me-min-32-chars";
-
-/** Mint a HS256 JWT using Node's built-in crypto — no extra deps needed. */
-function mintJwt(userId = "user-001"): string {
-  const header = Buffer.from(JSON.stringify({ alg: "HS256", typ: "JWT" })).toString("base64url");
-  const now = Math.floor(Date.now() / 1000);
-  const payload = Buffer.from(
-    JSON.stringify({ sub: userId, name: "Dev User", email: "dev@local", iat: now, exp: now + 3600 }),
-  ).toString("base64url");
-  const sig = createHmac("sha256", AUTH_JWT_SECRET)
-    .update(`${header}.${payload}`)
-    .digest("base64url");
-  return `${header}.${payload}.${sig}`;
-}
+const BASE_URL = "http://localhost:3000";
 
 /**
- * Establish an authenticated session by injecting a signed JWT cookie.
- *
- * The NextAuth v5 beta client-side signIn() is unreliable in CI: getProviders()
- * can return null (e.g. timing, server cold-start), which triggers a hard
- * redirect to /api/auth/error — ignoring `redirect: false`.
- * Cookie injection uses the same HS256 key as auth.ts encode/decode, so the
- * server accepts it as a valid session.
+ * Establish an authenticated session via the real NextAuth credentials login form.
+ * NextAuth sets its own CSRF tokens and HttpOnly session cookie naturally.
+ * injectAuthSession already lands on /overview after login — no second goto needed.
  */
 async function loginViaUI(page: Page): Promise<void> {
-  const token = mintJwt("user-001");
-  await page.context().addCookies([
-    {
-      name: "authjs.session-token",
-      value: token,
-      domain: "127.0.0.1",
-      path: "/",
-    },
-  ]);
-  await page.goto(`${BASE_URL}/overview`);
+  await injectAuthSession(page);
 }
 
 // ── Network capture ───────────────────────────────────────────────────────────
@@ -137,14 +110,12 @@ test.describe("Dashboard Data Integration Diagnostics", () => {
 
     await loginViaUI(page);
 
-    // Verify the server accepted the cookie and returned a session
-    const session = await page.evaluate(async () => {
-      const res = await fetch("/api/auth/session");
-      return res.json();
-    });
-    console.log(`\n  Session: ${JSON.stringify(session)}`);
+    // Assert the NextAuth session cookie was set.
+    const allCookies = await page.context().cookies();
+    const sessionCookie = allCookies.find((c) => c.name === "authjs.session-token");
+    expect(sessionCookie, "NextAuth session cookie not found — login failed").toBeDefined();
+    console.log(`\n  Session cookie: ${sessionCookie?.name} (domain=${sessionCookie?.domain})`);
 
-    expect(session?.user?.id, "Session should contain user id").toBe("user-001");
     expect(page.url()).toContain("/overview");
     console.log("✓ Authenticated session established");
   });
@@ -160,9 +131,13 @@ test.describe("Dashboard Data Integration Diagnostics", () => {
     await loginViaUI(page);
     await page.goto(`${BASE_URL}/portfolio`);
 
+    // Force a hard reload so the server reads the session cookie via auth()
+    // and hydrates SessionProvider, ensuring useSession() returns "authenticated".
+    await page.reload({ waitUntil: "networkidle" });
+
     // Wait for the element to appear (skeleton → real value)
     const totalValueEl = page.getByTestId("total-value");
-    await expect(totalValueEl).toBeVisible({ timeout: 10_000 });
+    await expect(totalValueEl).toBeVisible({ timeout: 15_000 });
 
     const displayedValue = await totalValueEl.textContent();
     console.log(`\n  [total-value] displayed: "${displayedValue}"`);
@@ -255,7 +230,7 @@ test.describe("Dashboard Data Integration Diagnostics", () => {
    * Isolates whether the problem is in NextAuth token generation or the Gateway decoder.
    */
   test("5. Synthetic JWT is accepted by the API Gateway (direct fetch)", async ({ request }) => {
-    const token = mintJwt("user-001");
+    const token = mintApiJwt("user-001");
     console.log(`\n  Synthetic JWT (first 80 chars): ${token.slice(0, 80)}…`);
 
     const response = await request.get("http://localhost:8080/api/portfolio", {

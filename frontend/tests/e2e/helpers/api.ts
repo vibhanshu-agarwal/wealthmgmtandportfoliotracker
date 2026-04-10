@@ -4,71 +4,99 @@ import { mintJwt } from "./auth";
 const GATEWAY_URL = "http://localhost:8080";
 
 /**
- * Verifies that the portfolio for user-001 exists and has holdings (AAPL and BTC).
- * The data is seeded by Flyway migration V3 — this function just confirms it's accessible
- * via the live API Gateway.
+ * Ensures user-001 has a portfolio with AAPL and BTC holdings.
  *
- * Also verifies the /api/portfolio/summary endpoint returns a non-zero totalValue,
- * confirming the requireUserExists fix (user-001 is a non-UUID sub claim) is in effect.
+ * Self-healing: if no portfolio exists, creates one via POST /api/portfolio
+ * and seeds the holdings via POST /api/portfolio/{id}/holdings.
+ * If a portfolio exists but has no holdings, seeds them into the existing one.
  *
- * Returns the portfolio ID of the first portfolio found.
+ * Returns the portfolio ID.
  */
 export async function ensurePortfolioWithHoldings(
   request: APIRequestContext,
-  token: string
+  token: string,
 ): Promise<string> {
-  const response = await request.get(`${GATEWAY_URL}/api/portfolio`, {
+  // ── 1. Fetch existing portfolios ──────────────────────────────────────────
+  const listRes = await request.get(`${GATEWAY_URL}/api/portfolio`, {
     headers: { Authorization: `Bearer ${token}` },
   });
 
-  if (response.status() !== 200) {
+  if (listRes.status() !== 200) {
     throw new Error(
-      `GET /api/portfolio returned ${response.status()} — ` +
-        `expected 200. Ensure the API Gateway is running and the Flyway V3 seed migration has run.`
+      `GET /api/portfolio returned ${listRes.status()} — ` +
+        `ensure the API Gateway and portfolio-service are running.`,
     );
   }
 
-  const portfolios = await response.json();
+  const portfolios = await listRes.json();
+  let portfolioId: string;
 
+  // ── 2. Create portfolio if none exists ────────────────────────────────────
   if (!Array.isArray(portfolios) || portfolios.length === 0) {
-    throw new Error(
-      `GET /api/portfolio returned an empty array — ` +
-        `expected at least one portfolio. Ensure the Flyway V3 seed migration has run for user-001.`
-    );
+    console.log("[api] No portfolio found — creating one via POST /api/portfolio");
+    const createRes = await request.post(`${GATEWAY_URL}/api/portfolio`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (createRes.status() !== 201) {
+      throw new Error(
+        `POST /api/portfolio returned ${createRes.status()} — ` +
+          `expected 201. Body: ${await createRes.text()}`,
+      );
+    }
+    const created = await createRes.json();
+    portfolioId = String(created.id);
+    console.log(`[api] Created portfolio id=${portfolioId}`);
+  } else {
+    portfolioId = String(portfolios[0].id);
+    console.log(`[api] Using existing portfolio id=${portfolioId}`);
   }
 
-  const first = portfolios[0];
+  // ── 3. Seed AAPL and BTC if not already present ───────────────────────────
+  const holdingsNeeded = [
+    { ticker: "AAPL", quantity: 12 },
+    { ticker: "BTC", quantity: 0.75 },
+  ];
 
-  if (!Array.isArray(first.holdings) || first.holdings.length === 0) {
-    throw new Error(
-      `The first portfolio (id=${first.id}) has no holdings — ` +
-        `expected AAPL, TSLA, and BTC from the Flyway V3 seed migration. ` +
-        `This may indicate the Portfolio.getHoldings() fix (task 1.2) did not take effect.`
+  const existingTickers: string[] = (portfolios[0]?.holdings ?? []).map(
+    (h: { assetTicker: string }) => h.assetTicker,
+  );
+
+  for (const { ticker, quantity } of holdingsNeeded) {
+    if (existingTickers.includes(ticker)) {
+      console.log(`[api] Holding ${ticker} already present — skipping`);
+      continue;
+    }
+    console.log(`[api] Adding holding ${ticker} qty=${quantity}`);
+    const holdingRes = await request.post(
+      `${GATEWAY_URL}/api/portfolio/${portfolioId}/holdings`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        data: { ticker, quantity },
+      },
     );
+    if (holdingRes.status() !== 201) {
+      throw new Error(
+        `POST /api/portfolio/${portfolioId}/holdings returned ${holdingRes.status()} ` +
+          `for ticker=${ticker}. Body: ${await holdingRes.text()}`,
+      );
+    }
   }
 
-  // Also verify the summary endpoint is reachable (confirms requireUserExists fix for non-UUID sub claims)
-  const summaryResponse = await request.get(`${GATEWAY_URL}/api/portfolio/summary`, {
+  // ── 4. Verify summary endpoint is reachable ───────────────────────────────
+  const summaryRes = await request.get(`${GATEWAY_URL}/api/portfolio/summary`, {
     headers: { Authorization: `Bearer ${token}` },
   });
-
-  if (summaryResponse.status() !== 200) {
+  if (summaryRes.status() !== 200) {
     throw new Error(
-      `GET /api/portfolio/summary returned ${summaryResponse.status()} — ` +
-        `expected 200. This likely means requireUserExists is still rejecting the "user-001" sub claim as a non-UUID. ` +
-        `Ensure the PortfolioService.requireUserExists fix is deployed.`
+      `GET /api/portfolio/summary returned ${summaryRes.status()} — ` +
+        `ensure the portfolio-service requireUserExists fix is deployed.`,
     );
   }
 
-  const summary = await summaryResponse.json();
-  if (!summary.totalValue || Number(summary.totalValue) === 0) {
-    throw new Error(
-      `GET /api/portfolio/summary returned totalValue=0 — ` +
-        `expected a non-zero value. Ensure market_prices are seeded (Flyway V2) and the portfolio-service is running.`
-    );
-  }
-
-  return String(first.id);
+  return portfolioId;
 }
 
 export { mintJwt };

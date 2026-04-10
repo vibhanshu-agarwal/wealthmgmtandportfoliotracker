@@ -1,16 +1,15 @@
 import type { Metadata } from "next";
-import { SummaryCards } from "@/components/portfolio/SummaryCards";
-import { PerformanceChart } from "@/components/charts/PerformanceChart";
-import { AllocationChart } from "@/components/charts/AllocationChart";
-import { HoldingsTable } from "@/components/portfolio/HoldingsTable";
+import { PortfolioPageContent } from "@/components/portfolio/PortfolioPageContent";
 
 export const metadata: Metadata = {
   title: "Portfolio",
 };
 
 /**
- * Portfolio dashboard page — Server Component.
- * Child Client Components independently fetch their own data via React Query.
+ * Portfolio dashboard page — Server Component shell.
+ * PortfolioPageContent is a Client Component that gates all data components
+ * behind a confirmed NextAuth session, preventing TanStack Query hooks from
+ * firing with an empty token during the "loading" window after navigation.
  */
 export default function PortfolioPage() {
   return (
@@ -23,19 +22,7 @@ export default function PortfolioPage() {
         </p>
       </div>
 
-      {/* ── Row 1: Summary cards ── */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <SummaryCards />
-      </div>
-
-      {/* ── Row 2: Performance chart + Allocation donut ── */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <PerformanceChart />
-        <AllocationChart />
-      </div>
-
-      {/* ── Row 3: Holdings data table ── */}
-      <HoldingsTable />
+      <PortfolioPageContent />
     </div>
   );
 }

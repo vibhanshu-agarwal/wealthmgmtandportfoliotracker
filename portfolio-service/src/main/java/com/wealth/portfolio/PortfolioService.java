@@ -1,17 +1,19 @@
 package com.wealth.portfolio;
 
-import com.wealth.portfolio.dto.PortfolioSummaryDto;
-import com.wealth.portfolio.fx.FxProperties;
-import com.wealth.user.UserRepository;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.List;
 import java.util.UUID;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import com.wealth.portfolio.dto.PortfolioSummaryDto;
+import com.wealth.portfolio.fx.FxProperties;
+import com.wealth.user.UserRepository;
 
 @Service
 public class PortfolioService {
@@ -43,6 +45,30 @@ public class PortfolioService {
   public List<PortfolioResponse> getByUserId(String userId) {
     requireUserExists(userId);
     return portfolioRepository.findByUserId(userId).stream().map(this::toResponse).toList();
+  }
+
+  @Transactional
+  public PortfolioResponse createPortfolio(String userId) {
+    var portfolio = new Portfolio(userId);
+    return toResponse(portfolioRepository.save(portfolio));
+  }
+
+  @Transactional
+  public PortfolioResponse addHolding(String userId, UUID portfolioId, String ticker, BigDecimal quantity) {
+    var portfolio = portfolioRepository.findById(portfolioId)
+        .filter(p -> p.getUserId().equals(userId))
+        .orElseThrow(() -> new UserNotFoundException(userId));
+
+    // Update quantity if holding already exists, otherwise add new
+    portfolio.getHoldings().stream()
+        .filter(h -> h.getAssetTicker().equals(ticker))
+        .findFirst()
+        .ifPresentOrElse(
+            h -> h.setQuantity(quantity),
+            () -> portfolio.addHolding(new AssetHolding(portfolio, ticker, quantity))
+        );
+
+    return toResponse(portfolioRepository.save(portfolio));
   }
 
   @Transactional(readOnly = true)

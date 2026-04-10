@@ -36,6 +36,7 @@ export default async function RootLayout({
   // Per the hydration-no-flicker rule: provide data synchronously to avoid
   // the loading → data flash that causes TanStack Query hooks to fire with empty tokens.
   const session = await auth();
+  console.log("[NextAuth Server] Session:", session?.user?.id ?? "null");
 
   return (
     <html lang="en" suppressHydrationWarning>

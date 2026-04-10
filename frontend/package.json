@@ -11,7 +11,7 @@
     "lint:fix": "eslint --fix .",
     "test": "vitest run",
     "test:ui": "vitest --ui",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test --trace on"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.1.11",
