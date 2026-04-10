@@ -21,7 +21,7 @@ import java.util.Set;
  * <p>Reads seed data from an externalized JSON fixture file at startup and backfills only
  * missing tickers — repeated runs remain idempotent.
  *
- * <p>If the fixture file is missing or malformed the error is logged at ERROR level and the
+ * <p>If the fixture file is missing or malformed, the error is logged at ERROR level and the
  * method returns normally, allowing the application to continue booting.
  *
  * <p>Restricted to the {@code local} profile — never instantiated in {@code aws} or other
