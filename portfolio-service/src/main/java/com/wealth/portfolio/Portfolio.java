@@ -14,7 +14,7 @@ public class Portfolio {
 
     /**
      * References a User by its ID as a plain String.
-     *
+     * <p>
      * A {@code @ManyToOne} association to {@code com.wealth.user.User} is PROHIBITED —
      * cross-module JPA relationships violate the Modulith boundary mandate.
      */

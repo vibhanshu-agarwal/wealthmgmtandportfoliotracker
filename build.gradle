@@ -63,6 +63,7 @@ subprojects {
         jvmArgs '-Duser.timezone=Asia/Kolkata'
     }
 
+
     tasks.matching { it.name == 'bootRun' }.configureEach {
         jvmArgs '-Duser.timezone=Asia/Kolkata'
     }

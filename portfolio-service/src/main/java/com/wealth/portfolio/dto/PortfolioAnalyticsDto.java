@@ -34,15 +34,15 @@ public record PortfolioAnalyticsDto(
             String ticker,
             BigDecimal quantity,
             BigDecimal currentPrice,
-            /** FX-converted total value in baseCurrency. */
+            /* FX-converted total value in baseCurrency. */
             BigDecimal currentValueBase,
-            /** Placeholder: equals currentPrice until trade ledger is available. */
+            /* Placeholder: equals currentPrice until trade ledger is available. */
             BigDecimal avgCostBasis,
-            /** currentValueBase - (quantity × avgCostBasis × fxRate). Always 0 with placeholder. */
+            /* currentValueBase - (quantity × avgCostBasis × fxRate). Always 0 with placeholder. */
             BigDecimal unrealizedPnL,
-            /** currentPrice - price24hAgo (in quoteCurrency). */
+            /* currentPrice - price24hAgo (in quoteCurrency). */
             BigDecimal change24hAbsolute,
-            /** (change24hAbsolute / price24hAgo) × 100, scaled to 4 d.p. */
+            /* (change24hAbsolute / price24hAgo) × 100, scaled to 4 d.p. */
             BigDecimal change24hPercent,
             String quoteCurrency
     ) {}
@@ -51,11 +51,11 @@ public record PortfolioAnalyticsDto(
      * A single data point in the historical performance series.
      */
     public record PerformancePointDto(
-            /** ISO-8601 date string, e.g. "2024-03-01". */
+            /* ISO-8601 date string, e.g. "2024-03-01". */
             String date,
-            /** Total portfolio value on this date in baseCurrency. */
+            /* Total portfolio value on this date in baseCurrency. */
             BigDecimal value,
-            /** Day-over-day change in baseCurrency. Zero for the first point. */
+            /* Day-over-day change in baseCurrency. Zero for the first point. */
             BigDecimal change
     ) {}
 }
