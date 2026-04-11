@@ -165,7 +165,7 @@ class RateLimitingIntegrationTest {
     @Test
     void rateLimitHeadersPresent() {
         webTestClient.get()
-                .uri("/api/insight/summary")
+                .uri("/api/insights/market-summary")
                 .header("Authorization", "Bearer " + TestJwtFactory.mint("rate-limit-user-headers", Duration.ofHours(1)))
                 .header(XFF, "50.50.50.50")
                 .exchange()
