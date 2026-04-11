@@ -130,12 +130,13 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Run E2E smoke tests
-        # Runs: smoke spec + first 4 diagnostic tests (excludes Gateway-dependent test 5)
+        # Only tests 1 (session active) and 3 (auth headers) run here.
+        # Tests 2, 4, 5 need the Spring Boot backend — covered by frontend-e2e-integration.yml.
         run: |
           npx playwright test \
             tests/e2e/dashboard-smoke.spec.ts \
             tests/e2e/dashboard-data.spec.ts \
-            --grep-invert "5\. Synthetic" \
+            --grep-invert "(2\.|4\.|5\.)" \
             --reporter=list
 
       - name: Upload Playwright report on failure
