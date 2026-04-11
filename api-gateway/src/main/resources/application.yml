@@ -23,7 +23,7 @@ spring:
             - id: insight-service
               uri: ${INSIGHT_SERVICE_URL:http://localhost:8083}
               predicates:
-                - Path=/api/insight/**
+                - Path=/api/insights/**
 
 server:
   port: 8080

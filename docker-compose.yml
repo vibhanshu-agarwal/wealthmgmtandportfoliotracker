@@ -50,6 +50,14 @@ services:
     ports:
       - '6379:6379'
 
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    ports:
+      - '11434:11434'
+    volumes:
+      - ollama-data:/root/.ollama
+
   portfolio-service:
     build:
       context: ./portfolio-service
@@ -78,6 +86,23 @@ services:
     ports:
       - '8082:8082'
 
+  insight-service:
+    build:
+      context: ./insight-service
+    container_name: insight-service
+    depends_on:
+      - portfolio-service
+      - kafka
+      - redis
+      - ollama
+    environment:
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      PORTFOLIO_SERVICE_URL: http://portfolio-service:8081
+    ports:
+      - '8083:8083'
+
   api-gateway:
     build:
       context: ./api-gateway
@@ -86,11 +111,13 @@ services:
       - redis
       - portfolio-service
       - market-data-service
+      - insight-service
     environment:
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
       PORTFOLIO_SERVICE_URL: http://portfolio-service:8081
       MARKET_DATA_SERVICE_URL: http://market-data-service:8082
+      INSIGHT_SERVICE_URL: http://insight-service:8083
     ports:
       - '8080:8080'
 
@@ -98,3 +125,4 @@ volumes:
   postgres-data:
   mongodb-data:
   kafka-data:
+  ollama-data:
