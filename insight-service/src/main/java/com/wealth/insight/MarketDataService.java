@@ -1,20 +1,21 @@
 package com.wealth.insight;
 
-import com.wealth.insight.dto.TickerSummary;
-import com.wealth.market.events.PriceUpdatedEvent;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
-import java.math.BigDecimal;
-import java.math.RoundingMode;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.LinkedHashMap;
+import com.wealth.insight.dto.TickerSummary;
+import com.wealth.market.events.PriceUpdatedEvent;
 
 /**
  * Stateful market data aggregation backed by Redis.
@@ -71,28 +72,55 @@ public class MarketDataService {
         Map<String, TickerSummary> summaries = new LinkedHashMap<>();
         for (String key : keys) {
             String ticker = key.substring(LATEST_KEY_PREFIX.length());
-            summaries.put(ticker, buildTickerSummary(ticker));
+            try {
+                summaries.put(ticker, buildTickerSummary(ticker));
+            } catch (Exception e) {
+                log.warn("Failed to build summary for ticker '{}', skipping: {}", ticker, e.getMessage());
+            }
         }
         return summaries;
     }
 
     private TickerSummary buildTickerSummary(String ticker) {
-        String latestStr = redisTemplate.opsForValue().get(LATEST_KEY_PREFIX + ticker);
-        BigDecimal latestPrice = latestStr != null ? new BigDecimal(latestStr) : BigDecimal.ZERO;
+        BigDecimal latestPrice = parsePrice(
+                redisTemplate.opsForValue().get(LATEST_KEY_PREFIX + ticker));
 
         List<String> rawHistory = redisTemplate.opsForList()
                 .range(HISTORY_KEY_PREFIX + ticker, 0, WINDOW_SIZE - 1);
 
+        if (rawHistory == null || rawHistory.isEmpty()) {
+            return new TickerSummary(ticker, latestPrice, Collections.emptyList(), null);
+        }
+
         List<BigDecimal> priceHistory = new ArrayList<>();
-        if (rawHistory != null) {
-            for (String s : rawHistory) {
-                priceHistory.add(new BigDecimal(s));
+        for (String s : rawHistory) {
+            BigDecimal parsed = parsePrice(s);
+            if (parsed != null) {
+                priceHistory.add(parsed);
             }
         }
 
-        BigDecimal trendPercent = calculateTrend(priceHistory);
+        if (priceHistory.isEmpty()) {
+            return new TickerSummary(ticker, latestPrice, Collections.emptyList(), null);
+        }
 
+        BigDecimal trendPercent = calculateTrend(priceHistory);
         return new TickerSummary(ticker, latestPrice, priceHistory, trendPercent);
+    }
+
+    /**
+     * Safely parses a price string from Redis. Returns null for null, blank, or malformed values.
+     */
+    private BigDecimal parsePrice(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        try {
+            return new BigDecimal(value);
+        } catch (NumberFormatException e) {
+            log.warn("Skipping malformed price value in Redis: '{}'", value);
+            return null;
+        }
     }
 
     /**
