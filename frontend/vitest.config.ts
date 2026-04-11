@@ -7,6 +7,11 @@ export default defineConfig({
     globals: true,
     setupFiles: ["./vitest.setup.ts"],
     include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
+    server: {
+      deps: {
+        inline: ["fast-check"],
+      },
+    },
   },
   resolve: {
     alias: {
