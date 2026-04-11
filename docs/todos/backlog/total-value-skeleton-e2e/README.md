@@ -1,9 +1,11 @@
 # Backlog: `total-value` E2E Test Stuck in Skeleton State
 
+**Status:** ✅ Closed (2026-04-11)  
 **Priority:** Medium  
 **Area:** Frontend — Auth / TanStack Query / NextAuth  
 **Spec:** `.kiro/specs/backend-remediation-e2e/`  
-**Failing test:** `tests/e2e/golden-path.spec.ts` — "total-value is not $0.00 after holdings are seeded"
+**Failing test:** `tests/e2e/golden-path.spec.ts` — "total-value is not $0.00 after holdings are seeded"  
+**Resolution:** The extensive analysis of `useSession` loading states, TanStack Query `enabled` flags, and skeleton gate race conditions was all downstream of a simpler root cause: the standalone build was missing `.next/static/` JS bundles, so React never hydrated and no hooks ever fired. Fixed by updating `start:standalone` in `package.json` to copy static assets, public dir, and `.env.local` into the standalone output before starting. The `SummaryCards` component, its skeleton gate logic, and data mapping are all correct — no code changes needed. See `docs/changes/CHANGES_INFRA_SUMMARY_2026-04-11_v1.md`.
 
 ---
 

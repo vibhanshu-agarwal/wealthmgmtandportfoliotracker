@@ -34,3 +34,10 @@ route53_zone_id     = ""
 postgres_connection_string = "jdbc:postgresql://localhost:5432/wealth_local"
 mongodb_connection_string  = "mongodb://localhost:27017/wealth_local"
 cloudfront_origin_secret   = "localstack-test-secret-do-not-use-in-production"
+
+# Database module (LocalStack RDS + ElastiCache)
+db_username           = "wealth_user"
+db_password           = "wealth_pass"
+rds_instance_class    = "db.t3.micro"
+rds_allocated_storage = 20
+elasticache_node_type = "cache.t3.micro"

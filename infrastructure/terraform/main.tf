@@ -1,5 +1,5 @@
 locals {
-  localstack_endpoint = "http://localhost:4566"
+  localstack_endpoint = var.localstack_endpoint
 }
 
 provider "aws" {
@@ -9,6 +9,7 @@ provider "aws" {
   skip_credentials_validation = var.use_localstack
   skip_metadata_api_check     = var.use_localstack
   skip_requesting_account_id  = var.use_localstack
+  s3_use_path_style           = var.use_localstack
 
   dynamic "endpoints" {
     for_each = var.use_localstack ? [1] : []
@@ -19,7 +20,9 @@ provider "aws" {
       cloudfront = local.localstack_endpoint
       iam        = local.localstack_endpoint
       acm        = local.localstack_endpoint
-      route53    = local.localstack_endpoint
+      route53      = local.localstack_endpoint
+      rds          = local.localstack_endpoint
+      elasticache  = local.localstack_endpoint
     }
   }
 }
@@ -76,6 +79,22 @@ module "compute" {
   portfolio_function_url   = var.portfolio_function_url
   market_data_function_url = var.market_data_function_url
   insight_function_url     = var.insight_function_url
+}
+
+# ---------------------------------------------------------------------------
+# Database module — RDS PostgreSQL + ElastiCache Redis
+# ---------------------------------------------------------------------------
+
+module "database" {
+  source = "./modules/database"
+
+  project_name          = "wealth"
+  is_local_dev          = var.use_localstack
+  db_username           = var.db_username
+  db_password           = var.db_password
+  rds_instance_class    = var.rds_instance_class
+  rds_allocated_storage = var.rds_allocated_storage
+  elasticache_node_type = var.elasticache_node_type
 }
 
 # ---------------------------------------------------------------------------

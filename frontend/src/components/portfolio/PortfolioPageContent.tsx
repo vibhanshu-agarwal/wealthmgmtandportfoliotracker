@@ -1,6 +1,6 @@
 "use client";
 
-import { useSession } from "next-auth/react";
+import { useSession } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { SummaryCards } from "@/components/portfolio/SummaryCards";
@@ -83,20 +83,20 @@ function PortfolioPageSkeleton() {
  * - unauthenticated → redirect to /login, render nothing
  */
 export function PortfolioPageContent() {
-  const { status } = useSession();
+  const { data: session, isPending } = useSession();
   const router = useRouter();
 
   useEffect(() => {
-    if (status === "unauthenticated") {
+    if (!isPending && !session?.user) {
       router.replace("/login");
     }
-  }, [status, router]);
+  }, [isPending, session, router]);
 
-  if (status === "loading") {
+  if (isPending) {
     return <PortfolioPageSkeleton />;
   }
 
-  if (status === "unauthenticated") {
+  if (!session?.user) {
     return null;
   }
 

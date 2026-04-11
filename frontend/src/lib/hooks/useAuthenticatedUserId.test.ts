@@ -1,114 +1,123 @@
-import { renderHook } from "@testing-library/react";
-import { vi, describe, it, expect, beforeEach } from "vitest";
-import { useSession } from "next-auth/react";
+import { renderHook, waitFor } from "@testing-library/react";
+import { vi, describe, it, expect, beforeEach, afterEach } from "vitest";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import React from "react";
 import { useAuthenticatedUserId } from "./useAuthenticatedUserId";
 
-vi.mock("next-auth/react", () => ({
-  useSession: vi.fn(),
-}));
+const mockFetch = vi.fn();
 
-const mockUseSession = vi.mocked(useSession);
+function makeWrapper() {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  return function Wrapper({ children }: { children: React.ReactNode }) {
+    return React.createElement(
+      QueryClientProvider,
+      { client: queryClient },
+      children,
+    );
+  };
+}
 
 describe("useAuthenticatedUserId", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubGlobal("fetch", mockFetch);
   });
 
-  it("returns authenticated state with userId and token when session is active", () => {
-    mockUseSession.mockReturnValue({
-      data: {
-        user: { id: "user-001", name: "Dev User", email: "dev@local" },
-        accessToken: "eyJhbGciOiJIUzI1NiJ9.test.sig",
-        expires: new Date(Date.now() + 3_600_000).toISOString(),
-      },
-      status: "authenticated",
-      update: vi.fn(),
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("returns authenticated with userId and JWT when BFF returns 200", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        token: "eyJhbGciOiJIUzI1NiJ9.gateway.jwt",
+        userId: "user-001",
+        email: "dev@localhost.local",
+      }),
     });
 
-    const { result } = renderHook(() => useAuthenticatedUserId());
+    const { result } = renderHook(() => useAuthenticatedUserId(), {
+      wrapper: makeWrapper(),
+    });
 
-    expect(result.current.status).toBe("authenticated");
+    await waitFor(() => expect(result.current.status).toBe("authenticated"));
     expect(result.current.userId).toBe("user-001");
-    expect(result.current.token).toBe("eyJhbGciOiJIUzI1NiJ9.test.sig");
+    expect(result.current.token).toBe("eyJhbGciOiJIUzI1NiJ9.gateway.jwt");
   });
 
-  it("returns loading state when session is being fetched", () => {
-    mockUseSession.mockReturnValue({
-      data: null,
-      status: "loading",
-      update: vi.fn(),
-    });
+  it("returns loading while BFF request is in flight", () => {
+    mockFetch.mockReturnValue(new Promise(() => {})); // never resolves
 
-    const { result } = renderHook(() => useAuthenticatedUserId());
+    const { result } = renderHook(() => useAuthenticatedUserId(), {
+      wrapper: makeWrapper(),
+    });
 
     expect(result.current.status).toBe("loading");
     expect(result.current.userId).toBe("");
     expect(result.current.token).toBe("");
   });
 
-  it("returns unauthenticated state when no session exists", () => {
-    mockUseSession.mockReturnValue({
-      data: null,
-      status: "unauthenticated",
-      update: vi.fn(),
+  it("returns unauthenticated when BFF returns 401", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 401,
+      json: async () => ({ error: "Unauthorized" }),
     });
 
-    const { result } = renderHook(() => useAuthenticatedUserId());
+    const { result } = renderHook(() => useAuthenticatedUserId(), {
+      wrapper: makeWrapper(),
+    });
 
-    expect(result.current.status).toBe("unauthenticated");
+    await waitFor(() => expect(result.current.status).toBe("unauthenticated"));
     expect(result.current.userId).toBe("");
     expect(result.current.token).toBe("");
   });
 
-  it("userId equals session.user.id (sub claim round-trip)", () => {
-    const expectedId = "user-abc-123";
-    mockUseSession.mockReturnValue({
-      data: {
-        user: { id: expectedId, name: "Test", email: "test@local" },
-        accessToken: "some.jwt.token",
-        expires: new Date(Date.now() + 3_600_000).toISOString(),
-      },
-      status: "authenticated",
-      update: vi.fn(),
+  it("calls /api/auth/jwt with credentials: include", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        token: "jwt",
+        userId: "user-001",
+        email: "dev@localhost.local",
+      }),
     });
 
-    const { result } = renderHook(() => useAuthenticatedUserId());
+    const { result } = renderHook(() => useAuthenticatedUserId(), {
+      wrapper: makeWrapper(),
+    });
 
-    expect(result.current.userId).toBe(expectedId);
+    await waitFor(() => expect(result.current.status).toBe("authenticated"));
+    expect(mockFetch).toHaveBeenCalledWith("/api/auth/jwt", {
+      credentials: "include",
+    });
   });
 
-  it("token equals session.accessToken", () => {
+  it("userId and token match the BFF response exactly", async () => {
+    const expectedUserId = "abc-123-def";
     const expectedToken = "header.payload.signature";
-    mockUseSession.mockReturnValue({
-      data: {
-        user: { id: "user-001", name: "Dev User", email: "dev@local" },
-        accessToken: expectedToken,
-        expires: new Date(Date.now() + 3_600_000).toISOString(),
-      },
-      status: "authenticated",
-      update: vi.fn(),
+
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        token: expectedToken,
+        userId: expectedUserId,
+        email: "test@example.com",
+      }),
     });
 
-    const { result } = renderHook(() => useAuthenticatedUserId());
+    const { result } = renderHook(() => useAuthenticatedUserId(), {
+      wrapper: makeWrapper(),
+    });
 
+    await waitFor(() => expect(result.current.status).toBe("authenticated"));
+    expect(result.current.userId).toBe(expectedUserId);
     expect(result.current.token).toBe(expectedToken);
-  });
-
-  it("returns unauthenticated when session exists but accessToken is missing", () => {
-    mockUseSession.mockReturnValue({
-      data: {
-        user: { id: "user-001", name: "Dev User", email: "dev@local" },
-        // accessToken intentionally absent
-        expires: new Date(Date.now() + 3_600_000).toISOString(),
-      },
-      status: "authenticated",
-      update: vi.fn(),
-    });
-
-    const { result } = renderHook(() => useAuthenticatedUserId());
-
-    // Without accessToken we cannot attach a Bearer header — treat as not ready
-    expect(result.current.token).toBe("");
-    expect(result.current.userId).toBe("");
   });
 });

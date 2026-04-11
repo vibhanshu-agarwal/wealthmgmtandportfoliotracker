@@ -4,6 +4,12 @@ variable "use_localstack" {
   description = "Toggle LocalStack vs. real AWS"
 }
 
+variable "localstack_endpoint" {
+  type        = string
+  default     = "http://localhost:4566"
+  description = "LocalStack endpoint URL (use http://localstack:4566 when running Terraform inside Docker on the same network)"
+}
+
 variable "aws_region" {
   type        = string
   default     = "us-east-1"
@@ -113,4 +119,37 @@ variable "insight_function_url" {
   type        = string
   default     = ""
   description = "insight-service Function URL (populated after first apply for service-to-service wiring)"
+}
+
+# ---------------------------------------------------------------------------
+# Database module variables
+# ---------------------------------------------------------------------------
+
+variable "db_username" {
+  type        = string
+  description = "Master username for the RDS PostgreSQL instance"
+}
+
+variable "db_password" {
+  type        = string
+  sensitive   = true
+  description = "Master password for the RDS PostgreSQL instance"
+}
+
+variable "rds_instance_class" {
+  type        = string
+  default     = "db.t3.micro"
+  description = "RDS instance class (Free Tier: db.t3.micro)"
+}
+
+variable "rds_allocated_storage" {
+  type        = number
+  default     = 20
+  description = "Allocated storage in GB for the RDS instance"
+}
+
+variable "elasticache_node_type" {
+  type        = string
+  default     = "cache.t3.micro"
+  description = "ElastiCache node type (Free Tier: cache.t3.micro)"
 }

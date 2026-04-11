@@ -1,9 +1,8 @@
-import { defineConfig } from "@playwright/test";
+import { defineConfig, devices } from "@playwright/test";
+import path from "node:path";
 
-// Config verified for golden-path.spec.ts:
-// - testDir: "./tests/e2e" ensures golden-path.spec.ts (and any other specs under tests/e2e/) are picked up automatically.
-// - webServer.reuseExistingServer: true allows the suite to run against an already-running Next.js instance
-//   (e.g. `npm run dev` or a live local stack) without spinning up a new server.
+const authFile = path.join(__dirname, "playwright/.auth/user.json");
+
 export default defineConfig({
   testDir: "./tests/e2e",
   timeout: 120_000,
@@ -14,6 +13,22 @@ export default defineConfig({
     trace: "on-first-retry",
     headless: true,
   },
+  projects: [
+    // Setup project — runs the global login once and saves session state
+    {
+      name: "setup",
+      testMatch: /.*\.setup\.ts/,
+    },
+    // Main test project — inherits authenticated session from setup
+    {
+      name: "chromium",
+      use: {
+        ...devices["Desktop Chrome"],
+        storageState: authFile,
+      },
+      dependencies: ["setup"],
+    },
+  ],
   webServer: {
     command: "npm run build && npm run start:standalone",
     url: "http://localhost:3000",

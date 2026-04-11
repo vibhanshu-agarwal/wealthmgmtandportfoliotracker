@@ -1,8 +1,9 @@
 # Backlog: [E2E] Resolve `total-value` Visibility and NextAuth Hydration in Standalone Build
 
-**Status:** Parked  
+**Status:** ✅ Closed (2026-04-11)  
 **Priority:** Medium  
-**Area:** Frontend / E2E Testing (Playwright + NextAuth)
+**Area:** Frontend / E2E Testing (Playwright + NextAuth)  
+**Resolution:** Root cause was the Next.js standalone build missing `.next/static/` (JS bundles), `public/`, and `.env.local`. Without JS bundles, React never hydrated, so `useSession()` never ran and the page stayed as static server-rendered HTML with permanent skeletons. Fixed by updating `start:standalone` in `package.json` to copy all three assets before starting the server. See `docs/changes/CHANGES_INFRA_SUMMARY_2026-04-11_v1.md`.
 
 ---
 

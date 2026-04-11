@@ -1,9 +1,25 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { vi, describe, it, expect, beforeEach, afterEach } from "vitest";
 import { fetchWithAuthClient } from "./fetchWithAuth";
 
-// Mock @/auth to prevent next-auth from trying to load next/server in jsdom
-vi.mock("@/auth", () => ({
-  auth: vi.fn().mockResolvedValue(null),
+// Mock @/lib/auth to prevent Better Auth from trying to load server modules in jsdom
+vi.mock("@/lib/auth", () => ({
+  auth: {
+    api: {
+      getSession: vi.fn().mockResolvedValue({
+        session: { token: "mock-jwt" },
+        user: { id: "user-001" },
+      }),
+    },
+  },
+}));
+
+// Mock server-only since tests run in jsdom
+vi.mock("server-only", () => ({}));
+
+// Mock next/headers since it's a server-only module
+vi.mock("next/headers", () => ({
+  headers: vi.fn().mockResolvedValue(new Headers()),
 }));
 
 describe("fetchWithAuthClient", () => {
@@ -89,5 +105,55 @@ describe("fetchWithAuthClient", () => {
     expect((init.headers as Record<string, string>)["Content-Type"]).toBe(
       "application/json",
     );
+  });
+});
+
+describe("fetchWithAuth (server-side)", () => {
+  const mockFetch = vi.fn();
+
+  beforeEach(() => {
+    vi.stubGlobal("fetch", mockFetch);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.clearAllMocks();
+  });
+
+  it("attaches Bearer token from auth.api.getSession", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ data: "ok" }),
+    });
+
+    // Dynamic import to pick up the mocks
+    const { fetchWithAuth } = await import("./fetchWithAuth.server");
+    await fetchWithAuth("/api/portfolio");
+
+    expect(mockFetch).toHaveBeenCalledOnce();
+    const [, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+    expect((init.headers as Record<string, string>)["Authorization"]).toBe(
+      "Bearer mock-jwt",
+    );
+  });
+
+  it("omits Authorization header when no session exists", async () => {
+    // Override the mock for this test to return null session
+    const { auth } = await import("@/lib/auth");
+    vi.mocked(auth.api.getSession).mockResolvedValueOnce(null as any);
+
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ data: "ok" }),
+    });
+
+    const { fetchWithAuth } = await import("./fetchWithAuth.server");
+    await fetchWithAuth("/api/portfolio");
+
+    expect(mockFetch).toHaveBeenCalledOnce();
+    const [, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+    expect(
+      (init.headers as Record<string, string>)["Authorization"],
+    ).toBeUndefined();
   });
 });

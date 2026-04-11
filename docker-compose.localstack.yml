@@ -6,7 +6,8 @@ services:
     ports:
       - "4566:4566"
     environment:
-      SERVICES: lambda,s3,dynamodb,cloudfront,iam,acm,route53
+      LOCALSTACK_AUTH_TOKEN: ${LOCALSTACK_AUTH_TOKEN:?Set LOCALSTACK_AUTH_TOKEN in your shell or .env file}
+      SERVICES: lambda,s3,dynamodb,cloudfront,iam,acm,route53,rds,elasticache,sqs
       DEFAULT_REGION: us-east-1
       LAMBDA_EXECUTOR: local
     volumes:

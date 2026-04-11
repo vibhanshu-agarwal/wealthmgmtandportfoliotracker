@@ -1,6 +1,5 @@
 import { renderHook, waitFor } from "@testing-library/react";
 import { vi, describe, it, expect, beforeEach } from "vitest";
-import { useSession } from "next-auth/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import React from "react";
 import {
@@ -9,16 +8,20 @@ import {
   portfolioKeys,
 } from "./usePortfolio";
 
-// Mock @/auth to prevent next-auth from trying to load next/server in jsdom
-vi.mock("@/auth", () => ({
-  auth: vi.fn().mockResolvedValue(null),
+// Mock the auth hook directly — avoids the internal useQuery chain
+vi.mock("./useAuthenticatedUserId", () => ({
+  useAuthenticatedUserId: vi.fn(),
 }));
 
-vi.mock("next-auth/react", () => ({
-  useSession: vi.fn(),
+// Mock @/lib/auth to prevent Better Auth server modules loading in jsdom
+vi.mock("@/lib/auth", () => ({
+  auth: {
+    api: { getSession: vi.fn().mockResolvedValue(null) },
+  },
 }));
 
-const mockUseSession = vi.mocked(useSession);
+import { useAuthenticatedUserId } from "./useAuthenticatedUserId";
+const mockUseAuthenticatedUserId = vi.mocked(useAuthenticatedUserId);
 
 function makeWrapper() {
   const queryClient = new QueryClient({
@@ -33,42 +36,31 @@ function makeWrapper() {
   };
 }
 
-const AUTHENTICATED_SESSION = {
-  data: {
-    user: { id: "user-001", name: "Dev User", email: "dev@local" },
-    accessToken: "eyJhbGciOiJIUzI1NiJ9.payload.sig",
-    expires: new Date(Date.now() + 3_600_000).toISOString(),
-  },
-  status: "authenticated" as const,
-  update: vi.fn(),
-};
-
 describe("usePortfolio", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it("does NOT call /api/portfolio when status is unauthenticated", () => {
-    mockUseSession.mockReturnValue({
-      data: null,
+  it("does NOT call /api/portfolio when unauthenticated", () => {
+    mockUseAuthenticatedUserId.mockReturnValue({
+      userId: "",
+      token: "",
       status: "unauthenticated",
-      update: vi.fn(),
     });
 
     const { result } = renderHook(() => usePortfolio(), {
       wrapper: makeWrapper(),
     });
 
-    // Query should be disabled — fetchStatus is "idle", not "fetching"
     expect(result.current.fetchStatus).toBe("idle");
     expect(result.current.data).toBeUndefined();
   });
 
-  it("does NOT call /api/portfolio when status is loading", () => {
-    mockUseSession.mockReturnValue({
-      data: null,
+  it("does NOT call /api/portfolio when loading", () => {
+    mockUseAuthenticatedUserId.mockReturnValue({
+      userId: "",
+      token: "",
       status: "loading",
-      update: vi.fn(),
     });
 
     const { result } = renderHook(() => usePortfolio(), {
@@ -80,15 +72,17 @@ describe("usePortfolio", () => {
   });
 
   it("calls /api/portfolio with Authorization: Bearer when authenticated", async () => {
-    mockUseSession.mockReturnValue(AUTHENTICATED_SESSION);
+    mockUseAuthenticatedUserId.mockReturnValue({
+      userId: "user-001",
+      token: "eyJhbGciOiJIUzI1NiJ9.payload.sig",
+      status: "authenticated",
+    });
 
     const { result } = renderHook(() => usePortfolio(), {
       wrapper: makeWrapper(),
     });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-
-    // MSW handler returns a portfolio array; fetchPortfolio returns the first item
     expect(result.current.data).toBeDefined();
   });
 
@@ -108,10 +102,10 @@ describe("usePortfolioSummary", () => {
   });
 
   it("does NOT call /api/portfolio/summary when unauthenticated", () => {
-    mockUseSession.mockReturnValue({
-      data: null,
+    mockUseAuthenticatedUserId.mockReturnValue({
+      userId: "",
+      token: "",
       status: "unauthenticated",
-      update: vi.fn(),
     });
 
     const { result } = renderHook(() => usePortfolioSummary(), {
@@ -123,14 +117,17 @@ describe("usePortfolioSummary", () => {
   });
 
   it("calls /api/portfolio/summary with Bearer token when authenticated", async () => {
-    mockUseSession.mockReturnValue(AUTHENTICATED_SESSION);
+    mockUseAuthenticatedUserId.mockReturnValue({
+      userId: "user-001",
+      token: "eyJhbGciOiJIUzI1NiJ9.payload.sig",
+      status: "authenticated",
+    });
 
     const { result } = renderHook(() => usePortfolioSummary(), {
       wrapper: makeWrapper(),
     });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-
     expect(result.current.data).toBeDefined();
     expect(result.current.data?.totalValue).toBe(284531.42);
   });

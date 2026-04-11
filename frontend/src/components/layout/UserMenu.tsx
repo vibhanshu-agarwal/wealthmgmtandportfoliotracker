@@ -1,6 +1,6 @@
 "use client";
 
-import { useSession, signOut } from "next-auth/react";
+import { useSession, signOut } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
 import {
   DropdownMenu,
@@ -23,14 +23,14 @@ function getInitials(name: string) {
 }
 
 export function UserMenu() {
-  const { data: session, status } = useSession();
+  const { data: session, isPending } = useSession();
   const router = useRouter();
 
   const name = session?.user?.name ?? session?.user?.email ?? "User";
   const email = session?.user?.email ?? "";
   const initials = getInitials(name);
 
-  if (status === "loading") {
+  if (isPending) {
     return <div className="h-7 w-7 rounded-full bg-white/10 animate-pulse" />;
   }
 
@@ -85,7 +85,10 @@ export function UserMenu() {
 
         <DropdownMenuItem
           className="text-loss focus:text-loss focus:bg-loss-muted"
-          onClick={() => signOut({ callbackUrl: "/login" })}
+          onClick={async () => {
+            await signOut();
+            router.push("/login");
+          }}
         >
           <LogOut className="mr-2 h-4 w-4" />
           Sign out

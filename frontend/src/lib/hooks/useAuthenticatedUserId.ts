@@ -1,6 +1,6 @@
 "use client";
 
-import { useSession } from "next-auth/react";
+import { useQuery } from "@tanstack/react-query";
 
 export interface AuthenticatedUser {
   userId: string;
@@ -8,75 +8,54 @@ export interface AuthenticatedUser {
   status: "authenticated" | "loading" | "unauthenticated";
 }
 
-/**
- * Reads the raw JWT from the authjs.session-token cookie synchronously.
- * This avoids the async /api/auth/session round-trip that causes TanStack Query
- * hooks to fire with an empty token on first render (hydration-no-flicker pattern).
- *
- * Returns null if the cookie is absent or cannot be parsed.
- */
-function readTokenFromCookie(): { sub: string; token: string } | null {
-  if (typeof document === "undefined") return null;
-  try {
-    const cookieName = "authjs.session-token";
-    const match = document.cookie
-      .split("; ")
-      .find((row) => row.startsWith(`${cookieName}=`));
-    if (!match) return null;
-
-    const raw = match.split("=").slice(1).join("=");
-    // JWT is header.payload.sig — decode the payload
-    const parts = raw.split(".");
-    if (parts.length !== 3) return null;
-
-    const payload = JSON.parse(atob(parts[1].replace(/-/g, "+").replace(/_/g, "/")));
-    const sub = payload?.sub as string | undefined;
-    if (!sub) return null;
-
-    return { sub, token: raw };
-  } catch {
-    return null;
-  }
+interface GatewayJwtResponse {
+  token: string;
+  userId: string;
+  email: string;
 }
 
 /**
- * Returns the authenticated user's ID (sub claim) and raw JWT token.
+ * Fetches the HS256 JWT and user info from the BFF token exchange endpoint.
+ * Returns null if the user is not authenticated (401).
+ */
+async function fetchGatewayJwt(): Promise<GatewayJwtResponse | null> {
+  const res = await fetch("/api/auth/jwt", { credentials: "include" });
+  if (res.status === 401) return null;
+  if (!res.ok) throw new Error(`JWT exchange failed (${res.status})`);
+  return res.json();
+}
+
+/**
+ * Returns the authenticated user's ID and an HS256 JWT for the API Gateway.
  *
- * Uses a two-tier approach per the hydration-no-flicker rule:
- * 1. Reads the JWT cookie synchronously on first render (no loading flash)
- * 2. Falls back to useSession() for the full session object (userId, accessToken)
+ * Single async call to the BFF /api/auth/jwt endpoint — no dependency on
+ * Better Auth's useSession() client hook. The BFF reads the session cookie
+ * server-side and returns both the signed JWT and the userId in one response.
  *
- * This ensures TanStack Query hooks fire immediately with a valid token
- * rather than waiting for the async /api/auth/session round-trip.
+ * This eliminates the two-step async chain (useSession → useQuery) that
+ * caused race conditions where downstream TanStack Query hooks stayed disabled.
  */
 export function useAuthenticatedUserId(): AuthenticatedUser {
-  const { data: session, status } = useSession();
+  const { data, isLoading } = useQuery({
+    queryKey: ["gateway-jwt"],
+    queryFn: fetchGatewayJwt,
+    staleTime: 50 * 60 * 1000, // 50 minutes (JWT expires in 1h)
+    refetchInterval: 50 * 60 * 1000,
+    retry: 1,
+    refetchOnWindowFocus: false,
+  });
 
-  // Tier 1: useSession() has resolved — use the full session object
-  if (
-    status === "authenticated" &&
-    session?.user?.id &&
-    session?.accessToken
-  ) {
+  if (isLoading) {
+    return { userId: "", token: "", status: "loading" };
+  }
+
+  if (data?.token && data?.userId) {
     return {
-      userId: session.user.id,
-      token: session.accessToken,
+      userId: data.userId,
+      token: data.token,
       status: "authenticated",
     };
   }
 
-  // Tier 2: useSession() is still loading — read the cookie synchronously
-  // so queries can fire immediately without waiting for the session round-trip.
-  if (status === "loading") {
-    const cookieData = readTokenFromCookie();
-    if (cookieData) {
-      return {
-        userId: cookieData.sub,
-        token: cookieData.token,
-        status: "authenticated",
-      };
-    }
-  }
-
-  return { userId: "", token: "", status };
+  return { userId: "", token: "", status: "unauthenticated" };
 }
