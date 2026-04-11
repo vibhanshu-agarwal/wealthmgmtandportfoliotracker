@@ -34,7 +34,7 @@ public class CacheConfig {
     private static final long TTL_SECONDS = 30;
 
     @Bean
-    @Profile("local")
+    @Profile({"local", "default"})
     public CacheManager caffeineCacheManager() {
         CaffeineCacheManager manager = new CaffeineCacheManager(CACHE_NAME);
         manager.setCaffeine(

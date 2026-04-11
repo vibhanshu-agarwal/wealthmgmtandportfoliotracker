@@ -52,10 +52,7 @@ import org.testcontainers.utility.DockerImageName;
  */
 @Tag("integration")
 @Testcontainers
-@SpringBootTest(
-    webEnvironment = SpringBootTest.WebEnvironment.NONE,
-    properties = "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration"
-)
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
 class DlqIntegrationTest {
 
   private static final String TOPIC = "market-prices";
