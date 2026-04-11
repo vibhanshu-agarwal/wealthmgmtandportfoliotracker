@@ -37,7 +37,7 @@ const ASSET_CLASSES: AssetClass[] = [
 
 const arbAssetClass = fc.constantFrom(...ASSET_CLASSES);
 
-const arbHolding: fc.Arbitrary<AssetHoldingDTO> = fc.record({
+const arbHolding = fc.record({
   id: fc.uuid(),
   ticker: fc.stringMatching(/^[A-Z]{1,5}$/),
   name: fc.string({ minLength: 1, maxLength: 30 }),
@@ -51,8 +51,8 @@ const arbHolding: fc.Arbitrary<AssetHoldingDTO> = fc.record({
   change24hAbsolute: fc.double({ min: -99999, max: 99999, noNaN: true }),
   portfolioWeight: fc.double({ min: 0, max: 100, noNaN: true }),
   lastUpdatedAt: fc
-    .integer({ min: 1577836800000, max: 1924905600000 }) // 2020-01-01 to 2030-12-31
-    .map((ts) => new Date(ts).toISOString()),
+    .integer({ min: 1577836800000, max: 1924905600000 })
+    .map((ts: number) => new Date(ts).toISOString()),
 });
 
 const arbHoldings = fc.array(arbHolding, { minLength: 1, maxLength: 50 });
@@ -72,7 +72,7 @@ describe("MarketDataPageContent — Property-Based Tests", () => {
    */
   it("renders exactly one table row per holding with correct ticker and price", () => {
     fc.assert(
-      fc.property(arbHoldings, (holdings) => {
+      fc.property(arbHoldings, (holdings: AssetHoldingDTO[]) => {
         mockUsePortfolio.mockReturnValue({
           data: {
             portfolioId: "p1",
@@ -96,7 +96,7 @@ describe("MarketDataPageContent — Property-Based Tests", () => {
         expect(rows).toHaveLength(holdings.length);
 
         // Each row contains the ticker and formatted price
-        holdings.forEach((h, i) => {
+        holdings.forEach((h: AssetHoldingDTO, i: number) => {
           const row = rows[i];
           expect(row.textContent).toContain(h.ticker);
           expect(row.textContent).toContain(formatCurrency(h.currentPrice));
@@ -119,7 +119,7 @@ describe("MarketDataPageContent — Property-Based Tests", () => {
    */
   it("applies correct color class based on change24hPercent sign", () => {
     fc.assert(
-      fc.property(arbHolding, (holding) => {
+      fc.property(arbHolding, (holding: AssetHoldingDTO) => {
         mockUsePortfolio.mockReturnValue({
           data: {
             portfolioId: "p1",
@@ -141,8 +141,9 @@ describe("MarketDataPageContent — Property-Based Tests", () => {
 
         // The change cell contains the formatted percent
         const formattedPercent = formatPercent(holding.change24hPercent);
-        const changeCell = Array.from(row.querySelectorAll("td")).find((td) =>
-          td.textContent?.includes(formattedPercent),
+        const changeCell = Array.from(row.querySelectorAll("td")).find(
+          (td: HTMLTableCellElement) =>
+            td.textContent?.includes(formattedPercent),
         );
 
         expect(changeCell).toBeDefined();
