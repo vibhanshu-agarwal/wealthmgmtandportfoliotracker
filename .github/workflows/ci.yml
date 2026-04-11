@@ -61,14 +61,6 @@ jobs:
           --health-timeout=5s
           --health-retries=5
 
-      localstack:
-        image: localstack/localstack:latest
-        env:
-          SERVICES: s3,sqs,dynamodb
-          DEFAULT_REGION: us-east-1
-        ports:
-          - 4566:4566
-
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
