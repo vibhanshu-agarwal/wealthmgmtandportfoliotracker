@@ -55,11 +55,23 @@ jobs:
             frontend/.next/static
             frontend/public
 
-  # ── Job 2: E2E smoke tests — Next.js only, no backend ────────────────────────
-  # Validates: login flow, session cookie, auth header attachment on API calls.
-  # The Spring Boot Gateway is NOT running — /api/* calls will get ECONNREFUSED,
-  # which is exactly what tests 3 & 4 surface as diagnostic output.
-  # Tests 1–3 must pass; test 5 (direct Gateway fetch) is excluded here.
+  # ── Job 2: E2E smoke tests — Next.js + Postgres only, no Spring Boot backend ─
+  # This job validates the frontend auth flow and session management against a
+  # real Better Auth database. The Spring Boot API Gateway is NOT running, so
+  # any /api/* calls (proxied via Next.js rewrites to 127.0.0.1:8080) will fail.
+  #
+  # Tests included (no backend needed):
+  #   - dashboard-smoke: standalone build renders the overview page
+  #   - Test 1: session cookie is active after global setup sign-in
+  #   - Test 3: all /api/portfolio/* requests carry an Authorization header
+  #
+  # Tests excluded (require live Spring Boot backend):
+  #   - Test 2: total-value requires portfolio-service to return non-zero data
+  #   - Test 4: asserts HTTP 200 from API Gateway proxy (returns 500 without backend)
+  #   - Test 5: direct Gateway JWT validation (ECONNREFUSED without backend)
+  #
+  # These excluded tests are covered by the full-stack integration job in
+  # frontend-e2e-integration.yml, which runs all services via Docker Compose.
   e2e-smoke:
     runs-on: ubuntu-latest
     needs: build-and-test
