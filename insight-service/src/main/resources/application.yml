@@ -2,17 +2,23 @@ spring:
   application:
     name: insight-service
   kafka:
-    bootstrap-servers: localhost:9094
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9094}
     consumer:
       group-id: insight-group
       auto-offset-reset: earliest
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
       properties:
+        spring.deserializer.value.delegate.class: org.springframework.kafka.support.serializer.JsonDeserializer
+        spring.json.value.default.type: com.wealth.market.events.PriceUpdatedEvent
         spring.json.trusted.packages: "*"
 
 server:
   port: 8083
+
+insight:
+  portfolio-service:
+    base-url: ${PORTFOLIO_SERVICE_URL:http://localhost:8081}
 
 logging:
   level:

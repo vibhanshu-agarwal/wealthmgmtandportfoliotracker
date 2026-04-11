@@ -1,0 +1,11 @@
+spring:
+  ai:
+    bedrock:
+      aws:
+        region: ${AWS_REGION:us-east-1}
+        access-key: ${AWS_ACCESS_KEY_ID:}
+        secret-key: ${AWS_SECRET_ACCESS_KEY:}
+      chat:
+        options:
+          model: anthropic.claude-3-haiku-20240307-v1:0
+          temperature: 0.2
