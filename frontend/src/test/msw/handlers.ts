@@ -58,6 +58,50 @@ const analyticsFixture = {
   }).concat([{ date: today, value: 48250.0, change: 650.0 }]),
 };
 
+// ── Insight-service fixtures ────────────────────────────────────────────────
+
+/** Realistic market summary fixture with 3 tickers. */
+export const insightMarketSummaryFixture: Record<
+  string,
+  {
+    ticker: string;
+    latestPrice: number;
+    priceHistory: number[];
+    trendPercent: number | null;
+    aiSummary: string | null;
+  }
+> = {
+  AAPL: {
+    ticker: "AAPL",
+    latestPrice: 178.5,
+    priceHistory: [175.0, 176.2, 177.8, 178.5],
+    trendPercent: 2.0,
+    aiSummary: "AAPL is Bullish. Prices are rising steadily.",
+  },
+  MSFT: {
+    ticker: "MSFT",
+    latestPrice: 420.0,
+    priceHistory: [422.0, 421.0, 420.0],
+    trendPercent: -0.47,
+    aiSummary: null,
+  },
+  GOOG: {
+    ticker: "GOOG",
+    latestPrice: 175.0,
+    priceHistory: [175.0],
+    trendPercent: null,
+    aiSummary: "GOOG is Neutral. Low trading volume.",
+  },
+};
+
+/** Error handler for POST /api/chat returning 503. Use with server.use() in tests. */
+export const chatError503Handler = http.post("/api/chat", () =>
+  HttpResponse.json(
+    { error: "AI advisor unavailable", retryable: true },
+    { status: 503 },
+  ),
+);
+
 export const handlers = [
   http.get("/api/portfolio", ({ request }) => {
     const unauthorized = requireBearer(request);
@@ -100,5 +144,36 @@ export const handlers = [
     if (unauthorized) return unauthorized;
 
     return HttpResponse.json([]);
+  }),
+
+  // ── Insight-service handlers ──────────────────────────────────────────────
+
+  http.get("/api/insights/market-summary", ({ request }) => {
+    const unauthorized = requireBearer(request);
+    if (unauthorized) return unauthorized;
+
+    return HttpResponse.json(insightMarketSummaryFixture);
+  }),
+
+  http.get("/api/insights/market-summary/:ticker", ({ request, params }) => {
+    const unauthorized = requireBearer(request);
+    if (unauthorized) return unauthorized;
+
+    const ticker = (params.ticker as string).toUpperCase();
+    const summary = insightMarketSummaryFixture[ticker];
+    if (!summary || summary.latestPrice === null) {
+      return new HttpResponse(null, { status: 404 });
+    }
+    return HttpResponse.json(summary);
+  }),
+
+  http.post("/api/chat", async ({ request }) => {
+    const unauthorized = requireBearer(request);
+    if (unauthorized) return unauthorized;
+
+    const body = (await request.json()) as { message: string; ticker?: string };
+    return HttpResponse.json({
+      response: `Here's what I know about ${body.ticker ?? "the market"}: prices are trending upward with moderate volume.`,
+    });
   }),
 ];
