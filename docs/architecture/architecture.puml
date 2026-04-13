@@ -1,0 +1,52 @@
+@startuml
+title Wealth Management & Portfolio Tracker - Architecture
+skinparam componentStyle rectangle
+
+actor "User" as User
+
+node "Next.js Frontend\n(React, TypeScript)" as Frontend
+node "API Gateway\n(Spring Cloud Gateway)" as Gateway
+
+node "portfolio-service\n(Spring Boot, JPA)" as Portfolio
+node "market-data-service\n(Spring Boot, MongoDB)" as Market
+node "insight-service\n(Spring Boot)" as Insight
+
+database "PostgreSQL\n(portfolio data)" as Postgres
+database "MongoDB\n(market prices)" as Mongo
+queue "Kafka\n(events/topics)" as Kafka
+database "Redis\n(gateway rate-limiting)" as Redis
+
+User --> Frontend : "Interacts via UI"
+Frontend --> Gateway : "HTTP / REST (GraphQL/REST)"
+Gateway --> Portfolio : "/api/portfolios/**"
+Gateway --> Market : "/api/market/**"
+Gateway --> Insight : "/api/insights/**"
+
+Market --> Kafka : "publish: price-change topic"
+Kafka --> Portfolio : "consume: price-change -> recalc valuations"
+Kafka --> Insight : "consume: events -> produce insights"
+
+Portfolio --> Postgres : "CRUD, transactional data"
+Market --> Mongo : "store raw and aggregated market prices"
+Gateway --> Redis : "rate limit / caching (optional)"
+
+note right of Kafka
+  - Topics: price-change, trade-events, insight-events
+  - Consider partitions for ordering and scale
+  - Ensure consumer idempotency
+end note
+
+package "Local Dev Infra (Docker Compose)" {
+  node "Postgres" as LocalPG
+  node "MongoDB" as LocalMongo
+  node "Kafka (Zookeeper)" as LocalKafka
+  node "Redis" as LocalRedis
+}
+
+note left
+  - CI: GitHub Actions
+  - Testing: Testcontainers, JUnit, Vitest, Playwright
+  - Shared contracts: common-dto module
+end note
+
+@enduml
