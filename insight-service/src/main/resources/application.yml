@@ -18,12 +18,13 @@ spring:
         spring.deserializer.value.delegate.class: org.springframework.kafka.support.serializer.JsonDeserializer
         spring.json.value.default.type: com.wealth.market.events.PriceUpdatedEvent
         spring.json.trusted.packages: "*"
+  web:
+    error:
+      include-message: always
+      include-exception: true
 
 server:
   port: 8083
-  error:
-    include-message: always
-    include-exception: true
 
 insight:
   portfolio-service:
