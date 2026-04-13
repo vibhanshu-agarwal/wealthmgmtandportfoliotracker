@@ -91,35 +91,35 @@ Phase 1 establishes the hexagonal architecture foundation for AI-powered portfol
     - Test message+cause constructor preserves both message and cause
     - _Requirements: 9.1_
 
-- [-] 6. Architectural dependency check and property-based tests
+- [x] 6. Architectural dependency check and property-based tests
   - [x] 6.1 Write architectural dependency check test
     - Create `portfolio-service/src/test/java/com/wealth/portfolio/NoAiImportsTest.java`
     - Read source files for `PortfolioAdvisor.java`, `AnalysisResult.java`, and `MockPortfolioAdvisor.java`
     - Assert none contain imports from `org.springframework.ai`, `com.ollama`, `software.amazon.awssdk`, or Bedrock packages
     - _Requirements: 11.5, 1.1, 10.3, 10.4_
 
-  - [ ] 6.2 Write property-based test for AnalysisResult invariants
+  - [x] 6.2 Write property-based test for AnalysisResult invariants
     - Create `portfolio-service/src/test/java/com/wealth/portfolio/AnalysisResultPropertyTest.java`
     - **Property 1: AnalysisResult invariants hold for any portfolio**
     - Generate random portfolios (0–10 holdings, random tickers/quantities) using `@RepeatedTest(100)` or jqwik `@Property`
     - Verify: empty portfolio → riskScore 0; non-empty → riskScore in [1, 100]; rebalancingSuggestions.size() ≤ 3; lists are non-null
     - **Validates: Requirements 1.3, 1.4, 11.4**
 
-  - [ ] 6.3 Write property-based test for MockPortfolioAdvisor determinism
+  - [x] 6.3 Write property-based test for MockPortfolioAdvisor determinism
     - Create `portfolio-service/src/test/java/com/wealth/portfolio/ai/MockPortfolioAdvisorPropertyTest.java`
     - **Property 2: MockPortfolioAdvisor returns non-empty analysis for any non-empty portfolio**
     - Generate random non-empty portfolios (1–10 holdings, random tickers/quantities) using `@RepeatedTest(100)` or jqwik `@Property`
     - Verify: riskScore > 0, at least one concentrationWarning, at least one rebalancingSuggestion
     - **Validates: Requirements 2.3, 2.5**
 
-  - [ ] 6.4 Write property-based test for AdvisorUnavailableException
+  - [x] 6.4 Write property-based test for AdvisorUnavailableException
     - Add to `portfolio-service/src/test/java/com/wealth/portfolio/AdvisorUnavailableExceptionTest.java` or create separate file
     - **Property 3: AdvisorUnavailableException preserves message and cause**
     - Generate random non-null message strings and Throwable causes using `@RepeatedTest(100)`
     - Verify: `getMessage()` returns the message, `getCause()` returns the cause
     - **Validates: Requirements 9.1**
 
-- [ ] 7. Final checkpoint — Ensure all tests pass
+- [x] 7. Final checkpoint — Ensure all tests pass
   - Run `./gradlew :portfolio-service:test` and ensure all unit tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
