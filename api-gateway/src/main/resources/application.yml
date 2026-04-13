@@ -24,6 +24,10 @@ spring:
               uri: ${INSIGHT_SERVICE_URL:http://localhost:8083}
               predicates:
                 - Path=/api/insights/**
+            - id: insight-chat
+              uri: ${INSIGHT_SERVICE_URL:http://localhost:8083}
+              predicates:
+                - Path=/api/chat/**
 
 server:
   port: 8080

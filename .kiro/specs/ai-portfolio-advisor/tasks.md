@@ -1,134 +1,263 @@
-# Implementation Plan: AI Portfolio Advisor — Phase 1 (Foundation & Mock Strategy)
+# Implementation Plan: Insight Service — AI Market Analysis & Chat
 
 ## Overview
 
-Phase 1 establishes the hexagonal architecture foundation for AI-powered portfolio analysis with zero AI dependencies. We define the `PortfolioAdvisor` domain port and `AnalysisResult` record, implement the `MockPortfolioAdvisor` default adapter, wire the `PortfolioService.analyzePortfolio()` method, expose the REST endpoint via a dedicated `PortfolioAnalyzeController`, integrate `AdvisorUnavailableException` into the `GlobalExceptionHandler`, and validate everything with unit tests and property-based tests. All tasks run via `./gradlew test` — no integration tests in this phase.
+This plan covers the full insight-service feature set: stateful Redis price aggregation (done), AI-powered sentiment analysis, and conversational chat. Tasks are ordered so each step builds on the previous — per-ticker endpoint first (foundation), then AI integration layer, then chat, then real LLM adapter, then gateway routing, then tests.
 
 ## Tasks
 
-- [x] 1. Define domain port and DTO
-  - [x] 1.1 Create `AnalysisResult` record in `com.wealth.portfolio`
-    - Create `portfolio-service/src/main/java/com/wealth/portfolio/AnalysisResult.java`
-    - Record with fields: `int riskScore`, `List<String> concentrationWarnings`, `List<String> rebalancingSuggestions`
-    - Compact constructor with `List.copyOf()` defensive copies for both list fields
-    - No infrastructure imports — only `java.util.List`
-    - _Requirements: 1.3, 1.5_
+- [x] 1. Stateful Redis aggregation engine and market summary endpoint
+  - [x] 1.1 Implement MarketDataService with Redis-backed price storage
+    - `processUpdate(PriceUpdatedEvent)` stores latest price and prepends to sliding window
+    - `market:latest:{ticker}` key-value, `market:history:{ticker}` capped list (10 entries)
+    - `calculateTrend()` computes `((newest - oldest) / oldest) * 100`
+    - Safety guards: `parsePrice()` wraps BigDecimal parsing, per-ticker isolation in summary loop
+    - _Requirements: 1.1, 1.2, 1.5, 1.6_
 
-  - [x] 1.2 Create `PortfolioAdvisor` interface in `com.wealth.portfolio`
-    - Create `portfolio-service/src/main/java/com/wealth/portfolio/PortfolioAdvisor.java`
-    - Single method: `AnalysisResult analyze(Portfolio portfolio)`
-    - Javadoc specifying: must be thread-safe, riskScore 0 for empty portfolios, throws `AdvisorUnavailableException` if AI service unreachable
-    - Zero infrastructure dependencies — only imports from `com.wealth.portfolio`
-    - _Requirements: 1.1, 1.2, 1.4_
+  - [x] 1.2 Refactor InsightEventListener to delegate to MarketDataService
+    - Kafka consumer calls `marketDataService.processUpdate(event)` instead of logging
+    - _Requirements: 1.1_
 
-  - [x] 1.3 Create `AdvisorUnavailableException` in `com.wealth.portfolio`
-    - Create `portfolio-service/src/main/java/com/wealth/portfolio/AdvisorUnavailableException.java`
-    - Extends `RuntimeException` (unchecked)
-    - Two constructors: `(String message, Throwable cause)` and `(String message)`
-    - Mirrors existing `FxRateUnavailableException` pattern
-    - _Requirements: 9.1_
+  - [x] 1.3 Create TickerSummary record in `com.wealth.insight.dto`
+    - Fields: `ticker`, `latestPrice`, `priceHistory`, `trendPercent`
+    - _Requirements: 2.1_
 
-- [x] 2. Implement mock adapter and exception handler
-  - [x] 2.1 Create `MockPortfolioAdvisor` in `com.wealth.portfolio.ai`
-    - Create `portfolio-service/src/main/java/com/wealth/portfolio/ai/MockPortfolioAdvisor.java`
-    - Implements `PortfolioAdvisor`, annotated with `@Service` and `@Profile("!ollama & !bedrock")`
-    - Empty portfolio → `AnalysisResult(0, List.of(), List.of())`
-    - Non-empty portfolio → deterministic hardcoded response: riskScore 42, one concentration warning, two rebalancing suggestions
-    - No network calls, no file I/O, no AI dependencies — only core Java + Spring `@Service`/`@Profile`
-    - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 10.3_
+  - [x] 1.4 Add `GET /api/insights/market-summary` endpoint to InsightController
+    - Returns `Map<String, TickerSummary>` for all tracked tickers
+    - Empty Redis returns HTTP 200 with `{}`
+    - Try-catch with logging on unexpected errors returns HTTP 500
+    - _Requirements: 2.1, 2.2, 2.5_
 
-  - [x] 2.2 Add `AdvisorUnavailableException` handler to `GlobalExceptionHandler`
-    - Add `@ExceptionHandler(AdvisorUnavailableException.class)` method to existing `GlobalExceptionHandler.java`
-    - Returns HTTP 503 with JSON body: `{"error": "AI advisor unavailable", "retryable": true}`
-    - Mirrors existing `handleFxRateUnavailable` pattern
-    - _Requirements: 9.2, 5.4_
+  - [x] 1.5 Configure Redis with env var pattern in `application.yml`
+    - `spring.data.redis.host: ${SPRING_DATA_REDIS_HOST:localhost}`
+    - Removed redundant `RedisConfig.java` — Spring Boot auto-configures `StringRedisTemplate`
+    - _Requirements: 1.3, 1.4_
 
-- [x] 3. Wire service and controller
-  - [x] 3.1 Add `analyzePortfolio(String userId)` method to `PortfolioService`
-    - Inject `PortfolioAdvisor` via constructor (add to existing constructor parameters)
-    - Method: `findByUserId(userId)` → throw `UserNotFoundException` if empty → call `portfolioAdvisor.analyze(portfolios.getFirst())`
-    - Annotate with `@Transactional(readOnly = true)`
-    - _Requirements: 5.1, 5.3_
+  - [x] 1.6 Fix API Gateway route predicate
+    - Changed `/api/insight/**` to `/api/insights/**` to match controller mapping
+    - _Requirements: 12.1_
 
-  - [x] 3.2 Create `PortfolioAnalyzeController` at `/api/portfolios`
-    - Create `portfolio-service/src/main/java/com/wealth/portfolio/PortfolioAnalyzeController.java`
-    - `@RestController` with `@RequestMapping("/api/portfolios")`
-    - Single endpoint: `@PostMapping("/{userId}/analyze")` returning `ResponseEntity<AnalysisResult>`
-    - Constructor-injected `PortfolioService`
-    - Separate controller from existing `PortfolioController` to avoid path conflicts (`/api/portfolios` vs `/api/portfolio`)
-    - _Requirements: 5.1, 5.2_
+  - [x] 1.7 Add error diagnostics to `application.yml`
+    - `server.error.include-message: always`, `include-exception: true`
+    - _Requirements: 9.5_
 
-- [x] 4. Checkpoint — Verify compilation and wiring
-  - Ensure `./gradlew :portfolio-service:compileJava` succeeds with no errors
+  - [x] 1.8 CI fixes (LocalStack removal, AWS OIDC, rate-limit test path, DlqIntegrationTest profile)
+    - Removed unused LocalStack service and AWS credentials step from CI
+    - Updated `RateLimitingIntegrationTest` path to `/api/insights/market-summary`
+    - Added `@ActiveProfiles("local")` to `DlqIntegrationTest`
+
+- [x] 2. Checkpoint — Phase 3 baseline verified
+  - `./gradlew :insight-service:compileJava` → BUILD SUCCESSFUL
+  - `./gradlew :insight-service:test` → BUILD SUCCESSFUL
+  - GitHub Actions CI: all jobs green
+
+- [x] 3. Per-ticker endpoint and MarketDataService public accessor
+  - [x] 3.1 Add `getTickerSummary(String ticker)` public method to MarketDataService
+    - Delegates to existing `buildTickerSummary(ticker)` (make it public or add wrapper)
+    - Returns `TickerSummary` for a single ticker, or a summary with `null` latestPrice if no data
+    - _Requirements: 3.3, 3.4_
+
+  - [x] 3.2 Add `GET /api/insights/market-summary/{ticker}` endpoint to InsightController
+    - Returns single `TickerSummary` JSON for the requested ticker
+    - Returns HTTP 404 with `{"error": "Ticker not found"}` if no Redis data
+    - _Requirements: 3.1, 3.2, 3.4_
+
+- [x] 4. AiInsightService interface and mock implementation
+  - [x] 4.1 Create `AiInsightService` interface in `com.wealth.insight`
+    - Single method: `String getSentiment(String ticker)`
+    - Throws `AdvisorUnavailableException` if LLM unreachable
+    - _Requirements: 4.1, 4.7_
+
+  - [x] 4.2 Create `MockAiInsightService` in `com.wealth.insight.infrastructure.ai`
+    - `@Service`, `@Profile("!ollama & !bedrock")`
+    - Returns deterministic string: `"{ticker} is showing Neutral sentiment. No significant price movement detected."`
+    - Zero Spring AI dependencies — only core Java + Spring annotations
+    - _Requirements: 5.1, 5.2, 5.3, 5.4, 10.4_
+
+- [x] 5. Extend TickerSummary and enrich controller responses with AI summary
+  - [x] 5.1 Add `aiSummary` field to TickerSummary record
+    - New field: `String aiSummary` (nullable)
+    - Update `MarketDataService.buildTickerSummary()` to pass `null` for aiSummary (controller enriches)
+    - _Requirements: 6.1, 6.5_
+
+  - [x] 5.2 Update InsightController to enrich market-summary with AI summaries
+    - Inject `AiInsightService` into InsightController
+    - In `getMarketSummary()`: loop over summaries, call `aiInsightService.getSentiment(ticker)` per ticker
+    - Catch `AdvisorUnavailableException` per-ticker → set `aiSummary` to `null`
+    - Always return HTTP 200 with price data regardless of AI availability
+    - _Requirements: 6.2, 6.4, 9.1_
+
+  - [x] 5.3 Update per-ticker endpoint to include AI summary
+    - Call `aiInsightService.getSentiment(ticker)` for the single ticker
+    - Catch `AdvisorUnavailableException` → set `aiSummary` to `null`
+    - _Requirements: 6.3, 6.4_
+
+- [x] 6. Checkpoint — AI integration with mock adapter
+  - Ensure `./gradlew :insight-service:compileJava` succeeds
   - Ensure all tests pass, ask the user if questions arise.
 
-- [x] 5. Unit tests for mock adapter and controller
-  - [x] 5.1 Write unit tests for `MockPortfolioAdvisor`
-    - Create `portfolio-service/src/test/java/com/wealth/portfolio/ai/MockPortfolioAdvisorTest.java`
-    - Test non-empty portfolio → riskScore > 0, non-empty warnings, non-empty suggestions
-    - Test empty portfolio → riskScore 0, empty lists
-    - Test deterministic output: same input produces same output across multiple calls
-    - Use standalone JUnit 5 + Mockito (no Spring context needed)
-    - _Requirements: 11.1, 11.2, 2.3, 2.5_
+- [x] 7. ChatController, DTOs, and ticker extraction
+  - [x] 7.1 Create `ChatRequest` and `ChatResponse` records in `com.wealth.insight.dto`
+    - `ChatRequest(String message, String ticker)` — message required, ticker optional
+    - `ChatResponse(String response)` — conversational plain-text
+    - _Requirements: 7.1, 7.8_
 
-  - [x] 5.2 Write unit tests for `PortfolioAnalyzeController`
-    - Create `portfolio-service/src/test/java/com/wealth/portfolio/PortfolioAnalyzeControllerTest.java`
-    - Use MockMvc standalone setup with `GlobalExceptionHandler` as controller advice (matches existing `PortfolioControllerTest` pattern)
-    - Test `POST /api/portfolios/{userId}/analyze` → 200 with correct JSON structure (`riskScore`, `concentrationWarnings`, `rebalancingSuggestions`)
-    - Test unknown userId → 404
-    - Test `AdvisorUnavailableException` → 503 with `{"error": "AI advisor unavailable", "retryable": true}`
-    - _Requirements: 11.3, 5.2, 5.3, 5.4_
+  - [x] 7.2 Implement ticker extraction logic
+    - Package-private static method `extractTicker(String message)` in `ChatController` (or utility class)
+    - Scans for uppercase 1-5 letter tokens, filters stop words (I, A, THE, HOW, IS, etc.)
+    - Returns first valid ticker or `null`
+    - _Requirements: 8.1, 8.2, 8.3, 8.4_
 
-  - [x] 5.3 Write unit tests for `AnalysisResult` record
-    - Create `portfolio-service/src/test/java/com/wealth/portfolio/AnalysisResultTest.java`
-    - Test defensive copy: mutating the original list passed to constructor does not affect the record's list
-    - Test that `concentrationWarnings()` and `rebalancingSuggestions()` return unmodifiable lists
-    - _Requirements: 1.3, 1.5_
+  - [x] 7.3 Create `ChatController` at `/api/chat`
+    - `@RestController`, `@RequestMapping("/api/chat")`
+    - `@PostMapping` accepting `ChatRequest`, returning `ChatResponse`
+    - Resolution order: explicit `ticker` field → `extractTicker(message)` → "please specify" response
+    - Unknown ticker (no Redis data) → "no data available" response
+    - AI failure → response with price data + "AI temporarily unavailable" note
+    - Stateless — no session or conversation history
+    - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.5, 7.6, 7.7, 9.2_
 
-  - [x] 5.4 Write unit test for `AdvisorUnavailableException`
-    - Create `portfolio-service/src/test/java/com/wealth/portfolio/AdvisorUnavailableExceptionTest.java`
-    - Test message-only constructor preserves message
-    - Test message+cause constructor preserves both message and cause
-    - _Requirements: 9.1_
+- [x] 8. OllamaAiInsightService — real LLM adapter
+  - [x] 8.1 Add Spring AI Ollama dependencies to `insight-service/build.gradle`
+    - Add `spring-ai-ollama-spring-boot-starter` dependency
+    - Add Spring AI BOM to dependency management
+    - _Requirements: 10.1, 10.2_
 
-- [x] 6. Architectural dependency check and property-based tests
-  - [x] 6.1 Write architectural dependency check test
-    - Create `portfolio-service/src/test/java/com/wealth/portfolio/NoAiImportsTest.java`
-    - Read source files for `PortfolioAdvisor.java`, `AnalysisResult.java`, and `MockPortfolioAdvisor.java`
-    - Assert none contain imports from `org.springframework.ai`, `com.ollama`, `software.amazon.awssdk`, or Bedrock packages
-    - _Requirements: 11.5, 1.1, 10.3, 10.4_
+  - [x] 8.2 Create `application-ollama.yml` with Ollama config
+    - Ollama base URL and model configuration
+    - Must NOT appear in base `application.yml`
+    - _Requirements: 10.3_
 
-  - [x] 6.2 Write property-based test for AnalysisResult invariants
-    - Create `portfolio-service/src/test/java/com/wealth/portfolio/AnalysisResultPropertyTest.java`
-    - **Property 1: AnalysisResult invariants hold for any portfolio**
-    - Generate random portfolios (0–10 holdings, random tickers/quantities) using `@RepeatedTest(100)` or jqwik `@Property`
-    - Verify: empty portfolio → riskScore 0; non-empty → riskScore in [1, 100]; rebalancingSuggestions.size() ≤ 3; lists are non-null
-    - **Validates: Requirements 1.3, 1.4, 11.4**
+  - [x] 8.3 Create `OllamaAiInsightService` in `com.wealth.insight.infrastructure.ai`
+    - `@Service`, `@Profile("ollama")`
+    - Injects `ChatClient` and `MarketDataService`
+    - `getSentiment(ticker)`: fetches `TickerSummary` via `marketDataService.getTickerSummary()`, builds prompt, calls LLM
+    - System prompt instructs 2-sentence sentiment (Bullish/Bearish/Neutral)
+    - Empty/null LLM response → throws `AdvisorUnavailableException`
+    - Any other exception → wraps in `AdvisorUnavailableException`
+    - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 4.6_
 
-  - [x] 6.3 Write property-based test for MockPortfolioAdvisor determinism
-    - Create `portfolio-service/src/test/java/com/wealth/portfolio/ai/MockPortfolioAdvisorPropertyTest.java`
-    - **Property 2: MockPortfolioAdvisor returns non-empty analysis for any non-empty portfolio**
-    - Generate random non-empty portfolios (1–10 holdings, random tickers/quantities) using `@RepeatedTest(100)` or jqwik `@Property`
-    - Verify: riskScore > 0, at least one concentrationWarning, at least one rebalancingSuggestion
-    - **Validates: Requirements 2.3, 2.5**
+- [x] 9. Gateway route for `/api/chat`
+  - Add route predicate in `api-gateway/src/main/resources/application.yml`
+    - `id: insight-chat`, `Path=/api/chat/**`, URI points to insight-service
+    - _Requirements: 12.4_
 
-  - [x] 6.4 Write property-based test for AdvisorUnavailableException
-    - Add to `portfolio-service/src/test/java/com/wealth/portfolio/AdvisorUnavailableExceptionTest.java` or create separate file
-    - **Property 3: AdvisorUnavailableException preserves message and cause**
-    - Generate random non-null message strings and Throwable causes using `@RepeatedTest(100)`
-    - Verify: `getMessage()` returns the message, `getCause()` returns the cause
-    - **Validates: Requirements 9.1**
+- [x] 10. Checkpoint — Full feature compilation
+  - Ensure `./gradlew :insight-service:compileJava` succeeds
+  - Ensure all tests pass, ask the user if questions arise.
 
-- [x] 7. Final checkpoint — Ensure all tests pass
-  - Run `./gradlew :portfolio-service:test` and ensure all unit tests pass
+- [x] 11. Unit tests for new components
+  - [x] 11.1 Write unit tests for per-ticker endpoint
+    - `GET /market-summary/{ticker}` → 200 with correct TickerSummary JSON for known ticker
+    - `GET /market-summary/{ticker}` → 404 for unknown ticker
+    - Use MockMvc standalone setup with mocked MarketDataService and AiInsightService
+    - _Requirements: 11.1, 11.2_
+
+  - [x] 11.2 Write unit tests for MockAiInsightService
+    - Verify deterministic 2-sentence string containing ticker symbol and "Neutral"
+    - _Requirements: 11.3_
+
+  - [x] 11.3 Write unit tests for InsightController AI enrichment
+    - Market-summary with AI available → aiSummary populated
+    - Market-summary with AI failure → aiSummary null, price data intact, HTTP 200
+    - _Requirements: 6.2, 6.4, 9.1_
+
+  - [x] 11.4 Write unit tests for ChatController
+    - Request with explicit `ticker` → conversational response with ticker data
+    - Request with ticker in message (no `ticker` field) → extracts and responds
+    - Request with no identifiable ticker → prompt to specify
+    - Request with unknown ticker → "no data available" response
+    - AI failure during chat → response with "temporarily unavailable" note
+    - _Requirements: 11.4, 11.5, 7.2, 7.3, 7.5, 7.6, 9.2_
+
+  - [x] 11.5 Write unit tests for ticker extraction logic
+    - Stop words filtered: "How is the market" → null
+    - Valid extraction: "How is AAPL doing" → "AAPL"
+    - Multiple tickers: "Compare AAPL and MSFT" → "AAPL" (first wins)
+    - _Requirements: 11.6, 8.1, 8.2, 8.3, 8.4_
+
+  - [x] 11.6 Write unit test for GlobalExceptionHandler AdvisorUnavailableException
+    - Verify HTTP 503 with `{"error": "AI advisor unavailable", "retryable": true}`
+    - _Requirements: 9.3_
+
+- [x] 12. Property-based tests
+  - [x] 12.1 Write property test for sliding window size invariant
+    - **Property 1: Sliding window never exceeds configured size**
+    - For any sequence of PriceUpdatedEvents (1-50 events, random prices), history list ≤ 10 entries, newest at head
+    - Use jqwik `@Property` with embedded Redis (or mocked StringRedisTemplate)
+    - **Validates: Requirements 1.2**
+
+  - [x] 12.2 Write property test for price parsing safety
+    - **Property 2: Price parsing safety — malformed values never throw**
+    - For any string (null, blank, non-numeric, unicode), `parsePrice()` returns BigDecimal or null, never throws
+    - **Validates: Requirements 1.5**
+
+  - [x] 12.3 Write property test for trend calculation correctness
+    - **Property 3: Trend calculation correctness**
+    - For any list of ≥2 BigDecimal prices with non-zero oldest, result equals `((first - last) / last) * 100` rounded to 2dp
+    - For <2 elements or zero oldest → null
+    - **Validates: Requirements 2.3, 2.4**
+
+  - [x] 12.4 Write property test for prompt construction
+    - **Property 4: Prompt construction includes all required data**
+    - For any ticker and TickerSummary with non-null data, prompt contains ticker, at least one price, and trend percent
+    - **Validates: Requirements 4.3**
+
+  - [x] 12.5 Write property test for mock sentiment output
+    - **Property 5: Mock sentiment contains ticker and Neutral category**
+    - For any non-null ticker string, `MockAiInsightService.getSentiment()` returns string containing ticker and "Neutral"
+    - **Validates: Requirements 5.2**
+
+  - [x] 12.6 Write property test for graceful degradation
+    - **Property 6: Graceful degradation preserves price data on AI failure**
+    - For any TickerSummary with valid data, when AI throws, enriched response has original price fields and aiSummary=null, HTTP 200
+    - **Validates: Requirements 6.4, 9.1**
+
+  - [x] 12.7 Write property test for ticker extraction — known tickers
+    - **Property 7: Ticker extraction finds known tickers in arbitrary text**
+    - For any known ticker (1-5 uppercase, not stop-word) embedded in arbitrary surrounding text, `extractTicker()` returns that ticker
+    - **Validates: Requirements 8.1, 8.2, 11.7**
+
+  - [x] 12.8 Write property test for ticker extraction — first ticker wins
+    - **Property 8: Ticker extraction selects the first valid ticker**
+    - For any message with 2+ valid tickers, returns the first one
+    - **Validates: Requirements 8.3**
+
+  - [x] 12.9 Write property test for stop-word filtering
+    - **Property 9: Stop-word filtering prevents false ticker matches**
+    - For any message composed entirely of stop-list words, `extractTicker()` returns null
+    - **Validates: Requirements 8.4**
+
+- [x] 13. Integration tests
+  - [x] 13.1 Write integration test for market-summary endpoint with Redis
+    - `@SpringBootTest` + Testcontainers (Redis)
+    - Seed Redis with test data, verify `GET /api/insights/market-summary` returns correct structure
+    - Annotate with `@Tag("integration")`
+    - _Requirements: 2.1, 11.8_
+
+  - [x] 13.2 Write integration test for per-ticker endpoint with Redis
+    - Seed Redis, verify `GET /api/insights/market-summary/{ticker}` returns correct TickerSummary
+    - Verify unknown ticker returns 404
+    - Annotate with `@Tag("integration")`
+    - _Requirements: 3.1, 3.2, 11.8_
+
+  - [x] 13.3 Write integration test for chat endpoint
+    - `@SpringBootTest` with mock profile (MockAiInsightService active)
+    - Seed Redis, verify `POST /api/chat` with ticker returns conversational response
+    - Annotate with `@Tag("integration")`
+    - _Requirements: 7.1, 11.8_
+
+- [x] 14. Final checkpoint — Ensure all tests pass
+  - Run `./gradlew :insight-service:test` and ensure all unit tests pass
+  - Run `./gradlew :insight-service:integrationTest` and ensure all integration tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
 ## Notes
 
 - Tasks marked with `*` are optional and can be skipped for faster MVP
-- All tests run via `./gradlew test` (no `@Tag("integration")` in Phase 1)
-- Phase 2+ tasks (Ollama adapter, Bedrock adapter, Market Summarizer, Chat Assistant) are excluded from this plan
-- Property tests use `@RepeatedTest(100)` for lightweight PBT or jqwik `@Property` if the dependency is added
-- The `MockPortfolioAdvisor` lives in `com.wealth.portfolio.ai` (infrastructure adapter package) while the port interface stays in `com.wealth.portfolio` (domain package)
+- Tasks 1.x and 2 are already completed (Phase 3 implementation)
+- The design uses Java — no language selection needed
+- Property tests use jqwik (JUnit 5 compatible PBT library)
 - Each task references specific requirements for traceability
 - Checkpoints ensure incremental validation
+- The existing `InsightAdvisor` port (portfolio risk analysis) is NOT modified by these tasks

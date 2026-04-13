@@ -81,6 +81,13 @@ public class MarketDataService {
         return summaries;
     }
 
+    /**
+     * Returns a summary for a single ticker, or a summary with null latestPrice if no data exists.
+     */
+    public TickerSummary getTickerSummary(String ticker) {
+        return buildTickerSummary(ticker);
+    }
+
     private TickerSummary buildTickerSummary(String ticker) {
         BigDecimal latestPrice = parsePrice(
                 redisTemplate.opsForValue().get(LATEST_KEY_PREFIX + ticker));
@@ -89,7 +96,7 @@ public class MarketDataService {
                 .range(HISTORY_KEY_PREFIX + ticker, 0, WINDOW_SIZE - 1);
 
         if (rawHistory == null || rawHistory.isEmpty()) {
-            return new TickerSummary(ticker, latestPrice, Collections.emptyList(), null);
+            return new TickerSummary(ticker, latestPrice, Collections.emptyList(), null, null);
         }
 
         List<BigDecimal> priceHistory = new ArrayList<>();
@@ -101,17 +108,17 @@ public class MarketDataService {
         }
 
         if (priceHistory.isEmpty()) {
-            return new TickerSummary(ticker, latestPrice, Collections.emptyList(), null);
+            return new TickerSummary(ticker, latestPrice, Collections.emptyList(), null, null);
         }
 
         BigDecimal trendPercent = calculateTrend(priceHistory);
-        return new TickerSummary(ticker, latestPrice, priceHistory, trendPercent);
+        return new TickerSummary(ticker, latestPrice, priceHistory, trendPercent, null);
     }
 
     /**
      * Safely parses a price string from Redis. Returns null for null, blank, or malformed values.
      */
-    private BigDecimal parsePrice(String value) {
+    BigDecimal parsePrice(String value) {
         if (value == null || value.isBlank()) {
             return null;
         }
