@@ -85,7 +85,7 @@ public class ChatController {
         String[] tokens = message.split("\\s+");
         for (String token : tokens) {
             String cleaned = token.replaceAll("[^A-Za-z]", "").toUpperCase();
-            if (cleaned.length() >= 1 && cleaned.length() <= 5
+            if (!cleaned.isEmpty() && cleaned.length() <= 5
                     && cleaned.matches("[A-Z]+")
                     && !STOP_WORDS.contains(cleaned)) {
                 return cleaned;
