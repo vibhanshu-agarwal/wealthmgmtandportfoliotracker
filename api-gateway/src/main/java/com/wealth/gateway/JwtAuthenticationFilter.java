@@ -6,8 +6,6 @@ import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
 import org.springframework.http.HttpStatus;
-import org.springframework.security.core.context.ReactiveSecurityContextHolder;
-import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
@@ -37,13 +35,20 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
                 .request(r -> r.headers(h -> h.remove(X_USER_ID)))
                 .build();
 
-        // Step 2: Extract Authentication from the reactive security context.
-        return ReactiveSecurityContextHolder.getContext()
-                .map(SecurityContext::getAuthentication)
-                .cast(JwtAuthenticationToken.class)
-                .flatMap(token -> {
+        // Step 2: Extract the principal from the exchange (populated by Spring Security's
+        // WebFilter). Using exchange.getPrincipal() instead of ReactiveSecurityContextHolder
+        // because the Reactor Context is not reliably propagated to GlobalFilter instances
+        // in Spring Cloud Gateway.
+        return sanitised.getPrincipal()
+                .flatMap(principal -> {
+                    if (!(principal instanceof JwtAuthenticationToken jwtToken)) {
+                        // Non-JWT authentication type — treat as unauthenticated.
+                        log.debug("Principal is not a JwtAuthenticationToken — rejecting");
+                        sanitised.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
+                        return sanitised.getResponse().setComplete();
+                    }
                     // Step 3: Extract sub claim — never log the raw token value.
-                    String sub = token.getToken().getClaimAsString("sub");
+                    String sub = jwtToken.getToken().getClaimAsString("sub");
                     if (sub == null || sub.isBlank()) {
                         log.debug("JWT accepted but sub claim is missing or blank");
                         sanitised.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
@@ -56,16 +61,12 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
                             .build();
                     return chain.filter(mutated);
                 })
-                .onErrorResume(ClassCastException.class, ex -> {
-                    // Non-JWT authentication type — treat as unauthenticated.
+                .switchIfEmpty(Mono.defer(() -> {
+                    // No principal at all — Spring Security should have rejected this
+                    // already, but guard against misconfiguration.
+                    log.debug("No principal found on exchange — rejecting request");
                     sanitised.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
                     return sanitised.getResponse().setComplete();
-                })
-                .onErrorResume(Exception.class, ex -> {
-                    // Unexpected exception — log at ERROR, return 500.
-                    log.error("Unexpected error in JwtAuthenticationFilter", ex);
-                    sanitised.getResponse().setStatusCode(HttpStatus.INTERNAL_SERVER_ERROR);
-                    return sanitised.getResponse().setComplete();
-                });
+                }));
     }
 }
