@@ -13,12 +13,3 @@ dependencies {
     implementation 'org.springframework.ai:spring-ai-starter-model-ollama'
     implementation 'org.springframework.ai:spring-ai-client-chat'
 }
-tasks.withType(Test).configureEach {
-    useJUnitPlatform()
-}
-
-// Wire the integrationTest task (registered in root build.gradle) to the compiled test classes
-tasks.named('integrationTest', Test) {
-    testClassesDirs = sourceSets.test.output.classesDirs
-    classpath = sourceSets.test.runtimeClasspath
-}

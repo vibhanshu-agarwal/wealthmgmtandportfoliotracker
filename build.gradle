@@ -12,7 +12,7 @@ version = '0.0.1-SNAPSHOT'
 
 repositories {
     mavenCentral()
-    maven { url 'https://repo.spring.io/milestone' }
+    maven { url = 'https://repo.spring.io/milestone' }
 }
 
 ext {
@@ -42,7 +42,7 @@ subprojects {
 
     repositories {
         mavenCentral()
-        maven { url 'https://repo.spring.io/milestone' }
+        maven { url = 'https://repo.spring.io/milestone' }
     }
 
     dependencyManagement {
@@ -64,11 +64,11 @@ subprojects {
 
     // Keep JVM timezone explicit to avoid PostgreSQL rejecting Asia/Calcutta from host defaults.
     tasks.withType(Test).configureEach {
-        jvmArgs '-Duser.timezone=Asia/Kolkata'
+        jvmArgs = ['-Duser.timezone=Asia/Kolkata']
     }
 
     tasks.withType(BootRun).configureEach {
-        jvmArgs '-Duser.timezone=Asia/Kolkata'
+        jvmArgs = ['-Duser.timezone=Asia/Kolkata']
     }
 
     // 1. Configure the standard 'test' task to run fast (ignore integration tags)
@@ -87,6 +87,11 @@ subprojects {
             includeTags 'integration'
         }
 
+        // Wire the integrationTest task to the compiled test source set so it can discover
+        // @Tag("integration") tests. Without this, the task reports NO-SOURCE.
+        testClassesDirs = sourceSets.test.output.classesDirs
+        classpath = sourceSets.test.runtimeClasspath
+
         // Ensure standard fast tests run before the heavy integration tests
         mustRunAfter tasks.named('test')
     }
@@ -96,6 +101,4 @@ subprojects {
         dependsOn tasks.named('integrationTest')
     }
 }
-tasks.withType(Test).configureEach {
-    useJUnitPlatform()
-}
+// Removed redundant tasks.withType(Test) block as it's now fully handled inside subprojects or at task level.

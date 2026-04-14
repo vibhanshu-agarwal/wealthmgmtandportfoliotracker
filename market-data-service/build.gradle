@@ -12,6 +12,3 @@ dependencies {
     testImplementation 'org.testcontainers:testcontainers-mongodb'
     testImplementation 'org.springframework.kafka:spring-kafka-test'
 }
-tasks.withType(Test).configureEach {
-    useJUnitPlatform()
-}
