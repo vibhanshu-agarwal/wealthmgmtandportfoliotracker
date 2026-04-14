@@ -11,6 +11,7 @@
     "lint:fix": "eslint --fix .",
     "test": "vitest run",
     "test:ui": "vitest --ui",
+    "test:pact": "vitest run --config vitest.pact.config.ts",
     "test:e2e": "playwright test --trace on"
   },
   "dependencies": {
@@ -38,6 +39,7 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",
+    "@pact-foundation/pact": "^16.3.0",
     "@playwright/test": "^1.54.2",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.8.0",
