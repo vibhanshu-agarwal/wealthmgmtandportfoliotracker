@@ -19,9 +19,3 @@ dependencies {
     testRuntimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'
     testRuntimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.6'
 }
-
-// Wire the integrationTest task (registered in root build.gradle) to the compiled test classes
-tasks.named('integrationTest', Test) {
-    testClassesDirs = sourceSets.test.output.classesDirs
-    classpath = sourceSets.test.runtimeClasspath
-}
