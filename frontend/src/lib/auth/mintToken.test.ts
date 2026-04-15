@@ -226,3 +226,31 @@ describe("mintToken — Unit: Secret fallback behavior", () => {
     ).rejects.toThrow();
   });
 });
+
+describe("mintToken — Unit: Secret validation hardening", () => {
+  it("throws when both AUTH_JWT_SECRET and BETTER_AUTH_SECRET are missing", async () => {
+    delete process.env.AUTH_JWT_SECRET;
+    delete process.env.BETTER_AUTH_SECRET;
+
+    const user = { id: "user-3", email: "missing@example.com", name: "Missing Secret" };
+    await expect(mintToken(user)).rejects.toThrow("JWT signing secret is missing");
+  });
+
+  it("throws when configured secret is blank", async () => {
+    vi.stubEnv("AUTH_JWT_SECRET", "   ");
+    delete process.env.BETTER_AUTH_SECRET;
+
+    const user = { id: "user-4", email: "blank@example.com", name: "Blank Secret" };
+    await expect(mintToken(user)).rejects.toThrow("JWT signing secret is missing");
+  });
+
+  it("throws when configured secret is too short", async () => {
+    vi.stubEnv("AUTH_JWT_SECRET", "short-secret");
+    delete process.env.BETTER_AUTH_SECRET;
+
+    const user = { id: "user-5", email: "short@example.com", name: "Short Secret" };
+    await expect(mintToken(user)).rejects.toThrow(
+      "JWT signing secret must be at least 32 characters.",
+    );
+  });
+});
