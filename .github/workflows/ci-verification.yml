@@ -185,6 +185,11 @@ jobs:
 
       - name: Run Playwright E2E tests
         working-directory: frontend
+        env:
+          DATABASE_URL: postgresql://wealth_user:wealth_pass@localhost:5432/portfolio_db
+          BETTER_AUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
+          BETTER_AUTH_URL: http://localhost:3000
+          AUTH_JWT_SECRET: ${{ secrets.AUTH_JWT_SECRET }}
         run: npx playwright test
 
       # ── Failure handling ──

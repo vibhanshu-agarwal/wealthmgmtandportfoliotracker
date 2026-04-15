@@ -16,9 +16,13 @@ jobs:
       AUTH_JWT_SECRET: ${{ secrets.AUTH_JWT_SECRET }}
       AUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
       NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
+      BETTER_AUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
       AUTH_URL: http://localhost:3000
+      BETTER_AUTH_URL: http://localhost:3000
       NEXT_PUBLIC_API_BASE_URL: http://localhost:8080
       API_PROXY_TARGET: http://localhost:8080
+      # Better Auth connects to the Postgres container via port-mapped localhost
+      DATABASE_URL: postgresql://wealth_user:wealth_pass@localhost:5432/portfolio_db
 
     steps:
       - name: Checkout Repository
