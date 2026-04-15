@@ -6,20 +6,21 @@ import {
   act,
 } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import type { ChatActionState } from "@/lib/api/insights-actions";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
-// ── Mock the Server Action ────────────────────────────────────────────────────
-// We mock the entire module so useActionState receives a plain async function
-// instead of a real Server Action (which requires a Next.js server runtime).
+const mockPostChatMessage = vi.fn();
 
-let mockActionImpl: (
-  prev: ChatActionState,
-  formData: FormData,
-) => Promise<ChatActionState>;
-
-vi.mock("@/lib/api/insights-actions", () => ({
-  sendChatMessage: (prev: ChatActionState, formData: FormData) =>
-    mockActionImpl(prev, formData),
+vi.mock("@/lib/api/insights", () => ({
+  postChatMessage: (request: { message: string }, token: string) =>
+    mockPostChatMessage(request, token),
+}));
+vi.mock("@/lib/hooks/useAuthenticatedUserId", () => ({
+  useAuthenticatedUserId: () => ({
+    userId: "user-001",
+    token: "test-jwt",
+    status: "authenticated" as const,
+    error: null,
+  }),
 }));
 
 // crypto.randomUUID is not available in jsdom
@@ -31,13 +32,22 @@ vi.stubGlobal("crypto", {
 
 const { ChatInterface } = await import("./ChatInterface");
 
+function renderWithQueryClient() {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <ChatInterface />
+    </QueryClientProvider>,
+  );
+}
+
 beforeEach(() => {
   uuidCounter = 0;
-  // Default: successful response
-  mockActionImpl = async () => ({
+  mockPostChatMessage.mockReset();
+  mockPostChatMessage.mockResolvedValue({
     response: "AAPL is trading at $178.50 with a bullish trend.",
-    error: null,
-    status: 200,
   });
 });
 
@@ -45,7 +55,7 @@ beforeEach(() => {
 
 describe("ChatInterface — Submission lifecycle", () => {
   it("appends a user bubble when a message is submitted", async () => {
-    render(<ChatInterface />);
+    renderWithQueryClient();
 
     const input = screen.getByTestId("chat-input");
     const sendBtn = screen.getByTestId("chat-send");
@@ -61,7 +71,7 @@ describe("ChatInterface — Submission lifecycle", () => {
   });
 
   it("shows assistant response after successful submission", async () => {
-    render(<ChatInterface />);
+    renderWithQueryClient();
 
     const input = screen.getByTestId("chat-input");
     const sendBtn = screen.getByTestId("chat-send");
@@ -79,7 +89,7 @@ describe("ChatInterface — Submission lifecycle", () => {
   });
 
   it("renders empty state prompt when no messages exist", () => {
-    render(<ChatInterface />);
+    renderWithQueryClient();
 
     expect(
       screen.getByText("Ask a question about any tracked ticker."),
@@ -91,14 +101,16 @@ describe("ChatInterface — Submission lifecycle", () => {
 
 describe("ChatInterface — Loading indicator", () => {
   it("shows typing indicator while the action is pending", async () => {
-    // Use a delayed action so we can observe the pending state
-    let resolveAction!: (value: ChatActionState) => void;
-    mockActionImpl = () =>
-      new Promise<ChatActionState>((resolve) => {
-        resolveAction = resolve;
-      });
+    // Use a delayed request so we can observe pending UI.
+    let resolveRequest!: (value: { response: string }) => void;
+    mockPostChatMessage.mockImplementation(
+      () =>
+        new Promise<{ response: string }>((resolve) => {
+          resolveRequest = resolve;
+        }),
+    );
 
-    render(<ChatInterface />);
+    renderWithQueryClient();
 
     const input = screen.getByTestId("chat-input");
     const sendBtn = screen.getByTestId("chat-send");
@@ -108,21 +120,14 @@ describe("ChatInterface — Loading indicator", () => {
       fireEvent.click(sendBtn);
     });
 
-    // While pending, typing indicator should be visible
     await waitFor(() => {
       expect(screen.getByTestId("chat-typing-indicator")).toBeInTheDocument();
     });
 
-    // Resolve the action
     await act(async () => {
-      resolveAction({
-        response: "AAPL is trending up.",
-        error: null,
-        status: 200,
-      });
+      resolveRequest({ response: "AAPL is trending up." });
     });
 
-    // After resolution, typing indicator should be gone
     await waitFor(() => {
       expect(
         screen.queryByTestId("chat-typing-indicator"),
@@ -131,17 +136,13 @@ describe("ChatInterface — Loading indicator", () => {
   });
 });
 
-// ── Property 5: Chat error handling — 503 vs generic ─────────────────────────
-
 describe("ChatInterface — Error handling", () => {
   it("displays 503-specific error message", async () => {
-    mockActionImpl = async () => ({
-      response: null,
-      error: "AI service is temporarily unavailable. Please try again later.",
-      status: 503,
-    });
+    mockPostChatMessage.mockRejectedValue(
+      new Error("Request failed (503) for /api/chat"),
+    );
 
-    render(<ChatInterface />);
+    renderWithQueryClient();
 
     const input = screen.getByTestId("chat-input");
     const sendBtn = screen.getByTestId("chat-send");
@@ -161,13 +162,11 @@ describe("ChatInterface — Error handling", () => {
   });
 
   it("displays generic error message for non-503 failures", async () => {
-    mockActionImpl = async () => ({
-      response: null,
-      error: "Something went wrong. Please try again.",
-      status: 500,
-    });
+    mockPostChatMessage.mockRejectedValue(
+      new Error("Request failed (500) for /api/chat"),
+    );
 
-    render(<ChatInterface />);
+    renderWithQueryClient();
 
     const input = screen.getByTestId("chat-input");
     const sendBtn = screen.getByTestId("chat-send");
