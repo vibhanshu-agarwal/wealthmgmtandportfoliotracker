@@ -98,6 +98,68 @@ describe("GET /api/auth/jwt — route handler", () => {
     expect(body).toEqual({ error: "Unauthorized" });
   });
 
+  it("returns 503 when session lookup throws", async () => {
+    vi.mocked(auth.api.getSession).mockRejectedValueOnce(
+      new Error("database connection unavailable"),
+    );
+
+    const response = await GET();
+    const body = await response.json();
+
+    expect(response.status).toBe(503);
+    expect(body).toEqual({
+      error: "Authentication service unavailable",
+      retryable: true,
+    });
+  });
+
+  it("returns 503 when mintToken fails due to secret misconfiguration", async () => {
+    const mockUser = {
+      id: "user-789",
+      email: "dana@example.com",
+      name: "Dana",
+    };
+    vi.mocked(auth.api.getSession).mockResolvedValueOnce({
+      session: { token: "session-token" },
+      user: mockUser,
+    } as any);
+    vi.mocked(mintToken).mockRejectedValueOnce(
+      new Error("JWT signing secret is missing"),
+    );
+
+    const response = await GET();
+    const body = await response.json();
+
+    expect(response.status).toBe(503);
+    expect(body).toEqual({
+      error: "Token service unavailable",
+      retryable: true,
+    });
+  });
+
+  it("returns 500 when mintToken fails unexpectedly", async () => {
+    const mockUser = {
+      id: "user-987",
+      email: "eve@example.com",
+      name: "Eve",
+    };
+    vi.mocked(auth.api.getSession).mockResolvedValueOnce({
+      session: { token: "session-token" },
+      user: mockUser,
+    } as any);
+    vi.mocked(mintToken).mockRejectedValueOnce(
+      new Error("unexpected signing provider failure"),
+    );
+
+    const response = await GET();
+    const body = await response.json();
+
+    expect(response.status).toBe(500);
+    expect(body).toEqual({
+      error: "Internal token exchange failure",
+    });
+  });
+
   /**
    * Validates: Requirements 2.2, 2.5
    * THE Token_Exchange_Endpoint SHALL delegate to the Token_Issuer `mintToken`
