@@ -6,6 +6,7 @@ import {
   useRef,
   useEffect,
   useCallback,
+  type FormEvent,
 } from "react";
 import { Send } from "lucide-react";
 import {
@@ -31,8 +32,8 @@ const initialState: ChatActionState = {
  */
 export function ChatInterface() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [draftMessage, setDraftMessage] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
-  const formRef = useRef<HTMLFormElement>(null);
 
   // Wrap the Server Action to append the assistant/error bubble on completion.
   // This avoids calling setState inside useEffect (react-hooks/set-state-in-effect).
@@ -77,30 +78,25 @@ export function ChatInterface() {
     scrollRef.current?.scrollIntoView?.({ behavior: "smooth" });
   }, [messages, isPending]);
 
-  // Handle form submission — append user bubble before the action fires
-  const handleSubmit = useCallback(
-    (formData: FormData) => {
-      const message = (formData.get("message") as string)?.trim();
-      if (!message) return;
+  // Handle optimistic UI update before the Server Action resolves.
+  const handleSubmit = useCallback((event: FormEvent<HTMLFormElement>) => {
+    const message = draftMessage.trim();
+    if (!message) {
+      event.preventDefault();
+      return;
+    }
 
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: crypto.randomUUID(),
-          role: "user",
-          content: message,
-          timestamp: new Date(),
-        },
-      ]);
-
-      // Reset the input
-      formRef.current?.reset();
-
-      // Invoke the Server Action
-      formAction(formData);
-    },
-    [formAction],
-  );
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: crypto.randomUUID(),
+        role: "user",
+        content: message,
+        timestamp: new Date(),
+      },
+    ]);
+    setDraftMessage("");
+  }, [draftMessage]);
 
   return (
     <Card>
@@ -144,14 +140,16 @@ export function ChatInterface() {
 
         {/* Input form */}
         <form
-          ref={formRef}
-          action={handleSubmit}
+          action={formAction}
+          onSubmit={handleSubmit}
           className="flex gap-2"
           data-testid="chat-form"
         >
           <Input
             name="message"
             placeholder="Ask about a ticker..."
+            value={draftMessage}
+            onChange={(event) => setDraftMessage(event.target.value)}
             disabled={isPending}
             autoComplete="off"
             data-testid="chat-input"
