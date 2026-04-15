@@ -14,6 +14,7 @@
 
 import { expect, test, type Page } from "@playwright/test";
 import { mintJwt as mintApiJwt } from "./helpers/auth";
+import { ensurePortfolioWithHoldings } from "./helpers/api";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -102,9 +103,13 @@ test.describe("Dashboard Data Integration Diagnostics", () => {
   /**
    * Test 2 — Portfolio page loads and total-value is not $0.00
    */
-  test("2. /portfolio renders total-value and it is not $0.00 after 5 s", async ({ page }) => {
+  test("2. /portfolio renders total-value and it is not $0.00 after 5 s", async ({ page, request }) => {
     const calls: ApiCall[] = [];
     attachNetworkLogger(page, calls);
+
+    // Seed deterministic holdings for the authenticated user so the assertion
+    // does not depend on test order or external state.
+    await ensurePortfolioWithHoldings(request);
 
     await page.goto(`${BASE_URL}/portfolio`);
 
@@ -129,9 +134,11 @@ test.describe("Dashboard Data Integration Diagnostics", () => {
   /**
    * Test 3 — Authorization header is present on every /api/portfolio/* call
    */
-  test("3. All /api/portfolio/* requests carry an Authorization header", async ({ page }) => {
+  test("3. All /api/portfolio/* requests carry an Authorization header", async ({ page, request }) => {
     const calls: ApiCall[] = [];
     attachNetworkLogger(page, calls);
+
+    await ensurePortfolioWithHoldings(request);
 
     await page.goto(`${BASE_URL}/portfolio`);
     await page.waitForTimeout(5_000);
@@ -166,9 +173,11 @@ test.describe("Dashboard Data Integration Diagnostics", () => {
   /**
    * Test 4 — Gateway returns 200, not 401 or CORS error
    */
-  test("4. API Gateway responds 200 (not 401/403/CORS) for authenticated requests", async ({ page }) => {
+  test("4. API Gateway responds 200 (not 401/403/CORS) for authenticated requests", async ({ page, request }) => {
     const calls: ApiCall[] = [];
     attachNetworkLogger(page, calls);
+
+    await ensurePortfolioWithHoldings(request);
 
     await page.goto(`${BASE_URL}/portfolio`);
     await page.waitForTimeout(5_000);
