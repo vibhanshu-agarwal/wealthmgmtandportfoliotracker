@@ -163,6 +163,7 @@ services:
       redis:
         condition: service_started
     environment:
+      AUTH_JWT_SECRET: ${AUTH_JWT_SECRET:-local-dev-secret-change-me-min-32-chars}
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
       PORTFOLIO_SERVICE_URL: http://portfolio-service:8081
