@@ -9,6 +9,27 @@ export interface TokenUser {
   name: string;
 }
 
+const MIN_HS256_SECRET_LENGTH = 32;
+
+export function getJwtSigningSecret(): Uint8Array {
+  const rawSecret = process.env.AUTH_JWT_SECRET ?? process.env.BETTER_AUTH_SECRET;
+  const secret = rawSecret?.trim() ?? "";
+
+  if (!secret) {
+    throw new Error(
+      "JWT signing secret is missing. Set AUTH_JWT_SECRET (or BETTER_AUTH_SECRET fallback).",
+    );
+  }
+
+  if (secret.length < MIN_HS256_SECRET_LENGTH) {
+    throw new Error(
+      `JWT signing secret must be at least ${MIN_HS256_SECRET_LENGTH} characters.`,
+    );
+  }
+
+  return new TextEncoder().encode(secret);
+}
+
 /**
  * Mints an HS256 JWT from a Better Auth session user.
  *
@@ -23,9 +44,7 @@ export interface TokenUser {
  * @returns A signed HS256 JWT string
  */
 export async function mintToken(user: TokenUser): Promise<string> {
-  const secret = new TextEncoder().encode(
-    process.env.AUTH_JWT_SECRET ?? process.env.BETTER_AUTH_SECRET ?? "",
-  );
+  const secret = getJwtSigningSecret();
 
   return new SignJWT({
     sub: user.id,
