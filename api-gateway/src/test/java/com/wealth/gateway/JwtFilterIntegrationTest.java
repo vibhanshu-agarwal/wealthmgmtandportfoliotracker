@@ -54,6 +54,7 @@ class JwtFilterIntegrationTest {
     static void redisProperties(DynamicPropertyRegistry registry) {
         registry.add("spring.data.redis.host", redis::getHost);
         registry.add("spring.data.redis.port", () -> redis.getMappedPort(REDIS_PORT));
+        registry.add("auth.jwt.secret", () -> TestJwtFactory.TEST_SECRET);
     }
 
     @LocalServerPort

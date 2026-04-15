@@ -56,6 +56,7 @@ class RateLimitingIntegrationTest {
     static void redisProperties(DynamicPropertyRegistry registry) {
         registry.add("spring.data.redis.host", redis::getHost);
         registry.add("spring.data.redis.port", () -> redis.getMappedPort(REDIS_PORT));
+        registry.add("auth.jwt.secret", () -> TestJwtFactory.TEST_SECRET);
         // Rate-limiter params (replenishRate:1, burstCapacity:3) are set in
         // src/test/resources/application-local.yml to avoid Spring Cloud Gateway
         // filter-name resolution issues with array-index property overrides.
