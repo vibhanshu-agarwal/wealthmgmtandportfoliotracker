@@ -20,7 +20,7 @@ import { ensurePortfolioWithHoldings } from "./helpers/api";
 // ── Suite 1: Data Creation ────────────────────────────────────────────────────
 
 test.describe("Golden Path — Data Creation", () => {
-  test.beforeAll(async ({ request }) => {
+  test.beforeEach(async ({ request }) => {
     await ensurePortfolioWithHoldings(request);
   });
 
@@ -35,7 +35,7 @@ test.describe("Golden Path — Data Creation", () => {
 // ── Suite 2: Analytics Validation ────────────────────────────────────────────
 
 test.describe("Golden Path — Analytics Validation", () => {
-  test.beforeAll(async ({ request }) => {
+  test.beforeEach(async ({ request }) => {
     await ensurePortfolioWithHoldings(request);
   });
 
