@@ -16,3 +16,21 @@ test("@auth-preflight auth preflight: jwt health self-check succeeds", async ({
     },
   });
 });
+
+test("@auth-preflight auth preflight: minted JWT is accepted by API gateway", async ({
+  request,
+}) => {
+  const jwtRes = await request.get("/api/auth/jwt");
+  expect(jwtRes.status()).toBe(200);
+
+  const jwtPayload = await jwtRes.json();
+  expect(jwtPayload?.token).toBeTruthy();
+
+  const gatewayRes = await request.get("http://127.0.0.1:8080/api/portfolio", {
+    headers: {
+      Authorization: `Bearer ${jwtPayload.token}`,
+    },
+  });
+
+  expect(gatewayRes.status()).toBe(200);
+});
