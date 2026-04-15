@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  useActionState,
   useState,
   useRef,
   useEffect,
@@ -9,79 +8,47 @@ import {
   type FormEvent,
 } from "react";
 import { Send } from "lucide-react";
-import {
-  sendChatMessage,
-  type ChatActionState,
-} from "@/lib/api/insights-actions";
 import { ChatBubble } from "./ChatBubble";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { ChatMessage } from "@/types/insights";
-
-const initialState: ChatActionState = {
-  response: null,
-  error: null,
-  status: null,
-};
+import { useAuthenticatedUserId } from "@/lib/hooks/useAuthenticatedUserId";
+import { postChatMessage } from "@/lib/api/insights";
 
 /**
  * Client component for the conversational chat panel.
- * Uses a Server Action (sendChatMessage) invoked via useActionState
- * to keep the POST /api/chat call on the server.
+ * Uses direct authenticated client fetch to POST /api/chat.
  */
 export function ChatInterface() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draftMessage, setDraftMessage] = useState("");
+  const [isPending, setIsPending] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [actionState, formAction, isPending] = useActionState(
-    sendChatMessage,
-    initialState,
-  );
+  const { token, status } = useAuthenticatedUserId();
 
   // Auto-scroll to latest message
   useEffect(() => {
     scrollRef.current?.scrollIntoView?.({ behavior: "smooth" });
   }, [messages, isPending]);
 
-  // Append assistant/error bubble once the Server Action completes.
-  useEffect(() => {
-    if (actionState.status === null) {
-      return;
-    }
+  const appendAssistantMessage = useCallback((content: string) => {
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        content,
+        timestamp: new Date(),
+      },
+    ]);
+  }, []);
 
-    if (actionState.response) {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: crypto.randomUUID(),
-          role: "assistant",
-          content: actionState.response,
-          timestamp: new Date(),
-        },
-      ]);
-      setDraftMessage("");
-      return;
-    }
-
-    if (actionState.error) {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: crypto.randomUUID(),
-          role: "assistant",
-          content: actionState.error,
-          timestamp: new Date(),
-        },
-      ]);
-    }
-  }, [actionState]);
-
-  // Handle optimistic UI update before the Server Action resolves.
-  const handleSubmit = useCallback((event: FormEvent<HTMLFormElement>) => {
+  // Handle optimistic UI update and call insight-service chat.
+  const handleSubmit = useCallback(async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
     const message = draftMessage.trim();
     if (!message) {
-      event.preventDefault();
       return;
     }
 
@@ -94,7 +61,31 @@ export function ChatInterface() {
         timestamp: new Date(),
       },
     ]);
-  }, [draftMessage]);
+    setDraftMessage("");
+
+    if (status !== "authenticated" || !token) {
+      appendAssistantMessage("Your session is unavailable. Please log in again.");
+      return;
+    }
+
+    setIsPending(true);
+    try {
+      const result = await postChatMessage({ message }, token);
+      appendAssistantMessage(result.response);
+    } catch (err) {
+      const statusMatch = (err as Error).message.match(/\((\d+)\)/);
+      const requestStatus = statusMatch ? parseInt(statusMatch[1], 10) : 500;
+      if (requestStatus === 503) {
+        appendAssistantMessage(
+          "AI service is temporarily unavailable. Please try again later.",
+        );
+      } else {
+        appendAssistantMessage("Something went wrong. Please try again.");
+      }
+    } finally {
+      setIsPending(false);
+    }
+  }, [appendAssistantMessage, draftMessage, status, token]);
 
   return (
     <Card>
@@ -138,7 +129,6 @@ export function ChatInterface() {
 
         {/* Input form */}
         <form
-          action={formAction}
           onSubmit={handleSubmit}
           className="flex gap-2"
           data-testid="chat-form"
