@@ -134,11 +134,9 @@ test.describe("Dashboard Data Integration Diagnostics", () => {
   /**
    * Test 3 — Authorization header is present on every /api/portfolio/* call
    */
-  test("3. All /api/portfolio/* requests carry an Authorization header", async ({ page, request }) => {
+  test("3. All /api/portfolio/* requests carry an Authorization header", async ({ page }) => {
     const calls: ApiCall[] = [];
     attachNetworkLogger(page, calls);
-
-    await ensurePortfolioWithHoldings(request);
 
     await page.goto(`${BASE_URL}/portfolio`);
     await page.waitForTimeout(5_000);
@@ -151,6 +149,11 @@ test.describe("Dashboard Data Integration Diagnostics", () => {
       console.warn("  ⚠ No /api/portfolio/* requests were captured.");
       console.warn("    Possible cause: usePortfolio hook never fired (auth status stuck on 'loading').");
     }
+
+    expect(
+      portfolioCalls.length,
+      "Expected at least one /api/portfolio/* request while loading /portfolio",
+    ).toBeGreaterThan(0);
 
     for (const call of portfolioCalls) {
       console.log(`\n  ${call.method} ${call.url}`);
