@@ -138,69 +138,34 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # ── Build all service images ──
-      - name: Build portfolio-service image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: portfolio-service/Dockerfile
-          load: true
-          tags: portfolio-service:ci
-          cache-from: type=gha,scope=portfolio
-          cache-to: type=gha,mode=max,scope=portfolio
-
-      - name: Build market-data-service image
-        uses: docker/build-push-action@v6
-        with:
-          context: ./market-data-service
-          file: market-data-service/Dockerfile
-          load: true
-          tags: market-data-service:ci
-          cache-from: type=gha,scope=market-data
-          cache-to: type=gha,mode=max,scope=market-data
-
-      - name: Build insight-service image
-        uses: docker/build-push-action@v6
-        with:
-          context: ./insight-service
-          file: insight-service/Dockerfile
-          load: true
-          tags: insight-service:ci
-          cache-from: type=gha,scope=insight
-          cache-to: type=gha,mode=max,scope=insight
-
-      - name: Build api-gateway image
-        uses: docker/build-push-action@v6
-        with:
-          context: ./api-gateway
-          file: api-gateway/Dockerfile
-          load: true
-          tags: api-gateway:ci
-          cache-from: type=gha,scope=gateway
-          cache-to: type=gha,mode=max,scope=gateway
+      # ── Build all service images via Docker Compose ──
+      - name: Build Docker images
+        run: docker compose build
 
       # ── Pact provider verification (MockMvc, no running containers needed) ──
       - name: Run Pact provider verification
         run: ./gradlew :portfolio-service:test --tests '*PactVerification*' :insight-service:test --tests '*PactVerification*' --no-daemon
 
-      # ── Start Docker Compose stack ──
+      # ── Start Docker Compose stack and wait for health ──
       - name: Start Docker Compose stack
         run: |
           docker compose up -d
-          echo "Waiting for services to become healthy..."
-          # Wait up to 3 minutes for all services to be healthy
-          timeout 180 bash -c '
-            while true; do
-              UNHEALTHY=$(docker compose ps --format json | jq -r "select(.Health != \"healthy\" and .Health != \"\") | .Name" 2>/dev/null | wc -l)
-              RUNNING=$(docker compose ps --format json | jq -r "select(.State == \"running\") | .Name" 2>/dev/null | wc -l)
-              echo "Running: $RUNNING, Unhealthy: $UNHEALTHY"
-              if [ "$RUNNING" -ge 4 ] && [ "$UNHEALTHY" -eq 0 ]; then
-                echo "All services healthy"
-                break
-              fi
-              sleep 10
-            done
-          ' || (echo "Services failed to become healthy" && docker compose logs && exit 1)
+          echo "Waiting for services to become healthy (up to 3 minutes)..."
+          for i in $(seq 1 36); do
+            sleep 10
+            echo "--- Health check attempt $i/36 ---"
+            docker compose ps
+            # Check if all 4 Java services are healthy
+            HEALTHY=$(docker compose ps --format json | grep -c '"healthy"' || true)
+            echo "Healthy services: $HEALTHY/4"
+            if [ "$HEALTHY" -ge 4 ]; then
+              echo "All services healthy!"
+              exit 0
+            fi
+          done
+          echo "Services failed to become healthy within 6 minutes"
+          docker compose logs
+          exit 1
 
       # ── Playwright E2E ──
       - name: Set up Node.js
@@ -256,9 +221,12 @@ jobs:
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
           TAG=${{ github.sha }}
+          # Docker Compose names images as <project>-<service>
+          PROJECT=$(basename $(pwd) | tr '[:upper:]' '[:lower:]')
           for SERVICE in portfolio-service market-data-service insight-service api-gateway; do
-            docker tag ${SERVICE}:ci ${{ env.IMAGE_PREFIX }}/${SERVICE}:${TAG}
-            docker tag ${SERVICE}:ci ${{ env.IMAGE_PREFIX }}/${SERVICE}:latest
+            COMPOSE_IMAGE="${PROJECT}-${SERVICE}"
+            docker tag ${COMPOSE_IMAGE}:latest ${{ env.IMAGE_PREFIX }}/${SERVICE}:${TAG}
+            docker tag ${COMPOSE_IMAGE}:latest ${{ env.IMAGE_PREFIX }}/${SERVICE}:latest
             docker push ${{ env.IMAGE_PREFIX }}/${SERVICE}:${TAG}
             docker push ${{ env.IMAGE_PREFIX }}/${SERVICE}:latest
           done
