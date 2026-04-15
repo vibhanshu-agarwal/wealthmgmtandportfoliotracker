@@ -101,7 +101,6 @@ export function ChatInterface() {
         timestamp: new Date(),
       },
     ]);
-    setDraftMessage("");
   }, [draftMessage]);
 
   return (
