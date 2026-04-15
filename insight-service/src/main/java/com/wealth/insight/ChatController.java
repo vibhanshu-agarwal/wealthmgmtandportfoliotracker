@@ -117,6 +117,7 @@ public class ChatController {
             "IF", "UP", "BY", "AN", "AS", "BE", "WE", "HE", "NO", "AM",
             "HAS", "HAD", "WAS", "BUT", "NOT", "YOU", "ALL", "CAN", "HER",
             "HIS", "ONE", "OUR", "OUT", "WHO", "DID", "GET", "HIM", "LET",
-            "SAY", "SHE", "TOO", "USE", "DOES", "DOING", "ABOUT", "GOING"
+            "SAY", "SHE", "TOO", "USE", "DOES", "DOING", "ABOUT", "GOING",
+            "TELL"
     );
 }

@@ -74,6 +74,24 @@ class ChatControllerTest {
     }
 
     @Test
+    void chat_withConversationalVerb_extractsRealTickerInsteadOfTell() throws Exception {
+        TickerSummary summary = new TickerSummary("AAPL",
+                new BigDecimal("178.50"),
+                List.of(new BigDecimal("178.50")), null, null);
+        when(marketDataService.getTickerSummary("AAPL")).thenReturn(summary);
+        when(aiInsightService.getSentiment("AAPL")).thenReturn("AAPL is Bullish.");
+
+        mockMvc.perform(post("/api/chat")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"message": "Tell me about AAPL"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.response", containsString("AAPL")))
+                .andExpect(jsonPath("$.response", containsString("178.5")));
+    }
+
+    @Test
     void chat_withNoIdentifiableTicker_returnsPromptToSpecify() throws Exception {
         mockMvc.perform(post("/api/chat")
                         .contentType(MediaType.APPLICATION_JSON)
