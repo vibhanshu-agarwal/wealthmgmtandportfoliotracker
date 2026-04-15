@@ -29,6 +29,18 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
+        String path = exchange.getRequest().getURI().getPath();
+
+        // Skip JWT processing for paths that are permitAll() in SecurityConfig.
+        // These paths have no principal — the filter must not reject them.
+        if (path.startsWith("/actuator") || path.equals("/api/portfolio/health")) {
+            // Still strip X-User-Id to prevent spoofing on public endpoints.
+            ServerWebExchange sanitised = exchange.mutate()
+                    .request(r -> r.headers(h -> h.remove(X_USER_ID)))
+                    .build();
+            return chain.filter(sanitised);
+        }
+
         // Step 1: Strip any caller-supplied X-User-Id unconditionally (spoofing prevention).
         // This applies even to unauthenticated requests.
         ServerWebExchange sanitised = exchange.mutate()

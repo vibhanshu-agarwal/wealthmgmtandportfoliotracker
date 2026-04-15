@@ -121,6 +121,29 @@ class PreservationPropertyTest {
                 .expectStatus().isOk();
     }
 
+    // ── Property 2c2 — Portfolio Health Permit All ──────────────────────────
+
+    /**
+     * Property 2c2: Requests to /api/portfolio/health without authentication must
+     * NOT return 401. This endpoint is used by the Playwright global-setup health
+     * check to verify end-to-end gateway→portfolio-service routing. It must be
+     * permitted without authentication so the health check doesn't waste 30s
+     * getting 401 responses before falling back to /actuator/health.
+     *
+     * <p>The response may be 502/503/504 (upstream not running in test) but must
+     * NOT be 401 (which would mean the gateway is blocking it for auth).
+     */
+    @Test
+    void portfolioHealthEndpointIsPermittedWithoutAuthentication() {
+        webTestClient.get()
+                .uri("/api/portfolio/health")
+                .exchange()
+                .expectStatus().value(status ->
+                        assertThat(status)
+                                .as("/api/portfolio/health must not require authentication (permitAll)")
+                                .isNotEqualTo(401));
+    }
+
     // ── Property 2d — AWS Profile Isolation ─────────────────────────────────
 
     /**
