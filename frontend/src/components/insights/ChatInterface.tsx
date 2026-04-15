@@ -40,6 +40,9 @@ export function ChatInterface() {
   );
 
   // Auto-scroll to latest message
+  useEffect(() => {
+    scrollRef.current?.scrollIntoView?.({ behavior: "smooth" });
+  }, [messages, isPending]);
 
   // Append assistant/error bubble once the Server Action completes.
   useEffect(() => {
