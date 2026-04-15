@@ -2,6 +2,7 @@
 
 import { RefreshCw } from "lucide-react";
 import { useMarketSummary } from "@/lib/hooks/useInsights";
+import { useAuthenticatedUserId } from "@/lib/hooks/useAuthenticatedUserId";
 import { MarketSummaryCard } from "./MarketSummaryCard";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -39,10 +40,46 @@ function GridSkeleton() {
  * summaries and renders a responsive grid of MarketSummaryCard components.
  */
 export function MarketSummaryGrid() {
+  const auth = useAuthenticatedUserId();
   const { data, isLoading, isError, refetch } = useMarketSummary();
 
-  if (isLoading) {
+  if (auth.status === "loading" || isLoading) {
     return <GridSkeleton />;
+  }
+
+  if (auth.status === "error") {
+    return (
+      <Card data-testid="market-summary-auth-error">
+        <CardContent className="flex flex-col items-center gap-3 p-6 text-center">
+          <p className="text-sm text-muted-foreground">
+            Unable to establish an authenticated data session for insights.
+          </p>
+          <p className="text-xs text-muted-foreground/80">
+            {auth.error ?? "JWT exchange failed."}
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => window.location.reload()}
+            data-testid="market-summary-auth-reload"
+          >
+            Reload
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (auth.status === "unauthenticated") {
+    return (
+      <Card data-testid="market-summary-auth-required">
+        <CardContent className="p-6 text-center">
+          <p className="text-sm text-muted-foreground">
+            Sign in to load AI market summaries.
+          </p>
+        </CardContent>
+      </Card>
+    );
   }
 
   if (isError) {
