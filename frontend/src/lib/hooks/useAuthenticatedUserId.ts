@@ -5,7 +5,8 @@ import { useQuery } from "@tanstack/react-query";
 export interface AuthenticatedUser {
   userId: string;
   token: string;
-  status: "authenticated" | "loading" | "unauthenticated";
+  status: "authenticated" | "loading" | "unauthenticated" | "error";
+  error: string | null;
 }
 
 interface GatewayJwtResponse {
