@@ -16,6 +16,11 @@ vi.mock("next/headers", () => ({
   headers: vi.fn().mockResolvedValue(new Headers()),
 }));
 
+// Mock mintToken — fetchWithAuth.server.ts delegates JWT signing to this module
+vi.mock("@/lib/auth/mintToken", () => ({
+  mintToken: vi.fn().mockResolvedValue("mocked-jwt-from-mintToken"),
+}));
+
 // ── Property 9: sendChatMessage Server Action error propagation ───────────────
 
 describe("sendChatMessage Server Action", () => {
@@ -23,6 +28,7 @@ describe("sendChatMessage Server Action", () => {
 
   beforeEach(() => {
     vi.stubGlobal("fetch", mockFetch);
+    vi.resetModules();
   });
 
   afterEach(() => {
