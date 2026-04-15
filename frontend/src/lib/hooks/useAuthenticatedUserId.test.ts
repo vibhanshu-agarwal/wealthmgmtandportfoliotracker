@@ -47,6 +47,7 @@ describe("useAuthenticatedUserId", () => {
     await waitFor(() => expect(result.current.status).toBe("authenticated"));
     expect(result.current.userId).toBe("user-001");
     expect(result.current.token).toBe("eyJhbGciOiJIUzI1NiJ9.gateway.jwt");
+    expect(result.current.error).toBeNull();
   });
 
   it("returns loading while BFF request is in flight", () => {
@@ -59,6 +60,7 @@ describe("useAuthenticatedUserId", () => {
     expect(result.current.status).toBe("loading");
     expect(result.current.userId).toBe("");
     expect(result.current.token).toBe("");
+    expect(result.current.error).toBeNull();
   });
 
   it("returns unauthenticated when BFF returns 401", async () => {
@@ -75,6 +77,7 @@ describe("useAuthenticatedUserId", () => {
     await waitFor(() => expect(result.current.status).toBe("unauthenticated"));
     expect(result.current.userId).toBe("");
     expect(result.current.token).toBe("");
+    expect(result.current.error).toBeNull();
   });
 
   it("calls /api/auth/jwt with credentials: include", async () => {
@@ -119,5 +122,25 @@ describe("useAuthenticatedUserId", () => {
     await waitFor(() => expect(result.current.status).toBe("authenticated"));
     expect(result.current.userId).toBe(expectedUserId);
     expect(result.current.token).toBe(expectedToken);
+    expect(result.current.error).toBeNull();
+  });
+
+  it("returns error status when JWT exchange endpoint fails (e.g. 503)", async () => {
+    mockFetch.mockResolvedValue({
+      ok: false,
+      status: 503,
+      json: async () => ({ error: "Token service unavailable", retryable: true }),
+    });
+
+    const { result } = renderHook(() => useAuthenticatedUserId(), {
+      wrapper: makeWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.status).toBe("error"), {
+      timeout: 4000,
+    });
+    expect(result.current.userId).toBe("");
+    expect(result.current.token).toBe("");
+    expect(result.current.error).toBe("JWT exchange failed (503)");
   });
 });
