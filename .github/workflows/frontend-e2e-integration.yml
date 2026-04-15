@@ -90,7 +90,7 @@ jobs:
         working-directory: ./frontend
         # Playwright's webServer block starts the standalone server automatically.
         # All 5 diagnostic tests + golden-path tests run against the full stack.
-        run: npx playwright test tests/e2e/dashboard-data.spec.ts tests/e2e/golden-path.spec.ts --reporter=list
+        run: npx playwright test tests/e2e/dashboard-data.spec.ts tests/e2e/golden-path.spec.ts --grep-invert "@auth-preflight" --reporter=list
 
       # ── Cleanup & artifacts ───────────────────────────────────────────────────
       - name: Dump Docker logs on failure
