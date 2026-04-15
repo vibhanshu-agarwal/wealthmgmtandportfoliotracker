@@ -23,9 +23,20 @@ const mockUseMarketSummary = vi.fn<
     refetch: () => void;
   }
 >();
+const mockUseAuthenticatedUserId = vi.fn<
+  () => {
+    userId: string;
+    token: string;
+    status: "authenticated" | "loading" | "unauthenticated" | "error";
+    error: string | null;
+  }
+>();
 
 vi.mock("@/lib/hooks/useInsights", () => ({
   useMarketSummary: () => mockUseMarketSummary(),
+}));
+vi.mock("@/lib/hooks/useAuthenticatedUserId", () => ({
+  useAuthenticatedUserId: () => mockUseAuthenticatedUserId(),
 }));
 
 // Import after mock setup
@@ -54,6 +65,12 @@ const fixtureData: MarketSummaryResponse = {
 
 describe("MarketSummaryGrid — Loading state", () => {
   it("renders skeleton cards while loading", () => {
+    mockUseAuthenticatedUserId.mockReturnValue({
+      userId: "user-001",
+      token: "jwt",
+      status: "loading",
+      error: null,
+    });
     mockUseMarketSummary.mockReturnValue({
       data: undefined,
       isLoading: true,
@@ -70,6 +87,12 @@ describe("MarketSummaryGrid — Loading state", () => {
 
 describe("MarketSummaryGrid — Error state", () => {
   it("renders error card with retry button on failure", () => {
+    mockUseAuthenticatedUserId.mockReturnValue({
+      userId: "user-001",
+      token: "jwt",
+      status: "authenticated",
+      error: null,
+    });
     mockUseMarketSummary.mockReturnValue({
       data: undefined,
       isLoading: false,
@@ -88,6 +111,12 @@ describe("MarketSummaryGrid — Error state", () => {
 
   it("calls refetch when retry button is clicked", () => {
     mockRefetch.mockClear();
+    mockUseAuthenticatedUserId.mockReturnValue({
+      userId: "user-001",
+      token: "jwt",
+      status: "authenticated",
+      error: null,
+    });
     mockUseMarketSummary.mockReturnValue({
       data: undefined,
       isLoading: false,
@@ -104,6 +133,12 @@ describe("MarketSummaryGrid — Error state", () => {
 
 describe("MarketSummaryGrid — Empty state", () => {
   it("renders empty message when data is an empty map", () => {
+    mockUseAuthenticatedUserId.mockReturnValue({
+      userId: "user-001",
+      token: "jwt",
+      status: "authenticated",
+      error: null,
+    });
     mockUseMarketSummary.mockReturnValue({
       data: {},
       isLoading: false,
@@ -122,6 +157,12 @@ describe("MarketSummaryGrid — Empty state", () => {
 
 describe("MarketSummaryGrid — Data state", () => {
   it("renders one MarketSummaryCard per ticker", () => {
+    mockUseAuthenticatedUserId.mockReturnValue({
+      userId: "user-001",
+      token: "jwt",
+      status: "authenticated",
+      error: null,
+    });
     mockUseMarketSummary.mockReturnValue({
       data: fixtureData,
       isLoading: false,
@@ -134,5 +175,52 @@ describe("MarketSummaryGrid — Data state", () => {
     expect(screen.getByTestId("market-summary-grid")).toBeInTheDocument();
     expect(screen.getByText("AAPL")).toBeInTheDocument();
     expect(screen.getByText("MSFT")).toBeInTheDocument();
+  });
+});
+
+describe("MarketSummaryGrid — Auth diagnostics", () => {
+  it("renders auth exchange error details when JWT exchange fails", () => {
+    mockUseAuthenticatedUserId.mockReturnValue({
+      userId: "",
+      token: "",
+      status: "error",
+      error: "JWT exchange failed (503)",
+    });
+    mockUseMarketSummary.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: false,
+      refetch: mockRefetch,
+    });
+
+    render(<MarketSummaryGrid />);
+    expect(screen.getByTestId("market-summary-auth-error")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Unable to establish an authenticated data session for insights.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("JWT exchange failed (503)")).toBeInTheDocument();
+  });
+
+  it("renders sign-in hint when user is unauthenticated", () => {
+    mockUseAuthenticatedUserId.mockReturnValue({
+      userId: "",
+      token: "",
+      status: "unauthenticated",
+      error: null,
+    });
+    mockUseMarketSummary.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: false,
+      refetch: mockRefetch,
+    });
+
+    render(<MarketSummaryGrid />);
+    expect(screen.getByTestId("market-summary-auth-required")).toBeInTheDocument();
+    expect(
+      screen.getByText("Sign in to load AI market summaries."),
+    ).toBeInTheDocument();
   });
 });
