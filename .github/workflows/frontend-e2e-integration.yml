@@ -81,6 +81,10 @@ jobs:
         working-directory: ./frontend
         run: npx playwright install --with-deps chromium
 
+      - name: Auth preflight - JWT health self-check
+        working-directory: ./frontend
+        run: npx playwright test tests/e2e/auth-jwt-health.spec.ts --project=chromium --reporter=list
+
       # ── E2E: run all 5 diagnostic tests ──────────────────────────────────────
       - name: Run full E2E diagnostic suite
         working-directory: ./frontend

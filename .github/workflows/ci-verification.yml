@@ -183,6 +183,15 @@ jobs:
         working-directory: frontend
         run: npx playwright install --with-deps chromium
 
+      - name: Auth preflight - JWT health self-check
+        working-directory: frontend
+        env:
+          DATABASE_URL: postgresql://wealth_user:wealth_pass@localhost:5432/portfolio_db
+          BETTER_AUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
+          BETTER_AUTH_URL: http://localhost:3000
+          AUTH_JWT_SECRET: ${{ secrets.AUTH_JWT_SECRET }}
+        run: npx playwright test tests/e2e/auth-jwt-health.spec.ts --project=chromium --reporter=list
+
       - name: Run Playwright E2E tests
         working-directory: frontend
         env:
@@ -190,7 +199,7 @@ jobs:
           BETTER_AUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
           BETTER_AUTH_URL: http://localhost:3000
           AUTH_JWT_SECRET: ${{ secrets.AUTH_JWT_SECRET }}
-        run: npx playwright test
+        run: npx playwright test --grep-invert "@auth-preflight"
 
       # ── Failure handling ──
       - name: Upload Playwright report on failure
