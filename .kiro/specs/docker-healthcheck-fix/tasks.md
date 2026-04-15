@@ -1,0 +1,102 @@
+# Implementation Plan
+
+- [x] 1. Write bug condition exploration test
+  - **Property 1: Bug Condition** — Missing Actuator Dependency and Wrong Health Check URLs
+  - **CRITICAL**: This test MUST FAIL on unfixed code — failure confirms the bug exists
+  - **DO NOT attempt to fix the test or the code when it fails**
+  - **NOTE**: This test encodes the expected behavior — it will validate the fix when it passes after implementation
+  - **GOAL**: Surface counterexamples that demonstrate the bug exists in the unfixed codebase
+  - **Scoped PBT Approach**: Scope the property to the two concrete affected services (`market-data-service`, `insight-service`) and the three files that exhibit the bug
+  - Write a JUnit 5 test class `DockerHealthcheckBugConditionTest` in a new top-level `healthcheck-tests/` or in an existing test source set
+  - Since this is a configuration-level bug (not runtime), the test should be a file-content assertion test:
+    - Parse `market-data-service/build.gradle` and assert it contains `spring-boot-starter-actuator` — will FAIL on unfixed code
+    - Parse `insight-service/build.gradle` and assert it contains `spring-boot-starter-actuator` — will FAIL on unfixed code
+    - Parse `docker-compose.yml` and assert the `market-data-service` healthcheck URL contains `/actuator/health` — will FAIL on unfixed code
+    - Parse `docker-compose.yml` and assert the `insight-service` healthcheck URL contains `/actuator/health` — will FAIL on unfixed code
+  - Alternatively, write as a shell-based verification script (`scripts/verify-healthcheck-bug.sh`) that greps the three files and exits non-zero when the bug condition is present
+  - Run test on UNFIXED code
+  - **EXPECTED OUTCOME**: Test FAILS (this is correct — it proves the bug exists)
+  - Document counterexamples found:
+    - `market-data-service/build.gradle` lacks `spring-boot-starter-actuator`
+    - `insight-service/build.gradle` lacks `spring-boot-starter-actuator`
+    - `docker-compose.yml` market-data-service healthcheck targets `/` not `/actuator/health`
+    - `docker-compose.yml` insight-service healthcheck targets `/` not `/actuator/health`
+  - Mark task complete when test is written, run, and failure is documented
+  - _Requirements: 1.1, 1.2, 1.5_
+
+- [x] 2. Write preservation property tests (BEFORE implementing fix)
+  - **Property 2: Preservation** — Unaffected Services and Configurations Unchanged
+  - **IMPORTANT**: Follow observation-first methodology
+  - Observe on UNFIXED code and record baseline values:
+    - `portfolio-service/build.gradle` content (no actuator, custom health endpoint)
+    - `api-gateway/build.gradle` content (already has actuator)
+    - `docker-compose.yml` portfolio-service healthcheck: `curl -f http://localhost:8081/api/portfolio/health`
+    - `docker-compose.yml` api-gateway healthcheck: `curl -f http://localhost:8080/actuator/health`
+    - `market-data-service/Dockerfile` contains `AWS_LWA_READINESS_CHECK_PATH=/actuator/health` (unchanged)
+    - `insight-service/Dockerfile` contains `AWS_LWA_READINESS_CHECK_PATH=/actuator/health` (unchanged)
+    - `market-data-service/src/main/resources/application.yml` content (unchanged)
+    - `insight-service/src/main/resources/application.yml` content (unchanged)
+  - Write property-based / parameterized tests that assert:
+    - `portfolio-service/build.gradle` does NOT contain `spring-boot-starter-actuator` (preservation — it uses a custom health endpoint)
+    - `api-gateway/build.gradle` DOES contain `spring-boot-starter-actuator` (preservation — already correct)
+    - `docker-compose.yml` portfolio-service healthcheck URL is exactly `/api/portfolio/health` (unchanged)
+    - `docker-compose.yml` api-gateway healthcheck URL is exactly `/actuator/health` (unchanged)
+    - Both Dockerfiles still contain `AWS_LWA_READINESS_CHECK_PATH=/actuator/health` (unchanged)
+    - Both `application.yml` files are byte-identical to their observed baseline (no modifications)
+    - Docker Compose dependency chain is preserved: `api-gateway` depends on `portfolio-service`, `market-data-service`, `insight-service`
+  - Verify tests PASS on UNFIXED code
+  - **EXPECTED OUTCOME**: Tests PASS (this confirms baseline behavior to preserve)
+  - Mark task complete when tests are written, run, and passing on unfixed code
+  - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5_
+
+- [x] 3. Fix for missing actuator dependency and wrong Docker Compose health check URLs
+  - [x] 3.1 Add `spring-boot-starter-actuator` to `market-data-service/build.gradle`
+    - Add `implementation 'org.springframework.boot:spring-boot-starter-actuator'` to the dependencies block
+    - Place it after the existing `spring-boot-starter-webmvc` line, following the pattern in `api-gateway/build.gradle`
+    - _Bug_Condition: isBugCondition(service) where service.name = 'market-data-service' AND NOT hasDependency(service, 'spring-boot-starter-actuator')_
+    - _Expected_Behavior: service exposes `/actuator/health` returning HTTP 200 with `"status": "UP"`_
+    - _Preservation: No changes to existing dependencies; all existing endpoints continue to work_
+    - _Requirements: 2.1, 2.5_
+
+  - [x] 3.2 Add `spring-boot-starter-actuator` to `insight-service/build.gradle`
+    - Add `implementation 'org.springframework.boot:spring-boot-starter-actuator'` to the dependencies block
+    - Place it after the existing `spring-boot-starter-webmvc` line, following the pattern in `api-gateway/build.gradle`
+    - _Bug_Condition: isBugCondition(service) where service.name = 'insight-service' AND NOT hasDependency(service, 'spring-boot-starter-actuator')_
+    - _Expected_Behavior: service exposes `/actuator/health` returning HTTP 200 with `"status": "UP"`_
+    - _Preservation: No changes to existing dependencies; all existing endpoints continue to work_
+    - _Requirements: 2.2, 2.5_
+
+  - [x] 3.3 Update `docker-compose.yml` health check URLs for both affected services
+    - Change `market-data-service` healthcheck from `curl -sf http://localhost:8082/ || exit 1` to `curl -sf http://localhost:8082/actuator/health || exit 1`
+    - Change `insight-service` healthcheck from `curl -sf http://localhost:8083/ || exit 1` to `curl -sf http://localhost:8083/actuator/health || exit 1`
+    - Do NOT modify any other service's healthcheck configuration
+    - Do NOT modify healthcheck timing parameters (interval, timeout, retries, start_period)
+    - _Bug_Condition: healthCheckUrl(service) = '/' for market-data-service and insight-service_
+    - _Expected_Behavior: healthCheckUrl(service) = '/actuator/health' so containers are marked healthy_
+    - _Preservation: portfolio-service healthcheck at `/api/portfolio/health` unchanged; api-gateway healthcheck at `/actuator/health` unchanged; all other docker-compose config unchanged_
+    - _Requirements: 2.1, 2.2, 2.3, 2.4, 3.1, 3.2_
+
+  - [x] 3.4 Verify bug condition exploration test now passes
+    - **Property 1: Expected Behavior** — Actuator Dependency Present and Health Check URLs Correct
+    - **IMPORTANT**: Re-run the SAME test from task 1 — do NOT write a new test
+    - The test from task 1 encodes the expected behavior (actuator present, URLs correct)
+    - When this test passes, it confirms the expected behavior is satisfied
+    - Run bug condition exploration test from step 1
+    - **EXPECTED OUTCOME**: Test PASSES (confirms bug is fixed)
+    - _Requirements: 2.1, 2.2, 2.5_
+
+  - [x] 3.5 Verify preservation tests still pass
+    - **Property 2: Preservation** — Unaffected Services and Configurations Unchanged
+    - **IMPORTANT**: Re-run the SAME tests from task 2 — do NOT write new tests
+    - Run preservation property tests from step 2
+    - **EXPECTED OUTCOME**: Tests PASS (confirms no regressions)
+    - Confirm all preservation tests still pass after fix (no regressions to portfolio-service, api-gateway, Dockerfiles, application.yml files, or dependency chain)
+    - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5_
+
+- [x] 4. Checkpoint — Ensure all tests pass
+  - Run the full test suite to confirm no regressions
+  - Verify bug condition exploration test passes (task 1 test on fixed code)
+  - Verify preservation tests pass (task 2 tests on fixed code)
+  - Run `./gradlew :market-data-service:test` and `./gradlew :insight-service:test` to confirm unit tests pass with the new actuator dependency
+  - If Docker Compose is available, optionally run `docker compose up -d` and verify all four services reach `healthy` status
+  - Ask the user if questions arise
