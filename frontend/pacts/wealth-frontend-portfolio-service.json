@@ -1,0 +1,149 @@
+{
+  "consumer": {
+    "name": "wealth-frontend"
+  },
+  "interactions": [
+    {
+      "description": "a request for user portfolios",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "user has a portfolio with holdings"
+        }
+      ],
+      "request": {
+        "headers": {
+          "X-User-Id": [
+            "user-001"
+          ]
+        },
+        "matchingRules": {
+          "header": {
+            "X-User-Id": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            }
+          }
+        },
+        "method": "GET",
+        "path": "/api/portfolio"
+      },
+      "response": {
+        "body": {
+          "content": [
+            {
+              "createdAt": "2026-04-15T10:30:00Z",
+              "holdings": [
+                {
+                  "assetTicker": "AAPL",
+                  "id": "holding-001",
+                  "quantity": 10
+                }
+              ],
+              "id": "portfolio-001",
+              "userId": "user-001"
+            }
+          ],
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type",
+                  "min": 1
+                }
+              ]
+            },
+            "$[*].createdAt": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$[*].holdings": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type",
+                  "min": 1
+                }
+              ]
+            },
+            "$[*].holdings[*].assetTicker": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$[*].holdings[*].id": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$[*].holdings[*].quantity": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$[*].id": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$[*].userId": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            }
+          }
+        },
+        "status": 200
+      },
+      "type": "Synchronous/HTTP"
+    }
+  ],
+  "metadata": {
+    "pact-js": {
+      "version": "16.3.0"
+    },
+    "pactRust": {
+      "ffi": "0.5.3",
+      "models": "1.3.9"
+    },
+    "pactSpecification": {
+      "version": "4.0"
+    }
+  },
+  "provider": {
+    "name": "portfolio-service"
+  }
+}

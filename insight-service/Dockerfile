@@ -1,6 +1,6 @@
 # =============================================================================
-# Multi-stage Dockerfile for market-data-service
-# Build context: repo root (docker build -f market-data-service/Dockerfile .)
+# Multi-stage Dockerfile for insight-service
+# Build context: repo root (docker build -f insight-service/Dockerfile .)
 # =============================================================================
 
 # ---------------------------------------------------------------------------
@@ -16,20 +16,20 @@ COPY gradle/ gradle/
 COPY build.gradle build.gradle
 COPY settings.gradle settings.gradle
 
-# Copy source for common-dto (dependency) and market-data-service
+# Copy source for common-dto (dependency) and insight-service
 COPY common-dto/ common-dto/
-COPY market-data-service/ market-data-service/
+COPY insight-service/ insight-service/
 
 # Trim settings.gradle to only include modules needed for this service
 # (Gradle 9.x fails if included project directories don't exist)
-RUN sed -i "/include 'api-gateway'/d; /include 'portfolio-service'/d; /include 'insight-service'/d" settings.gradle
+RUN sed -i "/include 'api-gateway'/d; /include 'portfolio-service'/d; /include 'market-data-service'/d" settings.gradle
 
 # Install findutils (provides xargs, required by Gradle wrapper)
 RUN yum install -y findutils && yum clean all
 
 # Build the fat JAR with Spring AOT enabled
 RUN chmod +x gradlew \
-    && ./gradlew :market-data-service:bootJar -Dspring.aot.enabled=true --no-daemon
+    && ./gradlew :insight-service:bootJar -Dspring.aot.enabled=true --no-daemon
 
 # ---------------------------------------------------------------------------
 # Stage 2: JRE Builder — extract JAR, run jdeps/jlink to produce Custom JRE
@@ -42,7 +42,7 @@ RUN yum install -y binutils && yum clean all
 WORKDIR /jre-build
 
 # Copy the fat JAR from builder stage
-COPY --from=builder /workspace/market-data-service/build/libs/*.jar app.jar
+COPY --from=builder /workspace/insight-service/build/libs/*.jar app.jar
 
 # Extract the fat JAR to access individual library JARs for jdeps analysis
 RUN mkdir -p extracted && cd extracted && jar xf /jre-build/app.jar
@@ -80,7 +80,7 @@ ENV PATH="${JAVA_HOME}/bin:${PATH}"
 
 # Copy application JAR
 WORKDIR /app
-COPY --from=builder /workspace/market-data-service/build/libs/*.jar app.jar
+COPY --from=builder /workspace/insight-service/build/libs/*.jar app.jar
 
 # Copy AWS Lambda Web Adapter from official ECR image
 COPY --from=public.ecr.aws/awsguru/aws-lambda-adapter:1.0.0 /lambda-adapter /opt/extensions/aws-lambda-web-adapter
@@ -93,11 +93,11 @@ RUN ARCH=$(uname -m) \
     && chmod +x /usr/local/bin/aws-lambda-rie
 
 # Lambda Web Adapter configuration
-ENV AWS_LWA_PORT=8082
+ENV AWS_LWA_PORT=8083
 ENV AWS_LWA_READINESS_CHECK_PATH=/actuator/health
 
 # Expose the service port
-EXPOSE 8082
+EXPOSE 8083
 
 # Default: Lambda Web Adapter wraps the app
 # Locally (no Lambda runtime API), the adapter runs in passthrough mode

@@ -60,8 +60,14 @@ services:
 
   portfolio-service:
     build:
-      context: ./portfolio-service
+      context: .
+      dockerfile: portfolio-service/Dockerfile
     container_name: portfolio-service
+    # Override ENTRYPOINT to bypass Lambda Web Adapter for local development.
+    # The adapter requires the Lambda Extensions API which is only available in Lambda.
+    # On Lambda, the Dockerfile ENTRYPOINT runs the adapter natively.
+    # AOT is disabled locally — it's a Lambda cold-start optimization.
+    entrypoint: ["/opt/java/bin/java", "-jar", "/app/app.jar"]
     depends_on:
       - postgres
       - kafka
@@ -72,11 +78,23 @@ services:
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
     ports:
       - '8081:8081'
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/api/portfolio/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 768M
 
   market-data-service:
     build:
-      context: ./market-data-service
+      context: .
+      dockerfile: market-data-service/Dockerfile
     container_name: market-data-service
+    entrypoint: ["/opt/java/bin/java", "-jar", "/app/app.jar"]
     depends_on:
       - mongodb
       - kafka
@@ -85,16 +103,32 @@ services:
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
     ports:
       - '8082:8082'
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8082/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 768M
 
   insight-service:
     build:
-      context: ./insight-service
+      context: .
+      dockerfile: insight-service/Dockerfile
     container_name: insight-service
+    entrypoint: ["/opt/java/bin/java", "-jar", "/app/app.jar"]
     depends_on:
-      - portfolio-service
-      - kafka
-      - redis
-      - ollama
+      portfolio-service:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+      redis:
+        condition: service_started
+      ollama:
+        condition: service_started
     environment:
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       SPRING_DATA_REDIS_HOST: redis
@@ -102,16 +136,32 @@ services:
       PORTFOLIO_SERVICE_URL: http://portfolio-service:8081
     ports:
       - '8083:8083'
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8083/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 768M
 
   api-gateway:
     build:
-      context: ./api-gateway
+      context: .
+      dockerfile: api-gateway/Dockerfile
     container_name: api-gateway
+    entrypoint: ["/opt/java/bin/java", "-jar", "/app/app.jar"]
     depends_on:
-      - redis
-      - portfolio-service
-      - market-data-service
-      - insight-service
+      portfolio-service:
+        condition: service_healthy
+      market-data-service:
+        condition: service_healthy
+      insight-service:
+        condition: service_healthy
+      redis:
+        condition: service_started
     environment:
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
@@ -120,6 +170,16 @@ services:
       INSIGHT_SERVICE_URL: http://insight-service:8083
     ports:
       - '8080:8080'
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 768M
 
 volumes:
   postgres-data:

@@ -1,5 +1,11 @@
 name: Java CI with Gradle and Spring Modulith
 
+# NOTE: This workflow is superseded by ci-verification.yml for the full
+# verification pipeline (Docker build + Pact + Playwright). It is retained
+# for backward compatibility and runs the same unit + integration tests.
+# If you want to consolidate, you can disable this workflow and rely solely
+# on ci-verification.yml which includes these same test stages.
+
 on:
   push:
     branches: [ "main", "architecture/**" ]

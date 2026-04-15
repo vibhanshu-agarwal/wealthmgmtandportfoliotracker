@@ -5,6 +5,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static com.wealth.portfolio.PortfolioConstants.X_USER_ID_HEADER;
@@ -17,6 +18,16 @@ public class PortfolioController {
 
     public PortfolioController(PortfolioService portfolioService) {
         this.portfolioService = portfolioService;
+    }
+
+    /**
+     * Deep health-check endpoint for verifying end-to-end connectivity
+     * through the API Gateway. Returns a simple status response without
+     * requiring authentication headers.
+     */
+    @GetMapping("/health")
+    public ResponseEntity<Map<String, String>> health() {
+        return ResponseEntity.ok(Map.of("status", "UP", "service", "portfolio-service"));
     }
 
     /**

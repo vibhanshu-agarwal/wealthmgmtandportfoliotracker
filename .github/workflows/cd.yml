@@ -1,5 +1,11 @@
 name: Continuous Deployment (Publish Docker Image)
 
+# NOTE: This workflow is superseded by ci-verification.yml for image publishing.
+# The new pipeline builds multi-stage Docker images, runs the full verification
+# suite (Pact + Playwright), and publishes per-service images to GHCR.
+# This workflow is retained for reference but can be disabled once
+# ci-verification.yml is validated in production.
+
 # This pipeline only runs AFTER code is successfully merged to main
 on:
   push:

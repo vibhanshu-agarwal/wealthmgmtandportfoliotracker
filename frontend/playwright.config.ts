@@ -5,6 +5,7 @@ const authFile = path.join(__dirname, "playwright/.auth/user.json");
 
 export default defineConfig({
   testDir: "./tests/e2e",
+  globalSetup: "./tests/e2e/global-setup.ts",
   timeout: 120_000,
   retries: 0,
   reporter: [["list"]],
