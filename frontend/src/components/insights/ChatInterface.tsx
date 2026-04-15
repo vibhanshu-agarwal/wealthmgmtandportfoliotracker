@@ -42,7 +42,13 @@ export function ChatInterface() {
       prev: ChatActionState,
       formData: FormData,
     ): Promise<ChatActionState> => {
+      const submittedMessage = (formData.get("message") as string | null)?.trim();
       const result = await sendChatMessage(prev, formData);
+
+      // Clear the composer only after the browser has already serialized FormData.
+      if (submittedMessage) {
+        setDraftMessage("");
+      }
 
       if (result.response) {
         setMessages((prev) => [
