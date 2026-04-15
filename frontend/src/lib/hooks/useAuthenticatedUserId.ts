@@ -36,7 +36,7 @@ async function fetchGatewayJwt(): Promise<GatewayJwtResponse | null> {
  * caused race conditions where downstream TanStack Query hooks stayed disabled.
  */
 export function useAuthenticatedUserId(): AuthenticatedUser {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ["gateway-jwt"],
     queryFn: fetchGatewayJwt,
     staleTime: 50 * 60 * 1000, // 50 minutes (JWT expires in 1h)
@@ -46,7 +46,7 @@ export function useAuthenticatedUserId(): AuthenticatedUser {
   });
 
   if (isLoading) {
-    return { userId: "", token: "", status: "loading" };
+    return { userId: "", token: "", status: "loading", error: null };
   }
 
   if (data?.token && data?.userId) {
@@ -54,8 +54,18 @@ export function useAuthenticatedUserId(): AuthenticatedUser {
       userId: data.userId,
       token: data.token,
       status: "authenticated",
+      error: null,
     };
   }
 
-  return { userId: "", token: "", status: "unauthenticated" };
+  if (error) {
+    return {
+      userId: "",
+      token: "",
+      status: "error",
+      error: error instanceof Error ? error.message : "JWT exchange failed.",
+    };
+  }
+
+  return { userId: "", token: "", status: "unauthenticated", error: null };
 }
