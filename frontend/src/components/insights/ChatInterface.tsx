@@ -34,55 +34,45 @@ export function ChatInterface() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draftMessage, setDraftMessage] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
-
-  // Wrap the Server Action to append the assistant/error bubble on completion.
-  // This avoids calling setState inside useEffect (react-hooks/set-state-in-effect).
-  const wrappedAction = useCallback(
-    async (
-      prev: ChatActionState,
-      formData: FormData,
-    ): Promise<ChatActionState> => {
-      const submittedMessage = (formData.get("message") as string | null)?.trim();
-      const result = await sendChatMessage(prev, formData);
-
-      // Clear the composer only after the browser has already serialized FormData.
-      if (submittedMessage) {
-        setDraftMessage("");
-      }
-
-      if (result.response) {
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: crypto.randomUUID(),
-            role: "assistant",
-            content: result.response!,
-            timestamp: new Date(),
-          },
-        ]);
-      } else if (result.error) {
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: crypto.randomUUID(),
-            role: "assistant",
-            content: result.error!,
-            timestamp: new Date(),
-          },
-        ]);
-      }
-
-      return result;
-    },
-    [],
+  const [actionState, formAction, isPending] = useActionState(
+    sendChatMessage,
+    initialState,
   );
 
-  const [, formAction, isPending] = useActionState(wrappedAction, initialState);
-
   // Auto-scroll to latest message
+
+  // Append assistant/error bubble once the Server Action completes.
   useEffect(() => {
-    scrollRef.current?.scrollIntoView?.({ behavior: "smooth" });
-  }, [messages, isPending]);
+    if (actionState.status === null) {
+      return;
+    }
+
+    if (actionState.response) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          content: actionState.response,
+          timestamp: new Date(),
+        },
+      ]);
+      setDraftMessage("");
+      return;
+    }
+
+    if (actionState.error) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          content: actionState.error,
+          timestamp: new Date(),
+        },
+      ]);
+    }
+  }, [actionState]);
 
   // Handle optimistic UI update before the Server Action resolves.
   const handleSubmit = useCallback((event: FormEvent<HTMLFormElement>) => {
