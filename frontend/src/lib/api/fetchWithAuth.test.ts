@@ -108,11 +108,17 @@ describe("fetchWithAuthClient", () => {
   });
 });
 
+// Mock mintToken for server-side fetch helper tests
+vi.mock("@/lib/auth/mintToken", () => ({
+  mintToken: vi.fn().mockResolvedValue("mocked-jwt-from-mintToken"),
+}));
+
 describe("fetchWithAuth (server-side)", () => {
   const mockFetch = vi.fn();
 
   beforeEach(() => {
     vi.stubGlobal("fetch", mockFetch);
+    vi.resetModules();
   });
 
   afterEach(() => {
@@ -120,25 +126,24 @@ describe("fetchWithAuth (server-side)", () => {
     vi.clearAllMocks();
   });
 
-  it("attaches Bearer token from auth.api.getSession", async () => {
+  it("attaches Authorization: Bearer header from mintToken result when session exists", async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: async () => ({ data: "ok" }),
     });
 
-    // Dynamic import to pick up the mocks
     const { fetchWithAuth } = await import("./fetchWithAuth.server");
     await fetchWithAuth("/api/portfolio");
 
     expect(mockFetch).toHaveBeenCalledOnce();
     const [, init] = mockFetch.mock.calls[0] as [string, RequestInit];
-    expect((init.headers as Record<string, string>)["Authorization"]).toBe(
-      "Bearer mock-jwt",
-    );
+    const authHeader = (init.headers as Record<string, string>)[
+      "Authorization"
+    ];
+    expect(authHeader).toBe("Bearer mocked-jwt-from-mintToken");
   });
 
   it("omits Authorization header when no session exists", async () => {
-    // Override the mock for this test to return null session
     const { auth } = await import("@/lib/auth");
     vi.mocked(auth.api.getSession).mockResolvedValueOnce(null as any);
 
@@ -155,5 +160,57 @@ describe("fetchWithAuth (server-side)", () => {
     expect(
       (init.headers as Record<string, string>)["Authorization"],
     ).toBeUndefined();
+  });
+
+  it("calls mintToken with the session user", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ data: "ok" }),
+    });
+
+    const { mintToken } = await import("@/lib/auth/mintToken");
+    const { fetchWithAuth } = await import("./fetchWithAuth.server");
+    await fetchWithAuth("/api/portfolio");
+
+    expect(mintToken).toHaveBeenCalledOnce();
+    expect(mintToken).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "user-001" }),
+    );
+  });
+
+  it("does not forward Cookie headers to backend (only Content-Type and Authorization)", async () => {
+    // Simulate incoming request headers that include a Cookie
+    const { headers: mockHeaders } = await import("next/headers");
+    const incomingHeaders = new Headers({ Cookie: "session=abc123" });
+    vi.mocked(mockHeaders).mockResolvedValueOnce(incomingHeaders as any);
+
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ data: "ok" }),
+    });
+
+    const { fetchWithAuth } = await import("./fetchWithAuth.server");
+    await fetchWithAuth("/api/portfolio");
+
+    expect(mockFetch).toHaveBeenCalledOnce();
+    const [, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+    const outgoingHeaders = init.headers as Record<string, string>;
+
+    // Cookie must NOT be forwarded
+    expect(outgoingHeaders["Cookie"]).toBeUndefined();
+    expect(outgoingHeaders["cookie"]).toBeUndefined();
+
+    // Only Content-Type and Authorization should be present
+    expect(outgoingHeaders["Content-Type"]).toBe("application/json");
+    expect(outgoingHeaders["Authorization"]).toBe(
+      "Bearer mocked-jwt-from-mintToken",
+    );
+
+    // Verify no unexpected headers are attached
+    const headerKeys = Object.keys(outgoingHeaders);
+    expect(headerKeys).toEqual(
+      expect.arrayContaining(["Content-Type", "Authorization"]),
+    );
+    expect(headerKeys).toHaveLength(2);
   });
 });

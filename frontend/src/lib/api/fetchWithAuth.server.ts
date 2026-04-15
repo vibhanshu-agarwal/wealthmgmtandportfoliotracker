@@ -1,13 +1,9 @@
 import "server-only";
 
 import { auth } from "@/lib/auth";
+import { mintToken } from "@/lib/auth/mintToken";
 import { headers } from "next/headers";
 
-/**
- * Server-side authenticated fetch.
- * Calls auth.api.getSession() to retrieve the current session and attaches
- * the JWT as Authorization: Bearer. Use in Server Components and Route Handlers only.
- */
 export async function fetchWithAuth<T>(
   path: string,
   init?: RequestInit,
@@ -15,7 +11,11 @@ export async function fetchWithAuth<T>(
   const session = await auth.api.getSession({
     headers: await headers(),
   });
-  const token = session?.session?.token;
+
+  let token: string | undefined;
+  if (session?.user?.id) {
+    token = await mintToken(session.user);
+  }
 
   const reqHeaders: Record<string, string> = {
     "Content-Type": "application/json",
