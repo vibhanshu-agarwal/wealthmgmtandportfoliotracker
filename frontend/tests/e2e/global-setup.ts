@@ -19,6 +19,8 @@ const SHALLOW_HEALTH_URL = `${GATEWAY_BASE}/actuator/health`;
 const POLL_INTERVAL_MS = 2_000;
 const DEEP_CHECK_TIMEOUT_MS = 30_000;
 const TOTAL_TIMEOUT_MS = Number(process.env.HEALTH_CHECK_TIMEOUT_MS ?? 120_000);
+const SKIP_BACKEND_HEALTH_CHECK =
+  (process.env.SKIP_BACKEND_HEALTH_CHECK ?? "").toLowerCase() === "true";
 
 function timestamp(): string {
   return new Date().toISOString();
@@ -45,6 +47,13 @@ async function poll(url: string, timeoutMs: number): Promise<boolean> {
 }
 
 async function globalSetup(): Promise<void> {
+  if (SKIP_BACKEND_HEALTH_CHECK) {
+    console.log(
+      `[${timestamp()}] Backend health-check disabled via SKIP_BACKEND_HEALTH_CHECK=true`
+    );
+    return;
+  }
+
   console.log(
     `[${timestamp()}] Health-check starting (deep: ${DEEP_HEALTH_URL}, timeout: ${TOTAL_TIMEOUT_MS}ms)`
   );
