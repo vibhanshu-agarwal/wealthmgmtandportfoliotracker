@@ -11,6 +11,8 @@ The rollout is structured into three phases:
 2. **Phase 2: AWS Lambda Web Adapter Integration** – containerizing the Spring Boot app for Lambda with the AWS Lambda Web Adapter.
 3. **Phase 3: CI/CD Pipeline (GitHub Actions)** – automated build and deployment of frontend and backend.
 
+Current deployment target branch: **`architecture/cloud-native-extraction`**.
+
 ---
 
 ## Phase 1: Serverless Infrastructure Provisioning
@@ -314,7 +316,7 @@ Only after these checks pass should the image be considered ready for **ECR publ
 
 - A single GitHub Actions workflow file: `.github/workflows/deploy.yml`.
 - Triggered on:
-  - Push to the main integration branch (e.g. `main` or a specific release branch).
+  - Push to the current deployment branch: `architecture/cloud-native-extraction`.
   - Manual dispatch (`workflow_dispatch`) for controlled deployments.
 - Contains two primary jobs:
   - `frontend-deploy` – builds and deploys the React SPA.

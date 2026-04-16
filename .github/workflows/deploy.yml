@@ -1,9 +1,37 @@
 name: Deploy
 
+# Required GitHub Actions secrets (repo-level)
+# - AWS_ACCESS_KEY_ID
+# - AWS_SECRET_ACCESS_KEY
+# - AWS_REGION
+# - AWS_ACCOUNT_ID
+# - S3_BUCKET_NAME
+# - ECR_REPOSITORY_NAME
+# - LAMBDA_FUNCTION_NAME
+#
+# Application/runtime secrets (mapped into Lambda environment)
+# - SPRING_DATASOURCE_URL
+# - SPRING_DATASOURCE_USERNAME
+# - SPRING_DATASOURCE_PASSWORD
+# - REDIS_URL
+# - UPSTASH_REDIS_REST_URL
+# - UPSTASH_REDIS_REST_TOKEN
+# - KAFKA_BOOTSTRAP_SERVERS
+# - KAFKA_SASL_USERNAME
+# - KAFKA_SASL_PASSWORD
+# - BEDROCK_REGION
+# - BEDROCK_MODEL_ID
+# - NEXTAUTH_SECRET
+# - AUTH_JWT_SECRET
+#
+# Notes
+# - Missing secrets become empty strings in Lambda; verify all values exist before relying on prod behavior.
+# - This workflow intentionally targets branch: architecture/cloud-native-extraction.
+
 on:
   push:
     branches:
-      - main
+      - architecture/cloud-native-extraction
 
 jobs:
   deploy-frontend:
@@ -79,6 +107,11 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
+      - name: Install jq (Lambda env JSON generation)
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y jq
+
       - name: Build and push backend image
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
@@ -97,33 +130,69 @@ jobs:
       - name: Update Lambda function configuration (runtime secrets)
         env:
           LAMBDA_FUNCTION_NAME: ${{ secrets.LAMBDA_FUNCTION_NAME }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
           SPRING_DATASOURCE_URL: ${{ secrets.SPRING_DATASOURCE_URL }}
           SPRING_DATASOURCE_USERNAME: ${{ secrets.SPRING_DATASOURCE_USERNAME }}
           SPRING_DATASOURCE_PASSWORD: ${{ secrets.SPRING_DATASOURCE_PASSWORD }}
           REDIS_URL: ${{ secrets.REDIS_URL }}
+          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
           KAFKA_BOOTSTRAP_SERVERS: ${{ secrets.KAFKA_BOOTSTRAP_SERVERS }}
           KAFKA_SASL_USERNAME: ${{ secrets.KAFKA_SASL_USERNAME }}
           KAFKA_SASL_PASSWORD: ${{ secrets.KAFKA_SASL_PASSWORD }}
+          BEDROCK_REGION: ${{ secrets.BEDROCK_REGION }}
+          BEDROCK_MODEL_ID: ${{ secrets.BEDROCK_MODEL_ID }}
+          NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
+          AUTH_JWT_SECRET: ${{ secrets.AUTH_JWT_SECRET }}
         run: |
-          cat > lambda-env.json <<'EOF'
-          {
-            "Variables": {
-              "SPRING_PROFILES_ACTIVE": "prod,aws",
-              "SERVER_PORT": "8080",
-              "PORT": "8080",
-              "AWS_LAMBDA_EXEC_WRAPPER": "/lambda-adapter",
-              "SPRING_DATASOURCE_URL": "${SPRING_DATASOURCE_URL}",
-              "SPRING_DATASOURCE_USERNAME": "${SPRING_DATASOURCE_USERNAME}",
-              "SPRING_DATASOURCE_PASSWORD": "${SPRING_DATASOURCE_PASSWORD}",
-              "REDIS_URL": "${REDIS_URL}",
-              "KAFKA_BOOTSTRAP_SERVERS": "${KAFKA_BOOTSTRAP_SERVERS}",
-              "KAFKA_SECURITY_PROTOCOL": "SASL_SSL",
-              "KAFKA_SASL_MECHANISM": "PLAIN",
-              "KAFKA_SASL_USERNAME": "${KAFKA_SASL_USERNAME}",
-              "KAFKA_SASL_PASSWORD": "${KAFKA_SASL_PASSWORD}"
-            }
-          }
-          EOF
+          jq -n \
+            --arg SPRING_PROFILES_ACTIVE "prod,aws" \
+            --arg SERVER_PORT "8080" \
+            --arg PORT "8080" \
+            --arg AWS_LAMBDA_EXEC_WRAPPER "/lambda-adapter" \
+            --arg SPRING_DATASOURCE_URL "$SPRING_DATASOURCE_URL" \
+            --arg SPRING_DATASOURCE_USERNAME "$SPRING_DATASOURCE_USERNAME" \
+            --arg SPRING_DATASOURCE_PASSWORD "$SPRING_DATASOURCE_PASSWORD" \
+            --arg REDIS_URL "$REDIS_URL" \
+            --arg UPSTASH_REDIS_REST_URL "$UPSTASH_REDIS_REST_URL" \
+            --arg UPSTASH_REDIS_REST_TOKEN "$UPSTASH_REDIS_REST_TOKEN" \
+            --arg KAFKA_BOOTSTRAP_SERVERS "$KAFKA_BOOTSTRAP_SERVERS" \
+            --arg KAFKA_SECURITY_PROTOCOL "SASL_SSL" \
+            --arg KAFKA_SASL_MECHANISM "PLAIN" \
+            --arg KAFKA_SASL_USERNAME "$KAFKA_SASL_USERNAME" \
+            --arg KAFKA_SASL_PASSWORD "$KAFKA_SASL_PASSWORD" \
+            --arg BEDROCK_REGION "$BEDROCK_REGION" \
+            --arg BEDROCK_MODEL_ID "$BEDROCK_MODEL_ID" \
+            --arg NEXTAUTH_SECRET "$NEXTAUTH_SECRET" \
+            --arg AUTH_JWT_SECRET "$AUTH_JWT_SECRET" \
+            --arg AWS_REGION "$AWS_REGION" \
+            --arg AWS_ACCOUNT_ID "$AWS_ACCOUNT_ID" \
+            '{
+              Variables: {
+                SPRING_PROFILES_ACTIVE: $SPRING_PROFILES_ACTIVE,
+                SERVER_PORT: $SERVER_PORT,
+                PORT: $PORT,
+                AWS_LAMBDA_EXEC_WRAPPER: $AWS_LAMBDA_EXEC_WRAPPER,
+                SPRING_DATASOURCE_URL: $SPRING_DATASOURCE_URL,
+                SPRING_DATASOURCE_USERNAME: $SPRING_DATASOURCE_USERNAME,
+                SPRING_DATASOURCE_PASSWORD: $SPRING_DATASOURCE_PASSWORD,
+                REDIS_URL: $REDIS_URL,
+                UPSTASH_REDIS_REST_URL: $UPSTASH_REDIS_REST_URL,
+                UPSTASH_REDIS_REST_TOKEN: $UPSTASH_REDIS_REST_TOKEN,
+                KAFKA_BOOTSTRAP_SERVERS: $KAFKA_BOOTSTRAP_SERVERS,
+                KAFKA_SECURITY_PROTOCOL: $KAFKA_SECURITY_PROTOCOL,
+                KAFKA_SASL_MECHANISM: $KAFKA_SASL_MECHANISM,
+                KAFKA_SASL_USERNAME: $KAFKA_SASL_USERNAME,
+                KAFKA_SASL_PASSWORD: $KAFKA_SASL_PASSWORD,
+                BEDROCK_REGION: $BEDROCK_REGION,
+                BEDROCK_MODEL_ID: $BEDROCK_MODEL_ID,
+                NEXTAUTH_SECRET: $NEXTAUTH_SECRET,
+                AUTH_JWT_SECRET: $AUTH_JWT_SECRET,
+                AWS_REGION: $AWS_REGION,
+                AWS_ACCOUNT_ID: $AWS_ACCOUNT_ID
+              }
+            }' > lambda-env.json
 
           aws lambda update-function-configuration \
             --function-name "$LAMBDA_FUNCTION_NAME" \
