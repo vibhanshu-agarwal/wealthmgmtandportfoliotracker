@@ -10,20 +10,20 @@ MongoDB and downstream caches up to date using `PriceUpdatedEvent`.
 
 ## Tasks
 
-- [ ] 1. Introduce baseline ticker configuration and seeder
-  - [ ] 1.1 Define a central baseline ticker list (50–100 symbols) in configuration
+- [x] 1. Introduce baseline ticker configuration and seeder
+  - [x] 1.1 Define a central baseline ticker list (50–100 symbols) in configuration
     - Add `market-data.baseline-tickers` to Spring configuration (YAML/properties) or a dedicated
       `BaselineTickerProperties` class.
     - Populate with US tech, NSE, Crypto, and Forex tickers formatted for the chosen provider.
     - _Requirements: 3.1, 3.4_
-  - [ ] 1.2 Implement or update a `BaselineSeeder` component in `market-data-service`
+  - [x] 1.2 Implement or update a `BaselineSeeder` component in `market-data-service`
     - On application startup, query Mongo for existing tickers and insert any missing baseline
       tickers as active.
     - Ensure seeding is idempotent across restarts (no duplicate documents).
     - _Requirements: 3.2, 3.4_
 
-- [ ] 2. Implement startup cache hydration (republish on boot)
-  - [ ] 2.1 Create a `StartupHydrationService` in `market-data-service`
+- [x] 2. Implement startup cache hydration (republish on boot)
+  - [x] 2.1 Create a `StartupHydrationService` in `market-data-service`
     - After application context is ready (e.g. `ApplicationRunner` or `SmartLifecycle`), query
       Mongo for all active tickers and their latest prices.
     - Publish one `PriceUpdatedEvent` per active ticker **that has a non-null latest price** using
@@ -31,15 +31,15 @@ MongoDB and downstream caches up to date using `PriceUpdatedEvent`.
     - Explicitly skip newly seeded tickers that do not yet have any stored price in Mongo; those
       will be hydrated once the scheduled refresh job obtains their first real price.
     - _Requirements: 1.1, 1.2, 1.3, 1.5_
-  - [ ] 2.2 Add unit / slice tests for startup hydration
+  - [x] 2.2 Add unit / slice tests for startup hydration
     - Seed an in-memory/Testcontainers Mongo with baseline tickers + prices, start the context, and
       assert that Kafka receives a `PriceUpdatedEvent` for each active ticker **with a non-null
       price**, and no events for tickers without prices.
     - Verify that Mongo is not modified by the hydration flow.
     - _Requirements: 1.4, 4.4_
 
-- [ ] 3. Integrate ExternalMarketDataClient
-  - [ ] 3.1 Add an `ExternalMarketDataClient` interface and implementation
+- [x] 3. Integrate ExternalMarketDataClient
+  - [x] 3.1 Add an `ExternalMarketDataClient` interface and implementation
     - Implement a Yahoo Finance (or equivalent) backed client using HTTP/REST or a small Java
       wrapper.
     - Support batched quote retrieval with a configurable batch size.
@@ -54,34 +54,34 @@ MongoDB and downstream caches up to date using `PriceUpdatedEvent`.
     - Verify that failures for individual tickers do not break the entire batch.
     - _Requirements: 2.2, 2.4_
 
-- [ ] 4. Implement scheduled refresh job
-  - [ ] 4.1 Add a Spring `@Scheduled` job in `market-data-service`
+- [x] 4. Implement scheduled refresh job
+  - [x] 4.1 Add a Spring `@Scheduled` job in `market-data-service`
     - Read the configured cron expression (default 12 or 24 hours) from properties.
     - Resolve the set of tracked tickers (baseline + any others stored as active).
     - Call `ExternalMarketDataClient.getLatestPrices` in batches.
     - _Requirements: 4.1, 4.2_
-  - [ ] 4.2 Persist refreshed prices and publish events
+  - [x] 4.2 Persist refreshed prices and publish events
     - For each ticker with a new price, upsert the latest price in Mongo.
     - Publish a corresponding `PriceUpdatedEvent` for each successfully persisted update.
     - Log per-ticker outcomes (updated, skipped, failed).
     - _Requirements: 4.2, 4.3, 4.4_
-  - [ ] 4.3 Add integration / slice tests for the scheduled flow
+  - [x] 4.3 Add integration / slice tests for the scheduled flow
     - Use embedded/Testcontainers Mongo + Kafka and a stub `ExternalMarketDataClient`.
     - Trigger the scheduled method directly (no need to wait for real cron) and assert that Mongo
       is updated and Kafka sees the expected `PriceUpdatedEvent`s.
     - _Requirements: 4.3, 4.5, 4.4_
 
-- [ ] 5. Wiring, observability, and configuration
-  - [ ] 5.1 Wire beans and profiles
+- [x] 5. Wiring, observability, and configuration
+  - [x] 5.1 Wire beans and profiles
     - Register `BaselineSeeder`, `StartupHydrationService`, `ExternalMarketDataClient`, and the
       scheduled job beans in existing `market-data-service` configuration packages.
     - Ensure scheduled jobs can be enabled/disabled per profile (e.g. off for tests if noisy).
     - _Requirements: 1.1, 2.5, 4.1_
-  - [ ] 5.2 Add structured logging and metrics hooks (optional)
+  - [x] 5.2 Add structured logging and metrics hooks (optional)
     - Log job start/end, duration, and per-ticker status.
     - Optionally expose counters/timers (Micrometer) for refresh runs and provider calls.
     - _Requirements: Non-Functional 1_
-  - [ ] 5.3 Final verification
+  - [x] 5.3 Final verification
     - Run the full test suite (unit + integration) and, if applicable, a local end-to-end smoke
       test: start `market-data-service` and `insight-service`, confirm Redis cache is hydrated on
       restart and after a scheduled run.
