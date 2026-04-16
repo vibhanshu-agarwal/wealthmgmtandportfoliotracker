@@ -1,0 +1,16 @@
+spring:
+  application:
+    name: market-data-service
+
+  # Relational database (e.g. Neon PostgreSQL) – configured via environment
+  datasource:
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+
+server:
+  port: 8080
+
