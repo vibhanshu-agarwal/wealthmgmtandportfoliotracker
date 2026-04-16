@@ -16,12 +16,118 @@ spring:
 server:
   port: 8082
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+
 logging:
   level:
     org.springframework.data.mongodb: DEBUG
     org.springframework.kafka: INFO
+  # Optional: include MDC keys from refresh / startup hydration in console output
+  # pattern:
+  #   console: "%d{ISO8601} [%thread] [%X{marketDataRefreshJobId}] [%X{marketDataStartupHydrationId}] %-5level %logger - %msg%n"
 
 market:
   seed:
     enabled: true
     fixture-path: classpath:fixtures/market-seed-data.json
+  baseline:
+    tickers:
+      # US (~26)
+      - AAPL
+      - MSFT
+      - GOOG
+      - GOOGL
+      - AMZN
+      - META
+      - NVDA
+      - TSLA
+      - NFLX
+      - AMD
+      - INTC
+      - AVGO
+      - QCOM
+      - CRM
+      - ORCL
+      - IBM
+      - CSCO
+      - JPM
+      - BAC
+      - WMT
+      - PG
+      - JNJ
+      - XOM
+      - CVX
+      - V
+      - MA
+      # India NSE (~17)
+      - RELIANCE.NS
+      - TCS.NS
+      - HDFCBANK.NS
+      - INFY.NS
+      - ICICIBANK.NS
+      - BHARTIARTL.NS
+      - SBIN.NS
+      - KOTAKBANK.NS
+      - LT.NS
+      - ITC.NS
+      - HINDUNILVR.NS
+      - ASIANPAINT.NS
+      - MARUTI.NS
+      - AXISBANK.NS
+      - SUNPHARMA.NS
+      - WIPRO.NS
+      - ONGC.NS
+      # Crypto (~6)
+      - BTC-USD
+      - ETH-USD
+      - SOL-USD
+      - DOGE-USD
+      - XRP-USD
+      - ADA-USD
+      # FX (~6)
+      - EURUSD=X
+      - USDINR=X
+      - GBPUSD=X
+      - USDJPY=X
+      - AUDUSD=X
+      - USDCAD=X
+
+market-data:
+  refresh:
+    enabled: true
+    cron: "0 0 */1 * * *" # every 1 hour (Spring 6-field: sec min hour dom month dow)
+  hydration:
+    enabled: true
+  baseline-seed:
+    enabled: true
+
+external-market-data:
+  provider: yahoo
+  base-url: https://query1.finance.yahoo.com
+  timeout-ms: 5000
+  max-retries: 3
+  backoff-ms: 500
+  batch-size: 50
+
+resilience4j:
+  retry:
+    instances:
+      externalMarketData:
+        maxAttempts: 3
+        waitDuration: 5s
+        enableExponentialBackoff: true
+        exponentialBackoffMultiplier: 2
+        retryExceptions:
+          - org.springframework.web.reactive.function.client.WebClientResponseException$TooManyRequests
+          - org.springframework.web.reactive.function.client.WebClientResponseException$InternalServerError
+          - java.util.concurrent.TimeoutException
+          - java.io.IOException
+        ignoreExceptions:
+          - org.springframework.web.reactive.function.client.WebClientResponseException$BadRequest
+          - org.springframework.web.reactive.function.client.WebClientResponseException$NotFound
+          - org.springframework.web.reactive.function.client.WebClientResponseException$Forbidden
+          - org.springframework.web.reactive.function.client.WebClientResponseException$Unauthorized

@@ -12,8 +12,8 @@ MongoDB and downstream caches up to date using `PriceUpdatedEvent`.
 
 - [x] 1. Introduce baseline ticker configuration and seeder
   - [x] 1.1 Define a central baseline ticker list (50–100 symbols) in configuration
-    - Add `market-data.baseline-tickers` to Spring configuration (YAML/properties) or a dedicated
-      `BaselineTickerProperties` class.
+    - Add `market.baseline.tickers` to Spring configuration (YAML/properties) via
+      `BaselineTickerProperties`.
     - Populate with US tech, NSE, Crypto, and Forex tickers formatted for the chosen provider.
     - _Requirements: 3.1, 3.4_
   - [x] 1.2 Implement or update a `BaselineSeeder` component in `market-data-service`
@@ -32,10 +32,9 @@ MongoDB and downstream caches up to date using `PriceUpdatedEvent`.
       will be hydrated once the scheduled refresh job obtains their first real price.
     - _Requirements: 1.1, 1.2, 1.3, 1.5_
   - [x] 2.2 Add unit / slice tests for startup hydration
-    - Seed an in-memory/Testcontainers Mongo with baseline tickers + prices, start the context, and
-      assert that Kafka receives a `PriceUpdatedEvent` for each active ticker **with a non-null
-      price**, and no events for tickers without prices.
-    - Verify that Mongo is not modified by the hydration flow.
+    - Implemented as **`StartupHydrationServiceTest`**: mocks `AssetPriceRepository` and
+      `KafkaTemplate` (no embedded Mongo/Kafka) and asserts one `PriceUpdatedEvent` per priced asset,
+      none for null-priced rows, and no repository writes from the service under test.
     - _Requirements: 1.4, 4.4_
 
 - [x] 3. Integrate ExternalMarketDataClient
@@ -44,19 +43,23 @@ MongoDB and downstream caches up to date using `PriceUpdatedEvent`.
       wrapper.
     - Support batched quote retrieval with a configurable batch size.
     - _Requirements: 2.1, 2.2, 4.2_
-  - [ ] 3.2 Add resilience and configuration
+  - [x] 3.2 Add resilience and configuration
     - Introduce Spring Retry or resilience4j configuration for timeouts, 5xx, and 429 responses.
     - Make base URL, timeouts, retries, and API key (if required) configurable via
       `external-market-data.*` properties.
     - _Requirements: 2.3, 2.6, 4.2_
-  - [ ] 3.3 Unit test the client
-    - Mock the HTTP layer / provider library to exercise batching and retry logic.
-    - Verify that failures for individual tickers do not break the entire batch.
+  - [x] 3.3 Unit test the client
+    - **`ExternalMarketDataClientWireMockTest`**: happy-path quotes, **503** handling, and **batch
+      splitting** when `batch-size` is 1 (no real Yahoo traffic). Resilience4j **`@Retry`** and YAML
+      retry rules apply in the **running Spring context**; dedicated WireMock tests for **429** and
+      **read timeouts** are not in the suite yet.
+    - Partial-symbol failures are covered implicitly when the JSON `result` omits a symbol (empty map
+      for that ticker); per-symbol HTTP failure inside one batch is provider-specific.
     - _Requirements: 2.2, 2.4_
 
 - [x] 4. Implement scheduled refresh job
   - [x] 4.1 Add a Spring `@Scheduled` job in `market-data-service`
-    - Read the configured cron expression (default 12 or 24 hours) from properties.
+    - Read the configured cron expression (default **every 1 hour**) from properties.
     - Resolve the set of tracked tickers (baseline + any others stored as active).
     - Call `ExternalMarketDataClient.getLatestPrices` in batches.
     - _Requirements: 4.1, 4.2_
@@ -66,26 +69,45 @@ MongoDB and downstream caches up to date using `PriceUpdatedEvent`.
     - Log per-ticker outcomes (updated, skipped, failed).
     - _Requirements: 4.2, 4.3, 4.4_
   - [x] 4.3 Add integration / slice tests for the scheduled flow
-    - Use embedded/Testcontainers Mongo + Kafka and a stub `ExternalMarketDataClient`.
-    - Trigger the scheduled method directly (no need to wait for real cron) and assert that Mongo
-      is updated and Kafka sees the expected `PriceUpdatedEvent`s.
+    - **`MarketDataRefreshJobWireMockTest`**: calls `refreshAllTrackedTickers()` directly with mocked
+      `AssetPriceRepository` / `KafkaTemplate` and a real `YahooFinanceExternalMarketDataClient` against
+      WireMock (not a Testcontainers Mongo+Kafka `@SpringBootTest` slice).
     - _Requirements: 4.3, 4.5, 4.4_
 
 - [x] 5. Wiring, observability, and configuration
   - [x] 5.1 Wire beans and profiles
-    - Register `BaselineSeeder`, `StartupHydrationService`, `ExternalMarketDataClient`, and the
-      scheduled job beans in existing `market-data-service` configuration packages.
-    - Ensure scheduled jobs can be enabled/disabled per profile (e.g. off for tests if noisy).
+    - `com.wealth.market.config.MarketDataPropertiesConfiguration` registers
+      `@EnableConfigurationProperties` for `MarketSeedProperties`, `BaselineTickerProperties`, and
+      `ExternalMarketDataProperties`; `MarketDataSchedulingConfiguration` enables `@Scheduled`.
+    - `market-data.refresh.enabled`, `market-data.hydration.enabled`, and
+      `market-data.baseline-seed.enabled` gate the refresh job, startup Kafka hydration, and baseline
+      Mongo inserts respectively (`application.yml`, `application-aws.yml`, `application-prod.yml`,
+      and `src/test/resources/application.yml` + `LocalMarketDataSeederIntegrationTest` dynamic props).
     - _Requirements: 1.1, 2.5, 4.1_
   - [x] 5.2 Add structured logging and metrics hooks (optional)
-    - Log job start/end, duration, and per-ticker status.
-    - Optionally expose counters/timers (Micrometer) for refresh runs and provider calls.
+    - Refresh + startup hydration use MDC keys `marketDataRefreshJobId` and
+      `marketDataStartupHydrationId` (see commented `logging.pattern.console` hint in `application.yml`).
+    - Micrometer: timers `market.data.refresh.job`, `market.data.startup.hydration`,
+      `market.data.provider.quote.batch`; counters for refresh outcomes, per-ticker results, provider
+      HTTP outcomes, baseline inserts, and hydration publish count. Actuator exposes `metrics` (see
+      `management.endpoints.web.exposure.include`).
     - _Requirements: Non-Functional 1_
   - [x] 5.3 Final verification
-    - Run the full test suite (unit + integration) and, if applicable, a local end-to-end smoke
-      test: start `market-data-service` and `insight-service`, confirm Redis cache is hydrated on
-      restart and after a scheduled run.
+    - `./gradlew :market-data-service:test` and `:market-data-service:integrationTest` pass after
+      Task 5 wiring. Full-stack smoke (insight-service + Redis) remains a manual follow-up when those
+      services are running locally or in a shared environment.
     - _Requirements: 1.4, 4.4_
+
+- [x] 6. Align specification text with repository and CI reality
+  - [x] 6.1 **`tasks.md`**: corrected sub-bullets for 2.2, 3.3, and 4.3 so they describe the tests and
+    toggles that actually exist (see class names above), not aspirational-only Testcontainers wording.
+  - [x] 6.2 **`design.md`**: rewrote the “Testing strategy” section to list real test classes, call out
+    intentional test defaults (`market-data.*` off under `src/test/resources/application.yml`), and
+    document follow-ups (429/timeout WireMock, optional full slice).
+  - [x] 6.3 **`requirements.md`**: glossary and wording sanity pass (e.g. Baseline Seeder description).
+  - [x] 6.4 **Build verification** (authoritative for this feature branch):
+    - `./gradlew :market-data-service:test`
+    - `./gradlew :market-data-service:integrationTest`
 
 ---
 

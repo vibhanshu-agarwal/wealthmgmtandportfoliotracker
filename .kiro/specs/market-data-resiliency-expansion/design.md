@@ -157,7 +157,9 @@ INPUT: none
 
 - The job uses provider-specific batch size limits and sleeps briefly between batches when necessary
   to avoid rate limiting (e.g. small `Thread.sleep` or resilience4j rate-limiter).
-- Job frequency (cron) and maximum batch size are configurable via Spring properties.
+- Job frequency (cron) and maximum batch size are configurable via Spring properties, with a default
+  cadence of **every 1 hour** to keep data fresh without relying on TTL-based cache eviction on the
+  user request path.
 
 ---
 
@@ -197,8 +199,7 @@ market-data:
     # ... expand to 50–100 tickers total
   refresh:
     enabled: true
-    cron: "0 0 */12 * * *"   # every 12 hours
-    batch-size: 50
+    cron: "0 0 */1 * * *"   # every 1 hour
 
 external-market-data:
   provider: yahoo
@@ -206,6 +207,7 @@ external-market-data:
   timeout-ms: 5000
   max-retries: 3
   backoff-ms: 500
+  batch-size: 50
   api-key: ${EXTERNAL_MARKET_DATA_API_KEY:}
 ```
 
@@ -236,38 +238,37 @@ external-market-data:
 
 ## Testing Strategy
 
-### Unit Tests
+### Automated tests (as implemented in the repo)
 
-- **StartupHydrationServiceTest**:
-  - Given pre-seeded Mongo with N tickers and prices, assert that N `PriceUpdatedEvent`s are
-    published on startup.
-  - Verify that no Mongo writes occur during hydration.
-- **BaselineSeederTest**:
-  - When Mongo is empty, all baseline tickers are inserted once.
-  - When some tickers already exist, only missing ones are inserted; existing ones are untouched.
-- **ExternalMarketDataClientTest**:
-  - Batching logic: large ticker list is split into provider-sized batches.
-  - Resilience: timeouts and 5xx are retried up to the configured limit.
-- **ScheduledRefreshJobTest**:
-  - Given a mocked `ExternalMarketDataClient` map and repository, assert that Mongo is updated and
-    `PriceUpdatedEvent`s are published per ticker.
+- **`StartupHydrationServiceTest`** (unit): mocks `AssetPriceRepository` and `KafkaTemplate`; asserts
+  `PriceUpdatedEvent` only for assets with non-null prices and correct topic/partition keys. Does not
+  start Mongo or Kafka.
+- **`ExternalMarketDataClientWireMockTest`**: WireMock HTTP stub for Yahoo-shaped JSON; covers happy
+  path, HTTP **503** propagation, and **batch splitting** when `external-market-data.batch-size` is
+  small. **429** and **read-timeout** scenarios are not yet covered by dedicated tests; Resilience4j
+  retry is **configuration-backed** (`application.yml` + `@Retry` on the client bean in the running app).
+- **`MarketDataRefreshJobWireMockTest`**: invokes `refreshAllTrackedTickers()` directly with mocked
+  repository/Kafka and a real `YahooFinanceExternalMarketDataClient` against WireMock; covers success,
+  provider failure (no Mongo/Kafka writes), baseline∪Mongo ticker resolution, and dual-ticker refresh.
+- **`LocalMarketDataSeederIntegrationTest`** / **`LocalMarketDataSeederAwsProfileIntegrationTest`**
+  (`@Tag("integration")`, Testcontainers Mongo): fixture seeding and profile guards. Startup hydration,
+  baseline shell inserts, and the scheduled refresh bean are **disabled** under test defaults (see
+  `src/test/resources/application.yml` and dynamic properties) so counts stay deterministic.
+- **Baseline seeder**: no dedicated `BaselineSeederTest` class; behaviour is exercised indirectly when
+  `market-data.baseline-seed.enabled` is true in non-test environments.
 
-### Integration / Slice Tests
+### Possible follow-ups (not blocking current CI)
 
-- Spring Boot test with:
-  - Embedded Mongo or Testcontainers MongoDB.
-  - Kafka test utilities or Testcontainers Kafka.
-  - A stub external provider bean that returns deterministic prices.
-- Scenarios:
-  - Pre-seeded Mongo + application startup → all prices republished to Kafka.
-  - Scheduled job run → updated Mongo values and corresponding Kafka events.
+- Add WireMock tests for **429** and **response-delay / timeout** aligned with Resilience4j metrics.
+- Optional slice test: Testcontainers Mongo + Kafka with a stub `ExternalMarketDataClient` for a
+  full `@SpringBootTest` refresh path.
 
 ---
 
 ## Dependencies
 
 - Optional new libraries:
-  - `spring-retry` or `resilience4j-spring-boot3` for external call resilience (depending on
+  - `spring-retry` or `resilience4j-spring-boot4` for external call resilience (depending on
     existing stack).
   - Third-party Yahoo Finance wrapper if preferred over raw REST (only if it fits existing
     dependency policies).
@@ -284,7 +285,7 @@ external-market-data:
 - **Performance**:
   - Startup hydration is a bounded loop over the number of active tickers; for 100–200 symbols this
     completes in milliseconds to seconds, depending on Kafka I/O.
-  - Scheduled refresh runs infrequently (12–24h) and is batched; it should not materially impact
-    system throughput.
+  - Scheduled refresh runs hourly by default and is batched; it should not materially impact
+    system throughput at typical ticker counts.
   - External provider usage is rate-limited and batched to avoid being throttled.
 

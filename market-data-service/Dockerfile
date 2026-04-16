@@ -82,24 +82,17 @@ ENV PATH="${JAVA_HOME}/bin:${PATH}"
 WORKDIR /app
 COPY --from=builder /workspace/market-data-service/build/libs/*.jar app.jar
 
-# Copy AWS Lambda Web Adapter from official ECR image
-COPY --from=public.ecr.aws/awsguru/aws-lambda-adapter:1.0.0 /lambda-adapter /opt/extensions/aws-lambda-web-adapter
+# Copy AWS Lambda Web Adapter from official public ECR image
+COPY --from=public.ecr.aws/awsguru/aws-lambda-adapter:latest /lambda-adapter /lambda-adapter
 
-# Download AWS Lambda Runtime Interface Emulator (RIE)
-RUN ARCH=$(uname -m) \
-    && if [ "$ARCH" = "x86_64" ]; then RIE_ARCH="x86_64"; else RIE_ARCH="arm64"; fi \
-    && curl -Lo /usr/local/bin/aws-lambda-rie \
-    "https://github.com/aws/aws-lambda-runtime-interface-emulator/releases/latest/download/aws-lambda-rie-${RIE_ARCH}" \
-    && chmod +x /usr/local/bin/aws-lambda-rie
-
-# Lambda Web Adapter configuration
-ENV AWS_LWA_PORT=8082
-ENV AWS_LWA_READINESS_CHECK_PATH=/actuator/health
+# Runtime configuration
+ENV SERVER_PORT=8080
+ENV PORT=8080
 
 # Expose the service port
-EXPOSE 8082
+EXPOSE 8080
 
-# Default: Lambda Web Adapter wraps the app
-# Locally (no Lambda runtime API), the adapter runs in passthrough mode
-ENTRYPOINT ["/opt/extensions/aws-lambda-web-adapter"]
-CMD ["java", "-Dspring.aot.enabled=true", "-jar", "/app/app.jar"]
+# Default: run Spring Boot directly
+# In AWS Lambda, configure AWS_LAMBDA_EXEC_WRAPPER=/lambda-adapter so the adapter wraps this process.
+ENTRYPOINT ["java", "-Dspring.aot.enabled=true", "-jar", "/app/app.jar"]
+

@@ -26,8 +26,11 @@ class LocalMarketDataSeederIntegrationTest {
   @Container static MongoDBContainer mongo = new MongoDBContainer("mongo:7");
 
   @DynamicPropertySource
-  static void mongoProperties(DynamicPropertyRegistry registry) {
+  static void integrationTestProperties(DynamicPropertyRegistry registry) {
     registry.add("spring.mongodb.uri", mongo::getReplicaSetUrl);
+    registry.add("market-data.refresh.enabled", () -> false);
+    registry.add("market-data.hydration.enabled", () -> false);
+    registry.add("market-data.baseline-seed.enabled", () -> false);
   }
 
   @MockitoBean
@@ -41,11 +44,17 @@ class LocalMarketDataSeederIntegrationTest {
 
   @Autowired ApplicationContext applicationContext;
 
+  @Autowired(required = false)
+  MarketDataRefreshJob marketDataRefreshJob;
+
   // -------------------------------------------------------------------------
   // 7.1 — context loads and seeds all 6 fixture assets
   // -------------------------------------------------------------------------
   @Test
   void contextLoads_andSeedsFixture() {
+    assertThat(marketDataRefreshJob).as("scheduled refresh off under test classpath application.yml")
+        .isNull();
+
     var tickers = assetPriceRepository.findAll().stream().map(AssetPrice::getTicker).toList();
 
     assertThat(tickers).containsExactlyInAnyOrder("AAPL", "TSLA", "BTC", "MSFT", "NVDA", "ETH");

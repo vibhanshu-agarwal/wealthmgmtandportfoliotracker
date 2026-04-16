@@ -18,7 +18,7 @@ event contracts (`PriceUpdatedEvent`) and downstream consumers.
 - **insight-service**: Spring Boot service that consumes `PriceUpdatedEvent` events and updates a
   Redis cache used by the AI Insights chat and other read paths.
 - **Baseline Seeder**: Startup component in `market-data-service` that inserts a baseline set of
-  tickers into MongoDB and, after this feature, republish-es prices on boot.
+  ticker rows into MongoDB (typically without prices); it does not publish Kafka events.
 - **PriceUpdatedEvent**: Shared Kafka event (in `common-dto`) containing `ticker` and `newPrice`,
   published by `market-data-service` and consumed by `insight-service` and others.
 - **External Market Data Provider**: Free, delayed data API such as Yahoo Finance (REST or Java
@@ -113,7 +113,7 @@ date.
 #### Acceptance Criteria
 
 1. THE `market-data-service` SHALL define a Spring `@Scheduled` job (cron or fixed delay) that runs
-   on a configurable cadence (default every 12 or 24 hours).
+   on a configurable cadence (default every 1 hour).
 2. ON each run, THE scheduled job SHALL:
    - Determine the set of tracked tickers (baseline + any user-added tickers, if supported),
    - Fetch updated end-of-day or delayed prices for those tickers from the external provider in

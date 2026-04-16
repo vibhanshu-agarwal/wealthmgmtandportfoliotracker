@@ -83,7 +83,7 @@ WORKDIR /app
 COPY --from=builder /workspace/portfolio-service/build/libs/*.jar app.jar
 
 # Copy AWS Lambda Web Adapter from official ECR image
-COPY --from=public.ecr.aws/awsguru/aws-lambda-adapter:1.0.0 /lambda-adapter /opt/extensions/aws-lambda-web-adapter
+COPY --from=public.ecr.aws/awsguru/aws-lambda-adapter:0.8.4 /lambda-adapter /lambda-adapter
 
 # Download AWS Lambda Runtime Interface Emulator (RIE)
 RUN ARCH=$(uname -m) \
@@ -93,13 +93,12 @@ RUN ARCH=$(uname -m) \
     && chmod +x /usr/local/bin/aws-lambda-rie
 
 # Lambda Web Adapter configuration
-ENV AWS_LWA_PORT=8081
-ENV AWS_LWA_READINESS_CHECK_PATH=/actuator/health
+ENV SERVER_PORT=8080
+ENV PORT=8080
 
 # Expose the service port
-EXPOSE 8081
+EXPOSE 8080
 
-# Default: Lambda Web Adapter wraps the app
-# Locally (no Lambda runtime API), the adapter runs in passthrough mode
-ENTRYPOINT ["/opt/extensions/aws-lambda-web-adapter"]
-CMD ["java", "-Dspring.aot.enabled=true", "-jar", "/app/app.jar"]
+# Default: run Spring Boot directly.
+# In AWS Lambda, configure AWS_LAMBDA_EXEC_WRAPPER=/lambda-adapter.
+ENTRYPOINT ["java", "-jar", "/app/app.jar"]
