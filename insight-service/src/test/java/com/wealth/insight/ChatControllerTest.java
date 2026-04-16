@@ -92,6 +92,35 @@ class ChatControllerTest {
     }
 
     @Test
+    void chat_withDollarPrefixedTicker_extractsAndResponds() throws Exception {
+        TickerSummary summary = new TickerSummary("MSFT",
+                new BigDecimal("420.00"),
+                List.of(new BigDecimal("420.00")), null, null);
+        when(marketDataService.getTickerSummary("MSFT")).thenReturn(summary);
+        when(aiInsightService.getSentiment("MSFT")).thenReturn("MSFT is Neutral.");
+
+        mockMvc.perform(post("/api/chat")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"message": "$MSFT outlook"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.response", containsString("MSFT")))
+                .andExpect(jsonPath("$.response", containsString("420")));
+    }
+
+    @Test
+    void chat_withAmbiguousMultipleTickers_requestsClarification() throws Exception {
+        mockMvc.perform(post("/api/chat")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"message": "Compare AAPL and MSFT"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.response", containsString("specify")));
+    }
+
+    @Test
     void chat_withNoIdentifiableTicker_returnsPromptToSpecify() throws Exception {
         mockMvc.perform(post("/api/chat")
                         .contentType(MediaType.APPLICATION_JSON)

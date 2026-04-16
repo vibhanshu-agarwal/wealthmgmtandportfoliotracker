@@ -9,18 +9,19 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 const mockPostChatMessage = vi.fn();
+const mockAuthState = {
+  userId: "user-001",
+  token: "test-jwt",
+  status: "authenticated" as const,
+  error: null as string | null,
+};
 
 vi.mock("@/lib/api/insights", () => ({
   postChatMessage: (request: { message: string }, token: string) =>
     mockPostChatMessage(request, token),
 }));
 vi.mock("@/lib/hooks/useAuthenticatedUserId", () => ({
-  useAuthenticatedUserId: () => ({
-    userId: "user-001",
-    token: "test-jwt",
-    status: "authenticated" as const,
-    error: null,
-  }),
+  useAuthenticatedUserId: () => mockAuthState,
 }));
 
 // crypto.randomUUID is not available in jsdom
@@ -45,6 +46,10 @@ function renderWithQueryClient() {
 
 beforeEach(() => {
   uuidCounter = 0;
+  mockAuthState.userId = "user-001";
+  mockAuthState.token = "test-jwt";
+  mockAuthState.status = "authenticated";
+  mockAuthState.error = null;
   mockPostChatMessage.mockReset();
   mockPostChatMessage.mockResolvedValue({
     response: "AAPL is trading at $178.50 with a bullish trend.",
@@ -181,5 +186,29 @@ describe("ChatInterface — Error handling", () => {
         screen.getByText("Something went wrong. Please try again."),
       ).toBeInTheDocument();
     });
+  });
+
+  it("displays auth unavailable guidance when user token is missing", async () => {
+    mockAuthState.userId = "";
+    mockAuthState.token = "";
+    mockAuthState.status = "error";
+    mockAuthState.error = "JWT exchange failed (503)";
+
+    renderWithQueryClient();
+
+    const input = screen.getByTestId("chat-input");
+    const sendBtn = screen.getByTestId("chat-send");
+
+    await act(async () => {
+      fireEvent.change(input, { target: { value: "Tell me about AAPL" } });
+      fireEvent.click(sendBtn);
+    });
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Your session is unavailable. Please log in again."),
+      ).toBeInTheDocument();
+    });
+    expect(mockPostChatMessage).not.toHaveBeenCalled();
   });
 });
