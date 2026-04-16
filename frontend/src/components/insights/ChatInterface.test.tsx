@@ -7,13 +7,14 @@ import {
 } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { AuthenticatedUser } from "@/lib/hooks/useAuthenticatedUserId";
 
 const mockPostChatMessage = vi.fn();
-const mockAuthState = {
+const mockAuthState: AuthenticatedUser = {
   userId: "user-001",
   token: "test-jwt",
-  status: "authenticated" as const,
-  error: null as string | null,
+  status: "authenticated",
+  error: null,
 };
 
 vi.mock("@/lib/api/insights", () => ({

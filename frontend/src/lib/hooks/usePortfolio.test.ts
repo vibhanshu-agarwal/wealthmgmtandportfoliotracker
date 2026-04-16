@@ -46,6 +46,7 @@ describe("usePortfolio", () => {
       userId: "",
       token: "",
       status: "unauthenticated",
+      error: null,
     });
 
     const { result } = renderHook(() => usePortfolio(), {
@@ -61,6 +62,7 @@ describe("usePortfolio", () => {
       userId: "",
       token: "",
       status: "loading",
+      error: null,
     });
 
     const { result } = renderHook(() => usePortfolio(), {
@@ -76,6 +78,7 @@ describe("usePortfolio", () => {
       userId: "user-001",
       token: "eyJhbGciOiJIUzI1NiJ9.payload.sig",
       status: "authenticated",
+      error: null,
     });
 
     const { result } = renderHook(() => usePortfolio(), {
@@ -106,6 +109,7 @@ describe("usePortfolioSummary", () => {
       userId: "",
       token: "",
       status: "unauthenticated",
+      error: null,
     });
 
     const { result } = renderHook(() => usePortfolioSummary(), {
@@ -121,6 +125,7 @@ describe("usePortfolioSummary", () => {
       userId: "user-001",
       token: "eyJhbGciOiJIUzI1NiJ9.payload.sig",
       status: "authenticated",
+      error: null,
     });
 
     const { result } = renderHook(() => usePortfolioSummary(), {
