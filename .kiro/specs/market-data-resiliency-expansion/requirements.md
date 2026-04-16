@@ -71,9 +71,13 @@ dummy values.
    `429 Too Many Requests` as retryable/transient failures.
 4. IF a remote call ultimately fails for a ticker (after retries), THEN `market-data-service` SHALL
    fall back to the last known price cached in MongoDB without failing the entire batch.
-5. External provider calls SHALL NOT be performed on the synchronous path of user-facing HTTP
+5. THE external integration SHALL operate strictly as a background process. Under **no
+   circumstances** SHALL any user-facing API call to `insight-service` or `market-data-service`
+   trigger a synchronous HTTP call to the external market data provider; all reads to these APIs
+   MUST be served from internal storage (MongoDB, Redis, or in-memory caches).
+6. External provider calls SHALL NOT be performed on the synchronous path of user-facing HTTP
    requests; instead they SHALL be invoked from startup hydration logic and/or scheduled jobs.
-6. THE external provider API key or configuration (if required) SHALL be sourced from environment
+7. THE external provider API key or configuration (if required) SHALL be sourced from environment
    variables or Spring configuration properties, not hard-coded in code.
 
 ---
@@ -123,6 +127,11 @@ date.
    processing and publishing events for successful tickers.
 5. THE scheduled job SHALL include basic safeguards against overwhelming the external API: batched
    requests, small concurrency, and/or simple rate-limiting between calls where necessary.
+6. IF the scheduled job fails to fetch data from the external provider for any reason (including
+   provider downtime, network failures, or rate-limiting such as HTTP 429), THEN the system SHALL
+   NOT clear or evict existing data in MongoDB or Redis; it SHALL continue serving the last known
+   prices from MongoDB, and the downstream Redis cache MUST remain intact until fresher data is
+   successfully written.
 
 ---
 

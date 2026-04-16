@@ -116,6 +116,9 @@ public interface ExternalMarketDataClient {
 - If a ticker is missing from the external response or all retries fail:
   - The caller (e.g. scheduled job) falls back to the last known Mongo price for that ticker.
   - No exception is thrown that would abort the batch; failures are logged at ticker granularity.
+- All user-facing HTTP endpoints on `market-data-service` and `insight-service` continue to serve
+  data exclusively from internal storage (MongoDB, Redis, or in-memory caches); they MUST NOT block
+  on, or directly invoke, the external provider.
 
 ---
 
@@ -222,6 +225,8 @@ external-market-data:
   - Logs per-ticker outcome (updated, skipped due to missing provider data, failed due to
     persistence error).
   - Emits a summary log with counts of successes/failures and duration per job run.
+  - On external provider failures (including 429, 5xx, and timeouts), preserves existing MongoDB and
+    Redis state, continuing to serve last-known-good prices until a subsequent successful refresh.
 - **External Provider**:
   - Resilience4j/Spring Retry logs retries with backoff so rate-limit or outage behaviour is
     visible.
