@@ -26,6 +26,8 @@ name: Deploy
 #
 # Notes
 # - Missing secrets become empty strings in Lambda; verify all values exist before relying on prod behavior.
+# - Do not pass AWS_REGION or AWS_DEFAULT_REGION in Lambda "Variables": Lambda reserves them and sets
+#   AWS_REGION to the function's region automatically (Spring/AWS SDK pick it up from the runtime).
 # - This workflow intentionally targets branch: architecture/cloud-native-extraction.
 
 on:
@@ -131,7 +133,6 @@ jobs:
       - name: Update Lambda function configuration (runtime secrets)
         env:
           LAMBDA_FUNCTION_NAME: ${{ secrets.LAMBDA_FUNCTION_NAME }}
-          AWS_REGION: ${{ secrets.AWS_REGION }}
           AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
           SPRING_DATASOURCE_URL: ${{ secrets.SPRING_DATASOURCE_URL }}
           SPRING_DATASOURCE_USERNAME: ${{ secrets.SPRING_DATASOURCE_USERNAME }}
@@ -167,7 +168,6 @@ jobs:
             --arg BEDROCK_MODEL_ID "$BEDROCK_MODEL_ID" \
             --arg NEXTAUTH_SECRET "$NEXTAUTH_SECRET" \
             --arg AUTH_JWT_SECRET "$AUTH_JWT_SECRET" \
-            --arg AWS_REGION "$AWS_REGION" \
             --arg AWS_ACCOUNT_ID "$AWS_ACCOUNT_ID" \
             '{
               Variables: {
@@ -190,7 +190,6 @@ jobs:
                 BEDROCK_MODEL_ID: $BEDROCK_MODEL_ID,
                 NEXTAUTH_SECRET: $NEXTAUTH_SECRET,
                 AUTH_JWT_SECRET: $AUTH_JWT_SECRET,
-                AWS_REGION: $AWS_REGION,
                 AWS_ACCOUNT_ID: $AWS_ACCOUNT_ID
               }
             }' > lambda-env.json
