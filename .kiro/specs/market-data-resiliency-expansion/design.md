@@ -71,7 +71,10 @@ graph TD
   - Queries Mongo for all active tickers (baseline + any dynamic ones).
   - Reads the latest known price per ticker (e.g. via a `findAllActiveWithLatestPrice` repository
     method or equivalent aggregation).
-  - For each ticker+price pair, publishes a `PriceUpdatedEvent` via the existing Kafka producer.
+  - For each ticker+price pair **with a non-null latest price**, publishes a `PriceUpdatedEvent`
+    via the existing Kafka producer.
+  - Skips newly seeded or inactive tickers that do not yet have any stored price in MongoDB; these
+    will be hydrated once the scheduled job fetches their first real price.
 - The hydration step:
   - Does not modify Mongo state.
   - Is safe to run on every restart — it simply replays the latest known prices into Kafka so that

@@ -26,11 +26,15 @@ MongoDB and downstream caches up to date using `PriceUpdatedEvent`.
   - [ ] 2.1 Create a `StartupHydrationService` in `market-data-service`
     - After application context is ready (e.g. `ApplicationRunner` or `SmartLifecycle`), query
       Mongo for all active tickers and their latest prices.
-    - Publish one `PriceUpdatedEvent` per active ticker using the existing Kafka producer.
+    - Publish one `PriceUpdatedEvent` per active ticker **that has a non-null latest price** using
+      the existing Kafka producer.
+    - Explicitly skip newly seeded tickers that do not yet have any stored price in Mongo; those
+      will be hydrated once the scheduled refresh job obtains their first real price.
     - _Requirements: 1.1, 1.2, 1.3, 1.5_
   - [ ] 2.2 Add unit / slice tests for startup hydration
     - Seed an in-memory/Testcontainers Mongo with baseline tickers + prices, start the context, and
-      assert that Kafka receives a `PriceUpdatedEvent` for each active ticker.
+      assert that Kafka receives a `PriceUpdatedEvent` for each active ticker **with a non-null
+      price**, and no events for tickers without prices.
     - Verify that Mongo is not modified by the hydration flow.
     - _Requirements: 1.4, 4.4_
 
