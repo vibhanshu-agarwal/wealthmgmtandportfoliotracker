@@ -4,8 +4,18 @@
 [![Spring Boot](https://img.shields.io/badge/Spring_Boot-4+-brightgreen.svg)](https://spring.io/projects/spring-boot)
 [![Spring Modulith](https://img.shields.io/badge/Spring-Modulith-blue.svg)](https://spring.io/projects/spring-modulith)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Docker-336791.svg)](https://www.postgresql.org/)
+[![Kafka](https://img.shields.io/badge/Apache-Kafka-231F20.svg)](https://kafka.apache.org/)
+[![Redis](https://img.shields.io/badge/Redis-Cache-D82C20.svg)](https://redis.io/)
+[![Resilience4j](https://img.shields.io/badge/Resilience4j-Retry%20Policies-5C6BC0.svg)](https://resilience4j.readme.io/)
+[![WireMock](https://img.shields.io/badge/WireMock-HTTP%20Stubs-4D9DE0.svg)](https://wiremock.org/)
 
 An enterprise-grade platform for managing investment portfolios, ingesting real-time market data, and generating AI-driven financial insights.
+
+## 🧱 Enterprise Resilience & Event-Driven Data
+
+- **Background Market Data Ingestion:** Market prices are fetched in the background from delayed external providers (e.g., Yahoo Finance) via a hardened `ExternalMarketDataClient`. All outbound calls are wrapped with **Resilience4j** retry policies to guard against 429 rate limits, 5xx outages, and transient network failures.
+- **Kafka-Backed Price Propagation:** Fresh prices are published as `PriceUpdatedEvent` messages on **Kafka**, which in turn hydrate downstream services (like `insight-service`) and their **Redis** caches without coupling user requests to external APIs.
+- **Fallback Strategy:** If the external market data API is unavailable, the system **never** blocks user-facing HTTP requests. Instead, it seamlessly serves **last-known-good prices** from MongoDB and Redis, keeping the AI Insights chat and dashboards responsive even during upstream outages.
 
 ## 🏗️ Architectural Philosophy: Evolutionary Design
 
@@ -43,14 +53,23 @@ Reviewing the code history will reveal the system's deliberate journey from a si
 - **Infrastructure:** Single Spring Boot JAR, single PostgreSQL instance with logically separated schemas (`schema_portfolio`, `schema_market`).
 - **Messaging:** In-memory Spring Events backed by JDBC Outbox.
 
-### 📍 Phase 2: Cloud-Native Target Architecture (In Progress)
+### 📍 Phase 2: Event-Driven Data Extraction (Market Domain)
 
-- **View the Migration:** [Link to Pull Request #1: "Cloud-Native Extraction"] _(Note: Add your PR link here when ready)_
-- **The Shift:** The `market` and `insight` modules are extracted due to high-throughput scaling and CPU demands, respectively.
-- **Target AWS Deployment:** \* Services containerized and orchestrated via Amazon EKS / ECS.
-  - Internal Spring Events replaced with **Amazon MSK (Apache Kafka)** for decoupled, high-throughput message streaming.
-  - The `insight` batch jobs offloaded to **AWS Lambda** triggered by **Amazon EventBridge** to optimize compute costs.
-  - Polyglot persistence introduced (migrating `market` time-series data to DynamoDB).
+- **Focus:** Extract the `market` anti-corruption layer into its own deployable service while the rest of the system remains a modular monolith.
+- **Messaging Shift:** Replace internal Spring Events for price updates with **Amazon MSK (Apache Kafka)** to handle high-throughput, append-only market data streams.
+- **Target AWS Deployment:** Containerize the market data ingestion pipeline and run it on **Amazon ECS / AWS Fargate**, enabling independent scaling, blue/green deploys, and autoscaling tuned to ticker volume.
+
+### 📍 Phase 3: Serverless AI Integration (Insight Domain)
+
+- **Focus:** Extract the `insight` compute domain (AI Insights engine) into a fully serverless, on-demand compute layer.
+- **AWS Lambda + Docker:** Package the Java-based AI Insights engine as a **Docker container image** and deploy it as an **AWS Lambda** function, simplifying CI/CD and bypassing traditional Lambda deployment size limits.
+- **Planned Bedrock Integration (Future Roadmap):** The target state is for the containerized Lambda to integrate with **Amazon Bedrock (Claude 3)** to generate financial insights, allowing the platform to scale AI workloads elastically and pay only for actual inference usage. In the current codebase this integration is either not yet wired end-to-end or may be represented via mocks and test doubles, and is therefore explicitly tracked as part of the forward-looking roadmap rather than the implemented baseline.
+
+### 🎯 Future Architectural Goals
+
+- **Dedicated AI Microservice (Microsoft AI Foundry):** Evolve the local AI inference engine into a dedicated, high-performance microservice backed by **Microsoft AI Foundry**, initially integrated from the Java-based platform via hardened, REST-based contracts. Over time, this service is expected to surface a strongly typed, low-latency interface (e.g., gRPC or equivalent service-mesh abstraction), while preserving strict resource isolation between transactional workloads and AI compute, and enabling a cost profile that approaches near-zero marginal cost per additional AI request through elastic, right-sized capacity.
+- **Multi-Provider Market Data Aggregation:** Extend the current Yahoo Finance integration with additional institutional-grade data providers (e.g., **Alpha Vantage**, **Polygon.io**) using an Adapter/Strategy abstraction layered behind the `ExternalMarketDataClient`. This enables high-availability failover, cross-provider price reconciliation and anomaly detection, and prevents long-term lock-in to any single market data vendor.
+- **Advanced AI-Driven Wealth Workflows:** Transform the AI layer from a primarily conversational assistant into an autonomous financial agent capable of orchestrating end-to-end wealth management workflows. Roadmap scenarios include predictive portfolio rebalancing simulations, real-time sentiment analysis over streaming market and news feeds, and automated tax-loss harvesting recommendations aligned with user-specific risk, jurisdictional constraints, and regulatory guardrails.
 
 ---
 
@@ -105,6 +124,11 @@ Expected output:
 BUILD SUCCESSFUL
 ```
 
+This backend test suite includes:
+
+- **Spring Modulith** architectural tests for strict bounded contexts.
+- **WireMock-based slice tests** that simulate external `503` / `429` API failures from Yahoo Finance to verify Resilience4j fault tolerance and fallback-to-cache behaviour for the market data pipeline.
+
 2. Frontend unit/component tests (Vitest + RTL + MSW)
 
 ```bash
@@ -133,3 +157,37 @@ Expected output:
 ```text
 1 passed
 ```
+
+## 🎬 Demo / Evaluation Guide
+
+Use this section as a quick runbook to evaluate the platform's resilience and AI-driven insights.
+
+### Supported Baseline Tickers (Examples)
+
+The system seeds and tracks a curated baseline of popular instruments (provider-formatted), including but not limited to:
+
+- **US Tech Equities:** `AAPL`, `MSFT`, `TSLA`, `AMZN`, `GOOG`, `META`, `NVDA`
+- **Indian Equities (NSE):** `RELIANCE.NS`, `TCS.NS`, `HDFCBANK.NS`, `INFY.NS`
+- **Crypto:** `BTC-USD`, `ETH-USD`, `SOL-USD`, `DOGE-USD`
+- **Forex Pairs:** `EURUSD=X`, `USDINR=X`, `GBPUSD=X`, `USDJPY=X`, `AUDUSD=X`
+
+You can build portfolios using these symbols and immediately see valuations and AI Insights powered by delayed but realistic market prices.
+
+### Chaos Test: Prove the Fallback Strategy
+
+To validate the **enterprise resilience** of the Market Data + AI Insights flow:
+
+1. Start the full stack locally (backend services, Redis, Kafka, and the frontend).
+2. Navigate to the AI Insights / chat experience in the UI and ask a market-related question that depends on portfolio prices (e.g., "How is my tech-heavy portfolio performing?").
+3. **Disconnect your machine from the internet** (disable Wi‑Fi/ethernet) so that outbound calls to Yahoo Finance and other external APIs will fail.
+4. Ask the same or a similar question in the AI Insights chat.
+
+Expected behaviour:
+
+- The system continues to serve responses backed by **cached database prices** (MongoDB + Redis) and previously fetched market data.
+- The UI and APIs remain responsive; no user-facing request should block on external HTTP calls or crash due to upstream outages.
+- Logs will show messages such as:  
+  `"Yahoo Finance API failed, falling back to cached database prices."` and  
+  `"MarketDataRefreshJob: Yahoo Finance API failed, falling back to cached database prices. Continuing to serve last-known prices for all tickers."`
+
+This demonstrates that the event-driven market data pipeline is **resilient by design**: external API failures degrade gracefully, while Kafka + Redis ensure the AI Insights layer continues to operate on a consistent snapshot of market data.
