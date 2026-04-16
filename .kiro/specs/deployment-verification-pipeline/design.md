@@ -364,7 +364,7 @@ The appropriate testing strategies are:
 | `jdeps` fails with missing dependencies  | Fat JAR has split packages or unsigned modules                                          | Use `--ignore-missing-deps` flag; log warnings but continue. If `jlink` subsequently fails, the Docker build fails with a clear error at the jlink stage                |
 | `jlink` produces incomplete JRE          | `jdeps` missed a module (e.g., `jdk.unsupported` needed by Spring internals)            | The app will fail at runtime with `ClassNotFoundException`. Mitigation: add `--add-modules jdk.unsupported,java.security.jgss` as fallback modules in the jlink command |
 | AOT processing fails                     | Bean definition conflicts at build time (e.g., conditional beans evaluated differently) | `processAot` task fails the Gradle build. Developer must fix AOT-incompatible beans or exclude them via `@ImportRuntimeHints`                                           |
-| Lambda Web Adapter binary download fails | Network issue or ECR rate limit                                                         | Dockerfile uses `COPY --from=public.ecr.aws/awsguru/aws-lambda-adapter:0.8.4 /lambda-adapter /opt/extensions/` — fails at build time with clear error                   |
+| Lambda Web Adapter binary download fails | Network issue or ECR rate limit                                                         | Dockerfile uses `COPY --from=public.ecr.aws/awsguru/aws-lambda-adapter:1.0.0 /lambda-adapter /opt/extensions/` — fails at build time with clear error                   |
 
 ### Pact Contract Failures
 

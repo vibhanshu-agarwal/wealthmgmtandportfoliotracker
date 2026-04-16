@@ -1,8 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-// Enables the optimized multi-stage Docker build
-  output: 'standalone',
+  // Optimized multi-stage Docker build (`frontend/Dockerfile` copies `.next/standalone`).
+  output: "standalone",
 
   // Proxy /api/* to the Spring Boot backend, but exclude /api/auth/*
   // which is handled locally by the NextAuth route handler.

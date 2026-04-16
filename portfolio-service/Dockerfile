@@ -83,7 +83,7 @@ WORKDIR /app
 COPY --from=builder /workspace/portfolio-service/build/libs/*.jar app.jar
 
 # Copy AWS Lambda Web Adapter from official ECR image
-COPY --from=public.ecr.aws/awsguru/aws-lambda-adapter:0.8.4 /lambda-adapter /lambda-adapter
+COPY --from=public.ecr.aws/awsguru/aws-lambda-adapter:1.0.0 /lambda-adapter /lambda-adapter
 
 # Download AWS Lambda Runtime Interface Emulator (RIE)
 RUN ARCH=$(uname -m) \

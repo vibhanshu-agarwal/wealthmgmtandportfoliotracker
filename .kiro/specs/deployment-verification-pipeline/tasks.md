@@ -13,7 +13,7 @@ All Java services use Gradle (Groovy DSL), Spring Boot 4.0.5, Java 25. Pact prov
     - Replace the existing single-stage Dockerfile with a 3-stage build:
       - **Stage 1 (builder):** `FROM amazoncorretto:25` — copy Gradle wrapper + source, run `./gradlew :portfolio-service:bootJar -Dspring.aot.enabled=true`
       - **Stage 2 (jre-builder):** `FROM amazoncorretto:25` — extract fat JAR libs, run `jdeps --ignore-missing-deps --print-module-deps` on all JARs, pipe to `jlink --add-modules` (with fallback modules `jdk.unsupported,java.security.jgss`), produce Custom JRE
-      - **Stage 3 (runtime):** `FROM alpine:3.20` — install glibc compat, copy Custom JRE, copy app.jar, copy AWS Lambda Web Adapter from `public.ecr.aws/awsguru/aws-lambda-adapter:0.8.4`, copy RIE binary
+      - **Stage 3 (runtime):** `FROM alpine:3.20` — install glibc compat, copy Custom JRE, copy app.jar, copy AWS Lambda Web Adapter from `public.ecr.aws/awsguru/aws-lambda-adapter:1.0.0`, copy RIE binary
     - Set `ENTRYPOINT ["/opt/extensions/aws-lambda-web-adapter"]` and `CMD ["java", "-Dspring.aot.enabled=true", "-jar", "/app/app.jar"]`
     - Configure `AWS_LWA_PORT=8081` and `AWS_LWA_READINESS_CHECK_PATH=/actuator/health`
     - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9_

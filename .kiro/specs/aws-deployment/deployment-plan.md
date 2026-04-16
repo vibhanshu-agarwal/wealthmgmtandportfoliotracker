@@ -251,7 +251,7 @@ At minimum, the Lambda’s container environment should define:
 - In the Dockerfile’s **final stage**, add an instruction equivalent to:
 
 ```dockerfile
-COPY --from=public.ecr.aws/awsguru/aws-lambda-adapter:latest /lambda-adapter /lambda-adapter
+COPY --from=public.ecr.aws/awsguru/aws-lambda-adapter:1.0.0 /lambda-adapter /lambda-adapter
 ```
 
 - Constraints:

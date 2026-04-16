@@ -82,8 +82,8 @@ ENV PATH="${JAVA_HOME}/bin:${PATH}"
 WORKDIR /app
 COPY --from=builder /workspace/market-data-service/build/libs/*.jar app.jar
 
-# Copy AWS Lambda Web Adapter from official public ECR image
-COPY --from=public.ecr.aws/awsguru/aws-lambda-adapter:latest /lambda-adapter /lambda-adapter
+# Copy AWS Lambda Web Adapter from ECR Public (pinned tag — :latest is not published on this repo)
+COPY --from=public.ecr.aws/awsguru/aws-lambda-adapter:1.0.0 /lambda-adapter /lambda-adapter
 
 # Runtime configuration
 ENV SERVER_PORT=8080

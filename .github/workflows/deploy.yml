@@ -55,29 +55,26 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
+      # Next.js `output: "standalone"` does not produce dist/build/out — only `.next/` (see frontend/next.config.ts).
+      # This step publishes **cacheable static assets** (`_next/static`, `public`) to S3. HTML/SSR/API must be
+      # served by the Next container (e.g. frontend-cd / ghcr.io image) or another origin; do not expect a
+      # full static site export while Better Auth API routes exist.
       - name: Build frontend
         working-directory: frontend
         run: |
-          npm install
+          npm ci
           npm run build
 
-      - name: Resolve frontend artifact directory
-        id: frontend_artifact
+      - name: Upload Next.js static assets to S3
         run: |
-          if [ -d "frontend/dist" ]; then
-            echo "dir=frontend/dist" >> "$GITHUB_OUTPUT"
-          elif [ -d "frontend/build" ]; then
-            echo "dir=frontend/build" >> "$GITHUB_OUTPUT"
-          elif [ -d "frontend/out" ]; then
-            echo "dir=frontend/out" >> "$GITHUB_OUTPUT"
-          else
-            echo "No deployable frontend artifact directory found (expected dist, build, or out)."
+          if [ ! -d "frontend/.next/static" ]; then
+            echo "Missing frontend/.next/static after npm run build."
             exit 1
           fi
-
-      - name: Upload frontend to S3
-        run: |
-          aws s3 sync "${{ steps.frontend_artifact.outputs.dir }}/" "s3://${{ secrets.S3_BUCKET_NAME }}" --delete
+          aws s3 sync "frontend/.next/static/" "s3://${{ secrets.S3_BUCKET_NAME }}/_next/static/" --delete
+          if [ -d "frontend/public" ]; then
+            aws s3 sync "frontend/public/" "s3://${{ secrets.S3_BUCKET_NAME }}/" --delete
+          fi
 
   deploy-backend:
     runs-on: ubuntu-latest
@@ -92,6 +89,10 @@ jobs:
           distribution: temurin
           java-version: "25"
           cache: gradle
+
+      # Wrapper is often committed without the Unix +x bit (e.g. from Windows); Ubuntu then rejects ./gradlew.
+      - name: Make Gradle wrapper executable
+        run: chmod +x ./gradlew
 
       - name: Build production JAR
         run: ./gradlew bootJar
