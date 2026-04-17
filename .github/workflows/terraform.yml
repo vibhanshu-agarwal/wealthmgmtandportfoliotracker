@@ -1,0 +1,14 @@
+name: Terraform Infrastructure
+
+on:
+  workflow_dispatch:
+
+jobs:
+  register-workflow:
+    name: Register Terraform Workflow
+    runs-on: ubuntu-latest
+    steps:
+      - name: Explain registration purpose
+        run: |
+          echo "Terraform workflow bootstrap on default branch."
+          echo "Use workflow_dispatch with --ref to run branch-specific Terraform logic."
