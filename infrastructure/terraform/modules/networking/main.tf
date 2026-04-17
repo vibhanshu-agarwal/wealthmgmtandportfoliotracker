@@ -3,8 +3,55 @@
 # =============================================================================
 
 locals {
-  # Strip "https://" prefix from the Function URL to get the origin domain
-  origin_domain = replace(var.origin_url, "https://", "")
+  # Strip "https://" prefix from the Function URL to get the API origin domain.
+  api_origin_domain = replace(var.origin_url, "https://", "")
+}
+
+resource "aws_cloudfront_origin_access_control" "static_s3" {
+  name                              = "wealth-static-s3-oac"
+  description                       = "OAC for static frontend S3 origin"
+  origin_access_control_origin_type = "s3"
+  signing_behavior                  = "always"
+  signing_protocol                  = "sigv4"
+}
+
+resource "aws_cloudfront_function" "static_route_rewrite" {
+  name    = "wealth-static-route-rewrite"
+  runtime = "cloudfront-js-1.0"
+  comment = "Rewrite extensionless frontend routes to exported HTML objects"
+  publish = true
+  code    = <<-EOF
+function handler(event) {
+  var request = event.request;
+  var uri = request.uri;
+
+  // Keep API and framework assets untouched.
+  if (uri.startsWith('/api/') || uri.startsWith('/_next/')) {
+    return request;
+  }
+
+  // Map root to exported homepage.
+  if (uri === '/') {
+    request.uri = '/index.html';
+    return request;
+  }
+
+  // Leave explicit-extension paths untouched.
+  if (uri.match(/\/[^\/]+\.[^\/]+$/)) {
+    return request;
+  }
+
+  // Support trailing-slash exports as a safe fallback (/foo/ -> /foo/index.html).
+  if (uri.endsWith('/')) {
+    request.uri = uri + 'index.html';
+    return request;
+  }
+
+  // Match static export format where route pages are emitted as /foo.html.
+  request.uri = uri + '.html';
+  return request;
+}
+EOF
 }
 
 resource "aws_cloudfront_distribution" "main" {
@@ -18,7 +65,17 @@ resource "aws_cloudfront_distribution" "main" {
   aliases = var.domain_name != "" ? [var.domain_name] : []
 
   origin {
-    domain_name = local.origin_domain
+    domain_name              = var.static_site_bucket_regional_domain_name
+    origin_id                = "frontend-static-s3"
+    origin_access_control_id = aws_cloudfront_origin_access_control.static_s3.id
+
+    s3_origin_config {
+      origin_access_identity = ""
+    }
+  }
+
+  origin {
+    domain_name = local.api_origin_domain
     origin_id   = "api-gateway-lambda"
 
     custom_origin_config {
@@ -38,6 +95,34 @@ resource "aws_cloudfront_distribution" "main" {
   }
 
   default_cache_behavior {
+    target_origin_id       = "frontend-static-s3"
+    viewer_protocol_policy = "redirect-to-https"
+
+    allowed_methods = ["GET", "HEAD", "OPTIONS"]
+    cached_methods  = ["GET", "HEAD"]
+
+    forwarded_values {
+      query_string = false
+      headers      = ["Origin"]
+
+      cookies {
+        forward = "none"
+      }
+    }
+
+    min_ttl     = 0
+    default_ttl = 3600
+    max_ttl     = 86400
+    compress    = true
+
+    function_association {
+      event_type   = "viewer-request"
+      function_arn = aws_cloudfront_function.static_route_rewrite.arn
+    }
+  }
+
+  ordered_cache_behavior {
+    path_pattern           = "/api/*"
     target_origin_id       = "api-gateway-lambda"
     viewer_protocol_policy = "redirect-to-https"
 
