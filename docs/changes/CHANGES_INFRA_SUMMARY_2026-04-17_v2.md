@@ -15,6 +15,7 @@ After v1 shipped, CI/CD and container builds hit real-runner and AWS API constra
 3. **Lambda Web Adapter images** — pin to **`1.0.0`** on ECR Public (`:latest` invalid; `0.8.4` superseded for stability).
 4. **Lambda environment variables** — **remove `AWS_REGION`** from the configurable map (AWS reserves it; runtime injects it).
 5. **Docs/specs** — keep examples and deployment-verification narratives consistent with the adapter version and S3 behavior.
+6. **Docker Compose / E2E** — remove baked-in **`SERVER_PORT`/`PORT=8080`** from **`portfolio-service`** and **`market-data-service`** runtime images so Spring honors **`application.yml`** (**`8081`** / **`8082`**); fixes **`service_healthy`** / **`insight-service`** startup in **`docker compose`** and **`.github/workflows/frontend-e2e-integration.yml`**.
 
 Operational note (outside git): the **S3 bucket used for static assets** was switched to **allow public read** so anonymous clients can load `_next/static` and `public` objects; prefer **CloudFront + OAC + private bucket** when hardening.
 
@@ -80,6 +81,14 @@ Unchanged from v1 for **GitHub Secrets** themselves (`AWS_REGION` is still a rep
 
 **Rationale:** ECR Public does not publish a usable **`latest`** tag for this repository; **`1.0.0`** is pinned consistently across services that bundle the adapter binary.
 
+### 2.1 Spring `server.port` vs baked `SERVER_PORT` / `PORT` (Compose + E2E)
+
+**Problem:** The **`portfolio-service`** and **`market-data-service`** runtime stages set **`ENV SERVER_PORT=8080`** and **`ENV PORT=8080`** for Lambda alignment. Spring Boot treats those as **`server.port`**, which **overrides** `application.yml` (**`8081`** for portfolio, **`8082`** for market-data). **`docker-compose.yml`** still mapped ports, **`PORTFOLIO_SERVICE_URL`**, and **`curl`-based `healthcheck`s** to **8081** / **8082**, so the JVM listened on **8080** while health checks hit **8081** / **8082** → **`unhealthy`** → dependent services (`insight-service`, `api-gateway`) failed with *dependency failed to start: container portfolio-service is unhealthy* (and similar for full-stack E2E on GitHub Actions).
+
+**Fix:** Remove **`ENV SERVER_PORT`** and **`ENV PORT`** from those Dockerfiles; document that **local / Compose** use YAML ports, while **AWS Lambda** continues to set **`SERVER_PORT=8080`** (and **`PORT`**) via **`deploy.yml`** `jq` / function environment so production behavior is unchanged. **`EXPOSE`** metadata updated to **`8081`** / **`8082`** respectively.
+
+**Git:** `176437d` — `fix(docker): remove baked SERVER_PORT so compose healthchecks match Spring`.
+
 ---
 
 ## 3. Documentation and specs (delta)
@@ -103,6 +112,7 @@ Unchanged from v1 for **GitHub Secrets** themselves (`AWS_REGION` is still a rep
 | Do not set **`AWS_REGION`** in Lambda `Variables` | **Reserved** by AWS; runtime provides it; duplicate configuration breaks `update-function-configuration`. |
 | Pin Lambda Web Adapter to **`1.0.0`** everywhere in Dockerfiles | **`latest`** missing on ECR Public; **`1.0.0`** aligns services and avoids **`0.8.4`** adapter issues. |
 | `chmod +x gradlew` in CI + executable bit in Git | Eliminates **126 / Permission denied** on Ubuntu runners. |
+| Do not bake **`SERVER_PORT`/`PORT`** into service images used by **Compose** | Spring must use **`application.yml`** ports for **healthchecks** and **inter-service URLs**; Lambda overrides via **managed environment** only. |
 
 **Supersedes (v1 table, for traceability):**
 
@@ -112,10 +122,14 @@ Unchanged from v1 for **GitHub Secrets** themselves (`AWS_REGION` is still a rep
 
 ---
 
-## 5. Verification commands (unchanged from v1)
+## 5. Verification commands (v1 baseline + v2 additions)
 
 - `./verify-prod-deps.sh` (or individual `./verify-db.sh`, `./verify-redis.sh`, `./verify-kafka.sh` as documented in v1).
 
 CI verification for the deploy workflow itself:
 
 - `push` to **`architecture/cloud-native-extraction`** triggers **`.github/workflows/deploy.yml`**; confirm **`deploy-frontend`** and **`deploy-backend`** both green after the above fixes.
+
+Full-stack Compose / E2E (after **§2.1** image fix):
+
+- **`docker compose up -d --build`** locally, or **`.github/workflows/frontend-e2e-integration.yml`** on pushes to **`main`** or **`architecture/**`** (per workflow `branches`) — confirm **`portfolio-service`** and **`market-data-service`** reach **`healthy`** before **`insight-service`** / **`api-gateway`** start.
