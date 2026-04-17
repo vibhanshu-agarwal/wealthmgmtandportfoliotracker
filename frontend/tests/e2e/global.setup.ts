@@ -12,6 +12,7 @@ import { mintJwt } from "./helpers/auth";
 const authFile = path.join(__dirname, "../../playwright/.auth/user.json");
 const AUTH_STORAGE_KEY = "wmpt.auth.session";
 const BASE_URL = "http://localhost:3000";
+const GATEWAY_BASE_URL = process.env.GATEWAY_BASE_URL ?? "http://127.0.0.1:8080";
 const SKIP_BACKEND_HEALTH_CHECK = process.env.SKIP_BACKEND_HEALTH_CHECK === "true";
 
 setup("authenticate", async ({ request, page }) => {
@@ -31,7 +32,7 @@ setup("authenticate", async ({ request, page }) => {
     };
     console.log("[setup] Backend disabled; seeded synthetic local auth session");
   } else {
-    const response = await request.post(`${BASE_URL}/api/auth/login`, {
+    const response = await request.post(`${GATEWAY_BASE_URL}/api/auth/login`, {
       data: {
         email: "dev@localhost.local",
         password: "password",
