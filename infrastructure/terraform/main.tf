@@ -14,23 +14,26 @@ provider "aws" {
   dynamic "endpoints" {
     for_each = var.use_localstack ? [1] : []
     content {
-      lambda     = local.localstack_endpoint
-      s3         = local.localstack_endpoint
-      dynamodb   = local.localstack_endpoint
-      cloudfront = local.localstack_endpoint
-      iam        = local.localstack_endpoint
-      acm        = local.localstack_endpoint
-      route53      = local.localstack_endpoint
-      rds          = local.localstack_endpoint
-      elasticache  = local.localstack_endpoint
+      lambda      = local.localstack_endpoint
+      s3          = local.localstack_endpoint
+      dynamodb    = local.localstack_endpoint
+      cloudfront  = local.localstack_endpoint
+      iam         = local.localstack_endpoint
+      acm         = local.localstack_endpoint
+      route53     = local.localstack_endpoint
+      rds         = local.localstack_endpoint
+      elasticache = local.localstack_endpoint
     }
   }
 }
 
 terraform {
   backend "s3" {
-    key     = "terraform.tfstate"
-    encrypt = true
+    bucket         = "vibhanshu-tf-state-2026"
+    key            = "terraform.tfstate"
+    region         = "ap-south-1"
+    dynamodb_table = "vibhanshu-terraform-locks"
+    encrypt        = true
   }
 }
 
@@ -105,7 +108,8 @@ module "networking" {
   source = "./modules/networking"
 
   # api-gateway Function URL is the CloudFront origin
-  origin_url               = module.compute.api_gateway_function_url
+  origin_url                              = module.compute.api_gateway_function_url
+  static_site_bucket_regional_domain_name = "${var.frontend_bucket_name}.s3.${var.aws_region}.amazonaws.com"
   # CloudFront injects this header; api-gateway Spring filter validates it
   cloudfront_origin_secret = var.cloudfront_origin_secret
   domain_name              = var.domain_name
