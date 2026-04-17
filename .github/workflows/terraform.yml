@@ -1,6 +1,7 @@
 name: Terraform Infrastructure
 
 on:
+  workflow_dispatch:
   pull_request:
     paths:
       - 'infrastructure/terraform/**'
@@ -14,6 +15,7 @@ on:
 env:
   AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
   AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
   AWS_REGION: ${{ secrets.AWS_REGION }}
   TF_VAR_postgres_connection_string: ${{ secrets.POSTGRES_CONNECTION_STRING }}
   TF_VAR_mongodb_connection_string: ${{ secrets.MONGODB_CONNECTION_STRING }}
@@ -56,12 +58,16 @@ jobs:
             -var="state_bucket_name=${{ secrets.TF_STATE_BUCKET }}" \
             -var="lock_table_name=${{ secrets.TF_LOCK_TABLE }}" \
             -var="artifact_bucket_name=${{ secrets.TF_ARTIFACT_BUCKET }}" \
+            -var="frontend_bucket_name=${{ secrets.S3_BUCKET_NAME }}" \
             -var="lambda_adapter_layer_arn=${{ secrets.LAMBDA_ADAPTER_LAYER_ARN }}" \
             -var="s3_key_api_gateway=${{ secrets.S3_KEY_API_GATEWAY }}" \
             -var="s3_key_portfolio=${{ secrets.S3_KEY_PORTFOLIO }}" \
             -var="s3_key_market_data=${{ secrets.S3_KEY_MARKET_DATA }}" \
             -var="s3_key_insight=${{ secrets.S3_KEY_INSIGHT }}" \
             -out=tfplan
+
+      - name: Terraform Plan (Text)
+        run: terraform show tfplan > plan.txt
 
       - name: Terraform Show (JSON)
         run: terraform show -json tfplan > plan.json
@@ -75,6 +81,7 @@ jobs:
           name: tfplan
           path: |
             infrastructure/terraform/tfplan
+            infrastructure/terraform/plan.txt
             infrastructure/terraform/plan.json
           retention-days: 1
 
@@ -110,4 +117,26 @@ jobs:
             -backend-config="region=${{ secrets.AWS_REGION }}"
 
       - name: Terraform Apply
-        run: terraform apply -auto-approve tfplan
+        run: terraform apply -auto-approve tfplan | tee apply.txt
+
+      - name: Upload Apply Artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tf-apply
+          path: infrastructure/terraform/apply.txt
+          retention-days: 7
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Invalidate CloudFront cache
+        run: |
+          DISTRIBUTION_ID="$(terraform output -raw cloudfront_distribution_id)"
+          aws cloudfront create-invalidation \
+            --distribution-id "${DISTRIBUTION_ID}" \
+            --paths "/*"
