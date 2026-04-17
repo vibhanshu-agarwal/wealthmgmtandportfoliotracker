@@ -9,6 +9,7 @@ import type {
   PortfolioResponseDTO,
 } from "@/types/portfolio";
 import { fetchWithAuthClient } from "@/lib/api/fetchWithAuth";
+import { apiPath } from "@/lib/config/api";
 
 // Frontend aggregation adapter:
 // combines portfolio-service holdings with market-data-service prices into UI-ready DTOs.
@@ -48,7 +49,7 @@ async function fetchJson<T>(path: string, token: string): Promise<T> {
 }
 
 async function loadBackendPortfolio(userId: string, token: string): Promise<BackendPortfolio | null> {
-  const portfolios = await fetchJson<BackendPortfolio[]>(`/api/portfolio`, token);
+  const portfolios = await fetchJson<BackendPortfolio[]>(apiPath("/portfolio"), token);
   return portfolios.length > 0 ? portfolios[0] : null;
 }
 
@@ -58,7 +59,10 @@ async function loadMarketPrices(tickers: string[], token: string): Promise<Map<s
   }
 
   const params = new URLSearchParams({ tickers: tickers.join(",") });
-  const prices = await fetchJson<BackendMarketPrice[]>(`/api/market/prices?${params.toString()}`, token);
+  const prices = await fetchJson<BackendMarketPrice[]>(
+    `${apiPath("/market/prices")}?${params.toString()}`,
+    token,
+  );
   return new Map(prices.map((p) => [p.ticker, p]));
 }
 
@@ -251,5 +255,5 @@ export async function fetchAssetAllocation(userId: string, token: string): Promi
  * @param token Bearer token for the authenticated user
  */
 export async function fetchPortfolioAnalytics(token: string): Promise<PortfolioAnalyticsDTO> {
-  return fetchWithAuthClient<PortfolioAnalyticsDTO>("/api/portfolio/analytics", token);
+  return fetchWithAuthClient<PortfolioAnalyticsDTO>(apiPath("/portfolio/analytics"), token);
 }

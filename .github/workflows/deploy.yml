@@ -6,6 +6,7 @@ name: Deploy
 # - AWS_REGION
 # - AWS_ACCOUNT_ID
 # - S3_BUCKET_NAME
+# - CLOUDFRONT_DISTRIBUTION_ID
 # - ECR_REPOSITORY_NAME
 # - LAMBDA_FUNCTION_NAME
 #
@@ -77,6 +78,12 @@ jobs:
           if [ -d "frontend/public" ]; then
             aws s3 sync "frontend/public/" "s3://${{ secrets.S3_BUCKET_NAME }}/" --delete
           fi
+
+      - name: Invalidate CloudFront cache
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id "${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }}" \
+            --paths "/*"
 
   deploy-backend:
     runs-on: ubuntu-latest
@@ -204,9 +211,8 @@ jobs:
           AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
           AWS_REGION: ${{ secrets.AWS_REGION }}
           ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY_NAME }}
-          IMAGE_TAG_SHA: ${{ github.sha }}
         run: |
-          IMAGE_URI="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPOSITORY}:${IMAGE_TAG_SHA}"
+          IMAGE_URI="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPOSITORY}:latest"
           aws lambda update-function-code \
             --function-name "$LAMBDA_FUNCTION_NAME" \
             --image-uri "$IMAGE_URI"

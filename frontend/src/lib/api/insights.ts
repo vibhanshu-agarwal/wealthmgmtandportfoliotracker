@@ -1,4 +1,5 @@
 import { fetchWithAuthClient } from "@/lib/api/fetchWithAuth";
+import { apiPath } from "@/lib/config/api";
 import type {
   ChatRequest,
   ChatResponse,
@@ -14,7 +15,7 @@ export async function fetchMarketSummary(
   token: string,
 ): Promise<MarketSummaryResponse> {
   return fetchWithAuthClient<MarketSummaryResponse>(
-    "/api/insights/market-summary",
+    apiPath("/insights/market-summary"),
     token,
   );
 }
@@ -28,7 +29,7 @@ export async function fetchTickerSummary(
   token: string,
 ): Promise<TickerSummary> {
   return fetchWithAuthClient<TickerSummary>(
-    `/api/insights/market-summary/${encodeURIComponent(ticker)}`,
+    `${apiPath("/insights/market-summary")}/${encodeURIComponent(ticker)}`,
     token,
   );
 }
@@ -41,7 +42,7 @@ export async function postChatMessage(
   request: ChatRequest,
   token: string,
 ): Promise<ChatResponse> {
-  return fetchWithAuthClient<ChatResponse>("/api/chat", token, {
+  return fetchWithAuthClient<ChatResponse>(apiPath("/chat"), token, {
     method: "POST",
     body: JSON.stringify(request),
   });

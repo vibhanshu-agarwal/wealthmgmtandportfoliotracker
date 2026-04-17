@@ -1,6 +1,7 @@
 "use server";
 
 import { fetchWithAuth } from "@/lib/api/fetchWithAuth.server";
+import { apiPath } from "@/lib/config/api";
 import type { ChatRequest, ChatResponse } from "@/types/insights";
 
 /**
@@ -37,7 +38,7 @@ export async function sendChatMessage(
   const body: ChatRequest = { message, ticker };
 
   try {
-    const result = await fetchWithAuth<ChatResponse>("/api/chat", {
+    const result = await fetchWithAuth<ChatResponse>(apiPath("/chat"), {
       method: "POST",
       body: JSON.stringify(body),
     });
