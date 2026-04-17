@@ -11,9 +11,9 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: mockReplace }),
 }));
 
-const mockUseSession = vi.fn();
-vi.mock("@/lib/auth-client", () => ({
-  useSession: () => mockUseSession(),
+const mockUseAuthSession = vi.fn();
+vi.mock("@/lib/auth/session", () => ({
+  useAuthSession: () => mockUseAuthSession(),
 }));
 
 const mockUsePortfolio = vi.fn();
@@ -24,7 +24,12 @@ vi.mock("@/lib/hooks/usePortfolio", () => ({
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
 const authenticatedSession = {
-  data: { user: { id: "u1", name: "Test User", email: "test@example.com" } },
+  data: {
+    userId: "u1",
+    token: "jwt-token",
+    name: "Test User",
+    email: "test@example.com",
+  },
   isPending: false,
 };
 const pendingSession = { data: null, isPending: true };
@@ -91,26 +96,26 @@ describe("MarketDataPageContent", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     // Default: authenticated + data loaded
-    mockUseSession.mockReturnValue(authenticatedSession);
+    mockUseAuthSession.mockReturnValue(authenticatedSession);
     mockUsePortfolio.mockReturnValue(portfolioWithData);
   });
 
   // ── Session gate ──────────────────────────────────────────────────────────
 
   it("renders skeleton when session is pending", () => {
-    mockUseSession.mockReturnValue(pendingSession);
+    mockUseAuthSession.mockReturnValue(pendingSession);
     const { container } = render(<MarketDataPageContent />);
     expect(container.querySelector(".animate-pulse")).toBeInTheDocument();
   });
 
   it("redirects to /login when unauthenticated", () => {
-    mockUseSession.mockReturnValue(unauthenticatedSession);
+    mockUseAuthSession.mockReturnValue(unauthenticatedSession);
     render(<MarketDataPageContent />);
     expect(mockReplace).toHaveBeenCalledWith("/login");
   });
 
   it("renders nothing after redirect when unauthenticated", () => {
-    mockUseSession.mockReturnValue(unauthenticatedSession);
+    mockUseAuthSession.mockReturnValue(unauthenticatedSession);
     const { container } = render(<MarketDataPageContent />);
     expect(container.innerHTML).toBe("");
   });

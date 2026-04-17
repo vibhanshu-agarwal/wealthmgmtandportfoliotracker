@@ -10,9 +10,9 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: mockReplace }),
 }));
 
-const mockUseSession = vi.fn();
-vi.mock("@/lib/auth-client", () => ({
-  useSession: () => mockUseSession(),
+const mockUseAuthSession = vi.fn();
+vi.mock("@/lib/auth/session", () => ({
+  useAuthSession: () => mockUseAuthSession(),
 }));
 
 // Mock child components to isolate OverviewPageContent logic
@@ -41,7 +41,12 @@ vi.mock("@/components/portfolio/HoldingsTable", () => ({
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 const authenticatedSession = {
-  data: { user: { id: "u1", name: "Test User", email: "test@example.com" } },
+  data: {
+    userId: "u1",
+    token: "jwt-token",
+    name: "Test User",
+    email: "test@example.com",
+  },
   isPending: false,
 };
 
@@ -56,50 +61,50 @@ describe("OverviewPageContent", () => {
   });
 
   it("renders skeleton when session is pending", () => {
-    mockUseSession.mockReturnValue(pendingSession);
+    mockUseAuthSession.mockReturnValue(pendingSession);
     const { container } = render(<OverviewPageContent />);
     // Skeleton has animate-pulse class
     expect(container.querySelector(".animate-pulse")).toBeInTheDocument();
   });
 
   it("redirects to /login when unauthenticated", () => {
-    mockUseSession.mockReturnValue(unauthenticatedSession);
+    mockUseAuthSession.mockReturnValue(unauthenticatedSession);
     render(<OverviewPageContent />);
     expect(mockReplace).toHaveBeenCalledWith("/login");
   });
 
   it("renders null after redirect when unauthenticated", () => {
-    mockUseSession.mockReturnValue(unauthenticatedSession);
+    mockUseAuthSession.mockReturnValue(unauthenticatedSession);
     const { container } = render(<OverviewPageContent />);
     expect(container.innerHTML).toBe("");
   });
 
   it("renders SummaryCards when authenticated", () => {
-    mockUseSession.mockReturnValue(authenticatedSession);
+    mockUseAuthSession.mockReturnValue(authenticatedSession);
     render(<OverviewPageContent />);
     expect(screen.getByTestId("mock-summary-cards")).toBeInTheDocument();
   });
 
   it("renders PerformanceChart when authenticated", () => {
-    mockUseSession.mockReturnValue(authenticatedSession);
+    mockUseAuthSession.mockReturnValue(authenticatedSession);
     render(<OverviewPageContent />);
     expect(screen.getByTestId("mock-performance-chart")).toBeInTheDocument();
   });
 
   it("renders AllocationChart when authenticated", () => {
-    mockUseSession.mockReturnValue(authenticatedSession);
+    mockUseAuthSession.mockReturnValue(authenticatedSession);
     render(<OverviewPageContent />);
     expect(screen.getByTestId("mock-allocation-chart")).toBeInTheDocument();
   });
 
   it("does NOT render HoldingsTable", () => {
-    mockUseSession.mockReturnValue(authenticatedSession);
+    mockUseAuthSession.mockReturnValue(authenticatedSession);
     render(<OverviewPageContent />);
     expect(screen.queryByTestId("mock-holdings-table")).not.toBeInTheDocument();
   });
 
   it('renders "View Portfolio →" link with href="/portfolio"', () => {
-    mockUseSession.mockReturnValue(authenticatedSession);
+    mockUseAuthSession.mockReturnValue(authenticatedSession);
     render(<OverviewPageContent />);
     const link = screen.getByText("View Portfolio →");
     expect(link).toBeInTheDocument();

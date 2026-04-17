@@ -12,9 +12,9 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: mockReplace }),
 }));
 
-vi.mock("@/lib/auth-client", () => ({
-  useSession: () => ({
-    data: { user: { id: "u1", name: "Test", email: "t@t.com" } },
+vi.mock("@/lib/auth/session", () => ({
+  useAuthSession: () => ({
+    data: { userId: "u1", token: "jwt-token", name: "Test", email: "t@t.com" },
     isPending: false,
   }),
 }));
