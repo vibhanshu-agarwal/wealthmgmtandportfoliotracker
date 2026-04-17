@@ -1,14 +1,14 @@
 /**
  * Diagnostic E2E: Dashboard Data Integration
  *
- * Authentication is handled by the global setup (storageState) —
+ * Authentication is handled by the setup project (storageState/localStorage) —
  * all tests start pre-authenticated.
  *
  * Run:
  *   npx playwright test tests/e2e/dashboard-data.spec.ts --reporter=list
  *
  * Prerequisites:
- *   - Next.js dev/standalone server running on http://localhost:3000
+ *   - Frontend static-export server running on http://localhost:3000
  *   - Spring Boot API Gateway running on http://127.0.0.1:8080
  */
 
@@ -95,9 +95,9 @@ test.describe("Dashboard Data Integration Diagnostics", () => {
   test("1. Session is active after global setup", async ({ page }) => {
     await page.goto(`${BASE_URL}/overview`);
 
-    // If storageState worked, we land on /overview (not redirected to /login)
+    // If setup storageState worked, we land on /overview (not redirected to /login)
     expect(page.url()).toContain("/overview");
-    console.log("✓ Authenticated session established via global setup");
+    console.log("✓ Authenticated local session established via setup project");
   });
 
   /**
@@ -113,13 +113,18 @@ test.describe("Dashboard Data Integration Diagnostics", () => {
 
     await page.goto(`${BASE_URL}/portfolio`);
 
-    // Diagnostic: check what useSession returns on the client
+    // Diagnostic: check what auth session storage looks like on the client
     await page.waitForTimeout(2_000);
-    const sessionDiag = await page.evaluate(async () => {
-      const res = await fetch("/api/auth/get-session");
-      return res.json();
+    const sessionDiag = await page.evaluate(() => {
+      const raw = window.localStorage.getItem("wmpt.auth.session");
+      if (!raw) return null;
+      try {
+        return JSON.parse(raw);
+      } catch {
+        return "invalid-json";
+      }
     });
-    console.log(`\n  [diag] Better Auth session: ${JSON.stringify(sessionDiag).slice(0, 300)}`);
+    console.log(`\n  [diag] local auth session: ${JSON.stringify(sessionDiag).slice(0, 300)}`);
 
     const totalValueEl = page.getByTestId("total-value");
     await expect(totalValueEl).toBeVisible({ timeout: 15_000 });

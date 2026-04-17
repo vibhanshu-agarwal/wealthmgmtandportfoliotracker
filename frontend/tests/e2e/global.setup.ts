@@ -1,33 +1,66 @@
 /**
- * Playwright Global Setup — authenticates once via API and saves session state.
+ * Playwright setup project — authenticates once and saves browser storageState.
  *
- * Uses Better Auth's sign-in API endpoint directly (no UI interaction needed).
- * This avoids the React hydration race condition entirely — the API sets
- * session cookies on the response, and storageState captures them.
+ * The app now uses localStorage-backed auth session (`wmpt.auth.session`),
+ * so we mint session state via `/api/auth/login` and persist it to storage.
  */
 
 import { test as setup } from "@playwright/test";
 import path from "node:path";
+import { mintJwt } from "./helpers/auth";
 
 const authFile = path.join(__dirname, "../../playwright/.auth/user.json");
+const AUTH_STORAGE_KEY = "wmpt.auth.session";
+const BASE_URL = "http://localhost:3000";
+const SKIP_BACKEND_HEALTH_CHECK = process.env.SKIP_BACKEND_HEALTH_CHECK === "true";
 
-setup("authenticate", async ({ request }) => {
-  // POST directly to Better Auth's sign-in endpoint — bypasses the UI entirely
-  const response = await request.post("http://localhost:3000/api/auth/sign-in/email", {
-    data: {
+setup("authenticate", async ({ request, page }) => {
+  let payload: {
+    token: string;
+    userId: string;
+    email: string;
+    name: string;
+  };
+  if (SKIP_BACKEND_HEALTH_CHECK) {
+    // CI smoke mode runs without backend services. Seed localStorage directly.
+    payload = {
+      token: mintJwt("user-001"),
+      userId: "user-001",
       email: "dev@localhost.local",
-      password: "password",
-    },
-  });
+      name: "Dev User",
+    };
+    console.log("[setup] Backend disabled; seeded synthetic local auth session");
+  } else {
+    const response = await request.post(`${BASE_URL}/api/auth/login`, {
+      data: {
+        email: "dev@localhost.local",
+        password: "password",
+      },
+    });
 
-  console.log(`[setup] Sign-in API response: ${response.status()}`);
+    console.log(`[setup] Login API response: ${response.status()}`);
 
-  if (!response.ok()) {
-    const body = await response.text();
-    throw new Error(`Better Auth sign-in failed (${response.status()}): ${body}`);
+    if (!response.ok()) {
+      const body = await response.text();
+      throw new Error(`Backend login failed (${response.status()}): ${body}`);
+    }
+
+    payload = (await response.json()) as {
+      token: string;
+      userId: string;
+      email: string;
+      name: string;
+    };
   }
 
-  // Save cookies set by Better Auth for all dependent test projects
-  await request.storageState({ path: authFile });
+  await page.goto(`${BASE_URL}/login`);
+  await page.evaluate(
+    ({ key, value }) => {
+      window.localStorage.setItem(key, JSON.stringify(value));
+    },
+    { key: AUTH_STORAGE_KEY, value: payload },
+  );
+
+  await page.context().storageState({ path: authFile });
   console.log(`[setup] Auth state saved to ${authFile}`);
 });
