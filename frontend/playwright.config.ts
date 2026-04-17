@@ -31,7 +31,7 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: "npm run build && npm run start:standalone",
+    command: "npm run build && npm run start:export",
     url: "http://localhost:3000",
     reuseExistingServer: true,
     timeout: 240_000,

@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "start:standalone": "node -e \"const fs=require('fs');fs.cpSync('.next/static','.next/standalone/.next/static',{recursive:true});try{fs.cpSync('public','.next/standalone/public',{recursive:true})}catch{};try{fs.cpSync('.env.local','.next/standalone/.env.local')}catch{}\" && node .next/standalone/server.js",
+    "start:export": "npx serve -s out -l 3000",
     "lint": "eslint .",
     "lint:fix": "eslint --fix .",
     "test": "vitest run",
