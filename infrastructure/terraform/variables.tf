@@ -31,6 +31,11 @@ variable "artifact_bucket_name" {
   description = "S3 bucket for Lambda JARs"
 }
 
+variable "frontend_bucket_name" {
+  type        = string
+  description = "S3 bucket for frontend static export"
+}
+
 variable "lambda_adapter_layer_arn" {
   type        = string
   description = "ARN of the Lambda Web Adapter layer"

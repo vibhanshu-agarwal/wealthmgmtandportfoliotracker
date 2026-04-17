@@ -12,6 +12,9 @@ lock_table_name   = "wealth-tf-lock-local"
 # Artifact bucket
 artifact_bucket_name = "wealth-artifacts-local"
 
+# Frontend static bucket
+frontend_bucket_name = "wealth-frontend-local"
+
 # Lambda Web Adapter layer ARN (stub for LocalStack — layer content not validated locally)
 lambda_adapter_layer_arn = "arn:aws:lambda:us-east-1:753240598075:layer:LambdaAdapterLayerX86:24"
 
