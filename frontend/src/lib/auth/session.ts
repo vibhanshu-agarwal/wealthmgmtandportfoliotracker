@@ -104,12 +104,12 @@ export function useAuthSession() {
   const session = useSyncExternalStore(
     subscribeToAuthSession,
     loadAuthSession,
-    () => null,
+    () => undefined,
   );
 
   return {
-    data: session,
-    isPending: false,
+    data: session ?? null,
+    isPending: session === undefined,
     isAuthenticated: !!session,
     setSession: (nextSession: AuthSession | null) => {
       if (nextSession) {
