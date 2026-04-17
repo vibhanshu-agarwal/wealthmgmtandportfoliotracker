@@ -12,9 +12,6 @@ on:
   pull_request:
     branches: [ "main", "architecture/**" ]
 
-permissions:
-  contents: read
-
 jobs:
   # Fast path: unit tests only, MockPortfolioAdvisor, no LLM required
   unit-tests:

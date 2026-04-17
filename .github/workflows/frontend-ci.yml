@@ -2,9 +2,9 @@ name: Frontend CI (Next.js)
 
 on:
   push:
-    branches: [ "main", "architecture/**", "architecture/cloud-native-extract" ]
+    branches: [ "main", "architecture/**" ]
   pull_request:
-    branches: [ "main", "architecture/**", "architecture/cloud-native-extract" ]
+    branches: [ "main", "architecture/**" ]
 
 jobs:
   # ── Job 1: Lint, type-check, unit tests, static export build ────────────────────
