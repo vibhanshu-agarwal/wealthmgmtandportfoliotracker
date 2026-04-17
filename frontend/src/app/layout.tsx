@@ -21,6 +21,10 @@ export const metadata: Metadata = {
     template: "%s | WealthTracker",
   },
   description: "Wealth Management & Portfolio Tracker",
+  icons: {
+    icon: "/globe.svg",
+    shortcut: "/globe.svg",
+  },
 };
 
 export default function RootLayout({

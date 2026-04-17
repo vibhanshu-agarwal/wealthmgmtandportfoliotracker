@@ -1,36 +1,39 @@
 import type { APIRequestContext } from "@playwright/test";
 import { mintJwt } from "./auth";
 
-const GATEWAY_URL = "http://127.0.0.1:8080";
-const FRONTEND_URL = "http://localhost:3000";
+const GATEWAY_URL = process.env.GATEWAY_BASE_URL ?? "http://127.0.0.1:8080";
 
 /**
- * Resolves the active Better Auth userId by calling the BFF /api/auth/jwt
- * endpoint with the Playwright request context (which carries storageState cookies).
+ * Resolves the active userId by calling API Gateway login.
  *
- * Falls back to "user-001" (Flyway seed) if the BFF is unreachable.
+ * Falls back to "user-001" (Flyway seed) if login is unavailable.
  */
 async function resolveUserId(request: APIRequestContext): Promise<string> {
   try {
-    const res = await request.get(`${FRONTEND_URL}/api/auth/jwt`);
+    const res = await request.post(`${GATEWAY_URL}/api/auth/login`, {
+      data: {
+        email: "dev@localhost.local",
+        password: "password",
+      },
+    });
     if (res.ok()) {
       const data = await res.json();
       if (data?.userId) {
-        console.log(`[api] Resolved Better Auth userId: ${data.userId}`);
+        console.log(`[api] Resolved login userId: ${data.userId}`);
         return data.userId;
       }
     }
   } catch {
-    // BFF unreachable — fall back to Flyway seed userId
+    // Gateway login unavailable — fall back to Flyway seed userId
   }
-  console.log("[api] Could not resolve Better Auth userId — falling back to user-001");
+  console.log("[api] Could not resolve login userId — falling back to user-001");
   return "user-001";
 }
 
 /**
  * Ensures the authenticated user has a portfolio with AAPL and BTC holdings.
  *
- * Dynamically resolves the Better Auth userId from the BFF endpoint, then
+ * Dynamically resolves the login userId from API Gateway, then
  * mints an HS256 JWT with that userId as the sub claim. This ensures the
  * API Gateway routes the request to the correct user's portfolio.
  *
