@@ -85,12 +85,10 @@ COPY --from=builder /workspace/market-data-service/build/libs/*.jar app.jar
 # Copy AWS Lambda Web Adapter from ECR Public (pinned tag — :latest is not published on this repo)
 COPY --from=public.ecr.aws/awsguru/aws-lambda-adapter:1.0.0 /lambda-adapter /lambda-adapter
 
-# Runtime configuration
-ENV SERVER_PORT=8080
-ENV PORT=8080
+# Do not set SERVER_PORT/PORT here: Spring uses application.yml (8082 for compose / local).
+# AWS Lambda sets SERVER_PORT=8080 (and PORT) via function environment when deployed.
 
-# Expose the service port
-EXPOSE 8080
+EXPOSE 8082
 
 # Default: run Spring Boot directly
 # In AWS Lambda, configure AWS_LAMBDA_EXEC_WRAPPER=/lambda-adapter so the adapter wraps this process.

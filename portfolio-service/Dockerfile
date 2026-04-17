@@ -92,12 +92,11 @@ RUN ARCH=$(uname -m) \
     "https://github.com/aws/aws-lambda-runtime-interface-emulator/releases/latest/download/aws-lambda-rie-${RIE_ARCH}" \
     && chmod +x /usr/local/bin/aws-lambda-rie
 
-# Lambda Web Adapter configuration
-ENV SERVER_PORT=8080
-ENV PORT=8080
+# Do not set SERVER_PORT/PORT here: Spring uses application.yml (8081 for compose / local).
+# AWS Lambda sets SERVER_PORT=8080 (and PORT) via function environment — that overrides YAML at runtime.
 
-# Expose the service port
-EXPOSE 8080
+# Default Spring port in this repo (local / docker-compose)
+EXPOSE 8081
 
 # Default: run Spring Boot directly.
 # In AWS Lambda, configure AWS_LAMBDA_EXEC_WRAPPER=/lambda-adapter.
