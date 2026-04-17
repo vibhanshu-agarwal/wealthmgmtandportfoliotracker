@@ -76,6 +76,7 @@ This project heavily utilizes `spring-boot-docker-compose` and Testcontainers fo
 
 - Java 25+
 - Docker Desktop running
+- Terraform 1.14.8+ (installed in `infrastructure/terraform-bin`)
 
 **To start the application:**
 
