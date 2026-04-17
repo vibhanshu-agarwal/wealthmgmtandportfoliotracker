@@ -1,19 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Optimized multi-stage Docker build (`frontend/Dockerfile` copies `.next/standalone`).
-  output: "standalone",
-
-  // Proxy /api/* to the Spring Boot backend, but exclude /api/auth/*
-  // which is handled locally by the NextAuth route handler.
-  async rewrites() {
-    return [
-      {
-        source: "/api/:path((?!auth).*)*",
-        destination: "http://127.0.0.1:8080/api/:path*",
-      },
-    ];
-  },
+  // Static export for S3 hosting; `npm run build` emits `frontend/out/`.
+  output: "export",
 };
 
 export default nextConfig;

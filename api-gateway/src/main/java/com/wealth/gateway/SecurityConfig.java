@@ -27,6 +27,7 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .authorizeExchange(exchanges -> exchanges
                         .pathMatchers("/actuator/**").permitAll()
+                        .pathMatchers("/api/auth/**").permitAll()
                         .pathMatchers("/api/portfolio/health").permitAll()
                         .pathMatchers("/api/**").authenticated()
                         .anyExchange().authenticated()

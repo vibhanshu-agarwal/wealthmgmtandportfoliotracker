@@ -1,6 +1,6 @@
 "use client";
 
-import { useSession, signOut } from "@/lib/auth-client";
+import { clearAuthSession, useAuthSession } from "@/lib/auth/session";
 import { useRouter } from "next/navigation";
 import {
   DropdownMenu,
@@ -23,11 +23,11 @@ function getInitials(name: string) {
 }
 
 export function UserMenu() {
-  const { data: session, isPending } = useSession();
+  const { data: session, isPending } = useAuthSession();
   const router = useRouter();
 
-  const name = session?.user?.name ?? session?.user?.email ?? "User";
-  const email = session?.user?.email ?? "";
+  const name = session?.name ?? session?.email ?? "User";
+  const email = session?.email ?? "";
   const initials = getInitials(name);
 
   if (isPending) {
@@ -42,7 +42,7 @@ export function UserMenu() {
           aria-label="User menu"
         >
           <Avatar className="h-7 w-7 ring-2 ring-profit/40">
-            <AvatarImage src={session?.user?.image ?? ""} alt={name} />
+            <AvatarImage src="" alt={name} />
             <AvatarFallback className="bg-profit text-white text-xs font-semibold">
               {initials}
             </AvatarFallback>
@@ -86,7 +86,7 @@ export function UserMenu() {
         <DropdownMenuItem
           className="text-loss focus:text-loss focus:bg-loss-muted"
           onClick={async () => {
-            await signOut();
+            clearAuthSession();
             router.push("/login");
           }}
         >

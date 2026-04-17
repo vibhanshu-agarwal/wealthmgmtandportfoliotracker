@@ -58,26 +58,20 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      # Next.js `output: "standalone"` does not produce dist/build/out — only `.next/` (see frontend/next.config.ts).
-      # This step publishes **cacheable static assets** (`_next/static`, `public`) to S3. HTML/SSR/API must be
-      # served by the Next container (e.g. frontend-cd / ghcr.io image) or another origin; do not expect a
-      # full static site export while Better Auth API routes exist.
+      # Next.js static export emits `frontend/out/` for S3 hosting.
       - name: Build frontend
         working-directory: frontend
         run: |
           npm ci
           npm run build
 
-      - name: Upload Next.js static assets to S3
+      - name: Upload Next.js static export to S3
         run: |
-          if [ ! -d "frontend/.next/static" ]; then
-            echo "Missing frontend/.next/static after npm run build."
+          if [ ! -d "frontend/out" ]; then
+            echo "Missing frontend/out after npm run build."
             exit 1
           fi
-          aws s3 sync "frontend/.next/static/" "s3://${{ secrets.S3_BUCKET_NAME }}/_next/static/" --delete
-          if [ -d "frontend/public" ]; then
-            aws s3 sync "frontend/public/" "s3://${{ secrets.S3_BUCKET_NAME }}/" --delete
-          fi
+          aws s3 sync "frontend/out/" "s3://${{ secrets.S3_BUCKET_NAME }}/" --delete
 
       - name: Invalidate CloudFront cache
         run: |

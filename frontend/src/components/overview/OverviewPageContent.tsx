@@ -1,6 +1,6 @@
 "use client";
 
-import { useSession } from "@/lib/auth-client";
+import { useAuthSession } from "@/lib/auth/session";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import Link from "next/link";
@@ -74,11 +74,11 @@ function OverviewPageSkeleton() {
  * - unauthenticated → redirect to /login, render nothing
  */
 export function OverviewPageContent() {
-  const { data: session, isPending } = useSession();
+  const { data: session, isPending } = useAuthSession();
   const router = useRouter();
 
   useEffect(() => {
-    if (!isPending && !session?.user) {
+    if (!isPending && !session) {
       router.replace("/login");
     }
   }, [isPending, session, router]);
@@ -87,7 +87,7 @@ export function OverviewPageContent() {
     return <OverviewPageSkeleton />;
   }
 
-  if (!session?.user) {
+  if (!session) {
     return null;
   }
 

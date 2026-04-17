@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { signIn } from "@/lib/auth-client";
+import { loginWithBackend } from "@/lib/auth/session";
 import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
@@ -15,17 +15,16 @@ export default function LoginPage() {
     setLoading(true);
 
     const form = new FormData(e.currentTarget);
-    const result = await signIn.email({
-      email: form.get("email") as string,
-      password: form.get("password") as string,
-    });
-
-    setLoading(false);
-
-    if (result.error) {
-      setError("Invalid username or password.");
-    } else {
+    try {
+      await loginWithBackend(
+        form.get("email") as string,
+        form.get("password") as string,
+      );
       router.push("/overview");
+    } catch {
+      setError("Invalid username or password.");
+    } finally {
+      setLoading(false);
     }
   }
 

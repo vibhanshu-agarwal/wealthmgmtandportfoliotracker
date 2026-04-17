@@ -1,6 +1,6 @@
 "use client";
 
-import { useSession } from "@/lib/auth-client";
+import { useAuthSession } from "@/lib/auth/session";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { usePortfolio } from "@/lib/hooks/usePortfolio";
@@ -84,11 +84,11 @@ function MarketDataTableSkeleton() {
  * - authenticated + data → price ticker table
  */
 export function MarketDataPageContent() {
-  const { data: session, isPending } = useSession();
+  const { data: session, isPending } = useAuthSession();
   const router = useRouter();
 
   useEffect(() => {
-    if (!isPending && !session?.user) {
+    if (!isPending && !session) {
       router.replace("/login");
     }
   }, [isPending, session, router]);
@@ -97,7 +97,7 @@ export function MarketDataPageContent() {
     return <MarketDataPageSkeleton />;
   }
 
-  if (!session?.user) {
+  if (!session) {
     return null;
   }
 
