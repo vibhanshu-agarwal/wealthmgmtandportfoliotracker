@@ -212,6 +212,32 @@ jobs:
           AWS_REGION: ${{ secrets.AWS_REGION }}
           ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY_NAME }}
         run: |
+          # Lambda rejects code updates while a prior configuration update is still in progress.
+          # Wait until LastUpdateStatus is Successful before attempting update-function-code.
+          for attempt in {1..30}; do
+            STATUS="$(aws lambda get-function-configuration \
+              --function-name "$LAMBDA_FUNCTION_NAME" \
+              --query 'LastUpdateStatus' \
+              --output text)"
+
+            if [ "$STATUS" = "Successful" ]; then
+              echo "Lambda update status is Successful; continuing."
+              break
+            fi
+
+            if [ "$STATUS" = "Failed" ]; then
+              echo "Lambda reports Failed status; aborting code update."
+              exit 1
+            fi
+
+            echo "Lambda update status is '$STATUS' (attempt $attempt/30); waiting 5s..."
+            if [ "$attempt" -eq 30 ]; then
+              echo "Timed out waiting for Lambda update lock to clear."
+              exit 1
+            fi
+            sleep 5
+          done
+
           IMAGE_URI="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPOSITORY}:latest"
           aws lambda update-function-code \
             --function-name "$LAMBDA_FUNCTION_NAME" \
