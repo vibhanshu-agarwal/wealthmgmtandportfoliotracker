@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 import { apiPath } from "@/lib/config/api";
 
 const AUTH_STORAGE_KEY = "wmpt.auth.session";
+const AUTH_SESSION_EVENT = "wmpt-auth-session-changed";
 
 export interface AuthSession {
   token: string;
@@ -42,14 +43,21 @@ export function loadAuthSession(): AuthSession | null {
   return parseStoredSession(window.localStorage.getItem(AUTH_STORAGE_KEY));
 }
 
+function notifyAuthSessionChange(): void {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new Event(AUTH_SESSION_EVENT));
+}
+
 export function saveAuthSession(session: AuthSession): void {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(session));
+  notifyAuthSessionChange();
 }
 
 export function clearAuthSession(): void {
   if (typeof window === "undefined") return;
   window.localStorage.removeItem(AUTH_STORAGE_KEY);
+  notifyAuthSessionChange();
 }
 
 export async function loginWithBackend(email: string, password: string): Promise<AuthSession> {
@@ -74,19 +82,41 @@ export async function loginWithBackend(email: string, password: string): Promise
   return session;
 }
 
-export function useAuthSession() {
-  const [session, setSession] = useState<AuthSession | null>(null);
-  const [isPending, setIsPending] = useState(true);
+function subscribeToAuthSession(onStoreChange: () => void): () => void {
+  if (typeof window === "undefined") return () => {};
 
-  useEffect(() => {
-    setSession(loadAuthSession());
-    setIsPending(false);
-  }, []);
+  const onStorage = (event: StorageEvent) => {
+    if (event.key === AUTH_STORAGE_KEY || event.key === null) {
+      onStoreChange();
+    }
+  };
+
+  window.addEventListener("storage", onStorage);
+  window.addEventListener(AUTH_SESSION_EVENT, onStoreChange);
+
+  return () => {
+    window.removeEventListener("storage", onStorage);
+    window.removeEventListener(AUTH_SESSION_EVENT, onStoreChange);
+  };
+}
+
+export function useAuthSession() {
+  const session = useSyncExternalStore(
+    subscribeToAuthSession,
+    loadAuthSession,
+    () => null,
+  );
 
   return {
     data: session,
-    isPending,
+    isPending: false,
     isAuthenticated: !!session,
-    setSession,
+    setSession: (nextSession: AuthSession | null) => {
+      if (nextSession) {
+        saveAuthSession(nextSession);
+        return;
+      }
+      clearAuthSession();
+    },
   };
 }
