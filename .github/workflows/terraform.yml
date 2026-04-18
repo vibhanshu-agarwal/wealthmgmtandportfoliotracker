@@ -160,8 +160,15 @@ jobs:
           aws-region: ${{ secrets.AWS_REGION }}
 
       - name: Invalidate CloudFront cache
+        # Non-fatal: cloudfront_distribution_id may not exist in state if the CDN
+        # module has not been applied yet (e.g. first apply, or CDN managed separately).
+        continue-on-error: true
         run: |
-          DISTRIBUTION_ID="$(terraform output -raw cloudfront_distribution_id)"
+          DISTRIBUTION_ID="$(terraform output -raw cloudfront_distribution_id 2>/dev/null || true)"
+          if [ -z "$DISTRIBUTION_ID" ]; then
+            echo "cloudfront_distribution_id not found in state — skipping invalidation."
+            exit 0
+          fi
           aws cloudfront create-invalidation \
             --distribution-id "${DISTRIBUTION_ID}" \
             --paths "/*"
