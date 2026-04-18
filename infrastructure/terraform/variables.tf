@@ -143,6 +143,34 @@ variable "cloudfront_origin_secret" {
 }
 
 # ---------------------------------------------------------------------------
+# Messaging & Caching — runtime secrets owned by Terraform
+# Injected via TF_VAR_* from GitHub Actions secrets in terraform.yml.
+# ---------------------------------------------------------------------------
+
+variable "redis_url" {
+  type        = string
+  sensitive   = true
+  description = "Redis connection URL (e.g. rediss://[:password@]host:port for Upstash TLS). Used by api-gateway rate limiting, portfolio-service, and insight-service."
+}
+
+variable "kafka_bootstrap_servers" {
+  type        = string
+  description = "Kafka broker address (e.g. pkc-xxxxx.us-east-1.aws.confluent.cloud:9092). Used by portfolio-service, market-data-service, and insight-service."
+}
+
+variable "kafka_sasl_username" {
+  type        = string
+  sensitive   = true
+  description = "Kafka SASL/PLAIN username for broker authentication."
+}
+
+variable "kafka_sasl_password" {
+  type        = string
+  sensitive   = true
+  description = "Kafka SASL/PLAIN password for broker authentication."
+}
+
+# ---------------------------------------------------------------------------
 # Service-to-service URL overrides (two-phase apply pattern)
 # After first apply, set these via TF_VAR_* env vars or terraform.tfvars
 # to wire downstream Function URLs into the api-gateway environment.

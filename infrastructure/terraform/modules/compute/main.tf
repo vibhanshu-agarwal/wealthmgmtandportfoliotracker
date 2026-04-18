@@ -5,7 +5,7 @@
 locals {
   common_env = {
     JAVA_TOOL_OPTIONS            = "-XX:+TieredCompilation -XX:TieredStopAtLevel=1"
-    SPRING_PROFILES_ACTIVE       = "aws"
+    SPRING_PROFILES_ACTIVE       = "prod,aws"
     AWS_LAMBDA_EXEC_WRAPPER      = "/opt/bootstrap"
     PORT                         = "8080"
     AWS_LWA_ASYNC_INIT           = "true"
@@ -19,6 +19,16 @@ locals {
     SPRING_PROFILES_ACTIVE       = local.common_env.SPRING_PROFILES_ACTIVE
     AWS_LWA_ASYNC_INIT           = "true"
     AWS_LWA_READINESS_CHECK_PATH = "/actuator/health"
+  }
+
+  # Runtime secrets — owned exclusively by Terraform.
+  # Sourced from GitHub Actions secrets via TF_VAR_* in terraform.yml.
+  # Merged into every Lambda that needs them; deploy.yml never touches these.
+  runtime_secrets = {
+    REDIS_URL               = var.redis_url
+    KAFKA_BOOTSTRAP_SERVERS = var.kafka_bootstrap_servers
+    KAFKA_SASL_USERNAME     = var.kafka_sasl_username
+    KAFKA_SASL_PASSWORD     = var.kafka_sasl_password
   }
 
   # VPC attachment only when managed AWS DB is on AND operators supplied subnets/SGs.
@@ -152,7 +162,7 @@ resource "aws_lambda_function" "api_gateway" {
   }
 
   environment {
-    variables = merge(local.api_gateway_container_env, {
+    variables = merge(local.api_gateway_container_env, local.runtime_secrets, {
       # Lambda Web Adapter polls PORT; Spring Boot uses SERVER_PORT — must match api-gateway Dockerfile (8080).
       SERVER_PORT = "8080"
       PORT        = "8080"
@@ -196,7 +206,7 @@ resource "aws_lambda_function" "portfolio" {
   }
 
   environment {
-    variables = merge(local.common_env, {
+    variables = merge(local.common_env, local.runtime_secrets, {
       SPRING_DATASOURCE_URL = var.postgres_connection_string
     })
   }
@@ -224,7 +234,7 @@ resource "aws_lambda_function" "market_data" {
   }
 
   environment {
-    variables = merge(local.common_env, {
+    variables = merge(local.common_env, local.runtime_secrets, {
       SPRING_DATA_MONGODB_URI = var.mongodb_connection_string
     })
   }
@@ -252,7 +262,7 @@ resource "aws_lambda_function" "insight" {
   }
 
   environment {
-    variables = local.common_env
+    variables = merge(local.common_env, local.runtime_secrets)
   }
 }
 

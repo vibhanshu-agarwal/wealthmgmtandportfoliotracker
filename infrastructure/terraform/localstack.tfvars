@@ -40,6 +40,11 @@ route53_zone_id     = ""
 postgres_connection_string = "jdbc:postgresql://localhost:5432/wealth_local"
 mongodb_connection_string  = "mongodb://localhost:27017/wealth_local"
 cloudfront_origin_secret   = "localstack-test-secret-do-not-use-in-production"
+# Messaging & Caching stubs for LocalStack testing
+redis_url               = "redis://localhost:6379"
+kafka_bootstrap_servers = "localhost:9092"
+kafka_sasl_username     = "local-kafka-user"
+kafka_sasl_password     = "local-kafka-pass"
 
 # Database module (LocalStack RDS + ElastiCache)
 db_username           = "wealth_user"

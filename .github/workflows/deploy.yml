@@ -10,22 +10,20 @@ name: Deploy
 # - ECR_REPOSITORY_NAME
 # - LAMBDA_FUNCTION_NAME
 #
-# Application/runtime secrets (mapped into api-gateway Lambda environment)
-# - PORTFOLIO_SERVICE_URL
-# - MARKET_DATA_SERVICE_URL
-# - INSIGHT_SERVICE_URL
-# - AUTH_JWK_URI
-# - CLOUDFRONT_ORIGIN_SECRET
-#
 # Notes
-# - Missing secrets become empty strings in Lambda; verify all values exist before relying on prod behavior.
+# - Lambda environment variables (REDIS_URL, KAFKA_*, SPRING_PROFILES_ACTIVE, service URLs, etc.)
+#   are owned exclusively by Terraform and applied via terraform.yml on push to main.
+#   This workflow is image-only: it builds and pushes the container image, then calls
+#   update-function-code. It does NOT call update-function-configuration.
 # - Do not pass AWS_REGION or AWS_DEFAULT_REGION in Lambda "Variables": Lambda reserves them and sets
 #   AWS_REGION to the function's region automatically (Spring/AWS SDK pick it up from the runtime).
-# - This workflow intentionally targets branch: architecture/cloud-native-extraction.
+# - Triggers on both main and architecture/cloud-native-extraction so that work on the feature
+#   branch deploys independently and merges to main also trigger a deploy without divergence.
 
 on:
   push:
     branches:
+      - main
       - architecture/cloud-native-extraction
 
 jobs:
@@ -71,6 +69,7 @@ jobs:
           aws cloudfront create-invalidation --distribution-id "${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }}" --paths "/*"
 
   # Container image for wealth-api-gateway Lambda (Spring Cloud Gateway + downstream Function URLs).
+  # IMAGE-ONLY: env vars are managed by terraform.yml — this job only updates the function code.
   deploy-backend:
     runs-on: ubuntu-latest
 
@@ -114,11 +113,6 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Install jq (Lambda env JSON generation)
-        run: |
-          sudo apt-get update -y
-          sudo apt-get install -y jq
-
       - name: Build and push backend image
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
@@ -134,47 +128,6 @@ jobs:
             -t "${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG_SHA}" \
             --push .
 
-      - name: Update Lambda function configuration (api-gateway runtime)
-        env:
-          LAMBDA_FUNCTION_NAME: ${{ secrets.LAMBDA_FUNCTION_NAME }}
-          PORTFOLIO_SERVICE_URL: ${{ secrets.PORTFOLIO_SERVICE_URL }}
-          MARKET_DATA_SERVICE_URL: ${{ secrets.MARKET_DATA_SERVICE_URL }}
-          INSIGHT_SERVICE_URL: ${{ secrets.INSIGHT_SERVICE_URL }}
-          AUTH_JWK_URI: ${{ secrets.AUTH_JWK_URI }}
-          CLOUDFRONT_ORIGIN_SECRET: ${{ secrets.CLOUDFRONT_ORIGIN_SECRET }}
-        run: |
-          jq -n \
-            --arg SPRING_PROFILES_ACTIVE "prod,aws" \
-            --arg SERVER_PORT "8080" \
-            --arg PORT "8080" \
-            --arg JAVA_TOOL_OPTIONS "-XX:+TieredCompilation -XX:TieredStopAtLevel=1" \
-            --arg PORTFOLIO_SERVICE_URL "$PORTFOLIO_SERVICE_URL" \
-            --arg MARKET_DATA_SERVICE_URL "$MARKET_DATA_SERVICE_URL" \
-            --arg INSIGHT_SERVICE_URL "$INSIGHT_SERVICE_URL" \
-            --arg AUTH_JWK_URI "$AUTH_JWK_URI" \
-            --arg CLOUDFRONT_ORIGIN_SECRET "$CLOUDFRONT_ORIGIN_SECRET" \
-            --arg AWS_LWA_ASYNC_INIT "true" \
-            --arg AWS_LWA_READINESS_CHECK_PATH "/actuator/health" \
-            '{
-              Variables: {
-                SPRING_PROFILES_ACTIVE: $SPRING_PROFILES_ACTIVE,
-                SERVER_PORT: $SERVER_PORT,
-                PORT: $PORT,
-                JAVA_TOOL_OPTIONS: $JAVA_TOOL_OPTIONS,
-                PORTFOLIO_SERVICE_URL: $PORTFOLIO_SERVICE_URL,
-                MARKET_DATA_SERVICE_URL: $MARKET_DATA_SERVICE_URL,
-                INSIGHT_SERVICE_URL: $INSIGHT_SERVICE_URL,
-                AUTH_JWK_URI: $AUTH_JWK_URI,
-                CLOUDFRONT_ORIGIN_SECRET: $CLOUDFRONT_ORIGIN_SECRET,
-                AWS_LWA_ASYNC_INIT: $AWS_LWA_ASYNC_INIT,
-                AWS_LWA_READINESS_CHECK_PATH: $AWS_LWA_READINESS_CHECK_PATH
-              }
-            }' > lambda-env.json
-
-          aws lambda update-function-configuration \
-            --function-name "$LAMBDA_FUNCTION_NAME" \
-            --environment "file://lambda-env.json"
-
       - name: Update Lambda function image
         env:
           LAMBDA_FUNCTION_NAME: ${{ secrets.LAMBDA_FUNCTION_NAME }}
@@ -182,8 +135,8 @@ jobs:
           AWS_REGION: ${{ secrets.AWS_REGION }}
           ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY_NAME }}
         run: |
-          # Lambda rejects code updates while a prior configuration update is still in progress.
           # Wait until LastUpdateStatus is Successful before attempting update-function-code.
+          # Guards against concurrent Terraform applies or prior in-flight updates.
           for attempt in {1..30}; do
             STATUS="$(aws lambda get-function-configuration \
               --function-name "$LAMBDA_FUNCTION_NAME" \
