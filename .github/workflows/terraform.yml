@@ -112,7 +112,7 @@ jobs:
     name: Apply
     runs-on: ubuntu-latest
     needs: validate
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     timeout-minutes: 45
     defaults:
       run:
