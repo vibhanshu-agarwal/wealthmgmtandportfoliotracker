@@ -253,3 +253,15 @@ Full suite: **37/37 tests passing** (including the pre-existing CDK snapshot tes
 ### 8.6 Spec
 
 Tracked under **`.kiro/specs/lambda-timeout-fix/`** (`bugfix.md`, `design.md`, `tasks.md`).
+
+---
+
+## 9. Addendum — `terraform fmt` alignment fix (`0088189`)
+
+**`terraform fmt -check -recursive`** failed with exit code 3 on `modules/compute/main.tf` after the lambda timeout fix commit.
+
+**Root cause:** When `AWS_LWA_ASYNC_INIT` and `AWS_LWA_READINESS_CHECK_PATH` were added to the `common_env` map, the existing shorter keys (`JAVA_TOOL_OPTIONS`, `SPRING_PROFILES_ACTIVE`, etc.) were padded with extra spaces to visually align the `=` signs. `terraform fmt` normalises map key alignment to the minimum required — the longest key sets the column, no extra padding beyond that. Any deviation is treated as a formatting error.
+
+**Fix:** Ran `terraform fmt infrastructure/terraform/modules/compute/main.tf` to normalise alignment. No logic changes — spacing only.
+
+**File changed:** `infrastructure/terraform/modules/compute/main.tf`
