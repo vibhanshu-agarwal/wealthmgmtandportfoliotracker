@@ -113,5 +113,48 @@ The **`apply`** job continues to **invalidate CloudFront** using **`terraform ou
 ## 6. Git record
 
 - **Branch:** `architecture/cloud-native-extraction`
-- **Infra-focused commits (illustrative, since v2 doc `58f2acb`):** `6f4129a`, `1bfa6ba`, `baae86e` (workflow slice), `62abb67`, `05fc8e5`, `b4c7d04`, `568f09f`, `46ac14d`, `c702ad0`, `4efc123`, `bc0553d`, `b181f4a`, `81899fb` (Compose slice), `1278a13` (E2E workflow slice), plus CI/CD/Qodana commits merged via `da46d48` (`9b95c43` … `174a31a`, `3852e72`).
+- **Infra-focused commits (illustrative, since v2 doc `58f2acb`):** `6f4129a`, `1bfa6ba`, `baae86e` (workflow slice), `62abb67`, `05fc8e5`, `b4c7d04`, `568f09f`, `46ac14d`, `c702ad0`, `4efc123`, `bc0553d`, `b181f4a`, `81899fb` (Compose slice), `1278a13` (E2E workflow slice), plus CI/CD/Qodana commits merged via `da46d48` (`9b95c43` … `174a31a`, `3852e72`). **Later same-day revisions:** `c944ea8`, `6d14b0e`, `9f1d0f0` (see §7 addendum).
 - **Remote:** [github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker)
+
+---
+
+## 7. Addendum — 2026-04-18 (after `1278a13`)
+
+The sections above were written through **`1278a13`**. The following landed on **`architecture/cloud-native-extraction`** the same day.
+
+### 7.1 CI and E2E integrity — **`c944ea8`**
+
+| Area | Detail |
+| --- | --- |
+| Playwright / gateway auth | **`installGatewaySessionInitScript`** no longer mints a local JWT when **`SKIP_BACKEND_HEALTH_CHECK`** is set; flows **POST** to **`/api/auth/login`** so E2E matches real gateway sessions. |
+| Projects | **`static-smoke`** Playwright project for dashboard smoke only; **Chromium** ignores that spec file so the same file is not executed twice. |
+| **`frontend-ci.yml`** | **`e2e-smoke`** job reduced to **`static-smoke`** only; unused Postgres / Better Auth seed steps removed. |
+| **`global-setup.ts`** | Log text clarified when the gateway readiness poll is skipped. |
+| **`frontend-e2e-integration.yml`**, **`ci-verification.yml`** | **`AUTH_JWT_SECRET`** wiring uses a documented fallback for CI. |
+
+**Companion doc:** [CHANGES_PHASE3_SUMMARY_2026-04-18.md](./CHANGES_PHASE3_SUMMARY_2026-04-18.md) — Phase 3 **application** addendum for the same commit.
+
+### 7.2 This infrastructure summary — **`6d14b0e`**
+
+Initial publication of **`CHANGES_PHASE3_INFRA_SUMMARY_18042026.md`** (the body through §6 above), linking back to infra v2 and the Phase 3 application changelog.
+
+### 7.3 Terraform and bootstrap — **`9f1d0f0`**
+
+| Topic | Detail |
+| --- | --- |
+| **CDN module** | New **`infrastructure/terraform/modules/cdn`**: CloudFront distribution, **S3** static origin with **origin access control (OAC)**, **viewer-request CloudFront Function** for extensionless static-export paths, **`/api/*`** cache behavior to the **Lambda Function URL** origin, optional **ACM** viewer certificate and **Route53** alias when a custom **`domain_name`** is set; root **`main.tf`** / **`variables.tf`** / **`terraform.tfvars.example`** wired for optional CDN deployment. |
+| **Compute** | **`modules/compute`** passes **`CLOUDFRONT_ORIGIN_SECRET`** into the **api-gateway** Lambda environment and adds **`cloudfront_origin_secret`** as a sensitive module variable (for verifying CloudFront-originated traffic to the API). |
+| **Bootstrap docs** | **`docs/infrastructure/bootstrap.md`** expanded for operator steps. |
+| **Local plans** | **`.gitignore`** lists **`infrastructure/terraform/backend_override.tf`** so a **local** backend file used for **`terraform plan`** without S3 credentials is not committed by mistake. |
+| **Lockfile / formatting** | **`.terraform.lock.hcl`** refreshed; **`main.tf`** **`terraform fmt`**; **`skills-lock.json`** updated for tooling pins. |
+
+### 7.4 Secrets template — **`.env.secrets.example`**
+
+Checked-in **example only** (no real secrets). Documents environment variables for:
+
+- Terraform remote-state bootstrap (**`TF_STATE_BUCKET`**, **`TF_LOCK_TABLE`**),
+- application integration (**`POSTGRES_CONNECTION_STRING`**, **`MONGODB_CONNECTION_STRING`**, **`AUTH_JWK_URI`**, **`CLOUDFRONT_ORIGIN_SECRET`**),
+- RDS values expected by Terraform / GitHub Actions (**`RDS_MASTER_USERNAME`**, **`RDS_MASTER_PASSWORD`**),
+- optional explicit AWS keys when not using OIDC / instance credentials.
+
+Operators copy to **`.env.secrets`** (kept local and gitignored); variable names align with workflow and Terraform usage described in §2 and **`bootstrap.md`**.
