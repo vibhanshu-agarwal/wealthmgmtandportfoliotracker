@@ -4,11 +4,33 @@
 # =============================================================================
 
 # ---------------------------------------------------------------------------
+# Stage 0: Gradle distribution cache
+# Downloads the Gradle wrapper zip once with retry logic so the builder stage
+# never hits services.gradle.org. A 504 from that CDN would otherwise fail the
+# entire build — this is a pre-existing flaky failure that this stage eliminates.
+# ---------------------------------------------------------------------------
+FROM amazoncorretto:25 AS gradle-dist
+
+RUN yum install -y curl && yum clean all
+
+RUN GRADLE_VERSION=9.4.1 \
+    && GRADLE_URL="https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip" \
+    && DEST="${HOME}/.gradle/wrapper/dists/gradle-${GRADLE_VERSION}-bin" \
+    && mkdir -p "${DEST}" \
+    && curl --retry 5 --retry-delay 5 --retry-connrefused \
+    --location --fail --show-error \
+    -o "${DEST}/gradle-${GRADLE_VERSION}-bin.zip" \
+    "${GRADLE_URL}"
+
+# ---------------------------------------------------------------------------
 # Stage 1: Builder — compile source and produce Spring Boot fat JAR with AOT
 # ---------------------------------------------------------------------------
 FROM amazoncorretto:25 AS builder
 
 WORKDIR /workspace
+
+# Pre-populate the Gradle wrapper cache from the gradle-dist stage.
+COPY --from=gradle-dist /root/.gradle /root/.gradle
 
 # Copy Gradle wrapper and build config first (layer caching)
 COPY gradlew gradlew
