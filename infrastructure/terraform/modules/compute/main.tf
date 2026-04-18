@@ -134,8 +134,8 @@ resource "aws_lambda_function" "api_gateway" {
   package_type                   = "Image"
   image_uri                      = var.api_gateway_image_uri
   architectures                  = ["x86_64"]
-  memory_size                    = var.api_gateway_memory
-  timeout                        = 30 # seconds; keep >= 30 for Spring init + adapter readiness
+  memory_size                    = 2048 # fixed — api-gateway + Lambda Web Adapter init needs headroom
+  timeout                        = 30   # seconds; keep >= 30 for Spring init + adapter readiness
   publish                        = true
   reserved_concurrent_executions = 10
 
@@ -171,12 +171,12 @@ resource "aws_lambda_function" "api_gateway" {
 resource "aws_lambda_function" "portfolio" {
   function_name                  = "wealth-portfolio-service"
   role                           = aws_iam_role.portfolio.arn
-  runtime                        = "java21"
+  runtime                        = var.lambda_java_runtime
   handler                        = "not.used"
   s3_bucket                      = var.artifact_bucket_name
   s3_key                         = var.s3_key_portfolio
   layers                         = [var.lambda_adapter_layer_arn]
-  memory_size                    = 512
+  memory_size                    = var.portfolio_memory_size
   timeout                        = 30
   publish                        = true
   reserved_concurrent_executions = 10
@@ -203,12 +203,12 @@ resource "aws_lambda_function" "portfolio" {
 resource "aws_lambda_function" "market_data" {
   function_name                  = "wealth-market-data-service"
   role                           = aws_iam_role.market_data.arn
-  runtime                        = "java21"
+  runtime                        = var.lambda_java_runtime
   handler                        = "not.used"
   s3_bucket                      = var.artifact_bucket_name
   s3_key                         = var.s3_key_market_data
   layers                         = [var.lambda_adapter_layer_arn]
-  memory_size                    = 512
+  memory_size                    = var.market_data_memory_size
   timeout                        = 30
   publish                        = true
   reserved_concurrent_executions = 10
@@ -235,12 +235,12 @@ resource "aws_lambda_function" "market_data" {
 resource "aws_lambda_function" "insight" {
   function_name                  = "wealth-insight-service"
   role                           = aws_iam_role.insight.arn
-  runtime                        = "java21"
+  runtime                        = var.lambda_java_runtime
   handler                        = "not.used"
   s3_bucket                      = var.artifact_bucket_name
   s3_key                         = var.s3_key_insight
   layers                         = [var.lambda_adapter_layer_arn]
-  memory_size                    = 512
+  memory_size                    = var.insight_service_memory_size
   timeout                        = 30
   publish                        = true
   reserved_concurrent_executions = 10

@@ -70,7 +70,10 @@ module "compute" {
   artifact_bucket_name          = var.artifact_bucket_name
   s3_key_api_gateway            = var.s3_key_api_gateway
   api_gateway_image_uri         = var.api_gateway_image_uri
-  api_gateway_memory            = var.api_gateway_memory
+  lambda_java_runtime           = var.lambda_java_runtime
+  portfolio_memory_size         = var.portfolio_memory_size
+  market_data_memory_size       = var.market_data_memory_size
+  insight_service_memory_size   = var.insight_service_memory_size
   s3_key_portfolio              = var.s3_key_portfolio
   s3_key_market_data            = var.s3_key_market_data
   s3_key_insight                = var.s3_key_insight

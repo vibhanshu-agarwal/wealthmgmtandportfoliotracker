@@ -14,10 +14,24 @@ variable "api_gateway_image_uri" {
   description = "Full ECR image URI for api-gateway Lambda (package_type Image), e.g. 123456789012.dkr.ecr.us-east-1.amazonaws.com/my-repo:latest"
 }
 
-variable "api_gateway_memory" {
+variable "lambda_java_runtime" {
+  type        = string
+  description = "AWS Lambda managed runtime for Zip-based Java Lambdas (e.g. java25)."
+}
+
+variable "portfolio_memory_size" {
   type        = number
-  default     = 2048
-  description = "Memory (MB) for wealth-api-gateway Lambda — Spring cold start needs headroom vs 512MB CPU starvation."
+  description = "Memory (MB) for wealth-portfolio-service Lambda."
+}
+
+variable "market_data_memory_size" {
+  type        = number
+  description = "Memory (MB) for wealth-market-data-service Lambda."
+}
+
+variable "insight_service_memory_size" {
+  type        = number
+  description = "Memory (MB) for wealth-insight-service Lambda."
 }
 
 variable "s3_key_portfolio" {
