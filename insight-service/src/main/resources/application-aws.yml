@@ -8,14 +8,4 @@
 # ============================================================
 
 # No overrides currently needed beyond what prod.yml provides.
-# This file exists as the extension point for AWS-specific config,
-# e.g. if rate limiting moves from Redis to API Gateway usage plans:
-#
-#   spring:
-#     autoconfigure:
-#       exclude:
-#         - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
-#         - ...
-#   app:
-#     rate-limiter:
-#       backend: api-gateway-usage-plan
+# This file exists as the extension point for AWS-specific config.

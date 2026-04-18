@@ -265,3 +265,148 @@ Tracked under **`.kiro/specs/lambda-timeout-fix/`** (`bugfix.md`, `design.md`, `
 **Fix:** Ran `terraform fmt infrastructure/terraform/modules/compute/main.tf` to normalise alignment. No logic changes — spacing only.
 
 **File changed:** `infrastructure/terraform/modules/compute/main.tf`
+
+---
+
+## 10. Addendum — Lambda crash root-cause investigation and fixes (2026-04-18, post-deploy)
+
+After the lambda-timeout-fix spec was merged, the Lambda continued crashing with `Extension.Crash` at ~9.8 s. A live AWS investigation using CloudWatch Logs Insights and direct ECR image inspection identified three additional root causes not covered by the spec.
+
+### 10.1 Root causes found
+
+| #   | Root cause                                   | Evidence                                                                                                                                                                                                                                                    |
+| --- | -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | **AOT initializer missing from JAR**         | `APPLICATION FAILED TO START — AOT initializer com.wealth.ApiGatewayApplication__ApplicationContextInitializer could not be found`. The Dockerfile passed `-Dspring.aot.enabled=true` as a JVM arg to Gradle (no-op); `processAot` never ran at build time. |
+| 2   | **Redis autoconfiguration blocking startup** | `spring-boot-starter-data-redis-reactive` on classpath; no `spring.data.redis.*` config in the `aws` profile → Spring Boot tried to connect to `localhost:6379` on Lambda, hanging until the LWA 9.8 s async-init window expired.                           |
+| 3   | **Service URLs were empty strings**          | `PORTFOLIO_SERVICE_URL=""` etc. in Lambda env (Terraform never applied). Spring Cloud Gateway fails URI parsing at context refresh with an empty string, preventing the app from reaching a healthy state.                                                  |
+
+### 10.2 Fixes applied
+
+**AOT — all four `build.gradle` files**
+
+Added `tasks.named('bootJar') { dependsOn tasks.named('processAot') }` to each service. `processAot` now runs automatically as part of every `bootJar` invocation, generating the required `*__ApplicationContextInitializer` classes and bundling them into the JAR. Dockerfiles simplified back to `./gradlew :<service>:bootJar --no-daemon`.
+
+**Redis — `application-aws.yml` (api-gateway)**
+
+Replaced the autoconfiguration exclusion approach with `spring.data.redis.url: ${REDIS_URL}`. Redis connects when `REDIS_URL` is set (Upstash/ElastiCache); no connection attempt is made if the variable is absent. `REDIS_URL` added to `.env.secrets` and `.env.secrets.example`.
+
+**Service URLs — Lambda env vars**
+
+Updated Lambda function configuration directly via AWS CLI with `PORTFOLIO_SERVICE_URL=http://localhost:8081`, `MARKET_DATA_SERVICE_URL=http://localhost:8082`, `INSIGHT_SERVICE_URL=http://localhost:8083` (modular-monolith placeholder values). All 13 secrets synced to GitHub Actions via `gh secret set -f .env.secrets`.
+
+**`scripts/sync-secrets.sh` extended**
+
+Added `--lambda <function-name>` flag. When provided, the script also calls `aws lambda update-function-configuration` with the Lambda-relevant env vars from the secrets file, so a single command keeps both GitHub Actions and the live Lambda in sync without waiting for a full deploy run.
+
+### 10.3 Files changed
+
+| File                                                 | Change                                                                  |
+| ---------------------------------------------------- | ----------------------------------------------------------------------- |
+| `api-gateway/build.gradle`                           | `bootJar` depends on `processAot`                                       |
+| `portfolio-service/build.gradle`                     | same                                                                    |
+| `market-data-service/build.gradle`                   | same                                                                    |
+| `insight-service/build.gradle`                       | same                                                                    |
+| `api-gateway/Dockerfile`                             | build command simplified to `bootJar` (processAot now wired via Gradle) |
+| `portfolio-service/Dockerfile`                       | same                                                                    |
+| `market-data-service/Dockerfile`                     | same                                                                    |
+| `insight-service/Dockerfile`                         | same                                                                    |
+| `api-gateway/src/main/resources/application-aws.yml` | `spring.data.redis.url: ${REDIS_URL}`                                   |
+| `.env.secrets`                                       | `REDIS_URL` entry added                                                 |
+| `.env.secrets.example`                               | `REDIS_URL` documented                                                  |
+| `scripts/sync-secrets.sh`                            | `--lambda` flag for direct Lambda env var sync                          |
+
+---
+
+## 11. Addendum — Infrastructure availability logging (2026-04-18)
+
+### 11.1 Motivation
+
+Third-party providers (Neon PostgreSQL, MongoDB Atlas, Upstash Redis, Aiven Kafka) can be unavailable independently of application code. Without structured logging, a CloudWatch log showing `Extension.Crash` or a 502 gives no indication of which dependency caused the failure.
+
+### 11.2 Implementation
+
+Added `InfrastructureHealthLogger` to each service. Each class:
+
+- Implements `ApplicationListener<ApplicationReadyEvent>` — fires after the Spring context is fully started, never blocks startup or Flyway migrations
+- Is annotated `@Profile("aws")` — silent in local Docker Compose
+- Probes each dependency with the lightest possible operation (Redis `PING`, PostgreSQL `SELECT 1`, MongoDB `{ ping: 1 }`, Kafka `describeTopics`)
+- Logs a fixed-prefix line per dependency for CloudWatch filter/alarm use:
+
+```
+[INFRA-OK]   Redis — PONG received (rate-limiter backend ready)
+[INFRA-FAIL] Kafka — unreachable; price update events will not be consumed.
+             Check KAFKA_BOOTSTRAP_SERVERS. cause=SslAuthenticationException: SSL handshake failed
+```
+
+**Coverage per service:**
+
+| Service             | PostgreSQL | MongoDB | Kafka | Redis |
+| ------------------- | ---------- | ------- | ----- | ----- |
+| api-gateway         | —          | —       | —     | ✓     |
+| portfolio-service   | ✓          | —       | ✓     | ✓     |
+| market-data-service | —          | ✓       | ✓     | —     |
+| insight-service     | —          | —       | ✓     | ✓     |
+
+**Kafka fast-fail timeout** (`spring.kafka.admin.properties.request.timeout.ms: 5000`) added to the `prod` profile of all three Kafka-using services. The known Kafka certificate issue will surface as a 5-second `[INFRA-FAIL]` line rather than a 30-second hang.
+
+### 11.3 Files added
+
+- `api-gateway/src/main/java/com/wealth/gateway/InfrastructureHealthLogger.java`
+- `portfolio-service/src/main/java/com/wealth/portfolio/InfrastructureHealthLogger.java`
+- `market-data-service/src/main/java/com/wealth/market/InfrastructureHealthLogger.java`
+- `insight-service/src/main/java/com/wealth/insight/InfrastructureHealthLogger.java`
+- `insight-service/src/main/resources/application-aws.yml` (new — AWS extension point)
+
+---
+
+## 12. Addendum — Multi-cloud profile layering restructure (2026-04-18)
+
+### 12.1 Intent
+
+The original profile split had cloud-agnostic production config (Kafka SASL, Redis URL, datasource URLs, port 8080) scattered between `-prod` and `-aws` profiles, with some duplication. The intent — correct from the start — was for `-prod` to hold everything true for any cloud deployment, and `-aws` to hold only AWS-specific overrides.
+
+### 12.2 Layering model
+
+Spring loads profiles in order; later profiles win:
+
+```
+application.yml          ← base defaults, localhost URLs, local env vars
+  └─ application-prod.yml  ← cloud-agnostic production config
+       └─ application-aws.yml   ← AWS-specific overrides only
+       └─ application-azure.yml ← (future) Azure-specific overrides
+       └─ application-gcp.yml   ← (future) GCP-specific overrides
+```
+
+`SPRING_PROFILES_ACTIVE=prod,aws` activates both. Keys in `-aws` override `-prod`. Keys in `-prod` override the base. Adding a new cloud requires only a new `-<cloud>.yml` per service; `-prod` stays untouched.
+
+### 12.3 What moved where
+
+**`application-prod.yml`** (all services) — cloud-agnostic production config:
+
+- `server.port: 8080`
+- Kafka bootstrap servers, SASL config, admin timeout
+- `spring.data.redis.url: ${REDIS_URL}`
+- PostgreSQL datasource + Hikari tuning (portfolio-service)
+- MongoDB URI (market-data-service, using `SPRING_DATA_MONGODB_URI` to match Terraform)
+- `market-data.refresh/hydration/baseline-seed` enabled flags
+- `fx.base-currency`
+
+**`application-aws.yml`** (all services) — AWS-specific overrides only:
+
+- `fx.aws.rates-url` / `refresh-cron` (portfolio-service — AWS FX endpoint)
+- `spring.cache.type: simple` (portfolio-service — no ElastiCache on Lambda)
+- Lambda cold-start flags: `market.seed.enabled: false`, `market-data.refresh.enabled: false`, `baseline-seed.enabled: false` (market-data-service)
+- Empty extension-point files with comments for api-gateway and insight-service
+
+### 12.4 Files changed
+
+| File                                                          | Change                                                                 |
+| ------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `api-gateway/src/main/resources/application-prod.yml`         | Redis URL, OAuth2 JWK URI, port 8080                                   |
+| `api-gateway/src/main/resources/application-aws.yml`          | Reduced to extension-point comment only                                |
+| `portfolio-service/src/main/resources/application-prod.yml`   | Datasource, Kafka SASL, Redis URL, Hikari, port 8080, fx base-currency |
+| `portfolio-service/src/main/resources/application-aws.yml`    | AWS FX endpoint + `spring.cache.type: simple` only                     |
+| `market-data-service/src/main/resources/application-prod.yml` | MongoDB URI, Kafka SASL, market-data flags, port 8080                  |
+| `market-data-service/src/main/resources/application-aws.yml`  | Lambda cold-start overrides only                                       |
+| `insight-service/src/main/resources/application-prod.yml`     | Kafka SASL, Redis URL, port 8080                                       |
+| `insight-service/src/main/resources/application-aws.yml`      | New file — extension-point comment only                                |

@@ -1,9 +1,21 @@
+# ============================================================
+# AWS profile — overrides for Lambda / AWS-specific deployment.
+# Active when SPRING_PROFILES_ACTIVE includes "aws" (e.g. "prod,aws").
+# Loaded after application-prod.yml; keys here win over prod.
+#
+# Future clouds: add application-azure.yml / application-gcp.yml
+# with their own overrides. application-prod.yml stays untouched.
+# ============================================================
+
+# Lambda cold-start optimisations: disable expensive startup work that is
+# unnecessary on short-lived serverless instances.
 market:
   seed:
     enabled: false
 
-# Short-lived / serverless: avoid scheduled outbound quotes and large baseline inserts on cold start.
 market-data:
+  # Scheduled refresh disabled — Lambda is not long-lived enough for cron jobs.
+  # Override to true in application-azure.yml if deploying to a container/VM.
   refresh:
     enabled: false
   hydration:

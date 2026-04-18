@@ -1,9 +1,21 @@
+# ============================================================
+# AWS profile — overrides for Lambda / AWS-specific deployment.
+# Active when SPRING_PROFILES_ACTIVE includes "aws" (e.g. "prod,aws").
+# Loaded after application-prod.yml; keys here win over prod.
+#
+# Future clouds: add application-azure.yml / application-gcp.yml
+# with their own overrides. application-prod.yml stays untouched.
+# ============================================================
+
 fx:
-  base-currency: USD
   aws:
+    # Open Exchange Rates — free-tier FX endpoint used on AWS.
+    # Override in application-azure.yml with an Azure-equivalent if needed.
     rates-url: https://open.er-api.com/v6/latest/USD
     refresh-cron: "0 0 6 * * *"
 
 spring:
   cache:
-    type: simple  # ConcurrentHashMap — no Redis dependency for FX rates
+    # Caffeine (in-memory) for FX rates on Lambda — no ElastiCache dependency.
+    # Override to redis if ElastiCache becomes available in a future phase.
+    type: simple

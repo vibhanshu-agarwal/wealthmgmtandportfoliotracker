@@ -1,6 +1,14 @@
 plugins {
     id 'org.springframework.boot'
+    id 'org.springframework.boot.aot'
 }
+
+// processTestAot tries to AOT-process every @SpringBootTest class at build time,
+// including Testcontainers-based integration tests. Those tests use @DynamicPropertySource
+// with container::getJdbcUrl lambdas — which fail because no container is running during
+// AOT processing. Test AOT is only needed for GraalVM native test compilation, which is
+// not a goal for this JVM deployment. Disable it to keep the build clean.
+tasks.named('processTestAot') { enabled = false }
 
 dependencies {
     implementation project(':common-dto')

@@ -1,6 +1,12 @@
 plugins {
     id 'org.springframework.boot'
+    id 'org.springframework.boot.aot'
 }
+
+// Test AOT is only needed for GraalVM native test compilation (not a goal here).
+// Disabling avoids Testcontainers-based integration tests failing during processTestAot
+// because containers are not running at build time.
+tasks.named('processTestAot') { enabled = false }
 
 dependencies {
     implementation 'org.springframework.cloud:spring-cloud-starter'
