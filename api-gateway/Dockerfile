@@ -108,8 +108,11 @@ ENV PATH="${JAVA_HOME}/bin:${PATH}"
 WORKDIR /app
 COPY --from=builder /workspace/api-gateway/build/libs/*.jar app.jar
 
-# Copy AWS Lambda Web Adapter from official ECR image
-COPY --from=public.ecr.aws/awsguru/aws-lambda-adapter:1.0.0 /lambda-adapter /opt/extensions/aws-lambda-web-adapter
+# Copy AWS Lambda Web Adapter from official ECR image.
+# The binary MUST be named 'lambda-adapter' — this is the name the binary registers
+# with the Lambda Extensions API. Using a different filename causes a name mismatch
+# that results in Extension.Crash.
+COPY --from=public.ecr.aws/awsguru/aws-lambda-adapter:1.0.0 /lambda-adapter /opt/extensions/lambda-adapter
 
 # Download AWS Lambda Runtime Interface Emulator (RIE)
 RUN ARCH=$(uname -m) \
