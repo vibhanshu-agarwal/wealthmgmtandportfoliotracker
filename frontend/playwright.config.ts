@@ -23,11 +23,18 @@ export default defineConfig({
     // Main test project — inherits authenticated session from setup
     {
       name: "chromium",
+      testIgnore: /dashboard-smoke\.spec\.ts$/,
       use: {
         ...devices["Desktop Chrome"],
         storageState: authFile,
       },
       dependencies: ["setup"],
+    },
+    // No Spring stack: only checks the static export server (see frontend-ci e2e-smoke).
+    {
+      name: "static-smoke",
+      testMatch: /dashboard-smoke\.spec\.ts$/,
+      use: { ...devices["Desktop Chrome"] },
     },
   ],
   webServer: {

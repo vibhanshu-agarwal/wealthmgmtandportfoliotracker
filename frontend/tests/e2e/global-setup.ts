@@ -49,7 +49,8 @@ async function poll(url: string, timeoutMs: number): Promise<boolean> {
 async function globalSetup(): Promise<void> {
   if (SKIP_BACKEND_HEALTH_CHECK) {
     console.log(
-      `[${timestamp()}] Backend health-check disabled via SKIP_BACKEND_HEALTH_CHECK=true`
+      `[${timestamp()}] Gateway health poll skipped (SKIP_BACKEND_HEALTH_CHECK=true). ` +
+        `Use this only for stack-less smoke; full E2E must wait for the gateway.`
     );
     return;
   }

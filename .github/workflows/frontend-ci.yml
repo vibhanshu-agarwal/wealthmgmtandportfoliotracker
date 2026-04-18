@@ -53,50 +53,21 @@ jobs:
           path: |
             frontend/out
 
-  # ── Job 2: E2E smoke tests — Next.js + Postgres only, no Spring Boot backend ─
-  # This job validates the frontend auth flow and session management against a
-  # real Better Auth database. The Spring Boot API Gateway is NOT running, so
-  # any /api/* calls (proxied via Next.js rewrites to 127.0.0.1:8080) will fail.
-  #
-  # Tests included (no backend needed):
-  #   - dashboard-smoke: standalone build renders the overview page
-  #   - Test 1: session cookie is active after global setup sign-in
-  #   - Test 3: all /api/portfolio/* requests carry an Authorization header
-  #
-  # Tests excluded (require live Spring Boot backend):
-  #   - Test 2: total-value requires portfolio-service to return non-zero data
-  #   - Test 4: asserts HTTP 200 from API Gateway proxy (returns 500 without backend)
-  #   - Test 5: direct Gateway JWT validation (ECONNREFUSED without backend)
-  #
-  # These excluded tests are covered by the full-stack integration job in
-  # frontend-e2e-integration.yml, which runs all services via Docker Compose.
+  # ── Job 2: E2E smoke — static export HTTP only (no API Gateway) ───────────────
+  # Runs the Playwright `static-smoke` project: verifies the exported bundle is
+  # served and the login route returns HTML. Gateway login, JWT alignment, and
+  # portfolio API behaviour are asserted only in frontend-e2e-integration.yml
+  # (Docker Compose + real /api/auth/login), not here — minting a local JWT to
+  # mimic gateway auth would hide real connection and auth failures.
   e2e-smoke:
     runs-on: ubuntu-latest
     needs: build-and-test
-
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_DB: dummy
-          POSTGRES_USER: dummy
-          POSTGRES_PASSWORD: dummy
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
 
     defaults:
       run:
         working-directory: ./frontend
     env:
-      BETTER_AUTH_SECRET: ci-dummy-jwt-secret-placeholder-min-32-chars!!
-      BETTER_AUTH_URL: http://localhost:3000
-      AUTH_JWT_SECRET: ci-jwt-secret-placeholder-min-32-chars!!
-      DATABASE_URL: postgresql://dummy:dummy@localhost:5432/dummy
+      # Playwright globalSetup skips waiting on :8080 — this job never starts the gateway.
       SKIP_BACKEND_HEALTH_CHECK: "true"
 
     steps:
@@ -119,24 +90,11 @@ jobs:
           name: next-static-export
           path: frontend/
 
-      - name: Create Better Auth schema
-        run: PGPASSWORD=dummy psql -h localhost -U dummy -d dummy -f scripts/better-auth-schema.sql
-
-      - name: Seed dev user
-        run: npx tsx scripts/seed-dev-user.ts
-
       - name: Install Playwright browsers (Chromium only)
         run: npx playwright install --with-deps chromium
 
-      - name: Run E2E smoke tests
-        # Only tests 1 (session active) and 3 (auth headers) run here.
-        # Tests 2, 4, 5 need the Spring Boot backend — covered by frontend-e2e-integration.yml.
-        run: |
-          npx playwright test \
-            tests/e2e/dashboard-smoke.spec.ts \
-            tests/e2e/dashboard-data.spec.ts \
-            --grep-invert "(2\.|4\.|5\.)" \
-            --reporter=list
+      - name: Run E2E smoke tests (static export only)
+        run: npx playwright test --project=static-smoke --reporter=list
 
       - name: Upload Playwright report on failure
         if: failure()
