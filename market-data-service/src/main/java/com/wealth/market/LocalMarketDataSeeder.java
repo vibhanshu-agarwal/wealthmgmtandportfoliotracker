@@ -1,0 +1,113 @@
+package com.wealth.market;
+
+import tools.jackson.core.StreamReadFeature;
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.json.JsonMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.boot.ApplicationArguments;
+import org.springframework.boot.ApplicationRunner;
+import org.springframework.context.ResourceLoaderAware;
+import org.springframework.context.annotation.Profile;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.ResourceLoader;
+import org.springframework.stereotype.Component;
+
+import java.io.FileNotFoundException;
+import java.util.HashSet;
+import java.util.Set;
+
+/**
+ * Local bootstrap seeder for baseline market prices.
+ *
+ * <p>Reads seed data from an externalized JSON fixture file at startup and backfills only
+ * missing tickers — repeated runs remain idempotent.
+ *
+ * <p>If the fixture file is missing or malformed, the error is logged at ERROR level and the
+ * method returns normally, allowing the application to continue booting.
+ *
+ * <p>Restricted to the {@code local} profile — never instantiated in {@code aws} or other
+ * production profiles.
+ *
+ * <p>ObjectMapper audit (task 1.1): zero {@code new ObjectMapper()} instantiations or
+ * {@code ObjectMapper} field declarations exist in any {@code src/main/java} production source
+ * across all modules (api-gateway, portfolio-service, market-data-service, insight-service,
+ * common-dto). This class — the only Jackson-mapper consumer in production code — correctly
+ * injects the shared {@code JsonMapper} Spring bean and rebuilds it with custom feature flags.
+ */
+@Component
+@Profile("local")
+class LocalMarketDataSeeder implements ApplicationRunner, ResourceLoaderAware {
+
+    private static final Logger log = LoggerFactory.getLogger(LocalMarketDataSeeder.class);
+
+    private final AssetPriceRepository assetPriceRepository;
+    private final MarketPriceService marketPriceService;
+    private final JsonMapper objectMapper;
+    private final MarketSeedProperties props;
+    private ResourceLoader resourceLoader;
+
+    LocalMarketDataSeeder(AssetPriceRepository assetPriceRepository,
+                          MarketPriceService marketPriceService,
+                          JsonMapper jsonMapper,
+                          MarketSeedProperties props) {
+        this.assetPriceRepository = assetPriceRepository;
+        this.marketPriceService = marketPriceService;
+        // Ensure BigDecimal precision is preserved for basePrice values
+        this.objectMapper = jsonMapper.rebuild()
+                .enable(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS)
+                .enable(StreamReadFeature.INCLUDE_SOURCE_IN_LOCATION)
+                .build();
+        this.props = props;
+    }
+
+    @Override
+    public void setResourceLoader(ResourceLoader resourceLoader) {
+        this.resourceLoader = resourceLoader;
+    }
+
+    @Override
+    public void run(ApplicationArguments args) {
+        if (!props.enabled()) {
+            log.info("Market data seeding disabled (market.seed.enabled=false)");
+            return;
+        }
+
+        MarketSeedFixture fixture;
+        try {
+            Resource resource = resourceLoader.getResource(props.fixturePath());
+            fixture = objectMapper.readValue(resource.getInputStream(), MarketSeedFixture.class);
+        } catch (IllegalArgumentException e) {
+            log.error("Market data seeder: invalid fixture path '{}' — {}",
+                    props.fixturePath(), e.getMessage());
+            return;
+        } catch (FileNotFoundException e) {
+            log.error("Market data seeder: fixture file missing at '{}'",
+                    props.fixturePath());
+            return;
+        } catch (Exception e) {
+            log.error("Market data seeder: failed to load or parse fixture '{}' — {}",
+                    props.fixturePath(), e.getMessage());
+            return;
+        }
+
+        Set<String> existingTickers = new HashSet<>(
+                assetPriceRepository.findAll().stream().map(AssetPrice::getTicker).toList()
+        );
+
+        int seeded = 0;
+        for (SeedAsset asset : fixture.assets()) {
+            if (existingTickers.contains(asset.ticker())) {
+                continue;
+            }
+            marketPriceService.updatePrice(asset.ticker(), asset.basePrice());
+            seeded++;
+        }
+
+        if (seeded == 0) {
+            log.info("Market data seed skipped: all baseline tickers already present");
+        } else {
+            log.info("Seeded {} missing market prices into MongoDB", seeded);
+        }
+    }
+}

@@ -1,7 +1,13 @@
 "use client";
 
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAssetAllocation } from "@/lib/hooks/usePortfolio";
 import { formatCurrency, formatPercent } from "@/lib/utils/format";
@@ -25,7 +31,10 @@ function AllocationTooltip({
       <p className="text-xs text-muted-foreground mt-0.5">
         {formatCurrency(slice.value)}
       </p>
-      <p className="text-xs font-semibold mt-0.5" style={{ color: slice.color }}>
+      <p
+        className="text-xs font-semibold mt-0.5"
+        style={{ color: slice.color }}
+      >
         {formatPercent(slice.percentage)}
       </p>
     </div>
@@ -40,7 +49,10 @@ function AllocationLegend({ slices }: { slices: AllocationSliceDTO[] }) {
       {slices
         .sort((a, b) => b.percentage - a.percentage)
         .map((slice) => (
-          <li key={slice.assetClass} className="flex items-center justify-between text-sm">
+          <li
+            key={slice.assetClass}
+            className="flex items-center justify-between text-sm"
+          >
             <div className="flex items-center gap-2">
               <span
                 className="h-2.5 w-2.5 rounded-full shrink-0"
@@ -83,14 +95,14 @@ function AllocationChartSkeleton() {
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function AllocationChart() {
-  const { data, isLoading, isError } = useAssetAllocation();
+  const { data, isLoading } = useAssetAllocation();
 
   if (isLoading) return <AllocationChartSkeleton />;
 
-  if (isError || !data) {
+  if (!data || data.slices.length === 0) {
     return (
       <Card className="flex items-center justify-center p-8 text-muted-foreground text-sm">
-        Failed to load allocation data.
+        No allocation data available.
       </Card>
     );
   }
@@ -99,7 +111,9 @@ export function AllocationChart() {
     <Card>
       <CardHeader className="pb-2">
         <CardTitle className="text-base">Asset Allocation</CardTitle>
-        <CardDescription>{formatCurrency(data.totalValue)} total</CardDescription>
+        <CardDescription>
+          {formatCurrency(data.totalValue)} total
+        </CardDescription>
       </CardHeader>
 
       <CardContent className="pt-0">
@@ -118,11 +132,7 @@ export function AllocationChart() {
               strokeWidth={0}
             >
               {data.slices.map((slice) => (
-                <Cell
-                  key={slice.assetClass}
-                  fill={slice.color}
-                  opacity={0.9}
-                />
+                <Cell key={slice.assetClass} fill={slice.color} opacity={0.9} />
               ))}
             </Pie>
             <Tooltip content={<AllocationTooltip />} />

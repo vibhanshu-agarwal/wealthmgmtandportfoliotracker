@@ -1,0 +1,52 @@
+spring:
+  application:
+    name: api-gateway
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:local}
+  # spring.data.redis.* intentionally absent — lives only in application-local.yml
+  # No default-filters here — any RequestRateLimiter reference triggers Redis autoconfiguration
+  # on startup, which crashes deployments where no Redis is present (e.g. AWS without ElastiCache)
+
+  cloud:
+    gateway:
+      server:
+        webflux:
+          routes:
+            - id: portfolio-service
+              uri: ${PORTFOLIO_SERVICE_URL:http://localhost:8081}
+              predicates:
+                - Path=/api/portfolio/**
+            - id: market-data-service
+              uri: ${MARKET_DATA_SERVICE_URL:http://localhost:8082}
+              predicates:
+                - Path=/api/market/**
+            - id: insight-service
+              uri: ${INSIGHT_SERVICE_URL:http://localhost:8083}
+              predicates:
+                - Path=/api/insights/**
+            - id: insight-chat
+              uri: ${INSIGHT_SERVICE_URL:http://localhost:8083}
+              predicates:
+                - Path=/api/chat/**
+
+server:
+  port: 8080
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+
+auth:
+  jwt:
+    secret: ${AUTH_JWT_SECRET:}   # local profile only — blank triggers startup failure in JwtDecoderConfig
+  jwk-uri: ${AUTH_JWK_URI:}       # aws profile only — blank triggers startup failure in JwtDecoderConfig
+
+app:
+  auth:
+    email: ${APP_AUTH_EMAIL:dev@localhost.local}
+    password: ${APP_AUTH_PASSWORD:password}
+    # Align with Flyway V3 seed (portfolios.user_id = user-001); override via APP_AUTH_USER_ID if needed.
+    user-id: ${APP_AUTH_USER_ID:user-001}
+    name: ${APP_AUTH_NAME:Development User}

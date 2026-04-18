@@ -1,0 +1,2 @@
+auth:
+  jwk-uri: ${AUTH_JWK_URI}

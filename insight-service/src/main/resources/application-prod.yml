@@ -1,0 +1,18 @@
+spring:
+  application:
+    name: insight-service
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+    properties:
+      security.protocol: ${KAFKA_SECURITY_PROTOCOL:SASL_SSL}
+      sasl.mechanism: ${KAFKA_SASL_MECHANISM:PLAIN}
+      sasl.jaas.config: org.apache.kafka.common.security.plain.PlainLoginModule required username='${KAFKA_SASL_USERNAME}' password='${KAFKA_SASL_PASSWORD}';
+
+  data:
+    redis:
+      url: ${REDIS_URL}
+
+server:
+  port: 8080
+

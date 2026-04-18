@@ -55,3 +55,11 @@ Thumbs.db
 
 ### Tooling artifacts ###
 frontend/.junie/
+
+### Terraform ###
+infrastructure/terraform/.terraform/
+infrastructure/terraform/terraform.tfstate*
+infrastructure/terraform/backend_override.tf
+
+### Playwright test results ###
+frontend/test-results/

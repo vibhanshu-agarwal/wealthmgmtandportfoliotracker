@@ -1,0 +1,48 @@
+# LocalStack + Ollama overlay for local AWS emulation and AI inference.
+# Usage: docker compose -f docker-compose.yml -f docker-compose.localstack.yml up -d
+services:
+  localstack:
+    image: localstack/localstack:latest
+    container_name: localstack
+    ports:
+      - "4566:4566"
+    environment:
+      LOCALSTACK_AUTH_TOKEN: ${LOCALSTACK_AUTH_TOKEN:?Set LOCALSTACK_AUTH_TOKEN in your shell or .env file}
+      SERVICES: lambda,s3,dynamodb,cloudfront,iam,acm,route53,rds,elasticache,sqs
+      DEFAULT_REGION: us-east-1
+      LAMBDA_EXECUTOR: local
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+    networks:
+      - wealthmgmt_network
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - wealthmgmt_network
+
+  insight-service:
+    build:
+      context: ./insight-service
+    container_name: insight-service
+    depends_on:
+      - ollama
+    environment:
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      PORTFOLIO_SERVICE_URL: http://portfolio-service:8081
+    ports:
+      - "8083:8083"
+    networks:
+      - wealthmgmt_network
+
+networks:
+  wealthmgmt_network:
+    driver: bridge
+
+volumes:
+  ollama_data:

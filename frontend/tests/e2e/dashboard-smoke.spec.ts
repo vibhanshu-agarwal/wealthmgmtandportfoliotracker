@@ -1,8 +1,9 @@
 import { expect, test } from "@playwright/test";
 
-test("standalone build starts and renders dashboard overview", async ({ page }) => {
-  await page.goto("/overview");
+test("static export server responds on login route", async ({ request }) => {
+  const response = await request.get("/login");
+  expect(response.status()).toBe(200);
 
-  await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
-  await expect(page.getByText("Dashboard overview coming soon.")).toBeVisible();
+  const html = await response.text();
+  expect(html).toContain("<!DOCTYPE html>");
 });

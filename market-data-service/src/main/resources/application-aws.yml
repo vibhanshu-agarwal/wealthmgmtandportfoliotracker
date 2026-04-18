@@ -1,0 +1,12 @@
+market:
+  seed:
+    enabled: false
+
+# Short-lived / serverless: avoid scheduled outbound quotes and large baseline inserts on cold start.
+market-data:
+  refresh:
+    enabled: false
+  hydration:
+    enabled: true
+  baseline-seed:
+    enabled: false

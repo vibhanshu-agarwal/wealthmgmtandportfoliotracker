@@ -1,0 +1,9 @@
+fx:
+  base-currency: USD
+  aws:
+    rates-url: https://open.er-api.com/v6/latest/USD
+    refresh-cron: "0 0 6 * * *"
+
+spring:
+  cache:
+    type: simple  # ConcurrentHashMap — no Redis dependency for FX rates

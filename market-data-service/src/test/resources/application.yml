@@ -1,0 +1,14 @@
+# Test classpath defaults: keep Spring Boot tests quiet and deterministic (no hourly job, no bulk baseline).
+# Keep market.seed.* aligned with integration tests that expect the JSON fixture (see LocalMarketDataSeederIntegrationTest).
+market:
+  seed:
+    enabled: true
+    fixture-path: classpath:fixtures/market-seed-data.json
+
+market-data:
+  refresh:
+    enabled: false
+  hydration:
+    enabled: false
+  baseline-seed:
+    enabled: false

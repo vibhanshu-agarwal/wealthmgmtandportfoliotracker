@@ -1,0 +1,25 @@
+fx:
+  base-currency: USD
+  local:
+    jitter-interval-ms: 60000
+    static-rates:
+      USD: 1.00
+      EUR: 0.92
+      GBP: 0.79
+      JPY: 149.50
+      CAD: 1.36
+      AUD: 1.53
+      CHF: 0.90
+
+spring:
+  kafka:
+    consumer:
+      # ErrorHandlingDeserializer wraps JsonDeserializer so that unparseable bytes are
+      # captured as a DeserializationException header and routed to the DLT rather than
+      # crashing the consumer. The programmatic ConsumerFactory in PortfolioKafkaConfig
+      # also sets these properties, but declaring them here ensures the local profile
+      # is self-documenting and consistent with the design spec (Requirement 5.1).
+      value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+      properties:
+        spring.deserializer.value.delegate.class: org.springframework.kafka.support.serializer.JsonDeserializer
+        spring.json.trusted.packages: "com.wealth.market.events"

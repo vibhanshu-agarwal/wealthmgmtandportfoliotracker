@@ -1,0 +1,112 @@
+{
+  "consumer": {
+    "name": "wealth-frontend"
+  },
+  "interactions": [
+    {
+      "description": "a request for market summary",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "market summary data is available"
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "path": "/api/insights/market-summary"
+      },
+      "response": {
+        "body": {
+          "content": {
+            "AAPL": {
+              "aiSummary": "AAPL is Bullish. Prices are rising steadily.",
+              "latestPrice": 178.5,
+              "priceHistory": [
+                175
+              ],
+              "ticker": "AAPL",
+              "trendPercent": 2
+            }
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.AAPL": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.AAPL.aiSummary": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.AAPL.latestPrice": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.AAPL.priceHistory": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type",
+                  "min": 1
+                }
+              ]
+            },
+            "$.AAPL.ticker": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.AAPL.trendPercent": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            }
+          }
+        },
+        "status": 200
+      },
+      "type": "Synchronous/HTTP"
+    }
+  ],
+  "metadata": {
+    "pact-js": {
+      "version": "16.3.0"
+    },
+    "pactRust": {
+      "ffi": "0.5.3",
+      "models": "1.3.9"
+    },
+    "pactSpecification": {
+      "version": "4.0"
+    }
+  },
+  "provider": {
+    "name": "insight-service"
+  }
+}

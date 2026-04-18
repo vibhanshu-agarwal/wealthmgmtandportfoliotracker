@@ -1,0 +1,83 @@
+# Implementation Plan
+
+- [x] 1. Write bug condition exploration test
+  - **Property 1: Bug Condition** — Missing `ba_*` Tables Cause HTTP 500 on Auth Endpoints
+  - **CRITICAL**: This test MUST FAIL on unfixed code — failure confirms the bug exists
+  - **DO NOT attempt to fix the test or the code when it fails**
+  - **NOTE**: This test encodes the expected behavior — it will validate the fix when it passes after implementation
+  - **GOAL**: Surface counterexamples that demonstrate the bug exists
+  - **Scoped PBT Approach**: Scope the property to the concrete failing case — after all Flyway migrations run, query `information_schema.tables` for `ba_*` tables and attempt a sign-in API call
+  - Create a new integration test class `BetterAuthSchemaExplorationTest.java` in `portfolio-service/src/test/java/com/wealth/portfolio/`
+  - Use `@Tag("integration")`, `@Testcontainers`, and `@SpringBootTest` with a PostgreSQL Testcontainer (follow the pattern in `PortfolioAnalyticsIntegrationTest.java`)
+  - **Test 1 — Table existence**: After Flyway migrations run, query `SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name LIKE 'ba_%'` and assert that all four tables (`ba_user`, `ba_session`, `ba_account`, `ba_verification`) exist
+  - **Test 2 — Schema correctness**: Verify `ba_user` has columns `id`, `name`, `email`, `emailVerified`, `image`, `createdAt`, `updatedAt` via `information_schema.columns`
+  - **Test 3 — Index existence**: Verify indexes `ba_session_userId_idx`, `ba_account_userId_idx`, `ba_verification_identifier_idx` exist via `pg_indexes`
+  - **Test 4 — Foreign key constraints**: Verify `ba_session.userId` and `ba_account.userId` have FK references to `ba_user.id` via `information_schema.table_constraints`
+  - **Test 5 — Dev user seed**: Query `SELECT COUNT(*) FROM ba_user WHERE email = 'dev@localhost.local'` and assert count = 1
+  - Run test on UNFIXED code via `./gradlew :portfolio-service:integrationTest --tests '*BetterAuthSchemaExplorationTest*'`
+  - **EXPECTED OUTCOME**: Tests FAIL because V8 and V9 migrations do not exist yet — this confirms the bug (missing tables)
+  - Document counterexamples found (e.g., "ba_user table does not exist after Flyway migrations V1–V7")
+  - Mark task complete when test is written, run, and failure is documented
+  - _Requirements: 1.1, 1.2, 1.3, 1.5_
+
+- [x] 2. Write preservation property tests (BEFORE implementing fix)
+  - **Property 2: Preservation** — Existing Flyway-Managed Tables and Data Are Unaffected
+  - **IMPORTANT**: Follow observation-first methodology
+  - Create a new integration test class `FlywayPreservationTest.java` in `portfolio-service/src/test/java/com/wealth/portfolio/`
+  - Use `@Tag("integration")`, `@Testcontainers`, and `@SpringBootTest` with a PostgreSQL Testcontainer
+  - **Observe on UNFIXED code first** — run the existing V1–V7 migrations and record the schema state of `users`, `portfolios`, `asset_holdings`, `market_prices` tables
+  - **Test 1 — Existing table schema preservation**: After all migrations run, verify `users`, `portfolios`, `asset_holdings`, `market_prices` tables exist with their expected columns and types (observed from V1–V7 baseline)
+  - **Test 2 — Existing data preservation**: Insert test rows into `users`, `portfolios`, `asset_holdings`, `market_prices` before V8 runs, then verify all rows are intact after full migration — `CREATE TABLE IF NOT EXISTS` must not drop or truncate
+  - **Test 3 — Flyway history preservation**: Query `flyway_schema_history` and verify V1–V7 entries are present and have `success = true`
+  - **Test 4 — Idempotency**: Run the full migration set twice (simulating repeated `docker compose up` cycles) and verify no errors and no duplicate tables — `CREATE TABLE IF NOT EXISTS` handles this
+  - **Test 5 — No cross-table interference**: Verify that `ba_*` table creation does not add columns, constraints, or indexes to any existing Flyway-managed table
+  - Property-based approach: parameterize tests across all four existing tables (`users`, `portfolios`, `asset_holdings`, `market_prices`) to verify schema preservation universally
+  - Run tests on UNFIXED code via `./gradlew :portfolio-service:integrationTest --tests '*FlywayPreservationTest*'`
+  - **EXPECTED OUTCOME**: Tests PASS on unfixed code (confirms baseline behavior to preserve) — the preservation tests only check existing tables which already work
+  - Mark task complete when tests are written, run, and passing on unfixed code
+  - _Requirements: 3.1, 3.2, 3.3, 3.4_
+
+- [x] 3. Fix for missing `ba_*` Better Auth database tables
+  - [x] 3.1 Create V8 Flyway migration for Better Auth schema
+    - Create file `portfolio-service/src/main/resources/db/migration/V8__Better_Auth_Schema.sql`
+    - Copy the contents of `frontend/scripts/better-auth-schema.sql` into the new migration file
+    - Include all four `CREATE TABLE IF NOT EXISTS` statements: `ba_user`, `ba_session`, `ba_account`, `ba_verification`
+    - Include all three `CREATE INDEX IF NOT EXISTS` statements: `ba_session_userId_idx`, `ba_account_userId_idx`, `ba_verification_identifier_idx`
+    - Add a header comment referencing the source file and the bugfix spec
+    - _Bug_Condition: isBugCondition(input) where input.path STARTS_WITH "/api/auth/" AND NOT tableExists("ba_user", database)_
+    - _Expected_Behavior: After V8 migration, all four ba_\* tables exist with correct schema, columns, constraints, and indexes\_
+    - _Preservation: Existing tables (users, portfolios, asset_holdings, market_prices) are untouched — V8 only adds new tables_
+    - _Requirements: 1.3, 2.3, 3.1, 3.2, 3.4_
+
+  - [x] 3.2 Create V9 Flyway migration to seed dev user
+    - Create file `portfolio-service/src/main/resources/db/migration/V9__Seed_Better_Auth_Dev_User.sql`
+    - Insert dev user into `ba_user` with id `00000000-0000-0000-0000-000000000001`, email `dev@localhost.local`, name `Dev User`
+    - Insert credential account into `ba_account` linking to the dev user with `providerId = 'credential'`
+    - Use `ON CONFLICT DO NOTHING` for idempotency
+    - Reference `frontend/scripts/seed-dev-user.sql` for the SQL structure, but generate a valid scrypt hash for password `password` using the TypeScript seed script, or use the Better Auth API approach documented in `seed-dev-user.ts`
+    - _Bug_Condition: No dev user exists in ba_user after docker compose up_
+    - _Expected_Behavior: Dev user (dev@localhost.local / password) exists and can sign in_
+    - _Preservation: ON CONFLICT DO NOTHING ensures no duplicate users on repeated runs_
+    - _Requirements: 1.5, 2.1, 2.5, 3.5_
+
+  - [x] 3.3 Verify bug condition exploration test now passes
+    - **Property 1: Expected Behavior** — Better Auth Tables Exist After V8+V9 Migrations
+    - **IMPORTANT**: Re-run the SAME test from task 1 — do NOT write a new test
+    - The test from task 1 encodes the expected behavior (tables exist, schema correct, dev user seeded)
+    - Run `./gradlew :portfolio-service:integrationTest --tests '*BetterAuthSchemaExplorationTest*'`
+    - **EXPECTED OUTCOME**: Test PASSES (confirms bug is fixed — all ba\_\* tables now created by Flyway)
+    - _Requirements: 2.1, 2.3, 2.5_
+
+  - [x] 3.4 Verify preservation tests still pass
+    - **Property 2: Preservation** — Existing Tables Unaffected After V8+V9
+    - **IMPORTANT**: Re-run the SAME tests from task 2 — do NOT write new tests
+    - Run `./gradlew :portfolio-service:integrationTest --tests '*FlywayPreservationTest*'`
+    - **EXPECTED OUTCOME**: Tests PASS (confirms no regressions — existing Flyway-managed tables unchanged)
+    - Confirm all tests still pass after fix (no regressions)
+
+- [x] 4. Checkpoint — Ensure all tests pass
+  - Run full integration test suite: `./gradlew :portfolio-service:integrationTest`
+  - Verify both `BetterAuthSchemaExplorationTest` and `FlywayPreservationTest` pass
+  - Run existing integration tests to confirm no regressions: `./gradlew :portfolio-service:integrationTest --tests '*PortfolioAnalyticsIntegrationTest*'`
+  - Run unit tests: `./gradlew :portfolio-service:test`
+  - Ensure all tests pass, ask the user if questions arise

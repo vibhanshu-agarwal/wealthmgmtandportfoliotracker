@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { ThemeProvider } from "@/components/layout/ThemeProvider";
 import { QueryProvider } from "@/components/layout/QueryProvider";
 import "./globals.css";
+import React from "react";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -20,6 +21,10 @@ export const metadata: Metadata = {
     template: "%s | WealthTracker",
   },
   description: "Wealth Management & Portfolio Tracker",
+  icons: {
+    icon: "/globe.svg",
+    shortcut: "/globe.svg",
+  },
 };
 
 export default function RootLayout({

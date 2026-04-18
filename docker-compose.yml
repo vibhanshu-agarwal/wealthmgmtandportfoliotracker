@@ -1,0 +1,191 @@
+services:
+  postgres:
+    image: 'postgres:16'
+    container_name: portfolio-db
+    environment:
+      POSTGRES_DB: portfolio_db
+      POSTGRES_USER: wealth_user
+      POSTGRES_PASSWORD: wealth_pass
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+  mongodb:
+    image: 'mongo:7.0'
+    container_name: market-db
+    environment:
+      MONGO_INITDB_DATABASE: market_db
+    ports:
+      - '27017:27017'
+    volumes:
+      - mongodb-data:/data/db
+
+  kafka:
+    image: 'confluentinc/cp-kafka:7.6.0'
+    container_name: event-broker
+    ports:
+      - '9092:9092'
+      - '9094:9094'
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT'
+      KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://kafka:9092,EXTERNAL://localhost:9094'
+      KAFKA_PROCESS_ROLES: 'broker,controller'
+      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@kafka:9093'
+      KAFKA_LISTENERS: 'PLAINTEXT://:9092,CONTROLLER://:9093,EXTERNAL://:9094'
+      KAFKA_INTER_BROKER_LISTENER_NAME: 'PLAINTEXT'
+      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      CLUSTER_ID: 'NjY0NmE0NjY0NmE0NjY0Ng=='
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+
+  redis:
+    image: 'redis:alpine'
+    container_name: gateway-cache
+    ports:
+      - '6379:6379'
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    ports:
+      - '11434:11434'
+    volumes:
+      - ollama-data:/root/.ollama
+
+  portfolio-service:
+    build:
+      context: .
+      dockerfile: portfolio-service/Dockerfile
+    container_name: portfolio-service
+    # Override ENTRYPOINT to bypass Lambda Web Adapter for local development.
+    # The adapter requires the Lambda Extensions API which is only available in Lambda.
+    # On Lambda, the Dockerfile ENTRYPOINT runs the adapter natively.
+    # AOT is disabled locally — it's a Lambda cold-start optimization.
+    entrypoint: ["/opt/java/bin/java", "-jar", "/app/app.jar"]
+    depends_on:
+      - postgres
+      - kafka
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/portfolio_db?options=-c%20timezone=Asia/Kolkata
+      SPRING_DATASOURCE_USERNAME: wealth_user
+      SPRING_DATASOURCE_PASSWORD: wealth_pass
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    ports:
+      - '8081:8081'
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8081/actuator/health/readiness || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 768M
+
+  market-data-service:
+    build:
+      context: .
+      dockerfile: market-data-service/Dockerfile
+    container_name: market-data-service
+    entrypoint: ["/opt/java/bin/java", "-jar", "/app/app.jar"]
+    depends_on:
+      - mongodb
+      - kafka
+    environment:
+      SPRING_MONGODB_URI: mongodb://mongodb:27017/market_db
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    ports:
+      - '8082:8082'
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8082/actuator/health/readiness || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 768M
+
+  insight-service:
+    build:
+      context: .
+      dockerfile: insight-service/Dockerfile
+    container_name: insight-service
+    entrypoint: ["/opt/java/bin/java", "-jar", "/app/app.jar"]
+    depends_on:
+      portfolio-service:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+      redis:
+        condition: service_started
+      ollama:
+        condition: service_started
+    environment:
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      PORTFOLIO_SERVICE_URL: http://portfolio-service:8081
+    ports:
+      - '8083:8083'
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8083/actuator/health/readiness || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 768M
+
+  api-gateway:
+    build:
+      context: .
+      dockerfile: api-gateway/Dockerfile
+    container_name: api-gateway
+    entrypoint: ["/opt/java/bin/java", "-jar", "/app/app.jar"]
+    depends_on:
+      portfolio-service:
+        condition: service_healthy
+      market-data-service:
+        condition: service_healthy
+      insight-service:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    environment:
+      # Match Flyway V3 seed (user_id user-001) so gateway login and DB demo data align.
+      APP_AUTH_USER_ID: ${APP_AUTH_USER_ID:-user-001}
+      AUTH_JWT_SECRET: ${AUTH_JWT_SECRET:-local-dev-secret-change-me-min-32-chars}
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      PORTFOLIO_SERVICE_URL: http://portfolio-service:8081
+      MARKET_DATA_SERVICE_URL: http://market-data-service:8082
+      INSIGHT_SERVICE_URL: http://insight-service:8083
+    ports:
+      - '8080:8080'
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health/readiness"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 768M
+
+volumes:
+  postgres-data:
+  mongodb-data:
+  kafka-data:
+  ollama-data:

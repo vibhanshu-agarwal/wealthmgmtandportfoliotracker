@@ -1,84 +1,104 @@
+import org.springframework.boot.gradle.tasks.run.BootRun
+
 plugins {
     id 'java'
-    id 'org.springframework.boot' version '4.0.5'
+    id 'org.springframework.boot' version '4.0.5' apply false
     id 'io.spring.dependency-management' version '1.1.7'
+    id("org.openrewrite.rewrite") version("latest.release")
 }
 
 group = 'com.wealth'
 version = '0.0.1-SNAPSHOT'
 
-springBoot {
-    mainClass = 'com.wealth.WealthManagementApplication'
-}
-
-java {
-    toolchain {
-        languageVersion = JavaLanguageVersion.of(25)
-    }
-}
-
 repositories {
     mavenCentral()
+    maven { url = 'https://repo.spring.io/milestone' }
 }
 
 ext {
-    // Align with the Spring Modulith release train for Spring Boot 4.x
-    set('springModulithVersion', '2.0.5')
-    set('junitVersion', '6.0.0')
-    set('mockitoVersion', '5.20.0')
+    set('springCloudVersion', "2025.1.1")
 }
 
 dependencies {
-    implementation 'org.springframework.boot:spring-boot-starter-web'
-    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    rewrite("org.openrewrite.recipe:rewrite-spring:6.28.2")
 
-    // Spring Modulith — architectural verification + JDBC Event Publication Registry (Outbox)
-    implementation 'org.springframework.modulith:spring-modulith-starter-core'
-    implementation 'org.springframework.modulith:spring-modulith-starter-jdbc'
-
-    runtimeOnly 'org.postgresql:postgresql'
-    implementation 'org.springframework.boot:spring-boot-starter-flyway'
-    runtimeOnly 'org.flywaydb:flyway-database-postgresql'
-
-    developmentOnly 'org.springframework.boot:spring-boot-devtools'
-    developmentOnly 'org.springframework.boot:spring-boot-docker-compose'
-
-    testImplementation platform("org.junit:junit-bom:${junitVersion}")
-    testImplementation 'org.springframework.boot:spring-boot-starter-test'
-    testImplementation 'org.junit.jupiter:junit-jupiter'
-    testImplementation 'org.junit.jupiter:junit-jupiter-params'
-    testImplementation 'org.springframework.modulith:spring-modulith-starter-test'
-    testImplementation "org.mockito:mockito-core:${mockitoVersion}"
-    testImplementation "org.mockito:mockito-junit-jupiter:${mockitoVersion}"
-    testImplementation 'org.springframework.boot:spring-boot-testcontainers'
-    testImplementation 'org.testcontainers:junit-jupiter'
-    testImplementation 'org.testcontainers:postgresql'
-    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    runtimeOnly "javax.xml.bind:jaxb-api:2.3.1"
 }
 
-dependencyManagement {
-    imports {
-        mavenBom "org.testcontainers:testcontainers-bom:1.20.5"
-        mavenBom "org.springframework.modulith:spring-modulith-bom:${springModulithVersion}"
+rewrite {
+    activeRecipe("org.openrewrite.java.spring.boot4.UpgradeSpringBoot_4_0")
+    setExportDatatables(true)
+}
+
+subprojects {
+    apply plugin: 'java'
+    apply plugin: 'io.spring.dependency-management'
+
+    java {
+        toolchain {
+            languageVersion = JavaLanguageVersion.of(25)
+        }
+    }
+
+    repositories {
+        mavenCentral()
+        maven { url = 'https://repo.spring.io/milestone' }
+    }
+
+    dependencyManagement {
+        imports {
+            mavenBom "org.springframework.cloud:spring-cloud-dependencies:${springCloudVersion}"
+            mavenBom "org.testcontainers:testcontainers-bom:2.0.4" // Or your latest version
+        }
+        // Jackson 2.x pins removed — Spring Boot 4 manages Jackson 3 (tools.jackson) via its BOM.
+        // Pinning com.fasterxml.jackson 2.x here caused Jackson 3 class initialization failures.
+    }
+
+    dependencies {
+        testImplementation 'org.springframework.boot:spring-boot-starter-test'
+        testImplementation 'org.springframework.boot:spring-boot-testcontainers'
+        testImplementation 'org.testcontainers:testcontainers-junit-jupiter'
+    }
+
+    // --- NEW: Test Task Configurations ---
+
+    // Keep JVM timezone explicit to avoid PostgreSQL rejecting Asia/Calcutta from host defaults.
+    tasks.withType(Test).configureEach {
+        jvmArgs = ['-Duser.timezone=Asia/Kolkata']
+    }
+
+    tasks.withType(BootRun).configureEach {
+        jvmArgs = ['-Duser.timezone=Asia/Kolkata']
+    }
+
+    // 1. Configure the standard 'test' task to run fast (ignore integration tags)
+    tasks.named('test', Test) {
+        useJUnitPlatform {
+            excludeTags 'integration'
+        }
+    }
+
+    // 2. Create the custom 'integrationTest' task for heavy DB/Testcontainers tests
+    tasks.register('integrationTest', Test) {
+        description = 'Runs integration tests (Testcontainers, DB, etc.)'
+        group = 'verification'
+
+        useJUnitPlatform {
+            includeTags 'integration'
+        }
+
+        // Wire the integrationTest task to the compiled test source set so it can discover
+        // @Tag("integration") tests. Without this, the task reports NO-SOURCE.
+        testClassesDirs = sourceSets.test.output.classesDirs
+        classpath = sourceSets.test.runtimeClasspath
+
+        // Ensure standard fast tests run before the heavy integration tests
+        mustRunAfter tasks.named('test')
+    }
+
+    // 3. Ensure 'integrationTest' runs automatically when you run a full build/check
+    tasks.named('check') {
+        dependsOn tasks.named('integrationTest')
     }
 }
-
-tasks.named('bootRun') {
-    jvmArgs = ['-Duser.timezone=Asia/Kolkata']
-}
-
-tasks.named('test') {
-    useJUnitPlatform {
-        excludeTags 'integration'
-    }
-    jvmArgs = ['-Duser.timezone=Asia/Kolkata']
-}
-
-tasks.register('integrationTest', Test) {
-    description = 'Runs integration tests (tagged with integration).'
-    group = 'verification'
-    useJUnitPlatform {
-        includeTags 'integration'
-    }
-    shouldRunAfter(tasks.named('test'))
-}
+// Removed redundant tasks.withType(Test) block as it's now fully handled inside subprojects or at task level.
