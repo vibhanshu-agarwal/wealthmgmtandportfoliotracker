@@ -4,17 +4,21 @@
 
 locals {
   common_env = {
-    JAVA_TOOL_OPTIONS       = "-XX:+TieredCompilation -XX:TieredStopAtLevel=1"
-    SPRING_PROFILES_ACTIVE  = "aws"
-    AWS_LAMBDA_EXEC_WRAPPER = "/opt/bootstrap"
-    PORT                    = "8080"
+    JAVA_TOOL_OPTIONS                = "-XX:+TieredCompilation -XX:TieredStopAtLevel=1"
+    SPRING_PROFILES_ACTIVE           = "aws"
+    AWS_LAMBDA_EXEC_WRAPPER          = "/opt/bootstrap"
+    PORT                             = "8080"
+    AWS_LWA_ASYNC_INIT               = "true"
+    AWS_LWA_READINESS_CHECK_PATH     = "/actuator/health"
   }
 
   # api-gateway is deployed as a container image (Dockerfile bundles Lambda Web Adapter).
   # Do not set AWS_LAMBDA_EXEC_WRAPPER — the image ENTRYPOINT runs the adapter.
   api_gateway_container_env = {
-    JAVA_TOOL_OPTIONS      = local.common_env.JAVA_TOOL_OPTIONS
-    SPRING_PROFILES_ACTIVE = local.common_env.SPRING_PROFILES_ACTIVE
+    JAVA_TOOL_OPTIONS            = local.common_env.JAVA_TOOL_OPTIONS
+    SPRING_PROFILES_ACTIVE       = local.common_env.SPRING_PROFILES_ACTIVE
+    AWS_LWA_ASYNC_INIT           = "true"
+    AWS_LWA_READINESS_CHECK_PATH = "/actuator/health"
   }
 
   # VPC attachment only when managed AWS DB is on AND operators supplied subnets/SGs.
@@ -135,7 +139,7 @@ resource "aws_lambda_function" "api_gateway" {
   image_uri                      = var.api_gateway_image_uri
   architectures                  = ["x86_64"]
   memory_size                    = var.api_gateway_memory
-  timeout                        = 30 # seconds; keep >= 30 for Spring init + adapter readiness
+  timeout                        = var.lambda_timeout # seconds; keep >= 60 for Spring init + adapter readiness
   publish                        = true
   reserved_concurrent_executions = 10
 
@@ -152,9 +156,9 @@ resource "aws_lambda_function" "api_gateway" {
       # Lambda Web Adapter polls PORT; Spring Boot uses SERVER_PORT — must match api-gateway Dockerfile (8080).
       SERVER_PORT              = "8080"
       PORT                     = "8080"
-      PORTFOLIO_SERVICE_URL    = var.portfolio_function_url
-      MARKET_DATA_SERVICE_URL  = var.market_data_function_url
-      INSIGHT_SERVICE_URL      = var.insight_function_url
+      PORTFOLIO_SERVICE_URL    = var.portfolio_function_url != "" ? var.portfolio_function_url : aws_lambda_function_url.portfolio.function_url
+      MARKET_DATA_SERVICE_URL  = var.market_data_function_url != "" ? var.market_data_function_url : aws_lambda_function_url.market_data.function_url
+      INSIGHT_SERVICE_URL      = var.insight_function_url != "" ? var.insight_function_url : aws_lambda_function_url.insight.function_url
       AUTH_JWK_URI             = var.auth_jwk_uri
       CLOUDFRONT_ORIGIN_SECRET = var.cloudfront_origin_secret
     })
@@ -177,13 +181,9 @@ resource "aws_lambda_function" "portfolio" {
   s3_key                         = var.s3_key_portfolio
   layers                         = [var.lambda_adapter_layer_arn]
   memory_size                    = var.portfolio_memory_size
-  timeout                        = 30
+  timeout                        = var.lambda_timeout
   publish                        = true
   reserved_concurrent_executions = 10
-
-  snap_start {
-    apply_on = "PublishedVersions"
-  }
 
   dynamic "vpc_config" {
     for_each = local.attach_lambda_vpc ? [1] : []
@@ -209,13 +209,9 @@ resource "aws_lambda_function" "market_data" {
   s3_key                         = var.s3_key_market_data
   layers                         = [var.lambda_adapter_layer_arn]
   memory_size                    = var.market_data_memory_size
-  timeout                        = 30
+  timeout                        = var.lambda_timeout
   publish                        = true
   reserved_concurrent_executions = 10
-
-  snap_start {
-    apply_on = "PublishedVersions"
-  }
 
   dynamic "vpc_config" {
     for_each = local.attach_lambda_vpc ? [1] : []
@@ -241,13 +237,9 @@ resource "aws_lambda_function" "insight" {
   s3_key                         = var.s3_key_insight
   layers                         = [var.lambda_adapter_layer_arn]
   memory_size                    = var.insight_service_memory_size
-  timeout                        = 30
+  timeout                        = var.lambda_timeout
   publish                        = true
   reserved_concurrent_executions = 10
-
-  snap_start {
-    apply_on = "PublishedVersions"
-  }
 
   dynamic "vpc_config" {
     for_each = local.attach_lambda_vpc ? [1] : []

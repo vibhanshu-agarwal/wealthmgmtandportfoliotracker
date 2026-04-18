@@ -156,6 +156,8 @@ jobs:
             --arg INSIGHT_SERVICE_URL "$INSIGHT_SERVICE_URL" \
             --arg AUTH_JWK_URI "$AUTH_JWK_URI" \
             --arg CLOUDFRONT_ORIGIN_SECRET "$CLOUDFRONT_ORIGIN_SECRET" \
+            --arg AWS_LWA_ASYNC_INIT "true" \
+            --arg AWS_LWA_READINESS_CHECK_PATH "/actuator/health" \
             '{
               Variables: {
                 SPRING_PROFILES_ACTIVE: $SPRING_PROFILES_ACTIVE,
@@ -166,7 +168,9 @@ jobs:
                 MARKET_DATA_SERVICE_URL: $MARKET_DATA_SERVICE_URL,
                 INSIGHT_SERVICE_URL: $INSIGHT_SERVICE_URL,
                 AUTH_JWK_URI: $AUTH_JWK_URI,
-                CLOUDFRONT_ORIGIN_SECRET: $CLOUDFRONT_ORIGIN_SECRET
+                CLOUDFRONT_ORIGIN_SECRET: $CLOUDFRONT_ORIGIN_SECRET,
+                AWS_LWA_ASYNC_INIT: $AWS_LWA_ASYNC_INIT,
+                AWS_LWA_READINESS_CHECK_PATH: $AWS_LWA_READINESS_CHECK_PATH
               }
             }' > lambda-env.json
 

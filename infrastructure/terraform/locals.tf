@@ -9,5 +9,6 @@ locals {
     market_data_memory_mb     = 1024
     insight_service_memory_mb = 1024
     api_gateway_memory_mb     = 2048
+    lambda_timeout_seconds    = 60
   }
 }

@@ -92,14 +92,9 @@ RUN ARCH=$(uname -m) \
     "https://github.com/aws/aws-lambda-runtime-interface-emulator/releases/latest/download/aws-lambda-rie-${RIE_ARCH}" \
     && chmod +x /usr/local/bin/aws-lambda-rie
 
-# Lambda Web Adapter configuration
-ENV AWS_LWA_PORT=8083
-ENV AWS_LWA_READINESS_CHECK_PATH=/actuator/health
-
 # Expose the service port
-EXPOSE 8083
+EXPOSE 8080
 
-# Default: Lambda Web Adapter wraps the app
-# Locally (no Lambda runtime API), the adapter runs in passthrough mode
-ENTRYPOINT ["/opt/extensions/aws-lambda-web-adapter"]
-CMD ["java", "-Dspring.aot.enabled=true", "-jar", "/app/app.jar"]
+# Run the Spring Boot application as the main process.
+# Lambda Web Adapter is auto-loaded as a sidecar extension from /opt/extensions/.
+ENTRYPOINT ["java", "-Dspring.aot.enabled=true", "-jar", "/app/app.jar"]

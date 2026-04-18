@@ -216,3 +216,10 @@ variable "elasticache_node_type" {
   default     = "cache.t3.micro"
   description = "ElastiCache node type (Free Tier: cache.t3.micro)"
 }
+
+variable "lambda_timeout" {
+  type        = number
+  nullable    = true
+  default     = null
+  description = "Optional override for Lambda timeout (seconds); default is local.lambda_defaults.lambda_timeout_seconds in locals.tf."
+}

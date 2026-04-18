@@ -13,7 +13,7 @@ This note picks up **after** [CHANGES_INFRA_SUMMARY_2026-04-17_v2.md](./CHANGES_
 1. **`deploy.yml` — CloudFront and static hosting** — Invalidate **`CLOUDFRONT_DISTRIBUTION_ID`** after S3 uploads; align **`deploy-frontend`** with **Next static export** (**`frontend/out/`** → bucket root), which **supersedes** v2 §1.1’s **`.next/static` + `public`** two-pass for this pipeline.
 2. **`deploy.yml` — Lambda** — Poll **`LastUpdateStatus`** before **`update-function-code`** to avoid **`ResourceConflictException`** when configuration updates are still in flight.
 3. **Terraform** — CloudFront routing hardening, outputs for buckets/distribution identifiers, remote-state bootstrap runbook, **`terraform.yml`** reliability (concurrency, non-interactive runs, lock timeouts, RDS-related **`TF_VAR_*`**, explicit **`enable_aws_managed_database=false`** in CI plans), and a root variable to **gate** paid **RDS** / **ElastiCache** when you opt in.
-4. **CI/CD from `main` (merge `da46d48` and related)** — Qodana workflow + **`qodana.yaml`**; **`architecture/**`** triggers on shared **`ci.yml`**, **`cd.yml`**, **`frontend-ci.yml`**, **`frontend-cd.yml`**.
+4. **CI/CD from `main` (merge `da46d48` and related)** — Qodana workflow + **`qodana.yaml`**; **`architecture/**`** triggers on shared **`ci.yml`**, **`cd.yml`**, **`frontend-ci.yml`**, **`frontend-cd.yml`\*\*.
 5. **Frontend CI and full-stack E2E** — **`frontend-ci.yml`** aligned with static export; **`frontend-e2e-integration.yml`** env for gateway base URL, **`chmod +x ./gradlew`**, single combined Playwright invocation (stable **`webServer`** / **`storageState`** lifecycle).
 6. **Docker Compose** — Default **`APP_AUTH_USER_ID=user-001`** on **`api-gateway`** so stub login matches Flyway demo data in local and CI stacks.
 7. **README** — Terraform CLI version prerequisite (**`~> 1.6`**) called out next to workflow pins.
@@ -26,12 +26,12 @@ This note picks up **after** [CHANGES_INFRA_SUMMARY_2026-04-17_v2.md](./CHANGES_
 
 ### 1.1 **`deploy.yml`** (delta since infra v2)
 
-| Topic | Detail |
-| --- | --- |
-| CloudFront | **`aws cloudfront create-invalidation --paths "/*"`** after S3 upload, using **`CLOUDFRONT_DISTRIBUTION_ID`** (**`6f4129a`**). |
-| Static export | **`baae86e`** switches **`deploy-frontend`** to **`npm run build`** → require **`frontend/out`**, then **`aws s3 sync frontend/out/ s3://${{ secrets.S3_BUCKET_NAME }}/` --delete** (full static tree at bucket root). |
-| Lambda ordering | **`1bfa6ba`** waits (bounded loop) until **`get-function-configuration`** reports **`LastUpdateStatus=Successful`** before **`update-function-code`**. |
-| Scripts | **`6f4129a`** updates **`verify-prod-deps.sh`** comments/examples alongside deploy header comments. |
+| Topic           | Detail                                                                                                                                                                                                                 |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| CloudFront      | **`aws cloudfront create-invalidation --paths "/*"`** after S3 upload, using **`CLOUDFRONT_DISTRIBUTION_ID`** (**`6f4129a`**).                                                                                         |
+| Static export   | **`baae86e`** switches **`deploy-frontend`** to **`npm run build`** → require **`frontend/out`**, then **`aws s3 sync frontend/out/ s3://${{ secrets.S3_BUCKET_NAME }}/` --delete** (full static tree at bucket root). |
+| Lambda ordering | **`1bfa6ba`** waits (bounded loop) until **`get-function-configuration`** reports **`LastUpdateStatus=Successful`** before **`update-function-code`**.                                                                 |
+| Scripts         | **`6f4129a`** updates **`verify-prod-deps.sh`** comments/examples alongside deploy header comments.                                                                                                                    |
 
 **Secrets checklist delta:** **`CLOUDFRONT_DISTRIBUTION_ID`** is required for **`deploy-frontend`** invalidation.
 
@@ -45,10 +45,10 @@ This note picks up **after** [CHANGES_INFRA_SUMMARY_2026-04-17_v2.md](./CHANGES_
 
 ### 1.4 **Shared CI / CD and Qodana (brought in via `main`)**
 
-| Workflow / artifact | Change |
-| --- | --- |
-| **`ci.yml`**, **`cd.yml`**, **`frontend-ci.yml`**, **`frontend-cd.yml`** | Triggers extended to **`main`** and **`architecture/**`** where appropriate. |
-| **`qodana_code_quality.yml`**, **`qodana.yaml`** | Qodana static analysis job and config. |
+| Workflow / artifact                                                      | Change                                                                         |
+| ------------------------------------------------------------------------ | ------------------------------------------------------------------------------ |
+| **`ci.yml`**, **`cd.yml`**, **`frontend-ci.yml`**, **`frontend-cd.yml`** | Triggers extended to **`main`** and **`architecture/**`\*\* where appropriate. |
+| **`qodana_code_quality.yml`**, **`qodana.yaml`**                         | Qodana static analysis job and config.                                         |
 
 ---
 
@@ -68,7 +68,7 @@ This note picks up **after** [CHANGES_INFRA_SUMMARY_2026-04-17_v2.md](./CHANGES_
 
 ### 2.4 **`terraform.yml`**
 
-**`568f09f`**, **`46ac14d`** — Workflow runs on **`main`** for **`infrastructure/terraform/**`** pushes; **`workflow_dispatch`** enabled for manual runs on feature branches.
+**`568f09f`**, **`46ac14d`** — Workflow runs on **`main`** for **`infrastructure/terraform/**`** pushes; **`workflow_dispatch`\*\* enabled for manual runs on feature branches.
 
 **`bc0553d`**, **`b181f4a`** — **Concurrency** group **`terraform-state-${{ github.repository }}`** with **`cancel-in-progress: false`**; per-job **timeouts**; **`terraform_wrapper: false`**; **`TF_INPUT=false`**; **`terraform init` / `plan` / `apply`** use **`-input=false -lock-timeout=10m`**; **`TF_VAR_db_username`** / **`TF_VAR_db_password`** from **`RDS_*`** secrets; **`terraform plan`** passes **`-var="enable_aws_managed_database=false"`** so default CI plans stay on **external** Postgres/cache unless you change it deliberately.
 
@@ -86,18 +86,18 @@ The **`apply`** job continues to **invalidate CloudFront** using **`terraform ou
 
 ## 4. Key decisions (since infra v2)
 
-| Decision | Rationale |
-| --- | --- |
-| **`aws s3 sync frontend/out/`** in **`deploy.yml`** | Matches **static export** after auth moved off Next route handlers; **replaces** v2’s **`.next/static` + `public`** deploy story for **this** workflow. |
-| **CloudFront invalidation after deploy** | Avoids long-lived stale **`HTML`** and **`_next/static`** entries at the edge. |
-| **Poll Lambda `LastUpdateStatus` before `update-function-code`** | Removes a class of flaky **`ResourceConflictException`** failures between env and image updates. |
-| **`enable_aws_managed_database=false` in CI `plan`** | PR and branch automation stay predictable and non-surprising for cost. |
-| **Terraform concurrency group** | Reduces DynamoDB state-lock collisions when multiple jobs target the same remote backend. |
+| Decision                                                         | Rationale                                                                                                                                               |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`aws s3 sync frontend/out/`** in **`deploy.yml`**              | Matches **static export** after auth moved off Next route handlers; **replaces** v2’s **`.next/static` + `public`** deploy story for **this** workflow. |
+| **CloudFront invalidation after deploy**                         | Avoids long-lived stale **`HTML`** and **`_next/static`** entries at the edge.                                                                          |
+| **Poll Lambda `LastUpdateStatus` before `update-function-code`** | Removes a class of flaky **`ResourceConflictException`** failures between env and image updates.                                                        |
+| **`enable_aws_managed_database=false` in CI `plan`**             | PR and branch automation stay predictable and non-surprising for cost.                                                                                  |
+| **Terraform concurrency group**                                  | Reduces DynamoDB state-lock collisions when multiple jobs target the same remote backend.                                                               |
 
 **Supersedes (infra v2 §1.1 for `deploy.yml` artifact layout):**
 
-| Infra v2 §1.1 | Status |
-| --- | --- |
+| Infra v2 §1.1                                            | Status                                                                                                                                                                                                                                                                                                      |
+| -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Two-pass** sync of **`.next/static`** and **`public`** | **Superseded** for **`deploy.yml`** by a **single** **`frontend/out/`** sync after the static-export migration. **Note:** **`frontend-e2e-integration.yml`** still builds a **standalone** server for Playwright against **`docker compose`**; that is intentional and differs from the **S3** deploy path. |
 
 ---
@@ -105,7 +105,7 @@ The **`apply`** job continues to **invalidate CloudFront** using **`terraform ou
 ## 5. Verification
 
 - **Deploy:** push **`architecture/cloud-native-extraction`**; confirm **`deploy-frontend`** (**`out/`** present, S3 sync, invalidation) and **`deploy-backend`** (env JSON + ECR image + Lambda) are green.
-- **Terraform:** PR touching **`infrastructure/terraform/**`** → **`validate`** / **`plan`** / **`assert_plan.py`**; **`main`** push → **`apply`** and post-apply invalidation.
+- **Terraform:** PR touching **`infrastructure/terraform/**`** → **`validate`** / **`plan`** / **`assert_plan.py`**; **`main`** push → **`apply`\*\* and post-apply invalidation.
 - **Compose / E2E:** **`docker compose up -d --build`**; optional **`npx playwright test`** in **`frontend`** mirroring **`frontend-e2e-integration.yml`**.
 
 ---
@@ -124,13 +124,13 @@ The sections above were written through **`1278a13`**. The following landed on *
 
 ### 7.1 CI and E2E integrity — **`c944ea8`**
 
-| Area | Detail |
-| --- | --- |
-| Playwright / gateway auth | **`installGatewaySessionInitScript`** no longer mints a local JWT when **`SKIP_BACKEND_HEALTH_CHECK`** is set; flows **POST** to **`/api/auth/login`** so E2E matches real gateway sessions. |
-| Projects | **`static-smoke`** Playwright project for dashboard smoke only; **Chromium** ignores that spec file so the same file is not executed twice. |
-| **`frontend-ci.yml`** | **`e2e-smoke`** job reduced to **`static-smoke`** only; unused Postgres / Better Auth seed steps removed. |
-| **`global-setup.ts`** | Log text clarified when the gateway readiness poll is skipped. |
-| **`frontend-e2e-integration.yml`**, **`ci-verification.yml`** | **`AUTH_JWT_SECRET`** wiring uses a documented fallback for CI. |
+| Area                                                          | Detail                                                                                                                                                                                       |
+| ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Playwright / gateway auth                                     | **`installGatewaySessionInitScript`** no longer mints a local JWT when **`SKIP_BACKEND_HEALTH_CHECK`** is set; flows **POST** to **`/api/auth/login`** so E2E matches real gateway sessions. |
+| Projects                                                      | **`static-smoke`** Playwright project for dashboard smoke only; **Chromium** ignores that spec file so the same file is not executed twice.                                                  |
+| **`frontend-ci.yml`**                                         | **`e2e-smoke`** job reduced to **`static-smoke`** only; unused Postgres / Better Auth seed steps removed.                                                                                    |
+| **`global-setup.ts`**                                         | Log text clarified when the gateway readiness poll is skipped.                                                                                                                               |
+| **`frontend-e2e-integration.yml`**, **`ci-verification.yml`** | **`AUTH_JWT_SECRET`** wiring uses a documented fallback for CI.                                                                                                                              |
 
 **Companion doc:** [CHANGES_PHASE3_SUMMARY_2026-04-18.md](./CHANGES_PHASE3_SUMMARY_2026-04-18.md) — Phase 3 **application** addendum for the same commit.
 
@@ -140,13 +140,13 @@ Initial publication of **`CHANGES_PHASE3_INFRA_SUMMARY_18042026.md`** (the body 
 
 ### 7.3 Terraform and bootstrap — **`9f1d0f0`**
 
-| Topic | Detail |
-| --- | --- |
-| **CDN module** | New **`infrastructure/terraform/modules/cdn`**: CloudFront distribution, **S3** static origin with **origin access control (OAC)**, **viewer-request CloudFront Function** for extensionless static-export paths, **`/api/*`** cache behavior to the **Lambda Function URL** origin, optional **ACM** viewer certificate and **Route53** alias when a custom **`domain_name`** is set; root **`main.tf`** / **`variables.tf`** / **`terraform.tfvars.example`** wired for optional CDN deployment. |
-| **Compute** | **`modules/compute`** passes **`CLOUDFRONT_ORIGIN_SECRET`** into the **api-gateway** Lambda environment and adds **`cloudfront_origin_secret`** as a sensitive module variable (for verifying CloudFront-originated traffic to the API). |
-| **Bootstrap docs** | **`docs/infrastructure/bootstrap.md`** expanded for operator steps. |
-| **Local plans** | **`.gitignore`** lists **`infrastructure/terraform/backend_override.tf`** so a **local** backend file used for **`terraform plan`** without S3 credentials is not committed by mistake. |
-| **Lockfile / formatting** | **`.terraform.lock.hcl`** refreshed; **`main.tf`** **`terraform fmt`**; **`skills-lock.json`** updated for tooling pins. |
+| Topic                     | Detail                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **CDN module**            | New **`infrastructure/terraform/modules/cdn`**: CloudFront distribution, **S3** static origin with **origin access control (OAC)**, **viewer-request CloudFront Function** for extensionless static-export paths, **`/api/*`** cache behavior to the **Lambda Function URL** origin, optional **ACM** viewer certificate and **Route53** alias when a custom **`domain_name`** is set; root **`main.tf`** / **`variables.tf`** / **`terraform.tfvars.example`** wired for optional CDN deployment. |
+| **Compute**               | **`modules/compute`** passes **`CLOUDFRONT_ORIGIN_SECRET`** into the **api-gateway** Lambda environment and adds **`cloudfront_origin_secret`** as a sensitive module variable (for verifying CloudFront-originated traffic to the API).                                                                                                                                                                                                                                                           |
+| **Bootstrap docs**        | **`docs/infrastructure/bootstrap.md`** expanded for operator steps.                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| **Local plans**           | **`.gitignore`** lists **`infrastructure/terraform/backend_override.tf`** so a **local** backend file used for **`terraform plan`** without S3 credentials is not committed by mistake.                                                                                                                                                                                                                                                                                                            |
+| **Lockfile / formatting** | **`.terraform.lock.hcl`** refreshed; **`main.tf`** **`terraform fmt`**; **`skills-lock.json`** updated for tooling pins.                                                                                                                                                                                                                                                                                                                                                                           |
 
 ### 7.4 Secrets template — **`.env.secrets.example`**
 
@@ -158,3 +158,98 @@ Checked-in **example only** (no real secrets). Documents environment variables f
 - optional explicit AWS keys when not using OIDC / instance credentials.
 
 Operators copy to **`.env.secrets`** (kept local and gitignored); variable names align with workflow and Terraform usage described in §2 and **`bootstrap.md`**.
+
+---
+
+## 8. Addendum — Lambda Timeout Fix (spec `lambda-timeout-fix`)
+
+Seven Lambda misconfiguration bugs that caused all four functions to time out on cold start were identified and resolved. Changes span two Dockerfiles, the Terraform compute module, and the deploy workflow.
+
+### 8.1 Root causes fixed
+
+| #   | Bug                                                                                                                                                                                                                                                                               | Files changed                                                     |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| 1   | **api-gateway Dockerfile ENTRYPOINT** — `ENTRYPOINT` was set to `/opt/extensions/aws-lambda-web-adapter`, running the adapter binary as PID 1 instead of the Java app. Lambda auto-loads extensions from `/opt/extensions/`; the ENTRYPOINT must be the application.              | `api-gateway/Dockerfile`                                          |
+| 2   | **insight-service Dockerfile ENTRYPOINT + port mismatch** — Same incorrect ENTRYPOINT pattern. Additionally, `ENV AWS_LWA_PORT=8083` was hardcoded in the Dockerfile while Terraform set `PORT=8080`, so the adapter polled port 8083 while Spring Boot listened on 8080.         | `insight-service/Dockerfile`                                      |
+| 3   | **Lambda timeout too low** — All four functions had `timeout = 30`. Spring Boot 4 with AOT on 1024 MB can take 15–25 s to cold-start; 30 s was insufficient.                                                                                                                      | `modules/compute/main.tf`, `locals.tf`, `variables.tf`, `main.tf` |
+| 4   | **Missing `AWS_LWA_ASYNC_INIT`** — Without `AWS_LWA_ASYNC_INIT=true`, the adapter blocks during Lambda's 10-second init phase. If Spring Boot isn't ready in 10 s, the overshoot counts against the function timeout.                                                             | `modules/compute/main.tf`, `deploy.yml`                           |
+| 5   | **Invalid SnapStart handler** — `handler = "not.used"` is not a valid class. SnapStart requires a real handler to snapshot JVM state; with a dummy handler it fails silently and every invocation is a full cold start.                                                           | `modules/compute/main.tf`                                         |
+| 6   | **Blank downstream service URLs** — `PORTFOLIO_SERVICE_URL`, `MARKET_DATA_SERVICE_URL`, `INSIGHT_SERVICE_URL` in the api-gateway Lambda environment were sourced from root variables defaulting to `""`, requiring manual entry in the AWS Console after every `terraform apply`. | `modules/compute/main.tf`                                         |
+| 7   | **Missing `AWS_LWA_READINESS_CHECK_PATH`** — The adapter defaulted to polling `/` instead of `/actuator/health`, causing readiness checks to fail or return unexpected responses.                                                                                                 | `modules/compute/main.tf`, `deploy.yml`                           |
+
+### 8.2 Changes by file
+
+**`api-gateway/Dockerfile`**
+
+- `ENTRYPOINT` changed to `["java", "-Dspring.aot.enabled=true", "-jar", "/app/app.jar"]`
+- `CMD` instruction removed (ENTRYPOINT now runs the app directly)
+- LWA binary remains at `/opt/extensions/aws-lambda-web-adapter` via the existing `COPY` — Lambda auto-loads it as a sidecar extension
+
+**`insight-service/Dockerfile`**
+
+- Same ENTRYPOINT fix as api-gateway
+- `CMD` instruction removed
+- `ENV AWS_LWA_PORT=8083` removed (port controlled by Terraform at deploy time)
+- `ENV AWS_LWA_READINESS_CHECK_PATH=/actuator/health` removed (set via Terraform for consistency)
+- `EXPOSE 8083` → `EXPOSE 8080`
+
+**`infrastructure/terraform/modules/compute/main.tf`**
+
+- `timeout = 30` → `timeout = var.lambda_timeout` on all four Lambda functions
+- `AWS_LWA_ASYNC_INIT = "true"` added to `common_env` and `api_gateway_container_env` locals
+- `AWS_LWA_READINESS_CHECK_PATH = "/actuator/health"` added to both env locals
+- `snap_start { apply_on = "PublishedVersions" }` removed from `aws_lambda_function.portfolio`, `.market_data`, and `.insight`
+- Downstream URL wiring in api-gateway environment changed from `var.portfolio_function_url` (defaulting to `""`) to `var.portfolio_function_url != "" ? var.portfolio_function_url : aws_lambda_function_url.portfolio.function_url` (and equivalents for market-data and insight) — eliminates the two-phase apply pattern while preserving `TF_VAR_*` override capability
+
+**`infrastructure/terraform/modules/compute/variables.tf`**
+
+- Added `variable "lambda_timeout"` (`type = number`, `default = 60`)
+
+**`infrastructure/terraform/locals.tf`**
+
+- Added `lambda_timeout_seconds = 60` to `lambda_defaults`
+
+**`infrastructure/terraform/main.tf`**
+
+- Passes `lambda_timeout = coalesce(var.lambda_timeout, local.lambda_defaults.lambda_timeout_seconds)` to the compute module
+
+**`infrastructure/terraform/variables.tf`**
+
+- Added `variable "lambda_timeout"` (`type = number`, `nullable = true`, `default = null`) for optional per-deployment override
+
+**`.github/workflows/deploy.yml`**
+
+- Added `--arg AWS_LWA_ASYNC_INIT "true"` and `--arg AWS_LWA_READINESS_CHECK_PATH "/actuator/health"` to the `jq` invocation in the "Update Lambda function configuration" step
+- Both variables added to the `Variables` JSON object written to `lambda-env.json`
+
+### 8.3 Preservation (unchanged)
+
+- `portfolio-service/Dockerfile` and `market-data-service/Dockerfile` — ENTRYPOINT patterns not modified
+- IAM roles, Function URLs (`authorization_type = "NONE"`), Lambda aliases (`name = "live"`) — unchanged
+- VPC config dynamic blocks remain conditional on `local.attach_lambda_vpc`
+- `portfolio_function_url`, `market_data_function_url`, `insight_function_url` variables remain in `modules/compute/variables.tf` for backward-compatible `TF_VAR_*` overrides
+- `deploy.yml` workflow structure (both `deploy-frontend` and `deploy-backend` jobs) — unchanged
+
+### 8.4 Key decisions
+
+| Decision                                                   | Rationale                                                                                                                                                                       |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **ENTRYPOINT = Java app, not LWA binary**                  | Lambda extensions in `/opt/extensions/` are loaded automatically by the runtime as sidecars. The ENTRYPOINT must be the application process.                                    |
+| **`timeout = 60` as new default**                          | Accommodates Spring Boot 4 AOT cold starts on 1024–2048 MB Lambda. Warm invocations are unaffected.                                                                             |
+| **`AWS_LWA_ASYNC_INIT=true`**                              | Prevents Spring Boot's slow startup from consuming the function timeout. The adapter reports init success immediately; Spring Boot finishes in the background.                  |
+| **Remove SnapStart (not add a valid handler)**             | The Lambda Web Adapter pattern uses `handler = "not.used"` — there is no Spring Cloud Function handler class to snapshot. SnapStart is incompatible with this deployment model. |
+| **Ternary `!= ""` instead of `coalesce()` for URL wiring** | Terraform's `coalesce()` skips `null` but not empty strings. Since the variables default to `""`, a ternary check is required to fall back to the Function URL outputs.         |
+| **`AWS_LWA_READINESS_CHECK_PATH=/actuator/health`**        | Spring Boot Actuator's health endpoint is the correct readiness signal. The adapter's default `/` may not return 200 on all services.                                           |
+
+### 8.5 Test coverage
+
+Two test suites added under `infrastructure/test/`:
+
+- **`lambda-config-bug-condition.test.ts`** — 10 tests asserting the correct (fixed) configuration for all seven bug conditions. Ran on unfixed code and failed (confirming bugs); passes after fix.
+- **`lambda-config-preservation.test.ts`** — 26 tests asserting unchanged baseline behavior (Dockerfiles, IAM, Function URLs, aliases, deploy.yml structure, TF_VAR overrides). Passed before and after fix.
+
+Full suite: **37/37 tests passing** (including the pre-existing CDK snapshot test).
+
+### 8.6 Spec
+
+Tracked under **`.kiro/specs/lambda-timeout-fix/`** (`bugfix.md`, `design.md`, `tasks.md`).

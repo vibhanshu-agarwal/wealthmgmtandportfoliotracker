@@ -109,3 +109,9 @@ variable "lambda_vpc_security_group_ids" {
   default     = []
   description = "Security groups for Lambda ENIs; only used when enable_aws_managed_database is true and this list is non-empty."
 }
+
+variable "lambda_timeout" {
+  type        = number
+  default     = 60
+  description = "Timeout in seconds for all Lambda functions. Must accommodate Spring Boot cold start."
+}

@@ -99,7 +99,6 @@ ENV AWS_LWA_READINESS_CHECK_PATH=/actuator/health
 # Expose the service port
 EXPOSE 8080
 
-# Default: Lambda Web Adapter wraps the app
+# Default: Java app runs as PID 1; Lambda auto-loads the LWA sidecar from /opt/extensions/
 # Locally (no Lambda runtime API), the adapter runs in passthrough mode
-ENTRYPOINT ["/opt/extensions/aws-lambda-web-adapter"]
-CMD ["java", "-Dspring.aot.enabled=true", "-jar", "/app/app.jar"]
+ENTRYPOINT ["java", "-Dspring.aot.enabled=true", "-jar", "/app/app.jar"]
