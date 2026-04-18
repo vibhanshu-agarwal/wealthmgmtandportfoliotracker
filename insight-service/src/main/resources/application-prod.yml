@@ -1,18 +1,28 @@
-spring:
-  application:
-    name: insight-service
+# ============================================================
+# Production profile — cloud-agnostic.
+# Active whenever SPRING_PROFILES_ACTIVE includes "prod".
+# Loaded before any cloud-specific profile (aws, azure, gcp).
+# Cloud profiles override individual keys here as needed.
+# ============================================================
 
+server:
+  port: 8080
+
+spring:
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
     properties:
       security.protocol: ${KAFKA_SECURITY_PROTOCOL:SASL_SSL}
       sasl.mechanism: ${KAFKA_SASL_MECHANISM:PLAIN}
-      sasl.jaas.config: org.apache.kafka.common.security.plain.PlainLoginModule required username='${KAFKA_SASL_USERNAME}' password='${KAFKA_SASL_PASSWORD}';
+      sasl.jaas.config: >
+        org.apache.kafka.common.security.plain.PlainLoginModule required
+        username='${KAFKA_SASL_USERNAME}' password='${KAFKA_SASL_PASSWORD}';
+    admin:
+      # Fail fast on connectivity probe — avoids 30 s hang when broker is unreachable.
+      properties:
+        request.timeout.ms: 5000
 
   data:
     redis:
+      # REDIS_URL format: redis[s]://[:password@]host[:port]
       url: ${REDIS_URL}
-
-server:
-  port: 8080
-

@@ -2,6 +2,12 @@ plugins {
     id 'org.springframework.boot'
 }
 
+// AOT processing: generates AOT initializer classes at build time.
+// Required for -Dspring.aot.enabled=true at runtime (Lambda / native image).
+tasks.named('bootJar') {
+    dependsOn tasks.named('processAot')
+}
+
 dependencies {
     implementation project(':common-dto')
     implementation 'org.springframework.boot:spring-boot-starter-webmvc'

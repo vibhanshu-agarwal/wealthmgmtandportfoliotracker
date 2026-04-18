@@ -27,9 +27,10 @@ RUN sed -i "/include 'api-gateway'/d; /include 'market-data-service'/d; /include
 # Install findutils (provides xargs, required by Gradle wrapper)
 RUN yum install -y findutils && yum clean all
 
-# Build the fat JAR with Spring AOT enabled
+# Build the fat JAR. The bootJar task depends on processAot (configured in build.gradle),
+# so AOT initializer classes are generated and bundled automatically.
 RUN chmod +x gradlew \
-    && ./gradlew :portfolio-service:bootJar -Dspring.aot.enabled=true --no-daemon
+    && ./gradlew :portfolio-service:bootJar --no-daemon
 
 # ---------------------------------------------------------------------------
 # Stage 2: JRE Builder — extract JAR, run jdeps/jlink to produce Custom JRE

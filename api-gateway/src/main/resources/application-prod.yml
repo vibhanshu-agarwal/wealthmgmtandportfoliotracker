@@ -1,11 +1,25 @@
-# Active when SPRING_PROFILES_ACTIVE includes prod (e.g. Lambda: prod,aws).
-# AUTH_JWK_URI is injected by Terraform / GitHub Actions — no localhost defaults.
+# ============================================================
+# Production profile — cloud-agnostic.
+# Active whenever SPRING_PROFILES_ACTIVE includes "prod".
+# Loaded before any cloud-specific profile (aws, azure, gcp).
+# Cloud profiles override individual keys here as needed.
+# ============================================================
+
+server:
+  port: 8080
+
 spring:
   security:
     oauth2:
       resourceserver:
         jwt:
           jwk-set-uri: ${AUTH_JWK_URI}
+
+  data:
+    redis:
+      # REDIS_URL format: redis[s]://[:password@]host[:port]
+      # Upstash requires rediss:// (TLS). Set via REDIS_URL env var / GitHub Actions secret.
+      url: ${REDIS_URL}
 
 auth:
   jwk-uri: ${AUTH_JWK_URI}
