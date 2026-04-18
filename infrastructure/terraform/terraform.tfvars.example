@@ -26,8 +26,10 @@ state_bucket_name = "my-wealth-tracker-tf-state"
 lock_table_name   = "my-wealth-tracker-tf-lock"
 
 # AWS configuration
-aws_region     = "us-east-1"
-use_localstack = false
+aws_region                    = "us-east-1"
+use_localstack                = false
+# Paid RDS + ElastiCache (default false)
+enable_aws_managed_database = false
 
 # S3 artifact bucket
 artifact_bucket_name = "my-wealth-tracker-artifacts"

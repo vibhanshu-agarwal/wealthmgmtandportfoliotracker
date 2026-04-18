@@ -1,10 +1,9 @@
 # =============================================================================
 # Database Module — RDS PostgreSQL + ElastiCache Redis
 #
-# When is_local_dev = true, AWS resources are skipped (count = 0) and outputs
-# return hardcoded Docker container endpoints. This "Seamless Output Bypass"
-# allows the Terraform graph to remain valid while the actual database layer
-# is provided by vanilla Docker containers (docker-compose.yml).
+# When is_local_dev = true or enable_aws_managed_database = false, AWS RDS and
+# ElastiCache are skipped (count = 0). Outputs use local placeholders or empty
+# strings so Neon/Atlas + external cache can replace paid managed AWS datastores.
 # =============================================================================
 
 locals {
@@ -12,14 +11,16 @@ locals {
     Project = var.project_name
     Module  = "database"
   }
+  # Paid RDS/ElastiCache only when explicitly enabled and not LocalStack/local dev.
+  use_managed_aws_db = !var.is_local_dev && var.enable_aws_managed_database
 }
 
 # ---------------------------------------------------------------------------
-# RDS PostgreSQL — skipped when is_local_dev = true
+# RDS PostgreSQL — skipped for LocalStack/local dev or when managed DB disabled
 # ---------------------------------------------------------------------------
 
 resource "aws_db_instance" "portfolio" {
-  count = var.is_local_dev ? 0 : 1
+  count = local.use_managed_aws_db ? 1 : 0
 
   identifier        = "${var.project_name}-portfolio-db"
   engine            = "postgres"
@@ -37,11 +38,11 @@ resource "aws_db_instance" "portfolio" {
 }
 
 # ---------------------------------------------------------------------------
-# ElastiCache Redis — skipped when is_local_dev = true
+# ElastiCache Redis — skipped for LocalStack/local dev or when managed DB disabled
 # ---------------------------------------------------------------------------
 
 resource "aws_elasticache_cluster" "gateway_cache" {
-  count = var.is_local_dev ? 0 : 1
+  count = local.use_managed_aws_db ? 1 : 0
 
   cluster_id      = "${var.project_name}-gateway-cache"
   engine          = "redis"

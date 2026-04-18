@@ -91,13 +91,14 @@ module "compute" {
 module "database" {
   source = "./modules/database"
 
-  project_name          = "wealth"
-  is_local_dev          = var.use_localstack
-  db_username           = var.db_username
-  db_password           = var.db_password
-  rds_instance_class    = var.rds_instance_class
-  rds_allocated_storage = var.rds_allocated_storage
-  elasticache_node_type = var.elasticache_node_type
+  project_name                = "wealth"
+  is_local_dev                = var.use_localstack
+  enable_aws_managed_database = var.enable_aws_managed_database
+  db_username                 = var.db_username
+  db_password                 = var.db_password
+  rds_instance_class          = var.rds_instance_class
+  rds_allocated_storage       = var.rds_allocated_storage
+  elasticache_node_type       = var.elasticache_node_type
 }
 
 # ---------------------------------------------------------------------------

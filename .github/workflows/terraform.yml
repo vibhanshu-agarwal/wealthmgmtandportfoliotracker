@@ -79,6 +79,7 @@ jobs:
             -var="s3_key_portfolio=${{ secrets.S3_KEY_PORTFOLIO }}" \
             -var="s3_key_market_data=${{ secrets.S3_KEY_MARKET_DATA }}" \
             -var="s3_key_insight=${{ secrets.S3_KEY_INSIGHT }}" \
+            -var="enable_aws_managed_database=false" \
             -out=tfplan
 
       - name: Terraform Plan (Text)

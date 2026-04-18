@@ -130,6 +130,12 @@ variable "insight_function_url" {
 # Database module variables
 # ---------------------------------------------------------------------------
 
+variable "enable_aws_managed_database" {
+  type        = bool
+  default     = false
+  description = "Provision AWS RDS PostgreSQL and ElastiCache (paid). Default false: use Neon/Atlas and external cache."
+}
+
 variable "db_username" {
   type        = string
   description = "Master username for the RDS PostgreSQL instance"

@@ -15,6 +15,12 @@ variable "elasticache_node_type" {
   description = "ElastiCache node type (Free Tier: cache.t3.micro)"
 }
 
+variable "enable_aws_managed_database" {
+  type        = bool
+  default     = false
+  description = "If true, provision AWS RDS PostgreSQL and ElastiCache (paid). Default false: use Neon/Atlas and app-managed cache."
+}
+
 variable "is_local_dev" {
   type        = bool
   default     = false
