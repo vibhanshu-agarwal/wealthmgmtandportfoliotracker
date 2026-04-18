@@ -108,7 +108,14 @@ def assert_lambda_concurrency_cap(changes: list) -> list:
 
 
 def assert_spring_profiles_active(changes: list) -> list:
-    """Property 3: SPRING_PROFILES_ACTIVE must be present in all Lambda env vars."""
+    """Property 3: SPRING_PROFILES_ACTIVE must be present in all Lambda env vars.
+
+    Note: when a Lambda's environment.variables map contains (known after apply)
+    values (e.g. Function URLs on first apply), Terraform serialises the entire
+    variables object as null in the plan JSON. In that case we skip the check for
+    that function — the variable will be validated on subsequent plans once all
+    resource outputs are known.
+    """
     errors = []
     for rc in changes:
         if rc["type"] == "aws_lambda_function":
@@ -117,9 +124,17 @@ def assert_spring_profiles_active(changes: list) -> list:
             env_list = after.get("environment", []) or []
             # environment is a list of objects with a "variables" map
             env_vars = {}
+            all_null = True
             for env_block in env_list:
                 if isinstance(env_block, dict):
-                    env_vars.update(env_block.get("variables", {}) or {})
+                    variables = env_block.get("variables")
+                    if variables is not None:
+                        all_null = False
+                        env_vars.update(variables)
+            # If all environment blocks have null variables, the map contains
+            # (known after apply) values — skip this function for this check.
+            if all_null and env_list:
+                continue
             if "SPRING_PROFILES_ACTIVE" not in env_vars:
                 errors.append(
                     f"FAIL [Property 3] Lambda '{fn_name}' is missing "

@@ -154,8 +154,10 @@ resource "aws_lambda_function" "api_gateway" {
   environment {
     variables = merge(local.api_gateway_container_env, {
       # Lambda Web Adapter polls PORT; Spring Boot uses SERVER_PORT — must match api-gateway Dockerfile (8080).
-      SERVER_PORT              = "8080"
-      PORT                     = "8080"
+      SERVER_PORT = "8080"
+      PORT        = "8080"
+      # Programmatic wiring: use the Function URL outputs directly.
+      # TF_VAR_* overrides take precedence when non-empty (e.g. cross-account or external URLs).
       PORTFOLIO_SERVICE_URL    = var.portfolio_function_url != "" ? var.portfolio_function_url : aws_lambda_function_url.portfolio.function_url
       MARKET_DATA_SERVICE_URL  = var.market_data_function_url != "" ? var.market_data_function_url : aws_lambda_function_url.market_data.function_url
       INSIGHT_SERVICE_URL      = var.insight_function_url != "" ? var.insight_function_url : aws_lambda_function_url.insight.function_url
