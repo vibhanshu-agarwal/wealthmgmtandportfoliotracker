@@ -48,29 +48,37 @@ variable "api_gateway_image_uri" {
 
 variable "lambda_java_runtime" {
   type        = string
-  default     = "java21"
-  description = <<-EOT
-    AWS Lambda managed runtime identifier for Zip-based Java Lambdas (portfolio, market-data, insight).
-    HashiCorp AWS provider v5.100.x validates against a fixed list — `java25` is not accepted yet; use `java21` until the provider adds it (then set to `java25` or use container images for JDK 25).
-  EOT
+  nullable    = true
+  default     = null
+  description = "Optional override for Zip Lambda runtime; default is local.lambda_defaults.zip_java_runtime in locals.tf."
+}
+
+variable "api_gateway_memory" {
+  type        = number
+  nullable    = true
+  default     = null
+  description = "Optional override for api-gateway Image memory (MB); default is local.lambda_defaults.api_gateway_memory_mb in locals.tf."
 }
 
 variable "portfolio_memory_size" {
   type        = number
-  default     = 2048
-  description = "Memory (MB) for wealth-portfolio-service Lambda."
+  nullable    = true
+  default     = null
+  description = "Optional override for portfolio Lambda memory (MB); default is local.lambda_defaults.portfolio_memory_mb in locals.tf."
 }
 
 variable "market_data_memory_size" {
   type        = number
-  default     = 1024
-  description = "Memory (MB) for wealth-market-data-service Lambda."
+  nullable    = true
+  default     = null
+  description = "Optional override for market-data Lambda memory (MB); default is local.lambda_defaults.market_data_memory_mb in locals.tf."
 }
 
 variable "insight_service_memory_size" {
   type        = number
-  default     = 1024
-  description = "Memory (MB) for wealth-insight-service Lambda."
+  nullable    = true
+  default     = null
+  description = "Optional override for insight Lambda memory (MB); default is local.lambda_defaults.insight_service_memory_mb in locals.tf."
 }
 
 variable "postgres_connection_string" {

@@ -134,8 +134,8 @@ resource "aws_lambda_function" "api_gateway" {
   package_type                   = "Image"
   image_uri                      = var.api_gateway_image_uri
   architectures                  = ["x86_64"]
-  memory_size                    = 2048 # fixed — api-gateway + Lambda Web Adapter init needs headroom
-  timeout                        = 30   # seconds; keep >= 30 for Spring init + adapter readiness
+  memory_size                    = var.api_gateway_memory
+  timeout                        = 30 # seconds; keep >= 30 for Spring init + adapter readiness
   publish                        = true
   reserved_concurrent_executions = 10
 

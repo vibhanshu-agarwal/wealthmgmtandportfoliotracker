@@ -14,6 +14,11 @@ variable "api_gateway_image_uri" {
   description = "Full ECR image URI for api-gateway Lambda (package_type Image), e.g. 123456789012.dkr.ecr.us-east-1.amazonaws.com/my-repo:latest"
 }
 
+variable "api_gateway_memory" {
+  type        = number
+  description = "Memory (MB) for wealth-api-gateway Image Lambda (root defaults from locals.tf)."
+}
+
 variable "lambda_java_runtime" {
   type        = string
   description = "AWS Lambda managed runtime for Zip-based Java Lambdas (e.g. java21; java25 when provider/AWS list includes it)."

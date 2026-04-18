@@ -46,8 +46,9 @@ lambda_adapter_layer_arn = "arn:aws:lambda:us-east-1:753240598075:layer:LambdaAd
 # api-gateway Lambda container (package_type Image — must exist in ECR before first apply)
 api_gateway_image_uri = "123456789012.dkr.ecr.us-east-1.amazonaws.com/my-api-gateway:latest"
 
-# Optional overrides (defaults: lambda_java_runtime=java21 until provider supports java25; portfolio 2048 MB; market-data & insight 1024 MB; api-gateway memory fixed at 2048 in module)
+# Optional overrides for Lambda runtime + memory (defaults live in locals.tf → lambda_defaults)
 # lambda_java_runtime         = "java21"
+# api_gateway_memory          = 2048
 # portfolio_memory_size       = 2048
 # market_data_memory_size     = 1024
 # insight_service_memory_size = 1024
