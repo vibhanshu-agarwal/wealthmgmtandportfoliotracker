@@ -410,3 +410,47 @@ application.yml          ← base defaults, localhost URLs, local env vars
 | `market-data-service/src/main/resources/application-aws.yml`  | Lambda cold-start overrides only                                       |
 | `insight-service/src/main/resources/application-prod.yml`     | Kafka SASL, Redis URL, port 8080                                       |
 | `insight-service/src/main/resources/application-aws.yml`      | New file — extension-point comment only                                |
+
+---
+
+## 13. Addendum — Spring Boot AOT and Docker build fixes (2026-04-18, post-merge)
+
+Four follow-up fixes landed after §10–12 were committed, resolving CI failures introduced by applying `org.springframework.boot.aot`.
+
+### 13.1 `processAot` task not found — **`2ec706a`**
+
+**Problem:** `tasks.named('bootJar') { dependsOn tasks.named('processAot') }` in each `build.gradle` failed with `Task with name 'processAot' not found`. The `processAot` task is registered by `SpringBootAotPlugin` (`org.springframework.boot.aot`), not by the main `org.springframework.boot` plugin. Calling `tasks.named()` before the plugin registered the task caused a configuration-time failure.
+
+**Fix:** Applied `id 'org.springframework.boot.aot'` to all four service `build.gradle` files. `SpringBootAotPlugin` registers `processAot` and wires it into `bootJar` automatically — no explicit `dependsOn` needed or present.
+
+**Verified:** `./gradlew :api-gateway:bootJar --dry-run` confirms `processAot → compileAotJava → processAotResources → aotClasses → bootJar` for all four services.
+
+**Files changed:** `api-gateway/build.gradle`, `portfolio-service/build.gradle`, `market-data-service/build.gradle`, `insight-service/build.gradle`
+
+### 13.2 `processTestAot` fails on Testcontainers tests — **`5e59e8f`**
+
+**Problem:** `org.springframework.boot.aot` also registers `processTestAot`, which tries to AOT-process every `@SpringBootTest` class at build time. Testcontainers-based integration tests use `@DynamicPropertySource` with lambdas like `postgres::getJdbcUrl` — these call `getMappedPort()` on a container that hasn't started, throwing `Mapped port can only be obtained after the container is started`. Every service had multiple affected tests (`BetterAuthSchemaExplorationTest`, `DlqIntegrationTest`, `CorsConfigurationTest`, etc.).
+
+**Fix:** Added `tasks.named('processTestAot') { enabled = false }` to all four service `build.gradle` files. Test AOT is only needed for GraalVM native test compilation, which is not a goal for this JVM deployment. Production AOT (`processAot` → `bootJar`) is unaffected.
+
+**Files changed:** `api-gateway/build.gradle`, `portfolio-service/build.gradle`, `market-data-service/build.gradle`, `insight-service/build.gradle`
+
+### 13.3 Gradle distribution 504 flakiness — **`c693e8a`**
+
+**Problem:** The Gradle wrapper downloads `gradle-9.4.1-bin.zip` from `services.gradle.org` inside the Docker builder stage on every cold build. When that CDN returns a 504 (transient, pre-existing), the build fails with no retry and no useful error beyond the HTTP status code. Previous attempts to work around this at the Gradle level did not resolve it.
+
+**Fix:** Added a `gradle-dist` stage before the builder in each Dockerfile. This stage downloads the zip once using `curl --retry 5 --retry-delay 5 --retry-connrefused` and places it at `$HOME/.gradle/wrapper/dists/gradle-9.4.1-bin/gradle-9.4.1-bin.zip` — the exact path the wrapper checks. The builder stage receives it via `COPY --from=gradle-dist /root/.gradle /root/.gradle` and skips the network download entirely. The `gradle-dist` layer is also cached by Docker between builds, so subsequent builds pay no download cost unless the Gradle version changes.
+
+**Files changed:** `api-gateway/Dockerfile`, `portfolio-service/Dockerfile`, `market-data-service/Dockerfile`, `insight-service/Dockerfile`
+
+### 13.4 `curl` install conflicts with `curl-minimal` — **`f6228f2`**
+
+**Problem:** The `gradle-dist` stage attempted `yum install -y curl`, which conflicted with `curl-minimal` pre-installed in `amazoncorretto:25`. Amazon Linux 2023 ships `curl-minimal` as a mutually exclusive alternative to the full `curl` package; installing `curl` without `--allowerasing` exits with code 1.
+
+**Fix:** Removed the `yum install -y curl` step. `curl-minimal` supports all required flags (`--retry`, `--retry-delay`, `--retry-connrefused`, `--location`, `--fail`, `--show-error`) — no install is needed.
+
+**Files changed:** `api-gateway/Dockerfile`, `portfolio-service/Dockerfile`, `market-data-service/Dockerfile`, `insight-service/Dockerfile`
+
+### 13.5 Merge to `main` — **`79d4316`**
+
+All five commits (`035e2b9` through `f6228f2`) merged to `main` via a no-fast-forward merge commit after the CI pipeline went green on `architecture/cloud-native-extraction`.
