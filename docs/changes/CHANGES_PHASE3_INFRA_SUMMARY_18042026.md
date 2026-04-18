@@ -113,7 +113,7 @@ The **`apply`** job continues to **invalidate CloudFront** using **`terraform ou
 ## 6. Git record
 
 - **Branch:** `architecture/cloud-native-extraction`
-- **Infra-focused commits (illustrative, since v2 doc `58f2acb`):** `6f4129a`, `1bfa6ba`, `baae86e` (workflow slice), `62abb67`, `05fc8e5`, `b4c7d04`, `568f09f`, `46ac14d`, `c702ad0`, `4efc123`, `bc0553d`, `b181f4a`, `81899fb` (Compose slice), `1278a13` (E2E workflow slice), plus CI/CD/Qodana commits merged via `da46d48` (`9b95c43` … `174a31a`, `3852e72`). **Later same-day revisions:** `c944ea8`, `6d14b0e`, `9f1d0f0` (see §7 addendum).
+- **Infra-focused commits (illustrative, since v2 doc `58f2acb`):** `6f4129a`, `1bfa6ba`, `baae86e` (workflow slice), `62abb67`, `05fc8e5`, `b4c7d04`, `568f09f`, `46ac14d`, `c702ad0`, `4efc123`, `bc0553d`, `b181f4a`, `81899fb` (Compose slice), `1278a13` (E2E workflow slice), plus CI/CD/Qodana commits merged via `da46d48` (`9b95c43` … `174a31a`, `3852e72`). **Later same-day revisions:** `c944ea8`, `6d14b0e`, `9f1d0f0`, `33d255c` (see §7 addendum).
 - **Remote:** [github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker)
 
 ---
