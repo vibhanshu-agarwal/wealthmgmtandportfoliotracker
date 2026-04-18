@@ -15,7 +15,6 @@ locals {
   api_gateway_container_env = {
     JAVA_TOOL_OPTIONS      = local.common_env.JAVA_TOOL_OPTIONS
     SPRING_PROFILES_ACTIVE = local.common_env.SPRING_PROFILES_ACTIVE
-    PORT                   = local.common_env.PORT
   }
 
   # VPC attachment only when managed AWS DB is on AND operators supplied subnets/SGs.
@@ -150,6 +149,9 @@ resource "aws_lambda_function" "api_gateway" {
 
   environment {
     variables = merge(local.api_gateway_container_env, {
+      # Lambda Web Adapter polls PORT; Spring Boot uses SERVER_PORT — must match api-gateway Dockerfile (8080).
+      SERVER_PORT              = "8080"
+      PORT                     = "8080"
       PORTFOLIO_SERVICE_URL    = var.portfolio_function_url
       MARKET_DATA_SERVICE_URL  = var.market_data_function_url
       INSIGHT_SERVICE_URL      = var.insight_function_url
