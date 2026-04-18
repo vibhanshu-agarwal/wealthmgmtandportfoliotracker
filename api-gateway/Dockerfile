@@ -12,9 +12,8 @@
 # ---------------------------------------------------------------------------
 FROM amazoncorretto:25 AS gradle-dist
 
-RUN yum install -y curl && yum clean all
-
-# Read the distribution URL from the wrapper properties and download with retries.
+# amazoncorretto:25 ships with curl-minimal which supports all required flags.
+# Installing the full curl package would conflict with curl-minimal — skip it.
 # --retry 5 --retry-delay 5 --retry-connrefused covers transient CDN 504s.
 RUN GRADLE_VERSION=9.4.1 \
     && GRADLE_URL="https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip" \
