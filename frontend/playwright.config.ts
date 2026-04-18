@@ -34,8 +34,9 @@ export default defineConfig({
     command: "npm run build && npm run start:export",
     env: {
       ...process.env,
-      // Route frontend /api calls directly to API Gateway during E2E.
-      NEXT_PUBLIC_API_BASE_URL: "http://127.0.0.1:8080",
+      // Prefer CI/job env (localhost) so browser Origin matches gateway CORS.
+      NEXT_PUBLIC_API_BASE_URL:
+        process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080",
     },
     url: "http://localhost:3000",
     reuseExistingServer: true,

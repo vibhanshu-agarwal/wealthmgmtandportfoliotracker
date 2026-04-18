@@ -101,15 +101,19 @@ function subscribeToAuthSession(onStoreChange: () => void): () => void {
 }
 
 export function useAuthSession() {
+  // Server / build-time snapshot must not be `undefined`: React treats that as a
+  // distinct "pending" snapshot, so `session === undefined` kept isPending true
+  // after hydration and gated portfolio pages behind the skeleton forever in CI.
   const session = useSyncExternalStore(
     subscribeToAuthSession,
     loadAuthSession,
-    () => undefined,
+    () => null as AuthSession | null,
   );
 
   return {
-    data: session ?? null,
-    isPending: session === undefined,
+    data: session,
+    // Auth is read synchronously from localStorage; there is no async load phase.
+    isPending: false,
     isAuthenticated: !!session,
     setSession: (nextSession: AuthSession | null) => {
       if (nextSession) {

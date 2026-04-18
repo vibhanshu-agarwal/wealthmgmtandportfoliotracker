@@ -19,6 +19,7 @@ import { ensurePortfolioWithHoldings } from "./helpers/api";
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 const BASE_URL = "http://localhost:3000";
+const GATEWAY_URL = process.env.GATEWAY_BASE_URL ?? "http://localhost:8080";
 
 // ── Network capture ───────────────────────────────────────────────────────────
 
@@ -217,7 +218,7 @@ test.describe("Dashboard Data Integration Diagnostics", () => {
     const token = mintApiJwt("user-001");
     console.log(`\n  Synthetic JWT (first 80 chars): ${token.slice(0, 80)}…`);
 
-    const response = await request.get("http://127.0.0.1:8080/api/portfolio", {
+    const response = await request.get(`${GATEWAY_URL}/api/portfolio`, {
       headers: { Authorization: `Bearer ${token}` },
     });
 

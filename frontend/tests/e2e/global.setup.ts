@@ -12,7 +12,7 @@ import { mintJwt } from "./helpers/auth";
 const authFile = path.join(__dirname, "../../playwright/.auth/user.json");
 const AUTH_STORAGE_KEY = "wmpt.auth.session";
 const BASE_URL = "http://localhost:3000";
-const GATEWAY_BASE_URL = process.env.GATEWAY_BASE_URL ?? "http://127.0.0.1:8080";
+const GATEWAY_BASE_URL = process.env.GATEWAY_BASE_URL ?? "http://localhost:8080";
 const SKIP_BACKEND_HEALTH_CHECK = process.env.SKIP_BACKEND_HEALTH_CHECK === "true";
 
 setup("authenticate", async ({ request, page }) => {

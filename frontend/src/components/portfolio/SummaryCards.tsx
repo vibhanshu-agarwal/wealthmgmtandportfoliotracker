@@ -96,18 +96,21 @@ function SummaryCardsSkeleton() {
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function SummaryCards() {
-  const { data: portfolio, isLoading } = usePortfolio();
-  const {
-    data: portfolioSummary,
-    isLoading: isSummaryLoading,
-    isFetching: isSummaryFetching,
-  } = usePortfolioSummary();
+  const { data: portfolio, isLoading: isPortfolioLoading } = usePortfolio();
+  const { data: portfolioSummary, isFetching: isSummaryFetching } =
+    usePortfolioSummary();
   const { data: analytics } = usePortfolioAnalytics();
 
-  // Show skeleton only while the summary query is actively fetching its first result.
-  // Do NOT gate on usePortfolio's isLoading — the total-value card only needs
-  // portfolioSummary, and usePortfolio may be retrying market prices independently.
-  if (isSummaryFetching && !portfolioSummary) return <SummaryCardsSkeleton />;
+  // Skeleton only while we have neither summary nor the main portfolio payload yet.
+  // If /summary is slow but /portfolio returned, still render total-value from the
+  // client-computed portfolio.summary so E2E and users are not stuck on a blank row.
+  if (
+    isSummaryFetching &&
+    !portfolioSummary &&
+    (isPortfolioLoading || !portfolio)
+  ) {
+    return <SummaryCardsSkeleton />;
+  }
 
   // If portfolio fetch failed, render cards with zero/placeholder values
   // rather than a hard error — backend may simply be unavailable in local dev.
