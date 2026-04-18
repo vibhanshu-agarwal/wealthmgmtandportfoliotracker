@@ -103,9 +103,6 @@ jobs:
           ./gradlew --version
           exit 1
 
-      - name: Build api-gateway production JAR
-        run: ./gradlew :api-gateway:bootJar
-
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:

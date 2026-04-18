@@ -1,0 +1,22 @@
+# Exclude Gradle build output from the Docker build context.
+# Without this, pre-built JARs from the CI runner are copied into the builder
+# stage and Gradle treats them as UP-TO-DATE, skipping processAot entirely.
+# The builder stage must always run a clean Gradle build inside Docker so that
+# processAot generates the AOT initializer classes and bootJar bundles them.
+**/build/
+**/.gradle/
+
+# Frontend and infrastructure are not needed for backend Docker builds
+frontend/
+infrastructure/
+docs/
+logs/
+*.md
+.git/
+.github/
+.kiro/
+.cursor/
+.vscode/
+.idea/
+.env*
+!.env.example
