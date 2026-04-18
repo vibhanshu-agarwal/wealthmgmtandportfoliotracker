@@ -16,11 +16,13 @@
 
 import { expect, test } from "@playwright/test";
 import { ensurePortfolioWithHoldings } from "./helpers/api";
+import { installGatewaySessionInitScript } from "./helpers/browser-auth";
 
 // ── Suite 1: Data Creation ────────────────────────────────────────────────────
 
 test.describe("Golden Path — Data Creation", () => {
-  test.beforeEach(async ({ request }) => {
+  test.beforeEach(async ({ page, request }) => {
+    await installGatewaySessionInitScript(page, request);
     await ensurePortfolioWithHoldings(request);
   });
 
@@ -35,7 +37,8 @@ test.describe("Golden Path — Data Creation", () => {
 // ── Suite 2: Analytics Validation ────────────────────────────────────────────
 
 test.describe("Golden Path — Analytics Validation", () => {
-  test.beforeEach(async ({ request }) => {
+  test.beforeEach(async ({ page, request }) => {
+    await installGatewaySessionInitScript(page, request);
     await ensurePortfolioWithHoldings(request);
   });
 

@@ -59,11 +59,16 @@ async function loadMarketPrices(tickers: string[], token: string): Promise<Map<s
   }
 
   const params = new URLSearchParams({ tickers: tickers.join(",") });
-  const prices = await fetchJson<BackendMarketPrice[]>(
-    `${apiPath("/market/prices")}?${params.toString()}`,
-    token,
-  );
-  return new Map(prices.map((p) => [p.ticker, p]));
+  try {
+    const prices = await fetchJson<BackendMarketPrice[]>(
+      `${apiPath("/market/prices")}?${params.toString()}`,
+      token,
+    );
+    return new Map(prices.map((p) => [p.ticker, p]));
+  } catch {
+    // Degrade gracefully: UI still shows holdings/tickers; totals may be $0 until market-data is up.
+    return new Map<string, BackendMarketPrice>();
+  }
 }
 
 function buildPerformanceSeries(days: number, totalValue: number): PerformanceDataPoint[] {

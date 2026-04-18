@@ -15,6 +15,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { mintJwt as mintApiJwt } from "./helpers/auth";
 import { ensurePortfolioWithHoldings } from "./helpers/api";
+import { installGatewaySessionInitScript } from "./helpers/browser-auth";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -108,6 +109,7 @@ test.describe("Dashboard Data Integration Diagnostics", () => {
     const calls: ApiCall[] = [];
     attachNetworkLogger(page, calls);
 
+    await installGatewaySessionInitScript(page, request);
     // Seed deterministic holdings for the authenticated user so the assertion
     // does not depend on test order or external state.
     await ensurePortfolioWithHoldings(request);
@@ -140,10 +142,11 @@ test.describe("Dashboard Data Integration Diagnostics", () => {
   /**
    * Test 3 — Authorization header is present on every /api/portfolio/* call
    */
-  test("3. All /api/portfolio/* requests carry an Authorization header", async ({ page }) => {
+  test("3. All /api/portfolio/* requests carry an Authorization header", async ({ page, request }) => {
     const calls: ApiCall[] = [];
     attachNetworkLogger(page, calls);
 
+    await installGatewaySessionInitScript(page, request);
     await page.goto(`${BASE_URL}/portfolio`);
     await page.waitForTimeout(5_000);
 
@@ -186,6 +189,7 @@ test.describe("Dashboard Data Integration Diagnostics", () => {
     const calls: ApiCall[] = [];
     attachNetworkLogger(page, calls);
 
+    await installGatewaySessionInitScript(page, request);
     await ensurePortfolioWithHoldings(request);
 
     await page.goto(`${BASE_URL}/portfolio`);

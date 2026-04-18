@@ -163,6 +163,8 @@ services:
       redis:
         condition: service_started
     environment:
+      # Match Flyway V3 seed (user_id user-001) so gateway login and DB demo data align.
+      APP_AUTH_USER_ID: ${APP_AUTH_USER_ID:-user-001}
       AUTH_JWT_SECRET: ${AUTH_JWT_SECRET:-local-dev-secret-change-me-min-32-chars}
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
