@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-const GATEWAY_BASE_URL = process.env.GATEWAY_BASE_URL ?? "http://127.0.0.1:8080";
+const GATEWAY_BASE_URL = process.env.GATEWAY_BASE_URL ?? "http://localhost:8080";
 
 test("@auth-preflight auth preflight: backend login returns JWT payload", async ({
   request,

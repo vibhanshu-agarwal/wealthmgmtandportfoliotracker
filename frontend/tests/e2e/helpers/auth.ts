@@ -2,8 +2,11 @@ import { createHmac } from "node:crypto";
 import type { Page } from "@playwright/test";
 import { expect } from "@playwright/test";
 
-const AUTH_JWT_SECRET =
-  process.env.AUTH_JWT_SECRET ?? "local-dev-secret-change-me-min-32-chars";
+/** GitHub Actions can set secrets to empty; `??` does not treat "" as missing. */
+const AUTH_JWT_SECRET = (() => {
+  const s = process.env.AUTH_JWT_SECRET?.trim();
+  return s && s.length > 0 ? s : "local-dev-secret-change-me-min-32-chars";
+})();
 
 /** Low-level helper: sign a header.payload string with HS256. */
 function signJwt(headerB64: string, payloadB64: string): string {

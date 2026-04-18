@@ -1,6 +1,6 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import * as React from "react";
 import { apiPath } from "@/lib/config/api";
 
 const AUTH_STORAGE_KEY = "wmpt.auth.session";
@@ -13,26 +13,40 @@ export interface AuthSession {
   name: string;
 }
 
-interface LoginResponse {
-  token: string;
-  userId: string;
-  email: string;
-  name: string;
+/** Normalise API / stored JSON (camelCase or snake_case) into AuthSession. */
+function coerceSession(parsed: Record<string, unknown>): AuthSession | null {
+  const token =
+    typeof parsed.token === "string"
+      ? parsed.token
+      : typeof parsed.access_token === "string"
+        ? parsed.access_token
+        : "";
+  const userId =
+    typeof parsed.userId === "string"
+      ? parsed.userId
+      : typeof parsed.user_id === "string"
+        ? parsed.user_id
+        : typeof parsed.sub === "string"
+          ? parsed.sub
+          : "";
+  const email = typeof parsed.email === "string" ? parsed.email : "";
+  const name =
+    typeof parsed.name === "string"
+      ? parsed.name
+      : typeof parsed.fullName === "string"
+        ? parsed.fullName
+        : "User";
+  if (!token || !userId || !email) {
+    return null;
+  }
+  return { token, userId, email, name };
 }
 
 function parseStoredSession(raw: string | null): AuthSession | null {
   if (!raw) return null;
   try {
-    const parsed = JSON.parse(raw) as Partial<AuthSession>;
-    if (!parsed.token || !parsed.userId || !parsed.email || !parsed.name) {
-      return null;
-    }
-    return {
-      token: parsed.token,
-      userId: parsed.userId,
-      email: parsed.email,
-      name: parsed.name,
-    };
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    return coerceSession(parsed);
   } catch {
     return null;
   }
@@ -71,15 +85,13 @@ export async function loginWithBackend(email: string, password: string): Promise
     throw new Error(`Login failed (${response.status})`);
   }
 
-  const payload = (await response.json()) as LoginResponse;
-  const session: AuthSession = {
-    token: payload.token,
-    userId: payload.userId,
-    email: payload.email,
-    name: payload.name,
-  };
-  saveAuthSession(session);
-  return session;
+  const raw = (await response.json()) as Record<string, unknown>;
+  const parsed = coerceSession(raw);
+  if (!parsed) {
+    throw new Error("Login response missing token, userId, or email");
+  }
+  saveAuthSession(parsed);
+  return parsed;
 }
 
 function subscribeToAuthSession(onStoreChange: () => void): () => void {
@@ -100,19 +112,25 @@ function subscribeToAuthSession(onStoreChange: () => void): () => void {
   };
 }
 
+/**
+ * LocalStorage-backed session. Uses client-first state + layout effect instead of
+ * useSyncExternalStore so static-export hydration does not race with the first paint
+ * (which previously left session null and triggered /login redirects before data loaded).
+ */
 export function useAuthSession() {
-  // Server / build-time snapshot must not be `undefined`: React treats that as a
-  // distinct "pending" snapshot, so `session === undefined` kept isPending true
-  // after hydration and gated portfolio pages behind the skeleton forever in CI.
-  const session = useSyncExternalStore(
-    subscribeToAuthSession,
-    loadAuthSession,
-    () => null as AuthSession | null,
+  const [session, setSession] = React.useState<AuthSession | null>(() =>
+    typeof window === "undefined" ? null : loadAuthSession(),
   );
+
+  React.useLayoutEffect(() => {
+    setSession(loadAuthSession());
+    return subscribeToAuthSession(() => {
+      setSession(loadAuthSession());
+    });
+  }, []);
 
   return {
     data: session,
-    // Auth is read synchronously from localStorage; there is no async load phase.
     isPending: false,
     isAuthenticated: !!session,
     setSession: (nextSession: AuthSession | null) => {

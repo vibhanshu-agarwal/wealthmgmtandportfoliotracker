@@ -22,7 +22,7 @@ public class AuthController {
     public AuthController(
             @Value("${app.auth.email:dev@localhost.local}") String authEmail,
             @Value("${app.auth.password:password}") String authPassword,
-            @Value("${app.auth.user-id:dev-user}") String authUserId,
+            @Value("${app.auth.user-id:user-001}") String authUserId,
             @Value("${app.auth.name:Development User}") String authName,
             JwtSigner jwtSigner) {
         this.authEmail = authEmail;

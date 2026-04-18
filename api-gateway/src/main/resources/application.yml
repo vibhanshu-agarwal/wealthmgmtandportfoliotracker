@@ -47,5 +47,6 @@ app:
   auth:
     email: ${APP_AUTH_EMAIL:dev@localhost.local}
     password: ${APP_AUTH_PASSWORD:password}
-    user-id: ${APP_AUTH_USER_ID:dev-user}
+    # Align with Flyway V3 seed (portfolios.user_id = user-001); override via APP_AUTH_USER_ID if needed.
+    user-id: ${APP_AUTH_USER_ID:user-001}
     name: ${APP_AUTH_NAME:Development User}

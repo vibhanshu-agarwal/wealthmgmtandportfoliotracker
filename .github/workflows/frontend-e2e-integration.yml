@@ -21,6 +21,7 @@ jobs:
       BETTER_AUTH_URL: http://localhost:3000
       NEXT_PUBLIC_API_BASE_URL: http://localhost:8080
       API_PROXY_TARGET: http://localhost:8080
+      GATEWAY_BASE_URL: http://localhost:8080
       # Better Auth connects to the Postgres container via port-mapped localhost
       DATABASE_URL: postgresql://wealth_user:wealth_pass@localhost:5432/portfolio_db
 
@@ -81,16 +82,15 @@ jobs:
         working-directory: ./frontend
         run: npx playwright install --with-deps chromium
 
-      - name: Auth preflight - JWT health self-check
+      # One Playwright process = one webServer build + consistent storageState lifecycle.
+      - name: Run full E2E suite (auth preflight + diagnostics + golden path)
         working-directory: ./frontend
-        run: npx playwright test tests/e2e/auth-jwt-health.spec.ts --project=chromium --reporter=list
-
-      # ── E2E: run all 5 diagnostic tests ──────────────────────────────────────
-      - name: Run full E2E diagnostic suite
-        working-directory: ./frontend
-        # Playwright's webServer block starts the standalone server automatically.
-        # All 5 diagnostic tests + golden-path tests run against the full stack.
-        run: npx playwright test tests/e2e/dashboard-data.spec.ts tests/e2e/golden-path.spec.ts --grep-invert "@auth-preflight" --reporter=list
+        run: |
+          npx playwright test \
+            tests/e2e/auth-jwt-health.spec.ts \
+            tests/e2e/dashboard-data.spec.ts \
+            tests/e2e/golden-path.spec.ts \
+            --reporter=list
 
       # ── Cleanup & artifacts ───────────────────────────────────────────────────
       - name: Dump Docker logs on failure

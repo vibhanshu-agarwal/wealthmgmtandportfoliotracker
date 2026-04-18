@@ -37,9 +37,12 @@ export default defineConfig({
       // Prefer CI/job env (localhost) so browser Origin matches gateway CORS.
       NEXT_PUBLIC_API_BASE_URL:
         process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080",
+      // Node-side tests (global-setup, request fixtures) must hit the same host as Docker publish.
+      GATEWAY_BASE_URL: process.env.GATEWAY_BASE_URL ?? "http://localhost:8080",
     },
     url: "http://localhost:3000",
-    reuseExistingServer: true,
+    // In GitHub Actions, never attach to an arbitrary process already bound to :3000.
+    reuseExistingServer: process.env.CI !== "true",
     timeout: 240_000,
   },
 });
