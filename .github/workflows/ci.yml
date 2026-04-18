@@ -33,6 +33,20 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x ./gradlew
 
+      - name: Bootstrap Gradle wrapper (retry on services.gradle.org flake)
+        run: |
+          set -e
+          for attempt in 1 2 3 4 5 6; do
+            if ./gradlew --version; then
+              exit 0
+            fi
+            echo "Gradle wrapper download attempt $attempt failed; sleeping $((attempt * 15))s..."
+            sleep $((attempt * 15))
+          done
+          echo "Gradle wrapper bootstrap failed after 6 attempts."
+          ./gradlew --version
+          exit 1
+
       - name: Run Unit Tests (Mock AI Advisor)
         run: ./gradlew test --no-daemon
 
@@ -76,6 +90,20 @@ jobs:
 
       - name: Make gradlew executable
         run: chmod +x ./gradlew
+
+      - name: Bootstrap Gradle wrapper (retry on services.gradle.org flake)
+        run: |
+          set -e
+          for attempt in 1 2 3 4 5 6; do
+            if ./gradlew --version; then
+              exit 0
+            fi
+            echo "Gradle wrapper download attempt $attempt failed; sleeping $((attempt * 15))s..."
+            sleep $((attempt * 15))
+          done
+          echo "Gradle wrapper bootstrap failed after 6 attempts."
+          ./gradlew --version
+          exit 1
 
       - name: Run Integration Tests
         env:
