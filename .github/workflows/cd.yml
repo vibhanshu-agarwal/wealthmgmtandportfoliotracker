@@ -1,15 +1,23 @@
-name: Continuous Deployment (Publish Docker Image)
+name: Continuous Deployment (Publish Docker Image) [DISABLED]
 
-# NOTE: This workflow is superseded by ci-verification.yml for image publishing.
+# DISABLED: This workflow is superseded by ci-verification.yml for image publishing.
 # The new pipeline builds multi-stage Docker images, runs the full verification
 # suite (Pact + Playwright), and publishes per-service images to GHCR.
-# This workflow is retained for reference but can be disabled once
-# ci-verification.yml is validated in production.
+#
+# This workflow used Paketo buildpacks (bootBuildImage) which is incompatible
+# with the custom multi-stage Dockerfiles used by this project. It also fails
+# in CI because the Paketo buildpack cannot download BellSoft Liberica JRE 25
+# from GitHub during the build.
+#
+# Kept for historical reference only. Do not re-enable without migrating to
+# the custom Dockerfile build path used by ci-verification.yml.
 
-# This pipeline only runs AFTER code is successfully merged to main
 on:
-  push:
-    branches: [ "main" ]
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: 'Reason for manual trigger (this workflow is disabled)'
+        required: true
 
 # Define permissions needed to push to GitHub's Container Registry
 permissions:
