@@ -74,6 +74,34 @@ variable "cloudfront_origin_secret" {
   sensitive = true
 }
 
+# ---------------------------------------------------------------------------
+# Messaging & Caching — runtime secrets
+# Passed from root module; injected into Lambda environment blocks.
+# ---------------------------------------------------------------------------
+
+variable "redis_url" {
+  type        = string
+  sensitive   = true
+  description = "Redis connection URL. Used by api-gateway, portfolio-service, and insight-service."
+}
+
+variable "kafka_bootstrap_servers" {
+  type        = string
+  description = "Kafka broker address. Used by portfolio-service, market-data-service, and insight-service."
+}
+
+variable "kafka_sasl_username" {
+  type        = string
+  sensitive   = true
+  description = "Kafka SASL/PLAIN username."
+}
+
+variable "kafka_sasl_password" {
+  type        = string
+  sensitive   = true
+  description = "Kafka SASL/PLAIN password."
+}
+
 variable "portfolio_function_url" {
   type    = string
   default = ""

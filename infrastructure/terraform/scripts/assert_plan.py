@@ -108,7 +108,10 @@ def assert_lambda_concurrency_cap(changes: list) -> list:
 
 
 def assert_spring_profiles_active(changes: list) -> list:
-    """Property 3: SPRING_PROFILES_ACTIVE must be present in all Lambda env vars.
+    """Property 3: SPRING_PROFILES_ACTIVE must be 'prod,aws' in all Lambda env vars.
+
+    Validates both presence and correct value. The 'prod' profile is required so that
+    application-prod.yml loads and resolves ${REDIS_URL}, ${KAFKA_BOOTSTRAP_SERVERS}, etc.
 
     Note: when a Lambda's environment.variables map contains (known after apply)
     values (e.g. Function URLs on first apply), Terraform serialises the entire
@@ -139,6 +142,13 @@ def assert_spring_profiles_active(changes: list) -> list:
                 errors.append(
                     f"FAIL [Property 3] Lambda '{fn_name}' is missing "
                     f"SPRING_PROFILES_ACTIVE environment variable"
+                )
+            elif env_vars["SPRING_PROFILES_ACTIVE"] != "prod,aws":
+                actual = env_vars["SPRING_PROFILES_ACTIVE"]
+                errors.append(
+                    f"FAIL [Property 3] Lambda '{fn_name}' has "
+                    f"SPRING_PROFILES_ACTIVE='{actual}' (must be 'prod,aws'). "
+                    f"Without 'prod', application-prod.yml never loads."
                 )
     return errors
 

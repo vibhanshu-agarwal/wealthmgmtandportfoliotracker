@@ -71,3 +71,7 @@ route53_zone_id     = ""
 # postgres_connection_string = "jdbc:postgresql://..."
 # mongodb_connection_string  = "mongodb+srv://..."
 # cloudfront_origin_secret   = "<random-uuid-or-strong-secret>"
+# redis_url                  = "rediss://[:password@]host:port"  (Upstash requires rediss://)
+# kafka_bootstrap_servers    = "pkc-xxxxx.region.aws.confluent.cloud:9092"
+# kafka_sasl_username        = "<confluent-api-key>"
+# kafka_sasl_password        = "<confluent-api-secret>"

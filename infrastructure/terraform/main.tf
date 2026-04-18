@@ -79,6 +79,11 @@ module "compute" {
   mongodb_connection_string     = var.mongodb_connection_string
   auth_jwk_uri                  = var.auth_jwk_uri
   cloudfront_origin_secret      = var.cloudfront_origin_secret
+  # Messaging & Caching — missing link: root variables.tf → compute module
+  redis_url               = var.redis_url
+  kafka_bootstrap_servers = var.kafka_bootstrap_servers
+  kafka_sasl_username     = var.kafka_sasl_username
+  kafka_sasl_password     = var.kafka_sasl_password
   enable_aws_managed_database   = var.enable_aws_managed_database
   lambda_vpc_subnet_ids         = var.lambda_vpc_subnet_ids
   lambda_vpc_security_group_ids = var.lambda_vpc_security_group_ids

@@ -116,3 +116,76 @@ The new image (`fbc3ef1`) with the correct LWA filename is building via the depl
   - `fbc3ef1` — rename LWA binary to `lambda-adapter` in all four Dockerfiles
 - **Main merge commits:** `079920a`, `aa1f129`, `e688aed`, `d91a4da`
 - **Remote:** [github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker)
+
+---
+
+## 6. Lambda Environment Variable Ownership Consolidation (follow-up)
+
+**Date:** 2026-04-19 (follow-up to sections 1–5 above)
+
+### 6.1 Regression RCA
+
+**Regression commit:** `2d06599` ("feat(infra): align CD with Image Lambda")
+
+Commit `2d06599` rewrote `deploy.yml`'s Lambda environment block from a `cat <<EOF` heredoc to a `jq -n` builder. The new builder explicitly listed only 11 variables (infrastructure constants + api-gateway routing). Because `aws lambda update-function-configuration --environment` performs a **full replace** of the entire `Variables` map, every `deploy.yml` run silently wiped any variable not in the 11-key payload — including `REDIS_URL`, `KAFKA_BOOTSTRAP_SERVERS`, `KAFKA_SASL_USERNAME`, `KAFKA_SASL_PASSWORD`, and `SPRING_DATASOURCE_*`.
+
+Additionally, `SPRING_PROFILES_ACTIVE` was set to `"aws"` in Terraform's `common_env` (missing `"prod"`). Without the `prod` profile, `application-prod.yml` never loaded, so Spring Boot could not resolve `${REDIS_URL}`, `${KAFKA_BOOTSTRAP_SERVERS}`, etc. even when those env vars were present.
+
+A third drift vector existed: `scripts/sync-secrets.sh --lambda` called `update-function-configuration` directly with a hardcoded 11-key payload, bypassing Terraform state entirely.
+
+### 6.2 New Ownership Topology
+
+```mermaid
+flowchart LR
+  gh["GitHub Secrets\n(REDIS_URL, KAFKA_*, etc.)"]
+  tfyml["terraform.yml\n(push: main)"]
+  deployyml["deploy.yml\n(push: main + extraction)"]
+  tfstate["Terraform state\n(env vars — full set)"]
+  lambda["Lambda functions\n(all four services)"]
+
+  gh -->|"TF_VAR_*"| tfyml
+  tfyml -->|"terraform apply\nsets environment.variables"| tfstate
+  tfstate -->|"full env var set"| lambda
+  deployyml -->|"update-function-code\n(image only)"| lambda
+```
+
+**Key principle:** Terraform is the single owner of the Lambda `Variables` map. `deploy.yml` is image-only — it calls `update-function-code` but never `update-function-configuration`.
+
+### 6.3 Changes Applied
+
+| File                                                    | Change                                                                                                                                                                           |
+| ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `infrastructure/terraform/variables.tf`                 | Added `redis_url`, `kafka_bootstrap_servers`, `kafka_sasl_username`, `kafka_sasl_password` (sensitive where appropriate)                                                         |
+| `infrastructure/terraform/main.tf`                      | Passed all four new variables to `module "compute"`                                                                                                                              |
+| `infrastructure/terraform/modules/compute/variables.tf` | Declared all four new variables in the compute module                                                                                                                            |
+| `infrastructure/terraform/modules/compute/main.tf`      | Added `local.runtime_secrets` local; flipped `SPRING_PROFILES_ACTIVE` from `"aws"` to `"prod,aws"`; merged `runtime_secrets` into all four Lambda `environment.variables` blocks |
+| `.github/workflows/terraform.yml`                       | Added `TF_VAR_redis_url`, `TF_VAR_kafka_bootstrap_servers`, `TF_VAR_kafka_sasl_username`, `TF_VAR_kafka_sasl_password` to env block                                              |
+| `.github/workflows/deploy.yml`                          | Removed "Update Lambda function configuration" step and "Install jq" step; added `main` to push trigger (dual-branch); updated header comments                                   |
+| `scripts/sync-secrets.sh`                               | Removed `--lambda` flag and `update-function-configuration` call; simplified to GitHub-only secret sync                                                                          |
+| `infrastructure/terraform/terraform.tfvars.example`     | Added placeholder comments for new sensitive variables                                                                                                                           |
+| `infrastructure/terraform/localstack.tfvars`            | Added stub values for LocalStack testing                                                                                                                                         |
+| `.gitignore`                                            | Added `.env.secrets`, `*.env.secrets`, `app-inspect.jar`                                                                                                                         |
+| `.env.secrets.example`                                  | Added `KAFKA_BOOTSTRAP_SERVERS`, `KAFKA_SASL_USERNAME`, `KAFKA_SASL_PASSWORD` placeholders                                                                                       |
+| `infrastructure/terraform/scripts/assert_plan.py`       | Enhanced `assert_spring_profiles_active` to validate value is `"prod,aws"` (not just present)                                                                                    |
+
+### 6.4 Deprecation: `sync-secrets.sh --lambda`
+
+The `--lambda` flag has been removed. Any direct `aws lambda update-function-configuration` call is now a foot-gun — it performs a full replace that drifts from Terraform-managed state.
+
+**New workflow for updating Lambda env vars:**
+
+1. Update the value in GitHub Actions secrets (via `./scripts/sync-secrets.sh .env.secrets` or `gh secret set`)
+2. Push to `main` — `terraform.yml` will pick up the new `TF_VAR_*` value and apply it to the Lambda on the next run
+
+### 6.5 Dual-Branch Deploy Trigger
+
+`deploy.yml` now triggers on both `main` and `architecture/cloud-native-extraction`. Rationale: work happens on the feature branch and is periodically merged to `main`. Without the `main` trigger, a merge to `main` would not deploy the latest image, causing the two branches to diverge in deployed state.
+
+### 6.6 First Apply Notes
+
+The first `terraform apply` after this change will show an `environment.variables` diff for all four Lambda functions:
+
+- `SPRING_PROFILES_ACTIVE` changes from `"aws"` to `"prod,aws"`
+- `REDIS_URL`, `KAFKA_BOOTSTRAP_SERVERS`, `KAFKA_SASL_USERNAME`, `KAFKA_SASL_PASSWORD` are added to all applicable functions
+
+Review the plan output in `assert_plan.py` and the PR artifact before merging. Ensure `REDIS_URL` and `KAFKA_*` secrets exist in GitHub Actions before the apply runs.
