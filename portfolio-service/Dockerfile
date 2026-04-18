@@ -106,8 +106,10 @@ ENV PATH="${JAVA_HOME}/bin:${PATH}"
 WORKDIR /app
 COPY --from=builder /workspace/portfolio-service/build/libs/*.jar app.jar
 
-# Copy AWS Lambda Web Adapter from official ECR image
-COPY --from=public.ecr.aws/awsguru/aws-lambda-adapter:1.0.0 /lambda-adapter /lambda-adapter
+# Copy AWS Lambda Web Adapter from official ECR image.
+# The binary MUST be placed in /opt/extensions/ and named 'lambda-adapter' so Lambda
+# auto-loads it as a sidecar extension. The ENTRYPOINT runs the Java app directly.
+COPY --from=public.ecr.aws/awsguru/aws-lambda-adapter:1.0.0 /lambda-adapter /opt/extensions/lambda-adapter
 
 # Download AWS Lambda Runtime Interface Emulator (RIE)
 RUN ARCH=$(uname -m) \
@@ -123,5 +125,5 @@ RUN ARCH=$(uname -m) \
 EXPOSE 8081
 
 # Default: run Spring Boot directly.
-# In AWS Lambda, configure AWS_LAMBDA_EXEC_WRAPPER=/lambda-adapter.
+# Lambda auto-loads the LWA sidecar from /opt/extensions/lambda-adapter.
 ENTRYPOINT ["java", "-jar", "/app/app.jar"]

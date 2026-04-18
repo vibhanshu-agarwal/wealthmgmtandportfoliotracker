@@ -106,15 +106,17 @@ ENV PATH="${JAVA_HOME}/bin:${PATH}"
 WORKDIR /app
 COPY --from=builder /workspace/market-data-service/build/libs/*.jar app.jar
 
-# Copy AWS Lambda Web Adapter from ECR Public (pinned tag — :latest is not published on this repo)
-COPY --from=public.ecr.aws/awsguru/aws-lambda-adapter:1.0.0 /lambda-adapter /lambda-adapter
+# Copy AWS Lambda Web Adapter from official ECR image.
+# The binary MUST be placed in /opt/extensions/ and named 'lambda-adapter' so Lambda
+# auto-loads it as a sidecar extension. The ENTRYPOINT runs the Java app directly.
+COPY --from=public.ecr.aws/awsguru/aws-lambda-adapter:1.0.0 /lambda-adapter /opt/extensions/lambda-adapter
 
 # Do not set SERVER_PORT/PORT here: Spring uses application.yml (8082 for compose / local).
 # AWS Lambda sets SERVER_PORT=8080 (and PORT) via function environment when deployed.
 
 EXPOSE 8082
 
-# Default: run Spring Boot directly
-# In AWS Lambda, configure AWS_LAMBDA_EXEC_WRAPPER=/lambda-adapter so the adapter wraps this process.
+# Default: run Spring Boot directly.
+# Lambda auto-loads the LWA sidecar from /opt/extensions/lambda-adapter.
 ENTRYPOINT ["java", "-Dspring.aot.enabled=true", "-jar", "/app/app.jar"]
 
