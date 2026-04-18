@@ -30,6 +30,9 @@ aws_region                    = "us-east-1"
 use_localstack                = false
 # Paid RDS + ElastiCache (default false)
 enable_aws_managed_database = false
+# Optional Lambda VPC attachment (only when enable_aws_managed_database=true and private endpoints are required)
+lambda_vpc_subnet_ids         = []
+lambda_vpc_security_group_ids = []
 
 # S3 artifact bucket
 artifact_bucket_name = "my-wealth-tracker-artifacts"

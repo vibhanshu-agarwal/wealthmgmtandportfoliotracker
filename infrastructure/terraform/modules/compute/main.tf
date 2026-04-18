@@ -9,6 +9,11 @@ locals {
     AWS_LAMBDA_EXEC_WRAPPER = "/opt/bootstrap"
     PORT                    = "8080"
   }
+
+  # VPC attachment only when managed AWS DB is on AND operators supplied subnets/SGs.
+  # Otherwise omit vpc_config entirely so Lambdas use the default (public) network path
+  # (Atlas, Clerk, Neon, etc. over the internet — avoids 504s from private subnet + no NAT).
+  attach_lambda_vpc = var.enable_aws_managed_database && length(var.lambda_vpc_subnet_ids) > 0 && length(var.lambda_vpc_security_group_ids) > 0
 }
 
 # ---------------------------------------------------------------------------
@@ -65,6 +70,31 @@ resource "aws_iam_role_policy_attachment" "insight_basic" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
+# Required only when Lambdas run inside a VPC (ENI management + optional VPC flow logs).
+resource "aws_iam_role_policy_attachment" "api_gateway_vpc" {
+  count      = local.attach_lambda_vpc ? 1 : 0
+  role       = aws_iam_role.api_gateway.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
+}
+
+resource "aws_iam_role_policy_attachment" "portfolio_vpc" {
+  count      = local.attach_lambda_vpc ? 1 : 0
+  role       = aws_iam_role.portfolio.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
+}
+
+resource "aws_iam_role_policy_attachment" "market_data_vpc" {
+  count      = local.attach_lambda_vpc ? 1 : 0
+  role       = aws_iam_role.market_data.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
+}
+
+resource "aws_iam_role_policy_attachment" "insight_vpc" {
+  count      = local.attach_lambda_vpc ? 1 : 0
+  role       = aws_iam_role.insight.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
+}
+
 # Insight service needs Bedrock access (scoped to specific model, no wildcard)
 resource "aws_iam_role_policy" "insight_bedrock" {
   name = "insight-bedrock-invoke"
@@ -103,6 +133,14 @@ resource "aws_lambda_function" "api_gateway" {
     apply_on = "PublishedVersions"
   }
 
+  dynamic "vpc_config" {
+    for_each = local.attach_lambda_vpc ? [1] : []
+    content {
+      subnet_ids         = var.lambda_vpc_subnet_ids
+      security_group_ids = var.lambda_vpc_security_group_ids
+    }
+  }
+
   environment {
     variables = merge(local.common_env, {
       PORTFOLIO_SERVICE_URL    = var.portfolio_function_url
@@ -131,6 +169,14 @@ resource "aws_lambda_function" "portfolio" {
     apply_on = "PublishedVersions"
   }
 
+  dynamic "vpc_config" {
+    for_each = local.attach_lambda_vpc ? [1] : []
+    content {
+      subnet_ids         = var.lambda_vpc_subnet_ids
+      security_group_ids = var.lambda_vpc_security_group_ids
+    }
+  }
+
   environment {
     variables = merge(local.common_env, {
       SPRING_DATASOURCE_URL = var.postgres_connection_string
@@ -155,6 +201,14 @@ resource "aws_lambda_function" "market_data" {
     apply_on = "PublishedVersions"
   }
 
+  dynamic "vpc_config" {
+    for_each = local.attach_lambda_vpc ? [1] : []
+    content {
+      subnet_ids         = var.lambda_vpc_subnet_ids
+      security_group_ids = var.lambda_vpc_security_group_ids
+    }
+  }
+
   environment {
     variables = merge(local.common_env, {
       SPRING_DATA_MONGODB_URI = var.mongodb_connection_string
@@ -177,6 +231,14 @@ resource "aws_lambda_function" "insight" {
 
   snap_start {
     apply_on = "PublishedVersions"
+  }
+
+  dynamic "vpc_config" {
+    for_each = local.attach_lambda_vpc ? [1] : []
+    content {
+      subnet_ids         = var.lambda_vpc_subnet_ids
+      security_group_ids = var.lambda_vpc_security_group_ids
+    }
   }
 
   environment {

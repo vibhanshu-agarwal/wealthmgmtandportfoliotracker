@@ -60,3 +60,30 @@ terraform init -reconfigure
 ```
 
 If you see `Terraform has been successfully initialized!`, bootstrap is complete.
+
+## 5. Automated Secret Synchronization
+
+To avoid configuration drift between local environment values and GitHub Actions secrets, use the repository sync script.
+
+### 5.1 Prepare local secrets file
+
+```bash
+cp .env.secrets.example .env.secrets
+```
+
+Fill `.env.secrets` with real values (do not commit this file).
+
+### 5.2 Run sync script
+
+```bash
+chmod +x scripts/sync-secrets.sh
+./scripts/sync-secrets.sh .env.secrets
+```
+
+### 5.3 Verify in GitHub
+
+Open GitHub repository settings:
+
+- `Settings` -> `Secrets and variables` -> `Actions`
+
+Confirm required secrets are present and current.

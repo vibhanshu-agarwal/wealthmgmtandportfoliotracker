@@ -57,3 +57,24 @@ variable "insight_function_url" {
   type    = string
   default = ""
 }
+
+# When false (e.g. Neon + MongoDB Atlas + external Clerk), Lambdas must stay outside
+# any VPC so they can reach the public internet without a NAT gateway.
+# When true, set lambda_vpc_* to the same subnets/SGs as RDS/ElastiCache if those
+# endpoints are only reachable in-VPC.
+variable "enable_aws_managed_database" {
+  type    = bool
+  default = false
+}
+
+variable "lambda_vpc_subnet_ids" {
+  type        = list(string)
+  default     = []
+  description = "Private subnets for Lambda ENIs; only used when enable_aws_managed_database is true and this list is non-empty."
+}
+
+variable "lambda_vpc_security_group_ids" {
+  type        = list(string)
+  default     = []
+  description = "Security groups for Lambda ENIs; only used when enable_aws_managed_database is true and this list is non-empty."
+}

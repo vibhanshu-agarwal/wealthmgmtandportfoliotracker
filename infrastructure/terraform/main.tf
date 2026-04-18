@@ -67,16 +67,19 @@ resource "aws_s3_bucket_public_access_block" "artifacts" {
 module "compute" {
   source = "./modules/compute"
 
-  artifact_bucket_name       = var.artifact_bucket_name
-  s3_key_api_gateway         = var.s3_key_api_gateway
-  s3_key_portfolio           = var.s3_key_portfolio
-  s3_key_market_data         = var.s3_key_market_data
-  s3_key_insight             = var.s3_key_insight
-  lambda_adapter_layer_arn   = var.lambda_adapter_layer_arn
-  postgres_connection_string = var.postgres_connection_string
-  mongodb_connection_string  = var.mongodb_connection_string
-  auth_jwk_uri               = var.auth_jwk_uri
-  cloudfront_origin_secret   = var.cloudfront_origin_secret
+  artifact_bucket_name          = var.artifact_bucket_name
+  s3_key_api_gateway            = var.s3_key_api_gateway
+  s3_key_portfolio              = var.s3_key_portfolio
+  s3_key_market_data            = var.s3_key_market_data
+  s3_key_insight                = var.s3_key_insight
+  lambda_adapter_layer_arn      = var.lambda_adapter_layer_arn
+  postgres_connection_string    = var.postgres_connection_string
+  mongodb_connection_string     = var.mongodb_connection_string
+  auth_jwk_uri                  = var.auth_jwk_uri
+  cloudfront_origin_secret      = var.cloudfront_origin_secret
+  enable_aws_managed_database   = var.enable_aws_managed_database
+  lambda_vpc_subnet_ids         = var.lambda_vpc_subnet_ids
+  lambda_vpc_security_group_ids = var.lambda_vpc_security_group_ids
   # Service-to-service URLs: populated via TF_VAR_* after first apply
   # (two-phase apply pattern — see README for details)
   portfolio_function_url   = var.portfolio_function_url
@@ -106,7 +109,7 @@ module "database" {
 # ---------------------------------------------------------------------------
 
 module "networking" {
-  source = "./modules/networking"
+  source = "./modules/cdn"
 
   # api-gateway Function URL is the CloudFront origin
   origin_url                              = module.compute.api_gateway_function_url

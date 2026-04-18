@@ -136,6 +136,18 @@ variable "enable_aws_managed_database" {
   description = "Provision AWS RDS PostgreSQL and ElastiCache (paid). Default false: use Neon/Atlas and external cache."
 }
 
+variable "lambda_vpc_subnet_ids" {
+  type        = list(string)
+  default     = []
+  description = "Lambda subnet IDs when running inside a VPC (typically alongside managed RDS/ElastiCache). Leave empty to keep Lambda out of VPC."
+}
+
+variable "lambda_vpc_security_group_ids" {
+  type        = list(string)
+  default     = []
+  description = "Lambda security group IDs when running inside a VPC (typically alongside managed RDS/ElastiCache). Leave empty to keep Lambda out of VPC."
+}
+
 variable "db_username" {
   type        = string
   description = "Master username for the RDS PostgreSQL instance"
