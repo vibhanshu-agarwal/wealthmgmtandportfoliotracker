@@ -4,12 +4,12 @@
 
 locals {
   common_env = {
-    JAVA_TOOL_OPTIONS                = "-XX:+TieredCompilation -XX:TieredStopAtLevel=1"
-    SPRING_PROFILES_ACTIVE           = "aws"
-    AWS_LAMBDA_EXEC_WRAPPER          = "/opt/bootstrap"
-    PORT                             = "8080"
-    AWS_LWA_ASYNC_INIT               = "true"
-    AWS_LWA_READINESS_CHECK_PATH     = "/actuator/health"
+    JAVA_TOOL_OPTIONS            = "-XX:+TieredCompilation -XX:TieredStopAtLevel=1"
+    SPRING_PROFILES_ACTIVE       = "aws"
+    AWS_LAMBDA_EXEC_WRAPPER      = "/opt/bootstrap"
+    PORT                         = "8080"
+    AWS_LWA_ASYNC_INIT           = "true"
+    AWS_LWA_READINESS_CHECK_PATH = "/actuator/health"
   }
 
   # api-gateway is deployed as a container image (Dockerfile bundles Lambda Web Adapter).
