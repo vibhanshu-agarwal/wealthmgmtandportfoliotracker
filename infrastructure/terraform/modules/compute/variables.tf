@@ -16,7 +16,7 @@ variable "api_gateway_image_uri" {
 
 variable "lambda_java_runtime" {
   type        = string
-  description = "AWS Lambda managed runtime for Zip-based Java Lambdas (e.g. java25)."
+  description = "AWS Lambda managed runtime for Zip-based Java Lambdas (e.g. java21; java25 when provider/AWS list includes it)."
 }
 
 variable "portfolio_memory_size" {

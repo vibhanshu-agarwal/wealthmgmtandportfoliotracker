@@ -48,8 +48,11 @@ variable "api_gateway_image_uri" {
 
 variable "lambda_java_runtime" {
   type        = string
-  default     = "java25"
-  description = "AWS Lambda managed runtime for Zip-based Java Lambdas (portfolio, market-data, insight), e.g. java25."
+  default     = "java21"
+  description = <<-EOT
+    AWS Lambda managed runtime identifier for Zip-based Java Lambdas (portfolio, market-data, insight).
+    HashiCorp AWS provider v5.100.x validates against a fixed list — `java25` is not accepted yet; use `java21` until the provider adds it (then set to `java25` or use container images for JDK 25).
+  EOT
 }
 
 variable "portfolio_memory_size" {
