@@ -2,6 +2,11 @@ spring:
   application:
     name: market-data-service
 
+  data:
+    mongodb:
+      # Same env key Terraform sets on the market-data Lambda (SPRING_DATA_MONGODB_URI).
+      uri: ${SPRING_DATA_MONGODB_URI}
+
   # Relational database (e.g. Neon PostgreSQL) – configured via environment
   datasource:
     url: ${SPRING_DATASOURCE_URL}

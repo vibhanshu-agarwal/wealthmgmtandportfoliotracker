@@ -5,7 +5,13 @@ variable "artifact_bucket_name" {
 }
 
 variable "s3_key_api_gateway" {
-  type = string
+  type        = string
+  description = "S3 object key for api-gateway JAR (unused when api-gateway uses package_type Image)"
+}
+
+variable "api_gateway_image_uri" {
+  type        = string
+  description = "Full ECR image URI for api-gateway Lambda (package_type Image), e.g. 123456789012.dkr.ecr.us-east-1.amazonaws.com/my-repo:latest"
 }
 
 variable "s3_key_portfolio" {

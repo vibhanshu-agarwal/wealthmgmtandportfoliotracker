@@ -43,7 +43,10 @@ frontend_bucket_name = "my-wealth-tracker-frontend"
 # Lambda Web Adapter layer ARN (region-specific, check AWS docs for latest)
 lambda_adapter_layer_arn = "arn:aws:lambda:us-east-1:753240598075:layer:LambdaAdapterLayerX86:24"
 
-# S3 keys for Lambda JARs (upload JARs before applying)
+# api-gateway Lambda container (package_type Image — must exist in ECR before first apply)
+api_gateway_image_uri = "123456789012.dkr.ecr.us-east-1.amazonaws.com/my-api-gateway:latest"
+
+# S3 keys for Lambda JARs (Zip + layer — portfolio / market-data / insight; api-gateway JAR key unused for Image)
 s3_key_api_gateway = "api-gateway/api-gateway.jar"
 s3_key_portfolio   = "portfolio-service/portfolio-service.jar"
 s3_key_market_data = "market-data-service/market-data-service.jar"

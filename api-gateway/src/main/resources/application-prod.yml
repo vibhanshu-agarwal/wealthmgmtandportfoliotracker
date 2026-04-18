@@ -1,0 +1,11 @@
+# Active when SPRING_PROFILES_ACTIVE includes prod (e.g. Lambda: prod,aws).
+# AUTH_JWK_URI is injected by Terraform / GitHub Actions — no localhost defaults.
+spring:
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: ${AUTH_JWK_URI}
+
+auth:
+  jwk-uri: ${AUTH_JWK_URI}

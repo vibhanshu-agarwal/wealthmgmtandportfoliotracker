@@ -10,20 +10,12 @@ name: Deploy
 # - ECR_REPOSITORY_NAME
 # - LAMBDA_FUNCTION_NAME
 #
-# Application/runtime secrets (mapped into Lambda environment)
-# - SPRING_DATASOURCE_URL
-# - SPRING_DATASOURCE_USERNAME
-# - SPRING_DATASOURCE_PASSWORD
-# - REDIS_URL
-# - UPSTASH_REDIS_REST_URL
-# - UPSTASH_REDIS_REST_TOKEN
-# - KAFKA_BOOTSTRAP_SERVERS
-# - KAFKA_SASL_USERNAME
-# - KAFKA_SASL_PASSWORD
-# - BEDROCK_REGION
-# - BEDROCK_MODEL_ID
-# - NEXTAUTH_SECRET
-# - AUTH_JWT_SECRET
+# Application/runtime secrets (mapped into api-gateway Lambda environment)
+# - PORTFOLIO_SERVICE_URL
+# - MARKET_DATA_SERVICE_URL
+# - INSIGHT_SERVICE_URL
+# - AUTH_JWK_URI
+# - CLOUDFRONT_ORIGIN_SECRET
 #
 # Notes
 # - Missing secrets become empty strings in Lambda; verify all values exist before relying on prod behavior.
@@ -37,6 +29,7 @@ on:
       - architecture/cloud-native-extraction
 
 jobs:
+  # Static export → S3 → CloudFront invalidation (same path browsers hit via CDN).
   deploy-frontend:
     runs-on: ubuntu-latest
 
@@ -44,12 +37,19 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: "20"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
+
+      # Next.js static export emits `frontend/out/` for S3 hosting.
+      - name: Build Next.js static export
+        working-directory: ./frontend
+        run: |
+          npm ci
+          npm run build
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -58,27 +58,19 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      # Next.js static export emits `frontend/out/` for S3 hosting.
-      - name: Build frontend
-        working-directory: frontend
-        run: |
-          npm ci
-          npm run build
-
-      - name: Upload Next.js static export to S3
+      - name: Sync to S3
         run: |
           if [ ! -d "frontend/out" ]; then
             echo "Missing frontend/out after npm run build."
             exit 1
           fi
-          aws s3 sync "frontend/out/" "s3://${{ secrets.S3_BUCKET_NAME }}/" --delete
+          aws s3 sync ./frontend/out "s3://${{ secrets.S3_BUCKET_NAME }}" --delete
 
-      - name: Invalidate CloudFront cache
+      - name: Invalidate CloudFront
         run: |
-          aws cloudfront create-invalidation \
-            --distribution-id "${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }}" \
-            --paths "/*"
+          aws cloudfront create-invalidation --distribution-id "${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }}" --paths "/*"
 
+  # Container image for wealth-api-gateway Lambda (Spring Cloud Gateway + downstream Function URLs).
   deploy-backend:
     runs-on: ubuntu-latest
 
@@ -97,8 +89,8 @@ jobs:
       - name: Make Gradle wrapper executable
         run: chmod +x ./gradlew
 
-      - name: Build production JAR
-        run: ./gradlew bootJar
+      - name: Build api-gateway production JAR
+        run: ./gradlew :api-gateway:bootJar
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -126,72 +118,41 @@ jobs:
             --platform linux/amd64 \
             --provenance=false \
             --sbom=false \
-            -f portfolio-service/Dockerfile \
+            -f api-gateway/Dockerfile \
             -t "${ECR_REGISTRY}/${ECR_REPOSITORY}:latest" \
             -t "${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG_SHA}" \
             --push .
 
-      - name: Update Lambda function configuration (runtime secrets)
+      - name: Update Lambda function configuration (api-gateway runtime)
         env:
           LAMBDA_FUNCTION_NAME: ${{ secrets.LAMBDA_FUNCTION_NAME }}
-          AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
-          SPRING_DATASOURCE_URL: ${{ secrets.SPRING_DATASOURCE_URL }}
-          SPRING_DATASOURCE_USERNAME: ${{ secrets.SPRING_DATASOURCE_USERNAME }}
-          SPRING_DATASOURCE_PASSWORD: ${{ secrets.SPRING_DATASOURCE_PASSWORD }}
-          REDIS_URL: ${{ secrets.REDIS_URL }}
-          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
-          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
-          KAFKA_BOOTSTRAP_SERVERS: ${{ secrets.KAFKA_BOOTSTRAP_SERVERS }}
-          KAFKA_SASL_USERNAME: ${{ secrets.KAFKA_SASL_USERNAME }}
-          KAFKA_SASL_PASSWORD: ${{ secrets.KAFKA_SASL_PASSWORD }}
-          BEDROCK_REGION: ${{ secrets.BEDROCK_REGION }}
-          BEDROCK_MODEL_ID: ${{ secrets.BEDROCK_MODEL_ID }}
-          NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
-          AUTH_JWT_SECRET: ${{ secrets.AUTH_JWT_SECRET }}
+          PORTFOLIO_SERVICE_URL: ${{ secrets.PORTFOLIO_SERVICE_URL }}
+          MARKET_DATA_SERVICE_URL: ${{ secrets.MARKET_DATA_SERVICE_URL }}
+          INSIGHT_SERVICE_URL: ${{ secrets.INSIGHT_SERVICE_URL }}
+          AUTH_JWK_URI: ${{ secrets.AUTH_JWK_URI }}
+          CLOUDFRONT_ORIGIN_SECRET: ${{ secrets.CLOUDFRONT_ORIGIN_SECRET }}
         run: |
           jq -n \
             --arg SPRING_PROFILES_ACTIVE "prod,aws" \
             --arg SERVER_PORT "8080" \
             --arg PORT "8080" \
-            --arg AWS_LAMBDA_EXEC_WRAPPER "/lambda-adapter" \
-            --arg SPRING_DATASOURCE_URL "$SPRING_DATASOURCE_URL" \
-            --arg SPRING_DATASOURCE_USERNAME "$SPRING_DATASOURCE_USERNAME" \
-            --arg SPRING_DATASOURCE_PASSWORD "$SPRING_DATASOURCE_PASSWORD" \
-            --arg REDIS_URL "$REDIS_URL" \
-            --arg UPSTASH_REDIS_REST_URL "$UPSTASH_REDIS_REST_URL" \
-            --arg UPSTASH_REDIS_REST_TOKEN "$UPSTASH_REDIS_REST_TOKEN" \
-            --arg KAFKA_BOOTSTRAP_SERVERS "$KAFKA_BOOTSTRAP_SERVERS" \
-            --arg KAFKA_SECURITY_PROTOCOL "SASL_SSL" \
-            --arg KAFKA_SASL_MECHANISM "PLAIN" \
-            --arg KAFKA_SASL_USERNAME "$KAFKA_SASL_USERNAME" \
-            --arg KAFKA_SASL_PASSWORD "$KAFKA_SASL_PASSWORD" \
-            --arg BEDROCK_REGION "$BEDROCK_REGION" \
-            --arg BEDROCK_MODEL_ID "$BEDROCK_MODEL_ID" \
-            --arg NEXTAUTH_SECRET "$NEXTAUTH_SECRET" \
-            --arg AUTH_JWT_SECRET "$AUTH_JWT_SECRET" \
-            --arg AWS_ACCOUNT_ID "$AWS_ACCOUNT_ID" \
+            --arg JAVA_TOOL_OPTIONS "-XX:+TieredCompilation -XX:TieredStopAtLevel=1" \
+            --arg PORTFOLIO_SERVICE_URL "$PORTFOLIO_SERVICE_URL" \
+            --arg MARKET_DATA_SERVICE_URL "$MARKET_DATA_SERVICE_URL" \
+            --arg INSIGHT_SERVICE_URL "$INSIGHT_SERVICE_URL" \
+            --arg AUTH_JWK_URI "$AUTH_JWK_URI" \
+            --arg CLOUDFRONT_ORIGIN_SECRET "$CLOUDFRONT_ORIGIN_SECRET" \
             '{
               Variables: {
                 SPRING_PROFILES_ACTIVE: $SPRING_PROFILES_ACTIVE,
                 SERVER_PORT: $SERVER_PORT,
                 PORT: $PORT,
-                AWS_LAMBDA_EXEC_WRAPPER: $AWS_LAMBDA_EXEC_WRAPPER,
-                SPRING_DATASOURCE_URL: $SPRING_DATASOURCE_URL,
-                SPRING_DATASOURCE_USERNAME: $SPRING_DATASOURCE_USERNAME,
-                SPRING_DATASOURCE_PASSWORD: $SPRING_DATASOURCE_PASSWORD,
-                REDIS_URL: $REDIS_URL,
-                UPSTASH_REDIS_REST_URL: $UPSTASH_REDIS_REST_URL,
-                UPSTASH_REDIS_REST_TOKEN: $UPSTASH_REDIS_REST_TOKEN,
-                KAFKA_BOOTSTRAP_SERVERS: $KAFKA_BOOTSTRAP_SERVERS,
-                KAFKA_SECURITY_PROTOCOL: $KAFKA_SECURITY_PROTOCOL,
-                KAFKA_SASL_MECHANISM: $KAFKA_SASL_MECHANISM,
-                KAFKA_SASL_USERNAME: $KAFKA_SASL_USERNAME,
-                KAFKA_SASL_PASSWORD: $KAFKA_SASL_PASSWORD,
-                BEDROCK_REGION: $BEDROCK_REGION,
-                BEDROCK_MODEL_ID: $BEDROCK_MODEL_ID,
-                NEXTAUTH_SECRET: $NEXTAUTH_SECRET,
-                AUTH_JWT_SECRET: $AUTH_JWT_SECRET,
-                AWS_ACCOUNT_ID: $AWS_ACCOUNT_ID
+                JAVA_TOOL_OPTIONS: $JAVA_TOOL_OPTIONS,
+                PORTFOLIO_SERVICE_URL: $PORTFOLIO_SERVICE_URL,
+                MARKET_DATA_SERVICE_URL: $MARKET_DATA_SERVICE_URL,
+                INSIGHT_SERVICE_URL: $INSIGHT_SERVICE_URL,
+                AUTH_JWK_URI: $AUTH_JWK_URI,
+                CLOUDFRONT_ORIGIN_SECRET: $CLOUDFRONT_ORIGIN_SECRET
               }
             }' > lambda-env.json
 

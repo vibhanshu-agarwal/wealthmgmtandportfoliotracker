@@ -10,6 +10,14 @@ locals {
     PORT                    = "8080"
   }
 
+  # api-gateway is deployed as a container image (Dockerfile bundles Lambda Web Adapter).
+  # Do not set AWS_LAMBDA_EXEC_WRAPPER — the image ENTRYPOINT runs the adapter.
+  api_gateway_container_env = {
+    JAVA_TOOL_OPTIONS      = local.common_env.JAVA_TOOL_OPTIONS
+    SPRING_PROFILES_ACTIVE = local.common_env.SPRING_PROFILES_ACTIVE
+    PORT                   = local.common_env.PORT
+  }
+
   # VPC attachment only when managed AWS DB is on AND operators supplied subnets/SGs.
   # Otherwise omit vpc_config entirely so Lambdas use the default (public) network path
   # (Atlas, Clerk, Neon, etc. over the internet — avoids 504s from private subnet + no NAT).
@@ -53,6 +61,11 @@ resource "aws_iam_role" "insight" {
 resource "aws_iam_role_policy_attachment" "api_gateway_basic" {
   role       = aws_iam_role.api_gateway.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
+resource "aws_iam_role_policy_attachment" "api_gateway_ecr_readonly" {
+  role       = aws_iam_role.api_gateway.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
 }
 
 resource "aws_iam_role_policy_attachment" "portfolio_basic" {
@@ -119,19 +132,13 @@ resource "aws_iam_role_policy" "insight_bedrock" {
 resource "aws_lambda_function" "api_gateway" {
   function_name                  = "wealth-api-gateway"
   role                           = aws_iam_role.api_gateway.arn
-  runtime                        = "java21"
-  handler                        = "not.used"
-  s3_bucket                      = var.artifact_bucket_name
-  s3_key                         = var.s3_key_api_gateway
-  layers                         = [var.lambda_adapter_layer_arn]
+  package_type                   = "Image"
+  image_uri                      = var.api_gateway_image_uri
+  architectures                  = ["x86_64"]
   memory_size                    = 512
   timeout                        = 30
   publish                        = true
   reserved_concurrent_executions = 10
-
-  snap_start {
-    apply_on = "PublishedVersions"
-  }
 
   dynamic "vpc_config" {
     for_each = local.attach_lambda_vpc ? [1] : []
@@ -142,13 +149,20 @@ resource "aws_lambda_function" "api_gateway" {
   }
 
   environment {
-    variables = merge(local.common_env, {
+    variables = merge(local.api_gateway_container_env, {
       PORTFOLIO_SERVICE_URL    = var.portfolio_function_url
       MARKET_DATA_SERVICE_URL  = var.market_data_function_url
       INSIGHT_SERVICE_URL      = var.insight_function_url
       AUTH_JWK_URI             = var.auth_jwk_uri
       CLOUDFRONT_ORIGIN_SECRET = var.cloudfront_origin_secret
     })
+  }
+
+  # deploy.yml updates the image digest/tag in AWS; Terraform keeps package_type Image + role/env.
+  lifecycle {
+    ignore_changes = [
+      image_uri,
+    ]
   }
 }
 

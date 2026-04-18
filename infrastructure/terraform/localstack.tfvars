@@ -18,6 +18,9 @@ frontend_bucket_name = "wealth-frontend-local"
 # Lambda Web Adapter layer ARN (stub for LocalStack — layer content not validated locally)
 lambda_adapter_layer_arn = "arn:aws:lambda:us-east-1:753240598075:layer:LambdaAdapterLayerX86:24"
 
+# api-gateway container image (stub URI for plan; LocalStack Lambda image support varies)
+api_gateway_image_uri = "000000000000.dkr.ecr.us-east-1.amazonaws.com/wealth-api-gateway:latest"
+
 # S3 keys (stub — JARs don't need to exist for plan/apply validation)
 s3_key_api_gateway = "api-gateway/api-gateway.jar"
 s3_key_portfolio   = "portfolio-service/portfolio-service.jar"

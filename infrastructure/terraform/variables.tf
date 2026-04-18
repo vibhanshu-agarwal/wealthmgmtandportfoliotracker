@@ -41,6 +41,11 @@ variable "lambda_adapter_layer_arn" {
   description = "ARN of the Lambda Web Adapter layer"
 }
 
+variable "api_gateway_image_uri" {
+  type        = string
+  description = "Full ECR image URI for wealth-api-gateway (package_type Image). Use your account/region/repo, e.g. ...amazonaws.com/<ECR_REPOSITORY_NAME>:latest"
+}
+
 variable "postgres_connection_string" {
   type        = string
   sensitive   = true
