@@ -14,6 +14,12 @@ variable "api_gateway_image_uri" {
   description = "Full ECR image URI for api-gateway Lambda (package_type Image), e.g. 123456789012.dkr.ecr.us-east-1.amazonaws.com/my-repo:latest"
 }
 
+variable "api_gateway_memory" {
+  type        = number
+  default     = 2048
+  description = "Memory (MB) for wealth-api-gateway Lambda — Spring cold start needs headroom vs 512MB CPU starvation."
+}
+
 variable "s3_key_portfolio" {
   type = string
 }

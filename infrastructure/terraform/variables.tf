@@ -46,6 +46,12 @@ variable "api_gateway_image_uri" {
   description = "Full ECR image URI for wealth-api-gateway (package_type Image). Use your account/region/repo, e.g. ...amazonaws.com/<ECR_REPOSITORY_NAME>:latest"
 }
 
+variable "api_gateway_memory" {
+  type        = number
+  default     = 2048
+  description = "Memory (MB) for wealth-api-gateway Lambda (default 2048 to avoid init-phase CPU starvation)."
+}
+
 variable "postgres_connection_string" {
   type        = string
   sensitive   = true
