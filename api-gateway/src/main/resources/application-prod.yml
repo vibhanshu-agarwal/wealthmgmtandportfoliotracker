@@ -19,7 +19,9 @@ spring:
     redis:
       # REDIS_URL format: redis[s]://[:password@]host[:port]
       # Upstash requires rediss:// (TLS). Set via REDIS_URL env var / GitHub Actions secret.
-      url: ${REDIS_URL}
+      # If absent, Spring Boot falls back to localhost:6379 — ensure REDIS_URL is always set
+      # in production environments to avoid startup hangs on connection attempts.
+      url: ${REDIS_URL:redis://localhost:6379}
 
 auth:
   jwk-uri: ${AUTH_JWK_URI}

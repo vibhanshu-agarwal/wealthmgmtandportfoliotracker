@@ -41,7 +41,7 @@ spring:
   data:
     redis:
       # REDIS_URL format: redis[s]://[:password@]host[:port]
-      url: ${REDIS_URL}
+      url: ${REDIS_URL:redis://localhost:6379}
 
 fx:
   base-currency: USD
