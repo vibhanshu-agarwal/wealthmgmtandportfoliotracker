@@ -1,12 +1,6 @@
 plugins {
     id 'org.springframework.boot'
-}
-
-// AOT processing: generates ApiGatewayApplication__ApplicationContextInitializer and related
-// classes at build time. Required for -Dspring.aot.enabled=true at runtime (Lambda / native image).
-// bootJar depends on processAot automatically when the Spring Boot plugin is applied.
-tasks.named('bootJar') {
-    dependsOn tasks.named('processAot')
+    id 'org.springframework.boot.aot'
 }
 
 dependencies {
