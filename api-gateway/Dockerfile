@@ -96,8 +96,11 @@ RUN DEPS=$(jdeps \
 # ---------------------------------------------------------------------------
 FROM public.ecr.aws/amazonlinux/amazonlinux:2023-minimal AS runtime
 
-# Install tar/gzip (for RIE download extraction) — curl-minimal is pre-installed
-RUN microdnf install -y tar gzip && microdnf clean all
+# Install tar/gzip (for RIE download extraction) — curl-minimal is pre-installed.
+# ca-certificates populates the OS trust store so the JVM can validate SSL certs
+# from external services (Aiven Kafka, MongoDB Atlas, etc.) — without it, JSSE
+# throws "PKIX path building failed: unable to find valid certification path".
+RUN microdnf install -y tar gzip ca-certificates && microdnf clean all
 
 # Copy Custom JRE
 ENV JAVA_HOME=/opt/java
