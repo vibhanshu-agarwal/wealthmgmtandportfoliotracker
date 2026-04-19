@@ -66,14 +66,15 @@ module "compute" {
   auth_jwk_uri                = var.auth_jwk_uri
   cloudfront_origin_secret    = var.cloudfront_origin_secret
   # Messaging & Caching — missing link: root variables.tf → compute module
-  redis_url                     = var.redis_url
-  kafka_bootstrap_servers       = var.kafka_bootstrap_servers
-  kafka_sasl_username           = var.kafka_sasl_username
-  kafka_sasl_password           = var.kafka_sasl_password
-  enable_aws_managed_database   = var.enable_aws_managed_database
-  lambda_vpc_subnet_ids         = var.lambda_vpc_subnet_ids
-  lambda_vpc_security_group_ids = var.lambda_vpc_security_group_ids
-  lambda_timeout                = coalesce(var.lambda_timeout, local.lambda_defaults.lambda_timeout_seconds)
+  redis_url                      = var.redis_url
+  kafka_bootstrap_servers        = var.kafka_bootstrap_servers
+  kafka_sasl_username            = var.kafka_sasl_username
+  kafka_sasl_password            = var.kafka_sasl_password
+  enable_aws_managed_database    = var.enable_aws_managed_database
+  lambda_vpc_subnet_ids          = var.lambda_vpc_subnet_ids
+  lambda_vpc_security_group_ids  = var.lambda_vpc_security_group_ids
+  lambda_timeout                 = coalesce(var.lambda_timeout, local.lambda_defaults.lambda_timeout_seconds)
+  enable_provisioned_concurrency = var.enable_provisioned_concurrency
   # Service-to-service URLs: populated via TF_VAR_* after first apply
   # (two-phase apply pattern — see README for details)
   portfolio_function_url   = var.portfolio_function_url

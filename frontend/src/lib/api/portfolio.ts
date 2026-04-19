@@ -192,12 +192,15 @@ export async function fetchPortfolio(userId: string, token: string): Promise<Por
   };
 }
 
-export async function fetchPortfolioPerformance(
-  userId: string,
-  token: string,
+/**
+ * Derives a PortfolioPerformanceDTO from an already-fetched PortfolioResponseDTO.
+ * Used by usePortfolioPerformance (via TanStack Query `select`) so no extra
+ * backend call is needed — the data comes from the shared usePortfolio cache.
+ */
+export function buildPerformanceDtoFromPortfolio(
+  portfolio: PortfolioResponseDTO,
   days = 30,
-): Promise<PortfolioPerformanceDTO> {
-  const portfolio = await fetchPortfolio(userId, token);
+): PortfolioPerformanceDTO {
   const dataPoints = buildPerformanceSeries(days, portfolio.summary.totalValue);
   const first = dataPoints[0]?.value ?? 0;
   const periodReturn = portfolio.summary.totalValue - first;
@@ -212,8 +215,14 @@ export async function fetchPortfolioPerformance(
   };
 }
 
-export async function fetchAssetAllocation(userId: string, token: string): Promise<AssetAllocationDTO> {
-  const portfolio = await fetchPortfolio(userId, token);
+/**
+ * Derives an AssetAllocationDTO from an already-fetched PortfolioResponseDTO.
+ * Used by useAssetAllocation (via TanStack Query `select`) so no extra
+ * backend call is needed — the data comes from the shared usePortfolio cache.
+ */
+export function buildAllocationDtoFromPortfolio(
+  portfolio: PortfolioResponseDTO,
+): AssetAllocationDTO {
   const byClass = portfolio.holdings.reduce<Record<string, number>>((acc, h) => {
     acc[h.assetClass] = (acc[h.assetClass] ?? 0) + h.totalValue;
     return acc;
@@ -250,6 +259,22 @@ export async function fetchAssetAllocation(userId: string, token: string): Promi
     totalValue: portfolio.summary.totalValue,
     slices,
   };
+}
+
+/** @deprecated Use buildPerformanceDtoFromPortfolio with an already-fetched portfolio instead. */
+export async function fetchPortfolioPerformance(
+  userId: string,
+  token: string,
+  days = 30,
+): Promise<PortfolioPerformanceDTO> {
+  const portfolio = await fetchPortfolio(userId, token);
+  return buildPerformanceDtoFromPortfolio(portfolio, days);
+}
+
+/** @deprecated Use buildAllocationDtoFromPortfolio with an already-fetched portfolio instead. */
+export async function fetchAssetAllocation(userId: string, token: string): Promise<AssetAllocationDTO> {
+  const portfolio = await fetchPortfolio(userId, token);
+  return buildAllocationDtoFromPortfolio(portfolio);
 }
 
 /**

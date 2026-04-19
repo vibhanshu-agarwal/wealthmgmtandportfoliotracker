@@ -10,15 +10,23 @@ locals {
     PORT                         = "8080"
     AWS_LWA_ASYNC_INIT           = "true"
     AWS_LWA_READINESS_CHECK_PATH = "/actuator/health"
+    # LWA polls readiness at 1 s intervals; 20 retries → 20 s maximum wait.
+    # Spring Boot + AOT cold-start takes up to ~15 s under Lambda memory pressure.
+    # Without this, LWA's default (3–5 retries) kills the extension before the JVM
+    # finishes loading Spring context, causing Extension.Crash and 502 errors.
+    # 20 s is safely within the CloudFront 30 s origin timeout (gateway response-timeout
+    # is set to 20 s in application-prod.yml, so CloudFront always wins with margin).
+    AWS_LWA_READINESS_CHECK_MAX_RETRIES = "20"
   }
 
   # api-gateway is deployed as a container image (Dockerfile bundles Lambda Web Adapter).
   # Do not set AWS_LAMBDA_EXEC_WRAPPER — the image ENTRYPOINT runs the adapter.
   api_gateway_container_env = {
-    JAVA_TOOL_OPTIONS            = local.common_env.JAVA_TOOL_OPTIONS
-    SPRING_PROFILES_ACTIVE       = local.common_env.SPRING_PROFILES_ACTIVE
-    AWS_LWA_ASYNC_INIT           = "true"
-    AWS_LWA_READINESS_CHECK_PATH = "/actuator/health"
+    JAVA_TOOL_OPTIONS                   = local.common_env.JAVA_TOOL_OPTIONS
+    SPRING_PROFILES_ACTIVE              = local.common_env.SPRING_PROFILES_ACTIVE
+    AWS_LWA_ASYNC_INIT                  = "true"
+    AWS_LWA_READINESS_CHECK_PATH        = "/actuator/health"
+    AWS_LWA_READINESS_CHECK_MAX_RETRIES = local.common_env.AWS_LWA_READINESS_CHECK_MAX_RETRIES
   }
 
   # Runtime secrets — owned exclusively by Terraform.
@@ -463,4 +471,24 @@ resource "aws_lambda_permission" "insight_url_invoke" {
   function_name = aws_lambda_function.insight.function_name
   qualifier     = aws_lambda_alias.insight_live.name
   principal     = "*"
+}
+
+# ---------------------------------------------------------------------------
+# Provisioned Concurrency — eliminates cold-start 502s on the hot path
+# Only enabled when var.enable_provisioned_concurrency = true.
+# Do NOT enable until the ap-south-1 unreserved concurrency quota is > 10.
+# ---------------------------------------------------------------------------
+
+resource "aws_lambda_provisioned_concurrency_config" "api_gateway" {
+  count                             = var.enable_provisioned_concurrency ? 1 : 0
+  function_name                     = aws_lambda_function.api_gateway.function_name
+  qualifier                         = aws_lambda_alias.api_gateway_live.name
+  provisioned_concurrent_executions = 1
+}
+
+resource "aws_lambda_provisioned_concurrency_config" "portfolio" {
+  count                             = var.enable_provisioned_concurrency ? 1 : 0
+  function_name                     = aws_lambda_function.portfolio.function_name
+  qualifier                         = aws_lambda_alias.portfolio_live.name
+  provisioned_concurrent_executions = 1
 }

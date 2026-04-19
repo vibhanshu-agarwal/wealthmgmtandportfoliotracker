@@ -875,3 +875,188 @@ After this fix, every push to `main` or `architecture/cloud-native-extraction` w
 6. Function URLs immediately serve the new code
 
 No manual alias updates required.
+
+---
+
+## Section 15 — 429 / 502 Root Cause Analysis and Remediation (2026-04-19)
+
+**Branch:** `architecture/fix-429-502-issues` (forked from `architecture/cloud-native-extraction`)
+
+---
+
+### 15.1 Symptoms
+
+After the alias-drift fix (Section 14) the dashboard loaded correctly on first access but
+intermittently returned:
+
+- **HTTP 429 Too Many Requests** — frontend received `429` on API calls at dashboard load
+- **HTTP 502 Bad Gateway** — CloudFront returned `502` particularly for the insights and
+  market-data endpoints
+
+---
+
+### 15.2 CloudWatch Evidence (pre-fix, measured 2026-04-19 ~08:00–14:00 IST)
+
+| Function | Throttles (6 h) | Duration P99 (ms) | Duration Max (ms) |
+|---|---|---|---|
+| wealth-api-gateway | **7** | 35 003 | 35 274 |
+| wealth-portfolio-service | **5** | 31 755 | 32 488 |
+| wealth-market-data-service | 0 | 38 004 | 38 004 |
+| wealth-insight-service | 0 | 16 431 | 16 472 |
+
+**Account concurrency quota:** `ConcurrentExecutions = 10` (default free-tier limit in
+`ap-south-1`). With 4 functions each potentially cold-starting simultaneously on dashboard
+load, the 10-execution pool was exhausted, triggering throttles → 429.
+
+**CloudFront origin timeout:** 30 s (AWS hard limit). Duration P99 for api-gateway (35 s),
+portfolio-service (32 s), and market-data-service (38 s) all **exceed** the 30 s limit →
+CloudFront aborts the connection → 502.
+
+---
+
+### 15.3 Root Causes Confirmed
+
+#### RCA-1 — Lambda account concurrency limit (→ 429)
+
+`ConcurrentExecutions = 10` is the default for new accounts in `ap-south-1`. The dashboard
+mount fired 5–7 parallel API calls (fan-out amplified by duplicate fetches in the frontend
+hooks). With 4 cold-starting JVM containers, the 10-execution pool was saturated within
+seconds. Lambda returned HTTP 429 to the API Gateway Function URL; CloudFront propagated it
+to the browser.
+
+**Mitigation path:** raise the quota via AWS Service Quotas to ≥ 100 (pending — see §15.6).
+
+#### RCA-2 — Spring Boot + AOT cold-start exceeds CloudFront's 30 s origin timeout (→ 502)
+
+Container image Lambdas initialise the LWA extension before Spring Boot starts. Under 1024 MB
+(half the CPU allocation), the JVM AOT init + Spring context load took 15–38 s measured
+end-to-end. CloudFront's hard origin-read timeout is 30 s; there is no override. Requests
+during cold-start exceeded the timeout and CloudFront returned 502 before Lambda responded.
+
+**Mitigation path (addressed in this branch):**
+- Memory raised to 2048 MB (CPU doubles → cold-start halves)
+- `AWS_LWA_READINESS_CHECK_MAX_RETRIES=20` (LWA waits up to 20 s before crashing extension)
+- `origin_read_timeout = 25` in CloudFront (5 s ahead of the hard 30 s limit so the gateway's
+  20 s `response-timeout` fires first and returns 504 instead of silent 502)
+- Provisioned concurrency (gated on quota increase landing)
+
+#### RCA-3 — Frontend fan-out (amplifies both RCA-1 and RCA-2)
+
+`usePortfolio`, `usePortfolioPerformance`, and `useAssetAllocation` each issued separate
+`fetchPortfolio` calls with distinct TanStack Query keys. On dashboard mount, the browser
+sent 3× `/api/portfolio` + `/api/market/prices` in parallel, plus `/api/portfolio/analytics`
+and `/api/insights/market-summary` = 5–7 simultaneous requests from a single page load.
+With retries enabled on 429, each failed request was retried immediately, doubling concurrency
+pressure.
+
+**Fixed:** hooks now share one query key; `usePortfolioPerformance` and `useAssetAllocation`
+derive from the cached data via TanStack Query `select`. Retry policy skips 429/503.
+
+#### RCA-4 — Bedrock fan-out in `InsightController.getMarketSummary()` (→ 502 on insight endpoint)
+
+`GET /api/insights/market-summary` called `aiInsightService.getSentiment(ticker)` for every
+tracked ticker sequentially. With 56 baseline tickers, each Bedrock call taking ≥ 1 s, the
+total response time was 30–90 s — exceeding both the Lambda 60 s timeout and CloudFront's 30 s
+limit.
+
+**Fixed:** list endpoint returns price/trend data only (no Bedrock). AI sentiment is available
+exclusively on `GET /api/insights/market-summary/{ticker}` (single-ticker, Redis-cached 60 min).
+
+#### RCA-5 — Redis `KEYS` full-scan in `MarketDataService` (→ Upstash rate-limit stalls)
+
+`marketDataService.getMarketSummary()` called `redisTemplate.keys("market:latest:*")`,
+which is a full keyspace scan. Upstash free-tier rate-limits this command. Under concurrent
+load the call stalled for several seconds, adding to the already-critical cold-start duration.
+
+**Fixed:** `processUpdate()` now maintains a `market:tracked-tickers` ZSET (scored by
+epoch-millis); `getMarketSummary()` uses `ZRANGEBYSCORE` instead of `KEYS`. Stale entries
+(> 24 h) are pruned via `ZREMRANGEBYSCORE` on every write.
+
+---
+
+### 15.4 Hypotheses Discarded
+
+| Hypothesis | Outcome |
+|---|---|
+| API Gateway route mis-configuration | Discarded — routes verified correct in Section 11 |
+| JWT / auth causing 502 | Discarded — user confirmed auth works; auth excluded from scope |
+| Kafka consumer stalling Lambda | Discarded — market-data throttles = 0 (Kafka runs out of Lambda) |
+| MongoDB health-check blocking readiness | Previously fixed (Section 9) |
+
+---
+
+### 15.5 Fixes Implemented (this branch)
+
+| ID | Fix | Commit | File(s) |
+|---|---|---|---|
+| insight-fanout-cap | Removed Bedrock fan-out from list endpoint | `2bb0a55` | `InsightController.java`, `InsightControllerTest.java`, `InsightPactVerificationTest.java`, pact JSON |
+| insight-redis-scan | Replaced `KEYS` with ZSET + 24 h pruning | `2bb0a55` | `MarketDataService.java` |
+| frontend-dedup | Collapsed 3× `fetchPortfolio` to 1× via `select` | `cb3ef1c` | `usePortfolio.ts`, `portfolio.ts` |
+| frontend-retry-policy | Skip 429/503 retry; cap others at 1 with exponential delay | `cb3ef1c` | `usePortfolio.ts`, `useInsights.ts` |
+| gateway-timeouts | `connect-timeout: 5000`, `response-timeout: 20s` | `619bd8e` | `application-prod.yml` |
+| lwa-retries | `AWS_LWA_READINESS_CHECK_MAX_RETRIES=20` | `619bd8e` | `modules/compute/main.tf` |
+| cloudfront-origin-timeout | `origin_read_timeout = 25` (25 s < 30 s hard limit) | `619bd8e` | `modules/cdn/main.tf` |
+| memory-bump | market-data + insight memory: 1024 → 2048 MB | `619bd8e` | `locals.tf` |
+| market-prices-bound | Cap `GET /api/market/prices` at 25 tickers / 100 rows max | `619bd8e` | `MarketPriceController.java` |
+| provisioned-concurrency | `aws_lambda_provisioned_concurrency_config` gated on `var.enable_provisioned_concurrency` (default `false`) | `bfb42d0` | `modules/compute/main.tf`, `variables.tf`, root `variables.tf`, `main.tf` |
+
+---
+
+### 15.6 Pending Manual Actions (requires AWS Console / Support)
+
+These cannot be automated by Terraform and require a human action before provisioned
+concurrency is enabled.
+
+#### 15.6.1 Lambda Unreserved Concurrency Quota (CRITICAL — blocks 429 fix)
+
+- **Console path:** AWS Console → Service Quotas → AWS Lambda → ap-south-1 → "Concurrent executions"
+- **Current value:** 10
+- **Requested value:** ≥ 100 (enough for 4 services × 2 warm instances + burst headroom)
+- **Note:** AWS typically approves free-tier quota increases within 24–48 h. File via
+  Support Case if Service Quotas self-service is blocked at 10.
+- After the quota increase lands, set `enable_provisioned_concurrency = true` in
+  `terraform.tfvars` and run `terraform apply` to activate provisioned concurrency on
+  `wealth-api-gateway` and `wealth-portfolio-service`.
+
+#### 15.6.2 Bedrock Claude 3 Haiku RPM / TPM Quotas (us-east-1)
+
+- **Console path:** AWS Console → Amazon Bedrock → Model access → Usage & quotas tab
+- **Model:** `anthropic.claude-3-haiku-20240307-v1:0`
+- **Default limits:** ~60 RPM / ~100k TPM on new accounts (verify in console — varies by
+  region and account tier)
+- **Required:** ≥ 60 RPM to serve per-ticker sentiment without throttling (1 Bedrock call per
+  unique ticker, cached in Redis for 60 min)
+- **Action:** Request increase to 300 RPM / 500k TPM if current value is below 60 RPM.
+- **Note:** Bedrock quota requests are reviewed by AWS and may take 1–7 business days.
+
+---
+
+### 15.7 CloudWatch Baseline (pre-fix, 2026-04-19)
+
+These numbers serve as the "before" baseline. Re-run the queries after deploying this branch
+to verify the fixes are effective.
+
+**Query — Throttles (run in CloudWatch Insights, log group `/aws/lambda/<function-name>`):**
+```
+stats sum(Throttles) as TotalThrottles by bin(1h)
+| filter MetricName = "Throttles"
+```
+
+**Query — Duration P99 (CloudWatch Metrics → AWS/Lambda → Duration → p99):**
+- Period: 1 h, Statistics: p99 (extended)
+
+**Baseline snapshot (ap-south-1, 6 h window ending 2026-04-19 ~14:26 IST):**
+
+| Metric | api-gateway | portfolio | market-data | insight |
+|---|---|---|---|---|
+| Throttles | 7 | 5 | 0 | 0 |
+| Duration Max (ms) | 35 274 | 32 488 | 38 004 | 16 472 |
+| Duration P99 (ms) | 35 003 | 31 755 | 38 004 | 16 431 |
+
+**Expected post-fix (after memory bump + LWA retries + quota increase + provisioned concurrency):**
+
+| Metric | Target |
+|---|---|
+| Throttles | 0 (quota ≥ 100 + provisioned concurrency eliminates burst saturation) |
+| Duration P99 | < 20 000 ms (2048 MB halves cold-start; provisioned concurrency eliminates it for gateway + portfolio) |
+| 502 rate | 0 (CloudFront 25 s timeout > gateway 20 s response-timeout; cold-starts handled within 20 s budget at 2048 MB) |

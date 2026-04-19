@@ -60,7 +60,13 @@ const analyticsFixture = {
 
 // ── Insight-service fixtures ────────────────────────────────────────────────
 
-/** Realistic market summary fixture with 3 tickers. */
+/**
+ * Realistic market summary fixture with 3 tickers.
+ *
+ * The list endpoint (GET /api/insights/market-summary) returns price/trend data only —
+ * aiSummary is intentionally absent to prevent an unbounded Bedrock fan-out.
+ * AI sentiment is only available on the per-ticker endpoint.
+ */
 export const insightMarketSummaryFixture: Record<
   string,
   {
@@ -68,7 +74,6 @@ export const insightMarketSummaryFixture: Record<
     latestPrice: number;
     priceHistory: number[];
     trendPercent: number | null;
-    aiSummary: string | null;
   }
 > = {
   AAPL: {
@@ -76,21 +81,18 @@ export const insightMarketSummaryFixture: Record<
     latestPrice: 178.5,
     priceHistory: [175.0, 176.2, 177.8, 178.5],
     trendPercent: 2.0,
-    aiSummary: "AAPL is Bullish. Prices are rising steadily.",
   },
   MSFT: {
     ticker: "MSFT",
     latestPrice: 420.0,
     priceHistory: [422.0, 421.0, 420.0],
     trendPercent: -0.47,
-    aiSummary: null,
   },
   GOOG: {
     ticker: "GOOG",
     latestPrice: 175.0,
     priceHistory: [175.0],
     trendPercent: null,
-    aiSummary: "GOOG is Neutral. Low trading volume.",
   },
 };
 
@@ -164,7 +166,15 @@ export const handlers = [
     if (!summary || summary.latestPrice === null) {
       return new HttpResponse(null, { status: 404 });
     }
-    return HttpResponse.json(summary);
+    // Per-ticker endpoint enriches with AI sentiment (Bedrock, Redis-cached 60 min).
+    const aiSummaries: Record<string, string> = {
+      AAPL: "AAPL is Bullish. Prices are rising steadily.",
+      GOOG: "GOOG is Neutral. Low trading volume.",
+    };
+    return HttpResponse.json({
+      ...summary,
+      aiSummary: aiSummaries[ticker] ?? null,
+    });
   }),
 
   http.post("/api/chat", async ({ request }) => {
