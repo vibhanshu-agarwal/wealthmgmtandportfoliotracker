@@ -265,15 +265,15 @@ resource "aws_lambda_function" "market_data" {
 }
 
 resource "aws_lambda_function" "insight" {
-  function_name                  = "wealth-insight-service"
-  role                           = aws_iam_role.insight.arn
-  package_type                   = "Image"
-  image_uri                      = var.insight_image_uri
-  architectures                  = ["x86_64"]
-  memory_size                    = var.insight_service_memory_size
-  timeout                        = var.lambda_timeout
-  publish                        = true
-  reserved_concurrent_executions = 10
+  function_name = "wealth-insight-service"
+  role          = aws_iam_role.insight.arn
+  package_type  = "Image"
+  image_uri     = var.insight_image_uri
+  architectures = ["x86_64"]
+  memory_size   = var.insight_service_memory_size
+  timeout       = var.lambda_timeout
+  publish       = true
+  # reserved_concurrent_executions omitted — account limit is 10 total
 
   dynamic "vpc_config" {
     for_each = local.attach_lambda_vpc ? [1] : []
