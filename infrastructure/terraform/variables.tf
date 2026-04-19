@@ -36,6 +36,12 @@ variable "frontend_bucket_name" {
   description = "S3 bucket for frontend static export"
 }
 
+variable "frontend_bucket_region" {
+  type        = string
+  default     = "us-east-1"
+  description = "AWS region of the frontend S3 bucket (may differ from var.aws_region if bucket was created in a different region)"
+}
+
 variable "lambda_adapter_layer_arn" {
   type        = string
   default     = ""

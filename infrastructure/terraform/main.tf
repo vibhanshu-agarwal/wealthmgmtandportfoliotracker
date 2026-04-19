@@ -107,7 +107,7 @@ module "networking" {
 
   # api-gateway Function URL is the CloudFront origin
   origin_url                              = module.compute.api_gateway_function_url
-  static_site_bucket_regional_domain_name = "${var.frontend_bucket_name}.s3.${var.aws_region}.amazonaws.com"
+  static_site_bucket_regional_domain_name = "${var.frontend_bucket_name}.s3.${var.frontend_bucket_region}.amazonaws.com"
   # CloudFront injects this header; api-gateway Spring filter validates it
   cloudfront_origin_secret = var.cloudfront_origin_secret
   domain_name              = var.domain_name

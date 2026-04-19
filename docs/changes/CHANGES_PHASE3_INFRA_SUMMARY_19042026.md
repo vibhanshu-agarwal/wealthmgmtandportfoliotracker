@@ -563,3 +563,88 @@ After deploying the fix:
 | `eda27b6` | Add `ca-certificates` to runtime images                    |
 | `4a67114` | Import OS CA bundle via keytool (superseded)               |
 | `748d4b5` | Direct Corretto cacerts COPY (final SSL fix)               |
+
+---
+
+## 12. Login 403 & Access Denied — CORS + JWT Filter + CloudFront Ops Fix
+
+**Date:** 2026-04-19 (evening session)
+
+### 12.1 Root Cause Analysis
+
+Production users could not log in at `vibhanshu-ai-portfolio.dev`. Three interrelated issues:
+
+1. **CORS rejection (403)** — `SecurityConfig.corsConfigurationSource()` hard-coded `setAllowedOrigins` to `http://localhost:3000` and `http://127.0.0.1:3000`. The production origin `https://vibhanshu-ai-portfolio.dev` was not in the list. Spring WebFlux CORS rejected the preflight with 403 before any auth logic ran.
+
+2. **JWT filter blocking auth endpoints (latent 401)** — `JwtAuthenticationFilter` skip list only included `/actuator/**` and `/api/portfolio/health`. The `/api/auth/**` paths declared as `permitAll()` in SecurityConfig were missing. The filter's `switchIfEmpty` branch would return 401 for requests without a JWT. Masked by the CORS failure.
+
+3. **CloudFront distribution not fully managed by Terraform** — The live distribution `E3EDXRGMYOSRB1` was in Terraform state but `domain_name` and `acm_certificate_arn` were never passed, so `aliases = []` and no ACM cert. The S3 origin domain used `ap-south-1` (Lambda region) instead of `us-east-1` (bucket region), causing S3 to return 301 redirects. The `X-Origin-Verify` custom header was missing from the API origin. The CF Function rewrite was attached but the S3 301s prevented it from working.
+
+### 12.2 Code Fixes (api-gateway)
+
+| File                           | Change                                                                                                                                                                                                     |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SecurityConfig.java`          | Replaced `setAllowedOrigins(List.of(...))` with `setAllowedOriginPatterns(allowedOriginPatterns)` injected via `@Value("${app.cors.allowed-origin-patterns:http://localhost:3000,http://127.0.0.1:3000}")` |
+| `JwtAuthenticationFilter.java` | Extended skip-path condition to include `path.equals("/api/auth") \|\| path.startsWith("/api/auth/")` — reuses existing X-User-Id stripping branch (security guardrail)                                    |
+| `application.yml`              | Added `app.cors.allowed-origin-patterns` with localhost defaults                                                                                                                                           |
+| `application-prod.yml`         | Added `app.cors.allowed-origin-patterns` with `https://vibhanshu-ai-portfolio.dev` and `https://*.vibhanshu-ai-portfolio.dev`                                                                              |
+
+### 12.3 Test Coverage
+
+| Test Class                            | Tests | Purpose                                                                                                        |
+| ------------------------------------- | ----- | -------------------------------------------------------------------------------------------------------------- |
+| `CorsAndAuthBugConditionTest`         | 8     | Bug condition exploration — 3 CORS tests failed on unfixed code (confirmed bug), 5 auth/JWT tests passed       |
+| `CorsAndAuthPreservationPropertyTest` | 14    | Preservation — localhost CORS, disallowed origins, authenticated endpoints, actuator skip, X-User-Id stripping |
+
+All 22 tests pass after the fix. Full integration suite (`./gradlew :api-gateway:integrationTest`) green.
+
+### 12.4 Infrastructure / Ops Changes
+
+| Action                       | Detail                                                                                                                     |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `terraform.yml`              | Added `TF_VAR_domain_name` and `TF_VAR_acm_certificate_arn` from GitHub secrets                                            |
+| Delete `modules/networking/` | Orphaned duplicate of `modules/cdn/` — root `main.tf` already uses `./modules/cdn`                                         |
+| `variables.tf`               | Added `frontend_bucket_region` (default `us-east-1`) to fix S3 origin domain mismatch                                      |
+| `main.tf`                    | Changed `static_site_bucket_regional_domain_name` from `${var.aws_region}` to `${var.frontend_bucket_region}`              |
+| Terraform apply #1           | Added `X-Origin-Verify` custom header on API origin; alias + ACM cert already in state from prior apply                    |
+| Terraform apply #2           | Fixed S3 origin domain from `ap-south-1` to `us-east-1`                                                                    |
+| CloudFront invalidation      | `/*` invalidation after each apply                                                                                         |
+| Secret alignment             | Verified `CLOUDFRONT_ORIGIN_SECRET` matches across Lambda env, GitHub secret, and CloudFront custom header (`865b515d...`) |
+
+### 12.5 Post-Deploy Verification
+
+| Probe                  | Result                                                                                   |
+| ---------------------- | ---------------------------------------------------------------------------------------- |
+| `GET /`                | ✅ 200                                                                                   |
+| `GET /login`           | ✅ 200                                                                                   |
+| `GET /overview`        | ✅ 200                                                                                   |
+| `GET /portfolio`       | ✅ 200                                                                                   |
+| `GET /market-data`     | ✅ 200                                                                                   |
+| `GET /settings`        | ✅ 200                                                                                   |
+| `POST /api/auth/login` | ❌ 403 — Lambda Function URL auth layer rejecting HTTP requests (pre-existing, see 12.6) |
+| Direct Function URL    | ❌ 403 — same Lambda auth issue                                                          |
+| AWS CLI invoke         | ✅ 200 — `{"status":"UP"}`                                                               |
+
+### 12.6 Remaining Issue — Lambda Function URL HTTP 403
+
+The Lambda Function URL (`AuthType: NONE`, resource policy `Principal: *`) returns 403 for all HTTP requests but works via AWS SDK invoke. The error message `{"Message":"Forbidden. For troubleshooting Function URL authorization issues..."}` is from Lambda's own auth layer, not the Spring app.
+
+This is a pre-existing issue (noted in section 7.7) that predates the CORS/JWT fix. The CloudFront distribution correctly injects `X-Origin-Verify` and forwards to the Function URL, but Lambda's HTTP auth layer rejects the request before it reaches the Spring app.
+
+**Next steps:** Investigate Lambda Function URL auth configuration — possible causes include a stale Function URL that needs recreation, or a Lambda service issue in `ap-south-1`.
+
+### 12.7 Key Commits
+
+| Commit    | Description                                                                 |
+| --------- | --------------------------------------------------------------------------- |
+| `618e3b3` | fix(api-gateway): resolve CORS 403 and JWT filter blocking on prod          |
+| `0016b03` | ops: wire domain vars into terraform.yml, delete orphaned networking module |
+| (pending) | ops: fix S3 origin region mismatch, add frontend_bucket_region variable     |
+
+### 12.8 Bugfix Spec
+
+Full spec at `.kiro/specs/rca-login-403-and-access-denied/`:
+
+- `bugfix.md` — 6 defect clauses, 6 expected-behavior clauses, 9 regression-prevention clauses
+- `design.md` — formal bug condition specification, 5 correctness properties, fix implementation plan
+- `tasks.md` — 4 top-level tasks (exploration tests → preservation tests → implementation → checkpoint)
