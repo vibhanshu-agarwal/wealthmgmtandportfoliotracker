@@ -22,3 +22,11 @@ market-data:
     enabled: true
   baseline-seed:
     enabled: false
+
+management:
+  health:
+    # Exclude MongoDB from the health check on Lambda — a cold MongoDB connection
+    # attempt blocks for 30s (server selection timeout) and causes LWA to mark
+    # the app as not ready. MongoDB connectivity is verified by actual requests.
+    mongo:
+      enabled: false
