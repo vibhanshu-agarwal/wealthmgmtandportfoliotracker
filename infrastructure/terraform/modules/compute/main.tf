@@ -254,7 +254,7 @@ resource "aws_lambda_function" "market_data" {
 
   environment {
     variables = merge(local.common_env, local.runtime_secrets, {
-      SPRING_DATA_MONGODB_URI      = var.mongodb_connection_string
+      SPRING_DATA_MONGODB_URI = var.mongodb_connection_string
       # Override the LWA readiness check path — /actuator/health includes MongoHealthIndicator
       # which fails with AtlasError 8000 (not authorized on local db). The liveness endpoint
       # only checks that the JVM is alive, not external dependencies.
