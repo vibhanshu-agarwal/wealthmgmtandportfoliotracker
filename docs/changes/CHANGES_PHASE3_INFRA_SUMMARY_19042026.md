@@ -613,38 +613,153 @@ All 22 tests pass after the fix. Full integration suite (`./gradlew :api-gateway
 
 ### 12.5 Post-Deploy Verification
 
-| Probe                  | Result                                                                                   |
-| ---------------------- | ---------------------------------------------------------------------------------------- |
-| `GET /`                | ✅ 200                                                                                   |
-| `GET /login`           | ✅ 200                                                                                   |
-| `GET /overview`        | ✅ 200                                                                                   |
-| `GET /portfolio`       | ✅ 200                                                                                   |
-| `GET /market-data`     | ✅ 200                                                                                   |
-| `GET /settings`        | ✅ 200                                                                                   |
-| `POST /api/auth/login` | ❌ 403 — Lambda Function URL auth layer rejecting HTTP requests (pre-existing, see 12.6) |
-| Direct Function URL    | ❌ 403 — same Lambda auth issue                                                          |
-| AWS CLI invoke         | ✅ 200 — `{"status":"UP"}`                                                               |
+| Probe                                       | Result                                                         |
+| ------------------------------------------- | -------------------------------------------------------------- |
+| `GET /`                                     | ✅ 200                                                         |
+| `GET /login`                                | ✅ 200                                                         |
+| `GET /overview`                             | ✅ 200                                                         |
+| `GET /portfolio`                            | ✅ 200                                                         |
+| `GET /market-data`                          | ✅ 200                                                         |
+| `GET /settings`                             | ✅ 200                                                         |
+| `POST /api/auth/login`                      | ✅ 200 — returns JWT token (fixed in 12.6–12.8)                |
+| CORS preflight `OPTIONS /api/auth/login`    | ✅ 200 — `Access-Control-Allow-Origin` present (fixed in 12.8) |
+| Direct Function URL without X-Origin-Verify | ✅ 403 (LURL security working)                                 |
 
-### 12.6 Remaining Issue — Lambda Function URL HTTP 403
+### 12.6 Lambda Function URL 403 — Root Cause and Fix
 
-The Lambda Function URL (`AuthType: NONE`, resource policy `Principal: *`) returns 403 for all HTTP requests but works via AWS SDK invoke. The error message `{"Message":"Forbidden. For troubleshooting Function URL authorization issues..."}` is from Lambda's own auth layer, not the Spring app.
+**Symptom:** All four Function URLs returned `{"Message":"Forbidden"}` from Lambda's auth layer despite `AuthType: NONE` and `Principal: *` policy. AWS SDK invoke worked.
 
-This is a pre-existing issue (noted in section 7.7) that predates the CORS/JWT fix. The CloudFront distribution correctly injects `X-Origin-Verify` and forwards to the Function URL, but Lambda's HTTP auth layer rejects the request before it reaches the Spring app.
+**Root cause:** The AWS Console adds **two** resource-based policy statements when creating a Function URL with `AuthType: NONE`:
 
-**Next steps:** Investigate Lambda Function URL auth configuration — possible causes include a stale Function URL that needs recreation, or a Lambda service issue in `ap-south-1`.
+1. `lambda:InvokeFunctionUrl` with `Principal: *` — Terraform had this
+2. `lambda:InvokeFunction` with `Principal: *` — **Terraform was missing this**
 
-### 12.7 Key Commits
+Without both statements, Lambda's HTTP endpoint returns 403 `AccessDeniedException`. The SDK invoke works because it uses `lambda:InvokeFunction` via identity-based IAM policies, bypassing the resource-based policy.
 
-| Commit    | Description                                                                 |
-| --------- | --------------------------------------------------------------------------- |
-| `618e3b3` | fix(api-gateway): resolve CORS 403 and JWT filter blocking on prod          |
-| `0016b03` | ops: wire domain vars into terraform.yml, delete orphaned networking module |
-| (pending) | ops: fix S3 origin region mismatch, add frontend_bucket_region variable     |
+**Discovery method:** Created a Function URL through the AWS Console on `wealth-insight-service` `$LATEST`, compared its policy to the Terraform-created one on the `live` alias. The console-created URL worked; the diff revealed the missing second statement.
 
-### 12.8 Bugfix Spec
+**Fix:** Added `aws_lambda_permission` resources for both `InvokeFunctionUrl` and `InvokeFunction` to `modules/compute/main.tf` for all four functions. Also added the permissions via AWS CLI immediately for the `live` aliases.
+
+**Commits:** `e2d55a3` (InvokeFunctionUrl), `a94db5b` (InvokeFunction)
+
+### 12.7 CORS YAML Binding Fix
+
+**Symptom:** After deploying the CORS code fix, the preflight still returned 403 with no CORS headers. The `@Value` injection wasn't picking up the production origins.
+
+**Root cause:** `@Value("${app.cors.allowed-origin-patterns}")` with `List<String>` type cannot bind from YAML list syntax (`- "value1"`, `- "value2"`). YAML lists create indexed properties (`app.cors.allowed-origin-patterns[0]`) which `@Value` doesn't resolve to a `List`. It needs comma-separated string format.
+
+**Fix:** Changed both `application.yml` and `application-prod.yml` from YAML list syntax to comma-separated strings:
+
+```yaml
+# Before (broken)
+app.cors.allowed-origin-patterns:
+  - "https://vibhanshu-ai-portfolio.dev"
+  - "https://*.vibhanshu-ai-portfolio.dev"
+
+# After (working)
+app.cors.allowed-origin-patterns: "https://vibhanshu-ai-portfolio.dev,https://*.vibhanshu-ai-portfolio.dev"
+```
+
+**Commit:** `5e02301`
+
+### 12.8 Lambda Alias Drift
+
+**Symptom:** After deploying the CORS fix via `deploy.yml`, the Function URL still served the old code.
+
+**Root cause:** `deploy.yml` calls `update-function-code` which updates `$LATEST`, but the Function URL is on the `live` alias. The alias was stuck on version 1 (the initial Terraform-created version). `deploy.yml` never publishes a new version or updates the alias.
+
+**Fix (immediate):** Manually published new versions and updated aliases via AWS CLI:
+
+```
+wealth-api-gateway: live → v3
+wealth-portfolio-service: live → v4
+wealth-market-data-service: live → v6
+wealth-insight-service: live → v5
+```
+
+**Permanent fix needed:** `deploy.yml` must publish a version and update the `live` alias after `update-function-code`. This is tracked as a follow-up.
+
+### 12.9 Final Verification (end of session)
+
+| Probe                         | Result                                                                                                          |
+| ----------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `GET /`                       | ✅ 200                                                                                                          |
+| `GET /login`                  | ✅ 200                                                                                                          |
+| `POST /api/auth/login` (curl) | ✅ 200 — JWT token returned                                                                                     |
+| CORS preflight (curl)         | ✅ 200 — all CORS headers present                                                                               |
+| Browser login                 | ✅ Working — redirects to dashboard                                                                             |
+| Dashboard API calls           | ⚠️ 404/502 on `/api/portfolio/*`, `/api/market/*`, `/api/insights/*` — downstream service issues, not auth/CORS |
+
+### 12.10 Key Commits (complete)
+
+| Commit    | Description                                                                       |
+| --------- | --------------------------------------------------------------------------------- |
+| `618e3b3` | fix(api-gateway): CORS externalization + JWT filter skip for /api/auth/\*\*       |
+| `0016b03` | ops: wire domain vars into terraform.yml, delete orphaned networking module       |
+| `ebd3840` | ops: fix S3 origin region mismatch (ap-south-1 → us-east-1), changelog section 12 |
+| `e2d55a3` | ops: add aws_lambda_permission for InvokeFunctionUrl                              |
+| `a94db5b` | ops: add aws_lambda_permission for InvokeFunction (the missing second statement)  |
+| `5e02301` | fix: comma-separated CORS patterns for @Value List binding                        |
+
+### 12.11 Bugfix Spec
 
 Full spec at `.kiro/specs/rca-login-403-and-access-denied/`:
 
 - `bugfix.md` — 6 defect clauses, 6 expected-behavior clauses, 9 regression-prevention clauses
 - `design.md` — formal bug condition specification, 5 correctness properties, fix implementation plan
 - `tasks.md` — 4 top-level tasks (exploration tests → preservation tests → implementation → checkpoint)
+
+---
+
+## 13. Handoff — 2026-04-19 (end of evening session)
+
+### 13.1 What's Working
+
+- **Login flow**: ✅ `POST /api/auth/login` returns 200 with JWT through CloudFront
+- **CORS**: ✅ Preflight returns proper headers for `https://vibhanshu-ai-portfolio.dev`
+- **Static routes**: ✅ `/`, `/login`, `/overview`, `/portfolio`, `/market-data`, `/settings` all return 200
+- **CloudFront**: ✅ Fully Terraform-managed — alias, ACM cert, CF Function rewrite, X-Origin-Verify header, correct S3 origin region
+- **Lambda Function URLs**: ✅ All four accept HTTP requests (both permission statements in place)
+- **Secret alignment**: ✅ CLOUDFRONT_ORIGIN_SECRET matches across Lambda, GitHub, CloudFront
+
+### 13.2 What's Broken (dashboard API calls)
+
+After login, the dashboard shows errors:
+
+- `/api/portfolio/summary` → 404
+- `/api/portfolio/holdings` → 404
+- `/api/portfolio/performance` → 502
+- `/api/market/prices` → 502
+- `/api/insights/market-summary` → 502
+
+These are **downstream service issues**, not auth/CORS. The api-gateway routes correctly but the backend services are returning errors. Likely causes:
+
+- portfolio-service: 404 means the endpoints don't exist at those paths (check controller path mappings)
+- market-data/insight: 502 means the services are crashing or timing out (check CloudWatch logs)
+
+### 13.3 Critical Follow-Up: deploy.yml Alias Update
+
+`deploy.yml` updates `$LATEST` but never publishes a version or updates the `live` alias. Every deploy requires manual alias update:
+
+```bash
+aws lambda publish-version --function-name <name> --query Version --output text
+aws lambda update-alias --function-name <name> --name live --function-version <version>
+```
+
+This must be automated in `deploy.yml` to prevent alias drift.
+
+### 13.4 Branch State
+
+- **Branch:** `architecture/cloud-native-extraction` at `5e02301`
+- **Main:** `5e02301` (in sync)
+- **Terraform state:** S3 backend `vibhanshu-tf-state-2026` in `ap-south-1`
+- **GitHub secrets:** All synced via `gh secret set -f .env.secrets` (includes `DOMAIN_NAME`, `ACM_CERTIFICATE_ARN`)
+
+### 13.5 Lambda Alias Versions (current)
+
+| Function                   | Alias `live` → Version |
+| -------------------------- | ---------------------- |
+| wealth-api-gateway         | v3                     |
+| wealth-portfolio-service   | v4                     |
+| wealth-market-data-service | v6                     |
+| wealth-insight-service     | v5                     |
