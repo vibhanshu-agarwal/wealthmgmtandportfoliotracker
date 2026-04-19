@@ -407,3 +407,44 @@ resource "aws_lambda_permission" "insight_url_public" {
   principal              = "*"
   function_url_auth_type = "NONE"
 }
+
+# ---------------------------------------------------------------------------
+# Function URL Invoke Permissions — lambda:InvokeFunction via Function URL
+# The AWS Console adds this second statement automatically when creating a
+# Function URL with AuthType=NONE. Terraform's aws_lambda_permission for
+# InvokeFunctionUrl alone is NOT sufficient — Lambda also requires an explicit
+# InvokeFunction permission conditioned on InvokedViaFunctionUrl.
+# Without both statements, the Function URL returns 403 AccessDeniedException.
+# ---------------------------------------------------------------------------
+
+resource "aws_lambda_permission" "api_gateway_url_invoke" {
+  statement_id  = "FunctionURLAllowInvokeAction"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.api_gateway.function_name
+  qualifier     = aws_lambda_alias.api_gateway_live.name
+  principal     = "*"
+}
+
+resource "aws_lambda_permission" "portfolio_url_invoke" {
+  statement_id  = "FunctionURLAllowInvokeAction"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.portfolio.function_name
+  qualifier     = aws_lambda_alias.portfolio_live.name
+  principal     = "*"
+}
+
+resource "aws_lambda_permission" "market_data_url_invoke" {
+  statement_id  = "FunctionURLAllowInvokeAction"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.market_data.function_name
+  qualifier     = aws_lambda_alias.market_data_live.name
+  principal     = "*"
+}
+
+resource "aws_lambda_permission" "insight_url_invoke" {
+  statement_id  = "FunctionURLAllowInvokeAction"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.insight.function_name
+  qualifier     = aws_lambda_alias.insight_live.name
+  principal     = "*"
+}
