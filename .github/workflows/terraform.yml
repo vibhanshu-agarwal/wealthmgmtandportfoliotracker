@@ -44,6 +44,10 @@ env:
   TF_VAR_portfolio_image_uri: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPOSITORY_NAME_PORTFOLIO }}:latest
   TF_VAR_market_data_image_uri: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPOSITORY_NAME_MARKET_DATA }}:latest
   TF_VAR_insight_image_uri: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPOSITORY_NAME_INSIGHT }}:latest
+  # Custom domain — CloudFront alias + ACM certificate
+  TF_VAR_domain_name: ${{ secrets.DOMAIN_NAME }}
+  TF_VAR_acm_certificate_arn: ${{ secrets.ACM_CERTIFICATE_ARN }}
+  # route53_zone_id intentionally omitted — DNS is managed externally (domain registrar)
 
 jobs:
   validate:
