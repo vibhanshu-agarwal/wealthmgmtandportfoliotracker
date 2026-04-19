@@ -364,3 +364,46 @@ resource "aws_lambda_function_url" "insight" {
   qualifier          = aws_lambda_alias.insight_live.name
   authorization_type = "NONE"
 }
+
+# ---------------------------------------------------------------------------
+# Function URL Permissions — resource-based policy allowing public HTTP access
+# Required even with authorization_type = "NONE" on the Function URL.
+# Without this, Lambda's auth layer returns 403 for all HTTP requests.
+# The X-Origin-Verify header check in the Spring app provides the actual security.
+# ---------------------------------------------------------------------------
+
+resource "aws_lambda_permission" "api_gateway_url_public" {
+  statement_id           = "FunctionURLAllowPublicAccess"
+  action                 = "lambda:InvokeFunctionUrl"
+  function_name          = aws_lambda_function.api_gateway.function_name
+  qualifier              = aws_lambda_alias.api_gateway_live.name
+  principal              = "*"
+  function_url_auth_type = "NONE"
+}
+
+resource "aws_lambda_permission" "portfolio_url_public" {
+  statement_id           = "FunctionURLAllowPublicAccess"
+  action                 = "lambda:InvokeFunctionUrl"
+  function_name          = aws_lambda_function.portfolio.function_name
+  qualifier              = aws_lambda_alias.portfolio_live.name
+  principal              = "*"
+  function_url_auth_type = "NONE"
+}
+
+resource "aws_lambda_permission" "market_data_url_public" {
+  statement_id           = "FunctionURLAllowPublicAccess"
+  action                 = "lambda:InvokeFunctionUrl"
+  function_name          = aws_lambda_function.market_data.function_name
+  qualifier              = aws_lambda_alias.market_data_live.name
+  principal              = "*"
+  function_url_auth_type = "NONE"
+}
+
+resource "aws_lambda_permission" "insight_url_public" {
+  statement_id           = "FunctionURLAllowPublicAccess"
+  action                 = "lambda:InvokeFunctionUrl"
+  function_name          = aws_lambda_function.insight.function_name
+  qualifier              = aws_lambda_alias.insight_live.name
+  principal              = "*"
+  function_url_auth_type = "NONE"
+}
