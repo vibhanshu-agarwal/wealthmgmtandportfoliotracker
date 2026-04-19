@@ -41,8 +41,9 @@ test.describe.serial("Live AWS Synthetic Monitoring", () => {
     await page.goto("/portfolio");
     const totalValueEl = page.getByTestId("total-value");
     
-    // Explicitly wait up to 30s for the cold start of the portfolio-service
-    await expect(totalValueEl).toBeVisible({ timeout: 30_000 });
+    // Explicitly wait up to 60s for the cold start of the portfolio-service
+    // plus any exponential backoff retries if the initial cold start hit the 20s API Gateway timeout
+    await expect(totalValueEl).toBeVisible({ timeout: 60_000 });
     
     // Ensure the total value isn't an empty placeholder
     const value = await totalValueEl.textContent();

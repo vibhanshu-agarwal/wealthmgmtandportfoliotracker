@@ -20,11 +20,8 @@ test.describe("Mocked Chaos Tests (Error Boundaries)", () => {
     await page.goto("/portfolio");
 
     // Ensure the application does not crash into a white screen
-    // It should ideally show an error boundary, toast, or fallback UI
-    const errorToast = page.locator("text=Service Unavailable").first();
-    // Assuming we have some generic fallback or error UI
-    // If there is a specific data-testid for error boundaries, we would use that here.
-    await expect(errorToast).toBeVisible({ timeout: 10_000 });
+    // The UI is designed to degrade gracefully to zeroed out metrics without a blocking toast.
+    await expect(page.getByTestId("total-value")).toBeVisible({ timeout: 10_000 });
 
     // The layout (e.g. sidebar, header) should still be intact
     await expect(page.getByRole("navigation")).toBeVisible();
@@ -69,12 +66,11 @@ test.describe("Mocked Chaos Tests (Error Boundaries)", () => {
     
     // Simulate user sending a chat message
     const chatInput = page.getByPlaceholder(/ask/i);
-    if (await chatInput.isVisible()) {
-      await chatInput.fill("How is AAPL doing?");
-      await chatInput.press("Enter");
+    await chatInput.waitFor({ state: "visible", timeout: 15_000 });
+    await chatInput.fill("How is AAPL doing?");
+    await chatInput.press("Enter");
 
-      // Verify a graceful error message appears in chat instead of a full app crash
-      await expect(page.locator("text=Bad Gateway")).toBeVisible({ timeout: 15_000 });
-    }
+    // Verify a graceful error message appears in chat instead of a full app crash
+    await expect(page.locator("text=Bad Gateway")).toBeVisible({ timeout: 15_000 });
   });
 });
