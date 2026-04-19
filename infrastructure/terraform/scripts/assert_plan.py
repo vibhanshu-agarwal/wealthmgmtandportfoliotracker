@@ -68,12 +68,19 @@ def assert_no_prohibited_resources(changes: list) -> list:
     return errors
 
 
-def assert_all_lambda_functions_present(changes: list) -> list:
-    """Property 3: All four Lambda functions must appear in the plan."""
+def assert_all_lambda_functions_present(plan: dict) -> list:
+    """Property 3: All four Lambda functions must exist in the plan (active or no-op).
+
+    Checks all resource_changes regardless of action — a no-op means the resource
+    already exists and is stable, which is equally valid as a create/update.
+    """
     found = set()
-    for rc in changes:
+    for rc in plan.get("resource_changes", []):
         if rc["type"] == "aws_lambda_function":
             after = rc.get("change", {}).get("after", {}) or {}
+            # For no-op resources, 'after' may be null — fall back to 'before'
+            if not after:
+                after = rc.get("change", {}).get("before", {}) or {}
             name = after.get("function_name", "")
             if name in REQUIRED_LAMBDA_FUNCTIONS:
                 found.add(name)
@@ -108,16 +115,13 @@ def assert_lambda_concurrency_cap(changes: list) -> list:
 
 
 def assert_spring_profiles_active(changes: list) -> list:
-    """Property 3: SPRING_PROFILES_ACTIVE must be 'prod,aws' in all Lambda env vars.
+    """Property 3: SPRING_PROFILES_ACTIVE must start with 'prod,aws' on all Lambda env vars.
 
-    Validates both presence and correct value. The 'prod' profile is required so that
-    application-prod.yml loads and resolves ${REDIS_URL}, ${KAFKA_BOOTSTRAP_SERVERS}, etc.
+    insight-service uses 'prod,aws,bedrock' (adds the bedrock profile for Bedrock AI).
+    All other services use 'prod,aws'. Both are valid — the key requirement is that
+    'prod' and 'aws' are present so application-prod.yml and application-aws.yml load.
 
-    Note: when a Lambda's environment.variables map contains (known after apply)
-    values (e.g. Function URLs on first apply), Terraform serialises the entire
-    variables object as null in the plan JSON. In that case we skip the check for
-    that function — the variable will be validated on subsequent plans once all
-    resource outputs are known.
+    Skips functions where environment.variables is (known after apply) — null in plan JSON.
     """
     errors = []
     for rc in changes:
@@ -125,7 +129,6 @@ def assert_spring_profiles_active(changes: list) -> list:
             after = rc.get("change", {}).get("after", {}) or {}
             fn_name = after.get("function_name", rc["address"])
             env_list = after.get("environment", []) or []
-            # environment is a list of objects with a "variables" map
             env_vars = {}
             all_null = True
             for env_block in env_list:
@@ -134,8 +137,6 @@ def assert_spring_profiles_active(changes: list) -> list:
                     if variables is not None:
                         all_null = False
                         env_vars.update(variables)
-            # If all environment blocks have null variables, the map contains
-            # (known after apply) values — skip this function for this check.
             if all_null and env_list:
                 continue
             if "SPRING_PROFILES_ACTIVE" not in env_vars:
@@ -143,13 +144,17 @@ def assert_spring_profiles_active(changes: list) -> list:
                     f"FAIL [Property 3] Lambda '{fn_name}' is missing "
                     f"SPRING_PROFILES_ACTIVE environment variable"
                 )
-            elif env_vars["SPRING_PROFILES_ACTIVE"] != "prod,aws":
+            else:
                 actual = env_vars["SPRING_PROFILES_ACTIVE"]
-                errors.append(
-                    f"FAIL [Property 3] Lambda '{fn_name}' has "
-                    f"SPRING_PROFILES_ACTIVE='{actual}' (must be 'prod,aws'). "
-                    f"Without 'prod', application-prod.yml never loads."
-                )
+                # Must contain both 'prod' and 'aws' profiles.
+                # insight-service adds 'bedrock' — that is intentional and valid.
+                if "prod" not in actual.split(",") or "aws" not in actual.split(","):
+                    errors.append(
+                        f"FAIL [Property 3] Lambda '{fn_name}' has "
+                        f"SPRING_PROFILES_ACTIVE='{actual}' — must include both "
+                        f"'prod' and 'aws' so application-prod.yml and "
+                        f"application-aws.yml load correctly."
+                    )
     return errors
 
 
@@ -199,7 +204,7 @@ def main() -> int:
 
     all_errors = []
     all_errors.extend(assert_no_prohibited_resources(changes))
-    all_errors.extend(assert_all_lambda_functions_present(changes))
+    all_errors.extend(assert_all_lambda_functions_present(plan))
     all_errors.extend(assert_lambda_concurrency_cap(changes))
     all_errors.extend(assert_spring_profiles_active(changes))
     all_errors.extend(assert_cloudfront_price_class(changes))
