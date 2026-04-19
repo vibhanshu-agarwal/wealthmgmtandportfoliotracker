@@ -61,12 +61,22 @@ describe("fetchWithAuthClient", () => {
     expect(result).toEqual(payload);
   });
 
-  it("throws an Error on 4xx response", async () => {
+  it("clears session and throws on 401 response", async () => {
+    // Mock localStorage for the clearAuthSession call
+    const removeItemSpy = vi.fn();
+    vi.stubGlobal("localStorage", {
+      getItem: vi.fn(),
+      setItem: vi.fn(),
+      removeItem: removeItemSpy,
+    });
+
     mockFetch.mockResolvedValueOnce({ ok: false, status: 401 });
 
     await expect(
       fetchWithAuthClient("/api/portfolio", "bad-token"),
-    ).rejects.toThrow("Request failed (401)");
+    ).rejects.toThrow("Session expired");
+
+    expect(removeItemSpy).toHaveBeenCalledWith("wmpt.auth.session");
   });
 
   it("throws an Error on 5xx response", async () => {
