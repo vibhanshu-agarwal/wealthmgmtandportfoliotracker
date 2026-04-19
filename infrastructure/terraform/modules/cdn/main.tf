@@ -3,8 +3,8 @@
 # =============================================================================
 
 locals {
-  # Strip "https://" prefix from the Function URL to get the API origin domain.
-  api_origin_domain = replace(var.origin_url, "https://", "")
+  # Strip "https://" prefix and trailing slash from the Function URL to get the API origin domain.
+  api_origin_domain = trimsuffix(replace(var.origin_url, "https://", ""), "/")
 
   # S3 static origin only (Next.js prefetch uses HEAD; OPTIONS for CORS preflight).
   # API traffic uses ordered_cache_behavior /api/* with full method set — do not reuse this there.
@@ -171,11 +171,12 @@ resource "aws_cloudfront_distribution" "main" {
 }
 
 # ---------------------------------------------------------------------------
-# Optional Route 53 A alias record (only when domain_name is provided)
+# Optional Route 53 A alias record (only when both domain_name and route53_zone_id are provided).
+# When DNS is managed externally (e.g. domain registrar), leave route53_zone_id empty.
 # ---------------------------------------------------------------------------
 
 resource "aws_route53_record" "main" {
-  count = var.domain_name != "" ? 1 : 0
+  count = var.domain_name != "" && var.route53_zone_id != "" ? 1 : 0
 
   zone_id = var.route53_zone_id
   name    = var.domain_name
