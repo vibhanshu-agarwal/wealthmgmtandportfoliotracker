@@ -87,22 +87,22 @@ def assert_all_lambda_functions_present(changes: list) -> list:
 
 
 def assert_lambda_concurrency_cap(changes: list) -> list:
-    """Property 7: reserved_concurrent_executions must be > 0 and <= 10 for all Lambdas."""
+    """Property 7: reserved_concurrent_executions must be either unset (-1) or <= 10.
+
+    This account has a total concurrency limit of 10, so reserved concurrency
+    cannot be set without blocking all other functions. Unset (-1) is correct.
+    """
     errors = []
     for rc in changes:
         if rc["type"] == "aws_lambda_function":
             after = rc.get("change", {}).get("after", {}) or {}
             rce = after.get("reserved_concurrent_executions")
             fn_name = after.get("function_name", rc["address"])
-            if rce is None:
-                errors.append(
-                    f"FAIL [Property 7] Lambda '{fn_name}' has no "
-                    f"reserved_concurrent_executions set (must be 1-10)"
-                )
-            elif not (0 < rce <= 10):
+            # -1 or None means unreserved (correct for low-concurrency accounts)
+            if rce is not None and rce != -1 and not (0 < rce <= 10):
                 errors.append(
                     f"FAIL [Property 7] Lambda '{fn_name}' has "
-                    f"reserved_concurrent_executions={rce} (must be 1-10)"
+                    f"reserved_concurrent_executions={rce} (must be unset or 1-10)"
                 )
     return errors
 

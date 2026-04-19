@@ -158,15 +158,16 @@ resource "aws_iam_role_policy" "insight_bedrock" {
 # ---------------------------------------------------------------------------
 
 resource "aws_lambda_function" "api_gateway" {
-  function_name                  = "wealth-api-gateway"
-  role                           = aws_iam_role.api_gateway.arn
-  package_type                   = "Image"
-  image_uri                      = var.api_gateway_image_uri
-  architectures                  = ["x86_64"]
-  memory_size                    = var.api_gateway_memory
-  timeout                        = var.lambda_timeout # seconds; keep >= 60 for Spring init + adapter readiness
-  publish                        = true
-  reserved_concurrent_executions = 10
+  function_name = "wealth-api-gateway"
+  role          = aws_iam_role.api_gateway.arn
+  package_type  = "Image"
+  image_uri     = var.api_gateway_image_uri
+  architectures = ["x86_64"]
+  memory_size   = var.api_gateway_memory
+  timeout       = var.lambda_timeout # seconds; keep >= 60 for Spring init + adapter readiness
+  publish       = true
+  # reserved_concurrent_executions omitted — account limit is 10 total, AWS requires
+  # at least 10 unreserved. Setting any reservation would block all other functions.
 
   dynamic "vpc_config" {
     for_each = local.attach_lambda_vpc ? [1] : []
@@ -200,15 +201,14 @@ resource "aws_lambda_function" "api_gateway" {
 }
 
 resource "aws_lambda_function" "portfolio" {
-  function_name                  = "wealth-portfolio-service"
-  role                           = aws_iam_role.portfolio.arn
-  package_type                   = "Image"
-  image_uri                      = var.portfolio_image_uri
-  architectures                  = ["x86_64"]
-  memory_size                    = var.portfolio_memory_size
-  timeout                        = var.lambda_timeout
-  publish                        = true
-  reserved_concurrent_executions = 10
+  function_name = "wealth-portfolio-service"
+  role          = aws_iam_role.portfolio.arn
+  package_type  = "Image"
+  image_uri     = var.portfolio_image_uri
+  architectures = ["x86_64"]
+  memory_size   = var.portfolio_memory_size
+  timeout       = var.lambda_timeout
+  publish       = true
 
   dynamic "vpc_config" {
     for_each = local.attach_lambda_vpc ? [1] : []
@@ -233,15 +233,14 @@ resource "aws_lambda_function" "portfolio" {
 }
 
 resource "aws_lambda_function" "market_data" {
-  function_name                  = "wealth-market-data-service"
-  role                           = aws_iam_role.market_data.arn
-  package_type                   = "Image"
-  image_uri                      = var.market_data_image_uri
-  architectures                  = ["x86_64"]
-  memory_size                    = var.market_data_memory_size
-  timeout                        = var.lambda_timeout
-  publish                        = true
-  reserved_concurrent_executions = 10
+  function_name = "wealth-market-data-service"
+  role          = aws_iam_role.market_data.arn
+  package_type  = "Image"
+  image_uri     = var.market_data_image_uri
+  architectures = ["x86_64"]
+  memory_size   = var.market_data_memory_size
+  timeout       = var.lambda_timeout
+  publish       = true
 
   dynamic "vpc_config" {
     for_each = local.attach_lambda_vpc ? [1] : []
