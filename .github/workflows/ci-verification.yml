@@ -240,7 +240,27 @@ jobs:
 
       - name: Run Playwright E2E tests
         working-directory: frontend
-        run: npx playwright test --grep-invert "@auth-preflight"
+        run: |
+          npx playwright test \
+            tests/e2e/golden-path.spec.ts \
+            tests/e2e/dashboard-data.spec.ts \
+            tests/e2e/mocked-chaos.spec.ts \
+            tests/e2e/live-contract.spec.ts \
+            --project=chromium \
+            --reporter=list
+
+      - name: Run AWS synthetic monitoring
+        working-directory: frontend
+        # Runs against the live site — only on push to main to avoid hammering AWS on every PR
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          E2E_TEST_USER_EMAIL: ${{ secrets.E2E_TEST_USER_EMAIL }}
+          E2E_TEST_USER_PASSWORD: ${{ secrets.E2E_TEST_USER_PASSWORD }}
+        run: |
+          npx playwright test \
+            tests/e2e/aws-synthetic.spec.ts \
+            --project=aws-synthetic \
+            --reporter=list
 
       # ── Failure handling ──
       - name: Upload Playwright report on failure
