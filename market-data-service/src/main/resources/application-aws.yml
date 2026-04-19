@@ -30,3 +30,11 @@ management:
     # the app as not ready. MongoDB connectivity is verified by actual requests.
     mongo:
       enabled: false
+
+spring:
+  autoconfigure:
+    exclude:
+      # MongoHealthIndicator is @ConditionalOnEnabledHealthIndicator("mongo") which is
+      # evaluated at AOT build time — management.health.mongo.enabled=false is ignored.
+      # Excluding the auto-configuration class at runtime bypasses the AOT condition.
+      - org.springframework.boot.mongodb.health.MongoHealthIndicatorAutoConfiguration
