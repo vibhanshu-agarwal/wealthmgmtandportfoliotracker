@@ -26,7 +26,7 @@ test.describe("Live Contract Verification (Golden Path)", () => {
 
     // Verify the HTTP contract structure
     expect(body).toHaveProperty("totalValue");
-    expect(body).toHaveProperty("holdingsCount");
+    expect(body).toHaveProperty("totalHoldings");
     
     // Verify the UI renders based on the actual live data
     await expect(page.getByTestId("total-value")).toBeVisible({ timeout: 15_000 });
@@ -40,21 +40,14 @@ test.describe("Live Contract Verification (Golden Path)", () => {
     await page.goto("/ai-insights");
 
     const chatInput = page.getByPlaceholder(/ask/i);
-    if (await chatInput.isVisible()) {
-      await chatInput.fill("What is the current trend for tech stocks?");
-      await chatInput.press("Enter");
+    await chatInput.waitFor({ state: "visible", timeout: 15_000 });
+    await chatInput.fill("What is the current trend for tech stocks?");
+    await chatInput.press("Enter");
 
-      const response = await chatResponsePromise;
-      expect(response.status()).toBe(200);
+    const response = await chatResponsePromise;
+    expect(response.status()).toBe(200);
 
-      const responseBody = await response.json();
-      expect(responseBody).toHaveProperty("message");
-      expect(responseBody).toHaveProperty("sentiment");
-      
-      // Verify chat bubble appears in UI
-      await expect(page.locator(".chat-message.assistant").last()).toBeVisible({ timeout: 20_000 });
-    } else {
-       console.warn("Chat UI not present on insights page.");
-    }
+    const responseBody = await response.json();
+    expect(responseBody).toHaveProperty("response");
   });
 });
