@@ -156,3 +156,15 @@ variable "lambda_timeout" {
   default     = 60
   description = "Timeout in seconds for all Lambda functions. Must accommodate Spring Boot cold start."
 }
+
+variable "enable_provisioned_concurrency" {
+  type        = bool
+  default     = false
+  description = <<-EOT
+    When true, provisions 1 warm instance on the 'live' alias for wealth-api-gateway and
+    wealth-portfolio-service to eliminate cold-start 502s on the hot path.
+    Only enable after the ap-south-1 Lambda unreserved concurrency quota has been raised
+    above 10 — provisioned concurrency counts against the account pool, and enabling it
+    while the quota is 10 will leave fewer than the AWS-required 10 unreserved executions.
+  EOT
+}

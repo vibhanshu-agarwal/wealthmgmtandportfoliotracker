@@ -278,3 +278,12 @@ variable "lambda_timeout" {
   default     = null
   description = "Optional override for Lambda timeout (seconds); default is local.lambda_defaults.lambda_timeout_seconds in locals.tf."
 }
+
+variable "enable_provisioned_concurrency" {
+  type        = bool
+  default     = false
+  description = <<-EOT
+    When true, provisions 1 warm instance on 'live' alias for api-gateway and portfolio-service.
+    Only enable after ap-south-1 unreserved concurrency quota has been raised above 10.
+  EOT
+}
