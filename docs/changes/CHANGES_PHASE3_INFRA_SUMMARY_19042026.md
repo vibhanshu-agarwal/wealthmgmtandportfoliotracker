@@ -189,3 +189,141 @@ The first `terraform apply` after this change will show an `environment.variable
 - `REDIS_URL`, `KAFKA_BOOTSTRAP_SERVERS`, `KAFKA_SASL_USERNAME`, `KAFKA_SASL_PASSWORD` are added to all applicable functions
 
 Review the plan output in `assert_plan.py` and the PR artifact before merging. Ensure `REDIS_URL` and `KAFKA_*` secrets exist in GitHub Actions before the apply runs.
+
+---
+
+## 7. Phase 4 — Service Split: Monolith to Four Independent Image Lambdas
+
+**Date:** 2026-04-19 (continuation of Phase 3 work)
+
+### 7.1 Overview
+
+The single monolith Lambda (`wealth-mgmt-backend-lambda`, running only api-gateway) was split into four independently deployed Image Lambdas:
+
+| Function                     | ECR Repository                  | Status                                          |
+| ---------------------------- | ------------------------------- | ----------------------------------------------- |
+| `wealth-api-gateway`         | `wealth-api-gateway` (existing) | ✅ UP — `{"status":"UP"}`                       |
+| `wealth-portfolio-service`   | `wealth-portfolio-service`      | ✅ UP — `{"status":"UP"}`                       |
+| `wealth-market-data-service` | `wealth-market-data-service`    | 🔄 Image rebuilding (MongoDB URI fix)           |
+| `wealth-insight-service`     | `wealth-insight-service`        | ⏳ Alias + Function URL pending Terraform apply |
+
+All four ECR repositories are in `ap-south-1` (same region as Lambda).
+
+### 7.2 Architecture
+
+```
+CloudFront → wealth-api-gateway (Image Lambda, ap-south-1)
+                ├── PORTFOLIO_SERVICE_URL  → wealth-portfolio-service Function URL
+                ├── MARKET_DATA_SERVICE_URL → wealth-market-data-service Function URL
+                └── INSIGHT_SERVICE_URL    → wealth-insight-service Function URL
+                                                    ↓
+                                           Amazon Bedrock (Claude 3 Haiku, us-east-1)
+                                                    ↑↓
+                                           Redis (Upstash, cache layer)
+```
+
+### 7.3 Terraform Changes
+
+| File                              | Change                                                                                                                                                                                                                                                  |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `infrastructure/terraform/ecr.tf` | New — three ECR repos in ap-south-1                                                                                                                                                                                                                     |
+| `modules/compute/main.tf`         | Zip→Image for portfolio/market-data/insight; `SPRING_PROFILES_ACTIVE=prod,aws,bedrock` for insight; `PORTFOLIO_SERVICE_URL` wired to insight; ECR readonly IAM on all three roles; removed `reserved_concurrent_executions` (account limit is 10 total) |
+| `modules/compute/variables.tf`    | Added `portfolio_image_uri`, `market_data_image_uri`, `insight_image_uri`, `postgres_username`, `postgres_password`; removed `s3_key_*`, `lambda_adapter_layer_arn`, `lambda_java_runtime`                                                              |
+| `variables.tf`                    | Same additions at root level                                                                                                                                                                                                                            |
+| `main.tf`                         | Removed S3 artifact bucket resources (bucket in us-east-1, all Lambdas now Image-based); wired new image URI and postgres credential vars to compute module                                                                                             |
+| `terraform.yml`                   | Added `TF_VAR_*_image_uri` for three new services; `TF_VAR_postgres_username`, `TF_VAR_postgres_password`; removed S3/layer vars; added `aws_region=ap-south-1` to plan step                                                                            |
+
+### 7.4 CI/CD Changes
+
+**`deploy.yml`:**
+
+- Builds and pushes all four service images sequentially
+- Each Lambda update step checks if the function exists before calling `update-function-code` (graceful skip if not yet created by Terraform)
+- `LAMBDA_FUNCTION_NAME_API_GATEWAY` replaces legacy `LAMBDA_FUNCTION_NAME`
+- New secrets: `ECR_REPOSITORY_NAME_PORTFOLIO/MARKET_DATA/INSIGHT`, `LAMBDA_FUNCTION_NAME_PORTFOLIO/MARKET_DATA/INSIGHT`
+
+### 7.5 Application Code Changes
+
+**insight-service:**
+
+- `build.gradle`: `spring-ai-starter-model-ollama` → `spring-ai-starter-model-bedrock-converse` (Ollama is local-only, incompatible with Lambda)
+- `BedrockAiInsightService.java`: `@Profile("bedrock")`, `@Cacheable("sentiment")`, Claude 3 Haiku
+- `BedrockInsightAdvisor.java`: `@Profile("bedrock")`, `@Cacheable("portfolio-analysis")`
+- `CacheConfig.java`: `@EnableCaching`, `RedisCacheManager` (60/30 min TTLs), `CacheErrorHandler` for graceful Redis fallthrough
+- `application.yml`: `REDIS_URL` replaces `SPRING_DATA_REDIS_HOST/PORT`; `spring.cache.type: simple` for local
+- `application-prod.yml`: `spring.cache.type: redis`
+- `application-aws.yml`: Bedrock model ID (`anthropic.claude-3-haiku-20240307-v1:0`) + region (`us-east-1`)
+- `MockBedrockAiInsightService.java`: deleted (replaced by real implementation)
+
+**portfolio-service:**
+
+- `Dockerfile`: added `-Dspring.aot.enabled=true` to ENTRYPOINT (was missing)
+
+**All four Dockerfiles:**
+
+- `jlink` now includes `java.sql,java.naming` modules explicitly — required for PostgreSQL JDBC driver registration via ServiceLoader (without these, HikariCP reports "Driver claims to not accept jdbcUrl")
+
+**market-data-service:**
+
+- `application.yml`: `spring.mongodb.uri` → `spring.data.mongodb.uri` (key mismatch prevented `application-prod.yml` override from taking effect)
+
+### 7.6 Bugs Encountered and Fixed During Service Split
+
+| Bug                                                            | Root Cause                                                                                                                                                                                                         | Fix                                                                                                                                                 |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ECR repos created in us-east-1                                 | Terraform `aws_region` defaults to `us-east-1`; plan step didn't pass `-var="aws_region=ap-south-1"`                                                                                                               | Added `-var="aws_region=ap-south-1"` to terraform.yml plan step; deleted and recreated repos in ap-south-1                                          |
+| S3 bucket `PermanentRedirect`                                  | `wealth-artifacts-local` created in us-east-1 during failed apply; Terraform now runs with ap-south-1                                                                                                              | Removed S3 bucket resources from `main.tf` (no longer needed — all Lambdas are Image-based)                                                         |
+| `PutFunctionConcurrency` error                                 | `reserved_concurrent_executions = 10` on all four Lambdas; account total limit is 10 (AWS requires ≥10 unreserved)                                                                                                 | Removed `reserved_concurrent_executions` from all Lambda resources                                                                                  |
+| `assert_plan.py` false failures                                | `assert_all_lambda_functions_present` only checked active changes (create/update), missing stable no-op resources; `assert_spring_profiles_active` rejected `prod,aws,bedrock`                                     | Fixed to check all `resource_changes`; updated profile check to accept any value containing both `prod` and `aws`                                   |
+| portfolio-service crash: "Driver claims to not accept jdbcUrl" | Custom JRE built via `jlink` was missing `java.sql` module; PostgreSQL JDBC driver uses ServiceLoader which requires `java.sql`                                                                                    | Added `java.sql,java.naming` to `jlink --add-modules` in all four Dockerfiles                                                                       |
+| portfolio-service crash: missing datasource credentials        | `application-prod.yml` requires `SPRING_DATASOURCE_USERNAME` and `SPRING_DATASOURCE_PASSWORD` separately from the JDBC URL                                                                                         | Added `postgres_username` and `postgres_password` Terraform variables; injected as `SPRING_DATASOURCE_USERNAME/PASSWORD` into portfolio Lambda env  |
+| Neon JDBC URL format                                           | `.env.secrets` had `postgresql://user:pass@host/db` (libpq format) instead of `jdbc:postgresql://host/db` (JDBC format)                                                                                            | Updated to `jdbc:postgresql://ep-super-morning-a1l1lva1-pooler.ap-southeast-1.aws.neon.tech/neondb?sslmode=require` with separate username/password |
+| market-data MongoDB connecting to localhost                    | `application.yml` used `spring.mongodb.uri` (reads `SPRING_MONGODB_URI`) but `application-prod.yml` used `spring.data.mongodb.uri` (reads `SPRING_DATA_MONGODB_URI`) — different keys, prod override never applied | Changed `application.yml` to use `spring.data.mongodb.uri`                                                                                          |
+
+### 7.7 Function URLs (ap-south-1)
+
+| Service                      | Function URL                                                             |
+| ---------------------------- | ------------------------------------------------------------------------ |
+| `wealth-api-gateway`         | `https://lfhbpbwscoq7cmm5fcrgzy7edq0rxpos.lambda-url.ap-south-1.on.aws/` |
+| `wealth-portfolio-service`   | `https://dyxr7lgmdhfo4gw4in2j4hl6ge0zhxor.lambda-url.ap-south-1.on.aws/` |
+| `wealth-market-data-service` | `https://k3xpajgq7kpbsxrlp2bkq46bvm0dgjqw.lambda-url.ap-south-1.on.aws/` |
+| `wealth-insight-service`     | `https://whqa2tes4rqq2yyjefk7zhaihe0afvhg.lambda-url.ap-south-1.on.aws/` |
+
+api-gateway Function URL returns 403 on direct access (CloudFront origin secret filter) — invoke via AWS CLI or through CloudFront.
+
+### 7.8 Verification Commands
+
+```bash
+# Test api-gateway (via AWS CLI — direct URL returns 403 due to CloudFront filter)
+aws lambda invoke --function-name wealth-api-gateway --region ap-south-1 \
+  --payload '{"rawPath":"/actuator/health","requestContext":{"http":{"method":"GET","path":"/actuator/health"}}}' \
+  --cli-binary-format raw-in-base64-out /tmp/response.json && cat /tmp/response.json
+# Expected: {"status":"UP"}
+
+# Test portfolio-service
+aws lambda invoke --function-name wealth-portfolio-service --region ap-south-1 \
+  --payload '{"rawPath":"/actuator/health","requestContext":{"http":{"method":"GET","path":"/actuator/health"}}}' \
+  --cli-binary-format raw-in-base64-out /tmp/response.json && cat /tmp/response.json
+# Expected: {"status":"UP"}
+```
+
+### 7.9 Pending at Time of Writing
+
+- `wealth-market-data-service`: image rebuild in progress (MongoDB URI key fix `acef405`)
+- `wealth-insight-service`: alias + Function URL pending next `terraform apply` (insight Lambda exists but alias/URL not yet created due to concurrency errors in earlier apply runs)
+- `wealth-mgmt-backend-lambda`: legacy monolith still exists — decommission after all four services confirmed healthy
+- Neon duplicate database (`wealthmgmt-portfolio-db` created Apr 16) deleted; Apr 18 database retained
+
+### 7.10 Key Git Commits (Phase 4)
+
+| Commit    | Description                                                                               |
+| --------- | ----------------------------------------------------------------------------------------- |
+| `e9dc13a` | Phase 4 service split — all four services as Image Lambdas (main Phase A+B+C commit)      |
+| `8714f67` | Fix: graceful Lambda skip in deploy.yml + fix integration test Redis URL                  |
+| `086c9bf` | Fix: pass `aws_region=ap-south-1` to terraform plan                                       |
+| `8cf3370` | Fix: remove S3 artifact bucket resources (PermanentRedirect)                              |
+| `2200c8c` | Fix: remove `reserved_concurrent_executions` from all Lambdas                             |
+| `6781cd8` | Fix: assert_plan.py for stable resources and bedrock profile                              |
+| `9d3ca77` | Fix: remove `reserved_concurrent_executions` from insight Lambda (missed in previous fix) |
+| `84e767c` | Fix: add `java.sql,java.naming` to jlink + postgres credentials to Lambda env             |
+| `acef405` | Fix: `spring.data.mongodb.uri` key in market-data application.yml                         |
