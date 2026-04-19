@@ -24,10 +24,8 @@ describe("fetchMarketSummary", () => {
       expect(
         summary.trendPercent === null || typeof summary.trendPercent === "number",
       ).toBe(true);
-      // aiSummary can be string or null
-      expect(
-        summary.aiSummary === null || typeof summary.aiSummary === "string",
-      ).toBe(true);
+      // aiSummary is absent from the list endpoint (Bedrock fan-out removed)
+      expect(summary).not.toHaveProperty("aiSummary");
     }
   });
 
@@ -37,7 +35,8 @@ describe("fetchMarketSummary", () => {
     expect(result.AAPL.latestPrice).toBe(
       insightMarketSummaryFixture.AAPL.latestPrice,
     );
-    expect(result.MSFT.aiSummary).toBeNull();
+    // aiSummary is absent from the list endpoint
+    expect(result.MSFT).not.toHaveProperty("aiSummary");
     expect(result.GOOG.trendPercent).toBeNull();
   });
 });

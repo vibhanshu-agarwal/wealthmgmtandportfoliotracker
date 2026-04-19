@@ -166,7 +166,15 @@ export const handlers = [
     if (!summary || summary.latestPrice === null) {
       return new HttpResponse(null, { status: 404 });
     }
-    return HttpResponse.json(summary);
+    // Per-ticker endpoint enriches with AI sentiment (Bedrock, Redis-cached 60 min).
+    const aiSummaries: Record<string, string> = {
+      AAPL: "AAPL is Bullish. Prices are rising steadily.",
+      GOOG: "GOOG is Neutral. Low trading volume.",
+    };
+    return HttpResponse.json({
+      ...summary,
+      aiSummary: aiSummaries[ticker] ?? null,
+    });
   }),
 
   http.post("/api/chat", async ({ request }) => {

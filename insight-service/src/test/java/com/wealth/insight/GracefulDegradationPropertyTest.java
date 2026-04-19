@@ -1,6 +1,5 @@
 package com.wealth.insight;
 
-import com.wealth.insight.advisor.AdvisorUnavailableException;
 import com.wealth.insight.dto.TickerSummary;
 import org.junit.jupiter.api.RepeatedTest;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -19,7 +18,6 @@ import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 
@@ -52,8 +50,9 @@ class GracefulDegradationPropertyTest {
         raw.put(ticker, original);
 
         when(marketDataService.getMarketSummary()).thenReturn(raw);
-        when(aiInsightService.getSentiment(anyString()))
-                .thenThrow(new AdvisorUnavailableException("test failure"));
+        // The list endpoint no longer calls aiInsightService — AI sentiment is only
+        // on the per-ticker endpoint. Verify the response still contains price data
+        // with aiSummary absent (null).
 
         InsightController controller = new InsightController(insightService, marketDataService, aiInsightService);
         MockMvc mockMvc = MockMvcBuilders.standaloneSetup(controller).build();
@@ -65,7 +64,7 @@ class GracefulDegradationPropertyTest {
         String body = result.getResponse().getContentAsString();
         assertThat(body).contains(ticker);
         assertThat(body).contains(price.toPlainString());
-        // aiSummary should be null (absent from JSON)
+        // aiSummary should be null (absent from JSON) — list endpoint never calls Bedrock
         assertThat(body).doesNotContain("\"aiSummary\":\"");
     }
 

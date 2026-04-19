@@ -7,6 +7,7 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.data.redis.core.ListOperations;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
+import org.springframework.data.redis.core.ZSetOperations;
 
 import java.math.BigDecimal;
 import java.util.concurrent.ThreadLocalRandom;
@@ -27,6 +28,7 @@ class SlidingWindowPropertyTest {
     private StringRedisTemplate redisTemplate;
     private ValueOperations<String, String> valueOps;
     private ListOperations<String, String> listOps;
+    private ZSetOperations<String, String> zSetOps;
     private MarketDataService service;
 
     @SuppressWarnings("unchecked")
@@ -35,8 +37,10 @@ class SlidingWindowPropertyTest {
         redisTemplate = mock(StringRedisTemplate.class);
         valueOps = mock(ValueOperations.class);
         listOps = mock(ListOperations.class);
+        zSetOps = mock(ZSetOperations.class);
         when(redisTemplate.opsForValue()).thenReturn(valueOps);
         when(redisTemplate.opsForList()).thenReturn(listOps);
+        when(redisTemplate.opsForZSet()).thenReturn(zSetOps);
         service = new MarketDataService(redisTemplate);
     }
 
