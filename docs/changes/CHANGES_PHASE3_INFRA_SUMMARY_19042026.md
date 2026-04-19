@@ -1169,3 +1169,147 @@ spring:
 | test-insights-frontend   | `insights.test.ts` + MSW handlers: align assertions with `aiSummary` removal from list endpoint                  | `de985af` |
 | terraform-origin-timeout | Move `origin_read_timeout` from `ordered_cache_behavior` to `custom_origin_config` (correct Terraform attribute) | `3f7dfe6` |
 | terraform-fmt            | Fix `terraform fmt` alignment in `main.tf` and `compute/main.tf`                                                 | `facef91` |
+
+---
+
+## Section 15.2 — Remaining 502 Issues: Status and Open Investigation (2026-04-19)
+
+**Status:** PARKED — investigation paused, to be resumed later.
+
+---
+
+### 15.2.1 Current State After Section 15 + 15.1 Fixes
+
+| Component                          | Status                | Evidence                                                                                   |
+| ---------------------------------- | --------------------- | ------------------------------------------------------------------------------------------ |
+| **api-gateway Lambda**             | ✅ Healthy            | `Started ApiGatewayApplication in 5.8s`, warm requests 43–356 ms, no errors after YAML fix |
+| **Login (`POST /api/auth/login`)** | ✅ Fixed              | Duplicate YAML key resolved (Section 15.1), app starts successfully                        |
+| **portfolio-service Lambda**       | ✅ Healthy            | Alias updated to version 11, responding normally                                           |
+| **insight-service Lambda**         | ⚠️ Partially broken   | App starts (8–11 s), HTTP responds (8 ms warm), but Kafka consumer crashes on SSL          |
+| **market-data-service Lambda**     | ❓ Not investigated   | May have same Kafka SSL issue                                                              |
+| **Frontend (React #418)**          | ⚠️ Hydration mismatch | Pre-existing, cosmetic — `useAuthSession` reads localStorage during SSR                    |
+
+---
+
+### 15.2.2 Persistent 502 on `/api/insights/market-summary`
+
+**Symptom:** Browser receives 502 on `GET /api/insights/market-summary` intermittently,
+particularly on first access after Lambda containers go cold.
+
+**CloudWatch evidence (insight-service, 17:14–17:15 UTC):**
+
+```
+17:14:53.988  Started InsightApplication in 11.667 seconds (process running for 20.695)
+17:14:55.646  ERROR [Consumer] Connection to kafka-wealthmgmt-wealthmgmt.i.aivencloud.com
+              failed authentication due to: SSL handshake failed
+17:14:55.671  SSLHandshakeException: PKIX path building failed:
+              unable to find valid certification path to requested target
+17:14:55.672  ERROR KafkaMessageListenerContainer: Fatal consumer exception; stopping container
+17:15:02.446  INFO app is not ready after 8000ms url=http://127.0.0.1:8080/actuator/health
+```
+
+**Root cause chain:**
+
+1. Insight-service cold-starts in ~10 s (init) + ~11 s (Spring context) = ~21 s total
+2. Kafka consumer thread starts immediately after Spring context loads
+3. Kafka SSL handshake fails → `PKIX path building failed` → consumer thread crashes
+4. The Kafka consumer crash may cause `/actuator/health` to report DOWN (Kafka health
+   indicator), which delays LWA readiness detection
+5. Meanwhile, the api-gateway's `response-timeout: 20s` expires waiting for the
+   insight-service to respond → 504 from gateway → 502 from CloudFront
+
+**Once warm**, the insight-service responds in 8 ms — the HTTP endpoints work fine
+because they read from Redis, not Kafka. The 502 is a cold-start-only issue amplified
+by the Kafka SSL failure.
+
+---
+
+### 15.2.3 Kafka SSL Certificate Issue (Pre-existing, Not Section 15 Regression)
+
+**Problem:** All three backend services (insight, market-data, portfolio) use custom
+JREs built with `jlink`. The Dockerfiles include a `COPY` step to overwrite the jlink
+JRE's `cacerts` with the full Corretto trust store:
+
+```dockerfile
+COPY --from=jre-builder /usr/lib/jvm/java-25-amazon-corretto/lib/security/cacerts ${JAVA_HOME}/lib/security/cacerts
+```
+
+**However**, the deploy pipeline's Docker build is using cached layers:
+
+```
+#29 [runtime 4/8] COPY --from=jre-builder .../cacerts /opt/java/lib/security/cacerts
+#29 CACHED
+```
+
+Every layer in the insight-service build was `CACHED` — the image pushed to ECR is
+identical to the previous (broken) build. The cacerts fix in the Dockerfile has never
+been executed in a fresh build.
+
+**Fix needed:** Force a no-cache rebuild of all service images to pick up the cacerts
+fix. Either:
+
+- Add `--no-cache` to the `docker buildx build` command in `deploy.yml` (one-time), or
+- Change a file in the runtime stage to bust the cache (e.g., touch a build arg)
+
+---
+
+### 15.2.4 Cold-Start Timeout Budget (Structural)
+
+Even after fixing the Kafka SSL issue, the cold-start budget is tight:
+
+| Stage                        | Duration    | Budget                               |
+| ---------------------------- | ----------- | ------------------------------------ |
+| Lambda init (LWA + JVM)      | ~10 s       | —                                    |
+| Spring Boot context load     | 6–11 s      | —                                    |
+| **Total cold-start**         | **16–21 s** | **25 s** (CloudFront origin timeout) |
+| api-gateway response-timeout | 20 s        | Must be < CloudFront 25 s            |
+
+With the Kafka SSL failure adding retry delays, the total can exceed 20 s, triggering
+the gateway timeout. Without the SSL failure, cold-starts should fit within budget.
+
+**Pending mitigations (from Section 15):**
+
+- Lambda concurrency quota increase (10 → ≥100) — pending AWS approval
+- `enable_provisioned_concurrency = true` — blocked on quota increase
+- These would eliminate cold-starts on the hot path entirely
+
+---
+
+### 15.2.5 React Hydration Error #418 (Pre-existing, Cosmetic)
+
+**Error:** `Minified React error #418` — text content mismatch during hydration.
+
+**Cause:** `useAuthSession()` in `session.ts` reads `localStorage` during initial
+render. The static HTML export has no session data, but the client hydration finds
+session data in localStorage, causing a text mismatch.
+
+**Impact:** Cosmetic — the app recovers after hydration. Not blocking functionality.
+
+**Fix (deferred):** Use `useLayoutEffect` or `useSyncExternalStore` with a
+`getServerSnapshot` that returns `null`, so the server and client initial renders match.
+
+---
+
+### 15.2.6 Summary of All Fixes Applied in This Session
+
+| #   | Fix                                                                   | Commit    | PR  | Status                                    |
+| --- | --------------------------------------------------------------------- | --------- | --- | ----------------------------------------- |
+| 1   | Section 15 merge: 429/502 RCA fixes (5 commits)                       | `ea8d63a` | #4  | ✅ Merged to main                         |
+| 2   | Test alignment: ZSET mock, AI stub, frontend assertions               | `de985af` | #4  | ✅ Merged to main                         |
+| 3   | Terraform fmt alignment                                               | `facef91` | #4  | ✅ Merged to main                         |
+| 4   | Terraform: move `origin_read_timeout` to `custom_origin_config`       | `3f7dfe6` | #4  | ✅ Merged to main                         |
+| 5   | YAML hotfix: merge duplicate `spring:` keys in `application-prod.yml` | `f55a039` | #5  | ✅ Merged to main                         |
+| 6   | Changelog: Section 15.1 documentation                                 | `cea7505` | —   | On `architecture/cloud-native-extraction` |
+
+---
+
+### 15.2.7 Open Action Items (To Resume Later)
+
+| Priority | Action                           | Details                                                                                                                                           |
+| -------- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **P0**   | Force no-cache Docker rebuild    | Bust the layer cache so the cacerts fix actually takes effect. Add `--no-cache` to deploy.yml or use a build arg to invalidate the runtime stage. |
+| **P0**   | AWS Lambda concurrency quota     | Follow up on Service Quotas request (10 → ≥100 in ap-south-1). This is the single biggest factor in cold-start 502s.                              |
+| **P1**   | Enable provisioned concurrency   | After quota lands, set `enable_provisioned_concurrency = true` in tfvars and apply. Eliminates cold-starts on api-gateway + portfolio.            |
+| **P1**   | Kafka health indicator isolation | Configure Spring Boot actuator to exclude Kafka from the health endpoint readiness probe, so Kafka SSL failures don't block LWA readiness.        |
+| **P2**   | React hydration #418             | Fix `useAuthSession` to return `null` from server snapshot to prevent hydration mismatch.                                                         |
+| **P2**   | Bedrock quota increase           | Request 300 RPM / 500k TPM for Claude 3 Haiku in us-east-1 (per Section 15.6.2).                                                                  |
