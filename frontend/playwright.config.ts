@@ -45,7 +45,7 @@ export default defineConfig({
         baseURL: "https://vibhanshu-ai-portfolio.dev",
       },
       // Extended timeout to account for AWS Lambda / Bedrock cold starts
-      timeout: 60_000, 
+      timeout: 120_000, 
     },
   ],
   webServer: {
