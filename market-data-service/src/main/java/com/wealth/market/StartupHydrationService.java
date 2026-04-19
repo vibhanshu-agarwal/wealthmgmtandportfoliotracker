@@ -55,7 +55,14 @@ class StartupHydrationService implements ApplicationRunner {
     }
 
     private void runHydration() {
-        List<AssetPrice> assets = assetPriceRepository.findAll();
+        List<AssetPrice> assets;
+        try {
+            assets = assetPriceRepository.findAll();
+        } catch (Exception e) {
+            log.warn("StartupHydrationService: failed to load asset prices from MongoDB — skipping hydration. Cause: {}",
+                    e.getMessage());
+            return;
+        }
         if (assets.isEmpty()) {
             log.info("StartupHydrationService: no asset prices found, nothing to hydrate.");
             return;

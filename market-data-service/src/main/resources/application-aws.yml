@@ -22,3 +22,12 @@ market-data:
     enabled: true
   baseline-seed:
     enabled: false
+
+management:
+  health:
+    # MongoDB health check is excluded on Lambda — MongoHealthIndicator runs 'hello'
+    # against the Atlas 'local' db which returns AtlasError 8000 (not authorized).
+    # The LWA readiness check path is overridden to /actuator/health/liveness in
+    # Terraform (AWS_LWA_READINESS_CHECK_PATH) so this indicator never blocks startup.
+    mongo:
+      enabled: false

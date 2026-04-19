@@ -81,7 +81,7 @@ RUN DEPS=$(jdeps \
     app.jar 2>/dev/null || echo "java.base") \
     && echo "Detected modules: $DEPS" \
     && jlink \
-    --add-modules "${DEPS},jdk.unsupported,java.security.jgss,java.sql,java.naming" \
+    --add-modules "${DEPS},jdk.unsupported,java.security.jgss,java.sql,java.naming,jdk.naming.dns" \
     --strip-debug \
     --no-man-pages \
     --no-header-files \
