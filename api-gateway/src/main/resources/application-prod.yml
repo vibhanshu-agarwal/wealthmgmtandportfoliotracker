@@ -26,6 +26,21 @@ spring:
 auth:
   jwk-uri: ${AUTH_JWK_URI}
 
+spring:
+  cloud:
+    gateway:
+      server:
+        webflux:
+          httpclient:
+            # Fail fast on downstream Lambda connection (cold-start stall guard).
+            # 5 s is generous — Function URL connects immediately; longer means the Lambda
+            # itself has crashed before accepting TCP.
+            connect-timeout: 5000
+            # Hard budget for downstream response: 20 s keeps us well under CloudFront's
+            # 30 s origin-read timeout, so the client sees 504 (gateway timeout) rather
+            # than a raw 502 socket reset when a downstream Lambda is slow or overloaded.
+            response-timeout: 20s
+
 app:
   cors:
     allowed-origin-patterns: "https://vibhanshu-ai-portfolio.dev,https://*.vibhanshu-ai-portfolio.dev"

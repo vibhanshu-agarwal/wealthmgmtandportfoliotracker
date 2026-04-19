@@ -148,6 +148,13 @@ resource "aws_cloudfront_distribution" "main" {
     default_ttl = 0
     max_ttl     = 0
     compress    = true
+
+    # Reduce CloudFront's origin-read timeout from the default 30 s to 25 s.
+    # The api-gateway sets response-timeout = 20 s (application-prod.yml), so
+    # the gateway will always respond (with 504) before CloudFront drops the
+    # connection. The 5 s gap prevents CloudFront from racing the gateway and
+    # surfacing a raw 502 instead of the more informative 504.
+    origin_read_timeout = 25
   }
 
   # HTTPS certificate configuration
