@@ -105,23 +105,8 @@ ENV JAVA_HOME=/opt/java
 COPY --from=jre-builder /custom-jre $JAVA_HOME
 ENV PATH="${JAVA_HOME}/bin:${PATH}"
 
-# Import OS CA certificates into the JRE's cacerts keystore.
-# jlink produces a custom JRE with Corretto's cacerts, but it may not include all
-# CAs needed for external services (Aiven Kafka, MongoDB Atlas). The OS ca-certificates
-# package provides the full CA bundle; this loop imports every cert into the JRE keystore.
-RUN CACERTS="${JAVA_HOME}/lib/security/cacerts" \
-    && BUNDLE="/etc/pki/tls/certs/ca-bundle.crt" \
-    && if [ -f "$BUNDLE" ]; then \
-    awk 'BEGIN {c=0} /BEGIN CERT/{c++} {print > "/tmp/cert-" c ".pem"}' "$BUNDLE" \
-    && for f in /tmp/cert-*.pem; do \
-    keytool -import -noprompt -trustcacerts \
-    -alias "os-ca-$(basename $f .pem)" \
-    -file "$f" \
-    -keystore "$CACERTS" \
-    -storepass changeit 2>/dev/null || true; \
-    done \
-    && rm -f /tmp/cert-*.pem; \
-    fi
+# Overwrite the jlink JRE's cacerts with the full Corretto trust store.
+COPY --from=jre-builder /usr/lib/jvm/java-25-amazon-corretto/lib/security/cacerts ${JAVA_HOME}/lib/security/cacerts
 
 # Copy application JAR
 WORKDIR /app
