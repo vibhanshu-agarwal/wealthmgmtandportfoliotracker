@@ -15,7 +15,7 @@ const TEST_USER_PASSWORD = process.env.E2E_TEST_USER_PASSWORD ?? "TestPassword12
 
 test.describe.serial("Live AWS Synthetic Monitoring", () => {
   // Use a longer timeout for the entire suite to account for cold starts
-  test.setTimeout(60_000);
+  test.setTimeout(120_000);
 
   test("Health Check: System login and dashboard hydration", async ({ page }) => {
     // 1. Navigate to the live site

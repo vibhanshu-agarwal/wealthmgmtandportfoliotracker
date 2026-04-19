@@ -39,7 +39,7 @@ test.describe("Live Contract Verification (Golden Path)", () => {
 
     await page.goto("/ai-insights");
 
-    const chatInput = page.getByPlaceholder(/ask/i);
+    const chatInput = page.getByTestId("chat-input");
     await chatInput.waitFor({ state: "visible", timeout: 15_000 });
     await chatInput.fill("What is the current trend for tech stocks?");
     await chatInput.press("Enter");
