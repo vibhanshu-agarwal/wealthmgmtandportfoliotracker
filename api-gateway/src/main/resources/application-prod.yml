@@ -28,6 +28,4 @@ auth:
 
 app:
   cors:
-    allowed-origin-patterns:
-      - "https://vibhanshu-ai-portfolio.dev"
-      - "https://*.vibhanshu-ai-portfolio.dev"
+    allowed-origin-patterns: "https://vibhanshu-ai-portfolio.dev,https://*.vibhanshu-ai-portfolio.dev"

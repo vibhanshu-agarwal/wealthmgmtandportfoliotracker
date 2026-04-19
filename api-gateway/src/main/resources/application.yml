@@ -45,9 +45,7 @@ auth:
 
 app:
   cors:
-    allowed-origin-patterns:
-      - "http://localhost:3000"
-      - "http://127.0.0.1:3000"
+    allowed-origin-patterns: "http://localhost:3000,http://127.0.0.1:3000"
   auth:
     email: ${APP_AUTH_EMAIL:dev@localhost.local}
     password: ${APP_AUTH_PASSWORD:password}
