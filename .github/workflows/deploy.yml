@@ -155,6 +155,7 @@ jobs:
             echo "Lambda $LAMBDA_FUNCTION_NAME does not exist yet — skipping update. Run terraform apply first."
             exit 0
           fi
+          # Pre-update wait: ensure no concurrent update is in progress
           for attempt in {1..30}; do
             STATUS="$(aws lambda get-function-configuration \
               --function-name "$LAMBDA_FUNCTION_NAME" \
@@ -165,9 +166,33 @@ jobs:
             [ "$attempt" -eq 30 ] && echo "Timed out." && exit 1
             sleep 5
           done
+          # Update function code ($LATEST)
           aws lambda update-function-code \
             --function-name "$LAMBDA_FUNCTION_NAME" \
             --image-uri "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPOSITORY}:latest"
+          # Post-update wait: ensure code update has fully propagated before publishing
+          echo "Waiting for code update to propagate..."
+          for attempt in {1..30}; do
+            STATUS="$(aws lambda get-function-configuration \
+              --function-name "$LAMBDA_FUNCTION_NAME" \
+              --query 'LastUpdateStatus' --output text)"
+            if [ "$STATUS" = "Successful" ]; then echo "Code update propagated."; break; fi
+            if [ "$STATUS" = "Failed" ]; then echo "Code update failed — aborting."; exit 1; fi
+            echo "Attempt $attempt/30 — status: $STATUS. Waiting 5s..."
+            [ "$attempt" -eq 30 ] && echo "Timed out waiting for code update." && exit 1
+            sleep 5
+          done
+          # Publish new immutable version from $LATEST
+          NEW_VERSION=$(aws lambda publish-version \
+            --function-name "$LAMBDA_FUNCTION_NAME" \
+            --query 'Version' --output text)
+          echo "Published version $NEW_VERSION"
+          # Point live alias at the new version (Function URL serves this alias)
+          aws lambda update-alias \
+            --function-name "$LAMBDA_FUNCTION_NAME" \
+            --name live \
+            --function-version "$NEW_VERSION"
+          echo "Updated live alias to version $NEW_VERSION"
 
       # ---------------------------------------------------------------------------
       # portfolio-service (Spring Boot MVC + JPA — Image Lambda)
@@ -195,11 +220,13 @@ jobs:
           AWS_REGION: ${{ secrets.AWS_REGION }}
           ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY_NAME_PORTFOLIO }}
         run: |
+          # Skip if Lambda doesn't exist yet (created by Terraform on first apply)
           if ! aws lambda get-function-configuration --function-name "$LAMBDA_FUNCTION_NAME" \
               --query 'FunctionName' --output text 2>/dev/null; then
             echo "Lambda $LAMBDA_FUNCTION_NAME does not exist yet — skipping. Run terraform apply first."
             exit 0
           fi
+          # Pre-update wait: ensure no concurrent update is in progress
           for attempt in {1..30}; do
             STATUS="$(aws lambda get-function-configuration \
               --function-name "$LAMBDA_FUNCTION_NAME" \
@@ -210,9 +237,33 @@ jobs:
             [ "$attempt" -eq 30 ] && echo "Timed out." && exit 1
             sleep 5
           done
+          # Update function code ($LATEST)
           aws lambda update-function-code \
             --function-name "$LAMBDA_FUNCTION_NAME" \
             --image-uri "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPOSITORY}:latest"
+          # Post-update wait: ensure code update has fully propagated before publishing
+          echo "Waiting for code update to propagate..."
+          for attempt in {1..30}; do
+            STATUS="$(aws lambda get-function-configuration \
+              --function-name "$LAMBDA_FUNCTION_NAME" \
+              --query 'LastUpdateStatus' --output text)"
+            if [ "$STATUS" = "Successful" ]; then echo "Code update propagated."; break; fi
+            if [ "$STATUS" = "Failed" ]; then echo "Code update failed — aborting."; exit 1; fi
+            echo "Attempt $attempt/30 — status: $STATUS. Waiting 5s..."
+            [ "$attempt" -eq 30 ] && echo "Timed out waiting for code update." && exit 1
+            sleep 5
+          done
+          # Publish new immutable version from $LATEST
+          NEW_VERSION=$(aws lambda publish-version \
+            --function-name "$LAMBDA_FUNCTION_NAME" \
+            --query 'Version' --output text)
+          echo "Published version $NEW_VERSION"
+          # Point live alias at the new version (Function URL serves this alias)
+          aws lambda update-alias \
+            --function-name "$LAMBDA_FUNCTION_NAME" \
+            --name live \
+            --function-version "$NEW_VERSION"
+          echo "Updated live alias to version $NEW_VERSION"
 
       # ---------------------------------------------------------------------------
       # market-data-service (Spring Boot MVC + MongoDB — Image Lambda)
@@ -240,11 +291,13 @@ jobs:
           AWS_REGION: ${{ secrets.AWS_REGION }}
           ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY_NAME_MARKET_DATA }}
         run: |
+          # Skip if Lambda doesn't exist yet (created by Terraform on first apply)
           if ! aws lambda get-function-configuration --function-name "$LAMBDA_FUNCTION_NAME" \
               --query 'FunctionName' --output text 2>/dev/null; then
             echo "Lambda $LAMBDA_FUNCTION_NAME does not exist yet — skipping. Run terraform apply first."
             exit 0
           fi
+          # Pre-update wait: ensure no concurrent update is in progress
           for attempt in {1..30}; do
             STATUS="$(aws lambda get-function-configuration \
               --function-name "$LAMBDA_FUNCTION_NAME" \
@@ -255,9 +308,33 @@ jobs:
             [ "$attempt" -eq 30 ] && echo "Timed out." && exit 1
             sleep 5
           done
+          # Update function code ($LATEST)
           aws lambda update-function-code \
             --function-name "$LAMBDA_FUNCTION_NAME" \
             --image-uri "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPOSITORY}:latest"
+          # Post-update wait: ensure code update has fully propagated before publishing
+          echo "Waiting for code update to propagate..."
+          for attempt in {1..30}; do
+            STATUS="$(aws lambda get-function-configuration \
+              --function-name "$LAMBDA_FUNCTION_NAME" \
+              --query 'LastUpdateStatus' --output text)"
+            if [ "$STATUS" = "Successful" ]; then echo "Code update propagated."; break; fi
+            if [ "$STATUS" = "Failed" ]; then echo "Code update failed — aborting."; exit 1; fi
+            echo "Attempt $attempt/30 — status: $STATUS. Waiting 5s..."
+            [ "$attempt" -eq 30 ] && echo "Timed out waiting for code update." && exit 1
+            sleep 5
+          done
+          # Publish new immutable version from $LATEST
+          NEW_VERSION=$(aws lambda publish-version \
+            --function-name "$LAMBDA_FUNCTION_NAME" \
+            --query 'Version' --output text)
+          echo "Published version $NEW_VERSION"
+          # Point live alias at the new version (Function URL serves this alias)
+          aws lambda update-alias \
+            --function-name "$LAMBDA_FUNCTION_NAME" \
+            --name live \
+            --function-version "$NEW_VERSION"
+          echo "Updated live alias to version $NEW_VERSION"
 
       # ---------------------------------------------------------------------------
       # insight-service (Spring Boot MVC + Bedrock + Redis — Image Lambda)
@@ -285,11 +362,13 @@ jobs:
           AWS_REGION: ${{ secrets.AWS_REGION }}
           ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY_NAME_INSIGHT }}
         run: |
+          # Skip if Lambda doesn't exist yet (created by Terraform on first apply)
           if ! aws lambda get-function-configuration --function-name "$LAMBDA_FUNCTION_NAME" \
               --query 'FunctionName' --output text 2>/dev/null; then
             echo "Lambda $LAMBDA_FUNCTION_NAME does not exist yet — skipping. Run terraform apply first."
             exit 0
           fi
+          # Pre-update wait: ensure no concurrent update is in progress
           for attempt in {1..30}; do
             STATUS="$(aws lambda get-function-configuration \
               --function-name "$LAMBDA_FUNCTION_NAME" \
@@ -300,6 +379,30 @@ jobs:
             [ "$attempt" -eq 30 ] && echo "Timed out." && exit 1
             sleep 5
           done
+          # Update function code ($LATEST)
           aws lambda update-function-code \
             --function-name "$LAMBDA_FUNCTION_NAME" \
             --image-uri "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPOSITORY}:latest"
+          # Post-update wait: ensure code update has fully propagated before publishing
+          echo "Waiting for code update to propagate..."
+          for attempt in {1..30}; do
+            STATUS="$(aws lambda get-function-configuration \
+              --function-name "$LAMBDA_FUNCTION_NAME" \
+              --query 'LastUpdateStatus' --output text)"
+            if [ "$STATUS" = "Successful" ]; then echo "Code update propagated."; break; fi
+            if [ "$STATUS" = "Failed" ]; then echo "Code update failed — aborting."; exit 1; fi
+            echo "Attempt $attempt/30 — status: $STATUS. Waiting 5s..."
+            [ "$attempt" -eq 30 ] && echo "Timed out waiting for code update." && exit 1
+            sleep 5
+          done
+          # Publish new immutable version from $LATEST
+          NEW_VERSION=$(aws lambda publish-version \
+            --function-name "$LAMBDA_FUNCTION_NAME" \
+            --query 'Version' --output text)
+          echo "Published version $NEW_VERSION"
+          # Point live alias at the new version (Function URL serves this alias)
+          aws lambda update-alias \
+            --function-name "$LAMBDA_FUNCTION_NAME" \
+            --name live \
+            --function-version "$NEW_VERSION"
+          echo "Updated live alias to version $NEW_VERSION"

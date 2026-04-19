@@ -763,3 +763,115 @@ This must be automated in `deploy.yml` to prevent alias drift.
 | wealth-portfolio-service   | v4                     |
 | wealth-market-data-service | v6                     |
 | wealth-insight-service     | v5                     |
+
+---
+
+## 14. deploy.yml Alias Drift Fix — Automated publish-version + update-alias
+
+**Date:** 2026-04-19 (follow-up to section 13.3)
+
+### 14.1 Problem
+
+`deploy.yml` called `aws lambda update-function-code` which updates `$LATEST`, but never published a new version or updated the `live` alias. Since Function URLs are attached to the `live` alias (not `$LATEST`), every deploy had zero effect on live traffic. Manual intervention was required after every push:
+
+```bash
+aws lambda publish-version --function-name <name> --query Version --output text
+aws lambda update-alias --function-name <name> --name live --function-version <version>
+```
+
+This was identified in section 12.8 and tracked as a critical follow-up in section 13.3.
+
+### 14.2 Root Causes
+
+| #   | Root cause                                           | Impact                                                                                                                                                                                                    |
+| --- | ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | **Missing `publish-version` in deploy.yml**          | After `update-function-code`, no immutable version was created from `$LATEST`. The `live` alias had nothing new to point at.                                                                              |
+| 2   | **Missing `update-alias` in deploy.yml**             | Even if a version existed, the `live` alias was never updated. Function URLs continued serving the old version.                                                                                           |
+| 3   | **Missing post-update wait loop**                    | Lambda code updates are asynchronous. Calling `publish-version` immediately after `update-function-code` risks `ResourceConflictException` if the update hasn't fully propagated.                         |
+| 4   | **Missing Terraform `lifecycle` on alias resources** | Without `lifecycle { ignore_changes = [function_version] }` on `aws_lambda_alias` resources, `terraform apply` would revert the alias to the version Terraform last published, undoing deploy.yml's work. |
+
+### 14.3 Fix — Terraform (must be applied first)
+
+Added `lifecycle { ignore_changes = [function_version] }` to all 4 `aws_lambda_alias` resources in `infrastructure/terraform/modules/compute/main.tf`:
+
+- `aws_lambda_alias.api_gateway_live`
+- `aws_lambda_alias.portfolio_live`
+- `aws_lambda_alias.market_data_live`
+- `aws_lambda_alias.insight_live`
+
+This matches the existing pattern on Lambda function resources (`lifecycle { ignore_changes = [image_uri] }`). Terraform owns the alias existence; deploy.yml owns the alias version.
+
+**Validation:** `terraform fmt` clean, `terraform validate` passes.
+
+### 14.4 Fix — deploy.yml
+
+Each of the 4 "Update <service> Lambda" steps in `.github/workflows/deploy.yml` was extended with three additions after `update-function-code`:
+
+1. **Post-update wait loop** — polls `LastUpdateStatus` (30 attempts, 5s sleep, abort on `Failed`) to ensure the code update has fully propagated before publishing. Same pattern as the existing pre-update loop.
+
+2. **`publish-version`** — creates a new immutable version from `$LATEST`:
+
+   ```bash
+   NEW_VERSION=$(aws lambda publish-version \
+     --function-name "$LAMBDA_FUNCTION_NAME" \
+     --query 'Version' --output text)
+   ```
+
+3. **`update-alias`** — points the `live` alias at the new version:
+   ```bash
+   aws lambda update-alias \
+     --function-name "$LAMBDA_FUNCTION_NAME" \
+     --name live \
+     --function-version "$NEW_VERSION"
+   ```
+
+All existing behavior preserved: pre-update wait loop, skip-if-not-exists check, ECR dual tagging (`latest` + SHA), no `update-function-configuration` calls.
+
+### 14.5 Deployment Ordering
+
+**Critical:** The Terraform lifecycle block changes (14.3) MUST be merged and applied via `terraform apply` BEFORE the new deploy.yml (14.4) runs in CI. Without this ordering, the next `terraform apply` after a deploy would revert the alias to the old version, creating a rollback race condition.
+
+Sequence:
+
+1. Merge Terraform changes → `terraform.yml` runs → `terraform apply` adds lifecycle blocks
+2. Merge deploy.yml changes → next push triggers deploy → `publish-version` + `update-alias` execute
+3. Future `terraform apply` runs see `ignore_changes = [function_version]` → no alias revert
+
+### 14.6 Test Results
+
+| Test                                   | Assertions | Result                                                                                                                                                         |
+| -------------------------------------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Bug condition exploration (Property 1) | 12/12      | ✅ PASS — all 4 steps have `publish-version`, `update-alias`, and post-update wait loop                                                                        |
+| Preservation (Property 2)              | 31/31      | ✅ PASS — ECR tagging, pre-update loop, skip-if-not-exists, no `update-function-configuration`, Docker flags, frontend deploy, Terraform aliases all preserved |
+| `terraform validate`                   | —          | ✅ PASS                                                                                                                                                        |
+| `terraform fmt -check`                 | —          | ✅ PASS                                                                                                                                                        |
+
+### 14.7 Files Changed
+
+| File                                                      | Change                                                                                          |
+| --------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `infrastructure/terraform/modules/compute/main.tf`        | Added `lifecycle { ignore_changes = [function_version] }` to all 4 `aws_lambda_alias` resources |
+| `.github/workflows/deploy.yml`                            | Added post-update wait loop + `publish-version` + `update-alias` to all 4 service update steps  |
+| `scripts/tests/test-deploy-alias-update-bug-condition.sh` | Bug condition exploration test (shell-based workflow validation)                                |
+| `scripts/tests/test-deploy-alias-update-preservation.sh`  | Preservation property test (31 assertions across deploy.yml + Terraform)                        |
+
+### 14.8 Bugfix Spec
+
+Full spec at `.kiro/specs/deploy-alias-update/`:
+
+- `bugfix.md` — 5 defect clauses, 4 expected-behavior clauses, 6 regression-prevention clauses, formal bug condition specification
+- `design.md` — root cause analysis, 2 correctness properties, fix implementation plan with bash code blocks
+- `tasks.md` — 5 top-level tasks (exploration test → preservation test → Terraform fix → deploy.yml fix → checkpoint)
+
+### 14.9 Post-Fix State
+
+After this fix, every push to `main` or `architecture/cloud-native-extraction` will:
+
+1. Build and push Docker images to ECR (tagged `latest` + commit SHA)
+2. Call `update-function-code` to update `$LATEST`
+3. Wait for code propagation (`LastUpdateStatus = Successful`)
+4. Publish a new immutable version
+5. Update the `live` alias to point at the new version
+6. Function URLs immediately serve the new code
+
+No manual alias updates required.

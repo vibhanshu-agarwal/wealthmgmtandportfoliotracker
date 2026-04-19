@@ -317,24 +317,40 @@ resource "aws_lambda_alias" "api_gateway_live" {
   name             = "live"
   function_name    = aws_lambda_function.api_gateway.function_name
   function_version = aws_lambda_function.api_gateway.version
+
+  lifecycle {
+    ignore_changes = [function_version]
+  }
 }
 
 resource "aws_lambda_alias" "portfolio_live" {
   name             = "live"
   function_name    = aws_lambda_function.portfolio.function_name
   function_version = aws_lambda_function.portfolio.version
+
+  lifecycle {
+    ignore_changes = [function_version]
+  }
 }
 
 resource "aws_lambda_alias" "market_data_live" {
   name             = "live"
   function_name    = aws_lambda_function.market_data.function_name
   function_version = aws_lambda_function.market_data.version
+
+  lifecycle {
+    ignore_changes = [function_version]
+  }
 }
 
 resource "aws_lambda_alias" "insight_live" {
   name             = "live"
   function_name    = aws_lambda_function.insight.function_name
   function_version = aws_lambda_function.insight.version
+
+  lifecycle {
+    ignore_changes = [function_version]
+  }
 }
 
 # ---------------------------------------------------------------------------
