@@ -12,8 +12,10 @@ spring:
   data:
     mongodb:
       # Terraform injects SPRING_DATA_MONGODB_URI into the Lambda environment.
-      # Docker Compose uses SPRING_MONGODB_URI (base application.yml) for local dev.
+      # Docker Compose uses SPRING_DATA_MONGODB_URI (base application.yml) for local dev.
       uri: ${SPRING_DATA_MONGODB_URI}
+      # Fail fast on Lambda — 30s default server selection timeout exceeds LWA async-init window.
+      auto-index-creation: false
 
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
