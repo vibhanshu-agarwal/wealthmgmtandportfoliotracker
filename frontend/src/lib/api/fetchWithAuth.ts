@@ -1,7 +1,12 @@
+import { clearAuthSession } from "@/lib/auth/session";
+
 /**
  * Client-side authenticated fetch.
  * Accepts the raw JWT string from useSession().data.session.token.
  * Use in TanStack Query queryFn callbacks running in Client Components.
+ *
+ * On 401 Unauthorized, clears the stored session and redirects to /login
+ * so stale/expired tokens don't produce cascading console errors.
  */
 export async function fetchWithAuthClient<T>(
   path: string,
@@ -18,6 +23,14 @@ export async function fetchWithAuthClient<T>(
     },
     cache: "no-store",
   });
+
+  if (response.status === 401) {
+    clearAuthSession();
+    if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
+      window.location.href = "/login";
+    }
+    throw new Error("Session expired");
+  }
 
   if (!response.ok) {
     throw new Error(`Request failed (${response.status}) for ${path}`);
