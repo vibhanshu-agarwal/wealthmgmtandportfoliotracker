@@ -23,10 +23,6 @@ spring:
       # in production environments to avoid startup hangs on connection attempts.
       url: ${REDIS_URL:redis://localhost:6379}
 
-auth:
-  jwk-uri: ${AUTH_JWK_URI}
-
-spring:
   cloud:
     gateway:
       server:
@@ -40,6 +36,9 @@ spring:
             # 30 s origin-read timeout, so the client sees 504 (gateway timeout) rather
             # than a raw 502 socket reset when a downstream Lambda is slow or overloaded.
             response-timeout: 20s
+
+auth:
+  jwk-uri: ${AUTH_JWK_URI}
 
 app:
   cors:
