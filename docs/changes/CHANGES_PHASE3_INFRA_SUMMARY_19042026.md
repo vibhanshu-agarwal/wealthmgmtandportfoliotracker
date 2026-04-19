@@ -327,3 +327,78 @@ aws lambda invoke --function-name wealth-portfolio-service --region ap-south-1 \
 | `9d3ca77` | Fix: remove `reserved_concurrent_executions` from insight Lambda (missed in previous fix) |
 | `84e767c` | Fix: add `java.sql,java.naming` to jlink + postgres credentials to Lambda env             |
 | `acef405` | Fix: `spring.data.mongodb.uri` key in market-data application.yml                         |
+
+---
+
+## 8. market-data-service: Four-Bug Fix Chain (2026-04-19, post-split)
+
+**Date:** 2026-04-19 (follow-up to section 7)
+
+After the Phase 4 service split, `wealth-market-data-service` continued crashing on every invocation. Four bugs were found and fixed in sequence.
+
+### 8.1 Bug 1 — Wrong MongoDB env var key in `application.yml`
+
+**Symptom:** `MongoClient` connected to `localhost:27017` despite `SPRING_DATA_MONGODB_URI` being set in Lambda env.
+
+**Root cause:** `application.yml` used `${SPRING_MONGODB_URI:mongodb://localhost:27017/market_db}`. The Lambda env has `SPRING_DATA_MONGODB_URI` (not `SPRING_MONGODB_URI`), so the default `localhost:27017` was used. `application-prod.yml` overrides with `${SPRING_DATA_MONGODB_URI}` but the base value was already resolved.
+
+**Fix:** Changed `application.yml` to `${SPRING_DATA_MONGODB_URI:mongodb://localhost:27017/market_db}`.
+
+**Commit:** `883a8cb`
+
+### 8.2 Bug 2 — `StartupHydrationService` crashes JVM on MongoDB timeout
+
+**Symptom:** `StartupHydrationService.findAll()` blocked for 30s (MongoDB server selection timeout), exceeding the LWA 9.8s async-init window, crashing the JVM.
+
+**Root cause:** `runHydration()` called `assetPriceRepository.findAll()` without catching exceptions. A MongoDB connection failure caused an uncaught exception that propagated up through `ApplicationRunner.run()` and crashed Spring Boot startup.
+
+**Fix:** Wrapped `findAll()` in try/catch — logs WARN and skips hydration on failure.
+
+**Commit:** `883a8cb`
+
+### 8.3 Bug 3 — `jdk.naming.dns` missing from custom JRE (mongodb+srv:// SRV resolution)
+
+**Symptom:** `MongoClientException: Unable to support mongodb+srv// style connections as the 'com.sun.jndi.dns.DnsContextFactory' class is not available in this JRE.`
+
+**Root cause:** `jlink` built a custom JRE without `jdk.naming.dns`. The `com.sun.jndi.dns.DnsContextFactory` class (required for DNS SRV record lookup used by `mongodb+srv://` URIs) lives in `jdk.naming.dns`, not `java.naming`.
+
+**Fix:** Added `jdk.naming.dns` to `jlink --add-modules` in `market-data-service/Dockerfile`.
+
+**Commit:** `842f159`
+
+### 8.4 Bug 4 — `MongoHealthIndicator` blocks LWA readiness check (AtlasError 8000)
+
+**Symptom:** App started successfully (Tomcat on 8080, MongoDB Atlas connected) but LWA kept reporting "app is not ready" because `/actuator/health` returned DOWN. `MongoHealthIndicator` ran `hello` against the Atlas `local` database, which returned `AtlasError 8000: not authorized on local to execute command`.
+
+**Root cause:** Spring Boot's `MongoHealthIndicator` runs a `hello` command against the `local` database by default. Atlas restricts access to the `local` db for all users — this is by design. The health check always fails, causing `/actuator/health` to return DOWN, which LWA interprets as "not ready".
+
+**Attempted fixes that didn't work (AOT limitation):**
+
+- `management.health.mongo.enabled: false` — evaluated at AOT build time via `@ConditionalOnEnabledHealthIndicator`, ignored at runtime
+- `spring.autoconfigure.exclude: MongoHealthIndicatorAutoConfiguration` — also evaluated at AOT build time, ignored at runtime
+
+**Fix that worked:** Override `AWS_LWA_READINESS_CHECK_PATH` to `/actuator/health/liveness` in Terraform for `wealth-market-data-service`. The liveness endpoint only checks that the JVM is alive, not external dependencies. LWA now marks the app as ready when the JVM is up, regardless of MongoDB health indicator status.
+
+**Commits:** `a8a43f5`, `25afefe` (fmt fix)
+
+### 8.5 Final State
+
+| Service                      | Status                                                                |
+| ---------------------------- | --------------------------------------------------------------------- |
+| `wealth-api-gateway`         | ✅ UP                                                                 |
+| `wealth-portfolio-service`   | ✅ UP                                                                 |
+| `wealth-market-data-service` | ✅ Responding — `/actuator/health` returns DOWN (MongoHealthIndicator |
+|                              | false-negative, Atlas restricts `local` db) but service is functional |
+| `wealth-insight-service`     | ✅ UP                                                                 |
+| `wealth-mgmt-backend-lambda` | 🗑️ Decommissioned (deleted)                                           |
+
+### 8.6 Key Commits
+
+| Commit    | Description                                                                 |
+| --------- | --------------------------------------------------------------------------- |
+| `883a8cb` | Fix MongoDB URI env var key + non-fatal hydration startup                   |
+| `842f159` | Add `jdk.naming.dns` to jlink for `mongodb+srv://` SRV resolution           |
+| `47b789d` | Disable MongoDB health indicator on Lambda (approach later superseded)      |
+| `250dd81` | Exclude `MongoHealthIndicatorAutoConfiguration` (approach later superseded) |
+| `a8a43f5` | Use `/actuator/health/liveness` for LWA readiness check (final working fix) |
+| `25afefe` | `terraform fmt` fix for compute/main.tf                                     |
