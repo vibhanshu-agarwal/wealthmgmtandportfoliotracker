@@ -134,6 +134,7 @@ jobs:
           IMAGE_TAG_SHA: ${{ github.sha }}
         run: |
           docker buildx build \
+            --no-cache \
             --platform linux/amd64 \
             --provenance=false \
             --sbom=false \
@@ -205,6 +206,7 @@ jobs:
           IMAGE_TAG_SHA: ${{ github.sha }}
         run: |
           docker buildx build \
+            --no-cache \
             --platform linux/amd64 \
             --provenance=false \
             --sbom=false \
@@ -276,6 +278,7 @@ jobs:
           IMAGE_TAG_SHA: ${{ github.sha }}
         run: |
           docker buildx build \
+            --no-cache \
             --platform linux/amd64 \
             --provenance=false \
             --sbom=false \
@@ -347,6 +350,7 @@ jobs:
           IMAGE_TAG_SHA: ${{ github.sha }}
         run: |
           docker buildx build \
+            --no-cache \
             --platform linux/amd64 \
             --provenance=false \
             --sbom=false \
