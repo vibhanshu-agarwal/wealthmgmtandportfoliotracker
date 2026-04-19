@@ -897,12 +897,12 @@ intermittently returned:
 
 ### 15.2 CloudWatch Evidence (pre-fix, measured 2026-04-19 ~08:00–14:00 IST)
 
-| Function | Throttles (6 h) | Duration P99 (ms) | Duration Max (ms) |
-|---|---|---|---|
-| wealth-api-gateway | **7** | 35 003 | 35 274 |
-| wealth-portfolio-service | **5** | 31 755 | 32 488 |
-| wealth-market-data-service | 0 | 38 004 | 38 004 |
-| wealth-insight-service | 0 | 16 431 | 16 472 |
+| Function                   | Throttles (6 h) | Duration P99 (ms) | Duration Max (ms) |
+| -------------------------- | --------------- | ----------------- | ----------------- |
+| wealth-api-gateway         | **7**           | 35 003            | 35 274            |
+| wealth-portfolio-service   | **5**           | 31 755            | 32 488            |
+| wealth-market-data-service | 0               | 38 004            | 38 004            |
+| wealth-insight-service     | 0               | 16 431            | 16 472            |
 
 **Account concurrency quota:** `ConcurrentExecutions = 10` (default free-tier limit in
 `ap-south-1`). With 4 functions each potentially cold-starting simultaneously on dashboard
@@ -934,6 +934,7 @@ end-to-end. CloudFront's hard origin-read timeout is 30 s; there is no override.
 during cold-start exceeded the timeout and CloudFront returned 502 before Lambda responded.
 
 **Mitigation path (addressed in this branch):**
+
 - Memory raised to 2048 MB (CPU doubles → cold-start halves)
 - `AWS_LWA_READINESS_CHECK_MAX_RETRIES=20` (LWA waits up to 20 s before crashing extension)
 - `origin_read_timeout = 25` in CloudFront (5 s ahead of the hard 30 s limit so the gateway's
@@ -976,29 +977,29 @@ epoch-millis); `getMarketSummary()` uses `ZRANGEBYSCORE` instead of `KEYS`. Stal
 
 ### 15.4 Hypotheses Discarded
 
-| Hypothesis | Outcome |
-|---|---|
-| API Gateway route mis-configuration | Discarded — routes verified correct in Section 11 |
-| JWT / auth causing 502 | Discarded — user confirmed auth works; auth excluded from scope |
-| Kafka consumer stalling Lambda | Discarded — market-data throttles = 0 (Kafka runs out of Lambda) |
-| MongoDB health-check blocking readiness | Previously fixed (Section 9) |
+| Hypothesis                              | Outcome                                                          |
+| --------------------------------------- | ---------------------------------------------------------------- |
+| API Gateway route mis-configuration     | Discarded — routes verified correct in Section 11                |
+| JWT / auth causing 502                  | Discarded — user confirmed auth works; auth excluded from scope  |
+| Kafka consumer stalling Lambda          | Discarded — market-data throttles = 0 (Kafka runs out of Lambda) |
+| MongoDB health-check blocking readiness | Previously fixed (Section 9)                                     |
 
 ---
 
 ### 15.5 Fixes Implemented (this branch)
 
-| ID | Fix | Commit | File(s) |
-|---|---|---|---|
-| insight-fanout-cap | Removed Bedrock fan-out from list endpoint | `2bb0a55` | `InsightController.java`, `InsightControllerTest.java`, `InsightPactVerificationTest.java`, pact JSON |
-| insight-redis-scan | Replaced `KEYS` with ZSET + 24 h pruning | `2bb0a55` | `MarketDataService.java` |
-| frontend-dedup | Collapsed 3× `fetchPortfolio` to 1× via `select` | `cb3ef1c` | `usePortfolio.ts`, `portfolio.ts` |
-| frontend-retry-policy | Skip 429/503 retry; cap others at 1 with exponential delay | `cb3ef1c` | `usePortfolio.ts`, `useInsights.ts` |
-| gateway-timeouts | `connect-timeout: 5000`, `response-timeout: 20s` | `619bd8e` | `application-prod.yml` |
-| lwa-retries | `AWS_LWA_READINESS_CHECK_MAX_RETRIES=20` | `619bd8e` | `modules/compute/main.tf` |
-| cloudfront-origin-timeout | `origin_read_timeout = 25` (25 s < 30 s hard limit) | `619bd8e` | `modules/cdn/main.tf` |
-| memory-bump | market-data + insight memory: 1024 → 2048 MB | `619bd8e` | `locals.tf` |
-| market-prices-bound | Cap `GET /api/market/prices` at 25 tickers / 100 rows max | `619bd8e` | `MarketPriceController.java` |
-| provisioned-concurrency | `aws_lambda_provisioned_concurrency_config` gated on `var.enable_provisioned_concurrency` (default `false`) | `bfb42d0` | `modules/compute/main.tf`, `variables.tf`, root `variables.tf`, `main.tf` |
+| ID                        | Fix                                                                                                         | Commit    | File(s)                                                                                               |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------- | --------- | ----------------------------------------------------------------------------------------------------- |
+| insight-fanout-cap        | Removed Bedrock fan-out from list endpoint                                                                  | `2bb0a55` | `InsightController.java`, `InsightControllerTest.java`, `InsightPactVerificationTest.java`, pact JSON |
+| insight-redis-scan        | Replaced `KEYS` with ZSET + 24 h pruning                                                                    | `2bb0a55` | `MarketDataService.java`                                                                              |
+| frontend-dedup            | Collapsed 3× `fetchPortfolio` to 1× via `select`                                                            | `cb3ef1c` | `usePortfolio.ts`, `portfolio.ts`                                                                     |
+| frontend-retry-policy     | Skip 429/503 retry; cap others at 1 with exponential delay                                                  | `cb3ef1c` | `usePortfolio.ts`, `useInsights.ts`                                                                   |
+| gateway-timeouts          | `connect-timeout: 5000`, `response-timeout: 20s`                                                            | `619bd8e` | `application-prod.yml`                                                                                |
+| lwa-retries               | `AWS_LWA_READINESS_CHECK_MAX_RETRIES=20`                                                                    | `619bd8e` | `modules/compute/main.tf`                                                                             |
+| cloudfront-origin-timeout | `origin_read_timeout = 25` (25 s < 30 s hard limit)                                                         | `619bd8e` | `modules/cdn/main.tf`                                                                                 |
+| memory-bump               | market-data + insight memory: 1024 → 2048 MB                                                                | `619bd8e` | `locals.tf`                                                                                           |
+| market-prices-bound       | Cap `GET /api/market/prices` at 25 tickers / 100 rows max                                                   | `619bd8e` | `MarketPriceController.java`                                                                          |
+| provisioned-concurrency   | `aws_lambda_provisioned_concurrency_config` gated on `var.enable_provisioned_concurrency` (default `false`) | `bfb42d0` | `modules/compute/main.tf`, `variables.tf`, root `variables.tf`, `main.tf`                             |
 
 ---
 
@@ -1037,26 +1038,134 @@ These numbers serve as the "before" baseline. Re-run the queries after deploying
 to verify the fixes are effective.
 
 **Query — Throttles (run in CloudWatch Insights, log group `/aws/lambda/<function-name>`):**
+
 ```
 stats sum(Throttles) as TotalThrottles by bin(1h)
 | filter MetricName = "Throttles"
 ```
 
 **Query — Duration P99 (CloudWatch Metrics → AWS/Lambda → Duration → p99):**
+
 - Period: 1 h, Statistics: p99 (extended)
 
 **Baseline snapshot (ap-south-1, 6 h window ending 2026-04-19 ~14:26 IST):**
 
-| Metric | api-gateway | portfolio | market-data | insight |
-|---|---|---|---|---|
-| Throttles | 7 | 5 | 0 | 0 |
-| Duration Max (ms) | 35 274 | 32 488 | 38 004 | 16 472 |
-| Duration P99 (ms) | 35 003 | 31 755 | 38 004 | 16 431 |
+| Metric            | api-gateway | portfolio | market-data | insight |
+| ----------------- | ----------- | --------- | ----------- | ------- |
+| Throttles         | 7           | 5         | 0           | 0       |
+| Duration Max (ms) | 35 274      | 32 488    | 38 004      | 16 472  |
+| Duration P99 (ms) | 35 003      | 31 755    | 38 004      | 16 431  |
 
 **Expected post-fix (after memory bump + LWA retries + quota increase + provisioned concurrency):**
 
-| Metric | Target |
-|---|---|
-| Throttles | 0 (quota ≥ 100 + provisioned concurrency eliminates burst saturation) |
-| Duration P99 | < 20 000 ms (2048 MB halves cold-start; provisioned concurrency eliminates it for gateway + portfolio) |
-| 502 rate | 0 (CloudFront 25 s timeout > gateway 20 s response-timeout; cold-starts handled within 20 s budget at 2048 MB) |
+| Metric       | Target                                                                                                         |
+| ------------ | -------------------------------------------------------------------------------------------------------------- |
+| Throttles    | 0 (quota ≥ 100 + provisioned concurrency eliminates burst saturation)                                          |
+| Duration P99 | < 20 000 ms (2048 MB halves cold-start; provisioned concurrency eliminates it for gateway + portfolio)         |
+| 502 rate     | 0 (CloudFront 25 s timeout > gateway 20 s response-timeout; cold-starts handled within 20 s budget at 2048 MB) |
+
+---
+
+## Section 15.1 — Hotfix: Duplicate YAML Key Crashes api-gateway on Startup (2026-04-19)
+
+**Branch:** `architecture/cloud-native-extraction` → `main` (PR #5)
+
+---
+
+### 15.1.1 Symptom
+
+After merging Section 15 fixes into `main`, the login page returned HTTP 502 on
+`POST /api/auth/login`. The 502 was persistent (not transient cold-start), affecting
+every request to the api-gateway Lambda.
+
+---
+
+### 15.1.2 Root Cause
+
+`application-prod.yml` contained two top-level `spring:` keys. The Section 15 commit
+(`619bd8e`) added gateway timeout configuration as a separate `spring:` block:
+
+```yaml
+# First block (existing)
+spring:
+  security:
+    oauth2: ...
+  data:
+    redis: ...
+
+# Second block (added by Section 15) — DUPLICATE KEY
+spring:
+  cloud:
+    gateway:
+      server:
+        webflux:
+          httpclient:
+            connect-timeout: 5000
+            response-timeout: 20s
+```
+
+YAML does not allow duplicate keys at the same level. Spring Boot's SnakeYAML parser
+rejected the file on startup with `found duplicate key spring`, causing the application
+to fail immediately with `Runtime.ExitError`.
+
+---
+
+### 15.1.3 CloudWatch Evidence
+
+**Log group:** `/aws/lambda/wealth-api-gateway` (ap-south-1)
+**Time window:** 2026-04-19 16:19–16:25 UTC
+
+```
+16:25:03.248  found duplicate key spring
+16:25:03.243  ERROR org.springframework.boot.SpringApplication -- Application run failed
+INIT_REPORT Init Duration: 1533.54 ms  Phase: invoke  Status: error  Error Type: Runtime.ExitError
+```
+
+Every invocation crashed identically — 7 consecutive `Runtime.ExitError` entries in the
+2-hour window after the Section 15 deploy to `main`.
+
+---
+
+### 15.1.4 Why CI Did Not Catch It
+
+Unit and integration tests run under the `local` profile (`application.yml` +
+`application-local.yml`). The `application-prod.yml` file is only activated in the
+Lambda deployment via `SPRING_PROFILES_ACTIVE=prod,aws`. No CI job loads the prod
+profile, so the duplicate key was invisible to the test suite.
+
+---
+
+### 15.1.5 Fix
+
+Merged the `spring.cloud.gateway.server.webflux.httpclient` block into the existing
+`spring:` key, alongside `security` and `data.redis`:
+
+```yaml
+spring:
+  security:
+    oauth2: ...
+  data:
+    redis: ...
+  cloud:
+    gateway:
+      server:
+        webflux:
+          httpclient:
+            connect-timeout: 5000
+            response-timeout: 20s
+```
+
+**Commit:** `f55a039` — `fix(api-gateway): merge duplicate spring: keys in application-prod.yml`
+**PR:** #5 — merged to `main`, all 22 CI checks green.
+
+---
+
+### 15.1.6 Additional Fixes in This Merge (from Section 15 alignment)
+
+| ID                       | Fix                                                                                                              | Commit    |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------- | --------- |
+| test-zset-mock           | `SlidingWindowPropertyTest`: mock `ZSetOperations` for new ZSET writes in `processUpdate`                        | `de985af` |
+| test-ai-stub             | `GracefulDegradationPropertyTest`: remove stale `aiInsightService` stub (list endpoint no longer calls Bedrock)  | `de985af` |
+| test-insights-frontend   | `insights.test.ts` + MSW handlers: align assertions with `aiSummary` removal from list endpoint                  | `de985af` |
+| terraform-origin-timeout | Move `origin_read_timeout` from `ordered_cache_behavior` to `custom_origin_config` (correct Terraform attribute) | `3f7dfe6` |
+| terraform-fmt            | Fix `terraform fmt` alignment in `main.tf` and `compute/main.tf`                                                 | `facef91` |
