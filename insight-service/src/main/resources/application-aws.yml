@@ -1,11 +1,25 @@
 # ============================================================
 # AWS profile — overrides for Lambda / AWS-specific deployment.
-# Active when SPRING_PROFILES_ACTIVE includes "aws" (e.g. "prod,aws").
+# Active when SPRING_PROFILES_ACTIVE includes "aws" (e.g. "prod,aws,bedrock").
 # Loaded after application-prod.yml; keys here win over prod.
 #
 # Future clouds: add application-azure.yml / application-gcp.yml
 # with their own overrides. application-prod.yml stays untouched.
 # ============================================================
 
-# No overrides currently needed beyond what prod.yml provides.
-# This file exists as the extension point for AWS-specific config.
+spring:
+  ai:
+    bedrock:
+      aws:
+        # Bedrock is available in us-east-1; Lambda runs in ap-south-1.
+        # Cross-region Bedrock calls are supported — no VPC or NAT gateway required.
+        # No API key needed: the Lambda execution role's IAM credentials are picked up
+        # automatically by the AWS SDK default credential chain.
+        region: us-east-1
+      converse:
+        chat:
+          options:
+            # Claude 3 Haiku: ~10x cheaper than Sonnet with comparable quality for
+            # portfolio insight generation. IAM policy in compute module already scopes
+            # bedrock:InvokeModel to this exact model ARN.
+            model: anthropic.claude-3-haiku-20240307-v1:0

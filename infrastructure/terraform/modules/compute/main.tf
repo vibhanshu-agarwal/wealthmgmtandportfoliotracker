@@ -86,14 +86,29 @@ resource "aws_iam_role_policy_attachment" "portfolio_basic" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
+resource "aws_iam_role_policy_attachment" "portfolio_ecr_readonly" {
+  role       = aws_iam_role.portfolio.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
+}
+
 resource "aws_iam_role_policy_attachment" "market_data_basic" {
   role       = aws_iam_role.market_data.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
+resource "aws_iam_role_policy_attachment" "market_data_ecr_readonly" {
+  role       = aws_iam_role.market_data.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
+}
+
 resource "aws_iam_role_policy_attachment" "insight_basic" {
   role       = aws_iam_role.insight.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
+resource "aws_iam_role_policy_attachment" "insight_ecr_readonly" {
+  role       = aws_iam_role.insight.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
 }
 
 # Required only when Lambdas run inside a VPC (ENI management + optional VPC flow logs).
@@ -187,11 +202,9 @@ resource "aws_lambda_function" "api_gateway" {
 resource "aws_lambda_function" "portfolio" {
   function_name                  = "wealth-portfolio-service"
   role                           = aws_iam_role.portfolio.arn
-  runtime                        = var.lambda_java_runtime
-  handler                        = "not.used"
-  s3_bucket                      = var.artifact_bucket_name
-  s3_key                         = var.s3_key_portfolio
-  layers                         = [var.lambda_adapter_layer_arn]
+  package_type                   = "Image"
+  image_uri                      = var.portfolio_image_uri
+  architectures                  = ["x86_64"]
   memory_size                    = var.portfolio_memory_size
   timeout                        = var.lambda_timeout
   publish                        = true
@@ -210,16 +223,21 @@ resource "aws_lambda_function" "portfolio" {
       SPRING_DATASOURCE_URL = var.postgres_connection_string
     })
   }
+
+  # deploy.yml updates the image digest/tag in AWS; Terraform keeps package_type Image + role/env.
+  lifecycle {
+    ignore_changes = [
+      image_uri,
+    ]
+  }
 }
 
 resource "aws_lambda_function" "market_data" {
   function_name                  = "wealth-market-data-service"
   role                           = aws_iam_role.market_data.arn
-  runtime                        = var.lambda_java_runtime
-  handler                        = "not.used"
-  s3_bucket                      = var.artifact_bucket_name
-  s3_key                         = var.s3_key_market_data
-  layers                         = [var.lambda_adapter_layer_arn]
+  package_type                   = "Image"
+  image_uri                      = var.market_data_image_uri
+  architectures                  = ["x86_64"]
   memory_size                    = var.market_data_memory_size
   timeout                        = var.lambda_timeout
   publish                        = true
@@ -238,16 +256,21 @@ resource "aws_lambda_function" "market_data" {
       SPRING_DATA_MONGODB_URI = var.mongodb_connection_string
     })
   }
+
+  # deploy.yml updates the image digest/tag in AWS; Terraform keeps package_type Image + role/env.
+  lifecycle {
+    ignore_changes = [
+      image_uri,
+    ]
+  }
 }
 
 resource "aws_lambda_function" "insight" {
   function_name                  = "wealth-insight-service"
   role                           = aws_iam_role.insight.arn
-  runtime                        = var.lambda_java_runtime
-  handler                        = "not.used"
-  s3_bucket                      = var.artifact_bucket_name
-  s3_key                         = var.s3_key_insight
-  layers                         = [var.lambda_adapter_layer_arn]
+  package_type                   = "Image"
+  image_uri                      = var.insight_image_uri
+  architectures                  = ["x86_64"]
   memory_size                    = var.insight_service_memory_size
   timeout                        = var.lambda_timeout
   publish                        = true
@@ -262,7 +285,22 @@ resource "aws_lambda_function" "insight" {
   }
 
   environment {
-    variables = merge(local.common_env, local.runtime_secrets)
+    variables = merge(local.common_env, local.runtime_secrets, {
+      # insight-service uses the bedrock profile for AWS Bedrock (Claude 3 Haiku) inference.
+      # SPRING_PROFILES_ACTIVE overrides common_env's "prod,aws" value for this function only.
+      # Note: Spring Boot also loads the base application.yml default profile ("local") alongside
+      # the active profiles — this is expected behavior, not a misconfiguration.
+      SPRING_PROFILES_ACTIVE = "prod,aws,bedrock"
+      # insight-service calls portfolio-service for portfolio context when generating AI insights.
+      PORTFOLIO_SERVICE_URL = var.portfolio_function_url != "" ? var.portfolio_function_url : aws_lambda_function_url.portfolio.function_url
+    })
+  }
+
+  # deploy.yml updates the image digest/tag in AWS; Terraform keeps package_type Image + role/env.
+  lifecycle {
+    ignore_changes = [
+      image_uri,
+    ]
   }
 }
 

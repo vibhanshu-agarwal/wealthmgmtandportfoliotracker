@@ -15,17 +15,19 @@ artifact_bucket_name = "wealth-artifacts-local"
 # Frontend static bucket
 frontend_bucket_name = "wealth-frontend-local"
 
-# Lambda Web Adapter layer ARN (stub for LocalStack — layer content not validated locally)
+# Lambda Web Adapter layer ARN (no longer used — all Lambdas are Image-based)
 lambda_adapter_layer_arn = "arn:aws:lambda:us-east-1:753240598075:layer:LambdaAdapterLayerX86:24"
 
 # api-gateway container image (stub URI for plan; LocalStack Lambda image support varies)
 api_gateway_image_uri = "000000000000.dkr.ecr.us-east-1.amazonaws.com/wealth-api-gateway:latest"
 
-# S3 keys (stub — JARs don't need to exist for plan/apply validation)
+# Service container images (stub URIs for LocalStack plan/apply validation)
+portfolio_image_uri   = "000000000000.dkr.ecr.us-east-1.amazonaws.com/wealth-portfolio-service:latest"
+market_data_image_uri = "000000000000.dkr.ecr.us-east-1.amazonaws.com/wealth-market-data-service:latest"
+insight_image_uri     = "000000000000.dkr.ecr.us-east-1.amazonaws.com/wealth-insight-service:latest"
+
+# S3 keys (stub — api-gateway JAR key retained for variable completeness; service JARs no longer used)
 s3_key_api_gateway = "api-gateway/api-gateway.jar"
-s3_key_portfolio   = "portfolio-service/portfolio-service.jar"
-s3_key_market_data = "market-data-service/market-data-service.jar"
-s3_key_insight     = "insight-service/insight-service.jar"
 
 # JWK URI (stub for LocalStack)
 auth_jwk_uri = "http://localhost:4566/jwks"

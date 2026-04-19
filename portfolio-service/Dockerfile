@@ -126,4 +126,4 @@ EXPOSE 8081
 
 # Default: run Spring Boot directly.
 # Lambda auto-loads the LWA sidecar from /opt/extensions/lambda-adapter.
-ENTRYPOINT ["java", "-jar", "/app/app.jar"]
+ENTRYPOINT ["java", "-Dspring.aot.enabled=true", "-jar", "/app/app.jar"]

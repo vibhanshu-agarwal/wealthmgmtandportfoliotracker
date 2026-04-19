@@ -38,7 +38,8 @@ variable "frontend_bucket_name" {
 
 variable "lambda_adapter_layer_arn" {
   type        = string
-  description = "ARN of the Lambda Web Adapter layer"
+  default     = ""
+  description = "ARN of the Lambda Web Adapter layer (no longer used — all Lambdas are Image-based and bundle LWA in their Dockerfiles)."
 }
 
 variable "api_gateway_image_uri" {
@@ -50,7 +51,7 @@ variable "lambda_java_runtime" {
   type        = string
   nullable    = true
   default     = null
-  description = "Optional override for Zip Lambda runtime; default is local.lambda_defaults.zip_java_runtime in locals.tf."
+  description = "Optional override for Zip Lambda runtime (no longer used — all Lambdas are Image-based)."
 }
 
 variable "api_gateway_memory" {
@@ -98,25 +99,33 @@ variable "auth_jwk_uri" {
   description = "JWK endpoint URI (aws profile)"
 }
 
+# ---------------------------------------------------------------------------
+# Service image URIs — portfolio, market-data, insight (all Image-based)
+# Injected via TF_VAR_* from GitHub Actions secrets in terraform.yml.
+# ---------------------------------------------------------------------------
+
+variable "portfolio_image_uri" {
+  type        = string
+  description = "Full ECR image URI for wealth-portfolio-service Lambda (package_type Image)."
+}
+
+variable "market_data_image_uri" {
+  type        = string
+  description = "Full ECR image URI for wealth-market-data-service Lambda (package_type Image)."
+}
+
+variable "insight_image_uri" {
+  type        = string
+  description = "Full ECR image URI for wealth-insight-service Lambda (package_type Image)."
+}
+
 variable "s3_key_api_gateway" {
   type        = string
-  description = "S3 object key for api-gateway JAR"
+  description = "S3 object key for api-gateway JAR (unused — api-gateway uses package_type Image)"
 }
 
-variable "s3_key_portfolio" {
-  type        = string
-  description = "S3 object key for portfolio-service JAR"
-}
-
-variable "s3_key_market_data" {
-  type        = string
-  description = "S3 object key for market-data-service JAR"
-}
-
-variable "s3_key_insight" {
-  type        = string
-  description = "S3 object key for insight-service JAR"
-}
+# s3_key_portfolio, s3_key_market_data, s3_key_insight removed — all three services
+# are now Image-based Lambdas. S3 artifact keys are no longer needed.
 
 variable "domain_name" {
   type        = string

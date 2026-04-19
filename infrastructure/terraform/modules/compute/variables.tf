@@ -1,12 +1,15 @@
-# Compute module variables — stub (populated in Task 4)
+# =============================================================================
+# Compute Module Variables
+# =============================================================================
 
 variable "artifact_bucket_name" {
-  type = string
+  type        = string
+  description = "S3 bucket for Lambda artifacts (retained for future use; no longer used for Zip Lambdas)."
 }
 
 variable "s3_key_api_gateway" {
   type        = string
-  description = "S3 object key for api-gateway JAR (unused when api-gateway uses package_type Image)"
+  description = "S3 object key for api-gateway JAR (unused — api-gateway uses package_type Image)"
 }
 
 variable "api_gateway_image_uri" {
@@ -14,14 +17,28 @@ variable "api_gateway_image_uri" {
   description = "Full ECR image URI for api-gateway Lambda (package_type Image), e.g. 123456789012.dkr.ecr.us-east-1.amazonaws.com/my-repo:latest"
 }
 
+# ---------------------------------------------------------------------------
+# Service image URIs — all three backend services use Image package type
+# ---------------------------------------------------------------------------
+
+variable "portfolio_image_uri" {
+  type        = string
+  description = "Full ECR image URI for wealth-portfolio-service Lambda (package_type Image)."
+}
+
+variable "market_data_image_uri" {
+  type        = string
+  description = "Full ECR image URI for wealth-market-data-service Lambda (package_type Image)."
+}
+
+variable "insight_image_uri" {
+  type        = string
+  description = "Full ECR image URI for wealth-insight-service Lambda (package_type Image)."
+}
+
 variable "api_gateway_memory" {
   type        = number
   description = "Memory (MB) for wealth-api-gateway Image Lambda (root defaults from locals.tf)."
-}
-
-variable "lambda_java_runtime" {
-  type        = string
-  description = "AWS Lambda managed runtime for Zip-based Java Lambdas (e.g. java21; java25 when provider/AWS list includes it)."
 }
 
 variable "portfolio_memory_size" {
@@ -37,22 +54,6 @@ variable "market_data_memory_size" {
 variable "insight_service_memory_size" {
   type        = number
   description = "Memory (MB) for wealth-insight-service Lambda."
-}
-
-variable "s3_key_portfolio" {
-  type = string
-}
-
-variable "s3_key_market_data" {
-  type = string
-}
-
-variable "s3_key_insight" {
-  type = string
-}
-
-variable "lambda_adapter_layer_arn" {
-  type = string
 }
 
 variable "postgres_connection_string" {
