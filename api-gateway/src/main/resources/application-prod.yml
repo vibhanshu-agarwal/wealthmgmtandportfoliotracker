@@ -25,3 +25,9 @@ spring:
 
 auth:
   jwk-uri: ${AUTH_JWK_URI}
+
+app:
+  cors:
+    allowed-origin-patterns:
+      - "https://vibhanshu-ai-portfolio.dev"
+      - "https://*.vibhanshu-ai-portfolio.dev"

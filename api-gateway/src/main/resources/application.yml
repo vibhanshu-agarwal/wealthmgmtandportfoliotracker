@@ -44,6 +44,10 @@ auth:
   jwk-uri: ${AUTH_JWK_URI:}       # aws profile only — blank triggers startup failure in JwtDecoderConfig
 
 app:
+  cors:
+    allowed-origin-patterns:
+      - "http://localhost:3000"
+      - "http://127.0.0.1:3000"
   auth:
     email: ${APP_AUTH_EMAIL:dev@localhost.local}
     password: ${APP_AUTH_PASSWORD:password}

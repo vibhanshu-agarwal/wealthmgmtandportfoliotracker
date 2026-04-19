@@ -33,7 +33,9 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
 
         // Skip JWT processing for paths that are permitAll() in SecurityConfig.
         // These paths have no principal — the filter must not reject them.
-        if (path.startsWith("/actuator") || path.equals("/api/portfolio/health")) {
+        // /api/auth/** is included to match the permitAll() declaration for auth endpoints.
+        if (path.startsWith("/actuator") || path.equals("/api/portfolio/health")
+                || path.equals("/api/auth") || path.startsWith("/api/auth/")) {
             // Still strip X-User-Id to prevent spoofing on public endpoints.
             ServerWebExchange sanitised = exchange.mutate()
                     .request(r -> r.headers(h -> h.remove(X_USER_ID)))
