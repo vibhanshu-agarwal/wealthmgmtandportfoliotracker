@@ -34,27 +34,12 @@ terraform {
 }
 
 # ---------------------------------------------------------------------------
-# Artifact S3 bucket — stores Lambda deployment JARs
+# Artifact S3 bucket — retained for potential future use (e.g. static assets,
+# deployment artifacts). No longer used for Lambda JARs (all services are Image-based).
 # ---------------------------------------------------------------------------
-
-resource "aws_s3_bucket" "artifacts" {
-  bucket = var.artifact_bucket_name
-}
-
-resource "aws_s3_bucket_versioning" "artifacts" {
-  bucket = aws_s3_bucket.artifacts.id
-  versioning_configuration {
-    status = "Enabled"
-  }
-}
-
-resource "aws_s3_bucket_public_access_block" "artifacts" {
-  bucket                  = aws_s3_bucket.artifacts.id
-  block_public_acls       = true
-  block_public_policy     = true
-  ignore_public_acls      = true
-  restrict_public_buckets = true
-}
+# resource "aws_s3_bucket" "artifacts" removed — bucket exists in us-east-1 from
+# initial setup; all Lambda functions now use Image package type (ECR), not Zip/S3.
+# The bucket is retained in AWS but not managed by this Terraform configuration.
 
 # ---------------------------------------------------------------------------
 # Compute module — Lambda functions + Function URLs
@@ -63,18 +48,17 @@ resource "aws_s3_bucket_public_access_block" "artifacts" {
 module "compute" {
   source = "./modules/compute"
 
-  artifact_bucket_name        = var.artifact_bucket_name
-  s3_key_api_gateway          = var.s3_key_api_gateway
-  api_gateway_image_uri       = var.api_gateway_image_uri
-  api_gateway_memory          = coalesce(var.api_gateway_memory, local.lambda_defaults.api_gateway_memory_mb)
-  lambda_java_runtime         = coalesce(var.lambda_java_runtime, local.lambda_defaults.zip_java_runtime)
+  artifact_bucket_name  = var.artifact_bucket_name
+  s3_key_api_gateway    = var.s3_key_api_gateway
+  api_gateway_image_uri = var.api_gateway_image_uri
+  api_gateway_memory    = coalesce(var.api_gateway_memory, local.lambda_defaults.api_gateway_memory_mb)
+  # Service image URIs — all three backend services are now Image-based
+  portfolio_image_uri         = var.portfolio_image_uri
+  market_data_image_uri       = var.market_data_image_uri
+  insight_image_uri           = var.insight_image_uri
   portfolio_memory_size       = coalesce(var.portfolio_memory_size, local.lambda_defaults.portfolio_memory_mb)
   market_data_memory_size     = coalesce(var.market_data_memory_size, local.lambda_defaults.market_data_memory_mb)
   insight_service_memory_size = coalesce(var.insight_service_memory_size, local.lambda_defaults.insight_service_memory_mb)
-  s3_key_portfolio            = var.s3_key_portfolio
-  s3_key_market_data          = var.s3_key_market_data
-  s3_key_insight              = var.s3_key_insight
-  lambda_adapter_layer_arn    = var.lambda_adapter_layer_arn
   postgres_connection_string  = var.postgres_connection_string
   mongodb_connection_string   = var.mongodb_connection_string
   auth_jwk_uri                = var.auth_jwk_uri

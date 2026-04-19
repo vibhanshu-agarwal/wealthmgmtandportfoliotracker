@@ -26,3 +26,11 @@ spring:
     redis:
       # REDIS_URL format: redis[s]://[:password@]host[:port]
       url: ${REDIS_URL:redis://localhost:6379}
+
+  cache:
+    # Redis-backed cache for Bedrock responses.
+    # TTLs are configured programmatically in CacheConfig.java:
+    #   sentiment cache: 60 minutes (market sentiment doesn't change minute-to-minute)
+    #   portfolio-analysis cache: 30 minutes
+    # Cache errors (Redis unavailable) fall through to Bedrock — non-fatal.
+    type: redis

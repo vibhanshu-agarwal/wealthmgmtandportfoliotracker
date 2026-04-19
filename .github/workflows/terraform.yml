@@ -38,6 +38,10 @@ env:
   TF_VAR_kafka_sasl_password: ${{ secrets.KAFKA_SASL_PASSWORD }}
   # api-gateway Lambda (package_type Image) — align with deploy.yml ECR image
   TF_VAR_api_gateway_image_uri: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPOSITORY_NAME }}:latest
+  # Service Lambda images (package_type Image — all three backend services)
+  TF_VAR_portfolio_image_uri: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPOSITORY_NAME_PORTFOLIO }}:latest
+  TF_VAR_market_data_image_uri: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPOSITORY_NAME_MARKET_DATA }}:latest
+  TF_VAR_insight_image_uri: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPOSITORY_NAME_INSIGHT }}:latest
 
 jobs:
   validate:
@@ -81,11 +85,8 @@ jobs:
             -var="lock_table_name=${{ secrets.TF_LOCK_TABLE }}" \
             -var="artifact_bucket_name=${{ secrets.TF_ARTIFACT_BUCKET }}" \
             -var="frontend_bucket_name=${{ secrets.S3_BUCKET_NAME }}" \
-            -var="lambda_adapter_layer_arn=${{ secrets.LAMBDA_ADAPTER_LAYER_ARN }}" \
             -var="s3_key_api_gateway=${{ secrets.S3_KEY_API_GATEWAY }}" \
-            -var="s3_key_portfolio=${{ secrets.S3_KEY_PORTFOLIO }}" \
-            -var="s3_key_market_data=${{ secrets.S3_KEY_MARKET_DATA }}" \
-            -var="s3_key_insight=${{ secrets.S3_KEY_INSIGHT }}" \
+            -var="aws_region=${{ secrets.AWS_REGION }}" \
             -var="enable_aws_managed_database=false" \
             -out=tfplan
 

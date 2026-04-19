@@ -46,18 +46,19 @@ lambda_adapter_layer_arn = "arn:aws:lambda:us-east-1:753240598075:layer:LambdaAd
 # api-gateway Lambda container (package_type Image — must exist in ECR before first apply)
 api_gateway_image_uri = "123456789012.dkr.ecr.us-east-1.amazonaws.com/my-api-gateway:latest"
 
-# Optional overrides for Lambda runtime + memory (defaults live in locals.tf → lambda_defaults)
-# lambda_java_runtime         = "java21"
-# api_gateway_memory          = 2048
+# Service Lambda containers (package_type Image — must exist in ECR before first apply)
+# portfolio_image_uri   = "123456789012.dkr.ecr.us-east-1.amazonaws.com/wealth-portfolio-service:latest"
+# market_data_image_uri = "123456789012.dkr.ecr.us-east-1.amazonaws.com/wealth-market-data-service:latest"
+# insight_image_uri     = "123456789012.dkr.ecr.us-east-1.amazonaws.com/wealth-insight-service:latest"
+
+# Optional overrides for Lambda memory (defaults live in locals.tf → lambda_defaults)
 # portfolio_memory_size       = 2048
 # market_data_memory_size     = 1024
 # insight_service_memory_size = 1024
 
-# S3 keys for Lambda JARs (Zip + layer — portfolio / market-data / insight; api-gateway JAR key unused for Image)
+# S3 key for api-gateway JAR (unused — api-gateway uses package_type Image)
+# s3_key_portfolio, s3_key_market_data, s3_key_insight removed — all services are now Image-based
 s3_key_api_gateway = "api-gateway/api-gateway.jar"
-s3_key_portfolio   = "portfolio-service/portfolio-service.jar"
-s3_key_market_data = "market-data-service/market-data-service.jar"
-s3_key_insight     = "insight-service/insight-service.jar"
 
 # JWK URI for JWT validation (aws profile)
 auth_jwk_uri = "https://cognito-idp.us-east-1.amazonaws.com/us-east-1_XXXXXXXX/.well-known/jwks.json"

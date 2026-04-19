@@ -7,16 +7,25 @@ name: Deploy
 # - AWS_ACCOUNT_ID
 # - S3_BUCKET_NAME
 # - CLOUDFRONT_DISTRIBUTION_ID
-# - ECR_REPOSITORY_NAME
-# - LAMBDA_FUNCTION_NAME
+#
+# ECR repository names (one per service):
+# - ECR_REPOSITORY_NAME              → wealth-api-gateway
+# - ECR_REPOSITORY_NAME_PORTFOLIO    → wealth-portfolio-service
+# - ECR_REPOSITORY_NAME_MARKET_DATA  → wealth-market-data-service
+# - ECR_REPOSITORY_NAME_INSIGHT      → wealth-insight-service
+#
+# Lambda function names (one per service):
+# - LAMBDA_FUNCTION_NAME_API_GATEWAY → wealth-api-gateway
+# - LAMBDA_FUNCTION_NAME_PORTFOLIO   → wealth-portfolio-service
+# - LAMBDA_FUNCTION_NAME_MARKET_DATA → wealth-market-data-service
+# - LAMBDA_FUNCTION_NAME_INSIGHT     → wealth-insight-service
 #
 # Notes
 # - Lambda environment variables (REDIS_URL, KAFKA_*, SPRING_PROFILES_ACTIVE, service URLs, etc.)
 #   are owned exclusively by Terraform and applied via terraform.yml on push to main.
-#   This workflow is image-only: it builds and pushes the container image, then calls
+#   This workflow is image-only: it builds and pushes container images, then calls
 #   update-function-code. It does NOT call update-function-configuration.
-# - Do not pass AWS_REGION or AWS_DEFAULT_REGION in Lambda "Variables": Lambda reserves them and sets
-#   AWS_REGION to the function's region automatically (Spring/AWS SDK pick it up from the runtime).
+# - Do not pass AWS_REGION or AWS_DEFAULT_REGION in Lambda "Variables": Lambda reserves them.
 # - Triggers on both main and architecture/cloud-native-extraction so that work on the feature
 #   branch deploys independently and merges to main also trigger a deploy without divergence.
 
@@ -68,8 +77,9 @@ jobs:
         run: |
           aws cloudfront create-invalidation --distribution-id "${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }}" --paths "/*"
 
-  # Container image for wealth-api-gateway Lambda (Spring Cloud Gateway + downstream Function URLs).
-  # IMAGE-ONLY: env vars are managed by terraform.yml — this job only updates the function code.
+  # Container images for all four Lambda services.
+  # IMAGE-ONLY: env vars are managed by terraform.yml — this job only updates function code.
+  # Build order: api-gateway → portfolio-service → market-data-service → insight-service
   deploy-backend:
     runs-on: ubuntu-latest
 
@@ -113,7 +123,11 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build and push backend image
+      # ---------------------------------------------------------------------------
+      # api-gateway (Spring Cloud Gateway — Image Lambda)
+      # ---------------------------------------------------------------------------
+
+      - name: Build and push api-gateway image
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY_NAME }}
@@ -128,40 +142,164 @@ jobs:
             -t "${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG_SHA}" \
             --push .
 
-      - name: Update Lambda function image
+      - name: Update api-gateway Lambda
         env:
-          LAMBDA_FUNCTION_NAME: ${{ secrets.LAMBDA_FUNCTION_NAME }}
+          LAMBDA_FUNCTION_NAME: ${{ secrets.LAMBDA_FUNCTION_NAME_API_GATEWAY }}
           AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
           AWS_REGION: ${{ secrets.AWS_REGION }}
           ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY_NAME }}
         run: |
-          # Wait until LastUpdateStatus is Successful before attempting update-function-code.
-          # Guards against concurrent Terraform applies or prior in-flight updates.
+          # Skip if Lambda doesn't exist yet (created by Terraform on first apply)
+          if ! aws lambda get-function-configuration --function-name "$LAMBDA_FUNCTION_NAME" \
+              --query 'FunctionName' --output text 2>/dev/null; then
+            echo "Lambda $LAMBDA_FUNCTION_NAME does not exist yet — skipping update. Run terraform apply first."
+            exit 0
+          fi
           for attempt in {1..30}; do
             STATUS="$(aws lambda get-function-configuration \
               --function-name "$LAMBDA_FUNCTION_NAME" \
-              --query 'LastUpdateStatus' \
-              --output text)"
-
-            if [ "$STATUS" = "Successful" ]; then
-              echo "Lambda update status is Successful; continuing."
-              break
-            fi
-
-            if [ "$STATUS" = "Failed" ]; then
-              echo "Lambda reports Failed status; aborting code update."
-              exit 1
-            fi
-
-            echo "Lambda update status is '$STATUS' (attempt $attempt/30); waiting 5s..."
-            if [ "$attempt" -eq 30 ]; then
-              echo "Timed out waiting for Lambda update lock to clear."
-              exit 1
-            fi
+              --query 'LastUpdateStatus' --output text)"
+            if [ "$STATUS" = "Successful" ]; then echo "Ready."; break; fi
+            if [ "$STATUS" = "Failed" ]; then echo "Lambda Failed status — aborting."; exit 1; fi
+            echo "Attempt $attempt/30 — status: $STATUS. Waiting 5s..."
+            [ "$attempt" -eq 30 ] && echo "Timed out." && exit 1
             sleep 5
           done
-
-          IMAGE_URI="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPOSITORY}:latest"
           aws lambda update-function-code \
             --function-name "$LAMBDA_FUNCTION_NAME" \
-            --image-uri "$IMAGE_URI"
+            --image-uri "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPOSITORY}:latest"
+
+      # ---------------------------------------------------------------------------
+      # portfolio-service (Spring Boot MVC + JPA — Image Lambda)
+      # ---------------------------------------------------------------------------
+
+      - name: Build and push portfolio-service image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY_NAME_PORTFOLIO }}
+          IMAGE_TAG_SHA: ${{ github.sha }}
+        run: |
+          docker buildx build \
+            --platform linux/amd64 \
+            --provenance=false \
+            --sbom=false \
+            -f portfolio-service/Dockerfile \
+            -t "${ECR_REGISTRY}/${ECR_REPOSITORY}:latest" \
+            -t "${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG_SHA}" \
+            --push .
+
+      - name: Update portfolio-service Lambda
+        env:
+          LAMBDA_FUNCTION_NAME: ${{ secrets.LAMBDA_FUNCTION_NAME_PORTFOLIO }}
+          AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY_NAME_PORTFOLIO }}
+        run: |
+          if ! aws lambda get-function-configuration --function-name "$LAMBDA_FUNCTION_NAME" \
+              --query 'FunctionName' --output text 2>/dev/null; then
+            echo "Lambda $LAMBDA_FUNCTION_NAME does not exist yet — skipping. Run terraform apply first."
+            exit 0
+          fi
+          for attempt in {1..30}; do
+            STATUS="$(aws lambda get-function-configuration \
+              --function-name "$LAMBDA_FUNCTION_NAME" \
+              --query 'LastUpdateStatus' --output text)"
+            if [ "$STATUS" = "Successful" ]; then echo "Ready."; break; fi
+            if [ "$STATUS" = "Failed" ]; then echo "Lambda Failed status — aborting."; exit 1; fi
+            echo "Attempt $attempt/30 — status: $STATUS. Waiting 5s..."
+            [ "$attempt" -eq 30 ] && echo "Timed out." && exit 1
+            sleep 5
+          done
+          aws lambda update-function-code \
+            --function-name "$LAMBDA_FUNCTION_NAME" \
+            --image-uri "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPOSITORY}:latest"
+
+      # ---------------------------------------------------------------------------
+      # market-data-service (Spring Boot MVC + MongoDB — Image Lambda)
+      # ---------------------------------------------------------------------------
+
+      - name: Build and push market-data-service image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY_NAME_MARKET_DATA }}
+          IMAGE_TAG_SHA: ${{ github.sha }}
+        run: |
+          docker buildx build \
+            --platform linux/amd64 \
+            --provenance=false \
+            --sbom=false \
+            -f market-data-service/Dockerfile \
+            -t "${ECR_REGISTRY}/${ECR_REPOSITORY}:latest" \
+            -t "${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG_SHA}" \
+            --push .
+
+      - name: Update market-data-service Lambda
+        env:
+          LAMBDA_FUNCTION_NAME: ${{ secrets.LAMBDA_FUNCTION_NAME_MARKET_DATA }}
+          AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY_NAME_MARKET_DATA }}
+        run: |
+          if ! aws lambda get-function-configuration --function-name "$LAMBDA_FUNCTION_NAME" \
+              --query 'FunctionName' --output text 2>/dev/null; then
+            echo "Lambda $LAMBDA_FUNCTION_NAME does not exist yet — skipping. Run terraform apply first."
+            exit 0
+          fi
+          for attempt in {1..30}; do
+            STATUS="$(aws lambda get-function-configuration \
+              --function-name "$LAMBDA_FUNCTION_NAME" \
+              --query 'LastUpdateStatus' --output text)"
+            if [ "$STATUS" = "Successful" ]; then echo "Ready."; break; fi
+            if [ "$STATUS" = "Failed" ]; then echo "Lambda Failed status — aborting."; exit 1; fi
+            echo "Attempt $attempt/30 — status: $STATUS. Waiting 5s..."
+            [ "$attempt" -eq 30 ] && echo "Timed out." && exit 1
+            sleep 5
+          done
+          aws lambda update-function-code \
+            --function-name "$LAMBDA_FUNCTION_NAME" \
+            --image-uri "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPOSITORY}:latest"
+
+      # ---------------------------------------------------------------------------
+      # insight-service (Spring Boot MVC + Bedrock + Redis — Image Lambda)
+      # ---------------------------------------------------------------------------
+
+      - name: Build and push insight-service image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY_NAME_INSIGHT }}
+          IMAGE_TAG_SHA: ${{ github.sha }}
+        run: |
+          docker buildx build \
+            --platform linux/amd64 \
+            --provenance=false \
+            --sbom=false \
+            -f insight-service/Dockerfile \
+            -t "${ECR_REGISTRY}/${ECR_REPOSITORY}:latest" \
+            -t "${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG_SHA}" \
+            --push .
+
+      - name: Update insight-service Lambda
+        env:
+          LAMBDA_FUNCTION_NAME: ${{ secrets.LAMBDA_FUNCTION_NAME_INSIGHT }}
+          AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY_NAME_INSIGHT }}
+        run: |
+          if ! aws lambda get-function-configuration --function-name "$LAMBDA_FUNCTION_NAME" \
+              --query 'FunctionName' --output text 2>/dev/null; then
+            echo "Lambda $LAMBDA_FUNCTION_NAME does not exist yet — skipping. Run terraform apply first."
+            exit 0
+          fi
+          for attempt in {1..30}; do
+            STATUS="$(aws lambda get-function-configuration \
+              --function-name "$LAMBDA_FUNCTION_NAME" \
+              --query 'LastUpdateStatus' --output text)"
+            if [ "$STATUS" = "Successful" ]; then echo "Ready."; break; fi
+            if [ "$STATUS" = "Failed" ]; then echo "Lambda Failed status — aborting."; exit 1; fi
+            echo "Attempt $attempt/30 — status: $STATUS. Waiting 5s..."
+            [ "$attempt" -eq 30 ] && echo "Timed out." && exit 1
+            sleep 5
+          done
+          aws lambda update-function-code \
+            --function-name "$LAMBDA_FUNCTION_NAME" \
+            --image-uri "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPOSITORY}:latest"

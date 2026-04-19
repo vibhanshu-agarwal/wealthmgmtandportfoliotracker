@@ -2,11 +2,21 @@ spring:
   application:
     name: insight-service
   profiles:
+    # The "local" fallback is intentional — it activates application-local.yml for Docker Compose.
+    # On Lambda, SPRING_PROFILES_ACTIVE is set to "prod,aws,bedrock" by Terraform, overriding this default.
+    # Spring Boot will also include "local" in the active profiles list (visible in logs) — this is
+    # expected behavior from the base application.yml default, not a misconfiguration.
     active: ${SPRING_PROFILES_ACTIVE:local}
   data:
     redis:
-      host: ${SPRING_DATA_REDIS_HOST:localhost}
-      port: ${SPRING_DATA_REDIS_PORT:6379}
+      # Use REDIS_URL for consistency with api-gateway and portfolio-service.
+      # Format: redis[s]://[:password@]host[:port]  (Upstash requires rediss:// for TLS)
+      # On Lambda, REDIS_URL is injected by Terraform from GitHub Actions secrets.
+      url: ${REDIS_URL:redis://localhost:6379}
+  cache:
+    # local/CI: in-memory cache (no Redis required).
+    # Overridden to "redis" in application-prod.yml for production deployments.
+    type: simple
   kafka:
     bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9094}
     consumer:
