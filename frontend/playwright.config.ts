@@ -10,8 +10,8 @@ export default defineConfig({
   retries: 0,
   reporter: [["list"]],
   use: {
-    baseURL: "http://localhost:3000",
-    trace: "on-first-retry",
+    baseURL: process.env.BASE_URL ?? "http://localhost:3000",
+    trace: "retain-on-failure",
     headless: true,
   },
   projects: [
@@ -23,7 +23,7 @@ export default defineConfig({
     // Main test project — inherits authenticated session from setup
     {
       name: "chromium",
-      testIgnore: /dashboard-smoke\.spec\.ts$/,
+      testIgnore: [/dashboard-smoke\.spec\.ts$/, /aws-synthetic\.spec\.ts$/],
       use: {
         ...devices["Desktop Chrome"],
         storageState: authFile,
@@ -35,6 +35,17 @@ export default defineConfig({
       name: "static-smoke",
       testMatch: /dashboard-smoke\.spec\.ts$/,
       use: { ...devices["Desktop Chrome"] },
+    },
+    // Live AWS environment testing (synthetic monitoring)
+    {
+      name: "aws-synthetic",
+      testMatch: /aws-synthetic\.spec\.ts$/,
+      use: { 
+        ...devices["Desktop Chrome"],
+        baseURL: "https://vibhanshu-ai-portfolio.dev",
+      },
+      // Extended timeout to account for AWS Lambda / Bedrock cold starts
+      timeout: 60_000, 
     },
   ],
   webServer: {
