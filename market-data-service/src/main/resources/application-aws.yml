@@ -25,16 +25,9 @@ market-data:
 
 management:
   health:
-    # Exclude MongoDB from the health check on Lambda — a cold MongoDB connection
-    # attempt blocks for 30s (server selection timeout) and causes LWA to mark
-    # the app as not ready. MongoDB connectivity is verified by actual requests.
+    # MongoDB health check is excluded on Lambda — MongoHealthIndicator runs 'hello'
+    # against the Atlas 'local' db which returns AtlasError 8000 (not authorized).
+    # The LWA readiness check path is overridden to /actuator/health/liveness in
+    # Terraform (AWS_LWA_READINESS_CHECK_PATH) so this indicator never blocks startup.
     mongo:
       enabled: false
-
-spring:
-  autoconfigure:
-    exclude:
-      # MongoHealthIndicator is @ConditionalOnEnabledHealthIndicator("mongo") which is
-      # evaluated at AOT build time — management.health.mongo.enabled=false is ignored.
-      # Excluding the auto-configuration class at runtime bypasses the AOT condition.
-      - org.springframework.boot.mongodb.health.MongoHealthIndicatorAutoConfiguration
