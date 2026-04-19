@@ -60,6 +60,8 @@ module "compute" {
   market_data_memory_size     = coalesce(var.market_data_memory_size, local.lambda_defaults.market_data_memory_mb)
   insight_service_memory_size = coalesce(var.insight_service_memory_size, local.lambda_defaults.insight_service_memory_mb)
   postgres_connection_string  = var.postgres_connection_string
+  postgres_username           = var.postgres_username
+  postgres_password           = var.postgres_password
   mongodb_connection_string   = var.mongodb_connection_string
   auth_jwk_uri                = var.auth_jwk_uri
   cloudfront_origin_secret    = var.cloudfront_origin_secret

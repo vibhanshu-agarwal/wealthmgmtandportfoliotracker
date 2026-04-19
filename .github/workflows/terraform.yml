@@ -26,6 +26,8 @@ env:
   # Never block CI on stdin (missing vars look like a "stuck" lock after "Acquiring state lock").
   TF_INPUT: "false"
   TF_VAR_postgres_connection_string: ${{ secrets.POSTGRES_CONNECTION_STRING }}
+  TF_VAR_postgres_username: ${{ secrets.SPRING_DATASOURCE_USERNAME }}
+  TF_VAR_postgres_password: ${{ secrets.SPRING_DATASOURCE_PASSWORD }}
   TF_VAR_mongodb_connection_string: ${{ secrets.MONGODB_CONNECTION_STRING }}
   TF_VAR_auth_jwk_uri: ${{ secrets.AUTH_JWK_URI }}
   TF_VAR_cloudfront_origin_secret: ${{ secrets.CLOUDFRONT_ORIGIN_SECRET }}
