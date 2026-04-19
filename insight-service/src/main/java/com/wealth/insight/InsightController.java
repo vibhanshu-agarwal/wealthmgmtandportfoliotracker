@@ -1,6 +1,5 @@
 package com.wealth.insight;
 
-import java.util.LinkedHashMap;
 import java.util.Map;
 
 import org.slf4j.Logger;
@@ -43,17 +42,20 @@ public class InsightController {
     }
 
     /**
-     * Returns a map of all tracked tickers enriched with AI sentiment summaries.
+     * Returns a map of all tracked tickers with price/trend data.
+     *
+     * <p>AI sentiment is intentionally <em>not</em> included here. With 50+ baseline tickers,
+     * issuing one sequential Bedrock call per ticker would consume 30–100 s and reliably exceed
+     * both the Lambda 60 s timeout and the CloudFront 30 s origin timeout, causing 502s.
+     *
+     * <p>Callers that need AI sentiment for a specific ticker should use the per-ticker endpoint:
+     * {@code GET /api/insights/market-summary/{ticker}}, which calls Bedrock for a single ticker
+     * and caches the result in Redis for 60 minutes.
      */
     @GetMapping("/market-summary")
     public ResponseEntity<Map<String, TickerSummary>> getMarketSummary() {
         try {
-            Map<String, TickerSummary> raw = marketDataService.getMarketSummary();
-            Map<String, TickerSummary> enriched = new LinkedHashMap<>();
-            for (var entry : raw.entrySet()) {
-                enriched.put(entry.getKey(), enrichWithAiSummary(entry.getValue()));
-            }
-            return ResponseEntity.ok(enriched);
+            return ResponseEntity.ok(marketDataService.getMarketSummary());
         } catch (Exception e) {
             log.error("market-summary endpoint failed", e);
             return ResponseEntity.internalServerError().build();
@@ -62,6 +64,9 @@ public class InsightController {
 
     /**
      * Returns a single ticker's summary enriched with AI sentiment, or 404 if no data exists.
+     *
+     * <p>This is the only endpoint that calls Bedrock. The result is cached in Redis for 60 minutes
+     * (see {@code BedrockAiInsightService}), so repeated lookups for the same ticker are fast.
      */
     @GetMapping("/market-summary/{ticker}")
     public ResponseEntity<?> getTickerSummary(@PathVariable String ticker) {
@@ -71,30 +76,22 @@ public class InsightController {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND)
                         .body(Map.of("error", "Ticker not found"));
             }
-            return ResponseEntity.ok(enrichWithAiSummary(summary));
+            String aiSummary = null;
+            try {
+                aiSummary = aiInsightService.getSentiment(summary.ticker());
+            } catch (AdvisorUnavailableException e) {
+                log.warn("AI sentiment unavailable for {}: {}", ticker, e.getMessage());
+            }
+            return ResponseEntity.ok(new TickerSummary(
+                    summary.ticker(),
+                    summary.latestPrice(),
+                    summary.priceHistory(),
+                    summary.trendPercent(),
+                    aiSummary
+            ));
         } catch (Exception e) {
             log.error("per-ticker summary failed for {}", ticker, e);
             return ResponseEntity.internalServerError().build();
         }
-    }
-
-    /**
-     * Enriches a TickerSummary with an AI sentiment summary.
-     * On AI failure, returns the summary with aiSummary set to null.
-     */
-    private TickerSummary enrichWithAiSummary(TickerSummary summary) {
-        String aiSummary = null;
-        try {
-            aiSummary = aiInsightService.getSentiment(summary.ticker());
-        } catch (AdvisorUnavailableException e) {
-            log.warn("AI sentiment unavailable for {}: {}", summary.ticker(), e.getMessage());
-        }
-        return new TickerSummary(
-                summary.ticker(),
-                summary.latestPrice(),
-                summary.priceHistory(),
-                summary.trendPercent(),
-                aiSummary
-        );
     }
 }

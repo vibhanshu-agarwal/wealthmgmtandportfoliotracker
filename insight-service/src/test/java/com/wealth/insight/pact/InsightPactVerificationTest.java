@@ -23,7 +23,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 
 /**
@@ -77,8 +76,7 @@ class InsightPactVerificationTest {
         Map<String, TickerSummary> summaries = new LinkedHashMap<>();
         summaries.put("AAPL", aaplSummary);
 
+        // The list endpoint no longer calls aiInsightService — no stub needed.
         when(marketDataService.getMarketSummary()).thenReturn(summaries);
-        when(aiInsightService.getSentiment(anyString()))
-                .thenReturn("AAPL is Bullish. Prices are rising steadily.");
     }
 }

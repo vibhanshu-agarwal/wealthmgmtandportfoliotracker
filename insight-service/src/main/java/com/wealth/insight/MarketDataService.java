@@ -2,6 +2,7 @@ package com.wealth.insight;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -20,10 +21,14 @@ import com.wealth.market.events.PriceUpdatedEvent;
 /**
  * Stateful market data aggregation backed by Redis.
  *
- * <p>Maintains two structures per ticker:
+ * <p>Maintains three structures per ticker:
  * <ul>
  *   <li>{@code market:latest:{ticker}} — the most recent price (String key-value)</li>
  *   <li>{@code market:history:{ticker}} — a capped list of the last 10 prices (newest at head)</li>
+ *   <li>{@code market:tracked-tickers} — a ZSET of all known tickers scored by last-update
+ *       epoch-millis. Used by {@link #getMarketSummary()} instead of {@code KEYS market:latest:*}
+ *       to avoid triggering Upstash's full-keyspace scan (which is slow and rate-limited on the
+ *       free tier). Entries older than {@link #STALE_TICKER_TTL} are pruned on every write.</li>
  * </ul>
  */
 @Service
@@ -33,7 +38,15 @@ public class MarketDataService {
 
     static final String LATEST_KEY_PREFIX = "market:latest:";
     static final String HISTORY_KEY_PREFIX = "market:history:";
+    static final String TRACKED_TICKERS_KEY = "market:tracked-tickers";
     static final int WINDOW_SIZE = 10;
+
+    /**
+     * Tickers that have not received a price update within this window are pruned from the ZSET.
+     * 24 hours provides a generous TTL — any ticker that has been silent for a full day is
+     * considered stale and will not appear in market summaries until it receives a new price.
+     */
+    static final Duration STALE_TICKER_TTL = Duration.ofHours(24);
 
     private final StringRedisTemplate redisTemplate;
 
@@ -42,11 +55,16 @@ public class MarketDataService {
     }
 
     /**
-     * Processes a price update: stores the latest price and appends to the sliding window.
+     * Processes a price update: stores the latest price, appends to the sliding window, and
+     * records the ticker in the tracked-tickers ZSET scored by current time.
+     *
+     * <p>Stale entries (tickers not updated in the last 24 h) are pruned from the ZSET on
+     * every write so the set stays bounded even if the baseline ticker list changes over time.
      */
     public void processUpdate(PriceUpdatedEvent event) {
         String ticker = event.ticker();
         String price = event.newPrice().toPlainString();
+        long nowMs = System.currentTimeMillis();
 
         // 1. Update latest price
         redisTemplate.opsForValue().set(LATEST_KEY_PREFIX + ticker, price);
@@ -57,21 +75,32 @@ public class MarketDataService {
         // 3. Trim to sliding window size
         redisTemplate.opsForList().trim(HISTORY_KEY_PREFIX + ticker, 0, WINDOW_SIZE - 1);
 
+        // 4. Record in ZSET scored by epoch-millis (replaces KEYS scan in getMarketSummary)
+        redisTemplate.opsForZSet().add(TRACKED_TICKERS_KEY, ticker, nowMs);
+
+        // 5. Prune tickers not updated within the stale TTL
+        long staleThresholdMs = nowMs - STALE_TICKER_TTL.toMillis();
+        redisTemplate.opsForZSet().removeRangeByScore(TRACKED_TICKERS_KEY, 0, staleThresholdMs);
+
         log.debug("Stored price update for {}: {}", ticker, price);
     }
 
     /**
      * Returns a market summary for all tracked tickers.
+     *
+     * <p>Uses the {@code market:tracked-tickers} ZSET instead of {@code KEYS market:latest:*}.
+     * {@code KEYS} performs a full keyspace scan on Upstash, which is both slow and subject to
+     * Upstash's per-command rate limits. The ZSET approach is O(N) on the number of tracked
+     * tickers only, not the total keyspace, and is not rate-limited differently from other reads.
      */
     public Map<String, TickerSummary> getMarketSummary() {
-        Set<String> keys = redisTemplate.keys(LATEST_KEY_PREFIX + "*");
-        if (keys == null || keys.isEmpty()) {
+        Set<String> tickers = redisTemplate.opsForZSet().range(TRACKED_TICKERS_KEY, 0, -1);
+        if (tickers == null || tickers.isEmpty()) {
             return Collections.emptyMap();
         }
 
         Map<String, TickerSummary> summaries = new LinkedHashMap<>();
-        for (String key : keys) {
-            String ticker = key.substring(LATEST_KEY_PREFIX.length());
+        for (String ticker : tickers) {
             try {
                 summaries.put(ticker, buildTickerSummary(ticker));
             } catch (Exception e) {

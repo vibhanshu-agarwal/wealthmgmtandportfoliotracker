@@ -19,13 +19,17 @@ describe("Insight API consumer contract", () => {
       .withRequest("GET", "/api/insights/market-summary")
       .willRespondWith(200, (builder) => {
         builder.headers({ "Content-Type": "application/json" });
+        // aiSummary is intentionally absent from the list endpoint.
+        // The list endpoint returns price/trend data only to avoid an unbounded
+        // Bedrock fan-out (one call per ticker) that would exceed Lambda timeouts.
+        // AI sentiment is only available on the per-ticker endpoint:
+        //   GET /api/insights/market-summary/{ticker}
         builder.jsonBody({
           AAPL: like({
             ticker: like("AAPL"),
             latestPrice: like(178.5),
             priceHistory: eachLike(175.0),
             trendPercent: like(2.0),
-            aiSummary: like("AAPL is Bullish. Prices are rising steadily."),
           }),
         });
       })
@@ -47,7 +51,8 @@ describe("Insight API consumer contract", () => {
         expect(ticker).toHaveProperty("priceHistory");
         expect(Array.isArray(ticker.priceHistory)).toBe(true);
         expect(ticker).toHaveProperty("trendPercent");
-        expect(ticker).toHaveProperty("aiSummary");
+        // aiSummary is not present on the list endpoint — use /market-summary/{ticker} for AI.
+        expect(ticker).not.toHaveProperty("aiSummary");
       });
   });
 });

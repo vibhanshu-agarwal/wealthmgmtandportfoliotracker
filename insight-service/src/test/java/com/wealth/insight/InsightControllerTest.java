@@ -72,30 +72,33 @@ class InsightControllerTest {
                 .andExpect(jsonPath("$.error").value("Ticker not found"));
     }
 
-    // --- AI enrichment tests (Task 11.3) ---
+    // --- Market-summary list endpoint tests ---
+    // The list endpoint returns raw price/trend data only (no Bedrock calls).
+    // AI sentiment is only added on the per-ticker endpoint to prevent unbounded fan-out.
 
     @Test
-    void getMarketSummary_withAiAvailable_populatesAiSummary() throws Exception {
+    void getMarketSummary_returnsPriceDataWithoutAiSummary() throws Exception {
         Map<String, TickerSummary> raw = new LinkedHashMap<>();
         raw.put("AAPL", new TickerSummary("AAPL", new BigDecimal("178.50"),
                 List.of(new BigDecimal("178.50")), null, null));
         when(marketDataService.getMarketSummary()).thenReturn(raw);
-        when(aiInsightService.getSentiment("AAPL")).thenReturn("AAPL is Neutral.");
 
         mockMvc.perform(get("/api/insights/market-summary"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.AAPL.aiSummary").value("AAPL is Neutral."));
+                .andExpect(jsonPath("$.AAPL.ticker").value("AAPL"))
+                .andExpect(jsonPath("$.AAPL.latestPrice").value(178.50))
+                .andExpect(jsonPath("$.AAPL.aiSummary").doesNotExist());
     }
 
     @Test
-    void getMarketSummary_withAiFailure_returnsNullAiSummaryAndPriceDataIntact() throws Exception {
+    void getMarketSummary_multipleTickers_returnsAllWithoutAi() throws Exception {
         Map<String, TickerSummary> raw = new LinkedHashMap<>();
         raw.put("MSFT", new TickerSummary("MSFT", new BigDecimal("420.00"),
                 List.of(new BigDecimal("420.00"), new BigDecimal("418.00")),
                 new BigDecimal("0.48"), null));
+        raw.put("AAPL", new TickerSummary("AAPL", new BigDecimal("178.50"),
+                List.of(new BigDecimal("178.50")), null, null));
         when(marketDataService.getMarketSummary()).thenReturn(raw);
-        when(aiInsightService.getSentiment("MSFT"))
-                .thenThrow(new AdvisorUnavailableException("LLM down"));
 
         mockMvc.perform(get("/api/insights/market-summary"))
                 .andExpect(status().isOk())
@@ -103,7 +106,9 @@ class InsightControllerTest {
                 .andExpect(jsonPath("$.MSFT.latestPrice").value(420.00))
                 .andExpect(jsonPath("$.MSFT.priceHistory", hasSize(2)))
                 .andExpect(jsonPath("$.MSFT.trendPercent").value(0.48))
-                .andExpect(jsonPath("$.MSFT.aiSummary").doesNotExist());
+                .andExpect(jsonPath("$.MSFT.aiSummary").doesNotExist())
+                .andExpect(jsonPath("$.AAPL.ticker").value("AAPL"))
+                .andExpect(jsonPath("$.AAPL.aiSummary").doesNotExist());
     }
 
     @Test

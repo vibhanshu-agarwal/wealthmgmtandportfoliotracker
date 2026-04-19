@@ -19,7 +19,6 @@
         "body": {
           "content": {
             "AAPL": {
-              "aiSummary": "AAPL is Bullish. Prices are rising steadily.",
               "latestPrice": 178.5,
               "priceHistory": [
                 175
@@ -39,14 +38,6 @@
         "matchingRules": {
           "body": {
             "$.AAPL": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "type"
-                }
-              ]
-            },
-            "$.AAPL.aiSummary": {
               "combine": "AND",
               "matchers": [
                 {
