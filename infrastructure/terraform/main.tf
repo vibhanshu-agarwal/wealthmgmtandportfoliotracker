@@ -34,27 +34,12 @@ terraform {
 }
 
 # ---------------------------------------------------------------------------
-# Artifact S3 bucket — stores Lambda deployment JARs
+# Artifact S3 bucket — retained for potential future use (e.g. static assets,
+# deployment artifacts). No longer used for Lambda JARs (all services are Image-based).
 # ---------------------------------------------------------------------------
-
-resource "aws_s3_bucket" "artifacts" {
-  bucket = var.artifact_bucket_name
-}
-
-resource "aws_s3_bucket_versioning" "artifacts" {
-  bucket = aws_s3_bucket.artifacts.id
-  versioning_configuration {
-    status = "Enabled"
-  }
-}
-
-resource "aws_s3_bucket_public_access_block" "artifacts" {
-  bucket                  = aws_s3_bucket.artifacts.id
-  block_public_acls       = true
-  block_public_policy     = true
-  ignore_public_acls      = true
-  restrict_public_buckets = true
-}
+# resource "aws_s3_bucket" "artifacts" removed — bucket exists in us-east-1 from
+# initial setup; all Lambda functions now use Image package type (ECR), not Zip/S3.
+# The bucket is retained in AWS but not managed by this Terraform configuration.
 
 # ---------------------------------------------------------------------------
 # Compute module — Lambda functions + Function URLs
