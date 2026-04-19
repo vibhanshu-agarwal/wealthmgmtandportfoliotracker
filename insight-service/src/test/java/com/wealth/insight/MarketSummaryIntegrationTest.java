@@ -49,8 +49,10 @@ class MarketSummaryIntegrationTest {
 
     @DynamicPropertySource
     static void redisProperties(DynamicPropertyRegistry registry) {
-        registry.add("spring.data.redis.host", redis::getHost);
-        registry.add("spring.data.redis.port", () -> redis.getMappedPort(REDIS_PORT));
+        // Set REDIS_URL in the format expected by spring.data.redis.url
+        // (application.yml now uses url instead of host/port)
+        registry.add("spring.data.redis.url",
+                () -> "redis://" + redis.getHost() + ":" + redis.getMappedPort(REDIS_PORT));
     }
 
     @Autowired private MarketDataService marketDataService;

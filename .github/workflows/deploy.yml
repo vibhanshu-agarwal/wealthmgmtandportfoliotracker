@@ -149,6 +149,12 @@ jobs:
           AWS_REGION: ${{ secrets.AWS_REGION }}
           ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY_NAME }}
         run: |
+          # Skip if Lambda doesn't exist yet (created by Terraform on first apply)
+          if ! aws lambda get-function-configuration --function-name "$LAMBDA_FUNCTION_NAME" \
+              --query 'FunctionName' --output text 2>/dev/null; then
+            echo "Lambda $LAMBDA_FUNCTION_NAME does not exist yet — skipping update. Run terraform apply first."
+            exit 0
+          fi
           for attempt in {1..30}; do
             STATUS="$(aws lambda get-function-configuration \
               --function-name "$LAMBDA_FUNCTION_NAME" \
@@ -189,6 +195,11 @@ jobs:
           AWS_REGION: ${{ secrets.AWS_REGION }}
           ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY_NAME_PORTFOLIO }}
         run: |
+          if ! aws lambda get-function-configuration --function-name "$LAMBDA_FUNCTION_NAME" \
+              --query 'FunctionName' --output text 2>/dev/null; then
+            echo "Lambda $LAMBDA_FUNCTION_NAME does not exist yet — skipping. Run terraform apply first."
+            exit 0
+          fi
           for attempt in {1..30}; do
             STATUS="$(aws lambda get-function-configuration \
               --function-name "$LAMBDA_FUNCTION_NAME" \
@@ -229,6 +240,11 @@ jobs:
           AWS_REGION: ${{ secrets.AWS_REGION }}
           ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY_NAME_MARKET_DATA }}
         run: |
+          if ! aws lambda get-function-configuration --function-name "$LAMBDA_FUNCTION_NAME" \
+              --query 'FunctionName' --output text 2>/dev/null; then
+            echo "Lambda $LAMBDA_FUNCTION_NAME does not exist yet — skipping. Run terraform apply first."
+            exit 0
+          fi
           for attempt in {1..30}; do
             STATUS="$(aws lambda get-function-configuration \
               --function-name "$LAMBDA_FUNCTION_NAME" \
@@ -269,6 +285,11 @@ jobs:
           AWS_REGION: ${{ secrets.AWS_REGION }}
           ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY_NAME_INSIGHT }}
         run: |
+          if ! aws lambda get-function-configuration --function-name "$LAMBDA_FUNCTION_NAME" \
+              --query 'FunctionName' --output text 2>/dev/null; then
+            echo "Lambda $LAMBDA_FUNCTION_NAME does not exist yet — skipping. Run terraform apply first."
+            exit 0
+          fi
           for attempt in {1..30}; do
             STATUS="$(aws lambda get-function-configuration \
               --function-name "$LAMBDA_FUNCTION_NAME" \
