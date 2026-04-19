@@ -402,3 +402,164 @@ After the Phase 4 service split, `wealth-market-data-service` continued crashing
 | `250dd81` | Exclude `MongoHealthIndicatorAutoConfiguration` (approach later superseded) |
 | `a8a43f5` | Use `/actuator/health/liveness` for LWA readiness check (final working fix) |
 | `25afefe` | `terraform fmt` fix for compute/main.tf                                     |
+
+---
+
+## 9. Frontend: 401 Cascade on Stale Session Token
+
+**Date:** 2026-04-19 (follow-up to section 8)
+
+### 9.1 Symptom
+
+Browser console on the `/login` page showed multiple `Failed to load resource: the server responded with a status of 401` errors for API endpoints (`/api/portfolio`, `/api/market/prices`, `/api/insights/market-summary`, etc.).
+
+### 9.2 Root Cause
+
+When a user visits the app with a stale/expired JWT in `localStorage`:
+
+1. Root page (`/`) redirects to `/overview`
+2. Dashboard components mount; `useAuthSession()` reads the stale token from `localStorage`
+3. TanStack Query hooks fire with `enabled: true` (session exists) and the expired token
+4. API gateway returns 401 for every request
+5. `fetchWithAuthClient` threw a generic `Request failed (401)` error
+6. TanStack Query logged the errors; user saw cascading 401s in the console
+7. Auth check eventually redirected to `/login`, but the errors were already visible
+
+### 9.3 Fix
+
+Updated `frontend/src/lib/api/fetchWithAuth.ts` to intercept 401 responses:
+
+- Calls `clearAuthSession()` to remove the stale token from `localStorage`
+- Redirects to `/login` (unless already on `/login`) via `window.location.href`
+- Throws `"Session expired"` (clean error message, prevents TanStack Query retry)
+
+Updated `frontend/src/lib/api/fetchWithAuth.test.ts` to test the new 401 behavior (mock `localStorage`, assert session cleared).
+
+### 9.4 Key Commit
+
+| Commit    | Description                                                            |
+| --------- | ---------------------------------------------------------------------- |
+| `71a5716` | Handle 401 in fetchWithAuthClient — clear session + redirect to /login |
+
+---
+
+## 10. Kafka PKIX: SSL Trust Store Fix for jlink Custom JRE
+
+**Date:** 2026-04-19 (follow-up to section 8)
+
+### 10.1 Symptom
+
+Kafka consumers on `wealth-portfolio-service` and `wealth-insight-service` failed with:
+
+```
+org.apache.kafka.common.errors.SslAuthenticationException: SSL handshake failed
+Caused by: javax.net.ssl.SSLHandshakeException: (certificate_unknown) PKIX path building failed:
+  sun.security.provider.certpath.SunCertPathBuilderException: unable to find valid certification path to requested target
+```
+
+The Aiven Kafka broker (`kafka-wealthmgmt-wealthmgmt.i.aivencloud.com:23894`) uses SASL_SSL. The JVM could not validate the broker's SSL certificate.
+
+### 10.2 Root Cause
+
+The `jlink` custom JRE includes a `cacerts` keystore copied from the source JDK (`amazoncorretto:25`). However, the `amazonlinux:2023-minimal` runtime image ships without OS-level CA certificates, and the `jlink` output's `cacerts` was either incomplete or corrupted during the `--strip-debug --compress=zip-6` pipeline.
+
+The JVM's JSSE (Java Secure Socket Extension) uses `$JAVA_HOME/lib/security/cacerts` as its trust store. Without the Aiven CA chain in that keystore, every SSL handshake to Aiven Kafka (and potentially MongoDB Atlas) failed.
+
+### 10.3 Attempted Fixes
+
+| Attempt | Approach                                                                            | Result                                                                                                             |
+| ------- | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| 1       | `microdnf install ca-certificates` in runtime image                                 | ❌ Populates OS trust store at `/etc/pki/tls/certs/ca-bundle.crt` but JVM doesn't read it — uses its own `cacerts` |
+| 2       | `keytool -import` loop to import OS CAs into JRE `cacerts`                          | ❌ `keytool` not available in jlink custom JRE (requires `jdk.jartool` module which isn't included)                |
+| 3       | `COPY --from=jre-builder /usr/lib/jvm/java-25-amazon-corretto/lib/security/cacerts` | ✅ Copies the full Corretto trust store directly into the custom JRE                                               |
+
+### 10.4 Final Fix
+
+All four Dockerfiles updated with two changes in the runtime stage:
+
+1. **`ca-certificates` package** — `microdnf install -y tar gzip ca-certificates` (populates OS trust store for non-JVM tools like `curl`)
+2. **Corretto `cacerts` copy** — `COPY --from=jre-builder /usr/lib/jvm/java-25-amazon-corretto/lib/security/cacerts ${JAVA_HOME}/lib/security/cacerts` (overwrites the jlink JRE's potentially incomplete `cacerts` with the full Corretto trust store)
+
+### 10.5 Verification
+
+After deploying the fix:
+
+- **No more `SslAuthenticationException` or `PKIX path building failed`** errors in CloudWatch logs
+- Kafka consumers on `portfolio-service` and `insight-service` successfully subscribed to topics (`market-prices`, `market-prices.DLT`)
+- Kafka consumers disconnect after subscribing — this is a **separate issue** (likely SASL credential mismatch or Aiven service configuration), not related to SSL trust
+
+### 10.6 Key Commits
+
+| Commit    | Description                                                                 |
+| --------- | --------------------------------------------------------------------------- |
+| `eda27b6` | Add `ca-certificates` to all runtime images (OS trust store)                |
+| `4a67114` | Import OS CA bundle into JRE cacerts via keytool (failed — keytool missing) |
+| `748d4b5` | Replace keytool approach with direct Corretto cacerts COPY (working fix)    |
+
+### 10.7 Files Changed
+
+| File                             | Change                                      |
+| -------------------------------- | ------------------------------------------- |
+| `api-gateway/Dockerfile`         | `ca-certificates` + Corretto `cacerts` COPY |
+| `portfolio-service/Dockerfile`   | `ca-certificates` + Corretto `cacerts` COPY |
+| `market-data-service/Dockerfile` | `ca-certificates` + Corretto `cacerts` COPY |
+| `insight-service/Dockerfile`     | `ca-certificates` + Corretto `cacerts` COPY |
+
+---
+
+## 11. Current State (end of 2026-04-19)
+
+### 11.1 Service Health
+
+| Service                      | Health        | Notes                                                                                                                          |
+| ---------------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `wealth-api-gateway`         | ✅ UP         | CloudFront → Function URL live                                                                                                 |
+| `wealth-portfolio-service`   | ✅ UP         | Neon PostgreSQL connected, Flyway migrations applied                                                                           |
+| `wealth-market-data-service` | ✅ Responding | `/actuator/health/liveness` = UP; `/actuator/health` = DOWN (MongoHealthIndicator false-negative — Atlas restricts `local` db) |
+| `wealth-insight-service`     | ✅ UP         | Bedrock profile active, Redis (Upstash) connected                                                                              |
+| `wealth-mgmt-backend-lambda` | 🗑️ Deleted    | Legacy monolith decommissioned                                                                                                 |
+
+### 11.2 Known Remaining Issues
+
+1. **Kafka consumer disconnect** — Consumers subscribe to topics but immediately disconnect. SSL handshake succeeds (PKIX fixed), so this is a SASL authentication or Aiven service configuration issue. Non-blocking for service health.
+2. **MongoHealthIndicator false-negative** — `/actuator/health` returns DOWN on market-data-service because `MongoHealthIndicator` runs `hello` against Atlas `local` db (unauthorized). Mitigated by `AWS_LWA_READINESS_CHECK_PATH = /actuator/health/liveness`. A proper fix requires a custom `MongoHealthIndicator` bean that queries the application database instead of `local`.
+3. **Spring Boot AOT limitations** — Several runtime property overrides (`management.health.mongo.enabled`, `spring.autoconfigure.exclude`) are ignored because AOT evaluates `@Conditional*` annotations at build time. Future work: either disable AOT for services with complex runtime profile switching, or move conditional logic to `@Bean` methods that AOT doesn't optimize away.
+
+### 11.3 Spec Task Status
+
+| Phase                              | Status                                     |
+| ---------------------------------- | ------------------------------------------ |
+| Phase A — Terraform Infrastructure | ✅ Complete                                |
+| Phase B — Application Code         | ✅ Complete (B5.2 jqwik optional, skipped) |
+| Phase C — CI/CD Pipeline           | ✅ Complete                                |
+| Phase D — Property-Based Tests     | ⏳ Not started                             |
+| Phase E — Verification             | ⏳ Not started                             |
+
+### 11.4 Full Git Record (2026-04-19, all sessions)
+
+| Commit    | Description                                                |
+| --------- | ---------------------------------------------------------- |
+| `5dda746` | `.dockerignore` + remove redundant pre-build step          |
+| `fc715b9` | `REDIS_URL` fallback default in prod profiles              |
+| `1dc1e29` | Disable legacy `cd.yml`                                    |
+| `fbc3ef1` | Rename LWA binary to `lambda-adapter`                      |
+| `e9dc13a` | Phase 4 service split (main A+B+C commit)                  |
+| `8714f67` | Graceful Lambda skip in deploy.yml                         |
+| `086c9bf` | Pass `aws_region=ap-south-1` to terraform plan             |
+| `8cf3370` | Remove S3 artifact bucket resources                        |
+| `2200c8c` | Remove `reserved_concurrent_executions`                    |
+| `6781cd8` | Fix assert_plan.py for stable resources                    |
+| `9d3ca77` | Remove `reserved_concurrent_executions` from insight       |
+| `84e767c` | Add `java.sql,java.naming` to jlink + postgres credentials |
+| `acef405` | Fix `spring.data.mongodb.uri` key in market-data           |
+| `883a8cb` | Fix MongoDB URI env var key + non-fatal hydration          |
+| `47b789d` | Disable MongoDB health indicator (superseded)              |
+| `842f159` | Add `jdk.naming.dns` to jlink for SRV resolution           |
+| `250dd81` | Exclude MongoHealthIndicatorAutoConfiguration (superseded) |
+| `a8a43f5` | Use `/actuator/health/liveness` for LWA readiness          |
+| `25afefe` | `terraform fmt` fix                                        |
+| `1c2029a` | Changelog section 8                                        |
+| `71a5716` | Frontend: handle 401 in fetchWithAuthClient                |
+| `eda27b6` | Add `ca-certificates` to runtime images                    |
+| `4a67114` | Import OS CA bundle via keytool (superseded)               |
+| `748d4b5` | Direct Corretto cacerts COPY (final SSL fix)               |
