@@ -220,7 +220,9 @@ resource "aws_lambda_function" "portfolio" {
 
   environment {
     variables = merge(local.common_env, local.runtime_secrets, {
-      SPRING_DATASOURCE_URL = var.postgres_connection_string
+      SPRING_DATASOURCE_URL      = var.postgres_connection_string
+      SPRING_DATASOURCE_USERNAME = var.postgres_username
+      SPRING_DATASOURCE_PASSWORD = var.postgres_password
     })
   }
 

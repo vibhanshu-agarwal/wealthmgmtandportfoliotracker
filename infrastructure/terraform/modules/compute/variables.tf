@@ -61,6 +61,18 @@ variable "postgres_connection_string" {
   sensitive = true
 }
 
+variable "postgres_username" {
+  type        = string
+  sensitive   = true
+  description = "PostgreSQL username (Neon: neondb_owner). Injected as SPRING_DATASOURCE_USERNAME."
+}
+
+variable "postgres_password" {
+  type        = string
+  sensitive   = true
+  description = "PostgreSQL password. Injected as SPRING_DATASOURCE_PASSWORD."
+}
+
 variable "mongodb_connection_string" {
   type      = string
   sensitive = true

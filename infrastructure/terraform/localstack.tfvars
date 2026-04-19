@@ -40,6 +40,8 @@ route53_zone_id     = ""
 # SENSITIVE — injected via TF_VAR_* in CI; stub values for LocalStack testing only
 # DO NOT commit real secrets here
 postgres_connection_string = "jdbc:postgresql://localhost:5432/wealth_local"
+postgres_username          = "wealth_user"
+postgres_password          = "wealth_pass"
 mongodb_connection_string  = "mongodb://localhost:27017/wealth_local"
 cloudfront_origin_secret   = "localstack-test-secret-do-not-use-in-production"
 # Messaging & Caching stubs for LocalStack testing

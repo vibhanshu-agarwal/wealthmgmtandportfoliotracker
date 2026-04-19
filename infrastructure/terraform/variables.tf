@@ -85,7 +85,19 @@ variable "insight_service_memory_size" {
 variable "postgres_connection_string" {
   type        = string
   sensitive   = true
-  description = "Neon/Supabase JDBC URL"
+  description = "Neon/Supabase JDBC URL (must start with jdbc:postgresql://)"
+}
+
+variable "postgres_username" {
+  type        = string
+  sensitive   = true
+  description = "PostgreSQL username for SPRING_DATASOURCE_USERNAME (Neon: neondb_owner)"
+}
+
+variable "postgres_password" {
+  type        = string
+  sensitive   = true
+  description = "PostgreSQL password for SPRING_DATASOURCE_PASSWORD"
 }
 
 variable "mongodb_connection_string" {
