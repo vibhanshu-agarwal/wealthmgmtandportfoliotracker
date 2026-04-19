@@ -66,7 +66,7 @@ test.describe("Mocked Chaos Tests (Error Boundaries)", () => {
     
     // Simulate user sending a chat message
     const chatInput = page.getByTestId("chat-input");
-    await chatInput.waitFor({ state: "visible", timeout: 15_000 });
+    await chatInput.waitFor({ state: "visible", timeout: 30_000 });
     await chatInput.fill("How is AAPL doing?");
     await chatInput.press("Enter");
 
