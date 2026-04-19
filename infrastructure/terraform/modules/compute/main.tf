@@ -22,11 +22,11 @@ locals {
   # api-gateway is deployed as a container image (Dockerfile bundles Lambda Web Adapter).
   # Do not set AWS_LAMBDA_EXEC_WRAPPER — the image ENTRYPOINT runs the adapter.
   api_gateway_container_env = {
-    JAVA_TOOL_OPTIONS                    = local.common_env.JAVA_TOOL_OPTIONS
-    SPRING_PROFILES_ACTIVE               = local.common_env.SPRING_PROFILES_ACTIVE
-    AWS_LWA_ASYNC_INIT                   = "true"
-    AWS_LWA_READINESS_CHECK_PATH         = "/actuator/health"
-    AWS_LWA_READINESS_CHECK_MAX_RETRIES  = local.common_env.AWS_LWA_READINESS_CHECK_MAX_RETRIES
+    JAVA_TOOL_OPTIONS                   = local.common_env.JAVA_TOOL_OPTIONS
+    SPRING_PROFILES_ACTIVE              = local.common_env.SPRING_PROFILES_ACTIVE
+    AWS_LWA_ASYNC_INIT                  = "true"
+    AWS_LWA_READINESS_CHECK_PATH        = "/actuator/health"
+    AWS_LWA_READINESS_CHECK_MAX_RETRIES = local.common_env.AWS_LWA_READINESS_CHECK_MAX_RETRIES
   }
 
   # Runtime secrets — owned exclusively by Terraform.
