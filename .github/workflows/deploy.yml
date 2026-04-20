@@ -34,6 +34,7 @@ on:
     branches:
       - main
       - architecture/cloud-native-extraction
+      - feature/golden-state-seeder-backend
 
 jobs:
   # Static export → S3 → CloudFront invalidation (same path browsers hit via CDN).
