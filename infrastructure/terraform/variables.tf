@@ -1,3 +1,5 @@
+# Infrastructure variables for Wealth Management & Portfolio Tracker
+# Triggering CI/CD for Golden State Seeder Phase 3
 variable "use_localstack" {
   type        = bool
   default     = false
