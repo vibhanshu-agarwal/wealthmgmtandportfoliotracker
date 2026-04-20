@@ -18,21 +18,19 @@ test.describe.serial("Live AWS Synthetic Monitoring", () => {
   test.setTimeout(120_000);
 
   test("Health Check: System login and dashboard hydration", async ({ page }) => {
-    // 1. Navigate to the live site
-    await page.goto("/");
+    // 1. Navigate directly to login
+    await page.goto("/login");
 
     // 2. Perform live login as the dedicated test user
-    // Assuming there's a login redirect or we go to /login directly
-    if (page.url().includes("/login") || await page.getByRole("button", { name: /log in/i }).isVisible()) {
-      const emailInput = page.locator('input[type="email"]');
-      const passInput = page.locator('input[type="password"]');
-      
-      if (await emailInput.isVisible()) {
-        await emailInput.fill(TEST_USER_EMAIL);
-        await passInput.fill(TEST_USER_PASSWORD);
-        await page.getByRole("button", { name: /sign in|log in/i }).click();
-      }
-    }
+    const emailInput = page.locator('input[type="email"]');
+    const passInput = page.locator('input[type="password"]');
+    
+    // Wait for the login form to be interactive
+    await emailInput.waitFor({ state: "visible", timeout: 15_000 });
+    
+    await emailInput.fill(TEST_USER_EMAIL);
+    await passInput.fill(TEST_USER_PASSWORD);
+    await page.getByRole("button", { name: /sign in|log in/i }).click();
 
     // Wait for the overview or portfolio page to load (handling potential Lambda cold start)
     await expect(page).toHaveURL(/.*\/overview|.*\/portfolio/, { timeout: 30_000 });

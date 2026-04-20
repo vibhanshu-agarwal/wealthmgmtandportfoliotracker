@@ -103,7 +103,9 @@ export function MarketSummaryGrid() {
     );
   }
 
-  const entries = data ? Object.values(data) : [];
+  const entries = data 
+    ? Object.values(data).filter((s) => s && typeof s.ticker === "string") 
+    : [];
 
   if (entries.length === 0) {
     return (
