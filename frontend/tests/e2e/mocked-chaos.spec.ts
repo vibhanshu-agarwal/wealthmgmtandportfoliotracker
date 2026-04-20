@@ -52,10 +52,10 @@ test.describe("Mocked Chaos Tests (Error Boundaries)", () => {
     await expect(page.getByRole("navigation")).toBeVisible();
   });
 
-  // SKIPPED: getByTestId('chat-input') never becomes visible on /ai-insights.
-  // Same root cause as live-contract.spec.ts — AI chat UI not rendering expected element.
-  // Re-enable once the AI Insights page exposes data-testid="chat-input".
-  test.skip("502 Bad Gateway fallback", async ({ page }) => {
+  // RCA: data-testid="chat-input" unconditionally renders in ChatInterface.tsx (line 143).
+  // The original failure was a Lambda cold-start timeout on /ai-insights (~30s+), not a
+  // missing element. Timeout increases (CloudFront 60s, API GW 55s) resolve this.
+  test("502 Bad Gateway fallback", async ({ page }) => {
     // Mock the chat/insights API
     await page.route("**/api/chat", async (route) => {
       await route.fulfill({
