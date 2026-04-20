@@ -16,30 +16,18 @@ const TEST_USER_PASSWORD =
   process.env.E2E_TEST_USER_PASSWORD ?? "TestPassword123!";
 
 /**
- * DISABLED — 2026-04-20
+ * RE-ENABLED — 2026-04-20
  *
- * The "System login and dashboard hydration" test is failing in CI because the
- * login flow never completes — the browser stays on /login for the full 30s
- * timeout instead of redirecting to /overview or /portfolio.
+ * Root causes identified and resolved:
+ *   - Kafka SSL PKIX error: fixed via classpath-bound kafka-truststore.jks.
+ *   - INTERNAL_API_KEY: now injected into Lambda env by Terraform on main.
+ *   - CloudFront origin_read_timeout raised to 60s; API Gateway to 55s.
+ *   - Pre-flight connectivity checks guard against infrastructure regressions.
  *
- * Suspected causes (to be investigated):
- *   1. Lambda cold-start or timeout on the auth endpoint behind CloudFront.
- *   2. Auth backend returning a silent 4xx/5xx, causing the frontend to stay
- *      on /login without surfacing an error.
- *   3. Missing or expired E2E test credentials in GitHub Actions secrets.
- *   4. CloudFront / API Gateway routing misconfiguration for /api/auth/*.
- *
- * The second test ("CloudFront/Bedrock AI Insights latency check") depends on
- * the first test passing (serial suite), so it was also blocked.
- *
- * Next steps:
- *   - Review the Playwright trace artifact from the failed CI run.
- *   - Check CloudWatch logs for the auth Lambda around the failure timestamp.
- *   - Verify E2E credentials and CloudFront routing independently.
- *
- * Re-enable this suite once the root cause is identified and resolved.
+ * If the login flow regresses, check CloudWatch logs for the auth Lambda
+ * and verify E2E credentials in GitHub Actions secrets.
  */
-test.describe.skip("Live AWS Synthetic Monitoring", () => {
+test.describe("Live AWS Synthetic Monitoring", () => {
   // Use a longer timeout for the entire suite to account for cold starts
   test.setTimeout(120_000);
 
