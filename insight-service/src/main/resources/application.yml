@@ -28,6 +28,12 @@ spring:
         spring.deserializer.value.delegate.class: org.springframework.kafka.support.serializer.JsonDeserializer
         spring.json.value.default.type: com.wealth.market.events.PriceUpdatedEvent
         spring.json.trusted.packages: "*"
+        # Slow down the broker reconnect loop when Kafka is unavailable
+        reconnect.backoff.ms: 2000          # 2s initial (default: 50ms)
+        reconnect.backoff.max.ms: 60000     # cap at 60s via exponential backoff (default: 1s)
+        request.timeout.ms: 10000
+    listener:
+      missing-topics-fatal: false           # don't crash if market-prices topic doesn't exist yet
   web:
     error:
       include-message: always

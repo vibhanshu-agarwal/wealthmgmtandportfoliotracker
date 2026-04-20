@@ -18,7 +18,7 @@ public class InsightEventListener {
         this.marketDataService = marketDataService;
     }
 
-    @KafkaListener(topics = "market-prices", groupId = "insight-group")
+    @KafkaListener(topics = "market-prices", groupId = "insight-group", containerFactory = "kafkaListenerContainerFactory")
     public void onPriceUpdated(PriceUpdatedEvent event) {
         log.info("Insight: Processing price update for ticker: {} @ {}", event.ticker(), event.newPrice());
         marketDataService.processUpdate(event);
