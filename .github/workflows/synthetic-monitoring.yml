@@ -32,10 +32,11 @@ jobs:
       - name: Run Synthetic Monitoring
         working-directory: ./frontend
         env:
-          # Targets the live production site
+          # Targets the live production site (CloudFront root domain)
           BASE_URL: https://vibhanshu-ai-portfolio.dev
-          # Gateway for seeding (direct call)
-          GATEWAY_BASE_URL: https://api.vibhanshu-ai-portfolio.dev
+          # Gateway base URL — API is served under /api/* on the same CloudFront distribution.
+          # There is no separate api. subdomain; the backend routes through the root domain.
+          GATEWAY_BASE_URL: https://vibhanshu-ai-portfolio.dev
           # Shared secret for seeding
           INTERNAL_API_KEY: ${{ secrets.INTERNAL_API_KEY }}
           # E2E test user credentials
