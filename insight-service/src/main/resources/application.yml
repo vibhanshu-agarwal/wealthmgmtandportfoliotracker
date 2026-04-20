@@ -36,6 +36,13 @@ spring:
 server:
   port: 8083
 
+app:
+  internal:
+    # Shared secret gating /api/internal/** endpoints (Golden-State seeder).
+    # Injected at runtime via the Lambda INTERNAL_API_KEY env var; blank in local dev
+    # unless explicitly exported, in which case the InternalApiKeyFilter fails closed with 503.
+    api-key: ${INTERNAL_API_KEY:}
+
 insight:
   portfolio-service:
     base-url: ${PORTFOLIO_SERVICE_URL:http://localhost:8081}

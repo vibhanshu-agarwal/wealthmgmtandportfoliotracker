@@ -197,6 +197,12 @@ variable "kafka_sasl_password" {
   description = "Kafka SASL/PLAIN password for broker authentication."
 }
 
+variable "internal_api_key" {
+  type        = string
+  sensitive   = true
+  description = "Shared secret gating /api/internal/** endpoints (Golden-State E2E seeder). Injected into every Lambda's INTERNAL_API_KEY env var; validated per-service by InternalApiKeyFilter."
+}
+
 # ---------------------------------------------------------------------------
 # Service-to-service URL overrides (two-phase apply pattern)
 # After first apply, set these via TF_VAR_* env vars or terraform.tfvars

@@ -55,6 +55,14 @@ public class CloudFrontOriginVerifyFilter implements GlobalFilter, Ordered {
             return chain.filter(exchange);
         }
 
+        // Bypass for the Golden-State E2E seeder. CI callers reach /api/internal/** without
+        // going through CloudFront, so X-Origin-Verify is never set; downstream services gate
+        // these paths on X-Internal-Api-Key instead (design doc \u00a7 7).
+        String path = exchange.getRequest().getURI().getPath();
+        if (path.startsWith("/api/internal/")) {
+            return chain.filter(exchange);
+        }
+
         String headerValue = exchange.getRequest().getHeaders().getFirst(ORIGIN_VERIFY_HEADER);
 
         if (!expectedSecret.equals(headerValue)) {

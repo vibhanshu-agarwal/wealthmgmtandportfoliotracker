@@ -16,6 +16,10 @@
 const GATEWAY_BASE = process.env.GATEWAY_BASE_URL ?? "http://localhost:8080";
 const DEEP_HEALTH_URL = `${GATEWAY_BASE}/api/portfolio/health`;
 const SHALLOW_HEALTH_URL = `${GATEWAY_BASE}/actuator/health`;
+
+const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY;
+const TEST_USER_ID = process.env.E2E_TEST_USER_EMAIL ?? "e2e-test-user@vibhanshu-ai-portfolio.dev";
+
 const POLL_INTERVAL_MS = 2_000;
 const DEEP_CHECK_TIMEOUT_MS = 30_000;
 const TOTAL_TIMEOUT_MS = Number(process.env.HEALTH_CHECK_TIMEOUT_MS ?? 120_000);
@@ -24,6 +28,67 @@ const SKIP_BACKEND_HEALTH_CHECK =
 
 function timestamp(): string {
   return new Date().toISOString();
+}
+
+async function runSeeding(): Promise<void> {
+  if (!INTERNAL_API_KEY) {
+    console.warn(`[${timestamp()}] Skipping Golden State seeding: INTERNAL_API_KEY not set.`);
+    return;
+  }
+
+  console.log(`[${timestamp()}] Starting Golden State seeding for ${TEST_USER_ID}...`);
+
+  try {
+    // 1. Portfolio Seeding -> Get portfolioId
+    const portfolioRes = await fetch(`${GATEWAY_BASE}/api/internal/portfolio/seed`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Internal-Api-Key": INTERNAL_API_KEY,
+      },
+      body: JSON.stringify({ userId: TEST_USER_ID }),
+    });
+
+    if (!portfolioRes.ok) {
+      throw new Error(`Portfolio seeding failed: ${portfolioRes.status} ${await portfolioRes.text()}`);
+    }
+
+    const { portfolioId } = await portfolioRes.json();
+    console.log(`[${timestamp()}] Portfolio seeded. ID: ${portfolioId}`);
+
+    // 2. Market Data Seeding
+    const marketRes = await fetch(`${GATEWAY_BASE}/api/internal/market-data/seed`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Internal-Api-Key": INTERNAL_API_KEY,
+      },
+      body: JSON.stringify({ userId: TEST_USER_ID }),
+    });
+
+    if (!marketRes.ok) {
+      throw new Error(`Market data seeding failed: ${marketRes.status} ${await marketRes.text()}`);
+    }
+    console.log(`[${timestamp()}] Market data seeded.`);
+
+    // 3. Insight Seeding (Cache Eviction)
+    const insightRes = await fetch(`${GATEWAY_BASE}/api/internal/insight/seed`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Internal-Api-Key": INTERNAL_API_KEY,
+      },
+      body: JSON.stringify({ userId: TEST_USER_ID, portfolioId }),
+    });
+
+    if (!insightRes.ok) {
+      throw new Error(`Insight seeding failed: ${insightRes.status} ${await insightRes.text()}`);
+    }
+    console.log(`[${timestamp()}] Insight cache evicted. Seeding complete.`);
+  } catch (error) {
+    console.error(`[${timestamp()}] Seeding ERROR:`, error);
+    throw error; // Fail the entire test run if seeding fails
+  }
 }
 
 async function poll(url: string, timeoutMs: number): Promise<boolean> {
@@ -47,6 +112,9 @@ async function poll(url: string, timeoutMs: number): Promise<boolean> {
 }
 
 async function globalSetup(): Promise<void> {
+  // Phase 0: Run seeding if applicable
+  await runSeeding();
+
   if (SKIP_BACKEND_HEALTH_CHECK) {
     console.log(
       `[${timestamp()}] Gateway health poll skipped (SKIP_BACKEND_HEALTH_CHECK=true). ` +

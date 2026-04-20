@@ -66,3 +66,7 @@ infrastructure/terraform/backend_override.tf
 
 ### Playwright test results ###
 frontend/test-results/
+
+### Golden-state seeder: seed-tickers.json is generated into each service by the
+### copySeedTickers Gradle task; the single source of truth lives in config/seed-tickers.json.
+**/src/main/resources/seed/seed-tickers.json

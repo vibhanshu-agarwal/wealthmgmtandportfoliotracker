@@ -8,6 +8,20 @@ plugins {
 // because containers are not running at build time.
 tasks.named('processTestAot') { enabled = false }
 
+// Copies the canonical ticker dictionary from the repo root into the service's
+// resources so the Golden-State seeder can load it from the classpath at runtime.
+// Retained on insight-service for symmetry even though its seeder only evicts cache keys.
+tasks.register('copySeedTickers', Copy) {
+    description = 'Copies config/seed-tickers.json into src/main/resources/seed/.'
+    group = 'build'
+    from rootProject.file('config/seed-tickers.json')
+    into layout.projectDirectory.dir('src/main/resources/seed')
+}
+
+tasks.named('processResources') {
+    dependsOn 'copySeedTickers'
+}
+
 dependencies {
     implementation project(':common-dto')
     implementation 'org.springframework.boot:spring-boot-starter-webmvc'

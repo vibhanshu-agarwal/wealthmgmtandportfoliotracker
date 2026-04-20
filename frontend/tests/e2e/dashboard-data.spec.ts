@@ -90,7 +90,9 @@ function attachNetworkLogger(page: Page, calls: ApiCall[]): void {
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
-test.describe("Dashboard Data Integration Diagnostics", () => {
+// QUARANTINED: entire describe block skipped per golden-state-seeder-backend spec
+// (Requirement 1). Re-enable once the golden-state seeder is wired into global-setup.
+test.describe.skip("Dashboard Data Integration Diagnostics", () => {
   /**
    * Test 1 — Session is active (global setup authenticated us)
    */

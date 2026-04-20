@@ -37,6 +37,10 @@ locals {
     KAFKA_BOOTSTRAP_SERVERS = var.kafka_bootstrap_servers
     KAFKA_SASL_USERNAME     = var.kafka_sasl_username
     KAFKA_SASL_PASSWORD     = var.kafka_sasl_password
+    # Golden-State E2E seeder shared secret. Merged into all four Lambdas; the
+    # api-gateway receives it as pass-through (not used by gateway code itself)
+    # and each downstream service validates it in InternalApiKeyFilter.
+    INTERNAL_API_KEY = var.internal_api_key
   }
 
   # VPC attachment only when managed AWS DB is on AND operators supplied subnets/SGs.

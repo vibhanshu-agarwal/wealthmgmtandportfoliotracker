@@ -34,8 +34,11 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
         // Skip JWT processing for paths that are permitAll() in SecurityConfig.
         // These paths have no principal — the filter must not reject them.
         // /api/auth/** is included to match the permitAll() declaration for auth endpoints.
+        // /api/internal/** is the Golden-State E2E seeder — gated on X-Internal-Api-Key
+        // by the downstream services, not by JWT at the gateway (design doc \u00a7 7).
         if (path.startsWith("/actuator") || path.equals("/api/portfolio/health")
-                || path.equals("/api/auth") || path.startsWith("/api/auth/")) {
+                || path.equals("/api/auth") || path.startsWith("/api/auth/")
+                || path.startsWith("/api/internal/")) {
             // Still strip X-User-Id to prevent spoofing on public endpoints.
             ServerWebExchange sanitised = exchange.mutate()
                     .request(r -> r.headers(h -> h.remove(X_USER_ID)))

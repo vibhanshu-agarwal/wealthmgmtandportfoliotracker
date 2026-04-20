@@ -1,0 +1,105 @@
+# Implementation Plan
+
+- [x] 1. Write bug condition exploration tests
+  - **Property 1: Bug Condition** - JWT Secret Mismatch & Missing CORS Headers
+  - **CRITICAL**: These tests MUST FAIL on unfixed code — failure confirms the bug exists
+  - **DO NOT attempt to fix the tests or the code when they fail**
+  - **NOTE**: These tests encode the expected behavior — they will validate the fix when they pass after implementation
+  - **GOAL**: Surface counterexamples that demonstrate both root causes of the bug
+  - **Scoped PBT Approach**: Scope the property to the concrete failing cases:
+    - (a) JWT secret forwarding: Parse `docker-compose.yml`, extract the `api-gateway` service environment block, and assert that `AUTH_JWT_SECRET` is present as a key. This confirms the env var is forwarded into the container. On unfixed code, this key is absent → test FAILS.
+    - (b) CORS configuration: Load the Spring `SecurityConfig.java` source or use a Spring Boot test slice (`@WebFluxTest`) to verify that the `SecurityWebFilterChain` includes CORS configuration. On unfixed code, `.cors()` is not called → test FAILS.
+  - **Test file (a)**: Create `api-gateway/src/test/java/com/wealth/gateway/DockerComposeSecretForwardingTest.java`
+    - Parse `docker-compose.yml` using SnakeYAML (already on classpath via Spring Boot)
+    - Extract `services.api-gateway.environment` map
+    - Assert key `AUTH_JWT_SECRET` exists and its value template references `${AUTH_JWT_SECRET:-local-dev-secret-change-me-min-32-chars}`
+    - This is a deterministic structural test — the bug condition is `isBugCondition(input) WHERE containerEnv.get("AUTH_JWT_SECRET") IS NULL`
+  - **Test file (b)**: Create `api-gateway/src/test/java/com/wealth/gateway/CorsConfigurationTest.java`
+    - Use `@WebFluxTest(SecurityConfig.class)` or load the `SecurityConfig` bean in a test context
+    - Send a mock request with `Origin: http://localhost:3000` to any `/api/**` path
+    - Assert response includes `Access-Control-Allow-Origin: http://localhost:3000`
+    - On unfixed code, no CORS headers are returned → test FAILS
+    - This confirms `isBugCondition(input) WHERE securityConfig.cors IS NOT CONFIGURED`
+  - Run tests on UNFIXED code
+  - **EXPECTED OUTCOME**: Both tests FAIL (this is correct — it proves the bug exists)
+  - Document counterexamples found:
+    - (a) `docker-compose.yml` api-gateway environment block has no `AUTH_JWT_SECRET` key
+    - (b) Response to cross-origin request lacks `Access-Control-Allow-Origin` header
+  - Mark task complete when tests are written, run, and failures are documented
+  - _Requirements: 1.1, 1.2, 1.4, 2.1, 2.4_
+
+- [x] 2. Write preservation property tests (BEFORE implementing fix)
+  - **Property 2: Preservation** - Local Dev Fallback, Security Posture & AWS Profile Isolation
+  - **IMPORTANT**: Follow observation-first methodology — observe behavior on UNFIXED code first
+  - **Observe on unfixed code**:
+    - (a) Local dev fallback: `application-local.yml` resolves `auth.jwt.secret` to `local-dev-secret-change-me-min-32-chars` when `AUTH_JWT_SECRET` is unset. The `localJwtDecoder` bean accepts JWTs signed with this default. Observe this works on unfixed code.
+    - (b) Unauthenticated rejection: Requests to `/api/**` without `Authorization` header return 401. Observe on unfixed code.
+    - (c) Actuator access: Requests to `/actuator/health` return 200 without authentication. Observe on unfixed code.
+    - (d) AWS profile isolation: The `awsJwtDecoder` bean is only active under `@Profile("aws")` and uses RS256 JWK URI. The `localJwtDecoder` bean is only active under `@Profile("local")`. Observe on unfixed code.
+    - (e) X-User-Id stripping: `JwtAuthenticationFilter` strips caller-supplied `X-User-Id` and injects `sub` claim. Observe on unfixed code.
+  - **Test file**: Create `api-gateway/src/test/java/com/wealth/gateway/PreservationPropertyTest.java`
+    - **Property 2a — Local Dev Secret Fallback**: For any environment where `AUTH_JWT_SECRET` is unset, assert `application-local.yml` contains the fallback `${AUTH_JWT_SECRET:local-dev-secret-change-me-min-32-chars}`. Parse the YAML and verify the property resolution chain. Property-based: generate random strings for other env vars, confirm the fallback is always the same default.
+    - **Property 2b — Unauthenticated Rejection**: Use `WebTestClient` to send requests to `/api/portfolio` without auth. Assert 401 for all such requests. Property-based: generate random paths under `/api/**`, all must return 401 without auth.
+    - **Property 2c — Actuator Permit All**: Use `WebTestClient` to send requests to `/actuator/health`. Assert 200 without authentication. Property-based: generate random actuator sub-paths (`/actuator/health`, `/actuator/info`), all must be permitted.
+    - **Property 2d — AWS Profile Isolation**: Verify `JwtDecoderConfig` has `@Profile("aws")` on `awsJwtDecoder` and `@Profile("local")` on `localJwtDecoder`. This is a structural/reflection test ensuring profile annotations are present.
+    - **Property 2e — X-User-Id Stripping**: Verify `JwtAuthenticationFilter` removes caller-supplied `X-User-Id` headers. Use `WebTestClient` with a spoofed `X-User-Id` header and valid JWT — assert the downstream receives the JWT's `sub` claim, not the spoofed value.
+  - Run tests on UNFIXED code
+  - **EXPECTED OUTCOME**: All tests PASS (this confirms baseline behavior to preserve)
+  - Mark task complete when tests are written, run, and passing on unfixed code
+  - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6_
+
+- [x] 3. Fix for E2E CI Auth Failure — JWT secret forwarding and CORS configuration
+  - [x] 3.1 Add `AUTH_JWT_SECRET` environment variable to `api-gateway` in `docker-compose.yml`
+    - Add `AUTH_JWT_SECRET: ${AUTH_JWT_SECRET:-local-dev-secret-change-me-min-32-chars}` to the `api-gateway` service's `environment` block
+    - The `:-` syntax provides the same fallback default used in `application-local.yml`, so local dev without the env var continues to work identically
+    - This ensures the CI runner's `AUTH_JWT_SECRET` (from GitHub Secrets) is forwarded into the container
+    - _Bug_Condition: isBugCondition(input) WHERE hostEnv.get("AUTH_JWT_SECRET") IS NOT NULL AND containerEnv.get("AUTH_JWT_SECRET") IS NULL_
+    - _Expected_Behavior: containerEnv.get("AUTH_JWT_SECRET") == hostEnv.get("AUTH_JWT_SECRET") after fix_
+    - _Preservation: Local dev without AUTH_JWT_SECRET falls back to default secret (unchanged)_
+    - _Requirements: 1.1, 2.1, 2.2, 2.3, 3.1, 3.2_
+
+  - [x] 3.2 Add CORS configuration to `SecurityConfig.java`
+    - Add `.cors(cors -> cors.configurationSource(corsConfigurationSource()))` to the `SecurityWebFilterChain` builder chain in `springSecurityFilterChain()`
+    - Define a `corsConfigurationSource()` method (or `@Bean`) that returns a `CorsConfigurationSource` with:
+      - `allowedOrigins`: `http://localhost:3000` only
+      - `allowedMethods`: GET, POST, PUT, DELETE, OPTIONS
+      - `allowedHeaders`: Authorization, Content-Type, X-Requested-With
+      - `allowCredentials`: true
+      - `maxAge`: 3600
+      - Applied to all paths (`/**`)
+    - Note: Spring WebFlux uses `CorsWebFilter` / `CorsConfiguration` — adapt the approach for the reactive stack (use `UrlBasedCorsConfigurationSource` from `org.springframework.web.cors.reactive` package)
+    - Annotate the CORS bean with `@Profile("local")` so it only activates under the local profile — AWS uses CloudFront for CORS
+    - _Bug_Condition: isBugCondition(input) WHERE requestOrigin IS NOT NULL AND securityConfig.cors IS NOT CONFIGURED_
+    - _Expected_Behavior: response.headers.get("Access-Control-Allow-Origin") == "http://localhost:3000" for cross-origin requests_
+    - _Preservation: AWS profile security chain is unmodified; unauthenticated rejection and actuator access unchanged_
+    - _Requirements: 1.4, 2.4, 3.3, 3.4, 3.5_
+
+  - [x] 3.3 Verify bug condition exploration tests now pass
+    - **Property 1: Expected Behavior** - JWT Secret Forwarding & CORS Headers Present
+    - **IMPORTANT**: Re-run the SAME tests from task 1 — do NOT write new tests
+    - The tests from task 1 encode the expected behavior:
+      - (a) `DockerComposeSecretForwardingTest` now finds `AUTH_JWT_SECRET` in the api-gateway environment → PASSES
+      - (b) `CorsConfigurationTest` now receives `Access-Control-Allow-Origin` header → PASSES
+    - Run bug condition exploration tests from step 1
+    - **EXPECTED OUTCOME**: Both tests PASS (confirms bug is fixed)
+    - _Requirements: 2.1, 2.2, 2.4_
+
+  - [x] 3.4 Verify preservation tests still pass
+    - **Property 2: Preservation** - Local Dev Fallback, Security Posture & AWS Profile Isolation
+    - **IMPORTANT**: Re-run the SAME tests from task 2 — do NOT write new tests
+    - Run preservation property tests from step 2
+    - **EXPECTED OUTCOME**: All tests PASS (confirms no regressions)
+    - Confirm all preservation tests still pass after fix:
+      - Local dev secret fallback unchanged
+      - Unauthenticated `/api/**` rejection unchanged (401)
+      - Actuator `/actuator/**` access unchanged (200)
+      - AWS profile `@Profile("aws")` decoder unaffected
+      - `X-User-Id` stripping behavior unchanged
+
+- [x] 4. Checkpoint — Ensure all tests pass
+  - Run the full api-gateway test suite: `./gradlew :api-gateway:test`
+  - Ensure all bug condition exploration tests pass (Property 1)
+  - Ensure all preservation property tests pass (Property 2)
+  - Ensure no pre-existing tests are broken by the changes
+  - If any test fails, diagnose and fix before proceeding
+  - Ask the user if questions arise
