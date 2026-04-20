@@ -28,9 +28,10 @@ export function MarketSummaryCard({ summary }: MarketSummaryCardProps) {
     summary;
 
   // Trend direction
-  const trendIsPositive = trendPercent !== null && trendPercent > 0;
-  const trendIsNegative = trendPercent !== null && trendPercent < 0;
-  const trendIsNull = trendPercent === null;
+  const safeTrendPercent = trendPercent ?? null;
+  const trendIsPositive = safeTrendPercent !== null && safeTrendPercent > 0;
+  const trendIsNegative = safeTrendPercent !== null && safeTrendPercent < 0;
+  const trendIsNull = safeTrendPercent === null;
 
   // Sparkline stroke color follows trend direction
   const sparklineColor = trendIsPositive
@@ -40,14 +41,15 @@ export function MarketSummaryCard({ summary }: MarketSummaryCardProps) {
       : "hsl(215 16% 47%)";
 
   // Convert priceHistory to Recharts data format
-  const sparklineData = priceHistory.map((price, i) => ({ i, price }));
+  const safePriceHistory = priceHistory || [];
+  const sparklineData = safePriceHistory.map((price, i) => ({ i, price }));
 
   return (
     <Card className="relative overflow-hidden">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-sm font-mono font-bold">{ticker}</CardTitle>
         <TrendIndicator
-          trendPercent={trendPercent}
+          trendPercent={safeTrendPercent}
           isPositive={trendIsPositive}
           isNull={trendIsNull}
         />
@@ -60,7 +62,7 @@ export function MarketSummaryCard({ summary }: MarketSummaryCardProps) {
         </p>
 
         {/* Sparkline — hidden when fewer than 2 data points */}
-        {priceHistory.length >= 2 && (
+        {safePriceHistory.length >= 2 && (
           <div className="h-12" data-testid="sparkline">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={sparklineData}>
