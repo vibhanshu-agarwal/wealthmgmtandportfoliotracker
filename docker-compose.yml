@@ -76,6 +76,7 @@ services:
       SPRING_DATASOURCE_USERNAME: wealth_user
       SPRING_DATASOURCE_PASSWORD: wealth_pass
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY}
     ports:
       - '8081:8081'
     healthcheck:
@@ -101,6 +102,7 @@ services:
     environment:
       SPRING_MONGODB_URI: mongodb://mongodb:27017/market_db
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY}
     ports:
       - '8082:8082'
     healthcheck:
@@ -134,6 +136,7 @@ services:
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
       PORTFOLIO_SERVICE_URL: http://portfolio-service:8081
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY}
     ports:
       - '8083:8083'
     healthcheck:
@@ -171,6 +174,7 @@ services:
       PORTFOLIO_SERVICE_URL: http://portfolio-service:8081
       MARKET_DATA_SERVICE_URL: http://market-data-service:8082
       INSIGHT_SERVICE_URL: http://insight-service:8083
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY}
     ports:
       - '8080:8080'
     healthcheck:
