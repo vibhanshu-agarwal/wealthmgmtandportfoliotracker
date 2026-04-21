@@ -43,7 +43,7 @@ jobs:
           # The synthetic tests themselves are the health signal for this environment.
           SKIP_BACKEND_HEALTH_CHECK: "true"
           # Shared secret for seeding
-          INTERNAL_API_KEY: ${{ secrets.INTERNAL_API_KEY }}
+          INTERNAL_API_KEY: ${{ secrets.TF_VAR_INTERNAL_API_KEY }}
           # E2E test user credentials
           E2E_TEST_USER_EMAIL: e2e-test-user@vibhanshu-ai-portfolio.dev
           E2E_TEST_USER_PASSWORD: ${{ secrets.E2E_TEST_USER_PASSWORD }}

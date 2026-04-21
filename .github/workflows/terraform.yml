@@ -47,7 +47,7 @@ env:
   # Custom domain — CloudFront alias + ACM certificate
   TF_VAR_domain_name: ${{ secrets.DOMAIN_NAME }}
   TF_VAR_acm_certificate_arn: ${{ secrets.ACM_CERTIFICATE_ARN }}
-  TF_VAR_internal_api_key: ${{ secrets.INTERNAL_API_KEY }}
+  TF_VAR_internal_api_key: ${{ secrets.TF_VAR_INTERNAL_API_KEY }}
   # route53_zone_id intentionally omitted — DNS is managed externally (domain registrar)
 
 jobs:
