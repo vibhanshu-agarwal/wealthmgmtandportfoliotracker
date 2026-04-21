@@ -254,11 +254,12 @@ jobs:
         # Runs against the live site — only on push to main to avoid hammering AWS on every PR
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
+          INTERNAL_API_KEY: ${{ secrets.INTERNAL_API_KEY }}
           E2E_TEST_USER_EMAIL: ${{ secrets.E2E_TEST_USER_EMAIL }}
           E2E_TEST_USER_PASSWORD: ${{ secrets.E2E_TEST_USER_PASSWORD }}
         run: |
           npx playwright test \
-            tests/e2e/aws-synthetic.spec.ts \
+            tests/e2e/aws-synthetic/aws-synthetic.spec.ts \
             --project=aws-synthetic \
             --reporter=list
 
