@@ -33,11 +33,29 @@ on:
   push:
     branches:
       - main
-      - architecture/cloud-native-extraction
+  workflow_dispatch:
 
 jobs:
+  # Fail-Fast: Verify all 3rd party connections before starting deployment.
+  pre-flight:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Connectivity Checks
+        env:
+          POSTGRES_CONNECTION_STRING: ${{ secrets.POSTGRES_CONNECTION_STRING }}
+          MONGODB_CONNECTION_STRING: ${{ secrets.MONGODB_CONNECTION_STRING }}
+          REDIS_URL: ${{ secrets.REDIS_URL }}
+          KAFKA_BOOTSTRAP_SERVERS: ${{ secrets.KAFKA_BOOTSTRAP_SERVERS }}
+        run: |
+          chmod +x infrastructure/scripts/verify_connectivity.sh
+          ./infrastructure/scripts/verify_connectivity.sh
+
   # Static export → S3 → CloudFront invalidation (same path browsers hit via CDN).
   deploy-frontend:
+    needs: pre-flight
     runs-on: ubuntu-latest
 
     steps:
@@ -81,6 +99,7 @@ jobs:
   # IMAGE-ONLY: env vars are managed by terraform.yml — this job only updates function code.
   # Build order: api-gateway → portfolio-service → market-data-service → insight-service
   deploy-backend:
+    needs: pre-flight
     runs-on: ubuntu-latest
 
     steps:

@@ -115,6 +115,12 @@ variable "kafka_sasl_password" {
   description = "Kafka SASL/PLAIN password."
 }
 
+variable "internal_api_key" {
+  type        = string
+  sensitive   = true
+  description = "Shared secret gating /api/internal/** endpoints (Golden-State E2E seeder). Merged into every Lambda's environment as INTERNAL_API_KEY."
+}
+
 variable "portfolio_function_url" {
   type    = string
   default = ""

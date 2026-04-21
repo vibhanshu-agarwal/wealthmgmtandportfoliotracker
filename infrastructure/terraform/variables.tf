@@ -1,3 +1,5 @@
+# Infrastructure variables for Wealth Management & Portfolio Tracker
+# Triggering CI/CD for Golden State Seeder Phase 3
 variable "use_localstack" {
   type        = bool
   default     = false
@@ -195,6 +197,12 @@ variable "kafka_sasl_password" {
   type        = string
   sensitive   = true
   description = "Kafka SASL/PLAIN password for broker authentication."
+}
+
+variable "internal_api_key" {
+  type        = string
+  sensitive   = true
+  description = "Shared secret gating /api/internal/** endpoints (Golden-State E2E seeder). Injected into every Lambda's INTERNAL_API_KEY env var; validated per-service by InternalApiKeyFilter."
 }
 
 # ---------------------------------------------------------------------------

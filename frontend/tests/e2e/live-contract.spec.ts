@@ -32,9 +32,14 @@ test.describe("Live Contract Verification (Golden Path)", () => {
     await expect(page.getByTestId("total-value")).toBeVisible({ timeout: 15_000 });
   });
 
-  // SKIPPED: getByTestId('chat-input') never becomes visible on /ai-insights.
-  // The AI chat UI is not rendering the expected element.
-  // Re-enable once the AI Insights page exposes data-testid="chat-input".
+  // SKIPPED: Confirmed failing in CI. RCA:
+  //   1. installGatewaySessionInitScript POSTs to /api/auth/login on the local Spring stack.
+  //      If the stack is cold or not yet ready, the login fails and beforeEach throws,
+  //      leaving the page in an unauthenticated state where ChatInterface never hydrates.
+  //   2. Even when auth succeeds, page.addInitScript only fires on the next goto() —
+  //      useAuthSession's useLayoutEffect may race and read an empty localStorage first.
+  // Pre-condition to re-enable: verify /api/auth/login responds in beforeEach, and
+  // add an explicit waitForSelector on the chat-input after goto('/ai-insights').
   test.skip("Bedrock AI Chat live interaction contract", async ({ page }) => {
     const chatResponsePromise = page.waitForResponse((response) => 
       response.url().includes("/api/chat") && response.request().method() === "POST"

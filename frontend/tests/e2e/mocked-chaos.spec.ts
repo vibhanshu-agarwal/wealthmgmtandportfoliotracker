@@ -52,9 +52,14 @@ test.describe("Mocked Chaos Tests (Error Boundaries)", () => {
     await expect(page.getByRole("navigation")).toBeVisible();
   });
 
-  // SKIPPED: getByTestId('chat-input') never becomes visible on /ai-insights.
-  // Same root cause as live-contract.spec.ts — AI chat UI not rendering expected element.
-  // Re-enable once the AI Insights page exposes data-testid="chat-input".
+  // SKIPPED: Confirmed failing in CI. RCA:
+  //   1. installGatewaySessionInitScript POSTs to /api/auth/login on the local Spring stack.
+  //      If the stack is cold or not yet ready, the login fails and beforeEach throws,
+  //      leaving the page in an unauthenticated state where ChatInterface never hydrates.
+  //   2. Even when auth succeeds, page.addInitScript only fires on the next goto() —
+  //      useAuthSession's useLayoutEffect may race and read an empty localStorage first.
+  // Pre-condition to re-enable: verify /api/auth/login responds in beforeEach, and
+  // add an explicit waitForSelector on the chat-input after goto('/ai-insights').
   test.skip("502 Bad Gateway fallback", async ({ page }) => {
     // Mock the chat/insights API
     await page.route("**/api/chat", async (route) => {

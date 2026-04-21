@@ -28,6 +28,13 @@ spring:
       properties:
         spring.json.trusted.packages: "*"
 
+app:
+  internal:
+    # Shared secret gating /api/internal/** endpoints (Golden-State seeder).
+    # Injected at runtime via the Lambda INTERNAL_API_KEY env var; blank in local dev
+    # unless explicitly exported, in which case the InternalApiKeyFilter fails closed with 503.
+    api-key: ${INTERNAL_API_KEY:}
+
 server:
   port: 8081
 

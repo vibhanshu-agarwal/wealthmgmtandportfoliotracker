@@ -1,0 +1,119 @@
+# Implementation Plan
+
+- [x] 1. Write bug condition exploration tests (BEFORE implementing fix)
+  - **Property 1: Bug Condition** — Production CORS & Auth Endpoint Rejection
+  - **CRITICAL**: These tests MUST FAIL on unfixed code — failure confirms the bug exists
+  - **DO NOT attempt to fix the tests or the code when they fail**
+  - **NOTE**: These tests encode the expected behavior — they will validate the fix when they pass after implementation
+  - **GOAL**: Surface counterexamples that demonstrate both bugs exist on the current code
+  - **Scoped PBT Approach**: Scope the property to the concrete failing cases identified in the design
+  - Create new integration test class `CorsAndAuthBugConditionTest.java` in `api-gateway/src/test/java/com/wealth/gateway/`
+  - Use `@Tag("integration")`, `@Testcontainers`, `@SpringBootTest(webEnvironment = RANDOM_PORT)`, `@ActiveProfiles("local")` — matching existing test patterns
+  - Use `WebTestClient`, Testcontainers Redis, `@DynamicPropertySource` for `auth.jwt.secret` — same as `JwtFilterIntegrationTest`
+  - **Bug Condition A — CORS rejection for production origins** (from `isBugCondition.corsCondition`):
+    - Test: `OPTIONS /api/portfolio` with `Origin: https://vibhanshu-ai-portfolio.dev` → assert `Access-Control-Allow-Origin` header is present and equals the request origin
+    - Test: `OPTIONS /api/portfolio` with `Origin: https://app.vibhanshu-ai-portfolio.dev` → assert `Access-Control-Allow-Origin` header is present
+    - Test: `GET /api/portfolio` with valid JWT and `Origin: https://vibhanshu-ai-portfolio.dev` → assert `Access-Control-Allow-Origin` header is present
+    - These will FAIL on unfixed code because `SecurityConfig.corsConfigurationSource()` hard-codes only `http://localhost:3000` and `http://127.0.0.1:3000`
+  - **Bug Condition B — JWT filter rejection for `/api/auth/**`paths** (from`isBugCondition.jwtFilterCondition`):
+    - Test: `POST /api/auth/login` with no `Authorization` header → assert response status is NOT 401
+    - Test: `POST /api/auth/register` with no `Authorization` header → assert response status is NOT 401
+    - Test: `POST /api/auth/login` with spoofed `X-User-Id: attacker` header and no JWT → assert response status is NOT 401 (request reaches downstream, not blocked by JWT filter)
+    - Test: `POST /api/auth` (no trailing slash) with no `Authorization` header → assert response status is NOT 401 (trailing-slash edge case)
+    - Test: `POST /api/authentication` with no `Authorization` header → assert response status IS 401 (must NOT match the skip list — negative edge case)
+    - These will FAIL on unfixed code because `JwtAuthenticationFilter` skip list only includes `/actuator` and `/api/portfolio/health`, not `/api/auth/`
+  - Run tests on UNFIXED code via `./gradlew :api-gateway:integrationTest --tests "com.wealth.gateway.CorsAndAuthBugConditionTest"`
+  - **EXPECTED OUTCOME**: Tests FAIL (this is correct — it proves both bugs exist)
+  - Document counterexamples found (e.g., "production origin gets no CORS headers", "auth endpoints return 401 without JWT")
+  - Mark task complete when tests are written, run, and failures are documented
+  - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6_
+
+- [x] 2. Write preservation property tests (BEFORE implementing fix)
+  - **Property 2: Preservation** — Localhost CORS, Disallowed Origins, Authenticated Endpoints, Actuator Skip
+  - **IMPORTANT**: Follow observation-first methodology — observe behavior on UNFIXED code, then write tests capturing it
+  - Create new integration test class `CorsAndAuthPreservationPropertyTest.java` in `api-gateway/src/test/java/com/wealth/gateway/`
+  - Use `@Tag("integration")`, `@Testcontainers`, `@SpringBootTest(webEnvironment = RANDOM_PORT)`, `@ActiveProfiles("local")` — matching existing test patterns
+  - Use `WebTestClient`, Testcontainers Redis, `@DynamicPropertySource` for `auth.jwt.secret` — same as existing tests
+  - **Preservation A — Localhost CORS origins still accepted** (from Preservation Requirements 3.1, 3.2, 3.8):
+    - Observe: `OPTIONS /api/portfolio` with `Origin: http://localhost:3000` returns `Access-Control-Allow-Origin: http://localhost:3000` on unfixed code
+    - Observe: `OPTIONS /api/portfolio` with `Origin: http://127.0.0.1:3000` returns `Access-Control-Allow-Origin: http://127.0.0.1:3000` on unfixed code
+    - Observe: CORS responses include `Access-Control-Allow-Credentials: true` on unfixed code
+    - Write parameterized tests asserting these observations hold
+  - **Preservation B — Disallowed origins still rejected** (from Preservation Requirements 3.3):
+    - Observe: `OPTIONS /api/portfolio` with `Origin: https://evil.com` returns no `Access-Control-Allow-Origin` header on unfixed code
+    - Generate multiple disallowed origins (`https://evil.com`, `https://attacker.io`, `https://not-allowed.org`, `http://localhost:9999`, `https://vibhanshu-ai-portfolio.dev.evil.com`)
+    - Write parameterized test asserting no CORS headers for disallowed origins
+  - **Preservation C — Authenticated endpoint behavior unchanged** (from Preservation Requirements 3.4, 3.5):
+    - Observe: `GET /api/portfolio` with valid JWT returns non-401 status on unfixed code
+    - Observe: `GET /api/portfolio` without JWT returns 401 on unfixed code
+    - Observe: `GET /api/market` without JWT returns 401 on unfixed code
+    - Write parameterized tests with random UUID sub values for valid JWT acceptance
+    - Write parameterized tests for unauthenticated rejection across multiple protected paths
+  - **Preservation D — Actuator and health skip preserved** (from Preservation Requirements 3.6):
+    - Observe: `GET /actuator/health` without JWT returns 200 on unfixed code
+    - Observe: `GET /api/portfolio/health` without JWT returns non-401 on unfixed code
+    - Write tests asserting these skip paths continue to work
+  - **Preservation E — X-User-Id stripping on all paths** (from Preservation Requirements 3.7):
+    - Observe: `GET /api/portfolio` with valid JWT and spoofed `X-User-Id: attacker` returns non-401 on unfixed code (header stripped, real sub injected)
+    - Write test asserting spoofed header does not cause rejection
+  - Run tests on UNFIXED code via `./gradlew :api-gateway:integrationTest --tests "com.wealth.gateway.CorsAndAuthPreservationPropertyTest"`
+  - **EXPECTED OUTCOME**: Tests PASS (this confirms baseline behavior to preserve)
+  - Mark task complete when tests are written, run, and passing on unfixed code
+  - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8_
+
+- [x] 3. Fix for Login 403 & Access Denied — CORS and JWT filter bugs
+  - [x] 3.1 Externalize CORS allowed-origin patterns in `application.yml` and `application-prod.yml`
+    - In `api-gateway/src/main/resources/application.yml`, add default CORS patterns under `app.cors.allowed-origin-patterns` with `http://localhost:3000` and `http://127.0.0.1:3000`
+    - In `api-gateway/src/main/resources/application-prod.yml`, add production CORS patterns under `app.cors.allowed-origin-patterns` with `https://vibhanshu-ai-portfolio.dev` and `https://*.vibhanshu-ai-portfolio.dev`
+    - _Bug_Condition: isBugCondition(input) where input.origin NOT IN hard-coded localhost list AND input.origin matches a legitimate production pattern_
+    - _Expected_Behavior: Production origins receive valid CORS headers from externalized config_
+    - _Preservation: Localhost origins continue to work via default config values_
+    - _Requirements: 2.1, 2.2, 2.4, 3.1, 3.2_
+
+  - [x] 3.2 Update `SecurityConfig` to use externalized patterns with `setAllowedOriginPatterns`
+    - In `api-gateway/src/main/java/com/wealth/gateway/SecurityConfig.java`:
+    - Inject `app.cors.allowed-origin-patterns` list via `@Value("${app.cors.allowed-origin-patterns:http://localhost:3000,http://127.0.0.1:3000}")` — the inline default prevents startup crash if the property is temporarily missing from YAML (e.g. detached config map)
+    - Replace `config.setAllowedOrigins(List.of(...))` with `config.setAllowedOriginPatterns(injectedPatterns)`
+    - Remove the hard-coded `List.of("http://localhost:3000", "http://127.0.0.1:3000")`
+    - Keep all other CORS settings unchanged: `allowedMethods`, `allowedHeaders`, `allowCredentials(true)`, `maxAge(3600L)`
+    - **WebFlux verification**: Confirm the `CorsConfiguration` + `UrlBasedCorsConfigurationSource` reactive path works correctly with `setAllowedOriginPatterns` — the existing plumbing already uses the reactive `CorsConfigurationSource` interface, so the switch from `setAllowedOrigins` to `setAllowedOriginPatterns` should be transparent, but verify in the integration tests
+    - _Bug_Condition: isBugCondition(input) where setAllowedOrigins rejects production origins and is incompatible with pattern matching when allowCredentials=true_
+    - _Expected_Behavior: setAllowedOriginPatterns accepts both exact origins and glob patterns, compatible with allowCredentials=true_
+    - _Preservation: All existing CORS behavior (methods, headers, credentials, maxAge) unchanged_
+    - _Requirements: 2.1, 2.2, 2.3, 2.4, 3.1, 3.2, 3.3, 3.8_
+
+  - [x] 3.3 Add `/api/auth/` to `JwtAuthenticationFilter` skip list with X-User-Id stripping
+    - In `api-gateway/src/main/java/com/wealth/gateway/JwtAuthenticationFilter.java`:
+    - Extend the existing skip-path `if` condition to include `path.startsWith("/api/auth/")` **AND** `path.equals("/api/auth")` — the trailing-slash-less form must also be handled to avoid a 401 on the bare path
+    - The `/api/auth/` path MUST go through the same header-stripping branch as `/actuator` and `/api/portfolio/health` — strip `X-User-Id` before passing through
+    - Do NOT create a separate branch — reuse the existing sanitization + `chain.filter(sanitised)` pattern
+    - **Edge case**: `/api/authentication` must NOT match — `startsWith("/api/auth/")` already prevents this, and `equals("/api/auth")` is exact, so no false positives
+    - _Bug_Condition: isBugCondition(input) where input.path starts with "/api/auth/" AND input.hasJwt = false → switchIfEmpty fires → 401_
+    - _Expected_Behavior: /api/auth/ paths skip JWT extraction, strip X-User-Id, pass through to downstream_
+    - _Preservation: /actuator and /api/portfolio/health skip behavior unchanged; X-User-Id stripping on all paths unchanged_
+    - _Requirements: 2.5, 2.6, 3.6, 3.7_
+
+  - [x] 3.4 Verify bug condition exploration tests now pass
+    - **Property 1: Expected Behavior** — Production CORS & Auth Endpoint Acceptance
+    - **IMPORTANT**: Re-run the SAME tests from task 1 — do NOT write new tests
+    - The tests from task 1 encode the expected behavior (production CORS accepted, auth endpoints pass through)
+    - When these tests pass, it confirms the expected behavior is satisfied
+    - Run: `./gradlew :api-gateway:integrationTest --tests "com.wealth.gateway.CorsAndAuthBugConditionTest"`
+    - **EXPECTED OUTCOME**: Tests PASS (confirms both bugs are fixed)
+    - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6_
+
+  - [x] 3.5 Verify preservation tests still pass
+    - **Property 2: Preservation** — Localhost CORS, Disallowed Origins, Authenticated Endpoints, Actuator Skip
+    - **IMPORTANT**: Re-run the SAME tests from task 2 — do NOT write new tests
+    - Run: `./gradlew :api-gateway:integrationTest --tests "com.wealth.gateway.CorsAndAuthPreservationPropertyTest"`
+    - **EXPECTED OUTCOME**: Tests PASS (confirms no regressions)
+    - Confirm all preservation tests still pass after fix (no regressions)
+    - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8_
+
+- [x] 4. Checkpoint — Ensure all tests pass
+  - Run full integration test suite: `./gradlew :api-gateway:integrationTest`
+  - Verify ALL existing tests still pass (including `JwtFilterIntegrationTest`, `CorsConfigurationTest`, `PreservationPropertyTest`, `JwtRejectionPreservationPropertyTest`, `JwtSecretAlignmentPropertyTest`)
+  - Verify the new bug condition tests pass (`CorsAndAuthBugConditionTest`)
+  - Verify the new preservation tests pass (`CorsAndAuthPreservationPropertyTest`)
+  - Run unit tests as well: `./gradlew :api-gateway:test`
+  - Ensure all tests pass, ask the user if questions arise.

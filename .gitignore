@@ -51,9 +51,10 @@ Thumbs.db
 
 ### Local Environment Variables (Keep secrets out of version control!) ###
 .env
-.env.secrets
-*.env.local
-*.env.secrets
+.env.*
+*.env
+*.env.*
+*.secrets
 
 ### Tooling artifacts ###
 frontend/.junie/
@@ -61,18 +62,16 @@ app-inspect.jar
 
 ### Terraform ###
 infrastructure/terraform/.terraform/
+infrastructure/terraform/.terraform.lock.hcl
 infrastructure/terraform/terraform.tfstate*
+infrastructure/terraform/tfplan*
 infrastructure/terraform/backend_override.tf
+infrastructure/terraform/.terraform.tfstate.local.lock.info
+infrastructure/terraform/scripts/__pycache__/
 
 ### Playwright test results ###
 frontend/test-results/
 frontend/playwright-report/
-
-### Terraform generated files ###
-infrastructure/terraform/.terraform.tfstate.local.lock.info
-infrastructure/terraform/tfplan
-infrastructure/terraform/tfplan-import
-infrastructure/terraform/scripts/__pycache__/
 
 ### Security / keystores ###
 kafka-truststore.jks
@@ -96,3 +95,7 @@ docs/specs/
 tmp*.html
 response*.json
 htmlReport/
+
+### Golden-state seeder: seed-tickers.json is generated into each service by the
+### copySeedTickers Gradle task; the single source of truth lives in config/seed-tickers.json.
+**/src/main/resources/seed/seed-tickers.json

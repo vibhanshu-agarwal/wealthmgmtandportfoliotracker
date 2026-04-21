@@ -32,10 +32,10 @@ spring:
             # 5 s is generous — Function URL connects immediately; longer means the Lambda
             # itself has crashed before accepting TCP.
             connect-timeout: 5000
-            # Hard budget for downstream response: 20 s keeps us well under CloudFront's
-            # 30 s origin-read timeout, so the client sees 504 (gateway timeout) rather
+            # Hard budget for downstream response: 55 s keeps us under CloudFront's
+            # 60 s origin-read timeout, so the client sees 504 (gateway timeout) rather
             # than a raw 502 socket reset when a downstream Lambda is slow or overloaded.
-            response-timeout: 20s
+            response-timeout: 55s
 
 auth:
   jwk-uri: ${AUTH_JWK_URI}

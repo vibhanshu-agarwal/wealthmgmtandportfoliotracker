@@ -90,6 +90,8 @@ function attachNetworkLogger(page: Page, calls: ApiCall[]): void {
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
+// NOTE: Test 2 remains individually skipped — POST /holdings 500 error not yet confirmed fixed.
+// All other tests are active: global-setup now handles Golden State seeding.
 test.describe("Dashboard Data Integration Diagnostics", () => {
   /**
    * Test 1 — Session is active (global setup authenticated us)
@@ -105,9 +107,9 @@ test.describe("Dashboard Data Integration Diagnostics", () => {
   /**
    * Test 2 — Portfolio page loads and total-value is not $0.00
    */
-  // SKIPPED: Backend POST /api/portfolio/{id}/holdings returns 500 during holding seeding.
-  // Re-enable once the holdings endpoint is fixed.
-  // Tracked failure: CI run 2026-04-19 — Internal Server Error on holdings POST
+  // SKIPPED: Backend POST /api/portfolio/{id}/holdings returned 500 (2026-04-19 CI run).
+  // The outer describe block is now active but this test remains quarantined until
+  // the holdings endpoint is confirmed healthy in a live run.
   test.skip("2. /portfolio renders total-value and it is not $0.00 after 5 s", async ({ page, request }) => {
     const calls: ApiCall[] = [];
     attachNetworkLogger(page, calls);

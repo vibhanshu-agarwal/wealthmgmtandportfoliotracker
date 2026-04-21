@@ -28,6 +28,21 @@ spring:
               uri: ${INSIGHT_SERVICE_URL:http://localhost:8083}
               predicates:
                 - Path=/api/chat/**
+            # Golden-State E2E seeder routes. The gateway is a dumb router for /api/internal/**:
+            # no JWT, no origin-verify, no X-User-Id injection. Each downstream service
+            # validates X-Internal-Api-Key itself (see InternalApiKeyFilter).
+            - id: internal-portfolio-seed
+              uri: ${PORTFOLIO_SERVICE_URL:http://localhost:8081}
+              predicates:
+                - Path=/api/internal/portfolio/**
+            - id: internal-market-data-seed
+              uri: ${MARKET_DATA_SERVICE_URL:http://localhost:8082}
+              predicates:
+                - Path=/api/internal/market-data/**
+            - id: internal-insight-seed
+              uri: ${INSIGHT_SERVICE_URL:http://localhost:8083}
+              predicates:
+                - Path=/api/internal/insight/**
 
 server:
   port: 8080

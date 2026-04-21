@@ -1,0 +1,146 @@
+# Implementation Plan
+
+- [x] 1. Write bug condition exploration test
+  - **Property 1: Bug Condition** — Lambda Misconfiguration Detection
+  - **CRITICAL**: This test MUST FAIL on unfixed code — failure confirms the bug exists
+  - **DO NOT attempt to fix the test or the code when it fails**
+  - **NOTE**: This test encodes the expected behavior — it will validate the fix when it passes after implementation
+  - **GOAL**: Surface counterexamples that demonstrate the seven misconfigurations exist in the current codebase
+  - **Scoped PBT Approach**: For each deterministic bug condition, scope the property to the concrete failing case(s):
+    - Parse `api-gateway/Dockerfile` runtime stage and assert ENTRYPOINT is `["java", ...]` (not the LWA binary)
+    - Parse `insight-service/Dockerfile` runtime stage and assert ENTRYPOINT is `["java", ...]` (not the LWA binary)
+    - Assert `insight-service/Dockerfile` does NOT hardcode `AWS_LWA_PORT=8083` (port mismatch with Terraform `PORT=8080`)
+    - Parse `infrastructure/terraform/modules/compute/main.tf` and assert all four Lambda `timeout` values are >= 60
+    - Assert `AWS_LWA_ASYNC_INIT = "true"` is present in `common_env` and `api_gateway_container_env` locals
+    - Assert no `snap_start` block exists on Zip-based Lambdas (portfolio, market-data, insight) with `handler = "not.used"`
+    - Assert api-gateway Lambda environment wires downstream URLs from `aws_lambda_function_url.*` resource references (not from variables defaulting to `""`)
+    - Assert `AWS_LWA_READINESS_CHECK_PATH = "/actuator/health"` is present in Lambda environment variables
+  - Run test on UNFIXED code
+  - **EXPECTED OUTCOME**: Test FAILS (this is correct — it proves the bug exists)
+  - Document counterexamples found:
+    - `api-gateway/Dockerfile` ENTRYPOINT is `["/opt/extensions/aws-lambda-web-adapter"]`
+    - `insight-service/Dockerfile` ENTRYPOINT is `["/opt/extensions/aws-lambda-web-adapter"]` and hardcodes `AWS_LWA_PORT=8083`
+    - All four Lambda timeouts are 30 seconds
+    - `AWS_LWA_ASYNC_INIT` is not set anywhere
+    - `snap_start { apply_on = "PublishedVersions" }` exists on portfolio, market-data, insight with `handler = "not.used"`
+    - api-gateway downstream URLs sourced from `var.portfolio_function_url` (defaults to `""`)
+    - `AWS_LWA_READINESS_CHECK_PATH` not set in Terraform env vars for Zip-based Lambdas
+  - Mark task complete when test is written, run, and failure is documented
+  - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7_
+
+- [x] 2. Write preservation property tests (BEFORE implementing fix)
+  - **Property 2: Preservation** — Unchanged Behaviors After Fix
+  - **IMPORTANT**: Follow observation-first methodology
+  - Observe behavior on UNFIXED code for non-buggy configurations:
+    - Observe: `portfolio-service/Dockerfile` ENTRYPOINT is `["java", "-jar", "/app/app.jar"]`
+    - Observe: `market-data-service/Dockerfile` ENTRYPOINT is `["java", "-Dspring.aot.enabled=true", "-jar", "/app/app.jar"]`
+    - Observe: `portfolio-service/Dockerfile` and `market-data-service/Dockerfile` do NOT contain `/opt/extensions/aws-lambda-web-adapter` as ENTRYPOINT
+    - Observe: IAM roles in `modules/compute/main.tf` — four roles (api_gateway, portfolio, market_data, insight) with their policy attachments
+    - Observe: Function URL resources — four `aws_lambda_function_url` resources with `authorization_type = "NONE"`
+    - Observe: Lambda alias resources — four `aws_lambda_alias` resources with `name = "live"`
+    - Observe: `deploy.yml` workflow structure — `deploy-frontend` and `deploy-backend` jobs with existing steps
+    - Observe: VPC config dynamic blocks remain conditional on `local.attach_lambda_vpc`
+    - Observe: `portfolio_function_url`, `market_data_function_url`, `insight_function_url` variables still exist in `modules/compute/variables.tf` (TF_VAR override mechanism preserved)
+  - Write property-based tests capturing observed behavior patterns:
+    - For all services in `[portfolio-service, market-data-service]`: Dockerfile ENTRYPOINT matches observed pattern (not modified by fix)
+    - For all IAM role resources: role names, assume_role_policy, and policy attachments are unchanged
+    - For all Function URL resources: `authorization_type`, `qualifier` bindings are unchanged
+    - For all alias resources: `name = "live"` binding is unchanged
+    - `deploy.yml` retains both `deploy-frontend` and `deploy-backend` jobs
+    - TF_VAR override variables remain declared in `modules/compute/variables.tf`
+  - Run tests on UNFIXED code
+  - **EXPECTED OUTCOME**: Tests PASS (this confirms baseline behavior to preserve)
+  - Mark task complete when tests are written, run, and passing on unfixed code
+  - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7_
+
+- [x] 3. Fix Lambda timeout and initialization failures
+  - [x] 3.1 Fix api-gateway Dockerfile ENTRYPOINT
+    - Replace `ENTRYPOINT ["/opt/extensions/aws-lambda-web-adapter"]` with `ENTRYPOINT ["java", "-Dspring.aot.enabled=true", "-jar", "/app/app.jar"]`
+    - Remove the `CMD` instruction (ENTRYPOINT now runs the app directly)
+    - The LWA remains in `/opt/extensions/` via the existing `COPY` instruction — Lambda auto-loads it as a sidecar extension
+    - _Bug_Condition: deployment.service == 'api-gateway' AND dockerfile.entrypoint == '/opt/extensions/aws-lambda-web-adapter'_
+    - _Expected_Behavior: ENTRYPOINT runs Java application; LWA loaded as sidecar from /opt/extensions/_
+    - _Preservation: portfolio-service and market-data-service Dockerfiles must NOT be modified_
+    - _Requirements: 2.1, 3.2, 3.5_
+
+  - [x] 3.2 Fix insight-service Dockerfile ENTRYPOINT and port mismatch
+    - Replace `ENTRYPOINT ["/opt/extensions/aws-lambda-web-adapter"]` with `ENTRYPOINT ["java", "-Dspring.aot.enabled=true", "-jar", "/app/app.jar"]`
+    - Remove the `CMD` instruction
+    - Remove `ENV AWS_LWA_PORT=8083` (port will be controlled by Terraform env vars at deploy time)
+    - Remove `ENV AWS_LWA_READINESS_CHECK_PATH=/actuator/health` from Dockerfile (will be set via Terraform for consistency)
+    - Change `EXPOSE 8083` to `EXPOSE 8080` to match Lambda runtime port
+    - _Bug_Condition: deployment.service == 'insight-service' AND dockerfile.entrypoint == '/opt/extensions/aws-lambda-web-adapter' AND AWS_LWA_PORT(8083) != PORT(8080)_
+    - _Expected_Behavior: ENTRYPOINT runs Java application; no hardcoded port mismatch; LWA port matches Spring Boot port_
+    - _Preservation: Local Docker Compose execution must continue to work (Spring Boot picks up port from application.yml locally)_
+    - _Requirements: 2.2, 3.5_
+
+  - [x] 3.3 Increase Lambda timeout to 60s and add async init + readiness path
+    - In `infrastructure/terraform/modules/compute/variables.tf`: add `variable "lambda_timeout"` with `type = number`, `default = 60`, description for Lambda timeout in seconds
+    - In `infrastructure/terraform/modules/compute/main.tf`: change `timeout = 30` to `timeout = var.lambda_timeout` on all four Lambda functions (api_gateway, portfolio, market_data, insight)
+    - In `infrastructure/terraform/modules/compute/main.tf`: add `AWS_LWA_ASYNC_INIT = "true"` to both `common_env` and `api_gateway_container_env` locals
+    - In `infrastructure/terraform/modules/compute/main.tf`: add `AWS_LWA_READINESS_CHECK_PATH = "/actuator/health"` to both `common_env` and `api_gateway_container_env` locals
+    - In `infrastructure/terraform/locals.tf`: add `lambda_timeout_seconds = 60` to `lambda_defaults`
+    - In `infrastructure/terraform/main.tf`: pass `lambda_timeout = coalesce(var.lambda_timeout, local.lambda_defaults.lambda_timeout_seconds)` to the compute module
+    - In `infrastructure/terraform/variables.tf`: add `variable "lambda_timeout"` with `type = number`, `nullable = true`, `default = null` for optional override
+    - _Bug_Condition: deployment.terraform.timeout < 60 AND AWS_LWA_ASYNC_INIT IS NULL AND AWS_LWA_READINESS_CHECK_PATH IS NULL_
+    - _Expected_Behavior: timeout >= 60, AWS_LWA_ASYNC_INIT = "true", AWS_LWA_READINESS_CHECK_PATH = "/actuator/health" on all four Lambdas_
+    - _Preservation: IAM roles, Function URLs, aliases, VPC config unchanged_
+    - _Requirements: 2.3, 2.4, 2.7, 3.6_
+
+  - [x] 3.4 Remove SnapStart from Zip-based Lambdas
+    - Remove the `snap_start { apply_on = "PublishedVersions" }` block from `aws_lambda_function.portfolio`, `aws_lambda_function.market_data`, and `aws_lambda_function.insight` in `infrastructure/terraform/modules/compute/main.tf`
+    - The `handler = "not.used"` is not a valid class for SnapStart; since these services use the Lambda Web Adapter pattern (not Spring Cloud Function), SnapStart with a dummy handler provides no benefit
+    - _Bug_Condition: deployment.terraform.handler == 'not.used' AND snap_start.apply_on == 'PublishedVersions'_
+    - _Expected_Behavior: No snap_start block on Zip-based Lambdas with dummy handler_
+    - _Preservation: Lambda aliases, Function URLs, publish = true remain unchanged_
+    - _Requirements: 2.5, 3.6_
+
+  - [x] 3.5 Wire downstream service URLs programmatically in Terraform
+    - In `infrastructure/terraform/modules/compute/main.tf`: replace `var.portfolio_function_url`, `var.market_data_function_url`, `var.insight_function_url` in the api-gateway Lambda environment with `coalesce(var.portfolio_function_url, aws_lambda_function_url.portfolio.function_url)`, `coalesce(var.market_data_function_url, aws_lambda_function_url.market_data.function_url)`, `coalesce(var.insight_function_url, aws_lambda_function_url.insight.function_url)`
+    - This eliminates the two-phase apply pattern while preserving TF_VAR override capability via `coalesce()`
+    - _Bug_Condition: api-gateway env PORTFOLIO_SERVICE_URL == '' (sourced from var defaulting to "")_
+    - _Expected_Behavior: Downstream URLs are programmatically wired from aws_lambda_function_url outputs; TF_VAR overrides still work via coalesce()_
+    - _Preservation: TF_VAR override mechanism preserved; variables remain declared in modules/compute/variables.tf_
+    - _Requirements: 2.6, 3.1, 3.7_
+
+  - [x] 3.6 Update deploy.yml to include new Lambda environment variables
+    - Add `AWS_LWA_ASYNC_INIT` and `AWS_LWA_READINESS_CHECK_PATH` to the `jq` command that generates `lambda-env.json` in the "Update Lambda function configuration" step
+    - Add `--arg AWS_LWA_ASYNC_INIT "true"` and `--arg AWS_LWA_READINESS_CHECK_PATH "/actuator/health"` to the `jq` invocation
+    - Add `AWS_LWA_ASYNC_INIT: $AWS_LWA_ASYNC_INIT` and `AWS_LWA_READINESS_CHECK_PATH: $AWS_LWA_READINESS_CHECK_PATH` to the Variables JSON object
+    - _Bug_Condition: deploy.yml lambda-env.json missing AWS_LWA_ASYNC_INIT and AWS_LWA_READINESS_CHECK_PATH_
+    - _Expected_Behavior: lambda-env.json includes all required env vars for LWA configuration_
+    - _Preservation: Existing deploy.yml workflow structure, steps, and secrets unchanged_
+    - _Requirements: 2.4, 2.7, 3.4_
+
+  - [x] 3.7 Verify bug condition exploration test now passes
+    - **Property 1: Expected Behavior** — Lambda Misconfiguration Detection
+    - **IMPORTANT**: Re-run the SAME test from task 1 — do NOT write a new test
+    - The test from task 1 encodes the expected behavior for all seven bug conditions
+    - When this test passes, it confirms:
+      - api-gateway and insight-service Dockerfiles have correct ENTRYPOINT
+      - insight-service Dockerfile no longer hardcodes `AWS_LWA_PORT=8083`
+      - All four Lambda timeouts are >= 60 seconds
+      - `AWS_LWA_ASYNC_INIT = "true"` is set in Terraform env vars
+      - SnapStart removed from Zip-based Lambdas with dummy handler
+      - Downstream URLs wired programmatically via `aws_lambda_function_url.*`
+      - `AWS_LWA_READINESS_CHECK_PATH = "/actuator/health"` is set in Terraform env vars
+    - Run bug condition exploration test from step 1
+    - **EXPECTED OUTCOME**: Test PASSES (confirms bug is fixed)
+    - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7_
+
+  - [x] 3.8 Verify preservation tests still pass
+    - **Property 2: Preservation** — Unchanged Behaviors After Fix
+    - **IMPORTANT**: Re-run the SAME tests from task 2 — do NOT write new tests
+    - Run preservation property tests from step 2
+    - **EXPECTED OUTCOME**: Tests PASS (confirms no regressions)
+    - Confirm all tests still pass after fix:
+      - portfolio-service and market-data-service Dockerfiles unchanged
+      - IAM roles, Function URLs, aliases unchanged
+      - deploy.yml workflow structure preserved
+      - TF_VAR override mechanism preserved
+    - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7_
+
+- [x] 4. Checkpoint — Ensure all tests pass
+  - Run the full test suite to confirm both bug condition and preservation tests pass
+  - Verify `terraform validate` succeeds on the fixed configuration (if Terraform is available)
+  - Ensure all tests pass, ask the user if questions arise

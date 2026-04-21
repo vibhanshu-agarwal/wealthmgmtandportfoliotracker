@@ -8,7 +8,9 @@ export default defineConfig({
   globalSetup: "./tests/e2e/global-setup.ts",
   timeout: 120_000,
   retries: 0,
-  reporter: [["list"]],
+  // Ensure serial execution to respect AWS Lambda concurrency limits
+  workers: 1,
+  reporter: [["list"], ["html", { open: "never" }]],
   use: {
     baseURL: process.env.BASE_URL ?? "http://localhost:3000",
     trace: "retain-on-failure",
@@ -23,7 +25,7 @@ export default defineConfig({
     // Main test project — inherits authenticated session from setup
     {
       name: "chromium",
-      testIgnore: [/dashboard-smoke\.spec\.ts$/, /aws-synthetic\.spec\.ts$/],
+      testIgnore: [/dashboard-smoke\.spec\.ts$/, /aws-synthetic\/.*/],
       use: {
         ...devices["Desktop Chrome"],
         storageState: authFile,
@@ -39,13 +41,13 @@ export default defineConfig({
     // Live AWS environment testing (synthetic monitoring)
     {
       name: "aws-synthetic",
-      testMatch: /aws-synthetic\.spec\.ts$/,
+      testDir: "./tests/e2e/aws-synthetic",
       use: { 
         ...devices["Desktop Chrome"],
         baseURL: "https://vibhanshu-ai-portfolio.dev",
       },
-      // Extended timeout to account for AWS Lambda / Bedrock cold starts
-      timeout: 120_000, 
+      // Extended timeout to account for AWS Lambda / Bedrock cold starts (90s per handoff)
+      timeout: 90_000, 
     },
   ],
   webServer: {
