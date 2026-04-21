@@ -79,3 +79,26 @@ Enhanced `global-setup.ts` with a manual `.env.secrets` parser.
 
 1. **Monitor Synthetic Latency**: Observe the `aws-synthetic` test suite for any performance regressions related to the new SSL handshake overhead.
 2. **Key Rotation Policy**: Move from manual `.env.secrets` management to AWS Secrets Manager as part of Phase 4 infrastructure scaling.
+
+---
+
+## 6. Production Stabilization — 502 Bad Gateway & Truststore RCA
+
+### 6.1 Standardized Kafka Truststore
+Identified a critical "Bad Gateway" (502) error in production caused by a `FileNotFoundException` during Kafka initialization.
+- **Root Cause**: The native Kafka client requires a physical file path for the truststore. While we had a `truststore.jks`, a legacy configuration or library default was specifically looking for `kafka-truststore.jks` on the classpath.
+- **Solution**: Standardized the naming convention across the entire project.
+  - Renamed `truststore.jks` to `kafka-truststore.jks` in `common-dto`.
+  - Updated all `TruststoreExtractor.extract` calls and `application-prod.yml` fallbacks to reference the new name.
+  - Hardened `TruststoreExtractor` to use `java.io.tmpdir` and correctly format `file:` URLs for Spring Boot 4 compatibility.
+
+### 6.2 CI/CD Secret Alignment
+Resolved `403 Forbidden` and `Internal Server Error` responses during E2E database seeding.
+- **Issue**: Secret name mismatch. The GitHub Action workflows were looking for `INTERNAL_API_KEY`, but the repository secret was named `TF_VAR_INTERNAL_API_KEY`.
+- **Resolution**: Synchronized all `.github/workflows` (`terraform.yml`, `ci-verification.yml`, `synthetic-monitoring.yml`) and `docker-compose.yml` to use the correct secret mapping.
+
+### 6.3 Repository Maintenance & Cleanup
+- **Braintrust Cleanup**: Removed the unintended `.bt/` metadata folder from the git index and added it to `.gitignore` to maintain a clean repository structure.
+- **Test Stabilization**: Updated all `TruststoreWiringTest` suites across all services to align with the new filename, ensuring the CI build remains green.
+- **Gitignore Tuning**: Updated the truststore exclusion to point to the new `kafka-truststore.jks` location.
+
