@@ -1,0 +1,235 @@
+# Implementation Plan
+
+- [x] 1. Write bug condition exploration test
+  - **Property 1: Bug Condition** - Lambda Environment Variable Ownership Defects
+  - **CRITICAL**: This test MUST FAIL on unfixed code — failure confirms the bug exists
+  - **DO NOT attempt to fix the test or the code when it fails**
+  - **NOTE**: This test encodes the expected behavior — it will validate the fix when it passes after implementation
+  - **GOAL**: Surface counterexamples that demonstrate all three bug paths exist in the current codebase
+  - **Scoped PBT Approach**: Scope the property to the concrete failing cases identified in the design:
+    - Path 1 (deploy.yml full-replace): Parse `deploy.yml` YAML and assert the `update-function-configuration` step does NOT exist. On unfixed code this FAILS because the step exists with an incomplete 11-key `Variables` map that omits `REDIS_URL`, `KAFKA_*`, `SPRING_DATASOURCE_*`.
+    - Path 2 (sync-secrets.sh --lambda drift): Parse `scripts/sync-secrets.sh` and assert no `--lambda` flag parsing and no `aws lambda update-function-configuration` call exist. On unfixed code this FAILS because the `--lambda` code path (lines 65-126) is present.
+    - Path 3 (incorrect Spring profile): Parse `modules/compute/main.tf` and assert `SPRING_PROFILES_ACTIVE` is set to `"prod,aws"` in both `common_env` and `api_gateway_container_env`. On unfixed code this FAILS because the value is `"aws"`.
+    - Path 4 (missing Terraform variables): Parse `modules/compute/main.tf` Lambda resource blocks and assert `REDIS_URL`, `KAFKA_BOOTSTRAP_SERVERS`, `KAFKA_SASL_USERNAME`, `KAFKA_SASL_PASSWORD` are present in the appropriate Lambda environment blocks. On unfixed code this FAILS because these variables are absent.
+  - Write a Python property-based test (using `hypothesis` or a simple parametric approach) that:
+    - Loads the actual project files (`deploy.yml`, `sync-secrets.sh`, `modules/compute/main.tf`, `modules/compute/variables.tf`)
+    - For each bug path, asserts the expected (fixed) behavior
+    - Generates counterexamples showing which files/lines contain the defect
+  - Run test on UNFIXED code
+  - **EXPECTED OUTCOME**: Test FAILS on all four paths (this is correct — it proves the bugs exist)
+  - Document counterexamples found:
+    - `deploy.yml` line ~137: `update-function-configuration` step with 11-key payload
+    - `sync-secrets.sh` line ~65: `--lambda` flag and `update-function-configuration` call
+    - `modules/compute/main.tf` line ~4: `SPRING_PROFILES_ACTIVE = "aws"` (not `"prod,aws"`)
+    - `modules/compute/main.tf`: Lambda resources missing `REDIS_URL`, `KAFKA_*` env vars
+  - Mark task complete when test is written, run, and failure is documented
+  - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7_
+
+- [x] 2. Write preservation property tests (BEFORE implementing fix)
+  - **Property 2: Preservation** - Existing Lambda Configuration and Pipeline Behavior
+  - **IMPORTANT**: Follow observation-first methodology — observe behavior on UNFIXED code first
+  - Observe on UNFIXED code and write property-based tests asserting these preserved behaviors:
+    - **api-gateway env vars preserved**: Verify `AUTH_JWK_URI`, `CLOUDFRONT_ORIGIN_SECRET`, `PORTFOLIO_SERVICE_URL`, `MARKET_DATA_SERVICE_URL`, `INSIGHT_SERVICE_URL`, `SERVER_PORT`, `PORT` are present in the api-gateway Lambda `environment.variables` block in `modules/compute/main.tf`
+    - **portfolio-service env vars preserved**: Verify `SPRING_DATASOURCE_URL` is present in the portfolio Lambda environment block
+    - **market-data-service env vars preserved**: Verify `SPRING_DATA_MONGODB_URI` is present in the market-data Lambda environment block
+    - **common_env structure preserved**: Verify `JAVA_TOOL_OPTIONS`, `AWS_LAMBDA_EXEC_WRAPPER`, `PORT`, `AWS_LWA_ASYNC_INIT`, `AWS_LWA_READINESS_CHECK_PATH` remain in `common_env`
+    - **api-gateway excludes AWS_LAMBDA_EXEC_WRAPPER**: Verify `api_gateway_container_env` does NOT contain `AWS_LAMBDA_EXEC_WRAPPER` (Image-based Lambda uses Dockerfile ENTRYPOINT)
+    - **deploy.yml image flow preserved**: Verify `deploy-backend` job still contains `docker buildx build`, ECR push, and `update-function-code` steps
+    - **deploy-frontend job preserved**: Verify `deploy-frontend` job is completely unchanged (npm ci, npm run build, S3 sync, CloudFront invalidation)
+    - **terraform.yml pipeline preserved**: Verify plan/validate/assert/apply steps exist and are structurally unchanged
+    - **sync-secrets.sh gh secret set preserved**: Verify `gh secret set -f` path exists in `sync-secrets.sh`
+    - **assert_plan.py checks preserved**: Verify all existing assertion functions (`assert_no_prohibited_resources`, `assert_all_lambda_functions_present`, `assert_lambda_concurrency_cap`, `assert_spring_profiles_active`, `assert_cloudfront_price_class`, `assert_route53_record_type`) remain in `assert_plan.py`
+  - Write as Python property-based tests that parse the actual project files and assert structural invariants
+  - Property-based testing generates many test cases for stronger preservation guarantees
+  - Run tests on UNFIXED code
+  - **EXPECTED OUTCOME**: Tests PASS (this confirms baseline behavior to preserve)
+  - Mark task complete when tests are written, run, and passing on unfixed code
+  - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8, 3.9_
+
+- [x] 3. Terraform variable propagation (full chain: root variables.tf → root main.tf → compute variables.tf → compute main.tf)
+  - [x] 3.1 Add missing variables to root `infrastructure/terraform/variables.tf`
+    - Add `redis_url` variable: `type = string`, `sensitive = true`, description for Redis connection URL
+    - Add `kafka_bootstrap_servers` variable: `type = string`, description for Kafka broker address
+    - Add `kafka_sasl_username` variable: `type = string`, `sensitive = true`, description for Kafka SASL auth
+    - Add `kafka_sasl_password` variable: `type = string`, `sensitive = true`, description for Kafka SASL auth
+    - Place in a new `# Messaging & Caching` section after the existing database variables
+    - _Bug_Condition: isBugCondition(input) where input.source == "terraform" AND envPayload missing REDIS_URL, KAFKA_\*\_
+    - _Expected_Behavior: All four variables declared at root level for TF_VAR_\* injection from GitHub Secrets\_
+    - _Preservation: Existing variables unchanged_
+    - _Requirements: 2.1, 2.2, 2.3_
+
+  - [x] 3.2 Pass new variables through root `infrastructure/terraform/main.tf` module call
+    - Add `redis_url = var.redis_url` to the `module "compute"` block
+    - Add `kafka_bootstrap_servers = var.kafka_bootstrap_servers` to the `module "compute"` block
+    - Add `kafka_sasl_username = var.kafka_sasl_username` to the `module "compute"` block
+    - Add `kafka_sasl_password = var.kafka_sasl_password` to the `module "compute"` block
+    - **CRITICAL "missing link" check**: Every variable added to root `variables.tf` in 3.1 MUST appear here — this is the bridge between root-level TF*VAR*\* injection and the compute module
+    - _Bug_Condition: Variables declared at root but not passed to compute module = dead variables_
+    - _Expected_Behavior: All four new variables forwarded to compute module_
+    - _Preservation: All existing module arguments unchanged_
+    - _Requirements: 2.1, 2.2, 2.3_
+
+  - [x] 3.3 Add missing variables to compute module `infrastructure/terraform/modules/compute/variables.tf`
+    - Add `redis_url` variable: `type = string`, `sensitive = true`
+    - Add `kafka_bootstrap_servers` variable: `type = string`
+    - Add `kafka_sasl_username` variable: `type = string`, `sensitive = true`
+    - Add `kafka_sasl_password` variable: `type = string`, `sensitive = true`
+    - **CRITICAL "missing link" check**: Every variable passed in 3.2 MUST be declared here — otherwise Terraform will reject the plan with "An argument named X is not expected here"
+    - _Bug_Condition: Compute module cannot receive variables it hasn't declared_
+    - _Expected_Behavior: All four variables declared in compute module for use in Lambda resource blocks_
+    - _Preservation: Existing compute module variables unchanged_
+    - _Requirements: 2.1, 2.2, 2.3_
+
+  - [x] 3.4 Wire new variables into Lambda resource blocks in `infrastructure/terraform/modules/compute/main.tf`
+    - Fix `SPRING_PROFILES_ACTIVE` from `"aws"` to `"prod,aws"` in `common_env` locals block
+    - Fix `SPRING_PROFILES_ACTIVE` in `api_gateway_container_env` — since it references `local.common_env.SPRING_PROFILES_ACTIVE`, it inherits the fix automatically, but verify this
+    - Add `REDIS_URL = var.redis_url` to api-gateway Lambda environment (merge into existing `merge(local.api_gateway_container_env, {...})`)
+    - Add `REDIS_URL = var.redis_url` to portfolio-service Lambda environment (merge into existing `merge(local.common_env, {...})`)
+    - Add `REDIS_URL = var.redis_url` to insight-service Lambda environment (currently uses bare `local.common_env` — change to `merge(local.common_env, {...})`)
+    - Add `KAFKA_BOOTSTRAP_SERVERS = var.kafka_bootstrap_servers`, `KAFKA_SASL_USERNAME = var.kafka_sasl_username`, `KAFKA_SASL_PASSWORD = var.kafka_sasl_password` to portfolio-service Lambda environment
+    - Add `KAFKA_BOOTSTRAP_SERVERS`, `KAFKA_SASL_USERNAME`, `KAFKA_SASL_PASSWORD` to market-data-service Lambda environment
+    - Add `KAFKA_BOOTSTRAP_SERVERS`, `KAFKA_SASL_USERNAME`, `KAFKA_SASL_PASSWORD` to insight-service Lambda environment
+    - **CRITICAL "missing link" check**: Every variable declared in 3.3 MUST be referenced in at least one Lambda resource block here — otherwise the variable is declared but unused (Terraform won't error, but the env var won't reach the Lambda)
+    - Preserve existing `merge()` pattern for service-specific overrides
+    - _Bug_Condition: isBugCondition(input) where SPRING_PROFILES_ACTIVE == "aws" AND Lambda env missing REDIS_URL, KAFKA_\*\_
+    - _Expected_Behavior: SPRING_PROFILES_ACTIVE = "prod,aws" on all Lambdas; REDIS_URL on api-gateway/portfolio/insight; KAFKA_\* on portfolio/market-data/insight\_
+    - _Preservation: Existing env vars (AUTH_JWK_URI, CLOUDFRONT_ORIGIN_SECRET, PORTFOLIO_SERVICE_URL, MARKET_DATA_SERVICE_URL, INSIGHT_SERVICE_URL, SPRING_DATASOURCE_URL, SPRING_DATA_MONGODB_URI) unchanged_
+    - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5_
+
+  - [x] 3.5 Verify Terraform validates after variable propagation
+    - Run `terraform validate` in `infrastructure/terraform/` (requires `terraform init` with local backend override)
+    - Confirm no errors about undeclared variables, missing arguments, or type mismatches
+    - This catches any "dependency hell" breaks in the chain: root variables.tf → root main.tf → compute variables.tf → compute main.tf
+    - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5_
+
+- [-] 4. Terraform workflow wiring (`terraform.yml` env block)
+  - [ ] 4.1 Add TF*VAR*\* environment variables to `.github/workflows/terraform.yml`
+    - Add `TF_VAR_redis_url: ${{ secrets.REDIS_URL }}` to the `env:` block
+    - Add `TF_VAR_kafka_bootstrap_servers: ${{ secrets.KAFKA_BOOTSTRAP_SERVERS }}` to the `env:` block
+    - Add `TF_VAR_kafka_sasl_username: ${{ secrets.KAFKA_SASL_USERNAME }}` to the `env:` block
+    - Add `TF_VAR_kafka_sasl_password: ${{ secrets.KAFKA_SASL_PASSWORD }}` to the `env:` block
+    - Place after existing `TF_VAR_db_password` line for logical grouping
+    - _Bug_Condition: GitHub Secrets exist but are not mapped to TF_VAR_\* = Terraform plan fails or uses empty defaults\_
+    - _Expected_Behavior: All four secrets mapped to TF_VAR_\* so terraform plan/apply receives them\_
+    - _Preservation: All existing TF_VAR_\* mappings unchanged\_
+    - _Requirements: 2.1, 2.2, 2.3_
+
+- [-] 5. Terraform examples (tfvars files)
+  - [x] 5.1 Update `infrastructure/terraform/terraform.tfvars.example`
+    - Add placeholder comments for `redis_url`, `kafka_bootstrap_servers`, `kafka_sasl_username`, `kafka_sasl_password` in the SENSITIVE section at the bottom
+    - Follow existing pattern: `# redis_url = "redis://..."` etc.
+    - _Requirements: 2.1_
+
+  - [x] 5.2 Update `infrastructure/terraform/localstack.tfvars`
+    - Add stub values for LocalStack testing:
+      - `redis_url = "redis://localhost:6379"`
+      - `kafka_bootstrap_servers = "localhost:9092"`
+      - `kafka_sasl_username = "local-kafka-user"`
+      - `kafka_sasl_password = "local-kafka-pass"`
+    - Place after existing sensitive stub values section
+    - _Requirements: 2.1_
+
+- [x] 6. deploy.yml cleanup
+  - [x] 6.1 Remove Lambda environment configuration step from `.github/workflows/deploy.yml`
+    - Delete the "Install jq" step (no longer needed)
+    - Delete the "Update Lambda function configuration" step (lines ~137-176) that builds `lambda-env.json` via `jq` and calls `update-function-configuration`
+    - Simplify the "Update Lambda function image" step: keep a basic `LastUpdateStatus` check (for safety against concurrent updates) but remove the comment about waiting for config update
+    - _Bug_Condition: isBugCondition(input) where input.source == "deploy.yml" AND input.action == "update-function-configuration"_
+    - _Expected_Behavior: deploy.yml only calls update-function-code (image-only deploys)_
+    - _Preservation: Image build, ECR push, and update-function-code flow unchanged_
+    - _Requirements: 2.6, 3.1_
+
+  - [x] 6.2 Add dual-branch trigger to `.github/workflows/deploy.yml`
+    - Change `branches: [architecture/cloud-native-extraction]` to `branches: [main, architecture/cloud-native-extraction]`
+    - _Bug_Condition: Single-branch trigger causes deployed state divergence after merge to main_
+    - _Expected_Behavior: deploy.yml triggers on both main and feature branch_
+    - _Requirements: 2.8_
+
+  - [x] 6.3 Update deploy.yml header comments
+    - Remove `PORTFOLIO_SERVICE_URL`, `MARKET_DATA_SERVICE_URL`, `INSIGHT_SERVICE_URL`, `AUTH_JWK_URI`, `CLOUDFRONT_ORIGIN_SECRET` from the "Application/runtime secrets" comment block (these are now Terraform-only)
+    - Update the notes section to reflect that deploy.yml is image-only (no env updates)
+    - _Requirements: 2.6_
+
+- [x] 7. sync-secrets.sh cleanup
+  - [x] 7.1 Remove `--lambda` code path from `scripts/sync-secrets.sh`
+    - Remove `--lambda` flag parsing from the `while` loop (lines ~30-38)
+    - Remove `LAMBDA_FUNCTION` variable initialization
+    - Remove the entire Lambda sync section (lines ~65-126): the `if [ -n "$LAMBDA_FUNCTION" ]` block, `LAMBDA_ENV_JSON` builder, temp file, `aws lambda update-function-configuration` call, and status polling loop
+    - Update usage line from `$0 .env.secrets [--lambda <function-name>]` to `$0 .env.secrets`
+    - Update header comments: remove `--lambda` usage example, Lambda-specific documentation, and the "Lambda env vars pushed" list
+    - Remove `shift || true` and the `while` loop entirely (no more flags to parse)
+    - Remove `trap` cleanup (no more temp file)
+    - _Bug_Condition: isBugCondition(input) where input.source == "sync-secrets.sh" AND input.flags CONTAINS "--lambda"_
+    - _Expected_Behavior: sync-secrets.sh only syncs to GitHub Actions via gh secret set_
+    - _Preservation: gh secret set -f path completely unchanged_
+    - _Requirements: 2.7, 3.7_
+
+- [x] 8. Hygiene files
+  - [x] 8.1 Update `.gitignore`
+    - Add `.env.secrets` entry to prevent accidental commit of secrets file
+    - Add `app-inspect.jar` entry to prevent accidental commit of inspection artifact
+    - Place in the "Local Environment Variables" section
+    - _Requirements: 2.1_
+
+  - [x] 8.2 Update `.env.secrets.example`
+    - Add `KAFKA_BOOTSTRAP_SERVERS=` placeholder
+    - Add `KAFKA_SASL_USERNAME=` placeholder
+    - Add `KAFKA_SASL_PASSWORD=` placeholder
+    - Place after existing `REDIS_URL=` entry with a comment for Kafka credentials
+    - _Requirements: 2.1_
+
+- [-] 9. assert_plan.py enhancement (optional)
+  - [x] 9.1 Update `infrastructure/terraform/scripts/assert_plan.py`
+    - Optionally enhance `assert_spring_profiles_active` to validate the VALUE is `"prod,aws"` (not just that the key is present) when the value is known in the plan JSON
+    - Add a comment explaining the enhanced check
+    - _Requirements: 2.5, 3.3_
+
+- [x] 10. Documentation
+  - [x] 10.1 Append to `docs/changes/CHANGES_PHASE3_INFRA_SUMMARY_19042026.md`
+    - Add a new section documenting the Lambda env ownership consolidation:
+      - Terraform now owns all Lambda environment variables (REDIS*URL, KAFKA*\*, SPRING_PROFILES_ACTIVE correction)
+      - deploy.yml simplified to image-only deploys (no more update-function-configuration)
+      - sync-secrets.sh simplified to GitHub-only (no more --lambda flag)
+      - Full variable propagation chain: root variables.tf → root main.tf → compute variables.tf → compute main.tf
+      - terraform.yml env block updated with new TF*VAR*\* mappings
+      - .gitignore and .env.secrets.example updated
+    - _Requirements: 2.1, 2.6, 2.7_
+
+- [x] 11. Verify bug condition exploration test now passes
+  - [x] 11.1 Re-run bug condition exploration test
+    - **Property 1: Expected Behavior** - Lambda Environment Variable Ownership Fixed
+    - **IMPORTANT**: Re-run the SAME test from task 1 — do NOT write a new test
+    - The test from task 1 encodes the expected behavior for all four bug paths
+    - When this test passes, it confirms:
+      - deploy.yml no longer calls `update-function-configuration`
+      - sync-secrets.sh no longer has `--lambda` flag
+      - `SPRING_PROFILES_ACTIVE` is `"prod,aws"` in both locals blocks
+      - All required env vars (`REDIS_URL`, `KAFKA_*`) are present in Lambda resource blocks
+    - Run bug condition exploration test from step 1
+    - **EXPECTED OUTCOME**: Test PASSES (confirms all four bug paths are fixed)
+    - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7_
+
+  - [x] 11.2 Re-run preservation tests
+    - **Property 2: Preservation** - Existing Lambda Configuration and Pipeline Behavior
+    - **IMPORTANT**: Re-run the SAME tests from task 2 — do NOT write new tests
+    - Run preservation property tests from step 2
+    - **EXPECTED OUTCOME**: Tests PASS (confirms no regressions)
+    - Confirm all preserved behaviors are intact:
+      - api-gateway still has AUTH_JWK_URI, CLOUDFRONT_ORIGIN_SECRET, service URLs
+      - portfolio still has SPRING_DATASOURCE_URL
+      - market-data still has SPRING_DATA_MONGODB_URI
+      - deploy.yml still builds/pushes/deploys images
+      - deploy-frontend job unchanged
+      - terraform.yml pipeline unchanged
+      - sync-secrets.sh gh secret set path unchanged
+      - assert_plan.py checks unchanged
+      - api-gateway excludes AWS_LAMBDA_EXEC_WRAPPER
+    - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8, 3.9_
+
+- [x] 12. Checkpoint — Ensure all tests pass
+  - Run the full exploration test suite (task 1 test) — all four bug paths should PASS
+  - Run the full preservation test suite (task 2 tests) — all preservation invariants should PASS
+  - Run `terraform validate` in `infrastructure/terraform/` to confirm HCL is valid
+  - Optionally run `terraform plan -var-file=localstack.tfvars` to verify the plan JSON contains all required env vars on each Lambda
+  - Optionally run `assert_plan.py` against the plan JSON to verify it passes
+  - Ensure all tests pass, ask the user if questions arise
