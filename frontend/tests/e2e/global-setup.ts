@@ -1,3 +1,6 @@
+import path from "node:path";
+import fs from "node:fs";
+
 /**
  * Playwright Global Setup — health-check poller.
  *
@@ -17,7 +20,20 @@ const GATEWAY_BASE = process.env.GATEWAY_BASE_URL ?? "http://localhost:8080";
 const DEEP_HEALTH_URL = `${GATEWAY_BASE}/api/portfolio/health`;
 const SHALLOW_HEALTH_URL = `${GATEWAY_BASE}/actuator/health`;
 
-const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || process.env.TF_VAR_internal_api_key;
+let INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || process.env.TF_VAR_internal_api_key;
+
+// Fallback: manually parse .env.secrets if key is missing (common for local runs without dotenv)
+if (!INTERNAL_API_KEY) {
+  const secretsPath = path.resolve(__dirname, "../../../.env.secrets");
+  if (fs.existsSync(secretsPath)) {
+    const secrets = fs.readFileSync(secretsPath, "utf-8");
+    const match = secrets.match(/^TF_VAR_internal_api_key=(.*)$/m);
+    if (match) {
+      INTERNAL_API_KEY = match[1].trim();
+    }
+  }
+}
+
 const TEST_USER_ID = process.env.E2E_TEST_USER_EMAIL ?? "e2e-test-user@vibhanshu-ai-portfolio.dev";
 
 const POLL_INTERVAL_MS = 2_000;
