@@ -17,7 +17,7 @@ const GATEWAY_BASE = process.env.GATEWAY_BASE_URL ?? "http://localhost:8080";
 const DEEP_HEALTH_URL = `${GATEWAY_BASE}/api/portfolio/health`;
 const SHALLOW_HEALTH_URL = `${GATEWAY_BASE}/actuator/health`;
 
-const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY;
+const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || process.env.TF_VAR_internal_api_key;
 const TEST_USER_ID = process.env.E2E_TEST_USER_EMAIL ?? "e2e-test-user@vibhanshu-ai-portfolio.dev";
 
 const POLL_INTERVAL_MS = 2_000;
