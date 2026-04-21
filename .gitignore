@@ -61,7 +61,9 @@ app-inspect.jar
 
 ### Terraform ###
 infrastructure/terraform/.terraform/
+infrastructure/terraform/.terraform.lock.hcl
 infrastructure/terraform/terraform.tfstate*
+infrastructure/terraform/tfplan*
 infrastructure/terraform/backend_override.tf
 
 ### Playwright test results ###
