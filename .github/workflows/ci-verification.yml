@@ -255,6 +255,16 @@ jobs:
         # Runs against the live site — only on push to main to avoid hammering AWS on every PR
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
+          # Target the live production deployment, not the local Docker Compose stack.
+          # Without these, global-setup.ts falls back to http://localhost:8080 and seeds
+          # the local stack instead of the live AWS environment.
+          GATEWAY_BASE_URL: https://vibhanshu-ai-portfolio.dev
+          BASE_URL: https://vibhanshu-ai-portfolio.dev
+          # Lambda cold starts exceed the AbortSignal timeout in the health poller and
+          # /actuator/health is protected by CloudFront origin-verify. The synthetic
+          # tests themselves are the liveness signal for the live environment.
+          SKIP_BACKEND_HEALTH_CHECK: "true"
+          # INTERNAL_API_KEY is inherited from the job-level env (secrets.TF_VAR_INTERNAL_API_KEY).
           E2E_TEST_USER_EMAIL: ${{ secrets.E2E_TEST_USER_EMAIL }}
           E2E_TEST_USER_PASSWORD: ${{ secrets.E2E_TEST_USER_PASSWORD }}
         run: |

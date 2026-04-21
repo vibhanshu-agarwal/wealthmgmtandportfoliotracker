@@ -18,7 +18,7 @@ class ApiGatewayApplicationTruststoreWiringTest {
             ApiGatewayApplication.main(new String[0]);
 
             extractor.verify(() ->
-                    TruststoreExtractor.extract("truststore.jks", "REDIS_TRUSTSTORE_PATH"));
+                    TruststoreExtractor.extract("kafka-truststore.jks", "REDIS_TRUSTSTORE_PATH"));
             springApplication.verify(() ->
                     SpringApplication.run(eq(ApiGatewayApplication.class), eq(new String[0])));
         }

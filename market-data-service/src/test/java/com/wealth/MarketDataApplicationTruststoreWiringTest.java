@@ -18,7 +18,7 @@ class MarketDataApplicationTruststoreWiringTest {
             MarketDataApplication.main(new String[0]);
 
             extractor.verify(() ->
-                    TruststoreExtractor.extract("truststore.jks", "KAFKA_TRUSTSTORE_PATH"));
+                    TruststoreExtractor.extract("kafka-truststore.jks", "KAFKA_TRUSTSTORE_PATH"));
             springApplication.verify(() ->
                     SpringApplication.run(eq(MarketDataApplication.class), eq(new String[0])));
         }

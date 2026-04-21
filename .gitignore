@@ -76,12 +76,13 @@ frontend/playwright-report/
 ### Security / keystores ###
 kafka-truststore.jks
 *.jks
-!common-dto/src/main/resources/truststore.jks
+!common-dto/src/main/resources/kafka-truststore.jks
 
 ### AI / IDE tooling ###
 .ai/
 .cursor/
 .junie/
+.bt/
 
 ### Agent skills ###
 .agents/

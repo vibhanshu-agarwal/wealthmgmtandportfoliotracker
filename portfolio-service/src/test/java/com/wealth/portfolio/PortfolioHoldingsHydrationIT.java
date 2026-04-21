@@ -57,7 +57,7 @@ class PortfolioHoldingsHydrationIT {
         registry.add("spring.datasource.username", postgres::getUsername);
         registry.add("spring.datasource.password", postgres::getPassword);
         registry.add("spring.autoconfigure.exclude",
-                () -> "org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration");
+                () -> "org.springframework.boot.kafka.autoconfigure.KafkaAutoConfiguration");
     }
 
     @Autowired

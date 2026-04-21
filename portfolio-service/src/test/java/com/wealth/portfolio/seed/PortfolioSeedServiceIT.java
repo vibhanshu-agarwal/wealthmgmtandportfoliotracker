@@ -67,7 +67,7 @@ class PortfolioSeedServiceIT {
         // need a broker during context init. Mirror the pattern used by every
         // other Testcontainers IT in this module.
         registry.add("spring.autoconfigure.exclude",
-                () -> "org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration");
+                () -> "org.springframework.boot.kafka.autoconfigure.KafkaAutoConfiguration");
     }
 
     @Autowired PortfolioSeedService seedService;
