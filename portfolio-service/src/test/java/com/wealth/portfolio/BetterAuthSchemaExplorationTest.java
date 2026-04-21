@@ -48,9 +48,11 @@ class BetterAuthSchemaExplorationTest {
         registry.add("spring.datasource.url", postgres::getJdbcUrl);
         registry.add("spring.datasource.username", postgres::getUsername);
         registry.add("spring.datasource.password", postgres::getPassword);
-        // Disable Kafka — not needed for schema exploration tests
-        registry.add("spring.autoconfigure.exclude",
-                () -> "org.springframework.boot.kafka.autoconfigure.KafkaAutoConfiguration");
+        // Prevent listener containers from auto-starting — avoids any broker connection
+        // attempt while keeping KafkaProperties in the context so PortfolioKafkaConfig
+        // can build its beans. Excluding KafkaAutoConfiguration removes KafkaProperties
+        // and breaks the config class, so auto-startup=false is the correct knob.
+        registry.add("spring.kafka.listener.auto-startup", () -> "false");
     }
 
     @Autowired

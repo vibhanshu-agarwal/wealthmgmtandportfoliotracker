@@ -33,7 +33,10 @@ import static org.assertj.core.api.Assertions.assertThat;
         webEnvironment = SpringBootTest.WebEnvironment.NONE,
         properties = {
                 "spring.kafka.bootstrap-servers=localhost:0",
-                "spring.autoconfigure.exclude=org.springframework.boot.kafka.autoconfigure.KafkaAutoConfiguration"
+                // Prevent listener containers from auto-starting — avoids any broker
+                // connection attempt while keeping KafkaProperties in the context so
+                // InsightKafkaConfig can build its consumer/listener-container beans.
+                "spring.kafka.listener.auto-startup=false"
         }
 )
 @ActiveProfiles("default")
