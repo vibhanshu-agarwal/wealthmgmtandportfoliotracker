@@ -22,10 +22,10 @@ spring:
       # If absent, Spring Boot falls back to localhost:6379 — ensure REDIS_URL is always set
       # in production environments to avoid startup hangs on connection attempts.
       url: ${REDIS_URL:redis://localhost:6379}
-      ssl:
-        bundle: ${REDIS_TRUSTSTORE_PATH:}
-      trust-store-location: ${REDIS_TRUSTSTORE_PATH:classpath:kafka-truststore.jks}
-      trust-store-password: ${REDIS_TRUSTSTORE_PASSWORD:changeit}
+      # SSL is configured programmatically via RedisSslConfig (LettuceClientConfigurationBuilderCustomizer).
+      # Do NOT set spring.data.redis.ssl.bundle here — it requires an explicitly registered Spring Boot
+      # SSL bundle name, not a file path. The RedisSslConfig bean reads REDIS_TRUSTSTORE_PATH directly
+      # and configures Lettuce SslOptions from the extracted /tmp/kafka-truststore.jks file.
 
   cloud:
     gateway:
