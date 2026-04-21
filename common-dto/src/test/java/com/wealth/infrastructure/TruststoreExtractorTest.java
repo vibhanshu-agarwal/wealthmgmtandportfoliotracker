@@ -17,8 +17,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @EnabledOnOs(OS.LINUX)
 class TruststoreExtractorTest {
 
+    private static final String TMP_DIR = System.getProperty("java.io.tmpdir");
     private static final String RESOURCE_NAME = "truststore-test.txt";
-    private static final Path EXTRACTED_PATH = Path.of("/tmp", RESOURCE_NAME);
+    private static final Path EXTRACTED_PATH = Path.of(TMP_DIR, RESOURCE_NAME);
     private static final String KAFKA_PROPERTY = "KAFKA_TRUSTSTORE_PATH";
     private static final String REDIS_PROPERTY = "REDIS_TRUSTSTORE_PATH";
 
@@ -35,7 +36,9 @@ class TruststoreExtractorTest {
 
         String actualProperty = System.getProperty(KAFKA_PROPERTY);
         assertNotNull(actualProperty);
-        assertEquals("file:" + EXTRACTED_PATH.toAbsolutePath(), actualProperty);
+        String absolutePath = EXTRACTED_PATH.toAbsolutePath().toString();
+        String expectedProperty = absolutePath.startsWith("/") ? "file:" + absolutePath : "file:/" + absolutePath.replace("\\", "/");
+        assertEquals(expectedProperty, actualProperty);
         assertTrue(Files.exists(EXTRACTED_PATH));
         assertEquals("dummy-test-truststore", Files.readString(EXTRACTED_PATH).trim());
     }
@@ -46,7 +49,9 @@ class TruststoreExtractorTest {
 
         String actualProperty = System.getProperty(REDIS_PROPERTY);
         assertNotNull(actualProperty);
-        assertEquals("file:" + EXTRACTED_PATH.toAbsolutePath(), actualProperty);
+        String absolutePath = EXTRACTED_PATH.toAbsolutePath().toString();
+        String expectedProperty = absolutePath.startsWith("/") ? "file:" + absolutePath : "file:/" + absolutePath.replace("\\", "/");
+        assertEquals(expectedProperty, actualProperty);
         assertTrue(Files.exists(EXTRACTED_PATH));
         assertEquals("dummy-test-truststore", Files.readString(EXTRACTED_PATH).trim());
     }
@@ -54,7 +59,7 @@ class TruststoreExtractorTest {
     @Test
     void extractWithMissingResourceDoesNotSetPropertyOrCreateFile() throws IOException {
         String missingResource = "missing-truststore.jks";
-        Path missingPath = Path.of("/tmp", missingResource);
+        Path missingPath = Path.of(TMP_DIR, missingResource);
 
         Files.deleteIfExists(missingPath);
         TruststoreExtractor.extract(missingResource, KAFKA_PROPERTY);

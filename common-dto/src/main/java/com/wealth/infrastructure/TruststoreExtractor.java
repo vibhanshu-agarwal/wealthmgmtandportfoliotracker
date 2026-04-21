@@ -12,21 +12,29 @@ import java.io.InputStream;
  */
 public class TruststoreExtractor {
 
-    private static final String TMP_DIR_PATH = "/tmp";
+    private static final String TMP_DIR = System.getProperty("java.io.tmpdir");
 
     /**
-     * Extracts a truststore resource from the classpath to /tmp and sets a system property.
+     * Extracts a truststore resource from the classpath to the system temp directory 
+     * and sets a system property.
      * 
-     * @param resourceName The name of the resource (e.g., "truststore.jks")
+     * @param resourceName The name of the resource (e.g., "kafka-truststore.jks")
      * @param propertyName The system property to set (e.g., "KAFKA_TRUSTSTORE_PATH")
      */
     public static void extract(String resourceName, String propertyName) {
         String normalizedResource = resourceName.startsWith("/") ? resourceName : "/" + resourceName;
-        String destPath = TMP_DIR_PATH + normalizedResource;
-
-        File tmpDir = new File(TMP_DIR_PATH);
-        if (!tmpDir.exists() && !tmpDir.mkdirs()) {
-            // If /tmp doesn't exist (e.g. Windows), skip extraction and let Spring try classpath defaults.
+        
+        File tempFile;
+        try {
+            tempFile = new File(TMP_DIR, resourceName);
+            // Ensure parent directories exist
+            File parent = tempFile.getParentFile();
+            if (parent != null && !parent.exists() && !parent.mkdirs()) {
+                System.err.println("ERROR: Could not create temp directory: " + parent.getAbsolutePath());
+                return;
+            }
+        } catch (Exception e) {
+            System.err.println("ERROR: Invalid temp path: " + e.getMessage());
             return;
         }
 
@@ -36,8 +44,7 @@ public class TruststoreExtractor {
                 return;
             }
 
-            File destFile = new File(destPath);
-            try (FileOutputStream os = new FileOutputStream(destFile)) {
+            try (FileOutputStream os = new FileOutputStream(tempFile)) {
                 byte[] buffer = new byte[8192];
                 int read;
                 while ((read = is.read(buffer)) != -1) {
@@ -45,9 +52,15 @@ public class TruststoreExtractor {
                 }
             }
             
-            System.out.println("INFO: Extracted truststore to " + destFile.getAbsolutePath());
-            // Set as a system property so it can be resolved via ${property.name} in application.yml
-            System.setProperty(propertyName, "file:" + destFile.getAbsolutePath());
+            String absolutePath = tempFile.getAbsolutePath();
+            System.out.println("INFO: Extracted truststore '" + resourceName + "' to " + absolutePath);
+            
+            // Format as a file URL for Spring's ResourceLoader (e.g., file:/tmp/kafka-truststore.jks)
+            // On Windows, it might be file:C:\Users\... which Spring handles fine.
+            String propertyValue = absolutePath.startsWith("/") ? "file:" + absolutePath : "file:/" + absolutePath.replace("\\", "/");
+            
+            System.setProperty(propertyName, propertyValue);
+            System.out.println("INFO: Set system property " + propertyName + " = " + propertyValue);
             
         } catch (IOException e) {
             System.err.println("ERROR: Failed to extract truststore '" + resourceName + "': " + e.getMessage());

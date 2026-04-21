@@ -8,7 +8,7 @@ import com.wealth.infrastructure.TruststoreExtractor;
 @SpringBootApplication
 public class MarketDataApplication {
     public static void main(String[] args) {
-        TruststoreExtractor.extract("truststore.jks", "KAFKA_TRUSTSTORE_PATH");
+        TruststoreExtractor.extract("kafka-truststore.jks", "KAFKA_TRUSTSTORE_PATH");
         SpringApplication.run(MarketDataApplication.class, args);
     }
 }

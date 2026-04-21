@@ -24,7 +24,7 @@ spring:
       url: ${REDIS_URL:redis://localhost:6379}
       ssl:
         bundle: ${REDIS_TRUSTSTORE_PATH:}
-      trust-store-location: ${REDIS_TRUSTSTORE_PATH:}
+      trust-store-location: ${REDIS_TRUSTSTORE_PATH:classpath:kafka-truststore.jks}
       trust-store-password: ${REDIS_TRUSTSTORE_PASSWORD:changeit}
 
   cloud:
