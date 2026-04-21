@@ -17,7 +17,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @EnabledOnOs(OS.LINUX)
 class TruststoreExtractorTest {
 
-    private static final String RESOURCE_NAME = "truststore-test.jks";
+    private static final String RESOURCE_NAME = "truststore-test.txt";
     private static final Path EXTRACTED_PATH = Path.of("/tmp", RESOURCE_NAME);
     private static final String KAFKA_PROPERTY = "KAFKA_TRUSTSTORE_PATH";
     private static final String REDIS_PROPERTY = "REDIS_TRUSTSTORE_PATH";
@@ -37,7 +37,7 @@ class TruststoreExtractorTest {
         assertNotNull(actualProperty);
         assertEquals("file:" + EXTRACTED_PATH.toAbsolutePath(), actualProperty);
         assertTrue(Files.exists(EXTRACTED_PATH));
-        assertEquals("dummy-test-truststore\n", Files.readString(EXTRACTED_PATH));
+        assertEquals("dummy-test-truststore", Files.readString(EXTRACTED_PATH).trim());
     }
 
     @Test
@@ -48,7 +48,7 @@ class TruststoreExtractorTest {
         assertNotNull(actualProperty);
         assertEquals("file:" + EXTRACTED_PATH.toAbsolutePath(), actualProperty);
         assertTrue(Files.exists(EXTRACTED_PATH));
-        assertEquals("dummy-test-truststore\n", Files.readString(EXTRACTED_PATH));
+        assertEquals("dummy-test-truststore", Files.readString(EXTRACTED_PATH).trim());
     }
 
     @Test
