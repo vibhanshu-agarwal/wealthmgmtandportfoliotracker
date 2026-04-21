@@ -16,7 +16,7 @@ test.describe("AWS Synthetic: Live Contract", () => {
     await emailInput.waitFor({ state: "visible", timeout: 15_000 });
     
     await emailInput.fill(process.env.E2E_TEST_USER_EMAIL ?? "e2e-test-user@vibhanshu-ai-portfolio.dev");
-    await page.locator('input[type="password"]').fill(process.env.E2E_TEST_USER_PASSWORD ?? "TestPassword123!");
+    await page.locator('input[type="password"]').fill(process.env.E2E_TEST_USER_PASSWORD ?? "e2e-test-password-2026");
     await page.getByRole("button", { name: /sign in|log in/i }).click();
     await expect(page).toHaveURL(/.*\/overview|.*\/portfolio/);
   });

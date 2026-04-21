@@ -13,7 +13,7 @@ import { expect, test } from "@playwright/test";
 const TEST_USER_EMAIL =
   process.env.E2E_TEST_USER_EMAIL ?? "e2e-test-user@vibhanshu-ai-portfolio.dev";
 const TEST_USER_PASSWORD =
-  process.env.E2E_TEST_USER_PASSWORD ?? "TestPassword123!";
+  process.env.E2E_TEST_USER_PASSWORD ?? "e2e-test-password-2026";
 
 /**
  * RE-ENABLED — 2026-04-20
