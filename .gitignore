@@ -51,9 +51,10 @@ Thumbs.db
 
 ### Local Environment Variables (Keep secrets out of version control!) ###
 .env
-.env.secrets
-*.env.local
-*.env.secrets
+.env.*
+*.env
+*.env.*
+*.secrets
 
 ### Tooling artifacts ###
 frontend/.junie/

@@ -1,0 +1,6 @@
+# Gitleaks ignore file
+# Use this to ignore false positives or known leaks that have been rotated.
+
+# Compromised commit from April 21, 2026 (Rotated credentials)
+# Source: tfplan-import exposure
+2b976505b29378146ff1e2821f4eab497663203d
