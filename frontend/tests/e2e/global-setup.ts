@@ -46,6 +46,47 @@ function timestamp(): string {
   return new Date().toISOString();
 }
 
+/**
+ * Fetch a seeding endpoint with automatic retry on 502/504 (Lambda cold-start gateway errors).
+ * CloudFront's 60s origin timeout fires if the combined cold-start chain (api-gateway + downstream
+ * Lambda) exceeds 60s. The first 504 proves the Lambda is booting — waiting 5s then retrying
+ * hits the now-warm instance. maxRetries=3 gives ~3×65s budget before giving up.
+ */
+async function seedFetch(
+  label: string,
+  url: string,
+  body: object,
+  maxRetries = 3,
+): Promise<Response> {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Internal-Api-Key": INTERNAL_API_KEY!,
+      },
+      body: JSON.stringify(body),
+      // 70s allows a full Lambda cold start (~30s) plus processing headroom.
+      // CloudFront returns 504 at 60s if the origin doesn't respond in time;
+      // we retry that rather than treating it as a hard failure.
+      signal: AbortSignal.timeout(70_000),
+    });
+
+    if ((res.status === 502 || res.status === 504) && attempt < maxRetries) {
+      console.log(
+        `[${timestamp()}] ${label}: HTTP ${res.status} on attempt ${attempt}/${maxRetries} ` +
+          `(Lambda cold start / CloudFront timeout) — retrying in 5s...`,
+      );
+      await new Promise((r) => setTimeout(r, 5_000));
+      continue;
+    }
+
+    return res;
+  }
+  // Should never reach here — the loop always returns or continues.
+  throw new Error(`${label}: exhausted ${maxRetries} retries`);
+}
+
 async function runSeeding(): Promise<void> {
   if (!INTERNAL_API_KEY) {
     console.warn(`[${timestamp()}] Skipping Golden State seeding: INTERNAL_API_KEY not set.`);
@@ -56,14 +97,11 @@ async function runSeeding(): Promise<void> {
 
   try {
     // 1. Portfolio Seeding -> Get portfolioId
-    const portfolioRes = await fetch(`${GATEWAY_BASE}/api/internal/portfolio/seed`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Internal-Api-Key": INTERNAL_API_KEY,
-      },
-      body: JSON.stringify({ userId: TEST_USER_ID }),
-    });
+    const portfolioRes = await seedFetch(
+      "Portfolio seeding",
+      `${GATEWAY_BASE}/api/internal/portfolio/seed`,
+      { userId: TEST_USER_ID },
+    );
 
     if (!portfolioRes.ok) {
       throw new Error(`Portfolio seeding failed: ${portfolioRes.status} ${await portfolioRes.text()}`);
@@ -73,14 +111,11 @@ async function runSeeding(): Promise<void> {
     console.log(`[${timestamp()}] Portfolio seeded. ID: ${portfolioId}`);
 
     // 2. Market Data Seeding
-    const marketRes = await fetch(`${GATEWAY_BASE}/api/internal/market-data/seed`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Internal-Api-Key": INTERNAL_API_KEY,
-      },
-      body: JSON.stringify({ userId: TEST_USER_ID }),
-    });
+    const marketRes = await seedFetch(
+      "Market data seeding",
+      `${GATEWAY_BASE}/api/internal/market-data/seed`,
+      { userId: TEST_USER_ID },
+    );
 
     if (!marketRes.ok) {
       throw new Error(`Market data seeding failed: ${marketRes.status} ${await marketRes.text()}`);
@@ -88,14 +123,11 @@ async function runSeeding(): Promise<void> {
     console.log(`[${timestamp()}] Market data seeded.`);
 
     // 3. Insight Seeding (Cache Eviction)
-    const insightRes = await fetch(`${GATEWAY_BASE}/api/internal/insight/seed`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Internal-Api-Key": INTERNAL_API_KEY,
-      },
-      body: JSON.stringify({ userId: TEST_USER_ID, portfolioId }),
-    });
+    const insightRes = await seedFetch(
+      "Insight seeding",
+      `${GATEWAY_BASE}/api/internal/insight/seed`,
+      { userId: TEST_USER_ID, portfolioId },
+    );
 
     if (!insightRes.ok) {
       throw new Error(`Insight seeding failed: ${insightRes.status} ${await insightRes.text()}`);

@@ -29,6 +29,27 @@ jobs:
         working-directory: ./frontend
         run: npx playwright install --with-deps chromium
 
+      - name: Pre-warm AWS Lambda stack
+        # Hit api-gateway → portfolio-service to trigger cold starts BEFORE seeding.
+        # The combined cold-start chain (api-gateway ~10s + portfolio-service ~30s) exceeds
+        # CloudFront's 60s origin timeout if seeding is the first request. Retrying up to 5
+        # times with --max-time 65 ensures we wait long enough for the Lambda to boot.
+        # Any non-5xx response means the Lambda is warm and ready.
+        run: |
+          echo "Pre-warming Lambda stack at https://vibhanshu-ai-portfolio.dev ..."
+          for i in 1 2 3 4 5; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 65 \
+              https://vibhanshu-ai-portfolio.dev/api/portfolio/health || echo "000")
+            echo "  Attempt $i: HTTP $STATUS"
+            if [ "$STATUS" != "504" ] && [ "$STATUS" != "502" ] && [ "$STATUS" != "000" ]; then
+              echo "Lambda stack is warm (HTTP $STATUS). Proceeding."
+              exit 0
+            fi
+            echo "  Cold start or timeout — waiting 5s before retry..."
+            sleep 5
+          done
+          echo "Warning: Lambda pre-warm did not return a success response. Seeding may still succeed."
+
       - name: Run Synthetic Monitoring
         working-directory: ./frontend
         env:
