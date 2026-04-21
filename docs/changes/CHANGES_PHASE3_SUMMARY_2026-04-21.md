@@ -102,3 +102,56 @@ Resolved `403 Forbidden` and `Internal Server Error` responses during E2E databa
 - **Test Stabilization**: Updated all `TruststoreWiringTest` suites across all services to align with the new filename, ensuring the CI build remains green.
 - **Gitignore Tuning**: Updated the truststore exclusion to point to the new `kafka-truststore.jks` location.
 
+---
+
+## 7. Cold-Start 502 / 504 Root Cause Chain — Full Resolution
+
+Commits: `75d37e0` → `999624b` → `4582fdb` → `e067d73` → `6128776`
+
+### 7.1 Root Cause Analysis
+
+Investigation of persistent `502 Bad Gateway` errors after deployment uncovered a **four-layer failure chain** that only manifested on Lambda cold starts:
+
+| Layer | Symptom | Root Cause |
+|---|---|---|
+| **Truststore missing from JAR** | `TruststoreExtractor` silently skipped extraction; Kafka SSL unconfigured | `kafka-truststore.jks` was `.gitignore`-d and never committed; CI Docker images built without it |
+| **Redis SSL misconfiguration** | `api-gateway` startup crash on `application-prod.yml` parse | `spring.data.redis.ssl.bundle` requires a registered Spring Boot SSL bundle *name*, not a file path |
+| **Kafka auto-config exclusion broken** | `NoSuchBeanDefinitionException` for `KafkaProperties` in integration tests | Spring Boot 4 moved `KafkaAutoConfiguration` to a new package; the old exclusion class name was a no-op, causing the real auto-config to run; excluding it removed the `KafkaProperties` bean needed by `InsightKafkaConfig` / `PortfolioKafkaConfig` |
+| **Cold-start chain exceeds CloudFront timeout** | `504`/`502` on the first seeding request after deploy | api-gateway cold start (~10 s) + portfolio-service cold start (~30 s) = ~40 s total, dangerously close to CloudFront's 60 s origin-read limit |
+
+### 7.2 Truststore File Committed to Version Control (`999624b`)
+
+- `common-dto/src/main/resources/kafka-truststore.jks` was present locally but listed under a `.gitignore` negation rule that was never applied. The file was **never staged or committed**.
+- CI Docker builds had no truststore → `TruststoreExtractor.extract()` logged a `WARN` and returned without setting `KAFKA_TRUSTSTORE_PATH` → Spring fell back to a classpath default that resolved to nothing → Kafka SSL was silently unconfigured → `502` on the first request.
+- **Fix**: Committed the JKS file. It contains only Amazon's public CA certificates and carries no private keys or secrets.
+
+### 7.3 Invalid Redis SSL Bundle Property Removed (`e067d73`)
+
+- `application-prod.yml` for `api-gateway` contained `spring.data.redis.ssl.bundle: ${REDIS_TRUSTSTORE_PATH:}` alongside raw `trust-store-location` / `trust-store-password` keys.
+- `spring.data.redis.ssl.bundle` expects a pre-registered Spring Boot SSL bundle *name* (from `spring.ssl.bundle.*`); passing a raw file path caused a startup `BeanCreationException` that crashed the gateway before it could serve any traffic.
+- **Fix**: Removed the invalid bundle properties. Redis TLS is now configured exclusively through the `RedisSslConfig` `LettuceClientConfigurationBuilderCustomizer` bean introduced in Phase 3.
+
+### 7.4 Spring Boot 4 Kafka Auto-Configuration Class Name (`75d37e0` + `4582fdb`)
+
+Two successive fixes were required:
+
+1. **Stale exclusion class name** (`75d37e0`): Six integration tests excluded `org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration` (the Spring Boot 3.x location). In Spring Boot 4 the class moved to `org.springframework.boot.kafka.autoconfigure.KafkaAutoConfiguration`. The old name was a no-op exclusion, so Kafka auto-configuration ran in every test that was designed to skip it.
+
+2. **Exclusion side-effect** (`4582fdb`): Once the correct class name was used, excluding `KafkaAutoConfiguration` entirely removed the `KafkaProperties` bean from the context. `InsightKafkaConfig` and `PortfolioKafkaConfig` inject `KafkaProperties` directly, causing `NoSuchBeanDefinitionException` at test startup.
+   - **Fix**: Keep `KafkaAutoConfiguration` active (preserving `KafkaProperties`) and instead set `spring.kafka.listener.auto-startup=false` in each test. This prevents listener containers from connecting to a real broker without removing the beans that custom config classes depend on.
+   - **Files updated**: `MarketSummaryIntegrationTest`, `BetterAuthSchemaExplorationTest`, `FlywayPreservationTest`, `PortfolioAnalyticsIntegrationTest`, `PortfolioHoldingsHydrationIT`, `PortfolioSeedServiceIT`.
+
+### 7.5 Lambda Cold-Start Pre-Warm Strategy (`6128776`)
+
+- **Problem**: The combined cold-start chain (api-gateway → portfolio-service) totals ~40 s. On a fresh deploy, the first seeding request from the Playwright global setup exceeded the downstream response budget and returned `504`.
+- **Fix — CI Workflow Pre-Warm Step** (both `ci-verification.yml` and `synthetic-monitoring.yml`):
+  - Added a **"Pre-warm AWS Lambda stack"** step that executes before Playwright runs.
+  - Hits `/api/portfolio/health` through the gateway with `curl --max-time 65` (sufficient for a full cold start) and retries up to 5 times with a 5 s backoff.
+  - Any non-`502`/`504` response is accepted as confirmation that both Lambdas are warm.
+- **Fix — `seedFetch()` helper in `global-setup.ts`**:
+  - Wraps every seeding `fetch()` call with `AbortSignal.timeout(70_000)` to cap Node's wait.
+  - Detects `502`/`504` responses and retries up to **3 times** with a 5 s backoff, guarding against cases where market-data or insight-service remain cold after the pre-warm warms only api-gateway + portfolio-service.
+- **Fix — `ci-verification.yml` aws-synthetic environment**:
+  - Added `GATEWAY_BASE_URL` and `BASE_URL` pointing to the live production URL so `global-setup.ts` seeds the AWS environment rather than the local Docker Compose stack.
+  - Added `SKIP_BACKEND_HEALTH_CHECK=true` to prevent health-poll timeouts against Lambda cold starts and CloudFront-protected actuator endpoints.
+
