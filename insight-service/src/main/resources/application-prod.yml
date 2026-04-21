@@ -12,7 +12,7 @@ spring:
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
     ssl:
-      trust-store-location: ${KAFKA_TRUSTSTORE_PATH:classpath:kafka-truststore.jks}
+      trust-store-location: ${KAFKA_TRUSTSTORE_PATH:classpath:truststore.jks}
       trust-store-password: ${KAFKA_TRUSTSTORE_PASSWORD:changeit}
     properties:
       security.protocol: ${KAFKA_SECURITY_PROTOCOL:SASL_SSL}
@@ -29,6 +29,8 @@ spring:
     redis:
       # REDIS_URL format: redis[s]://[:password@]host[:port]
       url: ${REDIS_URL:redis://localhost:6379}
+      trust-store-location: ${REDIS_TRUSTSTORE_PATH:}
+      trust-store-password: ${REDIS_TRUSTSTORE_PASSWORD:changeit}
 
   cache:
     # Redis-backed cache for Bedrock responses.

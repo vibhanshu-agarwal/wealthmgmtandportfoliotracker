@@ -76,6 +76,7 @@ frontend/playwright-report/
 ### Security / keystores ###
 kafka-truststore.jks
 *.jks
+!common-dto/src/main/resources/truststore.jks
 
 ### AI / IDE tooling ###
 .ai/

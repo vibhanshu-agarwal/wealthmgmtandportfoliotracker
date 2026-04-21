@@ -3,12 +3,12 @@ package com.wealth;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
-import com.wealth.infrastructure.KafkaTruststoreExtractor;
+import com.wealth.infrastructure.TruststoreExtractor;
 
 @SpringBootApplication
 public class MarketDataApplication {
     public static void main(String[] args) {
-        KafkaTruststoreExtractor.extract();
+        TruststoreExtractor.extract("truststore.jks", "KAFKA_TRUSTSTORE_PATH");
         SpringApplication.run(MarketDataApplication.class, args);
     }
 }

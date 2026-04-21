@@ -7,7 +7,7 @@ import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
-import com.wealth.infrastructure.KafkaTruststoreExtractor;
+import com.wealth.infrastructure.TruststoreExtractor;
 
 @SpringBootApplication
 @EnableAsync
@@ -16,7 +16,7 @@ import com.wealth.infrastructure.KafkaTruststoreExtractor;
 @ConfigurationPropertiesScan
 public class PortfolioApplication {
     public static void main(String[] args) {
-        KafkaTruststoreExtractor.extract();
+        TruststoreExtractor.extract("truststore.jks", "KAFKA_TRUSTSTORE_PATH");
         SpringApplication.run(PortfolioApplication.class, args);
     }
 }
