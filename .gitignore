@@ -66,3 +66,33 @@ infrastructure/terraform/backend_override.tf
 
 ### Playwright test results ###
 frontend/test-results/
+frontend/playwright-report/
+
+### Terraform generated files ###
+infrastructure/terraform/.terraform.tfstate.local.lock.info
+infrastructure/terraform/tfplan
+infrastructure/terraform/tfplan-import
+infrastructure/terraform/scripts/__pycache__/
+
+### Security / keystores ###
+kafka-truststore.jks
+*.jks
+
+### AI / IDE tooling ###
+.ai/
+.cursor/
+.junie/
+
+### Agent skills ###
+.agents/
+
+### Spec drafts (committed separately) ###
+docs/specs/
+
+### jqwik property-based testing ###
+.jqwik-database
+
+### Temporary / debug files ###
+tmp*.html
+response*.json
+htmlReport/

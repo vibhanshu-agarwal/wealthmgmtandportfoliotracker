@@ -1,0 +1,297 @@
+{
+    "DistributionList": {
+        "Items": [
+            {
+                "Id": "E1Z0FUO1ZTLAK9",
+                "ARN": "arn:aws:cloudfront::844479804897:distribution/E1Z0FUO1ZTLAK9",
+                "ETag": "ETVPDKIKX0DER",
+                "Status": "Deployed",
+                "LastModifiedTime": "2026-04-17T07:13:30.728000+00:00",
+                "DomainName": "d197qnq5fz83gf.cloudfront.net",
+                "Aliases": {
+                    "Quantity": 0
+                },
+                "Origins": {
+                    "Quantity": 1,
+                    "Items": [
+                        {
+                            "Id": "demo-cloudfront-vibhanshu-v4.s3.us-east-1.amazonaws.com-mmc1bhbg5nh",
+                            "DomainName": "demo-cloudfront-vibhanshu-v4.s3.us-east-1.amazonaws.com",
+                            "OriginPath": "",
+                            "CustomHeaders": {
+                                "Quantity": 0
+                            },
+                            "S3OriginConfig": {
+                                "OriginAccessIdentity": "",
+                                "OriginReadTimeout": 30
+                            },
+                            "ConnectionAttempts": 3,
+                            "ConnectionTimeout": 10,
+                            "OriginShield": {
+                                "Enabled": false
+                            },
+                            "OriginAccessControlId": "E1R47UWJR74B4D"
+                        }
+                    ]
+                },
+                "OriginGroups": {
+                    "Quantity": 0
+                },
+                "DefaultCacheBehavior": {
+                    "TargetOriginId": "demo-cloudfront-vibhanshu-v4.s3.us-east-1.amazonaws.com-mmc1bhbg5nh",
+                    "TrustedSigners": {
+                        "Enabled": false,
+                        "Quantity": 0
+                    },
+                    "TrustedKeyGroups": {
+                        "Enabled": false,
+                        "Quantity": 0
+                    },
+                    "ViewerProtocolPolicy": "redirect-to-https",
+                    "AllowedMethods": {
+                        "Quantity": 2,
+                        "Items": [
+                            "HEAD",
+                            "GET"
+                        ],
+                        "CachedMethods": {
+                            "Quantity": 2,
+                            "Items": [
+                                "HEAD",
+                                "GET"
+                            ]
+                        }
+                    },
+                    "SmoothStreaming": false,
+                    "Compress": true,
+                    "LambdaFunctionAssociations": {
+                        "Quantity": 0
+                    },
+                    "FunctionAssociations": {
+                        "Quantity": 0
+                    },
+                    "FieldLevelEncryptionId": "",
+                    "CachePolicyId": "658327ea-f89d-4fab-a63d-7e88639e58f6",
+                    "GrpcConfig": {
+                        "Enabled": false
+                    }
+                },
+                "CacheBehaviors": {
+                    "Quantity": 0
+                },
+                "CustomErrorResponses": {
+                    "Quantity": 0
+                },
+                "Comment": "",
+                "PriceClass": "PriceClass_All",
+                "Enabled": false,
+                "ViewerCertificate": {
+                    "CloudFrontDefaultCertificate": true,
+                    "SSLSupportMethod": "vip",
+                    "MinimumProtocolVersion": "TLSv1",
+                    "CertificateSource": "cloudfront"
+                },
+                "Restrictions": {
+                    "GeoRestriction": {
+                        "RestrictionType": "none",
+                        "Quantity": 0
+                    }
+                },
+                "WebACLId": "arn:aws:wafv2:us-east-1:844479804897:global/webacl/CreatedByCloudFront-1e742203/6ac58ff4-887b-482d-aa44-dfe1cec78e2f",
+                "HttpVersion": "HTTP2",
+                "IsIPV6Enabled": true,
+                "Staging": false,
+                "ConnectionMode": "direct"
+            },
+            {
+                "Id": "E3EDXRGMYOSRB1",
+                "ARN": "arn:aws:cloudfront::844479804897:distribution/E3EDXRGMYOSRB1",
+                "ETag": "E1PA6795UKMFR9",
+                "Status": "Deployed",
+                "LastModifiedTime": "2026-04-17T08:00:58.015000+00:00",
+                "DomainName": "d1t9eh6t95r2m3.cloudfront.net",
+                "Aliases": {
+                    "Quantity": 1,
+                    "Items": [
+                        "vibhanshu-ai-portfolio.dev"
+                    ]
+                },
+                "Origins": {
+                    "Quantity": 2,
+                    "Items": [
+                        {
+                            "Id": "vibhanshu-s3-wealthmgmt-demo-bucket.s3.us-east-1.amazonaws.com-mo2g29gztrn",
+                            "DomainName": "vibhanshu-s3-wealthmgmt-demo-bucket.s3.us-east-1.amazonaws.com",
+                            "OriginPath": "",
+                            "CustomHeaders": {
+                                "Quantity": 0
+                            },
+                            "S3OriginConfig": {
+                                "OriginAccessIdentity": "",
+                                "OriginReadTimeout": 30
+                            },
+                            "ConnectionAttempts": 3,
+                            "ConnectionTimeout": 10,
+                            "OriginShield": {
+                                "Enabled": false
+                            },
+                            "OriginAccessControlId": "E1V41IBFH55RSG"
+                        },
+                        {
+                            "Id": "s4vzx2er2p4bqu5t76aby7vxbe0kdnib.lambda-url.ap-south-1.on.aws",
+                            "DomainName": "s4vzx2er2p4bqu5t76aby7vxbe0kdnib.lambda-url.ap-south-1.on.aws",
+                            "OriginPath": "",
+                            "CustomHeaders": {
+                                "Quantity": 0
+                            },
+                            "CustomOriginConfig": {
+                                "HTTPPort": 80,
+                                "HTTPSPort": 443,
+                                "OriginProtocolPolicy": "https-only",
+                                "OriginSslProtocols": {
+                                    "Quantity": 1,
+                                    "Items": [
+                                        "TLSv1.2"
+                                    ]
+                                },
+                                "OriginReadTimeout": 30,
+                                "OriginKeepaliveTimeout": 5,
+                                "IpAddressType": "ipv4"
+                            },
+                            "ConnectionAttempts": 3,
+                            "ConnectionTimeout": 10,
+                            "OriginShield": {
+                                "Enabled": false
+                            },
+                            "OriginAccessControlId": ""
+                        }
+                    ]
+                },
+                "OriginGroups": {
+                    "Quantity": 0
+                },
+                "DefaultCacheBehavior": {
+                    "TargetOriginId": "vibhanshu-s3-wealthmgmt-demo-bucket.s3.us-east-1.amazonaws.com-mo2g29gztrn",
+                    "TrustedSigners": {
+                        "Enabled": false,
+                        "Quantity": 0
+                    },
+                    "TrustedKeyGroups": {
+                        "Enabled": false,
+                        "Quantity": 0
+                    },
+                    "ViewerProtocolPolicy": "redirect-to-https",
+                    "AllowedMethods": {
+                        "Quantity": 2,
+                        "Items": [
+                            "HEAD",
+                            "GET"
+                        ],
+                        "CachedMethods": {
+                            "Quantity": 2,
+                            "Items": [
+                                "HEAD",
+                                "GET"
+                            ]
+                        }
+                    },
+                    "SmoothStreaming": false,
+                    "Compress": true,
+                    "LambdaFunctionAssociations": {
+                        "Quantity": 0
+                    },
+                    "FunctionAssociations": {
+                        "Quantity": 0
+                    },
+                    "FieldLevelEncryptionId": "",
+                    "CachePolicyId": "658327ea-f89d-4fab-a63d-7e88639e58f6",
+                    "GrpcConfig": {
+                        "Enabled": false
+                    }
+                },
+                "CacheBehaviors": {
+                    "Quantity": 1,
+                    "Items": [
+                        {
+                            "PathPattern": "/api/*",
+                            "TargetOriginId": "s4vzx2er2p4bqu5t76aby7vxbe0kdnib.lambda-url.ap-south-1.on.aws",
+                            "TrustedSigners": {
+                                "Enabled": false,
+                                "Quantity": 0
+                            },
+                            "TrustedKeyGroups": {
+                                "Enabled": false,
+                                "Quantity": 0
+                            },
+                            "ViewerProtocolPolicy": "redirect-to-https",
+                            "AllowedMethods": {
+                                "Quantity": 7,
+                                "Items": [
+                                    "HEAD",
+                                    "DELETE",
+                                    "POST",
+                                    "GET",
+                                    "OPTIONS",
+                                    "PUT",
+                                    "PATCH"
+                                ],
+                                "CachedMethods": {
+                                    "Quantity": 2,
+                                    "Items": [
+                                        "HEAD",
+                                        "GET"
+                                    ]
+                                }
+                            },
+                            "SmoothStreaming": false,
+                            "Compress": true,
+                            "LambdaFunctionAssociations": {
+                                "Quantity": 0
+                            },
+                            "FunctionAssociations": {
+                                "Quantity": 0
+                            },
+                            "FieldLevelEncryptionId": "",
+                            "CachePolicyId": "4135ea2d-6df8-44a3-9df3-4b5a84be39ad",
+                            "OriginRequestPolicyId": "b689b0a8-53d0-40ab-baf2-68738e2966ac",
+                            "GrpcConfig": {
+                                "Enabled": false
+                            }
+                        }
+                    ]
+                },
+                "CustomErrorResponses": {
+                    "Quantity": 0
+                },
+                "Comment": "Main distribution for React UI and Spring Boot Lambda API",
+                "PriceClass": "PriceClass_All",
+                "Enabled": true,
+                "ViewerCertificate": {
+                    "CloudFrontDefaultCertificate": false,
+                    "ACMCertificateArn": "arn:aws:acm:us-east-1:844479804897:certificate/f21e3f02-30b2-4711-99d3-9fd0840a4e11",
+                    "SSLSupportMethod": "sni-only",
+                    "MinimumProtocolVersion": "TLSv1.3_2025",
+                    "Certificate": "arn:aws:acm:us-east-1:844479804897:certificate/f21e3f02-30b2-4711-99d3-9fd0840a4e11",
+                    "CertificateSource": "acm"
+                },
+                "Restrictions": {
+                    "GeoRestriction": {
+                        "RestrictionType": "none",
+                        "Quantity": 0
+                    }
+                },
+                "WebACLId": "",
+                "HttpVersion": "HTTP2",
+                "IsIPV6Enabled": true,
+                "AliasICPRecordals": [
+                    {
+                        "CNAME": "vibhanshu-ai-portfolio.dev",
+                        "ICPRecordalStatus": "APPROVED"
+                    }
+                ],
+                "Staging": false,
+                "ConnectionMode": "direct"
+            }
+        ]
+    }
+}
