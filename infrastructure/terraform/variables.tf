@@ -306,3 +306,51 @@ variable "enable_provisioned_concurrency" {
     Only enable after ap-south-1 unreserved concurrency quota has been raised above 10.
   EOT
 }
+
+# ---------------------------------------------------------------------------
+# Phase 2 — Warming infrastructure (EventBridge Scheduler)
+# ---------------------------------------------------------------------------
+
+variable "enable_warming" {
+  type    = bool
+  default = false
+  description = <<-EOT
+    Master kill-switch for the EventBridge Scheduler warming module.
+    Default false: the entire module is a no-op (count = 0) — safe to merge at any time.
+    Flip to true only after Phase 1 (arm64 flip) has been confirmed stable for >= 48 hours
+    and all 4 CloudWatch Init Duration baselines have been recorded.
+  EOT
+}
+
+variable "warming_schedule_cron" {
+  type     = string
+  nullable = true
+  default  = null
+  description = <<-EOT
+    Optional override for the warming cadence. Default is "rate(5 minutes)".
+    Reduce to "rate(3 minutes)" only if CloudWatch shows Init Duration spikes between ticks,
+    indicating the JVM is being evicted before the next warm hit.
+  EOT
+}
+
+variable "warming_alarm_email" {
+  type        = string
+  default     = ""
+  description = <<-EOT
+    Email address for the SNS ConcurrentExecutions alarm subscription.
+    Required (non-empty) when enable_warming = true — AWS sends a confirmation email
+    to this address immediately after terraform apply. You must click "Confirm subscription"
+    before alerts are delivered.
+  EOT
+}
+
+variable "warming_concurrent_executions_threshold" {
+  type     = number
+  nullable = true
+  default  = null
+  description = <<-EOT
+    Optional override for the CloudWatch ConcurrentExecutions alarm threshold.
+    Default 8 (2 below the 10-unit ap-south-1 hard limit). Lower to 7 if provisioned
+    concurrency is enabled on any function, as PC counts against the same pool.
+  EOT
+}

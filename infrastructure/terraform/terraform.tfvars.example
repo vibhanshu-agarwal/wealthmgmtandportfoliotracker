@@ -55,6 +55,23 @@ api_gateway_image_uri = "123456789012.dkr.ecr.us-east-1.amazonaws.com/my-api-gat
 # Uncomment and set to "x86_64" ONLY to roll back after a failed arm64 deployment.
 # lambda_architecture = "x86_64"
 
+# ---------------------------------------------------------------------------
+# Phase 2 — EventBridge Scheduler warming (docs/architecture/lambda-stopgap-execution-plan.md §5)
+# Flip enable_warming to true ONLY after Phase 1 (arm64 flip) is confirmed stable for >= 48 h.
+# All variables below are required when enable_warming = true.
+# ---------------------------------------------------------------------------
+# enable_warming = false
+#
+# Email address that receives the SNS ConcurrentExecutions alarm.
+# AWS sends a confirmation email immediately after apply — click "Confirm subscription".
+# warming_alarm_email = "you@example.com"
+#
+# Optional: override warming cadence (default "rate(5 minutes)").
+# warming_schedule_cron = "rate(5 minutes)"
+#
+# Optional: override concurrency alarm threshold (default 8, 2 below the 10-unit limit).
+# warming_concurrent_executions_threshold = 8
+
 # Optional overrides for Lambda memory (defaults live in locals.tf → lambda_defaults)
 # portfolio_memory_size       = 2048
 # market_data_memory_size     = 1024

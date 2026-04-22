@@ -1,3 +1,7 @@
+# Current caller identity — used to scope the warming IAM trust policy without
+# requiring an explicit var.aws_account_id (avoids one more secret/tfvar to manage).
+data "aws_caller_identity" "current" {}
+
 provider "aws" {
   region                      = var.aws_region
   access_key                  = var.use_localstack ? "test" : null
@@ -117,4 +121,50 @@ module "networking" {
   domain_name              = var.domain_name
   acm_certificate_arn      = var.acm_certificate_arn
   route53_zone_id          = var.route53_zone_id
+}
+
+
+# ---------------------------------------------------------------------------
+# Warming module — EventBridge Scheduler + SNS alarm
+# Phase 2 of the Lambda stopgap plan (docs/architecture/lambda-stopgap-execution-plan.md §5).
+#
+# SAFETY GATE: count = 0 when enable_warming = false (the default).
+# This means the entire module is a no-op — no AWS resources are created, no cost,
+# no risk to production. Flip enable_warming = true in tfvars ONLY after Phase 1
+# has been confirmed stable for >= 48 hours (all 4 Init Duration baselines recorded,
+# no exec format errors in CloudWatch Logs).
+#
+# Targets:
+#   api_gateway → CloudFront URL (required: CloudFrontOriginVerifyFilter rejects direct FURL)
+#   portfolio   → direct Function URL (no origin-verify filter; /actuator/health accessible)
+#   market_data → direct Function URL (no gateway-routable health endpoint — see P6)
+#   insight     → direct Function URL (same as market_data)
+# ---------------------------------------------------------------------------
+module "warming" {
+  count  = var.enable_warming ? 1 : 0
+  source = "./modules/warming"
+
+  targets = {
+    api_gateway = {
+      url    = "https://${module.networking.cloudfront_domain_name}/actuator/health"
+      method = "GET"
+    }
+    portfolio = {
+      url    = "${module.compute.portfolio_function_url}actuator/health"
+      method = "GET"
+    }
+    market_data = {
+      url    = "${module.compute.market_data_function_url}actuator/health"
+      method = "GET"
+    }
+    insight = {
+      url    = "${module.compute.insight_function_url}actuator/health"
+      method = "GET"
+    }
+  }
+
+  schedule_cron                   = coalesce(var.warming_schedule_cron, "rate(5 minutes)")
+  aws_account_id                  = data.aws_caller_identity.current.account_id
+  alarm_email                     = var.warming_alarm_email
+  concurrent_executions_threshold = coalesce(var.warming_concurrent_executions_threshold, 8)
 }
