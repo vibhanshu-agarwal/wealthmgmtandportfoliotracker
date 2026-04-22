@@ -163,6 +163,23 @@ variable "lambda_timeout" {
   description = "Timeout in seconds for all Lambda functions. Must accommodate Spring Boot cold start."
 }
 
+variable "lambda_architecture" {
+  type        = string
+  default     = "arm64"
+  description = <<-EOT
+    Instruction-set architecture for all four Lambda functions.
+    "arm64" (Graviton2) is 20% cheaper per GB-s than "x86_64" and is the recommended
+    default.  Set to "x86_64" only to roll back after a failed arm64 deployment.
+    Changing this attribute forces Lambda to replace the function's execution environment;
+    plan carefully — Lambda updates in-place but concurrent invocations are drained first.
+  EOT
+
+  validation {
+    condition     = contains(["arm64", "x86_64"], var.lambda_architecture)
+    error_message = "lambda_architecture must be \"arm64\" or \"x86_64\"."
+  }
+}
+
 variable "enable_provisioned_concurrency" {
   type        = bool
   default     = false

@@ -98,9 +98,16 @@ jobs:
   # Container images for all four Lambda services.
   # IMAGE-ONLY: env vars are managed by terraform.yml — this job only updates function code.
   # Build order: api-gateway → portfolio-service → market-data-service → insight-service
+  #
+  # Phase 1 (2026-04-22): switched to ubuntu-24.04-arm (Graviton2 native runner) so that
+  # docker buildx and Gradle both run under linux/arm64.  This ensures:
+  #   - Gradle variant resolution picks netty-transport-native-epoll:linux-aarch_64
+  #   - The produced OCI image matches the Lambda architectures = ["arm64"] Terraform attribute
+  # Rollback: revert runs-on to ubuntu-latest and --platform to linux/amd64, then re-run
+  # terraform apply with lambda_architecture = "x86_64" in tfvars.
   deploy-backend:
     needs: pre-flight
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
 
     steps:
       - name: Checkout code
@@ -154,7 +161,7 @@ jobs:
         run: |
           docker buildx build \
             --no-cache \
-            --platform linux/amd64 \
+            --platform linux/arm64 \
             --provenance=false \
             --sbom=false \
             -f api-gateway/Dockerfile \
@@ -226,7 +233,7 @@ jobs:
         run: |
           docker buildx build \
             --no-cache \
-            --platform linux/amd64 \
+            --platform linux/arm64 \
             --provenance=false \
             --sbom=false \
             -f portfolio-service/Dockerfile \
@@ -298,7 +305,7 @@ jobs:
         run: |
           docker buildx build \
             --no-cache \
-            --platform linux/amd64 \
+            --platform linux/arm64 \
             --provenance=false \
             --sbom=false \
             -f market-data-service/Dockerfile \
@@ -370,7 +377,7 @@ jobs:
         run: |
           docker buildx build \
             --no-cache \
-            --platform linux/amd64 \
+            --platform linux/arm64 \
             --provenance=false \
             --sbom=false \
             -f insight-service/Dockerfile \

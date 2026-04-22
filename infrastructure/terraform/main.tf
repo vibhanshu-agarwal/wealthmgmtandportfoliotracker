@@ -76,6 +76,7 @@ module "compute" {
   lambda_vpc_subnet_ids          = var.lambda_vpc_subnet_ids
   lambda_vpc_security_group_ids  = var.lambda_vpc_security_group_ids
   lambda_timeout                 = coalesce(var.lambda_timeout, local.lambda_defaults.lambda_timeout_seconds)
+  lambda_architecture            = coalesce(var.lambda_architecture, "arm64")
   enable_provisioned_concurrency = var.enable_provisioned_concurrency
   # Service-to-service URLs: populated via TF_VAR_* after first apply
   # (two-phase apply pattern — see README for details)

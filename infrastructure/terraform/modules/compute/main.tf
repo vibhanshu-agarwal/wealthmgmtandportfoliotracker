@@ -174,7 +174,7 @@ resource "aws_lambda_function" "api_gateway" {
   role          = aws_iam_role.api_gateway.arn
   package_type  = "Image"
   image_uri     = var.api_gateway_image_uri
-  architectures = ["x86_64"]
+  architectures = [var.lambda_architecture]
   memory_size   = var.api_gateway_memory
   timeout       = var.lambda_timeout # seconds; keep >= 60 for Spring init + adapter readiness
   publish       = true
@@ -217,7 +217,7 @@ resource "aws_lambda_function" "portfolio" {
   role          = aws_iam_role.portfolio.arn
   package_type  = "Image"
   image_uri     = var.portfolio_image_uri
-  architectures = ["x86_64"]
+  architectures = [var.lambda_architecture]
   memory_size   = var.portfolio_memory_size
   timeout       = var.lambda_timeout
   publish       = true
@@ -251,7 +251,7 @@ resource "aws_lambda_function" "market_data" {
   role          = aws_iam_role.market_data.arn
   package_type  = "Image"
   image_uri     = var.market_data_image_uri
-  architectures = ["x86_64"]
+  architectures = [var.lambda_architecture]
   memory_size   = var.market_data_memory_size
   timeout       = var.lambda_timeout
   publish       = true
@@ -287,7 +287,7 @@ resource "aws_lambda_function" "insight" {
   role          = aws_iam_role.insight.arn
   package_type  = "Image"
   image_uri     = var.insight_image_uri
-  architectures = ["x86_64"]
+  architectures = [var.lambda_architecture]
   memory_size   = var.insight_service_memory_size
   timeout       = var.lambda_timeout
   publish       = true

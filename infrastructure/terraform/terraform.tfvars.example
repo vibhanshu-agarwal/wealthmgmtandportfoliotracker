@@ -51,6 +51,10 @@ api_gateway_image_uri = "123456789012.dkr.ecr.us-east-1.amazonaws.com/my-api-gat
 # market_data_image_uri = "123456789012.dkr.ecr.us-east-1.amazonaws.com/wealth-market-data-service:latest"
 # insight_image_uri     = "123456789012.dkr.ecr.us-east-1.amazonaws.com/wealth-insight-service:latest"
 
+# Lambda ISA — default is "arm64" (Graviton2, 20% cheaper per GB-s).
+# Uncomment and set to "x86_64" ONLY to roll back after a failed arm64 deployment.
+# lambda_architecture = "x86_64"
+
 # Optional overrides for Lambda memory (defaults live in locals.tf → lambda_defaults)
 # portfolio_memory_size       = 2048
 # market_data_memory_size     = 1024
