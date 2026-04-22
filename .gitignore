@@ -68,6 +68,8 @@ infrastructure/terraform/tfplan*
 infrastructure/terraform/backend_override.tf
 infrastructure/terraform/.terraform.tfstate.local.lock.info
 infrastructure/terraform/scripts/__pycache__/
+# Production secrets — never commit real credentials
+infrastructure/terraform/terraform.tfvars
 
 ### Playwright test results ###
 frontend/test-results/
