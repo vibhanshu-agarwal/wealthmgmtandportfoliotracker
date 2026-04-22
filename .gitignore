@@ -91,6 +91,7 @@ kafka-truststore.jks
 
 ### Agent skills ###
 .agents/
+.kiro/skills/
 
 ### Spec drafts (committed separately) ###
 docs/specs/
