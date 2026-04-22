@@ -7,8 +7,26 @@
 # with their own overrides. application-prod.yml stays untouched.
 # ============================================================
 
-# No overrides currently needed beyond what prod.yml provides.
-# This file exists as the extension point for AWS-specific config,
+management:
+  health:
+    # Disable the Redis health indicator on Lambda (AWS profile).
+    #
+    # Problem: During a cold start, Lettuce attempts to resolve the Upstash hostname
+    # before the Lambda network/DNS stack is fully initialised. The DNS lookup returns
+    # <unresolved>, the DataRedisReactiveHealthIndicator marks the service DOWN, and
+    # the Lambda Web Adapter retries /actuator/health up to AWS_LWA_READINESS_CHECK_MAX_RETRIES
+    # (20) times before giving up. With a ~2.5 s retry interval that means the first
+    # real request waits ~50 s in the LWA queue — the 52 241 ms Duration seen in REPORT logs.
+    #
+    # Solution: exclude Redis from the aggregate health check on AWS, exactly as
+    # market-data-service excludes MongoDB (application-aws.yml: management.health.mongo.enabled: false).
+    # Redis still works normally for rate limiting — this only suppresses the health indicator.
+    # If Redis is genuinely unavailable, the rate limiter degrades gracefully (InfrastructureHealthLogger
+    # logs [INFRA-FAIL] at startup and Spring Cloud Gateway falls back to allow-all behaviour).
+    redis:
+      enabled: false
+
+# This file is the extension point for future AWS-specific config,
 # e.g. if rate limiting moves from Redis to API Gateway usage plans:
 #
 #   spring:
