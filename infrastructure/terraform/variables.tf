@@ -287,6 +287,17 @@ variable "lambda_timeout" {
   description = "Optional override for Lambda timeout (seconds); default is local.lambda_defaults.lambda_timeout_seconds in locals.tf."
 }
 
+variable "lambda_architecture" {
+  type        = string
+  nullable    = true
+  default     = null
+  description = <<-EOT
+    Optional override for Lambda ISA. Defaults to "arm64" (Graviton2) inside the compute module.
+    Set to "x86_64" via TF_VAR_lambda_architecture or tfvars only to roll back after a failed
+    arm64 deployment.  Leave null (the default) to accept the module default of "arm64".
+  EOT
+}
+
 variable "enable_provisioned_concurrency" {
   type        = bool
   default     = false
