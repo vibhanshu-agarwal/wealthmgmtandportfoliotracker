@@ -281,7 +281,7 @@ jobs:
           # Target the live production deployment, not the local Docker Compose stack.
           # Without these, global-setup.ts falls back to http://localhost:8080 and seeds
           # the local stack instead of the live AWS environment.
-          GATEWAY_BASE_URL: https://vibhanshu-ai-portfolio.dev
+          NEXT_PUBLIC_API_BASE_URL: https://vibhanshu-ai-portfolio.dev
           BASE_URL: https://vibhanshu-ai-portfolio.dev
           # Lambda cold starts exceed the AbortSignal timeout in the health poller and
           # /actuator/health is protected by CloudFront origin-verify. The synthetic

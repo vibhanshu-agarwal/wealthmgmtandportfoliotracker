@@ -1,6 +1,6 @@
 import type { APIRequestContext, Page } from "@playwright/test";
 
-const GATEWAY_URL = process.env.GATEWAY_BASE_URL ?? "http://localhost:8080";
+const GATEWAY_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
 const AUTH_STORAGE_KEY = "wmpt.auth.session";
 
 type SessionPayload = {
