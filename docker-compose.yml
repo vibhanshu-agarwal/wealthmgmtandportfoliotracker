@@ -28,6 +28,20 @@
 #     `TF_VAR_internal_api_key` or compose injects a blank value and every
 #     gateway→service call 401s.
 # ============================================================
+
+# ---------------------------------------------------------------------------
+# Reusable environment fragments — merged into service blocks below via <<:
+# ---------------------------------------------------------------------------
+x-kafka-env: &kafka-env
+  SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+
+x-redis-env: &redis-env
+  SPRING_DATA_REDIS_HOST: redis
+  SPRING_DATA_REDIS_PORT: 6379
+
+x-internal-key: &internal-key
+  INTERNAL_API_KEY: ${TF_VAR_internal_api_key}
+
 services:
   postgres:
     image: 'postgres:18.3'
@@ -94,11 +108,10 @@ services:
       - postgres
       - kafka
     environment:
+      <<: [*kafka-env, *internal-key]
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/portfolio_db?options=-c%20timezone=Asia/Kolkata
       SPRING_DATASOURCE_USERNAME: wealth_user
       SPRING_DATASOURCE_PASSWORD: wealth_pass
-      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      INTERNAL_API_KEY: ${TF_VAR_internal_api_key}
     ports:
       - '8081:8081'
     healthcheck:
@@ -122,9 +135,8 @@ services:
       - mongodb
       - kafka
     environment:
+      <<: [*kafka-env, *internal-key]
       SPRING_DATA_MONGODB_URI: mongodb://mongodb:27017/market_db
-      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      INTERNAL_API_KEY: ${TF_VAR_internal_api_key}
     ports:
       - '8082:8082'
     healthcheck:
@@ -160,12 +172,9 @@ services:
       # credentials in your shell before `docker compose up`:
       #   SPRING_PROFILES_ACTIVE=local,bedrock AWS_ACCESS_KEY_ID=... \
       #   AWS_SECRET_ACCESS_KEY=... docker compose up
+      <<: [*kafka-env, *redis-env, *internal-key]
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-local}
-      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      SPRING_DATA_REDIS_HOST: redis
-      SPRING_DATA_REDIS_PORT: 6379
       PORTFOLIO_SERVICE_URL: http://portfolio-service:8081
-      INTERNAL_API_KEY: ${TF_VAR_internal_api_key}
       # AWS_* are only consumed when the bedrock profile is opted-in above.
       # They default to empty so the default `local` mock path does not
       # require any AWS configuration.
@@ -202,14 +211,12 @@ services:
         condition: service_started
     environment:
       # Match Flyway V3 seed (user_id user-001) so gateway login and DB demo data align.
+      <<: [*redis-env, *internal-key]
       APP_AUTH_USER_ID: ${APP_AUTH_USER_ID:-user-001}
       AUTH_JWT_SECRET: ${AUTH_JWT_SECRET:-local-dev-secret-change-me-min-32-chars}
-      SPRING_DATA_REDIS_HOST: redis
-      SPRING_DATA_REDIS_PORT: 6379
       PORTFOLIO_SERVICE_URL: http://portfolio-service:8081
       MARKET_DATA_SERVICE_URL: http://market-data-service:8082
       INSIGHT_SERVICE_URL: http://insight-service:8083
-      INTERNAL_API_KEY: ${TF_VAR_internal_api_key}
     ports:
       - '8080:8080'
     healthcheck:
