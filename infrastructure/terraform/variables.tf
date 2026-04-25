@@ -312,8 +312,8 @@ variable "enable_provisioned_concurrency" {
 # ---------------------------------------------------------------------------
 
 variable "enable_warming" {
-  type    = bool
-  default = false
+  type        = bool
+  default     = false
   description = <<-EOT
     Master kill-switch for the EventBridge Scheduler warming module.
     Default false: the entire module is a no-op (count = 0) — safe to merge at any time.
@@ -323,9 +323,9 @@ variable "enable_warming" {
 }
 
 variable "warming_schedule_cron" {
-  type     = string
-  nullable = true
-  default  = null
+  type        = string
+  nullable    = true
+  default     = null
   description = <<-EOT
     Optional override for the warming cadence. Default is "rate(5 minutes)".
     Reduce to "rate(3 minutes)" only if CloudWatch shows Init Duration spikes between ticks,
@@ -345,9 +345,9 @@ variable "warming_alarm_email" {
 }
 
 variable "warming_concurrent_executions_threshold" {
-  type     = number
-  nullable = true
-  default  = null
+  type        = number
+  nullable    = true
+  default     = null
   description = <<-EOT
     Optional override for the CloudWatch ConcurrentExecutions alarm threshold.
     Default 8 (2 below the 10-unit ap-south-1 hard limit). Lower to 7 if provisioned
