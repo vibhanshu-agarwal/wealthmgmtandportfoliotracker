@@ -92,7 +92,6 @@ jobs:
             -var="lock_table_name=${{ secrets.TF_LOCK_TABLE }}" \
             -var="artifact_bucket_name=${{ secrets.TF_ARTIFACT_BUCKET }}" \
             -var="frontend_bucket_name=${{ secrets.S3_BUCKET_NAME }}" \
-            -var="s3_key_api_gateway=${{ secrets.S3_KEY_API_GATEWAY }}" \
             -var="aws_region=${{ secrets.AWS_REGION }}" \
             -var="enable_aws_managed_database=false" \
             -out=tfplan

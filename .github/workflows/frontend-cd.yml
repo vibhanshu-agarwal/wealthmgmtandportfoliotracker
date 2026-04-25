@@ -36,7 +36,6 @@ jobs:
           ghcr.io/${{ github.repository }}/wealth-frontend:latest
           ghcr.io/${{ github.repository }}/wealth-frontend:${{ github.run_number }}
         build-args: |
-          NEXTAUTH_SECRET=${{ secrets.NEXTAUTH_SECRET }}
           AUTH_JWT_SECRET=${{ secrets.AUTH_JWT_SECRET }}
         cache-from: type=gha
         cache-to: type=gha,mode=max

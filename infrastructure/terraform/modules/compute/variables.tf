@@ -1,20 +1,15 @@
 # =============================================================================
 # Compute Module Variables
+# Authoritative descriptions, defaults, and validation live in the root
+# variables.tf. This file declares only type (+ sensitive where applicable).
 # =============================================================================
 
 variable "artifact_bucket_name" {
-  type        = string
-  description = "S3 bucket for Lambda artifacts (retained for future use; no longer used for Zip Lambdas)."
-}
-
-variable "s3_key_api_gateway" {
-  type        = string
-  description = "S3 object key for api-gateway JAR (unused — api-gateway uses package_type Image)"
+  type = string
 }
 
 variable "api_gateway_image_uri" {
-  type        = string
-  description = "Full ECR image URI for api-gateway Lambda (package_type Image), e.g. 123456789012.dkr.ecr.us-east-1.amazonaws.com/my-repo:latest"
+  type = string
 }
 
 # ---------------------------------------------------------------------------
@@ -22,38 +17,31 @@ variable "api_gateway_image_uri" {
 # ---------------------------------------------------------------------------
 
 variable "portfolio_image_uri" {
-  type        = string
-  description = "Full ECR image URI for wealth-portfolio-service Lambda (package_type Image)."
+  type = string
 }
 
 variable "market_data_image_uri" {
-  type        = string
-  description = "Full ECR image URI for wealth-market-data-service Lambda (package_type Image)."
+  type = string
 }
 
 variable "insight_image_uri" {
-  type        = string
-  description = "Full ECR image URI for wealth-insight-service Lambda (package_type Image)."
+  type = string
 }
 
 variable "api_gateway_memory" {
-  type        = number
-  description = "Memory (MB) for wealth-api-gateway Image Lambda (root defaults from locals.tf)."
+  type = number
 }
 
 variable "portfolio_memory_size" {
-  type        = number
-  description = "Memory (MB) for wealth-portfolio-service Lambda."
+  type = number
 }
 
 variable "market_data_memory_size" {
-  type        = number
-  description = "Memory (MB) for wealth-market-data-service Lambda."
+  type = number
 }
 
 variable "insight_service_memory_size" {
-  type        = number
-  description = "Memory (MB) for wealth-insight-service Lambda."
+  type = number
 }
 
 variable "postgres_connection_string" {
@@ -62,15 +50,13 @@ variable "postgres_connection_string" {
 }
 
 variable "postgres_username" {
-  type        = string
-  sensitive   = true
-  description = "PostgreSQL username (Neon: neondb_owner). Injected as SPRING_DATASOURCE_USERNAME."
+  type      = string
+  sensitive = true
 }
 
 variable "postgres_password" {
-  type        = string
-  sensitive   = true
-  description = "PostgreSQL password. Injected as SPRING_DATASOURCE_PASSWORD."
+  type      = string
+  sensitive = true
 }
 
 variable "mongodb_connection_string" {
@@ -89,90 +75,62 @@ variable "cloudfront_origin_secret" {
 
 # ---------------------------------------------------------------------------
 # Messaging & Caching — runtime secrets
-# Passed from root module; injected into Lambda environment blocks.
 # ---------------------------------------------------------------------------
 
 variable "redis_url" {
-  type        = string
-  sensitive   = true
-  description = "Redis connection URL. Used by api-gateway, portfolio-service, and insight-service."
+  type      = string
+  sensitive = true
 }
 
 variable "kafka_bootstrap_servers" {
-  type        = string
-  description = "Kafka broker address. Used by portfolio-service, market-data-service, and insight-service."
+  type = string
 }
 
 variable "kafka_sasl_username" {
-  type        = string
-  sensitive   = true
-  description = "Kafka SASL/PLAIN username."
+  type      = string
+  sensitive = true
 }
 
 variable "kafka_sasl_password" {
-  type        = string
-  sensitive   = true
-  description = "Kafka SASL/PLAIN password."
+  type      = string
+  sensitive = true
 }
 
 variable "internal_api_key" {
-  type        = string
-  sensitive   = true
-  description = "Shared secret gating /api/internal/** endpoints (Golden-State E2E seeder). Merged into every Lambda's environment as INTERNAL_API_KEY."
+  type      = string
+  sensitive = true
 }
 
 variable "portfolio_function_url" {
-  type    = string
-  default = ""
+  type = string
 }
 
 variable "market_data_function_url" {
-  type    = string
-  default = ""
+  type = string
 }
 
 variable "insight_function_url" {
-  type    = string
-  default = ""
+  type = string
 }
 
-# When false (e.g. Neon + MongoDB Atlas + external Clerk), Lambdas must stay outside
-# any VPC so they can reach the public internet without a NAT gateway.
-# When true, set lambda_vpc_* to the same subnets/SGs as RDS/ElastiCache if those
-# endpoints are only reachable in-VPC.
 variable "enable_aws_managed_database" {
-  type    = bool
-  default = false
+  type = bool
 }
 
 variable "lambda_vpc_subnet_ids" {
-  type        = list(string)
-  default     = []
-  description = "Private subnets for Lambda ENIs; only used when enable_aws_managed_database is true and this list is non-empty."
+  type = list(string)
 }
 
 variable "lambda_vpc_security_group_ids" {
-  type        = list(string)
-  default     = []
-  description = "Security groups for Lambda ENIs; only used when enable_aws_managed_database is true and this list is non-empty."
+  type = list(string)
 }
 
 variable "lambda_timeout" {
-  type        = number
-  default     = 60
-  description = "Timeout in seconds for all Lambda functions. Must accommodate Spring Boot cold start."
+  type = number
 }
 
 variable "lambda_architecture" {
-  type        = string
-  default     = "arm64"
-  description = <<-EOT
-    Instruction-set architecture for all four Lambda functions.
-    "arm64" (Graviton2) is 20% cheaper per GB-s than "x86_64" and is the recommended
-    default.  Set to "x86_64" only to roll back after a failed arm64 deployment.
-    Changing this attribute forces Lambda to replace the function's execution environment;
-    plan carefully — Lambda updates in-place but concurrent invocations are drained first.
-  EOT
+  type = string
 
   validation {
     condition     = contains(["arm64", "x86_64"], var.lambda_architecture)
@@ -181,13 +139,5 @@ variable "lambda_architecture" {
 }
 
 variable "enable_provisioned_concurrency" {
-  type        = bool
-  default     = false
-  description = <<-EOT
-    When true, provisions 1 warm instance on the 'live' alias for wealth-api-gateway and
-    wealth-portfolio-service to eliminate cold-start 502s on the hot path.
-    Only enable after the ap-south-1 Lambda unreserved concurrency quota has been raised
-    above 10 — provisioned concurrency counts against the account pool, and enabling it
-    while the quota is 10 will leave fewer than the AWS-required 10 unreserved executions.
-  EOT
+  type = bool
 }
