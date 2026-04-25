@@ -131,15 +131,15 @@ jdbc:postgresql://<neon-host>:<port>/<database>
 
 ---
 
-### 1.4 Amazon Bedrock (Claude 3 Haiku)
+### 1.4 Amazon Bedrock (Claude Haiku 4.5)
 
 #### 1.4.1 AWS Account & Region
 
 - Choose a **single AWS account** and **primary region** that:
-  - Supports **Amazon Bedrock** and **Claude 3 Haiku**.
+  - Supports **Amazon Bedrock** and **Claude Haiku 4.5**.
   - Aligns with other services (Lambda, ECR, S3, CloudFront).
 
-- Confirm Bedrock availability for the chosen region and model (`Claude 3 Haiku`) in the AWS console.
+- Confirm Bedrock availability for the chosen region and model (`Claude Haiku 4.5`) in the AWS console.
 
 #### 1.4.2 IAM Permissions
 
@@ -147,7 +147,7 @@ jdbc:postgresql://<neon-host>:<port>/<database>
   - **Trust policy**: `lambda.amazonaws.com`.
   - **Permissions policies** including:
     - `bedrock:InvokeModel` and/or `bedrock:InvokeModelWithResponseStream` for the specific region.
-    - Resource ARNs scoped to the Claude 3 Haiku model(s) only, if possible.
+    - Resource ARNs scoped to the Claude Haiku 4.5 model(s) only, if possible.
     - CloudWatch Logs permissions for basic logging.
     - Optional: SSM Parameter Store / Secrets Manager read-only access for configuration secrets.
 
@@ -158,7 +158,7 @@ jdbc:postgresql://<neon-host>:<port>/<database>
 
 - In AWS console → **Amazon Bedrock**:
   - Request and ensure **model access is granted** for:
-    - `Claude 3 Haiku` in the chosen region.
+    - `Claude Haiku 4.5` in the chosen region.
   - Verify status is **“Enabled”** before deployment.
 
 - Store any **model IDs** required by the application as environment variables:

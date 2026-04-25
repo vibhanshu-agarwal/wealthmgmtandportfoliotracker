@@ -1,6 +1,36 @@
+# ============================================================
+# LOCAL DEVELOPMENT ONLY — scope callout
+#
+# This compose stack exists exclusively for local developer machines and the
+# local integration test loop. Production deploys the same four Spring services
+# to AWS Lambda (Image package type); production data stores (Postgres, Mongo,
+# Kafka, Redis) are third-party managed services (Neon, Atlas, Confluent Cloud,
+# Upstash) — NOT these Docker images.
+#
+# Consequence: image bumps below (postgres:18.3, mongo:8.2.7, cp-kafka:8.2.0)
+# only affect local dev parity with the managed providers' current versions.
+# They do NOT require a coordinated production migration. A future PR may
+# replace these containers with the third-party providers' local-mode offerings
+# (LocalStack / Testcontainers-style cloud-managed equivalents) so that local
+# and prod run the exact same engine — that work is explicitly out of scope here.
+#
+# Operator notes for the version bumps:
+#   - postgres:16 → :18.3  → existing `postgres-data` volumes created under 16
+#     will refuse to start on 18; run `docker volume rm <stack>_postgres-data`
+#     on first pull. No automatic major-version data migration.
+#   - cp-kafka:7.6.0 → :8.2.0 → CP 8.x is KRaft-only (ZooKeeper removed); the
+#     kafka block below already declares KAFKA_PROCESS_ROLES, CLUSTER_ID, and
+#     KAFKA_CONTROLLER_QUORUM_VOTERS, so this is drop-in compatible.
+#   - mongo:7.0 → :8.2.7  → minor; feature-compat defaults tightened.
+#   - INTERNAL_API_KEY now reads ${TF_VAR_internal_api_key} so a single
+#     Terraform-style env var feeds both compose and `terraform apply`. If your
+#     shell still exports the old `INTERNAL_API_KEY`, re-export it as
+#     `TF_VAR_internal_api_key` or compose injects a blank value and every
+#     gateway→service call 401s.
+# ============================================================
 services:
   postgres:
-    image: 'postgres:16'
+    image: 'postgres:18.3'
     container_name: portfolio-db
     environment:
       POSTGRES_DB: portfolio_db
@@ -12,7 +42,7 @@ services:
       - postgres-data:/var/lib/postgresql/data
 
   mongodb:
-    image: 'mongo:7.0'
+    image: 'mongo:8.2.7'
     container_name: market-db
     environment:
       MONGO_INITDB_DATABASE: market_db
@@ -22,7 +52,7 @@ services:
       - mongodb-data:/data/db
 
   kafka:
-    image: 'confluentinc/cp-kafka:7.6.0'
+    image: 'confluentinc/cp-kafka:8.2.0'
     container_name: event-broker
     ports:
       - '9092:9092'
@@ -50,14 +80,6 @@ services:
     ports:
       - '6379:6379'
 
-  ollama:
-    image: ollama/ollama:latest
-    container_name: ollama
-    ports:
-      - '11434:11434'
-    volumes:
-      - ollama-data:/root/.ollama
-
   portfolio-service:
     build:
       context: .
@@ -67,7 +89,7 @@ services:
     # The adapter requires the Lambda Extensions API which is only available in Lambda.
     # On Lambda, the Dockerfile ENTRYPOINT runs the adapter natively.
     # AOT is disabled locally — it's a Lambda cold-start optimization.
-    entrypoint: ["/opt/java/bin/java", "-jar", "/app/app.jar"]
+    entrypoint: [ "/opt/java/bin/java", "-jar", "/app/app.jar" ]
     depends_on:
       - postgres
       - kafka
@@ -76,11 +98,11 @@ services:
       SPRING_DATASOURCE_USERNAME: wealth_user
       SPRING_DATASOURCE_PASSWORD: wealth_pass
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      INTERNAL_API_KEY: ${INTERNAL_API_KEY}
+      INTERNAL_API_KEY: ${TF_VAR_internal_api_key}
     ports:
       - '8081:8081'
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:8081/actuator/health/readiness || exit 1"]
+      test: [ "CMD-SHELL", "curl -sf http://localhost:8081/actuator/health/readiness || exit 1" ]
       interval: 10s
       timeout: 5s
       retries: 12
@@ -95,18 +117,18 @@ services:
       context: .
       dockerfile: market-data-service/Dockerfile
     container_name: market-data-service
-    entrypoint: ["/opt/java/bin/java", "-jar", "/app/app.jar"]
+    entrypoint: [ "/opt/java/bin/java", "-jar", "/app/app.jar" ]
     depends_on:
       - mongodb
       - kafka
     environment:
       SPRING_MONGODB_URI: mongodb://mongodb:27017/market_db
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      INTERNAL_API_KEY: ${INTERNAL_API_KEY}
+      INTERNAL_API_KEY: ${TF_VAR_internal_api_key}
     ports:
       - '8082:8082'
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:8082/actuator/health/readiness || exit 1"]
+      test: [ "CMD-SHELL", "curl -sf http://localhost:8082/actuator/health/readiness || exit 1" ]
       interval: 10s
       timeout: 5s
       retries: 12
@@ -121,7 +143,7 @@ services:
       context: .
       dockerfile: insight-service/Dockerfile
     container_name: insight-service
-    entrypoint: ["/opt/java/bin/java", "-jar", "/app/app.jar"]
+    entrypoint: [ "/opt/java/bin/java", "-jar", "/app/app.jar" ]
     depends_on:
       portfolio-service:
         condition: service_healthy
@@ -129,18 +151,31 @@ services:
         condition: service_started
       redis:
         condition: service_started
-      ollama:
-        condition: service_started
     environment:
+      # Default to `local` only — this activates MockAiInsightService / MockInsightAdvisor
+      # (guarded by @Profile("!bedrock")) so `docker compose up` works with zero AWS
+      # credentials and zero Bedrock cost.
+      #
+      # To smoke-test real Bedrock locally, opt in by exporting the profile and AWS
+      # credentials in your shell before `docker compose up`:
+      #   SPRING_PROFILES_ACTIVE=local,bedrock AWS_ACCESS_KEY_ID=... \
+      #   AWS_SECRET_ACCESS_KEY=... docker compose up
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-local}
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
       PORTFOLIO_SERVICE_URL: http://portfolio-service:8081
-      INTERNAL_API_KEY: ${INTERNAL_API_KEY}
+      INTERNAL_API_KEY: ${TF_VAR_internal_api_key}
+      # AWS_* are only consumed when the bedrock profile is opted-in above.
+      # They default to empty so the default `local` mock path does not
+      # require any AWS configuration.
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
     ports:
       - '8083:8083'
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:8083/actuator/health/readiness || exit 1"]
+      test: [ "CMD-SHELL", "curl -sf http://localhost:8083/actuator/health/readiness || exit 1" ]
       interval: 10s
       timeout: 5s
       retries: 12
@@ -155,7 +190,7 @@ services:
       context: .
       dockerfile: api-gateway/Dockerfile
     container_name: api-gateway
-    entrypoint: ["/opt/java/bin/java", "-jar", "/app/app.jar"]
+    entrypoint: [ "/opt/java/bin/java", "-jar", "/app/app.jar" ]
     depends_on:
       portfolio-service:
         condition: service_healthy
@@ -174,11 +209,11 @@ services:
       PORTFOLIO_SERVICE_URL: http://portfolio-service:8081
       MARKET_DATA_SERVICE_URL: http://market-data-service:8082
       INSIGHT_SERVICE_URL: http://insight-service:8083
-      INTERNAL_API_KEY: ${INTERNAL_API_KEY}
+      INTERNAL_API_KEY: ${TF_VAR_internal_api_key}
     ports:
       - '8080:8080'
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health/readiness"]
+      test: [ "CMD", "curl", "-f", "http://localhost:8080/actuator/health/readiness" ]
       interval: 10s
       timeout: 5s
       retries: 12
@@ -192,4 +227,3 @@ volumes:
   postgres-data:
   mongodb-data:
   kafka-data:
-  ollama-data:

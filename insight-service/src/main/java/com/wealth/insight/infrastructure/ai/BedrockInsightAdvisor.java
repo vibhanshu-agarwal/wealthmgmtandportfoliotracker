@@ -17,11 +17,13 @@ import java.util.stream.Collectors;
 import static com.wealth.insight.infrastructure.redis.CacheConfig.PORTFOLIO_ANALYSIS_CACHE;
 
 /**
- * AWS Bedrock (Claude 3 Haiku) portfolio advisor — active when the {@code bedrock}
- * Spring profile is enabled (i.e. {@code SPRING_PROFILES_ACTIVE=prod,aws,bedrock} on Lambda).
+ * AWS Bedrock (Claude Haiku 4.5) portfolio advisor — active when the {@code bedrock}
+ * Spring profile is enabled (i.e. {@code SPRING_PROFILES_ACTIVE=prod,aws,bedrock} on Lambda,
+ * or {@code local,bedrock} for opt-in local smoke-testing against real Bedrock).
  *
- * <p>Uses Spring AI {@link ChatClient} backed by the Bedrock Converse API with the same
- * system prompt and {@link AnalysisResult} entity mapping as {@link OllamaInsightAdvisor}.
+ * <p>Uses Spring AI {@link ChatClient} backed by the Bedrock Converse API, constrained to
+ * structural portfolio analysis only (no personalised financial advice, no security-specific
+ * buy/sell recommendations) — see {@code SYSTEM_PROMPT} below.
  *
  * <p>Responses are cached in Redis ({@code portfolio-analysis} cache, 30-minute TTL) to
  * avoid re-running the full LLM analysis on every dashboard refresh. Cache misses (including

@@ -7,7 +7,7 @@ import com.wealth.insight.advisor.AdvisorUnavailableException;
  *
  * <p>Returns a 2-sentence plain-text sentiment summary for a given ticker.
  * Profile-scoped adapters provide the concrete implementation:
- * mock (default/CI), Ollama (local inference), or Bedrock (cloud).
+ * mock (default / local / CI) or Bedrock ({@code bedrock} profile — AWS cloud).
  *
  * <p>Distinct from {@link com.wealth.insight.advisor.InsightAdvisor},
  * which handles portfolio-level risk analysis.

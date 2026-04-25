@@ -135,7 +135,7 @@ class MarketSummaryIntegrationTest {
 
     @Test
     void aiInsightService_mockProfile_returnsDeterministicSentiment() {
-        // With default profile (no ollama/bedrock), MockAiInsightService should be active
+        // With default profile (no `bedrock`), MockAiInsightService should be active
         String sentiment = aiInsightService.getSentiment("AAPL");
 
         assertThat(sentiment).contains("AAPL");

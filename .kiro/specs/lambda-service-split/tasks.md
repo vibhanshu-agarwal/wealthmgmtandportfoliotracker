@@ -4,8 +4,9 @@
 
 Migrate the platform from a single deployed Lambda (api-gateway only) to four independently
 deployed Image Lambdas, replace the Ollama/mock Bedrock AI adapter with a live AWS Bedrock
-(Claude 3 Haiku) adapter, add Redis caching for Bedrock responses, and extend the CI/CD
-pipeline to build and deploy all four services.
+(Claude Haiku 4.5, invoked via the US cross-region inference profile) adapter, add Redis
+caching for Bedrock responses, and extend the CI/CD pipeline to build and deploy all four
+services.
 
 **Critical sequencing:** Terraform infrastructure (Phase A) must be applied before CI/CD
 pipeline changes (Phase C) are merged. Application code (Phase B) can be developed in
@@ -116,11 +117,17 @@ follow Phase B. Verification (Phase E) closes the loop.
     (the bean approach in B6 is authoritative; this entry documents the intent)
   - _Requirements: 12.6_
 
-- [x] B4. Add Bedrock configuration to `insight-service/src/main/resources/application-aws.yml`
-  - Add `spring.ai.bedrock.aws.region: us-east-1`
-  - Add `spring.ai.bedrock.converse.chat.options.model: anthropic.claude-3-haiku-20240307-v1:0`
-  - Add a comment explaining no API key is needed — the Lambda execution role's IAM
-    credentials are picked up automatically by the AWS SDK default credential chain
+- [x] B4. Add Bedrock configuration (region in `application-aws.yml`, model in `application-bedrock.yml`)
+  - In `application-aws.yml`, add `spring.ai.bedrock.aws.region: us-east-1` and a
+    comment explaining no API key is needed — the Lambda execution role's IAM
+    credentials are picked up automatically by the AWS SDK default credential chain.
+  - In `application-bedrock.yml`, configure
+    `spring.ai.bedrock.converse.chat.options.model: us.anthropic.claude-haiku-4-5-20251001-v1:0`
+    plus `temperature: 0.2` under the same `converse.chat.options` block. The
+    `converse` level is required — the Bedrock Converse starter ignores
+    `spring.ai.bedrock.chat.options.model` (without `converse`) silently.
+  - Do NOT duplicate the model key in `application-aws.yml`; keep a single source of truth
+    in `application-bedrock.yml`.
   - _Requirements: 11.5_
 
 - [x] B5. Update `insight-service/build.gradle` — swap Ollama for Bedrock Converse and add jqwik
@@ -174,10 +181,17 @@ follow Phase B. Verification (Phase E) closes the loop.
   - Both classes are `@Profile("bedrock")` — only one can exist at a time
   - _Requirements: 11.2_
 
-- [x] B10. Add "local development only" comments to `OllamaAiInsightService` and `OllamaInsightAdvisor`
-  - In `OllamaAiInsightService.java`, add a Javadoc or inline comment:
-    "Local development only — not deployed to Lambda. Use the `bedrock` profile for AWS."
-  - In `OllamaInsightAdvisor.java`, add the same comment
+- [x] B10. Remove the Ollama local-dev path entirely (supersedes the earlier "retain with comment" plan)
+  - Delete `insight-service/src/main/java/com/wealth/insight/infrastructure/ai/OllamaAiInsightService.java`
+  - Delete `insight-service/src/main/java/com/wealth/insight/infrastructure/ai/OllamaInsightAdvisor.java`
+  - Delete `insight-service/src/main/resources/application-ollama.yml`
+  - Delete `insight-service/src/test/java/com/wealth/insight/infrastructure/ai/OllamaAiInsightServicePropertyTest.java`
+    (property-4 `buildPrompt` coverage migrated to `BedrockAiInsightServicePropertyTest`)
+  - Relax `@Profile("!ollama & !bedrock")` to `@Profile("!bedrock")` on `MockAiInsightService` and `MockInsightAdvisor`
+  - Reason: the Ollama starter (`spring-ai-starter-model-ollama`) was dropped from `build.gradle` in B5.1,
+    which left the Ollama Java classes unable to resolve a `ChatClient` bean at startup if the
+    `ollama` profile was ever activated (no qualifying ChatModel on the classpath). Keeping the
+    classes-only shell was net-negative: dead code that crashed if exercised.
   - _Requirements: 11.6_
 
 - [x] B11. Checkpoint — verify application code compiles and unit tests pass
@@ -335,8 +349,9 @@ follow Phase B. Verification (Phase E) closes the loop.
 - Phase B can be developed in parallel with Phase A on a feature branch
 - The `redis/` directory in `insight-service/src/main/java/com/wealth/insight/infrastructure/`
   already exists but is empty — `CacheConfig.java` goes there (task B6)
-- `OllamaAiInsightService` and `OllamaInsightAdvisor` are **retained** for local
-  development under the `ollama` profile — do not delete them
+- `OllamaAiInsightService` and `OllamaInsightAdvisor` have been **removed** (see B10).
+  Local dev now uses the mock adapters exclusively; a future PR may introduce a
+  managed-third-party local AI path (no Docker-packaged LLM sidecar).
 - `MockBedrockAiInsightService` is **deleted** in task B9 — it is replaced by the real
   `BedrockAiInsightService` which takes over the `bedrock` profile slot
 - New GitHub Actions secrets must be added manually in the repository settings before

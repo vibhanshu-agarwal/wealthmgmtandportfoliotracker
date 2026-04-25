@@ -4,7 +4,7 @@
 
 This feature migrates the wealth management platform from a single deployed Lambda (`wealth-mgmt-backend-lambda` running only api-gateway) to four independently deployed Lambda functions — one per microservice. All four functions use the Image package type, backed by their existing multi-stage Dockerfiles with Spring Boot AOT compilation.
 
-The migration also replaces the Ollama AI adapter in insight-service with a live AWS Bedrock (Claude 3 Haiku) adapter, and adds Redis caching for Bedrock responses to control API costs.
+The migration also replaces the Ollama AI adapter in insight-service with a live AWS Bedrock (Claude Haiku 4.5, US cross-region inference profile) adapter, and adds Redis caching for Bedrock responses to control API costs.
 
 ### Goals
 
@@ -45,7 +45,7 @@ CloudFront → wealth-api-gateway (Image Lambda)
                                                         ↓
                                                wealth-portfolio-service (for portfolio context)
                                                         ↓
-                                               Amazon Bedrock (Claude 3 Haiku, us-east-1)
+                                               Amazon Bedrock (Claude Haiku 4.5, us.* inference profile)
                                                         ↑↓
                                                Redis (Upstash, cache layer)
 ```
@@ -211,15 +211,15 @@ implementation 'org.springframework.ai:spring-ai-starter-model-bedrock-converse'
 
 **New class: `BedrockAiInsightService`** (`@Profile("bedrock")`)
 
-Replaces `MockBedrockAiInsightService`. Uses `ChatClient` backed by `BedrockProxyChatModel` (auto-configured by the starter). Identical prompt logic to `OllamaAiInsightService`. Annotated `@Cacheable(value = "sentiment", key = "#ticker")`.
+Replaces `MockBedrockAiInsightService`. Uses `ChatClient` backed by `BedrockProxyChatModel` (auto-configured by the starter, targeting the `us.anthropic.claude-haiku-4-5-20251001-v1:0` inference profile). Annotated `@Cacheable(value = "sentiment", key = "#ticker")`.
 
 **New class: `BedrockInsightAdvisor`** (`@Profile("bedrock")`)
 
-Replaces the mock advisor under the `bedrock` profile. Uses the same system prompt and `AnalysisResult` entity mapping as `OllamaInsightAdvisor`. Annotated `@Cacheable(value = "portfolio-analysis", key = "#portfolio.id()")`.
+Replaces the mock advisor under the `bedrock` profile. Same `AnalysisResult` entity mapping contract. Annotated `@Cacheable(value = "portfolio-analysis", key = "#portfolio.id()")`.
 
-**`OllamaAiInsightService` and `OllamaInsightAdvisor`** are retained with a comment: "Local development only — not deployed to Lambda. Use `bedrock` profile for AWS."
+**Ollama adapters have been deleted.** `OllamaAiInsightService`, `OllamaInsightAdvisor`, their property test, and `application-ollama.yml` were removed; the Ollama starter is no longer on the classpath. Local dev uses `MockAiInsightService` / `MockInsightAdvisor` exclusively — both guarded by `@Profile("!bedrock")`.
 
-**Profile activation on Lambda:** `SPRING_PROFILES_ACTIVE = "prod,aws,bedrock"` set in Terraform compute module for `wealth-insight-service`.
+**Profile activation on Lambda:** `SPRING_PROFILES_ACTIVE = "prod,aws,bedrock"` set in Terraform compute module for `wealth-insight-service`. Local docker-compose defaults to `SPRING_PROFILES_ACTIVE=local` (mocks); `local,bedrock` is an opt-in override for smoke-testing Bedrock from a developer machine.
 
 ### 8. insight-service: Redis Cache Configuration
 
@@ -285,7 +285,7 @@ spring:
       converse:
         chat:
           options:
-            model: anthropic.claude-3-haiku-20240307-v1:0
+            model: us.anthropic.claude-haiku-4-5-20251001-v1:0
 ```
 
 No API key needed — the Lambda execution role's IAM credentials are picked up automatically by the AWS SDK default credential chain.

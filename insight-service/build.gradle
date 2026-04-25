@@ -31,11 +31,13 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-data-redis'
     implementation 'com.fasterxml.jackson.core:jackson-databind'
     implementation platform('org.springframework.ai:spring-ai-bom:2.0.0-M4')
-    // Bedrock Converse API — same Spring AI ChatClient abstraction as Ollama but AWS-native.
-    // Ollama (spring-ai-starter-model-ollama) is removed because it is a local inference server
-    // incompatible with Lambda: it attempts to autoconfigure an Ollama connection on startup
-    // regardless of active profile, adding unnecessary startup overhead and connection failures.
-    // Bedrock uses the Lambda execution role's IAM credentials automatically — no API key needed.
+    // Bedrock Converse API is the sole AI provider for insight-service.
+    // - Production (Lambda, profile `bedrock`) uses the Lambda execution role's IAM
+    //   credentials automatically via the AWS SDK default credential chain — no API key.
+    // - Local dev (profile `local`, the default) selects MockAiInsightService /
+    //   MockInsightAdvisor via @Profile("!bedrock") and never calls Bedrock.
+    // - Local smoke-testing of Bedrock is opt-in: `SPRING_PROFILES_ACTIVE=local,bedrock`
+    //   plus AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY in the shell env.
     implementation 'org.springframework.ai:spring-ai-starter-model-bedrock-converse'
     implementation 'org.springframework.ai:spring-ai-client-chat'
 
