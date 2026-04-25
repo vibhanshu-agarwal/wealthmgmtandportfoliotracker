@@ -6,12 +6,13 @@ import org.springframework.stereotype.Service;
 import com.wealth.insight.AiInsightService;
 
 /**
- * Default mock adapter — active when neither {@code ollama} nor {@code bedrock}
- * profiles are enabled. Returns deterministic, hardcoded Neutral sentiment
- * with zero latency and no network calls.
+ * Default mock adapter — active whenever the {@code bedrock} profile is not enabled.
+ * Returns deterministic, hardcoded Neutral sentiment with zero latency and no
+ * network calls. Used for local development, CI, and any environment where the
+ * real Bedrock adapter is not wired.
  */
 @Service
-@Profile("!ollama & !bedrock")
+@Profile("!bedrock")
 public class MockAiInsightService implements AiInsightService {
 
     @Override

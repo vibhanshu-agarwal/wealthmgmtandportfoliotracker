@@ -2,6 +2,10 @@
 # Compute Module — IAM Roles, Lambda Functions, Aliases, Function URLs
 # =============================================================================
 
+# Resolves the current account ID at apply time so IAM policies can reference
+# account-scoped ARNs (e.g. Bedrock inference-profile ARNs) without hard-coding.
+data "aws_caller_identity" "current" {}
+
 locals {
   common_env = {
     JAVA_TOOL_OPTIONS            = "-XX:+TieredCompilation -XX:TieredStopAtLevel=1"
@@ -148,7 +152,18 @@ resource "aws_iam_role_policy_attachment" "insight_vpc" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
 }
 
-# Insight service needs Bedrock access (scoped to specific model, no wildcard)
+# Insight service needs Bedrock access for Claude Haiku 4.5.
+#
+# Haiku 4.5 on Bedrock is inference-profile-only for on-demand throughput: the caller
+# invokes the system-defined US inference profile (`us.anthropic.claude-haiku-4-5-…`),
+# and Bedrock routes the request to one of the foundation-model endpoints in
+# us-east-1 / us-east-2 / us-west-2 depending on capacity. IAM evaluates both the
+# inference-profile ARN and the foundation-model ARN of the routed region, so all
+# four resources must be allowed — granting only the inference-profile ARN (or only
+# a single foundation-model ARN) yields AccessDeniedException at runtime.
+#
+# Action list includes both InvokeModel and InvokeModelWithResponseStream so streaming
+# Converse calls don't silently fail with a separate permission error.
 resource "aws_iam_role_policy" "insight_bedrock" {
   name = "insight-bedrock-invoke"
   role = aws_iam_role.insight.id
@@ -157,9 +172,17 @@ resource "aws_iam_role_policy" "insight_bedrock" {
     Version = "2012-10-17"
     Statement = [
       {
-        Effect   = "Allow"
-        Action   = ["bedrock:InvokeModel"]
-        Resource = "arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-3-haiku-20240307-v1:0"
+        Effect = "Allow"
+        Action = [
+          "bedrock:InvokeModel",
+          "bedrock:InvokeModelWithResponseStream",
+        ]
+        Resource = [
+          "arn:aws:bedrock:us-east-1:${data.aws_caller_identity.current.account_id}:inference-profile/us.anthropic.claude-haiku-4-5-20251001-v1:0",
+          "arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0",
+          "arn:aws:bedrock:us-east-2::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0",
+          "arn:aws:bedrock:us-west-2::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0",
+        ]
       }
     ]
   })
@@ -303,7 +326,7 @@ resource "aws_lambda_function" "insight" {
 
   environment {
     variables = merge(local.common_env, local.runtime_secrets, {
-      # insight-service uses the bedrock profile for AWS Bedrock (Claude 3 Haiku) inference.
+      # insight-service uses the bedrock profile for AWS Bedrock (Claude Haiku 4.5) inference.
       # SPRING_PROFILES_ACTIVE overrides common_env's "prod,aws" value for this function only.
       # Note: Spring Boot also loads the base application.yml default profile ("local") alongside
       # the active profiles — this is expected behavior, not a misconfiguration.

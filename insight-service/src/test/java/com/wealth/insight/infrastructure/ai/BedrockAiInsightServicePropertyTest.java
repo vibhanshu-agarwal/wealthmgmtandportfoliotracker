@@ -15,8 +15,11 @@ import static org.assertj.core.api.Assertions.assertThat;
  *
  * <p>For any ticker and TickerSummary with non-null price data,
  * the prompt contains the ticker symbol, at least one price, and the trend percent.
+ *
+ * <p>Migrated from the removed OllamaAiInsightServicePropertyTest; the exact same
+ * {@code buildPrompt} contract is exercised here against the surviving Bedrock adapter.
  */
-class OllamaAiInsightServicePropertyTest {
+class BedrockAiInsightServicePropertyTest {
 
     /**
      * We can test buildPrompt directly since it's package-private.
@@ -32,8 +35,7 @@ class OllamaAiInsightServicePropertyTest {
 
         TickerSummary summary = new TickerSummary(ticker, prices.getFirst(), prices, trend, null);
 
-        // Use a test-friendly instance to call buildPrompt
-        String prompt = new TestableOllamaAiInsightService().buildPrompt(ticker, summary);
+        String prompt = new TestableBedrockAiInsightService().buildPrompt(ticker, summary);
 
         assertThat(prompt).contains(ticker);
         assertThat(prompt).contains(prices.getFirst().toPlainString());
@@ -48,7 +50,7 @@ class OllamaAiInsightServicePropertyTest {
 
         TickerSummary summary = new TickerSummary(ticker, price, List.of(price), null, null);
 
-        String prompt = new TestableOllamaAiInsightService().buildPrompt(ticker, summary);
+        String prompt = new TestableBedrockAiInsightService().buildPrompt(ticker, summary);
 
         assertThat(prompt).contains(ticker);
         assertThat(prompt).contains("N/A");
@@ -72,8 +74,8 @@ class OllamaAiInsightServicePropertyTest {
      * Minimal subclass that exposes buildPrompt without requiring real dependencies.
      * Uses a mock ChatClient.Builder to avoid NPE in the constructor.
      */
-    static class TestableOllamaAiInsightService extends OllamaAiInsightService {
-        TestableOllamaAiInsightService() {
+    static class TestableBedrockAiInsightService extends BedrockAiInsightService {
+        TestableBedrockAiInsightService() {
             super(org.mockito.Mockito.mock(org.springframework.ai.chat.client.ChatClient.Builder.class,
                     org.mockito.Mockito.RETURNS_DEEP_STUBS), null);
         }

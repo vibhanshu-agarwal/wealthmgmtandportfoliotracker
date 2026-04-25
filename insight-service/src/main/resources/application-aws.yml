@@ -5,6 +5,9 @@
 #
 # Future clouds: add application-azure.yml / application-gcp.yml
 # with their own overrides. application-prod.yml stays untouched.
+#
+# Model + temperature live in application-bedrock.yml (single source of truth);
+# this file only pins the region used by the Bedrock AWS SDK credential chain.
 # ============================================================
 
 spring:
@@ -16,10 +19,3 @@ spring:
         # No API key needed: the Lambda execution role's IAM credentials are picked up
         # automatically by the AWS SDK default credential chain.
         region: us-east-1
-      converse:
-        chat:
-          options:
-            # Claude 3 Haiku: ~10x cheaper than Sonnet with comparable quality for
-            # portfolio insight generation. IAM policy in compute module already scopes
-            # bedrock:InvokeModel to this exact model ARN.
-            model: anthropic.claude-3-haiku-20240307-v1:0

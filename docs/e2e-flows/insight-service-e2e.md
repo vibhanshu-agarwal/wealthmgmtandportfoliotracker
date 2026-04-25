@@ -26,10 +26,9 @@ The `insight-service` maintains its own view of market data for low-latency acce
 *   **Kafka Listener**: The `InsightEventListener` listens to the `market-prices` Kafka topic. When a `PriceUpdatedEvent` is received, it updates the Redis cache.
 
 ## 5. AI Enrichment (AiInsightService)
-The `AiInsightService` provides sentiment analysis and is implemented via various adapters:
-*   **`OllamaAiInsightService`**: Local LLM inference.
-*   **`BedrockAiInsightService`**: AWS Bedrock integration.
-*   **`MockAiInsightService`**: Default implementation for development and CI.
+The `AiInsightService` provides sentiment analysis and is implemented via two profile-scoped adapters:
+*   **`MockAiInsightService`**: Default implementation (`@Profile("!bedrock")`) — active for local development and CI. Zero-latency deterministic responses.
+*   **`BedrockAiInsightService`**: AWS Bedrock (Claude Haiku 4.5) integration (`@Profile("bedrock")`) — active on Lambda (`SPRING_PROFILES_ACTIVE=prod,aws,bedrock`) or for opt-in local smoke-testing (`local,bedrock`).
 
 ## 6. Portfolio Analysis (Downstream REST Call)
 For portfolio-level analysis (e.g., `/api/insights/{userId}/analyze`):

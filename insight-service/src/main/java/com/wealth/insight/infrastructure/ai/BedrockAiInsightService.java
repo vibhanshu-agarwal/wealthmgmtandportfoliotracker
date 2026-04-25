@@ -17,19 +17,20 @@ import java.util.stream.Collectors;
 import static com.wealth.insight.infrastructure.redis.CacheConfig.SENTIMENT_CACHE;
 
 /**
- * AWS Bedrock (Claude 3 Haiku) market sentiment adapter — active when the {@code bedrock}
- * Spring profile is enabled (i.e. {@code SPRING_PROFILES_ACTIVE=prod,aws,bedrock} on Lambda).
+ * AWS Bedrock (Claude Haiku 4.5) market sentiment adapter — active when the {@code bedrock}
+ * Spring profile is enabled (i.e. {@code SPRING_PROFILES_ACTIVE=prod,aws,bedrock} on Lambda,
+ * or {@code local,bedrock} for opt-in local smoke-testing against real Bedrock).
  *
- * <p>Replaces {@link MockBedrockAiInsightService} which was a placeholder stub.
- * Uses Spring AI {@link ChatClient} backed by the Bedrock Converse API — the same
- * abstraction as the Ollama adapter, just with an AWS-native provider.
+ * <p>Uses Spring AI {@link ChatClient} backed by the Bedrock Converse API.
  *
  * <p>Responses are cached in Redis ({@code sentiment} cache, 60-minute TTL) to avoid
  * redundant Bedrock API calls for repeated ticker lookups. Cache misses (including Redis
  * unavailability) fall through to Bedrock transparently via {@code CacheConfig.errorHandler()}.
  *
- * <p>Model: {@code anthropic.claude-3-haiku-20240307-v1:0} (us-east-1).
- * Claude 3 Haiku is ~10x cheaper than Sonnet with comparable quality for sentiment analysis.
+ * <p>Model: {@code us.anthropic.claude-haiku-4-5-20251001-v1:0} — the US cross-region
+ * inference profile for Claude Haiku 4.5. Bedrock routes requests to us-east-1, us-east-2,
+ * or us-west-2 based on capacity; the Lambda IAM policy grants InvokeModel on the
+ * inference-profile ARN plus foundation-model ARNs in all three routed regions.
  * No API key required — the Lambda execution role's IAM credentials are used automatically.
  */
 @Service

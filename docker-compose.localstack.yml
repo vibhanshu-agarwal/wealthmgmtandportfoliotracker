@@ -1,5 +1,13 @@
-# LocalStack + Ollama overlay for local AWS emulation and AI inference.
+# LocalStack overlay for local AWS emulation (Lambda, S3, DynamoDB, CloudFront, IAM, ACM,
+# Route53, RDS, ElastiCache, SQS). Use alongside docker-compose.yml; the base compose stack
+# handles the application services themselves.
+#
 # Usage: docker compose -f docker-compose.yml -f docker-compose.localstack.yml up -d
+#
+# AI inference is NOT provided here: local dev defaults to MockAiInsightService /
+# MockInsightAdvisor (profile `local`). To smoke-test real Bedrock from a local container,
+# export SPRING_PROFILES_ACTIVE=local,bedrock + AWS_* credentials before `docker compose up`
+# (see docker-compose.yml for the insight-service environment block).
 services:
   localstack:
     image: localstack/localstack:latest
@@ -16,22 +24,10 @@ services:
     networks:
       - wealthmgmt_network
 
-  ollama:
-    image: ollama/ollama:latest
-    container_name: ollama
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama_data:/root/.ollama
-    networks:
-      - wealthmgmt_network
-
   insight-service:
     build:
       context: ./insight-service
     container_name: insight-service
-    depends_on:
-      - ollama
     environment:
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       PORTFOLIO_SERVICE_URL: http://portfolio-service:8081
@@ -44,5 +40,3 @@ networks:
   wealthmgmt_network:
     driver: bridge
 
-volumes:
-  ollama_data:

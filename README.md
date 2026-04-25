@@ -56,19 +56,7 @@ The architectural roadmap is highly dynamic as we expand our multi-cloud and adv
 | ------------------- | -------------- | ------------------------- | ----------------------- | --------------------------- |
 | CI (GitHub Actions) | `default`      | `MockPortfolioAdvisor`    | Testcontainers          | Fast, no LLM download       |
 | Local Dev           | `local`        | `MockPortfolioAdvisor`    | Docker Compose          | Zero-latency mock responses |
-| Local AI            | `local,ollama` | `OllamaPortfolioAdvisor`  | Docker Compose + Ollama | Requires `phi3` model pull  |
-| AWS Production      | `bedrock`      | `BedrockPortfolioAdvisor` | ECS / Lambda            | Anthropic Claude 3 Haiku    |
-
-### Local AI Cold Start
-
-To use the Ollama advisor locally, pull the model after starting Docker Compose:
-
-```bash
-docker compose up -d
-docker exec -it ollama ollama pull phi3
-```
-
-This downloads ~2.3 GB for the Phi-3 Mini model (optimized for 4GB VRAM).
+| AWS Production      | `bedrock`      | `BedrockPortfolioAdvisor` | ECS / Lambda            | Anthropic Claude Haiku 4.5  |
 
 This project heavily utilizes `spring-boot-docker-compose` and Testcontainers for a frictionless developer experience. You do not need to install PostgreSQL locally or manage credentials.
 

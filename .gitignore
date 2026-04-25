@@ -99,6 +99,10 @@ docs/specs/
 ### jqwik property-based testing ###
 .jqwik-database
 
+### JVM crash / replay logs ###
+hs_err_pid*.log
+replay_pid*.log
+
 ### Temporary / debug files ###
 tmp*.html
 response*.json

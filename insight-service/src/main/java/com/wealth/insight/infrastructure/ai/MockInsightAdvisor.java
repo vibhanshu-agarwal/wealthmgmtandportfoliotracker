@@ -9,11 +9,12 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 
 /**
- * Default mock adapter — active when neither {@code ollama} nor {@code bedrock}
- * profiles are enabled. Returns deterministic, hardcoded responses with zero latency.
+ * Default mock advisor — active whenever the {@code bedrock} profile is not enabled.
+ * Returns deterministic, hardcoded responses with zero latency. Used for local
+ * development, CI, and any environment where the real Bedrock advisor is not wired.
  */
 @Service
-@Profile("!ollama & !bedrock")
+@Profile("!bedrock")
 public class MockInsightAdvisor implements InsightAdvisor {
 
     @Override
