@@ -126,13 +126,8 @@ variable "insight_image_uri" {
   description = "Full ECR image URI for wealth-insight-service Lambda (package_type Image)."
 }
 
-variable "s3_key_api_gateway" {
-  type        = string
-  description = "S3 object key for api-gateway JAR (unused — api-gateway uses package_type Image)"
-}
-
-# s3_key_portfolio, s3_key_market_data, s3_key_insight removed — all three services
-# are now Image-based Lambdas. S3 artifact keys are no longer needed.
+# s3_key_api_gateway removed — api-gateway uses package_type Image (ECR), not S3 Zip.
+# s3_key_portfolio, s3_key_market_data, s3_key_insight removed — same reason.
 
 variable "domain_name" {
   type        = string
@@ -279,10 +274,15 @@ variable "lambda_architecture" {
   nullable    = true
   default     = null
   description = <<-EOT
-    Optional override for Lambda ISA. Defaults to "arm64" (Graviton2) inside the compute module.
+    Optional override for Lambda ISA. Accepts "arm64" (Graviton2, default) or "x86_64".
     Set to "x86_64" via TF_VAR_lambda_architecture or tfvars only to roll back after a failed
-    arm64 deployment.  Leave null (the default) to accept the module default of "arm64".
+    arm64 deployment. Leave null (the default) — main.tf coalesces to "arm64".
   EOT
+
+  validation {
+    condition     = var.lambda_architecture == null || contains(["arm64", "x86_64"], var.lambda_architecture)
+    error_message = "lambda_architecture must be \"arm64\" or \"x86_64\" (or null to accept the default arm64)."
+  }
 }
 
 variable "enable_provisioned_concurrency" {

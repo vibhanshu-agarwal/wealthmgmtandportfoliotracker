@@ -74,10 +74,6 @@ api_gateway_image_uri = "123456789012.dkr.ecr.us-east-1.amazonaws.com/my-api-gat
 # market_data_memory_size     = 1024
 # insight_service_memory_size = 1024
 
-# S3 key for api-gateway JAR (unused — api-gateway uses package_type Image)
-# s3_key_portfolio, s3_key_market_data, s3_key_insight removed — all services are now Image-based
-s3_key_api_gateway = "api-gateway/api-gateway.jar"
-
 # JWK URI for JWT validation (aws profile)
 auth_jwk_uri = "https://cognito-idp.us-east-1.amazonaws.com/us-east-1_XXXXXXXX/.well-known/jwks.json"
 
