@@ -20,10 +20,10 @@ public class AuthController {
     private final JwtSigner jwtSigner;
 
     public AuthController(
-            @Value("${app.auth.email:dev@localhost.local}") String authEmail,
-            @Value("${app.auth.password:password}") String authPassword,
-            @Value("${app.auth.user-id:user-001}") String authUserId,
-            @Value("${app.auth.name:Development User}") String authName,
+            @Value("${app.auth.email}") String authEmail,
+            @Value("${app.auth.password}") String authPassword,
+            @Value("${app.auth.user-id}") String authUserId,
+            @Value("${app.auth.name}") String authName,
             JwtSigner jwtSigner) {
         this.authEmail = authEmail;
         this.authPassword = authPassword;
