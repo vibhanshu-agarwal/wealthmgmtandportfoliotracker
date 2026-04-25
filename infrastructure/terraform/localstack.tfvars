@@ -26,9 +26,6 @@ portfolio_image_uri   = "000000000000.dkr.ecr.us-east-1.amazonaws.com/wealth-por
 market_data_image_uri = "000000000000.dkr.ecr.us-east-1.amazonaws.com/wealth-market-data-service:latest"
 insight_image_uri     = "000000000000.dkr.ecr.us-east-1.amazonaws.com/wealth-insight-service:latest"
 
-# S3 keys (stub — api-gateway JAR key retained for variable completeness; service JARs no longer used)
-s3_key_api_gateway = "api-gateway/api-gateway.jar"
-
 # JWK URI (stub for LocalStack)
 auth_jwk_uri = "http://localhost:4566/jwks"
 

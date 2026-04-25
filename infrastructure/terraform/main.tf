@@ -53,7 +53,6 @@ module "compute" {
   source = "./modules/compute"
 
   artifact_bucket_name  = var.artifact_bucket_name
-  s3_key_api_gateway    = var.s3_key_api_gateway
   api_gateway_image_uri = var.api_gateway_image_uri
   api_gateway_memory    = coalesce(var.api_gateway_memory, local.lambda_defaults.api_gateway_memory_mb)
   # Service image URIs — all three backend services are now Image-based

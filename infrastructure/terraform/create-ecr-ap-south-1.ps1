@@ -32,7 +32,6 @@ Write-Host "=== Creating ECR repos in ap-south-1 ===" -ForegroundColor Cyan
     "-var=lock_table_name=vibhanshu-terraform-locks" `
     "-var=artifact_bucket_name=wealth-artifacts-local" `
     "-var=frontend_bucket_name=vibhanshu-s3-wealthmgmt-demo-bucket" `
-    "-var=s3_key_api_gateway=api-gateway/api-gateway.jar" `
     "-var=aws_region=ap-south-1" `
     "-var=enable_aws_managed_database=false" `
     "-input=false" `
