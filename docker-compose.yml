@@ -122,7 +122,7 @@ services:
       - mongodb
       - kafka
     environment:
-      SPRING_MONGODB_URI: mongodb://mongodb:27017/market_db
+      SPRING_DATA_MONGODB_URI: mongodb://mongodb:27017/market_db
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       INTERNAL_API_KEY: ${TF_VAR_internal_api_key}
     ports:
