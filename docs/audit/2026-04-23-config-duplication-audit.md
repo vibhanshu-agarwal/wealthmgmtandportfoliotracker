@@ -101,11 +101,11 @@ So this is block-level duplication, not file-level duplication.
 
 ### 1.3 `docker-compose.yml`: `SPRING_MONGODB_URI` typo (bug fix — standalone)
 
-**Verified bug:** `docker-compose.yml` line 103 sets `SPRING_MONGODB_URI`, but `market-data-service/src/main/resources/application.yml` line 8 reads `SPRING_DATA_MONGODB_URI`. The env var is silently ignored in Compose; the application falls back to its default `mongodb://localhost:27017/market_db`, which does not resolve inside the service container. Terraform (`modules/compute/main.tf` line 269) uses the correct name, so this is Compose-only.
+**Verified bug:** `docker-compose.yml` line 125 sets `SPRING_MONGODB_URI`, but `market-data-service/src/main/resources/application.yml` line 8 reads `SPRING_DATA_MONGODB_URI`. The env var is silently ignored in Compose; the application falls back to its default `mongodb://localhost:27017/market_db`, which does not resolve inside the service container. Terraform (`modules/compute/main.tf` line 269) uses the correct name, so this is Compose-only.
 
 **Scope:** one line in one file.
 
-**Fix:** rename `SPRING_MONGODB_URI` → `SPRING_DATA_MONGODB_URI` on line 103.
+**Fix:** rename `SPRING_MONGODB_URI` → `SPRING_DATA_MONGODB_URI` on line 125.
 
 **Expected behavior change:** `market-data-service` in Compose will now actually connect to the `mongodb` container instead of silently falling back to the (broken) localhost default. If anyone has been relying on the broken behavior (e.g., pointing at a host-machine Mongo via `host.docker.internal`), they'll notice.
 
@@ -117,9 +117,9 @@ This is kept deliberately separate from the cosmetic YAML-anchor cleanup (1.4) s
 
 The same env vars are hardcoded in multiple service blocks:
 
-- `SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092` — lines 78, 104, 135 (three services)
-- `SPRING_DATA_REDIS_HOST: redis` + `SPRING_DATA_REDIS_PORT: 6379` — lines 136–137 and 172–173
-- `INTERNAL_API_KEY: ${INTERNAL_API_KEY}` — lines 79, 105, 139, 177 (four services)
+- `SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092` — lines 100, 126, 164 (three services)
+- `SPRING_DATA_REDIS_HOST: redis` + `SPRING_DATA_REDIS_PORT: 6379` — lines 165–166 and 207–208
+- `INTERNAL_API_KEY: ${TF_VAR_internal_api_key}` — lines 101, 127, 168, 212 (four services)
 
 Postgres credentials (`wealth_user` / `wealth_pass` / `portfolio_db`) are hardcoded separately in both the `postgres` service and the `portfolio-service` env block.
 
@@ -134,7 +134,7 @@ x-redis-env: &redis-env
   SPRING_DATA_REDIS_HOST: redis
   SPRING_DATA_REDIS_PORT: 6379
 x-internal-key: &internal-key
-  INTERNAL_API_KEY: ${INTERNAL_API_KEY}
+  INTERNAL_API_KEY: ${TF_VAR_internal_api_key}
 ```
 
 Merge into each service's `environment:` via `<<: [*kafka-env, *internal-key]`.
@@ -351,6 +351,7 @@ Each step is independently mergeable and reversible.
 - Extracting shared Kafka `@Configuration` / Boot 4 auto-configuration into a dedicated module. Discussed separately; larger change, higher value, but does not fit the "minimize drift without major changes" brief.
 - Normalizing the overlap between `application.yml` Kafka properties (YAML) and the programmatic `ConsumerFactory` beans (Java) in `PortfolioKafkaConfig.java` / `InsightKafkaConfig.java`. Belongs with the shared-Kafka-config refactor.
 - Port-number harmonization across Compose, YAML, shell scripts, and frontend tests. Too diffuse to dedupe cleanly; better addressed with a single documented port map.
+- **`us-east-1` appearing in two Bedrock files is intentional layering — do not dedupe.** `insight-service/src/main/resources/application-bedrock.yml` line 21 sets `region: ${AWS_REGION:us-east-1}` as a default for opt-in local smoke testing. `insight-service/src/main/resources/application-aws.yml` line 21 hard-pins `region: us-east-1` for the Lambda deployment path. The `aws` profile loads after the `bedrock` profile and overrides it; the two entries serve distinct purposes.
 
 ---
 
