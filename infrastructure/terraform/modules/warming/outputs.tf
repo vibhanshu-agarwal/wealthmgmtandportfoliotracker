@@ -2,18 +2,13 @@
 # Warming Module Outputs
 # =============================================================================
 
-output "schedule_group_name" {
-  description = "Name of the EventBridge Scheduler schedule group (wealth-lambda-warming)"
-  value       = aws_scheduler_schedule_group.warming.name
-}
-
-output "schedule_arns" {
-  description = "Map of target key → EventBridge schedule ARN for all warming schedules"
-  value       = { for k, v in aws_scheduler_schedule.targets : k => v.arn }
+output "rule_arns" {
+  description = "Map of target key → EventBridge Rule ARN for all warming rules"
+  value       = { for k, v in aws_cloudwatch_event_rule.targets : k => v.arn }
 }
 
 output "scheduler_role_arn" {
-  description = "ARN of the IAM role used by EventBridge Scheduler to invoke API Destinations"
+  description = "ARN of the IAM role used by EventBridge Rules to invoke API Destinations"
   value       = aws_iam_role.scheduler.arn
 }
 

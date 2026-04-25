@@ -1,5 +1,5 @@
 # =============================================================================
-# Warming Module — EventBridge Scheduler + API Destinations
+# Warming Module — EventBridge Rules + API Destinations
 #
 # Keeps one execution environment warm per Lambda function at the configured
 # cadence (default: every 5 minutes) by making real HTTPS GET requests to
@@ -13,10 +13,15 @@
 #   insight        → direct FURL     (same)
 #
 # Cost: 4 targets × 12/hr × 24 × 30 = 34,560 invocations/month.
-#       EventBridge Scheduler: first 14M/month free. Lambda warm hits: ~$0 (Free Tier).
+#       EventBridge: first 14M/month free. Lambda warm hits: ~$0 (Free Tier).
+#
+# Note: EventBridge *Rules* (aws_cloudwatch_event_rule) are used instead of
+#       EventBridge Scheduler (aws_scheduler_schedule) because Scheduler does
+#       NOT accept arn:aws:events:... API Destination ARNs as targets. Rules
+#       natively support API Destinations via aws_cloudwatch_event_target.
 #
 # Rollback: flip enable_warming = false in tfvars and run terraform apply.
-#           Schedules deleted within ~1 minute. Zero data loss.
+#           Rules disabled/deleted within ~1 minute. Zero data loss.
 # =============================================================================
 
 # ---------------------------------------------------------------------------
@@ -56,60 +61,54 @@ resource "aws_cloudwatch_event_api_destination" "targets" {
 }
 
 # ---------------------------------------------------------------------------
-# Schedule Group — logical namespace; simplifies console navigation and
-# makes bulk destroy (terraform destroy -target=module.warming) clean.
+# EventBridge Rules — one scheduled rule per warming target.
+# EventBridge Rules natively support API Destinations as targets (unlike
+# EventBridge Scheduler which cannot accept arn:aws:events:... ARNs).
 # ---------------------------------------------------------------------------
-resource "aws_scheduler_schedule_group" "warming" {
-  name = "wealth-lambda-warming"
-}
-
-# ---------------------------------------------------------------------------
-# Schedules — one per target, targeting the API Destination ARN.
-# retry_policy.maximum_retry_attempts = 0: warming is fire-and-forget.
-# A failed warm hit is not an error — the next tick 5 min later corrects it.
-# ---------------------------------------------------------------------------
-resource "aws_scheduler_schedule" "targets" {
+resource "aws_cloudwatch_event_rule" "targets" {
   for_each = var.targets
 
-  name        = "wealth-warm-${each.key}"
-  description = "Keep ${each.key} Lambda warm: GET ${each.value.url} every ${var.schedule_cron}"
-  group_name  = aws_scheduler_schedule_group.warming.name
-  state       = "ENABLED"
+  name                = "wealth-warm-${each.key}"
+  description         = "Keep ${each.key} Lambda warm: GET ${each.value.url} every ${var.schedule_cron}"
+  schedule_expression = var.schedule_cron
+  state               = "ENABLED"
+}
 
-  flexible_time_window {
-    mode = "OFF" # exact cadence; FLEXIBLE would add jitter we don't need here
-  }
+# ---------------------------------------------------------------------------
+# EventBridge Targets — binds each rule to its API Destination.
+# The full API Destination ARN (including UUID suffix from Terraform) is
+# accepted here; EventBridge Rules handle it correctly unlike Scheduler.
+# retry_policy: fire-and-forget — next tick 5 min later will re-warm if needed.
+# ---------------------------------------------------------------------------
+resource "aws_cloudwatch_event_target" "targets" {
+  for_each = var.targets
 
-  schedule_expression          = var.schedule_cron
-  schedule_expression_timezone = "UTC"
+  rule     = aws_cloudwatch_event_rule.targets[each.key].name
+  arn      = aws_cloudwatch_event_api_destination.targets[each.key].arn
+  role_arn = aws_iam_role.scheduler.arn
+  input    = "{}" # GET request; body is ignored by Spring Boot actuator
 
-  target {
-    arn      = aws_cloudwatch_event_api_destination.targets[each.key].arn
-    role_arn = aws_iam_role.scheduler.arn
-    input    = "{}" # GET request; body is ignored by Spring Boot actuator
-
-    retry_policy {
-      maximum_event_age_in_seconds = 60  # discard stale warming ticks immediately
-      maximum_retry_attempts       = 0   # warming is idempotent — next tick will re-warm
-    }
+  retry_policy {
+    maximum_event_age_in_seconds = 60 # discard stale warming ticks immediately
+    maximum_retry_attempts       = 0  # warming is idempotent — next tick will re-warm
   }
 }
 
 
 # ---------------------------------------------------------------------------
-# IAM Role for EventBridge Scheduler
-# Trust policy scoped to this account (aws:SourceAccount condition) to prevent
-# confused-deputy attacks where another account tricks our role into firing.
+# IAM Role for EventBridge Rules → API Destinations
+# Trust policy scoped to events.amazonaws.com (EventBridge Rules service).
+# aws:SourceAccount condition prevents confused-deputy attacks.
 # ---------------------------------------------------------------------------
 resource "aws_iam_role" "scheduler" {
   name        = "wealth-lambda-warming-scheduler"
-  description = "Allows EventBridge Scheduler to invoke API Destinations for Lambda warming"
+  description = "Allows EventBridge Rules to invoke API Destinations for Lambda warming"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
       Effect    = "Allow"
-      Principal = { Service = "scheduler.amazonaws.com" }
+      Principal = { Service = "events.amazonaws.com" }
       Action    = "sts:AssumeRole"
       Condition = {
         StringEquals = {
