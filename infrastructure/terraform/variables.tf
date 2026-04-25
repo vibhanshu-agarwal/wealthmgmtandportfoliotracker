@@ -55,13 +55,6 @@ variable "api_gateway_image_uri" {
   description = "Full ECR image URI for wealth-api-gateway (package_type Image). Use your account/region/repo, e.g. ...amazonaws.com/<ECR_REPOSITORY_NAME>:latest"
 }
 
-variable "lambda_java_runtime" {
-  type        = string
-  nullable    = true
-  default     = null
-  description = "Optional override for Zip Lambda runtime (no longer used — all Lambdas are Image-based)."
-}
-
 variable "api_gateway_memory" {
   type        = number
   nullable    = true
