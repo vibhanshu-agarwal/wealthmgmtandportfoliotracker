@@ -15,9 +15,6 @@ artifact_bucket_name = "wealth-artifacts-local"
 # Frontend static bucket
 frontend_bucket_name = "wealth-frontend-local"
 
-# Lambda Web Adapter layer ARN (no longer used — all Lambdas are Image-based)
-lambda_adapter_layer_arn = "arn:aws:lambda:us-east-1:753240598075:layer:LambdaAdapterLayerX86:24"
-
 # api-gateway container image (stub URI for plan; LocalStack Lambda image support varies)
 api_gateway_image_uri = "000000000000.dkr.ecr.us-east-1.amazonaws.com/wealth-api-gateway:latest"
 

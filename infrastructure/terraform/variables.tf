@@ -44,12 +44,6 @@ variable "frontend_bucket_region" {
   description = "AWS region of the frontend S3 bucket (may differ from var.aws_region if bucket was created in a different region)"
 }
 
-variable "lambda_adapter_layer_arn" {
-  type        = string
-  default     = ""
-  description = "ARN of the Lambda Web Adapter layer (no longer used — all Lambdas are Image-based and bundle LWA in their Dockerfiles)."
-}
-
 variable "api_gateway_image_uri" {
   type        = string
   description = "Full ECR image URI for wealth-api-gateway (package_type Image). Use your account/region/repo, e.g. ...amazonaws.com/<ECR_REPOSITORY_NAME>:latest"
