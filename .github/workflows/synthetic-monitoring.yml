@@ -57,7 +57,7 @@ jobs:
           BASE_URL: https://vibhanshu-ai-portfolio.dev
           # Gateway base URL — API is served under /api/* on the same CloudFront distribution.
           # There is no separate api. subdomain; the backend routes through the root domain.
-          GATEWAY_BASE_URL: https://vibhanshu-ai-portfolio.dev
+          NEXT_PUBLIC_API_BASE_URL: https://vibhanshu-ai-portfolio.dev
           # Skip the local-stack health poll — not appropriate for live AWS:
           #   1. Lambda cold starts exceed the 5s AbortSignal in global-setup.
           #   2. /actuator/health is protected by Spring Security (returns 403 through CloudFront).

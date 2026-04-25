@@ -20,7 +20,7 @@ import { installGatewaySessionInitScript } from "./helpers/browser-auth";
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 const BASE_URL = "http://localhost:3000";
-const GATEWAY_URL = process.env.GATEWAY_BASE_URL ?? "http://localhost:8080";
+const GATEWAY_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
 
 // ── Network capture ───────────────────────────────────────────────────────────
 

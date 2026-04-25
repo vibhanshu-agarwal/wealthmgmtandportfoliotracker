@@ -16,7 +16,7 @@ import fs from "node:fs";
  * (default 120 s).
  */
 
-const GATEWAY_BASE = process.env.GATEWAY_BASE_URL ?? "http://localhost:8080";
+const GATEWAY_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
 const DEEP_HEALTH_URL = `${GATEWAY_BASE}/api/portfolio/health`;
 const SHALLOW_HEALTH_URL = `${GATEWAY_BASE}/actuator/health`;
 
