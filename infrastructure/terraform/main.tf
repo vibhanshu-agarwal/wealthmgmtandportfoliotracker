@@ -89,6 +89,36 @@ module "compute" {
 }
 
 # ---------------------------------------------------------------------------
+# Import — Lambda FunctionURLAllowInvokeAction permissions
+# These statements were created by a prior apply or the AWS Console and exist
+# in AWS but were absent from Terraform state, causing 409 on every apply.
+# Import blocks adopt them into state without re-creating them.
+# Import blocks are only valid in the root module (Terraform restriction).
+# Import ID format: function_name:qualifier/statement_id
+# Once in state, these blocks become no-ops on every subsequent apply.
+# ---------------------------------------------------------------------------
+
+import {
+  to = module.compute.aws_lambda_permission.api_gateway_url_invoke
+  id = "wealth-api-gateway:live/FunctionURLAllowInvokeAction"
+}
+
+import {
+  to = module.compute.aws_lambda_permission.portfolio_url_invoke
+  id = "wealth-portfolio-service:live/FunctionURLAllowInvokeAction"
+}
+
+import {
+  to = module.compute.aws_lambda_permission.market_data_url_invoke
+  id = "wealth-market-data-service:live/FunctionURLAllowInvokeAction"
+}
+
+import {
+  to = module.compute.aws_lambda_permission.insight_url_invoke
+  id = "wealth-insight-service:live/FunctionURLAllowInvokeAction"
+}
+
+# ---------------------------------------------------------------------------
 # Database module — RDS PostgreSQL + ElastiCache Redis
 # ---------------------------------------------------------------------------
 
