@@ -23,11 +23,9 @@
 #     kafka block below already declares KAFKA_PROCESS_ROLES, CLUSTER_ID, and
 #     KAFKA_CONTROLLER_QUORUM_VOTERS, so this is drop-in compatible.
 #   - mongo:7.0 → :8.2.7  → minor; feature-compat defaults tightened.
-#   - INTERNAL_API_KEY now reads ${TF_VAR_internal_api_key} so a single
-#     Terraform-style env var feeds both compose and `terraform apply`. If your
-#     shell still exports the old `INTERNAL_API_KEY`, re-export it as
-#     `TF_VAR_internal_api_key` or compose injects a blank value and every
-#     gateway→service call 401s.
+#   - INTERNAL_API_KEY prefers ${TF_VAR_internal_api_key} so a single
+#     Terraform-style env var feeds both compose and `terraform apply`, with
+#     ${INTERNAL_API_KEY} retained as a CI/local fallback for older scripts.
 # ============================================================
 
 # ---------------------------------------------------------------------------
@@ -41,7 +39,7 @@ x-redis-env: &redis-env
   SPRING_DATA_REDIS_PORT: 6379
 
 x-internal-key: &internal-key
-  INTERNAL_API_KEY: ${TF_VAR_internal_api_key}
+  INTERNAL_API_KEY: ${TF_VAR_internal_api_key:-${INTERNAL_API_KEY:-}}
 
 services:
   postgres:

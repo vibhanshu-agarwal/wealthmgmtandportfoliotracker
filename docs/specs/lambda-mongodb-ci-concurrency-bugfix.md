@@ -1,7 +1,7 @@
 # Lambda MongoDB, CI, and Concurrency Bugfix Spec
 
 Date: 2026-04-26
-Branch: `fix/lambda-permission-import-drift`
+Branch: `fix/lambda-mongodb-ci-concurrency`
 
 ## Summary
 
@@ -84,6 +84,8 @@ variables could be bypassed or partially frozen into local/default assumptions.
 - Made Java services wait for healthy database containers.
 - Mounted `postgres:18.3` at `/var/lib/postgresql` using a fresh
   `postgres18-data` volume, matching the PostgreSQL 18 Docker image layout.
+- Made internal seed key injection robust by preferring `TF_VAR_internal_api_key`
+  while falling back to `INTERNAL_API_KEY`, and exporting both names in CI.
 - Pointed local service URLs at stable Compose container names:
   - Postgres: `portfolio-db`
   - MongoDB: `market-db`
@@ -119,8 +121,11 @@ Commands run successfully:
 - `./gradlew :market-data-service:test --tests com.wealth.market.MarketPriceControllerTest :insight-service:test --tests com.wealth.insight.InsightControllerTest --no-daemon --console=plain`
 - `./gradlew :api-gateway:integrationTest --tests com.wealth.gateway.PreservationPropertyTest --no-daemon`
 
-One expected local warning remains: if `TF_VAR_internal_api_key` is not exported,
-Compose reports it is defaulting to blank. That is not a syntax/config failure.
+The CI `docker-build-verify` job additionally exposed a seed-key mismatch: the
+Playwright process had `INTERNAL_API_KEY`, but Compose only interpolated
+`TF_VAR_internal_api_key`, so backend containers failed closed with
+`503 {"error":"internal_api_key_not_configured"}`. The fix exports both names
+in CI and lets Compose fall back to `INTERNAL_API_KEY` for local compatibility.
 
 ## Deployment / Handoff Notes
 

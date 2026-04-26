@@ -150,6 +150,9 @@ jobs:
       BETTER_AUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
       BETTER_AUTH_URL: http://localhost:3000
       DATABASE_URL: postgresql://wealth_user:wealth_pass@localhost:5432/portfolio_db
+      # docker-compose.yml prefers Terraform-style interpolation, while Playwright
+      # global-setup reads INTERNAL_API_KEY. Export both from the same GitHub secret.
+      TF_VAR_internal_api_key: ${{ secrets.TF_VAR_INTERNAL_API_KEY }}
       INTERNAL_API_KEY: ${{ secrets.TF_VAR_INTERNAL_API_KEY }}
     steps:
       - uses: actions/checkout@v4
