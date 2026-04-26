@@ -138,5 +138,6 @@ ENV AWS_LWA_READINESS_CHECK_PATH=/actuator/health
 EXPOSE 8080
 
 # Default: Java app runs as PID 1; Lambda auto-loads the LWA sidecar from /opt/extensions/
-# Locally (no Lambda runtime API), the adapter runs in passthrough mode
-ENTRYPOINT ["java", "-Dspring.aot.enabled=true", "-jar", "/app/app.jar"]
+# Locally (no Lambda runtime API), the adapter runs in passthrough mode.
+# Runtime AOT is intentionally disabled until build-time profile inputs match Lambda runtime.
+ENTRYPOINT ["java", "-jar", "/app/app.jar"]

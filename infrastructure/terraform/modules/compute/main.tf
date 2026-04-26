@@ -289,6 +289,8 @@ resource "aws_lambda_function" "market_data" {
 
   environment {
     variables = merge(local.common_env, local.runtime_secrets, {
+      SPRING_MONGODB_URI = var.mongodb_connection_string
+      # Legacy alias retained for old images; Spring Boot 4 reads SPRING_MONGODB_URI.
       SPRING_DATA_MONGODB_URI = var.mongodb_connection_string
       # Override the LWA readiness check path — /actuator/health includes MongoHealthIndicator
       # which fails with AtlasError 8000 (not authorized on local db). The liveness endpoint

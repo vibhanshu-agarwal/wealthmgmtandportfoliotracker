@@ -150,6 +150,9 @@ jobs:
       BETTER_AUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
       BETTER_AUTH_URL: http://localhost:3000
       DATABASE_URL: postgresql://wealth_user:wealth_pass@localhost:5432/portfolio_db
+      # docker-compose.yml prefers Terraform-style interpolation, while Playwright
+      # global-setup reads INTERNAL_API_KEY. Export both from the same GitHub secret.
+      TF_VAR_internal_api_key: ${{ secrets.TF_VAR_INTERNAL_API_KEY }}
       INTERNAL_API_KEY: ${{ secrets.TF_VAR_INTERNAL_API_KEY }}
     steps:
       - uses: actions/checkout@v4
@@ -253,25 +256,32 @@ jobs:
       - name: Pre-warm AWS Lambda stack
         # Runs against the live site — only on push to main to avoid hammering AWS on every PR
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        # Hit api-gateway → portfolio-service to trigger cold starts BEFORE seeding.
-        # The combined cold-start chain (api-gateway ~10s + portfolio-service ~30s) exceeds
-        # CloudFront's 60s origin timeout if seeding is the first request. Retrying up to 5
-        # times with --max-time 65 ensures we wait long enough for the Lambda to boot.
-        # Any non-5xx response means the Lambda is warm and ready.
+        # Hit gateway-routed health endpoints for every backend Lambda before seeding.
+        # Keep this sequential to avoid exhausting the ap-south-1 concurrency quota of 10.
         run: |
-          echo "Pre-warming Lambda stack at https://vibhanshu-ai-portfolio.dev ..."
-          for i in 1 2 3 4 5; do
-            STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 65 \
-              https://vibhanshu-ai-portfolio.dev/api/portfolio/health || echo "000")
-            echo "  Attempt $i: HTTP $STATUS"
-            if [ "$STATUS" != "504" ] && [ "$STATUS" != "502" ] && [ "$STATUS" != "000" ]; then
-              echo "Lambda stack is warm (HTTP $STATUS). Proceeding."
+          set +e
+          BASE="https://vibhanshu-ai-portfolio.dev"
+          PATHS=("/actuator/health" "/api/portfolio/health" "/api/market/health" "/api/insights/health")
+          echo "Pre-warming Lambda stack at ${BASE} ..."
+          for pass in 1 2 3; do
+            echo "Warm pass ${pass}/3"
+            ALL_WARM=true
+            for path in "${PATHS[@]}"; do
+              STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 55 "${BASE}${path}" || echo "000")
+              echo "  ${path}: HTTP ${STATUS}"
+              if [ "$STATUS" = "502" ] || [ "$STATUS" = "504" ] || [ "$STATUS" = "000" ]; then
+                ALL_WARM=false
+              fi
+              sleep 2
+            done
+            if [ "$ALL_WARM" = "true" ]; then
+              echo "Lambda stack accepted warm-up requests. Proceeding."
               exit 0
             fi
-            echo "  Cold start or timeout — waiting 5s before retry..."
-            sleep 5
+            echo "  Cold start or timeout still present — waiting 10s before retry..."
+            sleep 10
           done
-          echo "Warning: Lambda pre-warm did not return a success response. Seeding may still succeed."
+          echo "Warning: Lambda pre-warm still saw 5xx/timeout responses. Seeding may still retry successfully."
 
       - name: Run AWS synthetic monitoring
         working-directory: frontend

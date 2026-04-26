@@ -42,6 +42,14 @@ class InsightControllerTest {
                 .build();
     }
 
+    @Test
+    void health_returnsServiceStatus() throws Exception {
+        mockMvc.perform(get("/api/insights/health"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("UP"))
+                .andExpect(jsonPath("$.service").value("insight-service"));
+    }
+
     // --- Per-ticker endpoint tests (Task 11.1) ---
 
     @Test
