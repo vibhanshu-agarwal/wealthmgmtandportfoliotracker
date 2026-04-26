@@ -466,7 +466,32 @@ resource "aws_lambda_permission" "insight_url_public" {
 # InvokeFunctionUrl alone is NOT sufficient — Lambda also requires an explicit
 # InvokeFunction permission conditioned on InvokedViaFunctionUrl.
 # Without both statements, the Function URL returns 403 AccessDeniedException.
+#
+# Import blocks (Terraform 1.5+): adopt the statement that AWS/Console already
+# created so that `apply` does not try to add a duplicate and 409.
+# Once the resource is in state the import block is a no-op on subsequent runs.
+# Import ID format: function_name:qualifier/statement_id
 # ---------------------------------------------------------------------------
+
+import {
+  to = aws_lambda_permission.api_gateway_url_invoke
+  id = "wealth-api-gateway:live/FunctionURLAllowInvokeAction"
+}
+
+import {
+  to = aws_lambda_permission.portfolio_url_invoke
+  id = "wealth-portfolio-service:live/FunctionURLAllowInvokeAction"
+}
+
+import {
+  to = aws_lambda_permission.market_data_url_invoke
+  id = "wealth-market-data-service:live/FunctionURLAllowInvokeAction"
+}
+
+import {
+  to = aws_lambda_permission.insight_url_invoke
+  id = "wealth-insight-service:live/FunctionURLAllowInvokeAction"
+}
 
 resource "aws_lambda_permission" "api_gateway_url_invoke" {
   statement_id  = "FunctionURLAllowInvokeAction"
