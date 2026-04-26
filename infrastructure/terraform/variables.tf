@@ -280,8 +280,12 @@ variable "lambda_architecture" {
   EOT
 
   validation {
-    condition     = var.lambda_architecture == null || contains(["arm64", "x86_64"], var.lambda_architecture)
-    error_message = "lambda_architecture must be \"arm64\" or \"x86_64\" (or null to accept the default arm64)."
+    # contains() is used instead of `== null || contains(list, var)` because Terraform
+    # evaluates both sides of || regardless of the left result, causing contains(list, null)
+    # to throw when the variable is null (the default). Including null in the set is safe
+    # and clear: null means "use the arm64 default defined in locals.tf".
+    condition     = contains(["arm64", "x86_64", null], var.lambda_architecture)
+    error_message = "lambda_architecture must be \"arm64\", \"x86_64\", or null (null = accept the default arm64)."
   }
 }
 
@@ -295,14 +299,14 @@ variable "enable_provisioned_concurrency" {
 }
 
 # ---------------------------------------------------------------------------
-# Phase 2 — Warming infrastructure (EventBridge Scheduler)
+# Phase 2 — Warming infrastructure (EventBridge Rules + API Destinations)
 # ---------------------------------------------------------------------------
 
 variable "enable_warming" {
   type        = bool
   default     = false
   description = <<-EOT
-    Master kill-switch for the EventBridge Scheduler warming module.
+    Master kill-switch for the EventBridge Rules + API Destinations warming module.
     Default false: the entire module is a no-op (count = 0) — safe to merge at any time.
     Flip to true only after Phase 1 (arm64 flip) has been confirmed stable for >= 48 hours
     and all 4 CloudWatch Init Duration baselines have been recorded.
