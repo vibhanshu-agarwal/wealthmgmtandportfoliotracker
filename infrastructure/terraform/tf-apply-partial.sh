@@ -13,6 +13,15 @@ if [ -f .env.secrets ]; then
     case "$key" in
       POSTGRES_CONNECTION_STRING) export TF_VAR_postgres_connection_string="$val" ;;
       MONGODB_CONNECTION_STRING)  export TF_VAR_mongodb_connection_string="$val" ;;
+      AUTH_JWT_SECRET)            export TF_VAR_auth_jwt_secret="$val" ;;
+      E2E_TEST_USER_EMAIL)        export TF_VAR_app_auth_email="$val" ;;
+      E2E_TEST_USER_PASSWORD)     export TF_VAR_app_auth_password="$val" ;;
+      E2E_TEST_USER_ID)           export TF_VAR_app_auth_user_id="$val" ;;
+      E2E_TEST_USER_NAME)         export TF_VAR_app_auth_name="$val" ;;
+      APP_AUTH_EMAIL)             export TF_VAR_app_auth_email="$val" ;;
+      APP_AUTH_PASSWORD)          export TF_VAR_app_auth_password="$val" ;;
+      APP_AUTH_USER_ID)           export TF_VAR_app_auth_user_id="$val" ;;
+      APP_AUTH_NAME)              export TF_VAR_app_auth_name="$val" ;;
       AUTH_JWK_URI)               export TF_VAR_auth_jwk_uri="$val" ;;
       CLOUDFRONT_ORIGIN_SECRET)   export TF_VAR_cloudfront_origin_secret="$val" ;;
       REDIS_URL)                  export TF_VAR_redis_url="$val" ;;
@@ -35,7 +44,6 @@ VARS=(
   -var="lock_table_name=vibhanshu-terraform-locks"
   -var="artifact_bucket_name=wealth-artifacts-local"
   -var="frontend_bucket_name=vibhanshu-s3-wealthmgmt-demo-bucket"
-  -var="s3_key_api_gateway=api-gateway/api-gateway.jar"
   -var="enable_aws_managed_database=false"
 )
 

@@ -93,9 +93,6 @@ kafka-truststore.jks
 .agents/
 .kiro/skills/
 
-### Spec drafts (committed separately) ###
-docs/specs/
-
 ### jqwik property-based testing ###
 .jqwik-database
 

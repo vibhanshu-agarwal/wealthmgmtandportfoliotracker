@@ -10,6 +10,15 @@ foreach ($line in $secrets) {
     switch ($key) {
         "POSTGRES_CONNECTION_STRING" { $env:TF_VAR_postgres_connection_string = $val }
         "MONGODB_CONNECTION_STRING"  { $env:TF_VAR_mongodb_connection_string = $val }
+        "AUTH_JWT_SECRET"            { $env:TF_VAR_auth_jwt_secret = $val }
+        "E2E_TEST_USER_EMAIL"        { $env:TF_VAR_app_auth_email = $val }
+        "E2E_TEST_USER_PASSWORD"     { $env:TF_VAR_app_auth_password = $val }
+        "E2E_TEST_USER_ID"           { $env:TF_VAR_app_auth_user_id = $val }
+        "E2E_TEST_USER_NAME"         { $env:TF_VAR_app_auth_name = $val }
+        "APP_AUTH_EMAIL"             { $env:TF_VAR_app_auth_email = $val }
+        "APP_AUTH_PASSWORD"          { $env:TF_VAR_app_auth_password = $val }
+        "APP_AUTH_USER_ID"           { $env:TF_VAR_app_auth_user_id = $val }
+        "APP_AUTH_NAME"              { $env:TF_VAR_app_auth_name = $val }
         "AUTH_JWK_URI"               { $env:TF_VAR_auth_jwk_uri = $val }
         "CLOUDFRONT_ORIGIN_SECRET"   { $env:TF_VAR_cloudfront_origin_secret = $val }
         "REDIS_URL"                  { $env:TF_VAR_redis_url = $val }
@@ -32,7 +41,6 @@ Write-Host "=== Creating ECR repos in ap-south-1 ===" -ForegroundColor Cyan
     "-var=lock_table_name=vibhanshu-terraform-locks" `
     "-var=artifact_bucket_name=wealth-artifacts-local" `
     "-var=frontend_bucket_name=vibhanshu-s3-wealthmgmt-demo-bucket" `
-    "-var=s3_key_api_gateway=api-gateway/api-gateway.jar" `
     "-var=aws_region=ap-south-1" `
     "-var=enable_aws_managed_database=false" `
     "-input=false" `

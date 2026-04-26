@@ -38,7 +38,22 @@ REQUIRED_LAMBDA_FUNCTIONS = {
     "wealth-insight-service",
 }
 
+API_GATEWAY_AUTH_ENV = {
+    "AUTH_JWT_SECRET",
+    "APP_AUTH_EMAIL",
+    "APP_AUTH_PASSWORD",
+    "APP_AUTH_USER_ID",
+    "APP_AUTH_NAME",
+}
+
+SEEDED_DEMO_USER_ID = "00000000-0000-0000-0000-000000000e2e"
+
 ACTIVE_ACTIONS = {"create", "update"}
+
+# Warming: expected resource counts when enable_warming = true.
+EXPECTED_WARMING_RULES = 4        # one aws_cloudwatch_event_rule per target
+EXPECTED_WARMING_DESTINATIONS = 4  # one aws_cloudwatch_event_api_destination per target
+WARMING_RULE_PREFIX = "wealth-warm-"
 
 
 def load_plan(path: str) -> dict:
@@ -114,6 +129,25 @@ def assert_lambda_concurrency_cap(changes: list) -> list:
     return errors
 
 
+def collect_lambda_env(after: dict) -> tuple[dict, bool]:
+    """Return merged Lambda environment variables and whether values were visible.
+
+    Sensitive maps can be redacted in plan JSON. When Terraform cannot expose the
+    map values, callers should skip value-level assertions instead of producing a
+    false failure.
+    """
+    env_list = after.get("environment", []) or []
+    env_vars = {}
+    saw_visible_values = False
+    for env_block in env_list:
+        if isinstance(env_block, dict):
+            variables = env_block.get("variables")
+            if variables is not None:
+                saw_visible_values = True
+                env_vars.update(variables)
+    return env_vars, saw_visible_values
+
+
 def assert_spring_profiles_active(changes: list) -> list:
     """Property 3: SPRING_PROFILES_ACTIVE must start with 'prod,aws' on all Lambda env vars.
 
@@ -128,16 +162,8 @@ def assert_spring_profiles_active(changes: list) -> list:
         if rc["type"] == "aws_lambda_function":
             after = rc.get("change", {}).get("after", {}) or {}
             fn_name = after.get("function_name", rc["address"])
-            env_list = after.get("environment", []) or []
-            env_vars = {}
-            all_null = True
-            for env_block in env_list:
-                if isinstance(env_block, dict):
-                    variables = env_block.get("variables")
-                    if variables is not None:
-                        all_null = False
-                        env_vars.update(variables)
-            if all_null and env_list:
+            env_vars, saw_visible_values = collect_lambda_env(after)
+            if not saw_visible_values and after.get("environment"):
                 continue
             if "SPRING_PROFILES_ACTIVE" not in env_vars:
                 errors.append(
@@ -158,6 +184,44 @@ def assert_spring_profiles_active(changes: list) -> list:
     return errors
 
 
+def assert_api_gateway_auth_environment(plan: dict) -> list:
+    """Demo-readiness property: api-gateway must receive auth env vars.
+
+    The API Gateway Lambda is both the login token issuer and protected-route JWT
+    validator. It must receive the HS256 secret and a demo identity whose user ID
+    matches the golden-state seeded portfolio user.
+    """
+    errors = []
+    for rc in plan.get("resource_changes", []):
+        if rc["type"] != "aws_lambda_function":
+            continue
+        after = rc.get("change", {}).get("after", {}) or {}
+        if not after:
+            after = rc.get("change", {}).get("before", {}) or {}
+        if after.get("function_name") != "wealth-api-gateway":
+            continue
+
+        env_vars, saw_visible_values = collect_lambda_env(after)
+        if not saw_visible_values and after.get("environment"):
+            # Sensitive environment maps can be redacted; do not fail on unknowns.
+            return errors
+
+        missing = sorted(API_GATEWAY_AUTH_ENV - set(env_vars))
+        for key in missing:
+            errors.append(
+                f"FAIL [Demo Auth] wealth-api-gateway is missing {key} environment variable"
+            )
+
+        actual_user_id = env_vars.get("APP_AUTH_USER_ID")
+        if actual_user_id and actual_user_id != SEEDED_DEMO_USER_ID:
+            errors.append(
+                "FAIL [Demo Auth] wealth-api-gateway APP_AUTH_USER_ID "
+                f"is '{actual_user_id}' but must be '{SEEDED_DEMO_USER_ID}' "
+                "to match golden-state seeded portfolio data"
+            )
+    return errors
+
+
 def assert_cloudfront_price_class(changes: list) -> list:
     """Property: CloudFront distribution must use PriceClass_100."""
     errors = []
@@ -171,6 +235,67 @@ def assert_cloudfront_price_class(changes: list) -> list:
                     f"has price_class='{price_class}' (must be 'PriceClass_100')"
                 )
     return errors
+
+
+def is_warming_enabled(plan: dict) -> bool:
+    """Return True when the plan was produced with enable_warming = true."""
+    variables = plan.get("variables", {})
+    enable = variables.get("enable_warming", {})
+    # plan.json stores variable values under the "value" key.
+    return bool(enable.get("value", False))
+
+
+def assert_warming_rules_present(plan: dict) -> list:
+    """Warming property: when enable_warming=true, exactly 4 EventBridge rules must be
+    created/updated — one per warming target (api_gateway, portfolio, market_data, insight).
+    """
+    all_changes = plan.get("resource_changes", [])
+    rules = [
+        rc for rc in all_changes
+        if rc["type"] == "aws_cloudwatch_event_rule"
+        and rc["name"].startswith("targets")  # for_each key in module
+        and set(rc.get("change", {}).get("actions", [])) & ACTIVE_ACTIONS
+    ]
+    # Also count no-op rules (already exist and are stable).
+    noop_rules = [
+        rc for rc in all_changes
+        if rc["type"] == "aws_cloudwatch_event_rule"
+        and rc["name"].startswith("targets")
+        and rc.get("change", {}).get("actions") == ["no-op"]
+    ]
+    total = len(rules) + len(noop_rules)
+    if total != EXPECTED_WARMING_RULES:
+        return [
+            f"FAIL [Warming] Expected {EXPECTED_WARMING_RULES} aws_cloudwatch_event_rule resources "
+            f"(enable_warming=true), found {total}. "
+            f"Check that module.warming is included in the plan."
+        ]
+    return []
+
+
+def assert_warming_destinations_present(plan: dict) -> list:
+    """Warming property: when enable_warming=true, exactly 4 API Destinations must be
+    created/updated — one per warming target.
+    """
+    all_changes = plan.get("resource_changes", [])
+    dests = [
+        rc for rc in all_changes
+        if rc["type"] == "aws_cloudwatch_event_api_destination"
+        and set(rc.get("change", {}).get("actions", [])) & ACTIVE_ACTIONS
+    ]
+    noop_dests = [
+        rc for rc in all_changes
+        if rc["type"] == "aws_cloudwatch_event_api_destination"
+        and rc.get("change", {}).get("actions") == ["no-op"]
+    ]
+    total = len(dests) + len(noop_dests)
+    if total != EXPECTED_WARMING_DESTINATIONS:
+        return [
+            f"FAIL [Warming] Expected {EXPECTED_WARMING_DESTINATIONS} aws_cloudwatch_event_api_destination "
+            f"resources (enable_warming=true), found {total}. "
+            f"Check that module.warming is included in the plan."
+        ]
+    return []
 
 
 def assert_route53_record_type(changes: list) -> list:
@@ -207,8 +332,15 @@ def main() -> int:
     all_errors.extend(assert_all_lambda_functions_present(plan))
     all_errors.extend(assert_lambda_concurrency_cap(changes))
     all_errors.extend(assert_spring_profiles_active(changes))
+    all_errors.extend(assert_api_gateway_auth_environment(plan))
     all_errors.extend(assert_cloudfront_price_class(changes))
     all_errors.extend(assert_route53_record_type(changes))
+
+    # Warming assertions — only run when enable_warming = true in the plan variables.
+    warming_enabled = is_warming_enabled(plan)
+    if warming_enabled:
+        all_errors.extend(assert_warming_rules_present(plan))
+        all_errors.extend(assert_warming_destinations_present(plan))
 
     if all_errors:
         print(f"\n{'='*60}")
@@ -227,6 +359,11 @@ def main() -> int:
     print(f"  No prohibited resource types found")
     print(f"  reserved_concurrent_executions <= 10 on all Lambdas")
     print(f"  SPRING_PROFILES_ACTIVE present on all Lambdas")
+    if warming_enabled:
+        print(f"  Warming: {EXPECTED_WARMING_RULES} EventBridge rules + "
+              f"{EXPECTED_WARMING_DESTINATIONS} API destinations confirmed")
+    else:
+        print(f"  Warming: disabled (enable_warming=false) — skipping warming assertions")
     return 0
 
 

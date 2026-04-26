@@ -54,11 +54,9 @@ export default defineConfig({
     command: "npm run build && npm run start:export",
     env: {
       ...process.env,
-      // Prefer CI/job env (localhost) so browser Origin matches gateway CORS.
+      // Single canonical name for the gateway base URL (browser and Node-side tests).
       NEXT_PUBLIC_API_BASE_URL:
         process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080",
-      // Node-side tests (global-setup, request fixtures) must hit the same host as Docker publish.
-      GATEWAY_BASE_URL: process.env.GATEWAY_BASE_URL ?? "http://localhost:8080",
     },
     url: "http://localhost:3000",
     // In GitHub Actions, never attach to an arbitrary process already bound to :3000.

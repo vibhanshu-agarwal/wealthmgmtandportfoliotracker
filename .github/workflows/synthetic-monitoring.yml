@@ -30,25 +30,33 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Pre-warm AWS Lambda stack
-        # Hit api-gateway → portfolio-service to trigger cold starts BEFORE seeding.
-        # The combined cold-start chain (api-gateway ~10s + portfolio-service ~30s) exceeds
-        # CloudFront's 60s origin timeout if seeding is the first request. Retrying up to 5
-        # times with --max-time 65 ensures we wait long enough for the Lambda to boot.
-        # Any non-5xx response means the Lambda is warm and ready.
+        # Hit gateway-routed health endpoints for every backend Lambda before seeding.
+        # This keeps the request fan-out below the ap-south-1 account concurrency quota (10)
+        # while ensuring the seed request is not the first cold-start trigger.
         run: |
-          echo "Pre-warming Lambda stack at https://vibhanshu-ai-portfolio.dev ..."
-          for i in 1 2 3 4 5; do
-            STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 65 \
-              https://vibhanshu-ai-portfolio.dev/api/portfolio/health || echo "000")
-            echo "  Attempt $i: HTTP $STATUS"
-            if [ "$STATUS" != "504" ] && [ "$STATUS" != "502" ] && [ "$STATUS" != "000" ]; then
-              echo "Lambda stack is warm (HTTP $STATUS). Proceeding."
+          set +e
+          BASE="https://vibhanshu-ai-portfolio.dev"
+          PATHS=("/actuator/health" "/api/portfolio/health" "/api/market/health" "/api/insights/health")
+          echo "Pre-warming Lambda stack at ${BASE} ..."
+          for pass in 1 2 3; do
+            echo "Warm pass ${pass}/3"
+            ALL_WARM=true
+            for path in "${PATHS[@]}"; do
+              STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 55 "${BASE}${path}" || echo "000")
+              echo "  ${path}: HTTP ${STATUS}"
+              if [ "$STATUS" = "502" ] || [ "$STATUS" = "504" ] || [ "$STATUS" = "000" ]; then
+                ALL_WARM=false
+              fi
+              sleep 2
+            done
+            if [ "$ALL_WARM" = "true" ]; then
+              echo "Lambda stack accepted warm-up requests. Proceeding."
               exit 0
             fi
-            echo "  Cold start or timeout — waiting 5s before retry..."
-            sleep 5
+            echo "  Cold start or timeout still present — waiting 10s before retry..."
+            sleep 10
           done
-          echo "Warning: Lambda pre-warm did not return a success response. Seeding may still succeed."
+          echo "Warning: Lambda pre-warm still saw 5xx/timeout responses. Seeding will retry in Playwright."
 
       - name: Run Synthetic Monitoring
         working-directory: ./frontend
@@ -57,7 +65,7 @@ jobs:
           BASE_URL: https://vibhanshu-ai-portfolio.dev
           # Gateway base URL — API is served under /api/* on the same CloudFront distribution.
           # There is no separate api. subdomain; the backend routes through the root domain.
-          GATEWAY_BASE_URL: https://vibhanshu-ai-portfolio.dev
+          NEXT_PUBLIC_API_BASE_URL: https://vibhanshu-ai-portfolio.dev
           # Skip the local-stack health poll — not appropriate for live AWS:
           #   1. Lambda cold starts exceed the 5s AbortSignal in global-setup.
           #   2. /actuator/health is protected by Spring Security (returns 403 through CloudFront).

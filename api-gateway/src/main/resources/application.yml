@@ -13,34 +13,34 @@ spring:
         webflux:
           routes:
             - id: portfolio-service
-              uri: ${PORTFOLIO_SERVICE_URL:http://localhost:8081}
+              uri: ${app.routes.portfolio-url}
               predicates:
                 - Path=/api/portfolio/**
             - id: market-data-service
-              uri: ${MARKET_DATA_SERVICE_URL:http://localhost:8082}
+              uri: ${app.routes.market-data-url}
               predicates:
                 - Path=/api/market/**
             - id: insight-service
-              uri: ${INSIGHT_SERVICE_URL:http://localhost:8083}
+              uri: ${app.routes.insight-url}
               predicates:
                 - Path=/api/insights/**
             - id: insight-chat
-              uri: ${INSIGHT_SERVICE_URL:http://localhost:8083}
+              uri: ${app.routes.insight-url}
               predicates:
                 - Path=/api/chat/**
             # Golden-State E2E seeder routes. The gateway is a dumb router for /api/internal/**:
             # no JWT, no origin-verify, no X-User-Id injection. Each downstream service
             # validates X-Internal-Api-Key itself (see InternalApiKeyFilter).
             - id: internal-portfolio-seed
-              uri: ${PORTFOLIO_SERVICE_URL:http://localhost:8081}
+              uri: ${app.routes.portfolio-url}
               predicates:
                 - Path=/api/internal/portfolio/**
             - id: internal-market-data-seed
-              uri: ${MARKET_DATA_SERVICE_URL:http://localhost:8082}
+              uri: ${app.routes.market-data-url}
               predicates:
                 - Path=/api/internal/market-data/**
             - id: internal-insight-seed
-              uri: ${INSIGHT_SERVICE_URL:http://localhost:8083}
+              uri: ${app.routes.insight-url}
               predicates:
                 - Path=/api/internal/insight/**
 
@@ -55,10 +55,17 @@ management:
 
 auth:
   jwt:
-    secret: ${AUTH_JWT_SECRET:}   # local profile only — blank triggers startup failure in JwtDecoderConfig
-  jwk-uri: ${AUTH_JWK_URI:}       # aws profile only — blank triggers startup failure in JwtDecoderConfig
+    secret: ${AUTH_JWT_SECRET:}   # local/aws profiles — must be >= 32 bytes for HS256
+  jwk-uri: ${AUTH_JWK_URI:}       # reserved for a future external-IdP profile; not active in current aws auth path
 
 app:
+  routes:
+    # Single source of truth for downstream service URL defaults.
+    # Each route above references ${app.routes.*-url} so a default-port change
+    # requires editing exactly one line here instead of every route entry.
+    portfolio-url: ${PORTFOLIO_SERVICE_URL:http://localhost:8081}
+    market-data-url: ${MARKET_DATA_SERVICE_URL:http://localhost:8082}
+    insight-url: ${INSIGHT_SERVICE_URL:http://localhost:8083}
   cors:
     allowed-origin-patterns: "http://localhost:3000,http://127.0.0.1:3000"
   auth:

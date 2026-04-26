@@ -5,7 +5,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
-import org.springframework.security.oauth2.jose.jws.SignatureAlgorithm;
 import org.springframework.security.oauth2.jwt.NimbusReactiveJwtDecoder;
 import org.springframework.security.oauth2.jwt.ReactiveJwtDecoder;
 
@@ -16,35 +15,24 @@ import java.nio.charset.StandardCharsets;
 public class JwtDecoderConfig {
 
     /**
-     * Local profile: HMAC-SHA256 symmetric decoder.
-     * Key is read from ${auth.jwt.secret} — injected from AUTH_JWT_SECRET env var.
-     * Startup fails fast if the property is blank.
+     * Current single-user auth path: HMAC-SHA256 symmetric decoder for both local and AWS.
+     *
+     * <p>{@link AuthController} is the token issuer and {@link JwtSigner} signs HS256
+     * tokens with {@code auth.jwt.secret}. The active decoder must therefore validate
+     * HS256 with the same secret. The previous AWS RS256/JWK decoder was reserved for a
+     * future external IdP that is not present in the current system.
      */
     @Bean
-    @Profile("local")
-    ReactiveJwtDecoder localJwtDecoder(@Value("${auth.jwt.secret}") String secret) {
-        if (secret == null || secret.isBlank()) {
+    @Profile({"local", "aws"})
+    ReactiveJwtDecoder hmacJwtDecoder(@Value("${auth.jwt.secret}") String secret) {
+        byte[] secretBytes = secret == null ? new byte[0] : secret.getBytes(StandardCharsets.UTF_8);
+        if (secretBytes.length < 32) {
             throw new IllegalStateException(
-                    "AUTH_JWT_SECRET must not be blank under the 'local' profile. " +
-                    "Set the AUTH_JWT_SECRET environment variable or configure " +
-                    "auth.jwt.secret in application-local.yml.");
+                    "AUTH_JWT_SECRET must be at least 32 bytes for HS256 under local/aws profiles.");
         }
-        SecretKeySpec key = new SecretKeySpec(
-                secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
+        SecretKeySpec key = new SecretKeySpec(secretBytes, "HmacSHA256");
         return NimbusReactiveJwtDecoder.withSecretKey(key)
                 .macAlgorithm(MacAlgorithm.HS256)
-                .build();
-    }
-
-    /**
-     * AWS profile: RS256 asymmetric decoder via JWK URI.
-     * NimbusReactiveJwtDecoder caches the JWK set and refreshes on key rotation automatically.
-     */
-    @Bean
-    @Profile("aws")
-    ReactiveJwtDecoder awsJwtDecoder(@Value("${auth.jwk-uri}") String jwkUri) {
-        return NimbusReactiveJwtDecoder.withJwkSetUri(jwkUri)
-                .jwsAlgorithm(SignatureAlgorithm.RS256)
                 .build();
     }
 }

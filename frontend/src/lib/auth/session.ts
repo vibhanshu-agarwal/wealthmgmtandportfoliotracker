@@ -13,6 +13,37 @@ export interface AuthSession {
   name: string;
 }
 
+export type LoginErrorKind = "http" | "network" | "invalid-response";
+
+export class LoginError extends Error {
+  constructor(
+    message: string,
+    readonly kind: LoginErrorKind,
+    readonly status?: number,
+  ) {
+    super(message);
+    this.name = "LoginError";
+  }
+}
+
+export function getLoginErrorMessage(error: unknown): string {
+  if (error instanceof LoginError) {
+    if (error.status === 401) {
+      return "Invalid username or password.";
+    }
+    if (error.kind === "network") {
+      return "Unable to reach the login service. Please try again.";
+    }
+    if (error.kind === "invalid-response") {
+      return "Login response was invalid. Please try again.";
+    }
+    if (error.status && error.status >= 500) {
+      return "Login service is temporarily unavailable. Please try again shortly.";
+    }
+  }
+  return "Login service is temporarily unavailable. Please try again shortly.";
+}
+
 /** Normalise API / stored JSON (camelCase or snake_case) into AuthSession. */
 function coerceSession(parsed: Record<string, unknown>): AuthSession | null {
   const token =
@@ -75,20 +106,30 @@ export function clearAuthSession(): void {
 }
 
 export async function loginWithBackend(email: string, password: string): Promise<AuthSession> {
-  const response = await fetch(apiPath("/auth/login"), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Login failed (${response.status})`);
+  let response: Response;
+  try {
+    response = await fetch(apiPath("/auth/login"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+  } catch {
+    throw new LoginError("Login request failed", "network");
   }
 
-  const raw = (await response.json()) as Record<string, unknown>;
+  if (!response.ok) {
+    throw new LoginError(`Login failed (${response.status})`, "http", response.status);
+  }
+
+  let raw: Record<string, unknown>;
+  try {
+    raw = (await response.json()) as Record<string, unknown>;
+  } catch {
+    throw new LoginError("Login response was not valid JSON", "invalid-response");
+  }
   const parsed = coerceSession(raw);
   if (!parsed) {
-    throw new Error("Login response missing token, userId, or email");
+    throw new LoginError("Login response missing token, userId, or email", "invalid-response");
   }
   saveAuthSession(parsed);
   return parsed;

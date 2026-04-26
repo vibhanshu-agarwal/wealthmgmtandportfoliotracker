@@ -1,37 +1,6 @@
-provider "aws" {
-  region                      = var.aws_region
-  access_key                  = var.use_localstack ? "test" : null
-  secret_key                  = var.use_localstack ? "test" : null
-  skip_credentials_validation = var.use_localstack
-  skip_metadata_api_check     = var.use_localstack
-  skip_requesting_account_id  = var.use_localstack
-  s3_use_path_style           = var.use_localstack
-
-  dynamic "endpoints" {
-    for_each = var.use_localstack ? [1] : []
-    content {
-      lambda      = local.localstack_endpoint
-      s3          = local.localstack_endpoint
-      dynamodb    = local.localstack_endpoint
-      cloudfront  = local.localstack_endpoint
-      iam         = local.localstack_endpoint
-      acm         = local.localstack_endpoint
-      route53     = local.localstack_endpoint
-      rds         = local.localstack_endpoint
-      elasticache = local.localstack_endpoint
-    }
-  }
-}
-
-terraform {
-  backend "s3" {
-    bucket         = "vibhanshu-tf-state-2026"
-    key            = "terraform.tfstate"
-    region         = "ap-south-1"
-    dynamodb_table = "vibhanshu-terraform-locks"
-    encrypt        = true
-  }
-}
+# Current caller identity — used to scope the warming IAM trust policy without
+# requiring an explicit var.aws_account_id (avoids one more secret/tfvar to manage).
+data "aws_caller_identity" "current" {}
 
 # ---------------------------------------------------------------------------
 # Artifact S3 bucket — retained for potential future use (e.g. static assets,
@@ -49,7 +18,6 @@ module "compute" {
   source = "./modules/compute"
 
   artifact_bucket_name  = var.artifact_bucket_name
-  s3_key_api_gateway    = var.s3_key_api_gateway
   api_gateway_image_uri = var.api_gateway_image_uri
   api_gateway_memory    = coalesce(var.api_gateway_memory, local.lambda_defaults.api_gateway_memory_mb)
   # Service image URIs — all three backend services are now Image-based
@@ -64,6 +32,11 @@ module "compute" {
   postgres_password           = var.postgres_password
   mongodb_connection_string   = var.mongodb_connection_string
   auth_jwk_uri                = var.auth_jwk_uri
+  auth_jwt_secret             = var.auth_jwt_secret
+  app_auth_email              = var.app_auth_email
+  app_auth_password           = var.app_auth_password
+  app_auth_user_id            = var.app_auth_user_id
+  app_auth_name               = var.app_auth_name
   cloudfront_origin_secret    = var.cloudfront_origin_secret
   # Messaging & Caching — missing link: root variables.tf → compute module
   redis_url               = var.redis_url
@@ -83,6 +56,36 @@ module "compute" {
   portfolio_function_url   = var.portfolio_function_url
   market_data_function_url = var.market_data_function_url
   insight_function_url     = var.insight_function_url
+}
+
+# ---------------------------------------------------------------------------
+# Import — Lambda FunctionURLAllowInvokeAction permissions
+# These statements were created by a prior apply or the AWS Console and exist
+# in AWS but were absent from Terraform state, causing 409 on every apply.
+# Import blocks adopt them into state without re-creating them.
+# Import blocks are only valid in the root module (Terraform restriction).
+# Import ID format: function_name:qualifier/statement_id
+# Once in state, these blocks become no-ops on every subsequent apply.
+# ---------------------------------------------------------------------------
+
+import {
+  to = module.compute.aws_lambda_permission.api_gateway_url_invoke
+  id = "wealth-api-gateway:live/FunctionURLAllowInvokeAction"
+}
+
+import {
+  to = module.compute.aws_lambda_permission.portfolio_url_invoke
+  id = "wealth-portfolio-service:live/FunctionURLAllowInvokeAction"
+}
+
+import {
+  to = module.compute.aws_lambda_permission.market_data_url_invoke
+  id = "wealth-market-data-service:live/FunctionURLAllowInvokeAction"
+}
+
+import {
+  to = module.compute.aws_lambda_permission.insight_url_invoke
+  id = "wealth-insight-service:live/FunctionURLAllowInvokeAction"
 }
 
 # ---------------------------------------------------------------------------
@@ -117,4 +120,50 @@ module "networking" {
   domain_name              = var.domain_name
   acm_certificate_arn      = var.acm_certificate_arn
   route53_zone_id          = var.route53_zone_id
+}
+
+
+# ---------------------------------------------------------------------------
+# Warming module — EventBridge Rules + API Destinations + SNS alarm
+# Phase 2 of the Lambda stopgap plan (docs/architecture/lambda-stopgap-execution-plan.md §5).
+#
+# SAFETY GATE: count = 0 when enable_warming = false (the default).
+# This means the entire module is a no-op — no AWS resources are created, no cost,
+# no risk to production. Flip enable_warming = true in tfvars ONLY after Phase 1
+# has been confirmed stable for >= 48 hours (all 4 Init Duration baselines recorded,
+# no exec format errors in CloudWatch Logs).
+#
+# Targets:
+#   api_gateway → direct Function URL (CloudFront /actuator/health → default_cache_behavior → frontend-static-s3 → 403; direct FURL verified 200)
+#   portfolio   → direct Function URL (no origin-verify filter; /actuator/health accessible)
+#   market_data → direct Function URL (no gateway-routable health endpoint — see P6)
+#   insight     → direct Function URL (same as market_data)
+# ---------------------------------------------------------------------------
+module "warming" {
+  count  = var.enable_warming ? 1 : 0
+  source = "./modules/warming"
+
+  targets = {
+    api_gateway = {
+      url    = "${module.compute.api_gateway_function_url}actuator/health"
+      method = "GET"
+    }
+    portfolio = {
+      url    = "${module.compute.portfolio_function_url}actuator/health"
+      method = "GET"
+    }
+    market_data = {
+      url    = "${module.compute.market_data_function_url}actuator/health"
+      method = "GET"
+    }
+    insight = {
+      url    = "${module.compute.insight_function_url}actuator/health"
+      method = "GET"
+    }
+  }
+
+  schedule_cron                   = coalesce(var.warming_schedule_cron, "rate(5 minutes)")
+  aws_account_id                  = data.aws_caller_identity.current.account_id
+  alarm_email                     = var.warming_alarm_email
+  concurrent_executions_threshold = coalesce(var.warming_concurrent_executions_threshold, 8)
 }

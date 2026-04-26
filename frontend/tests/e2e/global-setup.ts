@@ -16,7 +16,7 @@ import fs from "node:fs";
  * (default 120 s).
  */
 
-const GATEWAY_BASE = process.env.GATEWAY_BASE_URL ?? "http://localhost:8080";
+const GATEWAY_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
 const DEEP_HEALTH_URL = `${GATEWAY_BASE}/api/portfolio/health`;
 const SHALLOW_HEALTH_URL = `${GATEWAY_BASE}/actuator/health`;
 
@@ -34,16 +34,64 @@ if (!INTERNAL_API_KEY) {
   }
 }
 
-const TEST_USER_ID = process.env.E2E_TEST_USER_EMAIL ?? "e2e-test-user@vibhanshu-ai-portfolio.dev";
+const SEEDED_DEMO_USER_ID = "00000000-0000-0000-0000-000000000e2e";
+const TEST_USER_ID = process.env.E2E_TEST_USER_ID ?? SEEDED_DEMO_USER_ID;
 
 const POLL_INTERVAL_MS = 2_000;
 const DEEP_CHECK_TIMEOUT_MS = 30_000;
 const TOTAL_TIMEOUT_MS = Number(process.env.HEALTH_CHECK_TIMEOUT_MS ?? 120_000);
 const SKIP_BACKEND_HEALTH_CHECK =
   (process.env.SKIP_BACKEND_HEALTH_CHECK ?? "").toLowerCase() === "true";
+const SKIP_GOLDEN_STATE_SEEDING =
+  (process.env.SKIP_GOLDEN_STATE_SEEDING ?? "").toLowerCase() === "true";
+const IS_LOCAL_GATEWAY = /^https?:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/.test(GATEWAY_BASE);
+const SEED_MAX_RETRIES = Number(process.env.SEED_MAX_RETRIES ?? (IS_LOCAL_GATEWAY ? 3 : 8));
+const SEED_RETRY_DELAY_MS = Number(process.env.SEED_RETRY_DELAY_MS ?? (IS_LOCAL_GATEWAY ? 5_000 : 10_000));
+const SEED_REQUEST_TIMEOUT_MS = Number(process.env.SEED_REQUEST_TIMEOUT_MS ?? 70_000);
+const SEED_WARMUP_TIMEOUT_MS = Number(process.env.SEED_WARMUP_TIMEOUT_MS ?? (IS_LOCAL_GATEWAY ? 10_000 : 60_000));
+const SEED_WARMUP_PATHS = ["/api/portfolio/health", "/api/market/health", "/api/insights/health"];
 
 function timestamp(): string {
   return new Date().toISOString();
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isTransientSeedStatus(status: number, body: string): boolean {
+  if (status === 503 && body.includes("internal_api_key_not_configured")) {
+    return false;
+  }
+  return [429, 500, 502, 503, 504].includes(status);
+}
+
+async function safeResponseText(response: Response): Promise<string> {
+  try {
+    return await response.text();
+  } catch (error) {
+    return `<failed to read response body: ${error instanceof Error ? error.message : String(error)}>`;
+  }
+}
+
+function bodyExcerpt(body: string, maxLength = 500): string {
+  if (!body) {
+    return "<empty response body>";
+  }
+  return body.length <= maxLength ? body : `${body.slice(0, maxLength)}…`;
+}
+
+async function warmSeedDependencies(): Promise<void> {
+  console.log(`[${timestamp()}] Warming backend seed dependencies via gateway health endpoints...`);
+  for (const path of SEED_WARMUP_PATHS) {
+    const ok = await poll(`${GATEWAY_BASE}${path}`, SEED_WARMUP_TIMEOUT_MS);
+    if (!ok) {
+      console.warn(
+        `[${timestamp()}] Warm-up warning: ${path} did not return 200 within ${SEED_WARMUP_TIMEOUT_MS}ms. ` +
+          `Continuing because seed retries still handle Lambda cold starts.`,
+      );
+    }
+  }
 }
 
 /**
@@ -56,38 +104,75 @@ async function seedFetch(
   label: string,
   url: string,
   body: object,
-  maxRetries = 3,
-): Promise<Response> {
+  maxRetries = SEED_MAX_RETRIES,
+): Promise<{ response: Response; attempts: number; transient: boolean; body: string }> {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Internal-Api-Key": INTERNAL_API_KEY!,
-      },
-      body: JSON.stringify(body),
-      // 70s allows a full Lambda cold start (~30s) plus processing headroom.
-      // CloudFront returns 504 at 60s if the origin doesn't respond in time;
-      // we retry that rather than treating it as a hard failure.
-      signal: AbortSignal.timeout(70_000),
-    });
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Internal-Api-Key": INTERNAL_API_KEY!,
+        },
+        body: JSON.stringify(body),
+        // 70s allows a full Lambda cold start (~30s) plus processing headroom.
+        // CloudFront returns 504 at 60s if the origin doesn't respond in time;
+        // we retry that rather than treating it as a hard failure.
+        signal: AbortSignal.timeout(SEED_REQUEST_TIMEOUT_MS),
+      });
 
-    if ((res.status === 502 || res.status === 504) && attempt < maxRetries) {
+      const responseBody = res.ok ? "" : await safeResponseText(res.clone());
+      const transient = isTransientSeedStatus(res.status, responseBody);
+      if (transient && attempt < maxRetries) {
+        console.log(
+          `[${timestamp()}] ${label}: HTTP ${res.status} on attempt ${attempt}/${maxRetries} ` +
+            `(transient Lambda/API Gateway response) — retrying in ${SEED_RETRY_DELAY_MS}ms...`,
+        );
+        await sleep(SEED_RETRY_DELAY_MS);
+        continue;
+      }
+
+      return { response: res, attempts: attempt, transient, body: responseBody };
+    } catch (error) {
+      if (attempt >= maxRetries) {
+        throw new Error(
+          `${label}: request failed after ${attempt}/${maxRetries} attempts for ${url}: ` +
+            `${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
       console.log(
-        `[${timestamp()}] ${label}: HTTP ${res.status} on attempt ${attempt}/${maxRetries} ` +
-          `(Lambda cold start / CloudFront timeout) — retrying in 5s...`,
+        `[${timestamp()}] ${label}: request failed on attempt ${attempt}/${maxRetries}: ` +
+          `${error instanceof Error ? error.message : String(error)} — retrying in ${SEED_RETRY_DELAY_MS}ms...`,
       );
-      await new Promise((r) => setTimeout(r, 5_000));
-      continue;
+      await sleep(SEED_RETRY_DELAY_MS);
     }
-
-    return res;
   }
   // Should never reach here — the loop always returns or continues.
   throw new Error(`${label}: exhausted ${maxRetries} retries`);
 }
 
+async function assertSeedOk(
+  label: string,
+  result: { response: Response; attempts: number; transient: boolean; body: string },
+): Promise<void> {
+  if (result.response.ok) {
+    return;
+  }
+  const responseBody = result.body || await safeResponseText(result.response);
+  throw new Error(
+    `${label} failed after ${result.attempts}/${SEED_MAX_RETRIES} attempts: ` +
+      `HTTP ${result.response.status}` +
+      `${result.transient ? " (transient status, retry budget exhausted)" : ""} ` +
+      bodyExcerpt(responseBody),
+  );
+}
+
 async function runSeeding(): Promise<void> {
+  if (SKIP_GOLDEN_STATE_SEEDING) {
+    console.log(`[${timestamp()}] Skipping Golden State seeding: SKIP_GOLDEN_STATE_SEEDING=true.`);
+    return;
+  }
+
   if (!INTERNAL_API_KEY) {
     console.warn(`[${timestamp()}] Skipping Golden State seeding: INTERNAL_API_KEY not set.`);
     return;
@@ -96,42 +181,38 @@ async function runSeeding(): Promise<void> {
   console.log(`[${timestamp()}] Starting Golden State seeding for ${TEST_USER_ID}...`);
 
   try {
+    await warmSeedDependencies();
+
     // 1. Portfolio Seeding -> Get portfolioId
-    const portfolioRes = await seedFetch(
+    const portfolioResult = await seedFetch(
       "Portfolio seeding",
       `${GATEWAY_BASE}/api/internal/portfolio/seed`,
       { userId: TEST_USER_ID },
     );
 
-    if (!portfolioRes.ok) {
-      throw new Error(`Portfolio seeding failed: ${portfolioRes.status} ${await portfolioRes.text()}`);
-    }
+    await assertSeedOk("Portfolio seeding", portfolioResult);
 
-    const { portfolioId } = await portfolioRes.json();
+    const { portfolioId } = await portfolioResult.response.json();
     console.log(`[${timestamp()}] Portfolio seeded. ID: ${portfolioId}`);
 
     // 2. Market Data Seeding
-    const marketRes = await seedFetch(
+    const marketResult = await seedFetch(
       "Market data seeding",
       `${GATEWAY_BASE}/api/internal/market-data/seed`,
       { userId: TEST_USER_ID },
     );
 
-    if (!marketRes.ok) {
-      throw new Error(`Market data seeding failed: ${marketRes.status} ${await marketRes.text()}`);
-    }
+    await assertSeedOk("Market data seeding", marketResult);
     console.log(`[${timestamp()}] Market data seeded.`);
 
     // 3. Insight Seeding (Cache Eviction)
-    const insightRes = await seedFetch(
+    const insightResult = await seedFetch(
       "Insight seeding",
       `${GATEWAY_BASE}/api/internal/insight/seed`,
       { userId: TEST_USER_ID, portfolioId },
     );
 
-    if (!insightRes.ok) {
-      throw new Error(`Insight seeding failed: ${insightRes.status} ${await insightRes.text()}`);
-    }
+    await assertSeedOk("Insight seeding", insightResult);
     console.log(`[${timestamp()}] Insight cache evicted. Seeding complete.`);
   } catch (error) {
     console.error(`[${timestamp()}] Seeding ERROR:`, error);

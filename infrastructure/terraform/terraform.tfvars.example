@@ -40,9 +40,6 @@ artifact_bucket_name = "my-wealth-tracker-artifacts"
 # Frontend static export bucket
 frontend_bucket_name = "my-wealth-tracker-frontend"
 
-# Lambda Web Adapter layer ARN (region-specific, check AWS docs for latest)
-lambda_adapter_layer_arn = "arn:aws:lambda:us-east-1:753240598075:layer:LambdaAdapterLayerX86:24"
-
 # api-gateway Lambda container (package_type Image — must exist in ECR before first apply)
 api_gateway_image_uri = "123456789012.dkr.ecr.us-east-1.amazonaws.com/my-api-gateway:latest"
 
@@ -55,17 +52,39 @@ api_gateway_image_uri = "123456789012.dkr.ecr.us-east-1.amazonaws.com/my-api-gat
 # Uncomment and set to "x86_64" ONLY to roll back after a failed arm64 deployment.
 # lambda_architecture = "x86_64"
 
+# ---------------------------------------------------------------------------
+# Phase 2 — EventBridge Scheduler warming (docs/architecture/lambda-stopgap-execution-plan.md §5)
+# Flip enable_warming to true ONLY after Phase 1 (arm64 flip) is confirmed stable for >= 48 h.
+# All variables below are required when enable_warming = true.
+# ---------------------------------------------------------------------------
+# enable_warming = false
+#
+# Email address that receives the SNS ConcurrentExecutions alarm.
+# AWS sends a confirmation email immediately after apply — click "Confirm subscription".
+# warming_alarm_email = "you@example.com"
+#
+# Optional: override warming cadence (default "rate(5 minutes)").
+# warming_schedule_cron = "rate(5 minutes)"
+#
+# Optional: override concurrency alarm threshold (default 8, 2 below the 10-unit limit).
+# warming_concurrent_executions_threshold = 8
+
 # Optional overrides for Lambda memory (defaults live in locals.tf → lambda_defaults)
 # portfolio_memory_size       = 2048
 # market_data_memory_size     = 1024
 # insight_service_memory_size = 1024
 
-# S3 key for api-gateway JAR (unused — api-gateway uses package_type Image)
-# s3_key_portfolio, s3_key_market_data, s3_key_insight removed — all services are now Image-based
-s3_key_api_gateway = "api-gateway/api-gateway.jar"
+# Current auth path: api-gateway issues and validates HS256 JWTs for one demo user.
+# Do not commit real values; supply these via TF_VAR_* / GitHub Actions secrets.
+# Leave the example blank so secret scanners do not treat placeholder text as a key.
+auth_jwt_secret  = ""
+app_auth_email   = "demo@example.com"
+app_auth_password = "replace-with-demo-password"
+app_auth_user_id = "00000000-0000-0000-0000-000000000e2e"
+app_auth_name    = "Demo User"
 
-# JWK URI for JWT validation (aws profile)
-auth_jwk_uri = "https://cognito-idp.us-east-1.amazonaws.com/us-east-1_XXXXXXXX/.well-known/jwks.json"
+# Reserved for a future external IdP/JWK profile; not used by the current aws auth path.
+auth_jwk_uri = ""
 
 # Optional: custom domain (leave empty to use CloudFront default domain)
 domain_name         = ""

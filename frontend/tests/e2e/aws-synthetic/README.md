@@ -10,7 +10,7 @@ This directory contains the synthetic monitoring suite designed to run against t
    export E2E_TEST_USER_EMAIL="e2e-test-user@vibhanshu-ai-portfolio.dev"
    export E2E_TEST_USER_PASSWORD="your-password"
    export BASE_URL="https://vibhanshu-ai-portfolio.dev"
-   export GATEWAY_BASE_URL="https://api.vibhanshu-ai-portfolio.dev"
+   export NEXT_PUBLIC_API_BASE_URL="https://api.vibhanshu-ai-portfolio.dev"
    ```
 
 2. **Dependencies**: Ensure you have installed the frontend dependencies:

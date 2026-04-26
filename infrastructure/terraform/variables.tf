@@ -44,22 +44,9 @@ variable "frontend_bucket_region" {
   description = "AWS region of the frontend S3 bucket (may differ from var.aws_region if bucket was created in a different region)"
 }
 
-variable "lambda_adapter_layer_arn" {
-  type        = string
-  default     = ""
-  description = "ARN of the Lambda Web Adapter layer (no longer used — all Lambdas are Image-based and bundle LWA in their Dockerfiles)."
-}
-
 variable "api_gateway_image_uri" {
   type        = string
   description = "Full ECR image URI for wealth-api-gateway (package_type Image). Use your account/region/repo, e.g. ...amazonaws.com/<ECR_REPOSITORY_NAME>:latest"
-}
-
-variable "lambda_java_runtime" {
-  type        = string
-  nullable    = true
-  default     = null
-  description = "Optional override for Zip Lambda runtime (no longer used — all Lambdas are Image-based)."
 }
 
 variable "api_gateway_memory" {
@@ -116,7 +103,43 @@ variable "mongodb_connection_string" {
 
 variable "auth_jwk_uri" {
   type        = string
-  description = "JWK endpoint URI (aws profile)"
+  default     = ""
+  description = "Deprecated for the current single-user auth path. Reserved for a future external IdP/JWK profile."
+}
+
+variable "auth_jwt_secret" {
+  type        = string
+  sensitive   = true
+  description = "HS256 JWT signing/validation secret injected into the api-gateway Lambda as AUTH_JWT_SECRET. Must be at least 32 characters."
+
+  validation {
+    condition     = length(var.auth_jwt_secret) >= 32
+    error_message = "auth_jwt_secret must be at least 32 characters for HS256."
+  }
+}
+
+variable "app_auth_email" {
+  type        = string
+  sensitive   = true
+  description = "Production demo login email injected into the api-gateway Lambda as APP_AUTH_EMAIL."
+}
+
+variable "app_auth_password" {
+  type        = string
+  sensitive   = true
+  description = "Production demo login password injected into the api-gateway Lambda as APP_AUTH_PASSWORD."
+}
+
+variable "app_auth_user_id" {
+  type        = string
+  default     = "00000000-0000-0000-0000-000000000e2e"
+  description = "Production demo user ID injected into APP_AUTH_USER_ID. Must match the golden-state seeded portfolio user."
+}
+
+variable "app_auth_name" {
+  type        = string
+  default     = "Demo User"
+  description = "Production demo display name injected into the api-gateway Lambda as APP_AUTH_NAME."
 }
 
 # ---------------------------------------------------------------------------
@@ -139,13 +162,8 @@ variable "insight_image_uri" {
   description = "Full ECR image URI for wealth-insight-service Lambda (package_type Image)."
 }
 
-variable "s3_key_api_gateway" {
-  type        = string
-  description = "S3 object key for api-gateway JAR (unused — api-gateway uses package_type Image)"
-}
-
-# s3_key_portfolio, s3_key_market_data, s3_key_insight removed — all three services
-# are now Image-based Lambdas. S3 artifact keys are no longer needed.
+# s3_key_api_gateway removed — api-gateway uses package_type Image (ECR), not S3 Zip.
+# s3_key_portfolio, s3_key_market_data, s3_key_insight removed — same reason.
 
 variable "domain_name" {
   type        = string
@@ -292,10 +310,19 @@ variable "lambda_architecture" {
   nullable    = true
   default     = null
   description = <<-EOT
-    Optional override for Lambda ISA. Defaults to "arm64" (Graviton2) inside the compute module.
+    Optional override for Lambda ISA. Accepts "arm64" (Graviton2, default) or "x86_64".
     Set to "x86_64" via TF_VAR_lambda_architecture or tfvars only to roll back after a failed
-    arm64 deployment.  Leave null (the default) to accept the module default of "arm64".
+    arm64 deployment. Leave null (the default) — main.tf coalesces to "arm64".
   EOT
+
+  validation {
+    # coalesce() converts null → "arm64" before contains() sees it.
+    # Terraform evaluates both sides of || eagerly, and contains() rejects null as
+    # either the list element or the value argument. coalesce maps the null default
+    # to its semantic meaning (arm64) without any error.
+    condition     = contains(["arm64", "x86_64"], coalesce(var.lambda_architecture, "arm64"))
+    error_message = "lambda_architecture must be \"arm64\", \"x86_64\", or null (null = accept the default arm64)."
+  }
 }
 
 variable "enable_provisioned_concurrency" {
@@ -304,5 +331,53 @@ variable "enable_provisioned_concurrency" {
   description = <<-EOT
     When true, provisions 1 warm instance on 'live' alias for api-gateway and portfolio-service.
     Only enable after ap-south-1 unreserved concurrency quota has been raised above 10.
+  EOT
+}
+
+# ---------------------------------------------------------------------------
+# Phase 2 — Warming infrastructure (EventBridge Rules + API Destinations)
+# ---------------------------------------------------------------------------
+
+variable "enable_warming" {
+  type        = bool
+  default     = false
+  description = <<-EOT
+    Master kill-switch for the EventBridge Rules + API Destinations warming module.
+    Default false: the entire module is a no-op (count = 0) — safe to merge at any time.
+    Flip to true only after Phase 1 (arm64 flip) has been confirmed stable for >= 48 hours
+    and all 4 CloudWatch Init Duration baselines have been recorded.
+  EOT
+}
+
+variable "warming_schedule_cron" {
+  type        = string
+  nullable    = true
+  default     = null
+  description = <<-EOT
+    Optional override for the warming cadence. Default is "rate(5 minutes)".
+    Reduce to "rate(3 minutes)" only if CloudWatch shows Init Duration spikes between ticks,
+    indicating the JVM is being evicted before the next warm hit.
+  EOT
+}
+
+variable "warming_alarm_email" {
+  type        = string
+  default     = ""
+  description = <<-EOT
+    Email address for the SNS ConcurrentExecutions alarm subscription.
+    Required (non-empty) when enable_warming = true — AWS sends a confirmation email
+    to this address immediately after terraform apply. You must click "Confirm subscription"
+    before alerts are delivered.
+  EOT
+}
+
+variable "warming_concurrent_executions_threshold" {
+  type        = number
+  nullable    = true
+  default     = null
+  description = <<-EOT
+    Optional override for the CloudWatch ConcurrentExecutions alarm threshold.
+    Default 8 (2 below the 10-unit ap-south-1 hard limit). Lower to 7 if provisioned
+    concurrency is enabled on any function, as PC counts against the same pool.
   EOT
 }

@@ -1,0 +1,26 @@
+# =============================================================================
+# Shared Kafka production configuration fragment.
+# Imported by all three backend services via:
+#   spring.config.import: "classpath:config/application-prod-kafka.yml"
+#
+# common-dto is on every service's compile classpath (see each service's
+# build.gradle), so this fragment is available at runtime without any
+# additional Gradle wiring.
+# =============================================================================
+
+spring:
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+    ssl:
+      trust-store-location: ${KAFKA_TRUSTSTORE_PATH:classpath:kafka-truststore.jks}
+      trust-store-password: ${KAFKA_TRUSTSTORE_PASSWORD:changeit}
+    properties:
+      security.protocol: ${KAFKA_SECURITY_PROTOCOL:SASL_SSL}
+      sasl.mechanism: ${KAFKA_SASL_MECHANISM:PLAIN}
+      sasl.jaas.config: >
+        org.apache.kafka.common.security.plain.PlainLoginModule required
+        username='${KAFKA_SASL_USERNAME}' password='${KAFKA_SASL_PASSWORD}';
+    admin:
+      # Fail fast on connectivity probe — avoids 30 s hang when broker is unreachable.
+      properties:
+        request.timeout.ms: 5000
