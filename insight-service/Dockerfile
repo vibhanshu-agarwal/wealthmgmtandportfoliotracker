@@ -94,11 +94,10 @@ RUN DEPS=$(jdeps \
 # ---------------------------------------------------------------------------
 FROM public.ecr.aws/amazonlinux/amazonlinux:2023-minimal AS runtime
 
-# Install tar/gzip (for RIE download extraction) — curl-minimal is pre-installed.
 # ca-certificates populates the OS trust store so the JVM can validate SSL certs
 # from external services (Aiven Kafka, MongoDB Atlas, etc.) — without it, JSSE
 # throws "PKIX path building failed: unable to find valid certification path".
-RUN microdnf install -y tar gzip ca-certificates && microdnf clean all
+RUN microdnf install -y ca-certificates && microdnf clean all
 
 # Copy Custom JRE
 ENV JAVA_HOME=/opt/java
@@ -117,13 +116,6 @@ COPY --from=builder /workspace/insight-service/build/libs/*.jar app.jar
 # with the Lambda Extensions API. Using a different filename causes a name mismatch
 # that results in Extension.Crash.
 COPY --from=public.ecr.aws/awsguru/aws-lambda-adapter:1.0.0 /lambda-adapter /opt/extensions/lambda-adapter
-
-# Download AWS Lambda Runtime Interface Emulator (RIE)
-RUN ARCH=$(uname -m) \
-    && if [ "$ARCH" = "x86_64" ]; then RIE_ARCH="x86_64"; else RIE_ARCH="arm64"; fi \
-    && curl -Lo /usr/local/bin/aws-lambda-rie \
-    "https://github.com/aws/aws-lambda-runtime-interface-emulator/releases/latest/download/aws-lambda-rie-${RIE_ARCH}" \
-    && chmod +x /usr/local/bin/aws-lambda-rie
 
 # Expose the service port
 EXPOSE 8080
