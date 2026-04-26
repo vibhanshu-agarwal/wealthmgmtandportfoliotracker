@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { loginWithBackend } from "@/lib/auth/session";
+import { getLoginErrorMessage, loginWithBackend } from "@/lib/auth/session";
 import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
@@ -21,8 +21,8 @@ export default function LoginPage() {
         form.get("password") as string,
       );
       router.push("/overview");
-    } catch {
-      setError("Invalid username or password.");
+    } catch (err) {
+      setError(getLoginErrorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -36,8 +36,7 @@ export default function LoginPage() {
             Sign in
           </h1>
           <p className="text-sm text-muted-foreground">
-            Use <span className="font-mono">dev@localhost.local</span> /{" "}
-            <span className="font-mono">password</span> for local dev.
+            Sign in with your configured demo credentials.
           </p>
         </div>
 

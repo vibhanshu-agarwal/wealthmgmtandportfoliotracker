@@ -33,6 +33,8 @@ public class SecurityConfig {
                         .pathMatchers("/actuator/**").permitAll()
                         .pathMatchers("/api/auth/**").permitAll()
                         .pathMatchers("/api/portfolio/health").permitAll()
+                        .pathMatchers("/api/market/health").permitAll()
+                        .pathMatchers("/api/insights/health").permitAll()
                         // Golden-State seeder: JWT is bypassed at the gateway; each downstream
                         // service gates /api/internal/** on X-Internal-Api-Key instead.
                         .pathMatchers("/api/internal/**").permitAll()

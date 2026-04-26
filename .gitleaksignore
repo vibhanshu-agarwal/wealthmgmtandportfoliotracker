@@ -4,3 +4,6 @@
 # Compromised commit from April 21, 2026 (Rotated credentials)
 # Source: tfplan-import exposure
 2b976505b29378146ff1e2821f4eab497663203d
+
+# Terraform example placeholder, not a real secret.
+1bbf703afdf6535af457e47b9e08a58e3684aab9:infrastructure/terraform/terraform.tfvars.example:generic-api-key:79

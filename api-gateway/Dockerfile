@@ -96,11 +96,10 @@ RUN DEPS=$(jdeps \
 # ---------------------------------------------------------------------------
 FROM public.ecr.aws/amazonlinux/amazonlinux:2023-minimal AS runtime
 
-# Install tar/gzip (for RIE download extraction) — curl-minimal is pre-installed.
 # ca-certificates populates the OS trust store so the JVM can validate SSL certs
 # from external services (Aiven Kafka, MongoDB Atlas, etc.) — without it, JSSE
 # throws "PKIX path building failed: unable to find valid certification path".
-RUN microdnf install -y tar gzip ca-certificates && microdnf clean all
+RUN microdnf install -y ca-certificates && microdnf clean all
 
 # Copy Custom JRE
 ENV JAVA_HOME=/opt/java
@@ -123,13 +122,6 @@ COPY --from=builder /workspace/api-gateway/build/libs/*.jar app.jar
 # that results in Extension.Crash.
 COPY --from=public.ecr.aws/awsguru/aws-lambda-adapter:1.0.0 /lambda-adapter /opt/extensions/lambda-adapter
 
-# Download AWS Lambda Runtime Interface Emulator (RIE)
-RUN ARCH=$(uname -m) \
-    && if [ "$ARCH" = "x86_64" ]; then RIE_ARCH="x86_64"; else RIE_ARCH="arm64"; fi \
-    && curl -Lo /usr/local/bin/aws-lambda-rie \
-    "https://github.com/aws/aws-lambda-runtime-interface-emulator/releases/latest/download/aws-lambda-rie-${RIE_ARCH}" \
-    && chmod +x /usr/local/bin/aws-lambda-rie
-
 # Lambda Web Adapter configuration
 ENV AWS_LWA_PORT=8080
 ENV AWS_LWA_READINESS_CHECK_PATH=/actuator/health
@@ -138,5 +130,6 @@ ENV AWS_LWA_READINESS_CHECK_PATH=/actuator/health
 EXPOSE 8080
 
 # Default: Java app runs as PID 1; Lambda auto-loads the LWA sidecar from /opt/extensions/
-# Locally (no Lambda runtime API), the adapter runs in passthrough mode
-ENTRYPOINT ["java", "-Dspring.aot.enabled=true", "-jar", "/app/app.jar"]
+# Locally (no Lambda runtime API), the adapter runs in passthrough mode.
+# Runtime AOT is intentionally disabled until build-time profile inputs match Lambda runtime.
+ENTRYPOINT ["java", "-jar", "/app/app.jar"]

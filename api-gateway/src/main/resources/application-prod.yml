@@ -9,12 +9,6 @@ server:
   port: 8080
 
 spring:
-  security:
-    oauth2:
-      resourceserver:
-        jwt:
-          jwk-set-uri: ${AUTH_JWK_URI}
-
   data:
     redis:
       # REDIS_URL format: redis[s]://[:password@]host[:port]
@@ -40,9 +34,6 @@ spring:
             # 60 s origin-read timeout, so the client sees 504 (gateway timeout) rather
             # than a raw 502 socket reset when a downstream Lambda is slow or overloaded.
             response-timeout: 55s
-
-auth:
-  jwk-uri: ${AUTH_JWK_URI}
 
 app:
   cors:
