@@ -78,7 +78,35 @@ variable "mongodb_connection_string" {
 }
 
 variable "auth_jwk_uri" {
-  description = "JWK endpoint URI for JWT validation (AWS Cognito or auth provider)."
+  description = "Deprecated for the current single-user auth path. Reserved for a future external IdP/JWK profile."
+  type        = string
+}
+
+variable "auth_jwt_secret" {
+  description = "HS256 JWT signing/validation secret injected into the api-gateway Lambda as AUTH_JWT_SECRET."
+  type        = string
+  sensitive   = true
+}
+
+variable "app_auth_email" {
+  description = "Production demo login email injected into the api-gateway Lambda as APP_AUTH_EMAIL."
+  type        = string
+  sensitive   = true
+}
+
+variable "app_auth_password" {
+  description = "Production demo login password injected into the api-gateway Lambda as APP_AUTH_PASSWORD."
+  type        = string
+  sensitive   = true
+}
+
+variable "app_auth_user_id" {
+  description = "Production demo user ID injected into APP_AUTH_USER_ID. Must match the golden-state seeded portfolio user."
+  type        = string
+}
+
+variable "app_auth_name" {
+  description = "Production demo display name injected into the api-gateway Lambda as APP_AUTH_NAME."
   type        = string
 }
 

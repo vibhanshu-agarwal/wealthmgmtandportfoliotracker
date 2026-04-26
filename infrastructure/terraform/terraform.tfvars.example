@@ -74,8 +74,16 @@ api_gateway_image_uri = "123456789012.dkr.ecr.us-east-1.amazonaws.com/my-api-gat
 # market_data_memory_size     = 1024
 # insight_service_memory_size = 1024
 
-# JWK URI for JWT validation (aws profile)
-auth_jwk_uri = "https://cognito-idp.us-east-1.amazonaws.com/us-east-1_XXXXXXXX/.well-known/jwks.json"
+# Current auth path: api-gateway issues and validates HS256 JWTs for one demo user.
+# Do not commit real values; supply these via TF_VAR_* / GitHub Actions secrets.
+auth_jwt_secret  = "replace-with-at-least-32-characters"
+app_auth_email   = "demo@example.com"
+app_auth_password = "replace-with-demo-password"
+app_auth_user_id = "00000000-0000-0000-0000-000000000e2e"
+app_auth_name    = "Demo User"
+
+# Reserved for a future external IdP/JWK profile; not used by the current aws auth path.
+auth_jwk_uri = ""
 
 # Optional: custom domain (leave empty to use CloudFront default domain)
 domain_name         = ""
