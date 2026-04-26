@@ -33,6 +33,17 @@ locals {
     AWS_LWA_READINESS_CHECK_MAX_RETRIES = local.common_env.AWS_LWA_READINESS_CHECK_MAX_RETRIES
   }
 
+  # Single-user demo auth configuration for the api-gateway Lambda.
+  # The user ID must match the golden-state seeded portfolio user so production
+  # login hydrates the dashboard with seeded demo data.
+  api_gateway_auth_env = {
+    AUTH_JWT_SECRET   = var.auth_jwt_secret
+    APP_AUTH_EMAIL    = var.app_auth_email
+    APP_AUTH_PASSWORD = var.app_auth_password
+    APP_AUTH_USER_ID  = var.app_auth_user_id
+    APP_AUTH_NAME     = var.app_auth_name
+  }
+
   # Runtime secrets — owned exclusively by Terraform.
   # Sourced from GitHub Actions secrets via TF_VAR_* in terraform.yml.
   # Merged into every Lambda that needs them; deploy.yml never touches these.
@@ -213,7 +224,7 @@ resource "aws_lambda_function" "api_gateway" {
   }
 
   environment {
-    variables = merge(local.api_gateway_container_env, local.runtime_secrets, {
+    variables = merge(local.api_gateway_container_env, local.runtime_secrets, local.api_gateway_auth_env, {
       # Lambda Web Adapter polls PORT; Spring Boot uses SERVER_PORT — must match api-gateway Dockerfile (8080).
       SERVER_PORT = "8080"
       PORT        = "8080"
@@ -222,7 +233,6 @@ resource "aws_lambda_function" "api_gateway" {
       PORTFOLIO_SERVICE_URL    = var.portfolio_function_url != "" ? var.portfolio_function_url : aws_lambda_function_url.portfolio.function_url
       MARKET_DATA_SERVICE_URL  = var.market_data_function_url != "" ? var.market_data_function_url : aws_lambda_function_url.market_data.function_url
       INSIGHT_SERVICE_URL      = var.insight_function_url != "" ? var.insight_function_url : aws_lambda_function_url.insight.function_url
-      AUTH_JWK_URI             = var.auth_jwk_uri
       CLOUDFRONT_ORIGIN_SECRET = var.cloudfront_origin_secret
     })
   }
@@ -289,6 +299,8 @@ resource "aws_lambda_function" "market_data" {
 
   environment {
     variables = merge(local.common_env, local.runtime_secrets, {
+      SPRING_MONGODB_URI = var.mongodb_connection_string
+      # Legacy alias retained for old images; Spring Boot 4 reads SPRING_MONGODB_URI.
       SPRING_DATA_MONGODB_URI = var.mongodb_connection_string
       # Override the LWA readiness check path — /actuator/health includes MongoHealthIndicator
       # which fails with AtlasError 8000 (not authorized on local db). The liveness endpoint

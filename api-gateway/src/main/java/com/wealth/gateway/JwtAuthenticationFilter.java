@@ -36,7 +36,10 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
         // /api/auth/** is included to match the permitAll() declaration for auth endpoints.
         // /api/internal/** is the Golden-State E2E seeder — gated on X-Internal-Api-Key
         // by the downstream services, not by JWT at the gateway (design doc \u00a7 7).
-        if (path.startsWith("/actuator") || path.equals("/api/portfolio/health")
+        if (path.startsWith("/actuator")
+                || path.equals("/api/portfolio/health")
+                || path.equals("/api/market/health")
+                || path.equals("/api/insights/health")
                 || path.equals("/api/auth") || path.startsWith("/api/auth/")
                 || path.startsWith("/api/internal/")) {
             // Still strip X-User-Id to prevent spoofing on public endpoints.

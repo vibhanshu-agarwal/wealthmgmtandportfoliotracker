@@ -2,41 +2,6 @@
 # requiring an explicit var.aws_account_id (avoids one more secret/tfvar to manage).
 data "aws_caller_identity" "current" {}
 
-provider "aws" {
-  region                      = var.aws_region
-  access_key                  = var.use_localstack ? "test" : null
-  secret_key                  = var.use_localstack ? "test" : null
-  skip_credentials_validation = var.use_localstack
-  skip_metadata_api_check     = var.use_localstack
-  skip_requesting_account_id  = var.use_localstack
-  s3_use_path_style           = var.use_localstack
-
-  dynamic "endpoints" {
-    for_each = var.use_localstack ? [1] : []
-    content {
-      lambda      = local.localstack_endpoint
-      s3          = local.localstack_endpoint
-      dynamodb    = local.localstack_endpoint
-      cloudfront  = local.localstack_endpoint
-      iam         = local.localstack_endpoint
-      acm         = local.localstack_endpoint
-      route53     = local.localstack_endpoint
-      rds         = local.localstack_endpoint
-      elasticache = local.localstack_endpoint
-    }
-  }
-}
-
-terraform {
-  backend "s3" {
-    bucket         = "vibhanshu-tf-state-2026"
-    key            = "terraform.tfstate"
-    region         = "ap-south-1"
-    dynamodb_table = "vibhanshu-terraform-locks"
-    encrypt        = true
-  }
-}
-
 # ---------------------------------------------------------------------------
 # Artifact S3 bucket — retained for potential future use (e.g. static assets,
 # deployment artifacts). No longer used for Lambda JARs (all services are Image-based).
@@ -67,6 +32,11 @@ module "compute" {
   postgres_password           = var.postgres_password
   mongodb_connection_string   = var.mongodb_connection_string
   auth_jwk_uri                = var.auth_jwk_uri
+  auth_jwt_secret             = var.auth_jwt_secret
+  app_auth_email              = var.app_auth_email
+  app_auth_password           = var.app_auth_password
+  app_auth_user_id            = var.app_auth_user_id
+  app_auth_name               = var.app_auth_name
   cloudfront_origin_secret    = var.cloudfront_origin_secret
   # Messaging & Caching — missing link: root variables.tf → compute module
   redis_url               = var.redis_url
@@ -86,6 +56,36 @@ module "compute" {
   portfolio_function_url   = var.portfolio_function_url
   market_data_function_url = var.market_data_function_url
   insight_function_url     = var.insight_function_url
+}
+
+# ---------------------------------------------------------------------------
+# Import — Lambda FunctionURLAllowInvokeAction permissions
+# These statements were created by a prior apply or the AWS Console and exist
+# in AWS but were absent from Terraform state, causing 409 on every apply.
+# Import blocks adopt them into state without re-creating them.
+# Import blocks are only valid in the root module (Terraform restriction).
+# Import ID format: function_name:qualifier/statement_id
+# Once in state, these blocks become no-ops on every subsequent apply.
+# ---------------------------------------------------------------------------
+
+import {
+  to = module.compute.aws_lambda_permission.api_gateway_url_invoke
+  id = "wealth-api-gateway:live/FunctionURLAllowInvokeAction"
+}
+
+import {
+  to = module.compute.aws_lambda_permission.portfolio_url_invoke
+  id = "wealth-portfolio-service:live/FunctionURLAllowInvokeAction"
+}
+
+import {
+  to = module.compute.aws_lambda_permission.market_data_url_invoke
+  id = "wealth-market-data-service:live/FunctionURLAllowInvokeAction"
+}
+
+import {
+  to = module.compute.aws_lambda_permission.insight_url_invoke
+  id = "wealth-insight-service:live/FunctionURLAllowInvokeAction"
 }
 
 # ---------------------------------------------------------------------------

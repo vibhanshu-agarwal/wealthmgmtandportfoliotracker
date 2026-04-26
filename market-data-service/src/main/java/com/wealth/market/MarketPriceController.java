@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.*;
 import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
 /**
  * REST adapter for market price queries and updates.
@@ -38,6 +39,11 @@ public class MarketPriceController {
     public MarketPriceController(AssetPriceRepository assetPriceRepository, MarketPriceService marketPriceService) {
         this.assetPriceRepository = assetPriceRepository;
         this.marketPriceService = marketPriceService;
+    }
+
+    @GetMapping("/health")
+    public ResponseEntity<Map<String, String>> health() {
+        return ResponseEntity.ok(Map.of("status", "UP", "service", "market-data-service"));
     }
 
     @PostMapping("/prices/{ticker}")

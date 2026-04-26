@@ -121,26 +121,25 @@ class PreservationPropertyTest {
                 .expectStatus().isOk();
     }
 
-    // ── Property 2c2 — Portfolio Health Permit All ──────────────────────────
+    // ── Property 2c2 — Downstream Health Permit All ─────────────────────────
 
     /**
-     * Property 2c2: Requests to /api/portfolio/health without authentication must
-     * NOT return 401. This endpoint is used by the Playwright global-setup health
-     * check to verify end-to-end gateway→portfolio-service routing. It must be
-     * permitted without authentication so the health check doesn't waste 30s
-     * getting 401 responses before falling back to /actuator/health.
+     * Property 2c2: Downstream health endpoints must not require authentication.
+     * Synthetic monitoring uses them to warm all backend Lambdas before seeded E2E
+     * calls; 401 would stop at the gateway and never invoke the downstream Lambda.
      *
      * <p>The response may be 502/503/504 (upstream not running in test) but must
      * NOT be 401 (which would mean the gateway is blocking it for auth).
      */
-    @Test
-    void portfolioHealthEndpointIsPermittedWithoutAuthentication() {
+    @ParameterizedTest
+    @ValueSource(strings = {"/api/portfolio/health", "/api/market/health", "/api/insights/health"})
+    void downstreamHealthEndpointsArePermittedWithoutAuthentication(String path) {
         webTestClient.get()
-                .uri("/api/portfolio/health")
+                .uri(path)
                 .exchange()
                 .expectStatus().value(status ->
                         assertThat(status)
-                                .as("/api/portfolio/health must not require authentication (permitAll)")
+                                .as(path + " must not require authentication (permitAll)")
                                 .isNotEqualTo(401));
     }
 
@@ -148,8 +147,7 @@ class PreservationPropertyTest {
 
     /**
      * Property 2d: JwtDecoderConfig must have profile annotations ensuring
-     * awsJwtDecoder is only active under @Profile("aws") and localJwtDecoder
-     * is only active under @Profile("local").
+     * the current HS256 decoder is only active under local/aws profiles.
      *
      * <p><b>Validates: Requirements 3.5</b>
      */
@@ -157,25 +155,14 @@ class PreservationPropertyTest {
     void jwtDecoderConfigHasCorrectProfileAnnotations() throws Exception {
         Class<?> configClass = JwtDecoderConfig.class;
 
-        // Verify awsJwtDecoder has @Profile("aws")
-        Method awsMethod = configClass.getDeclaredMethod("awsJwtDecoder", String.class);
-        Profile awsProfile = awsMethod.getAnnotation(Profile.class);
-        assertThat(awsProfile)
-                .as("awsJwtDecoder must be annotated with @Profile")
+        Method hmacMethod = configClass.getDeclaredMethod("hmacJwtDecoder", String.class);
+        Profile hmacProfile = hmacMethod.getAnnotation(Profile.class);
+        assertThat(hmacProfile)
+                .as("hmacJwtDecoder must be annotated with @Profile")
                 .isNotNull();
-        assertThat(awsProfile.value())
-                .as("awsJwtDecoder must be scoped to the 'aws' profile")
-                .containsExactly("aws");
-
-        // Verify localJwtDecoder has @Profile("local")
-        Method localMethod = configClass.getDeclaredMethod("localJwtDecoder", String.class);
-        Profile localProfile = localMethod.getAnnotation(Profile.class);
-        assertThat(localProfile)
-                .as("localJwtDecoder must be annotated with @Profile")
-                .isNotNull();
-        assertThat(localProfile.value())
-                .as("localJwtDecoder must be scoped to the 'local' profile")
-                .containsExactly("local");
+        assertThat(hmacProfile.value())
+                .as("hmacJwtDecoder must be scoped to local and aws profiles")
+                .containsExactly("local", "aws");
     }
 
     // ── Property 2e — X-User-Id Stripping ───────────────────────────────────

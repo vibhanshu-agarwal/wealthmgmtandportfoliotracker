@@ -1,15 +1,17 @@
 # =============================================================================
 # Compute Module Variables
-# Authoritative descriptions, defaults, and validation live in the root
-# variables.tf. This file declares only type (+ sensitive where applicable).
+# Full descriptions and validation logic live in the root variables.tf.
+# Sensitive flags are duplicated here so Terraform masks values in module output.
 # =============================================================================
 
 variable "artifact_bucket_name" {
-  type = string
+  description = "S3 bucket name used for deployment artifacts (legacy; functions use Image package type)."
+  type        = string
 }
 
 variable "api_gateway_image_uri" {
-  type = string
+  description = "Full ECR image URI for the api-gateway Lambda (package_type Image)."
+  type        = string
 }
 
 # ---------------------------------------------------------------------------
@@ -17,60 +19,101 @@ variable "api_gateway_image_uri" {
 # ---------------------------------------------------------------------------
 
 variable "portfolio_image_uri" {
-  type = string
+  description = "Full ECR image URI for the portfolio-service Lambda (package_type Image)."
+  type        = string
 }
 
 variable "market_data_image_uri" {
-  type = string
+  description = "Full ECR image URI for the market-data-service Lambda (package_type Image)."
+  type        = string
 }
 
 variable "insight_image_uri" {
-  type = string
+  description = "Full ECR image URI for the insight-service Lambda (package_type Image)."
+  type        = string
 }
 
 variable "api_gateway_memory" {
-  type = number
+  description = "Memory allocation in MB for the api-gateway Lambda."
+  type        = number
 }
 
 variable "portfolio_memory_size" {
-  type = number
+  description = "Memory allocation in MB for the portfolio-service Lambda."
+  type        = number
 }
 
 variable "market_data_memory_size" {
-  type = number
+  description = "Memory allocation in MB for the market-data-service Lambda."
+  type        = number
 }
 
 variable "insight_service_memory_size" {
-  type = number
+  description = "Memory allocation in MB for the insight-service Lambda."
+  type        = number
 }
 
 variable "postgres_connection_string" {
-  type      = string
-  sensitive = true
+  description = "JDBC connection URL for the PostgreSQL data source (Neon/Supabase)."
+  type        = string
+  sensitive   = true
 }
 
 variable "postgres_username" {
-  type      = string
-  sensitive = true
+  description = "PostgreSQL username injected as SPRING_DATASOURCE_USERNAME."
+  type        = string
+  sensitive   = true
 }
 
 variable "postgres_password" {
-  type      = string
-  sensitive = true
+  description = "PostgreSQL password injected as SPRING_DATASOURCE_PASSWORD."
+  type        = string
+  sensitive   = true
 }
 
 variable "mongodb_connection_string" {
-  type      = string
-  sensitive = true
+  description = "MongoDB Atlas URI injected as SPRING_DATA_MONGODB_URI."
+  type        = string
+  sensitive   = true
 }
 
 variable "auth_jwk_uri" {
-  type = string
+  description = "Deprecated for the current single-user auth path. Reserved for a future external IdP/JWK profile."
+  type        = string
+}
+
+variable "auth_jwt_secret" {
+  description = "HS256 JWT signing/validation secret injected into the api-gateway Lambda as AUTH_JWT_SECRET."
+  type        = string
+  sensitive   = true
+}
+
+variable "app_auth_email" {
+  description = "Production demo login email injected into the api-gateway Lambda as APP_AUTH_EMAIL."
+  type        = string
+  sensitive   = true
+}
+
+variable "app_auth_password" {
+  description = "Production demo login password injected into the api-gateway Lambda as APP_AUTH_PASSWORD."
+  type        = string
+  sensitive   = true
+}
+
+variable "app_auth_user_id" {
+  description = "Production demo user ID injected into APP_AUTH_USER_ID. Must match the golden-state seeded portfolio user."
+  type        = string
+}
+
+variable "app_auth_name" {
+  description = "Production demo display name injected into the api-gateway Lambda as APP_AUTH_NAME."
+  type        = string
 }
 
 variable "cloudfront_origin_secret" {
-  type      = string
-  sensitive = true
+  description = "Shared secret injected into CloudFront and validated by the api-gateway Spring filter."
+  type        = string
+  sensitive   = true
 }
 
 # ---------------------------------------------------------------------------
@@ -78,59 +121,72 @@ variable "cloudfront_origin_secret" {
 # ---------------------------------------------------------------------------
 
 variable "redis_url" {
-  type      = string
-  sensitive = true
+  description = "Redis connection URL (e.g. rediss://[:password@]host:port for Upstash TLS)."
+  type        = string
+  sensitive   = true
 }
 
 variable "kafka_bootstrap_servers" {
-  type = string
+  description = "Kafka broker address (e.g. pkc-xxxxx.us-east-1.aws.confluent.cloud:9092)."
+  type        = string
 }
 
 variable "kafka_sasl_username" {
-  type      = string
-  sensitive = true
+  description = "Kafka SASL/PLAIN username for broker authentication."
+  type        = string
+  sensitive   = true
 }
 
 variable "kafka_sasl_password" {
-  type      = string
-  sensitive = true
+  description = "Kafka SASL/PLAIN password for broker authentication."
+  type        = string
+  sensitive   = true
 }
 
 variable "internal_api_key" {
-  type      = string
-  sensitive = true
+  description = "Shared secret gating /api/internal/** endpoints; validated per-service by InternalApiKeyFilter."
+  type        = string
+  sensitive   = true
 }
 
 variable "portfolio_function_url" {
-  type = string
+  description = "Portfolio-service Function URL for service-to-service wiring (two-phase apply)."
+  type        = string
 }
 
 variable "market_data_function_url" {
-  type = string
+  description = "Market-data-service Function URL for service-to-service wiring (two-phase apply)."
+  type        = string
 }
 
 variable "insight_function_url" {
-  type = string
+  description = "Insight-service Function URL for service-to-service wiring (two-phase apply)."
+  type        = string
 }
 
 variable "enable_aws_managed_database" {
-  type = bool
+  description = "When true, attaches Lambdas to the VPC for RDS/ElastiCache access."
+  type        = bool
 }
 
 variable "lambda_vpc_subnet_ids" {
-  type = list(string)
+  description = "Subnet IDs for Lambda VPC attachment (used when enable_aws_managed_database = true)."
+  type        = list(string)
 }
 
 variable "lambda_vpc_security_group_ids" {
-  type = list(string)
+  description = "Security group IDs for Lambda VPC attachment (used when enable_aws_managed_database = true)."
+  type        = list(string)
 }
 
 variable "lambda_timeout" {
-  type = number
+  description = "Lambda function timeout in seconds."
+  type        = number
 }
 
 variable "lambda_architecture" {
-  type = string
+  description = "Lambda instruction set architecture: arm64 (Graviton2) or x86_64."
+  type        = string
 
   validation {
     condition     = contains(["arm64", "x86_64"], var.lambda_architecture)
@@ -139,5 +195,6 @@ variable "lambda_architecture" {
 }
 
 variable "enable_provisioned_concurrency" {
-  type = bool
+  description = "When true, provisions 1 warm instance on the live alias for api-gateway and portfolio-service."
+  type        = bool
 }

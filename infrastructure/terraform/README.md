@@ -87,7 +87,8 @@ GitHub Actions Secrets (repository settings)
   │  TF_VAR_postgres_connection_string
   │  TF_VAR_mongodb_connection_string
   │  TF_VAR_cloudfront_origin_secret
-  │  TF_VAR_auth_jwk_uri
+  │  TF_VAR_auth_jwt_secret
+  │  TF_VAR_app_auth_email / TF_VAR_app_auth_password
   │  AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY / AWS_REGION
   ▼
 Terraform process (reads TF_VAR_* automatically)
@@ -96,6 +97,13 @@ Lambda environment variables (injected at apply time)
   ▼
 Spring Boot reads env vars at startup via application-aws.yml
 ```
+
+The current production demo auth path is single-user HS256 JWT auth:
+
+- `AUTH_JWT_SECRET` signs and validates JWTs in `api-gateway`.
+- `APP_AUTH_EMAIL` and `APP_AUTH_PASSWORD` are the production demo credentials.
+- `APP_AUTH_USER_ID` must remain `00000000-0000-0000-0000-000000000e2e` unless the golden-state seeder is changed to seed a different user.
+- `AUTH_JWK_URI` is reserved for a future external identity-provider profile and is not used by the current `prod,aws` auth path.
 
 ---
 
