@@ -41,9 +41,47 @@ const DEEP_CHECK_TIMEOUT_MS = 30_000;
 const TOTAL_TIMEOUT_MS = Number(process.env.HEALTH_CHECK_TIMEOUT_MS ?? 120_000);
 const SKIP_BACKEND_HEALTH_CHECK =
   (process.env.SKIP_BACKEND_HEALTH_CHECK ?? "").toLowerCase() === "true";
+const IS_LOCAL_GATEWAY = /^https?:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/.test(GATEWAY_BASE);
+const SEED_MAX_RETRIES = Number(process.env.SEED_MAX_RETRIES ?? (IS_LOCAL_GATEWAY ? 3 : 8));
+const SEED_RETRY_DELAY_MS = Number(process.env.SEED_RETRY_DELAY_MS ?? (IS_LOCAL_GATEWAY ? 5_000 : 10_000));
+const SEED_REQUEST_TIMEOUT_MS = Number(process.env.SEED_REQUEST_TIMEOUT_MS ?? 70_000);
+const SEED_WARMUP_TIMEOUT_MS = Number(process.env.SEED_WARMUP_TIMEOUT_MS ?? (IS_LOCAL_GATEWAY ? 10_000 : 60_000));
+const SEED_WARMUP_PATHS = ["/api/portfolio/health", "/api/market/health", "/api/insights/health"];
 
 function timestamp(): string {
   return new Date().toISOString();
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isTransientSeedStatus(status: number, body: string): boolean {
+  if (status === 503 && body.includes("internal_api_key_not_configured")) {
+    return false;
+  }
+  return [429, 500, 502, 503, 504].includes(status);
+}
+
+async function safeResponseText(response: Response): Promise<string> {
+  try {
+    return await response.text();
+  } catch (error) {
+    return `<failed to read response body: ${error instanceof Error ? error.message : String(error)}>`;
+  }
+}
+
+async function warmSeedDependencies(): Promise<void> {
+  console.log(`[${timestamp()}] Warming backend seed dependencies via gateway health endpoints...`);
+  for (const path of SEED_WARMUP_PATHS) {
+    const ok = await poll(`${GATEWAY_BASE}${path}`, SEED_WARMUP_TIMEOUT_MS);
+    if (!ok) {
+      console.warn(
+        `[${timestamp()}] Warm-up warning: ${path} did not return 200 within ${SEED_WARMUP_TIMEOUT_MS}ms. ` +
+          `Continuing because seed retries still handle Lambda cold starts.`,
+      );
+    }
+  }
 }
 
 /**
@@ -56,32 +94,44 @@ async function seedFetch(
   label: string,
   url: string,
   body: object,
-  maxRetries = 3,
+  maxRetries = SEED_MAX_RETRIES,
 ): Promise<Response> {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Internal-Api-Key": INTERNAL_API_KEY!,
-      },
-      body: JSON.stringify(body),
-      // 70s allows a full Lambda cold start (~30s) plus processing headroom.
-      // CloudFront returns 504 at 60s if the origin doesn't respond in time;
-      // we retry that rather than treating it as a hard failure.
-      signal: AbortSignal.timeout(70_000),
-    });
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Internal-Api-Key": INTERNAL_API_KEY!,
+        },
+        body: JSON.stringify(body),
+        // 70s allows a full Lambda cold start (~30s) plus processing headroom.
+        // CloudFront returns 504 at 60s if the origin doesn't respond in time;
+        // we retry that rather than treating it as a hard failure.
+        signal: AbortSignal.timeout(SEED_REQUEST_TIMEOUT_MS),
+      });
 
-    if ((res.status === 502 || res.status === 504) && attempt < maxRetries) {
+      const responseBody = res.ok ? "" : await safeResponseText(res.clone());
+      if (isTransientSeedStatus(res.status, responseBody) && attempt < maxRetries) {
+        console.log(
+          `[${timestamp()}] ${label}: HTTP ${res.status} on attempt ${attempt}/${maxRetries} ` +
+            `(transient Lambda/API Gateway response) — retrying in ${SEED_RETRY_DELAY_MS}ms...`,
+        );
+        await sleep(SEED_RETRY_DELAY_MS);
+        continue;
+      }
+
+      return res;
+    } catch (error) {
+      if (attempt >= maxRetries) {
+        throw error;
+      }
       console.log(
-        `[${timestamp()}] ${label}: HTTP ${res.status} on attempt ${attempt}/${maxRetries} ` +
-          `(Lambda cold start / CloudFront timeout) — retrying in 5s...`,
+        `[${timestamp()}] ${label}: request failed on attempt ${attempt}/${maxRetries}: ` +
+          `${error instanceof Error ? error.message : String(error)} — retrying in ${SEED_RETRY_DELAY_MS}ms...`,
       );
-      await new Promise((r) => setTimeout(r, 5_000));
-      continue;
+      await sleep(SEED_RETRY_DELAY_MS);
     }
-
-    return res;
   }
   // Should never reach here — the loop always returns or continues.
   throw new Error(`${label}: exhausted ${maxRetries} retries`);
@@ -96,6 +146,8 @@ async function runSeeding(): Promise<void> {
   console.log(`[${timestamp()}] Starting Golden State seeding for ${TEST_USER_ID}...`);
 
   try {
+    await warmSeedDependencies();
+
     // 1. Portfolio Seeding -> Get portfolioId
     const portfolioRes = await seedFetch(
       "Portfolio seeding",
@@ -104,7 +156,7 @@ async function runSeeding(): Promise<void> {
     );
 
     if (!portfolioRes.ok) {
-      throw new Error(`Portfolio seeding failed: ${portfolioRes.status} ${await portfolioRes.text()}`);
+      throw new Error(`Portfolio seeding failed: ${portfolioRes.status} ${await safeResponseText(portfolioRes)}`);
     }
 
     const { portfolioId } = await portfolioRes.json();
@@ -118,7 +170,7 @@ async function runSeeding(): Promise<void> {
     );
 
     if (!marketRes.ok) {
-      throw new Error(`Market data seeding failed: ${marketRes.status} ${await marketRes.text()}`);
+      throw new Error(`Market data seeding failed: ${marketRes.status} ${await safeResponseText(marketRes)}`);
     }
     console.log(`[${timestamp()}] Market data seeded.`);
 
@@ -130,7 +182,7 @@ async function runSeeding(): Promise<void> {
     );
 
     if (!insightRes.ok) {
-      throw new Error(`Insight seeding failed: ${insightRes.status} ${await insightRes.text()}`);
+      throw new Error(`Insight seeding failed: ${insightRes.status} ${await safeResponseText(insightRes)}`);
     }
     console.log(`[${timestamp()}] Insight cache evicted. Seeding complete.`);
   } catch (error) {
