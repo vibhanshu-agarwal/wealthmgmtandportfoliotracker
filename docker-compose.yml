@@ -15,18 +15,17 @@
 # and prod run the exact same engine — that work is explicitly out of scope here.
 #
 # Operator notes for the version bumps:
-#   - postgres:16 → :18.3  → existing `postgres-data` volumes created under 16
-#     will refuse to start on 18; run `docker volume rm <stack>_postgres-data`
-#     on first pull. No automatic major-version data migration.
+#   - postgres:16 → :18.3  → 18+ images require mounting /var/lib/postgresql,
+#     not /var/lib/postgresql/data. This stack therefore uses a new
+#     `postgres18-data` volume; remove old `<stack>_postgres-data` manually if you
+#     want to reclaim disk. No automatic major-version data migration.
 #   - cp-kafka:7.6.0 → :8.2.0 → CP 8.x is KRaft-only (ZooKeeper removed); the
 #     kafka block below already declares KAFKA_PROCESS_ROLES, CLUSTER_ID, and
 #     KAFKA_CONTROLLER_QUORUM_VOTERS, so this is drop-in compatible.
 #   - mongo:7.0 → :8.2.7  → minor; feature-compat defaults tightened.
-#   - INTERNAL_API_KEY now reads ${TF_VAR_internal_api_key} so a single
-#     Terraform-style env var feeds both compose and `terraform apply`. If your
-#     shell still exports the old `INTERNAL_API_KEY`, re-export it as
-#     `TF_VAR_internal_api_key` or compose injects a blank value and every
-#     gateway→service call 401s.
+#   - INTERNAL_API_KEY prefers ${TF_VAR_internal_api_key} so a single
+#     Terraform-style env var feeds both compose and `terraform apply`, with
+#     ${INTERNAL_API_KEY} retained as a CI/local fallback for older scripts.
 # ============================================================
 
 # ---------------------------------------------------------------------------
@@ -40,7 +39,7 @@ x-redis-env: &redis-env
   SPRING_DATA_REDIS_PORT: 6379
 
 x-internal-key: &internal-key
-  INTERNAL_API_KEY: ${TF_VAR_internal_api_key}
+  INTERNAL_API_KEY: ${TF_VAR_internal_api_key:-${INTERNAL_API_KEY:-}}
 
 services:
   postgres:
@@ -53,7 +52,7 @@ services:
     ports:
       - '5432:5432'
     volumes:
-      - postgres-data:/var/lib/postgresql/data
+      - postgres18-data:/var/lib/postgresql
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U wealth_user -d portfolio_db" ]
       interval: 5s
@@ -122,7 +121,7 @@ services:
       kafka:
         condition: service_started
     environment:
-      <<: [*kafka-env, *internal-key]
+      <<: [ *kafka-env, *internal-key ]
       SPRING_DATASOURCE_URL: jdbc:postgresql://portfolio-db:5432/portfolio_db?options=-c%20timezone=Asia/Kolkata
       SPRING_DATASOURCE_USERNAME: wealth_user
       SPRING_DATASOURCE_PASSWORD: wealth_pass
@@ -151,7 +150,7 @@ services:
       kafka:
         condition: service_started
     environment:
-      <<: [*kafka-env, *internal-key]
+      <<: [ *kafka-env, *internal-key ]
       SPRING_MONGODB_URI: mongodb://market-db:27017/market_db
       # Legacy alias retained for older Spring Boot 3.x images.
       SPRING_DATA_MONGODB_URI: mongodb://market-db:27017/market_db
@@ -190,7 +189,7 @@ services:
       # credentials in your shell before `docker compose up`:
       #   SPRING_PROFILES_ACTIVE=local,bedrock AWS_ACCESS_KEY_ID=... \
       #   AWS_SECRET_ACCESS_KEY=... docker compose up
-      <<: [*kafka-env, *redis-env, *internal-key]
+      <<: [ *kafka-env, *redis-env, *internal-key ]
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-local}
       PORTFOLIO_SERVICE_URL: http://portfolio-service:8081
       # AWS_* are only consumed when the bedrock profile is opted-in above.
@@ -229,7 +228,7 @@ services:
         condition: service_started
     environment:
       # Match Flyway V3 seed (user_id user-001) so gateway login and DB demo data align.
-      <<: [*redis-env, *internal-key]
+      <<: [ *redis-env, *internal-key ]
       APP_AUTH_USER_ID: ${APP_AUTH_USER_ID:-user-001}
       AUTH_JWT_SECRET: ${AUTH_JWT_SECRET:-local-dev-secret-change-me-min-32-chars}
       PORTFOLIO_SERVICE_URL: http://portfolio-service:8081
@@ -249,6 +248,6 @@ services:
           memory: 768M
 
 volumes:
-  postgres-data:
+  postgres18-data:
   mongodb-data:
   kafka-data:

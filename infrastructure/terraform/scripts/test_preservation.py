@@ -17,7 +17,6 @@ import re
 from pathlib import Path
 
 import pytest
-import yaml
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -31,7 +30,24 @@ def read(relative_path: str) -> str:
 
 
 def load_yaml(relative_path: str) -> dict:
-    return yaml.safe_load(read(relative_path))
+    """Return the top-level GitHub Actions jobs without requiring PyYAML.
+
+    These preservation tests only assert that named jobs still exist, so a tiny
+    structural parser is enough and keeps the test self-contained on machines
+    that have pytest but not PyYAML installed.
+    """
+    jobs = {}
+    in_jobs = False
+    for line in read(relative_path).splitlines():
+        if re.match(r"^jobs:\s*$", line):
+            in_jobs = True
+            continue
+        if in_jobs and re.match(r"^[A-Za-z_][A-Za-z0-9_-]*:\s*", line):
+            break
+        match = re.match(r"^  ([A-Za-z0-9_-]+):\s*$", line)
+        if in_jobs and match:
+            jobs[match.group(1)] = {}
+    return {"jobs": jobs}
 
 
 # ---------------------------------------------------------------------------
@@ -44,8 +60,8 @@ class TestExistingLambdaEnvVarsPreserved:
     These are the variables already in Terraform that must remain intact.
     """
 
-    def test_api_gateway_has_auth_jwk_uri(self):
-        """api-gateway Lambda must retain AUTH_JWK_URI for JWT validation."""
+    def test_api_gateway_has_demo_auth_env(self):
+        """api-gateway Lambda must receive the current HS256 demo auth environment."""
         content = read("infrastructure/terraform/modules/compute/main.tf")
         api_gw_block = re.search(
             r'resource\s+"aws_lambda_function"\s+"api_gateway"\s*\{.*?^}',
@@ -53,10 +69,18 @@ class TestExistingLambdaEnvVarsPreserved:
             re.DOTALL | re.MULTILINE,
         )
         assert api_gw_block is not None, "Could not find aws_lambda_function.api_gateway."
-        assert "AUTH_JWK_URI" in api_gw_block.group(0), (
-            "REGRESSION: AUTH_JWK_URI missing from api-gateway Lambda environment.\n"
-            "JWT validation will fail without this variable."
+        assert "local.api_gateway_auth_env" in api_gw_block.group(0), (
+            "REGRESSION: api-gateway Lambda no longer merges local.api_gateway_auth_env.\n"
+            "Demo login will fail without AUTH_JWT_SECRET and APP_AUTH_* variables."
         )
+        for key in [
+            "AUTH_JWT_SECRET",
+            "APP_AUTH_EMAIL",
+            "APP_AUTH_PASSWORD",
+            "APP_AUTH_USER_ID",
+            "APP_AUTH_NAME",
+        ]:
+            assert key in content, f"REGRESSION: {key} missing from api-gateway auth env."
 
     def test_api_gateway_has_cloudfront_origin_secret(self):
         """api-gateway Lambda must retain CLOUDFRONT_ORIGIN_SECRET."""
@@ -333,6 +357,11 @@ class TestTerraformYmlPipelinePreserved:
         existing_vars = [
             "TF_VAR_postgres_connection_string",
             "TF_VAR_mongodb_connection_string",
+            "TF_VAR_auth_jwt_secret",
+            "TF_VAR_app_auth_email",
+            "TF_VAR_app_auth_password",
+            "TF_VAR_app_auth_user_id",
+            "TF_VAR_app_auth_name",
             "TF_VAR_auth_jwk_uri",
             "TF_VAR_cloudfront_origin_secret",
             "TF_VAR_db_username",
