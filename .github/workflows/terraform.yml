@@ -50,8 +50,8 @@ env:
   TF_VAR_internal_api_key: ${{ secrets.TF_VAR_INTERNAL_API_KEY }}
   # route53_zone_id intentionally omitted — DNS is managed externally (domain registrar)
   # Warming — enable EventBridge Rules + API Destinations on every CI apply
-  TF_VAR_enable_warming: "true"
-  TF_VAR_warming_alarm_email: "vibhanshu.agarwal@gmail.com"
+  TF_VAR_enable_warming: ${{ secrets.TF_VAR_ENABLE_WARMING }}
+  TF_VAR_warming_alarm_email: ${{ secrets.TF_VAR_WARMING_ALARM_EMAIL }}
 
 jobs:
   validate:
