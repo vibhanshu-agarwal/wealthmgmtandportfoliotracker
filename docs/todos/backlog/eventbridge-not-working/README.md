@@ -68,10 +68,9 @@ Complete **in order**:
 
 ---
 
-## Open Question
+## Resolved: Which CI Run Destroyed Warming
 
-**Which CI run actually destroyed warming?**  
-Candidates: runs **#80** (`8bd6946`), **#82** (`6a323cc`), **#84** (`9f6936c`), **#86** (`4c8c014`) — all successful applies on 2026-04-25 with `enable_warming=false`. To confirm, download each run's `tfplan`/`apply.txt` artifact via the GitHub Actions API and grep for `module.warming destroy` nodes. Not blocking re-enablement, but useful for prevention design.
+**Run #76 was the first run that destroyed warming.** Terraform applies to AWS only on merges to `main`; run #76 was the earliest successful apply on main with `enable_warming=false`, making it the root destroyer. Candidates #80, #82, #84, #86 (2026-04-25) were subsequent applies that kept warming absent but were not the originating event.
 
 ---
 
