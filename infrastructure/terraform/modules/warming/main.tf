@@ -6,8 +6,9 @@
 # each service's /actuator/health endpoint. This avoids the 15–40 s cold-start
 # penalty while staying well within the AWS Free Tier.
 #
-# Topology (reconciled with P5/P6 pre-flight findings):
-#   api-gateway    → CloudFront URL  (CloudFrontOriginVerifyFilter requires CF path)
+# Topology:
+#   api-gateway    → direct FURL     (CloudFront /actuator/health routes to frontend-static-s3 → 403;
+#                                     direct Function URL returns 200 — verified 2026-04-26)
 #   portfolio      → direct FURL     (no origin-verify filter on Function URL)
 #   market-data    → direct FURL     (same; no gateway-routable health endpoint)
 #   insight        → direct FURL     (same)

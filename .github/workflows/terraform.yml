@@ -49,6 +49,9 @@ env:
   TF_VAR_acm_certificate_arn: ${{ secrets.ACM_CERTIFICATE_ARN }}
   TF_VAR_internal_api_key: ${{ secrets.TF_VAR_INTERNAL_API_KEY }}
   # route53_zone_id intentionally omitted — DNS is managed externally (domain registrar)
+  # Warming — enable EventBridge Rules + API Destinations on every CI apply
+  TF_VAR_enable_warming: ${{ secrets.TF_VAR_ENABLE_WARMING }}
+  TF_VAR_warming_alarm_email: ${{ secrets.TF_VAR_WARMING_ALARM_EMAIL }}
 
 jobs:
   validate:
@@ -149,7 +152,23 @@ jobs:
             -backend-config="region=${{ secrets.AWS_REGION }}"
 
       - name: Terraform Apply
-        run: terraform apply -input=false -lock-timeout=10m -auto-approve tfplan | tee apply.txt
+        run: |
+          set -o pipefail
+          terraform apply -input=false -lock-timeout=10m -auto-approve tfplan | tee apply.txt
+
+      - name: Smoke Check — warming resources
+        # Verify exactly 4 EventBridge rules and 4 API destinations were created.
+        # Skipped automatically when enable_warming is false (resources won't exist).
+        if: env.TF_VAR_enable_warming == 'true'
+        run: |
+          RULE_COUNT=$(aws events list-rules --name-prefix wealth-warm --query 'length(Rules)' --output text)
+          DEST_COUNT=$(aws events list-api-destinations --name-prefix wealth-warm --query 'length(ApiDestinations)' --output text)
+          echo "EventBridge rules: ${RULE_COUNT}  API destinations: ${DEST_COUNT}"
+          if [ "${RULE_COUNT}" != "4" ] || [ "${DEST_COUNT}" != "4" ]; then
+            echo "ERROR: expected 4 warming rules and 4 API destinations, got ${RULE_COUNT} and ${DEST_COUNT}"
+            exit 1
+          fi
+          echo "✓ All 4 warming rules and 4 API destinations confirmed in ap-south-1"
 
       - name: Upload Apply Artifact
         if: always()

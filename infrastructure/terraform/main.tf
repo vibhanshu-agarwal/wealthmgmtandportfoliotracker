@@ -124,7 +124,7 @@ module "networking" {
 
 
 # ---------------------------------------------------------------------------
-# Warming module — EventBridge Scheduler + SNS alarm
+# Warming module — EventBridge Rules + API Destinations + SNS alarm
 # Phase 2 of the Lambda stopgap plan (docs/architecture/lambda-stopgap-execution-plan.md §5).
 #
 # SAFETY GATE: count = 0 when enable_warming = false (the default).
@@ -134,7 +134,7 @@ module "networking" {
 # no exec format errors in CloudWatch Logs).
 #
 # Targets:
-#   api_gateway → CloudFront URL (required: CloudFrontOriginVerifyFilter rejects direct FURL)
+#   api_gateway → direct Function URL (CloudFront /actuator/health → default_cache_behavior → frontend-static-s3 → 403; direct FURL verified 200)
 #   portfolio   → direct Function URL (no origin-verify filter; /actuator/health accessible)
 #   market_data → direct Function URL (no gateway-routable health endpoint — see P6)
 #   insight     → direct Function URL (same as market_data)
@@ -145,7 +145,7 @@ module "warming" {
 
   targets = {
     api_gateway = {
-      url    = "https://${module.networking.cloudfront_domain_name}/actuator/health"
+      url    = "${module.compute.api_gateway_function_url}actuator/health"
       method = "GET"
     }
     portfolio = {

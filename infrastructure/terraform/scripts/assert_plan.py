@@ -40,6 +40,11 @@ REQUIRED_LAMBDA_FUNCTIONS = {
 
 ACTIVE_ACTIONS = {"create", "update"}
 
+# Warming: expected resource counts when enable_warming = true.
+EXPECTED_WARMING_RULES = 4        # one aws_cloudwatch_event_rule per target
+EXPECTED_WARMING_DESTINATIONS = 4  # one aws_cloudwatch_event_api_destination per target
+WARMING_RULE_PREFIX = "wealth-warm-"
+
 
 def load_plan(path: str) -> dict:
     with open(path) as f:
@@ -173,6 +178,67 @@ def assert_cloudfront_price_class(changes: list) -> list:
     return errors
 
 
+def is_warming_enabled(plan: dict) -> bool:
+    """Return True when the plan was produced with enable_warming = true."""
+    variables = plan.get("variables", {})
+    enable = variables.get("enable_warming", {})
+    # plan.json stores variable values under the "value" key.
+    return bool(enable.get("value", False))
+
+
+def assert_warming_rules_present(plan: dict) -> list:
+    """Warming property: when enable_warming=true, exactly 4 EventBridge rules must be
+    created/updated — one per warming target (api_gateway, portfolio, market_data, insight).
+    """
+    all_changes = plan.get("resource_changes", [])
+    rules = [
+        rc for rc in all_changes
+        if rc["type"] == "aws_cloudwatch_event_rule"
+        and rc["name"].startswith("targets")  # for_each key in module
+        and set(rc.get("change", {}).get("actions", [])) & ACTIVE_ACTIONS
+    ]
+    # Also count no-op rules (already exist and are stable).
+    noop_rules = [
+        rc for rc in all_changes
+        if rc["type"] == "aws_cloudwatch_event_rule"
+        and rc["name"].startswith("targets")
+        and rc.get("change", {}).get("actions") == ["no-op"]
+    ]
+    total = len(rules) + len(noop_rules)
+    if total != EXPECTED_WARMING_RULES:
+        return [
+            f"FAIL [Warming] Expected {EXPECTED_WARMING_RULES} aws_cloudwatch_event_rule resources "
+            f"(enable_warming=true), found {total}. "
+            f"Check that module.warming is included in the plan."
+        ]
+    return []
+
+
+def assert_warming_destinations_present(plan: dict) -> list:
+    """Warming property: when enable_warming=true, exactly 4 API Destinations must be
+    created/updated — one per warming target.
+    """
+    all_changes = plan.get("resource_changes", [])
+    dests = [
+        rc for rc in all_changes
+        if rc["type"] == "aws_cloudwatch_event_api_destination"
+        and set(rc.get("change", {}).get("actions", [])) & ACTIVE_ACTIONS
+    ]
+    noop_dests = [
+        rc for rc in all_changes
+        if rc["type"] == "aws_cloudwatch_event_api_destination"
+        and rc.get("change", {}).get("actions") == ["no-op"]
+    ]
+    total = len(dests) + len(noop_dests)
+    if total != EXPECTED_WARMING_DESTINATIONS:
+        return [
+            f"FAIL [Warming] Expected {EXPECTED_WARMING_DESTINATIONS} aws_cloudwatch_event_api_destination "
+            f"resources (enable_warming=true), found {total}. "
+            f"Check that module.warming is included in the plan."
+        ]
+    return []
+
+
 def assert_route53_record_type(changes: list) -> list:
     """Property 6: Any Route 53 record in the plan must be type A."""
     errors = []
@@ -210,6 +276,12 @@ def main() -> int:
     all_errors.extend(assert_cloudfront_price_class(changes))
     all_errors.extend(assert_route53_record_type(changes))
 
+    # Warming assertions — only run when enable_warming = true in the plan variables.
+    warming_enabled = is_warming_enabled(plan)
+    if warming_enabled:
+        all_errors.extend(assert_warming_rules_present(plan))
+        all_errors.extend(assert_warming_destinations_present(plan))
+
     if all_errors:
         print(f"\n{'='*60}")
         print(f"PLAN ASSERTION FAILED — {len(all_errors)} error(s):")
@@ -227,6 +299,11 @@ def main() -> int:
     print(f"  No prohibited resource types found")
     print(f"  reserved_concurrent_executions <= 10 on all Lambdas")
     print(f"  SPRING_PROFILES_ACTIVE present on all Lambdas")
+    if warming_enabled:
+        print(f"  Warming: {EXPECTED_WARMING_RULES} EventBridge rules + "
+              f"{EXPECTED_WARMING_DESTINATIONS} API destinations confirmed")
+    else:
+        print(f"  Warming: disabled (enable_warming=false) — skipping warming assertions")
     return 0
 
 
