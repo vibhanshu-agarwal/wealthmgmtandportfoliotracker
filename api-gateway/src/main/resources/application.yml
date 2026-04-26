@@ -55,8 +55,8 @@ management:
 
 auth:
   jwt:
-    secret: ${AUTH_JWT_SECRET:}   # local profile only — blank triggers startup failure in JwtDecoderConfig
-  jwk-uri: ${AUTH_JWK_URI:}       # aws profile only — blank triggers startup failure in JwtDecoderConfig
+    secret: ${AUTH_JWT_SECRET:}   # local/aws profiles — must be >= 32 bytes for HS256
+  jwk-uri: ${AUTH_JWK_URI:}       # reserved for a future external-IdP profile; not active in current aws auth path
 
 app:
   routes:
