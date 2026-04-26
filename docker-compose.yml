@@ -54,6 +54,12 @@ services:
       - '5432:5432'
     volumes:
       - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U wealth_user -d portfolio_db" ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
 
   mongodb:
     image: 'mongo:8.2.7'
@@ -64,6 +70,12 @@ services:
       - '27017:27017'
     volumes:
       - mongodb-data:/data/db
+    healthcheck:
+      test: [ "CMD-SHELL", "mongosh --quiet --eval 'db.adminCommand({ ping: 1 }).ok' || exit 1" ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
 
   kafka:
     image: 'confluentinc/cp-kafka:8.2.0'
@@ -105,11 +117,13 @@ services:
     # AOT is disabled locally — it's a Lambda cold-start optimization.
     entrypoint: [ "/opt/java/bin/java", "-jar", "/app/app.jar" ]
     depends_on:
-      - postgres
-      - kafka
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_started
     environment:
       <<: [*kafka-env, *internal-key]
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/portfolio_db?options=-c%20timezone=Asia/Kolkata
+      SPRING_DATASOURCE_URL: jdbc:postgresql://portfolio-db:5432/portfolio_db?options=-c%20timezone=Asia/Kolkata
       SPRING_DATASOURCE_USERNAME: wealth_user
       SPRING_DATASOURCE_PASSWORD: wealth_pass
     ports:
@@ -132,11 +146,15 @@ services:
     container_name: market-data-service
     entrypoint: [ "/opt/java/bin/java", "-jar", "/app/app.jar" ]
     depends_on:
-      - mongodb
-      - kafka
+      mongodb:
+        condition: service_healthy
+      kafka:
+        condition: service_started
     environment:
       <<: [*kafka-env, *internal-key]
-      SPRING_DATA_MONGODB_URI: mongodb://mongodb:27017/market_db
+      SPRING_MONGODB_URI: mongodb://market-db:27017/market_db
+      # Legacy alias retained for older Spring Boot 3.x images.
+      SPRING_DATA_MONGODB_URI: mongodb://market-db:27017/market_db
     ports:
       - '8082:8082'
     healthcheck:
