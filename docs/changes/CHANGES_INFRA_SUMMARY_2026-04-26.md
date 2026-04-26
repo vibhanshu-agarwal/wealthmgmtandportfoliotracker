@@ -218,6 +218,8 @@ PR #30 CI status observed before/at merge:
 - Qodana for JVM — neutral/non-blocking
 - Terraform Apply — skipped on PR, as expected
 
+**Post-merge update (Main branch CI):** While build steps passed, the `Synthetic Monitoring` (live smoke) pipeline failed consistently with `HTTP 502 Bad Gateway` across all `/api/*/health` endpoints during e2e seeding. This indicates a runtime failure in the deployed Lambdas, possibly related to the Dockerfile changes.
+
 Local validation performed for PR #30:
 
 - `git diff --check` passed.
@@ -230,9 +232,9 @@ Local validation performed for PR #30:
 
 | Priority | Item | Context |
 |----------|------|---------|
-| **High** | Confirm production/demo auth env alignment after deploy | Live smoke previously reached the site but failed `POST /api/auth/login` with HTTP 401. Verify `AUTH_JWT_SECRET`, issuer expectations, seeded demo user, and frontend credentials are aligned in AWS Lambda environment variables after Terraform apply/deploy. |
-| **High** | Check `main` post-merge CI for PR #30 | PR #30 checks passed before merge. Next agent should fetch latest `origin/main` and confirm the merge-commit CI run also passed, especially Gitleaks and Docker build verify. |
-| **Medium** | Re-run opt-in live API smoke after AWS env update | Live smoke is intentionally outside normal local Chromium suite. Re-run once deployed credentials/env are known-good. |
+| **High** | Investigate Live Smoke 502 Bad Gateway | Post-merge CI for PR #30 failed during `Synthetic Monitoring` with consistent HTTP 502 errors from `/api/*/health` endpoints during E2E seeding. This suggests Lambda containers are failing to start or the Lambda Web Adapter is crashing (perhaps related to Dockerfile changes in PR #30). |
+| **High** | Confirm production/demo auth env alignment after deploy | Once the 502s are resolved, verify `AUTH_JWT_SECRET`, issuer expectations, seeded demo user, and frontend credentials are aligned in AWS Lambda environment variables after Terraform apply/deploy. |
+| **Medium** | Re-run opt-in live API smoke after AWS env update | Live smoke is intentionally outside normal local Chromium suite. Re-run once deployed credentials/env are known-good and the 502 issue is fixed. |
 | **Medium** | Resolve local branch/main divergence carefully | At handoff time the workspace was still on `fix/mongo-health-seeding-retries`; local `main` had a separate merge commit (`b3692c4`) and `origin/main` should be fetched before any further branch work. Do not assume local `main` equals remote. |
 | **Medium** | Backend lock migration | Existing note still applies: migrate S3 backend from deprecated `dynamodb_table` to `use_lockfile = true` in a separate, deliberate Terraform state-locking change. |
 | **Low** | Add Terraform tests | Add `.tftest.hcl` plan tests for warming toggle and validation behavior when there is time. |
