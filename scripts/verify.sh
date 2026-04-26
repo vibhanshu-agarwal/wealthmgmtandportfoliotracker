@@ -166,7 +166,16 @@ fi
 
 # ── Stage 7: Playwright E2E ──────────────────────────────────────────────
 stage_start "playwright-e2e"
-if (cd frontend && npx playwright test); then
+if (cd frontend && \
+    npx playwright install --with-deps chromium && \
+    npx playwright test tests/e2e/auth-jwt-health.spec.ts --project=chromium --reporter=list && \
+    npx playwright test \
+      tests/e2e/golden-path.spec.ts \
+      tests/e2e/dashboard-data.spec.ts \
+      tests/e2e/mocked-chaos.spec.ts \
+      tests/e2e/live-contract.spec.ts \
+      --project=chromium \
+      --reporter=list); then
   stage_pass "playwright-e2e"
 else
   stage_fail "playwright-e2e"
