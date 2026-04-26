@@ -147,8 +147,7 @@ class PreservationPropertyTest {
 
     /**
      * Property 2d: JwtDecoderConfig must have profile annotations ensuring
-     * awsJwtDecoder is only active under @Profile("aws") and localJwtDecoder
-     * is only active under @Profile("local").
+     * the current HS256 decoder is only active under local/aws profiles.
      *
      * <p><b>Validates: Requirements 3.5</b>
      */
@@ -156,25 +155,14 @@ class PreservationPropertyTest {
     void jwtDecoderConfigHasCorrectProfileAnnotations() throws Exception {
         Class<?> configClass = JwtDecoderConfig.class;
 
-        // Verify awsJwtDecoder has @Profile("aws")
-        Method awsMethod = configClass.getDeclaredMethod("awsJwtDecoder", String.class);
-        Profile awsProfile = awsMethod.getAnnotation(Profile.class);
-        assertThat(awsProfile)
-                .as("awsJwtDecoder must be annotated with @Profile")
+        Method hmacMethod = configClass.getDeclaredMethod("hmacJwtDecoder", String.class);
+        Profile hmacProfile = hmacMethod.getAnnotation(Profile.class);
+        assertThat(hmacProfile)
+                .as("hmacJwtDecoder must be annotated with @Profile")
                 .isNotNull();
-        assertThat(awsProfile.value())
-                .as("awsJwtDecoder must be scoped to the 'aws' profile")
-                .containsExactly("aws");
-
-        // Verify localJwtDecoder has @Profile("local")
-        Method localMethod = configClass.getDeclaredMethod("localJwtDecoder", String.class);
-        Profile localProfile = localMethod.getAnnotation(Profile.class);
-        assertThat(localProfile)
-                .as("localJwtDecoder must be annotated with @Profile")
-                .isNotNull();
-        assertThat(localProfile.value())
-                .as("localJwtDecoder must be scoped to the 'local' profile")
-                .containsExactly("local");
+        assertThat(hmacProfile.value())
+                .as("hmacJwtDecoder must be scoped to local and aws profiles")
+                .containsExactly("local", "aws");
     }
 
     // ── Property 2e — X-User-Id Stripping ───────────────────────────────────

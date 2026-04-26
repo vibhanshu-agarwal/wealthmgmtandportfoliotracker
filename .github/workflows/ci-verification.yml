@@ -282,7 +282,6 @@ jobs:
             sleep 10
           done
           echo "Warning: Lambda pre-warm still saw 5xx/timeout responses. Seeding may still retry successfully."
-
       - name: Run AWS synthetic monitoring
         working-directory: frontend
         # Runs against the live site — only on push to main to avoid hammering AWS on every PR
@@ -300,8 +299,10 @@ jobs:
           # INTERNAL_API_KEY is inherited from the job-level env (secrets.TF_VAR_INTERNAL_API_KEY).
           E2E_TEST_USER_EMAIL: ${{ secrets.E2E_TEST_USER_EMAIL }}
           E2E_TEST_USER_PASSWORD: ${{ secrets.E2E_TEST_USER_PASSWORD }}
+          E2E_TEST_USER_ID: ${{ secrets.E2E_TEST_USER_ID || '00000000-0000-0000-0000-000000000e2e' }}
         run: |
           npx playwright test \
+            tests/e2e/aws-synthetic/api-live-smoke.spec.ts \
             tests/e2e/aws-synthetic/aws-synthetic.spec.ts \
             --project=aws-synthetic \
             --reporter=list

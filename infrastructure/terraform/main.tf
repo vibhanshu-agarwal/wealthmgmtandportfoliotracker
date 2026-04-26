@@ -32,6 +32,11 @@ module "compute" {
   postgres_password           = var.postgres_password
   mongodb_connection_string   = var.mongodb_connection_string
   auth_jwk_uri                = var.auth_jwk_uri
+  auth_jwt_secret             = var.auth_jwt_secret
+  app_auth_email              = var.app_auth_email
+  app_auth_password           = var.app_auth_password
+  app_auth_user_id            = var.app_auth_user_id
+  app_auth_name               = var.app_auth_name
   cloudfront_origin_secret    = var.cloudfront_origin_secret
   # Messaging & Caching — missing link: root variables.tf → compute module
   redis_url               = var.redis_url

@@ -103,7 +103,43 @@ variable "mongodb_connection_string" {
 
 variable "auth_jwk_uri" {
   type        = string
-  description = "JWK endpoint URI (aws profile)"
+  default     = ""
+  description = "Deprecated for the current single-user auth path. Reserved for a future external IdP/JWK profile."
+}
+
+variable "auth_jwt_secret" {
+  type        = string
+  sensitive   = true
+  description = "HS256 JWT signing/validation secret injected into the api-gateway Lambda as AUTH_JWT_SECRET. Must be at least 32 characters."
+
+  validation {
+    condition     = length(var.auth_jwt_secret) >= 32
+    error_message = "auth_jwt_secret must be at least 32 characters for HS256."
+  }
+}
+
+variable "app_auth_email" {
+  type        = string
+  sensitive   = true
+  description = "Production demo login email injected into the api-gateway Lambda as APP_AUTH_EMAIL."
+}
+
+variable "app_auth_password" {
+  type        = string
+  sensitive   = true
+  description = "Production demo login password injected into the api-gateway Lambda as APP_AUTH_PASSWORD."
+}
+
+variable "app_auth_user_id" {
+  type        = string
+  default     = "00000000-0000-0000-0000-000000000e2e"
+  description = "Production demo user ID injected into APP_AUTH_USER_ID. Must match the golden-state seeded portfolio user."
+}
+
+variable "app_auth_name" {
+  type        = string
+  default     = "Demo User"
+  description = "Production demo display name injected into the api-gateway Lambda as APP_AUTH_NAME."
 }
 
 # ---------------------------------------------------------------------------
