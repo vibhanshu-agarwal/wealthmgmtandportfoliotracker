@@ -132,4 +132,6 @@ EXPOSE 8081
 
 # Default: run Spring Boot directly.
 # Lambda auto-loads the LWA sidecar from /opt/extensions/lambda-adapter.
-ENTRYPOINT ["java", "-Dspring.aot.enabled=true", "-jar", "/app/app.jar"]
+# Runtime AOT is intentionally disabled until the Docker build supplies the same
+# prod/aws profile inputs that Lambda uses at runtime.
+ENTRYPOINT ["java", "-jar", "/app/app.jar"]

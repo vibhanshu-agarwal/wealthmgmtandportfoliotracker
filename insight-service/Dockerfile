@@ -130,4 +130,5 @@ EXPOSE 8080
 
 # Run the Spring Boot application as the main process.
 # Lambda Web Adapter is auto-loaded as a sidecar extension from /opt/extensions/.
-ENTRYPOINT ["java", "-Dspring.aot.enabled=true", "-jar", "/app/app.jar"]
+# Runtime AOT is intentionally disabled until build-time profile inputs match Lambda runtime.
+ENTRYPOINT ["java", "-jar", "/app/app.jar"]

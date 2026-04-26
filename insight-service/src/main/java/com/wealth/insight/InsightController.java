@@ -36,6 +36,11 @@ public class InsightController {
         this.aiInsightService = aiInsightService;
     }
 
+    @GetMapping("/health")
+    public ResponseEntity<Map<String, String>> health() {
+        return ResponseEntity.ok(Map.of("status", "UP", "service", "insight-service"));
+    }
+
     @GetMapping("/{userId}/analyze")
     public ResponseEntity<AnalysisResult> analyzePortfolio(@PathVariable String userId) {
         return ResponseEntity.ok(insightService.analyzePortfolio(userId));
