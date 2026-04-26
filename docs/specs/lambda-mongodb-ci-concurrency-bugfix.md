@@ -82,6 +82,8 @@ variables could be bypassed or partially frozen into local/default assumptions.
 
 - Added PostgreSQL and MongoDB healthchecks.
 - Made Java services wait for healthy database containers.
+- Mounted `postgres:18.3` at `/var/lib/postgresql` using a fresh
+  `postgres18-data` volume, matching the PostgreSQL 18 Docker image layout.
 - Pointed local service URLs at stable Compose container names:
   - Postgres: `portfolio-db`
   - MongoDB: `market-db`

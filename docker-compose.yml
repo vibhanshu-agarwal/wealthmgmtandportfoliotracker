@@ -15,9 +15,10 @@
 # and prod run the exact same engine — that work is explicitly out of scope here.
 #
 # Operator notes for the version bumps:
-#   - postgres:16 → :18.3  → existing `postgres-data` volumes created under 16
-#     will refuse to start on 18; run `docker volume rm <stack>_postgres-data`
-#     on first pull. No automatic major-version data migration.
+#   - postgres:16 → :18.3  → 18+ images require mounting /var/lib/postgresql,
+#     not /var/lib/postgresql/data. This stack therefore uses a new
+#     `postgres18-data` volume; remove old `<stack>_postgres-data` manually if you
+#     want to reclaim disk. No automatic major-version data migration.
 #   - cp-kafka:7.6.0 → :8.2.0 → CP 8.x is KRaft-only (ZooKeeper removed); the
 #     kafka block below already declares KAFKA_PROCESS_ROLES, CLUSTER_ID, and
 #     KAFKA_CONTROLLER_QUORUM_VOTERS, so this is drop-in compatible.
@@ -53,7 +54,7 @@ services:
     ports:
       - '5432:5432'
     volumes:
-      - postgres-data:/var/lib/postgresql/data
+      - postgres18-data:/var/lib/postgresql
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U wealth_user -d portfolio_db" ]
       interval: 5s
@@ -249,6 +250,6 @@ services:
           memory: 768M
 
 volumes:
-  postgres-data:
+  postgres18-data:
   mongodb-data:
   kafka-data:
