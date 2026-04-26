@@ -280,11 +280,11 @@ variable "lambda_architecture" {
   EOT
 
   validation {
-    # contains() is used instead of `== null || contains(list, var)` because Terraform
-    # evaluates both sides of || regardless of the left result, causing contains(list, null)
-    # to throw when the variable is null (the default). Including null in the set is safe
-    # and clear: null means "use the arm64 default defined in locals.tf".
-    condition     = contains(["arm64", "x86_64", null], var.lambda_architecture)
+    # coalesce() converts null → "arm64" before contains() sees it.
+    # Terraform evaluates both sides of || eagerly, and contains() rejects null as
+    # either the list element or the value argument. coalesce maps the null default
+    # to its semantic meaning (arm64) without any error.
+    condition     = contains(["arm64", "x86_64"], coalesce(var.lambda_architecture, "arm64"))
     error_message = "lambda_architecture must be \"arm64\", \"x86_64\", or null (null = accept the default arm64)."
   }
 }
