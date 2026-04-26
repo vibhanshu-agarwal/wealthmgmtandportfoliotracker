@@ -253,6 +253,35 @@ jobs:
             --project=chromium \
             --reporter=list
 
+      - name: Pre-warm AWS Lambda stack
+        # Runs against the live site — only on push to main to avoid hammering AWS on every PR
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        # Hit gateway-routed health endpoints for every backend Lambda before seeding.
+        # Keep this sequential to avoid exhausting the ap-south-1 concurrency quota of 10.
+        run: |
+          set +e
+          BASE="https://vibhanshu-ai-portfolio.dev"
+          PATHS=("/actuator/health" "/api/portfolio/health" "/api/market/health" "/api/insights/health")
+          echo "Pre-warming Lambda stack at ${BASE} ..."
+          for pass in 1 2 3; do
+            echo "Warm pass ${pass}/3"
+            ALL_WARM=true
+            for path in "${PATHS[@]}"; do
+              STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 55 "${BASE}${path}" || echo "000")
+              echo "  ${path}: HTTP ${STATUS}"
+              if [ "$STATUS" = "502" ] || [ "$STATUS" = "504" ] || [ "$STATUS" = "000" ]; then
+                ALL_WARM=false
+              fi
+              sleep 2
+            done
+            if [ "$ALL_WARM" = "true" ]; then
+              echo "Lambda stack accepted warm-up requests. Proceeding."
+              exit 0
+            fi
+            echo "  Cold start or timeout still present — waiting 10s before retry..."
+            sleep 10
+          done
+          echo "Warning: Lambda pre-warm still saw 5xx/timeout responses. Seeding may still retry successfully."
       - name: Run AWS synthetic monitoring
         working-directory: frontend
         # Runs against the live site — only on push to main to avoid hammering AWS on every PR
