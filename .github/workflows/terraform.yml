@@ -55,9 +55,9 @@ env:
   TF_VAR_acm_certificate_arn: ${{ secrets.ACM_CERTIFICATE_ARN }}
   TF_VAR_internal_api_key: ${{ secrets.TF_VAR_INTERNAL_API_KEY }}
   # route53_zone_id intentionally omitted — DNS is managed externally (domain registrar)
-  # Warming — enable EventBridge Rules + API Destinations on every CI apply
-  TF_VAR_enable_warming: ${{ secrets.TF_VAR_ENABLE_WARMING }}
-  TF_VAR_warming_alarm_email: ${{ secrets.TF_VAR_WARMING_ALARM_EMAIL }}
+  # Warming is parked (enable_warming defaults to false in variables.tf).
+  # TF_VAR_enable_warming is intentionally absent so the false default always wins.
+  # Re-add only after app init is confirmed stable and billing cycle resets.
 
 jobs:
   validate:
