@@ -9,11 +9,27 @@ The frontend consumes market data to display current asset prices and calculate 
 *   **API Client**: The `fetchPortfolio` function in `frontend/src/lib/api/portfolio.ts` uses `fetchJson` to call `GET /api/market/prices?tickers=...`.
 
 ## 2. API Call & Routing
-*   **Local Proxy**: The frontend makes requests to `/api/market/**`.
-*   **Next.js Rewrite**: `next.config.ts` rewrites these calls to the **API Gateway** at `http://127.0.0.1:8080` (local) or to `https://vibhanshu-ai-portfolio.dev` (production CloudFront origin).
-*   **API Gateway**: The Spring Cloud Gateway (`api-gateway/src/main/resources/application.yml`) routes requests based on the path:
-    *   `/api/market/**` → `http://localhost:8082` (local) / `MARKET_DATA_SERVICE_URL` Lambda Function URL (production)
-*   **Authentication**: The Gateway validates the JWT and ensures the request is authorized before forwarding it downstream.
+
+> **Note:** `next.config.ts` is configured for static export (`output: "export"`) only. It contains **no rewrite or proxy rules**. There is no Next.js proxy layer in this project.
+
+### Path Construction (`frontend/src/lib/config/api.ts`)
+All API calls go through the `apiPath()` helper, which inspects `NEXT_PUBLIC_API_BASE_URL` at build time:
+*   **If set** (local development): returns an **absolute URL**, e.g. `http://127.0.0.1:8080/api/market/prices`. The browser calls the Spring Cloud Gateway directly on port 8080.
+*   **If unset** (production static build): returns a **relative path**, e.g. `/api/market/prices`. The browser sends the request to the same origin that served the page (the CloudFront domain), and CloudFront's behavior rules take over.
+
+### Local Development
+`NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8080` is set in `frontend/.env.local`. The browser resolves `apiPath("/market/prices")` to `http://127.0.0.1:8080/api/market/prices` and hits the Spring Cloud Gateway directly — no intermediary proxy.
+
+### Production (AWS / CloudFront)
+`NEXT_PUBLIC_API_BASE_URL` is **not set** at production build time. The static site is served from S3 via CloudFront. The CloudFront distribution (`infrastructure/terraform/modules/cdn/main.tf`) has two origins and two cache behaviors:
+*   **Default behavior (`/*`)** → S3 origin — serves static HTML, JS, CSS from `frontend/out/`. A CloudFront Function rewrites extensionless paths (e.g. `/market` → `/market.html`).
+*   **Ordered behavior (`/api/*`)** → api-gateway Lambda Function URL origin — forwards API requests with full method support. CloudFront injects the `X-Origin-Verify` secret header on every request to this origin; the `CloudFrontOriginVerifyFilter` in the api-gateway validates it and rejects any request that bypasses CloudFront.
+
+### Spring Cloud Gateway → Downstream Services
+The Spring Cloud Gateway (`api-gateway/src/main/resources/application.yml`) routes based on path predicates:
+*   `/api/market/**` → `${MARKET_DATA_SERVICE_URL:http://localhost:8082}` (local port 8082 / Lambda Function URL in production)
+
+**Authentication**: The Gateway validates the JWT on all public routes and injects the `X-User-Id` header into every downstream request.
 
 ## 3. Market Data Service Controllers
 The `market-data-service` exposes a REST controller for querying and updating prices:
@@ -40,28 +56,39 @@ The `market-data-service` acts as the **Source of Truth** for asset prices in th
     *   **`insight-service`**: Listens to update its Redis cache for low-latency AI-driven market analysis.
 
 ## 7. Data Seeding & Refresh
-*   **`LocalMarketDataSeeder`** (`@Profile("local")`): An `ApplicationRunner` that backfills missing tickers in MongoDB from a JSON fixture (`MarketSeedFixture`) at startup. Idempotent across restarts.
-*   **`BaselineSeeder`** (profile-agnostic, gated by `market-data.baseline-seed.enabled`): Ensures every ticker in `market.baseline.tickers` has a shell `AssetPrice` document in Mongo without setting a price. Runs in both local and production.
-*   **`MarketDataRefreshJob`** (`@Scheduled` cron, gated by `market-data.refresh.enabled`): Periodically calls the external provider, upserts current prices into Mongo, and re-publishes `PriceUpdatedEvent` records to Kafka so all downstream read-models (portfolio Postgres projection, insight Redis cache) stay current.
+*   **`LocalMarketDataSeeder`** (`@Profile("local")`, also gated by `market.seed.enabled`): An `ApplicationRunner` that backfills missing tickers in MongoDB from a JSON fixture (`MarketSeedFixture`) at startup. Idempotent across restarts — only inserts tickers not already present in Mongo. Never instantiated in `aws` or `prod` profiles; additionally, `application-aws.yml` sets `market.seed.enabled: false` as a redundant safeguard.
+*   **`BaselineSeeder`** (profile-agnostic, gated by `market-data.baseline-seed.enabled`, `matchIfMissing = true`): Ensures every ticker in `market.baseline.tickers` has a shell `AssetPrice` document in Mongo without setting a price. Enabled in local by default. **Disabled in the AWS profile** (`application-aws.yml` sets `baseline-seed.enabled: false`), so it does not run in the Lambda production environment.
+*   **`StartupHydrationService`** (gated by `market-data.hydration.enabled`, `matchIfMissing = true`): An `ApplicationRunner` that runs on every startup and re-publishes a `PriceUpdatedEvent` to Kafka for every ticker that already has a non-null price in MongoDB. Does not mutate MongoDB state — read-only. This is the primary production mechanism for rehydrating downstream caches (insight-service Redis, portfolio-service Postgres projection) after Lambda cold starts. Enabled by default and explicitly `true` in both `application-aws.yml` and `application-prod.yml`.
+*   **`MarketDataRefreshJob`** (`@Scheduled` cron, gated by `market-data.refresh.enabled`): Periodically calls the external provider (Yahoo Finance), upserts current prices into Mongo, and re-publishes `PriceUpdatedEvent` records to Kafka so all downstream read-models stay current. Default cron: `0 0 */1 * * *` (every hour). **Disabled on AWS Lambda** (`application-aws.yml` sets `refresh.enabled: false`) because Lambda is not long-lived enough for cron jobs. Active in local and any long-lived deployment target (e.g. container/VM).
 
 ## Summary Flow Diagram
+
+### Local Development
 ```mermaid
-graph TD
-    A[Frontend: usePortfolio Hook] -->|GET /api/market/prices| B[Next.js Rewrite]
-    B -->|Port 8080| C[API Gateway]
-    C -->|Port 8082| D[Market Data Service]
-    
+graph LR
+    A[Browser: usePortfolio Hook] -->|"absolute: http://127.0.0.1:8080/api/market/prices\n(NEXT_PUBLIC_API_BASE_URL set)"| C[Spring Cloud Gateway :8080]
+    C -->|/api/market/** → :8082| D[Market Data Service]
+```
+
+### Production (AWS)
+```mermaid
+graph LR
+    A[Browser: usePortfolio Hook] -->|"relative: /api/market/prices\n(same CloudFront domain)"| B[CloudFront]
+    B -->|"default /*\nbehavior"| S[(S3: frontend/out/)]
+    B -->|"ordered /api/*\nbehavior + X-Origin-Verify"| C[api-gateway Lambda]
+    C -->|/api/market/** → MARKET_DATA_SERVICE_URL| D[market-data-service Lambda]
+
     subgraph "Market Data Service"
         D1[MarketPriceController]
         D2[MarketPriceService]
         D3[LocalMarketDataSeeder]
-        
+
         D1 --> D2
         D3 --> D2
         D2 -->|Write| E[(MongoDB)]
         D2 -->|Publish| F[[Kafka: market-prices]]
     end
-    
+
     F -.->|Consume| G[Portfolio Service]
     F -.->|Consume| H[Insight Service]
 ```
