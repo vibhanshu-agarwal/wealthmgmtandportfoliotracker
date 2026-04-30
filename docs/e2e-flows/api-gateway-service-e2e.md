@@ -2,10 +2,12 @@
 
 This document describes the flow of data and control for the `api-gateway-service` in the Wealth Management and Portfolio Tracker application, which serves as the entry point for all frontend requests to the microservice ecosystem.
 
-## 1. Frontend Entry Point (Next.js)
-The frontend application (Next.js) is configured via `frontend/next.config.ts` to rewrite all requests matching `/api/:path*` to the **API Gateway** running at `http://127.0.0.1:8080`.
+## 1. Frontend Entry Point (Next.js 16 / React 19)
+The frontend application (Next.js 16, React 19) is configured via `frontend/next.config.ts` to rewrite all requests matching `/api/:path*` to the **API Gateway**:
+- **Local development:** `http://127.0.0.1:8080` (Docker Compose).
+- **Production:** the same path is served from `https://vibhanshu-ai-portfolio.dev`, where CloudFront fronts the api-gateway Lambda Function URL.
 
-- This abstraction allows the frontend to interact with a single endpoint, hiding the complexity of the backend microservice architecture.
+- This abstraction allows the frontend to interact with a single endpoint, hiding the complexity of the backend microservice architecture and the underlying Lambda execution model.
 
 ## 2. API Gateway: Spring Cloud Gateway
 The `api-gateway` is a Spring Boot application using **Spring Cloud Gateway**. Its primary responsibilities include routing, authentication, security filtering, and rate limiting.
@@ -70,3 +72,14 @@ graph TD
     C4 -->|Route: /api/market/*| F[Market Data Service: 8082]
     C4 -->|Route: /api/insights/*| G[Insight Service: 8083]
 ```
+
+## 6. Production Deployment Topology (AWS / Terraform)
+In production, the api-gateway is packaged as a container image (ECR) and deployed as an **AWS Lambda function on arm64 / Graviton2** via the **Lambda Web Adapter** sidecar. Terraform modules under `infrastructure/terraform/modules/compute` and `infrastructure/terraform/modules/cdn` provision:
+
+- **Lambda alias `live`** is published per function; the **Function URL** (`AuthType = NONE`) attaches to the `live` alias rather than `$LATEST`, so SnapStart can be enabled later without re-pointing CloudFront.
+- **CloudFront distribution** (`PriceClass_100`) at `vibhanshu-ai-portfolio.dev`, originating from the api-gateway Lambda Function URL.
+- **Origin secret injection**: CloudFront adds `X-Origin-Verify: <CLOUDFRONT_ORIGIN_SECRET>` to every origin request; the gateway's `CloudFrontOriginVerifyFilter` rejects any request missing the header with 403, blocking direct Function URL access.
+- **Routing**: in production the gateway's downstream `uri:` values point to peer Lambda Function URLs (sourced from `MARKET_DATA_SERVICE_URL`, `PORTFOLIO_SERVICE_URL`, `INSIGHT_SERVICE_URL` Lambda env vars wired by the compute module), not `localhost:808x`.
+- **JWT verification**: production uses `AUTH_JWK_URI` against the asymmetric JWKS; local profiles fall back to the `AUTH_JWT_SECRET` HS256 path.
+- **Rate limiting backend**: production points Lettuce at **Upstash Redis (TLS, `rediss://`)** via `SPRING_DATA_REDIS_*` env vars; locally it points at the `redis` Docker Compose service.
+- **Concurrency**: `reserved_concurrent_executions` is intentionally **omitted** because the ap-south-1 account limit is 10 total and AWS requires at least 10 unreserved. Cold-start mitigation comes from the `warming` module (EventBridge Rules + API Destinations at `rate(5 minutes)` → `/actuator/health`) plus optional provisioned concurrency on the `live` alias when `enable_provisioned_concurrency = true`. A CloudWatch alarm on `ConcurrentExecutions ≥ 8` notifies the SNS topic (`alarm_email`).

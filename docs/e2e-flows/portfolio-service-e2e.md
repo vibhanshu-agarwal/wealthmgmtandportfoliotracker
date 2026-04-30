@@ -18,9 +18,9 @@ The flow begins in the **Portfolio Page** (`frontend/src/app/(dashboard)/portfol
 
 ## 2. API Call & Routing
 *   **Local Proxy**: The frontend makes requests to `/api/portfolio/**`.
-*   **Next.js Rewrite**: `next.config.ts` rewrites these calls to the **API Gateway** running at `http://127.0.0.1:8080`.
+*   **Next.js Rewrite**: `next.config.ts` rewrites these calls to the **API Gateway** at `http://127.0.0.1:8080` (local) or to `https://vibhanshu-ai-portfolio.dev` (production CloudFront origin).
 *   **API Gateway**: The Spring Cloud Gateway (`api-gateway/src/main/resources/application.yml`) routes requests based on the path:
-    *   `/api/portfolio/**` → `http://localhost:8081` (`portfolio-service`)
+    *   `/api/portfolio/**` → `http://localhost:8081` (local) / `PORTFOLIO_SERVICE_URL` Lambda Function URL (production)
 *   **Authentication**: The Gateway validates the JWT and injects the `X-User-Id` header into downstream requests.
 
 ## 3. Portfolio Service Controllers
@@ -43,7 +43,8 @@ The service relies on a Postgres database and real-time Kafka updates:
     *   `market_price_history`: Historical price points for performance charting.
 *   **Kafka Listener**:
     *   **`PriceUpdatedEventListener`**: Listens to the `market-prices` Kafka topic.
-    *   **`MarketPriceProjectionService`**: Idempotently upserts the latest price into the `market_prices` table upon receiving a `PriceUpdatedEvent`.
+    *   **`MarketPriceProjectionService`**: Idempotently upserts the latest price into the `market_prices` table upon receiving a `PriceUpdatedEvent` (`INSERT ... ON CONFLICT ... IS DISTINCT FROM`), so duplicate deliveries are no-ops.
+    *   **Dead-Letter Topic**: `MalformedEventException` is registered as non-retryable on Spring Kafka's `DefaultErrorHandler`; poison records are routed to `market-prices.DLT` with the original key preserved.
 
 ## 6. Currency Conversion (FX)
 *   **`FxRateProvider`**: An interface for fetching exchange rates.
@@ -74,3 +75,14 @@ graph TD
     D4 <-->|Listen| F[[Kafka: market-prices]]
     D5 -.->|REST| G[External FX API]
 ```
+
+## 7. Production Deployment Topology (AWS / Terraform)
+The `portfolio-service` is packaged as a container image (ECR) and deployed as an **AWS Lambda function on arm64 / Graviton2** via the **Lambda Web Adapter** sidecar. Provisioned by `infrastructure/terraform/modules/compute`:
+
+- **Lambda alias `live`** is published per deploy; the **Function URL** (`AuthType = NONE`) attaches to the `live` alias rather than `$LATEST`.
+- **Origin protection**: the Function URL is fronted only via CloudFront → api-gateway, which injects `X-Origin-Verify`. The api-gateway forwards verified requests to `PORTFOLIO_SERVICE_URL`.
+- **Managed Postgres**: `SPRING_DATASOURCE_URL` points at an external managed Postgres (e.g., Neon/Supabase) since AWS RDS is outside the free-tier budget. JDBC TLS uses the canonical `truststore.jks` shipped from `common-dto` via `TruststoreExtractor`.
+- **Managed Kafka**: consumer connects to **Aiven Kafka** over mTLS using the same canonical truststore. The DLT (`market-prices.DLT`) lives on the same broker.
+- **`insight-service` callback**: `insight-service` calls portfolio-service for portfolio context using `PORTFOLIO_SERVICE_URL` (Lambda Function URL → Lambda Function URL, both `AuthType = NONE`, both protected by `X-Origin-Verify` enforcement at the edge).
+- **Cold-start mitigation**: when `enable_warming = true`, the Terraform `warming` module uses EventBridge Rules + API Destinations (`rate(5 minutes)`) to GET `/actuator/health` on the Function URL; CloudWatch alarm on `ConcurrentExecutions ≥ 8` → SNS. Optional escalation: `enable_provisioned_concurrency` on the `live` alias.
+- **Concurrency**: `reserved_concurrent_executions` is intentionally **omitted** (ap-south-1 account cap is 10 unreserved executions).

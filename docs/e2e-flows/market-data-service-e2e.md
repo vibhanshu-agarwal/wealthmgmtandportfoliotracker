@@ -10,9 +10,9 @@ The frontend consumes market data to display current asset prices and calculate 
 
 ## 2. API Call & Routing
 *   **Local Proxy**: The frontend makes requests to `/api/market/**`.
-*   **Next.js Rewrite**: `next.config.ts` rewrites these calls to the **API Gateway** running at `http://127.0.0.1:8080`.
+*   **Next.js Rewrite**: `next.config.ts` rewrites these calls to the **API Gateway** at `http://127.0.0.1:8080` (local) or to `https://vibhanshu-ai-portfolio.dev` (production CloudFront origin).
 *   **API Gateway**: The Spring Cloud Gateway (`api-gateway/src/main/resources/application.yml`) routes requests based on the path:
-    *   `/api/market/**` → `http://localhost:8082` (`market-data-service`)
+    *   `/api/market/**` → `http://localhost:8082` (local) / `MARKET_DATA_SERVICE_URL` Lambda Function URL (production)
 *   **Authentication**: The Gateway validates the JWT and ensures the request is authorized before forwarding it downstream.
 
 ## 3. Market Data Service Controllers
@@ -39,9 +39,10 @@ The `market-data-service` acts as the **Source of Truth** for asset prices in th
     *   **`portfolio-service`**: Listens to update the `market_prices` table in Postgres for fast valuation lookups.
     *   **`insight-service`**: Listens to update its Redis cache for low-latency AI-driven market analysis.
 
-## 7. Data Seeding (Local Development)
-For local development and testing, the service includes a seeding mechanism:
-*   **`LocalMarketDataSeeder`**: An `ApplicationRunner` that populates the MongoDB database with initial price data from a fixture (`MarketSeedFixture`) if the database is empty.
+## 7. Data Seeding & Refresh
+*   **`LocalMarketDataSeeder`** (`@Profile("local")`): An `ApplicationRunner` that backfills missing tickers in MongoDB from a JSON fixture (`MarketSeedFixture`) at startup. Idempotent across restarts.
+*   **`BaselineSeeder`** (profile-agnostic, gated by `market-data.baseline-seed.enabled`): Ensures every ticker in `market.baseline.tickers` has a shell `AssetPrice` document in Mongo without setting a price. Runs in both local and production.
+*   **`MarketDataRefreshJob`** (`@Scheduled` cron, gated by `market-data.refresh.enabled`): Periodically calls the external provider, upserts current prices into Mongo, and re-publishes `PriceUpdatedEvent` records to Kafka so all downstream read-models (portfolio Postgres projection, insight Redis cache) stay current.
 
 ## Summary Flow Diagram
 ```mermaid
@@ -64,3 +65,15 @@ graph TD
     F -.->|Consume| G[Portfolio Service]
     F -.->|Consume| H[Insight Service]
 ```
+
+## 8. Production Deployment Topology (AWS / Terraform)
+The `market-data-service` is packaged as a container image (ECR) and deployed as an **AWS Lambda function on arm64 / Graviton2** via the **Lambda Web Adapter** sidecar. Provisioned by `infrastructure/terraform/modules/compute`:
+
+- **Lambda alias `live`** is published per deploy; the **Function URL** (`AuthType = NONE`) attaches to the `live` alias rather than `$LATEST`.
+- **Origin protection**: the Function URL is fronted only via CloudFront → api-gateway, which injects `X-Origin-Verify`. The api-gateway forwards verified requests to `MARKET_DATA_SERVICE_URL`.
+- **LWA readiness override**: `AWS_LWA_READINESS_CHECK_PATH = /actuator/health/liveness` (set in the compute module) bypasses the Spring `MongoHealthIndicator`, which otherwise fails LWA's readiness probe with `AtlasError 8000` against MongoDB Atlas free-tier databases.
+- **Managed MongoDB**: `SPRING_MONGODB_URI` (and the legacy `SPRING_DATA_MONGODB_URI` alias) point at **MongoDB Atlas**; truststore is loaded from `common-dto`'s canonical `truststore.jks` via `TruststoreExtractor` to work around Lambda's read-only filesystem.
+- **Managed Kafka**: producer connects to **Aiven Kafka** over mTLS using the same canonical truststore.
+- **Cold-start mitigation**: when `enable_warming = true`, the Terraform `warming` module uses EventBridge Rules + API Destinations (`rate(5 minutes)`) to GET `/actuator/health` on the Function URL; CloudWatch alarm on `ConcurrentExecutions ≥ 8` → SNS. Optional escalation: `enable_provisioned_concurrency` on the `live` alias.
+- **Concurrency**: `reserved_concurrent_executions` is intentionally **omitted** (ap-south-1 account cap is 10 unreserved executions).
+- **Seeding in production**: `LocalMarketDataSeeder` is `@Profile("local")` and never instantiates under `aws`/`prod`. Production data hydration runs through the profile-agnostic `BaselineSeeder` (inserts ticker shells from `market.baseline.tickers`) and the `MarketDataRefreshJob` `@Scheduled` cron (default hourly, gated by `market-data.refresh.enabled`), which calls the external provider, upserts prices in Mongo, and re-publishes `PriceUpdatedEvent` records to Kafka.

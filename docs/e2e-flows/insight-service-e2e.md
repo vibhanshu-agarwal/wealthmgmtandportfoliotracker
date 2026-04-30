@@ -10,10 +10,10 @@ The flow begins in the **AI Insights Page** (`frontend/src/app/(dashboard)/ai-in
 
 ## 2. API Call & Routing
 *   **Local Proxy**: The frontend makes requests to `/api/insights/market-summary` or `/api/chat`.
-*   **Next.js Rewrite**: `next.config.ts` rewrites these calls to the **API Gateway** running at `http://127.0.0.1:8080`.
+*   **Next.js Rewrite**: `next.config.ts` rewrites these calls to the **API Gateway** at `http://127.0.0.1:8080` (local) or to `https://vibhanshu-ai-portfolio.dev` (production CloudFront origin).
 *   **API Gateway**: The Spring Cloud Gateway (`api-gateway/src/main/resources/application.yml`) routes requests based on the path:
-    *   `/api/insights/**` → `http://localhost:8083` (`insight-service`)
-    *   `/api/chat/**` → `http://localhost:8083` (`insight-service`)
+    *   `/api/insights/**` → `http://localhost:8083` (local) / `INSIGHT_SERVICE_URL` Lambda Function URL (production)
+    *   `/api/chat/**` → same target as `/api/insights/**`
 
 ## 3. Insight Service Controllers
 The `insight-service` exposes REST controllers to handle incoming requests:
@@ -57,3 +57,13 @@ graph TD
     D4 <-->|Listen| F[[Kafka: market-prices]]
     D1 -.->|REST| G[Portfolio Service]
 ```
+
+## 7. Production Deployment Topology (AWS / Terraform)
+The `insight-service` is packaged as a container image (ECR) and deployed as an **AWS Lambda function on arm64 / Graviton2** via the **Lambda Web Adapter** sidecar. Provisioned by `infrastructure/terraform/modules/compute`:
+
+- **Lambda alias `live`** is published per deploy; the **Function URL** (`AuthType = NONE`) attaches to the `live` alias rather than `$LATEST`.
+- **Origin protection**: the Function URL is protected by the `X-Origin-Verify` header injected by CloudFront on the api-gateway hop. Direct invocation without the header returns 403.
+- **External managed dependencies** (no in-VPC AWS resources): **Aiven Kafka** (`SPRING_KAFKA_BOOTSTRAP_SERVERS`, mTLS via the canonical `truststore.jks` shipped from `common-dto`/`TruststoreExtractor`) and **Upstash Redis** (`rediss://`, TLS).
+- **AI Profile**: production runs with `SPRING_PROFILES_ACTIVE=prod,aws,bedrock`, activating `BedrockAiInsightService` against the Claude Haiku 4.5 model. Local development defaults to the deterministic `MockAiInsightService` (`@Profile("!bedrock")`).
+- **Cold-start mitigation**: when `enable_warming = true`, the Terraform `warming` module uses EventBridge Rules + API Destinations (`rate(5 minutes)`) to GET `/actuator/health` on the Function URL; a CloudWatch alarm on `ConcurrentExecutions ≥ 8` notifies SNS. Optional escalation: provisioned concurrency on the `live` alias via `enable_provisioned_concurrency`.
+- **Concurrency**: `reserved_concurrent_executions` is intentionally **omitted** (ap-south-1 account cap is 10 unreserved executions; reserving any would block other functions).
