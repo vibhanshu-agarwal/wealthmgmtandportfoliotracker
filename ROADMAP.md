@@ -1,6 +1,6 @@
 This document outlines the strategic architectural evolution and upcoming feature expansions for the Wealth Management & Portfolio Tracker.
 
-## 🚀 Future Roadmap
+## 🚀 Roadmap
 
 Reviewing the code history will reveal the system's deliberate journey from a single deployment unit to a distributed cloud architecture.
 
@@ -20,7 +20,7 @@ Reviewing the code history will reveal the system's deliberate journey from a si
 
 - **Focus:** Extract the `insight` compute domain (AI Insights engine) into a fully serverless, on-demand compute layer.
 - **AWS Lambda + Docker:** Package the Java-based AI Insights engine as a **Docker container image** and deploy it as an **AWS Lambda** function, simplifying CI/CD and bypassing traditional Lambda deployment size limits.
-- **Planned Bedrock Integration (Future Roadmap):** The target state is for the containerized Lambda to integrate with **Amazon Bedrock (Claude 3)** to generate financial insights, allowing the platform to scale AI workloads elastically and pay only for actual inference usage. In the current codebase this integration is either not yet wired end-to-end or may be represented via mocks and test doubles, and is therefore explicitly tracked as part of the forward-looking roadmap rather than the implemented baseline.
+- **AWS Bedrock Integration (Implemented):** The containerized Lambda integrates with **Amazon Bedrock (Claude Haiku 4.5)** to generate financial insights, scaling AI workloads elastically and paying only for actual inference usage. The `BedrockAiInsightService` is activated via `@Profile("bedrock")` and runs in production under `SPRING_PROFILES_ACTIVE=prod,aws,bedrock`. Local development and CI use the deterministic `MockAiInsightService` (`@Profile("!bedrock")`). See [`docs/e2e-flows/insight-service-e2e.md`](docs/e2e-flows/insight-service-e2e.md) for the full end-to-end flow.
 
 ### 🎯 Future Architectural Goals
 
