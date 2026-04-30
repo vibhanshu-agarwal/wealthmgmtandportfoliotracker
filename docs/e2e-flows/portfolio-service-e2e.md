@@ -17,11 +17,29 @@ The flow begins in the **Portfolio Page** (`frontend/src/app/(dashboard)/portfol
 *   **`usePortfolioSummary`**: Fetches a lightweight summary from `GET /api/portfolio/summary`.
 
 ## 2. API Call & Routing
-*   **Local Proxy**: The frontend makes requests to `/api/portfolio/**`.
-*   **Next.js Rewrite**: `next.config.ts` rewrites these calls to the **API Gateway** at `http://127.0.0.1:8080` (local) or to `https://vibhanshu-ai-portfolio.dev` (production CloudFront origin).
-*   **API Gateway**: The Spring Cloud Gateway (`api-gateway/src/main/resources/application.yml`) routes requests based on the path:
-    *   `/api/portfolio/**` → `http://localhost:8081` (local) / `PORTFOLIO_SERVICE_URL` Lambda Function URL (production)
-*   **Authentication**: The Gateway validates the JWT and injects the `X-User-Id` header into downstream requests.
+
+> **Note:** `next.config.ts` is configured for static export (`output: "export"`) only. It contains **no rewrite or proxy rules**. There is no Next.js proxy layer in this project.
+
+### Path Construction (`frontend/src/lib/config/api.ts`)
+All API calls go through the `apiPath()` helper, which inspects `NEXT_PUBLIC_API_BASE_URL` at build time:
+*   **If set** (local development): returns an **absolute URL**, e.g. `http://127.0.0.1:8080/api/portfolio`. The browser calls the Spring Cloud Gateway directly on port 8080.
+*   **If unset** (production static build): returns a **relative path**, e.g. `/api/portfolio`. The browser sends the request to the same origin that served the page (the CloudFront domain), and CloudFront's behavior rules take over.
+
+### Local Development
+`NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8080` is set in `frontend/.env.local`. The browser resolves `apiPath("/portfolio")` to `http://127.0.0.1:8080/api/portfolio` and hits the Spring Cloud Gateway directly — no intermediary proxy.
+
+### Production (AWS / CloudFront)
+`NEXT_PUBLIC_API_BASE_URL` is **not set** at production build time. The static site is served from S3 via CloudFront. The CloudFront distribution (`infrastructure/terraform/modules/cdn/main.tf`) has two origins and two cache behaviors:
+*   **Default behavior (`/*`)** → S3 origin — serves static HTML, JS, CSS from `frontend/out/`. A CloudFront Function rewrites extensionless paths (e.g. `/portfolio` → `/portfolio.html`).
+*   **Ordered behavior (`/api/*`)** → api-gateway Lambda Function URL origin — forwards API requests with full method support. CloudFront injects the `X-Origin-Verify` secret header on every request to this origin; the `CloudFrontOriginVerifyFilter` in the api-gateway validates it and rejects any request that bypasses CloudFront.
+
+### Spring Cloud Gateway → Downstream Services
+The Spring Cloud Gateway (`api-gateway/src/main/resources/application.yml`) routes based on path predicates:
+*   `/api/portfolio/**` → `${PORTFOLIO_SERVICE_URL:http://localhost:8081}` (local port 8081 / Lambda Function URL in production)
+*   `/api/market/**` → `${MARKET_DATA_SERVICE_URL:http://localhost:8082}`
+*   `/api/insights/**` and `/api/chat/**` → `${INSIGHT_SERVICE_URL:http://localhost:8083}`
+
+**Authentication**: The Gateway validates the JWT on all public routes and injects the `X-User-Id` header into every downstream request.
 
 ## 3. Portfolio Service Controllers
 The `portfolio-service` exposes three main REST controllers:
@@ -52,26 +70,36 @@ The service relies on a Postgres database and real-time Kafka updates:
 *   **`FxProperties`**: Configures the base currency (e.g., USD) for all portfolio valuations.
 
 ## Summary Flow Diagram
+
+### Local Development
 ```mermaid
-graph TD
-    A[Frontend: Portfolio Page] -->|/api/portfolio/*| B[Next.js Rewrite]
-    B -->|Port 8080| C[API Gateway]
-    C -->|Port 8081| D[Portfolio Service]
-    
+graph LR
+    A[Browser: Portfolio Page] -->|"absolute: http://127.0.0.1:8080/api/portfolio/*\n(NEXT_PUBLIC_API_BASE_URL set)"| C[Spring Cloud Gateway :8080]
+    C -->|/api/portfolio/** → :8081| D[Portfolio Service]
+```
+
+### Production (AWS)
+```mermaid
+graph LR
+    A[Browser: Portfolio Page] -->|"relative: /api/portfolio/*\n(same CloudFront domain)"| B[CloudFront]
+    B -->|"default /*\nbehavior"| S[(S3: frontend/out/)]
+    B -->|"ordered /api/*\nbehavior + X-Origin-Verify"| C[api-gateway Lambda]
+    C -->|/api/portfolio/** → PORTFOLIO_SERVICE_URL| D[portfolio-service Lambda]
+
     subgraph "Portfolio Service"
         D1[Controllers: Portfolio, Analytics, Summary]
         D2[Services: PortfolioService, AnalyticsService]
         D3[MarketPriceProjectionService]
         D4[PriceUpdatedEventListener]
         D5[FxRateProvider]
-        
+
         D1 --> D2
         D2 --> D5
         D4 -->|Updates| D3
         D3 -->|Writes| E[(Postgres)]
         D2 <-->|Read/Write| E
     end
-    
+
     D4 <-->|Listen| F[[Kafka: market-prices]]
     D5 -.->|REST| G[External FX API]
 ```
