@@ -2,8 +2,10 @@
 
 **Date:** 2026-04-22 (revised — PC cost table corrected, arm64 lever added and expanded, Lightsail IPv4 caveat added, warming topology §2.1.1 added)
 **Budget constraint:** under $10 preferred, $15 hard maximum
-**Workload:** 4 Spring Boot 4.0.5 microservices (api-gateway, portfolio-service, market-data-service, insight-service) deployed as container-image Lambdas behind CloudFront in ap-south-1.  
+**Workload:** 4 Spring Boot 4.0.5 microservices (api-gateway, portfolio-service, market-data-service, insight-service) deployed as container-image Lambdas behind CloudFront in ap-south-1.
 **External services (all free-tier):** Neon PostgreSQL, MongoDB Atlas, Upstash Redis, Aiven Kafka.
+
+> **Historical context (added 2026-04-30):** The warming-infrastructure sketches in this analysis (§2.1.1, §2.4, §6) reference **EventBridge Scheduler** with the universal HTTPS target. During the implementation of the companion execution plan (`lambda-stopgap-execution-plan.md`) that approach was abandoned: Scheduler does not accept `arn:aws:events:...:api-destination/...` ARNs as targets. The shipped warming module under `infrastructure/terraform/modules/warming/` uses **EventBridge Rules + API Destinations** instead. The Scheduler-based Terraform shapes shown in this document (notably §2.4 "Terraform shape (EventBridge Scheduler + HTTPS targets)") should be read as design exploration, not as a description of the current implementation. See `docs/changes/CHANGES_CACHE_WARMING_2026-04-25.md` for the pivot.
 
 ---
 

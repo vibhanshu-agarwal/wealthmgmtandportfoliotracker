@@ -6,6 +6,8 @@
 **Budget envelope:** ~$2/month steady-state (well under the $10 preference).
 **Scope boundary:** No Lightsail work, no Provisioned Concurrency, no code refactor of controllers or domain logic.
 
+> **Historical context (added 2026-04-30):** This document captures the original design intent, which targeted **EventBridge Scheduler** with the universal HTTPS target (`arn:aws:scheduler:::http-invoke`). During implementation that approach was abandoned because Scheduler does not accept `arn:aws:events:...:api-destination/...` ARNs as targets. The shipped warming module under `infrastructure/terraform/modules/warming/` uses **EventBridge Rules + API Destinations** (`aws_cloudwatch_event_rule` + `aws_cloudwatch_event_api_destination` + `aws_cloudwatch_event_target`) instead. See `docs/changes/CHANGES_CACHE_WARMING_2026-04-25.md` for the pivot details and `docs/analysis/RCA_2026-04-26_warming-ui-cicd-failures.md` for the RCA. The Scheduler references throughout this plan should therefore be read as design history, not as a description of the current implementation.
+
 ---
 
 ## 1. Objectives and Success Criteria
@@ -155,6 +157,8 @@ Revert `architectures` to `["x86_64"]` in all four resources, redeploy the x86 i
 ---
 
 ## 5. Phase 2 — Warming Infrastructure (EventBridge Scheduler)
+
+> **Implementation note (2026-04-30):** This section captures the original Scheduler-based design. The shipped module pivoted to **EventBridge Rules + API Destinations** because Scheduler does not accept API Destination ARNs as targets. See the historical-context callout at the top of this document.
 
 **Goal:** Keep one execution environment warm per function, 24/7, for ~$0/month.
 **Estimated effort:** 2–3 hours (Terraform + apply + verify).
