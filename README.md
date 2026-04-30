@@ -3,11 +3,16 @@
 [![Java](https://img.shields.io/badge/Java-25-orange.svg)](https://openjdk.org/projects/jdk/25/)
 [![Spring Boot](https://img.shields.io/badge/Spring_Boot-4+-brightgreen.svg)](https://spring.io/projects/spring-boot)
 [![Spring Modulith](https://img.shields.io/badge/Spring-Modulith-blue.svg)](https://spring.io/projects/spring-modulith)
+[![Next.js](https://img.shields.io/badge/Next.js-16-black.svg)](https://nextjs.org/)
+[![React](https://img.shields.io/badge/React-19-61DAFB.svg)](https://react.dev/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Docker-336791.svg)](https://www.postgresql.org/)
 [![Kafka](https://img.shields.io/badge/Apache-Kafka-231F20.svg)](https://kafka.apache.org/)
 [![Redis](https://img.shields.io/badge/Redis-Cache-D82C20.svg)](https://redis.io/)
 [![Resilience4j](https://img.shields.io/badge/Resilience4j-Retry%20Policies-5C6BC0.svg)](https://resilience4j.readme.io/)
 [![WireMock](https://img.shields.io/badge/WireMock-HTTP%20Stubs-4D9DE0.svg)](https://wiremock.org/)
+[![Terraform](https://img.shields.io/badge/Terraform-Serverless%20Infra-7B42BC.svg)](https://www.terraform.io/)
+[![AWS Lambda](https://img.shields.io/badge/AWS%20Lambda-arm64%2FGraviton2-FF9900.svg)](https://aws.amazon.com/lambda/)
+[![CloudFront](https://img.shields.io/badge/AWS-CloudFront-232F3E.svg)](https://aws.amazon.com/cloudfront/)
 
 An enterprise-grade platform for managing investment portfolios, ingesting real-time market data, and generating AI-driven financial insights.
 
@@ -21,9 +26,17 @@ An enterprise-grade platform for managing investment portfolios, ingesting real-
 
 This repository demonstrates an **Evolutionary Architecture** approach.
 
-Rather than adopting a premature microservices architecture—which introduces unnecessary operational complexity, network latency, and distributed tracing overhead on day one—this system begins as a **Strictly Modular Monolith**.
+The system started life as a Strictly Modular Monolith and has since been split into a **multi-module Gradle build** with four independently-deployable Spring Boot services plus a shared `common-dto` module:
 
-This strategy allows us to safely validate domain boundaries and business logic first. Services are only extracted into independent, deployable units when their scaling profiles or deployment lifecycles explicitly demand it.
+| Module | Role |
+| ------ | ---- |
+| `api-gateway` | Spring Cloud Gateway — JWT validation, CloudFront origin verification, Redis-backed distributed rate limiting, request routing |
+| `portfolio-service` | Portfolio domain (PostgreSQL) — holdings, valuations, analytics, FX conversion, Kafka projection of `market-prices` |
+| `market-data-service` | Market ingestion (MongoDB) — pulls from Yahoo Finance, persists snapshots, publishes `PriceUpdatedEvent` to Kafka |
+| `insight-service` | AI insights (Redis + Bedrock/mock) — chat, market summary, AI sentiment enrichment |
+| `common-dto` | Shared DTOs, event contracts, truststore extractor |
+
+Services are only extracted into independent deployable units when their scaling profiles or deployment lifecycles explicitly demand it.
 
 ### 🗺️ Bounded Contexts
 
@@ -39,7 +52,17 @@ The system is divided into four distinct business domains, isolated as top-level
 To prevent the architecture from degrading into a "Big Ball of Mud," this project utilizes **Spring Modulith**.
 
 - **Zero Cross-Domain Coupling:** ArchUnit tests (`@ApplicationModuleTest`) run during the build phase to mathematically guarantee that no domain directly imports classes from another domain.
-- **The Transactional Outbox Pattern:** Inter-domain communication is handled entirely via Spring Application Events. Modulith's Event Publication Registry automatically writes events (e.g., `PriceUpdatedEvent`) to a PostgreSQL event log within the exact same database transaction as the business logic, ensuring guaranteed **at-least-once delivery** without needing an external message broker in Phase 1.
+- **The Transactional Outbox Pattern:** Inter-domain communication is handled via Spring Application Events plus Kafka. Modulith's Event Publication Registry writes events (e.g., `PriceUpdatedEvent`) to a PostgreSQL event log within the same database transaction as the business logic, ensuring guaranteed **at-least-once delivery** before they are forwarded to the broker.
+
+## ☁️ Production Deployment — Terraform-Managed Serverless Stack
+
+The platform runs on AWS as a fully serverless stack provisioned by **Terraform** (the legacy AWS CDK code under `infrastructure/lib/` is deprecated and retained only as historical reference). The active infrastructure lives under `infrastructure/terraform/`.
+
+- **Compute:** All four Spring Boot services (`api-gateway`, `portfolio-service`, `market-data-service`, `insight-service`) are packaged as container images and deployed as **AWS Lambda functions running on arm64 / Graviton2**. The **AWS Lambda Web Adapter** sidecar (loaded from `/opt/extensions/`) translates Lambda's invocation model into standard HTTP on port 8080, so each Spring Boot app runs unmodified.
+- **Edge:** A single **Amazon CloudFront** distribution fronts the api-gateway Function URL and the static frontend bucket. CloudFront injects an `X-Origin-Verify` secret header that the api-gateway's `CloudFrontOriginVerifyFilter` validates, blocking direct Function URL access.
+- **State backend:** S3 + DynamoDB lock table provisioned via the `infrastructure/terraform/bootstrap` module before the main root.
+- **Cold-start mitigation:** An EventBridge-driven warming module (`infrastructure/terraform/modules/warming`) periodically pings `/actuator/health` on every Function URL. The module is feature-flagged via `enable_warming` and currently parked for cost reasons (see `docs/changes/CHANGES_CACHE_WARMING_2026-04-30.md`).
+- **CI/CD:** GitHub Actions workflows (`terraform.yml`, `ci-verification.yml`, `frontend-cd.yml`, `synthetic-monitoring.yml`) build images, push to ECR, run `terraform apply`, and validate live deployments.
 
 ---
 
@@ -52,11 +75,11 @@ The architectural roadmap is highly dynamic as we expand our multi-cloud and adv
 
 ### Environment Matrix
 
-| Environment         | Spring Profile | AI Advisor                | Infrastructure          | Notes                       |
-| ------------------- | -------------- | ------------------------- | ----------------------- | --------------------------- |
-| CI (GitHub Actions) | `default`      | `MockPortfolioAdvisor`    | Testcontainers          | Fast, no LLM download       |
-| Local Dev           | `local`        | `MockPortfolioAdvisor`    | Docker Compose          | Zero-latency mock responses |
-| AWS Production      | `bedrock`      | `BedrockPortfolioAdvisor` | ECS / Lambda            | Anthropic Claude Haiku 4.5  |
+| Environment         | Spring Profile         | AI Advisor                | Infrastructure                                     | Notes                                          |
+| ------------------- | ---------------------- | ------------------------- | -------------------------------------------------- | ---------------------------------------------- |
+| CI (GitHub Actions) | `default`              | `MockPortfolioAdvisor`    | Testcontainers (Postgres / Mongo / Kafka / Redis)  | Fast, no LLM download                          |
+| Local Dev           | `local`                | `MockPortfolioAdvisor`    | Docker Compose (+ optional LocalStack)             | Zero-latency mock responses                    |
+| AWS Production      | `prod,aws,bedrock`     | `BedrockPortfolioAdvisor` | Terraform → Lambda (arm64/Graviton2) + CloudFront  | Anthropic Claude Haiku 4.5 via Amazon Bedrock  |
 
 This project heavily utilizes `spring-boot-docker-compose` and Testcontainers for a frictionless developer experience. You do not need to install PostgreSQL locally or manage credentials.
 
@@ -64,7 +87,8 @@ This project heavily utilizes `spring-boot-docker-compose` and Testcontainers fo
 
 - Java 25+
 - Docker Desktop running
-- Terraform 1.14.8+ (installed in `infrastructure/terraform-bin`)
+- Node.js 22+ (frontend uses **Next.js 16** with **React 19**)
+- Terraform 1.6+ (a pinned binary is checked in under `infrastructure/terraform-bin`)
 
 **To start the application:**
 
