@@ -9,11 +9,28 @@ The flow begins in the **AI Insights Page** (`frontend/src/app/(dashboard)/ai-in
 *   **`ChatInterface`**: A conversational UI component that allows users to ask about specific tickers or their portfolio, using Next.js Server Actions or direct API calls.
 
 ## 2. API Call & Routing
-*   **Local Proxy**: The frontend makes requests to `/api/insights/market-summary` or `/api/chat`.
-*   **Next.js Rewrite**: `next.config.ts` rewrites these calls to the **API Gateway** at `http://127.0.0.1:8080` (local) or to `https://vibhanshu-ai-portfolio.dev` (production CloudFront origin).
-*   **API Gateway**: The Spring Cloud Gateway (`api-gateway/src/main/resources/application.yml`) routes requests based on the path:
-    *   `/api/insights/**` → `http://localhost:8083` (local) / `INSIGHT_SERVICE_URL` Lambda Function URL (production)
-    *   `/api/chat/**` → same target as `/api/insights/**`
+
+> **Note:** `next.config.ts` is configured for static export (`output: "export"`) only. It contains **no rewrite or proxy rules**. There is no Next.js proxy layer in this project.
+
+### Path Construction (`frontend/src/lib/config/api.ts`)
+All API calls go through the `apiPath()` helper, which inspects `NEXT_PUBLIC_API_BASE_URL` at build time:
+*   **If set** (local development): returns an **absolute URL**, e.g. `http://127.0.0.1:8080/api/insights/market-summary`. The browser calls the Spring Cloud Gateway directly on port 8080.
+*   **If unset** (production static build): returns a **relative path**, e.g. `/api/insights/market-summary`. The browser sends the request to the same origin that served the page (the CloudFront domain), and CloudFront's behavior rules take over.
+
+### Local Development
+`NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8080` is set in `frontend/.env.local`. The browser resolves `apiPath("/insights/market-summary")` to `http://127.0.0.1:8080/api/insights/market-summary` and hits the Spring Cloud Gateway directly — no intermediary proxy.
+
+### Production (AWS / CloudFront)
+`NEXT_PUBLIC_API_BASE_URL` is **not set** at production build time. The static site is served from S3 via CloudFront. The CloudFront distribution (`infrastructure/terraform/modules/cdn/main.tf`) has two origins and two cache behaviors:
+*   **Default behavior (`/*`)** → S3 origin — serves static HTML, JS, CSS from `frontend/out/`. A CloudFront Function rewrites extensionless paths (e.g. `/ai-insights` → `/ai-insights.html`).
+*   **Ordered behavior (`/api/*`)** → api-gateway Lambda Function URL origin — forwards API requests with full method support. CloudFront injects the `X-Origin-Verify` secret header on every request to this origin; the `CloudFrontOriginVerifyFilter` in the api-gateway validates it and rejects any request that bypasses CloudFront.
+
+### Spring Cloud Gateway → Downstream Services
+The Spring Cloud Gateway (`api-gateway/src/main/resources/application.yml`) routes based on path predicates:
+*   `/api/insights/**` → `${INSIGHT_SERVICE_URL:http://localhost:8083}` (local port 8083 / Lambda Function URL in production)
+*   `/api/chat/**` → `${INSIGHT_SERVICE_URL:http://localhost:8083}` (same target as `/api/insights/**`)
+
+**Authentication**: The Gateway validates the JWT on all public routes and injects the `X-User-Id` header into every downstream request.
 
 ## 3. Insight Service Controllers
 The `insight-service` exposes REST controllers to handle incoming requests:
@@ -36,23 +53,33 @@ For portfolio-level analysis (e.g., `/api/insights/{userId}/analyze`):
 *   **`InsightAdvisor`**: Processes the portfolio data to generate risk and diversification advice.
 
 ## Summary Flow Diagram
+
+### Local Development
 ```mermaid
-graph TD
-    A[Frontend: AI Insights Page] -->|/api/insights/*| B[Next.js Rewrite]
-    B -->|Port 8080| C[API Gateway]
-    C -->|Port 8083| D[Insight Service]
-    
+graph LR
+    A[Browser: AI Insights Page] -->|"absolute: http://127.0.0.1:8080/api/insights/*\n(NEXT_PUBLIC_API_BASE_URL set)"| C[Spring Cloud Gateway :8080]
+    C -->|/api/insights/** and /api/chat/** → :8083| D[Insight Service]
+```
+
+### Production (AWS)
+```mermaid
+graph LR
+    A[Browser: AI Insights Page] -->|"relative: /api/insights/* or /api/chat\n(same CloudFront domain)"| B[CloudFront]
+    B -->|"default /*\nbehavior"| S[(S3: frontend/out/)]
+    B -->|"ordered /api/*\nbehavior + X-Origin-Verify"| C[api-gateway Lambda]
+    C -->|/api/insights/** and /api/chat/** → INSIGHT_SERVICE_URL| D[insight-service Lambda]
+
     subgraph "Insight Service"
         D1[InsightController / ChatController]
         D2[MarketDataService]
         D3[AiInsightService]
         D4[InsightEventListener]
-        
+
         D1 --> D2
         D1 --> D3
         D4 -->|Updates| D2
     end
-    
+
     D2 <-->|Cache| E[(Redis)]
     D4 <-->|Listen| F[[Kafka: market-prices]]
     D1 -.->|REST| G[Portfolio Service]
