@@ -100,6 +100,13 @@ resource "aws_cloudwatch_event_target" "targets" {
 # IAM Role for EventBridge Rules → API Destinations
 # Trust policy scoped to events.amazonaws.com (EventBridge Rules service).
 # aws:SourceAccount condition prevents confused-deputy attacks.
+#
+# Naming note: the Terraform resource address (aws_iam_role.scheduler) and the
+# physical role name ("wealth-lambda-warming-scheduler") date from the original
+# EventBridge Scheduler design and are retained for backward compatibility with
+# existing Terraform state. Renaming would require either a `moved {}` block or
+# manual `terraform state mv` surgery; not done deliberately to keep applies
+# clean. The trust policy and behavior are correct for EventBridge Rules.
 # ---------------------------------------------------------------------------
 resource "aws_iam_role" "scheduler" {
   name        = "wealth-lambda-warming-scheduler"

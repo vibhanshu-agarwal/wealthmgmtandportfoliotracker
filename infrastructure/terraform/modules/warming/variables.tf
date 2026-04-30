@@ -16,11 +16,20 @@ variable "targets" {
   EOT
 }
 
+# Naming note: the variable name "schedule_cron" is a misnomer — it accepts
+# both "rate(...)" and "cron(...)" expressions (the default is rate-based).
+# Retained for backward compatibility with callers that set
+# TF_VAR_warming_schedule_cron or pass schedule_cron via tfvars; renaming
+# would be a breaking change for the module's public interface.
 variable "schedule_cron" {
   type        = string
   default     = "rate(5 minutes)"
   description = <<-EOT
-    EventBridge Scheduler rate or cron expression applied to all warming schedules.
+    EventBridge Rule schedule_expression applied to every warming rule
+    (aws_cloudwatch_event_rule.targets). Despite the variable name, this is NOT
+    consumed by EventBridge Scheduler — the module uses EventBridge Rules +
+    API Destinations because Scheduler does not accept API Destination ARNs
+    as targets (see module header comment).
     Default "rate(5 minutes)" keeps one execution environment alive per function.
     Reduce to "rate(3 minutes)" only if CloudWatch shows Init Duration spikes
     between the 5-minute ticks, which would indicate the JVM is being evicted.
@@ -31,8 +40,9 @@ variable "schedule_cron" {
 variable "aws_account_id" {
   type        = string
   description = <<-EOT
-    AWS account ID. Used to scope the EventBridge Scheduler IAM trust policy with
-    an aws:SourceAccount condition, preventing confused-deputy attacks.
+    AWS account ID. Used to scope the IAM role trust policy that EventBridge
+    Rules assume (Principal: events.amazonaws.com) with an aws:SourceAccount
+    condition, preventing confused-deputy attacks.
   EOT
 }
 
