@@ -1,19 +1,24 @@
 # Risk & Mitigation Plan — Wealth Management & Portfolio Tracker
 
-This revision reflects the current repository state as of 2026-04-15 and distinguishes controls already implemented from open risk gaps.
+This revision reflects the current repository state as of 2026-04-30 and distinguishes controls already implemented from open risk gaps. It has been updated alongside the Terraform serverless migration, the warming module reactivation (PRs #24–#26), and the cost-driven parking of the synthetic-monitoring schedule.
 
 ## Audit snapshot (current state)
 
 - Implemented controls:
-  - Kafka keying by ticker for market events and DLT handling with retries/non-retryable classification.
-  - Idempotent projection upsert logic in portfolio read-model updates.
-  - Gateway JWT authentication (profile-aware decoder) and local Redis-backed request rate limiting.
-  - CI verification pipeline includes unit tests, integration tests, Pact consumer/provider checks, Docker Compose health checks, and Playwright E2E.
-  - Actuator and service healthchecks are present across gateway/services and Docker Compose.
+  - **Terraform-managed serverless infrastructure** (`infrastructure/terraform/`): Lambda functions on **arm64/Graviton2** behind CloudFront with origin-secret enforcement; the legacy AWS CDK code under `infrastructure/lib/` is deprecated.
+  - **Redis-backed distributed rate limiting** in api-gateway (Lettuce + Upstash TLS in production), confined to `application-local.yml`/`application-prod.yml` so AWS profiles never accidentally enable Redis autoconfig.
+  - **Kafka Dead-Letter Topic** (`market-prices.DLT`) wired in `portfolio-service` with `MalformedEventException` registered as non-retryable on `DefaultErrorHandler`.
+  - **Lambda cold-start mitigation** via the Terraform `warming` module: **EventBridge Rules + API Destinations** (`rate(5 minutes)`) GET `/actuator/health` on every Function URL, with a CloudWatch alarm on `ConcurrentExecutions ≥ 8` notifying an SNS email subscription. Rules are used instead of EventBridge Scheduler because Scheduler does not accept API Destination ARNs as targets. Feature-flagged via `enable_warming` (currently parked for free-tier cost; see `docs/changes/CHANGES_CACHE_WARMING_2026-04-30.md`). Optional escalation: `enable_provisioned_concurrency` on the `live` alias.
+  - Kafka keying by ticker for market events; idempotent projection upsert logic in portfolio read-model updates (`ON CONFLICT … IS DISTINCT FROM`).
+  - Gateway JWT authentication (profile-aware decoder), CloudFront origin verification (`X-Origin-Verify`), and `X-User-Id` injection from the verified `sub` claim.
+  - CI verification pipeline (`ci-verification.yml`) includes unit tests, integration tests (Testcontainers), Pact consumer/provider checks, Docker Compose health checks, and Playwright E2E.
+  - Synthetic monitoring (`synthetic-monitoring.yml`) runs Playwright against the live CloudFront domain (`https://vibhanshu-ai-portfolio.dev`) — currently disabled in the GitHub UI for free-tier conservation.
+  - Truststore unification: canonical `truststore.jks` and `TruststoreExtractor` shipped from `common-dto` so Lambda's read-only FS works with Aiven Kafka and Upstash Redis.
+  - Actuator healthchecks present across gateway/services and Docker Compose; Lambda Web Adapter readiness is wired to `/actuator/health`.
 - Major gaps:
   - No event schema registry or explicit topic/DTO version strategy.
   - No explicit event-id dedup store/processed-event ledger at consumers.
-  - Limited event-flow observability (no clear lag dashboards/alerts/distributed tracing baseline).
+  - Limited event-flow observability (no consumer-lag dashboards or distributed tracing baseline beyond CloudWatch logs and the warming-module SNS alarm).
   - Production parity is partial (single-node Kafka in local/CI; no evidence of production-like failover staging).
 
 ## High priority risks
@@ -77,11 +82,13 @@ This revision reflects the current repository state as of 2026-04-15 and disting
 6) Gateway bottleneck and resilience under load
 - Risk: API gateway failure or saturation degrades the entire platform.
 - Current state:
-  - Central auth and rate limiting are implemented.
-  - No explicit load/perf baseline, autoscaling policy evidence, or circuit-breaker strategy at the edge.
+  - Central JWT auth and **Redis-backed distributed rate limiting** are implemented in api-gateway.
+  - **Lambda cold-start mitigation** is wired via the Terraform `warming` module (EventBridge Rules + API Destinations at `rate(5 minutes)` → `/actuator/health` + CloudWatch `ConcurrentExecutions ≥ 8` SNS alarm); currently parked behind `enable_warming = false` for cost reasons. Optional escalation: `enable_provisioned_concurrency` on the `live` alias.
+  - `reserved_concurrent_executions` is intentionally **omitted** because the ap-south-1 account-level cap is 10 unreserved executions and AWS forbids reserving anything that would push unreserved capacity below 10. Peak throughput is therefore bounded by the account quota, not per-function reservations.
+  - No explicit load/perf baseline or circuit-breaker strategy at the edge.
 - Mitigation plan:
   - Add gateway load tests and define performance SLO/error budgets.
-  - Configure autoscaling and backpressure policies in runtime platform.
+  - Re-enable the warming module on a representative cron once free-tier headroom allows.
   - Add resilient fallback/error classification for downstream dependency failures.
 
 7) Cross-service data integrity and consistency boundaries
