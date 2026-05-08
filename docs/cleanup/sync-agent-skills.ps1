@@ -130,3 +130,13 @@ $agentFolders | ForEach-Object {
         Notes       = $notes
     }
 } | Format-Table -AutoSize
+
+# Targeted cleanup: remove the nested agent-skills directory/link inside .kiro\skills, if present.
+# This only removes the nested path and does not touch the primary .kiro\skills junction/symlink.
+$kiroNestedLink = Join-Path $homeDir '.kiro\skills\agent-skills'
+if (Test-Path -LiteralPath $kiroNestedLink) {
+    if ($PSCmdlet.ShouldProcess($kiroNestedLink, 'Remove nested agent-skills directory/link from .kiro\skills')) {
+        Remove-Item -LiteralPath $kiroNestedLink -Recurse -Force
+        Write-Host "[.kiro] Removed nested agent-skills directory/link: $kiroNestedLink" -ForegroundColor Cyan
+    }
+}

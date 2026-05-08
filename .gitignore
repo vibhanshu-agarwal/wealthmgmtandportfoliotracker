@@ -108,3 +108,5 @@ htmlReport/
 ### Golden-state seeder: seed-tickers.json is generated into each service by the
 ### copySeedTickers Gradle task; the single source of truth lives in config/seed-tickers.json.
 **/src/main/resources/seed/seed-tickers.json
+!/docs/agent-instructions/customer-management-application-plan.md
+!/docs/agent-instructions/Senior Full Stack Engineer - Tech Task 2026.pdf
