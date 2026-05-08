@@ -6,8 +6,10 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.annotation.Profile;
+import org.springframework.security.oauth2.jwt.ReactiveJwtDecoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -16,6 +18,9 @@ import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationContext;
 
 import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
@@ -161,8 +166,8 @@ class PreservationPropertyTest {
                 .as("hmacJwtDecoder must be annotated with @Profile")
                 .isNotNull();
         assertThat(hmacProfile.value())
-                .as("hmacJwtDecoder must be scoped to local and aws profiles")
-                .containsExactly("local", "aws");
+                .as("hmacJwtDecoder must be scoped to local, aws, and azure profiles")
+                .containsExactlyInAnyOrder("local", "aws", "azure");
     }
 
     // ── Property 2e — X-User-Id Stripping ───────────────────────────────────
@@ -188,5 +193,73 @@ class PreservationPropertyTest {
                         assertThat(status)
                                 .as("valid JWT with spoofed X-User-Id should not be rejected with 401")
                                 .isNotEqualTo(401));
+    }
+
+    // ── Property P2 — JwtDecoder Presence ───────────────────────────────────
+
+    /**
+     * Property P2 (local profile): The existing @SpringBootTest context (active profile = local)
+     * already boots with a Redis Testcontainer. Assert exactly one ReactiveJwtDecoder bean is
+     * registered — reuses the running context rather than booting a second one.
+     *
+     * <p><b>Validates: Requirements 2.2, 2.4, 15.2</b>
+     */
+    @Test
+    void p2_exactlyOneReactiveJwtDecoderRegisteredUnderLocalProfile(@Autowired ApplicationContext ctx) {
+        assertThat(ctx.getBeansOfType(ReactiveJwtDecoder.class))
+                .as("exactly one ReactiveJwtDecoder bean must be registered under the 'local' profile")
+                .hasSize(1);
+    }
+
+    /**
+     * Property P2 (aws profile): Uses ApplicationContextRunner (lightweight — no Redis, no full
+     * Spring Boot context) to assert exactly one ReactiveJwtDecoder bean is registered when the
+     * 'aws' profile is active. Loads only JwtDecoderConfig so the fixture stays minimal.
+     *
+     * <p>The oauth2ResourceServer().jwt() wiring in SecurityConfig resolves the decoder bean
+     * during context refresh; a NoSuchBeanDefinitionException here would surface as a context
+     * startup failure, which ApplicationContextRunner captures and this test would fail on.
+     *
+     * <p><b>Validates: Requirements 2.2, 2.4, 15.2</b>
+     */
+    @Test
+    void p2_exactlyOneReactiveJwtDecoderRegisteredUnderAwsProfile() {
+        new ApplicationContextRunner()
+                .withUserConfiguration(JwtDecoderConfig.class)
+                .withPropertyValues(
+                        "spring.profiles.active=aws",
+                        "auth.jwt.secret=" + TestJwtFactory.TEST_SECRET)
+                .run(ctx -> {
+                    assertThat(ctx).hasNotFailed();
+                    assertThat(ctx.getBeansOfType(ReactiveJwtDecoder.class))
+                            .as("exactly one ReactiveJwtDecoder bean must be registered under the 'aws' profile")
+                            .hasSize(1);
+                });
+    }
+
+    /**
+     * Property P2 (azure profile): Uses ApplicationContextRunner (lightweight — no Redis, no full
+     * Spring Boot context) to assert exactly one ReactiveJwtDecoder bean is registered when the
+     * 'azure' profile is active. This validates the G1 profile widening from task 2.1.
+     *
+     * <p>The oauth2ResourceServer().jwt() wiring in SecurityConfig resolves the decoder bean
+     * during context refresh; a NoSuchBeanDefinitionException here would surface as a context
+     * startup failure, which ApplicationContextRunner captures and this test would fail on.
+     *
+     * <p><b>Validates: Requirements 2.2, 2.4, 15.2</b>
+     */
+    @Test
+    void p2_exactlyOneReactiveJwtDecoderRegisteredUnderAzureProfile() {
+        new ApplicationContextRunner()
+                .withUserConfiguration(JwtDecoderConfig.class)
+                .withPropertyValues(
+                        "spring.profiles.active=azure",
+                        "auth.jwt.secret=" + TestJwtFactory.TEST_SECRET)
+                .run(ctx -> {
+                    assertThat(ctx).hasNotFailed();
+                    assertThat(ctx.getBeansOfType(ReactiveJwtDecoder.class))
+                            .as("exactly one ReactiveJwtDecoder bean must be registered under the 'azure' profile")
+                            .hasSize(1);
+                });
     }
 }

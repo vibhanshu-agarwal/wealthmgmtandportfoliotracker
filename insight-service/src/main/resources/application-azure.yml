@@ -1,0 +1,32 @@
+# ============================================================
+# Azure profile — overrides for Azure Container Apps deployment.
+# Active when SPRING_PROFILES_ACTIVE includes "azure" (e.g. "prod,azure,azure-ai").
+# Loaded after application-prod.yml; keys here win over prod.
+#
+# Mutually exclusive with application-aws.yml at runtime — the deployment
+# tooling (Terraform / GitHub Actions) sets exactly one of {aws, azure}.
+# application-prod.yml stays untouched.
+#
+# AI provider config (Azure OpenAI endpoint, deployment name, model selection)
+# lives in application-azure-ai.yml, which is activated by the separate
+# "azure-ai" profile. This file contains only the infrastructure-level
+# overrides that apply to all Azure deployments regardless of AI provider.
+# ============================================================
+
+management:
+  health:
+    # Disable the Redis health indicator on Azure Container Apps.
+    #
+    # Problem: During a cold start (scale-from-zero), Lettuce attempts to resolve
+    # the Upstash hostname before the ACA internal DNS stack is fully initialised.
+    # The DNS lookup may return NXDOMAIN transiently, causing the
+    # DataRedisReactiveHealthIndicator to mark the service DOWN and block the
+    # readiness probe. This is the same race condition mitigated in application-aws.yml
+    # for the Lambda Web Adapter readiness check.
+    #
+    # Solution: exclude Redis from the aggregate health check on Azure. Redis still
+    # works normally for sentiment caching — this only suppresses the health indicator.
+    # If Redis is genuinely unavailable, the cache degrades gracefully via
+    # CacheConfig.errorHandler() — identical behaviour to the AWS path.
+    redis:
+      enabled: false

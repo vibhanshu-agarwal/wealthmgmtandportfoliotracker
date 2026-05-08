@@ -10,7 +10,7 @@ Property-based tests (P1 JVM-side, P2, P3, P4 via jqwik / Spring `@SpringBootTes
 
 ## Tasks
 
-- [ ] 1. Align Gradle toolchain to JDK 21 and sweep cosmetic item
+- [x] 1. Align Gradle toolchain to JDK 21 and sweep cosmetic item
   - [ ] 1.1 Downgrade root `build.gradle` Java toolchain from 25 to 21
     - Edit the single `languageVersion = JavaLanguageVersion.of(25)` line in the root `build.gradle` to `JavaLanguageVersion.of(21)`
     - Leave every other file in the source tree unchanged (this is the only root-build.gradle modification permitted by Req 13.2)
@@ -21,14 +21,14 @@ Property-based tests (P1 JVM-side, P2, P3, P4 via jqwik / Spring `@SpringBootTes
     - Remove the `"Migrated from the removed OllamaAiInsightServicePropertyTest"` reference from the class-level javadoc of `insight-service/src/test/java/com/wealth/insight/infrastructure/ai/BedrockAiInsightServicePropertyTest.java`
     - _Requirements: 16.1_
 
-- [ ] 2. Widen api-gateway profile wiring for Azure (G1)
+- [x] 2. Widen api-gateway profile wiring for Azure (G1)
   - [ ] 2.1 Widen `JwtDecoderConfig.hmacJwtDecoder` and update its preservation test
     - In `api-gateway/src/main/java/com/wealth/gateway/JwtDecoderConfig.java`: change `@Profile({"local","aws"})` → `@Profile({"local","aws","azure"})` on `hmacJwtDecoder`, and update the `IllegalStateException` message to reference `local/aws/azure`
     - In `api-gateway/src/test/java/com/wealth/gateway/PreservationPropertyTest.java`: update `jwtDecoderConfigHasCorrectProfileAnnotations` to use `containsExactlyInAnyOrder("local","aws","azure")` with an updated `@as(...)` message
     - These two edits must land together — per design §3.1 the preservation test cannot remain green after the config widens without the assertion update
     - _Requirements: 2.1, 2.3, 2.5, 13.10_
 
-- [ ] 3. Widen insight-service profile guards (G2 + G17)
+- [x] 3. Widen insight-service profile guards (G2 + G17)
   - [ ] 3.1 Widen mock AI bean guards to exclude `azure-ai`
     - `MockAiInsightService` and `MockInsightAdvisor` (both under `insight-service/src/main/java/com/wealth/insight/infrastructure/ai/`): change `@Profile("!bedrock")` → `@Profile("!bedrock & !azure-ai")` on each
     - Update the class-level javadoc on both classes to describe activation as "whenever neither bedrock nor azure-ai profile is enabled"
@@ -39,7 +39,7 @@ Property-based tests (P1 JVM-side, P2, P3, P4 via jqwik / Spring `@SpringBootTes
     - Do NOT modify the api-gateway copy at `api-gateway/src/main/java/com/wealth/gateway/InfrastructureHealthLogger.java` — that widening is backlog B1, out of scope
     - _Requirements: 14.1, 14.2, 14.3_
 
-- [ ] 4. Add Spring AI Azure OpenAI dependency and profile YAML
+- [x] 4. Add Spring AI Azure OpenAI dependency and profile YAML
   - [ ] 4.1 Add Spring AI Azure OpenAI + azure-identity to `insight-service/build.gradle`
     - Add `implementation 'org.springframework.ai:spring-ai-starter-model-azure-openai'` (resolved via the existing `spring-ai-bom:2.0.0-M4`)
     - Add `implementation 'com.azure:azure-identity:1.13.2'` (pinned explicitly; defer to a managing BOM if the workspace already provides one)
@@ -60,7 +60,7 @@ Property-based tests (P1 JVM-side, P2, P3, P4 via jqwik / Spring `@SpringBootTes
     - The same env var names (`AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_DEPLOYMENT`) must be wired onto the insight-service Container App in task 11.4 — they are the contract between this overlay and Terraform
     - _Requirements: 4.3, 5.1, 5.4, 8.5, 8.6_
 
-- [ ] 5. Implement Azure OpenAI adapters and P1 validator
+- [x] 5. Implement Azure OpenAI adapters and P1 validator
   - [ ] 5.1 Create `AzureOpenAiInsightService`
     - Path: `insight-service/src/main/java/com/wealth/insight/infrastructure/ai/AzureOpenAiInsightService.java`
     - `@Service`, `@Profile("azure-ai")`, implements `com.wealth.insight.AiInsightService`
@@ -102,7 +102,7 @@ Property-based tests (P1 JVM-side, P2, P3, P4 via jqwik / Spring `@SpringBootTes
     - Assert the primary `ChatModel` bean name (via `BeanFactory.getBeanNamesForType(ChatModel.class)` + primary qualifier inspection, or the class of `ChatClient.Builder`'s underlying model) matches the selected provider
     - _Requirements: 4.4, 4.5, 15.4, 15.6_
 
-- [ ] 6. Extend api-gateway `PreservationPropertyTest` for P2
+- [x] 6. Extend api-gateway `PreservationPropertyTest` for P2
   - [ ]* 6.1 Add P2 property coverage by extending the existing `PreservationPropertyTest` class
     - **Property P2: JwtDecoder Presence**
     - **Validates: Requirements 2.2, 2.4, 15.2**
@@ -110,7 +110,7 @@ Property-based tests (P1 JVM-side, P2, P3, P4 via jqwik / Spring `@SpringBootTes
     - For each active profile in `{local, aws, azure}` boot a `@SpringBootTest` (or use `ApplicationContextRunner` with `withPropertyValues("spring.profiles.active=...")` for a lighter fixture) and assert `ctx.getBeansOfType(ReactiveJwtDecoder.class).size() == 1`; assert `oauth2ResourceServer().jwt()` wiring resolves the bean without a `NoSuchBeanDefinitionException` during context refresh
     - _Requirements: 2.2, 2.4, 15.2, 15.6_
 
-- [ ] 7. Create per-service `application-azure.yml` overlays
+- [x] 7. Create per-service `application-azure.yml` overlays
   - [ ] 7.1 Create `api-gateway/src/main/resources/application-azure.yml`
     - Include `management.health.redis.enabled: false` (cold-start DNS race rationale)
     - Include `app.cors.allowed-origin-patterns: ${APP_CORS_ALLOWED_ORIGIN_PATTERNS:https://*.azurestaticapps.net}` (env-var-driven; widen/narrow per environment)
@@ -135,13 +135,13 @@ Property-based tests (P1 JVM-side, P2, P3, P4 via jqwik / Spring `@SpringBootTes
     - No `localhost` references
     - _Requirements: 8.4, 8.5_
 
-- [ ] 8. Checkpoint — AWS path preservation
+- [x] 8. Checkpoint — AWS path preservation
   - Run `./gradlew check` across all four services and confirm every existing test still passes (including `PreservationPropertyTest` under `@ActiveProfiles("local")`)
   - Verify none of `application.yml`, `application-prod.yml`, `application-local.yml`, `application-aws.yml`, `<service>/Dockerfile`, `infrastructure/lib/*.ts`, `.github/workflows/deploy.yml`, or `.github/workflows/terraform.yml` were modified beyond the minimal diffs authorised by Req 13.4 (bedrock YAML single-key add) and Req 13.2 (root `build.gradle` one-line toolchain)
   - Ensure all tests pass, ask the user if questions arise.
   - _Requirements: 13.1, 13.3, 13.4, 13.5, 13.6, 13.8, 13.9, 13.10, 13.11_
 
-- [ ] 9. Create Azure-specific Dockerfiles (native optimization, two-stage)
+- [x] 9. Create Azure-specific Dockerfiles (native optimization, two-stage)
   - [ ] 9.1 Create `api-gateway/Dockerfile.azure`
     - Two stages only: `FROM mcr.microsoft.com/openjdk/jdk:21-mariner AS builder` and `ARG RUNTIME_BASE=mcr.microsoft.com/openjdk/jdk:21-mariner` + `FROM ${RUNTIME_BASE} AS runtime`
     - Builder: copy `gradlew`, `gradle/`, `build.gradle`, `settings.gradle`, `common-dto/`, `api-gateway/`; trim `settings.gradle` to exclude the three non-target services; install `findutils` via `tdnf`; run `./gradlew :api-gateway:bootJar --no-daemon`
@@ -168,14 +168,14 @@ Property-based tests (P1 JVM-side, P2, P3, P4 via jqwik / Spring `@SpringBootTes
     - Leave `insight-service/Dockerfile` (AWS variant) untouched
     - _Requirements: 9.1, 9.2, 9.3, 9.4, 9.5, 9.7, 9.8, 9.9, 9.10_
 
-- [ ] 10. Relocate existing Terraform root into per-cloud layout
+- [x] 10. Relocate existing Terraform root into per-cloud layout
   - [ ] 10.1 Relocate `infrastructure/terraform/` → `infrastructure/terraform/aws/`
     - Move `main.tf`, `ecr.tf`, `locals.tf`, `outputs.tf`, `providers.tf`, `variables.tf`, `versions.tf`, `backend-localstack.hcl`, `terraform.tfvars.example`, and the entire `bootstrap/`, `modules/`, `scripts/` subtrees to `infrastructure/terraform/aws/<same>`
     - Additionally create `infrastructure/terraform/aws/backend-aws.hcl` for symmetry with the Azure root (optional per design §3.8 but recommended); do NOT change any file contents
     - Verify `cd infrastructure/terraform/aws && terraform init` still succeeds
     - _Requirements: 10.1, 10.3, 10.5, 13.7_
 
-- [ ] 11. Build the Azure Terraform root
+- [x] 11. Build the Azure Terraform root
   - [ ] 11.1 Scaffold `infrastructure/terraform/azure/` baseline
     - Create `versions.tf` pinning `azurerm`
     - Create `providers.tf` with `provider "azurerm" { features {} use_oidc = true client_id = var.azure_client_id tenant_id = var.azure_tenant_id subscription_id = var.azure_subscription_id }` and NO `client_secret` reference
@@ -229,7 +229,7 @@ Property-based tests (P1 JVM-side, P2, P3, P4 via jqwik / Spring `@SpringBootTes
     - This task depends on outputs produced by 11.4 (the four `module.*.app_fqdn` values) and 11.5 (the cognitive-deployment resource id is not exported here, so nothing additional needed from 11.5 — but the resource must exist before `terraform plan` succeeds)
     - _Requirements: 10.5, 10.6, 11.1_
 
-- [ ] 12. Write Terraform plan-assertion scripts (P1 + P5 IaC-side) — MANDATORY
+- [x] 12. Write Terraform plan-assertion scripts (P1 + P5 IaC-side) — MANDATORY
   - [ ] 12.1 Write `infrastructure/terraform/azure/scripts/assert_plan.py` — P1 IaC-side
     - **Property P1 (IaC side): Profile Mutual Exclusion in Terraform plan**
     - **Validates: Requirements 1.3, 1.4, 15.1**
@@ -246,7 +246,7 @@ Property-based tests (P1 JVM-side, P2, P3, P4 via jqwik / Spring `@SpringBootTes
     - This task is MANDATORY (not marked with `*`) because `.github/workflows/terraform-azure.yml` in task 13.2 invokes it unconditionally on every PR and every `action=plan` dispatch — the workflow will fail if the script is missing
     - _Requirements: 6.1, 6.2, 6.3, 6.5, 15.5, 15.7_
 
-- [ ] 13. Create GitHub Actions workflows for Azure
+- [x] 13. Create GitHub Actions workflows for Azure
   - [ ] 13.1 Create `.github/workflows/deploy-azure.yml`
     - **Triggers:**
       - `on.workflow_dispatch:` (manual run)
@@ -279,7 +279,7 @@ Property-based tests (P1 JVM-side, P2, P3, P4 via jqwik / Spring `@SpringBootTes
     - Leave existing `.github/workflows/terraform.yml` untouched
     - _Requirements: 10.2, 12.2, 12.4, 12.5, 12.8, 15.7_
 
-- [ ] 14. Final checkpoint — Ensure all tests pass
+- [x] 14. Final checkpoint — Ensure all tests pass
   - Run `./gradlew check` for all four services and confirm every unit test, integration test, and (when enabled) property test P1/P2/P3/P4 passes
   - Run `terraform init -backend=false && terraform validate` in both `infrastructure/terraform/aws/` and `infrastructure/terraform/azure/` and confirm both exit zero
   - Verify `assert_plan.py` and `test_acr_pull_property.py` exit zero when executed against a locally-generated `terraform plan -out=tfplan` JSON export from the Azure root

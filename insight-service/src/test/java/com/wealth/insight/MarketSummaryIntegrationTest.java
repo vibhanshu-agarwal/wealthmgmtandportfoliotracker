@@ -36,7 +36,16 @@ import static org.assertj.core.api.Assertions.assertThat;
                 // Prevent listener containers from auto-starting — avoids any broker
                 // connection attempt while keeping KafkaProperties in the context so
                 // InsightKafkaConfig can build its consumer/listener-container beans.
-                "spring.kafka.listener.auto-startup=false"
+                "spring.kafka.listener.auto-startup=false",
+                // Disable both Spring AI ChatModel auto-configurations so neither
+                // azureOpenAiChatModel nor bedrockProxyChatModel is registered.
+                // This test uses MockAiInsightService (active under the default profile)
+                // which does not require a ChatModel bean.
+                "spring.ai.model.chat=none",
+                // Provide a placeholder endpoint so AzureOpenAiClientBuilderConfiguration
+                // does not fail with "Endpoint must not be empty" during context init.
+                // The Azure OpenAI client is never invoked under the mock profile.
+                "spring.ai.azure.openai.endpoint=https://placeholder.openai.azure.com/"
         }
 )
 @ActiveProfiles("default")

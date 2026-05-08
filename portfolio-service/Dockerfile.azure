@@ -1,0 +1,54 @@
+# =============================================================================
+# Azure Container Apps variant — portfolio-service
+# Build context: repo root (docker build -f portfolio-service/Dockerfile.azure .)
+#
+# This file is the Azure-specific Dockerfile. It uses Microsoft's OpenJDK 21
+# on Mariner Linux and produces a lean two-stage image (builder + runtime).
+# It does NOT include the AWS Lambda Web Adapter, jlink custom JRE, or any
+# AWS_LWA_* environment variables. Leave portfolio-service/Dockerfile (AWS
+# variant) untouched.
+# =============================================================================
+
+# ---------------------------------------------------------------------------
+# Stage 1: Builder — compile source and produce Spring Boot fat JAR
+# Mariner Linux uses tdnf (not yum/apt) for package management.
+# ---------------------------------------------------------------------------
+FROM mcr.microsoft.com/openjdk/jdk:21-mariner AS builder
+
+WORKDIR /workspace
+
+# Copy Gradle wrapper and build config first (layer caching)
+COPY gradlew gradlew
+COPY gradle/ gradle/
+COPY build.gradle build.gradle
+COPY settings.gradle settings.gradle
+
+# Copy source for common-dto (dependency) and portfolio-service
+COPY common-dto/ common-dto/
+COPY portfolio-service/ portfolio-service/
+
+# Trim settings.gradle to only include modules needed for this service.
+# Gradle 9.x fails if included project directories don't exist in the build context.
+RUN sed -i "/include 'api-gateway'/d; /include 'market-data-service'/d; /include 'insight-service'/d" settings.gradle
+
+# Install findutils (provides xargs, required by the Gradle wrapper).
+# Mariner Linux uses tdnf — not yum or apt.
+RUN tdnf install -y findutils && tdnf clean all
+
+# Build the fat JAR.
+RUN chmod +x gradlew && ./gradlew :portfolio-service:bootJar --no-daemon
+
+# ---------------------------------------------------------------------------
+# Stage 2: Runtime — Microsoft OpenJDK 21 on Mariner
+# ARG RUNTIME_BASE allows overriding the base image (e.g. for distroless
+# variants) at build time without editing this Dockerfile:
+#   docker build --build-arg RUNTIME_BASE=<image> -f portfolio-service/Dockerfile.azure .
+# ---------------------------------------------------------------------------
+ARG RUNTIME_BASE=mcr.microsoft.com/openjdk/jdk:21-mariner
+FROM ${RUNTIME_BASE} AS runtime
+
+COPY --from=builder /workspace/portfolio-service/build/libs/*.jar app.jar
+
+EXPOSE 8081
+
+ENTRYPOINT ["java", "-jar", "/app.jar"]

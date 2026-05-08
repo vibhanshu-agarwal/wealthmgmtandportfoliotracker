@@ -1,0 +1,120 @@
+# Azure Container Apps Deployment Workflow
+#
+# Builds each backend service image from its Dockerfile.azure, pushes to Azure Container
+# Registry (ACR), and rolls out the new revision to the corresponding Azure Container App.
+# Authentication uses OIDC (Workload Identity Federation) — no client secret is stored.
+#
+# Required GitHub Actions secrets (repo-level):
+#   AZURE_CLIENT_ID        — App Registration / Managed Identity client ID
+#   AZURE_TENANT_ID        — Azure AD tenant ID
+#   AZURE_SUBSCRIPTION_ID  — Azure subscription ID
+#
+# Resource names are aligned with the Terraform root in infrastructure/terraform/azure/
+# (task 11.3): resource group "wealth-azure-prod-rg", ACR "wealthprodacr",
+# ACA environment "wealth-prod-aca-env".
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "api-gateway/**"
+      - "portfolio-service/**"
+      - "market-data-service/**"
+      - "insight-service/**"
+      - "common-dto/**"
+      - ".github/workflows/deploy-azure.yml"
+
+env:
+  AZURE_RG: wealth-azure-prod-rg
+  ACR_NAME: wealthprodacr
+  ACA_ENV: wealth-prod-aca-env
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service:
+          - api-gateway
+          - portfolio-service
+          - market-data-service
+          - insight-service
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Log in to ACR
+        run: az acr login --name $ACR_NAME
+
+      - name: Build Docker image
+        run: |
+          docker build \
+            -f ${{ matrix.service }}/Dockerfile.azure \
+            -t $ACR_NAME.azurecr.io/${{ matrix.service }}:${{ github.sha }} \
+            .
+
+      - name: Push Docker image
+        run: |
+          docker push $ACR_NAME.azurecr.io/${{ matrix.service }}:${{ github.sha }}
+
+      - name: Update Container App
+        run: |
+          az containerapp update \
+            --name ${{ matrix.service }} \
+            --resource-group $AZURE_RG \
+            --image $ACR_NAME.azurecr.io/${{ matrix.service }}:${{ github.sha }}
+
+      - name: Wait for revision to reach Succeeded state
+        # G18 — initial sleep gives ACA internal DNS time to propagate the new revision
+        # before the first poll. Polls every 30 s for up to ~10 minutes (20 iterations).
+        run: |
+          echo "Sleeping 30s for ACA internal DNS propagation (G18)..."
+          sleep 30
+
+          MAX_ITERATIONS=20
+          SLEEP_SECONDS=30
+          iteration=0
+
+          while [ $iteration -lt $MAX_ITERATIONS ]; do
+            STATE=$(az containerapp show \
+              --name ${{ matrix.service }} \
+              --resource-group $AZURE_RG \
+              --query properties.provisioningState \
+              --output tsv)
+
+            echo "Iteration $((iteration + 1))/$MAX_ITERATIONS — provisioningState: $STATE"
+
+            if [ "$STATE" = "Succeeded" ]; then
+              echo "Container App ${{ matrix.service }} reached Succeeded state."
+              exit 0
+            fi
+
+            if [ "$STATE" = "Failed" ] || [ "$STATE" = "Canceled" ]; then
+              echo "Container App ${{ matrix.service }} reached terminal failure state: $STATE"
+              exit 1
+            fi
+
+            # Still InProgress / Provisioning — keep polling
+            iteration=$((iteration + 1))
+            if [ $iteration -lt $MAX_ITERATIONS ]; then
+              echo "Waiting ${SLEEP_SECONDS}s before next poll..."
+              sleep $SLEEP_SECONDS
+            fi
+          done
+
+          echo "Timed out after $((MAX_ITERATIONS * SLEEP_SECONDS + 30))s waiting for ${{ matrix.service }} to reach Succeeded state. Last state: $STATE"
+          exit 1

@@ -15,9 +15,6 @@ import static org.assertj.core.api.Assertions.assertThat;
  *
  * <p>For any ticker and TickerSummary with non-null price data,
  * the prompt contains the ticker symbol, at least one price, and the trend percent.
- *
- * <p>Migrated from the removed OllamaAiInsightServicePropertyTest; the exact same
- * {@code buildPrompt} contract is exercised here against the surviving Bedrock adapter.
  */
 class BedrockAiInsightServicePropertyTest {
 

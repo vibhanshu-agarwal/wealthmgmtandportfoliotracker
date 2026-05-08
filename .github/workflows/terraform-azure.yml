@@ -1,0 +1,141 @@
+# terraform-azure.yml
+#
+# Azure Terraform workflow — validates and applies the Azure Container Apps
+# infrastructure defined in infrastructure/terraform/azure/.
+#
+# Plan path  : runs on every pull_request touching the Azure Terraform root,
+#              and on manual dispatch with action=plan.
+#              Uses -backend=false so no real backend credentials are required
+#              for PR validation (backend-azure.hcl is gitignored).
+#
+# Apply path : runs ONLY on manual dispatch with action=apply.
+#              Provisions the real backend-azure.hcl from the AZURE_BACKEND_HCL
+#              secret before initialising Terraform.
+#
+# Authentication uses OIDC (azure/login@v2) — no client_secret is used or stored.
+
+name: Terraform Azure Infrastructure
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Terraform action to run"
+        type: choice
+        options:
+          - plan
+          - apply
+        default: plan
+  pull_request:
+    paths:
+      - "infrastructure/terraform/azure/**"
+      - ".github/workflows/terraform-azure.yml"
+
+# Serialize runs so concurrent plans do not race on the same remote state.
+concurrency:
+  group: terraform-azure-${{ github.repository }}
+  cancel-in-progress: false
+
+# OIDC token + PR comment permissions — declared here, not inherited.
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+
+defaults:
+  run:
+    working-directory: infrastructure/terraform/azure
+
+env:
+  TF_INPUT: "false"
+  TF_VAR_azure_client_id: ${{ secrets.AZURE_CLIENT_ID }}
+  TF_VAR_azure_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
+  TF_VAR_azure_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+  TF_VAR_image_tag: ${{ github.sha }}
+  TF_VAR_auth_jwt_secret: ${{ secrets.AUTH_JWT_SECRET }}
+  TF_VAR_app_auth_email: ${{ secrets.E2E_TEST_USER_EMAIL }}
+  TF_VAR_app_auth_password: ${{ secrets.E2E_TEST_USER_PASSWORD }}
+  TF_VAR_app_auth_user_id: ${{ secrets.E2E_TEST_USER_ID || '00000000-0000-0000-0000-000000000e2e' }}
+  TF_VAR_app_auth_name: ${{ secrets.E2E_TEST_USER_NAME || 'Demo User' }}
+  TF_VAR_postgres_connection_string: ${{ secrets.POSTGRES_CONNECTION_STRING }}
+  TF_VAR_postgres_username: ${{ secrets.SPRING_DATASOURCE_USERNAME }}
+  TF_VAR_postgres_password: ${{ secrets.SPRING_DATASOURCE_PASSWORD }}
+  TF_VAR_mongodb_connection_string: ${{ secrets.MONGODB_CONNECTION_STRING }}
+  TF_VAR_redis_url: ${{ secrets.REDIS_URL }}
+  TF_VAR_kafka_bootstrap_servers: ${{ secrets.KAFKA_BOOTSTRAP_SERVERS }}
+  TF_VAR_kafka_sasl_username: ${{ secrets.KAFKA_SASL_USERNAME }}
+  TF_VAR_kafka_sasl_password: ${{ secrets.KAFKA_SASL_PASSWORD }}
+  TF_VAR_internal_api_key: ${{ secrets.TF_VAR_INTERNAL_API_KEY }}
+
+jobs:
+  terraform:
+    name: Terraform Azure
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      # ── Shared setup (both plan and apply paths) ──────────────────────────
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      # ── Plan path ─────────────────────────────────────────────────────────
+      # Runs on: pull_request  OR  workflow_dispatch with action=plan
+      # Uses -backend=false because backend-azure.hcl is gitignored and is
+      # not available in PR context.
+
+      - name: Terraform Init (plan — no backend)
+        if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'plan')
+        run: terraform init -backend=false
+
+      - name: Terraform Validate (plan)
+        if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'plan')
+        run: terraform validate
+
+      - name: Terraform Plan
+        if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'plan')
+        run: terraform plan -out=tfplan
+
+      - name: Terraform Show (JSON)
+        if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'plan')
+        run: terraform show -json tfplan > tfplan.json
+
+      - name: Assert Plan — P1 Profile Mutual Exclusion (MANDATORY)
+        if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'plan')
+        run: python3 scripts/assert_plan.py tfplan.json
+
+      - name: Assert Plan — P5 ACR Pull Authorization (MANDATORY)
+        if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'plan')
+        run: python3 scripts/test_acr_pull_property.py tfplan.json
+
+      # ── Apply path ────────────────────────────────────────────────────────
+      # Runs ONLY on: workflow_dispatch with action=apply
+      # Provisions the real backend-azure.hcl from the AZURE_BACKEND_HCL secret
+      # before initialising Terraform with the remote backend.
+      # NOTE: terraform apply does NOT re-run the plan-assertion scripts.
+
+      - name: Provision Backend Config (apply only)
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'
+        run: echo "${{ secrets.AZURE_BACKEND_HCL }}" > backend-azure.hcl
+
+      - name: Terraform Init (apply — real backend)
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'
+        run: terraform init -backend-config=backend-azure.hcl
+
+      - name: Terraform Validate (apply)
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'
+        run: terraform validate
+
+      - name: Terraform Apply
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'
+        run: terraform apply -auto-approve
