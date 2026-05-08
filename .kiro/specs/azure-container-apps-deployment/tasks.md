@@ -11,47 +11,47 @@ Property-based tests (P1 JVM-side, P2, P3, P4 via jqwik / Spring `@SpringBootTes
 ## Tasks
 
 - [x] 1. Align Gradle toolchain to JDK 21 and sweep cosmetic item
-  - [ ] 1.1 Downgrade root `build.gradle` Java toolchain from 25 to 21
+  - [x] 1.1 Downgrade root `build.gradle` Java toolchain from 25 to 21
     - Edit the single `languageVersion = JavaLanguageVersion.of(25)` line in the root `build.gradle` to `JavaLanguageVersion.of(21)`
     - Leave every other file in the source tree unchanged (this is the only root-build.gradle modification permitted by Req 13.2)
     - Verify `./gradlew build` succeeds locally against the JDK 21 toolchain for all four services and that the produced fat JARs contain Java 21 bytecode (class-file major version 65)
     - _Requirements: 0.1, 0.2, 0.3, 13.2_
 
-  - [ ] 1.2 Clean up stale Ollama javadoc in Bedrock property test
+  - [x] 1.2 Clean up stale Ollama javadoc in Bedrock property test
     - Remove the `"Migrated from the removed OllamaAiInsightServicePropertyTest"` reference from the class-level javadoc of `insight-service/src/test/java/com/wealth/insight/infrastructure/ai/BedrockAiInsightServicePropertyTest.java`
     - _Requirements: 16.1_
 
 - [x] 2. Widen api-gateway profile wiring for Azure (G1)
-  - [ ] 2.1 Widen `JwtDecoderConfig.hmacJwtDecoder` and update its preservation test
+  - [x] 2.1 Widen `JwtDecoderConfig.hmacJwtDecoder` and update its preservation test
     - In `api-gateway/src/main/java/com/wealth/gateway/JwtDecoderConfig.java`: change `@Profile({"local","aws"})` → `@Profile({"local","aws","azure"})` on `hmacJwtDecoder`, and update the `IllegalStateException` message to reference `local/aws/azure`
     - In `api-gateway/src/test/java/com/wealth/gateway/PreservationPropertyTest.java`: update `jwtDecoderConfigHasCorrectProfileAnnotations` to use `containsExactlyInAnyOrder("local","aws","azure")` with an updated `@as(...)` message
     - These two edits must land together — per design §3.1 the preservation test cannot remain green after the config widens without the assertion update
     - _Requirements: 2.1, 2.3, 2.5, 13.10_
 
 - [x] 3. Widen insight-service profile guards (G2 + G17)
-  - [ ] 3.1 Widen mock AI bean guards to exclude `azure-ai`
+  - [x] 3.1 Widen mock AI bean guards to exclude `azure-ai`
     - `MockAiInsightService` and `MockInsightAdvisor` (both under `insight-service/src/main/java/com/wealth/insight/infrastructure/ai/`): change `@Profile("!bedrock")` → `@Profile("!bedrock & !azure-ai")` on each
     - Update the class-level javadoc on both classes to describe activation as "whenever neither bedrock nor azure-ai profile is enabled"
     - _Requirements: 3.1, 3.2, 3.6_
 
-  - [ ] 3.2 Widen insight-service `InfrastructureHealthLogger` `@Profile`
+  - [x] 3.2 Widen insight-service `InfrastructureHealthLogger` `@Profile`
     - Edit `insight-service/src/main/java/com/wealth/insight/InfrastructureHealthLogger.java`: change `@Profile("aws")` → `@Profile({"aws","azure"})`
     - Do NOT modify the api-gateway copy at `api-gateway/src/main/java/com/wealth/gateway/InfrastructureHealthLogger.java` — that widening is backlog B1, out of scope
     - _Requirements: 14.1, 14.2, 14.3_
 
 - [x] 4. Add Spring AI Azure OpenAI dependency and profile YAML
-  - [ ] 4.1 Add Spring AI Azure OpenAI + azure-identity to `insight-service/build.gradle`
+  - [x] 4.1 Add Spring AI Azure OpenAI + azure-identity to `insight-service/build.gradle`
     - Add `implementation 'org.springframework.ai:spring-ai-starter-model-azure-openai'` (resolved via the existing `spring-ai-bom:2.0.0-M4`)
     - Add `implementation 'com.azure:azure-identity:1.13.2'` (pinned explicitly; defer to a managing BOM if the workspace already provides one)
     - Keep the existing `spring-ai-starter-model-bedrock-converse` dependency unchanged
     - _Requirements: 4.1_
 
-  - [ ] 4.2 Add `spring.ai.model.chat: bedrock-converse` to `application-bedrock.yml`
+  - [x] 4.2 Add `spring.ai.model.chat: bedrock-converse` to `application-bedrock.yml`
     - The ONLY modification permitted to this file per Req 13.4: add `spring.ai.model.chat: bedrock-converse` under `spring.ai`
     - Leave every other key (Bedrock region, credentials, Converse chat options) untouched
     - _Requirements: 4.2, 13.4_
 
-  - [ ] 4.3 Create `insight-service/src/main/resources/application-azure-ai.yml`
+  - [x] 4.3 Create `insight-service/src/main/resources/application-azure-ai.yml`
     - Include `spring.ai.model.chat: azure-openai`
     - Include `spring.ai.azure.openai.endpoint: ${AZURE_OPENAI_ENDPOINT}`
     - Leave `api-key` commented out so `DefaultAzureCredential` resolves via Managed Identity by default; include the documented switch for API-key auth
@@ -61,14 +61,14 @@ Property-based tests (P1 JVM-side, P2, P3, P4 via jqwik / Spring `@SpringBootTes
     - _Requirements: 4.3, 5.1, 5.4, 8.5, 8.6_
 
 - [x] 5. Implement Azure OpenAI adapters and P1 validator
-  - [ ] 5.1 Create `AzureOpenAiInsightService`
+  - [x] 5.1 Create `AzureOpenAiInsightService`
     - Path: `insight-service/src/main/java/com/wealth/insight/infrastructure/ai/AzureOpenAiInsightService.java`
     - `@Service`, `@Profile("azure-ai")`, implements `com.wealth.insight.AiInsightService`
     - Inject `ChatClient.Builder` and `MarketDataService`; mirror `BedrockAiInsightService`'s SYSTEM_PROMPT + `@Cacheable(SENTIMENT_CACHE, key="#ticker")` + `AdvisorUnavailableException` handling
     - Package-private `buildPrompt(String ticker, TickerSummary summary)` helper for prompt assembly
     - _Requirements: 3.3, 4.5_
 
-  - [ ] 5.2 Create `AzureOpenAiInsightAdvisor`
+  - [x] 5.2 Create `AzureOpenAiInsightAdvisor`
     - Path: `insight-service/src/main/java/com/wealth/insight/infrastructure/ai/AzureOpenAiInsightAdvisor.java`
     - `@Component`, `@Profile("azure-ai")`, implements `com.wealth.insight.advisor.InsightAdvisor`
     - Inject `ChatClient.Builder`, set the safety-guardrail SYSTEM_PROMPT via `defaultSystem(...)`
@@ -76,12 +76,12 @@ Property-based tests (P1 JVM-side, P2, P3, P4 via jqwik / Spring `@SpringBootTes
     - Mirror `BedrockInsightAdvisor`'s exception handling (rethrow `AdvisorUnavailableException`, wrap everything else)
     - _Requirements: 3.4, 4.5_
 
-  - [ ] 5.3 Create `AiProviderProfileValidator` — P1 JVM-side enforcement
+  - [x] 5.3 Create `AiProviderProfileValidator` — P1 JVM-side enforcement
     - Path: `insight-service/src/main/java/com/wealth/insight/infrastructure/ai/AiProviderProfileValidator.java`
     - `@Configuration` (no `@Profile` — always active) with a `@PostConstruct validate()` method that reads `environment.getActiveProfiles()` and throws `IllegalStateException` when the active set contains both `bedrock` AND `azure-ai`; the message must name both profiles explicitly
     - _Requirements: 1.1, 1.2_
 
-  - [ ]* 5.4 Write property test for P1 — profile mutual exclusion
+  - [x]* 5.4 Write property test for P1 — profile mutual exclusion
     - **Property P1: Profile Mutual Exclusion**
     - **Validates: Requirements 1.1, 1.2, 15.1**
     - jqwik (`@Property`) test under `insight-service/src/test/java/com/wealth/insight/infrastructure/ai/` that enumerates profile combinations from `{local, prod, aws, azure, bedrock, azure-ai}` via `@ForAll` + `@Size` over a `Set<String>`
@@ -89,13 +89,13 @@ Property-based tests (P1 JVM-side, P2, P3, P4 via jqwik / Spring `@SpringBootTes
     - Assert the context exposes exactly one `AiInsightService` bean and exactly one `InsightAdvisor` bean when startup succeeds
     - _Requirements: 1.1, 1.2, 15.1, 15.6_
 
-  - [ ]* 5.5 Write property test for P3 — AI adapter uniqueness
+  - [x]* 5.5 Write property test for P3 — AI adapter uniqueness
     - **Property P3: AI Adapter Uniqueness**
     - **Validates: Requirements 3.6, 3.7, 3.8, 15.3**
     - `@SpringBootTest` parameterised over `@ActiveProfiles` ∈ {`local`, `bedrock`, `azure-ai`}: assert `ctx.getBeansOfType(AiInsightService.class).size() == 1` and `ctx.getBeansOfType(InsightAdvisor.class).size() == 1` in each case, and that the resolved bean class matches the expected Mock / Bedrock / Azure variant
     - _Requirements: 3.6, 3.7, 3.8, 15.3, 15.6_
 
-  - [ ]* 5.6 Write property test for P4 — ChatModel primary selection
+  - [x]* 5.6 Write property test for P4 — ChatModel primary selection
     - **Property P4: Chat Model Primary Selection**
     - **Validates: Requirements 4.4, 4.5, 15.4**
     - Spring context test with BOTH Spring AI starters on the classpath; use `@DynamicPropertySource` to toggle `spring.ai.model.chat` between `bedrock-converse` and `azure-openai`
@@ -103,7 +103,7 @@ Property-based tests (P1 JVM-side, P2, P3, P4 via jqwik / Spring `@SpringBootTes
     - _Requirements: 4.4, 4.5, 15.4, 15.6_
 
 - [x] 6. Extend api-gateway `PreservationPropertyTest` for P2
-  - [ ]* 6.1 Add P2 property coverage by extending the existing `PreservationPropertyTest` class
+  - [x]* 6.1 Add P2 property coverage by extending the existing `PreservationPropertyTest` class
     - **Property P2: JwtDecoder Presence**
     - **Validates: Requirements 2.2, 2.4, 15.2**
     - Extend the existing `api-gateway/src/test/java/com/wealth/gateway/PreservationPropertyTest.java` with additional parameterised test methods (do NOT create a new test class — design §4 P2 prescribes extending this class so the P2 assertions colocate with the widened-annotation assertion added in task 2.1)
@@ -111,26 +111,26 @@ Property-based tests (P1 JVM-side, P2, P3, P4 via jqwik / Spring `@SpringBootTes
     - _Requirements: 2.2, 2.4, 15.2, 15.6_
 
 - [x] 7. Create per-service `application-azure.yml` overlays
-  - [ ] 7.1 Create `api-gateway/src/main/resources/application-azure.yml`
+  - [x] 7.1 Create `api-gateway/src/main/resources/application-azure.yml`
     - Include `management.health.redis.enabled: false` (cold-start DNS race rationale)
     - Include `app.cors.allowed-origin-patterns: ${APP_CORS_ALLOWED_ORIGIN_PATTERNS:https://*.azurestaticapps.net}` (env-var-driven; widen/narrow per environment)
     - No `localhost` references; no CloudFront/origin-verify config (AWS-specific, filter short-circuits when env var absent)
     - _Requirements: 8.1, 8.5_
 
-  - [ ] 7.2 Create `portfolio-service/src/main/resources/application-azure.yml`
+  - [x] 7.2 Create `portfolio-service/src/main/resources/application-azure.yml`
     - Include `fx.azure.rates-url: https://open.er-api.com/v6/latest/USD` and `fx.azure.refresh-cron: "0 0 6 * * *"`
     - Include `spring.cache.type: simple` — value is `simple`, which in Spring Boot resolves to the built-in `ConcurrentMapCacheManager` (plain in-memory `ConcurrentHashMap`-backed cache). Describe it in the YAML comment as "Spring simple `ConcurrentMapCacheManager` in-memory" — do NOT describe it as Caffeine, and do NOT change the value from `simple`. Upstash Redis stays reserved for rate limiting / sentiment caching.
     - No `localhost` references
     - _Requirements: 8.2, 8.5_
 
-  - [ ] 7.3 Create `market-data-service/src/main/resources/application-azure.yml`
+  - [x] 7.3 Create `market-data-service/src/main/resources/application-azure.yml`
     - Include `market-data.refresh.enabled: true` and `market-data.hydration.enabled: true` (ACA long-lived containers make scheduled refresh reliable, unlike Lambda)
     - Include `market.seed.enabled: false` and `market-data.baseline-seed.enabled: false`
     - Include `management.health.mongodb.enabled: true` (custom health indicator runs `{ ping: 1 }` against the scoped DB)
     - No `localhost` references
     - _Requirements: 8.3, 8.5_
 
-  - [ ] 7.4 Create `insight-service/src/main/resources/application-azure.yml`
+  - [x] 7.4 Create `insight-service/src/main/resources/application-azure.yml`
     - Include `management.health.redis.enabled: false` only; AI config lives in `application-azure-ai.yml`
     - No `localhost` references
     - _Requirements: 8.4, 8.5_
@@ -142,7 +142,7 @@ Property-based tests (P1 JVM-side, P2, P3, P4 via jqwik / Spring `@SpringBootTes
   - _Requirements: 13.1, 13.3, 13.4, 13.5, 13.6, 13.8, 13.9, 13.10, 13.11_
 
 - [x] 9. Create Azure-specific Dockerfiles (native optimization, two-stage)
-  - [ ] 9.1 Create `api-gateway/Dockerfile.azure`
+  - [x] 9.1 Create `api-gateway/Dockerfile.azure`
     - Two stages only: `FROM mcr.microsoft.com/openjdk/jdk:21-mariner AS builder` and `ARG RUNTIME_BASE=mcr.microsoft.com/openjdk/jdk:21-mariner` + `FROM ${RUNTIME_BASE} AS runtime`
     - Builder: copy `gradlew`, `gradle/`, `build.gradle`, `settings.gradle`, `common-dto/`, `api-gateway/`; trim `settings.gradle` to exclude the three non-target services; install `findutils` via `tdnf`; run `./gradlew :api-gateway:bootJar --no-daemon`
     - Runtime: `COPY --from=builder /workspace/api-gateway/build/libs/*.jar app.jar`; `EXPOSE 8080`; `ENTRYPOINT ["java","-jar","/app/app.jar"]`
@@ -150,33 +150,33 @@ Property-based tests (P1 JVM-side, P2, P3, P4 via jqwik / Spring `@SpringBootTes
     - Leave `api-gateway/Dockerfile` (AWS variant) untouched
     - _Requirements: 9.1, 9.2, 9.3, 9.4, 9.5, 9.6, 9.7, 9.8, 9.9, 9.10_
 
-  - [ ] 9.2 Create `portfolio-service/Dockerfile.azure`
+  - [x] 9.2 Create `portfolio-service/Dockerfile.azure`
     - Same structure as 9.1 with `api-gateway` → `portfolio-service` substitutions in COPY paths and the Gradle task; `sed` excludes `api-gateway`, `market-data-service`, `insight-service`
     - `EXPOSE 8081`; Spring Boot PID-1 entrypoint
     - Leave `portfolio-service/Dockerfile` (AWS variant) untouched
     - _Requirements: 9.1, 9.2, 9.3, 9.4, 9.5, 9.7, 9.8, 9.9, 9.10_
 
-  - [ ] 9.3 Create `market-data-service/Dockerfile.azure`
+  - [x] 9.3 Create `market-data-service/Dockerfile.azure`
     - Same structure; `sed` excludes `api-gateway`, `portfolio-service`, `insight-service`
     - `EXPOSE 8082`
     - Leave `market-data-service/Dockerfile` (AWS variant) untouched
     - _Requirements: 9.1, 9.2, 9.3, 9.4, 9.5, 9.7, 9.8, 9.9, 9.10_
 
-  - [ ] 9.4 Create `insight-service/Dockerfile.azure`
+  - [x] 9.4 Create `insight-service/Dockerfile.azure`
     - Same structure; `sed` excludes `api-gateway`, `portfolio-service`, `market-data-service`
     - `EXPOSE 8083`
     - Leave `insight-service/Dockerfile` (AWS variant) untouched
     - _Requirements: 9.1, 9.2, 9.3, 9.4, 9.5, 9.7, 9.8, 9.9, 9.10_
 
 - [x] 10. Relocate existing Terraform root into per-cloud layout
-  - [ ] 10.1 Relocate `infrastructure/terraform/` → `infrastructure/terraform/aws/`
+  - [x] 10.1 Relocate `infrastructure/terraform/` → `infrastructure/terraform/aws/`
     - Move `main.tf`, `ecr.tf`, `locals.tf`, `outputs.tf`, `providers.tf`, `variables.tf`, `versions.tf`, `backend-localstack.hcl`, `terraform.tfvars.example`, and the entire `bootstrap/`, `modules/`, `scripts/` subtrees to `infrastructure/terraform/aws/<same>`
     - Additionally create `infrastructure/terraform/aws/backend-aws.hcl` for symmetry with the Azure root (optional per design §3.8 but recommended); do NOT change any file contents
     - Verify `cd infrastructure/terraform/aws && terraform init` still succeeds
     - _Requirements: 10.1, 10.3, 10.5, 13.7_
 
 - [x] 11. Build the Azure Terraform root
-  - [ ] 11.1 Scaffold `infrastructure/terraform/azure/` baseline
+  - [x] 11.1 Scaffold `infrastructure/terraform/azure/` baseline
     - Create `versions.tf` pinning `azurerm`
     - Create `providers.tf` with `provider "azurerm" { features {} use_oidc = true client_id = var.azure_client_id tenant_id = var.azure_tenant_id subscription_id = var.azure_subscription_id }` and NO `client_secret` reference
     - Create `variables.tf` declaring `azure_client_id`, `azure_tenant_id`, `azure_subscription_id`, `environment` (default `prod`), `location` (default `centralindia`), `openai_location` (default `eastus` or similar availability-checked region), `openai_deployment_capacity` (default `10`), `image_tag`, `api_gateway_min_replicas` (default 0), `auth_jwt_secret` (sensitive), service env-var maps
@@ -184,7 +184,7 @@ Property-based tests (P1 JVM-side, P2, P3, P4 via jqwik / Spring `@SpringBootTes
     - **Backend file handling (matches design §3.8 + safety posture):** commit a template file `backend-azure.hcl.example` with placeholder values for `resource_group_name`, `storage_account_name`, `container_name`, and `key`. Gitignore the real `backend-azure.hcl` by adding `infrastructure/terraform/azure/backend-azure.hcl` to the repo-root `.gitignore`. The PR-validation path in task 13.2 will use `terraform init -backend=false`; the apply path provisions the real `backend-azure.hcl` from a GitHub Actions secret before invoking `terraform init -backend-config=backend-azure.hcl`.
     - _Requirements: 10.2, 10.4, 10.5, 10.6_
 
-  - [ ] 11.2 Create `infrastructure/terraform/azure/modules/container-app/`
+  - [x] 11.2 Create `infrastructure/terraform/azure/modules/container-app/`
     - `main.tf`: `azurerm_container_app` with `identity { type = "SystemAssigned" }`, `registry { server = var.acr_login_server, identity = "system" }`, `ingress { external_enabled target_port transport traffic_weight }`, `template` with `min_replicas`/`max_replicas` + `container { cpu memory image }`, dynamic `env`/`secret_env`/`secrets` blocks
     - In the same module: `azurerm_role_assignment "acr_pull"` with `scope = var.acr_id`, `role_definition_name = "AcrPull"`, `principal_id = azurerm_container_app.this.identity[0].principal_id`
     - `variables.tf`: `name`, `environment_id`, `resource_group_name`, `acr_id`, `acr_login_server`, `image_repository`, `image_tag`, `target_port`, `external_ingress`, `min_replicas`, `max_replicas`, `cpu`, `memory`, `env_vars` (map), `secret_env_vars` (map), `secrets` (sensitive map)
@@ -192,7 +192,7 @@ Property-based tests (P1 JVM-side, P2, P3, P4 via jqwik / Spring `@SpringBootTes
     - `versions.tf`: same `azurerm` pin as the root
     - _Requirements: 6.1, 6.2, 6.3, 7.2, 7.3, 7.4, 11.5, 11.9_
 
-  - [ ] 11.3 Add core resources to `infrastructure/terraform/azure/main.tf`
+  - [x] 11.3 Add core resources to `infrastructure/terraform/azure/main.tf`
     - All resource names MUST follow the patterns below (aligned with the `AZURE_RG=wealth-azure-prod-rg`, `ACR_NAME=wealthprodacr`, `ACA_ENV=wealth-prod-aca-env` env vars consumed by `deploy-azure.yml` in task 13.1):
       - Resource group: `name = "wealth-azure-${var.environment}-rg"`, `location = var.location` (do NOT hard-code `"centralindia"`; the default lives on `var.location` per task 11.1)
       - ACR: `name = "wealth${var.environment}acr"` (no separator — ACR names must be alphanumeric, 5–50 chars, globally unique), `sku = "Basic"`, `admin_enabled = false`
@@ -201,26 +201,26 @@ Property-based tests (P1 JVM-side, P2, P3, P4 via jqwik / Spring `@SpringBootTes
       - Static Web App: `name = "wealth-${var.environment}-swa"`, `location = "centralus"` (SWA Free tier region availability constraint — do NOT use `var.location`), `sku_tier = "Free"`, `sku_size = "Free"`
     - _Requirements: 6.4, 10.2, 11.1, 11.2, 11.3, 11.8_
 
-  - [ ] 11.4 Wire four Container App modules into `main.tf`
+  - [x] 11.4 Wire four Container App modules into `main.tf`
     - `module "api_gateway"` — external ingress, `target_port = 8080`, `min_replicas = var.api_gateway_min_replicas` (default 0), `max_replicas = 3`, `cpu = 0.5`, `memory = "1Gi"`
     - `module "portfolio_service"` — internal ingress, `target_port = 8081`
     - `module "market_data_service"` — internal ingress, `target_port = 8082`
     - `module "insight_service"` — internal ingress, `target_port = 8083`
     - `SPRING_PROFILES_ACTIVE` for each app MUST contain at most one of `{bedrock, azure-ai}` (insight-service uses `prod,azure,azure-ai`; the rest use `prod,azure`)
-    - api-gateway env must set `PORTFOLIO_SERVICE_URL=http://portfolio-service`, `MARKET_DATA_URL=http://market-data-service`, `INSIGHT_URL=http://insight-service` (no port segments)
+    - api-gateway env must set `PORTFOLIO_SERVICE_URL=http://portfolio-service`, `MARKET_DATA_SERVICE_URL=http://market-data-service`, `INSIGHT_SERVICE_URL=http://insight-service` (no port segments) — note: `MARKET_DATA_SERVICE_URL` and `INSIGHT_SERVICE_URL` are the canonical names matching `application.yml` bindings; the abbreviated names `MARKET_DATA_URL`/`INSIGHT_URL` in the original task text were typos
     - **Wire Azure OpenAI env vars onto the insight-service module (must align 1:1 with the env-var names read by `application-azure-ai.yml` in task 4.3):**
       - `AZURE_OPENAI_ENDPOINT = azurerm_cognitive_account.openai.endpoint`
       - `AZURE_OPENAI_DEPLOYMENT = azurerm_cognitive_deployment.gpt4o_mini.name` (or the literal `"gpt-4o-mini"` — either is acceptable; the deployment-name output is preferred because it stays correct if the deployment is ever renamed)
       - `AZURE_OPENAI_API_KEY` MUST NOT be declared as a secret or env var on the insight-service Container App. The Managed Identity path is the default; the API-key path is documented in design §3.4 but is out of scope unless explicitly opted in.
     - _Requirements: 1.3, 6.5, 7.1, 7.2, 7.3, 7.4, 11.4, 11.5, 11.6, 11.9, 5.1, 5.4, 5.5_
 
-  - [ ] 11.5 Provision Azure OpenAI and grant insight-service access
+  - [x] 11.5 Provision Azure OpenAI and grant insight-service access
     - `azurerm_cognitive_account "openai"` — kind `OpenAI`, `sku_name = "S0"`, `location = var.openai_location`, `name = "wealth-${var.environment}-aoai"`
     - `azurerm_cognitive_deployment "gpt4o_mini"` — `name = "gpt-4o-mini"`, `model { format = "OpenAI", name = "gpt-4o-mini", version = "2024-07-18" }`, `sku { name = "Standard", capacity = 10 }`. The `capacity = 10` value matches design §3.8; an acceptable variant is `sku { name = "Standard", capacity = var.openai_deployment_capacity }` with `var.openai_deployment_capacity` defaulting to `10` (declared in task 11.1) so operators can dial throughput up/down without editing `main.tf`.
     - `azurerm_role_assignment "insight_openai"` — `role_definition_name = "Cognitive Services OpenAI User"`, `scope = azurerm_cognitive_account.openai.id`, `principal_id = module.insight_service.identity_principal_id`
     - _Requirements: 5.2, 5.3, 5.5, 11.7_
 
-  - [ ] 11.6 Populate Azure Terraform root outputs
+  - [x] 11.6 Populate Azure Terraform root outputs
     - Create `infrastructure/terraform/azure/outputs.tf` (initially scaffolded empty in task 11.1) with the following outputs wired from the resources/modules created in tasks 11.3–11.5:
       - `api_gateway_fqdn` — value = `module.api_gateway.app_fqdn`; description "Public ingress FQDN of the api-gateway Container App (used as the API origin by the Static Web App)."
       - `acr_login_server` — value = `azurerm_container_registry.main.login_server`; description "ACR login server (consumed by `deploy-azure.yml` when pushing service images)."
@@ -230,14 +230,14 @@ Property-based tests (P1 JVM-side, P2, P3, P4 via jqwik / Spring `@SpringBootTes
     - _Requirements: 10.5, 10.6, 11.1_
 
 - [x] 12. Write Terraform plan-assertion scripts (P1 + P5 IaC-side) — MANDATORY
-  - [ ] 12.1 Write `infrastructure/terraform/azure/scripts/assert_plan.py` — P1 IaC-side
+  - [x] 12.1 Write `infrastructure/terraform/azure/scripts/assert_plan.py` — P1 IaC-side
     - **Property P1 (IaC side): Profile Mutual Exclusion in Terraform plan**
     - **Validates: Requirements 1.3, 1.4, 15.1**
     - Parse `tfplan.json` from argv[1]; for every `azurerm_container_app` planned resource, read the `template.container.env[name=SPRING_PROFILES_ACTIVE].value`; split on comma and assert the result set contains at most one of `{bedrock, azure-ai}`; exit non-zero with a clear message otherwise
     - This task is MANDATORY (not marked with `*`) because `.github/workflows/terraform-azure.yml` in task 13.2 invokes it unconditionally on every PR and every `action=plan` dispatch — the workflow will fail if the script is missing
     - _Requirements: 1.3, 1.4, 15.1, 15.7_
 
-  - [ ] 12.2 Write `infrastructure/terraform/azure/scripts/test_acr_pull_property.py` — P5 IaC-side
+  - [x] 12.2 Write `infrastructure/terraform/azure/scripts/test_acr_pull_property.py` — P5 IaC-side
     - **Property P5: ACR Pull Authorization**
     - **Validates: Requirements 6.1, 6.2, 6.3, 6.5, 15.5**
     - Parse `tfplan.json`; assert every `azurerm_container_app` resource has `identity[0].type == "SystemAssigned"` AND `registry[0].identity == "system"`
@@ -247,7 +247,7 @@ Property-based tests (P1 JVM-side, P2, P3, P4 via jqwik / Spring `@SpringBootTes
     - _Requirements: 6.1, 6.2, 6.3, 6.5, 15.5, 15.7_
 
 - [x] 13. Create GitHub Actions workflows for Azure
-  - [ ] 13.1 Create `.github/workflows/deploy-azure.yml`
+  - [x] 13.1 Create `.github/workflows/deploy-azure.yml`
     - **Triggers:**
       - `on.workflow_dispatch:` (manual run)
       - `on.push:` with `branches: [main]` and `paths:` filter — match design §3.9 exactly: `api-gateway/**`, `portfolio-service/**`, `market-data-service/**`, `insight-service/**`, `common-dto/**`, `.github/workflows/deploy-azure.yml`
@@ -265,7 +265,7 @@ Property-based tests (P1 JVM-side, P2, P3, P4 via jqwik / Spring `@SpringBootTes
     - Leave existing `.github/workflows/deploy.yml` untouched
     - _Requirements: 7.5, 12.1, 12.3, 12.5, 12.6, 12.7, 12.8_
 
-  - [ ] 13.2 Create `.github/workflows/terraform-azure.yml`
+  - [x] 13.2 Create `.github/workflows/terraform-azure.yml`
     - **Triggers:**
       - `on.workflow_dispatch:` with one input `action:` of type `choice`, options `[plan, apply]`, default `plan`
       - `on.pull_request:` with `paths:` filter matching design §3.9: `infrastructure/terraform/azure/**` and `.github/workflows/terraform-azure.yml`
