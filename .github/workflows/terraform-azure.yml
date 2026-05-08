@@ -5,7 +5,8 @@
 #
 # Plan path  : runs on every pull_request touching the Azure Terraform root,
 #              and on manual dispatch with action=plan.
-#              Uses -backend=false so no real backend credentials are required
+#              Writes a backend_override.tf that swaps the azurerm backend for
+#              a local backend, so no real backend credentials are required
 #              for PR validation (backend-azure.hcl is gitignored).
 #
 # Apply path : runs ONLY on manual dispatch with action=apply.
@@ -91,12 +92,24 @@ jobs:
 
       # ── Plan path ─────────────────────────────────────────────────────────
       # Runs on: pull_request  OR  workflow_dispatch with action=plan
-      # Uses -backend=false because backend-azure.hcl is gitignored and is
-      # not available in PR context.
+      # Overrides the azurerm backend declared in versions.tf with a local
+      # backend so plan can run without the AZURE_BACKEND_HCL secret. Terraform
+      # auto-merges any *_override.tf file with the main configuration, so the
+      # committed `backend "azurerm" {}` block is replaced for this run only.
+      # backend_override.tf is gitignored.
 
-      - name: Terraform Init (plan — no backend)
+      - name: Override backend for plan (local backend)
         if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'plan')
-        run: terraform init -backend=false
+        run: |
+          cat > backend_override.tf <<'EOF'
+          terraform {
+            backend "local" {}
+          }
+          EOF
+
+      - name: Terraform Init (plan — local backend override)
+        if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'plan')
+        run: terraform init
 
       - name: Terraform Validate (plan)
         if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'plan')

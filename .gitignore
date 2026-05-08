@@ -79,6 +79,7 @@ infrastructure/terraform/azure/terraform.tfstate*
 infrastructure/terraform/azure/tfplan*
 infrastructure/terraform/azure/scripts/__pycache__/
 infrastructure/terraform/azure/terraform.tfvars
+infrastructure/terraform/azure/backend_override.tf
 
 ### Playwright test results ###
 frontend/test-results/
