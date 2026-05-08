@@ -195,6 +195,66 @@ Property tests passing: P1 (profile mutual exclusion), P2 (JwtDecoder presence),
 
 ---
 
+## Post-Merge Fixes (commits after initial implementation)
+
+The following issues were discovered during CI and post-review and fixed in follow-up commits.
+
+### `fix(review)` — d038bab — Post-review audit corrections
+
+**`AiProviderProfileValidatorPropertyTest.java`** — Task 5.4 prescribed a Spring context boot with bean-uniqueness assertions. The original implementation used `MockEnvironment` only. Fixed by adding:
+- `p1_bothBedrockAndAzureAi_contextStartupFails` — `ApplicationContextRunner` with all 6 adapter beans; asserts `hasFailed()` and traverses the `BeanCreationException` root cause chain to reach the `IllegalStateException`
+- `p1_{local,bedrock,azureAi}Profile_contextStartsWithExactlyOne*Bean` — asserts exactly one `AiInsightService` and one `InsightAdvisor` of the correct type per profile
+- Fixed misleading class javadoc that claimed `ApplicationContextRunner` but code used `MockEnvironment`
+
+**`tasks.md`** — All 28 level-2 sub-task checkboxes marked `[x]`. Task 11.4 env var typos corrected: `MARKET_DATA_URL` → `MARKET_DATA_SERVICE_URL`, `INSIGHT_URL` → `INSIGHT_SERVICE_URL` (canonical names matching `application.yml` bindings; implementation was already correct).
+
+### `fix` — 3f53d01 — Terraform fmt alignment
+
+`terraform fmt -check -recursive` failed on `azure/main.tf` (exit code 3). Two map blocks had extra alignment spaces. Whitespace-only fix, no logic changes.
+
+### `docs` — 1470d06 — Azure secrets setup runbook
+
+Added `docs/runbooks/AZURE_SECRETS_SETUP.md` — step-by-step guide for:
+- Creating the Azure App Registration with OIDC federated credentials
+- Assigning Contributor + User Access Administrator roles
+- Provisioning the Terraform state backend (storage account + container)
+- Syncing secrets to GitHub via `sync-secrets.sh` and `gh secret set`
+
+Updated `.env.secrets.example` with `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, and `AZURE_BACKEND_HCL` entries with inline documentation.
+
+Updated `scripts/sync-secrets.sh` header to reference Azure secrets and the new runbook.
+
+**Note:** `AZURE_BACKEND_HCL` cannot be set via `sync-secrets.sh` (multi-line value). Set it directly: `gh secret set AZURE_BACKEND_HCL < infrastructure/terraform/azure/backend-azure.hcl`
+
+### `fix` — cad3779 — Provision Azure TF state backend
+
+Azure Terraform state backend resources created via Azure CLI (2026-05-09):
+- Resource group: `wealth-tf-state-rg` (centralindia)
+- Storage account: `wealthtfstate` (Standard LRS, TLS 1.2, no public blob access)
+- Blob container: `tfstate`
+- Service principal `bda79a47` granted `Storage Blob Data Contributor`
+- `infrastructure/terraform/azure/backend-azure.hcl` written locally (gitignored)
+- `AZURE_BACKEND_HCL` secret set in GitHub Actions via `gh secret set < backend-azure.hcl`
+
+`terraform-azure.yml` apply step updated: `echo` → `printf` so the secret value (set as a multi-line string) is written with correct newlines to `backend-azure.hcl` at apply time.
+
+Runbook updated to mark Step 4 (state backend) as already done and fix the `AZURE_BACKEND_HCL` setup instructions.
+
+### `fix` — 8f46701 — terraform.yml working-directory after aws/ relocation
+
+Task 10.1 moved `infrastructure/terraform/` → `infrastructure/terraform/aws/` but `terraform.yml` still referenced the old path, causing `No configuration files` on every plan run.
+
+Changes to `terraform.yml`:
+- `working-directory`: `infrastructure/terraform` → `infrastructure/terraform/aws` (both `validate` and `apply` jobs)
+- `paths` trigger: `infrastructure/terraform/**` → `infrastructure/terraform/aws/**` (prevents AWS workflow triggering on Azure Terraform changes)
+- Artifact upload/download paths updated to match
+
+OIDC federated credentials added to App Registration `bda79a47` via Azure CLI:
+- `github-pull-request` (subject: `repo:...:pull_request`) — fixes `AADSTS70025` on PRs
+- `github-main` (subject: `repo:...:ref:refs/heads/main`) — needed for apply path after merge
+
+---
+
 ## Known Deviations from Spec
 
 ### Task 5.4 — P1 property test implementation
