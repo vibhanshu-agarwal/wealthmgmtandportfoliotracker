@@ -121,10 +121,10 @@ module "api_gateway" {
 
   # Non-sensitive env vars — service discovery URLs use bare app names (ACA internal DNS).
   env_vars = {
-    SPRING_PROFILES_ACTIVE      = "prod,azure"
-    PORTFOLIO_SERVICE_URL       = "http://portfolio-service"
-    MARKET_DATA_SERVICE_URL     = "http://market-data-service"
-    INSIGHT_SERVICE_URL         = "http://insight-service"
+    SPRING_PROFILES_ACTIVE  = "prod,azure"
+    PORTFOLIO_SERVICE_URL   = "http://portfolio-service"
+    MARKET_DATA_SERVICE_URL = "http://market-data-service"
+    INSIGHT_SERVICE_URL     = "http://insight-service"
   }
 
   # Sensitive env vars — values sourced from the secrets map below.
@@ -270,9 +270,9 @@ module "insight_service" {
   # They align 1:1 with the env-var names read by application-azure-ai.yml (task 4.3).
   # AZURE_OPENAI_API_KEY is deliberately absent — Managed Identity is the auth path.
   env_vars = {
-    SPRING_PROFILES_ACTIVE   = "prod,azure,azure-ai"
-    AZURE_OPENAI_ENDPOINT    = azurerm_cognitive_account.openai.endpoint
-    AZURE_OPENAI_DEPLOYMENT  = azurerm_cognitive_deployment.gpt4o_mini.name
+    SPRING_PROFILES_ACTIVE  = "prod,azure,azure-ai"
+    AZURE_OPENAI_ENDPOINT   = azurerm_cognitive_account.openai.endpoint
+    AZURE_OPENAI_DEPLOYMENT = azurerm_cognitive_deployment.gpt4o_mini.name
   }
 
   secret_env_vars = {
