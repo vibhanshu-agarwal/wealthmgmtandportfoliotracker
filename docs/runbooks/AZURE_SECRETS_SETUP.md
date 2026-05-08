@@ -100,6 +100,14 @@ az ad app federated-credential create \
 
 ## Step 4 — Provision the Terraform State Backend
 
+> **Already done for this repo.** The resources below were created on 2026-05-09
+> via Azure CLI. Skip to Step 5 unless you are setting up a fresh environment.
+>
+> - Resource group: `wealth-tf-state-rg` (centralindia)
+> - Storage account: `wealthtfstate` (Standard LRS)
+> - Container: `tfstate`
+> - `backend-azure.hcl` is at `infrastructure/terraform/azure/backend-azure.hcl` (gitignored)
+
 The Azure Terraform root uses a remote backend (Azure Blob Storage). You need
 to create the storage account once before running `terraform apply`.
 
@@ -153,18 +161,23 @@ az role assignment create \
    AZURE_CLIENT_ID=<APP_ID from Step 1>
    AZURE_TENANT_ID=<TENANT_ID from Step 1>
    AZURE_SUBSCRIPTION_ID=<SUBSCRIPTION_ID from Step 1>
-
-   # Paste the entire content of backend-azure.hcl as the value.
-   # Use a single line with \n separators, or a multi-line value if your
-   # shell supports it. The workflow writes this to backend-azure.hcl at
-   # apply time via: echo "$AZURE_BACKEND_HCL" > backend-azure.hcl
-   AZURE_BACKEND_HCL=resource_group_name = "wealth-tf-state-rg"\nstorage_account_name = "wealthtfstate"\ncontainer_name = "tfstate"\nkey = "azure/terraform.tfstate"
    ```
 
-3. Sync all secrets to GitHub:
+   > `AZURE_BACKEND_HCL` cannot be set via `sync-secrets.sh` because it is a
+   > multi-line value. Set it directly from the file instead (Step 5c below).
+
+3. Sync the three OIDC secrets to GitHub:
 
    ```bash
    ./scripts/sync-secrets.sh .env.secrets
+   ```
+
+4. Set `AZURE_BACKEND_HCL` directly from the file (multi-line values must be
+   piped, not included in the `.env` file):
+
+   ```bash
+   gh secret set AZURE_BACKEND_HCL \
+     < infrastructure/terraform/azure/backend-azure.hcl
    ```
 
 ---

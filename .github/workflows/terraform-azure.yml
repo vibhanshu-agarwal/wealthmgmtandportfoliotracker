@@ -126,7 +126,10 @@ jobs:
 
       - name: Provision Backend Config (apply only)
         if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'
-        run: echo "${{ secrets.AZURE_BACKEND_HCL }}" > backend-azure.hcl
+        # AZURE_BACKEND_HCL secret contains the HCL content with \n as line separators
+        # (set via: gh secret set AZURE_BACKEND_HCL < infrastructure/terraform/azure/backend-azure.hcl)
+        # printf interprets \n so the resulting file has proper line endings.
+        run: printf '%s\n' "${{ secrets.AZURE_BACKEND_HCL }}" > backend-azure.hcl
 
       - name: Terraform Init (apply — real backend)
         if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'
