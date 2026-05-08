@@ -15,12 +15,6 @@
 # ---------------------------------------------------------------------------
 FROM mcr.microsoft.com/openjdk/jdk:21-mariner AS builder
 
-# Point Gradle at the JDK already present in this image.
-# Without this, Gradle's toolchain resolver tries to auto-provision a JDK
-# from the internet and fails (no provisioning repository configured in a
-# container build context).
-ENV JAVA_HOME=/usr/lib/jvm/msopenjdk-21
-
 WORKDIR /workspace
 
 # Copy Gradle wrapper and build config first (layer caching)
@@ -41,10 +35,16 @@ RUN sed -i "/include 'api-gateway'/d; /include 'portfolio-service'/d; /include '
 # Mariner Linux uses tdnf — not yum or apt.
 RUN tdnf install -y findutils && tdnf clean all
 
+# Disable the Gradle Java toolchain so Gradle uses the ambient JDK from PATH
+# rather than trying to auto-provision one (which fails in a container with no
+# provisioning repository configured). The toolchain block in build.gradle is
+# for local/CI Gradle runs where the JDK is managed externally; inside Docker
+# we own the JDK via the base image and don't need toolchain resolution.
+RUN printf 'org.gradle.java.installations.auto-detect=false\norg.gradle.java.installations.auto-download=false\n' \
+    >> gradle.properties
+
 # Build the fat JAR.
-# -Dorg.gradle.java.home bypasses toolchain auto-detection and uses the JDK
-# already present in the image, avoiding network calls to provisioning repos.
-RUN chmod +x gradlew && ./gradlew :market-data-service:bootJar --no-daemon -Dorg.gradle.java.home=${JAVA_HOME}
+RUN chmod +x gradlew && ./gradlew :market-data-service:bootJar --no-daemon
 
 # ---------------------------------------------------------------------------
 # Stage 2: Runtime — Microsoft OpenJDK 21 on Mariner

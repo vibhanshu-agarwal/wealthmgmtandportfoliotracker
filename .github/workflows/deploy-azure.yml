@@ -63,6 +63,8 @@ jobs:
       - name: Build Docker image
         run: |
           docker build \
+            --no-cache \
+            --pull \
             -f ${{ matrix.service }}/Dockerfile.azure \
             -t $ACR_NAME.azurecr.io/${{ matrix.service }}:${{ github.sha }} \
             .
