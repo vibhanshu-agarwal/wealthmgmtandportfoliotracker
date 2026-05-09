@@ -140,7 +140,54 @@ az role assignment create \
 
 ---
 
-## Step 5 — Populate `.env.secrets` and Sync to GitHub
+## Step 5 — Pre-register Azure Resource Providers
+
+> **Required before `terraform apply`.** The Terraform provider is configured with
+> `resource_provider_registrations = "none"` because the CI service principal lacks
+> subscription-scope rights to auto-register RPs. All five required RPs must be
+> registered manually in the target subscription before the first apply.
+>
+> If any RP is missing, `terraform apply` fails with a cryptic API-version error.
+
+```bash
+# Register all five required Resource Providers
+for rp in Microsoft.App Microsoft.OperationalInsights Microsoft.ContainerRegistry Microsoft.CognitiveServices Microsoft.Web; do
+  az provider register --namespace $rp
+  echo "Registered $rp"
+done
+
+# Wait for all to reach "Registered" state (may take 1–5 minutes each)
+az provider list \
+  --query "[?namespace=='Microsoft.App' || namespace=='Microsoft.OperationalInsights' || namespace=='Microsoft.ContainerRegistry' || namespace=='Microsoft.CognitiveServices' || namespace=='Microsoft.Web'].{namespace:namespace, state:registrationState}" \
+  --output table
+```
+
+Re-run the query until all five show `Registered`. Do not proceed to Step 7 until all are registered.
+
+---
+
+## Step 6 — Verify Azure OpenAI Quota
+
+> **Required before `terraform apply`.** The Terraform config provisions a
+> `gpt-4o-mini` deployment with `capacity = 10` (10K tokens/min) in `eastus`.
+> If the subscription's quota for `gpt-4o-mini` in `eastus` is below 10 TPM,
+> `terraform apply` fails with a quota error.
+
+```bash
+# Check current quota and usage for gpt-4o-mini in eastus
+az cognitiveservices usage list \
+  --location eastus \
+  --query "[?name.value=='OpenAI.Standard.gpt-4o-mini'].{name:name.value, currentValue:currentValue, limit:limit}" \
+  --output table
+```
+
+If `limit - currentValue < 10`, either:
+- Request a quota increase via the Azure portal (Cognitive Services → Quotas)
+- Or reduce `openai_deployment_capacity` in `infrastructure/terraform/azure/variables.tf`
+
+---
+
+## Step 7 — Populate `.env.secrets` and Sync to GitHub
 
 1. Copy `infrastructure/terraform/azure/backend-azure.hcl.example` to
    `infrastructure/terraform/azure/backend-azure.hcl` and fill in the real
@@ -180,9 +227,24 @@ az role assignment create \
      < infrastructure/terraform/azure/backend-azure.hcl
    ```
 
+5. After the first `terraform apply` succeeds, retrieve the SWA deployment token
+   and add it as a GitHub secret. The token is needed by `deploy-azure.yml` to
+   upload the Next.js static export to Azure Static Web Apps:
+
+   ```bash
+   # Get the SWA deployment token (replace with your resource group and SWA name)
+   SWA_TOKEN=$(az staticwebapp secrets list \
+     --name wealth-prod-swa \
+     --resource-group wealth-azure-prod-rg \
+     --query properties.apiKey \
+     --output tsv)
+
+   gh secret set SWA_DEPLOYMENT_TOKEN --body "$SWA_TOKEN"
+   ```
+
 ---
 
-## Step 6 — Verify
+## Step 8 — Verify
 
 After syncing, trigger a manual plan run to confirm everything works:
 
@@ -209,6 +271,7 @@ The workflow should:
 | `AZURE_TENANT_ID` | `az account show --query tenantId` | `deploy-azure.yml`, `terraform-azure.yml` |
 | `AZURE_SUBSCRIPTION_ID` | `az account show --query id` | `deploy-azure.yml`, `terraform-azure.yml` |
 | `AZURE_BACKEND_HCL` | Content of `backend-azure.hcl` | `terraform-azure.yml` (apply path only) |
+| `SWA_DEPLOYMENT_TOKEN` | `az staticwebapp secrets list --query properties.apiKey` | `deploy-azure.yml` (frontend deploy job) |
 
 All other secrets (`AUTH_JWT_SECRET`, `POSTGRES_CONNECTION_STRING`, etc.) are
 shared with the AWS path and already present in `.env.secrets`.

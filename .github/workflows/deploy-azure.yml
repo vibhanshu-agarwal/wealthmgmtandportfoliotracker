@@ -2,12 +2,14 @@
 #
 # Builds each backend service image from its Dockerfile.azure, pushes to Azure Container
 # Registry (ACR), and rolls out the new revision to the corresponding Azure Container App.
+# A separate job builds the Next.js static export and deploys it to Azure Static Web Apps.
 # Authentication uses OIDC (Workload Identity Federation) — no client secret is stored.
 #
 # Required GitHub Actions secrets (repo-level):
 #   AZURE_CLIENT_ID        — App Registration / Managed Identity client ID
 #   AZURE_TENANT_ID        — Azure AD tenant ID
 #   AZURE_SUBSCRIPTION_ID  — Azure subscription ID
+#   SWA_DEPLOYMENT_TOKEN   — Azure Static Web Apps deployment token (from Terraform output or portal)
 #
 # Resource names are aligned with the Terraform root in infrastructure/terraform/azure/
 # (task 11.3): resource group "wealth-azure-prod-rg", ACR "wealthprodacr",
@@ -24,6 +26,7 @@ on:
       - "market-data-service/**"
       - "insight-service/**"
       - "common-dto/**"
+      - "frontend/**"
       - ".github/workflows/deploy-azure.yml"
 
 env:
@@ -120,3 +123,67 @@ jobs:
 
           echo "Timed out after $((MAX_ITERATIONS * SLEEP_SECONDS + 30))s waiting for ${{ matrix.service }} to reach Succeeded state. Last state: $STATE"
           exit 1
+
+  deploy-frontend:
+    runs-on: ubuntu-latest
+    # Run after backend services are deployed so the API gateway FQDN is stable.
+    # If backend deploy fails, frontend deploy is still attempted (it's independent).
+    needs: deploy
+    if: always()
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Resolve API Gateway FQDN
+        id: api_fqdn
+        # Fetch the external FQDN of the api-gateway Container App from Azure.
+        # This is the value injected as NEXT_PUBLIC_API_BASE_URL so the static
+        # export knows where to send API calls at build time.
+        run: |
+          FQDN=$(az containerapp show \
+            --name api-gateway \
+            --resource-group $AZURE_RG \
+            --query properties.configuration.ingress.fqdn \
+            --output tsv)
+          echo "api_gateway_fqdn=https://${FQDN}" >> "$GITHUB_OUTPUT"
+          echo "Resolved API Gateway FQDN: https://${FQDN}"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build Next.js static export
+        working-directory: frontend
+        env:
+          # Injected at build time so the static export embeds the correct API origin.
+          # The Next.js app uses this for all /api/* calls in the Azure deployment.
+          NEXT_PUBLIC_API_BASE_URL: ${{ steps.api_fqdn.outputs.api_gateway_fqdn }}
+        run: npm run build
+
+      - name: Deploy to Azure Static Web Apps
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.SWA_DEPLOYMENT_TOKEN }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          action: "upload"
+          # app_location is the directory containing the built output.
+          # Next.js static export writes to `out/` by default (output: "export" in next.config.ts).
+          app_location: "frontend"
+          output_location: "out"
+          # No API backend — all API calls go to the ACA api-gateway via NEXT_PUBLIC_API_BASE_URL.
+          skip_api_build: true

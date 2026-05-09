@@ -24,6 +24,7 @@ class StaticFxRateProviderTest {
         var props = new FxProperties(
                 "USD",
                 new FxProperties.LocalProperties(rates, 60_000L),
+                null,
                 null
         );
         provider = new StaticFxRateProvider(props);

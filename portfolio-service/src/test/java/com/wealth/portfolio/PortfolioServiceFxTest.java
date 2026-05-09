@@ -37,7 +37,7 @@ class PortfolioServiceFxTest {
 
   @BeforeEach
   void setUp() {
-    FxProperties props = new FxProperties("USD", null, null);
+    FxProperties props = new FxProperties("USD", null, null, null);
     service =
         new PortfolioService(
             portfolioRepository, jdbcTemplate, userRepository, fxRateProvider, props);

@@ -19,6 +19,10 @@ fx:
     # refresh reliable, unlike Lambda where the instance may not be warm at
     # cron time. Matches the schedule in application-aws.yml.
     refresh-cron: "0 0 6 * * *"
+  # Profile-neutral cron key consumed by EcbFxRateProvider (@Scheduled).
+  # Both application-aws.yml and application-azure.yml set this to the same value
+  # so the bean does not need to know which cloud profile is active.
+  refresh-cron: "0 0 6 * * *"
 
 spring:
   cache:

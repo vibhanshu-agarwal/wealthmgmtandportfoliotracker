@@ -13,6 +13,10 @@ fx:
     # Override in application-azure.yml with an Azure-equivalent if needed.
     rates-url: https://open.er-api.com/v6/latest/USD
     refresh-cron: "0 0 6 * * *"
+  # Profile-neutral cron key consumed by EcbFxRateProvider (@Scheduled).
+  # Both application-aws.yml and application-azure.yml set this to the same value
+  # so the bean does not need to know which cloud profile is active.
+  refresh-cron: "0 0 6 * * *"
 
 spring:
   cache:

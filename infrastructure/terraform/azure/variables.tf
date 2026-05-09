@@ -166,3 +166,13 @@ variable "internal_api_key" {
   sensitive   = true
   description = "Shared secret gating /api/internal/** endpoints. Injected into every Container App as INTERNAL_API_KEY."
 }
+
+# ---------------------------------------------------------------------------
+# CORS
+# ---------------------------------------------------------------------------
+
+variable "cors_allowed_origin_patterns" {
+  type        = string
+  default     = "https://*.azurestaticapps.net"
+  description = "Comma-separated list of allowed CORS origin patterns for the api-gateway. Set to the SWA hostname (or custom domain) once known, e.g. 'https://wealth-prod-swa.azurestaticapps.net'. Defaults to the wildcard SWA pattern."
+}

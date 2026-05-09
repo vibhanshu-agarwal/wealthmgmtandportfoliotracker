@@ -20,11 +20,11 @@ import java.time.Duration;
  *   <li>{@code [INFRA-FAIL]} — dependency unreachable; includes the root cause</li>
  * </ul>
  *
- * <p>Runs only under the {@code aws} profile — local Docker Compose is assumed healthy.
+ * <p>Runs under the {@code aws} and {@code azure} profiles — local Docker Compose is assumed healthy.
  * Fires on {@link ApplicationReadyEvent} so it never blocks startup.
  */
 @Component
-@Profile("aws")
+@Profile({"aws", "azure"})
 class InfrastructureHealthLogger implements ApplicationListener<ApplicationReadyEvent> {
 
     private static final Logger log = LoggerFactory.getLogger(InfrastructureHealthLogger.class);

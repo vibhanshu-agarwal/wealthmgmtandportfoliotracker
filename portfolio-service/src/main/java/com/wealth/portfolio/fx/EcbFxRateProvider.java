@@ -18,8 +18,13 @@ import java.math.MathContext;
 import java.util.Map;
 
 /**
- * AWS-profile FX rate provider that fetches daily rates from the free
+ * AWS- and Azure-profile FX rate provider that fetches daily rates from the free
  * <a href="https://open.er-api.com">Open Exchange Rates API</a> (no API key required).
+ *
+ * <p>Active under both the {@code aws} and {@code azure} Spring profiles. Both clouds
+ * use the same public Open Exchange Rates endpoint; the URL is read from
+ * {@code fx.aws.rates-url} (AWS) or {@code fx.azure.rates-url} (Azure) in the
+ * respective profile YAML overlay.
  *
  * <h3>Bulk caching strategy</h3>
  * The entire rate map is fetched in a single HTTP call via {@link #fetchRateMap()} and cached
@@ -33,7 +38,7 @@ import java.util.Map;
  * is returned — preventing NPEs and ensuring the portfolio summary endpoint never throws a 500.
  */
 @Service
-@Profile("aws")
+@Profile({"aws", "azure"})
 public class EcbFxRateProvider implements FxRateProvider {
 
     private static final Logger log = LoggerFactory.getLogger(EcbFxRateProvider.class);
@@ -48,9 +53,17 @@ public class EcbFxRateProvider implements FxRateProvider {
     private EcbFxRateProvider self;
 
     public EcbFxRateProvider(RestClient.Builder builder, FxProperties props) {
-        String ratesUrl = props.aws() != null && props.aws().ratesUrl() != null
-                ? props.aws().ratesUrl()
-                : "https://open.er-api.com/v6/latest/USD";
+        // Resolve the rates URL from whichever profile overlay is active.
+        // Azure profile takes precedence if both are somehow present; falls back to the
+        // well-known open.er-api.com endpoint if neither overlay is configured.
+        String ratesUrl;
+        if (props.azure() != null && props.azure().ratesUrl() != null) {
+            ratesUrl = props.azure().ratesUrl();
+        } else if (props.aws() != null && props.aws().ratesUrl() != null) {
+            ratesUrl = props.aws().ratesUrl();
+        } else {
+            ratesUrl = "https://open.er-api.com/v6/latest/USD";
+        }
         this.restClient = builder.baseUrl(ratesUrl).build();
     }
 
@@ -88,7 +101,15 @@ public class EcbFxRateProvider implements FxRateProvider {
      * Evicts the cached rate map daily so rates stay fresh without a service restart.
      * The next {@link #getRate} call after eviction will trigger a fresh HTTP fetch.
      */
-    @Scheduled(cron = "${fx.aws.refresh-cron:0 0 6 * * *}")
+    /**
+     * Evicts the cached rate map daily so rates stay fresh without a service restart.
+     * The next {@link #getRate} call after eviction will trigger a fresh HTTP fetch.
+     *
+     * <p>Reads {@code fx.refresh-cron} (a profile-neutral key set in both
+     * {@code application-aws.yml} and {@code application-azure.yml}), falling back
+     * to daily at 06:00 UTC.
+     */
+    @Scheduled(cron = "${fx.refresh-cron:0 0 6 * * *}")
     @CacheEvict(value = "fx-rates", allEntries = true)
     public void evictDailyRates() {
         log.info("FX rate cache evicted — rates will refresh on next request");

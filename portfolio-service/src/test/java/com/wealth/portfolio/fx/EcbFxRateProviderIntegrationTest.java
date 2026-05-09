@@ -58,7 +58,8 @@ class EcbFxRateProviderIntegrationTest {
                 new FxProperties.AwsProperties(
                         "http://localhost:" + wireMock.port() + "/v6/latest/USD",
                         "0 0 6 * * *"
-                )
+                ),
+                null
         );
 
         // Build provider with a Spring proxy that honours @Cacheable via the cache manager

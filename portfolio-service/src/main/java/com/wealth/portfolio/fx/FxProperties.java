@@ -7,13 +7,14 @@ import java.util.Map;
 
 /**
  * Typed configuration binding for all FX-related settings.
- * Bound from the {@code fx.*} prefix in application-local.yml / application-aws.yml.
+ * Bound from the {@code fx.*} prefix in application-local.yml / application-aws.yml / application-azure.yml.
  */
 @ConfigurationProperties(prefix = "fx")
 public record FxProperties(
         String baseCurrency,
         LocalProperties local,
-        AwsProperties aws
+        AwsProperties aws,
+        AzureProperties azure
 ) {
 
     /** Returns the base currency, defaulting to "USD" if not configured. */
@@ -40,6 +41,18 @@ public record FxProperties(
      * @param refreshCron cron expression for daily cache eviction
      */
     public record AwsProperties(
+            String ratesUrl,
+            String refreshCron
+    ) {
+    }
+
+    /**
+     * Azure-profile FX configuration.
+     *
+     * @param ratesUrl    URL of the free public rates endpoint (e.g. open.er-api.com)
+     * @param refreshCron cron expression for daily cache eviction
+     */
+    public record AzureProperties(
             String ratesUrl,
             String refreshCron
     ) {

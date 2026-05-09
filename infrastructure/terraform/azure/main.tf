@@ -121,10 +121,11 @@ module "api_gateway" {
 
   # Non-sensitive env vars — service discovery URLs use bare app names (ACA internal DNS).
   env_vars = {
-    SPRING_PROFILES_ACTIVE  = "prod,azure"
-    PORTFOLIO_SERVICE_URL   = "http://portfolio-service"
-    MARKET_DATA_SERVICE_URL = "http://market-data-service"
-    INSIGHT_SERVICE_URL     = "http://insight-service"
+    SPRING_PROFILES_ACTIVE          = "prod,azure"
+    PORTFOLIO_SERVICE_URL           = "http://portfolio-service"
+    MARKET_DATA_SERVICE_URL         = "http://market-data-service"
+    INSIGHT_SERVICE_URL             = "http://insight-service"
+    APP_CORS_ALLOWED_ORIGIN_PATTERNS = var.cors_allowed_origin_patterns
   }
 
   # Sensitive env vars — values sourced from the secrets map below.

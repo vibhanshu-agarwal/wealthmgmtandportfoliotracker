@@ -152,6 +152,22 @@ jobs:
         if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'
         run: terraform validate
 
+      - name: Terraform Plan (apply — for assertions)
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'
+        run: terraform plan -out=tfplan
+
+      - name: Terraform Show (JSON — apply)
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'
+        run: terraform show -json tfplan > tfplan.json
+
+      - name: Assert Plan — P1 Profile Mutual Exclusion (MANDATORY — apply)
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'
+        run: python3 scripts/assert_plan.py tfplan.json
+
+      - name: Assert Plan — P5 ACR Pull Authorization (MANDATORY — apply)
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'
+        run: python3 scripts/test_acr_pull_property.py tfplan.json
+
       - name: Terraform Apply
         if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'
-        run: terraform apply -auto-approve
+        run: terraform apply -auto-approve tfplan

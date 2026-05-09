@@ -15,7 +15,7 @@ output "acr_login_server" {
 
 output "static_web_app_default_hostname" {
   value       = azurerm_static_web_app.frontend.default_host_name
-  description = "Default *.azurestaticapps.net hostname for the frontend SWA."
+  description = "Default *.azurestaticapps.net hostname for the frontend SWA. Use this value to set var.cors_allowed_origin_patterns after the first apply (e.g. 'https://<hostname>')."
 }
 
 # ---------------------------------------------------------------------------
