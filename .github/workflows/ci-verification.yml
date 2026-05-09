@@ -310,6 +310,44 @@ jobs:
             --project=aws-synthetic \
             --reporter=list
 
+      # ── Azure: Seed live domain after successful deployment ──
+      #
+      # PLACEHOLDER — uncomment this step once Azure Container Apps are live and
+      # vibhanshu-ai-portfolio.dev DNS is re-pointed from AWS (CloudFront) to Azure
+      # (Container Apps ingress / Cloudflare CNAME update).
+      #
+      # WHY THIS IS NEEDED:
+      #   The local Docker Compose E2E run above seeds the local stack only.
+      #   Without seeding the live domain, the demo E2E test user has no portfolio,
+      #   market data, or AI insights to display — the dashboard will be empty.
+      #   This step runs global-setup.ts directly (no browser) to POST to the three
+      #   internal seed endpoints on the live domain, populating the demo user's data.
+      #
+      # WHEN TO ENABLE:
+      #   1. Azure Container Apps are deployed and healthy (terraform-azure.yml apply passed).
+      #   2. vibhanshu-ai-portfolio.dev Cloudflare DNS CNAME is updated to point at the
+      #      Azure Container Apps ingress FQDN (from `terraform output api_gateway_fqdn`).
+      #   3. Smoke-test the live domain manually: curl https://vibhanshu-ai-portfolio.dev/actuator/health
+      #   4. Remove the `#` comment prefix from the step below and push.
+      #
+      # HOW IT WORKS:
+      #   global-setup.ts reads NEXT_PUBLIC_API_BASE_URL and seeds portfolio, market-data,
+      #   and insight endpoints via POST /api/internal/*/seed with X-Internal-Api-Key.
+      #   SKIP_BACKEND_HEALTH_CHECK=true skips the gateway health poll (ACA has no cold-start
+      #   issue like Lambda, but the health endpoint may still be protected by the origin filter).
+      #   The step only runs on push to main when CLOUD_PROVIDER=azure, so it never fires
+      #   during PRs or when the AWS deployment is active.
+      #
+      #- name: Seed live Azure environment (vibhanshu-ai-portfolio.dev)
+      #  working-directory: frontend
+      #  if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.CLOUD_PROVIDER == 'azure'
+      #  env:
+      #    NEXT_PUBLIC_API_BASE_URL: https://vibhanshu-ai-portfolio.dev
+      #    SKIP_BACKEND_HEALTH_CHECK: "true"
+      #    INTERNAL_API_KEY: ${{ secrets.TF_VAR_INTERNAL_API_KEY }}
+      #    E2E_TEST_USER_ID: ${{ secrets.E2E_TEST_USER_ID || '00000000-0000-0000-0000-000000000e2e' }}
+      #  run: npx ts-node --project tsconfig.json tests/e2e/global-setup.ts
+
       # ── Failure handling ──
       - name: Upload Playwright report on failure
         if: failure()
