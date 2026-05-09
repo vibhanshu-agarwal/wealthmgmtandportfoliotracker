@@ -321,20 +321,20 @@ resource "azurerm_role_assignment" "insight_openai" {
 
 import {
   to = module.api_gateway.azurerm_container_app.this
-  id = "/subscriptions/ee625b3f-7cb1-4482-be3c-4363c5d76d23/resourceGroups/wealth-azure-prod-rg/providers/Microsoft.App/containerapps/api-gateway"
+  id = "/subscriptions/ee625b3f-7cb1-4482-be3c-4363c5d76d23/resourceGroups/wealth-azure-prod-rg/providers/Microsoft.App/containerApps/api-gateway"
 }
 
 import {
   to = module.portfolio_service.azurerm_container_app.this
-  id = "/subscriptions/ee625b3f-7cb1-4482-be3c-4363c5d76d23/resourceGroups/wealth-azure-prod-rg/providers/Microsoft.App/containerapps/portfolio-service"
+  id = "/subscriptions/ee625b3f-7cb1-4482-be3c-4363c5d76d23/resourceGroups/wealth-azure-prod-rg/providers/Microsoft.App/containerApps/portfolio-service"
 }
 
 import {
   to = module.market_data_service.azurerm_container_app.this
-  id = "/subscriptions/ee625b3f-7cb1-4482-be3c-4363c5d76d23/resourceGroups/wealth-azure-prod-rg/providers/Microsoft.App/containerapps/market-data-service"
+  id = "/subscriptions/ee625b3f-7cb1-4482-be3c-4363c5d76d23/resourceGroups/wealth-azure-prod-rg/providers/Microsoft.App/containerApps/market-data-service"
 }
 
 import {
   to = module.insight_service.azurerm_container_app.this
-  id = "/subscriptions/ee625b3f-7cb1-4482-be3c-4363c5d76d23/resourceGroups/wealth-azure-prod-rg/providers/Microsoft.App/containerapps/insight-service"
+  id = "/subscriptions/ee625b3f-7cb1-4482-be3c-4363c5d76d23/resourceGroups/wealth-azure-prod-rg/providers/Microsoft.App/containerApps/insight-service"
 }
