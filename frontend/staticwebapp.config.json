@@ -2,9 +2,22 @@
   "navigationFallback": {
     "rewrite": "/index.html",
     "exclude": [
-      "/_next/**",
+      "/_next/*",
       "/favicon.ico",
-      "/*.{png,jpg,jpeg,gif,svg,webp,ico,css,js,json,woff,woff2,ttf,eot}"
+      "/*.png",
+      "/*.jpg",
+      "/*.jpeg",
+      "/*.gif",
+      "/*.svg",
+      "/*.webp",
+      "/*.ico",
+      "/*.css",
+      "/*.js",
+      "/*.json",
+      "/*.woff",
+      "/*.woff2",
+      "/*.ttf",
+      "/*.eot"
     ]
   },
   "routes": [
