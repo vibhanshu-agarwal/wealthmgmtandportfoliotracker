@@ -78,7 +78,7 @@ resource "azurerm_cognitive_account" "openai" {
   # API-key auth is documented as an opt-in alternative; no key is exposed here.
 }
 
-# GPT-4o-mini deployment — model version 2024-07-18 (stable, widely available).
+# GPT-4.1-mini deployment — model version 2025-04-14 (current stable, replaces deprecated gpt-4o-mini 2024-07-18).
 # Capacity is var.openai_deployment_capacity (default 10 = 10K tokens/min).
 resource "azurerm_cognitive_deployment" "gpt4o_mini" {
   name                 = "gpt-4o-mini"
@@ -86,8 +86,8 @@ resource "azurerm_cognitive_deployment" "gpt4o_mini" {
 
   model {
     format  = "OpenAI"
-    name    = "gpt-4o-mini"
-    version = "2024-07-18"
+    name    = "gpt-4.1-mini"
+    version = "2025-04-14"
   }
 
   sku {
