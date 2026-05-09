@@ -10,13 +10,13 @@ on:
   workflow_dispatch:
   pull_request:
     paths:
-      - 'infrastructure/terraform/**'
+      - 'infrastructure/terraform/aws/**'
       - '.github/workflows/terraform.yml'
   push:
     branches:
       - main
     paths:
-      - 'infrastructure/terraform/**'
+      - 'infrastructure/terraform/aws/**'
 
 env:
   AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -66,7 +66,7 @@ jobs:
     timeout-minutes: 30
     defaults:
       run:
-        working-directory: infrastructure/terraform
+        working-directory: infrastructure/terraform/aws
 
     steps:
       - name: Checkout
@@ -119,9 +119,9 @@ jobs:
         with:
           name: tfplan
           path: |
-            infrastructure/terraform/tfplan
-            infrastructure/terraform/plan.txt
-            infrastructure/terraform/plan.json
+            infrastructure/terraform/aws/tfplan
+            infrastructure/terraform/aws/plan.txt
+            infrastructure/terraform/aws/plan.json
           retention-days: 1
 
   apply:
@@ -132,7 +132,7 @@ jobs:
     timeout-minutes: 45
     defaults:
       run:
-        working-directory: infrastructure/terraform
+        working-directory: infrastructure/terraform/aws
 
     steps:
       - name: Checkout
@@ -148,7 +148,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: tfplan
-          path: infrastructure/terraform
+          path: infrastructure/terraform/aws
 
       - name: Terraform Init
         run: |
@@ -181,7 +181,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: tf-apply
-          path: infrastructure/terraform/apply.txt
+          path: infrastructure/terraform/aws/apply.txt
           retention-days: 7
 
       - name: Configure AWS credentials

@@ -1,0 +1,69 @@
+# =============================================================================
+# Terraform Variable Examples — Azure Container Apps Deployment
+# Wealth Management & Portfolio Tracker
+# =============================================================================
+#
+# USAGE:
+#   1. Copy this file to terraform.tfvars (gitignored — never commit real values).
+#   2. Fill in the placeholder values below.
+#   3. Sensitive variables should be injected via TF_VAR_* environment variables
+#      in CI rather than stored in terraform.tfvars.
+#
+# BACKEND INIT:
+#   Copy backend-azure.hcl.example → backend-azure.hcl and fill in real values.
+#   Then: terraform init -backend-config=backend-azure.hcl
+#
+#   For PR validation (no real state): terraform init -backend=false
+#
+# =============================================================================
+
+# ---------------------------------------------------------------------------
+# Azure identity (OIDC — supplied by azure/login@v2 in CI; set locally for manual runs)
+# ---------------------------------------------------------------------------
+azure_client_id       = "00000000-0000-0000-0000-000000000000"
+azure_tenant_id       = "00000000-0000-0000-0000-000000000000"
+azure_subscription_id = "00000000-0000-0000-0000-000000000000"
+
+# ---------------------------------------------------------------------------
+# Deployment configuration
+# ---------------------------------------------------------------------------
+environment                = "prod"
+location                   = "centralindia"
+openai_location            = "eastus"
+openai_deployment_capacity = 10
+image_tag                  = "latest"
+api_gateway_min_replicas   = 0
+
+# ---------------------------------------------------------------------------
+# Authentication
+# SENSITIVE — inject via TF_VAR_* in CI; do NOT commit real values here.
+# ---------------------------------------------------------------------------
+auth_jwt_secret   = "replace-with-at-least-32-char-secret-here"
+app_auth_email    = "demo@example.com"
+app_auth_password = "replace-with-demo-password"
+app_auth_user_id  = "00000000-0000-0000-0000-000000000e2e"
+app_auth_name     = "Demo User"
+
+# ---------------------------------------------------------------------------
+# Database & cache secrets
+# SENSITIVE — inject via TF_VAR_* in CI; do NOT commit real values here.
+# ---------------------------------------------------------------------------
+# postgres_connection_string = "jdbc:postgresql://ep-xxx.neon.tech/neondb?sslmode=require"
+# postgres_username          = "neondb_owner"
+# postgres_password          = "replace-with-postgres-password"
+# mongodb_connection_string  = "mongodb+srv://user:pass@cluster.mongodb.net/marketdata"
+# redis_url                  = "rediss://:password@hostname.upstash.io:6380"
+
+# ---------------------------------------------------------------------------
+# Messaging (Aiven Kafka — shared with AWS path)
+# SENSITIVE — inject via TF_VAR_* in CI; do NOT commit real values here.
+# ---------------------------------------------------------------------------
+kafka_bootstrap_servers = "kafka-xxxxx.aivencloud.com:12345"
+# kafka_sasl_username   = "replace-with-kafka-api-key"
+# kafka_sasl_password   = "replace-with-kafka-api-secret"
+
+# ---------------------------------------------------------------------------
+# Internal API key
+# SENSITIVE — inject via TF_VAR_* in CI; do NOT commit real values here.
+# ---------------------------------------------------------------------------
+# internal_api_key = "replace-with-strong-random-secret"

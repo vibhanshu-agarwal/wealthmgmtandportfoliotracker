@@ -1,0 +1,24 @@
+# =============================================================================
+# Azure Terraform Backend Configuration — Example
+# Wealth Management & Portfolio Tracker
+# =============================================================================
+#
+# USAGE:
+#   1. Copy this file to backend-azure.hcl (gitignored — never commit real values).
+#   2. Fill in the real values for your Azure storage account.
+#   3. Run: terraform init -backend-config=backend-azure.hcl
+#
+# The storage account and container must exist before running terraform init.
+# Create them manually or via the Azure CLI:
+#
+#   az group create --name <resource-group> --location centralindia
+#   az storage account create --name <storage-account> --resource-group <resource-group> \
+#     --sku Standard_LRS --kind StorageV2
+#   az storage container create --name tfstate --account-name <storage-account>
+#
+# =============================================================================
+
+resource_group_name  = "my-tf-state-rg"
+storage_account_name = "mytfstateaccount"
+container_name       = "tfstate"
+key                  = "wealth-azure-prod.tfstate"

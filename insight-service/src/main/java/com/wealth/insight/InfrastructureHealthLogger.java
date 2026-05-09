@@ -19,11 +19,11 @@ import org.springframework.stereotype.Component;
  *   <li>{@code [INFRA-FAIL]} — dependency unreachable; includes root cause</li>
  * </ul>
  *
- * <p>Runs only under the {@code aws} profile. Fires on {@link ApplicationReadyEvent}
+ * <p>Runs only under the {@code aws} or {@code azure} profile. Fires on {@link ApplicationReadyEvent}
  * so it never blocks startup.
  */
 @Component
-@Profile("aws")
+@Profile({"aws", "azure"})
 class InfrastructureHealthLogger implements ApplicationListener<ApplicationReadyEvent> {
 
     private static final Logger log = LoggerFactory.getLogger(InfrastructureHealthLogger.class);

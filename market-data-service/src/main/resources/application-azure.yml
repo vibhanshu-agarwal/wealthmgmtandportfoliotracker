@@ -1,0 +1,41 @@
+# ============================================================
+# Azure profile — overrides for Azure Container Apps deployment.
+# Active when SPRING_PROFILES_ACTIVE includes "azure" (e.g. "prod,azure").
+# Loaded after application-prod.yml; keys here win over prod.
+#
+# Mutually exclusive with application-aws.yml at runtime — the deployment
+# tooling (Terraform / GitHub Actions) sets exactly one of {aws, azure}.
+# application-prod.yml stays untouched.
+# ============================================================
+
+market:
+  seed:
+    # Disable the one-shot ticker seed on Azure. The baseline seed (below) handles
+    # initial data population; the runtime seed is a Lambda cold-start optimisation
+    # that is not needed for long-lived ACA containers.
+    enabled: false
+
+market-data:
+  # ACA containers are long-lived — scheduled refresh is reliable here, unlike
+  # Lambda where the instance may be recycled between cron invocations.
+  refresh:
+    enabled: true
+  # Hydration populates the in-memory price cache from MongoDB on startup.
+  # Enabled on Azure so the first request after a scale-from-zero event is served
+  # from cache rather than triggering a live fetch.
+  hydration:
+    enabled: true
+  baseline-seed:
+    # Baseline seed is a one-time operation handled outside the application lifecycle
+    # (e.g. via a Terraform provisioner or a manual run). Disable here to prevent
+    # re-seeding on every container restart.
+    enabled: false
+
+management:
+  health:
+    # Keep the MongoDB health contributor enabled. Uses the custom mongoHealthIndicator
+    # bean that runs `{ ping: 1 }` against the configured market database — the same
+    # check used on AWS. Atlas scoped app users reject the default Spring Data health
+    # check (AtlasError 8000); the custom indicator avoids that.
+    mongodb:
+      enabled: true

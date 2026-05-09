@@ -9,12 +9,14 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 
 /**
- * Default mock advisor — active whenever the {@code bedrock} profile is not enabled.
+ * Default mock advisor — active whenever neither the {@code bedrock} nor the
+ * {@code azure-ai} profile is enabled.
  * Returns deterministic, hardcoded responses with zero latency. Used for local
- * development, CI, and any environment where the real Bedrock advisor is not wired.
+ * development, CI, and any environment where the real Bedrock or Azure OpenAI
+ * advisor is not wired.
  */
 @Service
-@Profile("!bedrock")
+@Profile("!bedrock & !azure-ai")
 public class MockInsightAdvisor implements InsightAdvisor {
 
     @Override

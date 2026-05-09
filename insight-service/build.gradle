@@ -39,6 +39,12 @@ dependencies {
     // - Local smoke-testing of Bedrock is opt-in: `SPRING_PROFILES_ACTIVE=local,bedrock`
     //   plus AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY in the shell env.
     implementation 'org.springframework.ai:spring-ai-starter-model-bedrock-converse'
+    // Azure OpenAI adapter — active under the `azure-ai` Spring profile.
+    // Resolved via the spring-ai-bom above; no explicit version needed.
+    implementation 'org.springframework.ai:spring-ai-starter-model-azure-openai'
+    // azure-identity provides DefaultAzureCredential for Managed Identity auth.
+    // Pinned explicitly; defer to a managing BOM if the workspace adds one later.
+    implementation 'com.azure:azure-identity:1.13.2'
     implementation 'org.springframework.ai:spring-ai-client-chat'
 
     testImplementation 'au.com.dius.pact.provider:spring7:4.7.0-beta.4'

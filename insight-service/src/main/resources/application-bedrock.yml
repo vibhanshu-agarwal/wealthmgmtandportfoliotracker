@@ -16,6 +16,8 @@
 
 spring:
   ai:
+    model:
+      chat: bedrock-converse
     bedrock:
       aws:
         region: ${AWS_REGION:us-east-1}

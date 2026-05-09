@@ -1,0 +1,42 @@
+# ============================================================
+# Azure profile — overrides for Azure Container Apps deployment.
+# Active when SPRING_PROFILES_ACTIVE includes "azure" (e.g. "prod,azure").
+# Loaded after application-prod.yml; keys here win over prod.
+#
+# Mutually exclusive with application-aws.yml at runtime — the deployment
+# tooling (Terraform / GitHub Actions) sets exactly one of {aws, azure}.
+# application-prod.yml stays untouched.
+# ============================================================
+
+management:
+  health:
+    # Disable the Redis health indicator on Azure Container Apps.
+    #
+    # Problem: During a cold start (scale-from-zero), Lettuce attempts to resolve
+    # the Upstash hostname before the ACA internal DNS stack is fully initialised.
+    # The DNS lookup may return NXDOMAIN transiently, causing the
+    # DataRedisReactiveHealthIndicator to mark the service DOWN and block the
+    # readiness probe. This is the same race condition mitigated in application-aws.yml
+    # for the Lambda Web Adapter readiness check.
+    #
+    # Solution: exclude Redis from the aggregate health check on Azure, exactly as
+    # done on AWS. Redis still works normally for rate limiting — this only suppresses
+    # the health indicator. If Redis is genuinely unavailable, the rate limiter degrades
+    # gracefully (InfrastructureHealthLogger logs [INFRA-FAIL] at startup and Spring
+    # Cloud Gateway falls back to allow-all behaviour).
+    redis:
+      enabled: false
+
+app:
+  cors:
+    # CORS allowed-origin patterns for Azure Static Web Apps.
+    # Driven by env var so the pattern can be widened (e.g. to a custom domain)
+    # or narrowed (e.g. to a specific SWA hostname) per environment without a
+    # code change. The default covers all *.azurestaticapps.net hostnames, which
+    # is the correct scope for the Free-tier SWA provisioned by Terraform.
+    #
+    # To restrict to a specific SWA hostname, set:
+    #   APP_CORS_ALLOWED_ORIGIN_PATTERNS=https://my-app-abc123.azurestaticapps.net
+    # To add a custom domain alongside the SWA default:
+    #   APP_CORS_ALLOWED_ORIGIN_PATTERNS=https://*.azurestaticapps.net,https://app.example.com
+    allowed-origin-patterns: ${APP_CORS_ALLOWED_ORIGIN_PATTERNS:https://*.azurestaticapps.net}
