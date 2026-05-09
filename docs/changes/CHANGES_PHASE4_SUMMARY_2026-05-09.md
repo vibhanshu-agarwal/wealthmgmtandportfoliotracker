@@ -253,6 +253,75 @@ OIDC federated credentials added to App Registration `bda79a47` via Azure CLI:
 - `github-pull-request` (subject: `repo:...:pull_request`) — fixes `AADSTS70025` on PRs
 - `github-main` (subject: `repo:...:ref:refs/heads/main`) — needed for apply path after merge
 
+### `fix(terraform)` — 34283a4 — Move AWS import blocks from compute module to root
+
+The original Test Results section of this changelog noted that `terraform init -backend=false` against the AWS root failed with a pre-existing error in `modules/compute/main.tf` ("import blocks that predate this spec"). Diagnosed and fixed.
+
+Terraform 1.5+ requires `import` blocks to live in the root module only. The four `aws_lambda_permission` import blocks (`api_gateway_url_invoke`, `portfolio_url_invoke`, `market_data_url_invoke`, `insight_url_invoke`) inside `infrastructure/terraform/aws/modules/compute/main.tf` triggered `Import blocks are only allowed in the root module` on every `terraform init` run.
+
+Equivalent import blocks already existed in the root `main.tf` referencing `module.compute.aws_lambda_permission.*`, so the module-level copies were redundant duplicates. Removed them from the module (25 lines deleted); root imports unchanged. AWS Terraform root now passes `init` and `validate` cleanly.
+
+### `fix(ci)` — e3c36ed — Use local backend override for terraform-azure plan path
+
+The PR/plan path of `.github/workflows/terraform-azure.yml` was running `terraform init -backend=false` followed by `terraform plan -out=tfplan`, which failed with:
+
+> Error: Backend initialization required, please run "terraform init"
+> Reason: Initial configuration of the requested backend "azurerm"
+
+`-backend=false` is sufficient for `terraform validate`, but `terraform plan` requires an initialized backend (even an empty one) to read/write state. With `versions.tf` declaring `backend "azurerm" {}`, plan refused to run.
+
+Changes:
+- `.github/workflows/terraform-azure.yml` — replaced the `terraform init -backend=false` step with two steps that (a) write a `backend_override.tf` containing `backend "local" {}` and (b) run a normal `terraform init`. Terraform's `*_override.tf` merging swaps the `azurerm` backend for a local one for the PR run only; init/plan/show/assert all succeed without `AZURE_BACKEND_HCL`. Apply path is unchanged.
+- `infrastructure/terraform/azure/versions.tf` — comment block updated to describe the new override mechanism.
+- `.gitignore` — added `infrastructure/terraform/azure/backend_override.tf`.
+
+### `fix(terraform-azure)` — 58af02f — Disable provider auto-registration in azurerm
+
+`terraform plan` (PR path) failed with:
+
+> Error: Terraform does not have the necessary permissions to register Resource Providers.
+> authorization failed: registering resource provider "Microsoft.DataMigration": unexpected status
+
+The CI OIDC service principal (App Registration `bda79a47`) is granted Contributor + User Access Administrator on the resource group, but does not have subscription-scope rights to register Resource Providers. azurerm v4.x auto-registers a curated "core" set of RPs by default, including `Microsoft.DataMigration`, which the SP cannot touch.
+
+Set `resource_provider_registrations = "none"` on the `provider "azurerm"` block in `infrastructure/terraform/azure/providers.tf` (the exact mitigation suggested in the error message). The five RPs this stack actually uses — `Microsoft.App`, `Microsoft.OperationalInsights`, `Microsoft.ContainerRegistry`, `Microsoft.CognitiveServices`, `Microsoft.Web` — are pre-registered in the target subscription, so opting out of auto-registration is safe. If a future change needs an unregistered RP, the failure mode is a misleading API-version error (per the azurerm docs), and the fix is to register that RP once via `az provider register --namespace <RP>`.
+
+### `fix(docker)` — a9fbc19 — Set JAVA_HOME and pass -Dorg.gradle.java.home in Dockerfile.azure
+
+The `mcr.microsoft.com/openjdk/jdk:21-mariner` builder stage has JDK 21 at `/usr/lib/jvm/msopenjdk-21`, but Gradle's toolchain prober did not detect it, and no provisioning repository was configured, causing the build to fail with:
+
+> Learn more about toolchain auto-detection and auto-provisioning
+
+Changes to all four `Dockerfile.azure` files:
+- Added `ENV JAVA_HOME=/usr/lib/jvm/msopenjdk-21`
+- Passed `-Dorg.gradle.java.home=${JAVA_HOME}` to the `./gradlew bootJar` invocation
+
+This was a partial fix — the `ENV`/`-D` approach did not fully bypass toolchain resolution (see next entry).
+
+### `fix(docker)` — a825147 — Disable Gradle toolchain auto-detect in Dockerfile.azure; bust stale cache
+
+Two problems remained after `a9fbc19`:
+
+**Toolchain still failing** — `org.gradle.java.installations.auto-detect=false` and `org.gradle.java.installations.auto-download=false` were appended to `gradle.properties`. These properties suppress JVM *discovery* but do not remove the toolchain *requirement* declared in `build.gradle`. Gradle still needed to satisfy `languageVersion=21` and failed with the same error.
+
+**Amazon packages being downloaded** — the GitHub Actions runner had a stale Docker layer cache from a prior build that used the AWS Dockerfile (`amazoncorretto` base). Docker reused that cached layer for the `tdnf install` step, pulling Amazon Linux 2023 packages instead of Mariner ones.
+
+Changes:
+- All four `Dockerfile.azure` — replaced the `ENV`/`-D` approach with `gradle.properties` append (partial fix, superseded by next commit)
+- `.github/workflows/deploy-azure.yml` — added `--no-cache` and `--pull` to the `docker build` command to prevent stale layer reuse and always fetch the latest base image
+
+### `fix(docker)` — 26f74ab — Strip toolchain block from build.gradle at container build time
+
+The `gradle.properties` approach from `a825147` still did not work. Root cause analysis: `auto-detect=false` and `auto-download=false` only suppress JVM *discovery* — they do not remove the toolchain *requirement* itself. When `build.gradle` declares `languageVersion = JavaLanguageVersion.of(21)` inside `subprojects {}`, Gradle must satisfy that constraint regardless of those properties. With discovery disabled and no download repo, it fails immediately.
+
+Fix: use `sed` to delete the `java { toolchain { ... } }` block from `build.gradle` before invoking Gradle, using a range pattern that matches the exact indentation of the block inside `subprojects {}`:
+
+```
+RUN sed -i '/^    java {/,/^    }/d' build.gradle
+```
+
+This is the same approach already used to strip unused modules from `settings.gradle`. With no toolchain block, Gradle falls back to the ambient JDK on `PATH` — which is exactly what the Mariner base image provides. The source file is untouched; this only affects the in-container copy. The `ENV JAVA_HOME` and `-Dorg.gradle.java.home` lines were also removed as they are no longer needed.
+
 ---
 
 ## Known Deviations from Spec
