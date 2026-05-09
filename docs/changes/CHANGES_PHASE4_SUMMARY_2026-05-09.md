@@ -345,3 +345,33 @@ Per `design.md` §6 and `TODO.md` §3, the following items are explicitly deferr
 - **B5** — Upstash Redis replacement with Azure Cache for Redis (if ElastiCache Free Tier expires)
 
 `requirements.md` additionally lists: align AWS Dockerfiles from `amazoncorretto:25` → `21` (B2), migration to managed `java21` Lambda runtime (B3), per-cloud Kafka consumer group IDs (B4). These are separate from the `design.md` backlog items above.
+
+### `fix(docker)` — Apply toolchain strip to AWS Dockerfiles + fix BuildKit ARG scoping
+
+Two issues were diagnosed from the post-26f74ab build logs and fixed together.
+
+**Issue 1: AWS Dockerfiles hit the same toolchain failure as the Azure path.**
+
+After Req 0.1 pinned `JavaLanguageVersion.of(21)` in `build.gradle`, the toolchain-strip sed was applied only to the 4 `Dockerfile.azure` files. The 4 AWS `Dockerfile` files still require toolchain 21 but use `amazoncorretto:25` as the builder base (which ships only JDK 25 and has no provisioning repo), so every AWS image build — including `docker compose build` invoked by `ci-verification.yml` — failed with:
+
+> Cannot find a Java installation on your machine (Linux ...) matching: {languageVersion=21, ...}. Toolchain download repositories have not been configured.
+
+This is the exact log the user reported (`findutils-1:4.8.0-2.amzn2023.0.2.x86_64` in the same build output confirms Amazon Linux 2023 = AWS Dockerfile path, not Mariner). Two workflows trigger on every push (`deploy-azure.yml` for Dockerfile.azure, `ci-verification.yml` → compose for the AWS Dockerfile), which explained the confusing "AWS images during Azure deploy" appearance.
+
+Fix: applied the same `sed -i '/^    java {/,/^    }/d' build.gradle` line to all 4 AWS Dockerfiles. Identical mechanism to the Azure fix — strips the toolchain block at container-build time so Gradle falls back to the ambient JDK 25 on PATH. Source `build.gradle` is unchanged.
+
+**Issue 2: BuildKit rejected the Azure `Dockerfile.azure` files with `UndefinedArgInFrom`.**
+
+The original Azure Dockerfiles declared `ARG RUNTIME_BASE=...` just before the runtime `FROM ${RUNTIME_BASE}`. BuildKit enforces strict ARG scoping: an ARG declared between two FROM instructions is stage-scoped and cannot be referenced in a later FROM. The error:
+
+> InvalidDefaultArgInFrom: Default value for ARG ${RUNTIME_BASE} results in empty or invalid base image name (line 55)
+> UndefinedArgInFrom: FROM argument 'RUNTIME_BASE' is not declared (line 55)
+> ERROR: failed to build: failed to solve: base name (${RUNTIME_BASE}) should not be blank
+
+This is likely why the user's CI builds never actually reached the runtime stage of the Azure Dockerfiles (masking whether the toolchain fix was sufficient on the Azure side).
+
+Fix: in all 4 `Dockerfile.azure` files, moved `ARG RUNTIME_BASE=mcr.microsoft.com/openjdk/jdk:21-mariner` to before the first `FROM` (global ARG scope), and re-declared `ARG RUNTIME_BASE` (with no default) immediately before the runtime `FROM` to bring it into that stage's scope. Per BuildKit rules, this is the canonical pattern for cross-stage FROM overrides.
+
+**Verification (local, 2026-05-09):**
+- `docker build -f market-data-service/Dockerfile.azure .` — `BUILD SUCCESSFUL in 53s`, image pushed successfully, 886MB final size
+- `docker build -f market-data-service/Dockerfile --target=builder .` — `BUILD SUCCESSFUL in 46s` (toolchain-21 error gone from AWS path)

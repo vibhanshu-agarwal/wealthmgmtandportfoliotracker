@@ -13,6 +13,11 @@
 # Stage 1: Builder — compile source and produce Spring Boot fat JAR
 # Mariner Linux uses tdnf (not yum/apt) for package management.
 # ---------------------------------------------------------------------------
+# ARG must be declared BEFORE the first FROM so it is a "global" build arg
+# usable in a later FROM line. ARGs declared between FROM stages are stage-scoped
+# and BuildKit rejects their use in subsequent FROM instructions.
+ARG RUNTIME_BASE=mcr.microsoft.com/openjdk/jdk:21-mariner
+
 FROM mcr.microsoft.com/openjdk/jdk:21-mariner AS builder
 
 WORKDIR /workspace
@@ -50,8 +55,10 @@ RUN chmod +x gradlew && ./gradlew :insight-service:bootJar --no-daemon
 # ARG RUNTIME_BASE allows overriding the base image (e.g. for distroless
 # variants) at build time without editing this Dockerfile:
 #   docker build --build-arg RUNTIME_BASE=<image> -f insight-service/Dockerfile.azure .
+# The global ARG declared at the top of this file is re-declared here (empty)
+# to bring it into this stage's scope — required by BuildKit.
 # ---------------------------------------------------------------------------
-ARG RUNTIME_BASE=mcr.microsoft.com/openjdk/jdk:21-mariner
+ARG RUNTIME_BASE
 FROM ${RUNTIME_BASE} AS runtime
 
 COPY --from=builder /workspace/insight-service/build/libs/*.jar app.jar
