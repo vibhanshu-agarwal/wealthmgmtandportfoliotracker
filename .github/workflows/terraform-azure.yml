@@ -27,6 +27,10 @@ on:
           - plan
           - apply
         default: plan
+      use_seed_image:
+        description: "Use public seed image for Container Apps (true for first apply before images exist in ACR)"
+        type: boolean
+        default: false
   pull_request:
     paths:
       - "infrastructure/terraform/azure/**"
@@ -53,6 +57,7 @@ env:
   TF_VAR_azure_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
   TF_VAR_azure_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
   TF_VAR_image_tag: ${{ github.sha }}
+  TF_VAR_use_seed_image: ${{ github.event.inputs.use_seed_image || 'false' }}
   TF_VAR_auth_jwt_secret: ${{ secrets.AUTH_JWT_SECRET }}
   TF_VAR_app_auth_email: ${{ secrets.E2E_TEST_USER_EMAIL }}
   TF_VAR_app_auth_password: ${{ secrets.E2E_TEST_USER_PASSWORD }}
@@ -179,3 +184,5 @@ jobs:
       - name: Terraform Apply
         if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'
         run: terraform apply -auto-approve tfplan
+        env:
+          # use_seed_image is baked into the plan above — no override needed here.

@@ -47,7 +47,7 @@ resource "azurerm_container_app" "this" {
 
     container {
       name   = var.name
-      image  = "${var.acr_login_server}/${var.image_repository}:${var.image_tag}"
+      image  = var.seed_image != "" ? var.seed_image : "${var.acr_login_server}/${var.image_repository}:${var.image_tag}"
       cpu    = var.cpu
       memory = var.memory
 

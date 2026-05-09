@@ -53,13 +53,20 @@ variable "openai_deployment_capacity" {
 
 variable "image_tag" {
   type        = string
-  description = "Container image tag to deploy (typically the git SHA from the CI pipeline, e.g. github.sha)."
+  default     = "latest"
+  description = "Container image tag to deploy (typically the git SHA from the CI pipeline, e.g. github.sha). Defaults to 'latest' for initial Terraform provisioning — deploy-azure.yml updates this after images are pushed to ACR."
 }
 
 variable "api_gateway_min_replicas" {
   type        = number
   default     = 0
   description = "Minimum replica count for api-gateway. Set to 1 to keep a warm instance (~$3-4/month extra); 0 for full scale-to-zero."
+}
+
+variable "use_seed_image" {
+  type        = bool
+  default     = false
+  description = "When true, all Container Apps use a public mcr.microsoft.com/azuredocs/containerapps-helloworld:latest seed image instead of the ACR image. Set to true for the initial 'terraform apply' before any images have been pushed to ACR. After deploy-azure.yml has pushed real images, set back to false (or omit — default is false)."
 }
 
 # ---------------------------------------------------------------------------

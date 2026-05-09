@@ -112,7 +112,8 @@ module "api_gateway" {
   acr_login_server    = azurerm_container_registry.main.login_server
   image_repository    = "api-gateway"
   image_tag           = var.image_tag
-  target_port         = 8080
+  seed_image          = var.use_seed_image ? "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest" : ""
+  target_port         = var.use_seed_image ? 80 : 8080
   external_ingress    = true
   min_replicas        = var.api_gateway_min_replicas
   max_replicas        = 3
@@ -169,7 +170,8 @@ module "portfolio_service" {
   acr_login_server    = azurerm_container_registry.main.login_server
   image_repository    = "portfolio-service"
   image_tag           = var.image_tag
-  target_port         = 8081
+  seed_image          = var.use_seed_image ? "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest" : ""
+  target_port         = var.use_seed_image ? 80 : 8081
   external_ingress    = false
   min_replicas        = 0
   max_replicas        = 3
@@ -215,7 +217,8 @@ module "market_data_service" {
   acr_login_server    = azurerm_container_registry.main.login_server
   image_repository    = "market-data-service"
   image_tag           = var.image_tag
-  target_port         = 8082
+  seed_image          = var.use_seed_image ? "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest" : ""
+  target_port         = var.use_seed_image ? 80 : 8082
   external_ingress    = false
   min_replicas        = 0
   max_replicas        = 3
@@ -260,7 +263,8 @@ module "insight_service" {
   acr_login_server    = azurerm_container_registry.main.login_server
   image_repository    = "insight-service"
   image_tag           = var.image_tag
-  target_port         = 8083
+  seed_image          = var.use_seed_image ? "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest" : ""
+  target_port         = var.use_seed_image ? 80 : 8083
   external_ingress    = false
   min_replicas        = 0
   max_replicas        = 3

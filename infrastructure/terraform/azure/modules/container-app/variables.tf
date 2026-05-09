@@ -93,3 +93,9 @@ variable "secrets" {
   sensitive   = true
   description = "Container App secrets (key = logical name used in secret_env_vars, value = secret value). The secret name stored in ACA is lower(replace(key, '_', '-'))."
 }
+
+variable "seed_image" {
+  type        = string
+  default     = ""
+  description = "When non-empty, overrides the ACR image with this public seed image for initial provisioning. Use 'mcr.microsoft.com/azuredocs/containerapps-helloworld:latest' for the first terraform apply before real images exist in ACR. Leave empty (default) for normal deployments."
+}
