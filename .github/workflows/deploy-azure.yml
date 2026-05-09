@@ -14,6 +14,12 @@
 # Resource names are aligned with the Terraform root in infrastructure/terraform/azure/
 # (task 11.3): resource group "wealth-azure-prod-rg", ACR "wealthprodacr",
 # ACA environment "wealth-prod-aca-env".
+#
+# Pre-flight guard: a "preflight" job runs first and checks whether the Azure
+# infrastructure has been provisioned (resource group + ACR exist). If not, both
+# deploy jobs are skipped with a clear message — run terraform-azure.yml apply first.
+# This prevents cryptic RP-not-registered errors when the workflow fires before
+# Terraform has ever been applied.
 
 on:
   workflow_dispatch:
@@ -39,8 +45,78 @@ permissions:
   contents: read
 
 jobs:
+  # ---------------------------------------------------------------------------
+  # Pre-flight: verify infrastructure exists before attempting any deployment.
+  # Outputs infra_ready=true only when the resource group AND the ACR both exist.
+  # Both deploy jobs gate on this output so they skip cleanly on a fresh subscription.
+  # Also ensures the five required Azure Resource Providers are registered — this is
+  # idempotent and safe to run on every workflow execution.
+  # ---------------------------------------------------------------------------
+  preflight:
+    runs-on: ubuntu-latest
+    outputs:
+      infra_ready: ${{ steps.check.outputs.infra_ready }}
+
+    steps:
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Ensure required Resource Providers are registered
+        # Registers all five RPs required by the Azure Terraform root.
+        # az provider register is idempotent — safe to run even when already registered.
+        # --wait blocks until each RP reaches "Registered" state (typically < 60 s each
+        # if already registered; up to 5 min on a fresh subscription).
+        run: |
+          for rp in Microsoft.App Microsoft.OperationalInsights Microsoft.ContainerRegistry Microsoft.CognitiveServices Microsoft.Web; do
+            STATE=$(az provider show --namespace "$rp" --query registrationState -o tsv 2>/dev/null || echo "NotRegistered")
+            if [ "$STATE" != "Registered" ]; then
+              echo "Registering $rp (current state: $STATE)..."
+              az provider register --namespace "$rp" --wait
+              echo "$rp is now Registered."
+            else
+              echo "$rp is already Registered — skipping."
+            fi
+          done
+
+      - name: Check whether infrastructure has been provisioned
+        id: check
+        # Checks for the resource group and ACR. Both must exist for infra_ready=true.
+        # If either is missing, Terraform apply has not been run yet — skip deployment
+        # and print a clear action message so the developer knows what to do next.
+        run: |
+          RG_EXISTS=$(az group exists --name "$AZURE_RG")
+          ACR_EXISTS="false"
+          if [ "$RG_EXISTS" = "true" ]; then
+            ACR_EXISTS=$(az acr check-name --name "$ACR_NAME" --query nameAvailable -o tsv 2>/dev/null || echo "true")
+            # nameAvailable=false means the ACR exists (name is taken by this subscription)
+            if [ "$ACR_EXISTS" = "false" ]; then
+              ACR_EXISTS="true"
+            else
+              ACR_EXISTS="false"
+            fi
+          fi
+
+          if [ "$RG_EXISTS" = "true" ] && [ "$ACR_EXISTS" = "true" ]; then
+            echo "infra_ready=true" >> "$GITHUB_OUTPUT"
+            echo "Infrastructure is provisioned — proceeding with deployment."
+          else
+            echo "infra_ready=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Infrastructure is not provisioned yet (RG exists: $RG_EXISTS, ACR exists: $ACR_EXISTS)."
+            echo "::warning::Run 'gh workflow run terraform-azure.yml --field action=apply' first, then re-run this workflow."
+          fi
+
+  # ---------------------------------------------------------------------------
+  # Backend: build and push service images, update Container Apps.
+  # Skipped when infra_ready=false (infrastructure not yet provisioned).
+  # ---------------------------------------------------------------------------
   deploy:
     runs-on: ubuntu-latest
+    needs: preflight
+    if: needs.preflight.outputs.infra_ready == 'true'
     strategy:
       matrix:
         service:
@@ -124,12 +200,17 @@ jobs:
           echo "Timed out after $((MAX_ITERATIONS * SLEEP_SECONDS + 30))s waiting for ${{ matrix.service }} to reach Succeeded state. Last state: $STATE"
           exit 1
 
+  # ---------------------------------------------------------------------------
+  # Frontend: build Next.js static export and deploy to Azure Static Web Apps.
+  # Runs after backend deploy (so the api-gateway FQDN is stable), but also
+  # skipped when infra_ready=false.
+  # ---------------------------------------------------------------------------
   deploy-frontend:
     runs-on: ubuntu-latest
-    # Run after backend services are deployed so the API gateway FQDN is stable.
-    # If backend deploy fails, frontend deploy is still attempted (it's independent).
-    needs: deploy
-    if: always()
+    needs: [preflight, deploy]
+    # Run when infra is ready, regardless of whether backend deploy succeeded
+    # (frontend is independently deployable once the SWA resource exists).
+    if: needs.preflight.outputs.infra_ready == 'true' && always()
 
     steps:
       - name: Checkout code
