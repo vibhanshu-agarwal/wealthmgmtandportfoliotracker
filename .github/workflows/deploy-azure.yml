@@ -100,15 +100,11 @@ jobs:
         # and print a clear action message so the developer knows what to do next.
         run: |
           RG_EXISTS=$(az group exists --name "$AZURE_RG")
+
           ACR_EXISTS="false"
           if [ "$RG_EXISTS" = "true" ]; then
-            ACR_EXISTS=$(az acr check-name --name "$ACR_NAME" --query nameAvailable -o tsv 2>/dev/null || echo "true")
-            # nameAvailable=false means the ACR exists (name is taken by this subscription)
-            if [ "$ACR_EXISTS" = "false" ]; then
-              ACR_EXISTS="true"
-            else
-              ACR_EXISTS="false"
-            fi
+            az acr show --name "$ACR_NAME" --resource-group "$AZURE_RG" --output none 2>/dev/null \
+              && ACR_EXISTS="true" || ACR_EXISTS="false"
           fi
 
           if [ "$RG_EXISTS" = "true" ] && [ "$ACR_EXISTS" = "true" ]; then
