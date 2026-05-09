@@ -15,6 +15,14 @@ resource "azurerm_container_app" "this" {
   resource_group_name          = var.resource_group_name
   revision_mode                = "Single"
 
+  # Extend timeouts for regions with slower provisioning (e.g. centralindia).
+  # Default create timeout is 30m which can be insufficient for initial revision provisioning.
+  timeouts {
+    create = "60m"
+    update = "60m"
+    delete = "30m"
+  }
+
   # System-assigned managed identity — used for ACR pull and (for insight-service)
   # for Azure OpenAI Managed Identity authentication.
   identity {

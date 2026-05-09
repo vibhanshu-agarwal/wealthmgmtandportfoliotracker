@@ -311,3 +311,30 @@ resource "azurerm_role_assignment" "insight_openai" {
   role_definition_name = "Cognitive Services OpenAI User"
   principal_id         = module.insight_service.identity_principal_id
 }
+
+# ---------------------------------------------------------------------------
+# Import blocks — bring existing Container Apps into Terraform state.
+# These were created by a partial apply before the polling timeout was extended.
+# Once imported, these blocks are safe to leave in place (they become no-ops
+# after the first successful apply that reconciles state).
+# ---------------------------------------------------------------------------
+
+import {
+  to = module.api_gateway.azurerm_container_app.this
+  id = "/subscriptions/ee625b3f-7cb1-4482-be3c-4363c5d76d23/resourceGroups/wealth-azure-prod-rg/providers/Microsoft.App/containerapps/api-gateway"
+}
+
+import {
+  to = module.portfolio_service.azurerm_container_app.this
+  id = "/subscriptions/ee625b3f-7cb1-4482-be3c-4363c5d76d23/resourceGroups/wealth-azure-prod-rg/providers/Microsoft.App/containerapps/portfolio-service"
+}
+
+import {
+  to = module.market_data_service.azurerm_container_app.this
+  id = "/subscriptions/ee625b3f-7cb1-4482-be3c-4363c5d76d23/resourceGroups/wealth-azure-prod-rg/providers/Microsoft.App/containerapps/market-data-service"
+}
+
+import {
+  to = module.insight_service.azurerm_container_app.this
+  id = "/subscriptions/ee625b3f-7cb1-4482-be3c-4363c5d76d23/resourceGroups/wealth-azure-prod-rg/providers/Microsoft.App/containerapps/insight-service"
+}
