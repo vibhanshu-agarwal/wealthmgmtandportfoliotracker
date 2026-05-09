@@ -8,6 +8,8 @@ on:
 jobs:
   run-synthetic-tests:
     name: Run AWS Synthetic Suite
+    # Skip entirely when the active cloud provider is Azure
+    if: vars.CLOUD_PROVIDER != 'azure'
     runs-on: ubuntu-latest
 
     steps:

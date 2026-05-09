@@ -254,8 +254,8 @@ jobs:
             --reporter=list
 
       - name: Pre-warm AWS Lambda stack
-        # Runs against the live site — only on push to main to avoid hammering AWS on every PR
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        # Runs against the live site — only on push to main when deploying to AWS
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.CLOUD_PROVIDER != 'azure'
         # Hit gateway-routed health endpoints for every backend Lambda before seeding.
         # Keep this sequential to avoid exhausting the ap-south-1 concurrency quota of 10.
         run: |
@@ -284,8 +284,8 @@ jobs:
           echo "Warning: Lambda pre-warm still saw 5xx/timeout responses. Seeding may still retry successfully."
       - name: Run AWS synthetic monitoring
         working-directory: frontend
-        # Runs against the live site — only on push to main to avoid hammering AWS on every PR
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        # Runs against the live site — only on push to main when deploying to AWS
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.CLOUD_PROVIDER != 'azure'
         env:
           # Target the live production deployment, not the local Docker Compose stack.
           # Without these, global-setup.ts falls back to http://localhost:8080 and seeds

@@ -38,6 +38,8 @@ on:
 jobs:
   # Fail-Fast: Verify all 3rd party connections before starting deployment.
   pre-flight:
+    # Skip AWS deployment when the active cloud provider is Azure
+    if: vars.CLOUD_PROVIDER != 'azure'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
