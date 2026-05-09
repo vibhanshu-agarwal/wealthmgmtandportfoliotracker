@@ -70,6 +70,16 @@ infrastructure/terraform/.terraform.tfstate.local.lock.info
 infrastructure/terraform/scripts/__pycache__/
 # Production secrets — never commit real credentials
 infrastructure/terraform/terraform.tfvars
+# Azure backend config — contains storage account credentials; use backend-azure.hcl.example as template
+infrastructure/terraform/azure/backend-azure.hcl
+# Azure Terraform working files
+infrastructure/terraform/azure/.terraform/
+infrastructure/terraform/azure/.terraform.lock.hcl
+infrastructure/terraform/azure/terraform.tfstate*
+infrastructure/terraform/azure/tfplan*
+infrastructure/terraform/azure/scripts/__pycache__/
+infrastructure/terraform/azure/terraform.tfvars
+infrastructure/terraform/azure/backend_override.tf
 
 ### Playwright test results ###
 frontend/test-results/

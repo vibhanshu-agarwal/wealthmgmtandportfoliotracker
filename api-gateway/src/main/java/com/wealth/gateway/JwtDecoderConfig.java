@@ -15,7 +15,7 @@ import java.nio.charset.StandardCharsets;
 public class JwtDecoderConfig {
 
     /**
-     * Current single-user auth path: HMAC-SHA256 symmetric decoder for both local and AWS.
+     * Current single-user auth path: HMAC-SHA256 symmetric decoder for local, AWS, and Azure.
      *
      * <p>{@link AuthController} is the token issuer and {@link JwtSigner} signs HS256
      * tokens with {@code auth.jwt.secret}. The active decoder must therefore validate
@@ -23,12 +23,12 @@ public class JwtDecoderConfig {
      * future external IdP that is not present in the current system.
      */
     @Bean
-    @Profile({"local", "aws"})
+    @Profile({"local", "aws", "azure"})
     ReactiveJwtDecoder hmacJwtDecoder(@Value("${auth.jwt.secret}") String secret) {
         byte[] secretBytes = secret == null ? new byte[0] : secret.getBytes(StandardCharsets.UTF_8);
         if (secretBytes.length < 32) {
             throw new IllegalStateException(
-                    "AUTH_JWT_SECRET must be at least 32 bytes for HS256 under local/aws profiles.");
+                    "AUTH_JWT_SECRET must be at least 32 bytes for HS256 under local/aws/azure profiles.");
         }
         SecretKeySpec key = new SecretKeySpec(secretBytes, "HmacSHA256");
         return NimbusReactiveJwtDecoder.withSecretKey(key)

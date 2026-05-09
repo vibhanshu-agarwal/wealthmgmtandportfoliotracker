@@ -49,6 +49,15 @@ COPY api-gateway/ api-gateway/
 # (Gradle 9.x fails if included project directories don't exist)
 RUN sed -i "/include 'portfolio-service'/d; /include 'market-data-service'/d; /include 'insight-service'/d" settings.gradle
 
+# Remove the Java toolchain block from build.gradle so Gradle uses the ambient
+# JDK from PATH (provided by the amazoncorretto:25 base) rather than trying to
+# resolve a specific toolchain installation. Since Phase 4 pinned
+# JavaLanguageVersion to 21 (to match the Azure path), Gradle would otherwise
+# fail here because the builder image has JDK 25 only and no provisioning repo
+# is configured. The source file is untouched; this only affects the in-container
+# copy. Bytecode targets the ambient JDK version.
+RUN sed -i '/^    java {/,/^    }/d' build.gradle
+
 # Install findutils (provides xargs, required by Gradle wrapper)
 RUN yum install -y findutils && yum clean all
 

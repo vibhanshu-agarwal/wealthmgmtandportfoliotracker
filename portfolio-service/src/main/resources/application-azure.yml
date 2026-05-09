@@ -1,0 +1,30 @@
+# ============================================================
+# Azure profile — overrides for Azure Container Apps deployment.
+# Active when SPRING_PROFILES_ACTIVE includes "azure" (e.g. "prod,azure").
+# Loaded after application-prod.yml; keys here win over prod.
+#
+# Mutually exclusive with application-aws.yml at runtime — the deployment
+# tooling (Terraform / GitHub Actions) sets exactly one of {aws, azure}.
+# application-prod.yml stays untouched.
+# ============================================================
+
+fx:
+  azure:
+    # Open Exchange Rates — free-tier FX endpoint used on Azure.
+    # Mirrors the fx.aws.rates-url in application-aws.yml; both point to the
+    # same public endpoint. The key namespace is cloud-scoped (fx.azure.*)
+    # so the two overlays can diverge independently if needed.
+    rates-url: https://open.er-api.com/v6/latest/USD
+    # Daily refresh at 06:00 UTC. ACA long-lived containers make scheduled
+    # refresh reliable, unlike Lambda where the instance may not be warm at
+    # cron time. Matches the schedule in application-aws.yml.
+    refresh-cron: "0 0 6 * * *"
+
+spring:
+  cache:
+    # Spring simple ConcurrentMapCacheManager in-memory — plain ConcurrentHashMap-backed
+    # cache with no eviction policy. Used for FX rate caching on Azure Container Apps.
+    # Upstash Redis is reserved for rate limiting and sentiment caching (api-gateway /
+    # insight-service); portfolio-service does not need a distributed cache for FX rates.
+    # To switch to Redis-backed caching, change this to: type: redis
+    type: simple

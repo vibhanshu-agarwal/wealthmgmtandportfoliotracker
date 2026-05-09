@@ -1,0 +1,68 @@
+# =============================================================================
+# Azure Container Apps variant — market-data-service
+# Build context: repo root (docker build -f market-data-service/Dockerfile.azure .)
+#
+# This file is the Azure-specific Dockerfile. It uses Microsoft's OpenJDK 21
+# on Mariner Linux and produces a lean two-stage image (builder + runtime).
+# It does NOT include the AWS Lambda Web Adapter, jlink custom JRE, or any
+# AWS_LWA_* environment variables. Leave market-data-service/Dockerfile (AWS
+# variant) untouched.
+# =============================================================================
+
+# ---------------------------------------------------------------------------
+# Stage 1: Builder — compile source and produce Spring Boot fat JAR
+# Mariner Linux uses tdnf (not yum/apt) for package management.
+# ---------------------------------------------------------------------------
+# ARG must be declared BEFORE the first FROM so it is a "global" build arg
+# usable in a later FROM line. ARGs declared between FROM stages are stage-scoped
+# and BuildKit rejects their use in subsequent FROM instructions.
+ARG RUNTIME_BASE=mcr.microsoft.com/openjdk/jdk:21-mariner
+
+FROM mcr.microsoft.com/openjdk/jdk:21-mariner AS builder
+
+WORKDIR /workspace
+
+# Copy Gradle wrapper and build config first (layer caching)
+COPY gradlew gradlew
+COPY gradle/ gradle/
+COPY build.gradle build.gradle
+COPY settings.gradle settings.gradle
+
+# Copy source for common-dto (dependency) and market-data-service
+COPY common-dto/ common-dto/
+COPY market-data-service/ market-data-service/
+
+# Trim settings.gradle to only include modules needed for this service.
+# Gradle 9.x fails if included project directories don't exist in the build context.
+RUN sed -i "/include 'api-gateway'/d; /include 'portfolio-service'/d; /include 'insight-service'/d" settings.gradle
+
+# Remove the Java toolchain block from build.gradle so Gradle uses the ambient
+# JDK from PATH (provided by this base image) rather than trying to resolve a
+# specific toolchain installation. The toolchain block is useful for local dev
+# and CI (where setup-java manages the JDK), but inside Docker we own the JDK
+# via the base image and toolchain resolution has no provisioning repo to use.
+RUN sed -i '/^    java {/,/^    }/d' build.gradle
+
+# Install findutils (provides xargs, required by the Gradle wrapper).
+# Mariner Linux uses tdnf — not yum or apt.
+RUN tdnf install -y findutils && tdnf clean all
+
+# Build the fat JAR.
+RUN chmod +x gradlew && ./gradlew :market-data-service:bootJar --no-daemon
+
+# ---------------------------------------------------------------------------
+# Stage 2: Runtime — Microsoft OpenJDK 21 on Mariner
+# ARG RUNTIME_BASE allows overriding the base image (e.g. for distroless
+# variants) at build time without editing this Dockerfile:
+#   docker build --build-arg RUNTIME_BASE=<image> -f market-data-service/Dockerfile.azure .
+# The global ARG declared at the top of this file is re-declared here (empty)
+# to bring it into this stage's scope — required by BuildKit.
+# ---------------------------------------------------------------------------
+ARG RUNTIME_BASE
+FROM ${RUNTIME_BASE} AS runtime
+
+COPY --from=builder /workspace/market-data-service/build/libs/*.jar app.jar
+
+EXPOSE 8082
+
+ENTRYPOINT ["java", "-jar", "/app.jar"]
