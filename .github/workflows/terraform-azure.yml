@@ -184,5 +184,3 @@ jobs:
       - name: Terraform Apply
         if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'
         run: terraform apply -auto-approve tfplan
-        env:
-          # use_seed_image is baked into the plan above — no override needed here.
