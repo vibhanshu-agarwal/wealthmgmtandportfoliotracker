@@ -188,7 +188,7 @@ Property tests passing: P1 (profile mutual exclusion), P2 (JwtDecoder presence),
 |----------|-----------|----------------|
 | Spring Boot (main) | 3 new adapters + 1 validator + 5 YAML overlays | 7 modified (profiles, deps, AiConfig, InfrastructureHealthLogger, MockAiInsightService, MockInsightAdvisor, JwtDecoderConfig) |
 | Spring Boot (test) | 3 new property test classes | 3 modified (PreservationPropertyTest, MarketSummaryIntegrationTest, BedrockPropertyTest) |
-| Dockerfiles | 4 `Dockerfile.azure` | 0 (AWS Dockerfiles untouched) |
+| Dockerfiles | 4 `Dockerfile.azure` | 4 (AWS Dockerfiles: toolchain strip added post-merge) |
 | Terraform | Full `azure/` root + module (15+ files) | 0 (AWS modules untouched, relocated only) |
 | GitHub Actions | 2 new workflows | 0 (existing workflows untouched) |
 | Build | 0 | 1 (`build.gradle` toolchain 25→21) |
