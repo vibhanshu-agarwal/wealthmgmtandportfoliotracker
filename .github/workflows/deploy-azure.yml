@@ -65,22 +65,33 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Ensure required Resource Providers are registered
-        # Registers all five RPs required by the Azure Terraform root.
-        # az provider register is idempotent — safe to run even when already registered.
-        # --wait blocks until each RP reaches "Registered" state (typically < 60 s each
-        # if already registered; up to 5 min on a fresh subscription).
+      - name: Verify required Resource Providers are registered
+        # The CI service principal does not have subscription-scope rights to register
+        # Resource Providers. RPs must be pre-registered manually (see runbook Step 5).
+        # This step checks each RP and fails fast with a clear remediation message if
+        # any are missing — much clearer than the cryptic API-version errors Terraform
+        # would otherwise produce.
         run: |
+          MISSING=()
           for rp in Microsoft.App Microsoft.OperationalInsights Microsoft.ContainerRegistry Microsoft.CognitiveServices Microsoft.Web; do
             STATE=$(az provider show --namespace "$rp" --query registrationState -o tsv 2>/dev/null || echo "NotRegistered")
-            if [ "$STATE" != "Registered" ]; then
-              echo "Registering $rp (current state: $STATE)..."
-              az provider register --namespace "$rp" --wait
-              echo "$rp is now Registered."
+            if [ "$STATE" = "Registered" ]; then
+              echo "  [OK] $rp"
             else
-              echo "$rp is already Registered — skipping."
+              echo "  [MISSING] $rp (state: $STATE)"
+              MISSING+=("$rp")
             fi
           done
+
+          if [ ${#MISSING[@]} -gt 0 ]; then
+            echo ""
+            echo "::error::The following Resource Providers are not registered: ${MISSING[*]}"
+            echo "::error::Run this from the Azure CLI (requires Owner/Contributor on the subscription):"
+            echo "::error::  for rp in ${MISSING[*]}; do az provider register --namespace \$rp --wait; done"
+            echo "::error::See docs/runbooks/AZURE_SECRETS_SETUP.md Step 5 for full instructions."
+            exit 1
+          fi
+          echo "All required Resource Providers are registered."
 
       - name: Check whether infrastructure has been provisioned
         id: check
@@ -112,11 +123,12 @@ jobs:
   # ---------------------------------------------------------------------------
   # Backend: build and push service images, update Container Apps.
   # Skipped when infra_ready=false (infrastructure not yet provisioned).
+  # Fails when preflight itself failed (RP not registered, auth error, etc.).
   # ---------------------------------------------------------------------------
   deploy:
     runs-on: ubuntu-latest
     needs: preflight
-    if: needs.preflight.outputs.infra_ready == 'true'
+    if: needs.preflight.result == 'success' && needs.preflight.outputs.infra_ready == 'true'
     strategy:
       matrix:
         service:
@@ -208,9 +220,7 @@ jobs:
   deploy-frontend:
     runs-on: ubuntu-latest
     needs: [preflight, deploy]
-    # Run when infra is ready, regardless of whether backend deploy succeeded
-    # (frontend is independently deployable once the SWA resource exists).
-    if: needs.preflight.outputs.infra_ready == 'true' && always()
+    if: needs.preflight.result == 'success' && needs.preflight.outputs.infra_ready == 'true' && always()
 
     steps:
       - name: Checkout code
