@@ -139,10 +139,18 @@ jobs:
 
       - name: Provision Backend Config (apply only)
         if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'
-        # AZURE_BACKEND_HCL secret contains the HCL content with \n as line separators
-        # (set via: gh secret set AZURE_BACKEND_HCL < infrastructure/terraform/azure/backend-azure.hcl)
-        # printf interprets \n so the resulting file has proper line endings.
-        run: printf '%s\n' "${{ secrets.AZURE_BACKEND_HCL }}" > backend-azure.hcl
+        # AZURE_BACKEND_HCL secret contains the HCL content set via:
+        #   gh secret set AZURE_BACKEND_HCL < infrastructure/terraform/azure/backend-azure.hcl
+        # The secret is written to a file using an env var to avoid shell interpolation issues.
+        # Values must be quoted strings in HCL format, e.g.:
+        #   resource_group_name  = "wealth-tf-state-rg"
+        #   storage_account_name = "wealthtfstate"
+        env:
+          BACKEND_HCL_CONTENT: ${{ secrets.AZURE_BACKEND_HCL }}
+        run: |
+          printf '%s' "$BACKEND_HCL_CONTENT" > backend-azure.hcl
+          echo "--- backend-azure.hcl keys written ---"
+          grep -o '^[^=]*' backend-azure.hcl | sed 's/^/  /' || true
 
       - name: Terraform Init (apply — real backend)
         if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'
