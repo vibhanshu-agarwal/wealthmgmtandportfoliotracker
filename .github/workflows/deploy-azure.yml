@@ -96,10 +96,13 @@ jobs:
       - name: Check whether infrastructure has been provisioned
         id: check
         # Checks for the resource group and ACR. Both must exist for infra_ready=true.
-        # If either is missing, Terraform apply has not been run yet — skip deployment
-        # and print a clear action message so the developer knows what to do next.
+        # If either is missing (or the SP lacks read access yet), Terraform apply has
+        # not been run — skip deployment with a clear action message.
+        # All az commands use || true so this step never hard-fails; only the deploy
+        # jobs fail when infra_ready is not 'true'.
         run: |
-          RG_EXISTS=$(az group exists --name "$AZURE_RG")
+          RG_EXISTS="false"
+          az group show --name "$AZURE_RG" --output none 2>/dev/null && RG_EXISTS="true" || RG_EXISTS="false"
 
           ACR_EXISTS="false"
           if [ "$RG_EXISTS" = "true" ]; then
