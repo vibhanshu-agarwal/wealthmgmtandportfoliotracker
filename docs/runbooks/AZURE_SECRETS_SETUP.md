@@ -162,6 +162,16 @@ az provider list \
   --output table
 ```
 
+**PowerShell equivalent (Windows):**
+
+```powershell
+foreach ($rp in @("Microsoft.App", "Microsoft.OperationalInsights", "Microsoft.ContainerRegistry", "Microsoft.CognitiveServices", "Microsoft.Web")) {
+    Write-Host "Registering $rp..."
+    az provider register --namespace $rp --wait
+    Write-Host "$rp registered."
+}
+```
+
 Re-run the query until all five show `Registered`. Do not proceed to Step 7 until all are registered.
 
 ---
