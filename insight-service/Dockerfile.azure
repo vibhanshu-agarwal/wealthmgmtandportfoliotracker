@@ -31,17 +31,16 @@ COPY insight-service/ insight-service/
 # Gradle 9.x fails if included project directories don't exist in the build context.
 RUN sed -i "/include 'api-gateway'/d; /include 'portfolio-service'/d; /include 'market-data-service'/d" settings.gradle
 
+# Remove the Java toolchain block from build.gradle so Gradle uses the ambient
+# JDK from PATH (provided by this base image) rather than trying to resolve a
+# specific toolchain installation. The toolchain block is useful for local dev
+# and CI (where setup-java manages the JDK), but inside Docker we own the JDK
+# via the base image and toolchain resolution has no provisioning repo to use.
+RUN sed -i '/^    java {/,/^    }/d' build.gradle
+
 # Install findutils (provides xargs, required by the Gradle wrapper).
 # Mariner Linux uses tdnf — not yum or apt.
 RUN tdnf install -y findutils && tdnf clean all
-
-# Disable the Gradle Java toolchain so Gradle uses the ambient JDK from PATH
-# rather than trying to auto-provision one (which fails in a container with no
-# provisioning repository configured). The toolchain block in build.gradle is
-# for local/CI Gradle runs where the JDK is managed externally; inside Docker
-# we own the JDK via the base image and don't need toolchain resolution.
-RUN printf 'org.gradle.java.installations.auto-detect=false\norg.gradle.java.installations.auto-download=false\n' \
-    >> gradle.properties
 
 # Build the fat JAR.
 RUN chmod +x gradlew && ./gradlew :insight-service:bootJar --no-daemon
