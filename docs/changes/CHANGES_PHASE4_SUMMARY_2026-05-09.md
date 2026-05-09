@@ -375,3 +375,19 @@ Fix: in all 4 `Dockerfile.azure` files, moved `ARG RUNTIME_BASE=mcr.microsoft.co
 **Verification (local, 2026-05-09):**
 - `docker build -f market-data-service/Dockerfile.azure .` — `BUILD SUCCESSFUL in 53s`, image pushed successfully, 886MB final size
 - `docker build -f market-data-service/Dockerfile --target=builder .` — `BUILD SUCCESSFUL in 46s` (toolchain-21 error gone from AWS path)
+
+### `fix(insight)` — 4730b9d — Disable Spring AI auto-config for local profile
+
+`docker compose up` failed with `insight-service` exiting (1), which cascaded to `api-gateway` failing its dependency check. Root cause: both `spring-ai-starter-model-bedrock-converse` and `spring-ai-starter-model-azure-openai` are on the classpath. Under the default `local` profile (neither `bedrock` nor `azure-ai` active), the Azure OpenAI auto-configuration's `AzureOpenAiClientBuilderConfiguration` still fires and crashes with:
+
+> Endpoint must not be empty
+
+because `AZURE_OPENAI_ENDPOINT` is only defined in `application-azure-ai.yml` (loaded exclusively under the `azure-ai` profile).
+
+This was the same failure already fixed for `MarketSummaryIntegrationTest` (which added `spring.ai.model.chat=none` + a placeholder endpoint in test properties), but the runtime `application.yml` was never updated.
+
+Changes to `insight-service/src/main/resources/application.yml`:
+- Added `spring.ai.model.chat: none` — disables both AI ChatModel auto-configurations by default. Overridden to `bedrock-converse` by `application-bedrock.yml` or `azure-openai` by `application-azure-ai.yml` when those profiles are active.
+- Added `spring.ai.azure.openai.endpoint: ${AZURE_OPENAI_ENDPOINT:https://placeholder.openai.azure.com/}` — provides a safe default so the Azure client builder does not crash during context init. Overridden with the real endpoint by `application-azure-ai.yml`.
+
+After this fix, `docker compose up` with the default `SPRING_PROFILES_ACTIVE=local` starts the insight-service using `MockAiInsightService` without requiring any AI provider credentials or endpoints.
