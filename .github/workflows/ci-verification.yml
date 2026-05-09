@@ -254,8 +254,8 @@ jobs:
             --reporter=list
 
       - name: Pre-warm AWS Lambda stack
-        # Runs against the live site — only on push to main when deploying to AWS
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.CLOUD_PROVIDER != 'azure'
+        # Runs against the live site — only on push to main when explicitly deploying to AWS
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.CLOUD_PROVIDER == 'aws'
         # Hit gateway-routed health endpoints for every backend Lambda before seeding.
         # Keep this sequential to avoid exhausting the ap-south-1 concurrency quota of 10.
         run: |
@@ -284,8 +284,8 @@ jobs:
           echo "Warning: Lambda pre-warm still saw 5xx/timeout responses. Seeding may still retry successfully."
       - name: Run AWS synthetic monitoring
         working-directory: frontend
-        # Runs against the live site — only on push to main when deploying to AWS
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.CLOUD_PROVIDER != 'azure'
+        # Runs against the live site — only on push to main when explicitly deploying to AWS
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.CLOUD_PROVIDER == 'aws'
         env:
           # Target the live production deployment, not the local Docker Compose stack.
           # Without these, global-setup.ts falls back to http://localhost:8080 and seeds
@@ -296,6 +296,9 @@ jobs:
           # /actuator/health is protected by CloudFront origin-verify. The synthetic
           # tests themselves are the liveness signal for the live environment.
           SKIP_BACKEND_HEALTH_CHECK: "true"
+          # Skip seeding against the live AWS stack — seeding is handled by the local
+          # Docker Compose E2E run above. Avoids 502s when Lambdas are cold/down.
+          SKIP_GOLDEN_STATE_SEEDING: "true"
           # INTERNAL_API_KEY is inherited from the job-level env (secrets.TF_VAR_INTERNAL_API_KEY).
           E2E_TEST_USER_EMAIL: ${{ secrets.E2E_TEST_USER_EMAIL }}
           E2E_TEST_USER_PASSWORD: ${{ secrets.E2E_TEST_USER_PASSWORD }}
