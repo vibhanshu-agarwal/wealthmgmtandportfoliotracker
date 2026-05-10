@@ -1,16 +1,16 @@
 # Azure Synthetic Monitoring - Local Debugging
 
-This directory contains the synthetic monitoring suite designed to run against the live Azure environment (`https://wealthmgmt-azure-prod.azurewebsites.net`).
+This directory contains the synthetic monitoring suite designed to run against the live Azure environment (`https://vibhanshu-ai-portfolio.dev`).
 
 ## Prerequisites
 
 1. **Environment Variables**: You must set the following variables in your `.env` or terminal:
    ```bash
    export INTERNAL_API_KEY="your-secret-key"
-   export E2E_TEST_USER_EMAIL="e2e-test-user@wealthmgmt-azure-prod.azurewebsites.net"
+   export E2E_TEST_USER_EMAIL="e2e-test-user@vibhanshu-ai-portfolio.dev"
    export E2E_TEST_USER_PASSWORD="your-password"
-   export BASE_URL="https://wealthmgmt-azure-prod.azurewebsites.net"
-   export NEXT_PUBLIC_API_BASE_URL="https://api-wealthmgmt-azure-prod.azurewebsites.net"
+   export BASE_URL="https://vibhanshu-ai-portfolio.dev"
+   export NEXT_PUBLIC_API_BASE_URL="https://api.vibhanshu-ai-portfolio.dev"
    ```
 
 2. **Dependencies**: Ensure you have installed the frontend dependencies:

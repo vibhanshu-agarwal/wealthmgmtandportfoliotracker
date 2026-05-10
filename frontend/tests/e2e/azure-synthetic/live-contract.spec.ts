@@ -15,8 +15,13 @@ test.describe("Azure Synthetic: Live Contract", () => {
     const emailInput = page.locator('input[type="email"]');
     await emailInput.waitFor({ state: "visible", timeout: 15_000 });
 
-    await emailInput.fill(process.env.E2E_TEST_USER_EMAIL ?? "e2e-test-user@wealthmgmt-azure-prod.azurewebsites.net");
-    await page.locator('input[type="password"]').fill(process.env.E2E_TEST_USER_PASSWORD ?? "TestPassword123!");
+    await emailInput.fill(
+      process.env.E2E_TEST_USER_EMAIL ??
+        "e2e-test-user@vibhanshu-ai-portfolio.dev",
+    );
+    await page
+      .locator('input[type="password"]')
+      .fill(process.env.E2E_TEST_USER_PASSWORD!);
     await page.getByRole("button", { name: /sign in|log in/i }).click();
     await expect(page).toHaveURL(/.*\/overview|.*\/portfolio/);
   });
@@ -31,15 +36,27 @@ test.describe("Azure Synthetic: Live Contract", () => {
 
     // Assert total count of assets rendered in the table header description
     // Example: "160 of 160 assets"
-    const assetCountDescription = page.locator("p.text-sm.text-muted-foreground", { hasText: /assets/i });
-    await expect(assetCountDescription).toContainText("160", { timeout: 10_000 });
+    const assetCountDescription = page.locator(
+      "p.text-sm.text-muted-foreground",
+      { hasText: /assets/i },
+    );
+    await expect(assetCountDescription).toContainText("160", {
+      timeout: 10_000,
+    });
 
     // Verify a sample of tickers from each asset class
     const sampleTickers = [
-      "AAPL", "NVDA", "WMT", // US Equity
-      "RELIANCE.NS", "TCS.NS", "TATAMOTORS.NS", // NSE
-      "BTC-USD", "ETH-USD", "SOL-USD", // Crypto
-      "EURUSD=X", "USDINR=X" // Forex
+      "AAPL",
+      "NVDA",
+      "WMT", // US Equity
+      "RELIANCE.NS",
+      "TCS.NS",
+      "TATAMOTORS.NS", // NSE
+      "BTC-USD",
+      "ETH-USD",
+      "SOL-USD", // Crypto
+      "EURUSD=X",
+      "USDINR=X", // Forex
     ];
 
     for (const ticker of sampleTickers) {

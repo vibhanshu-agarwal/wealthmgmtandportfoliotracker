@@ -7,7 +7,8 @@ import { expect, test } from "@playwright/test";
  * for the seeded E2E test user on Azure Container Apps.
  */
 
-const TEST_USER_EMAIL = process.env.E2E_TEST_USER_EMAIL ?? "e2e-test-user@wealthmgmt-azure-prod.azurewebsites.net";
+const TEST_USER_EMAIL =
+  process.env.E2E_TEST_USER_EMAIL ?? "e2e-test-user@vibhanshu-ai-portfolio.dev";
 const TEST_USER_PASSWORD = process.env.E2E_TEST_USER_PASSWORD;
 
 test.describe("Azure Synthetic: Login", () => {
@@ -33,6 +34,8 @@ test.describe("Azure Synthetic: Login", () => {
     });
 
     // Check for user identity in the UI
-    await expect(page.locator("body")).toContainText("E2E Test User", { timeout: 10_000 });
+    await expect(page.locator("body")).toContainText("E2E Test User", {
+      timeout: 10_000,
+    });
   });
 });
