@@ -13,7 +13,6 @@ export default function LoginPage() {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [bannerVisible, setBannerVisible] = useState(true);
 
   async function handleSubmit(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -35,37 +34,8 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="flex min-h-screen flex-col bg-background">
-      {bannerVisible && (
-        <div
-          role="alert"
-          className="flex items-start gap-3 border-b border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900"
-        >
-          <span className="mt-0.5 shrink-0 text-base" aria-hidden="true">
-            ⚠️
-          </span>
-          <p className="flex-1">
-            <strong>Infrastructure Notice:</strong> The backend microservices
-            for this application are currently experiencing strict serverless
-            concurrency throttling on AWS. A quota increase request is pending,
-            alongside a contingency plan to migrate to Azure Container Apps.
-            During this window, you may experience timeouts or empty data views.
-            Thank you for your patience while this multi-cloud architecture is
-            optimized.
-          </p>
-          <button
-            type="button"
-            aria-label="Dismiss notice"
-            onClick={() => setBannerVisible(false)}
-            className="shrink-0 rounded p-1 text-amber-700 hover:bg-amber-100 hover:text-amber-900"
-          >
-            ✕
-          </button>
-        </div>
-      )}
-
-      <div className="flex flex-1 items-center justify-center">
-        <div className="w-full max-w-sm space-y-6 rounded-xl border border-border bg-card p-8 shadow-sm">
+    <main className="flex min-h-screen flex-col items-center justify-center bg-background">
+      <div className="w-full max-w-sm space-y-6 rounded-xl border border-border bg-card p-8 shadow-sm">
         <div className="space-y-1">
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">
             Sign in
@@ -124,7 +94,6 @@ export default function LoginPage() {
             {loading ? "Signing in…" : "Sign in"}
           </button>
         </form>
-        </div>
       </div>
     </main>
   );
