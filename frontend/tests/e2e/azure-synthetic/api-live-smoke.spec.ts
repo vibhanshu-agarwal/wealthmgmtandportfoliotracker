@@ -124,23 +124,42 @@ test.describe("Azure Synthetic: API live smoke", () => {
 
     const headers = { "X-Internal-Api-Key": internalApiKey! };
 
+    // Portfolio seed: controller hardcodes the E2E user — no body needed.
+    // Response: { userId, portfolioId, holdingsInserted, marketPricesUpserted }
     const portfolioSeed = await request.post(
       `${baseUrl}/api/internal/portfolio/seed`,
       { headers, timeout: 70_000 },
     );
     expect(
-      [200, 204],
+      portfolioSeed.status(),
       `POST /api/internal/portfolio/seed returned HTTP ${portfolioSeed.status()}`,
-    ).toContain(portfolioSeed.status());
+    ).toBe(200);
+    const portfolioSeedBody = await portfolioSeed.json();
+    expect(
+      portfolioSeedBody.holdingsInserted,
+      "portfolio seed must insert >= 160 holdings (Requirement 1.4)",
+    ).toBeGreaterThanOrEqual(160);
 
+    // Market-data seed: controller requires { userId } in the request body
+    // (MarketDataSeedController.SeedRequest) — omitting it returns 400.
+    // Response: { pricesUpserted }
     const marketDataSeed = await request.post(
       `${baseUrl}/api/internal/market-data/seed`,
-      { headers, timeout: 70_000 },
+      {
+        headers,
+        data: { userId: expectedUserId },
+        timeout: 70_000,
+      },
     );
     expect(
-      [200, 204],
+      marketDataSeed.status(),
       `POST /api/internal/market-data/seed returned HTTP ${marketDataSeed.status()}`,
-    ).toContain(marketDataSeed.status());
+    ).toBe(200);
+    const marketDataSeedBody = await marketDataSeed.json();
+    expect(
+      marketDataSeedBody.pricesUpserted,
+      "market-data seed must upsert >= 160 prices (Requirement 1.4)",
+    ).toBeGreaterThanOrEqual(160);
   });
 
   // ── 3. Auth + protected endpoints ────────────────────────────────────────

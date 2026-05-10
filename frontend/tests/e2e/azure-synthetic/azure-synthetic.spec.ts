@@ -3,15 +3,15 @@ import { expect, test } from "@playwright/test";
 /**
  * Azure Synthetic Monitoring Tests
  *
- * Target: https://wealthmgmt-azure-prod.azurewebsites.net
+ * Target: https://vibhanshu-ai-portfolio.dev (canonical public domain, post-DNS-cutover)
  * Constraints:
  * - MUST run serially (--workers=1 in CI or implicitly isolated) to avoid Azure OpenAI rate limits.
  * - MUST use a dedicated test user so production analytics are not polluted.
- * - Extended timeouts handle Azure Front Door CDN warming and Container Apps scale-up (~30s).
+ * - Extended timeouts handle Container Apps scale-up (~30s) and Azure OpenAI latency.
  */
 
 const TEST_USER_EMAIL =
-  process.env.E2E_TEST_USER_EMAIL ?? "e2e-test-user@wealthmgmt-azure-prod.azurewebsites.net";
+  process.env.E2E_TEST_USER_EMAIL ?? "e2e-test-user@vibhanshu-ai-portfolio.dev";
 const TEST_USER_PASSWORD = process.env.E2E_TEST_USER_PASSWORD;
 
 /**
@@ -27,8 +27,8 @@ const TEST_USER_PASSWORD = process.env.E2E_TEST_USER_PASSWORD;
  * and verify E2E credentials in GitHub Actions secrets.
  */
 test.describe("Live Azure Synthetic Monitoring", () => {
-  // Use a longer timeout for the entire suite to account for Container Apps scale-up
-  test.setTimeout(90_000);
+  // 120s matches the project-level timeout set in playwright.config.ts.
+  test.setTimeout(120_000);
 
   test("Health Check: System login and dashboard hydration", async ({
     page,
