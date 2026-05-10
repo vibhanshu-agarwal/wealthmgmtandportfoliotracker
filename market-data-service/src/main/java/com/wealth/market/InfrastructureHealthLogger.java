@@ -19,26 +19,35 @@ import org.springframework.stereotype.Component;
  *   <li>{@code [INFRA-FAIL]} — dependency unreachable; includes root cause</li>
  * </ul>
  *
- * <p>Runs only under the {@code aws} profile. Fires on {@link ApplicationReadyEvent}
- * so it never blocks startup or the baseline seeder.
+ * <p>Runs under the {@code aws} and {@code azure} profiles — local Docker Compose is assumed healthy.
+ * Fires on {@link ApplicationReadyEvent} so it never blocks startup or the baseline seeder.
  */
 @Component
-@Profile("aws")
-class InfrastructureHealthLogger implements ApplicationListener<ApplicationReadyEvent> {
+@Profile({ "aws", "azure" })
+class InfrastructureHealthLogger
+    implements ApplicationListener<ApplicationReadyEvent>
+{
 
-    private static final Logger log = LoggerFactory.getLogger(InfrastructureHealthLogger.class);
+    private static final Logger log = LoggerFactory.getLogger(
+        InfrastructureHealthLogger.class
+    );
 
     private final MongoTemplate mongoTemplate;
     private final KafkaAdmin kafkaAdmin;
 
-    InfrastructureHealthLogger(MongoTemplate mongoTemplate, KafkaAdmin kafkaAdmin) {
+    InfrastructureHealthLogger(
+        MongoTemplate mongoTemplate,
+        KafkaAdmin kafkaAdmin
+    ) {
         this.mongoTemplate = mongoTemplate;
         this.kafkaAdmin = kafkaAdmin;
     }
 
     @Override
     public void onApplicationEvent(ApplicationReadyEvent event) {
-        log.info("=== Infrastructure connectivity check (market-data-service) ===");
+        log.info(
+            "=== Infrastructure connectivity check (market-data-service) ==="
+        );
         probeMongoDB();
         probeKafka();
         log.info("=== Infrastructure connectivity check complete ===");
@@ -49,22 +58,32 @@ class InfrastructureHealthLogger implements ApplicationListener<ApplicationReady
             // executeCommand is a lightweight ping that verifies the connection without
             // reading any collection data.
             mongoTemplate.executeCommand("{ ping: 1 }");
-            log.info("[INFRA-OK]   MongoDB — ping succeeded (Atlas/DocumentDB reachable)");
+            log.info(
+                "[INFRA-OK]   MongoDB — ping succeeded (Atlas/DocumentDB reachable)"
+            );
         } catch (Exception ex) {
-            log.error("[INFRA-FAIL] MongoDB — unreachable; market price reads/writes will fail. "
-                    + "Check MONGODB_CONNECTION_STRING. cause={}: {}",
-                    ex.getClass().getSimpleName(), ex.getMessage());
+            log.error(
+                "[INFRA-FAIL] MongoDB — unreachable; market price reads/writes will fail. " +
+                    "Check MONGODB_CONNECTION_STRING. cause={}: {}",
+                ex.getClass().getSimpleName(),
+                ex.getMessage()
+            );
         }
     }
 
     private void probeKafka() {
         try {
             kafkaAdmin.describeTopics("market-prices");
-            log.info("[INFRA-OK]   Kafka — broker reachable (market-prices topic accessible)");
+            log.info(
+                "[INFRA-OK]   Kafka — broker reachable (market-prices topic accessible)"
+            );
         } catch (Exception ex) {
-            log.error("[INFRA-FAIL] Kafka — unreachable; price update events will not be published. "
-                    + "Check KAFKA_BOOTSTRAP_SERVERS. cause={}: {}",
-                    ex.getClass().getSimpleName(), ex.getMessage());
+            log.error(
+                "[INFRA-FAIL] Kafka — unreachable; price update events will not be published. " +
+                    "Check KAFKA_BOOTSTRAP_SERVERS. cause={}: {}",
+                ex.getClass().getSimpleName(),
+                ex.getMessage()
+            );
         }
     }
 }

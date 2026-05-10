@@ -20,22 +20,28 @@ import org.springframework.stereotype.Component;
  *   <li>{@code [INFRA-FAIL]} — dependency unreachable; includes root cause</li>
  * </ul>
  *
- * <p>Runs only under the {@code aws} profile. Fires on {@link ApplicationReadyEvent}
- * so it never blocks startup or Flyway migrations.
+ * <p>Runs under the {@code aws} and {@code azure} profiles — local Docker Compose is assumed healthy.
+ * Fires on {@link ApplicationReadyEvent} so it never blocks startup or Flyway migrations.
  */
 @Component
-@Profile("aws")
-class InfrastructureHealthLogger implements ApplicationListener<ApplicationReadyEvent> {
+@Profile({ "aws", "azure" })
+class InfrastructureHealthLogger
+    implements ApplicationListener<ApplicationReadyEvent>
+{
 
-    private static final Logger log = LoggerFactory.getLogger(InfrastructureHealthLogger.class);
+    private static final Logger log = LoggerFactory.getLogger(
+        InfrastructureHealthLogger.class
+    );
 
     private final JdbcTemplate jdbcTemplate;
     private final KafkaAdmin kafkaAdmin;
     private final RedisConnectionFactory redisConnectionFactory;
 
-    InfrastructureHealthLogger(JdbcTemplate jdbcTemplate,
-                                KafkaAdmin kafkaAdmin,
-                                RedisConnectionFactory redisConnectionFactory) {
+    InfrastructureHealthLogger(
+        JdbcTemplate jdbcTemplate,
+        KafkaAdmin kafkaAdmin,
+        RedisConnectionFactory redisConnectionFactory
+    ) {
         this.jdbcTemplate = jdbcTemplate;
         this.kafkaAdmin = kafkaAdmin;
         this.redisConnectionFactory = redisConnectionFactory;
@@ -43,7 +49,9 @@ class InfrastructureHealthLogger implements ApplicationListener<ApplicationReady
 
     @Override
     public void onApplicationEvent(ApplicationReadyEvent event) {
-        log.info("=== Infrastructure connectivity check (portfolio-service) ===");
+        log.info(
+            "=== Infrastructure connectivity check (portfolio-service) ==="
+        );
         probePostgres();
         probeKafka();
         probeRedis();
@@ -53,11 +61,16 @@ class InfrastructureHealthLogger implements ApplicationListener<ApplicationReady
     private void probePostgres() {
         try {
             jdbcTemplate.queryForObject("SELECT 1", Integer.class);
-            log.info("[INFRA-OK]   PostgreSQL — SELECT 1 succeeded (Neon/RDS reachable)");
+            log.info(
+                "[INFRA-OK]   PostgreSQL — SELECT 1 succeeded (Neon/RDS reachable)"
+            );
         } catch (Exception ex) {
-            log.error("[INFRA-FAIL] PostgreSQL — unreachable; portfolio reads/writes will fail. "
-                    + "Check POSTGRES_CONNECTION_STRING. cause={}: {}",
-                    ex.getClass().getSimpleName(), ex.getMessage());
+            log.error(
+                "[INFRA-FAIL] PostgreSQL — unreachable; portfolio reads/writes will fail. " +
+                    "Check POSTGRES_CONNECTION_STRING. cause={}: {}",
+                ex.getClass().getSimpleName(),
+                ex.getMessage()
+            );
         }
     }
 
@@ -65,22 +78,32 @@ class InfrastructureHealthLogger implements ApplicationListener<ApplicationReady
         try {
             // describeCluster() is a lightweight admin call that verifies broker connectivity.
             kafkaAdmin.describeTopics("market-prices");
-            log.info("[INFRA-OK]   Kafka — broker reachable (market-prices topic accessible)");
+            log.info(
+                "[INFRA-OK]   Kafka — broker reachable (market-prices topic accessible)"
+            );
         } catch (Exception ex) {
-            log.error("[INFRA-FAIL] Kafka — unreachable; price update events will not be consumed. "
-                    + "Check KAFKA_BOOTSTRAP_SERVERS. cause={}: {}",
-                    ex.getClass().getSimpleName(), ex.getMessage());
+            log.error(
+                "[INFRA-FAIL] Kafka — unreachable; price update events will not be consumed. " +
+                    "Check KAFKA_BOOTSTRAP_SERVERS. cause={}: {}",
+                ex.getClass().getSimpleName(),
+                ex.getMessage()
+            );
         }
     }
 
     private void probeRedis() {
         try {
             redisConnectionFactory.getConnection().ping();
-            log.info("[INFRA-OK]   Redis — PONG received (portfolio-analytics cache ready)");
+            log.info(
+                "[INFRA-OK]   Redis — PONG received (portfolio-analytics cache ready)"
+            );
         } catch (Exception ex) {
-            log.error("[INFRA-FAIL] Redis — unreachable; analytics cache will be unavailable. "
-                    + "Check REDIS_URL. cause={}: {}",
-                    ex.getClass().getSimpleName(), ex.getMessage());
+            log.error(
+                "[INFRA-FAIL] Redis — unreachable; analytics cache will be unavailable. " +
+                    "Check REDIS_URL. cause={}: {}",
+                ex.getClass().getSimpleName(),
+                ex.getMessage()
+            );
         }
     }
 }
