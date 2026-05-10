@@ -3,10 +3,10 @@ name: Synthetic Monitoring
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 * * * *' # Run hourly
+    - cron: "0 * * * *" # Run hourly
 
 jobs:
-  run-synthetic-tests:
+  run-aws-synthetic-tests:
     name: Run AWS Synthetic Suite
     # Only run when explicitly deploying to AWS
     if: vars.CLOUD_PROVIDER == 'aws'
@@ -84,6 +84,71 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-report
+          name: playwright-report-aws
+          path: frontend/playwright-report/
+          retention-days: 7
+
+  run-azure-synthetic-tests:
+    name: Run Azure Synthetic Suite
+    # Only run when explicitly deploying to Azure
+    if: vars.CLOUD_PROVIDER == 'azure'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ./frontend
+        run: npm ci
+
+      - name: Install Playwright Browsers
+        working-directory: ./frontend
+        run: npx playwright install --with-deps chromium
+
+      - name: Pre-warm Azure Container Apps
+        # Hit health endpoints for each Container App to ensure they're running.
+        # Azure Container Apps don't have Lambda-style cold starts, but can scale to zero.
+        # This step ensures instances are running before synthetic tests.
+        run: |
+          set +e
+          BASE="https://wealthmgmt-azure-prod.azurewebsites.net"
+          PATHS=("/actuator/health" "/api/portfolio/health" "/api/market/health" "/api/insights/health")
+          echo "Pre-warming Azure Container Apps at ${BASE} ..."
+          for path in "${PATHS[@]}"; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "${BASE}${path}" || echo "000")
+            echo "  ${path}: HTTP ${STATUS}"
+            sleep 1
+          done
+          echo "Pre-warm complete. Container Apps are ready."
+
+      - name: Run Azure Synthetic Monitoring
+        working-directory: ./frontend
+        env:
+          # Targets the live Azure production site (Azure Front Door or Container Apps URL)
+          BASE_URL: https://wealthmgmt-azure-prod.azurewebsites.net
+          # Gateway base URL — API is served under /api/* on the same domain
+          NEXT_PUBLIC_API_BASE_URL: https://api.vibhanshu-ai-portfolio.dev
+          # Skip the local-stack health poll — not appropriate for live Azure
+          SKIP_BACKEND_HEALTH_CHECK: "true"
+          # Shared secret for seeding
+          INTERNAL_API_KEY: ${{ secrets.TF_VAR_INTERNAL_API_KEY }}
+          # E2E test user credentials
+          E2E_TEST_USER_EMAIL: e2e-test-user@wealthmgmt-azure-prod.azurewebsites.net
+          E2E_TEST_USER_PASSWORD: ${{ secrets.E2E_TEST_USER_PASSWORD }}
+        run: npx playwright test --project=azure-synthetic
+
+      - name: Upload Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-azure
           path: frontend/playwright-report/
           retention-days: 7
