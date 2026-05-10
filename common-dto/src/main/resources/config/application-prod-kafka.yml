@@ -21,6 +21,12 @@ spring:
         org.apache.kafka.common.security.plain.PlainLoginModule required
         username='${KAFKA_SASL_USERNAME}' password='${KAFKA_SASL_PASSWORD}';
     admin:
-      # Fail fast on connectivity probe — avoids 30 s hang when broker is unreachable.
+      # auto-create: true tells KafkaAdmin to call CreateTopics for every NewTopic bean
+      # it finds in the context. The broker silently ignores the request when the topic
+      # already exists, making this idempotent across restarts.
+      auto-create: true
       properties:
-        request.timeout.ms: 5000
+        # 30 s gives a cold Aiven broker enough time to respond to CreateTopics.
+        # The health probe (InfrastructureHealthLogger) uses a separate admin call and
+        # is not affected by this timeout — it catches the exception and logs INFRA-FAIL.
+        request.timeout.ms: 30000
