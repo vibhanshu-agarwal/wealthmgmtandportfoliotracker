@@ -338,3 +338,30 @@ import {
   to = module.insight_service.azurerm_container_app.this
   id = "/subscriptions/ee625b3f-7cb1-4482-be3c-4363c5d76d23/resourceGroups/wealth-azure-prod-rg/providers/Microsoft.App/containerApps/insight-service"
 }
+
+# ---------------------------------------------------------------------------
+# Import: AcrPull role assignments (created manually during Phase 4 live deploy)
+# These were assigned manually because the initial terraform apply timed out
+# before reaching the role assignment resources. Importing them prevents the
+# 409 RoleAssignmentExists conflict on subsequent applies.
+# ---------------------------------------------------------------------------
+
+import {
+  to = module.api_gateway.azurerm_role_assignment.acr_pull
+  id = "/subscriptions/ee625b3f-7cb1-4482-be3c-4363c5d76d23/resourceGroups/wealth-azure-prod-rg/providers/Microsoft.ContainerRegistry/registries/wealthprodacr/providers/Microsoft.Authorization/roleAssignments/ee08a243-ba2f-41e3-93f7-5c39456832b4"
+}
+
+import {
+  to = module.portfolio_service.azurerm_role_assignment.acr_pull
+  id = "/subscriptions/ee625b3f-7cb1-4482-be3c-4363c5d76d23/resourceGroups/wealth-azure-prod-rg/providers/Microsoft.ContainerRegistry/registries/wealthprodacr/providers/Microsoft.Authorization/roleAssignments/9b900371-7826-44a1-8670-f5a9ddd83e0d"
+}
+
+import {
+  to = module.market_data_service.azurerm_role_assignment.acr_pull
+  id = "/subscriptions/ee625b3f-7cb1-4482-be3c-4363c5d76d23/resourceGroups/wealth-azure-prod-rg/providers/Microsoft.ContainerRegistry/registries/wealthprodacr/providers/Microsoft.Authorization/roleAssignments/0d82add1-b48a-48a1-93e1-340339e89507"
+}
+
+import {
+  to = module.insight_service.azurerm_role_assignment.acr_pull
+  id = "/subscriptions/ee625b3f-7cb1-4482-be3c-4363c5d76d23/resourceGroups/wealth-azure-prod-rg/providers/Microsoft.ContainerRegistry/registries/wealthprodacr/providers/Microsoft.Authorization/roleAssignments/54365adf-9188-458a-a5a2-01e43606e3ea"
+}
