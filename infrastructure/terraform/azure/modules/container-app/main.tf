@@ -24,12 +24,13 @@ resource "azurerm_container_app" "this" {
   }
 
   # Image updates are handled exclusively by deploy-azure.yml via `az containerapp update`.
-  # Ignoring template changes here prevents Terraform from triggering a new revision on
-  # every apply, which causes false-failure polling timeouts in centralindia.
-  # Infrastructure changes (env vars, secrets, ingress, scaling) are still managed by Terraform
-  # because those fields live outside the template block.
+  # Ignoring only the image field prevents Terraform from triggering a new revision on
+  # every apply (which causes false-failure polling timeouts in centralindia) while still
+  # allowing Terraform to manage env vars, scaling, ingress, and all other template fields.
   lifecycle {
-    ignore_changes = [template]
+    ignore_changes = [
+      template[0].containers[0].image,
+    ]
   }
 
   # System-assigned managed identity — used for ACR pull and (for insight-service)
