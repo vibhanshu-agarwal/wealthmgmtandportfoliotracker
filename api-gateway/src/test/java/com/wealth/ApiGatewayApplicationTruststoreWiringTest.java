@@ -11,14 +11,15 @@ import static org.mockito.Mockito.mockStatic;
 class ApiGatewayApplicationTruststoreWiringTest {
 
     @Test
-    void mainExtractsRedisTruststoreBeforeStartup() {
+    void mainDoesNotExtractRedisTruststoreAndStartsApplication() {
         try (MockedStatic<TruststoreExtractor> extractor = mockStatic(TruststoreExtractor.class);
              MockedStatic<SpringApplication> springApplication = mockStatic(SpringApplication.class)) {
 
             ApiGatewayApplication.main(new String[0]);
 
-            extractor.verify(() ->
-                    TruststoreExtractor.extract("kafka-truststore.jks", "REDIS_TRUSTSTORE_PATH"));
+            // Redis (Upstash) uses Let's Encrypt — no custom truststore extraction needed.
+            // Lettuce uses the JVM system cacerts (ISRG Root X1/X2 present on both AWS and Azure).
+            extractor.verifyNoInteractions();
             springApplication.verify(() ->
                     SpringApplication.run(eq(ApiGatewayApplication.class), eq(new String[0])));
         }
