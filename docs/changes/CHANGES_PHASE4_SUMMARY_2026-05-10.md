@@ -405,3 +405,105 @@ To re-enable AWS: lower Azure apex CNAME TTL to 300, rename `_disabled-apex` bac
 - **Node.js 20 deprecation warning** in CI — `actions/checkout@v4`, `azure/login@v2`, `hashicorp/setup-terraform@v3` will need updating before September 2026 when Node.js 20 is removed from GitHub Actions runners.
 - **Import blocks in `main.tf`** — the four Container App `import {}` blocks and four AcrPull role assignment `import {}` blocks are now no-ops (resources are in state). They can be removed after the next clean `terraform plan` confirms zero drift.
 - **`Resolve API Gateway FQDN` step** — still runs in `deploy-frontend` but its output is unused (hardcoded `NEXT_PUBLIC_API_BASE_URL` takes precedence). Can be removed or converted to a non-blocking log.
+
+---
+
+## Phase 4 Continuation — CI/CD Fixes, Demo Readiness & Workflow Cleanup (2026-05-10)
+
+### Azure Demo Readiness — Phase 1 Bugfix (`c65098f`)
+
+Four CI/CD defects were identified and fixed that caused the live Azure demo to show no data despite a green pipeline. Full spec: `.kiro/specs/azure-demo-readiness-phase1/`.
+
+**Defect 1 — Seed step was a no-op (`global-setup.ts` entrypoint)**
+
+`frontend/tests/e2e/global-setup.ts` ended with `export default globalSetup;` but had no `require.main === module` guard. Direct `ts-node` execution loaded the module, evaluated the export, and exited 0 without ever calling `globalSetup()`. No seed requests were made.
+
+Fix: Appended a `require.main === module` entrypoint guard after the export. Uses `typeof require !== "undefined"` outer check for ESM safety. Node 25 + ts-node 10.9.2 reparses files with ESM syntax as ESM modules where `require.main` is undefined — the seed job command was updated to use `tests/e2e/tsconfig.e2e-test.json` (which forces `"module": "commonjs"`) instead of the main `tsconfig.json`.
+
+**Defect 2 — Seeding lived in the wrong workflow**
+
+The Azure seed step was in `ci-verification.yml`, which fires on every push to `main` (including docs-only) and never on `workflow_dispatch` runs of `deploy-azure.yml`. Seeding could race deployment on pushes and was skipped entirely on manual dispatches.
+
+Fix: Removed the Azure seed step from `ci-verification.yml`. Added a dedicated `seed` job to `deploy-azure.yml` with `needs: [preflight, deploy, deploy-frontend]` — seeding now runs only after all three predecessor jobs succeed, for both push and dispatch triggers.
+
+**Defect 3 — Frontend shipped against failed backend**
+
+`deploy-frontend`'s gate was `needs.preflight.result == 'success' && needs.preflight.outputs.infra_ready == 'true' && always()`. The `always()` clause let the frontend ship even when the backend `deploy` matrix job failed.
+
+Fix: Replaced `always()` with `needs.deploy.result == 'success'`. Frontend now skips whenever the backend deploy fails or is cancelled.
+
+**Defect 4 — No post-seed verification**
+
+Seeding returned HTTP 200 but nothing confirmed the data was actually queryable through the live gateway. A silent seeding regression was indistinguishable from a successful run.
+
+Fix: Added a `verify` job to `deploy-azure.yml` (runs after `seed`) backed by a new shell script `.github/workflows/scripts/verify-azure-demo.sh`. The script asserts four invariants against `https://api.vibhanshu-ai-portfolio.dev`:
+- `GET /actuator/health` → 200
+- `POST /api/auth/login` → 200 + non-empty JWT
+- `GET /api/portfolio/summary` → 200 + total > 0
+- `GET /api/portfolio` → 200 + at least one portfolio with non-empty holdings
+
+Workflow fails red if any assertion fails.
+
+**New pipeline shape:**
+```
+preflight → deploy (matrix) → deploy-frontend → seed → verify
+```
+
+**Files changed:**
+- `frontend/tests/e2e/global-setup.ts` — appended entrypoint guard
+- `frontend/tests/e2e/global-setup-entrypoint.test.ts` — new: bug condition exploration test
+- `frontend/tests/e2e/global-setup-export.test.ts` — new: Playwright export preservation test
+- `frontend/tests/e2e/fix-verification.test.ts` — new: fix verification + preservation tests (14 assertions)
+- `frontend/tests/e2e/tsconfig.e2e-test.json` — new: CommonJS tsconfig for standalone test execution
+- `.github/workflows/ci-verification.yml` — removed Azure seed step
+- `.github/workflows/deploy-azure.yml` — fixed deploy-frontend gate, added seed + verify jobs
+- `.github/workflows/scripts/verify-azure-demo.sh` — new: post-seed verification script
+- `frontend/package.json` — added `ts-node` to devDependencies
+
+---
+
+### Login Form Pre-Population (`c65098f`)
+
+The login page at `https://vibhanshu-ai-portfolio.dev` now pre-populates the email and password fields with the demo user's credentials so recruiters can sign in with a single click.
+
+**`frontend/src/app/(auth)/login/page.tsx`**
+- Added `defaultValue={DEMO_EMAIL}` and `defaultValue={DEMO_PASSWORD}` to the email and password inputs
+- Values sourced from `NEXT_PUBLIC_DEMO_EMAIL` / `NEXT_PUBLIC_DEMO_PASSWORD` — empty string if not set (no change to behaviour in environments without the vars)
+
+**`.github/workflows/deploy-azure.yml`** — `Build Next.js static export` step
+- Added `NEXT_PUBLIC_DEMO_EMAIL: ${{ secrets.E2E_TEST_USER_EMAIL }}`
+- Added `NEXT_PUBLIC_DEMO_PASSWORD: ${{ secrets.E2E_TEST_USER_PASSWORD }}`
+- Values baked into the static export at build time
+
+**`frontend/.env.local`**
+- Added `NEXT_PUBLIC_DEMO_EMAIL` and `NEXT_PUBLIC_DEMO_PASSWORD` for local development (values match `.env.secrets`)
+
+---
+
+### Workflow Restructuring (`b1e40dc`, `82542e0`)
+
+**Problem:** `deploy.yml` (the old AWS Lambda pipeline) was confusingly named and showed as "skipped" in the Actions tab on every push because its `pre-flight` job was gated on `if: vars.CLOUD_PROVIDER == 'aws'`. This caused confusion about whether the skip was a bug or intentional.
+
+**Fix — Deploy dispatcher pattern:**
+
+- `deploy.yml` is now a single-entry-point dispatcher with path filtering (same paths as the old `deploy-azure.yml` filter). It routes to the correct cloud-specific workflow based on `vars.CLOUD_PROVIDER`.
+- Logs `::notice::` showing which workflow is being called.
+- Logs `::warning::` explaining which provider was skipped and why.
+- Fails with `::error::` if `CLOUD_PROVIDER` is not set or unrecognised.
+- Added `permissions: id-token: write` + `contents: read` so the dispatcher can pass OIDC permissions through to `deploy-azure.yml` via `workflow_call`.
+
+- `deploy-azure.yml` — removed `push` trigger; now triggered via `workflow_call` from dispatcher or `workflow_dispatch` for manual runs.
+- `deploy-aws.yml` (renamed from `deploy.yml`) — same trigger change; removed `if: vars.CLOUD_PROVIDER == 'aws'` from `pre-flight` job (routing now handled by dispatcher); added consistent path filtering.
+
+**`cd.yml` deleted** — was a Paketo buildpack-based Docker image publisher marked `[DISABLED]` in its name. Superseded by `ci-verification.yml` which handles multi-stage Docker builds and GHCR publishing. Paketo was incompatible with the custom Dockerfiles and could not download BellSoft Liberica JRE 25 during CI. Kept only for historical reference — git history preserves it.
+
+---
+
+### Commit Log (2026-05-10 continuation)
+
+| Commit | Summary |
+|--------|---------|
+| `c65098f` | fix(ci): azure demo readiness phase 1 — seed, verify, login pre-fill |
+| `b1e40dc` | refactor(ci): add deploy dispatcher, rename deploy.yml to deploy-aws.yml |
+| `82542e0` | fix(ci): add id-token:write permission to deploy dispatcher |
+| `6a4f02e` | chore(ci): delete cd.yml (superseded by ci-verification.yml) |
