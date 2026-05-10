@@ -42,12 +42,24 @@ export default defineConfig({
     {
       name: "aws-synthetic",
       testDir: "./tests/e2e/aws-synthetic",
-      use: { 
+      use: {
         ...devices["Desktop Chrome"],
         baseURL: "https://vibhanshu-ai-portfolio.dev",
       },
       // Extended timeout to account for AWS Lambda / Bedrock cold starts (90s per handoff)
-      timeout: 90_000, 
+      timeout: 90_000,
+    },
+    // Live Azure environment testing (synthetic monitoring)
+    {
+      name: "azure-synthetic",
+      testDir: "./tests/e2e/azure-synthetic",
+      use: {
+        ...devices["Desktop Chrome"],
+        baseURL: "https://wealthmgmt-azure-prod.azurewebsites.net",
+      },
+      // Azure Container Apps respond faster than Lambda (no cold starts)
+      // but allow buffer for Azure OpenAI processing
+      timeout: 60_000,
     },
   ],
   webServer: {
