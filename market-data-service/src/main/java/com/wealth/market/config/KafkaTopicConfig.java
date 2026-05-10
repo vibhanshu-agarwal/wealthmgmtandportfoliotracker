@@ -27,8 +27,11 @@ import org.springframework.kafka.config.TopicBuilder;
 @Configuration
 public class KafkaTopicConfig {
 
-    /** Number of partitions for the main price-update topic. */
-    @Value("${kafka.topics.market-prices.partitions:3}")
+    /** Number of partitions for the main price-update topic.
+     * Aiven free tier allows a maximum of 2 partitions per user topic.
+     * Default is 1 — safe for both free tier and local Docker Compose (single broker).
+     */
+    @Value("${kafka.topics.market-prices.partitions:1}")
     private int marketPricesPartitions;
 
     /**
