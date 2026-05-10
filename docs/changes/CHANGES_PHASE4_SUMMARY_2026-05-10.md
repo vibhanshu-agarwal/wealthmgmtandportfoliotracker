@@ -507,3 +507,178 @@ The login page at `https://vibhanshu-ai-portfolio.dev` now pre-populates the ema
 | `b1e40dc` | refactor(ci): add deploy dispatcher, rename deploy.yml to deploy-aws.yml |
 | `82542e0` | fix(ci): add id-token:write permission to deploy dispatcher |
 | `6a4f02e` | chore(ci): delete cd.yml (superseded by ci-verification.yml) |
+
+
+---
+
+## Phase 4 Continuation — Live Demo Debugging & Self-Healing Infrastructure (2026-05-10)
+
+### Overview
+
+After Phase 1 CI/CD fixes landed, the pipeline ran green but the live demo at `https://vibhanshu-ai-portfolio.dev` still showed no data. A systematic diagnostic session identified three independent root causes — a Terraform port misconfiguration, a TLS truststore regression, and a missing Kafka topic — and resolved all three. The demo is now fully operational and self-healing.
+
+---
+
+### Root Cause 1 — ACA Port Mismatch: All Internal Services Returning HTML (`92f9432`)
+
+**Diagnosis**
+
+The seed job in `deploy-azure.yml` was now correctly invoking `globalSetup()` (Phase 1 fix), but the portfolio seed call returned `HTTP 200` with `Content-Type: text/html` — the Azure Container Apps "Your app is live" welcome page — instead of JSON. This caused `SyntaxError: Unexpected token '<', "<!DOCTYPE "... is not valid JSON` in the seeder.
+
+Querying Log Analytics for `portfolio-service` revealed:
+
+```
+The TargetPort 8081 does not match the listening port 8080.
+```
+
+**Root cause**
+
+Terraform configured `target_port=8081/8082/8083` for portfolio/market-data/insight-service respectively, matching the local Docker Compose convention in `application.yml`. However, `application-prod.yml` (active on Azure via `SPRING_PROFILES_ACTIVE=prod,azure`) hard-codes `server.port=8080` across all services. ACA's startup probe failed on every new revision, leaving `replicas=0` and `healthState=None` on the real Spring Boot revisions. Requests fell through to the stale `use_seed_image` hello-world revisions (which listen on port 80 and were still `Active=true` with `trafficWeight=0`), returning the ACA welcome page.
+
+This is consistent with the AWS Lambda convention: `compute/main.tf` sets `PORT=8080` via `common_env` for all four Lambdas, so all services already listen on 8080 in production on both clouds. The 808X scheme is a local-dev-only convention.
+
+**Fix**
+
+`infrastructure/terraform/azure/main.tf` — `target_port` for portfolio-service, market-data-service, and insight-service changed from `8081`/`8082`/`8083` to `8080`. The api-gateway was already correct (`8080`).
+
+`terraform-azure.yml` was triggered manually (`action=apply`) to push the ingress change to Azure. After apply, the stale hello-world revisions were deactivated via `az containerapp revision deactivate` and `min_replicas` was temporarily set to 1 on all three internal services to force the new Spring Boot revisions to start.
+
+**Verification**
+
+```
+GET /api/portfolio/health  → {"service":"portfolio-service","status":"UP"}   ✅
+GET /api/market/health     → {"status":"UP","service":"market-data-service"} ✅
+GET /api/insights/health   → {"service":"insight-service","status":"UP"}     ✅
+```
+
+---
+
+### Root Cause 2 — Redis TLS PKIX Failure: Insight Service Market Summary Returning 500 (`9b1855c`)
+
+**Diagnosis**
+
+After the port fix, `GET /api/insights/market-summary` returned `HTTP 500` in 0.27 s (fast fail, not a timeout). Log Analytics showed:
+
+```
+market-summary endpoint failed
+Caused by: io.lettuce.core.RedisConnectionException: Unable to connect to balanced-ocelot-100061.upstash.io
+Caused by: javax.net.ssl.SSLHandshakeException: PKIX path building failed:
+  unable to find valid certification path to requested target
+```
+
+Upstash uses a Let's Encrypt certificate (ISRG Root X1/X2 chain). The JVM system `cacerts` on both AWS (Corretto) and Azure (Mariner JDK 21) contains ISRG Root X1/X2 — so the system truststore is fine.
+
+**Root cause**
+
+`InsightApplication.main()` and `ApiGatewayApplication.main()` both called:
+
+```java
+TruststoreExtractor.extract("kafka-truststore.jks", "REDIS_TRUSTSTORE_PATH");
+```
+
+This set `REDIS_TRUSTSTORE_PATH` to the Aiven-only JKS (`kafka-truststore.jks`), which contains exactly one entry: `aiven-ca`. `RedisSslConfig.sslCustomizer()` then configured Lettuce to use that JKS as an **exclusive** truststore for Redis TLS, replacing the JVM system truststore. Since the Aiven JKS has no ISRG roots, Lettuce could not validate Upstash's Let's Encrypt cert.
+
+The shared JKS was originally intended to contain both Aiven and Upstash roots (per `CHANGES_PHASE3_SUMMARY_2026-04-21.md`), but was regenerated at some point with only the Aiven CA, silently dropping the Upstash roots. The same bug exists on AWS but was masked because the AWS deployment was not actively serving traffic during the throttling window.
+
+**Fix**
+
+Removed the `REDIS_TRUSTSTORE_PATH` extraction line from both entry points:
+
+- `insight-service/src/main/java/com/wealth/InsightApplication.java` — removed `TruststoreExtractor.extract("kafka-truststore.jks", "REDIS_TRUSTSTORE_PATH")`
+- `api-gateway/src/main/java/com/wealth/ApiGatewayApplication.java` — removed `TruststoreExtractor.extract("kafka-truststore.jks", "REDIS_TRUSTSTORE_PATH")` and the now-unused `TruststoreExtractor` import
+
+With `REDIS_TRUSTSTORE_PATH` unset, `RedisSslConfig.sslCustomizer()` is a no-op. Lettuce uses the JVM system truststore and enables TLS automatically from the `rediss://` scheme. The Kafka extraction (`KAFKA_TRUSTSTORE_PATH`) is unchanged — Aiven uses a self-signed CA that is not publicly trusted and still requires the custom JKS.
+
+Unit tests updated:
+- `ApiGatewayApplicationTruststoreWiringTest` — renamed to `mainDoesNotExtractRedisTruststoreAndStartsApplication`, asserts `extractor.verifyNoInteractions()`
+- `InsightApplicationTruststoreWiringTest` — renamed to `mainExtractsKafkaTruststoreBeforeStartup`, asserts only `KAFKA_TRUSTSTORE_PATH` extraction and `extractor.verifyNoMoreInteractions()`
+
+---
+
+### Root Cause 3 — Kafka Topic Not Created: AI Insights Market Summary Empty (`178ac18`, `3156483`)
+
+**Diagnosis**
+
+After the TLS fix, `GET /api/insights/market-summary` returned `HTTP 200` with an empty object `{}`. Log Analytics showed:
+
+```
+UNKNOWN_TOPIC_OR_PARTITION for market-prices
+Topic market-prices not present in metadata after 60000 ms
+```
+
+Both `market-data-service` (producer) and `insight-service` (consumer) were failing because the `market-prices` Kafka topic did not exist on the Aiven cluster. Aiven's free tier deletes topics after 24 hours of inactivity, meaning the topic would be deleted whenever the demo is not actively used — requiring manual recreation via the Aiven Console before every recruiter session.
+
+**Fix**
+
+Added `KafkaTopicConfig.java` to `market-data-service/src/main/java/com/wealth/market/config/`:
+
+```java
+@Bean public NewTopic marketPricesTopic() { ... }      // market-prices
+@Bean public NewTopic marketPricesDltTopic() { ... }   // market-prices.DLT
+```
+
+Spring Kafka's `KafkaAdmin` calls `CreateTopics` on every startup for every `NewTopic` bean. The Kafka broker returns `TOPIC_ALREADY_EXISTS` (error code 37) when the topic is present — Spring Kafka catches this and silently ignores it. The operation is fully idempotent: creates if absent, no-op if present, never modifies existing topic data or offsets.
+
+Also updated `common-dto/src/main/resources/config/application-prod-kafka.yml`:
+- `spring.kafka.admin.auto-create: true` — explicit flag (was relying on default)
+- `request.timeout.ms: 30000` — raised from 5000; 5 s was too tight for topic creation on a cold Aiven broker (though fine for the health probe which catches the exception)
+
+**Partition count correction** (`3156483`): Initial default was 3 partitions, which exceeded Aiven free tier's limit of 2 partitions per user topic. `KafkaAdmin` attempted to increase partitions on the existing 1-partition topic (auto-created by Aiven on first produce attempt) and received `PolicyViolationException`. Corrected default to 1 — matches what Aiven created and is safe for both free tier and local Docker Compose.
+
+**Self-healing behavior**: On every service restart (triggered by any deploy or ACA scale-from-zero event), `KafkaAdmin` recreates the topic if Aiven deleted it, and `StartupHydrationService` immediately publishes 160 `PriceUpdatedEvent`s. `insight-service` consumes them and populates Redis within seconds. The demo recovers automatically without operator intervention.
+
+**Verification after fix**:
+
+```
+GET /api/insights/market-summary →
+{
+  "AAPL": {"ticker":"AAPL","latestPrice":197.3396,"priceHistory":[...],"trendPercent":0.00},
+  "MSFT": {"ticker":"MSFT","latestPrice":422.0649,...},
+  "GOOGL": {"ticker":"GOOGL","latestPrice":182.8738,...},
+  ...160 tickers total
+}
+```
+
+---
+
+### Login Page — Infrastructure Banner Removed (`eb5b8f7`)
+
+The amber warning banner ("The backend microservices for this application are currently experiencing strict serverless concurrency throttling on AWS...") was removed from the login page. The banner was added during the AWS Lambda throttling window and is no longer relevant now that the demo runs on Azure Container Apps.
+
+`frontend/src/app/(auth)/login/page.tsx`:
+- Removed the `bannerVisible` state and the entire banner JSX block
+- Removed the `setBannerVisible` dismiss button
+- Simplified the `<main>` layout: `flex-col` + nested wrapper → `items-center justify-center` directly on `<main>`
+
+---
+
+### Final Demo State (2026-05-10 end of session)
+
+All four invariants from `verify-azure-demo.sh` pass on the live gateway:
+
+| Check | Result |
+|-------|--------|
+| `GET /actuator/health` | ✅ `{"status":"UP"}` |
+| `POST /api/auth/login` | ✅ 200 + JWT (pre-filled on login page) |
+| `GET /api/portfolio/summary` | ✅ `totalValue: 1,546,361.81 USD`, 160 holdings |
+| `GET /api/portfolio` | ✅ 1 portfolio, 160 holdings (AAPL, MSFT, GOOGL, AMZN, …) |
+| `GET /api/insights/market-summary` | ✅ 160 tickers with live prices |
+| `https://vibhanshu-ai-portfolio.dev/login` | ✅ Clean login form, credentials pre-filled |
+
+---
+
+### Commit Log (2026-05-10 continuation)
+
+| Commit | Summary |
+|--------|---------|
+| `483d464` | docs: update changelog with SWA build fix, lifecycle narrowing, and seeding enablement |
+| `c65098f` | fix(ci): azure demo readiness phase 1 — seed, verify, login pre-fill |
+| `b1e40dc` | refactor(ci): add deploy dispatcher, rename deploy.yml to deploy-aws.yml |
+| `82542e0` | fix(ci): add id-token:write permission to deploy dispatcher |
+| `6a4f02e` | chore(ci): delete cd.yml (superseded by ci-verification.yml) |
+| `0071b5e` | docs: update Phase 4 changelog with demo readiness, login pre-fill, and workflow restructuring |
+| `92f9432` | fix(azure): align ACA target_port to 8080 for all services |
+| `9b1855c` | fix(tls): stop using Aiven-only JKS as Redis truststore for Upstash |
+| `178ac18` | feat(kafka): auto-create market-prices topic on startup |
+| `3156483` | fix(kafka): set default partition count to 1 for Aiven free tier |
+| `eb5b8f7` | fix(ui): remove infrastructure notice banner from login page |
