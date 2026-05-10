@@ -1,3 +1,7 @@
+# DISABLED for Azure Demo Readiness Phase 2
+# This workflow is now manual-only. Use deploy-azure.yml instead.
+# Re-enable after Azure demo by restoring original triggers.
+
 name: Deploy (AWS)
 
 # Required GitHub Actions secrets (repo-level)
@@ -31,7 +35,6 @@ name: Deploy (AWS)
 
 on:
   workflow_dispatch:
-  workflow_call:
 
 jobs:
   # Fail-Fast: Verify all 3rd party connections before starting deployment.

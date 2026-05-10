@@ -1,8 +1,11 @@
+# DISABLED for Azure Demo Readiness Phase 2
+# This workflow is now manual-only. Use deploy-azure.yml instead.
+# Re-enable after Azure demo by restoring original triggers.
+
 name: Frontend CD (Publish Docker Image)
 
 on:
-  push:
-    branches: [ "main", "architecture/**" ]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -13,29 +16,29 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout Repository
-      uses: actions/checkout@v4
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-    - name: Log in to GitHub Container Registry
-      uses: docker/login-action@v3
-      with:
-        registry: ghcr.io
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Build and Push Docker Image
-      uses: docker/build-push-action@v5
-      with:
-        context: ./frontend
-        file: ./frontend/Dockerfile
-        push: true
-        tags: |
-          ghcr.io/${{ github.repository }}/wealth-frontend:latest
-          ghcr.io/${{ github.repository }}/wealth-frontend:${{ github.run_number }}
-        build-args: |
-          AUTH_JWT_SECRET=${{ secrets.AUTH_JWT_SECRET }}
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
+      - name: Build and Push Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}/wealth-frontend:latest
+            ghcr.io/${{ github.repository }}/wealth-frontend:${{ github.run_number }}
+          build-args: |
+            AUTH_JWT_SECRET=${{ secrets.AUTH_JWT_SECRET }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
