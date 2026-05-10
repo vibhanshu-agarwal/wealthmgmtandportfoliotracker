@@ -31,7 +31,7 @@ npx playwright test --project=azure-synthetic --headed
 ### What happens during the run?
 1. **Global Setup**: The `tests/e2e/global-setup.ts` script will fire three `POST` requests to the internal seeding endpoints. This resets the live database to the "Golden State" (160 assets).
 2. **Serial Execution**: Tests run one by one (`workers: 1`) to avoid overloading the Container Apps or hitting concurrency limits.
-3. **Timeouts**: A 30-second timeout is enforced per test. Azure Container Apps don't have cold starts like Lambda, but network latency and Azure Front Door CDN warming may add initial delays.
+3. **Timeouts**: The project-level timeout is 120 s (`playwright.config.ts`). Individual API requests use 70 s, and UI interactions use 20–30 s. Azure Container Apps don't have cold starts like Lambda, but network latency and CDN warming may add initial delays.
 
 ## Test Files
 - `login.spec.ts`: Verifies production authentication.
