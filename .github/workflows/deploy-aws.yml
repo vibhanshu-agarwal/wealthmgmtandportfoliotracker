@@ -35,6 +35,9 @@ name: Deploy (AWS)
 
 on:
   workflow_dispatch:
+  # workflow_call is preserved so deploy.yml can still route to this workflow
+  # when CLOUD_PROVIDER=aws. Remove once AWS deployment is fully decommissioned.
+  workflow_call:
 
 jobs:
   # Fail-Fast: Verify all 3rd party connections before starting deployment.
