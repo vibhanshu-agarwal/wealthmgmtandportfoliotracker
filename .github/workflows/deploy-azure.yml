@@ -271,9 +271,12 @@ jobs:
           azure_static_web_apps_api_token: ${{ secrets.SWA_DEPLOYMENT_TOKEN }}
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           action: "upload"
-          # app_location is the directory containing the built output.
-          # Next.js static export writes to `out/` by default (output: "export" in next.config.ts).
-          app_location: "frontend"
-          output_location: "out"
-          # No API backend — all API calls go to the ACA api-gateway via NEXT_PUBLIC_API_BASE_URL.
+          # app_location points to the pre-built output directory.
+          # Next.js static export writes to `frontend/out/` (output: "export" in next.config.ts).
+          # skip_app_build: true is REQUIRED — without it the SWA action rebuilds from source
+          # inside its own Docker container without NEXT_PUBLIC_API_BASE_URL, producing a bundle
+          # that falls back to relative /api/* instead of https://api.vibhanshu-ai-portfolio.dev.
+          app_location: "frontend/out"
+          output_location: ""
+          skip_app_build: true
           skip_api_build: true
