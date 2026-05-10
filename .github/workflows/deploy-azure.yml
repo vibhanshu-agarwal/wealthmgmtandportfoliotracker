@@ -262,7 +262,7 @@ jobs:
         env:
           # Injected at build time so the static export embeds the correct API origin.
           # The Next.js app uses this for all /api/* calls in the Azure deployment.
-          NEXT_PUBLIC_API_BASE_URL: ${{ steps.api_fqdn.outputs.api_gateway_fqdn }}
+          NEXT_PUBLIC_API_BASE_URL: https://api.vibhanshu-ai-portfolio.dev
         run: npm run build
 
       - name: Deploy to Azure Static Web Apps

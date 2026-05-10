@@ -180,6 +180,6 @@ variable "internal_api_key" {
 
 variable "cors_allowed_origin_patterns" {
   type        = string
-  default     = "https://*.azurestaticapps.net"
-  description = "Comma-separated list of allowed CORS origin patterns for the api-gateway. Set to the SWA hostname (or custom domain) once known, e.g. 'https://wealth-prod-swa.azurestaticapps.net'. Defaults to the wildcard SWA pattern."
+  default     = "https://vibhanshu-ai-portfolio.dev,https://www.vibhanshu-ai-portfolio.dev,https://salmon-sand-00357bb10.7.azurestaticapps.net"
+  description = "Comma-separated list of allowed CORS origin patterns for the api-gateway. Includes custom domains + SWA default hostname during transition. Narrow to custom domains only after a few days."
 }
