@@ -291,3 +291,16 @@ async function globalSetup(): Promise<void> {
 }
 
 export default globalSetup;
+
+
+// Direct-execution entrypoint (e.g. `npx ts-node tests/e2e/global-setup.ts`).
+// Playwright imports this module and calls the default export; direct ts-node
+// execution does not. This guard ensures CLI invocation actually runs seeding
+// and propagates non-zero exit codes on failure.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+if (typeof require !== "undefined" && require.main === module) {
+  globalSetup().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}

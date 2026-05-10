@@ -219,7 +219,7 @@ jobs:
   deploy-frontend:
     runs-on: ubuntu-latest
     needs: [preflight, deploy]
-    if: needs.preflight.result == 'success' && needs.preflight.outputs.infra_ready == 'true' && always()
+    if: needs.preflight.result == 'success' && needs.preflight.outputs.infra_ready == 'true' && needs.deploy.result == 'success'
 
     steps:
       - name: Checkout code
@@ -263,6 +263,9 @@ jobs:
           # Injected at build time so the static export embeds the correct API origin.
           # The Next.js app uses this for all /api/* calls in the Azure deployment.
           NEXT_PUBLIC_API_BASE_URL: https://api.vibhanshu-ai-portfolio.dev
+          # Demo credentials — pre-populates the login form for recruiter demos.
+          NEXT_PUBLIC_DEMO_EMAIL: ${{ secrets.E2E_TEST_USER_EMAIL }}
+          NEXT_PUBLIC_DEMO_PASSWORD: ${{ secrets.E2E_TEST_USER_PASSWORD }}
         run: npm run build
 
       - name: Deploy to Azure Static Web Apps
@@ -280,3 +283,66 @@ jobs:
           output_location: ""
           skip_app_build: true
           skip_api_build: true
+
+  # ---------------------------------------------------------------------------
+  # Seeding: populate the demo user's portfolio/market/insight data on the live
+  # Azure stack. Runs only after backend and frontend both deploy cleanly.
+  # Skipped when infra_ready=false (fresh subscription, terraform never applied).
+  # ---------------------------------------------------------------------------
+  seed:
+    runs-on: ubuntu-latest
+    needs: [preflight, deploy, deploy-frontend]
+    if: >-
+      needs.preflight.result == 'success' &&
+      needs.preflight.outputs.infra_ready == 'true' &&
+      needs.deploy.result == 'success' &&
+      needs.deploy-frontend.result == 'success'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Seed live Azure environment (vibhanshu-ai-portfolio.dev)
+        working-directory: frontend
+        env:
+          NEXT_PUBLIC_API_BASE_URL: https://api.vibhanshu-ai-portfolio.dev
+          SKIP_BACKEND_HEALTH_CHECK: "true"
+          INTERNAL_API_KEY: ${{ secrets.TF_VAR_INTERNAL_API_KEY }}
+          E2E_TEST_USER_ID: ${{ secrets.E2E_TEST_USER_ID || '00000000-0000-0000-0000-000000000e2e' }}
+        run: npx ts-node --project tests/e2e/tsconfig.e2e-test.json tests/e2e/global-setup.ts
+
+  # ---------------------------------------------------------------------------
+  # Verify: post-seed assertion that the demo is actually queryable through the
+  # live custom domain. Closes the observability gap (audit §4 P0/P1).
+  # Fails the workflow red on any assertion failure.
+  # ---------------------------------------------------------------------------
+  verify:
+    runs-on: ubuntu-latest
+    needs: [preflight, seed]
+    if: >-
+      needs.preflight.result == 'success' &&
+      needs.preflight.outputs.infra_ready == 'true' &&
+      needs.seed.result == 'success'
+
+    env:
+      API_BASE: https://api.vibhanshu-ai-portfolio.dev
+      DEMO_EMAIL: ${{ secrets.E2E_TEST_USER_EMAIL }}
+      DEMO_PASSWORD: ${{ secrets.E2E_TEST_USER_PASSWORD }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Verify live demo data
+        run: bash .github/workflows/scripts/verify-azure-demo.sh

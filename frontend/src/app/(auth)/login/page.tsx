@@ -4,6 +4,11 @@ import React, { useState } from "react";
 import { getLoginErrorMessage, loginWithBackend } from "@/lib/auth/session";
 import { useRouter } from "next/navigation";
 
+// Demo credentials injected at build time (from NEXT_PUBLIC_DEMO_EMAIL / NEXT_PUBLIC_DEMO_PASSWORD).
+// Pre-populates the login form so recruiters can sign in with a single click.
+const DEMO_EMAIL = process.env.NEXT_PUBLIC_DEMO_EMAIL ?? "";
+const DEMO_PASSWORD = process.env.NEXT_PUBLIC_DEMO_PASSWORD ?? "";
+
 export default function LoginPage() {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
@@ -84,6 +89,7 @@ export default function LoginPage() {
               type="email"
               required
               autoComplete="email"
+              defaultValue={DEMO_EMAIL}
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
               placeholder="dev@localhost.local"
             />
@@ -102,6 +108,7 @@ export default function LoginPage() {
               type="password"
               required
               autoComplete="current-password"
+              defaultValue={DEMO_PASSWORD}
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
               placeholder="••••••••"
             />

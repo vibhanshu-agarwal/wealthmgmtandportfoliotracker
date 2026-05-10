@@ -310,17 +310,6 @@ jobs:
             --project=aws-synthetic \
             --reporter=list
 
-      # ── Azure: Seed live domain after successful deployment ──
-      - name: Seed live Azure environment (vibhanshu-ai-portfolio.dev)
-        working-directory: frontend
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.CLOUD_PROVIDER == 'azure'
-        env:
-          NEXT_PUBLIC_API_BASE_URL: https://api.vibhanshu-ai-portfolio.dev
-          SKIP_BACKEND_HEALTH_CHECK: "true"
-          INTERNAL_API_KEY: ${{ secrets.TF_VAR_INTERNAL_API_KEY }}
-          E2E_TEST_USER_ID: ${{ secrets.E2E_TEST_USER_ID || '00000000-0000-0000-0000-000000000e2e' }}
-        run: npx ts-node --project tsconfig.json tests/e2e/global-setup.ts
-
       # ── Failure handling ──
       - name: Upload Playwright report on failure
         if: failure()
