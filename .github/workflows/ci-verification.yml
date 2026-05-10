@@ -310,6 +310,30 @@ jobs:
             --project=aws-synthetic \
             --reporter=list
 
+      - name: Run Azure synthetic monitoring
+        working-directory: frontend
+        # Runs against the live site — only on push to main when explicitly deploying to Azure
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.CLOUD_PROVIDER == 'azure'
+        env:
+          BASE_URL: https://vibhanshu-ai-portfolio.dev
+          NEXT_PUBLIC_API_BASE_URL: https://api.vibhanshu-ai-portfolio.dev
+          # Lambda/Container-Apps cold-start: skip the 5s AbortSignal health poller in
+          # global-setup; the synthetic tests themselves are the liveness signal.
+          SKIP_BACKEND_HEALTH_CHECK: "true"
+          # Avoid re-seeding against the live Azure stack from CI — seeding is handled
+          # by the Docker Compose E2E run above. Prevents 502s when services are cold.
+          SKIP_GOLDEN_STATE_SEEDING: "true"
+          # INTERNAL_API_KEY is inherited from the job-level env.
+          E2E_TEST_USER_EMAIL: ${{ secrets.E2E_TEST_USER_EMAIL }}
+          E2E_TEST_USER_PASSWORD: ${{ secrets.E2E_TEST_USER_PASSWORD }}
+          E2E_TEST_USER_ID: ${{ secrets.E2E_TEST_USER_ID || '00000000-0000-0000-0000-000000000e2e' }}
+        run: |
+          npx playwright test \
+            tests/e2e/azure-synthetic/api-live-smoke.spec.ts \
+            tests/e2e/azure-synthetic/azure-synthetic.spec.ts \
+            --project=azure-synthetic \
+            --reporter=list
+
       # ── Failure handling ──
       - name: Upload Playwright report on failure
         if: failure()
