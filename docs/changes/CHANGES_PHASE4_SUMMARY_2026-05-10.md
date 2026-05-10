@@ -249,8 +249,9 @@ api.vibhanshu-ai-portfolio.dev   → ACA api-gateway        (backend)
 **`.github/workflows/deploy-azure.yml`** — `deploy-frontend` job
 - `NEXT_PUBLIC_API_BASE_URL` changed from dynamic `az containerapp show` resolution to static `https://api.vibhanshu-ai-portfolio.dev`
 - `Resolve API Gateway FQDN` step retained as a non-blocking sanity log
+- SWA action configured with `skip_app_build: true` and `app_location: "frontend/out"` to upload the pre-built bundle (prevents the action from rebuilding without the env var)
 
-**CORS applied directly** via `az containerapp update` (Terraform apply timed out before the env var update landed — see Terraform stabilisation below).
+CORS env var applied via Terraform (run `25626355623`) after narrowing `lifecycle { ignore_changes }` to image-only.
 
 ### Phase 5 — Smoke tests (all passed)
 
@@ -265,17 +266,19 @@ api.vibhanshu-ai-portfolio.dev   → ACA api-gateway        (backend)
 
 ## Terraform Stabilisation (2026-05-10)
 
-Two fixes that produced the **first clean `terraform apply` with zero errors** (run `25625179245`).
+Three fixes that produced the **first clean `terraform apply` with zero errors** (run `25626355623`).
 
-### Fix 1 — `lifecycle { ignore_changes = [template] }` on Container App module
+### Fix 1 — Narrow `lifecycle { ignore_changes }` to image field only
 
 **Problem:** Every `terraform apply` triggered a new Container App revision (image tag update), which consistently timed out polling in `centralindia` and reported `MANIFEST_UNKNOWN` — a false failure. The Container Apps were actually `Succeeded` and `Running`.
 
 **Root cause:** Terraform was managing the `template` block (including image tag) on every apply. Image updates are owned by `deploy-azure.yml` via `az containerapp update`, so Terraform managing them is redundant and harmful.
 
-**Fix:** Added `lifecycle { ignore_changes = [template] }` to `infrastructure/terraform/azure/modules/container-app/main.tf`. Terraform now owns infrastructure configuration (env vars, secrets, ingress, scaling, identity) but delegates image/revision management to the deploy workflow.
+**Initial fix:** `lifecycle { ignore_changes = [template] }` — this silenced the timeout but was too broad. It also prevented Terraform from managing env vars (like `APP_CORS_ALLOWED_ORIGIN_PATTERNS`) since they live inside `template.containers[].env`.
 
-**Commit:** `cb84a83`
+**Final fix:** Narrowed to `lifecycle { ignore_changes = [template[0].container[0].image] }`. Terraform now manages all template fields (env vars, scaling, etc.) except the image, which is owned by `deploy-azure.yml`.
+
+**Commits:** `cb84a83` → `38a81f2` → `39d8dd9`
 
 ### Fix 2 — Import AcrPull role assignments into Terraform state
 
@@ -291,6 +294,16 @@ Two fixes that produced the **first clean `terraform apply` with zero errors** (
 | insight-service | `54365adf-9188-458a-a5a2-01e43606e3ea` |
 
 **Commit:** `0466325`
+
+### Fix 3 — SWA action was rebuilding the frontend without `NEXT_PUBLIC_API_BASE_URL`
+
+**Problem:** The `Azure/static-web-apps-deploy@v1` action was rebuilding the Next.js app from source inside its own Docker container. That container did not have `NEXT_PUBLIC_API_BASE_URL` set, so the env var was not inlined into the bundle. The result: `apiPath` fell back to relative `/api/*`, which hit the SWA (405) instead of the API gateway.
+
+**Root cause:** `app_location: "frontend"` + `output_location: "out"` without `skip_app_build: true` tells the SWA action to build from source. The pre-built `frontend/out/` directory (which had the correct URL baked in) was ignored.
+
+**Fix:** Set `skip_app_build: true` and changed `app_location` to `"frontend/out"` with `output_location: ""`. The SWA action now uploads the pre-built output directly.
+
+**Commit:** `acdadbd`
 
 ---
 
@@ -314,6 +327,10 @@ Two fixes that produced the **first clean `terraform apply` with zero errors** (
 | `0af5b3f` | feat: DNS cutover to custom domains — update CORS and frontend API URL |
 | `cb84a83` | fix: ignore container app template changes in Terraform to prevent centralindia polling timeouts |
 | `0466325` | fix: import existing AcrPull role assignments into Terraform state |
+| `8e70e6f` | feat: enable Azure live seeding in CI on push to main |
+| `38a81f2` | fix: narrow lifecycle ignore_changes to image field only |
+| `39d8dd9` | fix: correct lifecycle ignore_changes attribute name containers → container |
+| `acdadbd` | fix: pass pre-built output to SWA action to preserve NEXT_PUBLIC_API_BASE_URL |
 
 ---
 
@@ -362,7 +379,7 @@ Custom domains (all `Ready`):
 
 TF state backend: `wealth-tf-state-rg` / `wealthtfstate` / container `tfstate` / key `azure/terraform.tfstate`
 
-Terraform state: **fully reconciled** as of run `25625179245` (first clean apply with zero errors).
+Terraform state: **fully reconciled** as of run `25626355623` (clean apply with zero errors, env vars managed correctly).
 
 ---
 
@@ -381,9 +398,10 @@ To re-enable AWS: lower Azure apex CNAME TTL to 300, rename `_disabled-apex` bac
 
 ## Known Remaining Items
 
-- **Live environment seeding pending** — the seed step in `ci-verification.yml` is still commented out. All four conditions to uncomment it are now met (Azure live, DNS cutover complete, health endpoint UP, `CLOUD_PROVIDER=azure`).
+- **Live environment seeding enabled** — the seed step in `ci-verification.yml` is uncommented and `CLOUD_PROVIDER=azure` repo variable is set. Seeding runs on every push to `main` after E2E tests pass.
 - **CORS transition window** — `cors_allowed_origin_patterns` includes the SWA default hostname (`salmon-sand-*.azurestaticapps.net`). Narrow to just the two custom domains after a few days of stability.
 - **Azure synthetic monitoring** — no `tests/e2e/azure-synthetic/**` equivalent exists yet (audit §4.3).
 - **`InfrastructureHealthLogger` parity** — `portfolio-service` and `market-data-service` still have `@Profile("aws")` on their `InfrastructureHealthLogger` beans (audit §4.4, partially fixed for api-gateway only).
 - **Node.js 20 deprecation warning** in CI — `actions/checkout@v4`, `azure/login@v2`, `hashicorp/setup-terraform@v3` will need updating before September 2026 when Node.js 20 is removed from GitHub Actions runners.
 - **Import blocks in `main.tf`** — the four Container App `import {}` blocks and four AcrPull role assignment `import {}` blocks are now no-ops (resources are in state). They can be removed after the next clean `terraform plan` confirms zero drift.
+- **`Resolve API Gateway FQDN` step** — still runs in `deploy-frontend` but its output is unused (hardcoded `NEXT_PUBLIC_API_BASE_URL` takes precedence). Can be removed or converted to a non-blocking log.
