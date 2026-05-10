@@ -15,7 +15,9 @@ function secretFromEnvFile(keys: string[]): string | undefined {
   const content = fs.readFileSync(envPath, "utf-8");
   for (const key of keys) {
     const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const match = content.match(new RegExp(`^(?:export\\s+)?${escaped}=(.*)$`, "m"));
+    const match = content.match(
+      new RegExp(`^(?:export\\s+)?${escaped}=(.*)$`, "m"),
+    );
     const value = match?.[1]?.trim().replace(/^['\"]|['\"]$/g, "");
     if (value) return value;
   }
@@ -32,27 +34,48 @@ function envOrSecret(keys: string[], fallback?: string): string | undefined {
 
 function liveBaseUrl(): string {
   return (
-    envOrSecret(["LIVE_SMOKE_BASE_URL", "NEXT_PUBLIC_API_BASE_URL", "BASE_URL"]) ??
-    "https://wealthmgmt-azure-prod.azurewebsites.net"
+    envOrSecret([
+      "LIVE_SMOKE_BASE_URL",
+      "NEXT_PUBLIC_API_BASE_URL",
+      "BASE_URL",
+    ]) ??
+    // Canonical public domain — same as the AWS suite post-DNS-cutover.
+    "https://vibhanshu-ai-portfolio.dev"
   ).replace(/\/+$/, "");
 }
 
-async function responseBodyExcerpt(response: { text: () => Promise<string> }): Promise<string> {
+async function responseBodyExcerpt(response: {
+  text: () => Promise<string>;
+}): Promise<string> {
   const body = await response.text();
   return body.length > 500 ? `${body.slice(0, 500)}…` : body;
 }
 
-async function assertOk(response: { ok: () => boolean; status: () => number; text: () => Promise<string> }, label: string) {
+async function assertOk(
+  response: {
+    ok: () => boolean;
+    status: () => number;
+    text: () => Promise<string>;
+  },
+  label: string,
+) {
   if (!response.ok()) {
-    throw new Error(`${label} returned HTTP ${response.status()}: ${await responseBodyExcerpt(response)}`);
+    throw new Error(
+      `${label} returned HTTP ${response.status()}: ${await responseBodyExcerpt(response)}`,
+    );
   }
 }
 
 test.describe("Azure Synthetic: API live smoke", () => {
   test.describe.configure({ mode: "serial" });
-  test.setTimeout(90_000);
+  // Budget matches the project-level timeout in playwright.config.ts.
+  test.setTimeout(120_000);
 
-  const email = envOrSecret(["APP_AUTH_EMAIL", "TF_VAR_app_auth_email", "E2E_TEST_USER_EMAIL"]);
+  const email = envOrSecret([
+    "APP_AUTH_EMAIL",
+    "TF_VAR_app_auth_email",
+    "E2E_TEST_USER_EMAIL",
+  ]);
   const password = envOrSecret([
     "APP_AUTH_PASSWORD",
     "TF_VAR_app_auth_password",
@@ -64,21 +87,82 @@ test.describe("Azure Synthetic: API live smoke", () => {
   );
   const baseUrl = liveBaseUrl();
 
-  test.skip(!email || !password, "Set demo credentials in env or repo-root .env.secrets");
+  test.skip(
+    !email || !password,
+    "Set demo credentials in env or repo-root .env.secrets",
+  );
 
-  test("login POST issues token accepted by live protected GET endpoints", async ({ request }) => {
-    const credentials = { email: email!, password: password!, expectedUserId: expectedUserId! };
+  // ── 1. Health ─────────────────────────────────────────────────────────────
+  test("health: GET /actuator/health responds 200 within 70s", async ({
+    request,
+  }) => {
+    // The actuator endpoint is behind Spring Security; it is accessible on the
+    // Azure custom domain without credentials (Spring's default health endpoint
+    // is not protected). Allows up to 70s for a Container App scale-from-zero.
+    const response = await request.get(`${baseUrl}/actuator/health`, {
+      timeout: 70_000,
+    });
+    expect(response.status()).toBe(200);
+    const body = await response.json();
+    expect(body.status).toBe("UP");
+  });
+
+  // ── 2. Idempotent seeding ─────────────────────────────────────────────────
+  test("seeding: POST portfolio and market-data seed endpoints are idempotent", async ({
+    request,
+  }) => {
+    const internalApiKey = envOrSecret([
+      "INTERNAL_API_KEY",
+      "TF_VAR_INTERNAL_API_KEY",
+    ]);
+    if (!internalApiKey) {
+      // Seed tests are skipped in environments where the key is not available
+      // (e.g. local developer machines without .env.secrets). They are mandatory
+      // in CI via the INTERNAL_API_KEY job-level env.
+      test.skip(true, "INTERNAL_API_KEY not set — skipping seed assertions");
+    }
+
+    const headers = { "X-Internal-Api-Key": internalApiKey! };
+
+    const portfolioSeed = await request.post(
+      `${baseUrl}/api/internal/portfolio/seed`,
+      { headers, timeout: 70_000 },
+    );
+    expect(
+      [200, 204],
+      `POST /api/internal/portfolio/seed returned HTTP ${portfolioSeed.status()}`,
+    ).toContain(portfolioSeed.status());
+
+    const marketDataSeed = await request.post(
+      `${baseUrl}/api/internal/market-data/seed`,
+      { headers, timeout: 70_000 },
+    );
+    expect(
+      [200, 204],
+      `POST /api/internal/market-data/seed returned HTTP ${marketDataSeed.status()}`,
+    ).toContain(marketDataSeed.status());
+  });
+
+  // ── 3. Auth + protected endpoints ────────────────────────────────────────
+  test("login POST issues token accepted by live protected GET endpoints", async ({
+    request,
+  }) => {
+    const credentials = {
+      email: email!,
+      password: password!,
+      expectedUserId: expectedUserId!,
+    };
 
     // Verify unauthenticated requests are rejected
     const unauthenticated = await request.get(`${baseUrl}/api/portfolio`, {
-      timeout: 30_000,
+      timeout: 70_000,
     });
     expect([401, 403]).toContain(unauthenticated.status());
 
     // Perform login to obtain JWT token
     const login = await request.post(`${baseUrl}/api/auth/login`, {
       data: { email: credentials.email, password: credentials.password },
-      timeout: 30_000,
+      timeout: 70_000,
     });
     await assertOk(login, "POST /api/auth/login");
 
@@ -92,7 +176,7 @@ test.describe("Azure Synthetic: API live smoke", () => {
     // Test portfolio endpoint
     const portfolio = await request.get(`${baseUrl}/api/portfolio`, {
       headers,
-      timeout: 30_000,
+      timeout: 70_000,
     });
     await assertOk(portfolio, "GET /api/portfolio");
 
@@ -100,17 +184,24 @@ test.describe("Azure Synthetic: API live smoke", () => {
     expect(Array.isArray(portfolios)).toBe(true);
     expect(portfolios.length).toBeGreaterThan(0);
 
-    const demoPortfolio = portfolios.find(
-      (item: { userId?: string }) => item.userId === credentials.expectedUserId,
-    ) ?? portfolios[0];
+    const demoPortfolio =
+      portfolios.find(
+        (item: { userId?: string }) =>
+          item.userId === credentials.expectedUserId,
+      ) ?? portfolios[0];
     expect(demoPortfolio.holdings?.length ?? 0).toBeGreaterThan(0);
 
-    // Test portfolio summary endpoint
+    // Test portfolio summary endpoint — assert totalValue is positive after seeding.
     const summary = await request.get(
       `${baseUrl}/api/portfolio/summary?userId=${encodeURIComponent(credentials.expectedUserId)}`,
-      { headers, timeout: 30_000 },
+      { headers, timeout: 70_000 },
     );
     await assertOk(summary, "GET /api/portfolio/summary");
+    const summaryData = await summary.json();
+    expect(
+      summaryData.totalValue,
+      "portfolio summary totalValue must be > 0 after seeding",
+    ).toBeGreaterThan(0);
 
     // Test market prices endpoint with sample tickers
     const tickers = demoPortfolio.holdings
@@ -119,7 +210,7 @@ test.describe("Azure Synthetic: API live smoke", () => {
       .join(",");
     const prices = await request.get(
       `${baseUrl}/api/market/prices?tickers=${encodeURIComponent(tickers)}`,
-      { headers, timeout: 30_000 },
+      { headers, timeout: 70_000 },
     );
     await assertOk(prices, "GET /api/market/prices");
   });
