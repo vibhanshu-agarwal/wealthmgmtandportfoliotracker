@@ -23,17 +23,7 @@
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
-    paths:
-      - "api-gateway/**"
-      - "portfolio-service/**"
-      - "market-data-service/**"
-      - "insight-service/**"
-      - "common-dto/**"
-      - "frontend/**"
-      - ".github/workflows/deploy-azure.yml"
+  workflow_call:
 
 env:
   AZURE_RG: wealth-azure-prod-rg

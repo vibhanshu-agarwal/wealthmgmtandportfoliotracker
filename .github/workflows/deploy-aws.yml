@@ -1,0 +1,436 @@
+name: Deploy (AWS)
+
+# Required GitHub Actions secrets (repo-level)
+# - AWS_ACCESS_KEY_ID
+# - AWS_SECRET_ACCESS_KEY
+# - AWS_REGION
+# - AWS_ACCOUNT_ID
+# - S3_BUCKET_NAME
+# - CLOUDFRONT_DISTRIBUTION_ID
+#
+# ECR repository names (one per service):
+# - ECR_REPOSITORY_NAME              → wealth-api-gateway
+# - ECR_REPOSITORY_NAME_PORTFOLIO    → wealth-portfolio-service
+# - ECR_REPOSITORY_NAME_MARKET_DATA  → wealth-market-data-service
+# - ECR_REPOSITORY_NAME_INSIGHT      → wealth-insight-service
+#
+# Lambda function names (one per service):
+# - LAMBDA_FUNCTION_NAME_API_GATEWAY → wealth-api-gateway
+# - LAMBDA_FUNCTION_NAME_PORTFOLIO   → wealth-portfolio-service
+# - LAMBDA_FUNCTION_NAME_MARKET_DATA → wealth-market-data-service
+# - LAMBDA_FUNCTION_NAME_INSIGHT     → wealth-insight-service
+#
+# Notes
+# - Lambda environment variables (REDIS_URL, KAFKA_*, SPRING_PROFILES_ACTIVE, service URLs, etc.)
+#   are owned exclusively by Terraform and applied via terraform.yml on push to main.
+#   This workflow is image-only: it builds and pushes container images, then calls
+#   update-function-code. It does NOT call update-function-configuration.
+# - Do not pass AWS_REGION or AWS_DEFAULT_REGION in Lambda "Variables": Lambda reserves them.
+# - Triggers on both main and architecture/cloud-native-extraction so that work on the feature
+#   branch deploys independently and merges to main also trigger a deploy without divergence.
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+jobs:
+  # Fail-Fast: Verify all 3rd party connections before starting deployment.
+  pre-flight:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Connectivity Checks
+        env:
+          POSTGRES_CONNECTION_STRING: ${{ secrets.POSTGRES_CONNECTION_STRING }}
+          MONGODB_CONNECTION_STRING: ${{ secrets.MONGODB_CONNECTION_STRING }}
+          REDIS_URL: ${{ secrets.REDIS_URL }}
+          KAFKA_BOOTSTRAP_SERVERS: ${{ secrets.KAFKA_BOOTSTRAP_SERVERS }}
+        run: |
+          chmod +x infrastructure/scripts/verify_connectivity.sh
+          ./infrastructure/scripts/verify_connectivity.sh
+
+  # Static export → S3 → CloudFront invalidation (same path browsers hit via CDN).
+  deploy-frontend:
+    needs: pre-flight
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      # Next.js static export emits `frontend/out/` for S3 hosting.
+      - name: Build Next.js static export
+        working-directory: ./frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Sync to S3
+        run: |
+          if [ ! -d "frontend/out" ]; then
+            echo "Missing frontend/out after npm run build."
+            exit 1
+          fi
+          aws s3 sync ./frontend/out "s3://${{ secrets.S3_BUCKET_NAME }}" --delete
+
+      - name: Invalidate CloudFront
+        run: |
+          aws cloudfront create-invalidation --distribution-id "${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }}" --paths "/*"
+
+  # Container images for all four Lambda services.
+  # IMAGE-ONLY: env vars are managed by terraform.yml — this job only updates function code.
+  # Build order: api-gateway → portfolio-service → market-data-service → insight-service
+  #
+  # Phase 1 (2026-04-22): switched to ubuntu-24.04-arm (Graviton2 native runner) so that
+  # docker buildx and Gradle both run under linux/arm64.  This ensures:
+  #   - Gradle variant resolution picks netty-transport-native-epoll:linux-aarch_64
+  #   - The produced OCI image matches the Lambda architectures = ["arm64"] Terraform attribute
+  # Rollback: revert runs-on to ubuntu-latest and --platform to linux/amd64, then re-run
+  # terraform apply with lambda_architecture = "x86_64" in tfvars.
+  deploy-backend:
+    needs: pre-flight
+    runs-on: ubuntu-24.04-arm
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "25"
+          cache: gradle
+
+      # Wrapper is often committed without the Unix +x bit (e.g. from Windows); Ubuntu then rejects ./gradlew.
+      - name: Make Gradle wrapper executable
+        run: chmod +x ./gradlew
+
+      - name: Bootstrap Gradle wrapper (retry on services.gradle.org flake)
+        run: |
+          set -e
+          for attempt in 1 2 3 4 5 6; do
+            if ./gradlew --version; then
+              exit 0
+            fi
+            echo "Gradle wrapper download attempt $attempt failed; sleeping $((attempt * 15))s..."
+            sleep $((attempt * 15))
+          done
+          echo "Gradle wrapper bootstrap failed after 6 attempts."
+          ./gradlew --version
+          exit 1
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # ---------------------------------------------------------------------------
+      # api-gateway (Spring Cloud Gateway — Image Lambda)
+      # ---------------------------------------------------------------------------
+
+      - name: Build and push api-gateway image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY_NAME }}
+          IMAGE_TAG_SHA: ${{ github.sha }}
+        run: |
+          docker buildx build \
+            --no-cache \
+            --platform linux/arm64 \
+            --provenance=false \
+            --sbom=false \
+            -f api-gateway/Dockerfile \
+            -t "${ECR_REGISTRY}/${ECR_REPOSITORY}:latest" \
+            -t "${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG_SHA}" \
+            --push .
+
+      - name: Update api-gateway Lambda
+        env:
+          LAMBDA_FUNCTION_NAME: ${{ secrets.LAMBDA_FUNCTION_NAME_API_GATEWAY }}
+          AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY_NAME }}
+        run: |
+          # Skip if Lambda doesn't exist yet (created by Terraform on first apply)
+          if ! aws lambda get-function-configuration --function-name "$LAMBDA_FUNCTION_NAME" \
+              --query 'FunctionName' --output text 2>/dev/null; then
+            echo "Lambda $LAMBDA_FUNCTION_NAME does not exist yet — skipping update. Run terraform apply first."
+            exit 0
+          fi
+          # Pre-update wait: ensure no concurrent update is in progress
+          for attempt in {1..30}; do
+            STATUS="$(aws lambda get-function-configuration \
+              --function-name "$LAMBDA_FUNCTION_NAME" \
+              --query 'LastUpdateStatus' --output text)"
+            if [ "$STATUS" = "Successful" ]; then echo "Ready."; break; fi
+            if [ "$STATUS" = "Failed" ]; then echo "Lambda Failed status — aborting."; exit 1; fi
+            echo "Attempt $attempt/30 — status: $STATUS. Waiting 5s..."
+            [ "$attempt" -eq 30 ] && echo "Timed out." && exit 1
+            sleep 5
+          done
+          # Update function code ($LATEST)
+          aws lambda update-function-code \
+            --function-name "$LAMBDA_FUNCTION_NAME" \
+            --image-uri "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPOSITORY}:latest"
+          # Post-update wait: ensure code update has fully propagated before publishing
+          echo "Waiting for code update to propagate..."
+          for attempt in {1..30}; do
+            STATUS="$(aws lambda get-function-configuration \
+              --function-name "$LAMBDA_FUNCTION_NAME" \
+              --query 'LastUpdateStatus' --output text)"
+            if [ "$STATUS" = "Successful" ]; then echo "Code update propagated."; break; fi
+            if [ "$STATUS" = "Failed" ]; then echo "Code update failed — aborting."; exit 1; fi
+            echo "Attempt $attempt/30 — status: $STATUS. Waiting 5s..."
+            [ "$attempt" -eq 30 ] && echo "Timed out waiting for code update." && exit 1
+            sleep 5
+          done
+          # Publish new immutable version from $LATEST
+          NEW_VERSION=$(aws lambda publish-version \
+            --function-name "$LAMBDA_FUNCTION_NAME" \
+            --query 'Version' --output text)
+          echo "Published version $NEW_VERSION"
+          # Point live alias at the new version (Function URL serves this alias)
+          aws lambda update-alias \
+            --function-name "$LAMBDA_FUNCTION_NAME" \
+            --name live \
+            --function-version "$NEW_VERSION"
+          echo "Updated live alias to version $NEW_VERSION"
+
+      # ---------------------------------------------------------------------------
+      # portfolio-service (Spring Boot MVC + JPA — Image Lambda)
+      # ---------------------------------------------------------------------------
+
+      - name: Build and push portfolio-service image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY_NAME_PORTFOLIO }}
+          IMAGE_TAG_SHA: ${{ github.sha }}
+        run: |
+          docker buildx build \
+            --no-cache \
+            --platform linux/arm64 \
+            --provenance=false \
+            --sbom=false \
+            -f portfolio-service/Dockerfile \
+            -t "${ECR_REGISTRY}/${ECR_REPOSITORY}:latest" \
+            -t "${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG_SHA}" \
+            --push .
+
+      - name: Update portfolio-service Lambda
+        env:
+          LAMBDA_FUNCTION_NAME: ${{ secrets.LAMBDA_FUNCTION_NAME_PORTFOLIO }}
+          AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY_NAME_PORTFOLIO }}
+        run: |
+          # Skip if Lambda doesn't exist yet (created by Terraform on first apply)
+          if ! aws lambda get-function-configuration --function-name "$LAMBDA_FUNCTION_NAME" \
+              --query 'FunctionName' --output text 2>/dev/null; then
+            echo "Lambda $LAMBDA_FUNCTION_NAME does not exist yet — skipping. Run terraform apply first."
+            exit 0
+          fi
+          # Pre-update wait: ensure no concurrent update is in progress
+          for attempt in {1..30}; do
+            STATUS="$(aws lambda get-function-configuration \
+              --function-name "$LAMBDA_FUNCTION_NAME" \
+              --query 'LastUpdateStatus' --output text)"
+            if [ "$STATUS" = "Successful" ]; then echo "Ready."; break; fi
+            if [ "$STATUS" = "Failed" ]; then echo "Lambda Failed status — aborting."; exit 1; fi
+            echo "Attempt $attempt/30 — status: $STATUS. Waiting 5s..."
+            [ "$attempt" -eq 30 ] && echo "Timed out." && exit 1
+            sleep 5
+          done
+          # Update function code ($LATEST)
+          aws lambda update-function-code \
+            --function-name "$LAMBDA_FUNCTION_NAME" \
+            --image-uri "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPOSITORY}:latest"
+          # Post-update wait: ensure code update has fully propagated before publishing
+          echo "Waiting for code update to propagate..."
+          for attempt in {1..30}; do
+            STATUS="$(aws lambda get-function-configuration \
+              --function-name "$LAMBDA_FUNCTION_NAME" \
+              --query 'LastUpdateStatus' --output text)"
+            if [ "$STATUS" = "Successful" ]; then echo "Code update propagated."; break; fi
+            if [ "$STATUS" = "Failed" ]; then echo "Code update failed — aborting."; exit 1; fi
+            echo "Attempt $attempt/30 — status: $STATUS. Waiting 5s..."
+            [ "$attempt" -eq 30 ] && echo "Timed out waiting for code update." && exit 1
+            sleep 5
+          done
+          # Publish new immutable version from $LATEST
+          NEW_VERSION=$(aws lambda publish-version \
+            --function-name "$LAMBDA_FUNCTION_NAME" \
+            --query 'Version' --output text)
+          echo "Published version $NEW_VERSION"
+          # Point live alias at the new version (Function URL serves this alias)
+          aws lambda update-alias \
+            --function-name "$LAMBDA_FUNCTION_NAME" \
+            --name live \
+            --function-version "$NEW_VERSION"
+          echo "Updated live alias to version $NEW_VERSION"
+
+      # ---------------------------------------------------------------------------
+      # market-data-service (Spring Boot MVC + MongoDB — Image Lambda)
+      # ---------------------------------------------------------------------------
+
+      - name: Build and push market-data-service image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY_NAME_MARKET_DATA }}
+          IMAGE_TAG_SHA: ${{ github.sha }}
+        run: |
+          docker buildx build \
+            --no-cache \
+            --platform linux/arm64 \
+            --provenance=false \
+            --sbom=false \
+            -f market-data-service/Dockerfile \
+            -t "${ECR_REGISTRY}/${ECR_REPOSITORY}:latest" \
+            -t "${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG_SHA}" \
+            --push .
+
+      - name: Update market-data-service Lambda
+        env:
+          LAMBDA_FUNCTION_NAME: ${{ secrets.LAMBDA_FUNCTION_NAME_MARKET_DATA }}
+          AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY_NAME_MARKET_DATA }}
+        run: |
+          # Skip if Lambda doesn't exist yet (created by Terraform on first apply)
+          if ! aws lambda get-function-configuration --function-name "$LAMBDA_FUNCTION_NAME" \
+              --query 'FunctionName' --output text 2>/dev/null; then
+            echo "Lambda $LAMBDA_FUNCTION_NAME does not exist yet — skipping. Run terraform apply first."
+            exit 0
+          fi
+          # Pre-update wait: ensure no concurrent update is in progress
+          for attempt in {1..30}; do
+            STATUS="$(aws lambda get-function-configuration \
+              --function-name "$LAMBDA_FUNCTION_NAME" \
+              --query 'LastUpdateStatus' --output text)"
+            if [ "$STATUS" = "Successful" ]; then echo "Ready."; break; fi
+            if [ "$STATUS" = "Failed" ]; then echo "Lambda Failed status — aborting."; exit 1; fi
+            echo "Attempt $attempt/30 — status: $STATUS. Waiting 5s..."
+            [ "$attempt" -eq 30 ] && echo "Timed out." && exit 1
+            sleep 5
+          done
+          # Update function code ($LATEST)
+          aws lambda update-function-code \
+            --function-name "$LAMBDA_FUNCTION_NAME" \
+            --image-uri "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPOSITORY}:latest"
+          # Post-update wait: ensure code update has fully propagated before publishing
+          echo "Waiting for code update to propagate..."
+          for attempt in {1..30}; do
+            STATUS="$(aws lambda get-function-configuration \
+              --function-name "$LAMBDA_FUNCTION_NAME" \
+              --query 'LastUpdateStatus' --output text)"
+            if [ "$STATUS" = "Successful" ]; then echo "Code update propagated."; break; fi
+            if [ "$STATUS" = "Failed" ]; then echo "Code update failed — aborting."; exit 1; fi
+            echo "Attempt $attempt/30 — status: $STATUS. Waiting 5s..."
+            [ "$attempt" -eq 30 ] && echo "Timed out waiting for code update." && exit 1
+            sleep 5
+          done
+          # Publish new immutable version from $LATEST
+          NEW_VERSION=$(aws lambda publish-version \
+            --function-name "$LAMBDA_FUNCTION_NAME" \
+            --query 'Version' --output text)
+          echo "Published version $NEW_VERSION"
+          # Point live alias at the new version (Function URL serves this alias)
+          aws lambda update-alias \
+            --function-name "$LAMBDA_FUNCTION_NAME" \
+            --name live \
+            --function-version "$NEW_VERSION"
+          echo "Updated live alias to version $NEW_VERSION"
+
+      # ---------------------------------------------------------------------------
+      # insight-service (Spring Boot MVC + Bedrock + Redis — Image Lambda)
+      # ---------------------------------------------------------------------------
+
+      - name: Build and push insight-service image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY_NAME_INSIGHT }}
+          IMAGE_TAG_SHA: ${{ github.sha }}
+        run: |
+          docker buildx build \
+            --no-cache \
+            --platform linux/arm64 \
+            --provenance=false \
+            --sbom=false \
+            -f insight-service/Dockerfile \
+            -t "${ECR_REGISTRY}/${ECR_REPOSITORY}:latest" \
+            -t "${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG_SHA}" \
+            --push .
+
+      - name: Update insight-service Lambda
+        env:
+          LAMBDA_FUNCTION_NAME: ${{ secrets.LAMBDA_FUNCTION_NAME_INSIGHT }}
+          AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY_NAME_INSIGHT }}
+        run: |
+          # Skip if Lambda doesn't exist yet (created by Terraform on first apply)
+          if ! aws lambda get-function-configuration --function-name "$LAMBDA_FUNCTION_NAME" \
+              --query 'FunctionName' --output text 2>/dev/null; then
+            echo "Lambda $LAMBDA_FUNCTION_NAME does not exist yet — skipping. Run terraform apply first."
+            exit 0
+          fi
+          # Pre-update wait: ensure no concurrent update is in progress
+          for attempt in {1..30}; do
+            STATUS="$(aws lambda get-function-configuration \
+              --function-name "$LAMBDA_FUNCTION_NAME" \
+              --query 'LastUpdateStatus' --output text)"
+            if [ "$STATUS" = "Successful" ]; then echo "Ready."; break; fi
+            if [ "$STATUS" = "Failed" ]; then echo "Lambda Failed status — aborting."; exit 1; fi
+            echo "Attempt $attempt/30 — status: $STATUS. Waiting 5s..."
+            [ "$attempt" -eq 30 ] && echo "Timed out." && exit 1
+            sleep 5
+          done
+          # Update function code ($LATEST)
+          aws lambda update-function-code \
+            --function-name "$LAMBDA_FUNCTION_NAME" \
+            --image-uri "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPOSITORY}:latest"
+          # Post-update wait: ensure code update has fully propagated before publishing
+          echo "Waiting for code update to propagate..."
+          for attempt in {1..30}; do
+            STATUS="$(aws lambda get-function-configuration \
+              --function-name "$LAMBDA_FUNCTION_NAME" \
+              --query 'LastUpdateStatus' --output text)"
+            if [ "$STATUS" = "Successful" ]; then echo "Code update propagated."; break; fi
+            if [ "$STATUS" = "Failed" ]; then echo "Code update failed — aborting."; exit 1; fi
+            echo "Attempt $attempt/30 — status: $STATUS. Waiting 5s..."
+            [ "$attempt" -eq 30 ] && echo "Timed out waiting for code update." && exit 1
+            sleep 5
+          done
+          # Publish new immutable version from $LATEST
+          NEW_VERSION=$(aws lambda publish-version \
+            --function-name "$LAMBDA_FUNCTION_NAME" \
+            --query 'Version' --output text)
+          echo "Published version $NEW_VERSION"
+          # Point live alias at the new version (Function URL serves this alias)
+          aws lambda update-alias \
+            --function-name "$LAMBDA_FUNCTION_NAME" \
+            --name live \
+            --function-version "$NEW_VERSION"
+          echo "Updated live alias to version $NEW_VERSION"
