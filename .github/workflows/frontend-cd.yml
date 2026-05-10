@@ -6,6 +6,11 @@ name: Frontend CD (Publish Docker Image)
 
 on:
   workflow_dispatch:
+    inputs:
+      reason:
+        description: "Reason for manual run"
+        required: true
+        type: string
 
 permissions:
   contents: read

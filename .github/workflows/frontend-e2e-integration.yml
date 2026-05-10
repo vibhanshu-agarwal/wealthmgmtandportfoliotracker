@@ -1,11 +1,20 @@
+# DISABLED for Azure Demo Readiness Phase 2
+# This workflow is now manual-only. Use ci-verification.yml for full-stack E2E.
+# Re-enable after Azure demo by restoring the push trigger and removing
+# this comment block and the reason input.
+
 name: Frontend E2E Integration (Full Stack)
 
-# Only runs  after the PR smoke tests have already passed.
+# Only runs after the PR smoke tests have already passed.
 # Spins up the complete Docker Compose stack and runs all 5 diagnostic tests
 # including the direct API Gateway JWT validation (test 5).
 on:
-  push:
-    branches: [ "main", "architecture/**" ]
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "Reason for manual run"
+        required: true
+        type: string
 
 jobs:
   e2e-full-stack:
@@ -29,8 +38,8 @@ jobs:
       - name: Set up JDK 25
         uses: actions/setup-java@v4
         with:
-          java-version: '25'
-          distribution: 'temurin'
+          java-version: "25"
+          distribution: "temurin"
           cache: gradle
 
       - name: Make gradlew executable
@@ -76,9 +85,9 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: './frontend/package-lock.json'
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: "./frontend/package-lock.json"
 
       - name: Install frontend dependencies
         working-directory: ./frontend
