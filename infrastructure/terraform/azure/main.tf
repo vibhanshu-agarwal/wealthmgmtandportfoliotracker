@@ -122,10 +122,10 @@ module "api_gateway" {
 
   # Non-sensitive env vars — service discovery URLs use bare app names (ACA internal DNS).
   env_vars = {
-    SPRING_PROFILES_ACTIVE          = "prod,azure"
-    PORTFOLIO_SERVICE_URL           = "http://portfolio-service"
-    MARKET_DATA_SERVICE_URL         = "http://market-data-service"
-    INSIGHT_SERVICE_URL             = "http://insight-service"
+    SPRING_PROFILES_ACTIVE           = "prod,azure"
+    PORTFOLIO_SERVICE_URL            = "http://portfolio-service"
+    MARKET_DATA_SERVICE_URL          = "http://market-data-service"
+    INSIGHT_SERVICE_URL              = "http://insight-service"
     APP_CORS_ALLOWED_ORIGIN_PATTERNS = var.cors_allowed_origin_patterns
   }
 
@@ -171,12 +171,16 @@ module "portfolio_service" {
   image_repository    = "portfolio-service"
   image_tag           = var.image_tag
   seed_image          = var.use_seed_image ? "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest" : ""
-  target_port         = var.use_seed_image ? 80 : 8081
-  external_ingress    = false
-  min_replicas        = 0
-  max_replicas        = 3
-  cpu                 = 0.5
-  memory              = "1Gi"
+  # target_port 8080 — all services listen on 8080 on Azure (application-prod.yml).
+  # The 8081/8082/8083 scheme is only relevant to local dev (Docker Compose) where
+  # all four Spring Boot processes share a host and therefore need distinct ports.
+  # Inside ACA each service has its own internal FQDN, so port uniqueness is not required.
+  target_port      = var.use_seed_image ? 80 : 8080
+  external_ingress = false
+  min_replicas     = 0
+  max_replicas     = 3
+  cpu              = 0.5
+  memory           = "1Gi"
 
   env_vars = {
     SPRING_PROFILES_ACTIVE = "prod,azure"
@@ -218,12 +222,13 @@ module "market_data_service" {
   image_repository    = "market-data-service"
   image_tag           = var.image_tag
   seed_image          = var.use_seed_image ? "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest" : ""
-  target_port         = var.use_seed_image ? 80 : 8082
-  external_ingress    = false
-  min_replicas        = 0
-  max_replicas        = 3
-  cpu                 = 0.5
-  memory              = "1Gi"
+  # target_port 8080 — see comment in module.portfolio_service for rationale.
+  target_port      = var.use_seed_image ? 80 : 8080
+  external_ingress = false
+  min_replicas     = 0
+  max_replicas     = 3
+  cpu              = 0.5
+  memory           = "1Gi"
 
   env_vars = {
     SPRING_PROFILES_ACTIVE = "prod,azure"
@@ -264,12 +269,13 @@ module "insight_service" {
   image_repository    = "insight-service"
   image_tag           = var.image_tag
   seed_image          = var.use_seed_image ? "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest" : ""
-  target_port         = var.use_seed_image ? 80 : 8083
-  external_ingress    = false
-  min_replicas        = 0
-  max_replicas        = 3
-  cpu                 = 0.5
-  memory              = "1Gi"
+  # target_port 8080 — see comment in module.portfolio_service for rationale.
+  target_port      = var.use_seed_image ? 80 : 8080
+  external_ingress = false
+  min_replicas     = 0
+  max_replicas     = 3
+  cpu              = 0.5
+  memory           = "1Gi"
 
   # AZURE_OPENAI_ENDPOINT and AZURE_OPENAI_DEPLOYMENT are non-sensitive (no credentials).
   # They align 1:1 with the env-var names read by application-azure-ai.yml (task 4.3).
