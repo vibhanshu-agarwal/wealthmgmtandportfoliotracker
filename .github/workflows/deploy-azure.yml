@@ -222,20 +222,6 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Resolve API Gateway FQDN
-        id: api_fqdn
-        # Fetch the external FQDN of the api-gateway Container App from Azure.
-        # This is the value injected as NEXT_PUBLIC_API_BASE_URL so the static
-        # export knows where to send API calls at build time.
-        run: |
-          FQDN=$(az containerapp show \
-            --name api-gateway \
-            --resource-group $AZURE_RG \
-            --query properties.configuration.ingress.fqdn \
-            --output tsv)
-          echo "api_gateway_fqdn=https://${FQDN}" >> "$GITHUB_OUTPUT"
-          echo "Resolved API Gateway FQDN: https://${FQDN}"
-
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
@@ -336,3 +322,56 @@ jobs:
 
       - name: Verify live demo data
         run: bash .github/workflows/scripts/verify-azure-demo.sh
+
+  # ---------------------------------------------------------------------------
+  # Synthetic Monitoring: run the full Azure synthetic test suite after
+  # deployment and seeding to verify end-to-end system health.
+  # ---------------------------------------------------------------------------
+  synthetic-monitoring:
+    runs-on: ubuntu-latest
+    needs: [preflight, verify]
+    if: >-
+      needs.preflight.result == 'success' &&
+      needs.preflight.outputs.infra_ready == 'true' &&
+      needs.verify.result == 'success'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: ./frontend
+        run: npm ci
+
+      - name: Install Playwright Browsers
+        working-directory: ./frontend
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Azure Synthetic Monitoring Suite
+        working-directory: ./frontend
+        env:
+          # Targets the live Azure production site
+          BASE_URL: https://wealthmgmt-azure-prod.azurewebsites.net
+          # Gateway base URL — API served under custom domain
+          NEXT_PUBLIC_API_BASE_URL: https://api.vibhanshu-ai-portfolio.dev
+          # Skip the local-stack health poll — not appropriate for live Azure
+          SKIP_BACKEND_HEALTH_CHECK: "true"
+          # E2E test user credentials
+          E2E_TEST_USER_EMAIL: e2e-test-user@wealthmgmt-azure-prod.azurewebsites.net
+          E2E_TEST_USER_PASSWORD: ${{ secrets.E2E_TEST_USER_PASSWORD }}
+        run: npx playwright test --project=azure-synthetic
+
+      - name: Upload Synthetic Monitoring Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: azure-synthetic-report
+          path: frontend/playwright-report/
+          retention-days: 7
