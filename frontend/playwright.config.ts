@@ -25,7 +25,11 @@ export default defineConfig({
     // Main test project — inherits authenticated session from setup
     {
       name: "chromium",
-      testIgnore: [/dashboard-smoke\.spec\.ts$/, /aws-synthetic\/.*/],
+      testIgnore: [
+        /dashboard-smoke\.spec\.ts$/,
+        /aws-synthetic\/.*/,
+        /azure-synthetic\/.*/,
+      ],
       use: {
         ...devices["Desktop Chrome"],
         storageState: authFile,
@@ -50,16 +54,19 @@ export default defineConfig({
       timeout: 90_000,
     },
     // Live Azure environment testing (synthetic monitoring)
+    // Targets the same public custom domain as the AWS suite; frontend and API
+    // share vibhanshu-ai-portfolio.dev / api.vibhanshu-ai-portfolio.dev.
     {
       name: "azure-synthetic",
       testDir: "./tests/e2e/azure-synthetic",
       use: {
         ...devices["Desktop Chrome"],
-        baseURL: "https://wealthmgmt-azure-prod.azurewebsites.net",
+        // Canonical public frontend domain — matches BASE_URL injected by workflows.
+        baseURL: "https://vibhanshu-ai-portfolio.dev",
       },
-      // Azure Container Apps respond faster than Lambda (no cold starts)
-      // but allow buffer for Azure OpenAI processing
-      timeout: 60_000,
+      // 120s matches the suite-level budget; individual tests set their own
+      // lower timeouts (70s API calls, 30s UI interactions).
+      timeout: 120_000,
     },
   ],
   webServer: {
