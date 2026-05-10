@@ -36,7 +36,7 @@ npx playwright test --project=azure-synthetic --headed
 ## Test Files
 - `login.spec.ts`: Verifies production authentication.
 - `live-contract.spec.ts`: Verifies the 160-asset portfolio renders correctly in the table.
-- `ai-insights.spec.ts`: Verifies that Azure OpenAI can process the large dataset.
+- `ai-insights.spec.ts`: Verifies the AI Insights page shell — heading, chat panel (`chat-input`), and market summary grid settle into a terminal state. Does **not** submit a chat message (avoids Azure OpenAI quota burn on every hourly run).
 - `api-live-smoke.spec.ts`: API endpoint smoke tests.
 - `azure-synthetic.spec.ts`: Main health check suite (login + dashboard).
 

@@ -10,6 +10,10 @@ import { expect, test } from "@playwright/test";
 const TEST_USER_EMAIL =
   process.env.E2E_TEST_USER_EMAIL ?? "e2e-test-user@vibhanshu-ai-portfolio.dev";
 const TEST_USER_PASSWORD = process.env.E2E_TEST_USER_PASSWORD;
+// Mirror the Terraform variable: TF_VAR_app_auth_name = secrets.E2E_TEST_USER_NAME || 'Demo User'
+// Using the same fallback keeps this assertion consistent with whatever name the
+// deployed app actually shows, regardless of which secret value is configured.
+const TEST_USER_NAME = process.env.E2E_TEST_USER_NAME ?? "Demo User";
 
 test.describe("Azure Synthetic: Login", () => {
   test("Successful login to live production site", async ({ page }) => {
@@ -33,8 +37,10 @@ test.describe("Azure Synthetic: Login", () => {
       timeout: 30_000,
     });
 
-    // Check for user identity in the UI
-    await expect(page.locator("body")).toContainText("E2E Test User", {
+    // Check for user identity in the UI.
+    // TEST_USER_NAME mirrors TF_VAR_app_auth_name (secrets.E2E_TEST_USER_NAME || 'Demo User')
+    // so the assertion matches whatever display name is actually seeded in the deployed app.
+    await expect(page.locator("body")).toContainText(TEST_USER_NAME, {
       timeout: 10_000,
     });
   });
