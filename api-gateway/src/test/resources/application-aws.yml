@@ -1,0 +1,6 @@
+# Test-only overrides for the 'aws' profile.
+# Supplies a valid JWT secret so JwtDecoderConfig can initialise during unit tests
+# without requiring the AUTH_JWT_SECRET environment variable to be set.
+auth:
+  jwt:
+    secret: test-secret-for-integration-tests-min-32-chars

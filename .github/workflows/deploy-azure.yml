@@ -222,20 +222,6 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Resolve API Gateway FQDN
-        id: api_fqdn
-        # Fetch the external FQDN of the api-gateway Container App from Azure.
-        # This is the value injected as NEXT_PUBLIC_API_BASE_URL so the static
-        # export knows where to send API calls at build time.
-        run: |
-          FQDN=$(az containerapp show \
-            --name api-gateway \
-            --resource-group $AZURE_RG \
-            --query properties.configuration.ingress.fqdn \
-            --output tsv)
-          echo "api_gateway_fqdn=https://${FQDN}" >> "$GITHUB_OUTPUT"
-          echo "Resolved API Gateway FQDN: https://${FQDN}"
-
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
@@ -250,8 +236,10 @@ jobs:
       - name: Build Next.js static export
         working-directory: frontend
         env:
-          # Injected at build time so the static export embeds the correct API origin.
-          # The Next.js app uses this for all /api/* calls in the Azure deployment.
+          # SOURCE OF TRUTH: https://api.vibhanshu-ai-portfolio.dev is the permanent
+          # API origin post-DNS-cutover. Update this value when the custom domain changes.
+          # Injected at build time so the static export embeds the correct API origin;
+          # the Next.js app uses it for all /api/* calls in the Azure deployment.
           NEXT_PUBLIC_API_BASE_URL: https://api.vibhanshu-ai-portfolio.dev
           # Demo credentials — pre-populates the login form for recruiter demos.
           NEXT_PUBLIC_DEMO_EMAIL: ${{ secrets.E2E_TEST_USER_EMAIL }}

@@ -1,3 +1,7 @@
+# DISABLED for Azure Demo Readiness Phase 2
+# This workflow is now manual-only. Use deploy-azure.yml directly instead.
+# Re-enable after Azure demo by restoring original triggers.
+
 # Deployment Dispatcher
 #
 # Single entry point for all cloud deployments. Routes to the appropriate
@@ -15,19 +19,6 @@ name: Deploy
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
-    paths:
-      - "api-gateway/**"
-      - "portfolio-service/**"
-      - "market-data-service/**"
-      - "insight-service/**"
-      - "common-dto/**"
-      - "frontend/**"
-      - ".github/workflows/deploy.yml"
-      - ".github/workflows/deploy-azure.yml"
-      - ".github/workflows/deploy-aws.yml"
 
 permissions:
   id-token: write
