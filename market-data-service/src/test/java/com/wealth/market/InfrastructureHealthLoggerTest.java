@@ -17,6 +17,7 @@ import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.kafka.core.KafkaAdmin;
 
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -72,7 +73,7 @@ class InfrastructureHealthLoggerTest {
         // Arrange
         Document pingResult = new Document("ok", 1.0);
         when(mongoTemplate.executeCommand("{ ping: 1 }")).thenReturn(pingResult);
-        doNothing().when(kafkaAdmin).describeTopics("market-prices");
+        when(kafkaAdmin.describeTopics("market-prices")).thenReturn(Map.of());
 
         // Act
         logger.onApplicationEvent(applicationReadyEvent);
@@ -115,7 +116,7 @@ class InfrastructureHealthLoggerTest {
         // Arrange
         RuntimeException cause = new RuntimeException("Connection timeout");
         when(mongoTemplate.executeCommand("{ ping: 1 }")).thenThrow(cause);
-        doNothing().when(kafkaAdmin).describeTopics(anyString());
+        when(kafkaAdmin.describeTopics(anyString())).thenReturn(Map.of());
 
         // Act
         logger.onApplicationEvent(applicationReadyEvent);
@@ -136,7 +137,7 @@ class InfrastructureHealthLoggerTest {
     void onApplicationEvent_logsKafkaSuccess_whenConnectionSucceeds() {
         // Arrange
         when(mongoTemplate.executeCommand("{ ping: 1 }")).thenThrow(new RuntimeException("Mongo down"));
-        doNothing().when(kafkaAdmin).describeTopics("market-prices");
+        when(kafkaAdmin.describeTopics("market-prices")).thenReturn(Map.of());
 
         // Act
         logger.onApplicationEvent(applicationReadyEvent);
@@ -197,7 +198,7 @@ class InfrastructureHealthLoggerTest {
         // Arrange
         Document pingResult = new Document("ok", 1.0);
         when(mongoTemplate.executeCommand("{ ping: 1 }")).thenReturn(pingResult);
-        doNothing().when(kafkaAdmin).describeTopics(anyString());
+        when(kafkaAdmin.describeTopics(anyString())).thenReturn(Map.of());
 
         // Act
         logger.onApplicationEvent(applicationReadyEvent);
@@ -217,7 +218,7 @@ class InfrastructureHealthLoggerTest {
         // Arrange
         Document pingResult = new Document("ok", 1.0);
         when(mongoTemplate.executeCommand("{ ping: 1 }")).thenReturn(pingResult);
-        doNothing().when(kafkaAdmin).describeTopics(anyString());
+        when(kafkaAdmin.describeTopics(anyString())).thenReturn(Map.of());
 
         // Act
         logger.onApplicationEvent(applicationReadyEvent);
@@ -236,7 +237,7 @@ class InfrastructureHealthLoggerTest {
         // Arrange
         IllegalStateException cause = new IllegalStateException("Authentication failed");
         when(mongoTemplate.executeCommand("{ ping: 1 }")).thenThrow(cause);
-        doNothing().when(kafkaAdmin).describeTopics(anyString());
+        when(kafkaAdmin.describeTopics(anyString())).thenReturn(Map.of());
 
         // Act
         logger.onApplicationEvent(applicationReadyEvent);

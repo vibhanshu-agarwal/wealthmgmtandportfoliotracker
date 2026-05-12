@@ -18,6 +18,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.kafka.core.KafkaAdmin;
 
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -79,7 +80,7 @@ class InfrastructureHealthLoggerTest {
     void onApplicationEvent_logsSuccess_whenAllDependenciesHealthy() {
         // Arrange
         when(jdbcTemplate.queryForObject("SELECT 1", Integer.class)).thenReturn(1);
-        doNothing().when(kafkaAdmin).describeTopics("market-prices");
+        when(kafkaAdmin.describeTopics("market-prices")).thenReturn(Map.of());
         when(redisConnectionFactory.getConnection()).thenReturn(redisConnection);
         when(redisConnection.ping()).thenReturn("PONG");
 
@@ -127,7 +128,7 @@ class InfrastructureHealthLoggerTest {
         // Arrange
         RuntimeException cause = new RuntimeException("Connection timeout");
         when(jdbcTemplate.queryForObject("SELECT 1", Integer.class)).thenThrow(cause);
-        doNothing().when(kafkaAdmin).describeTopics(anyString());
+        when(kafkaAdmin.describeTopics(anyString())).thenReturn(Map.of());
         when(redisConnectionFactory.getConnection()).thenReturn(redisConnection);
         when(redisConnection.ping()).thenReturn("PONG");
 
@@ -150,7 +151,7 @@ class InfrastructureHealthLoggerTest {
     void onApplicationEvent_logsKafkaSuccess_whenConnectionSucceeds() {
         // Arrange
         when(jdbcTemplate.queryForObject("SELECT 1", Integer.class)).thenThrow(new RuntimeException("Postgres down"));
-        doNothing().when(kafkaAdmin).describeTopics("market-prices");
+        when(kafkaAdmin.describeTopics("market-prices")).thenReturn(Map.of());
         when(redisConnectionFactory.getConnection()).thenThrow(new RuntimeException("Redis down"));
 
         // Act
@@ -214,7 +215,7 @@ class InfrastructureHealthLoggerTest {
     void onApplicationEvent_logsRedisFailure_whenConnectionFails() {
         // Arrange
         when(jdbcTemplate.queryForObject("SELECT 1", Integer.class)).thenReturn(1);
-        doNothing().when(kafkaAdmin).describeTopics(anyString());
+        when(kafkaAdmin.describeTopics(anyString())).thenReturn(Map.of());
         RuntimeException cause = new RuntimeException("Connection refused");
         when(redisConnectionFactory.getConnection()).thenThrow(cause);
 
@@ -237,7 +238,7 @@ class InfrastructureHealthLoggerTest {
     void onApplicationEvent_logsStartupBanner() {
         // Arrange
         when(jdbcTemplate.queryForObject("SELECT 1", Integer.class)).thenReturn(1);
-        doNothing().when(kafkaAdmin).describeTopics(anyString());
+        when(kafkaAdmin.describeTopics(anyString())).thenReturn(Map.of());
         when(redisConnectionFactory.getConnection()).thenReturn(redisConnection);
         when(redisConnection.ping()).thenReturn("PONG");
 
@@ -258,7 +259,7 @@ class InfrastructureHealthLoggerTest {
     void onApplicationEvent_includesServiceNameInBanner() {
         // Arrange
         when(jdbcTemplate.queryForObject("SELECT 1", Integer.class)).thenReturn(1);
-        doNothing().when(kafkaAdmin).describeTopics(anyString());
+        when(kafkaAdmin.describeTopics(anyString())).thenReturn(Map.of());
         when(redisConnectionFactory.getConnection()).thenReturn(redisConnection);
         when(redisConnection.ping()).thenReturn("PONG");
 

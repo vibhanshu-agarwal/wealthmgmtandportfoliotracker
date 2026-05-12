@@ -17,6 +17,7 @@ import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.kafka.core.KafkaAdmin;
 
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -75,7 +76,7 @@ class InfrastructureHealthLoggerTest {
         // Arrange
         when(redisConnectionFactory.getConnection()).thenReturn(redisConnection);
         when(redisConnection.ping()).thenReturn("PONG");
-        doNothing().when(kafkaAdmin).describeTopics("market-prices");
+        when(kafkaAdmin.describeTopics("market-prices")).thenReturn(Map.of());
 
         // Act
         logger.onApplicationEvent(applicationReadyEvent);
@@ -119,7 +120,7 @@ class InfrastructureHealthLoggerTest {
         // Arrange
         RuntimeException cause = new RuntimeException("Connection refused");
         when(redisConnectionFactory.getConnection()).thenThrow(cause);
-        doNothing().when(kafkaAdmin).describeTopics(anyString());
+        when(kafkaAdmin.describeTopics(anyString())).thenReturn(Map.of());
 
         // Act
         logger.onApplicationEvent(applicationReadyEvent);
@@ -140,7 +141,7 @@ class InfrastructureHealthLoggerTest {
     void onApplicationEvent_logsKafkaSuccess_whenConnectionSucceeds() {
         // Arrange
         when(redisConnectionFactory.getConnection()).thenThrow(new RuntimeException("Redis down"));
-        doNothing().when(kafkaAdmin).describeTopics("market-prices");
+        when(kafkaAdmin.describeTopics("market-prices")).thenReturn(Map.of());
 
         // Act
         logger.onApplicationEvent(applicationReadyEvent);
@@ -201,7 +202,7 @@ class InfrastructureHealthLoggerTest {
         // Arrange
         when(redisConnectionFactory.getConnection()).thenReturn(redisConnection);
         when(redisConnection.ping()).thenReturn("PONG");
-        doNothing().when(kafkaAdmin).describeTopics(anyString());
+        when(kafkaAdmin.describeTopics(anyString())).thenReturn(Map.of());
 
         // Act
         logger.onApplicationEvent(applicationReadyEvent);
@@ -221,7 +222,7 @@ class InfrastructureHealthLoggerTest {
         // Arrange
         when(redisConnectionFactory.getConnection()).thenReturn(redisConnection);
         when(redisConnection.ping()).thenReturn("PONG");
-        doNothing().when(kafkaAdmin).describeTopics(anyString());
+        when(kafkaAdmin.describeTopics(anyString())).thenReturn(Map.of());
 
         // Act
         logger.onApplicationEvent(applicationReadyEvent);
@@ -240,7 +241,7 @@ class InfrastructureHealthLoggerTest {
         // Arrange
         when(redisConnectionFactory.getConnection()).thenReturn(redisConnection);
         when(redisConnection.ping()).thenReturn(null);
-        doNothing().when(kafkaAdmin).describeTopics(anyString());
+        when(kafkaAdmin.describeTopics(anyString())).thenReturn(Map.of());
 
         // Act
         logger.onApplicationEvent(applicationReadyEvent);

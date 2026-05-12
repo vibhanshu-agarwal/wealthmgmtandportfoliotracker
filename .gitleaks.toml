@@ -1,0 +1,12 @@
+# Gitleaks configuration
+# See https://github.com/gitleaks/gitleaks#configuration
+
+title = "Gitleaks config for wealthmgmt"
+
+[allowlist]
+  description = "Allow test resource secrets (non-production, hardcoded test values)"
+  paths = [
+    '''src/test/resources/.*\.yml$''',
+    '''src/test/resources/.*\.yaml$''',
+    '''\.env\.secrets\.example$''',
+  ]
