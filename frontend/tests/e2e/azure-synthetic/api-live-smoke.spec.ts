@@ -118,28 +118,40 @@ test.describe("Azure Synthetic: API live smoke", () => {
     const start = Date.now();
 
     let lastStatus = 0;
+    let lastError = "";
 
     while (Date.now() - start < DEADLINE_MS) {
       const remaining = DEADLINE_MS - (Date.now() - start);
-      const response = await request.get(`${baseUrl}/actuator/health`, {
-        timeout: Math.min(20_000, remaining),
-      });
-      lastStatus = response.status();
+      try {
+        const response = await request.get(`${baseUrl}/actuator/health`, {
+          timeout: Math.min(20_000, remaining),
+        });
+        lastStatus = response.status();
+        lastError = "";
 
-      if (lastStatus === 200) {
-        const body = await response.json();
-        expect(body.status).toBe("UP");
-        return;
-      }
+        if (lastStatus === 200) {
+          const body = await response.json();
+          expect(body.status).toBe("UP");
+          return;
+        }
 
-      // 5xx from ACA ingress during cold start is expected. Anything else
-      // (404, 401, 502 upstream wiring error) is a real problem — fail fast
-      // so we don't burn the full budget on a misconfigured environment.
-      if (lastStatus < 500 || lastStatus >= 600) {
-        const body = await responseBodyExcerpt(response);
-        throw new Error(
-          `GET /actuator/health returned unexpected HTTP ${lastStatus}: ${body}`,
-        );
+        // 5xx from ACA ingress during cold start is expected. Anything else
+        // (404, 401) is a real problem — fail fast so we don't burn the full
+        // budget on a misconfigured environment.
+        if (lastStatus < 500 || lastStatus >= 600) {
+          const body = await responseBodyExcerpt(response);
+          throw new Error(
+            `GET /actuator/health returned unexpected HTTP ${lastStatus}: ${body}`,
+          );
+        }
+      } catch (err: unknown) {
+        // Playwright throws TimeoutError when the request exceeds its timeout.
+        // During ACA scale-from-zero the TCP connection may hang (image pull,
+        // JVM startup) — treat the same as a 503 and keep polling.
+        const isTimeout =
+          err instanceof Error && /[Tt]imeout/.test(err.message);
+        if (!isTimeout) throw err;
+        lastError = err.message;
       }
 
       const sleep = Math.min(
@@ -150,8 +162,11 @@ test.describe("Azure Synthetic: API live smoke", () => {
       await new Promise((resolve) => setTimeout(resolve, sleep));
     }
 
+    const detail = lastError
+      ? `last error: ${lastError}`
+      : `last HTTP status: ${lastStatus}`;
     throw new Error(
-      `GET /actuator/health still returning HTTP ${lastStatus} after ${Math.round((Date.now() - start) / 1000)}s`,
+      `GET /actuator/health did not return 200 within ${Math.round((Date.now() - start) / 1000)}s (${detail})`,
     );
   });
 
