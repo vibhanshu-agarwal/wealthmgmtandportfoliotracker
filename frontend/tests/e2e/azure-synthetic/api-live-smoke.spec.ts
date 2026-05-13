@@ -93,18 +93,66 @@ test.describe("Azure Synthetic: API live smoke", () => {
   );
 
   // ── 1. Health ─────────────────────────────────────────────────────────────
-  test("health: GET /actuator/health responds 200 within 70s", async ({
+  test("health: GET /actuator/health responds 200 during scale-from-zero", async ({
     request,
   }) => {
-    // The actuator endpoint is behind Spring Security; it is accessible on the
-    // Azure custom domain without credentials (Spring's default health endpoint
-    // is not protected). Allows up to 70s for a Container App scale-from-zero.
-    const response = await request.get(`${baseUrl}/actuator/health`, {
-      timeout: 70_000,
-    });
-    expect(response.status()).toBe(200);
-    const body = await response.json();
-    expect(body.status).toBe("UP");
+    // Azure Container Apps run with minReplicas=0 (Free-tier cost optimisation).
+    // A request against a scaled-to-zero replica receives HTTP 503 from the ACA
+    // ingress until the new replica passes its readiness probe. That 503 is a
+    // normal response (not a request timeout), so a single-shot call with a
+    // large `timeout` will fail fast instead of waiting. We therefore poll the
+    // endpoint until it returns 200 or the budget is exhausted.
+    //
+    // Budget sized for a worst-case Spring Boot 4 cold start on the Consumption
+    // plan: image pull + JVM start + Flyway validate + Kafka admin client +
+    // first Lettuce TLS handshake against Upstash can add up to ~90s. 180s
+    // gives headroom for retries without masking a genuinely broken deploy.
+    //
+    // Subsequent tests in this suite run serially (see mode: "serial" above),
+    // so once health returns 200 the container stays warm for the seed + login
+    // tests and they can continue using single-shot requests with 70s timeouts.
+    test.setTimeout(200_000);
+
+    const DEADLINE_MS = 180_000;
+    const POLL_INTERVAL_MS = 5_000;
+    const start = Date.now();
+
+    let lastStatus = 0;
+
+    while (Date.now() - start < DEADLINE_MS) {
+      const remaining = DEADLINE_MS - (Date.now() - start);
+      const response = await request.get(`${baseUrl}/actuator/health`, {
+        timeout: Math.min(20_000, remaining),
+      });
+      lastStatus = response.status();
+
+      if (lastStatus === 200) {
+        const body = await response.json();
+        expect(body.status).toBe("UP");
+        return;
+      }
+
+      // 5xx from ACA ingress during cold start is expected. Anything else
+      // (404, 401, 502 upstream wiring error) is a real problem — fail fast
+      // so we don't burn the full budget on a misconfigured environment.
+      if (lastStatus < 500 || lastStatus >= 600) {
+        const body = await responseBodyExcerpt(response);
+        throw new Error(
+          `GET /actuator/health returned unexpected HTTP ${lastStatus}: ${body}`,
+        );
+      }
+
+      const sleep = Math.min(
+        POLL_INTERVAL_MS,
+        DEADLINE_MS - (Date.now() - start),
+      );
+      if (sleep <= 0) break;
+      await new Promise((resolve) => setTimeout(resolve, sleep));
+    }
+
+    throw new Error(
+      `GET /actuator/health still returning HTTP ${lastStatus} after ${Math.round((Date.now() - start) / 1000)}s`,
+    );
   });
 
   // ── 2. Idempotent seeding ─────────────────────────────────────────────────
