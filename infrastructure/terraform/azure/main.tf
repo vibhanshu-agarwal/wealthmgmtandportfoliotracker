@@ -32,12 +32,15 @@ resource "azurerm_container_registry" "main" {
 }
 
 # Log Analytics workspace — required by the ACA environment for structured logging.
+# retention_in_days lowered from 30 to 7 (2026-05-17) as part of the post-cost-spike
+# cleanup. Free-tier ingestion is the dominant Log Analytics cost driver; 7 days is
+# enough for last-week incident review while staying within the daily-cap defaults.
 resource "azurerm_log_analytics_workspace" "main" {
   name                = "wealth-${var.environment}-la"
   resource_group_name = azurerm_resource_group.main.name
   location            = azurerm_resource_group.main.location
   sku                 = "PerGB2018"
-  retention_in_days   = 30
+  retention_in_days   = var.log_analytics_retention_days
 }
 
 # Azure Container Apps Environment — shared networking and observability plane for all four services.

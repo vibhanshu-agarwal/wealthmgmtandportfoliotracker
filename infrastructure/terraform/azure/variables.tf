@@ -183,3 +183,18 @@ variable "cors_allowed_origin_patterns" {
   default     = "https://vibhanshu-ai-portfolio.dev,https://www.vibhanshu-ai-portfolio.dev,https://salmon-sand-00357bb10.7.azurestaticapps.net"
   description = "Comma-separated list of allowed CORS origin patterns for the api-gateway. Includes custom domains + SWA default hostname during transition. Narrow to custom domains only after a few days."
 }
+
+# ---------------------------------------------------------------------------
+# Observability
+# ---------------------------------------------------------------------------
+
+variable "log_analytics_retention_days" {
+  type        = number
+  default     = 7
+  description = "Retention (days) for the Log Analytics workspace. Lowered from 30 to 7 in the May-2026 cost-spike cleanup. Bump back to 30 if a longer audit window is needed; ingestion volume, not retention, is the dominant cost driver."
+
+  validation {
+    condition     = var.log_analytics_retention_days >= 7 && var.log_analytics_retention_days <= 730
+    error_message = "log_analytics_retention_days must be between 7 and 730 (Azure-enforced range for PerGB2018 workspaces)."
+  }
+}
