@@ -1,6 +1,6 @@
 # Wealth Management & Portfolio Tracker
 
-[![Java](https://img.shields.io/badge/Java-25-orange.svg)](https://openjdk.org/projects/jdk/25/)
+[![Java](https://img.shields.io/badge/Java-21-orange.svg)](https://openjdk.org/projects/jdk/21/)
 [![Spring Boot](https://img.shields.io/badge/Spring_Boot-4+-brightgreen.svg)](https://spring.io/projects/spring-boot)
 [![Spring Modulith](https://img.shields.io/badge/Spring-Modulith-blue.svg)](https://spring.io/projects/spring-modulith)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black.svg)](https://nextjs.org/)
@@ -85,9 +85,9 @@ This project heavily utilizes `spring-boot-docker-compose` and Testcontainers fo
 
 **Prerequisites:**
 
-- Java 25+
+- Java 21+
 - Docker Desktop running
-- Node.js 22+ (frontend uses **Next.js 16** with **React 19**)
+- Node.js 24+ (frontend uses **Next.js 16** with **React 19**)
 - Terraform 1.6+ (a pinned binary is checked in under `infrastructure/terraform-bin`)
 
 **To start the application:**

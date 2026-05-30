@@ -2,7 +2,7 @@
 
 ## Backend
 
-- **Language:** Java 25
+- **Language:** Java 21
 - **Framework:** Spring Boot 4.0.5
 - **Build:** Gradle (multi-module, Groovy DSL)
 - **Spring Cloud:** 2025.1.1 (Gateway WebFlux for api-gateway)

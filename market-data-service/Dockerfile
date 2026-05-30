@@ -9,9 +9,9 @@
 # never hits services.gradle.org. A 504 from that CDN would otherwise fail the
 # entire build — this is a pre-existing flaky failure that this stage eliminates.
 # ---------------------------------------------------------------------------
-FROM amazoncorretto:25 AS gradle-dist
+FROM amazoncorretto:21 AS gradle-dist
 
-# amazoncorretto:25 ships with curl-minimal which supports all required flags.
+# amazoncorretto:21 ships with curl-minimal which supports all required flags.
 # Installing the full curl package would conflict with curl-minimal — skip it.
 # --retry 5 --retry-delay 5 --retry-connrefused covers transient CDN 504s.
 RUN GRADLE_VERSION=9.4.1 \
@@ -26,7 +26,7 @@ RUN GRADLE_VERSION=9.4.1 \
 # ---------------------------------------------------------------------------
 # Stage 1: Builder — compile source and produce Spring Boot fat JAR with AOT
 # ---------------------------------------------------------------------------
-FROM amazoncorretto:25 AS builder
+FROM amazoncorretto:21 AS builder
 
 WORKDIR /workspace
 
@@ -48,10 +48,10 @@ COPY market-data-service/ market-data-service/
 RUN sed -i "/include 'api-gateway'/d; /include 'portfolio-service'/d; /include 'insight-service'/d" settings.gradle
 
 # Remove the Java toolchain block from build.gradle so Gradle uses the ambient
-# JDK from PATH (provided by the amazoncorretto:25 base) rather than trying to
+# JDK from PATH (provided by the amazoncorretto:21 base) rather than trying to
 # resolve a specific toolchain installation. Since Phase 4 pinned
 # JavaLanguageVersion to 21 (to match the Azure path), Gradle would otherwise
-# fail here because the builder image has JDK 25 only and no provisioning repo
+# fail here because the builder image has JDK 21 only and no provisioning repo
 # is configured. The source file is untouched; this only affects the in-container
 # copy. Bytecode targets the ambient JDK version.
 RUN sed -i '/^    java {/,/^    }/d' build.gradle
@@ -67,7 +67,7 @@ RUN chmod +x gradlew \
 # ---------------------------------------------------------------------------
 # Stage 2: JRE Builder — extract JAR, run jdeps/jlink to produce Custom JRE
 # ---------------------------------------------------------------------------
-FROM amazoncorretto:25 AS jre-builder
+FROM amazoncorretto:21 AS jre-builder
 
 # Install binutils (provides objcopy, required by jlink --strip-debug)
 RUN yum install -y binutils && yum clean all
@@ -85,7 +85,7 @@ RUN mkdir -p extracted && cd extracted && jar xf /jre-build/app.jar
 RUN DEPS=$(jdeps \
     --ignore-missing-deps \
     --print-module-deps \
-    --multi-release 25 \
+    --multi-release 21 \
     -cp "extracted/BOOT-INF/lib/*" \
     app.jar 2>/dev/null || echo "java.base") \
     && echo "Detected modules: $DEPS" \
@@ -115,7 +115,7 @@ COPY --from=jre-builder /custom-jre $JAVA_HOME
 ENV PATH="${JAVA_HOME}/bin:${PATH}"
 
 # Overwrite the jlink JRE's cacerts with the full Corretto trust store.
-COPY --from=jre-builder /usr/lib/jvm/java-25-amazon-corretto/lib/security/cacerts ${JAVA_HOME}/lib/security/cacerts
+COPY --from=jre-builder /usr/lib/jvm/java-21-amazon-corretto/lib/security/cacerts ${JAVA_HOME}/lib/security/cacerts
 
 # Copy application JAR
 WORKDIR /app
