@@ -34,6 +34,12 @@ public class ChatController {
     private static final Logger log = LoggerFactory.getLogger(ChatController.class);
     private static final Pattern DOLLAR_TICKER_PATTERN = Pattern.compile("\\$([A-Za-z]{1,5})");
     private static final Pattern UPPERCASE_TICKER_PATTERN = Pattern.compile("\\b([A-Z]{1,5})\\b");
+    // Suffix-aware patterns: crypto (e.g. ROSE-USD), forex (e.g. USDCHF=X), NSE (e.g. RELIANCE.NS).
+    // Matched against whitespace-delimited tokens after stripping leading/trailing conversational
+    // punctuation (?,. etc.) but preserving the suffix delimiter itself.
+    private static final Pattern SUFFIX_CRYPTO_PATTERN = Pattern.compile("^([A-Za-z]{1,15})-USD$", Pattern.CASE_INSENSITIVE);
+    private static final Pattern SUFFIX_FOREX_PATTERN  = Pattern.compile("^([A-Za-z]{3}[A-Za-z]{3})=X$", Pattern.CASE_INSENSITIVE);
+    private static final Pattern SUFFIX_NSE_PATTERN    = Pattern.compile("^([A-Za-z]{1,15})\\.NS$", Pattern.CASE_INSENSITIVE);
 
     private final MarketDataService marketDataService;
     private final AiInsightService aiInsightService;
@@ -94,9 +100,11 @@ public class ChatController {
 
         List<String> dollarCandidates = extractRegexCandidates(message, DOLLAR_TICKER_PATTERN);
         List<String> uppercaseCandidates = extractRegexCandidates(message, UPPERCASE_TICKER_PATTERN);
+        List<String> suffixCandidates = extractSuffixCandidates(message);
         List<String> conversationalCandidates = extractTickerCandidates(message);
         log.info("chat.ticker.candidates source=regex-dollar values={}", dollarCandidates);
         log.info("chat.ticker.candidates source=regex-uppercase values={}", uppercaseCandidates);
+        log.info("chat.ticker.candidates source=suffix-aware values={}", suffixCandidates);
         log.info("chat.ticker.candidates source=conversational values={}", conversationalCandidates);
 
         String trackedDollar = findFirstTrackedTicker(dollarCandidates);
@@ -109,6 +117,11 @@ public class ChatController {
             return new ResolutionResult(trackedUppercase, "regex-uppercase-tracked", uppercaseCandidates);
         }
 
+        String trackedSuffix = findFirstTrackedTicker(suffixCandidates);
+        if (trackedSuffix != null) {
+            return new ResolutionResult(trackedSuffix, "suffix-aware-tracked", suffixCandidates);
+        }
+
         String trackedConversational = findFirstTrackedTicker(conversationalCandidates);
         if (trackedConversational != null) {
             return new ResolutionResult(trackedConversational, "conversational-tracked", conversationalCandidates);
@@ -119,6 +132,9 @@ public class ChatController {
         }
         if (uppercaseCandidates.size() == 1) {
             return new ResolutionResult(uppercaseCandidates.getFirst(), "regex-uppercase-fallback", uppercaseCandidates);
+        }
+        if (suffixCandidates.size() == 1) {
+            return new ResolutionResult(suffixCandidates.getFirst(), "suffix-aware-fallback", suffixCandidates);
         }
         if (conversationalCandidates.size() == 1) {
             return new ResolutionResult(conversationalCandidates.getFirst(), "conversational-fallback", conversationalCandidates);
@@ -171,6 +187,32 @@ public class ChatController {
                     && cleaned.matches("[A-Z]+")
                     && !STOP_WORDS.contains(cleaned)) {
                 unique.add(cleaned);
+            }
+        }
+        return new ArrayList<>(unique);
+    }
+
+    /**
+     * Extracts suffixed ticker candidates from whitespace-delimited tokens, preserving the
+     * suffix delimiter exactly as the registry stores it (e.g. {@code ROSE-USD},
+     * {@code USDCHF=X}, {@code RELIANCE.NS}).
+     *
+     * <p>Only leading/trailing conversational punctuation ({@code ?}, {@code ,}, {@code !})
+     * is stripped before matching; the suffix delimiter ({@code -}, {@code =}, {@code .}) is
+     * never removed. The alphabetic stem is upper-cased; the suffix token is appended verbatim.
+     */
+    private List<String> extractSuffixCandidates(String message) {
+        LinkedHashSet<String> unique = new LinkedHashSet<>();
+        for (String raw : message.split("\\s+")) {
+            // Strip only leading/trailing conversational punctuation, not suffix delimiters.
+            String token = raw.replaceAll("^[?!,.'\"]+|[?!,.'\"]+$", "");
+            // Preserve .NS suffix — strip trailing ? etc. but not the dot.
+            // Re-strip only truly trailing non-symbol chars after the suffix check.
+            String upper = token.toUpperCase(Locale.ROOT);
+            if (SUFFIX_CRYPTO_PATTERN.matcher(upper).matches()
+                    || SUFFIX_FOREX_PATTERN.matcher(upper).matches()
+                    || SUFFIX_NSE_PATTERN.matcher(upper).matches()) {
+                unique.add(upper);
             }
         }
         return new ArrayList<>(unique);
