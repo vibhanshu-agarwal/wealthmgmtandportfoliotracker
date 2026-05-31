@@ -144,6 +144,7 @@ jobs:
   docker-build-verify:
     runs-on: ubuntu-latest
     needs: pact-consumer
+    timeout-minutes: 45
     env:
       # Keep gateway JWT validation and frontend token minting aligned (non-empty secret required to sign tokens).
       AUTH_JWT_SECRET: ${{ secrets.AUTH_JWT_SECRET || 'local-dev-secret-change-me-min-32-chars' }}
@@ -205,19 +206,30 @@ jobs:
       - name: Start Docker Compose stack
         run: |
           docker compose up -d
-          echo "Waiting for services to become healthy (up to 3 minutes)..."
+          echo "Waiting for services to become healthy (up to 6 minutes)..."
+
+          SERVICES=(portfolio-service market-data-service insight-service api-gateway)
+
           for i in $(seq 1 36); do
             sleep 10
             echo "--- Health check attempt $i/36 ---"
-            docker compose ps
-            # Check if all 4 Java services are healthy
-            HEALTHY=$(docker compose ps --format json | grep -c '"healthy"' || true)
-            echo "Healthy services: $HEALTHY/4"
-            if [ "$HEALTHY" -ge 4 ]; then
+
+            HEALTHY=0
+            for svc in "${SERVICES[@]}"; do
+              # docker inspect returns the health status string directly — immune to
+              # JSON format changes across Docker Compose CLI versions.
+              STATUS=$(docker inspect --format='{{.State.Health.Status}}' "$svc" 2>/dev/null || echo "missing")
+              echo "  $svc: $STATUS"
+              [ "$STATUS" = "healthy" ] && HEALTHY=$((HEALTHY + 1))
+            done
+
+            echo "Healthy: $HEALTHY/${#SERVICES[@]}"
+            if [ "$HEALTHY" -eq "${#SERVICES[@]}" ]; then
               echo "All services healthy!"
               exit 0
             fi
           done
+
           echo "Services failed to become healthy within 6 minutes"
           docker compose logs
           exit 1
