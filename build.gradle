@@ -65,10 +65,6 @@ subprojects {
     // Keep JVM timezone explicit to avoid PostgreSQL rejecting Asia/Calcutta from host defaults.
     tasks.withType(Test).configureEach {
         jvmArgs = ['-Duser.timezone=Asia/Kolkata']
-        // Hard timeout per test: prevents a single hanging Testcontainers context from
-        // blocking the entire CI job. 10 minutes is generous for the heaviest integration
-        // test (InfrastructureHealthLoggerProfileTest spins up 3 Spring contexts).
-        timeout = java.time.Duration.ofMinutes(10)
     }
 
     tasks.withType(BootRun).configureEach {
@@ -80,6 +76,9 @@ subprojects {
         useJUnitPlatform {
             excludeTags 'integration'
         }
+        // Unit tests should complete well within 10 minutes; fail fast if a test hangs.
+        // Note: Gradle's Test.timeout is a task-level deadline, not a per-test timeout.
+        timeout = java.time.Duration.ofMinutes(10)
     }
 
     // 2. Create the custom 'integrationTest' task for heavy DB/Testcontainers tests
@@ -98,6 +97,11 @@ subprojects {
 
         // Ensure standard fast tests run before the heavy integration tests
         mustRunAfter tasks.named('test')
+
+        // Integration tests spin up Testcontainers (MongoDB, Redis, Kafka) and multiple
+        // Spring contexts; 20 minutes is a generous ceiling for the full suite.
+        // Note: this is a task-level deadline, not a per-test timeout.
+        timeout = java.time.Duration.ofMinutes(20)
     }
 
     // 3. Ensure 'integrationTest' runs automatically when you run a full build/check
