@@ -90,9 +90,6 @@ jobs:
           name: next-static-export
           path: frontend/
 
-      - name: Install Playwright browsers (Chromium only)
-        run: npx playwright install --with-deps chromium
-
       - name: Run E2E smoke tests (static export only)
         run: npx playwright test --project=static-smoke --reporter=list
 

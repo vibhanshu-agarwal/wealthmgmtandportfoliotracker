@@ -3,6 +3,11 @@ import path from "node:path";
 
 const authFile = path.join(__dirname, "playwright/.auth/user.json");
 
+// In CI, use the preinstalled Google Chrome binary so that
+// `npx playwright install` (and its slow --with-deps apt pass) can be skipped.
+// Locally, leave channel unset so developers use Playwright's own Chromium build.
+const ciChannel = process.env.CI === "true" ? { channel: "chrome" as const } : {};
+
 export default defineConfig({
   testDir: path.resolve(__dirname, "tests/e2e"),
   globalSetup: path.resolve(__dirname, "tests/e2e/global-setup.ts"),
@@ -15,6 +20,7 @@ export default defineConfig({
     baseURL: process.env.BASE_URL ?? "http://localhost:3000",
     trace: "retain-on-failure",
     headless: true,
+    ...ciChannel,
   },
   projects: [
     // Setup project — runs the global login once and saves session state
