@@ -7,6 +7,7 @@ import org.springframework.beans.factory.NoSuchBeanDefinitionException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.ApplicationContext;
+import org.springframework.kafka.core.KafkaAdmin;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -54,6 +55,10 @@ class InfrastructureHealthLoggerProfileTest {
         registry.add("market-data.baseline-seed.enabled", () -> false);
         // Keep the Kafka producer from actually connecting; the test mocks KafkaTemplate.
         registry.add("spring.kafka.listener.auto-startup", () -> "false");
+        // Point KafkaAdmin at an invalid port so InfrastructureHealthLogger.probeKafka()
+        // fails fast (catches the exception and logs [INFRA-FAIL]) instead of hanging for
+        // the full Kafka client connection timeout (~60s) against localhost:9094.
+        registry.add("spring.kafka.bootstrap-servers", () -> "localhost:0");
     }
 
     // -------------------------------------------------------------------------
@@ -103,6 +108,12 @@ class InfrastructureHealthLoggerProfileTest {
         @SuppressWarnings("unused")
         KafkaTemplate<String, PriceUpdatedEvent> kafkaTemplate;
 
+        // Mock KafkaAdmin so InfrastructureHealthLogger.probeKafka() returns immediately
+        // instead of hanging for the full Kafka client connection timeout.
+        @MockitoBean
+        @SuppressWarnings("unused")
+        KafkaAdmin kafkaAdmin;
+
         @Autowired
         private ApplicationContext applicationContext;
 
@@ -130,6 +141,12 @@ class InfrastructureHealthLoggerProfileTest {
         @MockitoBean
         @SuppressWarnings("unused")
         KafkaTemplate<String, PriceUpdatedEvent> kafkaTemplate;
+
+        // Mock KafkaAdmin so InfrastructureHealthLogger.probeKafka() returns immediately
+        // instead of hanging for the full Kafka client connection timeout.
+        @MockitoBean
+        @SuppressWarnings("unused")
+        KafkaAdmin kafkaAdmin;
 
         @Autowired
         private ApplicationContext applicationContext;

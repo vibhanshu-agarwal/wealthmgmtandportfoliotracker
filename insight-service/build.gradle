@@ -49,4 +49,5 @@ dependencies {
 
     testImplementation 'au.com.dius.pact.provider:spring7:4.7.0-beta.4'
     testImplementation 'net.jqwik:jqwik:1.9.2'
+    testImplementation 'org.springframework.kafka:spring-kafka-test'
 }
