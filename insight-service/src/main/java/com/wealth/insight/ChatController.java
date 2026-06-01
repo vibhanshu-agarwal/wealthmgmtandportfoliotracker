@@ -112,14 +112,17 @@ public class ChatController {
             return new ResolutionResult(trackedDollar, "regex-dollar-tracked", dollarCandidates);
         }
 
-        String trackedUppercase = findFirstTrackedTicker(uppercaseCandidates);
-        if (trackedUppercase != null) {
-            return new ResolutionResult(trackedUppercase, "regex-uppercase-tracked", uppercaseCandidates);
-        }
-
+        // Suffix candidates are evaluated before plain uppercase candidates so that an exact
+        // tracked suffixed symbol (e.g. ABC-USD) cannot lose to a plain stem (e.g. ABC) that
+        // the uppercase pattern extracts from the same token.
         String trackedSuffix = findFirstTrackedTicker(suffixCandidates);
         if (trackedSuffix != null) {
             return new ResolutionResult(trackedSuffix, "suffix-aware-tracked", suffixCandidates);
+        }
+
+        String trackedUppercase = findFirstTrackedTicker(uppercaseCandidates);
+        if (trackedUppercase != null) {
+            return new ResolutionResult(trackedUppercase, "regex-uppercase-tracked", uppercaseCandidates);
         }
 
         String trackedConversational = findFirstTrackedTicker(conversationalCandidates);
@@ -133,9 +136,9 @@ public class ChatController {
         if (uppercaseCandidates.size() == 1) {
             return new ResolutionResult(uppercaseCandidates.getFirst(), "regex-uppercase-fallback", uppercaseCandidates);
         }
-        if (suffixCandidates.size() == 1) {
-            return new ResolutionResult(suffixCandidates.getFirst(), "suffix-aware-fallback", suffixCandidates);
-        }
+        // Suffix fallback is intentionally omitted: an untracked suffixed symbol (e.g. ROSE-USD
+        // not in Redis) must preserve the clarification response, not produce a no-data response.
+        // Only tracked suffixed symbols are resolved (handled above via suffix-aware-tracked).
         if (conversationalCandidates.size() == 1) {
             return new ResolutionResult(conversationalCandidates.getFirst(), "conversational-fallback", conversationalCandidates);
         }
@@ -200,15 +203,21 @@ public class ChatController {
      * <p>Only leading/trailing conversational punctuation ({@code ?}, {@code ,}, {@code !})
      * is stripped before matching; the suffix delimiter ({@code -}, {@code =}, {@code .}) is
      * never removed. The alphabetic stem is upper-cased; the suffix token is appended verbatim.
+     *
+     * <p>Stop-word filtering is intentionally not applied here: the suffix patterns
+     * ({@code -USD}, {@code =X}, {@code .NS}) are already highly specific discriminators, and
+     * a registry symbol whose stem happens to match a stop word (e.g. a hypothetical
+     * {@code BE-USD}) must still be resolvable when tracked. Stop-word exclusion is applied
+     * on the plain uppercase and conversational extraction paths where false positives are
+     * common (e.g. {@code IS}, {@code DO}, {@code BE} as standalone tokens).
      */
     private List<String> extractSuffixCandidates(String message) {
         LinkedHashSet<String> unique = new LinkedHashSet<>();
         for (String raw : message.split("\\s+")) {
             // Strip only leading/trailing conversational punctuation, not suffix delimiters.
             String token = raw.replaceAll("^[?!,.'\"]+|[?!,.'\"]+$", "");
-            // Preserve .NS suffix — strip trailing ? etc. but not the dot.
-            // Re-strip only truly trailing non-symbol chars after the suffix check.
             String upper = token.toUpperCase(Locale.ROOT);
+
             if (SUFFIX_CRYPTO_PATTERN.matcher(upper).matches()
                     || SUFFIX_FOREX_PATTERN.matcher(upper).matches()
                     || SUFFIX_NSE_PATTERN.matcher(upper).matches()) {
