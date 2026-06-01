@@ -246,10 +246,6 @@ jobs:
         working-directory: frontend
         run: npm ci
 
-      - name: Install Playwright browsers
-        working-directory: frontend
-        run: npx playwright install --with-deps chromium
-
       - name: Auth preflight - JWT health self-check
         working-directory: frontend
         run: npx playwright test tests/e2e/auth-jwt-health.spec.ts --project=chromium --reporter=list
