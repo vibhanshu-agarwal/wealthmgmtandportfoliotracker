@@ -15,7 +15,7 @@ on the UNFIXED code BEFORE any fix is applied.
 
 ## Tasks
 
-- [ ] 1. Write bug condition exploration test — seed → Kafka propagation (Root Cause 1)
+- [x] 1. Write bug condition exploration test — seed → Kafka propagation (Root Cause 1)
   - **Property 1: Bug Condition** - Golden-state seeding propagates to Redis via Kafka
   - **CRITICAL**: This test MUST FAIL on unfixed code - failure confirms the bug exists
   - **DO NOT attempt to fix the test or the code when it fails**
@@ -31,7 +31,7 @@ on the UNFIXED code BEFORE any fix is applied.
   - Mark task complete when test is written, run, and failure is documented
   - _Requirements: 1.1, 1.2, 2.1, 2.2_
 
-- [ ] 2. Write bug condition exploration test — suffixed symbol resolution (Root Cause 2)
+- [x] 2. Write bug condition exploration test — suffixed symbol resolution (Root Cause 2)
   - **Property 2: Bug Condition** - Suffixed tracked symbols resolve to themselves
   - **CRITICAL**: This test MUST FAIL on unfixed code - failure confirms the bug exists
   - **DO NOT attempt to fix the test or the code when it fails**
@@ -48,7 +48,7 @@ on the UNFIXED code BEFORE any fix is applied.
   - Mark task complete when test is written, run, and failure is documented
   - _Requirements: 1.3, 1.4, 1.5, 1.6, 2.3, 2.4, 2.5, 2.6_
 
-- [ ] 3. Write preservation property tests — resolver behavior unchanged (BEFORE implementing fix)
+- [x] 3. Write preservation property tests — resolver behavior unchanged (BEFORE implementing fix)
   - **Property 3: Preservation** - Plain-symbol resolution and resolver responses unchanged
   - **IMPORTANT**: Follow observation-first methodology
   - **Module/Location**: `insight-service` (jqwik), `ChatControllerTest` `MockMvc` standalone pattern
@@ -65,7 +65,7 @@ on the UNFIXED code BEFORE any fix is applied.
   - Mark task complete when tests are written, run, and passing on unfixed code
   - _Requirements: 3.1, 3.2, 3.3, 3.4_
 
-- [ ] 4. Write preservation property tests — seeder MongoDB behavior unchanged (BEFORE implementing fix)
+- [x] 4. Write preservation property tests — seeder MongoDB behavior unchanged (BEFORE implementing fix)
   - **Property 4: Preservation** - Seeder MongoDB behavior unchanged
   - **IMPORTANT**: Follow observation-first methodology
   - **Module/Location**: `market-data-service`, Testcontainers MongoDB (`@Tag("integration")`)
@@ -80,9 +80,9 @@ on the UNFIXED code BEFORE any fix is applied.
   - Mark task complete when tests are written, run, and passing on unfixed code
   - _Requirements: 3.5, 3.7, 3.8_
 
-- [ ] 5. Fix Root Cause 1 — Publish seeded prices to Kafka
+- [x] 5. Fix Root Cause 1 — Publish seeded prices to Kafka
 
-  - [ ] 5.1 Implement the seed propagation fix
+  - [x] 5.1 Implement the seed propagation fix
     - File: `market-data-service/src/main/java/com/wealth/market/seed/MarketDataSeedService.java`, function `seed(String userId)`
     - Inject `KafkaTemplate<String, PriceUpdatedEvent>` and add `private static final String TOPIC = "market-prices";`, mirroring `StartupHydrationService` exactly (same template type, same topic, same per-ticker key); keep `MongoTemplate` and `SeedTickerRegistry` unchanged
     - Capture the computed price `DeterministicPriceCalculator.compute(t.basePrice(), t.ticker(), userId)` into a local so the identical `BigDecimal` is both written to MongoDB and used as the event payload (no second DB read, no recomputation drift)
@@ -93,7 +93,7 @@ on the UNFIXED code BEFORE any fix is applied.
     - _Preservation: Upsert exactly 160 registry tickers, leave non-registry docs untouched, value-level idempotent; event publication is additive (Property 4 / Preservation Requirements from design)_
     - _Requirements: 2.1, 2.2_
 
-  - [ ] 5.2 Verify seed exploration test now passes
+  - [x] 5.2 Verify seed exploration test now passes
     - **Property 1: Expected Behavior** - Golden-state seeding propagates to Redis via Kafka
     - **IMPORTANT**: Re-run the SAME test from task 1 - do NOT write a new test
     - The test from task 1 encodes the expected behavior; when it passes it confirms the expected behavior is satisfied
@@ -101,16 +101,16 @@ on the UNFIXED code BEFORE any fix is applied.
     - **EXPECTED OUTCOME**: Test PASSES (confirms the seed→Kafka propagation bug is fixed)
     - _Requirements: 2.1, 2.2_
 
-  - [ ] 5.3 Verify seeder preservation tests still pass
+  - [x] 5.3 Verify seeder preservation tests still pass
     - **Property 4: Preservation** - Seeder MongoDB behavior unchanged
     - **IMPORTANT**: Re-run the SAME tests from task 4 - do NOT write new tests
     - Run the seeder preservation property tests from task 4
     - **EXPECTED OUTCOME**: Tests PASS (confirms no regressions — MongoDB end state, 160-ticker upsert, idempotency, and non-registry isolation are unchanged)
     - _Requirements: 3.5, 3.7, 3.8_
 
-- [ ] 6. Fix Root Cause 2 — Recognize suffixed symbols in the resolver
+- [x] 6. Fix Root Cause 2 — Recognize suffixed symbols in the resolver
 
-  - [ ] 6.1 Implement the suffix-aware resolver fix
+  - [x] 6.1 Implement the suffix-aware resolver fix
     - File: `insight-service/src/main/java/com/wealth/insight/ChatController.java`, function `resolveTicker` and its candidate extractors
     - Add a suffix-aware candidate extractor that tokenizes on whitespace and recognizes the registry suffix shapes while preserving the suffix: crypto `^[A-Za-z]{1,15}-USD$`, forex `^[A-Za-z]{3}[A-Za-z]{3}=X$`, NSE `^[A-Za-z]{1,15}\.NS$`
     - Strip only surrounding conversational punctuation (e.g. trailing `?`, `,`, or `.` that is not part of the `.NS` suffix), upper-case the alphabetic portion, and keep the suffix delimiter/token exactly as the registry stores them (e.g. `ROSE-USD`, `USDCHF=X`, `RELIANCE.NS`); do NOT apply the `[^A-Za-z]` strip or the ≤5-letter cap to suffixed candidates
@@ -122,7 +122,7 @@ on the UNFIXED code BEFORE any fix is applied.
     - _Preservation: Plain ≤5-letter resolution, clarification response, no-data response, stop-word exclusion, and candidate ordering/fallback unchanged (Property 3 / Preservation Requirements from design)_
     - _Requirements: 2.3, 2.4, 2.5, 2.6_
 
-  - [ ] 6.2 Verify suffix-resolution exploration test now passes
+  - [x] 6.2 Verify suffix-resolution exploration test now passes
     - **Property 2: Expected Behavior** - Suffixed tracked symbols resolve to themselves
     - **IMPORTANT**: Re-run the SAME test from task 2 - do NOT write a new test
     - The test from task 2 encodes the expected behavior; when it passes it confirms the expected behavior is satisfied
@@ -130,21 +130,21 @@ on the UNFIXED code BEFORE any fix is applied.
     - **EXPECTED OUTCOME**: Test PASSES (confirms suffixed symbols resolve to the exact tracked symbol and use `market:latest:{S}`)
     - _Requirements: 2.3, 2.4, 2.5, 2.6_
 
-  - [ ] 6.3 Verify resolver preservation tests still pass
+  - [x] 6.3 Verify resolver preservation tests still pass
     - **Property 3: Preservation** - Plain-symbol resolution and resolver responses unchanged
     - **IMPORTANT**: Re-run the SAME tests from task 3 - do NOT write new tests
     - Run the resolver preservation property tests from task 3
     - **EXPECTED OUTCOME**: Tests PASS (confirms no regressions — plain resolution, clarification, no-data, stop-word exclusion, and candidate ordering/fallback are unchanged)
     - _Requirements: 3.1, 3.2, 3.3, 3.4_
 
-- [ ] 7. Integration validation (Testcontainers, `@Tag("integration")`)
+- [~] 7. Integration validation (Testcontainers, `@Tag("integration")`)
   - Seed → Kafka → Redis propagation: invoke the seed path, let `InsightEventListener.onPriceUpdated` consume, assert `market:latest:*` / `market:tracked-tickers` are populated for the seeded set, and a market-summary request returns all seeded tickers with non-null prices (validates Property 1, req 2.1, 2.2)
   - End-to-end suffix chat: with Redis seeded for `ROSE-USD` / `USDCHF=X` / `RELIANCE.NS`, assert the chat endpoint returns each ticker's summary, and that plain-symbol chat still works (validates Property 2 + Property 3, req 2.3–2.6, 3.1)
   - Consumer pipeline preserved: assert `processUpdate` still maintains latest price, the capped 10-item history, ZSET membership, and 24h pruning for both plain and suffixed tickers (req 3.6)
   - Run via `./gradlew integrationTest`
   - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 3.1, 3.6_
 
-- [ ] 8. Checkpoint - Ensure all tests pass
+- [~] 8. Checkpoint - Ensure all tests pass
   - Run `./gradlew test` (unit + property-based) and `./gradlew integrationTest` (Testcontainers)
   - Confirm exploration tests (Properties 1 & 2) now PASS, preservation tests (Properties 3 & 4) still PASS, and no regressions remain
   - Ensure all tests pass, ask the user if questions arise
