@@ -65,6 +65,10 @@ subprojects {
     // Keep JVM timezone explicit to avoid PostgreSQL rejecting Asia/Calcutta from host defaults.
     tasks.withType(Test).configureEach {
         jvmArgs = ['-Duser.timezone=Asia/Kolkata']
+        // Hard timeout per test: prevents a single hanging Testcontainers context from
+        // blocking the entire CI job. 10 minutes is generous for the heaviest integration
+        // test (InfrastructureHealthLoggerProfileTest spins up 3 Spring contexts).
+        timeout = java.time.Duration.ofMinutes(10)
     }
 
     tasks.withType(BootRun).configureEach {
