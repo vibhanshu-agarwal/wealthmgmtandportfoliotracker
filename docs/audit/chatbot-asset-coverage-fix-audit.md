@@ -12,6 +12,7 @@
 |---|---|---|
 | v1 | 2026-06-01 | Initial audit — 3 blockers, 2 high, 2 medium findings against original PR commit. |
 | v2 | 2026-06-01 | Phase 1 implementation fixes applied (commit `6967200`). Findings 1–5 resolved. Finding 6 partially addressed. Finding 7 deferred to Phase 2. |
+| v3 | 2026-06-01 | Precedence tests hardened (commit `23a3334`). Each test now stubs the competing plain uppercase candidate as tracked, making the tests genuine regression guards. Phase 1 implementation and test coverage accepted. |
 
 ---
 
