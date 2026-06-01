@@ -15,6 +15,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -34,8 +35,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  *       no-data message. This preserves the pre-fix behavior under Property 3.</li>
  * </ol>
  *
- * <p>These cases are not covered by the existing property tests and were called out as minimum
- * recommended additions before merging Phase 1.
+ * <p><b>Precedence test design:</b> each precedence test stubs BOTH the suffixed symbol AND the
+ * competing plain uppercase candidate as tracked (non-null price). This is the critical condition
+ * that makes the test a genuine regression guard — without a tracked plain stem, the suffix would
+ * win by default even on the old buggy ordering, and the test would not detect a regression.
+ * {@code lenient()} stubbing is used for the plain stem because the fix causes the suffix path to
+ * win before the uppercase path is checked, so the plain stub is set up to create the competition
+ * but may not be invoked.
  */
 @ExtendWith(MockitoExtension.class)
 class ChatControllerSuffixPrecedenceTest {
@@ -59,20 +65,24 @@ class ChatControllerSuffixPrecedenceTest {
      * When both {@code ABC} (plain) and {@code ABC-USD} (suffixed) are tracked, a message
      * referencing {@code ABC-USD} must resolve to the full suffixed symbol.
      *
-     * <p>Before the fix, {@code regex-uppercase-tracked} was evaluated first and could return
-     * {@code ABC} before the suffix path was checked. After the fix, {@code suffix-aware-tracked}
-     * is evaluated before {@code regex-uppercase-tracked}.
+     * <p>Before the fix, {@code regex-uppercase-tracked} was evaluated first and would return
+     * {@code ABC} (the plain stem extracted by the uppercase pattern) before the suffix path
+     * was checked. After the fix, {@code suffix-aware-tracked} is evaluated first.
      *
-     * <p>Note: with the fix in place, the suffix path wins immediately and {@code ABC} is never
-     * checked — so stubbing {@code ABC} would be flagged as unnecessary by Mockito strict mode.
-     * Only the suffixed form needs to be stubbed.
+     * <p>{@code ABC} is stubbed as tracked via {@code lenient()} because the fix causes the
+     * suffix path to win before the uppercase path is reached — so the stub creates the real
+     * competition without triggering Mockito's unnecessary-stubbing check.
      */
     @Test
     void resolveTicker_suffixedSymbolWinsOverPlainStem_whenBothTracked() throws Exception {
+        TickerSummary plainSummary = new TickerSummary("ABC",
+                new BigDecimal("10.00"), List.of(new BigDecimal("10.00")), null, null);
         TickerSummary suffixedSummary = new TickerSummary("ABC-USD",
                 new BigDecimal("99.99"), List.of(new BigDecimal("99.99")), null, null);
 
-        // Only stub the suffixed form — the fix ensures the suffix path wins before ABC is checked.
+        // Both are tracked. lenient() on the plain stem: it must be set up to create the
+        // competition, but the fix means it is never invoked (suffix wins first).
+        lenient().when(marketDataService.getTickerSummary("ABC")).thenReturn(plainSummary);
         when(marketDataService.getTickerSummary("ABC-USD")).thenReturn(suffixedSummary);
         when(aiInsightService.getSentiment("ABC-USD")).thenReturn("ABC-USD is Neutral.");
 
@@ -86,23 +96,29 @@ class ChatControllerSuffixPrecedenceTest {
                 .andExpect(jsonPath("$.response", containsString("ABC-USD")))
                 .andExpect(jsonPath("$.response", containsString("99.99")));
 
-        // The exact suffixed Redis key must have been used.
-        // Called at least once: once in findFirstTrackedTicker (suffix path) and once in chat()
-        // to fetch the summary for the response.
+        // The suffixed Redis key must have been used.
         verify(marketDataService, atLeastOnce()).getTickerSummary("ABC-USD");
+        // The plain stem must NOT have won — if it had, the response would contain "10.00".
+        verify(marketDataService, never()).getTickerSummary("ABC");
     }
 
     /**
-     * Same precedence check for a forex {@code =X} symbol: when both {@code USDCHF} (plain,
-     * hypothetically tracked) and {@code USDCHF=X} (suffixed, tracked) are present, a message
-     * referencing {@code USDCHF=X} must resolve to the suffixed form.
+     * Forex {@code =X} precedence: {@code USDCHF=X} (suffixed, tracked) must win over
+     * {@code X} (the single uppercase token the pattern extracts from {@code USDCHF=X},
+     * also tracked).
+     *
+     * <p>Without the fix, {@code regex-uppercase-tracked} would return {@code X} first.
+     * {@code X} is stubbed via {@code lenient()} for the same reason as {@code ABC} above.
      */
     @Test
     void resolveTicker_forexSuffixWinsOverPlainStem_whenBothTracked() throws Exception {
+        // X is the uppercase token extracted from "USDCHF=X" (USDCHF is 6 chars, exceeds cap).
+        TickerSummary xSummary = new TickerSummary("X",
+                new BigDecimal("1.00"), List.of(new BigDecimal("1.00")), null, null);
         TickerSummary suffixedSummary = new TickerSummary("USDCHF=X",
                 new BigDecimal("0.9050"), List.of(new BigDecimal("0.9050")), null, null);
 
-        // Only the suffixed form is tracked; plain stem returns null.
+        lenient().when(marketDataService.getTickerSummary("X")).thenReturn(xSummary);
         when(marketDataService.getTickerSummary("USDCHF=X")).thenReturn(suffixedSummary);
         when(aiInsightService.getSentiment("USDCHF=X")).thenReturn("USDCHF=X is Neutral.");
 
@@ -114,16 +130,27 @@ class ChatControllerSuffixPrecedenceTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.response", containsString("USDCHF=X")))
                 .andExpect(jsonPath("$.response", containsString("0.9050")));
+
+        verify(marketDataService, atLeastOnce()).getTickerSummary("USDCHF=X");
+        verify(marketDataService, never()).getTickerSummary("X");
     }
 
     /**
-     * Same precedence check for an NSE {@code .NS} symbol.
+     * NSE {@code .NS} precedence: {@code RELIANCE.NS} (suffixed, tracked) must win over
+     * {@code NS} (the uppercase token extracted from {@code RELIANCE.NS}, also tracked).
+     *
+     * <p>{@code RELIANCE} is 8 chars and does not match the {@code {1,5}} uppercase cap,
+     * so {@code NS} is the only competing uppercase candidate.
      */
     @Test
     void resolveTicker_nseSuffixWinsOverPlainStem_whenBothTracked() throws Exception {
+        // NS is the uppercase token extracted from "RELIANCE.NS" (RELIANCE is 8 chars).
+        TickerSummary nsSummary = new TickerSummary("NS",
+                new BigDecimal("5.00"), List.of(new BigDecimal("5.00")), null, null);
         TickerSummary suffixedSummary = new TickerSummary("RELIANCE.NS",
                 new BigDecimal("2950.00"), List.of(new BigDecimal("2950.00")), null, null);
 
+        lenient().when(marketDataService.getTickerSummary("NS")).thenReturn(nsSummary);
         when(marketDataService.getTickerSummary("RELIANCE.NS")).thenReturn(suffixedSummary);
         when(aiInsightService.getSentiment("RELIANCE.NS")).thenReturn("RELIANCE.NS is Bullish.");
 
@@ -135,6 +162,9 @@ class ChatControllerSuffixPrecedenceTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.response", containsString("RELIANCE.NS")))
                 .andExpect(jsonPath("$.response", containsString("2950")));
+
+        verify(marketDataService, atLeastOnce()).getTickerSummary("RELIANCE.NS");
+        verify(marketDataService, never()).getTickerSummary("NS");
     }
 
     // ── Finding 4: untracked suffixed symbols preserve clarification response ─────────────────
@@ -166,11 +196,9 @@ class ChatControllerSuffixPrecedenceTest {
     /**
      * Untracked forex suffix returns clarification.
      *
-     * <p>{@code NZDUSD=X} is used: the uppercase pattern extracts only {@code X} (1 char,
-     * matches {@code \b([A-Z]{1,5})\b}) but {@code NZDUSD} is 6 chars and does not match.
-     * To avoid the single-candidate uppercase fallback firing for {@code X}, the message
-     * includes two plain uppercase tokens ({@code PAIR} and {@code FOREX}) so there are two
-     * uppercase candidates and neither fallback fires.
+     * <p>{@code NZDUSD=X} is used: the uppercase pattern extracts only {@code X} (1 char).
+     * Two additional plain uppercase tokens ({@code PAIR} and {@code FOREX}) are included so
+     * there are multiple uppercase candidates and the single-candidate fallback does not fire.
      */
     @Test
     void resolveTicker_untrackedForexSuffix_returnsClarification() throws Exception {
@@ -188,8 +216,8 @@ class ChatControllerSuffixPrecedenceTest {
      * Untracked NSE suffix returns clarification.
      *
      * <p>{@code RELIANCE.NS} is used: the uppercase pattern extracts only {@code NS} (2 chars).
-     * A second plain uppercase token ({@code STOCK}) is added to the message so there are two
-     * uppercase candidates and the single-candidate fallback does not fire.
+     * A second plain uppercase token ({@code STOCK}) is added so there are two uppercase
+     * candidates and the single-candidate fallback does not fire.
      */
     @Test
     void resolveTicker_untrackedNseSuffix_returnsClarification() throws Exception {
