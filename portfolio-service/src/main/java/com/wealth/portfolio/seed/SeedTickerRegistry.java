@@ -2,6 +2,7 @@ package com.wealth.portfolio.seed;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
@@ -36,6 +37,22 @@ public class SeedTickerRegistry {
     /**
      * Represents one entry from {@code seed/seed-tickers.json}.
      *
+     * <p>The optional {@code name} and {@code aliases} fields support the Wave-2
+     * catalog enrichment (Task 2 / Req 7.3). Seeding logic uses only the four core
+     * fields; these extra fields are intentionally ignored by the seeder.
+     *
+     * <p>{@code @JsonIgnoreProperties(ignoreUnknown = true)} is a belt-and-suspenders
+     * guard ensuring that future schema additions beyond {@code name}/{@code aliases}
+     * do not break deserialization in this service.
+     */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record SeedTicker(
+            String ticker,
+            String assetClass,
+            String quoteCurrency,
+            BigDecimal basePrice,
+            String name,
+            List<String> aliases) {}
      * <p>{@code @JsonIgnoreProperties(ignoreUnknown = true)} ensures that future
      * enrichment of the JSON schema (e.g. {@code name}, {@code aliases}) does not
      * break deserialization in this service, which only needs the four core fields
@@ -58,7 +75,8 @@ public class SeedTickerRegistry {
                      "Run the copySeedTickers Gradle task to populate it.", RESOURCE_PATH);
             return;
         }
-        ObjectMapper mapper = new ObjectMapper();
+        ObjectMapper mapper = new ObjectMapper()
+                .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
         try (InputStream is = resource.getInputStream()) {
             List<SeedTicker> parsed = mapper.readValue(is, new TypeReference<>() {});
             if (parsed.size() != EXPECTED_TOTAL) {
