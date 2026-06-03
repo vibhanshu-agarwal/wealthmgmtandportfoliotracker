@@ -53,6 +53,13 @@ public class SeedTickerRegistry {
             BigDecimal basePrice,
             String name,
             List<String> aliases) {}
+     * <p>{@code @JsonIgnoreProperties(ignoreUnknown = true)} ensures that future
+     * enrichment of the JSON schema (e.g. {@code name}, {@code aliases}) does not
+     * break deserialization in this service, which only needs the four core fields
+     * for seeding purposes (Req 7.3, 9.5).
+     */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record SeedTicker(String ticker, String assetClass, String quoteCurrency, BigDecimal basePrice) {}
 
     private static final String RESOURCE_PATH = "seed/seed-tickers.json";
     private static final int EXPECTED_TOTAL = 160;
