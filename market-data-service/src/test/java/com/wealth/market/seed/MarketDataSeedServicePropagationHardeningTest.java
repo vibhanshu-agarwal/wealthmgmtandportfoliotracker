@@ -270,16 +270,16 @@ class MarketDataSeedServicePropagationHardeningTest {
 
     private static List<SeedTicker> fallbackPool() {
         return List.of(
-                new SeedTicker("AAPL",        "US_EQUITY", "USD", new BigDecimal("190.50")),
-                new SeedTicker("MSFT",        "US_EQUITY", "USD", new BigDecimal("410.25")),
-                new SeedTicker("NVDA",        "US_EQUITY", "USD", new BigDecimal("875.10")),
-                new SeedTicker("RELIANCE.NS", "NSE",       "INR", new BigDecimal("2950.00")),
-                new SeedTicker("TCS.NS",      "NSE",       "INR", new BigDecimal("3850.00")),
-                new SeedTicker("BTC-USD",     "CRYPTO",    "USD", new BigDecimal("64250.00")),
-                new SeedTicker("ROSE-USD",    "CRYPTO",    "USD", new BigDecimal("0.0850")),
-                new SeedTicker("ETH-USD",     "CRYPTO",    "USD", new BigDecimal("3450.00")),
-                new SeedTicker("USDCHF=X",    "FOREX",     "CHF", new BigDecimal("0.9050")),
-                new SeedTicker("NZDUSD=X",    "FOREX",     "USD", new BigDecimal("0.6100"))
+                new SeedTicker("AAPL",        "US_EQUITY", "USD", new BigDecimal("190.50"),  null, null),
+                new SeedTicker("MSFT",        "US_EQUITY", "USD", new BigDecimal("410.25"),  null, null),
+                new SeedTicker("NVDA",        "US_EQUITY", "USD", new BigDecimal("875.10"),  null, null),
+                new SeedTicker("RELIANCE.NS", "NSE",       "INR", new BigDecimal("2950.00"), null, null),
+                new SeedTicker("TCS.NS",      "NSE",       "INR", new BigDecimal("3850.00"), null, null),
+                new SeedTicker("BTC-USD",     "CRYPTO",    "USD", new BigDecimal("64250.00"),null, null),
+                new SeedTicker("ROSE-USD",    "CRYPTO",    "USD", new BigDecimal("0.0850"),  null, null),
+                new SeedTicker("ETH-USD",     "CRYPTO",    "USD", new BigDecimal("3450.00"), null, null),
+                new SeedTicker("USDCHF=X",    "FOREX",     "CHF", new BigDecimal("0.9050"),  null, null),
+                new SeedTicker("NZDUSD=X",    "FOREX",     "USD", new BigDecimal("0.6100"),  null, null)
         );
     }
 }
