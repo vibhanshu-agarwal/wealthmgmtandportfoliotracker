@@ -1,5 +1,6 @@
 package com.wealth.market.seed;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PostConstruct;
@@ -32,6 +33,15 @@ public class SeedTickerRegistry {
 
     private static final Logger log = LoggerFactory.getLogger(SeedTickerRegistry.class);
 
+    /**
+     * Represents one entry from {@code seed/seed-tickers.json}.
+     *
+     * <p>{@code @JsonIgnoreProperties(ignoreUnknown = true)} ensures that future
+     * enrichment of the JSON schema (e.g. {@code name}, {@code aliases}) does not
+     * break deserialization in this service, which only needs the four core fields
+     * for seeding purposes (Req 7.3, 9.5).
+     */
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public record SeedTicker(String ticker, String assetClass, String quoteCurrency, BigDecimal basePrice) {}
 
     private static final String RESOURCE_PATH = "seed/seed-tickers.json";
