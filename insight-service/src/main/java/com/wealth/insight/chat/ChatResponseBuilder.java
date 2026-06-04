@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 /**
@@ -32,8 +33,8 @@ import java.util.stream.Collectors;
  * <p><strong>Facts from Redis only (design Property 2):</strong> all numeric values come from
  * {@link MarketDataService} ({@code TickerSummary}); the LLM never supplies numbers.
  *
- * <p><strong>Never empty (design Property 6):</strong> every code path produces a non-blank
- * response; a catch-all guard ensures this even for unexpected outcome values.
+ * <p><strong>Never empty (design Property 6):</strong> the {@code switch} in {@link #build} is
+ * exhaustive over all {@link Outcome} values, so every code path produces a non-blank response.
  */
 @Service
 public class ChatResponseBuilder {
@@ -184,9 +185,9 @@ public class ChatResponseBuilder {
                     + "Try asking about a specific asset by name or ticker symbol.");
         }
 
-        // Group by asset class, bounded per-category and overall
+        // Group by asset class (TreeMap for deterministic ordering), bounded per-category and overall
         Map<String, List<CatalogEntry>> byClass = universe.stream()
-                .collect(Collectors.groupingBy(CatalogEntry::assetClass));
+                .collect(Collectors.groupingBy(CatalogEntry::assetClass, TreeMap::new, Collectors.toList()));
 
         List<String> lines = new ArrayList<>();
         int totalShown = 0;
@@ -220,7 +221,13 @@ public class ChatResponseBuilder {
     // ── COMPARISON_REDIRECT ───────────────────────────────────────────────────
 
     private ChatResponse buildComparisonRedirect(ResolutionOutcome outcome) {
-        String candidateList = outcome.candidates().stream()
+        List<String> candidates = outcome.candidates();
+        if (candidates.isEmpty()) {
+            return new ChatResponse(
+                    "I can summarize one asset at a time. "
+                    + "Which asset would you like to know about?");
+        }
+        String candidateList = candidates.stream()
                 .map(t -> {
                     Optional<CatalogEntry> e = catalog.find(t);
                     return e.map(ce -> ce.name() + " (" + t + ")").orElse(t);
@@ -248,14 +255,18 @@ public class ChatResponseBuilder {
 
     /**
      * Formats a price value with the correct currency label for the asset class.
-     * Forex pair prices use the pair name (e.g. "EUR/USD 1.0850");
-     * INR assets show "INR 1580.00"; USD assets show "USD 178.50".
+     *
+     * <ul>
+     *   <li>FOREX: just the numeric price — the pair name (e.g. "EUR/USD") already appears in
+     *       the response header, so prefixing "USD" would be redundant and misleading.
+     *   <li>All others: {@code quoteCurrency + " " + price} — e.g. "INR 1580.00", "USD 178.50".
+     * </ul>
      */
     private String formatPrice(BigDecimal price, String quoteCurrency, String assetClass) {
         String priceStr = price.toPlainString();
         if ("FOREX".equals(assetClass)) {
-            // Pair convention: just the price, currency shown in the pair name
-            return quoteCurrency + " " + priceStr;
+            // Pair convention: bare price; the pair name shown in the header carries the context.
+            return priceStr;
         }
         return quoteCurrency + " " + priceStr;
     }

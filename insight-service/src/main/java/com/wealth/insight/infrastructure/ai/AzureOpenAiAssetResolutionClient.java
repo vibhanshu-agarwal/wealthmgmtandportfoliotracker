@@ -1,7 +1,5 @@
 package com.wealth.insight.infrastructure.ai;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wealth.insight.catalog.CatalogEntry;
 import com.wealth.insight.catalog.CompactCatalog;
 import com.wealth.insight.resolution.AssetResolutionClient;
@@ -69,11 +67,9 @@ public class AzureOpenAiAssetResolutionClient implements AssetResolutionClient {
             4. Return ONLY the JSON object — no markdown, no explanation, no other text.""";
 
     private final ChatClient chatClient;
-    private final ObjectMapper objectMapper;
 
     public AzureOpenAiAssetResolutionClient(ChatClient.Builder chatClientBuilder) {
         this.chatClient = chatClientBuilder.build();
-        this.objectMapper = new ObjectMapper();
     }
 
     /**
@@ -110,9 +106,12 @@ public class AzureOpenAiAssetResolutionClient implements AssetResolutionClient {
         } catch (LlmResolutionException e) {
             throw e; // already typed — do not wrap
         } catch (Exception e) {
-            log.warn("AzureOpenAiAssetResolutionClient: LLM call failed; catalogVersion={} error={}",
-                    catalog.version(), e.getMessage());
-            throw new LlmResolutionException(LlmResolutionException.Kind.UNAVAILABLE,
+            LlmResolutionException.Kind kind =
+                    isTimeout(e) ? LlmResolutionException.Kind.TIMEOUT
+                                 : LlmResolutionException.Kind.UNAVAILABLE;
+            log.warn("AzureOpenAiAssetResolutionClient: LLM call failed kind={}; catalogVersion={} error={}",
+                    kind, catalog.version(), e.getMessage());
+            throw new LlmResolutionException(kind,
                     "LLM call failed: " + e.getClass().getSimpleName(), e);
         }
     }
@@ -131,6 +130,23 @@ public class AzureOpenAiAssetResolutionClient implements AssetResolutionClient {
 
         return "Ticker Catalog (use ONLY these tickers):\n" + catalogText
                 + "\n\nUser message: " + message;
+    }
+
+    /**
+     * Returns {@code true} if the exception (or any cause in its chain) is a timeout.
+     * Checks for {@link java.net.SocketTimeoutException} and common timeout-keyword messages.
+     */
+    private static boolean isTimeout(Throwable t) {
+        while (t != null) {
+            if (t instanceof java.net.SocketTimeoutException) return true;
+            String msg = t.getMessage();
+            if (msg != null) {
+                String lower = msg.toLowerCase(java.util.Locale.ROOT);
+                if (lower.contains("timeout") || lower.contains("timed out")) return true;
+            }
+            t = t.getCause();
+        }
+        return false;
     }
 
     /** Formats a single catalog entry as a compact text line for the LLM prompt (no prices). */

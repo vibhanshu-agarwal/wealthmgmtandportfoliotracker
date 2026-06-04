@@ -146,8 +146,11 @@ class ChatResponseBuilderTest {
 
         ChatResponse resp = builder.build(ResolutionOutcome.resolved("EURUSD=X", "llm"));
 
+        // Pair name is shown in the header ("EUR/USD (EURUSD=X)")
         assertThat(resp.response()).contains("EUR/USD");
+        // Price is bare — no "USD " prefix; quoting the currency code next to a pair price is redundant
         assertThat(resp.response()).contains("1.0850");
+        assertThat(resp.response()).doesNotContain("USD 1.0850");
     }
 
     // ── RESOLVED — no-data path ───────────────────────────────────────────────
