@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -116,11 +117,18 @@ public class ChatResolutionService {
     // ── Resolution steps ──────────────────────────────────────────────────────────────────
 
     private ResolutionOutcome resolve(ChatRequest request) {
-        // Step 1: explicit ticker field — catalog-validated (no Redis touch)
+        // Step 1: explicit ticker field — normalize then catalog-validate (Req 1.5, no Redis touch).
+        // normalize() resolves crypto/forex stem forms (BTC→BTC-USD, USDCHF→USDCHF=X) and handles
+        // case via its internal toUpperCase() path. The uppercase fallback catches plain equity
+        // symbols typed in lowercase (aapl→AAPL). Unsupported after both attempts → clarification.
         if (request.ticker() != null && !request.ticker().isBlank()) {
             String t = request.ticker().trim();
-            if (catalog.isSupported(t)) {
-                return ResolutionOutcome.resolved(t, "explicit");
+            Optional<String> normalizedTicker = catalog.normalize(t);
+            if (!normalizedTicker.isPresent()) {
+                normalizedTicker = catalog.normalize(t.toUpperCase(Locale.ROOT));
+            }
+            if (normalizedTicker.isPresent()) {
+                return ResolutionOutcome.resolved(normalizedTicker.get(), "explicit");
             }
             return ResolutionOutcome.clarification(List.of(), "explicit",
                     "unsupported explicit ticker: " + t);
@@ -254,12 +262,40 @@ public class ChatResolutionService {
         for (String phrase : DISCOVERY_TRIGGER_PHRASES) {
             if (lower.contains(phrase)) return true;
         }
-        // listing word + asset class word combination
+        // Skip the word-combo check when a name-like entity is present.
+        // "what is Apple stock?" should fall through to the LLM for AAPL resolution,
+        // not return a DISCOVERY listing of US equities (Req 4.1 precision).
+        if (containsEntityLikeToken(message)) return false;
+        // listing word + asset class word combination (e.g. "show me all crypto")
         // Use HashSet to tolerate repeated words (Set.of() throws on duplicates)
         Set<String> tokens = new java.util.HashSet<>(List.of(lower.split("\\s+")));
         boolean hasListingWord = tokens.stream().anyMatch(DISCOVERY_LISTING_WORDS::contains);
         boolean hasAssetWord   = tokens.stream().anyMatch(ASSET_CLASS_WORDS::contains);
         return hasListingWord && hasAssetWord;
+    }
+
+    /**
+     * Returns {@code true} if the message contains a mid-sentence capitalized token that is not
+     * a known discovery or asset-class keyword, indicating a proper noun / entity name is present.
+     *
+     * <p>The first word of the message is always skipped (sentence-start capitalization).
+     * Capitalized tokens that appear in {@link #DISCOVERY_LISTING_WORDS} or
+     * {@link #ASSET_CLASS_WORDS} (e.g. the user wrote "What Stocks…") are not flagged.
+     *
+     * <p>Example: "what is Apple stock?" → "Apple" is mid-sentence, capitalized, and not a
+     * known function word → method returns {@code true} → discovery shortcut skipped.
+     */
+    private boolean containsEntityLikeToken(String message) {
+        String[] words = message.trim().split("\\s+");
+        for (int i = 1; i < words.length; i++) {  // i=0 is always skipped (sentence-start)
+            String cleaned = words[i].replaceAll("^[?!,.'\"]+|[?!,.'\"]+$", "");
+            if (cleaned.isEmpty() || !Character.isUpperCase(cleaned.charAt(0))) continue;
+            String lc = cleaned.toLowerCase(Locale.ROOT);
+            if (!DISCOVERY_LISTING_WORDS.contains(lc) && !ASSET_CLASS_WORDS.contains(lc)) {
+                return true;  // capitalized, non-function word → likely a proper noun / ticker
+            }
+        }
+        return false;
     }
 
     /**

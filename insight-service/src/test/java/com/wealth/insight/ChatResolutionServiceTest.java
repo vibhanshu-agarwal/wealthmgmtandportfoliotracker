@@ -86,7 +86,8 @@ class ChatResolutionServiceTest {
 
     @Test
     void handle_explicitSupportedTicker_resolvesWithoutLlm() {
-        when(catalog.isSupported("AAPL")).thenReturn(true);
+        // Step 1 now uses normalize() for Req 1.5 compliance; stub normalize for the exact symbol.
+        when(catalog.normalize("AAPL")).thenReturn(Optional.of("AAPL"));
 
         service.handle(new ChatRequest("anything", "AAPL"));
 
@@ -100,14 +101,73 @@ class ChatResolutionServiceTest {
 
     @Test
     void handle_explicitUnsupportedTicker_yieldsClarification() {
-        when(catalog.isSupported("ZZZZ")).thenReturn(false);
-
+        // normalize("ZZZZ") → empty (default stub); normalize("ZZZZ") uppercase → same → clarification
         service.handle(new ChatRequest("anything", "ZZZZ"));
 
         ArgumentCaptor<ResolutionOutcome> cap = ArgumentCaptor.forClass(ResolutionOutcome.class);
         verify(responseBuilder).build(cap.capture());
         assertThat(cap.getValue().outcome()).isEqualTo(Outcome.CLARIFICATION);
         assertThat(stubClient.callCount()).isZero(); // P4: no LLM call
+    }
+
+    // ── Finding 2: Explicit ticker normalization (Req 1.5) ────────────────────────────────
+
+    @Test
+    void handle_explicitLowercaseTicker_normalizesToCanonicalForm() {
+        // "aapl" → normalize("aapl") = empty → normalize("AAPL") = "AAPL"
+        when(catalog.normalize("AAPL")).thenReturn(Optional.of("AAPL"));
+
+        service.handle(new ChatRequest("anything", "aapl"));
+
+        ArgumentCaptor<ResolutionOutcome> cap = ArgumentCaptor.forClass(ResolutionOutcome.class);
+        verify(responseBuilder).build(cap.capture());
+        assertThat(cap.getValue().outcome()).isEqualTo(Outcome.RESOLVED);
+        assertThat(cap.getValue().ticker()).isEqualTo("AAPL");
+        assertThat(cap.getValue().source()).isEqualTo("explicit");
+        assertThat(stubClient.callCount()).isZero();
+    }
+
+    @Test
+    void handle_explicitCryptoStem_normalizesToSuffixedForm() {
+        // "BTC" → normalize("BTC") handles this via toUpperCase() in tryCryptoNormalize
+        when(catalog.normalize("BTC")).thenReturn(Optional.of("BTC-USD"));
+
+        service.handle(new ChatRequest("anything", "BTC"));
+
+        ArgumentCaptor<ResolutionOutcome> cap = ArgumentCaptor.forClass(ResolutionOutcome.class);
+        verify(responseBuilder).build(cap.capture());
+        assertThat(cap.getValue().outcome()).isEqualTo(Outcome.RESOLVED);
+        assertThat(cap.getValue().ticker()).isEqualTo("BTC-USD");
+        assertThat(cap.getValue().source()).isEqualTo("explicit");
+        assertThat(stubClient.callCount()).isZero();
+    }
+
+    @Test
+    void handle_explicitGluedCryptoPair_normalizesToBtcUsd() {
+        // "btcusd" → normalize("btcusd") → crypto glued path: upper="BTCUSD" → "BTC-USD"
+        when(catalog.normalize("btcusd")).thenReturn(Optional.of("BTC-USD"));
+
+        service.handle(new ChatRequest("anything", "btcusd"));
+
+        ArgumentCaptor<ResolutionOutcome> cap = ArgumentCaptor.forClass(ResolutionOutcome.class);
+        verify(responseBuilder).build(cap.capture());
+        assertThat(cap.getValue().outcome()).isEqualTo(Outcome.RESOLVED);
+        assertThat(cap.getValue().ticker()).isEqualTo("BTC-USD");
+        assertThat(stubClient.callCount()).isZero();
+    }
+
+    @Test
+    void handle_explicitForexGluedPair_normalizesToForexSymbol() {
+        // "usdchf" → normalize("usdchf") → upper="USDCHF" → "USDCHF=X"
+        when(catalog.normalize("usdchf")).thenReturn(Optional.of("USDCHF=X"));
+
+        service.handle(new ChatRequest("anything", "usdchf"));
+
+        ArgumentCaptor<ResolutionOutcome> cap = ArgumentCaptor.forClass(ResolutionOutcome.class);
+        verify(responseBuilder).build(cap.capture());
+        assertThat(cap.getValue().outcome()).isEqualTo(Outcome.RESOLVED);
+        assertThat(cap.getValue().ticker()).isEqualTo("USDCHF=X");
+        assertThat(stubClient.callCount()).isZero();
     }
 
     // ── Property P3: Exact symbol preservation ────────────────────────────────────────────
@@ -450,6 +510,72 @@ class ChatResolutionServiceTest {
         verify(responseBuilder).build(cap.capture());
         assertThat(cap.getValue().outcome()).isEqualTo(Outcome.DISCOVERY);
         assertThat(cap.getValue().categoryFilter()).isEqualTo("US_EQUITY");
+    }
+
+    // ── Finding 1: Entity-guarded discovery (Req 4.1 precision) ─────────────────────────
+
+    @Test
+    void handle_whatIsAppleStock_fallsThroughToLlmNotDiscovery() {
+        // "Apple" is a capitalized mid-sentence token → entity guard fires → discovery skipped.
+        // Preflight finds nothing (Apple isn't a ticker token) → LLM is called.
+        when(catalog.normalize(anyString())).thenReturn(Optional.empty());
+        stubClient.whenMessage("what is Apple stock?",
+                StubAssetResolutionClient.assetQuery("AAPL", "Apple"));
+        when(catalog.isSupported("AAPL")).thenReturn(true);
+
+        service.handle(new ChatRequest("what is Apple stock?", null));
+
+        ArgumentCaptor<ResolutionOutcome> cap = ArgumentCaptor.forClass(ResolutionOutcome.class);
+        verify(responseBuilder).build(cap.capture());
+        // Must NOT return DISCOVERY — the entity "Apple" should steer to LLM resolution
+        assertThat(cap.getValue().outcome()).isNotEqualTo(Outcome.DISCOVERY);
+        assertThat(cap.getValue().outcome()).isEqualTo(Outcome.RESOLVED);
+        assertThat(cap.getValue().ticker()).isEqualTo("AAPL");
+        assertThat(cap.getValue().source()).isEqualTo("llm");
+        assertThat(stubClient.callCount()).isEqualTo(1);
+    }
+
+    @Test
+    void handle_showMeAppleStock_fallsThroughToLlmNotDiscovery() {
+        // "Apple" is mid-sentence and capitalized → entity guard fires → discovery skipped.
+        when(catalog.normalize(anyString())).thenReturn(Optional.empty());
+        stubClient.whenMessage("show me Apple stock",
+                StubAssetResolutionClient.assetQuery("AAPL", "Apple"));
+        when(catalog.isSupported("AAPL")).thenReturn(true);
+
+        service.handle(new ChatRequest("show me Apple stock", null));
+
+        ArgumentCaptor<ResolutionOutcome> cap = ArgumentCaptor.forClass(ResolutionOutcome.class);
+        verify(responseBuilder).build(cap.capture());
+        assertThat(cap.getValue().outcome()).isNotEqualTo(Outcome.DISCOVERY);
+        assertThat(stubClient.callCount()).isEqualTo(1);
+    }
+
+    @Test
+    void handle_showMeAllCrypto_stillTriggersDiscovery() {
+        // "crypto" is lowercase → no entity-like token → word-combo fires → DISCOVERY
+        when(catalog.normalize(anyString())).thenReturn(Optional.empty());
+
+        service.handle(new ChatRequest("show me all crypto", null));
+
+        ArgumentCaptor<ResolutionOutcome> cap = ArgumentCaptor.forClass(ResolutionOutcome.class);
+        verify(responseBuilder).build(cap.capture());
+        assertThat(cap.getValue().outcome()).isEqualTo(Outcome.DISCOVERY);
+        assertThat(cap.getValue().categoryFilter()).isEqualTo("CRYPTO");
+        assertThat(stubClient.callCount()).isZero();
+    }
+
+    @Test
+    void handle_whatStocksDoYouTrack_stillTriggersDiscovery() {
+        // All tokens lowercase → no entity-like token → word-combo + trigger phrase → DISCOVERY
+        when(catalog.normalize(anyString())).thenReturn(Optional.empty());
+
+        service.handle(new ChatRequest("what stocks do you track?", null));
+
+        ArgumentCaptor<ResolutionOutcome> cap = ArgumentCaptor.forClass(ResolutionOutcome.class);
+        verify(responseBuilder).build(cap.capture());
+        assertThat(cap.getValue().outcome()).isEqualTo(Outcome.DISCOVERY);
+        assertThat(stubClient.callCount()).isZero();
     }
 
     // ── LLM discovery intent ──────────────────────────────────────────────────────────────
