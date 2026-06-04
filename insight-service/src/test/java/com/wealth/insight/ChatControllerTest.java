@@ -1,7 +1,7 @@
 package com.wealth.insight;
 
-import com.wealth.insight.advisor.AdvisorUnavailableException;
-import com.wealth.insight.dto.TickerSummary;
+import com.wealth.insight.dto.ChatRequest;
+import com.wealth.insight.dto.ChatResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -11,39 +11,41 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
-import java.math.BigDecimal;
-import java.util.Collections;
-import java.util.List;
-
 import static org.hamcrest.Matchers.containsString;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+/**
+ * Unit tests for {@link ChatController} (Task 10 — wired to {@link ChatResolutionService}).
+ *
+ * <p>The controller now delegates entirely to {@code ChatResolutionService}; these tests verify
+ * the HTTP contract and delegation without invoking any real LLM or Redis (Req 9.3).
+ * Detailed resolution behavior is tested in {@link ChatResolutionServiceTest} and
+ * {@link ChatControllerSliceTest}.
+ */
 @ExtendWith(MockitoExtension.class)
 class ChatControllerTest {
 
+    @Mock private ChatResolutionService chatResolutionService;
     private MockMvc mockMvc;
-
-    @Mock private MarketDataService marketDataService;
-    @Mock private AiInsightService aiInsightService;
 
     @BeforeEach
     void setUp() {
-        ChatController controller = new ChatController(marketDataService, aiInsightService);
-        mockMvc = MockMvcBuilders.standaloneSetup(controller)
+        mockMvc = MockMvcBuilders
+                .standaloneSetup(new ChatController(chatResolutionService))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
     }
 
     @Test
-    void chat_withExplicitTicker_returnsConversationalResponse() throws Exception {
-        TickerSummary summary = new TickerSummary("AAPL",
-                new BigDecimal("178.50"),
-                List.of(new BigDecimal("178.50"), new BigDecimal("177.20")),
-                new BigDecimal("0.73"), null);
-        when(marketDataService.getTickerSummary("AAPL")).thenReturn(summary);
-        when(aiInsightService.getSentiment("AAPL")).thenReturn("AAPL is Bullish.");
+    void chat_returnsOkWithServiceResponse() throws Exception {
+        when(chatResolutionService.handle(any(ChatRequest.class)))
+                .thenReturn(new ChatResponse(
+                        "Here's what I found for Apple (AAPL): the latest price is USD 178.50."));
 
         mockMvc.perform(post("/api/chat")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -52,115 +54,51 @@ class ChatControllerTest {
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.response", containsString("AAPL")))
-                .andExpect(jsonPath("$.response", containsString("178.5")));
+                .andExpect(jsonPath("$.response", containsString("178.50")));
     }
 
     @Test
-    void chat_withTickerInMessage_extractsAndResponds() throws Exception {
-        TickerSummary summary = new TickerSummary("MSFT",
-                new BigDecimal("420.00"),
-                List.of(new BigDecimal("420.00")), null, null);
-        when(marketDataService.getTickerSummary("MSFT")).thenReturn(summary);
-        when(aiInsightService.getSentiment("MSFT")).thenReturn("MSFT is Neutral.");
+    void chat_withNoTicker_delegatesToService() throws Exception {
+        when(chatResolutionService.handle(any(ChatRequest.class)))
+                .thenReturn(new ChatResponse("I couldn't identify a specific asset."));
 
-        mockMvc.perform(post("/api/chat")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"message": "How is MSFT doing?"}
-                                """))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.response", containsString("MSFT")))
-                .andExpect(jsonPath("$.response", containsString("420")));
-    }
-
-    @Test
-    void chat_withConversationalVerb_extractsRealTickerInsteadOfTell() throws Exception {
-        TickerSummary summary = new TickerSummary("AAPL",
-                new BigDecimal("178.50"),
-                List.of(new BigDecimal("178.50")), null, null);
-        when(marketDataService.getTickerSummary("AAPL")).thenReturn(summary);
-        when(aiInsightService.getSentiment("AAPL")).thenReturn("AAPL is Bullish.");
-
-        mockMvc.perform(post("/api/chat")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"message": "Tell me about AAPL"}
-                                """))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.response", containsString("AAPL")))
-                .andExpect(jsonPath("$.response", containsString("178.5")));
-    }
-
-    @Test
-    void chat_withDollarPrefixedTicker_extractsAndResponds() throws Exception {
-        TickerSummary summary = new TickerSummary("MSFT",
-                new BigDecimal("420.00"),
-                List.of(new BigDecimal("420.00")), null, null);
-        when(marketDataService.getTickerSummary("MSFT")).thenReturn(summary);
-        when(aiInsightService.getSentiment("MSFT")).thenReturn("MSFT is Neutral.");
-
-        mockMvc.perform(post("/api/chat")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"message": "$MSFT outlook"}
-                                """))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.response", containsString("MSFT")))
-                .andExpect(jsonPath("$.response", containsString("420")));
-    }
-
-    @Test
-    void chat_withAmbiguousMultipleTickers_requestsClarification() throws Exception {
-        mockMvc.perform(post("/api/chat")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"message": "Compare AAPL and MSFT"}
-                                """))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.response", containsString("specify")));
-    }
-
-    @Test
-    void chat_withNoIdentifiableTicker_returnsPromptToSpecify() throws Exception {
         mockMvc.perform(post("/api/chat")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"message": "How is the market doing?"}
                                 """))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.response", containsString("specify")));
+                .andExpect(jsonPath("$.response", containsString("identify")));
+
+        verify(chatResolutionService).handle(any(ChatRequest.class));
     }
 
     @Test
-    void chat_withUnknownTicker_returnsNoDataMessage() throws Exception {
-        TickerSummary empty = new TickerSummary("ZZZZ", null, Collections.emptyList(), null, null);
-        when(marketDataService.getTickerSummary("ZZZZ")).thenReturn(empty);
+    void chat_comparisonQuery_delegatesToService() throws Exception {
+        when(chatResolutionService.handle(any(ChatRequest.class)))
+                .thenReturn(new ChatResponse(
+                        "I can summarize one asset at a time — Apple (AAPL) or Microsoft (MSFT)?"));
 
         mockMvc.perform(post("/api/chat")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"message": "What about this?", "ticker": "ZZZZ"}
+                                {"message": "Compare AAPL and MSFT"}
                                 """))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.response", containsString("don't have any data")));
+                .andExpect(jsonPath("$.response", containsString("AAPL")))
+                .andExpect(jsonPath("$.response", containsString("MSFT")));
     }
 
     @Test
-    void chat_withAiFailure_returnsResponseWithUnavailableNote() throws Exception {
-        TickerSummary summary = new TickerSummary("GOOG",
-                new BigDecimal("175.00"),
-                List.of(new BigDecimal("175.00")), null, null);
-        when(marketDataService.getTickerSummary("GOOG")).thenReturn(summary);
-        when(aiInsightService.getSentiment("GOOG"))
-                .thenThrow(new AdvisorUnavailableException("timeout"));
+    void chat_serviceResponse_preservesEndpointContract() throws Exception {
+        // Verifies the endpoint still works with POST /api/chat + ChatRequest/ChatResponse contract
+        when(chatResolutionService.handle(any(ChatRequest.class)))
+                .thenReturn(new ChatResponse("some response"));
 
         mockMvc.perform(post("/api/chat")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"message": "What about GOOG?"}
-                                """))
+                        .content("{\"message\": \"test\", \"ticker\": null}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.response", containsString("GOOG")))
-                .andExpect(jsonPath("$.response", containsString("temporarily unavailable")));
+                .andExpect(jsonPath("$.response").exists());
     }
 }

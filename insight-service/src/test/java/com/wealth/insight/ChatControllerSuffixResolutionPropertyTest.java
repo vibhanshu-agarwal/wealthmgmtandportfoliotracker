@@ -1,145 +1,111 @@
 package com.wealth.insight;
 
-import com.wealth.insight.dto.TickerSummary;
+import com.wealth.insight.catalog.CatalogEntry;
+import com.wealth.insight.catalog.CompactCatalog;
+import com.wealth.insight.catalog.TickerCatalogService;
+import com.wealth.insight.chat.ChatResponseBuilder;
+import com.wealth.insight.dto.ChatRequest;
+import com.wealth.insight.dto.ChatResponse;
+import com.wealth.insight.resolution.Outcome;
+import com.wealth.insight.resolution.ResolutionOutcome;
+import com.wealth.insight.resolution.StubAssetResolutionClient;
 import net.jqwik.api.Arbitraries;
 import net.jqwik.api.Arbitrary;
 import net.jqwik.api.ForAll;
 import net.jqwik.api.Property;
 import net.jqwik.api.Provide;
-import org.springframework.http.MediaType;
-import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.MvcResult;
-import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.mockito.ArgumentCaptor;
 
-import java.math.BigDecimal;
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
 /**
- * Property 2 (Bug Condition) — Suffixed tracked symbols resolve to themselves.
+ * Property 2 — Suffixed catalog symbols resolve to themselves via preflight normalization.
  *
  * <p><b>Validates: Requirements 1.3, 1.4, 1.5, 1.6, 2.3, 2.4, 2.5, 2.6</b>
  *
- * <p>This is a <b>bug condition exploration test</b> written against the UNFIXED code. It encodes the
- * expected (post-fix) behavior, so it is <b>EXPECTED TO FAIL</b> on the current resolver — that failure
- * confirms Root Cause 2 (suffix-blind candidate extraction). It will validate the fix once it passes
- * after {@code ChatController.resolveTicker} learns to recognize suffixed symbols.
+ * <p>In the new catalog-first architecture, a suffixed symbol S (e.g. {@code ROSE-USD},
+ * {@code USDCHF=X}, {@code RELIANCE.NS}) is resolvable when it is in the catalog. The
+ * {@link TickerCatalogService#normalize(String)} performs exact passthrough for exact catalog
+ * symbols, so {@code normalize("ROSE-USD") = "ROSE-USD"} — no separate suffix-priority ordering
+ * needed.
  *
- * <h2>Bug Condition (from design)</h2>
+ * <h2>Property (P2 — catalog-based resolution)</h2>
  * <pre>
- * isBugCondition_Resolve(X) = isTracked(S) AND hasSuffixFormat(S) AND resolveTicker(X) != S
- *   where hasSuffixFormat(S) matches one of:  -USD | =X | .NS
+ * FOR ALL S in catalog where hasSuffixFormat(S):
+ *   outcome := service.handle(new ChatRequest("How is " + S + " doing?", null))
+ *   ASSERT outcome.ticker() = S         // exact catalog symbol, suffix intact
+ *   ASSERT outcome.outcome() = RESOLVED // preflight resolves without LLM
  * </pre>
- *
- * <h2>Property (Fix Checking)</h2>
- * <pre>
- * FOR ALL X WHERE isBugCondition_Resolve(X) DO
- *   resolved := resolveTicker'(X)
- *   ASSERT resolved = S                                  // exact tracked symbol, suffix intact
- *   ASSERT redisKeyUsed(resolved) = "market:latest:" + S // exact-key lookup
- * END FOR
- * </pre>
- *
- * <h2>Test design</h2>
- * <ul>
- *   <li>Drives {@code ChatController.resolveTicker} through the {@code POST /api/chat} endpoint via the
- *       {@code MockMvc} standalone setup pattern from {@link ChatControllerTest}.</li>
- *   <li>{@link MarketDataService} is stubbed so that <em>only</em> the generated suffixed symbol {@code S}
- *       is tracked (a non-null {@code market:latest:{S}} price). Every other candidate the resolver
- *       might extract returns {@code null} (not tracked).</li>
- *   <li>The generator is scoped to tracked symbols over the suffix alphabet {@code {-USD, =X, .NS}}
- *       (e.g. {@code ROSE-USD}, {@code USDCHF=X}, {@code RELIANCE.NS}) so failing cases are
- *       reproducible.</li>
- *   <li>A successful resolution renders {@code "Here's what I found for {S}: ..."} (see
- *       {@code ChatController.buildConversationalResponse}). Asserting the response contains that marker
- *       proves {@code resolveTicker} returned the exact symbol {@code S}.</li>
- *   <li>{@link MarketDataService#getTickerSummary} composes the Redis key as
- *       {@code LATEST_KEY_PREFIX + ticker} = {@code "market:latest:" + S}. Verifying it was invoked with
- *       the exact symbol {@code S} is therefore equivalent to asserting the Redis lookup key equals
- *       {@code market:latest:{S}} (req 1.6 / 2.6).</li>
- * </ul>
  */
 class ChatControllerSuffixResolutionPropertyTest {
 
-    private static final BigDecimal TRACKED_PRICE = new BigDecimal("123.45");
+    private static final CompactCatalog MINIMAL_COMPACT = new CompactCatalog(List.of(
+            new CatalogEntry("BTC-USD", "Bitcoin", List.of("BTC"), "CRYPTO", "USD")
+    ), "prop2ver");
 
     /**
-     * Property 2: For any tracked suffixed symbol {@code S} (suffix {@code -USD} / {@code =X} / {@code .NS}),
-     * resolving a chat message that references {@code S} must yield the full symbol {@code S} (suffix
-     * intact) and look it up by the exact Redis key {@code market:latest:{S}}.
+     * P2: For any catalog-known suffixed symbol S (suffix {@code -USD} / {@code =X} / {@code .NS}),
+     * a chat message referencing S exactly as a token resolves to S via catalog preflight.
      *
-     * <p><b>Validates: Requirements 1.3, 1.4, 1.5, 1.6, 2.3, 2.4, 2.5, 2.6</b>
-     *
-     * <p><b>EXPECTED OUTCOME on UNFIXED code: FAIL</b> — the resolver strips suffix punctuation and rejects
-     * tokens longer than 5 letters, so {@code S} is never offered to {@code findFirstTrackedTicker} and the
-     * {@code market:latest:{S}} lookup never happens. The response is a clarification or no-data message
-     * instead of the {@code "Here's what I found for {S}"} marker.
+     * <p>The LLM stub returns {@code UNKNOWN} by default, confirming the resolution is purely
+     * deterministic (no LLM involved — preflight path only).
      */
     @Property(tries = 100)
-    void p2_suffixedTrackedSymbol_resolvesToExactSymbolAndExactRedisKey(
-            @ForAll("trackedSuffixedSymbols") String symbol) throws Exception {
+    void p2_catalogSuffixedSymbol_resolvesToExactSymbolViaPreflight(
+            @ForAll("suffixedSymbols") String symbol) {
 
-        // Arrange: stub MarketDataService so ONLY `symbol` is tracked (non-null market:latest:{symbol}).
-        MarketDataService marketDataService = mock(MarketDataService.class);
-        AiInsightService aiInsightService = mock(AiInsightService.class);
+        // Arrange: mock catalog so 'symbol' normalizes to itself (catalog-known)
+        TickerCatalogService catalog = mock(TickerCatalogService.class);
+        ChatResponseBuilder builder = mock(ChatResponseBuilder.class);
+        when(catalog.normalize(anyString())).thenReturn(Optional.empty());
+        when(catalog.normalize(symbol)).thenReturn(Optional.of(symbol));
+        when(catalog.groundingView()).thenReturn(MINIMAL_COMPACT);
+        when(builder.build(any())).thenReturn(new ChatResponse("stub-response"));
 
-        TickerSummary trackedSummary = new TickerSummary(
-                symbol, TRACKED_PRICE, List.of(TRACKED_PRICE), null, null);
-        when(marketDataService.getTickerSummary(symbol)).thenReturn(trackedSummary);
+        ChatResolutionService service = new ChatResolutionService(
+                catalog, new StubAssetResolutionClient(), builder);
 
-        MockMvc mockMvc = MockMvcBuilders
-                .standaloneSetup(new ChatController(marketDataService, aiInsightService))
-                .setControllerAdvice(new GlobalExceptionHandler())
-                .build();
+        // Act: message references the suffixed symbol as a whitespace-delimited token
+        service.handle(new ChatRequest("How is " + symbol + " doing?", null));
 
-        // A chat message that references the tracked suffixed symbol as a whitespace-delimited token.
-        String body = "{\"message\": \"How is " + symbol + " doing?\"}";
-
-        // Act
-        MvcResult result = mockMvc.perform(post("/api/chat")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(body))
-                .andReturn();
-        String response = result.getResponse().getContentAsString();
-
-        // Assert (Property 2): the message resolves to the exact tracked symbol S (suffix intact).
-        assertThat(response)
-                .as("isBugCondition_Resolve(%s): a tracked suffixed symbol must resolve to itself and "
-                        + "return its market summary, but the resolver produced: %s", symbol, response)
-                .contains("Here's what I found for " + symbol);
-
-        // Assert (req 1.6 / 2.6): the lookup uses the exact tracked symbol as the Redis key
-        // (MarketDataService composes market:latest:{S} = LATEST_KEY_PREFIX + S).
-        verify(marketDataService, atLeastOnce()).getTickerSummary(symbol);
+        // Assert (P2): resolution is RESOLVED to the exact suffixed symbol via preflight
+        ArgumentCaptor<ResolutionOutcome> cap = ArgumentCaptor.forClass(ResolutionOutcome.class);
+        verify(builder).build(cap.capture());
+        assertThat(cap.getValue().ticker())
+                .as("P2: suffixed symbol %s must resolve to itself (suffix intact)", symbol)
+                .isEqualTo(symbol);
+        assertThat(cap.getValue().outcome())
+                .as("P2: resolution must be RESOLVED (not CLARIFICATION or NO_DATA)")
+                .isEqualTo(Outcome.RESOLVED);
+        assertThat(cap.getValue().source())
+                .as("P2: preflight path resolves without LLM")
+                .isEqualTo("preflight");
     }
 
     /**
-     * Tracked symbols scoped to the registry suffix alphabet {@code {-USD, =X, .NS}}:
-     * <ul>
-     *   <li>crypto: 2–5 uppercase letters + {@code -USD}  (e.g. {@code ROSE-USD}, {@code BTC-USD})</li>
-     *   <li>forex:  6 uppercase letters + {@code =X}      (e.g. {@code USDCHF=X}, {@code NZDUSD=X})</li>
-     *   <li>NSE:    2–10 uppercase letters + {@code .NS}  (e.g. {@code RELIANCE.NS}, {@code TCS.NS})</li>
-     * </ul>
+     * Generates suffixed symbols over the catalog alphabet {@code {-USD, =X, .NS}}.
+     * Each stem is chosen from uppercase letters to match the catalog token format.
      */
     @Provide
-    Arbitrary<String> trackedSuffixedSymbols() {
+    Arbitrary<String> suffixedSymbols() {
         Arbitrary<String> crypto = upperLetters(2, 5).map(stem -> stem + "-USD");
-        Arbitrary<String> forex = upperLetters(6, 6).map(stem -> stem + "=X");
-        Arbitrary<String> nse = upperLetters(2, 10).map(stem -> stem + ".NS");
+        Arbitrary<String> forex  = upperLetters(6, 6).map(stem -> stem + "=X");
+        Arbitrary<String> nse    = upperLetters(2, 10).map(stem -> stem + ".NS");
         return Arbitraries.oneOf(crypto, forex, nse);
     }
 
-    private static Arbitrary<String> upperLetters(int minLength, int maxLength) {
+    private static Arbitrary<String> upperLetters(int min, int max) {
         return Arbitraries.strings()
                 .withChars('A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
                         'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z')
-                .ofMinLength(minLength)
-                .ofMaxLength(maxLength);
+                .ofMinLength(min).ofMaxLength(max);
     }
 }
