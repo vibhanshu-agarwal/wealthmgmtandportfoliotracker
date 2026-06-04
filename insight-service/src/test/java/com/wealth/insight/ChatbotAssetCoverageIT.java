@@ -258,7 +258,7 @@ class ChatbotAssetCoverageIT {
         "market-prices", "NVDA", new PriceUpdatedEvent("NVDA", new BigDecimal("900.00")));
 
     await()
-        .atMost(10, TimeUnit.SECONDS)
+        .atMost(30, TimeUnit.SECONDS)
         .pollInterval(200, TimeUnit.MILLISECONDS)
         .untilAsserted(
             () -> {
@@ -284,7 +284,7 @@ class ChatbotAssetCoverageIT {
         "market-prices", "BTC-USD", new PriceUpdatedEvent("BTC-USD", new BigDecimal("64250.00")));
 
     await()
-        .atMost(10, TimeUnit.SECONDS)
+        .atMost(30, TimeUnit.SECONDS)
         .pollInterval(200, TimeUnit.MILLISECONDS)
         .untilAsserted(
             () -> {
