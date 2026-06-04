@@ -1,104 +1,104 @@
 package com.wealth.insight;
 
-import org.junit.jupiter.api.RepeatedTest;
+import com.wealth.insight.catalog.TickerCatalogService;
+import com.wealth.insight.chat.ChatResponseBuilder;
+import com.wealth.insight.resolution.StubAssetResolutionClient;
+import net.jqwik.api.Arbitraries;
+import net.jqwik.api.Arbitrary;
+import net.jqwik.api.ForAll;
+import net.jqwik.api.Property;
+import net.jqwik.api.Provide;
 
-import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ThreadLocalRandom;
+import java.util.Optional;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
- * Property-based tests for ticker extraction logic.
+ * Property-based tests for {@link ChatResolutionService#extractNormalizedCandidates(String)}
+ * (supersedes legacy {@code ChatController.extractTicker} property tests — Task 10 refactor).
  *
- * <p>Property 7: Known tickers found in arbitrary text.
- * <p>Property 8: First valid ticker wins when multiple present.
- * <p>Property 9: Stop-word-only messages return null.
+ * <p>Property 7: A catalog-known ticker token placed in a message is always extracted.
+ * <p>Property 8: Multiple catalog-known tickers are all extracted.
+ * <p>Property 9: Messages with no catalog-known tokens produce empty candidates.
  */
 class TickerExtractionPropertyTest {
 
     /**
-     * Property 7: For any known ticker (1-5 uppercase, not a stop word)
-     * placed as the first non-stop-word token in a message,
-     * extractTicker returns that ticker.
+     * P7: For any catalog-known symbol placed as a token in a message,
+     * {@code extractNormalizedCandidates} returns it.
      */
-    @RepeatedTest(100)
-    void knownTicker_asFirstNonStopWord_isExtracted() {
-        ThreadLocalRandom rng = ThreadLocalRandom.current();
-        String ticker = randomNonStopWordTicker(rng);
-        // Build message: stop words + ticker + more stop words
-        String message = randomStopWords(rng) + " " + ticker + " " + randomStopWords(rng);
+    @Property(tries = 100)
+    void p7_catalogKnownTicker_inMessage_isExtracted(@ForAll("catalogSymbols") String symbol) {
+        TickerCatalogService catalog = mock(TickerCatalogService.class);
+        when(catalog.normalize(anyString())).thenReturn(Optional.empty());
+        when(catalog.normalize(symbol)).thenReturn(Optional.of(symbol));
 
-        String result = ChatController.extractTicker(message);
+        ChatResolutionService service = new ChatResolutionService(
+                catalog, new StubAssetResolutionClient(), mock(ChatResponseBuilder.class));
 
-        assertThat(result).isEqualTo(ticker);
+        assertThat(service.extractNormalizedCandidates("How is " + symbol + " doing?"))
+                .containsExactly(symbol);
     }
 
     /**
-     * Property 8: For any message with 2+ valid tickers,
-     * extractTicker returns the first one.
+     * P8: For any two distinct catalog-known symbols in a message,
+     * both are returned as candidates.
      */
-    @RepeatedTest(100)
-    void multipleTickers_returnsFirst() {
-        ThreadLocalRandom rng = ThreadLocalRandom.current();
-        String first = randomNonStopWordTicker(rng);
-        String second = randomNonStopWordTicker(rng);
-        // Ensure they're different
-        while (second.equals(first)) {
-            second = randomNonStopWordTicker(rng);
-        }
+    @Property(tries = 100)
+    void p8_twoCatalogTickers_bothExtracted(@ForAll("twoDistinctSymbols") List<String> symbols) {
+        String a = symbols.get(0);
+        String b = symbols.get(1);
 
-        // Place first ticker before second, with stop words around them
-        String message = randomStopWords(rng) + " " + first + " " + randomStopWords(rng) + " " + second;
+        TickerCatalogService catalog = mock(TickerCatalogService.class);
+        when(catalog.normalize(anyString())).thenReturn(Optional.empty());
+        when(catalog.normalize(a)).thenReturn(Optional.of(a));
+        when(catalog.normalize(b)).thenReturn(Optional.of(b));
 
-        String result = ChatController.extractTicker(message);
+        ChatResolutionService service = new ChatResolutionService(
+                catalog, new StubAssetResolutionClient(), mock(ChatResponseBuilder.class));
 
-        assertThat(result).isEqualTo(first);
+        assertThat(service.extractNormalizedCandidates("Compare " + a + " and " + b))
+                .containsExactlyInAnyOrder(a, b);
     }
 
     /**
-     * Property 9: For any message composed entirely of stop-list words,
-     * extractTicker returns null.
+     * P9: For a message composed only of common English words not in the catalog,
+     * {@code extractNormalizedCandidates} returns an empty list.
      */
-    @RepeatedTest(100)
-    void stopWordsOnly_returnsNull() {
-        ThreadLocalRandom rng = ThreadLocalRandom.current();
-        String message = randomStopWords(rng);
-        // Ensure message is not empty
-        if (message.isBlank()) {
-            message = "HOW IS THE";
-        }
+    @Property(tries = 100)
+    void p9_noCatalogTokens_returnsEmpty(@ForAll("nonCatalogMessages") String message) {
+        TickerCatalogService catalog = mock(TickerCatalogService.class);
+        when(catalog.normalize(anyString())).thenReturn(Optional.empty());
 
-        String result = ChatController.extractTicker(message);
+        ChatResolutionService service = new ChatResolutionService(
+                catalog, new StubAssetResolutionClient(), mock(ChatResponseBuilder.class));
 
-        assertThat(result).isNull();
+        assertThat(service.extractNormalizedCandidates(message)).isEmpty();
     }
 
-    // --- Helpers ---
+    // ── Arbitraries ───────────────────────────────────────────────────────────────────────
 
-    private static final List<String> STOP_WORD_LIST = List.copyOf(ChatController.STOP_WORDS);
-
-    private static String randomNonStopWordTicker(ThreadLocalRandom rng) {
-        // Generate a random 2-5 letter uppercase string that is NOT a stop word
-        while (true) {
-            int len = rng.nextInt(2, 6);
-            StringBuilder sb = new StringBuilder(len);
-            for (int i = 0; i < len; i++) {
-                sb.append((char) ('A' + rng.nextInt(26)));
-            }
-            String candidate = sb.toString();
-            if (!ChatController.STOP_WORDS.contains(candidate)) {
-                return candidate;
-            }
-        }
+    @Provide
+    Arbitrary<String> catalogSymbols() {
+        // 2–5 uppercase letters — arbitrary catalog symbols
+        return Arbitraries.strings().withCharRange('A', 'Z').ofMinLength(2).ofMaxLength(5);
     }
 
-    private static String randomStopWords(ThreadLocalRandom rng) {
-        int count = rng.nextInt(0, 5);
-        List<String> words = new ArrayList<>();
-        for (int i = 0; i < count; i++) {
-            words.add(STOP_WORD_LIST.get(rng.nextInt(STOP_WORD_LIST.size())).toLowerCase());
-        }
-        return String.join(" ", words);
+    @Provide
+    Arbitrary<List<String>> twoDistinctSymbols() {
+        return catalogSymbols().set().ofSize(2).map(Set::stream).map(s -> s.toList());
+    }
+
+    @Provide
+    Arbitrary<String> nonCatalogMessages() {
+        // Messages made of common English words — none will normalize to a catalog symbol
+        return Arbitraries.of("how", "is", "the", "market", "doing", "what", "are", "today")
+                .list().ofMinSize(1).ofMaxSize(6)
+                .map(words -> String.join(" ", words));
     }
 }

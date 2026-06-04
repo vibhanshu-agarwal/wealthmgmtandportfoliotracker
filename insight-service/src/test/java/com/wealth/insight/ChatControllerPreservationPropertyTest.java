@@ -1,251 +1,170 @@
 package com.wealth.insight;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.wealth.insight.catalog.CatalogEntry;
+import com.wealth.insight.catalog.CompactCatalog;
+import com.wealth.insight.catalog.TickerCatalogService;
+import com.wealth.insight.chat.ChatResponseBuilder;
 import com.wealth.insight.dto.ChatRequest;
+import com.wealth.insight.dto.ChatResponse;
 import com.wealth.insight.dto.TickerSummary;
+import com.wealth.insight.resolution.StubAssetResolutionClient;
 import net.jqwik.api.Arbitraries;
 import net.jqwik.api.Arbitrary;
 import net.jqwik.api.ForAll;
 import net.jqwik.api.Property;
 import net.jqwik.api.Provide;
-import org.springframework.http.MediaType;
-import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.math.BigDecimal;
-import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
 /**
- * Property 3: Preservation — Plain-symbol resolution and resolver responses unchanged.
+ * Property 3: Preservation — plain-symbol resolution and response text unchanged after refactor.
  *
  * <p><b>Validates: Requirements 3.1, 3.2, 3.3, 3.4</b>
  *
- * <p>These are <b>preservation</b> property tests for the chatbot-asset-coverage-fix bugfix
- * (bug-condition methodology). They encode the BASELINE behavior of
- * {@link ChatController#resolveTicker} and the surrounding {@code chat} response for every input
- * where the resolve bug condition does NOT hold — i.e. any <em>non-suffixed</em> input:
- * plain &le;5-letter tokens (with or without a leading {@code $}), stop-word-only / ticker-free
- * messages, ambiguous multi-ticker messages, and resolved tickers that have no Redis price.
- *
- * <p>Per the observation-first methodology, the assertions below were derived by observing the
- * UNFIXED {@code ChatController}. They MUST PASS on the unfixed code (capturing the baseline) and
- * must continue to pass after the Root Cause 2 resolver fix is applied (proving no regression).
- *
- * <p><b>Observed baseline outcomes encoded here:</b>
- * <ul>
- *   <li>"How is {@code AAPL} doing?" with {@code AAPL} tracked → resolves to {@code AAPL} and
- *       returns its summary ("Here's what I found for AAPL …") — req 3.1.</li>
- *   <li>"${@code MSFT} outlook" with {@code MSFT} tracked → resolves to {@code MSFT} — req 3.1.</li>
- *   <li>A stop-word-only / ticker-free message (e.g. "IS THE DO") → clarification response
- *       "I couldn't identify a single ticker symbol from your message" — req 3.2, 3.3.</li>
- *   <li>An ambiguous two-ticker message (e.g. "Compare AAPL and MSFT") → the same clarification
- *       response (candidate ordering / single-candidate fallback preserved) — req 3.2.</li>
- *   <li>A resolved plain ticker whose summary has a {@code null} price → no-data response
- *       "I don't have any data for {ticker} right now…" — req 3.4.</li>
- * </ul>
- *
- * <p>Mocks are constructed per-iteration (rather than via {@code MockitoExtension}) so the jqwik
- * {@code @Property} lifecycle stays clean and each generated input is fully isolated. The MockMvc
- * standalone setup mirrors {@link ChatControllerTest}.
+ * <p>Tests {@link ChatResolutionService} + {@link ChatResponseBuilder} together (service chain),
+ * exercising the same behavioral contracts previously tested through the HTTP controller layer.
+ * Mocks are created per iteration so each jqwik property run is fully isolated.
  */
 class ChatControllerPreservationPropertyTest {
 
-    private static final String CLARIFICATION_FRAGMENT =
-            "couldn't identify a single ticker symbol";
-    private static final String NO_DATA_FRAGMENT = "don't have any data for";
-    private static final String OK_FRAGMENT = "Here's what I found for";
+    /** Fragment present in "Here's what I found for NAME (TICKER): ..." */
+    private static final String OK_FRAGMENT         = "Here's what I found for";
+    /** Fragment present in clarification responses (empty candidates). */
+    private static final String CLARIFICATION_FRAG  = "couldn't identify a specific asset";
+    /** Fragment present in no-data responses. */
+    private static final String NO_DATA_FRAG        = "don't have any live data for";
 
-    private static final String[] STOP_WORDS =
-            ChatController.STOP_WORDS.toArray(new String[0]);
+    private static final CompactCatalog MINIMAL = new CompactCatalog(List.of(
+            new CatalogEntry("AAPL", "Apple", List.of("Apple"), "US_EQUITY", "USD")
+    ), "p3ver");
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
-
-    // ── req 3.1 — plain uppercase tracked symbol resolves and returns its summary ─────────────
+    // ── req 3.1 — catalog-known tracked symbol resolves and returns its summary ─────────────
 
     /**
-     * Observed baseline: a message of the form "How is {SYM} doing?" where {SYM} is a plain
-     * 1–5 uppercase-letter tracked symbol resolves to {SYM} and produces the "ok" summary
-     * response containing the symbol and its latest price.
-     *
-     * <p><b>Validates: Requirements 3.1</b>
+     * P3.1: For any generated symbol S in the mocked catalog with Redis data:
+     * "How is S doing?" → response contains "Here's what I found for ... (S)" and the price.
      */
     @Property(tries = 100)
-    void plainUppercaseTrackedSymbol_resolvesAndReturnsSummary(
-            @ForAll("plainSymbols") String symbol) throws Exception {
-
+    void p3_1_catalogKnownTrackedSymbol_returnsOkSummary(@ForAll("plainSymbols") String symbol) {
+        TickerCatalogService catalog = mockCatalogWith(symbol);
         MarketDataService mds = mock(MarketDataService.class);
         AiInsightService ai = mock(AiInsightService.class);
-        TickerSummary summary = new TickerSummary(symbol,
-                new BigDecimal("123.45"),
-                List.of(new BigDecimal("123.45")), null, null);
+
+        TickerSummary summary = new TickerSummary(
+                symbol, new BigDecimal("123.45"), List.of(new BigDecimal("123.45")), null, null);
         when(mds.getTickerSummary(symbol)).thenReturn(summary);
-        when(ai.getSentiment(symbol)).thenReturn(symbol + " is Neutral.");
+        when(ai.getSentiment(anyString())).thenReturn("");
 
-        String response = chat(mds, ai, "How is " + symbol + " doing?", null);
+        String response = resolve(catalog, mds, ai, "How is " + symbol + " doing?");
 
-        assertThat(response).contains(OK_FRAGMENT + " " + symbol);
+        assertThat(response).contains(OK_FRAGMENT);
+        assertThat(response).contains(symbol);
         assertThat(response).contains("123.45");
     }
 
-    // ── req 3.1 — $-prefixed tracked symbol resolves and returns its summary ──────────────────
+    // ── req 3.1 — $-prefixed tracked symbol resolves ─────────────────────────────────────────
 
     /**
-     * Observed baseline: a message of the form "${SYM} outlook" where {SYM} is a plain
-     * 1–5 letter tracked symbol resolves to {SYM} via the dollar-pattern source.
-     *
-     * <p><b>Validates: Requirements 3.1</b>
+     * P3.1 ($-variant): "$S outlook" resolves via the dollar-pattern path.
      */
     @Property(tries = 100)
-    void dollarPrefixedTrackedSymbol_resolvesAndReturnsSummary(
-            @ForAll("plainSymbols") String symbol) throws Exception {
-
+    void p3_1_dollarPrefixedCatalogSymbol_returnsOkSummary(@ForAll("plainSymbols") String symbol) {
+        TickerCatalogService catalog = mockCatalogWith(symbol);
         MarketDataService mds = mock(MarketDataService.class);
         AiInsightService ai = mock(AiInsightService.class);
-        TickerSummary summary = new TickerSummary(symbol,
-                new BigDecimal("420.00"),
-                List.of(new BigDecimal("420.00")), null, null);
+
+        TickerSummary summary = new TickerSummary(
+                symbol, new BigDecimal("420.00"), List.of(new BigDecimal("420.00")), null, null);
         when(mds.getTickerSummary(symbol)).thenReturn(summary);
-        when(ai.getSentiment(symbol)).thenReturn(symbol + " is Neutral.");
+        when(ai.getSentiment(anyString())).thenReturn("");
 
-        String response = chat(mds, ai, "$" + symbol + " outlook", null);
+        String response = resolve(catalog, mds, ai, "$" + symbol + " outlook");
 
-        assertThat(response).contains(OK_FRAGMENT + " " + symbol);
-        assertThat(response).contains("420");
+        assertThat(response).contains(OK_FRAGMENT);
+        assertThat(response).contains(symbol);
     }
 
-    // ── req 3.2, 3.3 — stop-word-only / ticker-free message returns clarification ─────────────
+    // ── req 3.2, 3.3 — messages with no catalog tokens return clarification ─────────────────
 
     /**
-     * Observed baseline: a message composed solely of common English stop words that match the
-     * uppercase pattern (e.g. "IS THE DO") yields no ticker candidate and returns the
-     * clarification response. Confirms stop-word exclusion (req 3.3) and the no-ticker
-     * clarification path (req 3.2).
-     *
-     * <p><b>Validates: Requirements 3.2, 3.3</b>
+     * P3.2/3.3: Messages containing only common English words (not in catalog) → clarification.
      */
     @Property(tries = 100)
-    void stopWordOnlyMessage_returnsClarification(
-            @ForAll("stopWordMessages") String message) throws Exception {
+    void p3_2_noCatalogTokens_returnsClarification(@ForAll("noMatchMessages") String message) {
+        TickerCatalogService catalog = mock(TickerCatalogService.class);
+        when(catalog.normalize(anyString())).thenReturn(Optional.empty());
+        when(catalog.groundingView()).thenReturn(MINIMAL);
 
-        MarketDataService mds = mock(MarketDataService.class);
-        AiInsightService ai = mock(AiInsightService.class);
-        // No ticker is tracked: even if a token slipped through it would not resolve.
-        when(mds.getTickerSummary(anyString())).thenReturn(null);
+        String response = resolve(catalog, mock(MarketDataService.class), mock(AiInsightService.class), message);
 
-        String response = chat(mds, ai, message, null);
-
-        assertThat(response).contains(CLARIFICATION_FRAGMENT);
+        assertThat(response).contains(CLARIFICATION_FRAG);
     }
 
-    // ── req 3.2 — ambiguous multi-ticker message returns clarification ────────────────────────
+    // ── req 3.4 — catalog symbol with no Redis data returns no-data ──────────────────────────
 
     /**
-     * Observed baseline: a message referencing two distinct untracked plain symbols
-     * (e.g. "Compare AAPL and MSFT") is ambiguous — neither resolves and the single-candidate
-     * fallback does not fire (two candidates) — so it returns the clarification response.
-     * Confirms candidate ordering / fallback behavior is preserved.
-     *
-     * <p><b>Validates: Requirements 3.2</b>
+     * P3.4: A catalog-known symbol with null latestPrice in Redis returns the no-data response.
      */
     @Property(tries = 100)
-    void ambiguousTwoTickerMessage_returnsClarification(
-            @ForAll("twoDistinctSymbols") List<String> symbols) throws Exception {
-
+    void p3_4_catalogSymbolWithNoRedisData_returnsNoData(@ForAll("plainSymbols") String symbol) {
+        TickerCatalogService catalog = mockCatalogWith(symbol);
         MarketDataService mds = mock(MarketDataService.class);
-        AiInsightService ai = mock(AiInsightService.class);
-        // Neither symbol is tracked (default mock returns null) → ambiguous, not resolvable.
-        when(mds.getTickerSummary(anyString())).thenReturn(null);
+        // Returning null → no Redis data for this ticker
+        when(mds.getTickerSummary(symbol)).thenReturn(null);
 
-        String message = "Compare " + symbols.get(0) + " and " + symbols.get(1);
-        String response = chat(mds, ai, message, null);
+        String response = resolve(catalog, mds, mock(AiInsightService.class),
+                "What about " + symbol + "?");
 
-        assertThat(response).contains(CLARIFICATION_FRAGMENT);
-    }
-
-    // ── req 3.4 — resolved plain ticker with no Redis price returns no-data ───────────────────
-
-    /**
-     * Observed baseline: a message referencing a single plain symbol whose summary has a
-     * {@code null} latest price (no Redis data) resolves to that symbol via the fallback and
-     * returns the no-data response "I don't have any data for {ticker} right now…".
-     *
-     * <p><b>Validates: Requirements 3.4</b>
-     */
-    @Property(tries = 100)
-    void resolvedPlainSymbolWithNullPrice_returnsNoData(
-            @ForAll("plainSymbols") String symbol) throws Exception {
-
-        MarketDataService mds = mock(MarketDataService.class);
-        AiInsightService ai = mock(AiInsightService.class);
-        // Summary exists but has no price → not "tracked", resolves via fallback, then no-data.
-        TickerSummary noPrice = new TickerSummary(symbol, null, Collections.emptyList(), null, null);
-        when(mds.getTickerSummary(symbol)).thenReturn(noPrice);
-
-        String response = chat(mds, ai, "What about " + symbol + "?", null);
-
-        assertThat(response).contains(NO_DATA_FRAGMENT + " " + symbol);
+        assertThat(response)
+                .as("P3.4: catalog symbol with no Redis data must produce no-data response for %s", symbol)
+                .contains(NO_DATA_FRAG);
+        assertThat(response).contains(symbol);
     }
 
     // ── helpers ───────────────────────────────────────────────────────────────────────────────
 
-    /**
-     * Builds a fresh MockMvc standalone setup (mirroring {@link ChatControllerTest}) for the given
-     * mocks, performs the chat request, and returns the raw response body.
-     */
-    private String chat(MarketDataService mds, AiInsightService ai,
-                        String message, String ticker) throws Exception {
-        ChatController controller = new ChatController(mds, ai);
-        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(controller)
-                .setControllerAdvice(new GlobalExceptionHandler())
-                .build();
-
-        String body = objectMapper.writeValueAsString(new ChatRequest(message, ticker));
-        return mockMvc.perform(post("/api/chat")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(body))
-                .andReturn()
-                .getResponse()
-                .getContentAsString();
+    /** Creates a mock catalog where only {@code symbol} normalizes to itself. */
+    private TickerCatalogService mockCatalogWith(String symbol) {
+        TickerCatalogService catalog = mock(TickerCatalogService.class);
+        when(catalog.normalize(anyString())).thenReturn(Optional.empty());
+        when(catalog.normalize(symbol)).thenReturn(Optional.of(symbol));
+        when(catalog.groundingView()).thenReturn(MINIMAL);
+        CatalogEntry entry = new CatalogEntry(symbol, symbol, List.of(), "US_EQUITY", "USD");
+        when(catalog.find(symbol)).thenReturn(Optional.of(entry));
+        when(catalog.isSupported(symbol)).thenReturn(true);
+        return catalog;
     }
 
-    /**
-     * Plain ticker symbols: 1–5 uppercase letters that are NOT stop words. This is exactly the
-     * shape the unfixed resolver recognizes (the non-bug input space for req 3.1 / 3.4).
-     */
+    /** Calls {@code service.handle()} and returns the response text. */
+    private String resolve(TickerCatalogService catalog, MarketDataService mds,
+                           AiInsightService ai, String message) {
+        ChatResponseBuilder builder = new ChatResponseBuilder(catalog, mds, ai);
+        ChatResolutionService service = new ChatResolutionService(
+                catalog, new StubAssetResolutionClient(), builder);
+        ChatResponse resp = service.handle(new ChatRequest(message, null));
+        return resp.response();
+    }
+
+    // ── Arbitraries ───────────────────────────────────────────────────────────────────────────
+
     @Provide
     Arbitrary<String> plainSymbols() {
-        return Arbitraries.strings()
-                .withCharRange('A', 'Z')
-                .ofMinLength(1)
-                .ofMaxLength(5)
-                .filter(s -> !ChatController.STOP_WORDS.contains(s));
+        // 2–5 uppercase letters — arbitrary catalog-style symbols
+        return Arbitraries.strings().withCharRange('A', 'Z').ofMinLength(2).ofMaxLength(5);
     }
 
-    /**
-     * Messages composed of 1–5 stop words joined by spaces (e.g. "IS THE DO"). Every token is a
-     * stop word, so the resolver produces zero candidates → clarification.
-     */
     @Provide
-    Arbitrary<String> stopWordMessages() {
-        return Arbitraries.of(STOP_WORDS)
-                .list()
-                .ofMinSize(1)
-                .ofMaxSize(5)
+    Arbitrary<String> noMatchMessages() {
+        // Common English words that will never normalize to a catalog symbol
+        return Arbitraries.of("how", "is", "the", "market", "doing", "today", "what", "about")
+                .list().ofMinSize(1).ofMaxSize(5)
                 .map(words -> String.join(" ", words));
-    }
-
-    /**
-     * Two distinct plain symbols for the ambiguous-message case.
-     */
-    @Provide
-    Arbitrary<List<String>> twoDistinctSymbols() {
-        return plainSymbols().set().ofSize(2).map(List::copyOf);
     }
 }
