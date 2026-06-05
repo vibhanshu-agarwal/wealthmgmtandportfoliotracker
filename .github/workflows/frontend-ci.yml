@@ -2,7 +2,7 @@ name: Frontend CI (Next.js)
 
 on:
   push:
-    branches: [ "main", "architecture/**" ]
+    branches: [ "main", "architecture/**", "feature/**" ]
   pull_request:
     branches: [ "main", "architecture/**" ]
 
