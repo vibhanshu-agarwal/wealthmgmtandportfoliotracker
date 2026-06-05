@@ -61,7 +61,7 @@ public class TickerCatalogService {
     private String catalogVersion;
 
     @PostConstruct
-    void load() throws IOException {
+    public void load() throws IOException {
         ClassPathResource resource = new ClassPathResource(RESOURCE_PATH);
         if (!resource.exists()) {
             log.error("TickerCatalogService: '{}' not found — catalog is empty.", RESOURCE_PATH);
