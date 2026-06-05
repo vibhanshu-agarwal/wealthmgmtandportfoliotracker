@@ -246,7 +246,12 @@ jobs:
           NEXT_PUBLIC_DEMO_PASSWORD: ${{ secrets.E2E_TEST_USER_PASSWORD }}
         run: npm run build
 
+      # staticwebapp.config.json lives in frontend/public/ so Next.js copies it to
+      # frontend/out/ automatically during `npm run build` above. No separate copy step needed.
+
       - name: Deploy to Azure Static Web Apps
+        id: swa_deploy
+        continue-on-error: true
         uses: Azure/static-web-apps-deploy@v1
         with:
           azure_static_web_apps_api_token: ${{ secrets.SWA_DEPLOYMENT_TOKEN }}
@@ -257,6 +262,21 @@ jobs:
           # skip_app_build: true is REQUIRED — without it the SWA action rebuilds from source
           # inside its own Docker container without NEXT_PUBLIC_API_BASE_URL, producing a bundle
           # that falls back to relative /api/* instead of https://api.vibhanshu-ai-portfolio.dev.
+          app_location: "frontend/out"
+          output_location: ""
+          skip_app_build: true
+          skip_api_build: true
+
+      # Azure SWA Free tier occasionally times out during deployment processing (~600 s limit).
+      # The upload itself always completes; it is the server-side Succeeded poll that stalls.
+      # This retry step runs only when the first attempt reported failure/timeout.
+      - name: Deploy to Azure Static Web Apps (retry)
+        if: steps.swa_deploy.outcome != 'success'
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.SWA_DEPLOYMENT_TOKEN }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          action: "upload"
           app_location: "frontend/out"
           output_location: ""
           skip_app_build: true
