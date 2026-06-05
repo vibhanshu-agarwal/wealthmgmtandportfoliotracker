@@ -114,6 +114,8 @@ replay_pid*.log
 tmp*.html
 response*.json
 htmlReport/
+.tmp*/
+.tmp_kafka_src*/
 
 ### Golden-state seeder: seed-tickers.json is generated into each service by the
 ### copySeedTickers Gradle task; the single source of truth lives in config/seed-tickers.json.

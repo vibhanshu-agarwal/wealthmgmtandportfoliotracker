@@ -131,7 +131,6 @@ public class ChatResolutionService {
             result = resolve(request);
             ResolutionOutcome outcome = result.outcome();
             if (outcome.source().startsWith("llm")) llmStatus = "ok";
-            else if (outcome.source().equals("fallback-exact")) llmStatus = "unavailable";
         } catch (LlmResolutionException e) {
             llmStatus = e.llmStatus();
             fallbackReason = e.getReason();
