@@ -41,6 +41,17 @@ import java.util.regex.Pattern;
  * <p>On LLM failure, falls back to deterministic-only resolution (Task 9 / Req 6.1, 6.6).
  * Emits one structured outcome log per request (Task 11 / Req 9.1).
  * Stateless: deictic-only messages with no resolvable asset yield clarification (Task 12).
+ *
+ * <p><strong>Fallback safety (Property P7 / Task 9):</strong> when {@link AssetResolutionClient}
+ * throws {@link LlmResolutionException} (unavailable, timeout, or malformed output), resolution
+ * falls back to {@link #fallback} which only resolves:
+ * <ul>
+ *   <li>Exact canonical symbols already in the catalog (e.g., {@code AAPL}).</li>
+ *   <li>Catalog-derived stem/pair forms via {@code normalize()} (e.g., {@code BTC} → {@code BTC-USD},
+ *       {@code USDCHF} → {@code USDCHF=X}).</li>
+ * </ul>
+ * Arbitrary uppercase tokens and natural-language names/aliases are NOT resolved in fallback
+ * — they yield a clarification. Logged with {@code source="fallback-exact"}.
  */
 @Service
 public class ChatResolutionService {
@@ -83,6 +94,18 @@ public class ChatResolutionService {
     private final AssetResolutionClient resolutionClient;
     private final ChatResponseBuilder responseBuilder;
 
+    /**
+     * Internal carrier that bundles the validated {@link ResolutionOutcome} with the LLM
+     * entity labels extracted from the LLM response (empty for deterministic paths).
+     * Used only within {@link #handle} to populate the structured log (Task 11).
+     */
+    private record ResolveResult(ResolutionOutcome outcome, List<String> llmEntities) {
+        /** Convenience factory for non-LLM paths that produce no entity labels. */
+        static ResolveResult of(ResolutionOutcome outcome) {
+            return new ResolveResult(outcome, List.of());
+        }
+    }
+
     public ChatResolutionService(TickerCatalogService catalog,
                                  AssetResolutionClient resolutionClient,
                                  ChatResponseBuilder responseBuilder) {
@@ -94,29 +117,40 @@ public class ChatResolutionService {
     /**
      * Handles a single chat turn: resolves the asset, builds and returns the response.
      * At most one LLM call is made per invocation; deterministic paths make zero (Req 2.1, 8.2).
+     *
+     * <p>Emits one structured log entry per request covering all fields required by Task 11 /
+     * Req 9.1. No secrets, system prompts, or full user-message content are logged.
      */
     public ChatResponse handle(ChatRequest request) {
         long startNs = System.nanoTime();
         String llmStatus = "skipped";
-        ResolutionOutcome outcome;
+        String fallbackReason = null;
+        ResolveResult result;
 
         try {
-            outcome = resolve(request);
+            result = resolve(request);
+            ResolutionOutcome outcome = result.outcome();
             if (outcome.source().startsWith("llm")) llmStatus = "ok";
             else if (outcome.source().equals("fallback-exact")) llmStatus = "unavailable";
         } catch (LlmResolutionException e) {
             llmStatus = e.llmStatus();
-            outcome = fallback(request.message(), e.getReason());
+            fallbackReason = e.getReason();
+            result = ResolveResult.of(fallback(request.message(), e.getReason()));
         }
 
         long latencyMs = (System.nanoTime() - startNs) / 1_000_000;
-        logOutcome(outcome, llmStatus, latencyMs);
-        return responseBuilder.build(outcome);
+        logOutcome(result.outcome(), result.llmEntities(), llmStatus, latencyMs, fallbackReason);
+        return responseBuilder.build(result.outcome());
     }
 
     // ── Resolution steps ──────────────────────────────────────────────────────────────────
 
-    private ResolutionOutcome resolve(ChatRequest request) {
+    /**
+     * Core resolution chain — deterministic fast-paths first, LLM last.
+     * Returns a {@link ResolveResult} pairing the validated outcome with any entity labels
+     * extracted from the LLM response (empty for all deterministic paths).
+     */
+    private ResolveResult resolve(ChatRequest request) {
         // Step 1: explicit ticker field — normalize then catalog-validate (Req 1.5, no Redis touch).
         // normalize() resolves crypto/forex stem forms (BTC→BTC-USD, USDCHF→USDCHF=X) and handles
         // case via its internal toUpperCase() path. The uppercase fallback catches plain equity
@@ -128,15 +162,15 @@ public class ChatResolutionService {
                 normalizedTicker = catalog.normalize(t.toUpperCase(Locale.ROOT));
             }
             if (normalizedTicker.isPresent()) {
-                return ResolutionOutcome.resolved(normalizedTicker.get(), "explicit");
+                return ResolveResult.of(ResolutionOutcome.resolved(normalizedTicker.get(), "explicit"));
             }
-            return ResolutionOutcome.clarification(List.of(), "explicit",
-                    "unsupported explicit ticker: " + t);
+            return ResolveResult.of(ResolutionOutcome.clarification(List.of(), "explicit",
+                    "unsupported explicit ticker: " + t));
         }
 
         String message = request.message();
         if (message == null || message.isBlank()) {
-            return ResolutionOutcome.clarification(List.of(), "none", "empty message");
+            return ResolveResult.of(ResolutionOutcome.clarification(List.of(), "none", "empty message"));
         }
 
         // Step 2: deterministic preflight — normalize tokens + comparison guard
@@ -144,28 +178,29 @@ public class ChatResolutionService {
         boolean hasComparisonCue = hasComparisonCue(message);
 
         if (preflightCandidates.size() > 1) {
-            return ResolutionOutcome.comparisonRedirect(preflightCandidates, "preflight");
+            return ResolveResult.of(ResolutionOutcome.comparisonRedirect(preflightCandidates, "preflight"));
         }
         if (preflightCandidates.size() == 1 && !hasComparisonCue) {
-            return ResolutionOutcome.resolved(preflightCandidates.get(0), "preflight");
+            return ResolveResult.of(ResolutionOutcome.resolved(preflightCandidates.get(0), "preflight"));
         }
         if (preflightCandidates.size() == 1) {
             // Single candidate but comparison cue present — clarify
-            return ResolutionOutcome.clarification(preflightCandidates, "preflight",
-                    "comparison cue with single candidate");
+            return ResolveResult.of(ResolutionOutcome.clarification(preflightCandidates, "preflight",
+                    "comparison cue with single candidate"));
         }
 
         // Step 3: discovery shortcut
         if (isDiscoveryQuery(message)) {
             String category = extractCategoryFilter(message);
-            return ResolutionOutcome.discovery(category, "discovery-shortcut");
+            return ResolveResult.of(ResolutionOutcome.discovery(category, "discovery-shortcut"));
         }
 
-        // Step 4: single LLM call
+        // Step 4: single LLM call — capture entity labels for structured logging (Task 11)
         LlmResolution llm = resolutionClient.resolve(message, catalog.groundingView());
+        List<String> llmEntities = llm.entities() != null ? llm.entities() : List.of();
 
         // Steps 5+6: validate + intent branching
-        return handleLlmResolution(llm);
+        return new ResolveResult(handleLlmResolution(llm), llmEntities);
     }
 
     /** Fallback when LLM is unavailable/timeout/malformed — deterministic resolution only. */
@@ -358,13 +393,52 @@ public class ChatResolutionService {
 
     // ── Structured logging (Task 11 / Req 9.1) ───────────────────────────────────────────
 
-    private void logOutcome(ResolutionOutcome outcome, String llmStatus, long latencyMs) {
-        Outcome o = outcome.outcome();
+    /**
+     * Emits one structured log entry per request (Task 11 / Req 9.1).
+     *
+     * <p>Fields logged: {@code intent}, {@code entities} (from LLM only; empty on deterministic
+     * paths), {@code resolvedTickers}, {@code candidateTickers}, {@code source},
+     * {@code fallbackReason}, {@code resolverLatencyMs}, {@code llmStatus}, {@code responsePath},
+     * and {@code catalogVersion}.
+     *
+     * <p>Safety: no secrets, system prompts, raw catalog payloads, or full user-message content
+     * are included. Entity labels come from the LLM's entity-extraction output (not the raw user
+     * message). The fallback reason is a short diagnostic string from the resolution exception,
+     * never containing user input verbatim.
+     */
+    private void logOutcome(ResolutionOutcome outcome, List<String> llmEntities,
+                            String llmStatus, long latencyMs, String fallbackReason) {
+        String intent = inferIntent(outcome.outcome());
+        String resolvedTickers = outcome.ticker() != null ? outcome.ticker() : "-";
+        // fallbackReason: prefer the caught-exception reason (passed in); fall back to outcome
+        // detail which is populated by fallback() for the internal-fallback code path.
+        String effectiveFallbackReason = fallbackReason != null ? fallbackReason
+                : ("fallback-exact".equals(outcome.source()) && outcome.detail() != null
+                   ? outcome.detail() : "-");
+
         log.info(
-            "resolution.outcome outcome={} source={} ticker={} candidates={} "
-            + "categoryFilter={} llmStatus={} latencyMs={} catalogVersion={}",
-            o, outcome.source(), outcome.ticker(), outcome.candidates(),
-            outcome.categoryFilter(), llmStatus, latencyMs,
-            catalog.catalogVersion());
+            "resolution.outcome intent={} entities={} resolvedTickers={} candidateTickers={} "
+            + "source={} fallbackReason={} resolverLatencyMs={} llmStatus={} responsePath={} "
+            + "catalogVersion={}",
+            intent, llmEntities, resolvedTickers, outcome.candidates(),
+            outcome.source(), effectiveFallbackReason, latencyMs, llmStatus,
+            outcome.outcome().name(), catalog.catalogVersion());
+    }
+
+    /**
+     * Infers a log-friendly intent label from the terminal resolution outcome type.
+     *
+     * <p>The intent for LLM paths is the LLM's declared intent, which is reflected in
+     * the outcome type after validation. For deterministic paths (preflight, explicit,
+     * discovery-shortcut, fallback-exact), the outcome type is sufficient to name the intent.
+     */
+    private static String inferIntent(Outcome outcome) {
+        return switch (outcome) {
+            case RESOLVED, NO_DATA        -> "ASSET_QUERY";
+            case DISCOVERY               -> "DISCOVERY";
+            case COMPARISON_REDIRECT     -> "COMPARISON";
+            case GREETING_HELP           -> "GREETING_HELP";
+            case CLARIFICATION           -> "UNKNOWN";
+        };
     }
 }
