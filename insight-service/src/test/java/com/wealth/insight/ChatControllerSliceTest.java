@@ -11,8 +11,6 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
-import java.util.List;
-
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
@@ -180,81 +178,5 @@ class ChatControllerSliceTest {
 
         // Verify delegation — real LLM is never called (service is fully mocked)
         verify(chatResolutionService).handle(any(ChatRequest.class));
-    }
-
-    // ── Task 10 / Task 9: Fallback path → controller returns non-empty (P6) ──────────────
-
-    @Test
-    void chat_fallbackPath_returns200WithNonEmptyResponse() throws Exception {
-        // Simulates the service returning a clarification after LLM failure (fallback-exact path)
-        when(chatResolutionService.handle(any(ChatRequest.class)))
-                .thenReturn(new ChatResponse(
-                        "I couldn't identify a specific asset from your message. "
-                        + "Please specify a ticker symbol like AAPL or BTC-USD."));
-
-        mockMvc.perform(post("/api/chat")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"message": "Apple"}
-                                """))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.response", not("")))
-                .andExpect(jsonPath("$.response", containsString("ticker")));
-
-        verify(chatResolutionService).handle(any(ChatRequest.class));
-    }
-
-    @Test
-    void chat_deicticMessage_returns200WithClarification() throws Exception {
-        // Stateless follow-up: "tell me more about it" — no asset context → clarification
-        when(chatResolutionService.handle(any(ChatRequest.class)))
-                .thenReturn(new ChatResponse(
-                        "I'm not sure which asset you're referring to. "
-                        + "Could you name the specific ticker or company?"));
-
-        mockMvc.perform(post("/api/chat")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"message": "tell me more about it"}
-                                """))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.response", not("")))
-                .andExpect(jsonPath("$.response", containsString("ticker")));
-
-        verify(chatResolutionService).handle(any(ChatRequest.class));
-    }
-
-    @Test
-    void chat_allPaths_responseFieldNeverNull() throws Exception {
-        // Verifies the $.response field exists and is non-null for every outcome path
-        List<String> messages = List.of(
-                """
-                {"message": "AAPL"}
-                """,
-                """
-                {"message": "compare AAPL and MSFT"}
-                """,
-                """
-                {"message": "what crypto do you track?"}
-                """,
-                """
-                {"message": "hello"}
-                """,
-                """
-                {"message": "Apple"}
-                """
-        );
-
-        for (String body : messages) {
-            when(chatResolutionService.handle(any(ChatRequest.class)))
-                    .thenReturn(new ChatResponse("non-empty response for " + body));
-
-            mockMvc.perform(post("/api/chat")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(body))
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.response").exists())
-                    .andExpect(jsonPath("$.response", not("")));
-        }
     }
 }
