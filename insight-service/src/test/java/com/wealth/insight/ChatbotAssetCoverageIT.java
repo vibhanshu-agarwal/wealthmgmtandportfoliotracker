@@ -257,6 +257,10 @@ class ChatbotAssetCoverageIT {
     jsonKafkaTemplate.send(
         "market-prices", "NVDA", new PriceUpdatedEvent("NVDA", new BigDecimal("900.00")));
 
+    // Both assertions are inside untilAsserted so Awaitility retries until the listener
+    // thread has completed ALL writes in processUpdate() — not just the first one.
+    // Without this, the OS can context-switch the listener thread away after writing
+    // market:latest but before the ZSET add, causing the post-await ZSET check to race.
     await()
         .atMost(30, TimeUnit.SECONDS)
         .pollInterval(200, TimeUnit.MILLISECONDS)
@@ -267,11 +271,14 @@ class ChatbotAssetCoverageIT {
               assertThat(latest)
                   .as("market:latest:NVDA must be populated after Kafka consumption")
                   .isEqualTo("900.00");
-            });
 
-    assertThat(redisTemplate.opsForZSet().score(MarketDataService.TRACKED_TICKERS_KEY, "NVDA"))
-        .as("NVDA must appear in market:tracked-tickers after Kafka consumption")
-        .isNotNull();
+              assertThat(
+                      redisTemplate
+                          .opsForZSet()
+                          .score(MarketDataService.TRACKED_TICKERS_KEY, "NVDA"))
+                  .as("NVDA must appear in market:tracked-tickers after Kafka consumption")
+                  .isNotNull();
+            });
   }
 
   /**
