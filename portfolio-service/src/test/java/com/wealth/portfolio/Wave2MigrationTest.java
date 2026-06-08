@@ -144,14 +144,15 @@ class Wave2MigrationTest {
 
     @Test
     void v12_backfillIsIdempotent() {
+        // V12 uses fixed anchor timestamps. NVDA's day-0 row has observed_at = 2026-01-01 12:00:00.
         Integer countBefore = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM market_price_history WHERE ticker = 'NVDA'",
                 Integer.class);
 
-        // Simulate re-run by executing the same INSERT … ON CONFLICT DO NOTHING manually.
+        // Re-run the same INSERT with the same deterministic observed_at — must be a no-op.
         jdbcTemplate.update("""
             INSERT INTO market_price_history (ticker, quote_currency, price, observed_at)
-            VALUES ('NVDA', 'USD', 880.10, now() - INTERVAL '0 day')
+            VALUES ('NVDA', 'USD', 880.10, TIMESTAMP '2026-01-01 12:00:00')
             ON CONFLICT DO NOTHING
             """);
 
@@ -160,7 +161,7 @@ class Wave2MigrationTest {
                 Integer.class);
 
         assertThat(countAfter)
-                .as("Re-running backfill insert for NVDA should be a no-op on (ticker, observed_at) conflict")
+                .as("Re-inserting NVDA at the same fixed observed_at must be a no-op (ON CONFLICT)")
                 .isEqualTo(countBefore);
     }
 

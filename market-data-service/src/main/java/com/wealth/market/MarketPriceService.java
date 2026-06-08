@@ -53,8 +53,10 @@ public class MarketPriceService {
                 });
 
         // Capture reference before overwriting.
+        // Only treat the prior value as a valid reference when a real price exists;
+        // a shell document (null currentPrice) must not contribute a spurious referenceAt.
         BigDecimal prevRefPrice = price.getCurrentPrice();
-        Instant prevRefAt = price.getUpdatedAt();
+        Instant prevRefAt = prevRefPrice != null ? price.getUpdatedAt() : null;
 
         // Roll prior → reference; set new observation.
         price.recordNewObservation(newPrice, observedAt);

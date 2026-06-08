@@ -1,18 +1,23 @@
 -- =============================================================================
 -- V12: Backfill market_price_history for all 160 canonical seed tickers
 --
--- Generates windowed historical points (T-3d, T-2d, T-1d, T-0d) so that
--- portfolio analytics can compute a 24h/since-previous-snapshot change for
--- every holding in the golden-state portfolio.
+-- Generates 4 windowed historical points per ticker (T-3d, T-2d, T-1d, T-0d)
+-- anchored at a FIXED DETERMINISTIC timestamp (2026-01-01 12:00:00 UTC) so that:
+--   (a) rows have stable (ticker, observed_at) identity regardless of when the
+--       migration runs, and
+--   (b) ON CONFLICT DO NOTHING is effective after V13 creates the unique index.
 --
--- Idempotency: all inserts use ON CONFLICT DO NOTHING so re-running this
--- migration on a DB that already has history rows is a safe no-op.
--- This migration does NOT rewrite V2 (which covers AAPL, TSLA, BTC legacy tickers).
+-- Using now() would produce different observed_at values on every re-execution,
+-- defeating the unique-index idempotency guarantee from V13.
 --
--- Canonical symbols used (incl. BTC-USD not legacy BTC) and quote currencies
--- are embedded directly from config/seed-tickers.json to satisfy the requirement
--- that the data source be explicit and not depend on runtime API access.
+-- Anchor: 2026-01-01 12:00:00 UTC (pre-dates first real daily refresh on Azure;
+-- always in the past so analytics immediately has a usable reference point).
 --
+-- Idempotency: ON CONFLICT DO NOTHING.  Because observed_at is derived from fixed
+-- literals, re-running this SQL at any wall-clock time produces the same
+-- (ticker, observed_at) pairs and the unique index from V13 suppresses duplicates.
+--
+-- This migration does NOT rewrite V2 (which covers AAPL, TSLA, BTC legacy).
 -- Data source: config/seed-tickers.json (160 canonical tickers)
 -- =============================================================================
 
@@ -69,15 +74,19 @@ WITH backfill_tickers(ticker, quote_currency, base_price) AS (VALUES
   ('RTX',    'USD',  110.00),
   ('PYPL',   'USD',   65.00)
 ),
-points(day_offset) AS (
-    VALUES (0), (1), (2), (3)
+points(day_offset, anchor) AS (
+    VALUES
+        (0, TIMESTAMP '2026-01-01 12:00:00'),
+        (1, TIMESTAMP '2025-12-31 12:00:00'),
+        (2, TIMESTAMP '2025-12-30 12:00:00'),
+        (3, TIMESTAMP '2025-12-29 12:00:00')
 )
 INSERT INTO market_price_history (ticker, quote_currency, price, observed_at)
 SELECT
     bt.ticker,
     bt.quote_currency,
     ROUND((bt.base_price * (1.0 + (0.002 * p.day_offset)))::NUMERIC, 4),
-    now() - (p.day_offset * INTERVAL '1 day')
+    p.anchor
 FROM backfill_tickers bt
 CROSS JOIN points p
 ON CONFLICT DO NOTHING;
@@ -135,15 +144,19 @@ WITH backfill_tickers(ticker, quote_currency, base_price) AS (VALUES
   ('SHREECEM.NS',   'INR', 27500.00),
   ('HDFCLIFE.NS',   'INR',   620.00)
 ),
-points(day_offset) AS (
-    VALUES (0), (1), (2), (3)
+points(day_offset, anchor) AS (
+    VALUES
+        (0, TIMESTAMP '2026-01-01 12:00:00'),
+        (1, TIMESTAMP '2025-12-31 12:00:00'),
+        (2, TIMESTAMP '2025-12-30 12:00:00'),
+        (3, TIMESTAMP '2025-12-29 12:00:00')
 )
 INSERT INTO market_price_history (ticker, quote_currency, price, observed_at)
 SELECT
     bt.ticker,
     bt.quote_currency,
     ROUND((bt.base_price * (1.0 + (0.002 * p.day_offset)))::NUMERIC, 4),
-    now() - (p.day_offset * INTERVAL '1 day')
+    p.anchor
 FROM backfill_tickers bt
 CROSS JOIN points p
 ON CONFLICT DO NOTHING;
@@ -202,15 +215,19 @@ WITH backfill_tickers(ticker, quote_currency, base_price) AS (VALUES
   ('NEO-USD',   'USD',     14.80),
   ('ZEC-USD',   'USD',     24.50)
 ),
-points(day_offset) AS (
-    VALUES (0), (1), (2), (3)
+points(day_offset, anchor) AS (
+    VALUES
+        (0, TIMESTAMP '2026-01-01 12:00:00'),
+        (1, TIMESTAMP '2025-12-31 12:00:00'),
+        (2, TIMESTAMP '2025-12-30 12:00:00'),
+        (3, TIMESTAMP '2025-12-29 12:00:00')
 )
 INSERT INTO market_price_history (ticker, quote_currency, price, observed_at)
 SELECT
     bt.ticker,
     bt.quote_currency,
     ROUND((bt.base_price * (1.0 + (0.002 * p.day_offset)))::NUMERIC, 8),
-    now() - (p.day_offset * INTERVAL '1 day')
+    p.anchor
 FROM backfill_tickers bt
 CROSS JOIN points p
 ON CONFLICT DO NOTHING;
@@ -228,15 +245,19 @@ WITH backfill_tickers(ticker, quote_currency, base_price) AS (VALUES
   ('USDSGD=X',  'SGD',   1.3580),
   ('USDHKD=X',  'HKD',   7.8300)
 ),
-points(day_offset) AS (
-    VALUES (0), (1), (2), (3)
+points(day_offset, anchor) AS (
+    VALUES
+        (0, TIMESTAMP '2026-01-01 12:00:00'),
+        (1, TIMESTAMP '2025-12-31 12:00:00'),
+        (2, TIMESTAMP '2025-12-30 12:00:00'),
+        (3, TIMESTAMP '2025-12-29 12:00:00')
 )
 INSERT INTO market_price_history (ticker, quote_currency, price, observed_at)
 SELECT
     bt.ticker,
     bt.quote_currency,
     ROUND((bt.base_price * (1.0 + (0.001 * p.day_offset)))::NUMERIC, 6),
-    now() - (p.day_offset * INTERVAL '1 day')
+    p.anchor
 FROM backfill_tickers bt
 CROSS JOIN points p
 ON CONFLICT DO NOTHING;
