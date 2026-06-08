@@ -47,6 +47,9 @@ class StartupHydrationServiceTest {
                 .extracting(PriceUpdatedEvent::ticker)
                 .containsExactlyInAnyOrder("AAPL", "MSFT");
 
+        // Wave 2: events must carry the stored observedAt (the asset's updatedAt), not null.
+        assertThat(events).allSatisfy(e -> assertThat(e.observedAt()).isNotNull());
+
         verifyNoMoreInteractions(kafkaTemplate);
     }
 

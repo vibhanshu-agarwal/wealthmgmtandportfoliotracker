@@ -87,10 +87,20 @@ class MarketDataRefreshJob {
                     AssetPrice assetPrice = assetPriceRepository.findById(ticker)
                             .orElseGet(() -> new AssetPrice(ticker, null));
 
-                    assetPrice.setCurrentPrice(newPrice);
+                    // Capture the reference BEFORE calling recordNewObservation.
+                    BigDecimal previousReferencePrice = assetPrice.getCurrentPrice();
+                    java.time.Instant previousReferenceAt = assetPrice.getUpdatedAt();
+
+                    java.time.Instant observedAt = java.time.Instant.now();
+                    assetPrice.recordNewObservation(newPrice, observedAt);
                     assetPriceRepository.save(assetPrice);
 
-                    PriceUpdatedEvent event = new PriceUpdatedEvent(ticker, newPrice);
+                    PriceUpdatedEvent event = new PriceUpdatedEvent(
+                            ticker, newPrice,
+                            assetPrice.getQuoteCurrency(),
+                            observedAt,
+                            previousReferencePrice,
+                            previousReferenceAt);
                     kafkaTemplate.send(TOPIC, ticker, event);
                     log.info("MarketDataRefreshJob: updated ticker {}", ticker);
                     updated++;

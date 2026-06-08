@@ -101,16 +101,17 @@ class MarketDataSeedServicePropagationPropertyTest {
         for (SeedTicker t : expected) {
             BigDecimal seededPrice =
                     DeterministicPriceCalculator.compute(t.basePrice(), t.ticker(), userId);
-            PriceUpdatedEvent expectedEvent = new PriceUpdatedEvent(t.ticker(), seededPrice);
 
             assertThat(published)
-                    .as("seed(\"%s\") must publish PriceUpdatedEvent(%s, %s) to %s keyed by ticker, "
+                    .as("seed(\"%s\") must publish PriceUpdatedEvent with ticker=%s price=%s to %s keyed by ticker, "
                                     + "but %d event(s) were published",
                             userId, t.ticker(), seededPrice, TOPIC, published.size())
                     .anySatisfy(c -> {
                         assertThat(c.topic()).isEqualTo(TOPIC);
                         assertThat(c.key()).isEqualTo(t.ticker());
-                        assertThat(c.event()).isEqualTo(expectedEvent);
+                        // Check the essential fields; nullable enrichment fields may differ.
+                        assertThat(c.event().ticker()).isEqualTo(t.ticker());
+                        assertThat(c.event().newPrice()).isEqualByComparingTo(seededPrice);
                     });
         }
     }
@@ -146,8 +147,12 @@ class MarketDataSeedServicePropagationPropertyTest {
                     DeterministicPriceCalculator.compute(t.basePrice(), t.ticker(), "e2e-user");
             assertThat(published)
                     .as("missing PriceUpdatedEvent for seeded ticker %s", t.ticker())
-                    .contains(new Captured(TOPIC, t.ticker(),
-                            new PriceUpdatedEvent(t.ticker(), seededPrice)));
+                    .anySatisfy(c -> {
+                        assertThat(c.topic()).isEqualTo(TOPIC);
+                        assertThat(c.key()).isEqualTo(t.ticker());
+                        assertThat(c.event().ticker()).isEqualTo(t.ticker());
+                        assertThat(c.event().newPrice()).isEqualByComparingTo(seededPrice);
+                    });
         }
     }
 

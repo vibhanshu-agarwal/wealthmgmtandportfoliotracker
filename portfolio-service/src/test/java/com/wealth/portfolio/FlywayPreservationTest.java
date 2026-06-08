@@ -62,13 +62,14 @@ class FlywayPreservationTest {
     JdbcTemplate jdbcTemplate;
 
     /**
-     * Expected columns for each Flyway-managed table after V1–V7 migrations.
+     * Expected columns for each Flyway-managed table after V1–V13 migrations.
      * Observed from the actual migration SQL files.
      */
     private static final Map<String, Set<String>> EXPECTED_COLUMNS = Map.of(
             "users", Set.of("id", "email", "created_at"),
             "portfolios", Set.of("id", "user_id", "created_at"),
-            "asset_holdings", Set.of("id", "portfolio_id", "asset_ticker", "quantity"),
+            "asset_holdings", Set.of("id", "portfolio_id", "asset_ticker", "quantity",
+                    "avg_cost_basis", "cost_basis_currency", "cost_basis_source", "cost_basis_as_of"),
             "market_prices", Set.of("ticker", "current_price", "updated_at", "quote_currency")
     );
 
@@ -90,7 +91,11 @@ class FlywayPreservationTest {
                     "id", "uuid",
                     "portfolio_id", "uuid",
                     "asset_ticker", "character varying",
-                    "quantity", "numeric"
+                    "quantity", "numeric",
+                    "avg_cost_basis", "numeric",
+                    "cost_basis_currency", "character varying",
+                    "cost_basis_source", "character varying",
+                    "cost_basis_as_of", "timestamp without time zone"
             ),
             "market_prices", Map.of(
                     "ticker", "character varying",
@@ -237,8 +242,8 @@ class FlywayPreservationTest {
                 .toList();
 
         assertThat(versions)
-                .as("Flyway history should contain V1 through V7")
-                .contains("1", "2", "3", "4", "5", "6", "7");
+                .as("Flyway history should contain V1 through V13")
+                .contains("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13");
 
         // Verify all entries have success = true
         for (Map<String, Object> row : history) {

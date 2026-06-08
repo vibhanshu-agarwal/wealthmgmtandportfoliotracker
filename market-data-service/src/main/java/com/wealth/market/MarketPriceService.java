@@ -7,13 +7,15 @@ import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 
 /**
  * Application service that owns the market price write path.
  *
  * <p>It performs two actions in sequence:
- * 1) persists the latest ticker price in MongoDB
- * 2) publishes a {@link PriceUpdatedEvent} to Kafka for downstream consumers
+ * 1) persists the latest ticker price in MongoDB (rolling the prior price to the reference
+ *    fields via {@link AssetPrice#recordNewObservation})
+ * 2) publishes an enriched {@link PriceUpdatedEvent} to Kafka for downstream consumers
  */
 @Service
 public class MarketPriceService {
@@ -32,21 +34,51 @@ public class MarketPriceService {
     }
 
     /**
-     * Persists the new price to MongoDB and publishes a {@link PriceUpdatedEvent} to Kafka.
+     * Persists the new price to MongoDB (rolling prior price to reference) and publishes an
+     * enriched {@link PriceUpdatedEvent} to Kafka.
+     *
+     * @param ticker        asset ticker symbol
+     * @param newPrice      new price in {@code quoteCurrency}
+     * @param quoteCurrency ISO currency code for the price; null is tolerated for legacy callers
      */
-    public void updatePrice(String ticker, BigDecimal newPrice) {
-        log.info("Updating price for ticker: {} to {}", ticker, newPrice);
-        
-        var price = assetPriceRepository.findById(ticker)
-                .orElseGet(() -> new AssetPrice(ticker, newPrice));
+    public void updatePrice(String ticker, BigDecimal newPrice, String quoteCurrency) {
+        log.info("Updating price for ticker: {} to {} ({})", ticker, newPrice, quoteCurrency);
 
-        price.setCurrentPrice(newPrice);
+        Instant observedAt = Instant.now();
+        AssetPrice price = assetPriceRepository.findById(ticker)
+                .orElseGet(() -> {
+                    AssetPrice ap = new AssetPrice(ticker, null);
+                    ap.setQuoteCurrency(quoteCurrency);
+                    return ap;
+                });
+
+        // Capture reference before overwriting.
+        BigDecimal prevRefPrice = price.getCurrentPrice();
+        Instant prevRefAt = price.getUpdatedAt();
+
+        // Roll prior → reference; set new observation.
+        price.recordNewObservation(newPrice, observedAt);
+        if (quoteCurrency != null) {
+            price.setQuoteCurrency(quoteCurrency);
+        }
         assetPriceRepository.save(price);
 
-        // Publish with ticker as key to preserve partition-level ordering per asset symbol.
-        var event = new PriceUpdatedEvent(ticker, newPrice);
+        // Only attach reference if one existed before this update.
+        BigDecimal referencePrice = prevRefPrice;
+        Instant referenceAt = prevRefAt;
+
+        PriceUpdatedEvent event = new PriceUpdatedEvent(
+                ticker, newPrice, price.getQuoteCurrency(), observedAt, referencePrice, referenceAt);
         kafkaTemplate.send(TOPIC, ticker, event);
-        
-        log.info("Published PriceUpdatedEvent to Kafka for ticker: {}", ticker);
+
+        log.info("Published enriched PriceUpdatedEvent to Kafka for ticker: {}", ticker);
+    }
+
+    /**
+     * Legacy overload retained for call sites that do not supply a currency.
+     * Delegates with a null currency so the enrichment fields are best-effort.
+     */
+    public void updatePrice(String ticker, BigDecimal newPrice) {
+        updatePrice(ticker, newPrice, null);
     }
 }

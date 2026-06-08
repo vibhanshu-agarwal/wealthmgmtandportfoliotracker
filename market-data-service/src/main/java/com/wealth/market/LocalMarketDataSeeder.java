@@ -100,7 +100,8 @@ class LocalMarketDataSeeder implements ApplicationRunner, ResourceLoaderAware {
             if (existingTickers.contains(asset.ticker())) {
                 continue;
             }
-            marketPriceService.updatePrice(asset.ticker(), asset.basePrice());
+            // Pass currency so the AssetPrice document carries quoteCurrency from the start.
+            marketPriceService.updatePrice(asset.ticker(), asset.basePrice(), asset.currency());
             seeded++;
         }
 

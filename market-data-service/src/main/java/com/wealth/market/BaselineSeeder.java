@@ -1,5 +1,6 @@
 package com.wealth.market;
 
+import com.wealth.market.seed.SeedTickerRegistry;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.slf4j.Logger;
@@ -18,6 +19,9 @@ import java.util.Set;
  * exist in Mongo as AssetPrice documents. It does NOT set prices; it only
  * ensures ticker presence so that later flows (scheduled refresh, etc.) can
  * attach real prices.
+ *
+ * <p>Wave 2: {@code quoteCurrency} is now resolved from {@link SeedTickerRegistry} so that
+ * the shell document has accurate currency metadata even before a price is set.
  */
 @Component
 @ConditionalOnProperty(prefix = "market-data.baseline-seed", name = "enabled", havingValue = "true", matchIfMissing = true)
@@ -27,13 +31,16 @@ class BaselineSeeder implements ApplicationRunner {
 
     private final AssetPriceRepository assetPriceRepository;
     private final BaselineTickerProperties baselineTickerProperties;
+    private final SeedTickerRegistry seedTickerRegistry;
     private final MeterRegistry meterRegistry;
 
     BaselineSeeder(AssetPriceRepository assetPriceRepository,
                    BaselineTickerProperties baselineTickerProperties,
+                   SeedTickerRegistry seedTickerRegistry,
                    MeterRegistry meterRegistry) {
         this.assetPriceRepository = assetPriceRepository;
         this.baselineTickerProperties = baselineTickerProperties;
+        this.seedTickerRegistry = seedTickerRegistry;
         this.meterRegistry = meterRegistry;
     }
 
@@ -54,8 +61,15 @@ class BaselineSeeder implements ApplicationRunner {
             if (existingTickers.contains(ticker)) {
                 continue;
             }
+            // Resolve quoteCurrency from the registry if available; null is tolerated.
+            String quoteCurrency = seedTickerRegistry.find(ticker)
+                    .map(SeedTickerRegistry.SeedTicker::quoteCurrency)
+                    .orElse(null);
+
             // Insert a shell AssetPrice without a price; scheduled job will populate currentPrice.
-            assetPriceRepository.save(new AssetPrice(ticker, null));
+            AssetPrice shell = new AssetPrice(ticker, null);
+            shell.setQuoteCurrency(quoteCurrency);
+            assetPriceRepository.save(shell);
             inserted++;
         }
 
@@ -70,4 +84,3 @@ class BaselineSeeder implements ApplicationRunner {
         }
     }
 }
-
