@@ -39,8 +39,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 class Wave2MigrationTest {
 
     @Container
-    static final PostgreSQLContainer<?> postgres =
-            new PostgreSQLContainer<>(DockerImageName.parse("postgres:16-alpine"))
+    @SuppressWarnings("rawtypes")
+    static final PostgreSQLContainer postgres =
+            new PostgreSQLContainer(DockerImageName.parse("postgres:16-alpine"))
                     .withDatabaseName("portfolio_db")
                     .withUsername("wealth_user")
                     .withPassword("wealth_pass");
