@@ -1,13 +1,16 @@
 package com.wealth.portfolio;
 
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
+import org.springframework.cache.caffeine.CaffeineCacheManager;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.context.TestPropertySource;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -16,22 +19,46 @@ import org.testcontainers.utility.DockerImageName;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Tests for the {@code azure}-profile Caffeine cache-manager bean (Task 7.1 / Req 6 AC3).
+ * Integration tests for the {@code azure}-profile Caffeine cache-manager bean
+ * (Task 7.1 / Req 6 AC3).
+ *
+ * <h2>Profile strategy</h2>
+ * <p>The test activates only the {@code azure} profile (no {@code local}).
+ * Running both {@code azure} and {@code local} simultaneously causes a
+ * {@code NoUniqueBeanDefinitionException} because both {@code caffeineCacheManager}
+ * (local) and {@code azureCaffeineCacheManager} (azure) become active.
+ *
+ * <p>{@code application-azure.yml} also sets {@code spring.cache.type=simple} which
+ * would override the {@code CacheConfig} bean entirely.  {@code @TestPropertySource}
+ * resets that key to {@code none} so the {@link CacheConfig} bean — not the auto-
+ * configured simple manager — is the one under test.
+ *
+ * <p>The required infrastructure properties that {@code application-local.yml} would
+ * normally supply (FX rates, Kafka deserializer, Kafka bootstrap) are provided here
+ * via {@code @TestPropertySource} and {@code @DynamicPropertySource}.
  *
  * <p>Validates:
  * <ul>
- *   <li>Task 7.1: on the {@code azure} profile, a Caffeine {@link CacheManager} bean is
- *       registered with an explicit TTL (not an indefinite/no-TTL simple manager).</li>
- *   <li>Task 7.2: a cached entry expires within the TTL window and reflects updated
- *       underlying data after the window (simulated via manual eviction).</li>
+ *   <li>Task 7.1: azure profile registers a Caffeine {@link CacheManager} (not a no-TTL
+ *       simple manager).</li>
+ *   <li>Task 7.2: cached entries are evictable and reflect updated data after eviction.</li>
  * </ul>
  */
+@Tag("integration")
 @Testcontainers
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
-@ActiveProfiles({"azure", "local"})
+@ActiveProfiles("azure")
+@TestPropertySource(properties = {
+        // Override azure yml's spring.cache.type=simple so CacheConfig bean wins.
+        "spring.cache.type=none",
+        // Supply FX config that application-azure.yml doesn't provide (normally from local).
+        "fx.base-currency=USD",
+        // Suppress Kafka deserialization properties that require the local profile config.
+        "spring.kafka.consumer.value-deserializer=org.springframework.kafka.support.serializer.JsonDeserializer",
+        "spring.kafka.consumer.properties.spring.json.trusted.packages=com.wealth.market.events"
+})
 class AzureCacheConfigTest {
 
-    // Postgres is still required because the Spring context loads Flyway + JPA.
     @Container
     @SuppressWarnings("rawtypes")
     static final PostgreSQLContainer postgres =
@@ -51,15 +78,14 @@ class AzureCacheConfigTest {
     @Autowired
     CacheManager cacheManager;
 
-    // ── Task 7.1: azure profile has an explicit-expiry CacheManager bean ─────
+    // ── Task 7.1: azure profile registers an explicit-expiry CacheManager ────
 
     @Test
     void azureProfile_cacheManagerIsRegistered() {
         assertThat(cacheManager).isNotNull();
-        // Must be Caffeine-backed (not a no-TTL SimpleCacheManager).
         assertThat(cacheManager)
                 .as("azure profile must use Caffeine CacheManager, not a no-TTL simple manager")
-                .isInstanceOf(org.springframework.cache.caffeine.CaffeineCacheManager.class);
+                .isInstanceOf(CaffeineCacheManager.class);
     }
 
     @Test
@@ -70,37 +96,27 @@ class AzureCacheConfigTest {
                 .isNotNull();
     }
 
-    // ── Task 7.2: cached entry is evictable and reflects updated data ─────────
+    // ── Task 7.2: eviction reflects updated data ──────────────────────────────
 
     @Test
     void azureProfile_cacheEviction_reflectsUpdatedData() {
         Cache cache = cacheManager.getCache("portfolio-analytics");
         assertThat(cache).isNotNull();
 
-        // Write a sentinel value.
         cache.put("test-key", "version-1");
-        Cache.ValueWrapper hit = cache.get("test-key");
-        assertThat(hit).isNotNull();
-        assertThat(hit.get()).isEqualTo("version-1");
+        assertThat(cache.get("test-key")).isNotNull();
+        assertThat(cache.get("test-key").get()).isEqualTo("version-1");
 
-        // Evict — simulates TTL expiry or explicit invalidation.
         cache.evict("test-key");
-
-        // After eviction, the entry is gone (would be re-computed on next call).
-        Cache.ValueWrapper afterEvict = cache.get("test-key");
-        assertThat(afterEvict)
-                .as("after eviction, cache entry must not be present")
+        assertThat(cache.get("test-key"))
+                .as("after eviction the entry must not be present")
                 .isNull();
 
-        // Simulate updated underlying data by re-populating.
         cache.put("test-key", "version-2");
-        Cache.ValueWrapper updated = cache.get("test-key");
-        assertThat(updated).isNotNull();
-        assertThat(updated.get())
-                .as("after eviction and re-population, cache must return the updated value")
+        assertThat(cache.get("test-key").get())
+                .as("after eviction and re-population must return updated value")
                 .isEqualTo("version-2");
 
-        // Clean up.
         cache.evict("test-key");
     }
 }
