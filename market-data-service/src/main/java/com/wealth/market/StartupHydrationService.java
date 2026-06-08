@@ -75,7 +75,15 @@ class StartupHydrationService implements ApplicationRunner {
                 log.debug("StartupHydrationService: skipping ticker {} with null price", asset.getTicker());
                 continue;
             }
-            var event = new PriceUpdatedEvent(asset.getTicker(), price);
+            // Publish enriched event — include quoteCurrency and any reference from the stored doc.
+            // observedAt uses the stored updatedAt (real observation time), never fabricated receive time.
+            var event = new PriceUpdatedEvent(
+                    asset.getTicker(),
+                    price,
+                    asset.getQuoteCurrency(),
+                    asset.getUpdatedAt(),
+                    asset.getPreviousReferencePrice(),
+                    asset.getPreviousReferenceAt());
             kafkaTemplate.send(TOPIC, asset.getTicker(), event);
             published++;
         }

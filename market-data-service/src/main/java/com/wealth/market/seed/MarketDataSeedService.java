@@ -71,7 +71,9 @@ public class MarketDataSeedService {
 
             // Mirror StartupHydrationService: skip tickers with a null computed price.
             if (seededPrice != null) {
-                pendingEvents.add(new PriceUpdatedEvent(t.ticker(), seededPrice));
+                // Enrich the event with quoteCurrency from the registry (Wave 2).
+                pendingEvents.add(new PriceUpdatedEvent(
+                        t.ticker(), seededPrice, t.quoteCurrency(), now, null, null));
             } else {
                 log.debug("seed: skipping Kafka publish for ticker {} with null computed price", t.ticker());
             }

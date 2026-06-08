@@ -81,6 +81,8 @@ class MarketDataRefreshJobWireMockTest {
         verify(kafkaTemplate).send(eq("market-prices"), eq("AAPL"), eventCaptor.capture());
         assertThat(eventCaptor.getValue().ticker()).isEqualTo("AAPL");
         assertThat(eventCaptor.getValue().newPrice()).isEqualByComparingTo("150.0");
+        // Wave 2: observedAt must be populated (not null) and not a fabricated receive time.
+        assertThat(eventCaptor.getValue().observedAt()).isNotNull();
     }
 
     @Test

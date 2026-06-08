@@ -57,8 +57,8 @@ class LocalMarketDataSeederTest {
 
     seeder(true, TEST_FIXTURE).run(null);
 
-    verify(marketPriceService).updatePrice(eq("TEST1"), any(BigDecimal.class));
-    verify(marketPriceService).updatePrice(eq("TEST2"), any(BigDecimal.class));
+    verify(marketPriceService).updatePrice(eq("TEST1"), any(BigDecimal.class), any());
+    verify(marketPriceService).updatePrice(eq("TEST2"), any(BigDecimal.class), any());
     verifyNoMoreInteractions(marketPriceService);
   }
 
@@ -86,8 +86,8 @@ class LocalMarketDataSeederTest {
 
     seeder(true, TEST_FIXTURE).run(null);
 
-    verify(marketPriceService, never()).updatePrice(eq("TEST1"), any());
-    verify(marketPriceService).updatePrice(eq("TEST2"), any(BigDecimal.class));
+    verify(marketPriceService, never()).updatePrice(eq("TEST1"), any(), any());
+    verify(marketPriceService).updatePrice(eq("TEST2"), any(BigDecimal.class), any());
     verifyNoMoreInteractions(marketPriceService);
   }
 
@@ -143,7 +143,8 @@ class LocalMarketDataSeederTest {
 
     seeder(true, TEST_FIXTURE).run(null);
 
-    verify(marketPriceService).updatePrice("TEST1", new BigDecimal("100.0"));
-    verify(marketPriceService).updatePrice("TEST2", new BigDecimal("200.0"));
+    // Wave 2: seeder calls the 3-arg overload (ticker, price, currency).
+    verify(marketPriceService).updatePrice(eq("TEST1"), eq(new BigDecimal("100.0")), any());
+    verify(marketPriceService).updatePrice(eq("TEST2"), eq(new BigDecimal("200.0")), any());
   }
 }
