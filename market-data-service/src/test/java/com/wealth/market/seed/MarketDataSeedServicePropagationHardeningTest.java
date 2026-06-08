@@ -98,7 +98,8 @@ class MarketDataSeedServicePropagationHardeningTest {
             long count = published.stream()
                     .filter(c -> c.topic().equals(TOPIC)
                             && c.key().equals(t.ticker())
-                            && c.event().equals(new PriceUpdatedEvent(t.ticker(), seededPrice)))
+                            && c.event().ticker().equals(t.ticker())
+                            && c.event().newPrice().compareTo(seededPrice) == 0)
                     .count();
             assertThat(count)
                     .as("ticker %s must appear exactly once in published events, but appeared %d time(s)",
