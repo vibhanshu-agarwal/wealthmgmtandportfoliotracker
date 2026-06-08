@@ -4,7 +4,7 @@ plugins {
     id 'java'
     id 'org.springframework.boot' version '4.0.5' apply false
     id 'io.spring.dependency-management' version '1.1.7'
-    id("org.openrewrite.rewrite") version("7.34.0")
+    id("org.openrewrite.rewrite") version("latest.release") // If Docker builds fail with 403 from Maven Central at configuration time, pin this to the current resolved version (run ./gradlew :buildEnvironment to find it, e.g. "7.34.0"). Revert to latest.release once the runner cache is warm again.
 }
 
 group = 'com.wealth'
