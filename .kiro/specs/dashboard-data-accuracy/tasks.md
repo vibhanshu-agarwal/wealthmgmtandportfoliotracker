@@ -34,27 +34,27 @@ Ordered so each phase builds on the previous. Backend contract first, then produ
     - _Requirements: 10.4_
   - _Design: Key Design Decision (Option A), Property 9_
 
-- [ ] 2. Enrich market-data-service price model and publishing
-  - [ ] 2.1 Add `quoteCurrency`, `previousReferencePrice`, `previousReferenceAt` to `AssetPrice`; on persisting a **new observation** (new `observedAt`, price-changed or not) roll the prior current price/time into the reference fields.
+- [x] 2. Enrich market-data-service price model and publishing
+  - [x] 2.1 Add `quoteCurrency`, `previousReferencePrice`, `previousReferenceAt` to `AssetPrice`; on persisting a **new observation** (new `observedAt`, price-changed or not) roll the prior current price/time into the reference fields.
     - _Requirements: 2.1, 2.2, 5.1_
-  - [ ] 2.2 Populate `quoteCurrency` from seed/baseline metadata in `MarketPriceService`, `MarketDataRefreshJob`, and seeders; publish the enriched `PriceUpdatedEvent` (currency, `observedAt`, reference) from all publish sites.
+  - [x] 2.2 Populate `quoteCurrency` from seed/baseline metadata in `MarketPriceService`, `MarketDataRefreshJob`, and seeders; publish the enriched `PriceUpdatedEvent` (currency, `observedAt`, reference) from all publish sites.
     - _Requirements: 2.2, 5.1_
-  - [ ] 2.3 Extend `MarketPriceDto` with `quoteCurrency`, `observedAt`, `previousReferencePrice`, `previousReferenceAt`, nullable `changeAbsolute`/`changePercent`, and `changeBasis`; derive change from current vs reference, null when no reference.
+  - [x] 2.3 Extend `MarketPriceDto` with `quoteCurrency`, `observedAt`, `previousReferencePrice`, `previousReferenceAt`, nullable `changeAbsolute`/`changePercent`, and `changeBasis`; derive change from current vs reference, null when no reference.
     - _Requirements: 2.1, 2.3, 2.4, 9.1, 10.6_
-  - [ ] 2.4 Fix the `MarketPriceController` price cap: accept the full requested set (preferred) or return `400`/explicit truncation metadata; remove the silent `.limit(25)` drop. For requested tickers absent from storage, return an explicit unavailable DTO row / availability marker (do not omit them). Use true `observedAt`, never now() for missing data.
+  - [x] 2.4 Fix the `MarketPriceController` price cap: accept the full requested set (preferred) or return `400`/explicit truncation metadata; remove the silent `.limit(25)` drop. For requested tickers absent from storage, return an explicit unavailable DTO row / availability marker (do not omit them). Use true `observedAt`, never now() for missing data.
     - _Requirements: 1.1, 1.2, 1.3, 1.5, 8.4_
-  - [ ] 2.5 Unit/WireMock tests: reference roll-forward (incl. unchanged price), currency populated, no silent truncation, change null without reference.
+  - [x] 2.5 Unit/WireMock tests: reference roll-forward (incl. unchanged price), currency populated, no silent truncation, change null without reference.
     - _Requirements: 1.1, 1.5, 2.1, 2.3_
   - _Design: Components §2, Property 3, Property 4_
 
-- [ ] 3. Portfolio-service schema migrations (additive, idempotent)
-  - [ ] 3.1 `V11__Add_Cost_Basis_To_Holdings.sql`: nullable `avg_cost_basis`, `cost_basis_currency`, `cost_basis_source`, `cost_basis_as_of` on `asset_holdings`.
+- [x] 3. Portfolio-service schema migrations (additive, idempotent)
+  - [x] 3.1 `V11__Add_Cost_Basis_To_Holdings.sql`: nullable `avg_cost_basis`, `cost_basis_currency`, `cost_basis_source`, `cost_basis_as_of` on `asset_holdings`.
     - _Requirements: 3.5, 10.5_
-  - [ ] 3.2 `V12__Backfill_Market_Price_History.sql`: backfill history for all 160 canonical tickers (registry base prices, canonical symbols incl. `BTC-USD`, `quote_currency`, windowed points), idempotent, without rewriting `V2`. **Data source must be explicit:** either (a) generate the SQL migration from `config/seed-tickers.json` with the 160 ticker rows + quote currencies embedded, or (b) implement a Java-based Flyway migration that reads the copied seed resource. Prefer (a) generated-SQL to match the repo's SQL-migration convention.
+  - [x] 3.2 `V12__Backfill_Market_Price_History.sql`: backfill history for all 160 canonical tickers (registry base prices, canonical symbols incl. `BTC-USD`, `quote_currency`, windowed points), idempotent, without rewriting `V2`. **Data source must be explicit:** either (a) generate the SQL migration from `config/seed-tickers.json` with the 160 ticker rows + quote currencies embedded, or (b) implement a Java-based Flyway migration that reads the copied seed resource. Prefer (a) generated-SQL to match the repo's SQL-migration convention.
     - _Requirements: 2.2, 10.5, 10.7_
-  - [ ] 3.3 `V13__Market_Price_History_Dedup.sql`: uniqueness/index on `(ticker, observed_at)` to keep forward-append idempotent.
+  - [x] 3.3 `V13__Market_Price_History_Dedup.sql`: uniqueness/index on `(ticker, observed_at)` to keep forward-append idempotent.
     - _Requirements: 2.2, 10.5_
-  - [ ] 3.4 Migration tests: apply cleanly on a seeded DB; re-running backfill is a no-op.
+  - [x] 3.4 Migration tests: apply cleanly on a seeded DB; re-running backfill is a no-op.
     - _Requirements: 10.5, 10.7_
   - _Design: Data Models, Property 6_
 
@@ -89,10 +89,10 @@ Ordered so each phase builds on the previous. Backend contract first, then produ
     - _Requirements: 5.3_
   - _Design: Error Handling, Property 5_
 
-- [ ] 7. Analytics cache freshness on Azure
-  - [ ] 7.1 Add an `azure`-profile Caffeine cache-manager bean (30s TTL) in `CacheConfig`; ensure every runtime profile (`local`, `aws`, `azure`) has an explicit-expiry manager.
+- [x] 7. Analytics cache freshness on Azure
+  - [x] 7.1 Add an `azure`-profile Caffeine cache-manager bean (30s TTL) in `CacheConfig`; ensure every runtime profile (`local`, `aws`, `azure`) has an explicit-expiry manager.
     - _Requirements: 6.1, 6.3_
-  - [ ] 7.2 Test: on the azure profile, cached analytics expires within TTL and reflects updated underlying data after the window.
+  - [x] 7.2 Test: on the azure profile, cached analytics expires within TTL and reflects updated underlying data after the window.
     - _Requirements: 6.1, 6.2_
   - _Design: Components §3, Property 8_
 
