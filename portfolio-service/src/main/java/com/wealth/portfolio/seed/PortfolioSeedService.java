@@ -166,7 +166,7 @@ public class PortfolioSeedService {
      * derived from the hash of {@code (ticker + ":" + userId)} in the range [−20%, +20%).
      * This matches the {@link DeterministicPriceCalculator} style for reproducibility.
      */
-    static BigDecimal computeDeterministicCostBasis(BigDecimal seedPrice, String ticker, String userId) {
+    public static BigDecimal computeDeterministicCostBasis(BigDecimal seedPrice, String ticker, String userId) {
         int seed = (ticker + ":" + userId).hashCode();
         // Map to [0, COST_BASIS_JITTER_RANGE) then shift by COST_BASIS_CENTRE to get signed bps
         int jitterBps = Math.floorMod(seed, COST_BASIS_JITTER_RANGE) - COST_BASIS_CENTRE;
