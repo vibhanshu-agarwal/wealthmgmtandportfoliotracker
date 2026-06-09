@@ -131,6 +131,7 @@ public class PortfolioService {
 
     // FX conversion loop — loop invariant: totalValue = sum of converted values so far
     BigDecimal totalValue = BigDecimal.ZERO;
+    boolean partialValuation = false;
     for (HoldingValuationRow row : rows) {
       BigDecimal rate;
       if (row.quoteCurrency().equals(baseCurrency)) {
@@ -142,6 +143,7 @@ public class PortfolioService {
           // Task 6.2: exclude this holding from the aggregate rather than using 1:1.
           log.debug("FX rate unavailable for {} → {} — holding {} excluded from total",
               row.quoteCurrency(), baseCurrency, row.assetTicker());
+          partialValuation = true;
           continue;
         }
       }
@@ -159,7 +161,7 @@ public class PortfolioService {
     int totalHoldings = portfolios.stream().mapToInt(p -> p.getHoldings().size()).sum();
 
     return new PortfolioSummaryDto(
-        userId, portfolios.size(), totalHoldings, totalValue, baseCurrency);
+        userId, portfolios.size(), totalHoldings, totalValue, baseCurrency, partialValuation);
   }
 
   private void requireUserExists(String userId) {

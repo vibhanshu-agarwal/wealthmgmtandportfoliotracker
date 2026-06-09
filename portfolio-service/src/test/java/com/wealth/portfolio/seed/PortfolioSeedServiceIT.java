@@ -140,6 +140,75 @@ class PortfolioSeedServiceIT {
                         .isEqualByComparingTo(expected));
     }
 
+    // ── Wave 3 / Task 4.2: seeder writes non-trivial avg_cost_basis per holding ──
+
+    @Test
+    void seeder_writesNonTrivialCostBasisAndHistoryCoverage() {
+        SeedResult result = seedService.seed(E2E_USER_ID + "-cb");
+
+        Portfolio portfolio = portfolioRepository.findById(result.portfolioId()).orElseThrow();
+        List<AssetHolding> holdings = assetHoldingRepository.findByPortfolio(portfolio);
+
+        // Every holding must have a non-null cost basis set by the seeder
+        assertThat(holdings).allSatisfy(h -> {
+            assertThat(h.getAvgCostBasis())
+                    .as("avg_cost_basis must not be null for %s", h.getAssetTicker())
+                    .isNotNull();
+            assertThat(h.getAvgCostBasis().compareTo(java.math.BigDecimal.ZERO))
+                    .as("avg_cost_basis must be positive for %s", h.getAssetTicker())
+                    .isGreaterThan(0);
+            assertThat(h.getCostBasisCurrency())
+                    .as("cost_basis_currency must not be null for %s", h.getAssetTicker())
+                    .isNotNull();
+            assertThat(h.getCostBasisSource())
+                    .as("cost_basis_source must be SEED for %s", h.getAssetTicker())
+                    .isEqualTo("SEED");
+            assertThat(h.getCostBasisAsOf())
+                    .as("cost_basis_as_of must not be null for %s", h.getAssetTicker())
+                    .isNotNull();
+        });
+
+        // At least one holding must have a cost basis that differs from its seed price
+        // (confirming non-trivial jitter — not every ticker will jitter to exactly 0%)
+        long trivialCount = holdings.stream()
+                .filter(h -> {
+                    // Look up seed price for this ticker
+                    return registry.find(h.getAssetTicker())
+                            .map(t -> {
+                                java.math.BigDecimal seedPrice = com.wealth.portfolio.seed.DeterministicPriceCalculator
+                                        .compute(t.basePrice(), t.ticker(), E2E_USER_ID + "-cb");
+                                return h.getAvgCostBasis().compareTo(seedPrice) == 0;
+                            })
+                            .orElse(false);
+                })
+                .count();
+        // With 160 tickers and ±20% jitter space (400 values), it is statistically impossible
+        // for all 160 to jitter to exactly 0% (only 1 in 400 values = zero jitter)
+        assertThat(trivialCount)
+                .as("Most holdings should have non-zero jitter applied to cost basis")
+                .isLessThan(holdings.size());
+
+        // market_price_history must have at least 1 row per canonical ticker after seed
+        Integer historyTickers = jdbc.queryForObject(
+                "SELECT COUNT(DISTINCT ticker) FROM market_price_history", Integer.class);
+        assertThat(historyTickers)
+                .as("market_price_history must cover all 160 canonical tickers after seed")
+                .isGreaterThanOrEqualTo(160);
+
+        // Each seeded ticker must have at least 1 history row at the anchor timestamp (-25h)
+        for (com.wealth.portfolio.seed.SeedTickerRegistry.SeedTicker t : registry.all().subList(0, 5)) {
+            Integer rows = jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM market_price_history WHERE ticker = ?",
+                    Integer.class, t.ticker());
+            assertThat(rows)
+                    .as("Ticker %s must have ≥1 history row after seed", t.ticker())
+                    .isGreaterThanOrEqualTo(1);
+        }
+
+        // Clean up
+        portfolioRepository.deleteAll(portfolioRepository.findByUserId(E2E_USER_ID + "-cb"));
+    }
+
     private Map<String, BigDecimal> snapshotPricesByTicker() {
         List<SeedTicker> all = registry.all();
         return jdbc.query(

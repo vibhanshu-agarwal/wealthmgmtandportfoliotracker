@@ -220,12 +220,38 @@ class Wave3HonestTrendIT {
         assertThat(summary).doesNotContainKey("STALE_TICKER");
     }
 
+    // ── Task 8.1: same observedAt with different price is ALSO deduplicated ──
+
+    @Test
+    void sameObservedAt_differentPrice_isDeduplicatedByIdentity() {
+        // The ZSET member is the obsMs timestamp alone — price is NOT part of the key.
+        // A corrected/re-published price for the same observedAt must be treated as a replay.
+        Instant obs = Instant.now().truncatedTo(ChronoUnit.MILLIS);
+        PriceUpdatedEvent first  = new PriceUpdatedEvent("PRICE_CORR", new BigDecimal("100.00"),
+                "USD", obs, null, null);
+        PriceUpdatedEvent second = new PriceUpdatedEvent("PRICE_CORR", new BigDecimal("105.00"),
+                "USD", obs, null, null); // same observedAt, different price
+
+        marketDataService.processUpdate(first);
+        marketDataService.processUpdate(second);
+
+        // Only one distinct observation in the ZSET
+        Long zsetSize = redisTemplate.opsForZSet().zCard(MarketDataService.OBS_KEY_PREFIX + "PRICE_CORR");
+        assertThat(zsetSize)
+                .as("Same observedAt with different price must be deduped — identity is (ticker,observedAt)")
+                .isEqualTo(1L);
+
+        // Trend must be null (only 1 distinct observation)
+        TickerSummary summary = marketDataService.getTickerSummary("PRICE_CORR");
+        assertThat(summary.trendPercent()).isNull();
+    }
+
     // ── Sub-millisecond dedup: two instants in the same millisecond → 1 observation ──
 
     @Test
     void subMillisecondInstants_treatedAsIdenticalObservation() {
         Instant base = Instant.now().truncatedTo(ChronoUnit.MILLIS);
-        Instant withNanos = base.plusNanos(500_000); // same millisecond
+        Instant withNanos = base.plusNanos(500_000); // same millisecond, different nanos
 
         marketDataService.processUpdate(new PriceUpdatedEvent("SUBMS_DEDUP", new BigDecimal("400.00"),
                 "USD", base, null, null));
@@ -237,7 +263,6 @@ class Wave3HonestTrendIT {
                 .as("Two instants in the same millisecond must produce exactly 1 observation")
                 .isEqualTo(1L);
 
-        // Trend must be null (only 1 distinct observation)
         TickerSummary summary = marketDataService.getTickerSummary("SUBMS_DEDUP");
         assertThat(summary.trendPercent()).isNull();
     }
