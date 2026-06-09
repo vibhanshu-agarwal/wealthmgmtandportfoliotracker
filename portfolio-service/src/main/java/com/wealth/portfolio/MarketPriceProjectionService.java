@@ -44,10 +44,12 @@ class MarketPriceProjectionService {
     @Transactional
     public void upsertLatestPrice(PriceUpdatedEvent event) {
         // "IS DISTINCT FROM" handles both inequality and null-safe comparison for idempotent updates.
+        // COALESCE on quote_currency preserves the NOT NULL DEFAULT 'USD' column contract:
+        // old-shape events (null quoteCurrency) keep the existing value or fall back to 'USD'.
         jdbcTemplate.update(
                 """
                 INSERT INTO market_prices (ticker, current_price, quote_currency, updated_at)
-                VALUES (?, ?, ?, now())
+                VALUES (?, ?, COALESCE(?, 'USD'), now())
                 ON CONFLICT (ticker) DO UPDATE
                 SET current_price  = EXCLUDED.current_price,
                     quote_currency = COALESCE(EXCLUDED.quote_currency, market_prices.quote_currency),
