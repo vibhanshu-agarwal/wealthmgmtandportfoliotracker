@@ -144,69 +144,76 @@ class PortfolioSeedServiceIT {
 
     @Test
     void seeder_writesNonTrivialCostBasisAndHistoryCoverage() {
-        SeedResult result = seedService.seed(E2E_USER_ID + "-cb");
+        String cbUserId = E2E_USER_ID + "-cb";
+        SeedResult result = seedService.seed(cbUserId);
 
-        Portfolio portfolio = portfolioRepository.findById(result.portfolioId()).orElseThrow();
-        List<AssetHolding> holdings = assetHoldingRepository.findByPortfolio(portfolio);
+        // Verify via raw JDBC (bypasses JPA cache) — all 160 holdings must have cost basis
+        List<Map<String, Object>> rows = jdbc.queryForList(
+                """
+                SELECT h.asset_ticker, h.avg_cost_basis, h.cost_basis_currency,
+                       h.cost_basis_source, h.cost_basis_as_of
+                FROM asset_holdings h
+                JOIN portfolios p ON p.id = h.portfolio_id
+                WHERE p.id = ?::uuid
+                """,
+                result.portfolioId().toString());
 
-        // Every holding must have a non-null cost basis set by the seeder
-        assertThat(holdings).allSatisfy(h -> {
-            assertThat(h.getAvgCostBasis())
-                    .as("avg_cost_basis must not be null for %s", h.getAssetTicker())
+        assertThat(rows).hasSize(160);
+
+        for (Map<String, Object> row : rows) {
+            String ticker = (String) row.get("asset_ticker");
+            assertThat(row.get("avg_cost_basis"))
+                    .as("avg_cost_basis must not be null for %s", ticker)
                     .isNotNull();
-            assertThat(h.getAvgCostBasis().compareTo(java.math.BigDecimal.ZERO))
-                    .as("avg_cost_basis must be positive for %s", h.getAssetTicker())
+            assertThat(((java.math.BigDecimal) row.get("avg_cost_basis")).compareTo(java.math.BigDecimal.ZERO))
+                    .as("avg_cost_basis must be positive for %s", ticker)
                     .isGreaterThan(0);
-            assertThat(h.getCostBasisCurrency())
-                    .as("cost_basis_currency must not be null for %s", h.getAssetTicker())
+            assertThat(row.get("cost_basis_currency"))
+                    .as("cost_basis_currency must not be null for %s", ticker)
                     .isNotNull();
-            assertThat(h.getCostBasisSource())
-                    .as("cost_basis_source must be SEED for %s", h.getAssetTicker())
+            assertThat(row.get("cost_basis_source"))
+                    .as("cost_basis_source must be SEED for %s", ticker)
                     .isEqualTo("SEED");
-            assertThat(h.getCostBasisAsOf())
-                    .as("cost_basis_as_of must not be null for %s", h.getAssetTicker())
+            assertThat(row.get("cost_basis_as_of"))
+                    .as("cost_basis_as_of must not be null for %s", ticker)
                     .isNotNull();
-        });
+        }
 
-        // At least one holding must have a cost basis that differs from its seed price
-        // (confirming non-trivial jitter — not every ticker will jitter to exactly 0%)
-        long trivialCount = holdings.stream()
-                .filter(h -> {
-                    // Look up seed price for this ticker
-                    return registry.find(h.getAssetTicker())
-                            .map(t -> {
-                                java.math.BigDecimal seedPrice = com.wealth.portfolio.seed.DeterministicPriceCalculator
-                                        .compute(t.basePrice(), t.ticker(), E2E_USER_ID + "-cb");
-                                return h.getAvgCostBasis().compareTo(seedPrice) == 0;
-                            })
-                            .orElse(false);
+        // At least one holding must have a cost basis differing from its seed price
+        long trivialCount = rows.stream()
+                .filter(row -> {
+                    String ticker = (String) row.get("asset_ticker");
+                    return registry.find(ticker).map(t -> {
+                        java.math.BigDecimal seedPrice = DeterministicPriceCalculator
+                                .compute(t.basePrice(), t.ticker(), cbUserId);
+                        return ((java.math.BigDecimal) row.get("avg_cost_basis"))
+                                .compareTo(seedPrice) == 0;
+                    }).orElse(false);
                 })
                 .count();
-        // With 160 tickers and ±20% jitter space (400 values), it is statistically impossible
-        // for all 160 to jitter to exactly 0% (only 1 in 400 values = zero jitter)
         assertThat(trivialCount)
-                .as("Most holdings should have non-zero jitter applied to cost basis")
-                .isLessThan(holdings.size());
+                .as("Most holdings should have non-zero jitter on cost basis")
+                .isLessThan(160);
 
-        // market_price_history must have at least 1 row per canonical ticker after seed
+        // market_price_history must cover all 160 canonical tickers
         Integer historyTickers = jdbc.queryForObject(
                 "SELECT COUNT(DISTINCT ticker) FROM market_price_history", Integer.class);
         assertThat(historyTickers)
                 .as("market_price_history must cover all 160 canonical tickers after seed")
                 .isGreaterThanOrEqualTo(160);
 
-        // Each seeded ticker must have at least 1 history row at the anchor timestamp (-25h)
-        for (com.wealth.portfolio.seed.SeedTickerRegistry.SeedTicker t : registry.all().subList(0, 5)) {
-            Integer rows = jdbc.queryForObject(
+        // Each of the first 5 seeded tickers must have ≥1 history row
+        for (SeedTickerRegistry.SeedTicker t : registry.all().subList(0, 5)) {
+            Integer count = jdbc.queryForObject(
                     "SELECT COUNT(*) FROM market_price_history WHERE ticker = ?",
                     Integer.class, t.ticker());
-            assertThat(rows)
+            assertThat(count)
                     .as("Ticker %s must have ≥1 history row after seed", t.ticker())
                     .isGreaterThanOrEqualTo(1);
         }
 
         // Clean up
-        portfolioRepository.deleteAll(portfolioRepository.findByUserId(E2E_USER_ID + "-cb"));
+        portfolioRepository.deleteAll(portfolioRepository.findByUserId(cbUserId));
     }
 
     private Map<String, BigDecimal> snapshotPricesByTicker() {
