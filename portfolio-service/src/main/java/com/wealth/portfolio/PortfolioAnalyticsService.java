@@ -3,8 +3,10 @@ package com.wealth.portfolio;
 import com.wealth.portfolio.dto.PortfolioAnalyticsDto;
 import com.wealth.portfolio.dto.PortfolioAnalyticsDto.HoldingAnalyticsDto;
 import com.wealth.portfolio.dto.PortfolioAnalyticsDto.PerformerDto;
+import com.wealth.portfolio.dto.PortfolioAnalyticsDto.PerformanceCoverageDto;
 import com.wealth.portfolio.dto.PortfolioAnalyticsDto.PerformancePointDto;
 import com.wealth.portfolio.fx.FxProperties;
+import com.wealth.portfolio.seed.SeedTickerRegistry;
 import com.wealth.user.UserRepository;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -15,6 +17,8 @@ import org.slf4j.Logger;
 import java.math.BigDecimal;
 import java.math.MathContext;
 import java.math.RoundingMode;
+import java.sql.Timestamp;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -22,9 +26,24 @@ import java.util.stream.Collectors;
 /**
  * Computes the full portfolio analytics payload for {@code GET /api/portfolio/analytics}.
  *
- * <p>Uses a single SQL round-trip (CTE + UNION ALL) to retrieve holdings, 24h-ago prices,
- * and historical series data. FX conversion is applied per holding. Results are cached
- * per-user with a profile-appropriate backend (Caffeine locally, Redis on AWS).
+ * <p>Uses a single SQL round-trip (CTE + UNION ALL) to retrieve holdings, cost-basis fields,
+ * 24h tolerance-window reference prices, and historical series data. FX conversion is applied
+ * per holding. Results are cached per-user with a profile-appropriate backend.
+ *
+ * <h2>Task 5 correctness properties</h2>
+ * <ul>
+ *   <li><b>5.1 Real P&amp;L</b>: unrealised P&amp;L is computed from {@code avg_cost_basis}
+ *       FX-converted from {@code cost_basis_currency} to base currency. Null when basis is absent.
+ *       Never coerced to 0.</li>
+ *   <li><b>5.2 Tolerance-window change</b>: 24h reference is the closest {@code observed_at}
+ *       that falls within the ≈18–36h window. Returns the reference timestamp and a
+ *       {@code changeBasis} label. Null when no in-window row exists.</li>
+ *   <li><b>5.3 Performance coverage</b>: the series includes coverage metadata. When some
+ *       holdings lack history the series is marked partial and must not be presented as
+ *       full-portfolio. A synthetic fallback is clearly labelled {@code synthetic=true}.</li>
+ *   <li><b>5.4 Asset-class mapping</b>: canonical display asset class is resolved from
+ *       {@link SeedTickerRegistry} via {@link DisplayAssetClassMapper}. Unknown tickers → OTHER.</li>
+ * </ul>
  */
 @Service
 public class PortfolioAnalyticsService {
@@ -33,19 +52,30 @@ public class PortfolioAnalyticsService {
     private static final int DEFAULT_PERIOD_DAYS = 50;
     private static final int SYNTHETIC_THRESHOLD = 7;
     private static final BigDecimal HUNDRED = new BigDecimal("100");
-    private static final PerformerDto SENTINEL_PERFORMER = new PerformerDto("N/A", BigDecimal.ZERO);
+    private static final PerformerDto SENTINEL_PERFORMER = new PerformerDto("N/A", null);
 
     /**
      * Single SQL query returning two row types:
      * <ul>
-     *   <li>HOLDING — one row per holding with the current price and the closest 24h-ago price.</li>
+     *   <li>HOLDING — one row per holding; includes cost-basis fields and the closest
+     *       {@code observed_at} that falls within the ≈18–36h tolerance window.</li>
      *   <li>HISTORY — one row per (ticker, date) within the requested period.</li>
      * </ul>
+     *
+     * <p>The {@code price_24h} CTE uses an explicit tolerance window (18–36 hours before now)
+     * rather than a hard {@code now() - 24h} cutoff, per Task 5.2 / Requirement 2.6. This
+     * ensures the closest reference within the window is selected, and the reference timestamp
+     * is returned so callers can label the change accurately.
+     *
+     * <p>Cost-basis columns ({@code avg_cost_basis}, {@code cost_basis_currency}) are fetched
+     * from {@code asset_holdings} so Task 5.1 real P&amp;L can be computed per holding.
      */
     private static final String ANALYTICS_SQL = """
             WITH user_tickers AS (
                 SELECT h.asset_ticker,
                        h.quantity,
+                       h.avg_cost_basis,
+                       h.cost_basis_currency,
                        COALESCE(mp.current_price, 0)      AS current_price,
                        COALESCE(mp.quote_currency, 'USD') AS quote_currency
                 FROM asset_holdings h
@@ -56,31 +86,39 @@ public class PortfolioAnalyticsService {
             price_24h AS (
                 SELECT DISTINCT ON (mph.ticker)
                        mph.ticker,
-                       mph.price AS price_24h_ago
+                       mph.price        AS price_24h_ago,
+                       mph.observed_at  AS price_24h_ref_at
                 FROM market_price_history mph
                 JOIN user_tickers ut ON ut.asset_ticker = mph.ticker
-                WHERE mph.observed_at <= now() - INTERVAL '24 hours'
+                WHERE mph.observed_at BETWEEN now() - INTERVAL '36 hours'
+                                          AND now() - INTERVAL '18 hours'
                 ORDER BY mph.ticker, mph.observed_at DESC
             )
-            SELECT 'HOLDING'             AS row_type,
+            SELECT 'HOLDING'                   AS row_type,
                    ut.asset_ticker,
                    ut.quantity,
                    ut.current_price,
                    ut.quote_currency,
                    p24.price_24h_ago,
-                   NULL::DATE            AS history_date,
-                   NULL::NUMERIC         AS history_price
+                   p24.price_24h_ref_at,
+                   ut.avg_cost_basis,
+                   ut.cost_basis_currency,
+                   NULL::DATE                  AS history_date,
+                   NULL::NUMERIC               AS history_price
             FROM user_tickers ut
             LEFT JOIN price_24h p24 ON p24.ticker = ut.asset_ticker
             UNION ALL
-            SELECT 'HISTORY'             AS row_type,
-                   mph.ticker            AS asset_ticker,
-                   NULL::NUMERIC         AS quantity,
-                   NULL::NUMERIC         AS current_price,
+            SELECT 'HISTORY'                   AS row_type,
+                   mph.ticker                  AS asset_ticker,
+                   NULL::NUMERIC               AS quantity,
+                   NULL::NUMERIC               AS current_price,
                    ut.quote_currency,
-                   NULL::NUMERIC         AS price_24h_ago,
-                   mph.observed_at::DATE AS history_date,
-                   mph.price             AS history_price
+                   NULL::NUMERIC               AS price_24h_ago,
+                   NULL::TIMESTAMP             AS price_24h_ref_at,
+                   NULL::NUMERIC               AS avg_cost_basis,
+                   NULL::VARCHAR               AS cost_basis_currency,
+                   mph.observed_at::DATE        AS history_date,
+                   mph.price                   AS history_price
             FROM market_price_history mph
             JOIN user_tickers ut ON ut.asset_ticker = mph.ticker
             WHERE mph.observed_at >= now() - (? * INTERVAL '1 day')
@@ -92,17 +130,20 @@ public class PortfolioAnalyticsService {
     private final PortfolioRepository portfolioRepository;
     private final FxRateProvider fxRateProvider;
     private final FxProperties fxProperties;
+    private final SeedTickerRegistry seedTickerRegistry;
 
     public PortfolioAnalyticsService(JdbcTemplate jdbcTemplate,
                                      UserRepository userRepository,
                                      PortfolioRepository portfolioRepository,
                                      FxRateProvider fxRateProvider,
-                                     FxProperties fxProperties) {
+                                     FxProperties fxProperties,
+                                     SeedTickerRegistry seedTickerRegistry) {
         this.jdbcTemplate = jdbcTemplate;
         this.userRepository = userRepository;
         this.portfolioRepository = portfolioRepository;
         this.fxRateProvider = fxRateProvider;
         this.fxProperties = fxProperties;
+        this.seedTickerRegistry = seedTickerRegistry;
     }
 
     /**
@@ -122,16 +163,23 @@ public class PortfolioAnalyticsService {
 
         List<AnalyticsQueryRow> rows = jdbcTemplate.query(
                 ANALYTICS_SQL,
-                (rs, i) -> new AnalyticsQueryRow(
-                        rs.getString("row_type"),
-                        rs.getString("asset_ticker"),
-                        rs.getBigDecimal("quantity"),
-                        rs.getBigDecimal("current_price"),
-                        rs.getString("quote_currency"),
-                        rs.getBigDecimal("price_24h_ago"),
-                        rs.getString("history_date"),
-                        rs.getBigDecimal("history_price")
-                ),
+                (rs, i) -> {
+                    Timestamp refAtTs = rs.getTimestamp("price_24h_ref_at");
+                    Instant refAt = refAtTs != null ? refAtTs.toInstant() : null;
+                    return new AnalyticsQueryRow(
+                            rs.getString("row_type"),
+                            rs.getString("asset_ticker"),
+                            rs.getBigDecimal("quantity"),
+                            rs.getBigDecimal("current_price"),
+                            rs.getString("quote_currency"),
+                            rs.getBigDecimal("price_24h_ago"),
+                            refAt,
+                            rs.getBigDecimal("avg_cost_basis"),
+                            rs.getString("cost_basis_currency"),
+                            rs.getString("history_date"),
+                            rs.getBigDecimal("history_price")
+                    );
+                },
                 userId,
                 DEFAULT_PERIOD_DAYS
         );
@@ -155,74 +203,120 @@ public class PortfolioAnalyticsService {
         // ── Per-holding computation ──────────────────────────────────────────
         List<HoldingAnalyticsDto> holdingDtos = new ArrayList<>();
         for (AnalyticsQueryRow row : holdingRows) {
-            BigDecimal rate = fxRate(row.quoteCurrency(), baseCurrency, fxRateCache, unavailableCurrencies);
-            // Task 6.2: if FX rate is unavailable, currentValueBase is null (typed-unavailable).
-            // ZERO is never substituted here — it would falsely appear in the portfolio total.
-            BigDecimal currentValueBase = rate != null
-                    ? row.quantity().multiply(row.currentPrice()).multiply(rate)
+            BigDecimal quoteRate = fxRate(row.quoteCurrency(), baseCurrency, fxRateCache, unavailableCurrencies);
+
+            // Task 5.1: current value in base currency; null when FX rate unavailable
+            BigDecimal currentValueBase = quoteRate != null
+                    ? row.quantity().multiply(row.currentPrice()).multiply(quoteRate)
                             .setScale(4, RoundingMode.HALF_UP)
                     : null;
 
-            // Placeholder: avgCostBasis = currentPrice until trade ledger is available
-            BigDecimal avgCostBasis = row.currentPrice();
-            BigDecimal costBasisBase = (rate != null)
-                    ? row.quantity().multiply(avgCostBasis).multiply(rate)
-                            .setScale(4, RoundingMode.HALF_UP)
-                    : null;
-            BigDecimal unrealizedPnL = (currentValueBase != null && costBasisBase != null)
-                    ? currentValueBase.subtract(costBasisBase)
-                    : null;
+            // Task 5.1: real unrealised P&L from avg_cost_basis.
+            // Cost basis may be in a DIFFERENT currency than quoteCurrency (e.g. basis captured
+            // in INR for an NSE stock, now being compared against a USD base).
+            // P&L = currentValueBase − (quantity × avgCostBasis × costBasisRate)
+            // Null when avg_cost_basis is absent — never coerced to 0.
+            BigDecimal avgCostBasis = row.avgCostBasis();
+            String costBasisCurrency = row.costBasisCurrency();
+            BigDecimal unrealizedPnL = null;
+            BigDecimal unrealizedPnLPercent = null;
 
+            if (avgCostBasis != null && currentValueBase != null) {
+                BigDecimal costBasisRate = fxRate(
+                        costBasisCurrency != null ? costBasisCurrency : row.quoteCurrency(),
+                        baseCurrency, fxRateCache, unavailableCurrencies);
+                if (costBasisRate != null) {
+                    BigDecimal totalCostBase = row.quantity().multiply(avgCostBasis).multiply(costBasisRate)
+                            .setScale(4, RoundingMode.HALF_UP);
+                    unrealizedPnL = currentValueBase.subtract(totalCostBase).setScale(4, RoundingMode.HALF_UP);
+                    if (totalCostBase.compareTo(BigDecimal.ZERO) != 0) {
+                        unrealizedPnLPercent = unrealizedPnL
+                                .divide(totalCostBase, new MathContext(10, RoundingMode.HALF_UP))
+                                .multiply(HUNDRED)
+                                .setScale(4, RoundingMode.HALF_UP);
+                    } else {
+                        unrealizedPnLPercent = BigDecimal.ZERO;
+                    }
+                }
+            }
+
+            // Task 5.2: tolerance-window change — null when no in-window reference exists
             BigDecimal change24hAbs = computeChange24hAbsolute(row.currentPrice(), row.price24hAgo());
             BigDecimal change24hPct = computeChange24hPercent(row.currentPrice(), row.price24hAgo());
+            String referenceAt = row.price24hReferenceAt() != null
+                    ? row.price24hReferenceAt().toString()
+                    : null;
+            String changeBasis = computeChangeBasis(row.price24hReferenceAt());
+
+            // Task 5.4: canonical display asset class from seed registry
+            String displayAssetClass = resolveDisplayAssetClass(row.assetTicker());
 
             holdingDtos.add(new HoldingAnalyticsDto(
                     row.assetTicker(),
                     row.quantity(),
                     row.currentPrice(),
-                    // ZERO in DTO is only for serialisation safety; aggregates use unavailableCurrencies
                     currentValueBase != null ? currentValueBase : BigDecimal.ZERO,
                     avgCostBasis,
-                    unrealizedPnL != null ? unrealizedPnL : BigDecimal.ZERO,
+                    costBasisCurrency,
+                    unrealizedPnL,
+                    unrealizedPnLPercent,
                     change24hAbs,
                     change24hPct,
-                    row.quoteCurrency()
+                    referenceAt,
+                    changeBasis,
+                    row.quoteCurrency(),
+                    displayAssetClass
             ));
         }
 
-        // ── Aggregates — skip holdings whose FX rate was unavailable ─────────
+        // ── Aggregates — skip holdings whose quote FX rate was unavailable ──
         BigDecimal totalValue = holdingDtos.stream()
                 .filter(h -> !unavailableCurrencies.contains(h.quoteCurrency()))
                 .map(HoldingAnalyticsDto::currentValueBase)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
+        // Task 5.1: aggregate cost basis — FX-convert each holding's cost basis independently
         BigDecimal totalCostBasis = holdingDtos.stream()
                 .filter(h -> !unavailableCurrencies.contains(h.quoteCurrency()))
+                .filter(h -> h.avgCostBasis() != null)
                 .map(h -> {
-                    BigDecimal rate = fxRate(h.quoteCurrency(), baseCurrency, fxRateCache, unavailableCurrencies);
+                    String cbCurrency = h.costBasisCurrency() != null ? h.costBasisCurrency() : h.quoteCurrency();
+                    BigDecimal rate = fxRate(cbCurrency, baseCurrency, fxRateCache, unavailableCurrencies);
                     if (rate == null) return BigDecimal.ZERO;
                     return h.quantity().multiply(h.avgCostBasis()).multiply(rate)
                             .setScale(4, RoundingMode.HALF_UP);
                 })
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        BigDecimal totalPnL = totalValue.subtract(totalCostBasis);
-        BigDecimal totalPnLPct = totalCostBasis.compareTo(BigDecimal.ZERO) > 0
-                ? totalPnL.divide(totalCostBasis, 4, RoundingMode.HALF_UP).multiply(HUNDRED)
-                : BigDecimal.ZERO;
+        // Task 5.1: aggregate P&L is null when no holding has a cost basis
+        boolean anyHasBasis = holdingDtos.stream().anyMatch(h -> h.avgCostBasis() != null);
+        BigDecimal totalPnL;
+        BigDecimal totalPnLPct;
+        if (anyHasBasis) {
+            totalPnL = totalValue.subtract(totalCostBasis);
+            totalPnLPct = totalCostBasis.compareTo(BigDecimal.ZERO) > 0
+                    ? totalPnL.divide(totalCostBasis, 4, RoundingMode.HALF_UP).multiply(HUNDRED)
+                    : BigDecimal.ZERO;
+        } else {
+            totalPnL = null;
+            totalPnLPct = null;
+        }
 
+        // Performers: only consider holdings that have a change value
         PerformerDto best = holdingDtos.stream()
+                .filter(h -> h.change24hPercent() != null)
                 .max(Comparator.comparing(HoldingAnalyticsDto::change24hPercent))
                 .map(h -> new PerformerDto(h.ticker(), h.change24hPercent()))
                 .orElse(SENTINEL_PERFORMER);
 
         PerformerDto worst = holdingDtos.stream()
+                .filter(h -> h.change24hPercent() != null)
                 .min(Comparator.comparing(HoldingAnalyticsDto::change24hPercent))
                 .map(h -> new PerformerDto(h.ticker(), h.change24hPercent()))
                 .orElse(SENTINEL_PERFORMER);
 
-        // ── Performance series ───────────────────────────────────────────────
-        List<PerformancePointDto> series = buildPerformanceSeries(
+        // ── Performance series with coverage metadata (Task 5.3) ──────────
+        PerformanceSeriesResult seriesResult = buildPerformanceSeries(
                 historyRows, holdingRows, totalValue, baseCurrency, fxRateCache, unavailableCurrencies);
 
         return new PortfolioAnalyticsDto(
@@ -235,14 +329,21 @@ public class PortfolioAnalyticsService {
                 best,
                 worst,
                 holdingDtos,
-                series
+                seriesResult.series(),
+                seriesResult.coverage()
         );
     }
 
-    // ── Helper: 24h change ───────────────────────────────────────────────────
+    // ── Helper: 24h change (Task 5.2) ───────────────────────────────────────
 
+    /**
+     * Returns null when no in-window reference exists (never coerces to 0).
+     */
     BigDecimal computeChange24hPercent(BigDecimal currentPrice, BigDecimal price24hAgo) {
-        if (price24hAgo == null || price24hAgo.compareTo(BigDecimal.ZERO) == 0) {
+        if (price24hAgo == null) {
+            return null;
+        }
+        if (price24hAgo.compareTo(BigDecimal.ZERO) == 0) {
             return BigDecimal.ZERO;
         }
         return currentPrice.subtract(price24hAgo)
@@ -251,16 +352,47 @@ public class PortfolioAnalyticsService {
                 .setScale(4, RoundingMode.HALF_UP);
     }
 
+    /**
+     * Returns null when no in-window reference exists.
+     */
     BigDecimal computeChange24hAbsolute(BigDecimal currentPrice, BigDecimal price24hAgo) {
         if (price24hAgo == null) {
-            return BigDecimal.ZERO;
+            return null;
         }
         return currentPrice.subtract(price24hAgo).setScale(4, RoundingMode.HALF_UP);
     }
 
-    // ── Helper: performance series ───────────────────────────────────────────
+    /**
+     * Computes the change basis label.
+     *
+     * <p>The tolerance window is ≈18–36h. If the reference falls within that window the label
+     * is {@code "WITHIN_24H_WINDOW"}; if it exists but is outside the window (this can happen
+     * when the SQL CTE returns a row just outside) the label is {@code "SINCE_PREVIOUS_SNAPSHOT"}.
+     * Returns null when no reference exists.
+     *
+     * <p>In practice the SQL CTE already constrains the reference to the 18–36h window, so only
+     * {@code "WITHIN_24H_WINDOW"} or null will be produced at runtime. The fallback label is kept
+     * for correctness if the window bounds are ever widened.
+     */
+    String computeChangeBasis(Instant referenceAt) {
+        if (referenceAt == null) {
+            return null;
+        }
+        long hoursAgo = java.time.Duration.between(referenceAt, Instant.now()).toHours();
+        if (hoursAgo >= 18 && hoursAgo <= 36) {
+            return "WITHIN_24H_WINDOW";
+        }
+        return "SINCE_PREVIOUS_SNAPSHOT";
+    }
 
-    List<PerformancePointDto> buildPerformanceSeries(
+    // ── Helper: performance series with coverage (Task 5.3) ─────────────────
+
+    /**
+     * Internal result container for the performance series + its coverage metadata.
+     */
+    record PerformanceSeriesResult(List<PerformancePointDto> series, PerformanceCoverageDto coverage) {}
+
+    PerformanceSeriesResult buildPerformanceSeries(
             List<AnalyticsQueryRow> historyRows,
             List<AnalyticsQueryRow> holdingRows,
             BigDecimal totalValue,
@@ -268,13 +400,31 @@ public class PortfolioAnalyticsService {
             Map<String, BigDecimal> fxRateCache,
             Set<String> unavailableCurrencies) {
 
+        int totalHoldings = holdingRows.size();
+
         // Group history rows by date
         Map<String, List<AnalyticsQueryRow>> byDate = historyRows.stream()
                 .filter(r -> r.historyDate() != null)
                 .collect(Collectors.groupingBy(AnalyticsQueryRow::historyDate));
 
+        // Task 5.3: determine how many holdings have at least one history row
+        Set<String> tickersWithHistory = historyRows.stream()
+                .map(AnalyticsQueryRow::assetTicker)
+                .collect(Collectors.toSet());
+        Set<String> holdingTickers = holdingRows.stream()
+                .map(AnalyticsQueryRow::assetTicker)
+                .collect(Collectors.toSet());
+        Set<String> holdingsWithHistory = new HashSet<>(holdingTickers);
+        holdingsWithHistory.retainAll(tickersWithHistory);
+        int coveredCount = holdingsWithHistory.size();
+        boolean partial = coveredCount < totalHoldings;
+
         if (byDate.size() < SYNTHETIC_THRESHOLD) {
-            return generateSyntheticSeries(totalValue, SYNTHETIC_THRESHOLD);
+            // Not enough real history dates — return a synthetic series clearly labelled
+            List<PerformancePointDto> synthetic = generateSyntheticSeries(totalValue, SYNTHETIC_THRESHOLD);
+            PerformanceCoverageDto coverage = new PerformanceCoverageDto(
+                    coveredCount, totalHoldings, true, true);
+            return new PerformanceSeriesResult(synthetic, coverage);
         }
 
         // Build a ticker → holdingRow lookup for quantity
@@ -293,7 +443,7 @@ public class PortfolioAnalyticsService {
                 AnalyticsQueryRow holding = holdingByTicker.get(histRow.assetTicker());
                 if (holding != null && histRow.historyPrice() != null) {
                     BigDecimal rate = fxRate(histRow.quoteCurrency(), baseCurrency, fxRateCache, unavailableCurrencies);
-                    if (rate == null) continue; // skip holdings with unavailable FX rate
+                    if (rate == null) continue;
                     dateValue = dateValue.add(
                             holding.quantity()
                                     .multiply(histRow.historyPrice())
@@ -309,12 +459,15 @@ public class PortfolioAnalyticsService {
             previousValue = dateValue;
         }
 
-        return series;
+        PerformanceCoverageDto coverage = new PerformanceCoverageDto(
+                coveredCount, totalHoldings, partial, false);
+        return new PerformanceSeriesResult(series, coverage);
     }
 
     /**
      * Generates a synthetic {@code days}-point performance series ending at {@code anchorValue}.
-     * Used as a local-dev fallback when real history data has fewer than 7 distinct dates.
+     * Used as a fallback labelled {@code synthetic=true} in the coverage metadata — must not be
+     * presented to users as real portfolio data.
      *
      * <p>Invariants:
      * <ul>
@@ -365,6 +518,18 @@ public class PortfolioAnalyticsService {
         return points;
     }
 
+    // ── Helper: asset-class mapping (Task 5.4) ───────────────────────────────
+
+    /**
+     * Resolves the canonical display asset class for a ticker.
+     * Falls back to {@link DisplayAssetClassMapper#OTHER} for unknown tickers.
+     */
+    String resolveDisplayAssetClass(String ticker) {
+        return seedTickerRegistry.find(ticker)
+                .map(t -> DisplayAssetClassMapper.map(t.assetClass()))
+                .orElse(DisplayAssetClassMapper.OTHER);
+    }
+
     // ── Helper: FX rate with per-request cache ───────────────────────────────
 
     /**
@@ -403,17 +568,19 @@ public class PortfolioAnalyticsService {
     // ── Helper: empty-portfolio sentinel ────────────────────────────────────
 
     private PortfolioAnalyticsDto emptyAnalytics(String baseCurrency) {
+        PerformanceCoverageDto emptyCoverage = new PerformanceCoverageDto(0, 0, false, false);
         return new PortfolioAnalyticsDto(
                 BigDecimal.ZERO,
                 BigDecimal.ZERO,
-                BigDecimal.ZERO,
-                BigDecimal.ZERO,
+                null,
+                null,
                 baseCurrency,
                 false,
                 SENTINEL_PERFORMER,
                 SENTINEL_PERFORMER,
                 List.of(),
-                List.of()
+                List.of(),
+                emptyCoverage
         );
     }
 
