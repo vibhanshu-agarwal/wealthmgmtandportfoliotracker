@@ -101,10 +101,6 @@ public class EcbFxRateProvider implements FxRateProvider {
     /**
      * Evicts the cached rate map daily so rates stay fresh without a service restart.
      * The next {@link #getRate} call after eviction will trigger a fresh HTTP fetch.
-     */
-    /**
-     * Evicts the cached rate map daily so rates stay fresh without a service restart.
-     * The next {@link #getRate} call after eviction will trigger a fresh HTTP fetch.
      *
      * <p>Reads {@code fx.refresh-cron} (a profile-neutral key set in both
      * {@code application-aws.yml} and {@code application-azure.yml}), falling back
