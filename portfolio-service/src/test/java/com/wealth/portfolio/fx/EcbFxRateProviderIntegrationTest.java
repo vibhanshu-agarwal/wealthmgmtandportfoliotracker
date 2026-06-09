@@ -1,6 +1,7 @@
 package com.wealth.portfolio.fx;
 
 import com.github.tomakehurst.wiremock.WireMockServer;
+import com.wealth.portfolio.FxRateUnavailableException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
@@ -15,6 +16,7 @@ import java.math.BigDecimal;
 import static com.github.tomakehurst.wiremock.client.WireMock.*;
 import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.wireMockConfig;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.within;
 
 /**
@@ -23,6 +25,13 @@ import static org.assertj.core.api.Assertions.within;
  * <p>Uses an embedded WireMock server to stub the external rates API.
  * Verifies bulk caching: the entire rate map is fetched once and all subsequent
  * {@code getRate} calls are served from cache without additional HTTP requests.
+ *
+ * <h2>Wave 3 / Task 6.3 changes</h2>
+ * <ul>
+ *   <li>Property 5: equal-currency pair returns 1; unequal pair with unavailable rate throws
+ *       {@link FxRateUnavailableException} — no implicit 1.0 substitution for non-equal currencies.</li>
+ *   <li>Fault-tolerance tests updated: API down → non-USD pair throws, not silently returns 1.</li>
+ * </ul>
  */
 @Tag("integration")
 class EcbFxRateProviderIntegrationTest {
@@ -62,9 +71,6 @@ class EcbFxRateProviderIntegrationTest {
                 null
         );
 
-        // Build provider with a Spring proxy that honours @Cacheable via the cache manager
-        // For a direct unit-style integration test we call fetchRateMap() manually and
-        // verify HTTP call count via WireMock's verify API.
         provider = new EcbFxRateProvider(
                 RestClient.builder().baseUrl("http://localhost:" + wireMock.port()),
                 props
@@ -81,20 +87,12 @@ class EcbFxRateProviderIntegrationTest {
     // Property 5: cache hit suppresses HTTP calls — only 1 request regardless of call count
     @Test
     void fetchRateMapMakesExactlyOneHttpCallOnMultipleInvocations() {
-        // First call — fetches from WireMock
         var rates1 = provider.fetchRateMap();
-        // Second call — should hit cache (but since we're not using Spring proxy here,
-        // we verify the HTTP behaviour directly by calling fetchRateMap twice and
-        // checking WireMock received exactly 1 request)
         var rates2 = provider.fetchRateMap();
 
-        // Both calls return the same data
         assertThat(rates1).containsKey("EUR");
         assertThat(rates2).containsKey("EUR");
 
-        // WireMock verifies exactly 1 HTTP request was made across both calls
-        // (In a full Spring context with @Cacheable proxy, the second call would be
-        //  intercepted before reaching fetchRateMap. Here we verify the HTTP layer.)
         wireMock.verify(lessThanOrExactly(2), getRequestedFor(urlEqualTo("/v6/latest/USD")));
     }
 
@@ -105,28 +103,47 @@ class EcbFxRateProviderIntegrationTest {
         assertThat(rate).isCloseTo(new BigDecimal("1.0870"), within(new BigDecimal("0.001")));
     }
 
+    // Task 6.3 / Property 5: equal-currency always returns 1 (no API call)
     @Test
     void getRateReturnsBigDecimalOneForSameCurrency() {
         assertThat(provider.getRate("USD", "USD")).isEqualByComparingTo("1");
+        assertThat(provider.getRate("EUR", "EUR")).isEqualByComparingTo("1");
+        assertThat(provider.getRate("GBP", "GBP")).isEqualByComparingTo("1");
     }
 
-    // Property 6: fault-tolerant fallback — API down → returns BigDecimal.ONE, no exception
+    // Task 6.3: API down — non-USD pair throws FxRateUnavailableException (no 1:1 fallback)
     @Test
-    void getRateFallsBackToOneWhenApiIsDown() {
-        wireMock.stop(); // simulate API outage
+    void getRateThrowsFxRateUnavailableWhenApiIsDownAndRateAbsent() {
+        wireMock.stop(); // simulate API outage — fallback map = {USD: 1.0}
 
-        // Should not throw — graceful degradation
-        BigDecimal rate = provider.getRate("EUR", "USD");
-        assertThat(rate).isEqualByComparingTo("1");
+        // EUR is absent from fallback map → must throw, not return 1:1
+        assertThatThrownBy(() -> provider.getRate("EUR", "USD"))
+                .isInstanceOf(FxRateUnavailableException.class)
+                .hasMessageContaining("EUR");
     }
 
-    // NPE guard: non-USD pair during fallback (EUR→GBP when map only has USD)
+    // Task 6.3: non-USD pair with both currencies absent in fallback → throws
     @Test
-    void getRateReturnsBigDecimalOneForNonUsdPairDuringFallback() {
+    void getRateThrowsForNonUsdPairDuringFallback() {
         wireMock.stop(); // fallback map = {USD: 1.0}
 
-        // EUR and GBP are absent from fallback map — must not NPE, must return 1
+        // EUR and GBP are absent from fallback map — must throw, not silently return 1
+        assertThatThrownBy(() -> provider.getRate("EUR", "GBP"))
+                .isInstanceOf(FxRateUnavailableException.class);
+    }
+
+    // Task 6.3: USD → USD still returns 1 even during API outage (same-currency short-circuit)
+    @Test
+    void getRateReturnsBigDecimalOneForUsdToUsdDuringOutage() {
+        wireMock.stop();
+        assertThat(provider.getRate("USD", "USD")).isEqualByComparingTo("1");
+    }
+
+    // Task 6.3: valid cross-rate derived correctly from available map
+    @Test
+    void getRateDerivesCrossRateEurToGbp() {
+        // EUR→GBP = ratesFromUsd[GBP] / ratesFromUsd[EUR] = 0.79 / 0.92 ≈ 0.858
         BigDecimal rate = provider.getRate("EUR", "GBP");
-        assertThat(rate).isEqualByComparingTo("1");
+        assertThat(rate).isCloseTo(new BigDecimal("0.858"), within(new BigDecimal("0.005")));
     }
 }

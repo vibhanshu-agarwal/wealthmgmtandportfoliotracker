@@ -3,7 +3,6 @@ package com.wealth.portfolio;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
-import static org.mockito.Mockito.lenient;
 
 import com.wealth.portfolio.dto.PortfolioSummaryDto;
 import com.wealth.portfolio.fx.FxProperties;
@@ -94,23 +93,26 @@ class PortfolioServiceFxTest {
     assertThat(summary.baseCurrency()).isEqualTo("USD");
   }
 
-  // FxRateUnavailableException propagates to caller (fail-fast for unrecognised currencies)
+  // Task 6.2: FX unavailable → holding excluded from aggregate (partial-availability, not exception)
   @Test
   @SuppressWarnings("unchecked")
-  void unavailableRatePropagatesAsFxRateUnavailableException() {
+  void unavailableRate_excludesHoldingFromAggregatePartialAvailability() {
     when(userRepository.existsById(UUID.fromString(USER_ID))).thenReturn(true);
-    lenient().when(portfolioRepository.findByUserId(USER_ID)).thenReturn(List.of());
+    when(portfolioRepository.findByUserId(USER_ID)).thenReturn(List.of());
     when(jdbcTemplate.query(anyString(), any(RowMapper.class), (Object[]) any()))
         .thenReturn(
             List.of(
-                new HoldingValuationRow(
-                    "EXOTIC", new BigDecimal("1"), new BigDecimal("50"), "XYZ")));
+                // USD holding (valued), XYZ holding (FX unavailable → excluded)
+                new HoldingValuationRow("AAPL", new BigDecimal("5"), new BigDecimal("200"), "USD"),
+                new HoldingValuationRow("EXOTIC", new BigDecimal("1"), new BigDecimal("50"), "XYZ")));
     when(fxRateProvider.getRate("XYZ", "USD"))
         .thenThrow(new FxRateUnavailableException("XYZ", "USD", null));
 
-    assertThatThrownBy(() -> service.getSummary(USER_ID))
-        .isInstanceOf(FxRateUnavailableException.class)
-        .hasMessageContaining("XYZ");
+    // Total should include only the USD holding (partial availability)
+    PortfolioSummaryDto summary = service.getSummary(USER_ID);
+    assertThat(summary.totalValue())
+        .as("XYZ holding should be excluded; only USD holding counted")
+        .isEqualByComparingTo("1000.0000");
   }
 
   // Multi-currency portfolio: USD + EUR holdings aggregated correctly

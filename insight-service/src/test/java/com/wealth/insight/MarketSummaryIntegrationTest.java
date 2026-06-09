@@ -95,7 +95,9 @@ class MarketSummaryIntegrationTest {
         assertThat(summary).containsKeys("AAPL", "MSFT");
         assertThat(summary.get("AAPL").priceHistory()).hasSize(2);
         assertThat(summary.get("AAPL").latestPrice()).isEqualByComparingTo("179.00");
-        assertThat(summary.get("AAPL").trendPercent()).isNotNull();
+        // Task 8.2: old-shape events (no observedAt) cannot confirm distinct observations
+        // → trend is null ("trend not available"), not computed from legacy price list
+        assertThat(summary.get("AAPL").trendPercent()).isNull();
         assertThat(summary.get("MSFT").priceHistory()).hasSize(1);
         assertThat(summary.get("MSFT").trendPercent()).isNull(); // only 1 data point
     }
@@ -131,7 +133,8 @@ class MarketSummaryIntegrationTest {
         assertThat(summary.ticker()).isEqualTo("TSLA");
         assertThat(summary.latestPrice()).isEqualByComparingTo("252.00");
         assertThat(summary.priceHistory()).hasSize(2);
-        assertThat(summary.trendPercent()).isNotNull();
+        // Task 8.2: old-shape events (no observedAt) → trend is null (cannot confirm distinct observations)
+        assertThat(summary.trendPercent()).isNull();
     }
 
     @Test

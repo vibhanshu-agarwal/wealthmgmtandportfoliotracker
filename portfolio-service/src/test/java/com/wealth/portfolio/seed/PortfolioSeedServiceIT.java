@@ -140,6 +140,94 @@ class PortfolioSeedServiceIT {
                         .isEqualByComparingTo(expected));
     }
 
+    // ── Wave 3 / Task 4.2: seeder writes non-trivial avg_cost_basis per holding ──
+
+    @Test
+    void seeder_writesNonTrivialCostBasisAndHistoryCoverage() {
+        String cbUserId = E2E_USER_ID + "-cb";
+        SeedResult result = seedService.seed(cbUserId);
+
+        // Verify via raw JDBC (bypasses JPA cache) — all 160 holdings must have cost basis
+        List<Map<String, Object>> rows = jdbc.queryForList(
+                """
+                SELECT h.asset_ticker, h.avg_cost_basis, h.cost_basis_currency,
+                       h.cost_basis_source, h.cost_basis_as_of
+                FROM asset_holdings h
+                JOIN portfolios p ON p.id = h.portfolio_id
+                WHERE p.id = ?::uuid
+                """,
+                result.portfolioId().toString());
+
+        assertThat(rows).hasSize(160);
+
+        for (Map<String, Object> row : rows) {
+            String ticker = (String) row.get("asset_ticker");
+            // Every holding must have a cost basis set (non-null) by the seeder.
+            assertThat(row.get("avg_cost_basis"))
+                    .as("avg_cost_basis must not be null for %s", ticker)
+                    .isNotNull();
+            // Non-negative: micro-cap assets (e.g. SHIB-USD @ $0.000024) legitimately round to
+            // 0.0000 at the NUMERIC(19,4) column scale, so we assert >= 0, not > 0.
+            assertThat(((java.math.BigDecimal) row.get("avg_cost_basis")).compareTo(java.math.BigDecimal.ZERO))
+                    .as("avg_cost_basis must be non-negative for %s", ticker)
+                    .isGreaterThanOrEqualTo(0);
+            assertThat(row.get("cost_basis_currency"))
+                    .as("cost_basis_currency must not be null for %s", ticker)
+                    .isNotNull();
+            assertThat(row.get("cost_basis_source"))
+                    .as("cost_basis_source must be SEED for %s", ticker)
+                    .isEqualTo("SEED");
+            assertThat(row.get("cost_basis_as_of"))
+                    .as("cost_basis_as_of must not be null for %s", ticker)
+                    .isNotNull();
+        }
+
+        // For a ticker with a price representable at NUMERIC(19,4) (AAPL ~ $195), the cost
+        // basis must be strictly positive and within ±20% of the seed price — confirming the
+        // jitter is applied and bounded. (We pick AAPL explicitly rather than rows.get(0),
+        // whose order is DB-dependent and may be a sub-scale asset like SHIB-USD.)
+        Map<String, Object> aaplRow = rows.stream()
+                .filter(r -> "AAPL".equals(r.get("asset_ticker")))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("AAPL holding must be present in the seed"));
+        java.math.BigDecimal aaplBasis = (java.math.BigDecimal) aaplRow.get("avg_cost_basis");
+        registry.find("AAPL").ifPresent(t -> {
+            java.math.BigDecimal seedPrice = DeterministicPriceCalculator
+                    .compute(t.basePrice(), t.ticker(), cbUserId);
+            java.math.BigDecimal lower = seedPrice.multiply(new java.math.BigDecimal("0.80"));
+            java.math.BigDecimal upper = seedPrice.multiply(new java.math.BigDecimal("1.20"));
+            assertThat(aaplBasis.compareTo(java.math.BigDecimal.ZERO))
+                    .as("AAPL avg_cost_basis must be strictly positive")
+                    .isGreaterThan(0);
+            assertThat(aaplBasis.compareTo(lower))
+                    .as("AAPL avg_cost_basis must be ≥ 80%% of seed price")
+                    .isGreaterThanOrEqualTo(0);
+            assertThat(aaplBasis.compareTo(upper))
+                    .as("AAPL avg_cost_basis must be ≤ 120%% of seed price")
+                    .isLessThanOrEqualTo(0);
+        });
+
+        // market_price_history must cover all 160 canonical tickers
+        Integer historyTickers = jdbc.queryForObject(
+                "SELECT COUNT(DISTINCT ticker) FROM market_price_history", Integer.class);
+        assertThat(historyTickers)
+                .as("market_price_history must cover all 160 canonical tickers after seed")
+                .isGreaterThanOrEqualTo(160);
+
+        // Each of the first 5 seeded tickers must have ≥1 history row
+        for (SeedTickerRegistry.SeedTicker t : registry.all().subList(0, 5)) {
+            Integer count = jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM market_price_history WHERE ticker = ?",
+                    Integer.class, t.ticker());
+            assertThat(count)
+                    .as("Ticker %s must have ≥1 history row after seed", t.ticker())
+                    .isGreaterThanOrEqualTo(1);
+        }
+
+        // Clean up
+        portfolioRepository.deleteAll(portfolioRepository.findByUserId(cbUserId));
+    }
+
     private Map<String, BigDecimal> snapshotPricesByTicker() {
         List<SeedTicker> all = registry.all();
         return jdbc.query(

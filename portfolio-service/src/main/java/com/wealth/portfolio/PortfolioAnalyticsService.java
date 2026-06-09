@@ -149,23 +149,29 @@ public class PortfolioAnalyticsService {
 
         // FX rate cache — at most one call per distinct quoteCurrency per request
         Map<String, BigDecimal> fxRateCache = new HashMap<>();
+        // Track currencies whose rates are unavailable so aggregates can exclude them cleanly
+        Set<String> unavailableCurrencies = new HashSet<>();
 
         // ── Per-holding computation ──────────────────────────────────────────
         List<HoldingAnalyticsDto> holdingDtos = new ArrayList<>();
         for (AnalyticsQueryRow row : holdingRows) {
-            BigDecimal rate = fxRate(row.quoteCurrency(), baseCurrency, fxRateCache);
-            BigDecimal currentValueBase = row.quantity()
-                    .multiply(row.currentPrice())
-                    .multiply(rate)
-                    .setScale(4, RoundingMode.HALF_UP);
+            BigDecimal rate = fxRate(row.quoteCurrency(), baseCurrency, fxRateCache, unavailableCurrencies);
+            // Task 6.2: if FX rate is unavailable, currentValueBase is null (typed-unavailable).
+            // ZERO is never substituted here — it would falsely appear in the portfolio total.
+            BigDecimal currentValueBase = rate != null
+                    ? row.quantity().multiply(row.currentPrice()).multiply(rate)
+                            .setScale(4, RoundingMode.HALF_UP)
+                    : null;
 
             // Placeholder: avgCostBasis = currentPrice until trade ledger is available
             BigDecimal avgCostBasis = row.currentPrice();
-            BigDecimal costBasisBase = row.quantity()
-                    .multiply(avgCostBasis)
-                    .multiply(rate)
-                    .setScale(4, RoundingMode.HALF_UP);
-            BigDecimal unrealizedPnL = currentValueBase.subtract(costBasisBase);
+            BigDecimal costBasisBase = (rate != null)
+                    ? row.quantity().multiply(avgCostBasis).multiply(rate)
+                            .setScale(4, RoundingMode.HALF_UP)
+                    : null;
+            BigDecimal unrealizedPnL = (currentValueBase != null && costBasisBase != null)
+                    ? currentValueBase.subtract(costBasisBase)
+                    : null;
 
             BigDecimal change24hAbs = computeChange24hAbsolute(row.currentPrice(), row.price24hAgo());
             BigDecimal change24hPct = computeChange24hPercent(row.currentPrice(), row.price24hAgo());
@@ -174,23 +180,27 @@ public class PortfolioAnalyticsService {
                     row.assetTicker(),
                     row.quantity(),
                     row.currentPrice(),
-                    currentValueBase,
+                    // ZERO in DTO is only for serialisation safety; aggregates use unavailableCurrencies
+                    currentValueBase != null ? currentValueBase : BigDecimal.ZERO,
                     avgCostBasis,
-                    unrealizedPnL,
+                    unrealizedPnL != null ? unrealizedPnL : BigDecimal.ZERO,
                     change24hAbs,
                     change24hPct,
                     row.quoteCurrency()
             ));
         }
 
-        // ── Aggregates ───────────────────────────────────────────────────────
+        // ── Aggregates — skip holdings whose FX rate was unavailable ─────────
         BigDecimal totalValue = holdingDtos.stream()
+                .filter(h -> !unavailableCurrencies.contains(h.quoteCurrency()))
                 .map(HoldingAnalyticsDto::currentValueBase)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         BigDecimal totalCostBasis = holdingDtos.stream()
+                .filter(h -> !unavailableCurrencies.contains(h.quoteCurrency()))
                 .map(h -> {
-                    BigDecimal rate = fxRate(h.quoteCurrency(), baseCurrency, fxRateCache);
+                    BigDecimal rate = fxRate(h.quoteCurrency(), baseCurrency, fxRateCache, unavailableCurrencies);
+                    if (rate == null) return BigDecimal.ZERO;
                     return h.quantity().multiply(h.avgCostBasis()).multiply(rate)
                             .setScale(4, RoundingMode.HALF_UP);
                 })
@@ -213,7 +223,7 @@ public class PortfolioAnalyticsService {
 
         // ── Performance series ───────────────────────────────────────────────
         List<PerformancePointDto> series = buildPerformanceSeries(
-                historyRows, holdingRows, totalValue, baseCurrency, fxRateCache);
+                historyRows, holdingRows, totalValue, baseCurrency, fxRateCache, unavailableCurrencies);
 
         return new PortfolioAnalyticsDto(
                 totalValue,
@@ -221,6 +231,7 @@ public class PortfolioAnalyticsService {
                 totalPnL,
                 totalPnLPct,
                 baseCurrency,
+                !unavailableCurrencies.isEmpty(),
                 best,
                 worst,
                 holdingDtos,
@@ -254,7 +265,8 @@ public class PortfolioAnalyticsService {
             List<AnalyticsQueryRow> holdingRows,
             BigDecimal totalValue,
             String baseCurrency,
-            Map<String, BigDecimal> fxRateCache) {
+            Map<String, BigDecimal> fxRateCache,
+            Set<String> unavailableCurrencies) {
 
         // Group history rows by date
         Map<String, List<AnalyticsQueryRow>> byDate = historyRows.stream()
@@ -280,7 +292,8 @@ public class PortfolioAnalyticsService {
             for (AnalyticsQueryRow histRow : byDate.get(date)) {
                 AnalyticsQueryRow holding = holdingByTicker.get(histRow.assetTicker());
                 if (holding != null && histRow.historyPrice() != null) {
-                    BigDecimal rate = fxRate(histRow.quoteCurrency(), baseCurrency, fxRateCache);
+                    BigDecimal rate = fxRate(histRow.quoteCurrency(), baseCurrency, fxRateCache, unavailableCurrencies);
+                    if (rate == null) continue; // skip holdings with unavailable FX rate
                     dateValue = dateValue.add(
                             holding.quantity()
                                     .multiply(histRow.historyPrice())
@@ -354,13 +367,37 @@ public class PortfolioAnalyticsService {
 
     // ── Helper: FX rate with per-request cache ───────────────────────────────
 
+    /**
+     * Returns the FX rate for the given currency pair, using a per-request cache.
+     * Returns {@code null} if the rate is unavailable and records the currency in
+     * {@code unavailableCurrencies} so callers can filter consistently.
+     *
+     * <p>Uses explicit put rather than computeIfAbsent because HashMap.computeIfAbsent
+     * does not store null values — repeated calls for the same unavailable currency
+     * would otherwise re-invoke the provider and re-log the warning on every access.
+     */
     private BigDecimal fxRate(String quoteCurrency, String baseCurrency,
-                              Map<String, BigDecimal> cache) {
-        if (quoteCurrency.equals(baseCurrency)) {
+                              Map<String, BigDecimal> cache,
+                              Set<String> unavailableCurrencies) {
+        if (quoteCurrency == null || quoteCurrency.equals(baseCurrency)) {
             return BigDecimal.ONE;
         }
-        return cache.computeIfAbsent(quoteCurrency,
-                qc -> fxRateProvider.getRate(qc, baseCurrency));
+        if (unavailableCurrencies.contains(quoteCurrency)) {
+            return null;
+        }
+        if (cache.containsKey(quoteCurrency)) {
+            return cache.get(quoteCurrency);
+        }
+        try {
+            BigDecimal rate = fxRateProvider.getRate(quoteCurrency, baseCurrency);
+            cache.put(quoteCurrency, rate);
+            return rate;
+        } catch (FxRateUnavailableException e) {
+            log.warn("FX rate unavailable for {} → {} — affected holdings excluded from aggregates",
+                    quoteCurrency, baseCurrency);
+            unavailableCurrencies.add(quoteCurrency);
+            return null;
+        }
     }
 
     // ── Helper: empty-portfolio sentinel ────────────────────────────────────
@@ -372,6 +409,7 @@ public class PortfolioAnalyticsService {
                 BigDecimal.ZERO,
                 BigDecimal.ZERO,
                 baseCurrency,
+                false,
                 SENTINEL_PERFORMER,
                 SENTINEL_PERFORMER,
                 List.of(),

@@ -6,6 +6,9 @@ import java.util.List;
 /**
  * Top-level analytics response DTO for {@code GET /api/portfolio/analytics}.
  * All monetary values are expressed in {@code baseCurrency}.
+ *
+ * @param partialValuation true when one or more holdings were excluded from aggregates because
+ *                         their FX rate was unavailable. Consumers should label totals as partial.
  */
 public record PortfolioAnalyticsDto(
         BigDecimal totalValue,
@@ -13,6 +16,7 @@ public record PortfolioAnalyticsDto(
         BigDecimal totalUnrealizedPnL,
         BigDecimal totalUnrealizedPnLPercent,
         String baseCurrency,
+        boolean partialValuation,
         PerformerDto bestPerformer,
         PerformerDto worstPerformer,
         List<HoldingAnalyticsDto> holdings,
