@@ -154,18 +154,21 @@ public class PortfolioAnalyticsService {
         List<HoldingAnalyticsDto> holdingDtos = new ArrayList<>();
         for (AnalyticsQueryRow row : holdingRows) {
             BigDecimal rate = fxRate(row.quoteCurrency(), baseCurrency, fxRateCache);
-            BigDecimal currentValueBase = row.quantity()
-                    .multiply(row.currentPrice())
-                    .multiply(rate)
-                    .setScale(4, RoundingMode.HALF_UP);
+            // Task 6.2: if FX rate is unavailable, currentValueBase is null (not 0).
+            BigDecimal currentValueBase = rate != null
+                    ? row.quantity().multiply(row.currentPrice()).multiply(rate)
+                            .setScale(4, RoundingMode.HALF_UP)
+                    : null;
 
             // Placeholder: avgCostBasis = currentPrice until trade ledger is available
             BigDecimal avgCostBasis = row.currentPrice();
-            BigDecimal costBasisBase = row.quantity()
-                    .multiply(avgCostBasis)
-                    .multiply(rate)
-                    .setScale(4, RoundingMode.HALF_UP);
-            BigDecimal unrealizedPnL = currentValueBase.subtract(costBasisBase);
+            BigDecimal costBasisBase = (rate != null)
+                    ? row.quantity().multiply(avgCostBasis).multiply(rate)
+                            .setScale(4, RoundingMode.HALF_UP)
+                    : null;
+            BigDecimal unrealizedPnL = (currentValueBase != null && costBasisBase != null)
+                    ? currentValueBase.subtract(costBasisBase)
+                    : null;
 
             BigDecimal change24hAbs = computeChange24hAbsolute(row.currentPrice(), row.price24hAgo());
             BigDecimal change24hPct = computeChange24hPercent(row.currentPrice(), row.price24hAgo());
@@ -174,9 +177,9 @@ public class PortfolioAnalyticsService {
                     row.assetTicker(),
                     row.quantity(),
                     row.currentPrice(),
-                    currentValueBase,
+                    currentValueBase != null ? currentValueBase : BigDecimal.ZERO, // use 0 for display only when unavailable
                     avgCostBasis,
-                    unrealizedPnL,
+                    unrealizedPnL != null ? unrealizedPnL : BigDecimal.ZERO,
                     change24hAbs,
                     change24hPct,
                     row.quoteCurrency()
@@ -191,6 +194,7 @@ public class PortfolioAnalyticsService {
         BigDecimal totalCostBasis = holdingDtos.stream()
                 .map(h -> {
                     BigDecimal rate = fxRate(h.quoteCurrency(), baseCurrency, fxRateCache);
+                    if (rate == null) return BigDecimal.ZERO; // exclude unavailable holdings from aggregate
                     return h.quantity().multiply(h.avgCostBasis()).multiply(rate)
                             .setScale(4, RoundingMode.HALF_UP);
                 })
@@ -281,6 +285,7 @@ public class PortfolioAnalyticsService {
                 AnalyticsQueryRow holding = holdingByTicker.get(histRow.assetTicker());
                 if (holding != null && histRow.historyPrice() != null) {
                     BigDecimal rate = fxRate(histRow.quoteCurrency(), baseCurrency, fxRateCache);
+                    if (rate == null) continue; // skip holdings with unavailable FX rate
                     dateValue = dateValue.add(
                             holding.quantity()
                                     .multiply(histRow.historyPrice())
@@ -354,13 +359,27 @@ public class PortfolioAnalyticsService {
 
     // ── Helper: FX rate with per-request cache ───────────────────────────────
 
+    /**
+     * Returns the FX rate for the given currency pair, using a per-request cache to
+     * avoid redundant calls. Returns null if the rate is unavailable (Task 6.2).
+     *
+     * <p>Callers must treat a null return as "rate unavailable" and exclude the holding
+     * from aggregates rather than silently substituting 1:1.
+     */
     private BigDecimal fxRate(String quoteCurrency, String baseCurrency,
                               Map<String, BigDecimal> cache) {
-        if (quoteCurrency.equals(baseCurrency)) {
+        if (quoteCurrency == null || quoteCurrency.equals(baseCurrency)) {
             return BigDecimal.ONE;
         }
-        return cache.computeIfAbsent(quoteCurrency,
-                qc -> fxRateProvider.getRate(qc, baseCurrency));
+        return cache.computeIfAbsent(quoteCurrency, qc -> {
+            try {
+                return fxRateProvider.getRate(qc, baseCurrency);
+            } catch (FxRateUnavailableException e) {
+                log.warn("FX rate unavailable for {} → {} — holding excluded from aggregates",
+                        qc, baseCurrency);
+                return null; // sentinel: null means unavailable
+            }
+        });
     }
 
     // ── Helper: empty-portfolio sentinel ────────────────────────────────────

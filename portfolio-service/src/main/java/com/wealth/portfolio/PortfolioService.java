@@ -59,16 +59,47 @@ public class PortfolioService {
         .filter(p -> p.getUserId().equals(userId))
         .orElseThrow(() -> new UserNotFoundException(userId));
 
-    // Update quantity if holding already exists, otherwise add new
+    // Update quantity if holding already exists, otherwise add new with cost-basis capture
     portfolio.getHoldings().stream()
         .filter(h -> h.getAssetTicker().equals(ticker))
         .findFirst()
         .ifPresentOrElse(
             h -> h.setQuantity(quantity),
-            () -> portfolio.addHolding(new AssetHolding(portfolio, ticker, quantity))
+            () -> {
+              AssetHolding newHolding = new AssetHolding(portfolio, ticker, quantity);
+              // Task 4.2: capture cost basis at add-time when a current price exists.
+              captureCostBasis(newHolding, ticker);
+              portfolio.addHolding(newHolding);
+            }
         );
 
     return toResponse(portfolioRepository.save(portfolio));
+  }
+
+  /**
+   * Looks up the current market price for {@code ticker} and records it as the cost basis
+   * at the time of holding creation. If no market price is available, the cost-basis fields
+   * remain null (meaning "unavailable"), which is the correct typed-unavailable state.
+   */
+  private void captureCostBasis(AssetHolding holding, String ticker) {
+    try {
+      var result = jdbcTemplate.queryForList(
+          "SELECT current_price, quote_currency FROM market_prices WHERE ticker = ?",
+          ticker);
+      if (!result.isEmpty()) {
+        BigDecimal price = (BigDecimal) result.get(0).get("current_price");
+        String quoteCurrency = (String) result.get(0).get("quote_currency");
+        if (price != null && price.compareTo(BigDecimal.ZERO) > 0) {
+          holding.setAvgCostBasis(price);
+          holding.setCostBasisCurrency(quoteCurrency != null ? quoteCurrency : "USD");
+          holding.setCostBasisSource("ADD_TIME");
+          holding.setCostBasisAsOf(java.time.Instant.now());
+          log.debug("Cost basis captured for {}: {} {}", ticker, price, quoteCurrency);
+        }
+      }
+    } catch (Exception e) {
+      log.debug("Could not capture cost basis for {} — fields remain null: {}", ticker, e.getMessage());
+    }
   }
 
   @Transactional(readOnly = true)
@@ -101,10 +132,19 @@ public class PortfolioService {
     // FX conversion loop — loop invariant: totalValue = sum of converted values so far
     BigDecimal totalValue = BigDecimal.ZERO;
     for (HoldingValuationRow row : rows) {
-      BigDecimal rate =
-          row.quoteCurrency().equals(baseCurrency)
-              ? BigDecimal.ONE // same-currency short-circuit: no FX call
-              : fxRateProvider.getRate(row.quoteCurrency(), baseCurrency);
+      BigDecimal rate;
+      if (row.quoteCurrency().equals(baseCurrency)) {
+        rate = BigDecimal.ONE; // same-currency short-circuit: no FX call
+      } else {
+        try {
+          rate = fxRateProvider.getRate(row.quoteCurrency(), baseCurrency);
+        } catch (FxRateUnavailableException e) {
+          // Task 6.2: exclude this holding from the aggregate rather than using 1:1.
+          log.debug("FX rate unavailable for {} → {} — holding {} excluded from total",
+              row.quoteCurrency(), baseCurrency, row.assetTicker());
+          continue;
+        }
+      }
 
       BigDecimal holdingValue =
           row.quantity()

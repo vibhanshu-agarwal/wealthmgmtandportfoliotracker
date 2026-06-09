@@ -31,11 +31,12 @@ import java.util.Map;
  * under the key {@code "all"} in the {@code fx-rates} cache. All {@link #getRate} calls derive
  * the cross-rate locally from the cached map — no per-pair HTTP calls are ever made.
  *
- * <h3>Fault tolerance</h3>
- * If the HTTP call fails for any reason, {@link #fetchRateMap()} logs the error and returns a
- * fallback map containing only {@code USD → 1.0}. In {@link #getRate}, if either currency is
- * absent from the map (including the fallback case), a WARN is logged and {@link BigDecimal#ONE}
- * is returned — preventing NPEs and ensuring the portfolio summary endpoint never throws a 500.
+ * <h3>Fault tolerance (Wave 3 / Task 6 update)</h3>
+ * If the HTTP call fails, {@link #fetchRateMap()} logs the error and returns a fallback map
+ * containing only {@code USD → 1.0}. In {@link #getRate}, if either currency is absent from the
+ * map (including the fallback case for non-USD pairs), a {@link com.wealth.portfolio.FxRateUnavailableException}
+ * is thrown — consistent with {@link StaticFxRateProvider}. This surfaces partial-availability in
+ * aggregates rather than silently converting 1:1 for non-USD holdings.
  */
 @Service
 @Profile({"aws", "azure"})
@@ -43,10 +44,10 @@ public class EcbFxRateProvider implements FxRateProvider {
 
     private static final Logger log = LoggerFactory.getLogger(EcbFxRateProvider.class);
 
-    /** Fallback map returned when the external API is unreachable. */
-    private static final Map<String, BigDecimal> FALLBACK_RATES = Map.of("USD", BigDecimal.ONE);
-
     private final RestClient restClient;
+
+    /** Fallback map returned when the external API is unreachable. Intentionally USD-only. */
+    private static final Map<String, BigDecimal> FALLBACK_RATES = Map.of("USD", BigDecimal.ONE);
 
     @Autowired
     @Lazy
@@ -122,9 +123,10 @@ public class EcbFxRateProvider implements FxRateProvider {
      * the cross-rate locally: {@code ratesFromUsd[to] / ratesFromUsd[from]}.
      *
      * <p>If either currency is absent from the map (e.g. during API fallback for non-USD pairs),
-     * a WARN is logged and {@link BigDecimal#ONE} is returned to prevent NPEs and 500 errors.
+     * a {@link FxRateUnavailableException} is thrown so callers can surface partial-availability
+     * rather than silently converting 1:1. This is consistent with {@link StaticFxRateProvider}.
      *
-     * @throws FxRateUnavailableException never — this adapter always returns a value
+     * @throws com.wealth.portfolio.FxRateUnavailableException when the rate cannot be resolved for a non-equal pair
      */
     @Override
     public BigDecimal getRate(String fromCurrency, String toCurrency) {
@@ -137,15 +139,18 @@ public class EcbFxRateProvider implements FxRateProvider {
         BigDecimal rateFrom = rates.get(fromCurrency);
         BigDecimal rateTo   = rates.get(toCurrency);
 
-        // NPE guard: if either key is missing (e.g. fallback map only has USD),
-        // log a warning and return 1:1 so the portfolio summary degrades gracefully.
+        // Task 6.1: stop returning BigDecimal.ONE / USD-only 1:1 fallback for non-equal currencies.
+        // Surface FxRateUnavailableException so portfolio aggregates expose partial-availability
+        // rather than silently undercounting or fabricating a 1:1 rate.
         if (rateFrom == null || rateFrom.compareTo(BigDecimal.ZERO) == 0) {
-            log.warn("FX rate map missing entry for '{}' — falling back to 1:1 conversion", fromCurrency);
-            return BigDecimal.ONE;
+            log.warn("FX rate map missing or zero entry for '{}' → '{}'  — rate unavailable",
+                    fromCurrency, toCurrency);
+            throw new com.wealth.portfolio.FxRateUnavailableException(fromCurrency, toCurrency, null);
         }
         if (rateTo == null) {
-            log.warn("FX rate map missing entry for '{}' — falling back to 1:1 conversion", toCurrency);
-            return BigDecimal.ONE;
+            log.warn("FX rate map missing entry for '{}' → '{}' — rate unavailable",
+                    fromCurrency, toCurrency);
+            throw new com.wealth.portfolio.FxRateUnavailableException(fromCurrency, toCurrency, null);
         }
 
         return rateTo.divide(rateFrom, MathContext.DECIMAL64);

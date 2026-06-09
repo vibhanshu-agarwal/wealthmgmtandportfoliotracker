@@ -58,12 +58,12 @@ Ordered so each phase builds on the previous. Backend contract first, then produ
     - _Requirements: 10.5, 10.7_
   - _Design: Data Models, Property 6_
 
-- [ ] 4. Portfolio-service history append and cost-basis capture
-  - [ ] 4.1 Update `MarketPriceProjectionService` to append `market_price_history` for every new `(ticker, observed_at)` (including unchanged price), keyed/deduped by observation identity, not price value.
+- [x] 4. Portfolio-service history append and cost-basis capture
+  - [x] 4.1 Update `MarketPriceProjectionService` to append `market_price_history` for every new `(ticker, observed_at)` (including unchanged price), keyed/deduped by observation identity, not price value.
     - _Requirements: 2.2_
-  - [ ] 4.2 Capture cost basis at add-time in `addHolding` when a current price exists; seed deterministic non-trivial `avg_cost_basis` per holding and ensure 160-ticker history coverage in `PortfolioSeedService`.
+  - [x] 4.2 Capture cost basis at add-time in `addHolding` when a current price exists; seed deterministic non-trivial `avg_cost_basis` per holding and ensure 160-ticker history coverage in `PortfolioSeedService`.
     - _Requirements: 3.1, 3.3, 3.4, 3.5_
-  - [ ] 4.3 Integration tests (Testcontainers Postgres): idempotent append (no dup rows on replay; new timestamp same price = new row); seed produces non-trivial basis + full history coverage.
+  - [x] 4.3 Integration tests (Testcontainers Postgres): idempotent append (no dup rows on replay; new timestamp same price = new row); seed produces non-trivial basis + full history coverage.
     - _Requirements: 2.2, 3.4_
   - _Design: Components §3, Property 6, Property 7_
 
@@ -80,12 +80,12 @@ Ordered so each phase builds on the previous. Backend contract first, then produ
     - _Requirements: 2.6, 2.7, 3.2, 4.1_
   - _Design: Components §3, Property 2, Property 4_
 
-- [ ] 6. Consistent FX behavior (no implicit 1.0) — land before Task 5
-  - [ ] 6.1 Make `EcbFxRateProvider` stop returning `BigDecimal.ONE` / USD-only 1:1 fallback for non-equal currencies; surface unavailable (typed result / `FxRateUnavailableException`) consistent with `StaticFxRateProvider`.
+- [x] 6. Consistent FX behavior (no implicit 1.0) — land before Task 5
+  - [x] 6.1 Make `EcbFxRateProvider` stop returning `BigDecimal.ONE` / USD-only 1:1 fallback for non-equal currencies; surface unavailable (typed result / `FxRateUnavailableException`) consistent with `StaticFxRateProvider`.
     - _Requirements: 5.2, 5.3_
-  - [ ] 6.2 Ensure valuations/aggregates expose partial-availability when a rate is unavailable rather than silently undercounting; equal-currency still returns 1.
+  - [x] 6.2 Ensure valuations/aggregates expose partial-availability when a rate is unavailable rather than silently undercounting; equal-currency still returns 1.
     - _Requirements: 5.1, 5.3, 10.6_
-  - [ ] 6.3 Tests proving no 1.0 substitution for non-equal currencies on the aws/azure provider; equal-currency = 1; aggregate partial-availability surfaced.
+  - [x] 6.3 Tests proving no 1.0 substitution for non-equal currencies on the aws/azure provider; equal-currency = 1; aggregate partial-availability surfaced.
     - _Requirements: 5.3_
   - _Design: Error Handling, Property 5_
 
@@ -96,14 +96,14 @@ Ordered so each phase builds on the previous. Backend contract first, then produ
     - _Requirements: 6.1, 6.2_
   - _Design: Components §3, Property 8_
 
-- [ ] 8. Insight-service honest trend
-  - [ ] 8.1 Key the Redis window by observation identity `(ticker, observedAt)` (ignore replays of same identity; accept new timestamp with unchanged price); consume enriched event in `InsightEventListener`.
+- [x] 8. Insight-service honest trend
+  - [x] 8.1 Key the Redis window by observation identity `(ticker, observedAt)` (ignore replays of same identity; accept new timestamp with unchanged price); consume enriched event in `InsightEventListener`.
     - _Requirements: 7.1, 7.4_
-  - [ ] 8.2 Require ≥2 distinct-`observedAt` observations for trend; otherwise null/"trend not available" (not 0.00%).
+  - [x] 8.2 Require ≥2 distinct-`observedAt` observations for trend; otherwise null/"trend not available" (not 0.00%).
     - _Requirements: 7.1, 7.2_
-  - [ ] 8.3 Filter stale tickers by ZSET score on read in `getMarketSummary`, not only prune on write.
+  - [x] 8.3 Filter stale tickers by ZSET score on read in `getMarketSummary`, not only prune on write.
     - _Requirements: 7.3_
-  - [ ] 8.4 Tests (Testcontainers Redis): replay dedup by identity; unchanged-price new snapshot valid; <2 distinct ⇒ null; stale excluded on read.
+  - [x] 8.4 Tests (Testcontainers Redis): replay dedup by identity; unchanged-price new snapshot valid; <2 distinct ⇒ null; stale excluded on read.
     - _Requirements: 7.1, 7.2, 7.3_
   - _Design: Components §4, Property 7_
 

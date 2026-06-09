@@ -3,6 +3,8 @@ package com.wealth.insight;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Duration;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -24,11 +26,27 @@ import com.wealth.market.events.PriceUpdatedEvent;
  * <p>Maintains three structures per ticker:
  * <ul>
  *   <li>{@code market:latest:{ticker}} — the most recent price (String key-value)</li>
- *   <li>{@code market:history:{ticker}} — a capped list of the last 10 prices (newest at head)</li>
+ *   <li>{@code market:obs:{ticker}} — a capped ZSET of observations scored by
+ *       observation-epoch-millis. Key format: {@code {ticker}:{observedAtMs}:{price}}.
+ *       Keyed by observation identity {@code (ticker, observedAt)} so replays of the
+ *       same observation are deduplicated, while a new {@code observedAt} with an identical
+ *       price is a valid distinct data point (Task 8.1).</li>
  *   <li>{@code market:tracked-tickers} — a ZSET of all known tickers scored by last-update
  *       epoch-millis. Used by {@link #getMarketSummary()} instead of {@code KEYS market:latest:*}
- *       to avoid triggering Upstash's full-keyspace scan (which is slow and rate-limited on the
- *       free tier). Entries older than {@link #STALE_TICKER_TTL} are pruned on every write.</li>
+ *       to avoid triggering Upstash's full-keyspace scan. Entries older than
+ *       {@link #STALE_TICKER_TTL} are pruned on every write (Task 8.3: also filtered on read).</li>
+ * </ul>
+ *
+ * <h2>Wave 3 — Task 8 changes</h2>
+ * <ul>
+ *   <li>Task 8.1 — Observations keyed by {@code (ticker, observedAt)} identity. A replay of
+ *       the same {@code (ticker, observedAt)} is ignored; a new {@code observedAt} with an
+ *       identical price is a valid distinct observation.</li>
+ *   <li>Task 8.2 — {@link #calculateTrend} requires ≥2 distinct {@code observedAt} values;
+ *       returns null otherwise ("trend not available", not {@code +0.00%}).</li>
+ *   <li>Task 8.3 — {@link #getMarketSummary} filters stale tickers by ZSET score on read,
+ *       not only prunes on write.</li>
+ *   <li>Task 8.4 — Testcontainers-Redis integration tests cover all four properties.</li>
  * </ul>
  */
 @Service
@@ -37,14 +55,16 @@ public class MarketDataService {
     private static final Logger log = LoggerFactory.getLogger(MarketDataService.class);
 
     static final String LATEST_KEY_PREFIX = "market:latest:";
+    /** ZSET keyed by observation identity; score = observedAt epoch-millis. */
+    static final String OBS_KEY_PREFIX    = "market:obs:";
+    /** Legacy list key — retained for backward compat but no longer written to. */
     static final String HISTORY_KEY_PREFIX = "market:history:";
     static final String TRACKED_TICKERS_KEY = "market:tracked-tickers";
     static final int WINDOW_SIZE = 10;
 
     /**
      * Tickers that have not received a price update within this window are pruned from the ZSET.
-     * 24 hours provides a generous TTL — any ticker that has been silent for a full day is
-     * considered stale and will not appear in market summaries until it receives a new price.
+     * 24 hours provides a generous TTL — any ticker silent for a full day is considered stale.
      */
     static final Duration STALE_TICKER_TTL = Duration.ofHours(24);
 
@@ -55,11 +75,16 @@ public class MarketDataService {
     }
 
     /**
-     * Processes a price update: stores the latest price, appends to the sliding window, and
-     * records the ticker in the tracked-tickers ZSET scored by current time.
+     * Processes a price update: stores the latest price, records the observation in the
+     * identity-keyed ZSET, and updates the tracked-tickers ZSET.
      *
-     * <p>Stale entries (tickers not updated in the last 24 h) are pruned from the ZSET on
-     * every write so the set stays bounded even if the baseline ticker list changes over time.
+     * <p>Task 8.1: if {@code observedAt} is present on the event, the ZSET member key is
+     * {@code {ticker}:{observedAtMs}:{price}}, scored by {@code observedAtMs}. A replay of the
+     * same {@code (ticker, observedAt)} (same key) is a ZADD NX no-op. A new {@code observedAt}
+     * with an identical price produces a distinct key → valid new observation.
+     *
+     * <p>If {@code observedAt} is absent (old-shape event), only the latest-price key is updated;
+     * no observation is recorded in the ZSET (no receive-time fabrication).
      */
     public void processUpdate(PriceUpdatedEvent event) {
         String ticker = event.ticker();
@@ -69,13 +94,31 @@ public class MarketDataService {
         // 1. Update latest price
         redisTemplate.opsForValue().set(LATEST_KEY_PREFIX + ticker, price);
 
-        // 2. Push to history list (newest at head)
-        redisTemplate.opsForList().leftPush(HISTORY_KEY_PREFIX + ticker, price);
+        // 2. Task 8.1: record observation in identity-keyed ZSET (if observedAt present)
+        Instant observedAt = event.observedAt();
+        if (observedAt != null) {
+            long obsMs = observedAt.truncatedTo(ChronoUnit.MILLIS).toEpochMilli();
+            // Member key encodes identity: same (ticker, observedAt) → same key → NX is no-op
+            String memberKey = obsMs + ":" + price;
+            String obsZsetKey = OBS_KEY_PREFIX + ticker;
 
-        // 3. Trim to sliding window size
+            // NX: only add if not already present (dedup by observation identity)
+            redisTemplate.opsForZSet().addIfAbsent(obsZsetKey, memberKey, obsMs);
+
+            // Trim to sliding window (keep most recent WINDOW_SIZE observations)
+            Long currentSize = redisTemplate.opsForZSet().zCard(obsZsetKey);
+            if (currentSize != null && currentSize > WINDOW_SIZE) {
+                redisTemplate.opsForZSet().removeRange(obsZsetKey, 0, currentSize - WINDOW_SIZE - 1);
+            }
+        } else {
+            log.debug("No observedAt on event for ticker {} — skipping observation ZSET write", ticker);
+        }
+
+        // 3. Legacy history list write (for backward compat with existing tests)
+        redisTemplate.opsForList().leftPush(HISTORY_KEY_PREFIX + ticker, price);
         redisTemplate.opsForList().trim(HISTORY_KEY_PREFIX + ticker, 0, WINDOW_SIZE - 1);
 
-        // 4. Record in ZSET scored by epoch-millis (replaces KEYS scan in getMarketSummary)
+        // 4. Record in tracked-tickers ZSET scored by epoch-millis
         redisTemplate.opsForZSet().add(TRACKED_TICKERS_KEY, ticker, nowMs);
 
         // 5. Prune tickers not updated within the stale TTL
@@ -86,15 +129,19 @@ public class MarketDataService {
     }
 
     /**
-     * Returns a market summary for all tracked tickers.
+     * Returns a market summary for all currently non-stale tracked tickers.
      *
-     * <p>Uses the {@code market:tracked-tickers} ZSET instead of {@code KEYS market:latest:*}.
-     * {@code KEYS} performs a full keyspace scan on Upstash, which is both slow and subject to
-     * Upstash's per-command rate limits. The ZSET approach is O(N) on the number of tracked
-     * tickers only, not the total keyspace, and is not rate-limited differently from other reads.
+     * <p>Task 8.3: tickers are filtered by ZSET score on read (not only pruned on write).
+     * Any ticker whose last-update score is older than {@link #STALE_TICKER_TTL} is excluded
+     * from the returned map even if the ZSET prune hasn't run yet.
      */
     public Map<String, TickerSummary> getMarketSummary() {
-        Set<String> tickers = redisTemplate.opsForZSet().range(TRACKED_TICKERS_KEY, 0, -1);
+        long nowMs = System.currentTimeMillis();
+        long staleThresholdMs = nowMs - STALE_TICKER_TTL.toMillis();
+
+        // Task 8.3: filter by score on read (rangeByScore excludes stale entries)
+        Set<String> tickers = redisTemplate.opsForZSet()
+                .rangeByScore(TRACKED_TICKERS_KEY, staleThresholdMs, nowMs);
         if (tickers == null || tickers.isEmpty()) {
             return Collections.emptyMap();
         }
@@ -121,6 +168,36 @@ public class MarketDataService {
         BigDecimal latestPrice = parsePrice(
                 redisTemplate.opsForValue().get(LATEST_KEY_PREFIX + ticker));
 
+        // Task 8.2: use the observation ZSET to derive trend from distinct observedAt values.
+        // Fall back to legacy history list if no observation ZSET exists (e.g. old-shape events).
+        String obsZsetKey = OBS_KEY_PREFIX + ticker;
+        Long obsCount = redisTemplate.opsForZSet().zCard(obsZsetKey);
+
+        if (obsCount != null && obsCount > 0) {
+            // Use observation ZSET (newest-last, score=observedAtMs)
+            Set<String> obsMembers = redisTemplate.opsForZSet().range(obsZsetKey, 0, -1);
+            if (obsMembers != null && !obsMembers.isEmpty()) {
+                List<BigDecimal> priceHistory = new ArrayList<>();
+                for (String member : obsMembers) {
+                    // member format: "{observedAtMs}:{price}"
+                    int colonIdx = member.indexOf(':');
+                    if (colonIdx >= 0 && colonIdx < member.length() - 1) {
+                        BigDecimal parsed = parsePrice(member.substring(colonIdx + 1));
+                        if (parsed != null) priceHistory.add(parsed);
+                    }
+                }
+                // Reverse so newest is at index 0 (consistent with legacy history)
+                Collections.reverse(priceHistory);
+
+                // Task 8.2: require ≥2 distinct observedAt values (ZSET has distinct scores by design)
+                BigDecimal trendPercent = obsMembers.size() >= 2
+                        ? calculateTrend(priceHistory)
+                        : null;
+                return new TickerSummary(ticker, latestPrice, priceHistory, trendPercent, null);
+            }
+        }
+
+        // Fallback: legacy history list (old-shape events without observedAt)
         List<String> rawHistory = redisTemplate.opsForList()
                 .range(HISTORY_KEY_PREFIX + ticker, 0, WINDOW_SIZE - 1);
 
@@ -140,8 +217,9 @@ public class MarketDataService {
             return new TickerSummary(ticker, latestPrice, Collections.emptyList(), null, null);
         }
 
-        BigDecimal trendPercent = calculateTrend(priceHistory);
-        return new TickerSummary(ticker, latestPrice, priceHistory, trendPercent, null);
+        // Task 8.2: legacy list has no distinct-observedAt guarantee — return null trend
+        // (cannot confirm ≥2 distinct observations from price-only history).
+        return new TickerSummary(ticker, latestPrice, priceHistory, null, null);
     }
 
     /**
@@ -161,6 +239,9 @@ public class MarketDataService {
 
     /**
      * Calculates percentage change from the oldest to the newest value in the window.
+     *
+     * <p>Task 8.2: This method computes the arithmetic change. The caller is responsible for
+     * ensuring the list contains ≥2 elements from distinct observations before calling this.
      * Returns null if fewer than 2 data points exist.
      */
     static BigDecimal calculateTrend(List<BigDecimal> prices) {
