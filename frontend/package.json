@@ -9,7 +9,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "start:export": "npx serve -s out -l 3000",
+    "start:export": "npx serve out -l 3000",
     "lint": "eslint .",
     "lint:fix": "eslint --fix .",
     "test": "vitest run",
