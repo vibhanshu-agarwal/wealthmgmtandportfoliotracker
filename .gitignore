@@ -116,6 +116,11 @@ response*.json
 htmlReport/
 .tmp*/
 .tmp_kafka_src*/
+.gradle-iso/
+.gradle-review-cache/
+.gradle-tmp/
+diff_*.txt
+show_backend.txt
 
 ### Golden-state seeder: seed-tickers.json is generated into each service by the
 ### copySeedTickers Gradle task; the single source of truth lives in config/seed-tickers.json.
