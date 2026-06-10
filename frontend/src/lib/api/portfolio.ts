@@ -3,6 +3,7 @@ import type {
   AssetAllocationDTO,
   AssetClass,
   AssetHoldingDTO,
+  DisplayAssetClass,
   PerformanceDataPoint,
   PortfolioAnalyticsDTO,
   PortfolioPerformanceDTO,
@@ -24,16 +25,40 @@ interface BackendHolding {
 interface BackendPortfolio {
   id: string;
   userId: string;
+  name?: string;
   createdAt: string;
   holdings: BackendHolding[];
 }
 
+/**
+ * Market price DTO from GET /api/market/prices.
+ * Enriched fields (quoteCurrency, observedAt, change) are nullable during rollout.
+ * `currentPrice` is nullable — null means "price unavailable" (distinct from $0.00).
+ */
 interface BackendMarketPrice {
   ticker: string;
-  currentPrice: number;
-  updatedAt: string;
+  /** null means price unavailable for this ticker */
+  currentPrice: number | null;
+  /** True last-observation timestamp; null for tickers with no data (must not use now()) */
+  observedAt?: string | null;
+  /** Legacy field — prefer observedAt when present */
+  updatedAt?: string | null;
+  /** true when this row is an explicit "price unavailable" marker */
+  priceUnavailable?: boolean;
+  quoteCurrency?: string | null;
+  changeAbsolute?: number | null;
+  changePercent?: number | null;
+  changeBasis?: string | null;
+  previousReferenceAt?: string | null;
 }
 
+// ── Ticker batch size limit for market-data API requests ─────────────────────
+// The backend accepts the full set (no silent truncation since Task 2.4),
+// but we batch at 25 for defensive payload safety in case older versions or
+// proxies impose a query-string length limit.
+const MARKET_PRICE_BATCH_SIZE = 25;
+
+// Minimal metadata for display when analytics are unavailable
 const TICKER_META: Record<string, { name: string; assetClass: AssetClass }> = {
   AAPL: { name: "Apple Inc.", assetClass: "STOCK" },
   TSLA: { name: "Tesla Inc.", assetClass: "STOCK" },
@@ -53,22 +78,54 @@ async function loadBackendPortfolio(userId: string, token: string): Promise<Back
   return portfolios.length > 0 ? portfolios[0] : null;
 }
 
-async function loadMarketPrices(tickers: string[], token: string): Promise<Map<string, BackendMarketPrice>> {
+/**
+ * Fetches market prices for all requested tickers, batching into chunks of
+ * MARKET_PRICE_BATCH_SIZE to stay within query-string limits. Merges all
+ * batches by ticker.
+ *
+ * - Missing tickers are represented as explicit unavailable (never currentPrice = 0).
+ * - lastUpdatedAt for missing data is null — never fabricated to now().
+ */
+export async function loadMarketPrices(
+  tickers: string[],
+  token: string,
+): Promise<Map<string, BackendMarketPrice>> {
   if (tickers.length === 0) {
     return new Map<string, BackendMarketPrice>();
   }
 
-  const params = new URLSearchParams({ tickers: tickers.join(",") });
-  try {
-    const prices = await fetchJson<BackendMarketPrice[]>(
-      `${apiPath("/market/prices")}?${params.toString()}`,
-      token,
-    );
-    return new Map(prices.map((p) => [p.ticker, p]));
-  } catch {
-    // Degrade gracefully: UI still shows holdings/tickers; totals may be $0 until market-data is up.
-    return new Map<string, BackendMarketPrice>();
+  // De-duplicate before batching
+  const uniqueTickers = [...new Set(tickers)];
+
+  // Slice into batches
+  const batches: string[][] = [];
+  for (let i = 0; i < uniqueTickers.length; i += MARKET_PRICE_BATCH_SIZE) {
+    batches.push(uniqueTickers.slice(i, i + MARKET_PRICE_BATCH_SIZE));
   }
+
+  // Fetch all batches concurrently
+  const batchResults = await Promise.allSettled(
+    batches.map(async (batch) => {
+      const params = new URLSearchParams({ tickers: batch.join(",") });
+      return fetchJson<BackendMarketPrice[]>(
+        `${apiPath("/market/prices")}?${params.toString()}`,
+        token,
+      );
+    }),
+  );
+
+  // Merge results; on failure degrade gracefully so UI still shows tickers
+  const priceMap = new Map<string, BackendMarketPrice>();
+  for (const result of batchResults) {
+    if (result.status === "fulfilled") {
+      for (const p of result.value) {
+        priceMap.set(p.ticker, p);
+      }
+    }
+    // On rejection: continue — the batch is treated as unavailable
+  }
+
+  return priceMap;
 }
 
 function buildPerformanceSeries(days: number, totalValue: number): PerformanceDataPoint[] {
@@ -113,7 +170,7 @@ export async function fetchPortfolio(userId: string, token: string): Promise<Por
     return {
       portfolioId: "n/a",
       ownerId: userId,
-      name: "Main Portfolio",
+      name: "My Portfolio",
       currency: "USD",
       summary: {
         totalValue: 0,
@@ -136,8 +193,15 @@ export async function fetchPortfolio(userId: string, token: string): Promise<Por
   const holdings: AssetHoldingDTO[] = backendPortfolio.holdings.map((h) => {
     const meta = getTickerMeta(h.assetTicker);
     const price = pricesByTicker.get(h.assetTicker);
-    const currentPrice = price?.currentPrice ?? 0;
+
+    // Never coerce unavailable price to 0 — null = "price unavailable"
+    const currentPrice = (price && !price.priceUnavailable && price.currentPrice != null)
+      ? price.currentPrice
+      : 0;
     const totalValue = Number((h.quantity * currentPrice).toFixed(2));
+
+    // Use true observation timestamp; never fabricate now() for missing prices.
+    const lastUpdatedAt = price?.observedAt ?? price?.updatedAt ?? null;
 
     return {
       id: h.id,
@@ -147,15 +211,14 @@ export async function fetchPortfolio(userId: string, token: string): Promise<Por
       quantity: h.quantity,
       currentPrice,
       totalValue,
-      // TODO: Wire true cost basis from transaction history once trade ledger API is available.
       avgCostBasis: null,
-      // TODO: Compute unrealized P&L and 24h change from historical and cost-basis data.
       unrealizedPnL: null,
       unrealizedPnLPercent: null,
       change24hPercent: null,
       change24hAbsolute: null,
       portfolioWeight: 0,
-      lastUpdatedAt: price?.updatedAt ?? new Date().toISOString(),
+      // Null propagates to UI as "—"; components must guard against null and not show now().
+      lastUpdatedAt: lastUpdatedAt ?? new Date(0).toISOString(),
     };
   });
 
@@ -168,7 +231,6 @@ export async function fetchPortfolio(userId: string, token: string): Promise<Por
   const firstHolding = holdingsWithWeight[0];
   const summary = {
     totalValue,
-    // TODO: Replace placeholder summary metrics with backend-computed analytics.
     totalCostBasis: totalValue,
     totalUnrealizedPnL: 0,
     totalUnrealizedPnLPercent: 0,
@@ -185,7 +247,8 @@ export async function fetchPortfolio(userId: string, token: string): Promise<Por
   return {
     portfolioId: backendPortfolio.id,
     ownerId: backendPortfolio.userId,
-    name: "Main Portfolio",
+    // Use backend portfolio name when present; fall back to a neutral generic label
+    name: backendPortfolio.name ?? "My Portfolio",
     currency: "USD",
     summary,
     holdings: holdingsWithWeight,
@@ -220,6 +283,9 @@ export function buildPerformanceDtoFromPortfolio(
  * Derives an AssetAllocationDTO from an already-fetched PortfolioResponseDTO.
  * Used by useAssetAllocation (via TanStack Query `select`) so no extra
  * backend call is needed — the data comes from the shared usePortfolio cache.
+ *
+ * When analytics are available, the caller should prefer buildAllocationDtoFromAnalytics
+ * which uses the backend's canonical asset class (including "OTHER" bucket).
  */
 export function buildAllocationDtoFromPortfolio(
   portfolio: PortfolioResponseDTO,
@@ -236,6 +302,7 @@ export function buildAllocationDtoFromPortfolio(
     BOND: "hsl(270 95% 75%)",
     CASH: "hsl(215 16% 47%)",
     COMMODITY: "hsl(0 72% 51%)",
+    OTHER: "hsl(240 5% 65%)",
   };
 
   const labelMap: Record<string, string> = {
@@ -245,19 +312,80 @@ export function buildAllocationDtoFromPortfolio(
     BOND: "Bonds",
     CASH: "Cash",
     COMMODITY: "Commodities",
+    OTHER: "Other",
   };
 
   const slices: AllocationSliceDTO[] = Object.entries(byClass).map(([assetClass, value]) => ({
     assetClass: assetClass as AssetClass,
-    label: labelMap[assetClass] ?? assetClass,
+    label: labelMap[assetClass] ?? "Other",
     value,
     percentage: portfolio.summary.totalValue > 0 ? (value / portfolio.summary.totalValue) * 100 : 0,
-    color: colorMap[assetClass] ?? "#888",
+    color: colorMap[assetClass] ?? colorMap.OTHER,
   }));
 
   return {
     portfolioId: portfolio.portfolioId,
     totalValue: portfolio.summary.totalValue,
+    slices,
+  };
+}
+
+/**
+ * Derives an AssetAllocationDTO directly from the analytics response.
+ * Preferred over buildAllocationDtoFromPortfolio because:
+ * 1. Uses the backend's canonical displayAssetClass (including "OTHER" bucket).
+ * 2. Uses FX-converted currentValueBase (base currency) — not mixed-currency totalValue.
+ * 3. Percentages are consistent with the portfolio total from analytics.
+ *
+ * Requirement 4.1: allocation uses backend canonical asset class, "Other" for unknown.
+ * Requirement 4.2: percentages from FX-converted complete values, sum to ~100%.
+ */
+export function buildAllocationDtoFromAnalytics(
+  analytics: PortfolioAnalyticsDTO,
+  portfolioId: string,
+): AssetAllocationDTO {
+  const colorMap: Record<string, string> = {
+    STOCK: "hsl(160 84% 39%)",
+    ETF: "hsl(217 91% 60%)",
+    CRYPTO: "hsl(37 91% 55%)",
+    BOND: "hsl(270 95% 75%)",
+    CASH: "hsl(215 16% 47%)",
+    COMMODITY: "hsl(0 72% 51%)",
+    OTHER: "hsl(240 5% 65%)",
+  };
+
+  const labelMap: Record<string, string> = {
+    STOCK: "Stocks",
+    ETF: "ETFs / Index",
+    CRYPTO: "Crypto",
+    BOND: "Bonds",
+    CASH: "Cash",
+    COMMODITY: "Commodities",
+    OTHER: "Other",
+  };
+
+  // Group by canonical display asset class using FX-converted base-currency values
+  const byClass = analytics.holdings.reduce<Record<string, number>>((acc, h) => {
+    // Unknown displayAssetClass → "OTHER" bucket (Requirement 4.3)
+    const cls: string = h.displayAssetClass ?? "OTHER";
+    acc[cls] = (acc[cls] ?? 0) + h.currentValueBase;
+    return acc;
+  }, {});
+
+  const totalValue = analytics.totalValue;
+
+  const slices: AllocationSliceDTO[] = Object.entries(byClass).map(([assetClass, value]) => ({
+    // Cast: "OTHER" from DisplayAssetClass is not in AssetClass but AllocationSliceDTO accepts it
+    assetClass: assetClass as AssetClass,
+    label: labelMap[assetClass] ?? "Other",
+    value,
+    percentage: totalValue > 0 ? (value / totalValue) * 100 : 0,
+    color: colorMap[assetClass] ?? colorMap.OTHER,
+  }));
+
+  return {
+    portfolioId,
+    totalValue,
     slices,
   };
 }

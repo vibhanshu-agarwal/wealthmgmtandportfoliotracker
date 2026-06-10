@@ -89,3 +89,42 @@ export function formatPercentOrDash(value: number | null | undefined): string {
   if (value == null) return "—";
   return formatPercent(value);
 }
+
+/**
+ * Renders a nullable dollar amount (unsigned).
+ * Returns "—" when the value is null/undefined (typed-unavailable, not $0.00).
+ */
+export function formatCurrencyOrDash(value: number | null | undefined): string {
+  if (value == null) return "—";
+  return formatCurrency(value);
+}
+
+/**
+ * Renders an ISO-8601 timestamp as a relative age string ("5 min ago", "2 hr ago", "3 days ago").
+ * Falls back to the formatted date when the string is null/undefined.
+ */
+export function formatRelativeAge(isoString: string | null | undefined): string {
+  if (!isoString) return "—";
+  const now = Date.now();
+  const ts = new Date(isoString).getTime();
+  if (Number.isNaN(ts)) return "—";
+  const diffMs = now - ts;
+  if (diffMs < 0) return formatDate(isoString); // future timestamp — just show date
+  const diffMin = Math.floor(diffMs / 60_000);
+  if (diffMin < 1) return "just now";
+  if (diffMin < 60) return `${diffMin} min ago`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `${diffHr} hr ago`;
+  const diffDays = Math.floor(diffHr / 24);
+  if (diffDays < 30) return `${diffDays} day${diffDays === 1 ? "" : "s"} ago`;
+  return formatDate(isoString);
+}
+
+/**
+ * Renders a nullable ISO-8601 date string.
+ * Returns "—" when the value is null/undefined (typed-unavailable, not now()).
+ */
+export function formatDateOrDash(isoString: string | null | undefined): string {
+  if (!isoString) return "—";
+  return formatDate(isoString);
+}

@@ -12,7 +12,7 @@ import {
 import {
   formatCurrency,
   formatPercent,
-  formatSignedCurrency,
+  formatSignedCurrencyOrDash,
 } from "@/lib/utils/format";
 import { cn } from "@/lib/utils/cn";
 import React from "react";
@@ -102,8 +102,6 @@ export function SummaryCards() {
   const { data: analytics } = usePortfolioAnalytics();
 
   // Skeleton only while we have neither summary nor the main portfolio payload yet.
-  // If /summary is slow but /portfolio returned, still render total-value from the
-  // client-computed portfolio.summary so E2E and users are not stuck on a blank row.
   if (
     isSummaryFetching &&
     !portfolioSummary &&
@@ -112,36 +110,44 @@ export function SummaryCards() {
     return <SummaryCardsSkeleton />;
   }
 
-  // If portfolio fetch failed, render cards with zero/placeholder values
-  // rather than a hard error — backend may simply be unavailable in local dev.
-  const summary = portfolio?.summary ?? {
-    totalValue: 0,
-    totalCostBasis: 0,
-    totalUnrealizedPnL: 0,
-    totalUnrealizedPnLPercent: 0,
-    change24hAbsolute: 0,
-    change24hPercent: 0,
-    bestPerformer: { ticker: "—", name: "No data", change24hPercent: 0 },
-    worstPerformer: { ticker: "—", name: "No data", change24hPercent: 0 },
-  };
-  const pnlIsPositive = summary.change24hAbsolute >= 0;
-
-  // Prefer backend aggregate from /api/portfolio/summary (accurate SQL join with
-  // market prices) over the frontend-computed value which depends on the
-  // market-data-service being available.
+  // Prefer backend aggregate from /api/portfolio/summary (accurate SQL join) over
+  // the frontend-computed value which depends on the market-data-service being up.
   const portfolioTotal =
     portfolioSummary?.totalValue != null &&
     Number(portfolioSummary.totalValue) > 0
       ? Number(portfolioSummary.totalValue)
       : (portfolio?.summary.totalValue ?? 0);
 
-  // Use backend-computed performers when available; fall back to placeholder from fetchPortfolio.
-  const bestPerformer = analytics?.bestPerformer ?? summary.bestPerformer;
-  const worstPerformer = analytics?.worstPerformer ?? summary.worstPerformer;
-  // Use backend-computed unrealized P&L percent when available.
-  // Null means no cost basis is recorded — render "—" rather than coalescing to 0 (which was
-  // the pre-Task-5 bug: summary.totalUnrealizedPnLPercent is always 0 as a placeholder).
+  // ── Task 9.4: bind analytics values for 24h P&L and all-time return ─────────
+  // Use backend-computed values; fall back to null (renders "—").
+  // Do NOT use the synthetic fetchPortfolio summary which is hardcoded to 0.
   const unrealizedPnLPercent = analytics?.totalUnrealizedPnLPercent ?? null;
+
+  // 24h aggregate: sum change24hAbsolute across holdings where available
+  const change24hAbsolute = (() => {
+    if (!analytics?.holdings?.length) return null;
+    const holdingsWithChange = analytics.holdings.filter(
+      (h) => h.change24hAbsolute != null,
+    );
+    if (holdingsWithChange.length === 0) return null;
+    return holdingsWithChange.reduce((sum, h) => sum + (h.change24hAbsolute ?? 0), 0);
+  })();
+
+  // 24h percent: analytics.totalValue as denominator
+  const change24hPercent = (() => {
+    if (change24hAbsolute == null || !analytics?.totalValue) return null;
+    const priorValue = analytics.totalValue - change24hAbsolute;
+    if (priorValue <= 0) return null;
+    return (change24hAbsolute / priorValue) * 100;
+  })();
+
+  const pnlIsPositive = (change24hAbsolute ?? 0) >= 0;
+
+  // Use backend-computed performers; fall back to portfolio summary placeholder.
+  const bestPerformer =
+    analytics?.bestPerformer ?? portfolio?.summary.bestPerformer;
+  const worstPerformer =
+    analytics?.worstPerformer ?? portfolio?.summary.worstPerformer;
 
   return (
     <>
@@ -170,31 +176,61 @@ export function SummaryCards() {
       </StatCard>
 
       {/* ── Card 2: 24h Profit / Loss ── */}
+      {/* Task 9.4: bound to backend analytics, not the synthetic fetchPortfolio summary */}
       <StatCard
         title="24h Profit / Loss"
         icon={Activity}
-        className={pnlIsPositive ? "border-profit/20" : "border-loss/20"}
+        className={
+          change24hAbsolute != null
+            ? pnlIsPositive
+              ? "border-profit/20"
+              : "border-loss/20"
+            : undefined
+        }
       >
         <div className="space-y-1">
-          <p
-            className={cn(
-              "text-3xl font-bold tracking-tight tabular-nums",
-              pnlIsPositive ? "text-profit" : "text-loss",
-            )}
-          >
-            {formatSignedCurrency(summary.change24hAbsolute)}
-          </p>
-          <div className="flex items-center gap-2">
-            <ChangeIndicator value={summary.change24hPercent} />
-            <span className="text-xs text-muted-foreground">
-              since yesterday
-            </span>
-          </div>
+          {change24hAbsolute != null ? (
+            <>
+              <p
+                className={cn(
+                  "text-3xl font-bold tracking-tight tabular-nums",
+                  pnlIsPositive ? "text-profit" : "text-loss",
+                )}
+                data-testid="24h-pnl"
+              >
+                {formatSignedCurrencyOrDash(change24hAbsolute)}
+              </p>
+              <div className="flex items-center gap-2">
+                {change24hPercent != null && (
+                  <ChangeIndicator value={change24hPercent} />
+                )}
+                <span className="text-xs text-muted-foreground">
+                  since previous snapshot
+                </span>
+              </div>
+            </>
+          ) : (
+            <>
+              <p
+                className="text-3xl font-bold tracking-tight tabular-nums text-muted-foreground"
+                data-testid="24h-pnl"
+              >
+                —
+              </p>
+              <span className="text-xs text-muted-foreground">
+                no reference data available
+              </span>
+            </>
+          )}
         </div>
         <div
           className={cn(
             "absolute -right-4 -top-4 h-20 w-20 rounded-full blur-xl",
-            pnlIsPositive ? "bg-profit/8" : "bg-loss/8",
+            change24hAbsolute != null
+              ? pnlIsPositive
+                ? "bg-profit/8"
+                : "bg-loss/8"
+              : "bg-muted/20",
           )}
         />
       </StatCard>
@@ -207,15 +243,18 @@ export function SummaryCards() {
               variant="secondary"
               className="font-mono text-sm font-bold px-2"
             >
-              {bestPerformer.ticker}
+              {bestPerformer?.ticker ?? "—"}
             </Badge>
-            {bestPerformer.change24hPercent != null ? (
-              <ChangeIndicator value={bestPerformer.change24hPercent} size="lg" />
+            {bestPerformer?.change24hPercent != null ? (
+              <ChangeIndicator
+                value={bestPerformer.change24hPercent}
+                size="lg"
+              />
             ) : (
               <span className="text-sm text-muted-foreground">—</span>
             )}
           </div>
-          {"name" in bestPerformer && (
+          {bestPerformer && "name" in bestPerformer && (
             <p className="text-xs text-muted-foreground">
               {(bestPerformer as { name: string }).name}
             </p>
@@ -223,9 +262,9 @@ export function SummaryCards() {
           <p className="text-xs text-muted-foreground">
             Worst:{" "}
             <span className="font-mono font-semibold text-foreground">
-              {worstPerformer.ticker}
+              {worstPerformer?.ticker ?? "—"}
             </span>{" "}
-            {worstPerformer.change24hPercent != null ? (
+            {worstPerformer?.change24hPercent != null ? (
               <span className="text-loss">
                 {formatPercent(worstPerformer.change24hPercent)}
               </span>

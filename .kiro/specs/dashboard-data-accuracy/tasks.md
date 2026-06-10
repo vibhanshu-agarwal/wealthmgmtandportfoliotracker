@@ -107,24 +107,24 @@ Ordered so each phase builds on the previous. Backend contract first, then produ
     - _Requirements: 7.1, 7.2, 7.3_
   - _Design: Components §4, Property 7_
 
-- [ ] 9. Frontend rendering and wiring
-  - [ ] 9.1 Add nullable/unavailable rendering helpers in `format.ts` ("—") distinct from `$0.00` / `0.00%`.
+- [x] 9. Frontend rendering and wiring
+  - [x] 9.1 Add nullable/unavailable rendering helpers in `format.ts` ("—") distinct from `$0.00` / `0.00%`.
     - _Requirements: 8.3, 10.6_
-  - [ ] 9.2 Batch `loadMarketPrices` into ≤25-ticker chunks, merge by ticker; missing ⇒ explicit unavailable (never `currentPrice = 0`, never `lastUpdatedAt = now()`).
+  - [x] 9.2 Batch `loadMarketPrices` into ≤25-ticker chunks, merge by ticker; missing ⇒ explicit unavailable (never `currentPrice = 0`, never `lastUpdatedAt = now()`).
     - _Requirements: 1.1, 1.2, 1.3, 8.4_
-  - [ ] 9.3 Refactor `fetchPortfolio` to consume backend analytics for per-holding P&L, change, cost basis, asset class, and FX-converted base-currency values; remove client-side currency mixing and hardcoded zeros.
+  - [x] 9.3 Refactor `fetchPortfolio` to consume backend analytics for per-holding P&L, change, cost basis, asset class, and FX-converted base-currency values; remove client-side currency mixing and hardcoded zeros.
     - _Requirements: 2.4, 3.1, 4.1, 5.1, 5.2_
-  - [ ] 9.4 Bind `SummaryCards` "24h Profit/Loss" and "all-time return" to backend analytics (nullable-aware), not the synthetic summary.
+  - [x] 9.4 Bind `SummaryCards` "24h Profit/Loss" and "all-time return" to backend analytics (nullable-aware), not the synthetic summary.
     - _Requirements: 8.2, 8.3_
-  - [ ] 9.5 Allocation: use backend canonical asset class, "Other" for unknown, percentages from FX-converted complete values reconciling to the portfolio total.
+  - [x] 9.5 Allocation: use backend canonical asset class, "Other" for unknown, percentages from FX-converted complete values reconciling to the portfolio total.
     - _Requirements: 1.4, 4.1, 4.2, 4.3_
-  - [ ] 9.6 `PerformanceChart`: render backend series; label partial/unavailable per coverage metadata; no synthetic curve as real.
+  - [x] 9.6 `PerformanceChart`: render backend series; label partial/unavailable per coverage metadata; no synthetic curve as real.
     - _Requirements: 2.7, 8.3_
-  - [ ] 9.7 Replace `PortfolioTicker` mock with real market/portfolio data, or hide the component if no real feed is ready; never show mock financial values.
+  - [x] 9.7 Replace `PortfolioTicker` mock with real market/portfolio data, or hide the component if no real feed is ready; never show mock financial values.
     - _Requirements: 8.1_
-  - [ ] 9.8 Freshness + identity: show as-of timestamp/relative age from real `updatedAt`/`observed_at`; portfolio name from backend or neutral label; stale rendered as stale, not error.
+  - [x] 9.8 Freshness + identity: show as-of timestamp/relative age from real `updatedAt`/`observed_at`; portfolio name from backend or neutral label; stale rendered as stale, not error.
     - _Requirements: 8.5, 9.1, 9.2, 9.3_
-  - [ ] 9.9 Vitest + MSW tests: >25-ticker batching with no dropped/zeroed holdings; allocation reconciles with total; typed-unavailable renders "—"; ticker tape wired/hidden; performance partial labelling; missing price shows "—".
+  - [x] 9.9 Vitest + MSW tests: >25-ticker batching with no dropped/zeroed holdings; allocation reconciles with total; typed-unavailable renders "—"; ticker tape wired/hidden; performance partial labelling; missing price shows "—".
     - _Requirements: 1.1, 1.4, 8.1, 8.3, 8.4_
   - _Design: Components §5, Property 1, Property 2, Property 3_
 

@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { TrendingUp, TrendingDown } from "lucide-react";
+import { TrendingUp, TrendingDown, AlertCircle } from "lucide-react";
 import {
   usePortfolioAnalytics,
   usePortfolioPerformance,
@@ -105,11 +105,18 @@ export function PerformanceChart() {
 
   if (isLoading) return <PerformanceChartSkeleton />;
 
-  // Prefer backend analytics series; fall back to synthetic performance series
-  const dataPoints =
-    analytics?.performanceSeries ?? performance?.dataPoints ?? [];
+  // Prefer backend analytics series over synthetic fallback.
+  // If the backend series is marked synthetic, do NOT render it as real portfolio data.
+  const coverage = analytics?.performanceCoverage;
+  const isSynthetic = coverage?.synthetic ?? false;
 
-  if (dataPoints.length === 0) {
+  const dataPoints =
+    analytics?.performanceSeries && !isSynthetic
+      ? analytics.performanceSeries
+      : (!isSynthetic ? performance?.dataPoints : null) ?? [];
+
+  // When the only available data is synthetic, show an honest unavailable state
+  if (dataPoints.length === 0 || (isSynthetic && !performance?.dataPoints?.length)) {
     return (
       <Card className="col-span-2 flex items-center justify-center p-8 text-muted-foreground">
         No performance data available yet.
@@ -117,8 +124,25 @@ export function PerformanceChart() {
     );
   }
 
-  const firstValue = dataPoints[0]?.value ?? 0;
-  const lastValue = dataPoints.at(-1)?.value ?? 0;
+  const renderablePoints =
+    dataPoints.length > 0
+      ? dataPoints
+      : (performance?.dataPoints ?? []);
+
+  if (renderablePoints.length === 0) {
+    return (
+      <Card className="col-span-2 flex items-center justify-center p-8 text-muted-foreground">
+        No performance data available yet.
+      </Card>
+    );
+  }
+
+  const isPartial = coverage?.partial ?? false;
+  const holdingsWithHistory = coverage?.holdingsWithHistory ?? 0;
+  const totalHoldings = coverage?.totalHoldings ?? 0;
+
+  const firstValue = renderablePoints[0]?.value ?? 0;
+  const lastValue = renderablePoints.at(-1)?.value ?? 0;
   const periodReturn = lastValue - firstValue;
   const periodReturnPercent =
     firstValue > 0 ? (periodReturn / firstValue) * 100 : 0;
@@ -130,8 +154,8 @@ export function PerformanceChart() {
         <div className="flex items-start justify-between">
           <div>
             <CardTitle className="text-base">Portfolio Performance</CardTitle>
-            <CardDescription className="mt-1 flex items-center gap-2">
-              <span>{dataPoints.length}-day return:</span>
+            <CardDescription className="mt-1 flex items-center gap-2 flex-wrap">
+              <span>{renderablePoints.length}-day return:</span>
               <span
                 className={cn(
                   "inline-flex items-center gap-1 font-semibold tabular-nums",
@@ -146,6 +170,16 @@ export function PerformanceChart() {
                 {formatSignedCurrency(periodReturn)} (
                 {formatPercent(periodReturnPercent)})
               </span>
+              {/* Partial coverage indicator — Requirement 2.7 / R9 */}
+              {isPartial && totalHoldings > 0 && (
+                <span
+                  className="inline-flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400"
+                  title={`History available for ${holdingsWithHistory} of ${totalHoldings} holdings`}
+                >
+                  <AlertCircle className="h-3 w-3 shrink-0" aria-hidden />
+                  Partial ({holdingsWithHistory}/{totalHoldings} holdings)
+                </span>
+              )}
             </CardDescription>
           </div>
 
@@ -154,7 +188,7 @@ export function PerformanceChart() {
             {PERIODS.map((p) => (
               <Badge
                 key={p.label}
-                variant={dataPoints.length <= p.days ? "default" : "secondary"}
+                variant={renderablePoints.length <= p.days ? "default" : "secondary"}
                 className="cursor-default text-xs"
               >
                 {p.label}
@@ -167,7 +201,7 @@ export function PerformanceChart() {
       <CardContent className="pt-0">
         <ResponsiveContainer width="100%" height={224}>
           <AreaChart
-            data={dataPoints}
+            data={renderablePoints}
             margin={{ top: 4, right: 4, left: 0, bottom: 0 }}
           >
             <defs>
@@ -208,7 +242,7 @@ export function PerformanceChart() {
               tick={{ fontSize: 11, fill: "hsl(215 16% 47%)" }}
               tickLine={false}
               axisLine={false}
-              interval={Math.floor(dataPoints.length / 6)}
+              interval={Math.floor(renderablePoints.length / 6)}
             />
 
             <YAxis

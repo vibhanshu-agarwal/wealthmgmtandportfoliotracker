@@ -9,7 +9,7 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useAssetAllocation } from "@/lib/hooks/usePortfolio";
+import { useAssetAllocationFromAnalytics } from "@/lib/hooks/usePortfolio";
 import { formatCurrency, formatPercent } from "@/lib/utils/format";
 import type { AllocationSliceDTO } from "@/types/portfolio";
 
@@ -95,7 +95,7 @@ function AllocationChartSkeleton() {
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function AllocationChart() {
-  const { data, isLoading } = useAssetAllocation();
+  const { data, isLoading } = useAssetAllocationFromAnalytics();
 
   if (isLoading) return <AllocationChartSkeleton />;
 

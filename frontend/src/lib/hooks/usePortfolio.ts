@@ -6,6 +6,7 @@ import {
   fetchPortfolioAnalytics,
   buildPerformanceDtoFromPortfolio,
   buildAllocationDtoFromPortfolio,
+  buildAllocationDtoFromAnalytics,
 } from "@/lib/api/portfolio";
 import { fetchPortfolioSummary } from "@/lib/apiService";
 import { useAuthenticatedUserId } from "@/lib/hooks/useAuthenticatedUserId";
@@ -86,7 +87,10 @@ export function usePortfolioPerformance(days = 30) {
  * Asset-class allocation breakdown for the donut chart.
  *
  * Derived client-side from the usePortfolio cache via `select` — no extra
- * backend calls.
+ * backend calls. Falls back to "OTHER" for unknown asset classes.
+ *
+ * Note: prefer useAssetAllocationFromAnalytics when analytics data is available,
+ * as it uses canonical backend asset classes and FX-converted values.
  */
 export function useAssetAllocation() {
   const { userId, token, status } = useAuthenticatedUserId();
@@ -100,6 +104,44 @@ export function useAssetAllocation() {
     retryDelay,
     select: (portfolio): AssetAllocationDTO =>
       buildAllocationDtoFromPortfolio(portfolio),
+  });
+}
+
+/**
+ * Asset-class allocation derived from the analytics response.
+ * Preferred over useAssetAllocation when analytics data is available because:
+ * 1. Uses the backend's canonical displayAssetClass (with "OTHER" bucket).
+ * 2. Uses FX-converted base-currency values.
+ * 3. Reconciles allocation total with analytics totalValue.
+ *
+ * Requirement 4.1: allocation uses backend canonical asset class.
+ * Requirement 4.2: percentages from FX-converted complete values.
+ */
+export function useAssetAllocationFromAnalytics() {
+  const { userId, token, status } = useAuthenticatedUserId();
+  const portfolioQuery = useQuery({
+    queryKey: portfolioKeys.all(userId),
+    queryFn: () => fetchPortfolio(userId, token),
+    enabled: status === "authenticated" && !!token,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+    retry: retryPolicy,
+    retryDelay,
+  });
+
+  return useQuery({
+    queryKey: portfolioKeys.analytics(userId),
+    queryFn: () => fetchPortfolioAnalytics(token),
+    enabled: status === "authenticated" && !!token,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+    retry: retryPolicy,
+    retryDelay,
+    select: (analytics): AssetAllocationDTO =>
+      buildAllocationDtoFromAnalytics(
+        analytics,
+        portfolioQuery.data?.portfolioId ?? "n/a",
+      ),
   });
 }
 

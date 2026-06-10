@@ -164,7 +164,44 @@ export const handlers = [
     const unauthorized = requireBearer(request);
     if (unauthorized) return unauthorized;
 
-    return HttpResponse.json([]);
+    // Parse requested tickers to return an explicit price row for each
+    const url = new URL(request.url);
+    const tickersParam = url.searchParams.get("tickers") ?? "";
+    const requestedTickers = tickersParam
+      ? tickersParam.split(",").map((t) => t.trim()).filter(Boolean)
+      : [];
+
+    // Fixture prices for known tickers; unknown tickers get explicit unavailable marker
+    const knownPrices: Record<string, number> = {
+      AAPL: 212.5,
+      BTC: 70775.0,
+      "BTC-USD": 70775.0,
+      TSLA: 245.3,
+      MSFT: 420.0,
+      GOOGL: 175.0,
+    };
+
+    const prices = requestedTickers.map((ticker) => {
+      const price = knownPrices[ticker];
+      if (price != null) {
+        return {
+          ticker,
+          currentPrice: price,
+          observedAt: new Date(Date.now() - 3600_000).toISOString(),
+          quoteCurrency: ticker.endsWith("-USD") || ticker === "BTC" ? "USD" : "USD",
+          priceUnavailable: false,
+        };
+      }
+      // Explicit unavailable marker — never omit or fabricate $0.00
+      return {
+        ticker,
+        currentPrice: null,
+        observedAt: null,
+        priceUnavailable: true,
+      };
+    });
+
+    return HttpResponse.json(prices);
   }),
 
   // ── Insight-service handlers ──────────────────────────────────────────────
