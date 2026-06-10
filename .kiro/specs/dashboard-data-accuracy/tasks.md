@@ -128,10 +128,10 @@ Ordered so each phase builds on the previous. Backend contract first, then produ
     - _Requirements: 1.1, 1.4, 8.1, 8.3, 8.4_
   - _Design: Components §5, Property 1, Property 2, Property 3_
 
-- [ ] 10. End-to-end verification
-  - [ ] 10.1 Cross-service integration test: enriched event → projection append → analytics change/P&L → frontend contract, covering complete pricing and reconciliation (Total = Σ holdings = allocation total).
+- [x] 10. End-to-end verification
+  - [x] 10.1 Cross-service integration test: enriched event → projection append → analytics change/P&L → frontend contract, covering complete pricing and reconciliation (Total = Σ holdings = allocation total).
     - _Requirements: 1.4, 2.1, 3.1_
-  - [ ] 10.2 Verify the full build/test suite (`./gradlew check`, frontend `npm run test`) is green; clean up any temporary artifacts.
+  - [x] 10.2 Verify the full build/test suite (`./gradlew check`, frontend `npm run test`) is green; clean up any temporary artifacts.
     - _Requirements: 10.3_
   - _Design: Correctness Properties (all), Requirements Traceability_
 
