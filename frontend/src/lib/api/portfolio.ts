@@ -103,14 +103,26 @@ export async function loadMarketPrices(
     batches.push(uniqueTickers.slice(i, i + MARKET_PRICE_BATCH_SIZE));
   }
 
-  // Fetch all batches concurrently
+  // Fetch all batches concurrently, using a plain fetch wrapper so that a
+  // 401/non-2xx from market-data-service never triggers clearAuthSession()
+  // or a page navigation (fetchWithAuthClient has that side-effect on 401).
   const batchResults = await Promise.allSettled(
     batches.map(async (batch) => {
       const params = new URLSearchParams({ tickers: batch.join(",") });
-      return fetchJson<BackendMarketPrice[]>(
-        `${apiPath("/market/prices")}?${params.toString()}`,
-        token,
-      );
+      const url = `${apiPath("/market/prices")}?${params.toString()}`;
+      const response = await fetch(url, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        cache: "no-store",
+      });
+      if (!response.ok) {
+        // Non-2xx from market-data: degrade gracefully — do NOT clear session
+        throw new Error(`market-prices batch failed (${response.status})`);
+      }
+      return (await response.json()) as BackendMarketPrice[];
     }),
   );
 

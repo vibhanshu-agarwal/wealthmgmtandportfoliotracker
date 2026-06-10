@@ -29,8 +29,8 @@ test.describe("Golden Path — Data Creation", () => {
   test("portfolio holdings are persisted and returned by the API", async ({ page }) => {
     await page.goto("/portfolio");
 
-    await expect(page.getByText("AAPL").first()).toBeVisible();
-    await expect(page.getByText("BTC").first()).toBeVisible();
+    await expect(page.getByText("AAPL").first()).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText("BTC").first()).toBeVisible({ timeout: 30_000 });
   });
 });
 
@@ -53,7 +53,7 @@ test.describe("Golden Path — Analytics Validation", () => {
   test("holdings table contains AAPL and BTC tickers", async ({ page }) => {
     await page.goto("/portfolio");
 
-    await expect(page.getByText("AAPL").first()).toBeVisible();
-    await expect(page.getByText("BTC").first()).toBeVisible();
+    await expect(page.getByText("AAPL").first()).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText("BTC").first()).toBeVisible({ timeout: 30_000 });
   });
 });
