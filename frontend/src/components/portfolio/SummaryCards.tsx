@@ -139,8 +139,9 @@ export function SummaryCards() {
   const bestPerformer = analytics?.bestPerformer ?? summary.bestPerformer;
   const worstPerformer = analytics?.worstPerformer ?? summary.worstPerformer;
   // Use backend-computed unrealized P&L percent when available.
-  const unrealizedPnLPercent =
-    analytics?.totalUnrealizedPnLPercent ?? summary.totalUnrealizedPnLPercent;
+  // Null means no cost basis is recorded — render "—" rather than coalescing to 0 (which was
+  // the pre-Task-5 bug: summary.totalUnrealizedPnLPercent is always 0 as a placeholder).
+  const unrealizedPnLPercent = analytics?.totalUnrealizedPnLPercent ?? null;
 
   return (
     <>
@@ -154,8 +155,14 @@ export function SummaryCards() {
             {formatCurrency(portfolioTotal)}
           </p>
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <ChangeIndicator value={unrealizedPnLPercent} />
-            <span>all-time return</span>
+            {unrealizedPnLPercent != null ? (
+              <>
+                <ChangeIndicator value={unrealizedPnLPercent} />
+                <span>all-time return</span>
+              </>
+            ) : (
+              <span className="text-muted-foreground">all-time return —</span>
+            )}
           </div>
         </div>
         {/* Subtle gradient accent */}
@@ -202,7 +209,11 @@ export function SummaryCards() {
             >
               {bestPerformer.ticker}
             </Badge>
-            <ChangeIndicator value={bestPerformer.change24hPercent} size="lg" />
+            {bestPerformer.change24hPercent != null ? (
+              <ChangeIndicator value={bestPerformer.change24hPercent} size="lg" />
+            ) : (
+              <span className="text-sm text-muted-foreground">—</span>
+            )}
           </div>
           {"name" in bestPerformer && (
             <p className="text-xs text-muted-foreground">
@@ -214,9 +225,13 @@ export function SummaryCards() {
             <span className="font-mono font-semibold text-foreground">
               {worstPerformer.ticker}
             </span>{" "}
-            <span className="text-loss">
-              {formatPercent(worstPerformer.change24hPercent)}
-            </span>
+            {worstPerformer.change24hPercent != null ? (
+              <span className="text-loss">
+                {formatPercent(worstPerformer.change24hPercent)}
+              </span>
+            ) : (
+              <span className="text-muted-foreground">—</span>
+            )}
           </p>
         </div>
         <div className="absolute -right-4 -top-4 h-20 w-20 rounded-full bg-profit/5 blur-xl" />

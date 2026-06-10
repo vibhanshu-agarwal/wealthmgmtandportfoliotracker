@@ -45,10 +45,27 @@ const arbHolding = fc.record({
   quantity: fc.double({ min: 0.001, max: 100000, noNaN: true }),
   currentPrice: fc.double({ min: 0.01, max: 999999, noNaN: true }),
   totalValue: fc.double({ min: 0, max: 999999999, noNaN: true }),
-  avgCostBasis: fc.double({ min: 0.01, max: 999999, noNaN: true }),
-  unrealizedPnL: fc.double({ min: -999999, max: 999999, noNaN: true }),
-  change24hPercent: fc.double({ min: -99, max: 99, noNaN: true }),
-  change24hAbsolute: fc.double({ min: -99999, max: 99999, noNaN: true }),
+  // avgCostBasis, unrealizedPnL, change24h* are nullable per Task 5 contract
+  avgCostBasis: fc.oneof(
+    fc.double({ min: 0.01, max: 999999, noNaN: true }),
+    fc.constant(null),
+  ),
+  unrealizedPnL: fc.oneof(
+    fc.double({ min: -999999, max: 999999, noNaN: true }),
+    fc.constant(null),
+  ),
+  unrealizedPnLPercent: fc.oneof(
+    fc.double({ min: -100, max: 1000, noNaN: true }),
+    fc.constant(null),
+  ),
+  change24hPercent: fc.oneof(
+    fc.double({ min: -99, max: 99, noNaN: true }),
+    fc.constant(null),
+  ),
+  change24hAbsolute: fc.oneof(
+    fc.double({ min: -99999, max: 99999, noNaN: true }),
+    fc.constant(null),
+  ),
   portfolioWeight: fc.double({ min: 0, max: 100, noNaN: true }),
   lastUpdatedAt: fc
     .integer({ min: 1577836800000, max: 1924905600000 })
@@ -138,6 +155,16 @@ describe("MarketDataPageContent — Property-Based Tests", () => {
 
         const tbody = screen.getByRole("table").querySelector("tbody")!;
         const row = within(tbody).getAllByRole("row")[0];
+
+        // When change24hPercent is null the component renders "—" — no color class to assert.
+        if (holding.change24hPercent == null) {
+          const dashCell = Array.from(row.querySelectorAll("td")).find(
+            (td: HTMLTableCellElement) => td.textContent?.includes("—"),
+          );
+          expect(dashCell).toBeDefined();
+          unmount();
+          return;
+        }
 
         // The change cell contains the formatted percent
         const formattedPercent = formatPercent(holding.change24hPercent);

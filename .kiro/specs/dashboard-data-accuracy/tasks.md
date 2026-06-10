@@ -67,16 +67,16 @@ Ordered so each phase builds on the previous. Backend contract first, then produ
     - _Requirements: 2.2, 3.4_
   - _Design: Components §3, Property 6, Property 7_
 
-- [ ] 5. Portfolio-service calculation correctness (depends on Task 6 FX semantics)
-  - [ ] 5.1 Compute unrealized P&L from real `avg_cost_basis` — converting cost basis from `cost_basis_currency` to base currency and current value from quote currency to base currency (do not assume they are equal). Return nullable/"unavailable" when basis absent — never 0. Apply consistently to per-holding, aggregate, and all-time return.
+- [x] 5. Portfolio-service calculation correctness (depends on Task 6 FX semantics)
+  - [x] 5.1 Compute unrealized P&L from real `avg_cost_basis` — converting cost basis from `cost_basis_currency` to base currency and current value from quote currency to base currency (do not assume they are equal). Return nullable/"unavailable" when basis absent — never 0. Apply consistently to per-holding, aggregate, and all-time return.
     - _Requirements: 3.1, 3.2, 3.3, 10.6_
-  - [ ] 5.2 Compute 24h/since-snapshot change from `market_price_history` using an explicit tolerance window (≈18–36h); return nullable change + reference timestamp + `changeBasis` label.
+  - [x] 5.2 Compute 24h/since-snapshot change from `market_price_history` using an explicit tolerance window (≈18–36h); return nullable change + reference timestamp + `changeBasis` label.
     - _Requirements: 2.1, 2.3, 2.6, 9.1_
-  - [ ] 5.3 Build performance series from complete FX-converted history across all holdings; when some holdings lack history, return coverage metadata and mark partial — never present a partial subset or synthetic curve as full-portfolio.
+  - [x] 5.3 Build performance series from complete FX-converted history across all holdings; when some holdings lack history, return coverage metadata and mark partial — never present a partial subset or synthetic curve as full-portfolio.
     - _Requirements: 2.7, 10.6_
-  - [ ] 5.4 Expose canonical display asset class (mapping `US_EQUITY/NSE/CRYPTO/FOREX/…` → `STOCK/ETF/CRYPTO/BOND/CASH/COMMODITY/OTHER`) on the analytics/holdings contract.
+  - [x] 5.4 Expose canonical display asset class (mapping `US_EQUITY/NSE/CRYPTO/FOREX/…` → `STOCK/ETF/CRYPTO/BOND/CASH/COMMODITY/OTHER`) on the analytics/holdings contract.
     - _Requirements: 4.1, 4.3_
-  - [ ] 5.5 Unit tests for P&L (real/null), change (window/null/label), performance (complete/partial+coverage), and asset-class mapping.
+  - [x] 5.5 Unit tests for P&L (real/null), change (window/null/label), performance (complete/partial+coverage), and asset-class mapping.
     - _Requirements: 2.6, 2.7, 3.2, 4.1_
   - _Design: Components §3, Property 2, Property 4_
 

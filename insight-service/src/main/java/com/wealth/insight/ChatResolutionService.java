@@ -364,7 +364,16 @@ public class ChatResolutionService {
     boolean hasComparisonCue(String message) {
         String lower = message.toLowerCase(Locale.ROOT);
         for (String cue : COMPARISON_CUES) {
-            if (lower.contains(cue)) return true;
+            // "vs." must be matched as a whole whitespace-delimited token to avoid false positives
+            // on ticker suffixes like VS.NS whose lowercased form "vs.ns" contains the substring
+            // "vs.". All other cues ("compare", "versus") are long enough to be safe as substrings.
+            if (cue.equals("vs.")) {
+                for (String token : lower.split("\\s+")) {
+                    if (token.equals("vs.")) return true;
+                }
+            } else if (lower.contains(cue)) {
+                return true;
+            }
         }
         return false;
     }
