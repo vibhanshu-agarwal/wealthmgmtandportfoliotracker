@@ -364,10 +364,13 @@ public class PortfolioAnalyticsService {
                 })
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        // Task 5.1: aggregate P&L — null when no priced holding has a cost basis.
-        // Only holdings that are counted in totalValue (currentValueBase != null) qualify.
+        // Task 5.1: aggregate P&L — null when no priced, fully-convertible holding has a cost basis.
+        // Excludes both missing-price holdings (currentValueBase == null) and holdings whose
+        // cost-basis currency FX is unavailable (unavailableCostBasisTickers), ensuring the
+        // null vs. zero decision is consistent with what actually lands in totalCostBasis.
         boolean anyHasBasis = holdingDtos.stream()
                 .filter(h -> h.currentValueBase() != null)
+                .filter(h -> !unavailableCostBasisTickers.contains(h.ticker()))
                 .anyMatch(h -> h.avgCostBasis() != null);
         BigDecimal totalPnL;
         BigDecimal totalPnLPct;

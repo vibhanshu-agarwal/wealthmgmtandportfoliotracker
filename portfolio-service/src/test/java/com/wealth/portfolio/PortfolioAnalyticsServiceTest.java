@@ -335,6 +335,25 @@ class PortfolioAnalyticsServiceTest {
     }
 
     @Test
+    void task51_aggregate_costBasisFxUnavailableOnlySingleHolding_pnlNullNotZero() {
+        // Edge case: single holding whose quote FX resolves but whose cost-basis currency FX
+        // is unavailable → goes into unavailableCostBasisTickers → excluded from both
+        // totalValue and totalCostBasis. anyHasBasis must also exclude it, so the aggregate
+        // reports null (unavailable) not $0.00 / 0% (phantom break-even).
+        when(fxRateProvider.getRate("EUR", "USD"))
+                .thenThrow(new FxRateUnavailableException("EUR", "USD", null));
+
+        // quote = USD (resolves to 1.0), cost basis = EUR (FX unavailable)
+        stubQuery(List.of(
+                holdingRow("AAPL", "10", "200.00", "USD", null, null, null, "165.00", "EUR")));
+
+        PortfolioAnalyticsDto result = service.getAnalytics(USER_ID);
+
+        assertThat(result.totalUnrealizedPnL()).isNull();
+        assertThat(result.totalCostBasis()).isEqualByComparingTo(BigDecimal.ZERO);
+    }
+
+    @Test
     void task51_pnlIdentity_totalPnLEqualsTotalValueMinusTotalCostBasis() {
         // When basis is present, totalPnL = totalValue - totalCostBasis
         stubQuery(List.of(
