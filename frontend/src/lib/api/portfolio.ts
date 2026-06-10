@@ -316,7 +316,7 @@ export function buildAllocationDtoFromPortfolio(
   };
 
   const slices: AllocationSliceDTO[] = Object.entries(byClass).map(([assetClass, value]) => ({
-    assetClass: assetClass as AssetClass,
+    assetClass: assetClass as DisplayAssetClass,
     label: labelMap[assetClass] ?? "Other",
     value,
     percentage: portfolio.summary.totalValue > 0 ? (value / portfolio.summary.totalValue) * 100 : 0,
@@ -375,8 +375,7 @@ export function buildAllocationDtoFromAnalytics(
   const totalValue = analytics.totalValue;
 
   const slices: AllocationSliceDTO[] = Object.entries(byClass).map(([assetClass, value]) => ({
-    // Cast: "OTHER" from DisplayAssetClass is not in AssetClass but AllocationSliceDTO accepts it
-    assetClass: assetClass as AssetClass,
+    assetClass: assetClass as DisplayAssetClass,
     label: labelMap[assetClass] ?? "Other",
     value,
     percentage: totalValue > 0 ? (value / totalValue) * 100 : 0,
