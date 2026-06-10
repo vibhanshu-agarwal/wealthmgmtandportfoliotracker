@@ -314,20 +314,28 @@ public class PortfolioAnalyticsService {
             ));
         }
 
-        // ── Aggregates — skip holdings whose FX rate was unavailable ──
-        // A holding is excluded from totalValue when its QUOTE currency FX rate
-        // is unavailable.  For P&L, a holding is additionally excluded when its
-        // COST-BASIS currency FX rate is unavailable — otherwise we would count
-        // the full current value with a zero cost contribution, falsely reporting
-        // the entire position as profit.
-        // We build a set of tickers whose cost-basis currency is also unavailable
-        // so we can exclude them from BOTH totalValue and totalCostBasis.
+        // ── Aggregates — skip holdings whose price or FX rate was unavailable ──
+        // Symmetric exclusion rule: a holding is excluded from BOTH totalValue and totalCostBasis
+        // whenever its current value cannot be determined (null currentValueBase). This covers:
+        //   (a) missing market_prices row  → currentPrice null  → currentValueBase null
+        //   (b) quote-currency FX unavailable               → currentValueBase null
+        //   (c) cost-basis-currency FX unavailable          → added to unavailableCostBasisTickers
+        //
+        // Excluding a holding from totalValue but keeping its basis in totalCostBasis would
+        // produce a phantom aggregate loss equal to the full cost basis of every priced-absent
+        // holding — the same "false 100% loss" problem that Issue #1 fixed at the per-holding level.
         Set<String> unavailableCostBasisTickers = new HashSet<>();
         for (AnalyticsQueryRow row : holdingRows) {
-            if (row.avgCostBasis() == null) continue; // no basis → already excluded from P&L
+            // Problem B fix: skip missing-price rows — no currentValueBase means the holding
+            // is already excluded from totalValue and must not contribute to totalCostBasis.
+            // This also prevents a NPE when both costBasisCurrency and quoteCurrency are null
+            // (quoteCurrency is null when there is no market_prices row).
+            if (row.currentPrice() == null) continue;
+            if (row.avgCostBasis() == null) continue;
             String cbCurrency = row.costBasisCurrency() != null
                     ? row.costBasisCurrency() : row.quoteCurrency();
-            if (!cbCurrency.equals(baseCurrency) && unavailableCurrencies.contains(cbCurrency)) {
+            if (cbCurrency != null && !cbCurrency.equals(baseCurrency)
+                    && unavailableCurrencies.contains(cbCurrency)) {
                 unavailableCostBasisTickers.add(row.assetTicker());
             }
         }
@@ -339,12 +347,13 @@ public class PortfolioAnalyticsService {
                 .map(HoldingAnalyticsDto::currentValueBase)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        // Task 5.1: aggregate cost basis — FX-convert each holding's cost basis independently.
-        // Holdings with unavailable cost-basis currency are excluded from both value and basis
-        // to keep the aggregate P&L meaningful (not silently overstated).
+        // Task 5.1: aggregate cost basis — only include holdings whose value is also counted
+        // (symmetric with totalValue). Problem A fix: add currentValueBase != null filter so
+        // a missing-price holding does not contribute basis without contributing value.
         BigDecimal totalCostBasis = holdingDtos.stream()
                 .filter(h -> !unavailableCurrencies.contains(h.quoteCurrency()))
                 .filter(h -> !unavailableCostBasisTickers.contains(h.ticker()))
+                .filter(h -> h.currentValueBase() != null)   // symmetric: same guard as totalValue
                 .filter(h -> h.avgCostBasis() != null)
                 .map(h -> {
                     String cbCurrency = h.costBasisCurrency() != null ? h.costBasisCurrency() : h.quoteCurrency();
@@ -355,8 +364,11 @@ public class PortfolioAnalyticsService {
                 })
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        // Task 5.1: aggregate P&L is null when no holding has a cost basis
-        boolean anyHasBasis = holdingDtos.stream().anyMatch(h -> h.avgCostBasis() != null);
+        // Task 5.1: aggregate P&L — null when no priced holding has a cost basis.
+        // Only holdings that are counted in totalValue (currentValueBase != null) qualify.
+        boolean anyHasBasis = holdingDtos.stream()
+                .filter(h -> h.currentValueBase() != null)
+                .anyMatch(h -> h.avgCostBasis() != null);
         BigDecimal totalPnL;
         BigDecimal totalPnLPct;
         if (anyHasBasis) {

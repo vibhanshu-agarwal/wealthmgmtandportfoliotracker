@@ -163,7 +163,9 @@ class PortfolioAnalyticsServiceTest {
     @Test
     void missingPrice_pnlIsNull_neverFalse100PctLoss() {
         // A holding with basis but no price must not produce a false −100% loss.
-        // P&L requires a current value; without a price it must be null.
+        // Per-holding: P&L must be null (no current value to subtract basis from).
+        // Aggregate: totalUnrealizedPnL must also be null (not −1800) and totalCostBasis
+        // must be 0 (the missing-price holding must not contribute basis without value).
         stubQuery(List.of(holdingRow("AAPL", "10", null, "USD", null, null, null, "180.00", "USD")));
 
         PortfolioAnalyticsDto result = service.getAnalytics(USER_ID);
@@ -171,6 +173,11 @@ class PortfolioAnalyticsServiceTest {
         HoldingAnalyticsDto h = result.holdings().getFirst();
         assertThat(h.unrealizedPnL()).isNull();
         assertThat(h.unrealizedPnLPercent()).isNull();
+
+        // Problem A regression: totalCostBasis must not include the basis of a missing-price
+        // holding (that would make totalPnL = 0 - 1800 = -1800, a phantom 100% loss).
+        assertThat(result.totalCostBasis()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(result.totalUnrealizedPnL()).isNull();
     }
 
     @Test
@@ -197,6 +204,23 @@ class PortfolioAnalyticsServiceTest {
         PortfolioAnalyticsDto result = service.getAnalytics(USER_ID);
 
         assertThat(result.totalValue()).isEqualByComparingTo("2000.0000");
+    }
+
+    @Test
+    void missingPrice_mixedPortfolio_aggregatePnlExcludesMissingPriceHolding() {
+        // AAPL: priced at 200, basis 180 → P&L = (200-180)×10 = +200
+        // BTC:  no price, basis 50000   → must NOT contribute to aggregate (Problem A fix)
+        // Expected: totalValue=2000, totalCostBasis=1800, totalPnL=+200, not -48000
+        stubQuery(List.of(
+                holdingRow("AAPL",    "10",  "200.00", "USD", null, null, null, "180.00", "USD"),
+                holdingRow("BTC-USD", "1",   null,     "USD", null, null, null, "50000.00", "USD")));
+
+        PortfolioAnalyticsDto result = service.getAnalytics(USER_ID);
+
+        assertThat(result.totalValue()).isEqualByComparingTo("2000.0000");
+        assertThat(result.totalCostBasis()).isEqualByComparingTo("1800.0000");
+        assertThat(result.totalUnrealizedPnL()).isNotNull();
+        assertThat(result.totalUnrealizedPnL()).isEqualByComparingTo("200.0000");
     }
 
     @Test
