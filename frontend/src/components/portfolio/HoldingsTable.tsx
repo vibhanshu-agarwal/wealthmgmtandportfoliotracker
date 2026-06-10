@@ -265,6 +265,10 @@ export function HoldingsTable() {
         ...h,
         assetClass: compatClass,
         unrealizedPnL: analyticsHolding.unrealizedPnL,
+        // Issue #3 fix: merge backend-provided percent directly — do NOT recompute client-side
+        // from avgCostBasis/totalValue (fetchPortfolio sets avgCostBasis=null, so the formula
+        // always produces 0% even when unrealizedPnL is real).
+        unrealizedPnLPercent: analyticsHolding.unrealizedPnLPercent,
         change24hPercent: analyticsHolding.change24hPercent,
         change24hAbsolute: analyticsHolding.change24hAbsolute,
       };
@@ -529,19 +533,18 @@ export function HoldingsTable() {
                             >
                               {formatSignedCurrency(holding.unrealizedPnL)}
                             </span>
-                            <span
-                              className={cn(
-                                "text-xs tabular-nums",
-                                holding.unrealizedPnL >= 0 ? "text-profit/70" : "text-loss/70",
-                              )}
-                            >
-                              {formatPercent(
-                                ((holding.totalValue -
-                                  (holding.avgCostBasis ?? holding.currentPrice) * holding.quantity) /
-                                  ((holding.avgCostBasis ?? holding.currentPrice) * holding.quantity)) *
-                                  100,
-                              )}
-                            </span>
+                            {/* Issue #3 fix: use backend unrealizedPnLPercent — never recompute
+                                client-side from avgCostBasis (always null from fetchPortfolio). */}
+                            {holding.unrealizedPnLPercent != null && (
+                              <span
+                                className={cn(
+                                  "text-xs tabular-nums",
+                                  holding.unrealizedPnL >= 0 ? "text-profit/70" : "text-loss/70",
+                                )}
+                              >
+                                {formatPercent(holding.unrealizedPnLPercent)}
+                              </span>
+                            )}
                           </div>
                         )}
                       </TableCell>

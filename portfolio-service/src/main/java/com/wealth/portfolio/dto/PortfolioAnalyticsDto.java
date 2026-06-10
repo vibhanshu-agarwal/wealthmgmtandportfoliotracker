@@ -48,10 +48,15 @@ public record PortfolioAnalyticsDto(
      *
      * <p>Task 5 semantics — nullable fields indicate "unavailable", never a real zero:
      * <ul>
+     *   <li>{@code currentPrice} — null when no {@code market_prices} row exists for the ticker
+     *       (holding is tracked but price feed is absent or has not yet refreshed).</li>
+     *   <li>{@code currentValueBase} — null when {@code currentPrice} is null OR the quote-currency
+     *       FX rate is unavailable. Never {@code 0} for a missing price.</li>
      *   <li>{@code unrealizedPnL} / {@code unrealizedPnLPercent} — null when
-     *       {@code avgCostBasis} is absent for this holding.</li>
+     *       {@code avgCostBasis} is absent or {@code currentValueBase} is null.</li>
      *   <li>{@code change24hAbsolute} / {@code change24hPercent} / {@code change24hReferenceAt}
-     *       / {@code changeBasis} — null when no history row falls within the tolerance window.</li>
+     *       / {@code changeBasis} — null when no history row falls within the tolerance window
+     *       or when {@code currentPrice} is null.</li>
      *   <li>{@code displayAssetClass} — canonical UI display class (never null; defaults to
      *       {@code "OTHER"} for unknown tickers).</li>
      * </ul>
@@ -59,8 +64,9 @@ public record PortfolioAnalyticsDto(
     public record HoldingAnalyticsDto(
             String ticker,
             BigDecimal quantity,
+            /** Current market price per unit in quoteCurrency; null when no price row exists. */
             BigDecimal currentPrice,
-            /** FX-converted total value in baseCurrency; null when FX rate unavailable. */
+            /** FX-converted total value in baseCurrency; null when price or FX rate unavailable. */
             BigDecimal currentValueBase,
             /** Average cost per unit in {@code costBasisCurrency}; null = unavailable. */
             BigDecimal avgCostBasis,

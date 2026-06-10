@@ -54,6 +54,10 @@ const arbHolding = fc.record({
     fc.double({ min: -999999, max: 999999, noNaN: true }),
     fc.constant(null),
   ),
+  unrealizedPnLPercent: fc.oneof(
+    fc.double({ min: -100, max: 1000, noNaN: true }),
+    fc.constant(null),
+  ),
   change24hPercent: fc.oneof(
     fc.double({ min: -99, max: 99, noNaN: true }),
     fc.constant(null),

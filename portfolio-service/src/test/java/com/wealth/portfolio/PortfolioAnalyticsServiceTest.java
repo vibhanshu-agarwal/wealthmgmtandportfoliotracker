@@ -145,9 +145,62 @@ class PortfolioAnalyticsServiceTest {
 
     // ── Task 5.1: Unrealised P&L tests ──────────────────────────────────────
 
+    // ── Issue #1 & #2: Missing current price (no market_prices row) ─────────
+
     @Test
-    void task51_realPnL_noBasis_returnsNullPnL_neverZero() {
-        // No avg_cost_basis provided → unrealizedPnL must be null, not 0
+    void missingPrice_currentPriceNull_currentValueBaseNullNotZero() {
+        // No market_prices row → currentPrice is null in the SQL result.
+        // currentValueBase must be null (not 0) to avoid a false $0.00 position value.
+        stubQuery(List.of(holdingRow("AAPL", "10", null, "USD", null, null, null, null, null)));
+
+        PortfolioAnalyticsDto result = service.getAnalytics(USER_ID);
+
+        HoldingAnalyticsDto h = result.holdings().getFirst();
+        assertThat(h.currentPrice()).isNull();
+        assertThat(h.currentValueBase()).isNull();
+    }
+
+    @Test
+    void missingPrice_pnlIsNull_neverFalse100PctLoss() {
+        // A holding with basis but no price must not produce a false −100% loss.
+        // P&L requires a current value; without a price it must be null.
+        stubQuery(List.of(holdingRow("AAPL", "10", null, "USD", null, null, null, "180.00", "USD")));
+
+        PortfolioAnalyticsDto result = service.getAnalytics(USER_ID);
+
+        HoldingAnalyticsDto h = result.holdings().getFirst();
+        assertThat(h.unrealizedPnL()).isNull();
+        assertThat(h.unrealizedPnLPercent()).isNull();
+    }
+
+    @Test
+    void missingPrice_changeIsNull_neverFalse100PctChange() {
+        // A holding with history but no current price must not produce a false −100% change.
+        Instant refAt = Instant.now().minus(24, ChronoUnit.HOURS);
+        stubQuery(List.of(holdingRow("AAPL", "10", null, "USD", "190.00", refAt, "WITHIN_24H_WINDOW", null, null)));
+
+        PortfolioAnalyticsDto result = service.getAnalytics(USER_ID);
+
+        HoldingAnalyticsDto h = result.holdings().getFirst();
+        assertThat(h.change24hPercent()).isNull();
+        assertThat(h.change24hAbsolute()).isNull();
+    }
+
+    @Test
+    void missingPrice_excludedFromTotalValue() {
+        // Holdings with null price must not contribute $0 to the total.
+        // AAPL has a price, BTC does not → totalValue = AAPL only.
+        stubQuery(List.of(
+                holdingRow("AAPL", "10", "200.00", "USD", null, null, null, null, null),
+                holdingRow("BTC-USD", "0.5", null, "USD", null, null, null, null, null)));
+
+        PortfolioAnalyticsDto result = service.getAnalytics(USER_ID);
+
+        assertThat(result.totalValue()).isEqualByComparingTo("2000.0000");
+    }
+
+    @Test
+    void task51_realPnL_noBasis_returnsNullPnL_neverZero() {        // No avg_cost_basis provided → unrealizedPnL must be null, not 0
         stubQuery(List.of(holdingRow("AAPL", "10", "200.00", "USD", null, null, null, null, null)));
 
         PortfolioAnalyticsDto result = service.getAnalytics(USER_ID);
@@ -734,7 +787,7 @@ class PortfolioAnalyticsServiceTest {
                 "HOLDING",
                 ticker,
                 new BigDecimal(qty),
-                new BigDecimal(price),
+                price != null ? new BigDecimal(price) : null,
                 currency,
                 price24h != null ? new BigDecimal(price24h) : null,
                 price24hRefAt,

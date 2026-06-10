@@ -151,6 +151,7 @@ export async function fetchPortfolio(userId: string, token: string): Promise<Por
       avgCostBasis: null,
       // TODO: Compute unrealized P&L and 24h change from historical and cost-basis data.
       unrealizedPnL: null,
+      unrealizedPnLPercent: null,
       change24hPercent: null,
       change24hAbsolute: null,
       portfolioWeight: 0,

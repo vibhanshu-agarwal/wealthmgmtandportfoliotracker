@@ -29,6 +29,8 @@ export interface AssetHoldingDTO {
   avgCostBasis: number | null;
   /** totalValue - (quantity × avgCostBasis); null when basis unavailable */
   unrealizedPnL: number | null;
+  /** (unrealizedPnL / totalCostBasis) × 100; null when basis unavailable */
+  unrealizedPnLPercent: number | null;
   /** 24-hour price change as a percentage; null when no reference exists */
   change24hPercent: number | null;
   /** 24-hour price change in absolute USD; null when no reference exists */

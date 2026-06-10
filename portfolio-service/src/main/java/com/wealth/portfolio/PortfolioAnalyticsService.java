@@ -84,8 +84,8 @@ public class PortfolioAnalyticsService {
                        h.quantity,
                        h.avg_cost_basis,
                        h.cost_basis_currency,
-                       COALESCE(mp.current_price, 0)      AS current_price,
-                       COALESCE(mp.quote_currency, 'USD') AS quote_currency
+                       mp.current_price,                               -- null when no market_prices row
+                       mp.quote_currency                               -- null when no market_prices row
                 FROM asset_holdings h
                 JOIN portfolios p ON p.id = h.portfolio_id
                 LEFT JOIN market_prices mp ON mp.ticker = h.asset_ticker
@@ -235,10 +235,18 @@ public class PortfolioAnalyticsService {
         // ── Per-holding computation ──────────────────────────────────────────
         List<HoldingAnalyticsDto> holdingDtos = new ArrayList<>();
         for (AnalyticsQueryRow row : holdingRows) {
-            BigDecimal quoteRate = fxRate(row.quoteCurrency(), baseCurrency, fxRateCache, unavailableCurrencies);
+            // Issue #1 fix: currentPrice null means no market_prices row for this ticker.
+            // Treat as price-unavailable: null currentValueBase, null change, null P&L.
+            // Never substitute 0 — a zero price produces a false 100% loss on any holding
+            // with a cost basis and a false -100% change on any holding with history.
+            boolean priceAvailable = row.currentPrice() != null;
+            BigDecimal quoteRate = priceAvailable
+                    ? fxRate(row.quoteCurrency(), baseCurrency, fxRateCache, unavailableCurrencies)
+                    : null;
 
-            // Task 5.1: current value in base currency; null when FX rate unavailable
-            BigDecimal currentValueBase = quoteRate != null
+            // Issue #2 fix: emit null (not ZERO) when price or FX is unavailable.
+            // Matches the documented contract on HoldingAnalyticsDto.currentValueBase.
+            BigDecimal currentValueBase = (priceAvailable && quoteRate != null)
                     ? row.quantity().multiply(row.currentPrice()).multiply(quoteRate)
                             .setScale(4, RoundingMode.HALF_UP)
                     : null;
@@ -247,7 +255,7 @@ public class PortfolioAnalyticsService {
             // Cost basis may be in a DIFFERENT currency than quoteCurrency (e.g. basis captured
             // in INR for an NSE stock, now being compared against a USD base).
             // P&L = currentValueBase − (quantity × avgCostBasis × costBasisRate)
-            // Null when avg_cost_basis is absent — never coerced to 0.
+            // Null when avg_cost_basis is absent OR currentPrice is unavailable — never 0.
             BigDecimal avgCostBasis = row.avgCostBasis();
             String costBasisCurrency = row.costBasisCurrency();
             BigDecimal unrealizedPnL = null;
@@ -272,11 +280,14 @@ public class PortfolioAnalyticsService {
                 }
             }
 
-            // Task 5.2: tolerance-window change — null when no reference exists.
-            // changeBasis comes directly from the SQL query (WITHIN_24H_WINDOW or
-            // SINCE_PREVIOUS_SNAPSHOT) — no re-derivation needed.
-            BigDecimal change24hAbs = computeChange24hAbsolute(row.currentPrice(), row.price24hAgo());
-            BigDecimal change24hPct = computeChange24hPercent(row.currentPrice(), row.price24hAgo());
+            // Task 5.2: tolerance-window change — null when no reference exists OR price unavailable.
+            // changeBasis comes directly from the SQL query (WITHIN_24H_WINDOW or SINCE_PREVIOUS_SNAPSHOT).
+            BigDecimal change24hAbs = priceAvailable
+                    ? computeChange24hAbsolute(row.currentPrice(), row.price24hAgo())
+                    : null;
+            BigDecimal change24hPct = priceAvailable
+                    ? computeChange24hPercent(row.currentPrice(), row.price24hAgo())
+                    : null;
             String referenceAt = row.price24hReferenceAt() != null
                     ? row.price24hReferenceAt().toString()
                     : null;
@@ -288,8 +299,8 @@ public class PortfolioAnalyticsService {
             holdingDtos.add(new HoldingAnalyticsDto(
                     row.assetTicker(),
                     row.quantity(),
-                    row.currentPrice(),
-                    currentValueBase != null ? currentValueBase : BigDecimal.ZERO,
+                    row.currentPrice(),   // null when no market_prices row — never 0
+                    currentValueBase,     // null when price/FX unavailable — never 0
                     avgCostBasis,
                     costBasisCurrency,
                     unrealizedPnL,
@@ -324,6 +335,7 @@ public class PortfolioAnalyticsService {
         BigDecimal totalValue = holdingDtos.stream()
                 .filter(h -> !unavailableCurrencies.contains(h.quoteCurrency()))
                 .filter(h -> !unavailableCostBasisTickers.contains(h.ticker()))
+                .filter(h -> h.currentValueBase() != null)   // null = price/FX unavailable
                 .map(HoldingAnalyticsDto::currentValueBase)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
