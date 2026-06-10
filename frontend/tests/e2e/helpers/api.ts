@@ -127,7 +127,69 @@ export async function ensurePortfolioWithHoldings(
     );
   }
 
+  // ── 5. Poll until holdings are visible in GET /api/portfolio ──────────────
+  // The backend processes holdings synchronously, but under load or after a
+  // cold start the read-your-own-write may lag slightly. Poll for up to 10s
+  // so the browser never hits an empty holdings list immediately after seeding.
+  const requiredTickers = holdingsNeeded.map((h) => h.ticker);
+  const holdingsVisible = await pollUntilHoldingsVisible(
+    request,
+    bearerToken,
+    portfolioId,
+    requiredTickers,
+    10_000,
+  );
+  if (!holdingsVisible) {
+    console.warn(
+      `[api] Holdings not yet visible in GET /api/portfolio after 10s — proceeding anyway`,
+    );
+  }
+
   return portfolioId;
+}
+
+/**
+ * Polls GET /api/portfolio until all required tickers appear in the holdings list,
+ * or until the timeout expires. Returns true when all tickers are found.
+ */
+async function pollUntilHoldingsVisible(
+  request: APIRequestContext,
+  bearerToken: string,
+  portfolioId: string,
+  requiredTickers: string[],
+  timeoutMs: number,
+): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  const pollInterval = 1_000;
+
+  while (Date.now() < deadline) {
+    try {
+      const res = await request.get(`${GATEWAY_URL}/api/portfolio`, {
+        headers: { Authorization: `Bearer ${bearerToken}` },
+      });
+      if (res.ok()) {
+        const portfolios = await res.json();
+        const portfolio = Array.isArray(portfolios)
+          ? portfolios.find((p: { id: string }) => p.id === portfolioId)
+          : null;
+        const holdings: Array<{ assetTicker: string }> = portfolio?.holdings ?? [];
+        const presentTickers = new Set(holdings.map((h) => h.assetTicker));
+        const allPresent = requiredTickers.every((t) => presentTickers.has(t));
+        if (allPresent) {
+          console.log(`[api] All required tickers visible in GET /api/portfolio`);
+          return true;
+        }
+        console.log(
+          `[api] Holdings not yet complete — found: [${[...presentTickers].join(",")}], ` +
+            `need: [${requiredTickers.join(",")}] — retrying...`,
+        );
+      }
+    } catch {
+      // transient error — keep polling
+    }
+    await new Promise((r) => setTimeout(r, pollInterval));
+  }
+  return false;
 }
 
 export { mintJwt };

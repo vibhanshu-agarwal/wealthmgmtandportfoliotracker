@@ -165,7 +165,8 @@ export interface PortfolioAnalyticsDTO {
 }
 
 export interface AllocationSliceDTO {
-  assetClass: AssetClass;
+  /** Display asset class including "OTHER" for unknown/unclassified holdings */
+  assetClass: DisplayAssetClass;
   label: string;
   value: number;
   percentage: number;

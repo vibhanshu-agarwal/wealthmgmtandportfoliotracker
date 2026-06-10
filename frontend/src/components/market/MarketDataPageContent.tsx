@@ -26,7 +26,8 @@ import {
   formatCurrency,
   formatPercent,
   formatSignedCurrency,
-  formatDate,
+  formatDateOrDash,
+  formatRelativeAge,
 } from "@/lib/utils/format";
 
 // ── Session-pending skeleton ──────────────────────────────────────────────────
@@ -182,7 +183,13 @@ function MarketDataTable() {
                   }
                 </TableCell>
                 <TableCell className="text-right text-muted-foreground">
-                  {formatDate(holding.lastUpdatedAt)}
+                  <span
+                    title={holding.lastUpdatedAt !== new Date(0).toISOString() ? holding.lastUpdatedAt : undefined}
+                  >
+                    {holding.lastUpdatedAt === new Date(0).toISOString()
+                      ? "—"
+                      : formatRelativeAge(holding.lastUpdatedAt)}
+                  </span>
                 </TableCell>
               </TableRow>
             ))}
