@@ -390,6 +390,41 @@ class ChatResolutionServiceTest {
     }
 
     @Test
+    void handle_nseSymbolContainingVsSubstring_resolvesViaPreflight_notClarification() {
+        // Regression: "VS.NS" lowercase is "vs.ns" which CONTAINS the substring "vs."
+        // hasComparisonCue must match "vs." as a whole token, not as a substring,
+        // otherwise a VS.NS holding query triggers a spurious comparison-cue clarification.
+        when(catalog.normalize(anyString())).thenReturn(Optional.empty());
+        when(catalog.normalize("VS.NS")).thenReturn(Optional.of("VS.NS"));
+
+        service.handle(new ChatRequest("How is VS.NS doing?", null));
+
+        ArgumentCaptor<ResolutionOutcome> cap = ArgumentCaptor.forClass(ResolutionOutcome.class);
+        verify(responseBuilder).build(cap.capture());
+        assertThat(cap.getValue().outcome())
+                .as("VS.NS must resolve (not clarify) — 'vs.' must not match as substring of VS.NS")
+                .isEqualTo(Outcome.RESOLVED);
+        assertThat(cap.getValue().ticker()).isEqualTo("VS.NS");
+        assertThat(cap.getValue().source()).isEqualTo("preflight");
+    }
+
+    @Test
+    void handle_vsWithDotAsStandaloneToken_triggersComparisonCue() {
+        // Regression guard: "AAPL vs. MSFT" must still trigger the comparison cue.
+        when(catalog.normalize(anyString())).thenReturn(Optional.empty());
+        when(catalog.normalize("AAPL")).thenReturn(Optional.of("AAPL"));
+
+        service.handle(new ChatRequest("AAPL vs. MSFT", null));
+
+        ArgumentCaptor<ResolutionOutcome> cap = ArgumentCaptor.forClass(ResolutionOutcome.class);
+        verify(responseBuilder).build(cap.capture());
+        // "vs." as a standalone token must still suppress silent single-pick
+        assertThat(cap.getValue().outcome())
+                .as("AAPL vs. MSFT must not silently resolve to AAPL")
+                .isNotEqualTo(Outcome.RESOLVED);
+    }
+
+    @Test
     void handle_btcAndEth_redirectsToComparison() {
         when(catalog.normalize(anyString())).thenReturn(Optional.empty());
         when(catalog.normalize("BTC")).thenReturn(Optional.of("BTC-USD"));
