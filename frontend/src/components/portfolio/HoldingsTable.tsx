@@ -33,6 +33,8 @@ import {
   formatCurrency,
   formatPercent,
   formatSignedCurrency,
+  formatSignedCurrencyOrDash,
+  formatPercentOrDash,
   formatQuantity,
 } from "@/lib/utils/format";
 import { cn } from "@/lib/utils/cn";
@@ -101,9 +103,15 @@ function ChangeCell({
   percent,
   absolute,
 }: {
-  percent: number;
-  absolute: number;
+  percent: number | null;
+  absolute: number | null;
 }) {
+  // null means "no reference data" — render "—" not "+0.00%"
+  if (percent == null || absolute == null) {
+    return (
+      <span className="text-sm text-muted-foreground tabular-nums">—</span>
+    );
+  }
   const isPositive = percent > 0;
   const isNeutral = percent === 0;
   const Icon = isNeutral ? Minus : isPositive ? TrendingUp : TrendingDown;
@@ -239,10 +247,23 @@ export function HoldingsTable() {
 
     let filtered = portfolio.holdings.map((h) => {
       // Merge backend-computed analytics fields by ticker when available.
+      // Nullable fields (unrealizedPnL, change24hPercent, change24hAbsolute) stay null
+      // when absent — must not be coerced to 0 to avoid misleading the user.
       const analyticsHolding = analyticsByTicker.get(h.ticker);
       if (!analyticsHolding) return h;
+
+      // Use backend canonical asset class when available; fall back to portfolio meta.
+      // "OTHER" is a valid display class but not in AssetClass — fall back to the portfolio
+      // meta class for filter chip display while accepting the real class otherwise.
+      const backendClass = analyticsHolding.displayAssetClass;
+      const compatClass: AssetClass =
+        backendClass === "OTHER" || backendClass === undefined
+          ? h.assetClass
+          : (backendClass as AssetClass);
+
       return {
         ...h,
+        assetClass: compatClass,
         unrealizedPnL: analyticsHolding.unrealizedPnL,
         change24hPercent: analyticsHolding.change24hPercent,
         change24hAbsolute: analyticsHolding.change24hAbsolute,
@@ -292,14 +313,17 @@ export function HoldingsTable() {
     );
   }
 
-  // Total row values
+  // Total row values — null fields are excluded from the sum (not coerced to 0)
   const totals = rows.reduce(
     (acc, h) => ({
       value: acc.value + h.totalValue,
-      pnl: acc.pnl + h.unrealizedPnL,
-      abs24h: acc.abs24h + h.change24hAbsolute,
+      // Only add when non-null; null means "basis/reference unavailable"
+      pnl: h.unrealizedPnL != null ? acc.pnl + h.unrealizedPnL : acc.pnl,
+      pnlAvailable: acc.pnlAvailable || h.unrealizedPnL != null,
+      abs24h: h.change24hAbsolute != null ? acc.abs24h + h.change24hAbsolute : acc.abs24h,
+      abs24hAvailable: acc.abs24hAvailable || h.change24hAbsolute != null,
     }),
-    { value: 0, pnl: 0, abs24h: 0 },
+    { value: 0, pnl: 0, pnlAvailable: false, abs24h: 0, abs24hAvailable: false },
   );
 
   return (
@@ -430,15 +454,13 @@ export function HoldingsTable() {
                 </TableRow>
               ) : (
                 rows.map((holding) => {
-                  const cfg = ASSET_CLASS_CONFIG[holding.assetClass];
-                  const pnlPositive = holding.unrealizedPnL >= 0;
+                  const cfg = ASSET_CLASS_CONFIG[holding.assetClass] ?? ASSET_CLASS_CONFIG["STOCK"];
 
                   return (
                     <TableRow
                       key={holding.id}
                       className="group transition-colors hover:bg-muted/40"
                     >
-                      {/* ── Asset ── */}
                       <TableCell className="py-3 pl-6">
                         <div className="flex items-center gap-3">
                           {/* Color swatch */}
@@ -495,29 +517,33 @@ export function HoldingsTable() {
 
                       {/* ── Unrealized P&L ── */}
                       <TableCell className="text-right">
-                        <div className="flex flex-col items-end gap-0.5">
-                          <span
-                            className={cn(
-                              "tabular-nums text-sm font-semibold",
-                              pnlPositive ? "text-profit" : "text-loss",
-                            )}
-                          >
-                            {formatSignedCurrency(holding.unrealizedPnL)}
-                          </span>
-                          <span
-                            className={cn(
-                              "text-xs tabular-nums",
-                              pnlPositive ? "text-profit/70" : "text-loss/70",
-                            )}
-                          >
-                            {formatPercent(
-                              ((holding.totalValue -
-                                holding.avgCostBasis * holding.quantity) /
-                                (holding.avgCostBasis * holding.quantity)) *
-                                100,
-                            )}
-                          </span>
-                        </div>
+                        {holding.unrealizedPnL == null ? (
+                          <span className="text-sm text-muted-foreground tabular-nums">—</span>
+                        ) : (
+                          <div className="flex flex-col items-end gap-0.5">
+                            <span
+                              className={cn(
+                                "tabular-nums text-sm font-semibold",
+                                holding.unrealizedPnL >= 0 ? "text-profit" : "text-loss",
+                              )}
+                            >
+                              {formatSignedCurrency(holding.unrealizedPnL)}
+                            </span>
+                            <span
+                              className={cn(
+                                "text-xs tabular-nums",
+                                holding.unrealizedPnL >= 0 ? "text-profit/70" : "text-loss/70",
+                              )}
+                            >
+                              {formatPercent(
+                                ((holding.totalValue -
+                                  (holding.avgCostBasis ?? holding.currentPrice) * holding.quantity) /
+                                  ((holding.avgCostBasis ?? holding.currentPrice) * holding.quantity)) *
+                                  100,
+                              )}
+                            </span>
+                          </div>
+                        )}
                       </TableCell>
 
                       {/* ── 24h Change ── */}
@@ -557,10 +583,14 @@ export function HoldingsTable() {
                 <p
                   className={cn(
                     "font-bold tabular-nums",
-                    totals.pnl >= 0 ? "text-profit" : "text-loss",
+                    !totals.pnlAvailable
+                      ? "text-muted-foreground"
+                      : totals.pnl >= 0
+                        ? "text-profit"
+                        : "text-loss",
                   )}
                 >
-                  {formatSignedCurrency(totals.pnl)}
+                  {totals.pnlAvailable ? formatSignedCurrency(totals.pnl) : "—"}
                 </p>
               </div>
               <div className="text-right">
@@ -570,10 +600,14 @@ export function HoldingsTable() {
                 <p
                   className={cn(
                     "font-bold tabular-nums",
-                    totals.abs24h >= 0 ? "text-profit" : "text-loss",
+                    !totals.abs24hAvailable
+                      ? "text-muted-foreground"
+                      : totals.abs24h >= 0
+                        ? "text-profit"
+                        : "text-loss",
                   )}
                 >
-                  {formatSignedCurrency(totals.abs24h)}
+                  {totals.abs24hAvailable ? formatSignedCurrency(totals.abs24h) : "—"}
                 </p>
               </div>
             </div>

@@ -71,3 +71,21 @@ export function formatDateShort(isoString: string): string {
     day: "numeric",
   });
 }
+
+/**
+ * Renders a nullable signed dollar amount.
+ * Returns "—" when the value is null/undefined (typed-unavailable, not $0.00).
+ */
+export function formatSignedCurrencyOrDash(value: number | null | undefined): string {
+  if (value == null) return "—";
+  return formatSignedCurrency(value);
+}
+
+/**
+ * Renders a nullable percentage value.
+ * Returns "—" when the value is null/undefined (typed-unavailable, not 0.00%).
+ */
+export function formatPercentOrDash(value: number | null | undefined): string {
+  if (value == null) return "—";
+  return formatPercent(value);
+}

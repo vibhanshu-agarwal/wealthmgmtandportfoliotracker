@@ -148,11 +148,11 @@ export async function fetchPortfolio(userId: string, token: string): Promise<Por
       currentPrice,
       totalValue,
       // TODO: Wire true cost basis from transaction history once trade ledger API is available.
-      avgCostBasis: currentPrice,
+      avgCostBasis: null,
       // TODO: Compute unrealized P&L and 24h change from historical and cost-basis data.
-      unrealizedPnL: 0,
-      change24hPercent: 0,
-      change24hAbsolute: 0,
+      unrealizedPnL: null,
+      change24hPercent: null,
+      change24hAbsolute: null,
       portfolioWeight: 0,
       lastUpdatedAt: price?.updatedAt ?? new Date().toISOString(),
     };

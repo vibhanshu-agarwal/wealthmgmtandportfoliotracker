@@ -78,7 +78,7 @@ class PortfolioAnalyticsServiceTest {
     void singleHolding_sameCurrency_noFxCall() {
         stubQuery(
                 List.of(
-                        holdingRow("AAPL", "10", "200.00", "USD", null, null, null, null),
+                        holdingRow("AAPL", "10", "200.00", "USD", null, null, null, null, null),
                         historyRow("AAPL", "USD", daysAgo(2), "195.00"),
                         historyRow("AAPL", "USD", daysAgo(1), "198.00"),
                         historyRow("AAPL", "USD", daysAgo(0), "200.00"),
@@ -101,7 +101,7 @@ class PortfolioAnalyticsServiceTest {
 
         stubQuery(
                 List.of(
-                        holdingRow("AAPL", "10", "100.00", "EUR", null, null, null, null),
+                        holdingRow("AAPL", "10", "100.00", "EUR", null, null, null, null, null),
                         historyRow("AAPL", "EUR", daysAgo(1), "98.00"),
                         historyRow("AAPL", "EUR", daysAgo(2), "97.00"),
                         historyRow("AAPL", "EUR", daysAgo(3), "96.00"),
@@ -148,7 +148,7 @@ class PortfolioAnalyticsServiceTest {
     @Test
     void task51_realPnL_noBasis_returnsNullPnL_neverZero() {
         // No avg_cost_basis provided → unrealizedPnL must be null, not 0
-        stubQuery(List.of(holdingRow("AAPL", "10", "200.00", "USD", null, null, null, null)));
+        stubQuery(List.of(holdingRow("AAPL", "10", "200.00", "USD", null, null, null, null, null)));
 
         PortfolioAnalyticsDto result = service.getAnalytics(USER_ID);
 
@@ -164,7 +164,7 @@ class PortfolioAnalyticsServiceTest {
     void task51_realPnL_withBasis_sameCurrency() {
         // AAPL cost basis = 180 USD, current price = 200 USD
         // Qty = 10, P&L = (200 - 180) × 10 = +200
-        stubQuery(List.of(holdingRow("AAPL", "10", "200.00", "USD", null, null, "180.00", "USD")));
+        stubQuery(List.of(holdingRow("AAPL", "10", "200.00", "USD", null, null, null, "180.00", "USD")));
 
         PortfolioAnalyticsDto result = service.getAnalytics(USER_ID);
 
@@ -183,7 +183,7 @@ class PortfolioAnalyticsServiceTest {
     @Test
     void task51_realPnL_negativePnL_basisAboveCurrentPrice() {
         // Cost basis = 220 USD > current price 200 USD → negative P&L
-        stubQuery(List.of(holdingRow("AAPL", "5", "200.00", "USD", null, null, "220.00", "USD")));
+        stubQuery(List.of(holdingRow("AAPL", "5", "200.00", "USD", null, null, null, "220.00", "USD")));
 
         PortfolioAnalyticsDto result = service.getAnalytics(USER_ID);
 
@@ -204,7 +204,7 @@ class PortfolioAnalyticsServiceTest {
         // P&L = 90 - 84 = +6
         when(fxRateProvider.getRate("INR", "USD")).thenReturn(new BigDecimal("0.012"));
 
-        stubQuery(List.of(holdingRow("INFY.NS", "5", "1500.00", "INR", null, null, "1400.00", "INR")));
+        stubQuery(List.of(holdingRow("INFY.NS", "5", "1500.00", "INR", null, null, null, "1400.00", "INR")));
 
         PortfolioAnalyticsDto result = service.getAnalytics(USER_ID);
 
@@ -214,10 +214,54 @@ class PortfolioAnalyticsServiceTest {
     }
 
     @Test
+    void task51_realPnL_genuinelyCrossCurrency_differentQuoteAndBasis() {
+        // A US stock bought when priced in EUR (e.g. dual-listed or historical basis in EUR).
+        // quote = USD (current price), cost basis = EUR.
+        // current price = 200 USD, qty = 10
+        // FX USD→USD = 1.0 (same currency)
+        // FX EUR→USD = 1.10
+        // currentValueBase = 10 × 200 × 1.0 = 2000
+        // costBasisBase    = 10 × 165.00 × 1.10 = 1815
+        // P&L = 2000 - 1815 = +185
+        when(fxRateProvider.getRate("EUR", "USD")).thenReturn(new BigDecimal("1.10"));
+
+        stubQuery(List.of(holdingRow("AAPL", "10", "200.00", "USD", null, null, null, "165.00", "EUR")));
+
+        PortfolioAnalyticsDto result = service.getAnalytics(USER_ID);
+
+        HoldingAnalyticsDto h = result.holdings().getFirst();
+        assertThat(h.unrealizedPnL()).isNotNull();
+        assertThat(h.unrealizedPnL()).isEqualByComparingTo("185.0000");
+        assertThat(h.costBasisCurrency()).isEqualTo("EUR");
+    }
+
+    @Test
+    void task51_aggregate_excludesHoldingWhenCostBasisFxUnavailable() {
+        // AAPL (USD quote, USD basis) — included; P&L = (200-180)×10 = +200
+        // INFY.NS (INR quote, INR basis) — quote FX available, but cost-basis FX unavailable
+        // → the INFY.NS holding must be excluded from BOTH totalValue and totalCostBasis
+        //   to avoid reporting its full value as profit.
+        when(fxRateProvider.getRate("INR", "USD"))
+                .thenThrow(new FxRateUnavailableException("INR", "USD", null));
+
+        stubQuery(List.of(
+                holdingRow("AAPL",    "10", "200.00", "USD", null, null, null, "180.00", "USD"),
+                holdingRow("INFY.NS", "5",  "1500.00", "INR", null, null, null, "1400.00", "INR")));
+        PortfolioAnalyticsDto result = service.getAnalytics(USER_ID);
+
+        // AAPL P&L: (200-180)×10 = 200
+        assertThat(result.totalUnrealizedPnL()).isNotNull();
+        assertThat(result.totalUnrealizedPnL()).isEqualByComparingTo("200.0000");
+        // INFY excluded → totalValue only from AAPL = 2000
+        assertThat(result.totalValue()).isEqualByComparingTo("2000.0000");
+        assertThat(result.partialValuation()).isTrue();
+    }
+
+    @Test
     void task51_pnlIdentity_totalPnLEqualsTotalValueMinusTotalCostBasis() {
         // When basis is present, totalPnL = totalValue - totalCostBasis
         stubQuery(List.of(
-                holdingRow("AAPL", "10", "200.00", "USD", null, null, "180.00", "USD"),
+                holdingRow("AAPL", "10", "200.00", "USD", null, null, null, "180.00", "USD"),
                 historyRow("AAPL", "USD", daysAgo(1), "195.00"),
                 historyRow("AAPL", "USD", daysAgo(2), "193.00"),
                 historyRow("AAPL", "USD", daysAgo(3), "191.00"),
@@ -237,8 +281,8 @@ class PortfolioAnalyticsServiceTest {
     void task51_mixedHoldings_oneWithBasisOneWithout_aggregateNonNull() {
         // One holding has basis, one does not; aggregate should still be non-null (from the holding that has it)
         stubQuery(List.of(
-                holdingRow("AAPL", "10", "200.00", "USD", null, null, "180.00", "USD"),
-                holdingRow("TSLA", "5", "300.00", "USD", null, null, null, null)));
+                holdingRow("AAPL", "10", "200.00", "USD", null, null, null, "180.00", "USD"),
+                holdingRow("TSLA", "5", "300.00", "USD", null, null, null, null, null)));
 
         PortfolioAnalyticsDto result = service.getAnalytics(USER_ID);
 
@@ -259,7 +303,7 @@ class PortfolioAnalyticsServiceTest {
     @Test
     void task52_noReferenceInWindow_changeIsNull() {
         // price24hAgo = null means no row fell in the 18–36h window
-        stubQuery(List.of(holdingRow("AAPL", "5", "150.00", "USD", null, null, null, null)));
+        stubQuery(List.of(holdingRow("AAPL", "5", "150.00", "USD", null, null, null, null, null)));
 
         PortfolioAnalyticsDto result = service.getAnalytics(USER_ID);
 
@@ -274,7 +318,7 @@ class PortfolioAnalyticsServiceTest {
     void task52_referenceInWindow_changeNonNullAndLabeledCorrectly() {
         // Reference at 24h ago is in the 18–36h window → label WITHIN_24H_WINDOW
         Instant refAt = Instant.now().minus(24, ChronoUnit.HOURS);
-        stubQuery(List.of(holdingRow("AAPL", "10", "200.00", "USD", "190.00", refAt, null, null)));
+        stubQuery(List.of(holdingRow("AAPL", "10", "200.00", "USD", "190.00", refAt, "WITHIN_24H_WINDOW", null, null)));
 
         PortfolioAnalyticsDto result = service.getAnalytics(USER_ID);
 
@@ -286,10 +330,24 @@ class PortfolioAnalyticsServiceTest {
     }
 
     @Test
+    void task52_referenceSinceSnapshot_labeledCorrectly() {
+        // Reference is older than 36h (snapshot fallback) → SINCE_PREVIOUS_SNAPSHOT
+        Instant refAt = Instant.now().minus(48, ChronoUnit.HOURS);
+        stubQuery(List.of(holdingRow("AAPL", "10", "200.00", "USD", "185.00", refAt, "SINCE_PREVIOUS_SNAPSHOT", null, null)));
+
+        PortfolioAnalyticsDto result = service.getAnalytics(USER_ID);
+
+        HoldingAnalyticsDto h = result.holdings().getFirst();
+        assertThat(h.changeBasis()).isEqualTo("SINCE_PREVIOUS_SNAPSHOT");
+        assertThat(h.change24hPercent()).isNotNull();
+        assertThat(h.change24hReferenceAt()).isNotNull();
+    }
+
+    @Test
     void task52_changeFormula_correctValues() {
         Instant refAt = Instant.now().minus(24, ChronoUnit.HOURS);
         // current = 200, ref = 100 → +100%
-        stubQuery(List.of(holdingRow("AAPL", "1", "200.00", "USD", "100.00", refAt, null, null)));
+        stubQuery(List.of(holdingRow("AAPL", "1", "200.00", "USD", "100.00", refAt, "WITHIN_24H_WINDOW", null, null)));
 
         PortfolioAnalyticsDto result = service.getAnalytics(USER_ID);
 
@@ -360,7 +418,7 @@ class PortfolioAnalyticsServiceTest {
     void task53_syntheticSeries_coveredMarkedPartialAndSynthetic() {
         // Fewer than 7 history dates → synthetic, partial=true, synthetic=true
         stubQuery(List.of(
-                holdingRow("AAPL", "10", "200.00", "USD", null, null, null, null),
+                holdingRow("AAPL", "10", "200.00", "USD", null, null, null, null, null),
                 historyRow("AAPL", "USD", daysAgo(1), "195.00"),
                 historyRow("AAPL", "USD", daysAgo(2), "193.00")
         ));
@@ -381,7 +439,7 @@ class PortfolioAnalyticsServiceTest {
     void task53_realSeries_allHoldingsCovered_notPartial() {
         // 7 distinct dates AND all holdings have history → partial=false, synthetic=false
         List<AnalyticsQueryRow> rows = new ArrayList<>();
-        rows.add(holdingRow("AAPL", "10", "200", "USD", null, null, null, null));
+        rows.add(holdingRow("AAPL", "10", "200", "USD", null, null, null, null, null));
         for (int i = 6; i >= 0; i--) {
             rows.add(historyRow("AAPL", "USD", daysAgo(i), "19" + i + ".00"));
         }
@@ -400,8 +458,8 @@ class PortfolioAnalyticsServiceTest {
     void task53_realSeries_someHoldingsMissingHistory_markedPartial() {
         // AAPL has history, TSLA does not → partial=true, synthetic=false (>= 7 dates from AAPL)
         List<AnalyticsQueryRow> rows = new ArrayList<>();
-        rows.add(holdingRow("AAPL", "10", "200", "USD", null, null, null, null));
-        rows.add(holdingRow("TSLA", "5", "300", "USD", null, null, null, null));
+        rows.add(holdingRow("AAPL", "10", "200", "USD", null, null, null, null, null));
+        rows.add(holdingRow("TSLA", "5", "300", "USD", null, null, null, null, null));
         for (int i = 6; i >= 0; i--) {
             rows.add(historyRow("AAPL", "USD", daysAgo(i), "19" + i + ".00"));
         }
@@ -421,7 +479,7 @@ class PortfolioAnalyticsServiceTest {
     @Test
     void task54_displayAssetClass_usEquity_mapsToStock() {
         stubSeedTicker("AAPL", "US_EQUITY", "USD");
-        stubQuery(List.of(holdingRow("AAPL", "1", "200", "USD", null, null, null, null)));
+        stubQuery(List.of(holdingRow("AAPL", "1", "200", "USD", null, null, null, null, null)));
 
         PortfolioAnalyticsDto result = service.getAnalytics(USER_ID);
 
@@ -432,7 +490,7 @@ class PortfolioAnalyticsServiceTest {
     void task54_displayAssetClass_nse_mapsToStock() {
         stubSeedTicker("RELIANCE.NS", "NSE", "INR");
         when(fxRateProvider.getRate("INR", "USD")).thenReturn(new BigDecimal("0.012"));
-        stubQuery(List.of(holdingRow("RELIANCE.NS", "1", "2800", "INR", null, null, null, null)));
+        stubQuery(List.of(holdingRow("RELIANCE.NS", "1", "2800", "INR", null, null, null, null, null)));
 
         PortfolioAnalyticsDto result = service.getAnalytics(USER_ID);
 
@@ -442,7 +500,7 @@ class PortfolioAnalyticsServiceTest {
     @Test
     void task54_displayAssetClass_crypto_mapsToCrypto() {
         stubSeedTicker("BTC-USD", "CRYPTO", "USD");
-        stubQuery(List.of(holdingRow("BTC-USD", "0.5", "67000", "USD", null, null, null, null)));
+        stubQuery(List.of(holdingRow("BTC-USD", "0.5", "67000", "USD", null, null, null, null, null)));
 
         PortfolioAnalyticsDto result = service.getAnalytics(USER_ID);
 
@@ -452,7 +510,7 @@ class PortfolioAnalyticsServiceTest {
     @Test
     void task54_displayAssetClass_forex_mapsToCash() {
         stubSeedTicker("EURUSD=X", "FOREX", "USD");
-        stubQuery(List.of(holdingRow("EURUSD=X", "1000", "1.08", "USD", null, null, null, null)));
+        stubQuery(List.of(holdingRow("EURUSD=X", "1000", "1.08", "USD", null, null, null, null, null)));
 
         PortfolioAnalyticsDto result = service.getAnalytics(USER_ID);
 
@@ -463,7 +521,7 @@ class PortfolioAnalyticsServiceTest {
     void task54_displayAssetClass_unknownTicker_mapsToOther() {
         // Unknown ticker (registry returns empty) → OTHER
         when(seedTickerRegistry.find("UNKNOWN")).thenReturn(Optional.empty());
-        stubQuery(List.of(holdingRow("UNKNOWN", "1", "50", "USD", null, null, null, null)));
+        stubQuery(List.of(holdingRow("UNKNOWN", "1", "50", "USD", null, null, null, null, null)));
 
         PortfolioAnalyticsDto result = service.getAnalytics(USER_ID);
 
@@ -510,19 +568,19 @@ class PortfolioAnalyticsServiceTest {
         Instant ref24h = Instant.now().minus(24, ChronoUnit.HOURS);
         return Stream.of(
                 // Single holding with change
-                Arguments.of(List.of(holdingRow("AAPL", "10", "200", "USD", "190", ref24h, null, null))),
+                Arguments.of(List.of(holdingRow("AAPL", "10", "200", "USD", "190", ref24h, "WITHIN_24H_WINDOW", null, null))),
                 // Two holdings with equal change
                 Arguments.of(List.of(
-                        holdingRow("AAPL", "10", "200", "USD", "190", ref24h, null, null),
-                        holdingRow("TSLA", "5", "300", "USD", "285", ref24h, null, null))),
+                        holdingRow("AAPL", "10", "200", "USD", "190", ref24h, "WITHIN_24H_WINDOW", null, null),
+                        holdingRow("TSLA", "5", "300", "USD", "285", ref24h, "WITHIN_24H_WINDOW", null, null))),
                 // Two holdings with different change
                 Arguments.of(List.of(
-                        holdingRow("AAPL", "10", "200", "USD", "180", ref24h, null, null),
-                        holdingRow("TSLA", "5", "300", "USD", "310", ref24h, null, null))),
+                        holdingRow("AAPL", "10", "200", "USD", "180", ref24h, "WITHIN_24H_WINDOW", null, null),
+                        holdingRow("TSLA", "5", "300", "USD", "310", ref24h, "WITHIN_24H_WINDOW", null, null))),
                 // Mixed change / no-reference
                 Arguments.of(List.of(
-                        holdingRow("AAPL", "10", "200", "USD", "180", ref24h, null, null),
-                        holdingRow("TSLA", "5", "300", "USD", null, null, null, null)))
+                        holdingRow("AAPL", "10", "200", "USD", "180", ref24h, "WITHIN_24H_WINDOW", null, null),
+                        holdingRow("TSLA", "5", "300", "USD", null, null, null, null, null)))
         );
     }
 
@@ -544,14 +602,14 @@ class PortfolioAnalyticsServiceTest {
 
     static Stream<Arguments> holdingValueDecompositionCases() {
         return Stream.of(
-                Arguments.of(List.of(holdingRow("AAPL", "10", "200", "USD", null, null, null, null))),
+                Arguments.of(List.of(holdingRow("AAPL", "10", "200", "USD", null, null, null, null, null))),
                 Arguments.of(List.of(
-                        holdingRow("AAPL", "10", "200", "USD", null, null, null, null),
-                        holdingRow("TSLA", "5", "300", "USD", null, null, null, null))),
+                        holdingRow("AAPL", "10", "200", "USD", null, null, null, null, null),
+                        holdingRow("TSLA", "5", "300", "USD", null, null, null, null, null))),
                 Arguments.of(List.of(
-                        holdingRow("AAPL", "10", "200", "USD", null, null, null, null),
-                        holdingRow("TSLA", "5", "300", "USD", null, null, null, null),
-                        holdingRow("BTC", "0.5", "70000", "USD", null, null, null, null)))
+                        holdingRow("AAPL", "10", "200", "USD", null, null, null, null, null),
+                        holdingRow("TSLA", "5", "300", "USD", null, null, null, null, null),
+                        holdingRow("BTC", "0.5", "70000", "USD", null, null, null, null, null)))
         );
     }
 
@@ -573,14 +631,14 @@ class PortfolioAnalyticsServiceTest {
     static Stream<Arguments> seriesOrderingCases() {
         // 7 history rows → real series path
         List<AnalyticsQueryRow> sevenDays = new ArrayList<>();
-        sevenDays.add(holdingRow("AAPL", "10", "200", "USD", null, null, null, null));
+        sevenDays.add(holdingRow("AAPL", "10", "200", "USD", null, null, null, null, null));
         for (int i = 6; i >= 0; i--) {
             sevenDays.add(historyRow("AAPL", "USD", daysAgo(i), "19" + i + ".00"));
         }
 
         // 2 history rows → synthetic path
         List<AnalyticsQueryRow> twoDays = List.of(
-                holdingRow("AAPL", "10", "200", "USD", null, null, null, null),
+                holdingRow("AAPL", "10", "200", "USD", null, null, null, null, null),
                 historyRow("AAPL", "USD", daysAgo(1), "195.00"),
                 historyRow("AAPL", "USD", daysAgo(2), "193.00"));
 
@@ -606,7 +664,7 @@ class PortfolioAnalyticsServiceTest {
 
     static Stream<Arguments> seriesChangeCases() {
         List<AnalyticsQueryRow> rows = new ArrayList<>();
-        rows.add(holdingRow("AAPL", "10", "200", "USD", null, null, null, null));
+        rows.add(holdingRow("AAPL", "10", "200", "USD", null, null, null, null, null));
         for (int i = 6; i >= 0; i--) {
             rows.add(historyRow("AAPL", "USD", daysAgo(i), String.valueOf(190 + i)));
         }
@@ -660,16 +718,17 @@ class PortfolioAnalyticsServiceTest {
     }
 
     /**
-     * Constructs a HOLDING row with cost-basis and tolerance-window reference fields.
+     * Constructs a HOLDING row with cost-basis and reference fields.
      *
-     * @param price24h      in-window reference price; null = no reference in window
+     * @param price24h      reference price (in-window or snapshot); null = no reference
      * @param price24hRefAt observed_at of the reference; null when no reference
+     * @param refLabel      "WITHIN_24H_WINDOW" | "SINCE_PREVIOUS_SNAPSHOT" | null
      * @param avgCostBasis  null = basis unavailable
      * @param costBasisCcy  null when avgCostBasis is null
      */
     private static AnalyticsQueryRow holdingRow(
             String ticker, String qty, String price, String currency,
-            String price24h, Instant price24hRefAt,
+            String price24h, Instant price24hRefAt, String refLabel,
             String avgCostBasis, String costBasisCcy) {
         return new AnalyticsQueryRow(
                 "HOLDING",
@@ -679,6 +738,7 @@ class PortfolioAnalyticsServiceTest {
                 currency,
                 price24h != null ? new BigDecimal(price24h) : null,
                 price24hRefAt,
+                refLabel,
                 avgCostBasis != null ? new BigDecimal(avgCostBasis) : null,
                 costBasisCcy,
                 null,
@@ -688,7 +748,7 @@ class PortfolioAnalyticsServiceTest {
     private static AnalyticsQueryRow historyRow(
             String ticker, String currency, String date, String price) {
         return new AnalyticsQueryRow(
-                "HISTORY", ticker, null, null, currency, null, null, null, null,
+                "HISTORY", ticker, null, null, currency, null, null, null, null, null,
                 date, new BigDecimal(price));
     }
 

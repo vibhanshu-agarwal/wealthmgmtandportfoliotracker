@@ -57,18 +57,26 @@ public class PortfolioAnalyticsService {
     /**
      * Single SQL query returning two row types:
      * <ul>
-     *   <li>HOLDING — one row per holding; includes cost-basis fields and the closest
-     *       {@code observed_at} that falls within the ≈18–36h tolerance window.</li>
+     *   <li>HOLDING — one row per holding; includes cost-basis fields and the best available
+     *       reference price for 24h change, with its {@code observed_at} and a label column
+     *       that distinguishes in-window (≈18–36h) from best-available-snapshot references.</li>
      *   <li>HISTORY — one row per (ticker, date) within the requested period.</li>
      * </ul>
      *
-     * <p>The {@code price_24h} CTE uses an explicit tolerance window (18–36 hours before now)
-     * rather than a hard {@code now() - 24h} cutoff, per Task 5.2 / Requirement 2.6. This
-     * ensures the closest reference within the window is selected, and the reference timestamp
-     * is returned so callers can label the change accurately.
+     * <h3>Reference selection strategy (Task 5.2)</h3>
+     * <p>Two CTEs compete per ticker:
+     * <ol>
+     *   <li>{@code price_in_window} — the most-recent row in the ≈18–36h tolerance window
+     *       (closest to 24h ago); labelled {@code WITHIN_24H_WINDOW}.</li>
+     *   <li>{@code price_snapshot} — the most-recent row <em>before</em> the window, i.e.
+     *       older than 36h; used as a fallback when no in-window row exists, labelled
+     *       {@code SINCE_PREVIOUS_SNAPSHOT}.</li>
+     * </ol>
+     * <p>{@code COALESCE} prefers the in-window row. When neither exists the reference columns
+     * are null and the change is reported as unavailable.
      *
      * <p>Cost-basis columns ({@code avg_cost_basis}, {@code cost_basis_currency}) are fetched
-     * from {@code asset_holdings} so Task 5.1 real P&amp;L can be computed per holding.
+     * from {@code asset_holdings} for Task 5.1 real P&amp;L.
      */
     private static final String ANALYTICS_SQL = """
             WITH user_tickers AS (
@@ -83,30 +91,52 @@ public class PortfolioAnalyticsService {
                 LEFT JOIN market_prices mp ON mp.ticker = h.asset_ticker
                 WHERE p.user_id = ?
             ),
-            price_24h AS (
+            price_in_window AS (
                 SELECT DISTINCT ON (mph.ticker)
                        mph.ticker,
-                       mph.price        AS price_24h_ago,
-                       mph.observed_at  AS price_24h_ref_at
+                       mph.price        AS price_ref,
+                       mph.observed_at  AS price_ref_at,
+                       'WITHIN_24H_WINDOW'::VARCHAR AS ref_label
                 FROM market_price_history mph
                 JOIN user_tickers ut ON ut.asset_ticker = mph.ticker
                 WHERE mph.observed_at BETWEEN now() - INTERVAL '36 hours'
                                           AND now() - INTERVAL '18 hours'
                 ORDER BY mph.ticker, mph.observed_at DESC
+            ),
+            price_snapshot AS (
+                SELECT DISTINCT ON (mph.ticker)
+                       mph.ticker,
+                       mph.price        AS price_ref,
+                       mph.observed_at  AS price_ref_at,
+                       'SINCE_PREVIOUS_SNAPSHOT'::VARCHAR AS ref_label
+                FROM market_price_history mph
+                JOIN user_tickers ut ON ut.asset_ticker = mph.ticker
+                WHERE mph.observed_at < now() - INTERVAL '36 hours'
+                ORDER BY mph.ticker, mph.observed_at DESC
+            ),
+            best_ref AS (
+                SELECT
+                    COALESCE(w.ticker, s.ticker)             AS ticker,
+                    COALESCE(w.price_ref,  s.price_ref)      AS price_24h_ago,
+                    COALESCE(w.price_ref_at, s.price_ref_at) AS price_24h_ref_at,
+                    COALESCE(w.ref_label,  s.ref_label)      AS ref_label
+                FROM price_in_window w
+                FULL OUTER JOIN price_snapshot s ON s.ticker = w.ticker
             )
             SELECT 'HOLDING'                   AS row_type,
                    ut.asset_ticker,
                    ut.quantity,
                    ut.current_price,
                    ut.quote_currency,
-                   p24.price_24h_ago,
-                   p24.price_24h_ref_at,
+                   br.price_24h_ago,
+                   br.price_24h_ref_at,
+                   br.ref_label,
                    ut.avg_cost_basis,
                    ut.cost_basis_currency,
                    NULL::DATE                  AS history_date,
                    NULL::NUMERIC               AS history_price
             FROM user_tickers ut
-            LEFT JOIN price_24h p24 ON p24.ticker = ut.asset_ticker
+            LEFT JOIN best_ref br ON br.ticker = ut.asset_ticker
             UNION ALL
             SELECT 'HISTORY'                   AS row_type,
                    mph.ticker                  AS asset_ticker,
@@ -115,6 +145,7 @@ public class PortfolioAnalyticsService {
                    ut.quote_currency,
                    NULL::NUMERIC               AS price_24h_ago,
                    NULL::TIMESTAMP             AS price_24h_ref_at,
+                   NULL::VARCHAR               AS ref_label,
                    NULL::NUMERIC               AS avg_cost_basis,
                    NULL::VARCHAR               AS cost_basis_currency,
                    mph.observed_at::DATE        AS history_date,
@@ -174,6 +205,7 @@ public class PortfolioAnalyticsService {
                             rs.getString("quote_currency"),
                             rs.getBigDecimal("price_24h_ago"),
                             refAt,
+                            rs.getString("ref_label"),
                             rs.getBigDecimal("avg_cost_basis"),
                             rs.getString("cost_basis_currency"),
                             rs.getString("history_date"),
@@ -240,13 +272,15 @@ public class PortfolioAnalyticsService {
                 }
             }
 
-            // Task 5.2: tolerance-window change — null when no in-window reference exists
+            // Task 5.2: tolerance-window change — null when no reference exists.
+            // changeBasis comes directly from the SQL query (WITHIN_24H_WINDOW or
+            // SINCE_PREVIOUS_SNAPSHOT) — no re-derivation needed.
             BigDecimal change24hAbs = computeChange24hAbsolute(row.currentPrice(), row.price24hAgo());
             BigDecimal change24hPct = computeChange24hPercent(row.currentPrice(), row.price24hAgo());
             String referenceAt = row.price24hReferenceAt() != null
                     ? row.price24hReferenceAt().toString()
                     : null;
-            String changeBasis = computeChangeBasis(row.price24hReferenceAt());
+            String changeBasis = row.refLabel();
 
             // Task 5.4: canonical display asset class from seed registry
             String displayAssetClass = resolveDisplayAssetClass(row.assetTicker());
@@ -269,15 +303,36 @@ public class PortfolioAnalyticsService {
             ));
         }
 
-        // ── Aggregates — skip holdings whose quote FX rate was unavailable ──
+        // ── Aggregates — skip holdings whose FX rate was unavailable ──
+        // A holding is excluded from totalValue when its QUOTE currency FX rate
+        // is unavailable.  For P&L, a holding is additionally excluded when its
+        // COST-BASIS currency FX rate is unavailable — otherwise we would count
+        // the full current value with a zero cost contribution, falsely reporting
+        // the entire position as profit.
+        // We build a set of tickers whose cost-basis currency is also unavailable
+        // so we can exclude them from BOTH totalValue and totalCostBasis.
+        Set<String> unavailableCostBasisTickers = new HashSet<>();
+        for (AnalyticsQueryRow row : holdingRows) {
+            if (row.avgCostBasis() == null) continue; // no basis → already excluded from P&L
+            String cbCurrency = row.costBasisCurrency() != null
+                    ? row.costBasisCurrency() : row.quoteCurrency();
+            if (!cbCurrency.equals(baseCurrency) && unavailableCurrencies.contains(cbCurrency)) {
+                unavailableCostBasisTickers.add(row.assetTicker());
+            }
+        }
+
         BigDecimal totalValue = holdingDtos.stream()
                 .filter(h -> !unavailableCurrencies.contains(h.quoteCurrency()))
+                .filter(h -> !unavailableCostBasisTickers.contains(h.ticker()))
                 .map(HoldingAnalyticsDto::currentValueBase)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        // Task 5.1: aggregate cost basis — FX-convert each holding's cost basis independently
+        // Task 5.1: aggregate cost basis — FX-convert each holding's cost basis independently.
+        // Holdings with unavailable cost-basis currency are excluded from both value and basis
+        // to keep the aggregate P&L meaningful (not silently overstated).
         BigDecimal totalCostBasis = holdingDtos.stream()
                 .filter(h -> !unavailableCurrencies.contains(h.quoteCurrency()))
+                .filter(h -> !unavailableCostBasisTickers.contains(h.ticker()))
                 .filter(h -> h.avgCostBasis() != null)
                 .map(h -> {
                     String cbCurrency = h.costBasisCurrency() != null ? h.costBasisCurrency() : h.quoteCurrency();
@@ -337,7 +392,7 @@ public class PortfolioAnalyticsService {
     // ── Helper: 24h change (Task 5.2) ───────────────────────────────────────
 
     /**
-     * Returns null when no in-window reference exists (never coerces to 0).
+     * Returns null when no reference exists (never coerces to 0).
      */
     BigDecimal computeChange24hPercent(BigDecimal currentPrice, BigDecimal price24hAgo) {
         if (price24hAgo == null) {
@@ -353,7 +408,7 @@ public class PortfolioAnalyticsService {
     }
 
     /**
-     * Returns null when no in-window reference exists.
+     * Returns null when no reference exists.
      */
     BigDecimal computeChange24hAbsolute(BigDecimal currentPrice, BigDecimal price24hAgo) {
         if (price24hAgo == null) {
@@ -363,16 +418,17 @@ public class PortfolioAnalyticsService {
     }
 
     /**
-     * Computes the change basis label.
+     * Derives the change-basis label from a reference timestamp.
+     * This method is a utility for testing the label logic in isolation; at runtime
+     * the label is computed by the SQL query ({@code ref_label} column) and stored
+     * directly in {@link AnalyticsQueryRow#refLabel()}.
      *
-     * <p>The tolerance window is ≈18–36h. If the reference falls within that window the label
-     * is {@code "WITHIN_24H_WINDOW"}; if it exists but is outside the window (this can happen
-     * when the SQL CTE returns a row just outside) the label is {@code "SINCE_PREVIOUS_SNAPSHOT"}.
-     * Returns null when no reference exists.
-     *
-     * <p>In practice the SQL CTE already constrains the reference to the 18–36h window, so only
-     * {@code "WITHIN_24H_WINDOW"} or null will be produced at runtime. The fallback label is kept
-     * for correctness if the window bounds are ever widened.
+     * <p>Labels:
+     * <ul>
+     *   <li>{@code "WITHIN_24H_WINDOW"} — reference falls in the ≈18–36h window.</li>
+     *   <li>{@code "SINCE_PREVIOUS_SNAPSHOT"} — reference exists but is older than 36h.</li>
+     *   <li>{@code null} — no reference.</li>
+     * </ul>
      */
     String computeChangeBasis(Instant referenceAt) {
         if (referenceAt == null) {

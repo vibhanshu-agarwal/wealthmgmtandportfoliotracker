@@ -169,15 +169,17 @@ function MarketDataTable() {
                 <TableCell
                   className={cn(
                     "text-right",
-                    holding.change24hPercent >= 0
+                    (holding.change24hPercent ?? 0) >= 0
                       ? "text-green-600"
                       : "text-red-600",
                   )}
                 >
-                  {formatPercent(holding.change24hPercent)}{" "}
-                  <span className="text-xs">
-                    ({formatSignedCurrency(holding.change24hAbsolute)})
-                  </span>
+                  {holding.change24hPercent != null
+                    ? <>{formatPercent(holding.change24hPercent)}{" "}
+                        <span className="text-xs">({formatSignedCurrency(holding.change24hAbsolute ?? 0)})</span>
+                      </>
+                    : <span className="text-muted-foreground">—</span>
+                  }
                 </TableCell>
                 <TableCell className="text-right text-muted-foreground">
                   {formatDate(holding.lastUpdatedAt)}

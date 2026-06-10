@@ -15,13 +15,16 @@ const daysAgo = (n: number) => {
   return d.toISOString().split("T")[0];
 };
 
-/** Fixture analytics response with two holdings and a 7-day performance series. */
+/** Fixture analytics response with two holdings and a 7-day performance series.
+ * Uses Task 5 nullable semantics: unrealizedPnL/change fields use real values where
+ * available; null is used where a value is genuinely unavailable. */
 const analyticsFixture = {
   totalValue: 48250.0,
-  totalCostBasis: 48250.0,
-  totalUnrealizedPnL: 0.0,
-  totalUnrealizedPnLPercent: 0.0,
+  totalCostBasis: 44000.0,
+  totalUnrealizedPnL: 4250.0,
+  totalUnrealizedPnLPercent: 9.6591,
   baseCurrency: "USD",
+  partialValuation: false,
   bestPerformer: { ticker: "AAPL", change24hPercent: 5.26 },
   worstPerformer: { ticker: "BTC", change24hPercent: -2.14 },
   holdings: [
@@ -30,22 +33,32 @@ const analyticsFixture = {
       quantity: 10,
       currentPrice: 212.5,
       currentValueBase: 2125.0,
-      avgCostBasis: 212.5,
-      unrealizedPnL: 0.0,
+      avgCostBasis: 190.0,
+      costBasisCurrency: "USD",
+      unrealizedPnL: 225.0,
+      unrealizedPnLPercent: 11.84,
       change24hAbsolute: 10.6,
       change24hPercent: 5.26,
+      change24hReferenceAt: new Date(Date.now() - 24 * 3600_000).toISOString(),
+      changeBasis: "WITHIN_24H_WINDOW",
       quoteCurrency: "USD",
+      displayAssetClass: "STOCK",
     },
     {
       ticker: "BTC",
       quantity: 0.65,
       currentPrice: 70775.0,
       currentValueBase: 46003.75,
-      avgCostBasis: 70775.0,
-      unrealizedPnL: 0.0,
+      avgCostBasis: 64000.0,
+      costBasisCurrency: "USD",
+      unrealizedPnL: 4403.75,
+      unrealizedPnLPercent: 10.58,
       change24hAbsolute: -1543.5,
       change24hPercent: -2.14,
+      change24hReferenceAt: new Date(Date.now() - 24 * 3600_000).toISOString(),
+      changeBasis: "WITHIN_24H_WINDOW",
       quoteCurrency: "USD",
+      displayAssetClass: "CRYPTO",
     },
   ],
   performanceSeries: Array.from({ length: 7 }, (_, i) => {
@@ -56,6 +69,12 @@ const analyticsFixture = {
       change: i === 0 ? 0 : 600,
     };
   }).concat([{ date: today, value: 48250.0, change: 650.0 }]),
+  performanceCoverage: {
+    holdingsWithHistory: 2,
+    totalHoldings: 2,
+    partial: false,
+    synthetic: false,
+  },
 };
 
 // ── Insight-service fixtures ────────────────────────────────────────────────
