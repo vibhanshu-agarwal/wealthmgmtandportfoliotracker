@@ -28,10 +28,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  * {@code NoUniqueBeanDefinitionException} because both {@code caffeineCacheManager}
  * (local) and {@code azureCaffeineCacheManager} (azure) become active.
  *
- * <p>{@code application-azure.yml} also sets {@code spring.cache.type=simple} which
- * would override the {@code CacheConfig} bean entirely.  {@code @TestPropertySource}
- * resets that key to {@code none} so the {@link CacheConfig} bean — not the auto-
- * configured simple manager — is the one under test.
+ * <p>{@code application-azure.yml} sets {@code spring.cache.type=none} so the
+ * {@link CacheConfig} Caffeine bean is authoritative in production. Tests use the
+ * same setting via the active {@code azure} profile.
  *
  * <p>The required infrastructure properties that {@code application-local.yml} would
  * normally supply (FX rates, Kafka deserializer, Kafka bootstrap) are provided here
@@ -49,7 +48,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
 @ActiveProfiles("azure")
 @TestPropertySource(properties = {
-        // Override azure yml's spring.cache.type=simple so CacheConfig bean wins.
         "spring.cache.type=none",
         // Supply FX config that application-azure.yml doesn't provide (normally from local).
         "fx.base-currency=USD",
@@ -93,6 +91,14 @@ class AzureCacheConfigTest {
         Cache cache = cacheManager.getCache("portfolio-analytics");
         assertThat(cache)
                 .as("portfolio-analytics cache must be available under the azure profile")
+                .isNotNull();
+    }
+
+    @Test
+    void azureProfile_fxRatesCacheExists() {
+        Cache cache = cacheManager.getCache("fx-rates");
+        assertThat(cache)
+                .as("fx-rates cache must be available for EcbFxRateProvider on azure profile")
                 .isNotNull();
     }
 

@@ -4,6 +4,7 @@ import com.wealth.portfolio.AssetHolding;
 import com.wealth.portfolio.AssetHoldingRepository;
 import com.wealth.portfolio.Portfolio;
 import com.wealth.portfolio.PortfolioRepository;
+import com.wealth.portfolio.PortfolioService;
 import com.wealth.portfolio.seed.PortfolioSeedService.SeedResult;
 import com.wealth.portfolio.seed.SeedTickerRegistry.SeedTicker;
 import org.junit.jupiter.api.Tag;
@@ -72,6 +73,7 @@ class PortfolioSeedServiceIT {
     }
 
     @Autowired PortfolioSeedService seedService;
+    @Autowired PortfolioService portfolioService;
     @Autowired PortfolioRepository portfolioRepository;
     @Autowired AssetHoldingRepository assetHoldingRepository;
     @Autowired SeedTickerRegistry registry;
@@ -246,5 +248,16 @@ class PortfolioSeedServiceIT {
 
     private static String placeholders(int n) {
         return String.join(",", java.util.Collections.nCopies(n, "?"));
+    }
+
+    /** Mirrors deploy-azure verify assertion (c) against the golden-state seed. */
+    @Test
+    void seededE2eUser_summaryHasPositiveTotalValue() {
+        seedService.seed(E2E_USER_ID);
+        var summary = portfolioService.getSummary(E2E_USER_ID);
+        assertThat(summary.totalValue())
+                .as("GET /api/portfolio/summary totalValue must be > 0 after seed")
+                .isGreaterThan(BigDecimal.ZERO);
+        assertThat(summary.totalHoldings()).isEqualTo(EXPECTED_HOLDINGS);
     }
 }

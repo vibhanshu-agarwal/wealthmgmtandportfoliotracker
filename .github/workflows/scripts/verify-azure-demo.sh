@@ -50,11 +50,14 @@ echo "::endgroup::"
 
 # Assertion (c): /api/portfolio/summary total > 0
 echo "::group::Assertion (c) — /api/portfolio/summary total > 0"
-SUMMARY_STATUS=$(curl "${CURL_OPTS[@]}" -o /tmp/summary.json -w '%{http_code}' \
+# Do not use --fail here: on non-2xx we still need the response body for diagnosis.
+SUMMARY_STATUS=$(curl --silent --show-error --retry 3 --retry-delay 5 --max-time 30 \
+  -o /tmp/summary.json -w '%{http_code}' \
   -H "Authorization: Bearer ${JWT}" \
-  "${API_BASE}/api/portfolio/summary")
+  "${API_BASE}/api/portfolio/summary" || true)
 echo "HTTP ${SUMMARY_STATUS}"
 cat /tmp/summary.json
+echo ""
 if [ "${SUMMARY_STATUS}" != "200" ]; then
   echo "::error::Summary failed: expected 200, got ${SUMMARY_STATUS}"
   exit 1
