@@ -38,13 +38,15 @@ import java.util.concurrent.TimeUnit;
 @EnableCaching
 public class CacheConfig {
 
-    private static final String CACHE_NAME = "portfolio-analytics";
+    private static final String ANALYTICS_CACHE = "portfolio-analytics";
+    /** Used by {@link com.wealth.portfolio.fx.EcbFxRateProvider#fetchRateMap()} on aws/azure profiles. */
+    private static final String FX_RATES_CACHE = "fx-rates";
     private static final long TTL_SECONDS = 30;
 
     @Bean
     @Profile({"local", "default"})
     public CacheManager caffeineCacheManager() {
-        CaffeineCacheManager manager = new CaffeineCacheManager(CACHE_NAME);
+        CaffeineCacheManager manager = new CaffeineCacheManager(ANALYTICS_CACHE, FX_RATES_CACHE);
         manager.setCaffeine(
                 Caffeine.newBuilder().expireAfterWrite(TTL_SECONDS, TimeUnit.SECONDS)
         );
@@ -61,7 +63,7 @@ public class CacheConfig {
     @Bean
     @Profile("azure")
     public CacheManager azureCaffeineCacheManager() {
-        CaffeineCacheManager manager = new CaffeineCacheManager(CACHE_NAME);
+        CaffeineCacheManager manager = new CaffeineCacheManager(ANALYTICS_CACHE, FX_RATES_CACHE);
         manager.setCaffeine(
                 Caffeine.newBuilder().expireAfterWrite(TTL_SECONDS, TimeUnit.SECONDS)
         );

@@ -26,9 +26,6 @@ fx:
 
 spring:
   cache:
-    # Spring simple ConcurrentMapCacheManager in-memory — plain ConcurrentHashMap-backed
-    # cache with no eviction policy. Used for FX rate caching on Azure Container Apps.
-    # Upstash Redis is reserved for rate limiting and sentiment caching (api-gateway /
-    # insight-service); portfolio-service does not need a distributed cache for FX rates.
-    # To switch to Redis-backed caching, change this to: type: redis
-    type: simple
+    # CacheConfig provides an explicit-expiry Caffeine CacheManager (portfolio-analytics + fx-rates).
+    # Disable Boot auto-config so the CacheConfig bean is authoritative (see AzureCacheConfigTest).
+    type: none
