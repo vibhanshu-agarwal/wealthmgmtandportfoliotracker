@@ -134,6 +134,36 @@ jobs:
           done
           echo "Pre-warm complete. Container Apps are ready."
 
+      - name: Refresh seeded demo prices (24h delta)
+        # Re-seed portfolio history + market-data Kafka observations so 24h % and AI
+        # insight trends reflect today's deterministic delta. Idempotent; ~$0 extra cost
+        # on the existing daily 08:00 UTC wake (min_replicas=0).
+        env:
+          INTERNAL_API_KEY: ${{ secrets.TF_VAR_INTERNAL_API_KEY }}
+          E2E_USER_ID: "00000000-0000-0000-0000-000000000e2e"
+          API_BASE: https://api.vibhanshu-ai-portfolio.dev
+        run: |
+          set -euo pipefail
+          seed_endpoint() {
+            local label="$1"
+            local path="$2"
+            local body="$3"
+            echo "Seeding ${label} via ${API_BASE}${path} ..."
+            STATUS=$(curl -sS -o /tmp/seed-response.txt -w "%{http_code}" \
+              -X POST "${API_BASE}${path}" \
+              -H "Content-Type: application/json" \
+              -H "X-Internal-Api-Key: ${INTERNAL_API_KEY}" \
+              -d "${body}" \
+              --max-time 120 || echo "000")
+            echo "  ${label}: HTTP ${STATUS}"
+            if [ "${STATUS}" != "200" ]; then
+              cat /tmp/seed-response.txt || true
+              exit 1
+            fi
+          }
+          seed_endpoint "portfolio" "/api/internal/portfolio/seed" "{\"userId\":\"${E2E_USER_ID}\"}"
+          seed_endpoint "market-data" "/api/internal/market-data/seed" "{\"userId\":\"${E2E_USER_ID}\"}"
+
       - name: Run Azure Synthetic Monitoring
         working-directory: ./frontend
         env:
