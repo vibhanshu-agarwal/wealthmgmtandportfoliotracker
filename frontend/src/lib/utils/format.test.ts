@@ -14,6 +14,7 @@ import {
   formatSignedCurrency,
   formatSignedCurrencyOrDash,
   formatPercentOrDash,
+  classifyChangePercent,
   formatCurrencyOrDash,
   formatRelativeAge,
   formatDateOrDash,
@@ -184,5 +185,15 @@ describe("formatDateOrDash", () => {
       year: "numeric",
     });
     expect(formatDateOrDash(null)).not.toBe(today);
+  });
+});
+
+describe("classifyChangePercent", () => {
+  it("classifies zero as neutral", () => {
+    expect(classifyChangePercent(0)).toBe("neutral");
+  });
+
+  it("classifies null as unavailable", () => {
+    expect(classifyChangePercent(null)).toBe("unavailable");
   });
 });

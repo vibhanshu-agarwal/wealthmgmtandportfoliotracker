@@ -54,6 +54,16 @@ describe("MarketSummaryCard — Trend indicator", () => {
     expect(screen.queryByTestId("trend-positive")).not.toBeInTheDocument();
     expect(screen.queryByTestId("trend-negative")).not.toBeInTheDocument();
   });
+
+  it("renders neutral styling for zero trendPercent (flat, not a loss)", () => {
+    render(
+      <MarketSummaryCard summary={{ ...baseSummary, trendPercent: 0 }} />,
+    );
+
+    expect(screen.getByTestId("trend-neutral")).toBeInTheDocument();
+    expect(screen.queryByTestId("trend-negative")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("trend-positive")).not.toBeInTheDocument();
+  });
 });
 
 // ── Property 2: Sentiment badge visibility ────────────────────────────────────

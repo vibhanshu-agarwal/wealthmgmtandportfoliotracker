@@ -141,9 +141,37 @@ describe("PerformanceChart — Task 9.6: partial coverage labelling", () => {
     expect(screen.getByText(/Partial \(6\/10 holdings\)/i)).toBeInTheDocument();
   });
 
-  it("hides the chart when series is marked synthetic (never show synthetic as real)", () => {
-    mockUsePortfolioAnalytics.mockReturnValue(analyticsSynthetic);
-    // Fallback performance also not available
+  it("renders chart with Estimated label when series is synthetic but backend points exist", () => {
+    mockUsePortfolioAnalytics.mockReturnValue({
+      data: {
+        ...analyticsComplete.data,
+        performanceSeries: realSeries,
+        performanceCoverage: {
+          holdingsWithHistory: 6,
+          totalHoldings: 10,
+          partial: true,
+          synthetic: true,
+        },
+      },
+      isLoading: false,
+    });
+    render(<PerformanceChart />);
+
+    expect(screen.getByTestId("area-chart")).toBeInTheDocument();
+    expect(screen.getByText(/Estimated/i)).toBeInTheDocument();
+    expect(
+      screen.queryByText("No performance data available yet."),
+    ).not.toBeInTheDocument();
+  });
+
+  it("hides the chart when no backend or fallback series exists", () => {
+    mockUsePortfolioAnalytics.mockReturnValue({
+      data: {
+        ...analyticsSynthetic.data,
+        performanceSeries: [],
+      },
+      isLoading: false,
+    });
     mockUsePortfolioPerformance.mockReturnValue({ data: undefined, isLoading: false });
     render(<PerformanceChart />);
 
@@ -173,12 +201,11 @@ describe("PerformanceChart — Task 9.6: partial coverage labelling", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows loading skeleton when analytics is loading", () => {
+  it("shows loading skeleton while analytics is loading", () => {
     mockUsePortfolioAnalytics.mockReturnValue({ data: undefined, isLoading: true });
-    mockUsePortfolioPerformance.mockReturnValue({ data: undefined, isLoading: true });
+    mockUsePortfolioPerformance.mockReturnValue(performanceFallback);
     render(<PerformanceChart />);
 
-    // Skeleton has animate-pulse; no chart
     expect(screen.queryByTestId("area-chart")).not.toBeInTheDocument();
   });
 

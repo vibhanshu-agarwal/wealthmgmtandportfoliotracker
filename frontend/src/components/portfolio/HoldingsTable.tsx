@@ -219,8 +219,13 @@ function HoldingsTableSkeleton() {
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function HoldingsTable() {
-  const { data: portfolio, isLoading } = usePortfolio();
-  const { data: analytics } = usePortfolioAnalytics();
+  const { data: portfolio, isLoading: isPortfolioLoading } = usePortfolio();
+  const { data: analytics, isLoading: isAnalyticsLoading } =
+    usePortfolioAnalytics();
+
+  const hasHoldings = (portfolio?.holdings.length ?? 0) > 0;
+  const waitingForAnalytics =
+    hasHoldings && isAnalyticsLoading && analytics == null;
 
   // Build a ticker → analytics holding lookup for merging real P&L and 24h change data.
   const analyticsByTicker = useMemo(
@@ -242,6 +247,8 @@ export function HoldingsTable() {
     }
   }
 
+  const analyticsTotalValue = analytics?.totalValue ?? 0;
+
   const rows = useMemo<AssetHoldingDTO[]>(() => {
     if (!portfolio) return [];
 
@@ -261,9 +268,19 @@ export function HoldingsTable() {
           ? h.assetClass
           : (backendClass as AssetClass);
 
+      const valueBase = analyticsHolding.currentValueBase;
+      const portfolioWeight =
+        valueBase != null && analyticsTotalValue > 0
+          ? (valueBase / analyticsTotalValue) * 100
+          : h.portfolioWeight;
+
       return {
         ...h,
         assetClass: compatClass,
+        // FX-converted base-currency value from analytics — not qty × quote-currency price.
+        currentPrice: analyticsHolding.currentPrice ?? h.currentPrice,
+        totalValue: valueBase ?? h.totalValue,
+        portfolioWeight,
         unrealizedPnL: analyticsHolding.unrealizedPnL,
         // Issue #3 fix: merge backend-provided percent directly — do NOT recompute client-side
         // from avgCostBasis/totalValue (fetchPortfolio sets avgCostBasis=null, so the formula
@@ -296,9 +313,9 @@ export function HoldingsTable() {
       const cmp = aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
       return sortDir === "asc" ? cmp : -cmp;
     });
-  }, [portfolio, sortKey, sortDir, search, activeClass, analyticsByTicker]);
+  }, [portfolio, sortKey, sortDir, search, activeClass, analyticsByTicker, analyticsTotalValue]);
 
-  if (isLoading) return <HoldingsTableSkeleton />;
+  if (isPortfolioLoading || waitingForAnalytics) return <HoldingsTableSkeleton />;
 
   // Show empty table when backend is unreachable rather than a hard error
   if (!portfolio) {

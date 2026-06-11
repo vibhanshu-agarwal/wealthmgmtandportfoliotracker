@@ -1,6 +1,13 @@
 "use client";
 
-import { Activity, Star, TrendingDown, TrendingUp, Wallet } from "lucide-react";
+import {
+  Activity,
+  Minus,
+  Star,
+  TrendingDown,
+  TrendingUp,
+  Wallet,
+} from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -10,9 +17,11 @@ import {
   usePortfolioSummary,
 } from "@/lib/hooks/usePortfolio";
 import {
+  classifyChangePercent,
   formatCurrency,
   formatPercent,
   formatSignedCurrencyOrDash,
+  formatDate,
 } from "@/lib/utils/format";
 import { cn } from "@/lib/utils/cn";
 import React from "react";
@@ -54,19 +63,27 @@ function ChangeIndicator({
   showSign?: boolean;
   size?: "sm" | "lg";
 }) {
-  const isPositive = value >= 0;
-  const Icon = isPositive ? TrendingUp : TrendingDown;
+  const sign = classifyChangePercent(value);
+  const Icon = sign === "positive" ? TrendingUp : TrendingDown;
 
   return (
     <span
       className={cn(
         "inline-flex items-center gap-1 font-semibold tabular-nums",
-        isPositive ? "text-profit" : "text-loss",
+        sign === "positive"
+          ? "text-profit"
+          : sign === "negative"
+            ? "text-loss"
+            : "text-muted-foreground",
         size === "lg" ? "text-base" : "text-xs",
       )}
     >
-      <Icon className={size === "lg" ? "h-4 w-4" : "h-3 w-3"} />
-      {showSign && (isPositive ? "+" : "")}
+      {sign === "neutral" ? (
+        <Minus className={size === "lg" ? "h-4 w-4" : "h-3 w-3"} />
+      ) : (
+        <Icon className={size === "lg" ? "h-4 w-4" : "h-3 w-3"} />
+      )}
+      {showSign && sign === "positive" ? "+" : ""}
       {formatPercent(value).replace("+", "")}
     </span>
   );
@@ -141,7 +158,11 @@ export function SummaryCards() {
     return (change24hAbsolute / priorValue) * 100;
   })();
 
-  const pnlIsPositive = (change24hAbsolute ?? 0) >= 0;
+  const isFlat24h = change24hAbsolute === 0;
+  const pnlIsPositive = (change24hAbsolute ?? 0) > 0;
+  const changeReferenceAt =
+    analytics?.holdings?.find((h) => h.change24hReferenceAt)
+      ?.change24hReferenceAt ?? null;
 
   // Use backend-computed performers; fall back to portfolio summary placeholder.
   const bestPerformer =
@@ -182,9 +203,11 @@ export function SummaryCards() {
         icon={Activity}
         className={
           change24hAbsolute != null
-            ? pnlIsPositive
-              ? "border-profit/20"
-              : "border-loss/20"
+            ? isFlat24h
+              ? undefined
+              : pnlIsPositive
+                ? "border-profit/20"
+                : "border-loss/20"
             : undefined
         }
       >
@@ -194,18 +217,24 @@ export function SummaryCards() {
               <p
                 className={cn(
                   "text-3xl font-bold tracking-tight tabular-nums",
-                  pnlIsPositive ? "text-profit" : "text-loss",
+                  isFlat24h
+                    ? "text-muted-foreground"
+                    : pnlIsPositive
+                      ? "text-profit"
+                      : "text-loss",
                 )}
                 data-testid="24h-pnl"
               >
                 {formatSignedCurrencyOrDash(change24hAbsolute)}
               </p>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 {change24hPercent != null && (
                   <ChangeIndicator value={change24hPercent} />
                 )}
                 <span className="text-xs text-muted-foreground">
-                  since previous snapshot
+                  {isFlat24h && changeReferenceAt
+                    ? `unchanged since ${formatDate(changeReferenceAt)} snapshot`
+                    : "since previous snapshot"}
                 </span>
               </div>
             </>
