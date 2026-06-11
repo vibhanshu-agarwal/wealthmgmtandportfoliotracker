@@ -44,6 +44,18 @@ export function formatPercent(value: number): string {
   return PCT.format(value / 100);
 }
 
+/** Classifies a percent change for styling: zero is neutral, not negative. */
+export type ChangeSign = "positive" | "negative" | "neutral" | "unavailable";
+
+export function classifyChangePercent(
+  value: number | null | undefined,
+): ChangeSign {
+  if (value == null) return "unavailable";
+  if (value > 0) return "positive";
+  if (value < 0) return "negative";
+  return "neutral";
+}
+
 /** Generic number with up to 8 decimal places (for crypto quantities) */
 export function formatQuantity(value: number): string {
   return NUM.format(value);

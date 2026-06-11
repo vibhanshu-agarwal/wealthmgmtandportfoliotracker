@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { TrendingUp, TrendingDown } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
+import { classifyChangePercent } from "@/lib/utils/format";
 import { usePortfolioAnalytics } from "@/lib/hooks/usePortfolio";
 import { useMarketSummary } from "@/lib/hooks/useInsights";
 import type { HoldingAnalyticsDTO } from "@/types/portfolio";
@@ -29,8 +30,7 @@ function formatValue(value: number): string {
 }
 
 function TickerCell({ item }: { item: TickerItem }) {
-  const isPositive = (item.change ?? 0) >= 0;
-  const hasChange = item.change != null;
+  const changeSign = classifyChangePercent(item.change);
 
   return (
     <span className="inline-flex items-center gap-2 px-6 whitespace-nowrap">
@@ -40,23 +40,27 @@ function TickerCell({ item }: { item: TickerItem }) {
       <span className="text-xs font-mono font-semibold text-white tabular-nums">
         ${formatValue(item.value)}
       </span>
-      {hasChange ? (
+      {changeSign === "unavailable" ? (
+        <span className="text-xs text-white/30 tabular-nums">—</span>
+      ) : changeSign === "neutral" ? (
+        <span className="inline-flex items-center gap-0.5 text-xs font-semibold tabular-nums text-white/50">
+          0.00%
+        </span>
+      ) : (
         <span
           className={cn(
             "inline-flex items-center gap-0.5 text-xs font-semibold tabular-nums",
-            isPositive ? "text-profit" : "text-loss",
+            changeSign === "positive" ? "text-profit" : "text-loss",
           )}
         >
-          {isPositive ? (
+          {changeSign === "positive" ? (
             <TrendingUp className="h-3 w-3" />
           ) : (
             <TrendingDown className="h-3 w-3" />
           )}
-          {isPositive ? "+" : ""}
+          {changeSign === "positive" ? "+" : ""}
           {item.change!.toFixed(2)}%
         </span>
-      ) : (
-        <span className="text-xs text-white/30 tabular-nums">—</span>
       )}
     </span>
   );

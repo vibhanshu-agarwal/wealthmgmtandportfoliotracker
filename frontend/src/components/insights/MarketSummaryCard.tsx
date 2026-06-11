@@ -11,7 +11,11 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils/cn";
-import { formatCurrency, formatPercent } from "@/lib/utils/format";
+import {
+  classifyChangePercent,
+  formatCurrency,
+  formatPercent,
+} from "@/lib/utils/format";
 import type { TickerSummary } from "@/types/insights";
 
 interface MarketSummaryCardProps {
@@ -29,16 +33,15 @@ export function MarketSummaryCard({ summary }: MarketSummaryCardProps) {
 
   // Trend direction
   const safeTrendPercent = trendPercent ?? null;
-  const trendIsPositive = safeTrendPercent !== null && safeTrendPercent > 0;
-  const trendIsNegative = safeTrendPercent !== null && safeTrendPercent < 0;
-  const trendIsNull = safeTrendPercent === null;
+  const trendSign = classifyChangePercent(safeTrendPercent);
 
   // Sparkline stroke color follows trend direction
-  const sparklineColor = trendIsPositive
-    ? "hsl(160 84% 39%)"
-    : trendIsNegative
-      ? "hsl(0 72% 51%)"
-      : "hsl(215 16% 47%)";
+  const sparklineColor =
+    trendSign === "positive"
+      ? "hsl(160 84% 39%)"
+      : trendSign === "negative"
+        ? "hsl(0 72% 51%)"
+        : "hsl(215 16% 47%)";
 
   // Convert priceHistory to Recharts data format
   const safePriceHistory = priceHistory || [];
@@ -48,11 +51,7 @@ export function MarketSummaryCard({ summary }: MarketSummaryCardProps) {
     <Card className="relative overflow-hidden">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-sm font-mono font-bold">{ticker}</CardTitle>
-        <TrendIndicator
-          trendPercent={safeTrendPercent}
-          isPositive={trendIsPositive}
-          isNull={trendIsNull}
-        />
+        <TrendIndicator trendPercent={safeTrendPercent} trendSign={trendSign} />
       </CardHeader>
 
       <CardContent className="space-y-3">
@@ -90,14 +89,12 @@ export function MarketSummaryCard({ summary }: MarketSummaryCardProps) {
 
 function TrendIndicator({
   trendPercent,
-  isPositive,
-  isNull,
+  trendSign,
 }: {
   trendPercent: number | null;
-  isPositive: boolean;
-  isNull: boolean;
+  trendSign: ReturnType<typeof classifyChangePercent>;
 }) {
-  if (isNull) {
+  if (trendSign === "unavailable") {
     return (
       <span
         className="inline-flex items-center gap-1 text-sm text-muted-foreground"
@@ -109,6 +106,19 @@ function TrendIndicator({
     );
   }
 
+  if (trendSign === "neutral") {
+    return (
+      <span
+        className="inline-flex items-center gap-1 text-sm font-semibold tabular-nums text-muted-foreground"
+        data-testid="trend-neutral"
+      >
+        <Minus className="h-4 w-4" />
+        {formatPercent(0)}
+      </span>
+    );
+  }
+
+  const isPositive = trendSign === "positive";
   const Icon = isPositive ? TrendingUp : TrendingDown;
 
   return (

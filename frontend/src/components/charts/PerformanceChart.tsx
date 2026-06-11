@@ -98,35 +98,19 @@ function PerformanceChartSkeleton() {
 export function PerformanceChart() {
   const { data: analytics, isLoading: analyticsLoading } =
     usePortfolioAnalytics();
-  const { data: performance, isLoading: perfLoading } =
-    usePortfolioPerformance(30);
+  const { data: performance } = usePortfolioPerformance(30);
 
-  const isLoading = analyticsLoading && perfLoading;
+  if (analyticsLoading) return <PerformanceChartSkeleton />;
 
-  if (isLoading) return <PerformanceChartSkeleton />;
-
-  // Prefer backend analytics series over synthetic fallback.
-  // If the backend series is marked synthetic, do NOT render it as real portfolio data.
   const coverage = analytics?.performanceCoverage;
   const isSynthetic = coverage?.synthetic ?? false;
+  const backendSeries = analytics?.performanceSeries ?? [];
 
-  const dataPoints =
-    analytics?.performanceSeries && !isSynthetic
-      ? analytics.performanceSeries
-      : (!isSynthetic ? performance?.dataPoints : null) ?? [];
-
-  // When the only available data is synthetic, show an honest unavailable state
-  if (dataPoints.length === 0 || (isSynthetic && !performance?.dataPoints?.length)) {
-    return (
-      <Card className="col-span-2 flex items-center justify-center p-8 text-muted-foreground">
-        No performance data available yet.
-      </Card>
-    );
-  }
-
+  // Prefer backend series whenever present; label synthetic/partial honestly (Task 9.6).
+  // Never substitute the client-side synthetic curve from fetchPortfolio.
   const renderablePoints =
-    dataPoints.length > 0
-      ? dataPoints
+    backendSeries.length > 0
+      ? backendSeries
       : (performance?.dataPoints ?? []);
 
   if (renderablePoints.length === 0) {
@@ -170,7 +154,16 @@ export function PerformanceChart() {
                 {formatSignedCurrency(periodReturn)} (
                 {formatPercent(periodReturnPercent)})
               </span>
-              {/* Partial coverage indicator — Requirement 2.7 / R9 */}
+              {/* Partial / synthetic coverage — Requirement 2.7 / R9 */}
+              {isSynthetic && (
+                <span
+                  className="inline-flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400"
+                  title="Series is estimated from limited history — not a complete portfolio track record"
+                >
+                  <AlertCircle className="h-3 w-3 shrink-0" aria-hidden />
+                  Estimated
+                </span>
+              )}
               {isPartial && totalHoldings > 0 && (
                 <span
                   className="inline-flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400"
