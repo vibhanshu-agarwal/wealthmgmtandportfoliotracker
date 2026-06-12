@@ -184,17 +184,24 @@ function ColHeader({
 }) {
   return (
     <TableHead className={cn(align === "right" && "text-right")}>
-      <button
-        onClick={() => onSort(column)}
+      <div
         className={cn(
-          "inline-flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground hover:text-foreground transition-colors",
+          "inline-flex items-center gap-1",
           align === "right" && "flex-row-reverse",
         )}
       >
         {extra}
-        {label}
-        <SortIcon column={column} sortKey={sortKey} sortDir={sortDir} />
-      </button>
+        <button
+          onClick={() => onSort(column)}
+          className={cn(
+            "inline-flex items-center gap-0 text-xs font-semibold uppercase tracking-wide text-muted-foreground hover:text-foreground transition-colors",
+            align === "right" && "flex-row-reverse",
+          )}
+        >
+          {label}
+          <SortIcon column={column} sortKey={sortKey} sortDir={sortDir} />
+        </button>
+      </div>
     </TableHead>
   );
 }

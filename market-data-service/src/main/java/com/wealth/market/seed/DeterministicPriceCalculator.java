@@ -40,6 +40,11 @@ public final class DeterministicPriceCalculator {
      * <p>Formula: {@code delta = signedBps / 10000} where signedBps is derived from
      * {@code hash(ticker + ":" + userId + ":" + LocalDate.now())} in [−300, +300];
      * {@code historyPrice = currentPrice / (1 + delta)}.
+     *
+     * <p>Uses {@link LocalDate#now()} (system default zone). Portfolio and market-data
+     * seeds run as separate HTTP calls; the daily 08:00 UTC cron keeps both on the same day.
+     *
+     * <p>Keep in sync with portfolio-service {@code DeterministicPriceCalculator}.
      */
     public static BigDecimal computeHistory(BigDecimal currentPrice, String ticker, String userId) {
         int seed = (ticker + ":" + userId + ":" + LocalDate.now()).hashCode();
