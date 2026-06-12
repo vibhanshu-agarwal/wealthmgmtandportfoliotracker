@@ -137,7 +137,7 @@ class MarketDataSeedServicePropagationPropertyTest {
                 .as("golden-state seed('e2e-user') upserts %d registry tickers but published %d "
                                 + "PriceUpdatedEvent(s) to %s",
                         REGISTRY.size(), published.size(), TOPIC)
-                .hasSize((int) expectedNonNull);
+                .hasSize((int) expectedNonNull * 2);
 
         for (SeedTicker t : REGISTRY) {
             if (t.basePrice() == null) {

@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -52,7 +53,8 @@ public class MarketDataSeedService {
 
     public SeedResult seed(String userId) {
         BulkOperations bulk = mongoTemplate.bulkOps(BulkOperations.BulkMode.UNORDERED, COLLECTION);
-        Instant now = Instant.now();
+        Instant now = Instant.now().truncatedTo(ChronoUnit.MILLIS);
+        Instant historyObservedAt = now.minus(25, ChronoUnit.HOURS);
 
         // Collect event payloads while building the bulk operation so that MongoDB and Kafka
         // use the identical computed price. Events are published only after bulk.execute()
@@ -71,7 +73,12 @@ public class MarketDataSeedService {
 
             // Mirror StartupHydrationService: skip tickers with a null computed price.
             if (seededPrice != null) {
-                // Enrich the event with quoteCurrency from the registry (Wave 2).
+                BigDecimal historyPrice = DeterministicPriceCalculator.computeHistory(
+                        seededPrice, t.ticker(), userId);
+                // History observation first (25h ago), then current — gives insight-service ≥2
+                // distinct observedAt values for trend calculation.
+                pendingEvents.add(new PriceUpdatedEvent(
+                        t.ticker(), historyPrice, t.quoteCurrency(), historyObservedAt, null, null));
                 pendingEvents.add(new PriceUpdatedEvent(
                         t.ticker(), seededPrice, t.quoteCurrency(), now, null, null));
             } else {

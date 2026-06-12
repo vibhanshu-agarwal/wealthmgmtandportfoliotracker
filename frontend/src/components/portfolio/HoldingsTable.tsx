@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, type ReactNode } from "react";
 import {
   TrendingUp,
   TrendingDown,
@@ -39,6 +39,7 @@ import {
 } from "@/lib/utils/format";
 import { cn } from "@/lib/utils/cn";
 import type { AssetClass, AssetHoldingDTO } from "@/types/portfolio";
+import { DemoDataBadge } from "@/components/ui/DemoDataBadge";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -171,6 +172,7 @@ function ColHeader({
   sortDir,
   onSort,
   align = "left",
+  extra,
 }: {
   label: string;
   column: SortKey;
@@ -178,19 +180,28 @@ function ColHeader({
   sortDir: SortDir;
   onSort: (col: SortKey) => void;
   align?: "left" | "right";
+  extra?: ReactNode;
 }) {
   return (
     <TableHead className={cn(align === "right" && "text-right")}>
-      <button
-        onClick={() => onSort(column)}
+      <div
         className={cn(
-          "inline-flex items-center gap-0 text-xs font-semibold uppercase tracking-wide text-muted-foreground hover:text-foreground transition-colors",
+          "inline-flex items-center gap-1",
           align === "right" && "flex-row-reverse",
         )}
       >
-        {label}
-        <SortIcon column={column} sortKey={sortKey} sortDir={sortDir} />
-      </button>
+        {extra}
+        <button
+          onClick={() => onSort(column)}
+          className={cn(
+            "inline-flex items-center gap-0 text-xs font-semibold uppercase tracking-wide text-muted-foreground hover:text-foreground transition-colors",
+            align === "right" && "flex-row-reverse",
+          )}
+        >
+          {label}
+          <SortIcon column={column} sortKey={sortKey} sortDir={sortDir} />
+        </button>
+      </div>
     </TableHead>
   );
 }
@@ -459,6 +470,7 @@ export function HoldingsTable() {
                   sortDir={sortDir}
                   onSort={handleSort}
                   align="right"
+                  extra={<DemoDataBadge />}
                 />
               </TableRow>
             </TableHeader>

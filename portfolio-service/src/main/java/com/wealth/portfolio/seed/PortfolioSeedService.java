@@ -144,13 +144,19 @@ public class PortfolioSeedService {
 
         // 4. Task 4.2: ensure market_price_history coverage for all 160 tickers.
         //    Inserts one anchor point per ticker 25 h in the past (idempotent).
+        //    Uses computeHistory() so the 24h window sees a non-zero delta vs current price.
         SqlParameterSource[] historyBatch = seeds.stream()
-                .map(t -> (SqlParameterSource) new MapSqlParameterSource()
-                        .addValue("ticker", t.ticker())
-                        .addValue("quoteCurrency", t.quoteCurrency())
-                        .addValue("price", DeterministicPriceCalculator.compute(
-                                t.basePrice(), t.ticker(), userId))
-                        .addValue("observedAt", java.sql.Timestamp.from(seedHistoryTs)))
+                .map(t -> {
+                    BigDecimal currentPrice = DeterministicPriceCalculator.compute(
+                            t.basePrice(), t.ticker(), userId);
+                    BigDecimal historyPrice = DeterministicPriceCalculator.computeHistory(
+                            currentPrice, t.ticker(), userId);
+                    return (SqlParameterSource) new MapSqlParameterSource()
+                            .addValue("ticker", t.ticker())
+                            .addValue("quoteCurrency", t.quoteCurrency())
+                            .addValue("price", historyPrice)
+                            .addValue("observedAt", java.sql.Timestamp.from(seedHistoryTs));
+                })
                 .toArray(SqlParameterSource[]::new);
         jdbc.batchUpdate(UPSERT_HISTORY_SQL, historyBatch);
 

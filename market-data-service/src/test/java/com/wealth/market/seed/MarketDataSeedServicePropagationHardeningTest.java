@@ -18,6 +18,8 @@ import org.springframework.kafka.core.KafkaTemplate;
 
 import java.lang.reflect.Constructor;
 import java.math.BigDecimal;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -38,8 +40,9 @@ import static org.mockito.Mockito.when;
  *
  * <p>Strengthens the existing {@link MarketDataSeedServicePropagationPropertyTest} with:
  * <ol>
- *   <li><b>Exactly-once publication:</b> asserts that each expected ticker produces exactly
- *       one {@code PriceUpdatedEvent} and no unexpected events are published.</li>
+ *   <li><b>Exactly-once current publication:</b> asserts that each expected ticker produces exactly
+ *       one current-price {@code PriceUpdatedEvent} plus one history observation, and no unexpected
+ *       events are published.</li>
  *   <li><b>Failure path:</b> asserts that no Kafka sends occur when {@code bulk.execute()}
  *       throws, preventing Redis from being hydrated for documents that never persisted.</li>
  * </ol>
@@ -60,14 +63,15 @@ class MarketDataSeedServicePropagationHardeningTest {
 
     /**
      * For arbitrary non-empty subsets of the registry, each expected ticker produces
-     * <b>exactly one</b> {@code PriceUpdatedEvent} and no unexpected events are published.
+     * <b>exactly one current-price</b> {@code PriceUpdatedEvent} and one history observation,
+     * and no unexpected events are published.
      *
      * <p>The existing property test uses {@code anySatisfy} which only checks that at least
      * one matching event exists. This test additionally asserts:
      * <ul>
-     *   <li>No ticker produces more than one event (no duplicate sends).</li>
+     *   <li>Each ticker produces exactly one current-price event (no duplicate current sends).</li>
+     *   <li>Total events = 2 × non-null-priced tickers (history + current).</li>
      *   <li>No events are published for tickers not in the expected set.</li>
-     *   <li>Total event count equals the number of non-null-priced tickers.</li>
      * </ul>
      */
     @Property(tries = 50)
@@ -84,26 +88,54 @@ class MarketDataSeedServicePropagationHardeningTest {
                 .filter(t -> t.basePrice() != null)
                 .toList();
 
-        // Total count must equal the number of non-null-priced tickers.
+        // Total count must equal two events per non-null-priced ticker (history + current).
         assertThat(published)
                 .as("seed(\"%s\") must publish exactly %d event(s) for %d non-null-priced tickers, "
                         + "but published %d",
-                        userId, expectedTickers.size(), expectedTickers.size(), published.size())
-                .hasSize(expectedTickers.size());
+                        userId, expectedTickers.size() * 2, expectedTickers.size(), published.size())
+                .hasSize(expectedTickers.size() * 2);
 
-        // Each expected ticker appears exactly once.
+        // Each expected ticker appears exactly once with the current seeded price (latest observedAt).
         for (SeedTicker t : expectedTickers) {
             BigDecimal seededPrice =
                     DeterministicPriceCalculator.compute(t.basePrice(), t.ticker(), userId);
-            long count = published.stream()
-                    .filter(c -> c.topic().equals(TOPIC)
-                            && c.key().equals(t.ticker())
-                            && c.event().ticker().equals(t.ticker())
+            List<Captured> tickerEvents = published.stream()
+                    .filter(c -> c.key().equals(t.ticker()))
+                    .toList();
+            assertThat(tickerEvents).as("ticker %s event count", t.ticker()).hasSize(2);
+
+            Instant latestObserved = tickerEvents.stream()
+                    .map(c -> c.event().observedAt())
+                    .max(Instant::compareTo)
+                    .orElseThrow();
+            Instant earliestObserved = tickerEvents.stream()
+                    .map(c -> c.event().observedAt())
+                    .min(Instant::compareTo)
+                    .orElseThrow();
+            assertThat(Duration.between(earliestObserved, latestObserved))
+                    .as("ticker %s observation gap", t.ticker())
+                    .isEqualTo(Duration.ofHours(25));
+
+            long currentCount = tickerEvents.stream()
+                    .filter(c -> c.event().observedAt().equals(latestObserved)
                             && c.event().newPrice().compareTo(seededPrice) == 0)
                     .count();
-            assertThat(count)
-                    .as("ticker %s must appear exactly once in published events, but appeared %d time(s)",
-                            t.ticker(), count)
+            assertThat(currentCount)
+                    .as("ticker %s must appear exactly once with current price at latest observedAt, "
+                            + "but appeared %d time(s)",
+                            t.ticker(), currentCount)
+                    .isEqualTo(1);
+
+            BigDecimal historyPrice = DeterministicPriceCalculator.computeHistory(
+                    seededPrice, t.ticker(), userId);
+            long historyCount = tickerEvents.stream()
+                    .filter(c -> c.event().observedAt().equals(earliestObserved)
+                            && c.event().newPrice().compareTo(historyPrice) == 0)
+                    .count();
+            assertThat(historyCount)
+                    .as("ticker %s must appear exactly once with history price at earliest observedAt, "
+                            + "but appeared %d time(s)",
+                            t.ticker(), historyCount)
                     .isEqualTo(1);
         }
 
@@ -129,13 +161,30 @@ class MarketDataSeedServicePropagationHardeningTest {
         service.seed("e2e-user");
 
         long expectedCount = REGISTRY.stream().filter(t -> t.basePrice() != null).count();
-        assertThat(published).hasSize((int) expectedCount);
+        assertThat(published).hasSize((int) (expectedCount * 2));
 
-        // Verify no duplicates by checking all keys are distinct.
-        Set<String> publishedKeys = published.stream().map(Captured::key).collect(Collectors.toSet());
-        assertThat(publishedKeys)
-                .as("published event keys must be distinct (no duplicate sends)")
-                .hasSize((int) expectedCount);
+        // Verify each ticker has exactly one current-price event at the latest observedAt.
+        for (SeedTicker t : REGISTRY) {
+            if (t.basePrice() == null) {
+                continue;
+            }
+            BigDecimal seededPrice =
+                    DeterministicPriceCalculator.compute(t.basePrice(), t.ticker(), "e2e-user");
+            List<Captured> tickerEvents = published.stream()
+                    .filter(c -> c.key().equals(t.ticker()))
+                    .toList();
+            Instant latestObserved = tickerEvents.stream()
+                    .map(c -> c.event().observedAt())
+                    .max(Instant::compareTo)
+                    .orElseThrow();
+            long currentCount = tickerEvents.stream()
+                    .filter(c -> c.event().observedAt().equals(latestObserved)
+                            && c.event().newPrice().compareTo(seededPrice) == 0)
+                    .count();
+            assertThat(currentCount)
+                    .as("ticker %s must have exactly one current-price event", t.ticker())
+                    .isEqualTo(1);
+        }
     }
 
     // ── Failure path: no sends when bulk.execute() throws ────────────────────────────────

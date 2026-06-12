@@ -17,6 +17,7 @@ import {
   formatPercent,
 } from "@/lib/utils/format";
 import type { TickerSummary } from "@/types/insights";
+import { DemoDataBadge } from "@/components/ui/DemoDataBadge";
 
 interface MarketSummaryCardProps {
   summary: TickerSummary;
@@ -51,7 +52,10 @@ export function MarketSummaryCard({ summary }: MarketSummaryCardProps) {
     <Card className="relative overflow-hidden">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-sm font-mono font-bold">{ticker}</CardTitle>
-        <TrendIndicator trendPercent={safeTrendPercent} trendSign={trendSign} />
+        <div className="inline-flex items-center gap-1.5">
+          <DemoDataBadge />
+          <TrendIndicator trendPercent={safeTrendPercent} trendSign={trendSign} />
+        </div>
       </CardHeader>
 
       <CardContent className="space-y-3">
