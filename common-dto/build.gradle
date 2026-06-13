@@ -7,8 +7,20 @@ configurations.configureEach {
     exclude group: 'org.springframework.boot', module: 'spring-boot-testcontainers'
 }
 
+dependencyManagement {
+    imports {
+        mavenBom "org.springframework.boot:spring-boot-dependencies:${rootProject.ext.springBootVersion}"
+    }
+}
+
 dependencies {
     testImplementation platform('org.junit:junit-bom:5.12.2')
     testImplementation 'org.junit.jupiter:junit-jupiter'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
+    // Jackson 3 — explicit test dependency for contract ser/deser tests (Boot 4.1 BOM-managed).
+    testImplementation 'tools.jackson.core:jackson-databind'
+
+    testImplementation 'net.jqwik:jqwik:1.9.2'
+    testImplementation 'org.assertj:assertj-core'
 }

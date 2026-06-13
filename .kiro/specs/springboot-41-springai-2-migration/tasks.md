@@ -58,23 +58,30 @@ work targets Java 21 + Gradle (Groovy DSL) per the existing build.
 - [x] 3. Checkpoint - dependency graph coherent
   - Ensure the graph resolves to one generation and the whole project compiles. Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 4. Migrate the shared contract (`common-dto`) to Jackson 3
-  - [ ] 4.1 Migrate `common-dto` Jackson imports to Jackson 3
+- [x] 4. Migrate the shared contract (`common-dto`) to Jackson 3
+  - [x] 4.1 Migrate `common-dto` Jackson imports to Jackson 3
     - Replace any `com.fasterxml.jackson.*` imports/annotations on `PriceUpdatedEvent` and shared records with `tools.jackson.*` equivalents
     - Replace `new ObjectMapper()` usage with `JsonMapper.builder().build()` where applicable
     - _Design: Step 2.4; Property 3, 12_
 
-  - [ ]* 4.2 Write parameterized Jackson 3 round-trip ser/deser tests for `common-dto`
+  - [x]* 4.2 Write parameterized Jackson 3 round-trip ser/deser tests for `common-dto`
     - **Property 3: Event contract preserved**
     - **Validates: Step 2.4 / Testing — Jackson 3 serialization**
     - Assert serialize→deserialize equality specifically against the configured `tools.jackson.databind.JsonMapper` (not an ad-hoc mapper) for `PriceUpdatedEvent` and other shared records
 
-  - [ ]* 4.3 Write jqwik property test for event round-trip
+  - [x]* 4.3 Write jqwik property test for event round-trip
     - **Property 3: Event contract preserved (`∀ e: deserialize(serialize(e)) == e`)**
     - **Validates: Step 2.4 / Property 3**
     - Generate arbitrary valid `PriceUpdatedEvent` instances and assert byte-stable round-trip under Jackson 3
 
-- [ ] 5. Checkpoint - contract stable on Jackson 3
+  - [ ] 4.4 Address PR #67 architect review follow-ups (pre-6.1 gate)
+    - Soften `ContractJsonMapper` Javadoc: structural mapper check only — not a wire guarantee; production fidelity lives in `portfolio-service` / `market-data-service` tests
+    - Add frozen ISO-8601 wire fixture deserialized via `ContractJsonMapper` (structural only; `common-dto` must not gain Spring Kafka)
+    - Document scale-2 / milli-precision as an explicit contract invariant on `PriceUpdatedEvent` (or widen jqwik generators + use `compareTo` for prices)
+    - Hoist `jqwikVersion = '1.9.2'` into root `ext`; reference from `common-dto`, `market-data-service`, and `insight-service`
+    - _PR review: concerns 2 (structural half), 4 (note), nits; run before Task 6.1_
+
+- [x] 5. Checkpoint - contract stable on Jackson 3
   - Ensure all `common-dto` serialization tests pass before any consumer migrates. Ask the user if questions arise.
 
 - [ ] 6. Migrate leaf data services (`portfolio-service`, `market-data-service`)
@@ -83,24 +90,35 @@ work targets Java 21 + Gradle (Groovy DSL) per the existing build.
     - Verify JPA/Flyway/Kafka consumer code compiles against Framework 7.x; address new JSpecify nullness warnings
     - _Design: Step 2.4, Step 1.6; Property 1, 3_
 
-  - [ ]* 6.2 Write `@WebMvcTest` slice test for `portfolio-service` serialization boundary
+  - [ ]* 6.2 Write Kafka consumer wire contract test — unit level (Wave 5; PR review concern 1 + unit half of 3)
+    - Deserialize via the production `ErrorHandlingDeserializer` + `JacksonJsonDeserializer` stack matching `PortfolioKafkaConfig` (`TRUSTED_PACKAGES`, `VALUE_DEFAULT_TYPE`); extend `PriceUpdatedEventBackCompatTest` / `PriceUpdatedEventConsumerPathTest`
+    - Hand-crafted ISO-8601 enriched fixture: assert consumer deserializes temporal fields correctly (does **not** prove producer emits this shape — see 6.5 / 6.7)
+    - Unit-level rejection: malformed JSON / non-numeric `newPrice` throws on deserialization (deserializer contract only; DLT routing is 6.7)
+
+  - [ ]* 6.3 Write `@WebMvcTest` slice test for `portfolio-service` serialization boundary
     - **Property 11: Jackson 3 mapper at serialization boundaries**
     - **Validates: Testing — Jackson 3 serialization (slice b)**
     - Assert the autoconfigured Jackson 3 `JsonMapper` bean handles controller request/response serialization
 
-  - [ ] 6.3 Migrate `market-data-service` Jackson 3 usage and compile on the new platform
+  - [ ] 6.4 Migrate `market-data-service` Jackson 3 usage and compile on the new platform
     - Replace direct `com.fasterxml.jackson.*` imports with `tools.jackson.*`
     - Verify MongoDB, WebFlux, Kafka producer, and resilience4j code compiles against Framework 7.x
     - _Design: Step 2.4, Step 1.6; Property 1, 3_
 
-  - [ ]* 6.4 Write `@WebMvcTest` slice test for `market-data-service` serialization boundary
+  - [ ]* 6.5 Write Kafka producer wire contract test — emitted shape (Wave 5; PR review refinement 1)
+    - Assert `PriceUpdatedEvent` serialized by production `JacksonJsonSerializer` (`application.yml` → Boot auto-configured Jackson 3 mapper) emits the expected on-wire shape for temporal fields (ISO-8601 vs numeric timestamp) and enriched fields
+    - Pairs with the consumer-side hand-crafted fixture in 6.2; together they pin the contract without a cross-module dependency
+
+  - [ ]* 6.6 Write `@WebMvcTest` slice test for `market-data-service` serialization boundary
     - **Property 11: Jackson 3 mapper at serialization boundaries**
     - **Validates: Testing — Jackson 3 serialization (slice b)**
     - Assert the autoconfigured Jackson 3 mapper bean is used on the wire
+    - HTTP/controller boundary only — not Kafka; producer Kafka shape is the 6.5 subtask above
 
-  - [ ]* 6.5 Run Testcontainers integration tests for leaf services
+  - [ ]* 6.7 Run Testcontainers integration tests for leaf services (Wave 6 — requires both 6.1 and 6.4)
     - **Validates: Property 1, 3 / Testing — Integration**
-    - Run `integrationTest` against Postgres 16 (portfolio) and MongoDB 7 + Kafka (market-data); verify cross-service Jackson 3 event payloads round-trip
+    - Run `integrationTest` against Postgres 16 (portfolio) and MongoDB 7 + Kafka (market-data); verify cross-service Jackson 3 event payloads round-trip (true producer→consumer loop; cannot live in Wave 5 because 6.1 and 6.4 are parallel)
+    - Integration-level rejection: malformed payload routes to `.DLT` after `FixedBackOff(1000, 3)` retry policy with `MalformedEventException` on the not-retryable list (`PortfolioKafkaConfig`); distinct from unit-level deserializer rejection in 6.2
 
 - [ ] 7. Checkpoint - leaf services migrated
   - Ensure leaf-service unit, slice, and integration tests pass. Ask the user if questions arise.
@@ -214,9 +232,14 @@ work targets Java 21 + Gradle (Groovy DSL) per the existing build.
 - Each task references specific design steps and correctness properties for traceability.
 - Migration order (`common-dto` → leaf services → `insight-service` → `api-gateway`) preserves
   the zero-downtime rollout contract from the design; the gateway migrates last.
-- Property tests use jqwik 1.9.2 (already present in `insight-service` and `market-data-service`).
+- Property tests use jqwik 1.9.2 (hoist to `jqwikVersion` in root `ext` per Task 4.4).
 - Compilation checks cannot catch Jackson 3 serialization failures — runtime/serialization tests
   are mandatory per the design's Testing Strategy.
+- **PR #67 review follow-ups (Task 4.4 + 6.2/6.5/6.7 subtasks):** `common-dto` tests prove
+  structural Jackson 3 compatibility only. Consumer fidelity (6.2), producer-emitted shape (6.5),
+  and producer→consumer + DLT routing (6.7) close the wire contract. Wave 5 runs 4.4 then the
+  leaf migrations `{6.1, 6.4}` with their wire-contract unit tests `{6.2, 6.5}` in parallel;
+  cross-service tests must wait for Wave 6 (`6.7`).
 
 ## Task Dependency Graph
 
@@ -228,8 +251,8 @@ work targets Java 21 + Gradle (Groovy DSL) per the existing build.
     { "id": 2, "tasks": ["2.2"] },
     { "id": 3, "tasks": ["4.1"] },
     { "id": 4, "tasks": ["4.2", "4.3"] },
-    { "id": 5, "tasks": ["6.1", "6.3"] },
-    { "id": 6, "tasks": ["6.2", "6.4", "6.5"] },
+    { "id": 5, "tasks": ["4.4", "6.1", "6.2", "6.4", "6.5"] },
+    { "id": 6, "tasks": ["6.3", "6.6", "6.7"] },
     { "id": 7, "tasks": ["8.1", "8.2", "8.3", "8.4", "8.5", "8.6"] },
     { "id": 8, "tasks": ["8.7", "8.8", "8.9", "8.10", "8.11"] },
     { "id": 9, "tasks": ["10.1"] },
