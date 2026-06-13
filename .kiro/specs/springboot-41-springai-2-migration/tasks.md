@@ -26,6 +26,7 @@ work targets Java 21 + Gradle (Groovy DSL) per the existing build.
     - Bump `org.openrewrite.recipe:rewrite-spring` to a release shipping `UpgradeSpringBoot_4_1`
     - Change `activeRecipe` from `UpgradeSpringBoot_4_0` to `UpgradeSpringBoot_4_1`; keep `setExportDatatables(true)`
     - **Reconciled (Option A):** `activeRecipe` is pinned to `UpgradeSpringBoot_4_0` because `UpgradeSpringBoot_4_1` is not yet in community `rewrite-spring` (6.30.0). That recipe chains Framework 7 / Security 7 / Spring Cloud / Testcontainers 2, so it remains valid on the Boot 4.1 BOM; platform bumps were applied manually. Switch to `UpgradeSpringBoot_4_1` when a release ships it.
+    - **OpenRewrite is advisory tooling only** — not part of `./gradlew check` or CI; BOM/platform bumps were applied manually. If running `rewriteDryRun`/`rewriteRun`, increase heap (e.g. `GRADLE_OPTS=-Xmx4g` or `org.gradle.jvmargs` in `gradle.properties`); OOM during scan is an environment limit, not a recipe defect.
     - _Design: Step 1.7_
 
   - [x] 1.3 Swap Spring AI starters in `insight-service/build.gradle`

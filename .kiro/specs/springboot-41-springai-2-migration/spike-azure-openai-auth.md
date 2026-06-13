@@ -102,7 +102,11 @@ checkpoints cannot surface 401/404.
 4. **Capture evidence:**
    - HTTP method, URL path, query params (`api-version`), auth header type (redact token values).
    - Response status (200 vs 401/404) and error body summary.
-5. **Repeat** with API-key auth only if MI fails — to isolate routing vs auth failures.
+5. **For Q1 specifically:** check whether `spring-ai-openai` / `openai-java` exposes a **dynamic
+   API-key or credentials supplier** (or custom-header hook). If yes, that is the likely Option C
+   mechanism — feed a `DefaultAzureCredential` AAD bearer token as a rotating credential rather
+   than a static secret.
+6. **Repeat** with API-key auth only if MI fails — to isolate routing vs auth failures.
 
 ### Optional tooling
 
@@ -157,6 +161,9 @@ Choose **one** path and record rationale:
 ### Option C — Partial (routing works, MI requires bridge)
 
 - Document minimal bridge (e.g. token supplier bean) in Task 8.1 scope.
+- **Likely middle path:** if the module exposes a dynamic API-key/credentials supplier, wire
+  `DefaultAzureCredential.getToken(...)` to supply a rotating AAD bearer token (not a static
+  secret) — verify during the spike before building a custom `RestClient` interceptor.
 - Keep or narrow `azure-identity` dependency with documented justification.
 
 **Selected option:** _TBD_

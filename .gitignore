@@ -109,6 +109,7 @@ kafka-truststore.jks
 ### JVM crash / replay logs ###
 hs_err_pid*.log
 replay_pid*.log
+*.hprof
 
 ### Temporary / debug files ###
 tmp*.html
