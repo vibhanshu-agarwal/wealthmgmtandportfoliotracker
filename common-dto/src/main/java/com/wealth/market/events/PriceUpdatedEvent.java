@@ -23,6 +23,9 @@ import java.time.Instant;
  * constructor is retained so existing producer call sites compile and behave unchanged.
  *
  * <h2>Wire contract invariants</h2>
+ * <p>Documented targets for cross-service compatibility; enforcement tests live in
+ * {@code portfolio-service} / {@code market-data-service} wire-contract tests (Tasks 6.2/6.5)
+ * and the deferred Testcontainers round-trip (Task 6.7).
  * <ul>
  *   <li><strong>Prices</strong> — {@code newPrice} and {@code previousReferencePrice} are
  *       monetary values with scale 2 (two decimal places) on the wire. Producers and contract

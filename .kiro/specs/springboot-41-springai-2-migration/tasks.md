@@ -106,8 +106,8 @@ work targets Java 21 + Gradle (Groovy DSL) per the existing build.
     - _Design: Step 2.4, Step 1.6; Property 1, 3_
 
   - [x]* 6.5 Write Kafka producer wire contract test — emitted shape (Wave 5; PR review refinement 1)
-    - Assert `PriceUpdatedEvent` serialized by production `JacksonJsonSerializer` (`application.yml` → Boot auto-configured Jackson 3 mapper) emits the expected on-wire shape for temporal fields (ISO-8601 vs numeric timestamp) and enriched fields
-    - Pairs with the consumer-side hand-crafted fixture in 6.2; together they pin the contract without a cross-module dependency
+    - Assert `PriceUpdatedEvent` serialized by a no-arg production-path `JacksonJsonSerializer` (`application.yml` class-name config; Spring Kafka's internal default mapper, not the Boot `JsonMapper` bean) emits the expected on-wire JSON body shape for temporal fields (ISO-8601 vs numeric timestamp) and enriched fields
+    - Pairs with the consumer-side hand-crafted fixture in 6.2; together they pin the body contract without a cross-module dependency. True producer→consumer + type-header fidelity is Task 6.7
 
   - [ ]* 6.6 Write `@WebMvcTest` slice test for `market-data-service` serialization boundary
     - **Property 11: Jackson 3 mapper at serialization boundaries**
@@ -236,8 +236,10 @@ work targets Java 21 + Gradle (Groovy DSL) per the existing build.
 - Compilation checks cannot catch Jackson 3 serialization failures — runtime/serialization tests
   are mandatory per the design's Testing Strategy.
 - **PR #67 review follow-ups (Task 4.4 + 6.2/6.5/6.7 subtasks):** `common-dto` tests prove
-  structural Jackson 3 compatibility only. Consumer fidelity (6.2), producer-emitted shape (6.5),
-  and producer→consumer + DLT routing (6.7) close the wire contract. Wave 5 runs 4.4 then the
+  structural Jackson 3 compatibility only. Consumer fidelity (6.2), producer-emitted JSON body
+  shape (6.5), and producer→consumer + DLT routing (6.7) close the wire contract. Kafka
+  serializers use Spring Kafka's internally-built mapper (not the Boot `JsonMapper` bean);
+  HTTP slice tests (6.3/6.6) are where Boot mapper wiring applies. Wave 5 runs 4.4 then the
   leaf migrations `{6.1, 6.4}` with their wire-contract unit tests `{6.2, 6.5}` in parallel;
   cross-service tests must wait for Wave 6 (`6.7`).
 
