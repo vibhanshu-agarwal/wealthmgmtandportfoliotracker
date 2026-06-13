@@ -56,7 +56,11 @@ class PriceUpdatedEventListener {
         marketPriceProjectionService.upsertLatestPrice(event);
     }
 
-    @KafkaListener(topics = "market-prices.DLT", groupId = "portfolio-group-dlt")
+    @KafkaListener(
+            topics = "market-prices.DLT",
+            groupId = "portfolio-group-dlt",
+            containerFactory = "priceUpdatedKafkaListenerContainerFactory"
+    )
     void onDlt(
             Object failedPayload,
             @Header(KafkaHeaders.RECEIVED_TOPIC) String topic,
