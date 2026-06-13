@@ -25,6 +25,7 @@ work targets Java 21 + Gradle (Groovy DSL) per the existing build.
   - [x] 1.2 Update OpenRewrite recipe to the Boot 4.1 upgrade recipe
     - Bump `org.openrewrite.recipe:rewrite-spring` to a release shipping `UpgradeSpringBoot_4_1`
     - Change `activeRecipe` from `UpgradeSpringBoot_4_0` to `UpgradeSpringBoot_4_1`; keep `setExportDatatables(true)`
+    - **Reconciled (Option A):** `activeRecipe` is pinned to `UpgradeSpringBoot_4_0` because `UpgradeSpringBoot_4_1` is not yet in community `rewrite-spring` (6.30.0). That recipe chains Framework 7 / Security 7 / Spring Cloud / Testcontainers 2, so it remains valid on the Boot 4.1 BOM; platform bumps were applied manually. Switch to `UpgradeSpringBoot_4_1` when a release ships it.
     - _Design: Step 1.7_
 
   - [x] 1.3 Swap Spring AI starters in `insight-service/build.gradle`
@@ -104,6 +105,7 @@ work targets Java 21 + Gradle (Groovy DSL) per the existing build.
   - Ensure leaf-service unit, slice, and integration tests pass. Ask the user if questions arise.
 
 - [ ] 8. Refactor `insight-service` Spring AI M4 → GA
+  - **Prerequisite (before 8.1):** complete `spike-azure-openai-auth.md` — Azure auth + routing de-risk for the consolidated `spring-ai-openai` module. Does not block Task 4.1 / Wave 3.
   - [ ] 8.1 Rewire Azure OpenAI adapters onto the consolidated `spring-ai-openai` module
     - Keep the Java type names of `AzureOpenAiInsightService`, `AzureOpenAiInsightAdvisor`, `AzureOpenAiAssetResolutionClient`; update autoconfig wiring to the consolidated module
     - Remove the hand-rolled AAD-token bridge / custom `RestClient` interceptor (native auth replaces it)

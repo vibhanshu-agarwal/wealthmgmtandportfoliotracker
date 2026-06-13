@@ -30,7 +30,11 @@ dependencies {
 }
 
 rewrite {
-    activeRecipe("org.openrewrite.java.spring.boot4.UpgradeSpringBoot_4_1")
+    // Community rewrite-spring 6.30.0 ships only UpgradeSpringBoot_4_0 (no UpgradeSpringBoot_4_1 yet).
+    // That recipe chains Framework 7 / Security 7 / Spring Cloud / Testcontainers 2 upgrades, so it
+    // remains the correct active recipe on the Boot 4.1 BOM (platform bumps applied manually).
+    // Revisit activeRecipe when a release ships UpgradeSpringBoot_4_1.
+    activeRecipe("org.openrewrite.java.spring.boot4.UpgradeSpringBoot_4_0")
     setExportDatatables(true)
 }
 
