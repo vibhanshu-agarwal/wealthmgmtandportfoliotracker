@@ -4,10 +4,13 @@ import tools.jackson.databind.DeserializationFeature;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * Canonical Jackson 3 mapper for {@code common-dto} contract tests.
+ * Test-only Jackson 3 mapper for {@code common-dto} structural compatibility checks.
  *
- * <p>Matches the consumer-tolerant defaults used on the Kafka wire path: unknown properties
- * are ignored so forward-compatible producers do not break existing consumers.
+ * <p>This mapper proves that {@link PriceUpdatedEvent} can be (de)serialized under Jackson 3
+ * with consumer-tolerant defaults (unknown properties ignored). It is <strong>not</strong> a
+ * guarantee of production Kafka wire fidelity — that contract is pinned in
+ * {@code portfolio-service} (consumer, Task 6.2) and {@code market-data-service} (producer,
+ * Task 6.5) using the real Spring Kafka serializer stack.
  */
 final class ContractJsonMapper {
 

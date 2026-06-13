@@ -22,6 +22,17 @@ import java.time.Instant;
  * than substituting a default. The event itself never precomputes change. A legacy 2-arg
  * constructor is retained so existing producer call sites compile and behave unchanged.
  *
+ * <h2>Wire contract invariants</h2>
+ * <ul>
+ *   <li><strong>Prices</strong> — {@code newPrice} and {@code previousReferencePrice} are
+ *       monetary values with scale 2 (two decimal places) on the wire. Producers and contract
+ *       tests use {@code BigDecimal} values at that scale; consumers compare with
+ *       {@code compareTo}, not {@code equals}, when scale may differ after deserialization.
+ *   <li><strong>Timestamps</strong> — {@code observedAt} and {@code previousReferenceAt} are
+ *       serialized as ISO-8601 UTC strings (e.g. {@code 2026-06-08T10:15:30Z}), not numeric
+ *       epoch timestamps. Millisecond precision is the contract ceiling.
+ * </ul>
+ *
  * @param ticker                 the asset ticker symbol (e.g. "AAPL", "BTC-USD")
  * @param newPrice               the updated price, expressed in {@code quoteCurrency}
  * @param quoteCurrency          ISO currency the price is quoted in (e.g. "USD"); nullable

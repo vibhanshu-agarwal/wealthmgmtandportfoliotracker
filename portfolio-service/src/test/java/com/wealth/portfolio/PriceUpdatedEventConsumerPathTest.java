@@ -49,6 +49,15 @@ class PriceUpdatedEventConsumerPathTest {
 
     private static final String TOPIC = "market-prices";
 
+    /**
+     * Frozen enriched wire payload (Task 6.2). Temporal fields are ISO-8601 strings — coordinated
+     * with market-data producer wire contract (Task 6.5).
+     */
+    private static final String ENRICHED_ISO8601_FIXTURE = """
+            {"ticker":"BTC-USD","newPrice":64000.50,"quoteCurrency":"USD",\
+            "observedAt":"2026-06-08T10:15:30Z","previousReferencePrice":63250.00,\
+            "previousReferenceAt":"2026-06-07T10:15:30Z"}""";
+
     @Mock
     private MarketPriceProjectionService projectionService;
 
@@ -108,16 +117,23 @@ class PriceUpdatedEventConsumerPathTest {
     // -----------------------------------------------------------------------
 
     @Test
+    void frozenIso8601Fixture_throughConfiguredDeserializer_deserializesTemporalFields() {
+        var deserializer = buildConfiguredDeserializer();
+
+        PriceUpdatedEvent event = deserialize(deserializer, ENRICHED_ISO8601_FIXTURE);
+
+        assertThat(event.ticker()).isEqualTo("BTC-USD");
+        assertThat(event.observedAt()).isEqualTo(Instant.parse("2026-06-08T10:15:30Z"));
+        assertThat(event.previousReferenceAt()).isEqualTo(Instant.parse("2026-06-07T10:15:30Z"));
+    }
+
+    @Test
     void newShape_throughConfiguredDeserializer_reachesProjectionService() {
         var deserializer = buildConfiguredDeserializer();
         Instant obs = Instant.parse("2026-06-08T10:15:30Z");
         Instant refAt = Instant.parse("2026-06-07T10:15:30Z");
-        String newShape = """
-                {"ticker":"BTC-USD","newPrice":64000.50,"quoteCurrency":"USD",\
-                "observedAt":"2026-06-08T10:15:30Z","previousReferencePrice":63250.00,\
-                "previousReferenceAt":"2026-06-07T10:15:30Z"}""";
 
-        PriceUpdatedEvent event = deserialize(deserializer, newShape);
+        PriceUpdatedEvent event = deserialize(deserializer, ENRICHED_ISO8601_FIXTURE);
 
         assertThat(event.ticker()).isEqualTo("BTC-USD");
         assertThat(event.quoteCurrency()).isEqualTo("USD");
@@ -128,6 +144,25 @@ class PriceUpdatedEventConsumerPathTest {
         listener.on(event);
 
         verify(projectionService).upsertLatestPrice(event);
+    }
+
+    // -----------------------------------------------------------------------
+    // Deserializer contract rejection (unit level — DLT routing is Task 6.7)
+    // -----------------------------------------------------------------------
+
+    @Test
+    void malformedJson_throughConfiguredDeserializer_rejectsPayload() {
+        var deserializer = buildConfiguredDeserializer();
+
+        // ErrorHandlingDeserializer catches delegate failures and returns null (no valid event).
+        assertThat(deserialize(deserializer, "{not valid json")).isNull();
+    }
+
+    @Test
+    void nonNumericNewPrice_throughConfiguredDeserializer_rejectsPayload() {
+        var deserializer = buildConfiguredDeserializer();
+
+        assertThat(deserialize(deserializer, "{\"ticker\":\"AAPL\",\"newPrice\":\"oops\"}")).isNull();
     }
 
     // -----------------------------------------------------------------------

@@ -74,7 +74,7 @@ work targets Java 21 + Gradle (Groovy DSL) per the existing build.
     - **Validates: Step 2.4 / Property 3**
     - Generate arbitrary valid `PriceUpdatedEvent` instances and assert byte-stable round-trip under Jackson 3
 
-  - [ ] 4.4 Address PR #67 architect review follow-ups (pre-6.1 gate)
+  - [x] 4.4 Address PR #67 architect review follow-ups (pre-6.1 gate)
     - Soften `ContractJsonMapper` Javadoc: structural mapper check only — not a wire guarantee; production fidelity lives in `portfolio-service` / `market-data-service` tests
     - Add frozen ISO-8601 wire fixture deserialized via `ContractJsonMapper` (structural only; `common-dto` must not gain Spring Kafka)
     - Document scale-2 / milli-precision as an explicit contract invariant on `PriceUpdatedEvent` (or widen jqwik generators + use `compareTo` for prices)
@@ -85,12 +85,12 @@ work targets Java 21 + Gradle (Groovy DSL) per the existing build.
   - Ensure all `common-dto` serialization tests pass before any consumer migrates. Ask the user if questions arise.
 
 - [ ] 6. Migrate leaf data services (`portfolio-service`, `market-data-service`)
-  - [ ] 6.1 Migrate `portfolio-service` Jackson 3 usage and compile on the new platform
+  - [x] 6.1 Migrate `portfolio-service` Jackson 3 usage and compile on the new platform
     - Replace direct `com.fasterxml.jackson.*` imports (DTOs, `ObjectMapper`) with `tools.jackson.*`
     - Verify JPA/Flyway/Kafka consumer code compiles against Framework 7.x; address new JSpecify nullness warnings
     - _Design: Step 2.4, Step 1.6; Property 1, 3_
 
-  - [ ]* 6.2 Write Kafka consumer wire contract test — unit level (Wave 5; PR review concern 1 + unit half of 3)
+  - [x]* 6.2 Write Kafka consumer wire contract test — unit level (Wave 5; PR review concern 1 + unit half of 3)
     - Deserialize via the production `ErrorHandlingDeserializer` + `JacksonJsonDeserializer` stack matching `PortfolioKafkaConfig` (`TRUSTED_PACKAGES`, `VALUE_DEFAULT_TYPE`); extend `PriceUpdatedEventBackCompatTest` / `PriceUpdatedEventConsumerPathTest`
     - Hand-crafted ISO-8601 enriched fixture: assert consumer deserializes temporal fields correctly (does **not** prove producer emits this shape — see 6.5 / 6.7)
     - Unit-level rejection: malformed JSON / non-numeric `newPrice` throws on deserialization (deserializer contract only; DLT routing is 6.7)
@@ -100,12 +100,12 @@ work targets Java 21 + Gradle (Groovy DSL) per the existing build.
     - **Validates: Testing — Jackson 3 serialization (slice b)**
     - Assert the autoconfigured Jackson 3 `JsonMapper` bean handles controller request/response serialization
 
-  - [ ] 6.4 Migrate `market-data-service` Jackson 3 usage and compile on the new platform
+  - [x] 6.4 Migrate `market-data-service` Jackson 3 usage and compile on the new platform
     - Replace direct `com.fasterxml.jackson.*` imports with `tools.jackson.*`
     - Verify MongoDB, WebFlux, Kafka producer, and resilience4j code compiles against Framework 7.x
     - _Design: Step 2.4, Step 1.6; Property 1, 3_
 
-  - [ ]* 6.5 Write Kafka producer wire contract test — emitted shape (Wave 5; PR review refinement 1)
+  - [x]* 6.5 Write Kafka producer wire contract test — emitted shape (Wave 5; PR review refinement 1)
     - Assert `PriceUpdatedEvent` serialized by production `JacksonJsonSerializer` (`application.yml` → Boot auto-configured Jackson 3 mapper) emits the expected on-wire shape for temporal fields (ISO-8601 vs numeric timestamp) and enriched fields
     - Pairs with the consumer-side hand-crafted fixture in 6.2; together they pin the contract without a cross-module dependency
 
