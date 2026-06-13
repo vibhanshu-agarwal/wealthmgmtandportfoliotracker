@@ -1,8 +1,8 @@
 package com.wealth.insight.catalog;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.json.JsonMapper;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -70,8 +70,9 @@ public class TickerCatalogService {
             return;
         }
 
-        ObjectMapper mapper = new ObjectMapper()
-                .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
+        JsonMapper mapper = JsonMapper.builder()
+                .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
+                .build();
 
         List<RawEntry> raw;
         try (InputStream is = resource.getInputStream()) {

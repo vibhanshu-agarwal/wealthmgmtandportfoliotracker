@@ -45,7 +45,8 @@ import static org.assertj.core.api.Assertions.assertThat;
                 // Provide a placeholder endpoint so AzureOpenAiClientBuilderConfiguration
                 // does not fail with "Endpoint must not be empty" during context init.
                 // The Azure OpenAI client is never invoked under the mock profile.
-                "spring.ai.azure.openai.endpoint=https://placeholder.openai.azure.com/"
+                "spring.ai.openai.base-url=https://placeholder.openai.azure.com/",
+                "spring.ai.openai.api-key=placeholder-key"
         }
 )
 @ActiveProfiles("default")

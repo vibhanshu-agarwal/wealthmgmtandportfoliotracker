@@ -1,8 +1,9 @@
+import org.gradle.api.artifacts.DependencyResolveDetails
 import org.springframework.boot.gradle.tasks.run.BootRun
 
 plugins {
     id 'java'
-    id 'org.springframework.boot' version '4.0.5' apply false
+    id 'org.springframework.boot' version '4.1.0' apply false
     id 'io.spring.dependency-management' version '1.1.7'
     id("org.openrewrite.rewrite") version("latest.release")
 }
@@ -12,21 +13,24 @@ version = '0.0.1-SNAPSHOT'
 
 repositories {
     mavenCentral()
-    maven { url = 'https://repo.spring.io/milestone' }
 }
 
 ext {
-    set('springCloudVersion', "2025.1.1")
+    set('springBootVersion', '4.1.0')
+    set('springCloudVersion', '2025.1.2')
+    set('springAiVersion', '2.0.0')
+    // Aligned with Spring Boot 4.1.0 BOM-managed Testcontainers (2.0.5)
+    set('testcontainersVersion', '2.0.5')
 }
 
 dependencies {
-    rewrite("org.openrewrite.recipe:rewrite-spring:6.28.2")
+    rewrite("org.openrewrite.recipe:rewrite-spring:6.30.0")
 
     runtimeOnly "javax.xml.bind:jaxb-api:2.3.1"
 }
 
 rewrite {
-    activeRecipe("org.openrewrite.java.spring.boot4.UpgradeSpringBoot_4_0")
+    activeRecipe("org.openrewrite.java.spring.boot4.UpgradeSpringBoot_4_1")
     setExportDatatables(true)
 }
 
@@ -42,15 +46,29 @@ subprojects {
 
     repositories {
         mavenCentral()
-        maven { url = 'https://repo.spring.io/milestone' }
+    }
+
+    // Jackson 2 isolation guardrail: constrain any transitive com.fasterxml.jackson.core
+    // to a pinned runtime-only version so third-party SDKs cannot leak Jackson 2 into
+    // app DTOs / common-dto. Application code serializes exclusively via Jackson 3 (tools.jackson).
+    configurations.all {
+        resolutionStrategy.eachDependency { DependencyResolveDetails details ->
+            // Pin only Jackson 2 core/databind pulled by third-party SDKs — NOT jackson-annotations,
+            // which Jackson 3 requires at 2.21+ (shared annotation jar, unchanged group id).
+            if (details.requested.group == 'com.fasterxml.jackson.core'
+                    && (details.requested.name == 'jackson-core' || details.requested.name == 'jackson-databind')) {
+                details.useVersion('2.18.2')
+                details.because('runtime-only isolation for third-party SDKs; app code uses Jackson 3 (tools.jackson)')
+            }
+        }
     }
 
     dependencyManagement {
         imports {
             mavenBom "org.springframework.cloud:spring-cloud-dependencies:${springCloudVersion}"
-            mavenBom "org.testcontainers:testcontainers-bom:2.0.4" // Or your latest version
+            mavenBom "org.testcontainers:testcontainers-bom:${testcontainersVersion}"
         }
-        // Jackson 2.x pins removed — Spring Boot 4 manages Jackson 3 (tools.jackson) via its BOM.
+        // Jackson 2.x pins removed — Spring Boot 4.1 manages Jackson 3 (tools.jackson) via its BOM.
         // Pinning com.fasterxml.jackson 2.x here caused Jackson 3 class initialization failures.
     }
 

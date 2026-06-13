@@ -2,7 +2,7 @@ package com.wealth.insight.infrastructure.ai;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.model.ChatModel;
-import org.springframework.ai.model.azure.openai.autoconfigure.AzureOpenAiChatAutoConfiguration;
+import org.springframework.ai.model.openai.autoconfigure.OpenAiChatAutoConfiguration;
 import org.springframework.ai.model.bedrock.converse.autoconfigure.BedrockConverseProxyChatAutoConfiguration;
 import org.springframework.ai.model.tool.autoconfigure.ToolCallingAutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
@@ -16,7 +16,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * <p>Validates: Requirements 4.4, 4.5, 15.4, 15.6
  *
  * <p>With both Spring AI starters ({@code spring-ai-starter-model-bedrock-converse} and
- * {@code spring-ai-starter-model-azure-openai}) on the classpath, the primary
+ * {@code spring-ai-starter-model-openai}) on the classpath, the primary
  * {@link ChatModel} bean must match the value of {@code spring.ai.model.chat}.
  *
  * <p>Uses {@link ApplicationContextRunner} with both Spring AI auto-configurations loaded
@@ -30,7 +30,7 @@ class ChatModelPrimarySelectionPropertyTest {
             .withConfiguration(AutoConfigurations.of(
                     ToolCallingAutoConfiguration.class,
                     BedrockConverseProxyChatAutoConfiguration.class,
-                    AzureOpenAiChatAutoConfiguration.class
+                    OpenAiChatAutoConfiguration.class
             ));
 
     /**
@@ -64,33 +64,32 @@ class ChatModelPrimarySelectionPropertyTest {
     }
 
     /**
-     * P4b: When {@code spring.ai.model.chat=azure-openai}, the primary
-     * {@link ChatModel} bean must be the Azure OpenAI-backed implementation.
+     * P4b: When {@code spring.ai.model.chat=openai}, the primary
+     * {@link ChatModel} bean must be the OpenAI-backed implementation (Azure/Foundry via native config).
      *
      * <p>Validates: Requirements 4.5, 15.4
      */
     @Test
-    void p4_azureOpenAiSelected_primaryChatModelIsAzureOpenAi() {
+    void p4_openAiSelected_primaryChatModelIsOpenAi() {
         runner.withPropertyValues(
-                        "spring.ai.model.chat=azure-openai",
-                        "spring.ai.azure.openai.endpoint=https://test.openai.azure.com/",
-                        "spring.ai.azure.openai.api-key=test-key",
-                        "spring.ai.azure.openai.chat.options.deployment-name=gpt-4o-mini"
+                        "spring.ai.model.chat=openai",
+                        "spring.ai.openai.base-url=https://test.openai.azure.com/",
+                        "spring.ai.openai.api-key=test-key",
+                        "spring.ai.openai.chat.options.model=gpt-4o-mini"
                 )
                 .run(ctx -> {
                     assertThat(ctx).hasNotFailed();
 
                     String[] beanNames = ctx.getBeanNamesForType(ChatModel.class);
                     assertThat(beanNames)
-                            .as("At least one ChatModel bean must be registered under azure-openai")
+                            .as("At least one ChatModel bean must be registered under openai")
                             .isNotEmpty();
 
-                    // The primary ChatModel bean class name should reference Azure OpenAI
                     ChatModel primaryModel = ctx.getBean(ChatModel.class);
                     String className = primaryModel.getClass().getName();
                     assertThat(className)
-                            .as("Primary ChatModel should be Azure-backed when spring.ai.model.chat=azure-openai, got: " + className)
-                            .containsIgnoringCase("azure");
+                            .as("Primary ChatModel should be OpenAI-backed when spring.ai.model.chat=openai, got: " + className)
+                            .containsIgnoringCase("openai");
                 });
     }
 }

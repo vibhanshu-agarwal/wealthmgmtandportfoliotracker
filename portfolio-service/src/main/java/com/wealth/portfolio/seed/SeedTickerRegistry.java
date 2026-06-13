@@ -1,9 +1,9 @@
 package com.wealth.portfolio.seed;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.json.JsonMapper;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -68,8 +68,9 @@ public class SeedTickerRegistry {
                      "Run the copySeedTickers Gradle task to populate it.", RESOURCE_PATH);
             return;
         }
-        ObjectMapper mapper = new ObjectMapper()
-                .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
+        JsonMapper mapper = JsonMapper.builder()
+                .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
+                .build();
         try (InputStream is = resource.getInputStream()) {
             List<SeedTicker> parsed = mapper.readValue(is, new TypeReference<>() {});
             if (parsed.size() != EXPECTED_TOTAL) {

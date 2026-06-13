@@ -1,6 +1,6 @@
 package com.wealth.insight;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 import com.wealth.insight.catalog.TickerCatalogService;
 import com.wealth.insight.chat.ChatResponseBuilder;
 import com.wealth.insight.dto.TickerSummary;
@@ -60,7 +60,7 @@ class Wave6ResolutionEndToEndTest {
     private TickerCatalogService catalogService;
     private StubAssetResolutionClient stubClient;
     private MockMvc mockMvc;
-    private final ObjectMapper om = new ObjectMapper();
+    private final JsonMapper om = JsonMapper.builder().build();
 
     @BeforeEach
     void setUp() throws Exception {
