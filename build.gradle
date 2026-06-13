@@ -21,6 +21,7 @@ ext {
     set('springAiVersion', '2.0.0')
     // Aligned with Spring Boot 4.1.0 BOM-managed Testcontainers (2.0.5)
     set('testcontainersVersion', '2.0.5')
+    set('jqwikVersion', '1.9.2')
 }
 
 dependencies {

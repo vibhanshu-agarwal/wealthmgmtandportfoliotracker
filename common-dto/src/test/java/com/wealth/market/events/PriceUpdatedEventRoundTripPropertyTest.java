@@ -56,6 +56,7 @@ class PriceUpdatedEventRoundTripPropertyTest {
                 .map(Instant::ofEpochMilli)
                 .injectNull(0.25);
         Arbitrary<BigDecimal> referencePrices = prices.injectNull(0.25);
+        // Reuse the same instant generator — observedAt and previousReferenceAt share millisecond precision.
         Arbitrary<Instant> referenceAts = instants;
 
         return Combinators.combine(tickers, prices, quoteCurrencies, instants, referencePrices, referenceAts)

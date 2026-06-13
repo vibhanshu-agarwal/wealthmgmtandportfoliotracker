@@ -1,5 +1,6 @@
 package com.wealth.market.events;
 
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -19,6 +20,16 @@ import static org.assertj.core.api.Assertions.assertThatCode;
  * against the configured {@link tools.jackson.databind.json.JsonMapper}, not an ad-hoc mapper.
  */
 class PriceUpdatedEventJackson3RoundTripTest {
+
+    /**
+     * Frozen enriched wire payload (deserialize-only). Temporal fields are ISO-8601 strings —
+     * the same shape tolerated by the portfolio consumer (Task 6.2) and emitted by the
+     * market-data producer (Task 6.5).
+     */
+    private static final String ENRICHED_ISO8601_FIXTURE = """
+            {"ticker":"BTC-USD","newPrice":64000.50,"quoteCurrency":"USD",\
+            "observedAt":"2026-06-08T10:15:30Z","previousReferencePrice":63250.00,\
+            "previousReferenceAt":"2026-06-07T10:15:30Z"}""";
 
     private final JsonMapper mapper = ContractJsonMapper.instance();
 
@@ -90,5 +101,17 @@ class PriceUpdatedEventJackson3RoundTripTest {
                 Arguments.of(
                         "missing enrichment fields tolerated",
                         "{\"ticker\":\"NVDA\",\"newPrice\":900.00}"));
+    }
+
+    @Test
+    void frozenIso8601Fixture_deserializes_withEnrichmentFields() throws Exception {
+        PriceUpdatedEvent event = mapper.readValue(ENRICHED_ISO8601_FIXTURE, PriceUpdatedEvent.class);
+
+        assertThat(event.ticker()).isEqualTo("BTC-USD");
+        assertThat(event.newPrice()).isEqualByComparingTo("64000.50");
+        assertThat(event.quoteCurrency()).isEqualTo("USD");
+        assertThat(event.observedAt()).isEqualTo(Instant.parse("2026-06-08T10:15:30Z"));
+        assertThat(event.previousReferencePrice()).isEqualByComparingTo("63250.00");
+        assertThat(event.previousReferenceAt()).isEqualTo(Instant.parse("2026-06-07T10:15:30Z"));
     }
 }

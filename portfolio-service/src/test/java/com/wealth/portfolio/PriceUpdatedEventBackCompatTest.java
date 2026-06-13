@@ -1,6 +1,7 @@
 package com.wealth.portfolio;
 
 import com.wealth.market.events.PriceUpdatedEvent;
+import org.apache.kafka.common.errors.SerializationException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -13,6 +14,7 @@ import java.time.Instant;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Back-compat (de)serialization tests for {@link PriceUpdatedEvent} (Task 1.2, Property 9).
@@ -31,6 +33,15 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 class PriceUpdatedEventBackCompatTest {
 
     private static final String TOPIC = "price-updated";
+
+    /**
+     * Frozen enriched wire payload (Task 6.2). Temporal fields are ISO-8601 strings — the
+     * shape the consumer must tolerate; producer emission is pinned in market-data Task 6.5.
+     */
+    private static final String ENRICHED_ISO8601_FIXTURE = """
+            {"ticker":"BTC-USD","newPrice":64000.50,"quoteCurrency":"USD",\
+            "observedAt":"2026-06-08T10:15:30Z","previousReferencePrice":63250.00,\
+            "previousReferenceAt":"2026-06-07T10:15:30Z"}""";
 
     private JacksonJsonDeserializer<PriceUpdatedEvent> deserializer;
     private JacksonJsonSerializer<PriceUpdatedEvent> serializer;
@@ -122,5 +133,29 @@ class PriceUpdatedEventBackCompatTest {
         assertThat(restored.observedAt()).isNull();
         assertThat(restored.previousReferencePrice()).isNull();
         assertThat(restored.previousReferenceAt()).isNull();
+    }
+
+    @Test
+    void frozenIso8601Fixture_deserializes_withEnrichmentFields() {
+        PriceUpdatedEvent event = deserialize(ENRICHED_ISO8601_FIXTURE);
+
+        assertThat(event.ticker()).isEqualTo("BTC-USD");
+        assertThat(event.newPrice()).isEqualByComparingTo("64000.50");
+        assertThat(event.quoteCurrency()).isEqualTo("USD");
+        assertThat(event.observedAt()).isEqualTo(Instant.parse("2026-06-08T10:15:30Z"));
+        assertThat(event.previousReferencePrice()).isEqualByComparingTo("63250.00");
+        assertThat(event.previousReferenceAt()).isEqualTo(Instant.parse("2026-06-07T10:15:30Z"));
+    }
+
+    @Test
+    void malformedJson_throwsOnDeserialization() {
+        assertThatThrownBy(() -> deserialize("{not valid json"))
+                .isInstanceOf(SerializationException.class);
+    }
+
+    @Test
+    void nonNumericNewPrice_throwsOnDeserialization() {
+        assertThatThrownBy(() -> deserialize("{\"ticker\":\"AAPL\",\"newPrice\":\"oops\"}"))
+                .isInstanceOf(SerializationException.class);
     }
 }
