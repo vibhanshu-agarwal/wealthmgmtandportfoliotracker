@@ -58,23 +58,23 @@ work targets Java 21 + Gradle (Groovy DSL) per the existing build.
 - [x] 3. Checkpoint - dependency graph coherent
   - Ensure the graph resolves to one generation and the whole project compiles. Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 4. Migrate the shared contract (`common-dto`) to Jackson 3
-  - [ ] 4.1 Migrate `common-dto` Jackson imports to Jackson 3
+- [x] 4. Migrate the shared contract (`common-dto`) to Jackson 3
+  - [x] 4.1 Migrate `common-dto` Jackson imports to Jackson 3
     - Replace any `com.fasterxml.jackson.*` imports/annotations on `PriceUpdatedEvent` and shared records with `tools.jackson.*` equivalents
     - Replace `new ObjectMapper()` usage with `JsonMapper.builder().build()` where applicable
     - _Design: Step 2.4; Property 3, 12_
 
-  - [ ]* 4.2 Write parameterized Jackson 3 round-trip ser/deser tests for `common-dto`
+  - [x]* 4.2 Write parameterized Jackson 3 round-trip ser/deser tests for `common-dto`
     - **Property 3: Event contract preserved**
     - **Validates: Step 2.4 / Testing — Jackson 3 serialization**
     - Assert serialize→deserialize equality specifically against the configured `tools.jackson.databind.JsonMapper` (not an ad-hoc mapper) for `PriceUpdatedEvent` and other shared records
 
-  - [ ]* 4.3 Write jqwik property test for event round-trip
+  - [x]* 4.3 Write jqwik property test for event round-trip
     - **Property 3: Event contract preserved (`∀ e: deserialize(serialize(e)) == e`)**
     - **Validates: Step 2.4 / Property 3**
     - Generate arbitrary valid `PriceUpdatedEvent` instances and assert byte-stable round-trip under Jackson 3
 
-- [ ] 5. Checkpoint - contract stable on Jackson 3
+- [x] 5. Checkpoint - contract stable on Jackson 3
   - Ensure all `common-dto` serialization tests pass before any consumer migrates. Ask the user if questions arise.
 
 - [ ] 6. Migrate leaf data services (`portfolio-service`, `market-data-service`)
