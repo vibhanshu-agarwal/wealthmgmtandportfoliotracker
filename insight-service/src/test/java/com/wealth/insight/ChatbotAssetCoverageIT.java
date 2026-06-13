@@ -72,7 +72,8 @@ import org.testcontainers.utility.DockerImageName;
     properties = {
       // Use MockAiInsightService — no Bedrock/Azure credentials needed.
       "spring.ai.model.chat=none",
-      "spring.ai.azure.openai.endpoint=https://placeholder.openai.azure.com/",
+      "spring.ai.openai.base-url=https://placeholder.openai.azure.com/",
+      "spring.ai.openai.api-key=placeholder-key",
       // Kafka listener auto-startup is enabled, so the embedded broker wires up.
       // The @EmbeddedKafka annotation below provides the broker.
       "spring.kafka.consumer.auto-offset-reset=earliest"

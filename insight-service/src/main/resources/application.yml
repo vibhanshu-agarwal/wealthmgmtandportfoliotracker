@@ -12,15 +12,14 @@ spring:
     # nor "azure-ai" profile is active (i.e. the default "local" mock path), no real
     # ChatModel bean should be created — MockAiInsightService handles AI calls.
     # Profile-specific YAMLs override this: application-bedrock.yml sets "bedrock-converse",
-    # application-azure-ai.yml sets "azure-openai".
+    # application-azure-ai.yml sets "openai" (Azure/Foundry via native spring.ai.openai.*).
     model:
       chat: none
-    azure:
-      openai:
-        # Placeholder endpoint prevents AzureOpenAiClientBuilderConfiguration from failing
-        # with "Endpoint must not be empty" during context init when the azure-ai profile
-        # is not active. Overridden by application-azure-ai.yml with the real endpoint.
-        endpoint: ${AZURE_OPENAI_ENDPOINT:https://placeholder.openai.azure.com/}
+    openai:
+      # Placeholder credentials prevent OpenAI auto-configurations from failing during
+      # context init when no AI profile is active. Overridden by application-azure-ai.yml.
+      api-key: ${OPENAI_API_KEY:placeholder-key}
+      base-url: ${AZURE_OPENAI_ENDPOINT:https://placeholder.openai.azure.com/}
   data:
     redis:
       # Use REDIS_URL for consistency with api-gateway and portfolio-service.
@@ -39,7 +38,7 @@ spring:
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
       properties:
-        spring.deserializer.value.delegate.class: org.springframework.kafka.support.serializer.JsonDeserializer
+        spring.deserializer.value.delegate.class: org.springframework.kafka.support.serializer.JacksonJsonDeserializer
         spring.json.value.default.type: com.wealth.market.events.PriceUpdatedEvent
         spring.json.trusted.packages: "*"
         # Slow down the broker reconnect loop when Kafka is unavailable

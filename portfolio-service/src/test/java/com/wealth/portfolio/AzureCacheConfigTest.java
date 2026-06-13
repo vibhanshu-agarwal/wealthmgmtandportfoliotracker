@@ -52,7 +52,7 @@ import static org.assertj.core.api.Assertions.assertThat;
         // Supply FX config that application-azure.yml doesn't provide (normally from local).
         "fx.base-currency=USD",
         // Suppress Kafka deserialization properties that require the local profile config.
-        "spring.kafka.consumer.value-deserializer=org.springframework.kafka.support.serializer.JsonDeserializer",
+        "spring.kafka.consumer.value-deserializer=org.springframework.kafka.support.serializer.JacksonJsonDeserializer",
         "spring.kafka.consumer.properties.spring.json.trusted.packages=com.wealth.market.events"
 })
 class AzureCacheConfigTest {

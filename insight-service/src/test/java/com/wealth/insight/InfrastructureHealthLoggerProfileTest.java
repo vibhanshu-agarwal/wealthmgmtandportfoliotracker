@@ -66,7 +66,8 @@ class InfrastructureHealthLoggerProfileTest {
                     // Disable AI ChatModel auto-config so neither bedrock nor azure-openai
                     // is wired — the default mock path does not require a ChatModel bean.
                     "spring.ai.model.chat=none",
-                    "spring.ai.azure.openai.endpoint=https://placeholder.openai.azure.com/"
+                    "spring.ai.openai.base-url=https://placeholder.openai.azure.com/",
+                    "spring.ai.openai.api-key=placeholder-key"
             }
     )
     @ActiveProfiles("local")
@@ -97,7 +98,8 @@ class InfrastructureHealthLoggerProfileTest {
             webEnvironment = SpringBootTest.WebEnvironment.NONE,
             properties = {
                     "spring.ai.model.chat=none",
-                    "spring.ai.azure.openai.endpoint=https://placeholder.openai.azure.com/"
+                    "spring.ai.openai.base-url=https://placeholder.openai.azure.com/",
+                    "spring.ai.openai.api-key=placeholder-key"
             }
     )
     @ActiveProfiles("aws")
@@ -127,7 +129,8 @@ class InfrastructureHealthLoggerProfileTest {
             webEnvironment = SpringBootTest.WebEnvironment.NONE,
             properties = {
                     "spring.ai.model.chat=none",
-                    "spring.ai.azure.openai.endpoint=https://placeholder.openai.azure.com/"
+                    "spring.ai.openai.base-url=https://placeholder.openai.azure.com/",
+                    "spring.ai.openai.api-key=placeholder-key"
             }
     )
     @ActiveProfiles("azure")

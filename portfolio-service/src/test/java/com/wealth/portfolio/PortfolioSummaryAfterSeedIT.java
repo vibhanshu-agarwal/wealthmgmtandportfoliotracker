@@ -39,7 +39,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @TestPropertySource(properties = {
         "spring.cache.type=none",
         "fx.base-currency=USD",
-        "spring.kafka.consumer.value-deserializer=org.springframework.kafka.support.serializer.JsonDeserializer",
+        "spring.kafka.consumer.value-deserializer=org.springframework.kafka.support.serializer.JacksonJsonDeserializer",
         "spring.kafka.consumer.properties.spring.json.trusted.packages=com.wealth.market.events"
 })
 class PortfolioSummaryAfterSeedIT {

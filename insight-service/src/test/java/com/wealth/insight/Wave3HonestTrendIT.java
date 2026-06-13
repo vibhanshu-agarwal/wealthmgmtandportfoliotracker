@@ -52,7 +52,8 @@ import static org.assertj.core.api.Assertions.assertThat;
                 "spring.kafka.bootstrap-servers=localhost:0",
                 "spring.kafka.listener.auto-startup=false",
                 "spring.ai.model.chat=none",
-                "spring.ai.azure.openai.endpoint=https://placeholder.openai.azure.com/"
+                "spring.ai.openai.base-url=https://placeholder.openai.azure.com/",
+                "spring.ai.openai.api-key=placeholder-key"
         }
 )
 @ActiveProfiles("default")
