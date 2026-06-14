@@ -84,7 +84,7 @@ work targets Java 21 + Gradle (Groovy DSL) per the existing build.
 - [x] 5. Checkpoint - contract stable on Jackson 3
   - Ensure all `common-dto` serialization tests pass before any consumer migrates. Ask the user if questions arise.
 
-- [ ] 6. Migrate leaf data services (`portfolio-service`, `market-data-service`)
+- [x] 6. Migrate leaf data services (`portfolio-service`, `market-data-service`)
   - [x] 6.1 Migrate `portfolio-service` Jackson 3 usage and compile on the new platform
     - Replace direct `com.fasterxml.jackson.*` imports (DTOs, `ObjectMapper`) with `tools.jackson.*`
     - Verify JPA/Flyway/Kafka consumer code compiles against Framework 7.x; address new JSpecify nullness warnings
@@ -95,7 +95,7 @@ work targets Java 21 + Gradle (Groovy DSL) per the existing build.
     - Hand-crafted ISO-8601 enriched fixture: assert consumer deserializes temporal fields correctly (does **not** prove producer emits this shape — see 6.5 / 6.7)
     - Unit-level rejection: malformed JSON / non-numeric `newPrice` throws on deserialization (deserializer contract only; DLT routing is 6.7)
 
-  - [ ]* 6.3 Write `@WebMvcTest` slice test for `portfolio-service` serialization boundary
+  - [x]* 6.3 Write `@WebMvcTest` slice test for `portfolio-service` serialization boundary
     - **Property 11: Jackson 3 mapper at serialization boundaries**
     - **Validates: Testing — Jackson 3 serialization (slice b)**
     - Assert the autoconfigured Jackson 3 `JsonMapper` bean handles controller request/response serialization
@@ -109,18 +109,18 @@ work targets Java 21 + Gradle (Groovy DSL) per the existing build.
     - Assert `PriceUpdatedEvent` serialized by a no-arg production-path `JacksonJsonSerializer` (`application.yml` class-name config; Spring Kafka's internal default mapper, not the Boot `JsonMapper` bean) emits the expected on-wire JSON body shape for temporal fields (ISO-8601 vs numeric timestamp) and enriched fields
     - Pairs with the consumer-side hand-crafted fixture in 6.2; together they pin the body contract without a cross-module dependency. True producer→consumer + type-header fidelity is Task 6.7
 
-  - [ ]* 6.6 Write `@WebMvcTest` slice test for `market-data-service` serialization boundary
+  - [x]* 6.6 Write `@WebMvcTest` slice test for `market-data-service` serialization boundary
     - **Property 11: Jackson 3 mapper at serialization boundaries**
     - **Validates: Testing — Jackson 3 serialization (slice b)**
     - Assert the autoconfigured Jackson 3 mapper bean is used on the wire
     - HTTP/controller boundary only — not Kafka; producer Kafka shape is the 6.5 subtask above
 
-  - [ ]* 6.7 Run Testcontainers integration tests for leaf services (Wave 6 — requires both 6.1 and 6.4)
+  - [x]* 6.7 Run Testcontainers integration tests for leaf services (Wave 6 — requires both 6.1 and 6.4)
     - **Validates: Property 1, 3 / Testing — Integration**
     - Run `integrationTest` against Postgres 16 (portfolio) and MongoDB 7 + Kafka (market-data); verify cross-service Jackson 3 event payloads round-trip (true producer→consumer loop; cannot live in Wave 5 because 6.1 and 6.4 are parallel)
     - Integration-level rejection: malformed payload routes to `.DLT` after `FixedBackOff(1000, 3)` retry policy with `MalformedEventException` on the not-retryable list (`PortfolioKafkaConfig`); distinct from unit-level deserializer rejection in 6.2
 
-- [ ] 7. Checkpoint - leaf services migrated
+- [x] 7. Checkpoint - leaf services migrated
   - Ensure leaf-service unit, slice, and integration tests pass. Ask the user if questions arise.
 
 - [ ] 8. Refactor `insight-service` Spring AI M4 → GA
