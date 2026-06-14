@@ -7,7 +7,7 @@
 | **Gate for** | Task 8.1 (insight-service Azure adapter rewire) |
 | **Does not block** | Task 4.1 / Wave 3 (`common-dto` Jackson 3) |
 | **Owner** | _TBD_ |
-| **Spike outcome** | **OPEN** — config migrated to `spring.ai.openai.*`; passwordless auth + routing unverified until `AzureOpenAiLiveSmokeTest` passes |
+| **Spike outcome** | **CLOSED** — Option C; `AzureOpenAiAuthConfig` bridges `DefaultAzureCredential` → `BearerTokenCredential`; `AzureOpenAiLiveSmokeTest` passed 2026-06-14 |
 
 ## Background
 
@@ -121,23 +121,31 @@ checkpoints cannot surface 401/404.
 
 | Mechanism | Supported? | Property / config | Notes |
 |---|---|---|---|
-| Managed Identity / DefaultAzureCredential | _TBD_ | _TBD_ | |
-| Entra ID (user/delegated) | _TBD_ | _TBD_ | |
-| Static `api-key` | _TBD_ | `spring.ai.openai.api-key` | Acceptable for local smoke only |
-| Requires `com.azure:azure-identity` in app | _TBD_ | | |
+| Managed Identity / DefaultAzureCredential | **Yes (via bridge)** | `AzureOpenAiAuthConfig` sets `Credential` on `OpenAi*Properties` | Spring AI's built-in `AzureInternalOpenAiHelper` path failed at runtime (`NoClassDefFoundError` in test JVM); explicit bridge required |
+| Entra ID (user/delegated via `az login`) | **Yes** | same bridge | Local smoke: `DefaultAzureCredential` fell through MI → **AzureCliCredential** after IMDS unreachable |
+| Static `api-key` | **Yes** | `OPENAI_API_KEY` / `spring.ai.openai.api-key` | Comparison path only; skipped when env unset |
+| Requires `com.azure:azure-identity` in app | **Yes** | `insight-service/build.gradle` | Required for `DefaultAzureCredentialBuilder`; keep dependency |
 
-**Request auth header observed:** _TBD_
+**Request auth header observed:** `Authorization: Bearer <redacted>` (not `api-key`)
+
+**Root cause of initial 401s:** `api-key: ${OPENAI_API_KEY:}` binds to empty string when unset; `OpenAiSetup` treats `""` as deliberate no-auth (strips `Authorization`). Placeholder `placeholder-key` from `application.yml` also leaked before profile override.
 
 ### Routing (Question 2)
 
 | Check | Pass? | Notes |
 |---|---|---|
-| Deployment in URL path | _TBD_ | |
-| `api-version` query param present | _TBD_ | |
-| Base URL `*.openai.azure.com` accepted | _TBD_ | |
-| Chat completion returns 200 | _TBD_ | |
+| Deployment in URL path | **Yes** | `/openai/deployments/gpt-4o-mini/chat/completions` (confirmed via `az rest`) |
+| `api-version` query param present | **Yes** | `api-version=2024-10-21` on `az rest`; openai-java default for Foundry |
+| Base URL `*.openai.azure.com` accepted | **Yes** | Auto-detected as `MICROSOFT_FOUNDRY` |
+| Chat completion returns 200 | **Yes** | `az rest` → `"OK"`; `AzureOpenAiLiveSmokeTest` → structured `AnalysisResult` |
 
-**Sample request shape (redacted):** _TBD_
+**Sample request shape (redacted):**
+```
+POST https://wealth-prod-aoai-ff267.openai.azure.com/openai/deployments/gpt-4o-mini/chat/completions?api-version=2024-10-21
+Authorization: Bearer <redacted>
+Content-Type: application/json
+{"messages":[{"role":"user","content":"..."}],"max_tokens":500,"temperature":0.2}
+```
 
 ## Decision (fill after spike)
 
@@ -166,9 +174,9 @@ Choose **one** path and record rationale:
   secret) — verify during the spike before building a custom `RestClient` interceptor.
 - Keep or narrow `azure-identity` dependency with documented justification.
 
-**Selected option:** Option A (intent) — native passwordless auth via merged `spring-ai-openai` / `spring.ai.openai.*`. **Not confirmed** until wire smoke records auth mechanism and 200 response.
+**Selected option:** **Option C** — routing works natively; passwordless auth requires minimal bridge (`AzureOpenAiAuthConfig`) wiring `DefaultAzureCredential` → `BearerTokenCredential` on Spring AI connection properties. Option A (zero-bridge native autoconfig) does **not** hold: empty `api-key` triggers no-auth mode; Spring AI's internal `AzureInternalOpenAiHelper` path did not load reliably in our JVM.
 
-**Architect sign-off:** _Pending `AzureOpenAiLiveSmokeTest` in non-prod (record HTTP shape + credential path in Findings below)_
+**Architect sign-off:** Wire smoke passed (`AzureOpenAiLiveSmokeTest`, 2026-06-14); `az rest` Bearer token control returned 200.
 
 ## Downstream updates (after decision)
 

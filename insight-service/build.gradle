@@ -41,9 +41,8 @@ dependencies {
     // Azure OpenAI / Foundry — active under the `azure-ai` Spring profile.
     // Spring AI 2.0 GA merged azure-openai and openai-sdk into spring-ai-openai (openai-java).
     implementation 'org.springframework.ai:spring-ai-starter-model-openai'
-    // Candidate for Foundry/passwordless auth when spring.ai.openai.api-key is unset.
-    // Mechanism unverified — may be wired via openai-java credential supplier rather than
-    // DefaultAzureCredential directly. Keep or remove after AzureOpenAiLiveSmokeTest passes.
+    // Passwordless Azure OpenAI auth — required by AzureOpenAiAuthConfig (DefaultAzureCredential → BearerTokenCredential).
+    // Wire-smoke gate passed: AzureOpenAiLiveSmokeTest (see spike-azure-openai-auth.md, Option C).
     implementation 'com.azure:azure-identity:1.13.2'
     implementation 'org.springframework.ai:spring-ai-client-chat'
 

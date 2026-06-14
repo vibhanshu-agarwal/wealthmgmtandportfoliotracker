@@ -123,20 +123,20 @@ work targets Java 21 + Gradle (Groovy DSL) per the existing build.
 - [x] 7. Checkpoint - leaf services migrated
   - Ensure leaf-service unit, slice, and integration tests pass. Ask the user if questions arise.
 
-- [~] 8. Refactor `insight-service` Spring AI M4 → GA
-  - **Prerequisite (before 8.1):** complete `spike-azure-openai-auth.md` — Azure auth + routing de-risk for the consolidated `spring-ai-openai` module. Does not block Task 4.1 / Wave 3. **Spike remains OPEN** until `AzureOpenAiLiveSmokeTest` passes.
-  - [~] 8.1 Rewire Azure OpenAI adapters onto the consolidated `spring-ai-openai` module
+- [x] 8. Refactor `insight-service` Spring AI M4 → GA
+  - **Prerequisite (before 8.1):** complete `spike-azure-openai-auth.md` — **CLOSED** (Option C; wire smoke passed 2026-06-14).
+  - [x] 8.1 Rewire Azure OpenAI adapters onto the consolidated `spring-ai-openai` module
     - Keep the Java type names of `AzureOpenAiInsightService`, `AzureOpenAiInsightAdvisor`, `AzureOpenAiAssetResolutionClient`; update autoconfig wiring to the consolidated module
     - Remove the hand-rolled AAD-token bridge / custom `RestClient` interceptor (native auth replaces it)
     - Verify `AiConfig.chatClientBuilder(ChatModel)` with `@ConditionalOnBean(ChatModel.class)` still compiles and behaves identically
     - _Design: Step 2.1, 2.6; Property 4_
-    - **Done:** adapter code + unit tests. **Gate:** `AzureOpenAiLiveSmokeTest` wire smoke (auth mechanism + 200).
+    - **Done:** adapter code + unit tests + `AzureOpenAiLiveSmokeTest` wire smoke (Bearer auth, 200).
 
-  - [~] 8.2 Migrate `azure-ai` config keys to native `spring.ai.openai.*` properties
+  - [x] 8.2 Migrate `azure-ai` config keys to native `spring.ai.openai.*` properties
     - Move `application-azure-ai.yml` keys from `spring.ai.azure.openai.*` to native `spring.ai.openai.*` (endpoint, deployment, auth)
     - Prefer Managed Identity / Entra ID over static API keys; do not introduce a static OpenAI API key
     - _Design: Step 2.1, Security; Property 4_
-    - **Done:** YAML migrated. **Gate:** wire smoke confirms deployment routing + auth header.
+    - **Done:** YAML migrated; wire smoke confirms deployment routing + Bearer auth.
 
   - [x] 8.3 Pin chat temperature per profile
     - Set `spring.ai.bedrock.converse.chat.options.temperature=0.7` (bedrock) and `spring.ai.openai.chat.options.temperature=0.7` (azure-ai)
@@ -153,10 +153,10 @@ work targets Java 21 + Gradle (Groovy DSL) per the existing build.
     - Where any options are set programmatically, pass `ChatOptions.Builder` (not `.build()`); add a comment documenting the 2.0 requirement
     - _Design: Step 2.5_
 
-  - [~] 8.6 Remove `com.azure:azure-identity` if unused
+  - [x] 8.6 Remove `com.azure:azure-identity` if unused
     - Confirm no remaining code path depends on the Azure SDK after native auth; remove the dependency if unused, otherwise leave a documented note
     - _Design: Step 1.4, 2.1; Dependencies_
-    - **Tentative:** kept pending wire smoke; document actual credential path (openai-java vs `DefaultAzureCredential`) then justify or remove.
+    - **Kept:** required by `AzureOpenAiAuthConfig` (`DefaultAzureCredentialBuilder` → `BearerTokenCredential`); Spring AI internal helper alone was insufficient.
 
   - [x]* 8.7 Run mock-profile unit tests for `insight-service`
     - **Property 4: AI behavior parity (mock profile)**
@@ -184,9 +184,9 @@ work targets Java 21 + Gradle (Groovy DSL) per the existing build.
     - Assert raw user messages/prompts never reach logs with `log-prompt=false`
     - **Hardened (PR #70 review):** binds `application.yml` defaults via `@SpringBootTest` + ListAppender on `ChatResolutionService`.
 
-- [~] 9. Checkpoint - insight-service on Spring AI GA
+- [x] 9. Checkpoint - insight-service on Spring AI GA
   - Ensure mock-profile unit tests and property tests pass; run the opt-in bedrock smoke test if credentials are available. Ask the user if questions arise.
-  - **Done:** unit/property tests green. **Gate:** `AzureOpenAiLiveSmokeTest` before closing 8.1/8.2/8.6/9.
+  - **Done:** unit/property tests green; `AzureOpenAiLiveSmokeTest` passed (Entra via `az login`, deployment `gpt-4o-mini`).
 
 - [ ] 10. Migrate `api-gateway` (last) on Boot 4.1 + Spring Cloud 2025.1.2
   - [ ] 10.1 Compile and wire the gateway on the new platform
