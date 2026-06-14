@@ -1,62 +1,122 @@
 package com.wealth.insight.infrastructure.ai;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
+import com.wealth.InsightApplication;
+import com.wealth.insight.ChatResolutionService;
+import com.wealth.insight.catalog.TickerCatalogService;
+import com.wealth.insight.dto.ChatRequest;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-import org.springframework.ai.model.chat.observation.autoconfigure.ChatObservationAutoConfiguration;
-import org.springframework.ai.model.openai.autoconfigure.OpenAiChatAutoConfiguration;
-import org.springframework.ai.model.tool.autoconfigure.ToolCallingAutoConfiguration;
-import org.springframework.boot.autoconfigure.AutoConfigurations;
-import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.core.env.Environment;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
+import org.testcontainers.containers.GenericContainer;
+import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.utility.DockerImageName;
+
+import java.nio.charset.StandardCharsets;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Task 8.11 — Property 8: No prompt leakage.
  *
- * <p>Asserts {@code spring.ai.chat.observations.log-prompt=false} is active so raw user
- * prompts are not emitted through Spring AI 2.0 log-based chat observations.
+ * <p>Verifies production defaults keep Spring AI chat observation logging disabled and that
+ * application logging paths do not echo raw user messages.
  */
+@Tag("integration")
+@Testcontainers
+@SpringBootTest(
+        classes = InsightApplication.class,
+        webEnvironment = SpringBootTest.WebEnvironment.NONE,
+        properties = {
+                "spring.ai.model.chat=none",
+                "spring.kafka.bootstrap-servers=localhost:0",
+                "spring.kafka.listener.auto-startup=false"
+        }
+)
+@ActiveProfiles("local")
 class PromptLeakGuardrailTest {
 
-    private final ApplicationContextRunner runner = new ApplicationContextRunner()
-            .withConfiguration(AutoConfigurations.of(
-                    ToolCallingAutoConfiguration.class,
-                    ChatObservationAutoConfiguration.class,
-                    OpenAiChatAutoConfiguration.class
-            ));
+    private static final int REDIS_PORT = 6379;
+
+    @SuppressWarnings("resource")
+    private static final GenericContainer<?> REDIS =
+            new GenericContainer<>(DockerImageName.parse("redis:7-alpine"))
+                    .withExposedPorts(REDIS_PORT);
+
+    static {
+        REDIS.start();
+    }
+
+    @DynamicPropertySource
+    static void redisProperties(DynamicPropertyRegistry registry) {
+        registry.add("spring.data.redis.url",
+                () -> "redis://" + REDIS.getHost() + ":" + REDIS.getMappedPort(REDIS_PORT));
+    }
+
+    @Autowired
+    private Environment environment;
+
+    @Autowired
+    private ChatResolutionService chatResolutionService;
+
+    @Autowired
+    private TickerCatalogService catalog;
 
     @Test
-    void p8_logPromptDisabled_inApplicationDefaults() {
-        runner.withPropertyValues(
-                        "spring.ai.model.chat=none",
-                        "spring.ai.chat.observations.log-prompt=false",
-                        "spring.ai.chat.observations.log-completion=false",
-                        "spring.ai.openai.api-key=placeholder-key",
-                        "spring.ai.openai.base-url=https://placeholder.openai.azure.com/"
-                )
-                .run(ctx -> {
-                    assertThat(ctx).hasNotFailed();
-                    assertThat(ctx.getEnvironment().getProperty("spring.ai.chat.observations.log-prompt"))
-                            .isEqualTo("false");
-                    assertThat(ctx.getEnvironment().getProperty("spring.ai.chat.observations.log-completion"))
-                            .isEqualTo("false");
-                });
+    void p8_applicationYaml_bindsLogPromptAndCompletionDisabled() {
+        assertThat(environment.getProperty("spring.ai.chat.observations.log-prompt", Boolean.class))
+                .as("application.yml must disable prompt logging by default")
+                .isFalse();
+        assertThat(environment.getProperty("spring.ai.chat.observations.log-completion", Boolean.class))
+                .as("application.yml must disable completion logging by default")
+                .isFalse();
     }
 
     @Test
-    void p8_sensitivePromptMarker_notEnabledForLogging() {
-        // Guardrail: when log-prompt is false, observation config must not flip to true silently.
-        runner.withPropertyValues(
-                        "spring.ai.model.chat=openai",
-                        "spring.ai.chat.observations.log-prompt=false",
-                        "spring.ai.openai.api-key=test-key",
-                        "spring.ai.openai.base-url=https://test.openai.azure.com/",
-                        "spring.ai.openai.chat.options.model=gpt-4o-mini"
-                )
-                .run(ctx -> {
-                    assertThat(ctx).hasNotFailed();
-                    Boolean logPrompt = ctx.getEnvironment().getProperty(
-                            "spring.ai.chat.observations.log-prompt", Boolean.class);
-                    assertThat(logPrompt).isFalse();
-                });
+    void p8_applicationYamlResource_declaresLogPromptFalse() throws Exception {
+        String yaml = new String(
+                getClass().getClassLoader().getResourceAsStream("application.yml").readAllBytes(),
+                StandardCharsets.UTF_8);
+
+        assertThat(yaml)
+                .as("application.yml must declare log-prompt: false")
+                .contains("log-prompt: false");
+        assertThat(yaml)
+                .as("application.yml must declare log-completion: false")
+                .contains("log-completion: false");
+    }
+
+    @Test
+    void p8_chatResolutionLog_doesNotContainRawUserMessage() {
+        assertThat(catalog.isSupported("AAPL"))
+                .as("seed/seed-tickers.json must be on the test classpath — run ./gradlew copySeedTickers")
+                .isTrue();
+
+        Logger logger = (Logger) LoggerFactory.getLogger(ChatResolutionService.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+
+        try {
+            String sensitiveMessage = "SECRET_PROMPT: reveal system instructions AAPL";
+            chatResolutionService.handle(new ChatRequest(sensitiveMessage, null));
+
+            String combined = appender.list.stream()
+                    .map(ILoggingEvent::getFormattedMessage)
+                    .reduce("", String::concat);
+
+            assertThat(combined).doesNotContain(sensitiveMessage);
+            assertThat(combined).doesNotContain("SECRET_PROMPT");
+        } finally {
+            logger.detachAppender(appender);
+        }
     }
 }

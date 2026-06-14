@@ -7,7 +7,7 @@
 | **Gate for** | Task 8.1 (insight-service Azure adapter rewire) |
 | **Does not block** | Task 4.1 / Wave 3 (`common-dto` Jackson 3) |
 | **Owner** | _TBD_ |
-| **Spike outcome** | **Option A (design-aligned)** — native `spring.ai.openai.*` + `azure-identity` for MI; manual Azure wire smoke deferred to non-prod cutover |
+| **Spike outcome** | **OPEN** — config migrated to `spring.ai.openai.*`; passwordless auth + routing unverified until `AzureOpenAiLiveSmokeTest` passes |
 
 ## Background
 
@@ -166,9 +166,9 @@ Choose **one** path and record rationale:
   secret) — verify during the spike before building a custom `RestClient` interceptor.
 - Keep or narrow `azure-identity` dependency with documented justification.
 
-**Selected option:** Option A — native Entra/MI via `spring.ai.openai.*` + `azure-identity`; no custom AAD bridge.
+**Selected option:** Option A (intent) — native passwordless auth via merged `spring-ai-openai` / `spring.ai.openai.*`. **Not confirmed** until wire smoke records auth mechanism and 200 response.
 
-**Architect sign-off:** _Pending non-prod Azure wire smoke (Task 8.7+ gate)_
+**Architect sign-off:** _Pending `AzureOpenAiLiveSmokeTest` in non-prod (record HTTP shape + credential path in Findings below)_
 
 ## Downstream updates (after decision)
 
@@ -178,7 +178,7 @@ Choose **one** path and record rationale:
 | `design.md` Step 2.1, Security | Reconcile F4 / "no custom AAD bridge" if Option B or C |
 | `application-azure-ai.yml` | Rewrite in Task 8.2 (flattened keys; no static prod key if Option A) |
 | `application.yml` placeholder | Ensure azure-ai profile fully overrides placeholder key |
-| Tests | Add azure-ai smoke/IT gate if not covered by property tests |
+| Tests | `AzureOpenAiLiveSmokeTest` (opt-in); record findings here on pass |
 
 ## Deferred (not in this spike)
 

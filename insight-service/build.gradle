@@ -39,11 +39,11 @@ dependencies {
     //   plus AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY in the shell env.
     implementation 'org.springframework.ai:spring-ai-starter-model-bedrock-converse'
     // Azure OpenAI / Foundry — active under the `azure-ai` Spring profile.
-    // Spring AI 2.0 GA consolidated azure-openai into the unified openai module.
+    // Spring AI 2.0 GA merged azure-openai and openai-sdk into spring-ai-openai (openai-java).
     implementation 'org.springframework.ai:spring-ai-starter-model-openai'
-    // azure-identity: required by Spring AI 2.0 native Azure/Foundry passwordless auth
-    // (DefaultAzureCredential) when spring.ai.openai.api-key is unset. Not referenced
-    // directly in application code — consumed by spring-ai-openai autoconfig at runtime.
+    // Candidate for Foundry/passwordless auth when spring.ai.openai.api-key is unset.
+    // Mechanism unverified — may be wired via openai-java credential supplier rather than
+    // DefaultAzureCredential directly. Keep or remove after AzureOpenAiLiveSmokeTest passes.
     implementation 'com.azure:azure-identity:1.13.2'
     implementation 'org.springframework.ai:spring-ai-client-chat'
 
