@@ -20,6 +20,10 @@ spring:
       # context init when no AI profile is active. Overridden by application-azure-ai.yml.
       api-key: ${OPENAI_API_KEY:placeholder-key}
       base-url: ${AZURE_OPENAI_ENDPOINT:https://placeholder.openai.azure.com/}
+    chat:
+      observations:
+        log-prompt: false
+        log-completion: false
   data:
     redis:
       # Use REDIS_URL for consistency with api-gateway and portfolio-service.

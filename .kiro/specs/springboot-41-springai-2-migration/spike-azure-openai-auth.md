@@ -7,7 +7,7 @@
 | **Gate for** | Task 8.1 (insight-service Azure adapter rewire) |
 | **Does not block** | Task 4.1 / Wave 3 (`common-dto` Jackson 3) |
 | **Owner** | _TBD_ |
-| **Spike outcome** | **OPEN** — manual verification not yet recorded |
+| **Spike outcome** | **Option A (design-aligned)** — native `spring.ai.openai.*` + `azure-identity` for MI; manual Azure wire smoke deferred to non-prod cutover |
 
 ## Background
 
@@ -166,9 +166,9 @@ Choose **one** path and record rationale:
   secret) — verify during the spike before building a custom `RestClient` interceptor.
 - Keep or narrow `azure-identity` dependency with documented justification.
 
-**Selected option:** _TBD_
+**Selected option:** Option A — native Entra/MI via `spring.ai.openai.*` + `azure-identity`; no custom AAD bridge.
 
-**Architect sign-off:** _TBD / date_
+**Architect sign-off:** _Pending non-prod Azure wire smoke (Task 8.7+ gate)_
 
 ## Downstream updates (after decision)
 

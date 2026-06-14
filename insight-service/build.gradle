@@ -41,8 +41,9 @@ dependencies {
     // Azure OpenAI / Foundry — active under the `azure-ai` Spring profile.
     // Spring AI 2.0 GA consolidated azure-openai into the unified openai module.
     implementation 'org.springframework.ai:spring-ai-starter-model-openai'
-    // azure-identity provides DefaultAzureCredential for Managed Identity auth.
-    // Pinned explicitly; defer to a managing BOM if the workspace adds one later.
+    // azure-identity: required by Spring AI 2.0 native Azure/Foundry passwordless auth
+    // (DefaultAzureCredential) when spring.ai.openai.api-key is unset. Not referenced
+    // directly in application code — consumed by spring-ai-openai autoconfig at runtime.
     implementation 'com.azure:azure-identity:1.13.2'
     implementation 'org.springframework.ai:spring-ai-client-chat'
 
