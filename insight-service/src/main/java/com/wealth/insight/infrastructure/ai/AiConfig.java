@@ -9,6 +9,9 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class AiConfig {
 
+    // Spring AI 2.0: when setting chat options programmatically, pass ChatOptions.Builder
+    // (not .build()) into ChatClient — the builder must remain mutable for option merging.
+
     /**
      * Provides a {@link ChatClient.Builder} only when a {@link ChatModel} bean is
      * available in the context. Under the mock profile (neither {@code bedrock} nor

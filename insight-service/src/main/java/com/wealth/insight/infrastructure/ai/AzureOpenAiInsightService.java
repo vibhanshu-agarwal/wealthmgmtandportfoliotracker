@@ -21,9 +21,10 @@ import static com.wealth.insight.infrastructure.redis.CacheConfig.SENTIMENT_CACH
  * Spring profile is enabled (i.e. {@code SPRING_PROFILES_ACTIVE=prod,azure,azure-ai} on
  * Azure Container Apps).
  *
- * <p>Uses Spring AI {@link ChatClient} backed by the Azure OpenAI service. Authentication
- * uses {@code DefaultAzureCredential} (Managed Identity) by default — no API key required.
- * The Container App's system-assigned identity is granted the
+ * <p>Uses Spring AI {@link ChatClient} backed by the Azure OpenAI service. Production
+ * authentication is intended to be passwordless (Managed Identity / Entra ID) when
+ * {@code spring.ai.openai.api-key} is unset; verify via {@code AzureOpenAiLiveSmokeTest}
+ * before cutover. The Container App's system-assigned identity is granted the
  * {@code Cognitive Services OpenAI User} role on the Azure OpenAI resource via Terraform.
  *
  * <p>Responses are cached in Redis ({@code sentiment} cache, 60-minute TTL) to avoid
