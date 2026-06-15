@@ -18,8 +18,12 @@ dependencies {
     // OAuth2 resource server (spring-security-oauth2-resource-server, Nimbus JOSE+JWT, WebFlux security)
     implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
 
+    // Distributed tracing — Boot 4.1 starter bundles micrometer-tracing-bridge-otel + OTLP export
+    implementation 'org.springframework.boot:spring-boot-starter-opentelemetry'
+
     // Testcontainers — versions managed by testcontainers-bom in root build.gradle
     testImplementation 'org.testcontainers:testcontainers'
+    testImplementation 'org.springframework.boot:spring-boot-starter-webflux-test'
 
     // jjwt — test-only JWT builder for integration tests
     testImplementation 'io.jsonwebtoken:jjwt-api:0.12.6'

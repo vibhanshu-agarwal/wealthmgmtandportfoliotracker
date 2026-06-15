@@ -29,6 +29,7 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-kafka'
     implementation 'org.springframework.boot:spring-boot-starter-webflux'
     implementation 'io.github.resilience4j:resilience4j-spring-boot4:2.4.0'
+    implementation 'org.springframework.boot:spring-boot-starter-opentelemetry'
 
     testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
     testImplementation 'org.testcontainers:testcontainers-mongodb'

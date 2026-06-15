@@ -188,28 +188,32 @@ work targets Java 21 + Gradle (Groovy DSL) per the existing build.
   - Ensure mock-profile unit tests and property tests pass; run the opt-in bedrock smoke test if credentials are available. Ask the user if questions arise.
   - **Done:** unit/property tests green; `AzureOpenAiLiveSmokeTest` passed (Entra via `az login`, deployment `gpt-4o-mini`).
 
-- [ ] 10. Migrate `api-gateway` (last) on Boot 4.1 + Spring Cloud 2025.1.2
-  - [ ] 10.1 Compile and wire the gateway on the new platform
+- [x] 10. Migrate `api-gateway` (last) on Boot 4.1 + Spring Cloud 2025.1.2
+  - [x] 10.1 Compile and wire the gateway on the new platform
     - Verify `spring-cloud-starter-gateway-server-webflux`, reactive Redis, and OAuth2 resource-server config compile on Framework 7.x; resolve any `NoSuchMethodError`/`ClassNotFoundException` surfaced by the train pairing
     - Preserve route table, JWT validation, and rate-limit semantics (profile-aware backing store)
     - _Design: Step 1.6, Components §2; Property 2_
+    - **Done:** compiles on Boot 4.1.0 + Spring Cloud 2025.1.2; AOT + unit tests green.
 
-  - [ ]* 10.2 Write `@WebFluxTest` slice test for gateway serialization boundary
+  - [x]* 10.2 Write `@WebFluxTest` slice test for gateway serialization boundary
     - **Property 11: Jackson 3 mapper at serialization boundaries**
     - **Validates: Testing — Jackson 3 serialization (slice b)**
     - Assert the autoconfigured Jackson 3 mapper handles gateway request/response serialization
+    - **Done:** `GatewaySerializationBoundarySliceTest` — `JsonMapper` is `tools.jackson.*`; login round-trip on wire.
 
-  - [ ]* 10.3 Write gateway boot/contract test (F2 safety gate)
+  - [x]* 10.3 Write gateway boot/contract test (F2 safety gate)
     - **Property 2: Gateway boots on the pinned train**
     - **Validates: Step 1/Step 3, Migration-specific gates**
     - Assert the gateway context starts cleanly with routing, JWT validation, and rate limiting intact on Boot 4.1 + Spring Cloud 2025.1.2
+    - **Done:** `GatewayBootContractTest` — routes, JWT decoder, rate-limit key resolver, health, auth paths.
 
 - [ ] 11. Standardize distributed tracing across all services
-  - [ ] 11.1 Add tracer + OTLP exporter to all services
+  - [x] 11.1 Add tracer + OTLP exporter to all services
     - Add `micrometer-tracing-bridge-otel` (or `-brave`) and `opentelemetry-exporter-otlp` to all four services; ensure reactive context propagation on the WebFlux gateway
     - Re-verify Micrometer/Observation API usage and `management.*` property names against Boot 4.1
     - Use Spring AI 2.0 log-based observation keys (`log-prompt`/`log-completion`) keeping `log-prompt=false`
     - _Design: Step 3.2; Property 8, 10_
+    - **Done:** `spring-boot-starter-opentelemetry` on all four services; OTLP trace/metrics export gated via env (`MANAGEMENT_TRACING_EXPORT_ENABLED`, `MANAGEMENT_OTLP_METRICS_EXPORT_ENABLED`, `OTEL_EXPORTER_OTLP_ENDPOINT`). `log-prompt=false` unchanged on insight-service.
 
   - [ ]* 11.2 Write trace-context propagation test
     - **Property 10: Trace-context propagation**
