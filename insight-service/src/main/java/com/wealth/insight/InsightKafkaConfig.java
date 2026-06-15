@@ -4,6 +4,7 @@ import com.wealth.market.events.PriceUpdatedEvent;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.boot.kafka.autoconfigure.ConcurrentKafkaListenerContainerFactoryConfigurer;
 import org.springframework.boot.kafka.autoconfigure.KafkaProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -55,13 +56,14 @@ class InsightKafkaConfig {
     }
 
     @Bean
+    @SuppressWarnings({"unchecked", "rawtypes"})
     ConcurrentKafkaListenerContainerFactory<String, PriceUpdatedEvent> kafkaListenerContainerFactory(
+            ConcurrentKafkaListenerContainerFactoryConfigurer configurer,
             ConsumerFactory<String, PriceUpdatedEvent> insightConsumerFactory,
             DefaultErrorHandler insightErrorHandler
     ) {
-        ConcurrentKafkaListenerContainerFactory<String, PriceUpdatedEvent> factory =
-                new ConcurrentKafkaListenerContainerFactory<>();
-        factory.setConsumerFactory(insightConsumerFactory);
+        ConcurrentKafkaListenerContainerFactory factory = new ConcurrentKafkaListenerContainerFactory<>();
+        configurer.configure(factory, (ConsumerFactory) insightConsumerFactory);
         factory.setCommonErrorHandler(insightErrorHandler);
         return factory;
     }

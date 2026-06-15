@@ -231,16 +231,16 @@ work targets Java 21 + Gradle (Groovy DSL) per the existing build.
     - Confirm the `insight-service` build/image path after the azure-module swap; preserve AOT + slim JRE for Lambda cold start
     - **GraalVM note (forward-looking):** runtime-toggling trace export via `management.tracing.export.enabled` can fail under native image; Lambda/slim-JRE work may need an empty `SpanExporters` bean workaround (see Boot OTel native-image guidance)
     - _Design: Step 3.1; Property 7_
-    - **Done:** All four Dockerfiles use `GRADLE_VERSION=9.4.1`, `jlink` adds `java.instrument,java.logging` (+ `jdk.naming.dns` on market-data); insight-service Dockerfile notes GraalVM `SpanExporters` forward-risk.
+    - **Done:** All four Dockerfiles use `GRADLE_VERSION=9.4.1`, `jlink` adds `java.instrument,java.logging,jdk.crypto.ec` (+ `jdk.naming.dns` on market-data); insight-service Dockerfile notes GraalVM `SpanExporters` forward-risk.
 
   - [x]* 12.2 Add slim-image boot/health verification
     - **Property 7: Image boots slim**
     - **Validates: Step 3 verification**
     - Build each service slim image and assert `/actuator/health = UP` and successful outbound TLS to backends (Kafka/Mongo/OpenAI/Bedrock)
-    - **Done:** `SlimImageHealthIT` + `SlimJreTlsProbe` per service; `slimImageTest` Gradle task (`@Tag("slim-image")`, 60m timeout); excluded from unit `test`, included in `check`.
+    - **Done:** `SlimImageHealthIT` + `SlimJreTlsProbe` per service; `slimImageTest` Gradle task (`@Tag("slim-image")`, 15m test / 30m image-build timeout); excluded from unit `test`. Run via `./gradlew slimImageCheck` or `./gradlew migrationCheck` (not default `check` — requires Docker).
 
 - [x] 13. Final checkpoint - full migration green
-  - Run `./gradlew check` (unit + integration) across all modules; confirm the dependency gate, gateway boot gate, Jackson 3 serialization tests, AI parity tests, and tracing/slim-image checks all pass. Ask the user if questions arise.
+  - Run `./gradlew migrationCheck` (unit + integration + slim-image) across all modules; confirm the dependency gate, gateway boot gate, Jackson 3 serialization tests, AI parity tests, and tracing/slim-image checks all pass. Ask the user if questions arise.
 
 ## Notes
 

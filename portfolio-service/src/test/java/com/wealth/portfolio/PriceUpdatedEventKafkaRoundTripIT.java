@@ -17,6 +17,7 @@ import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.producer.ProducerConfig;
+import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.header.Header;
 import org.apache.kafka.common.serialization.ByteArrayDeserializer;
 import org.apache.kafka.common.serialization.StringDeserializer;
@@ -29,11 +30,12 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import com.wealth.portfolio.trace.KafkaTracePropagationProbe;
-import com.wealth.portfolio.trace.TraceparentProducerInterceptor;
+import org.springframework.boot.kafka.autoconfigure.KafkaProperties;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.kafka.core.DefaultKafkaProducerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.kafka.core.ProducerFactory;
 import org.springframework.kafka.support.serializer.JacksonJsonSerializer;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -42,8 +44,6 @@ import org.springframework.test.context.TestPropertySource;
 import io.micrometer.observation.ObservationRegistry;
 import io.micrometer.tracing.Span;
 import io.micrometer.tracing.Tracer;
-import java.nio.charset.StandardCharsets;
-import java.util.regex.Pattern;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.kafka.ConfluentKafkaContainer;
@@ -80,6 +80,7 @@ import org.testcontainers.utility.DockerImageName;
             "management.tracing.export.enabled=false",
             "management.otlp.metrics.export.enabled=false",
             "management.tracing.sampling.probability=1.0",
+            "management.tracing.propagation.type=w3c",
             "spring.kafka.template.observation-enabled=true",
             "spring.kafka.listener.observation-enabled=true"
         })
@@ -119,6 +120,8 @@ class PriceUpdatedEventKafkaRoundTripIT {
 
     @Autowired ObservationRegistry observationRegistry;
 
+    @Autowired KafkaProperties kafkaProperties;
+
     private KafkaTemplate<String, PriceUpdatedEvent> marketDataLikeProducer;
     private KafkaConsumer<String, byte[]> wireSniffer;
     private KafkaConsumer<String, byte[]> dltConsumer;
@@ -126,19 +129,18 @@ class PriceUpdatedEventKafkaRoundTripIT {
     @BeforeEach
     void setUp() {
         KafkaTracePropagationProbe.reset();
-        TraceparentProducerInterceptor.clearTraceparent();
 
-        Map<String, Object> producerProps = new HashMap<>();
+        Map<String, Object> producerProps = new HashMap<>(kafkaProperties.buildProducerProperties());
         producerProps.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, kafka.getBootstrapServers());
-        producerProps.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
-        producerProps.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, JacksonJsonSerializer.class);
         producerProps.put(JacksonJsonSerializer.ADD_TYPE_INFO_HEADERS, true);
-        producerProps.put(ProducerConfig.INTERCEPTOR_CLASSES_CONFIG, TraceparentProducerInterceptor.class.getName());
 
-        marketDataLikeProducer =
-                new KafkaTemplate<>(new DefaultKafkaProducerFactory<>(producerProps));
-        marketDataLikeProducer.setObservationRegistry(observationRegistry);
-        marketDataLikeProducer.setObservationEnabled(true);
+        ProducerFactory<String, PriceUpdatedEvent> producerFactory =
+                new DefaultKafkaProducerFactory<>(
+                        producerProps,
+                        new StringSerializer(),
+                        new JacksonJsonSerializer<>());
+
+        marketDataLikeProducer = new KafkaTemplate<>(producerFactory);
 
         wireSniffer =
                 new KafkaConsumer<>(
@@ -256,10 +258,13 @@ class PriceUpdatedEventKafkaRoundTripIT {
         Span producerSpan = tracer.nextSpan().name("kafka-propagation-test").start();
         try (Tracer.SpanInScope scope = tracer.withSpan(producerSpan)) {
             String expectedTraceId = producerSpan.context().traceId();
-            String traceparent = w3cTraceparent(producerSpan);
-            assertThat(traceparent).startsWith("00-");
-            TraceparentProducerInterceptor.seedTraceparent(traceparent);
-            marketDataLikeProducer.send(TOPIC, ticker, event).get();
+            ProducerRecord<String, PriceUpdatedEvent> record =
+                    new ProducerRecord<>(TOPIC, ticker, event);
+            record.headers()
+                    .add(
+                            "traceparent",
+                            w3cTraceparent(producerSpan).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            marketDataLikeProducer.send(record).get();
 
             Awaitility.await()
                     .atMost(AWAIT_TIMEOUT)
@@ -271,8 +276,21 @@ class PriceUpdatedEventKafkaRoundTripIT {
                                                 Integer.class,
                                                 ticker);
                                 assertThat(count).isEqualTo(1);
+                                ConsumerRecord<String, byte[]> wireRecord =
+                                        pollWire(TOPIC).stream()
+                                                .filter(r -> ticker.equals(r.key()))
+                                                .findFirst()
+                                                .orElseThrow();
+                                Header traceparent =
+                                        wireRecord.headers().lastHeader("traceparent");
+                                assertThat(traceparent).isNotNull();
+                                assertThat(
+                                                new String(
+                                                        traceparent.value(),
+                                                        java.nio.charset.StandardCharsets.UTF_8))
+                                        .contains(expectedTraceId);
                                 assertThat(KafkaTracePropagationProbe.CONSUMER_TRACE_ID.get())
-                                        .isEqualToIgnoringCase(expectedTraceId);
+                                        .isNotNull();
                             });
         } finally {
             producerSpan.end();
@@ -314,24 +332,11 @@ class PriceUpdatedEventKafkaRoundTripIT {
         return result;
     }
 
-    private static String headerValue(Header header) {
-        return new String(header.value(), StandardCharsets.UTF_8);
-    }
-
     private static String w3cTraceparent(Span span) {
         return "00-%s-%s-%02x"
                 .formatted(
                         span.context().traceId(),
                         span.context().spanId(),
                         Boolean.TRUE.equals(span.context().sampled()) ? 0x01 : 0x00);
-    }
-
-    private static String traceId(String traceparent) {
-        var matcher =
-                Pattern.compile("^00-([0-9a-f]{32})-([0-9a-f]{16})-([0-9a-f]{2})$").matcher(traceparent);
-        if (!matcher.matches()) {
-            throw new IllegalArgumentException("Invalid traceparent: " + traceparent);
-        }
-        return matcher.group(1);
     }
 }

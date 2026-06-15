@@ -179,10 +179,21 @@ subprojects {
         timeout = java.time.Duration.ofMinutes(15)
     }
 
-    // 3. Ensure 'integrationTest' runs automatically when you run a full build/check
+    // 3. integrationTest runs on check; slim-image is a separate Docker-heavy gate (Task 12.2).
     tasks.named('check') {
         dependsOn tasks.named('integrationTest')
-        dependsOn tasks.named('slimImageTest')
     }
 }
 // Removed redundant tasks.withType(Test) block as it's now fully handled inside subprojects or at task level.
+
+tasks.register('slimImageCheck') {
+    description = 'Slim JRE image build + health gate across all services (requires Docker daemon)'
+    group = 'verification'
+    dependsOn subprojects.collect { it.tasks.findByName('slimImageTest') }.findAll { it != null }
+}
+
+tasks.register('migrationCheck') {
+    description = 'Full migration verification: unit + integration + slim-image (Task 13)'
+    group = 'verification'
+    dependsOn tasks.named('check'), tasks.named('slimImageCheck')
+}

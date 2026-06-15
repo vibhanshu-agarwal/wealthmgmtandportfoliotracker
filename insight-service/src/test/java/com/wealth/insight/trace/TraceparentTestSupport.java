@@ -1,5 +1,6 @@
 package com.wealth.insight.trace;
 
+import io.micrometer.tracing.Span;
 import java.util.regex.Pattern;
 
 /** W3C {@code traceparent} helpers for distributed-tracing propagation tests (Property 10b). */
@@ -9,6 +10,14 @@ final class TraceparentTestSupport {
             Pattern.compile("^00-([0-9a-f]{32})-([0-9a-f]{16})-([0-9a-f]{2})$");
 
     private TraceparentTestSupport() {}
+
+    static String w3cTraceparent(Span span) {
+        return "00-%s-%s-%02x"
+                .formatted(
+                        span.context().traceId(),
+                        span.context().spanId(),
+                        Boolean.TRUE.equals(span.context().sampled()) ? 0x01 : 0x00);
+    }
 
     static String traceId(String traceparent) {
         var matcher = TRACEPARENT.matcher(traceparent);
