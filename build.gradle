@@ -97,7 +97,7 @@ subprojects {
     // 1. Configure the standard 'test' task to run fast (ignore integration tags)
     tasks.named('test', Test) {
         useJUnitPlatform {
-            excludeTags 'integration'
+            excludeTags 'integration', 'slim-image'
         }
         // Unit tests should complete well within 10 minutes; fail fast if a test hangs.
         // Note: Gradle's Test.timeout is a task-level deadline, not a per-test timeout.
@@ -127,9 +127,73 @@ subprojects {
         timeout = java.time.Duration.ofMinutes(20)
     }
 
-    // 3. Ensure 'integrationTest' runs automatically when you run a full build/check
+    // 2b. Slim Docker image build + health gate (Task 12.2) — slow; separate from integrationTest.
+    def slimTestImageTag = "wealth-${project.name}:slim-it"
+
+    if (file('Dockerfile.slim-it').exists()) {
+        tasks.register('prepareSlimItArtifact', Copy) {
+            description = 'Stages bootJar for Dockerfile.slim-it (outside **/build/ dockerignore)'
+            dependsOn tasks.named('bootJar')
+            from tasks.named('bootJar', Jar).flatMap { it.archiveFile }
+            into "${rootProject.projectDir}/.slim-it-artifacts"
+            rename { "${project.name}.jar" }
+        }
+
+        tasks.register('buildSlimTestImage', Exec) {
+            description = 'Builds slim-it Docker image from host bootJar (skips in-container Gradle)'
+            group = 'verification'
+            dependsOn tasks.named('prepareSlimItArtifact')
+            workingDir rootProject.projectDir
+            commandLine 'docker', 'build',
+                    '-f', "${project.name}/Dockerfile.slim-it",
+                    '-t', slimTestImageTag,
+                    '.'
+            timeout = java.time.Duration.ofMinutes(30)
+        }
+    }
+
+    tasks.register('slimImageTest', Test) {
+        description = 'Builds slim Docker images and verifies /actuator/health (Task 12.2)'
+        group = 'verification'
+
+        useJUnitPlatform {
+            includeTags 'slim-image'
+        }
+
+        testClassesDirs = sourceSets.test.output.classesDirs
+        classpath = sourceSets.test.runtimeClasspath
+        mustRunAfter tasks.named('test')
+
+        dependsOn tasks.named('compileTestJava')
+
+        maxHeapSize = '2g'
+
+        systemProperty 'repo.root', rootProject.projectDir.absolutePath
+        systemProperty 'slim.test.image', slimTestImageTag
+
+        if (tasks.findByName('buildSlimTestImage') != null) {
+            dependsOn tasks.named('buildSlimTestImage')
+        }
+
+        // Container boot + TLS probe only; image build is buildSlimTestImage (host Docker cache).
+        timeout = java.time.Duration.ofMinutes(15)
+    }
+
+    // 3. integrationTest runs on check; slim-image is a separate Docker-heavy gate (Task 12.2).
     tasks.named('check') {
         dependsOn tasks.named('integrationTest')
     }
 }
 // Removed redundant tasks.withType(Test) block as it's now fully handled inside subprojects or at task level.
+
+tasks.register('slimImageCheck') {
+    description = 'Slim JRE image build + health gate across all services (requires Docker daemon)'
+    group = 'verification'
+    dependsOn subprojects.collect { it.tasks.findByName('slimImageTest') }.findAll { it != null }
+}
+
+tasks.register('migrationCheck') {
+    description = 'Full migration verification: unit + integration + slim-image (Task 13)'
+    group = 'verification'
+    dependsOn tasks.named('check'), tasks.named('slimImageCheck')
+}

@@ -109,6 +109,9 @@ kafka-truststore.jks
 ### JVM crash / replay logs ###
 hs_err_pid*.log
 replay_pid*.log
+
+# Slim-image IT staging (host bootJar copied for Dockerfile.slim-it)
+.slim-it-artifacts/
 *.hprof
 
 ### Temporary / debug files ###

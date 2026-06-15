@@ -80,8 +80,11 @@ COPY --from=builder /workspace/insight-service/build/libs/*.jar app.jar
 # Extract the fat JAR to access individual library JARs for jdeps analysis
 RUN mkdir -p extracted && cd extracted && jar xf /jre-build/app.jar
 
-# Run jdeps on all JARs to discover required modules, then build a Custom JRE
-# Fallback modules: jdk.unsupported (Spring internals), java.security.jgss (auth/Kafka)
+# GraalVM / native-image forward risk (Task 12.1): runtime-toggling trace export via
+# management.tracing.export.enabled may require an empty SpanExporters bean under native image.
+# See Spring Boot OpenTelemetry native-image guidance before enabling export on Lambda AOT images.
+# If slim-JRE serialization fails after the Boot 4.1 / Jackson 3 bump, re-run jdeps and append any
+# missing JDK modules (java.instrument, java.logging) or Jackson automatic modules jdeps surfaces.
 RUN DEPS=$(jdeps \
     --ignore-missing-deps \
     --print-module-deps \
@@ -90,7 +93,7 @@ RUN DEPS=$(jdeps \
     app.jar 2>/dev/null || echo "java.base") \
     && echo "Detected modules: $DEPS" \
     && jlink \
-    --add-modules "${DEPS},jdk.unsupported,java.security.jgss,java.sql,java.naming" \
+    --add-modules "${DEPS},jdk.unsupported,java.security.jgss,java.sql,java.naming,java.instrument,java.logging,jdk.crypto.ec" \
     --strip-debug \
     --no-man-pages \
     --no-header-files \

@@ -36,6 +36,9 @@ spring:
     type: simple
   kafka:
     bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9094}
+    listener:
+      observation-enabled: true
+      missing-topics-fatal: false           # don't crash if market-prices topic doesn't exist yet
     consumer:
       group-id: insight-group
       auto-offset-reset: earliest
@@ -49,8 +52,6 @@ spring:
         reconnect.backoff.ms: 2000          # 2s initial (default: 50ms)
         reconnect.backoff.max.ms: 60000     # cap at 60s via exponential backoff (default: 1s)
         request.timeout.ms: 10000
-    listener:
-      missing-topics-fatal: false           # don't crash if market-prices topic doesn't exist yet
   web:
     error:
       include-message: always
@@ -63,6 +64,8 @@ management:
   tracing:
     sampling:
       probability: ${MANAGEMENT_TRACING_SAMPLING_PROBABILITY:1.0}
+    propagation:
+      type: w3c
     export:
       enabled: ${MANAGEMENT_TRACING_EXPORT_ENABLED:false}
   otlp:

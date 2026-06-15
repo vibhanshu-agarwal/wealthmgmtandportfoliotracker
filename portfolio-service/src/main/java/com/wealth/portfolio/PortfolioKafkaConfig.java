@@ -7,6 +7,7 @@ import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
+import org.springframework.boot.kafka.autoconfigure.ConcurrentKafkaListenerContainerFactoryConfigurer;
 import org.springframework.boot.kafka.autoconfigure.KafkaProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -69,13 +70,14 @@ class PortfolioKafkaConfig {
     }
 
     @Bean
+    @SuppressWarnings({"unchecked", "rawtypes"})
     ConcurrentKafkaListenerContainerFactory<String, PriceUpdatedEvent> priceUpdatedKafkaListenerContainerFactory(
+            ConcurrentKafkaListenerContainerFactoryConfigurer configurer,
             ConsumerFactory<String, PriceUpdatedEvent> priceUpdatedConsumerFactory,
             DefaultErrorHandler priceUpdatedErrorHandler
     ) {
-        ConcurrentKafkaListenerContainerFactory<String, PriceUpdatedEvent> factory =
-                new ConcurrentKafkaListenerContainerFactory<>();
-        factory.setConsumerFactory(priceUpdatedConsumerFactory);
+        ConcurrentKafkaListenerContainerFactory factory = new ConcurrentKafkaListenerContainerFactory<>();
+        configurer.configure(factory, (ConsumerFactory) priceUpdatedConsumerFactory);
         factory.setCommonErrorHandler(priceUpdatedErrorHandler);
         return factory;
     }
