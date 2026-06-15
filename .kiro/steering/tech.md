@@ -3,9 +3,9 @@
 ## Backend
 
 - **Language:** Java 21
-- **Framework:** Spring Boot 4.0.5
+- **Framework:** Spring Boot 4.1.0
 - **Build:** Gradle (multi-module, Groovy DSL)
-- **Spring Cloud:** 2025.1.1 (Gateway WebFlux for api-gateway)
+- **Spring Cloud:** 2025.1.2 (Gateway WebFlux for api-gateway)
 - **Persistence:** Spring Data JPA + PostgreSQL (portfolio-service), Spring Data MongoDB (market-data-service)
 - **Migrations:** Flyway (portfolio-service)
 - **Messaging:** Apache Kafka (Spring Kafka)

@@ -608,25 +608,33 @@ Impacts of the Boot 4.1 + Spring AI 2.0 upgrade:
    prompt/completion logging is ever enabled in `insight-service`, use the new `log-*` keys and
    **respect the existing requirement that raw user messages/prompts must not be logged**
    (there is a test asserting no prompt leakage — keep `log-prompt=false`).
-3. **Trace context across service boundaries (IN-SCOPE).** End-to-end distributed tracing is
-   **in-scope** for this migration: this upgrade is the designated entry point to **standardize
-   tracing across the microservices ecosystem**. Trace-context headers must propagate seamlessly
-   through `api-gateway → insight-service` (and the other leaf services `portfolio-service` /
-   `market-data-service`). Add a tracer consistently to **all** services:
+3. **Trace context across service boundaries (IN-SCOPE, phased).** End-to-end distributed tracing is
+   **in-scope** for this migration. Task **11.1** wires instrumentation on all services (export
+   gated off by default); Task **11.2** proves propagation. "Standardized" means Properties
+   **10a** and **10b** pass — not merely classpath presence. Two hops matter:
+   - **10a (HTTP):** `api-gateway → insight-service` (and other leaf HTTP routes) — W3C
+     `traceparent` unbroken across the reactive gateway boundary.
+   - **10b (Messaging):** `market-data-service → portfolio-service` / `insight-service` over
+     Kafka (`PriceUpdatedEvent`) — `traceparent` continuity in record headers; requires
+     `spring.kafka.template.observation-enabled=true` and
+     `spring.kafka.listener.observation-enabled=true` on messaging services (ships with 11.2).
+
+   Add a tracer consistently to **all** services:
 
 ```groovy
-// IN-SCOPE (all services) — standardize distributed tracing as part of this migration
-implementation 'io.micrometer:micrometer-tracing-bridge-otel' // or -brave
-implementation 'io.opentelemetry:opentelemetry-exporter-otlp' // export target = your collector
-// api-gateway is WebFlux: ensure reactive context propagation is on (Boot autoconfig handles it)
+// Task 11.1 — Boot 4.1 idiomatic (bundles micrometer-tracing-bridge-otel + OTLP registry)
+implementation 'org.springframework.boot:spring-boot-starter-opentelemetry'
+// api-gateway is WebFlux: reactive context propagation is on via Boot autoconfig
 ```
+
+   When enabling OTLP export in cloud, set **both** endpoints: traces via
+   `management.opentelemetry.tracing.export.otlp.endpoint`; metrics via
+   `management.otlp.metrics.export.url` (separate property — no safe non-localhost default).
 
    The migration is the natural point to introduce this consistently, and Spring AI 2.0's
    observability rewrite (log-based content observation) changes how AI calls surface in
-   traces/logs — so the tracing standardization and the AI upgrade are addressed together.
-   **Correctness requirement:** a single trace must span `api-gateway → leaf/insight`, with the
-   trace-context (W3C `traceparent`) header propagated unbroken across every hop, including the
-   reactive gateway boundary (see Property 10).
+   traces/logs — so the tracing work and the AI upgrade are addressed together.
+   **Correctness requirement:** see Properties **10a** (HTTP) and **10b** (Kafka).
 
 4. **Health/readiness during rolling deploys.** Zero-downtime rollout relies on accurate
    actuator liveness/readiness. Re-verify `management.endpoint.health` group config and
@@ -722,9 +730,10 @@ platform bump.
 - Cross-service contract test on Jackson 3 event payloads before rolling consumers.
 - **Gateway boot/contract gate (F2 safety mechanism):** `api-gateway` must start cleanly on
   Boot 4.1 + Spring Cloud `2025.1.2` with routing, JWT validation, and rate limiting intact.
-- **Trace-context propagation gate:** assert a single trace spans `api-gateway → insight-service`
-  (and the other leaf services) with the W3C `traceparent` header propagated unbroken across
-  every hop, including the reactive gateway boundary (Property 10).
+- **Trace-context propagation gate (Task 11.2):** assert Property **10a** (HTTP:
+  `api-gateway → insight-service`, W3C `traceparent` unbroken across reactive gateway) and
+  Property **10b** (Kafka: `market-data → portfolio/insight`, `traceparent` continuity on
+  `PriceUpdatedEvent` producer→consumer).
 
 ---
 
@@ -763,8 +772,8 @@ replaces the hand-rolled AAD bridge; verify no other usage before deleting).
 
 **Added/changed:** `spring-ai-starter-model-openai` (replaces azure-openai starter; uses the
 official `com.openai:openai-client` SDK, native Azure/Foundry support);
-`micrometer-tracing-bridge-*` + OTLP exporter (now **in-scope** — standardizing distributed
-tracing across all services).
+`micrometer-tracing-bridge-*` + OTLP exporter via `spring-boot-starter-opentelemetry` (Task 11.1
+wires instrumentation; Properties 10a/10b proven in Task 11.2).
 
 **Verify-at-implementation (minor):** Testcontainers BOM alignment, `resilience4j-spring-boot4`
 Boot-4.1 build, OpenRewrite `UpgradeSpringBoot_4_1` recipe id, and confirming `com.azure:azure-identity`
@@ -788,9 +797,10 @@ All previously flagged decisions are **resolved**:
   which natively supports Azure OpenAI / Microsoft Foundry endpoints and authentication via
   `spring.ai.openai.*` properties. `com.azure:azure-identity` is likely removable (verify no
   other usage).
-- **Tracing scope (RESOLVED — in-scope):** End-to-end distributed tracing **is in-scope**. This
-  migration is the designated entry point to standardize tracing across the ecosystem, ensuring
-  trace-context propagates `api-gateway → insight-service` and the other leaf services.
+- **Tracing scope (RESOLVED — phased):** Distributed tracing is in-scope. Task **11.1** wires
+  instrumentation (export gated off by default); Task **11.2** proves Properties **10a** (HTTP)
+  and **10b** (Kafka). "Standardized across the ecosystem" is not claimed until both propagation
+  gates pass.
 
 **Remaining verify-at-implementation items (minor):** `resilience4j-spring-boot4` Boot 4.1
 build, OpenRewrite `UpgradeSpringBoot_4_1` recipe id, Testcontainers BOM alignment, and
@@ -984,9 +994,24 @@ Verification)_
 
 ### Property 10: Trace-context propagation
 
-A single distributed trace spans `api-gateway → insight-service` (and the other leaf services).
-The W3C `traceparent` header propagates unbroken across every hop, including the reactive
-gateway boundary, with no new trace started mid-path. _(Step 3.2)_
+Property 10 is split into HTTP and messaging sub-properties. Task **11.1** places
+instrumentation on the classpath with export gated off; both sub-properties are **proven** by
+Task **11.2**.
+
+#### Property 10a: HTTP hop (`api-gateway → insight-service`)
+
+A single distributed trace spans `api-gateway → insight-service` (and other leaf services
+reached over HTTP). The W3C `traceparent` header propagates unbroken across every HTTP hop,
+including the reactive gateway boundary, with no new trace started mid-path. _(Step 3.2)_
+
+#### Property 10b: Messaging hop (`market-data → portfolio/insight` over Kafka)
+
+The dominant async data path (`PriceUpdatedEvent`: `market-data-service` producer →
+`portfolio-service` / `insight-service` consumers) preserves trace continuity: the producer
+span's W3C `traceparent` is carried in Kafka record headers and the consumer continues the same
+trace (no new root span). Requires `spring.kafka.template.observation-enabled=true` on
+producers and `spring.kafka.listener.observation-enabled=true` on consumers (configured in the
+Task 11.2 change set). _(Step 3.2)_
 
 ### Property 11: Jackson 3 mapper at serialization boundaries
 

@@ -212,19 +212,23 @@ work targets Java 21 + Gradle (Groovy DSL) per the existing build.
     - Add `micrometer-tracing-bridge-otel` (or `-brave`) and `opentelemetry-exporter-otlp` to all four services; ensure reactive context propagation on the WebFlux gateway
     - Re-verify Micrometer/Observation API usage and `management.*` property names against Boot 4.1
     - Use Spring AI 2.0 log-based observation keys (`log-prompt`/`log-completion`) keeping `log-prompt=false`
-    - _Design: Step 3.2; Property 8, 10_
-    - **Done:** `spring-boot-starter-opentelemetry` on all four services; OTLP trace/metrics export gated via env (`MANAGEMENT_TRACING_EXPORT_ENABLED`, `MANAGEMENT_OTLP_METRICS_EXPORT_ENABLED`, `OTEL_EXPORTER_OTLP_ENDPOINT`). `log-prompt=false` unchanged on insight-service.
+    - _Design: Step 3.2; Property 8, 10a, 10b_
+    - **Done:** Instrumentation wired on all four services (`spring-boot-starter-opentelemetry`); OTLP trace/metrics export **gated off by default** via env (`MANAGEMENT_TRACING_EXPORT_ENABLED`, `MANAGEMENT_OTLP_METRICS_EXPORT_ENABLED`, `OTEL_EXPORTER_OTLP_ENDPOINT`). End-to-end propagation (Properties 10a/10b) deferred to Task 11.2. `log-prompt=false` unchanged on insight-service.
 
-  - [ ]* 11.2 Write trace-context propagation test
-    - **Property 10: Trace-context propagation**
+  - [ ]* 11.2 Write trace-context propagation test (ships with Kafka observation config — TDD pair)
+    - **Property 10a: HTTP trace-context propagation** — `api-gateway → insight-service`
+    - **Property 10b: Messaging trace-context propagation** — `market-data-service` → `portfolio-service` / `insight-service` over Kafka (`PriceUpdatedEvent`)
     - **Validates: Step 3.2, Migration-specific gates**
-    - Assert a single trace spans `api-gateway → insight-service` (and other leaf services) with the W3C `traceparent` header propagated unbroken across the reactive gateway boundary
+    - **HTTP gate:** assert W3C `traceparent` propagates unbroken across the reactive gateway boundary
+    - **Kafka gate:** enable `spring.kafka.template.observation-enabled` / `spring.kafka.listener.observation-enabled` on messaging services; assert producer→consumer `traceparent` continuity on `PriceUpdatedEvent` (no new root span at consumer)
+    - **Prerequisite:** Kafka observation flags must land in the same change set as this test (red until configured)
 
 - [ ] 12. Containerization and slim-JRE validation
   - [ ] 12.1 Update Dockerfiles for the Boot 4.1 platform
     - Keep `amazoncorretto:21`; optionally bump `GRADLE_VERSION` in the `gradle-dist` stage in sync with `gradle/wrapper`
     - Re-run `jdeps`/`jlink`; explicitly add `tools.jackson.core`, `tools.jackson.databind`, and (for records) `tools.jackson.module.paramnames` to `--add-modules` when serialization fails on the slim image
     - Confirm the `insight-service` build/image path after the azure-module swap; preserve AOT + slim JRE for Lambda cold start
+    - **GraalVM note (forward-looking):** runtime-toggling trace export via `management.tracing.export.enabled` can fail under native image; Lambda/slim-JRE work may need an empty `SpanExporters` bean workaround (see Boot OTel native-image guidance)
     - _Design: Step 3.1; Property 7_
 
   - [ ]* 12.2 Add slim-image boot/health verification
@@ -253,6 +257,10 @@ work targets Java 21 + Gradle (Groovy DSL) per the existing build.
   HTTP slice tests (6.3/6.6) are where Boot mapper wiring applies. Wave 5 runs 4.4 then the
   leaf migrations `{6.1, 6.4}` with their wire-contract unit tests `{6.2, 6.5}` in parallel;
   cross-service tests must wait for Wave 6 (`6.7`).
+- **Tracing (Tasks 11.1–11.2):** 11.1 = instrumentation on classpath, export gated off. Properties
+  **10a** (HTTP) and **10b** (Kafka) are proven together in 11.2; the Kafka propagation test is
+  red until `spring.kafka.*.observation-enabled` flags ship in the same change set. When enabling
+  OTLP metrics in cloud, set `management.otlp.metrics.export.url` alongside the traces endpoint.
 
 ## Task Dependency Graph
 
