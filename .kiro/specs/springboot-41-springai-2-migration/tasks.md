@@ -207,7 +207,7 @@ work targets Java 21 + Gradle (Groovy DSL) per the existing build.
     - Assert the gateway context starts cleanly with routing, JWT validation, and rate limiting intact on Boot 4.1 + Spring Cloud 2025.1.2
     - **Done:** `GatewayBootContractTest` — routes, JWT decoder, rate-limit key resolver, health, auth paths.
 
-- [ ] 11. Standardize distributed tracing across all services
+- [x] 11. Standardize distributed tracing across all services
   - [x] 11.1 Add tracer + OTLP exporter to all services
     - Add `micrometer-tracing-bridge-otel` (or `-brave`) and `opentelemetry-exporter-otlp` to all four services; ensure reactive context propagation on the WebFlux gateway
     - Re-verify Micrometer/Observation API usage and `management.*` property names against Boot 4.1
@@ -215,28 +215,31 @@ work targets Java 21 + Gradle (Groovy DSL) per the existing build.
     - _Design: Step 3.2; Property 8, 10a, 10b_
     - **Done:** Instrumentation wired on all four services (`spring-boot-starter-opentelemetry`); OTLP trace/metrics export **gated off by default** via env (`MANAGEMENT_TRACING_EXPORT_ENABLED`, `MANAGEMENT_OTLP_METRICS_EXPORT_ENABLED`, `OTEL_EXPORTER_OTLP_ENDPOINT`). End-to-end propagation (Properties 10a/10b) deferred to Task 11.2. `log-prompt=false` unchanged on insight-service.
 
-  - [ ]* 11.2 Write trace-context propagation test (ships with Kafka observation config — TDD pair)
+  - [x]* 11.2 Write trace-context propagation test (ships with Kafka observation config — TDD pair)
     - **Property 10a: HTTP trace-context propagation** — `api-gateway → insight-service`
     - **Property 10b: Messaging trace-context propagation** — `market-data-service` → `portfolio-service` / `insight-service` over Kafka (`PriceUpdatedEvent`)
     - **Validates: Step 3.2, Migration-specific gates**
     - **HTTP gate:** assert W3C `traceparent` propagates unbroken across the reactive gateway boundary
     - **Kafka gate:** enable `spring.kafka.template.observation-enabled` / `spring.kafka.listener.observation-enabled` on messaging services; assert producer→consumer `traceparent` continuity on `PriceUpdatedEvent` (no new root span at consumer)
     - **Prerequisite:** Kafka observation flags must land in the same change set as this test (red until configured)
+    - **Done:** Kafka observation YAML on market-data (template), portfolio + insight (listener). Tests: `HttpTraceContextPropagationIT` (10a), `PriceUpdatedEventKafkaRoundTripIT.observedProducer_preservesTraceAtConsumer` + `KafkaTraceContextPropagationIT` (10b). Export disabled in tests.
 
-- [ ] 12. Containerization and slim-JRE validation
-  - [ ] 12.1 Update Dockerfiles for the Boot 4.1 platform
+- [x] 12. Containerization and slim-JRE validation
+  - [x] 12.1 Update Dockerfiles for the Boot 4.1 platform
     - Keep `amazoncorretto:21`; optionally bump `GRADLE_VERSION` in the `gradle-dist` stage in sync with `gradle/wrapper`
     - Re-run `jdeps`/`jlink`; explicitly add `tools.jackson.core`, `tools.jackson.databind`, and (for records) `tools.jackson.module.paramnames` to `--add-modules` when serialization fails on the slim image
     - Confirm the `insight-service` build/image path after the azure-module swap; preserve AOT + slim JRE for Lambda cold start
     - **GraalVM note (forward-looking):** runtime-toggling trace export via `management.tracing.export.enabled` can fail under native image; Lambda/slim-JRE work may need an empty `SpanExporters` bean workaround (see Boot OTel native-image guidance)
     - _Design: Step 3.1; Property 7_
+    - **Done:** All four Dockerfiles use `GRADLE_VERSION=9.4.1`, `jlink` adds `java.instrument,java.logging` (+ `jdk.naming.dns` on market-data); insight-service Dockerfile notes GraalVM `SpanExporters` forward-risk.
 
-  - [ ]* 12.2 Add slim-image boot/health verification
+  - [x]* 12.2 Add slim-image boot/health verification
     - **Property 7: Image boots slim**
     - **Validates: Step 3 verification**
     - Build each service slim image and assert `/actuator/health = UP` and successful outbound TLS to backends (Kafka/Mongo/OpenAI/Bedrock)
+    - **Done:** `SlimImageHealthIT` + `SlimJreTlsProbe` per service; `slimImageTest` Gradle task (`@Tag("slim-image")`, 60m timeout); excluded from unit `test`, included in `check`.
 
-- [ ] 13. Final checkpoint - full migration green
+- [x] 13. Final checkpoint - full migration green
   - Run `./gradlew check` (unit + integration) across all modules; confirm the dependency gate, gateway boot gate, Jackson 3 serialization tests, AI parity tests, and tracing/slim-image checks all pass. Ask the user if questions arise.
 
 ## Notes

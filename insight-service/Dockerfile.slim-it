@@ -1,0 +1,41 @@
+# Test-only slim image (Task 12.2): uses host-built bootJar; context = repo root.
+FROM amazoncorretto:21 AS jre-builder
+
+RUN yum install -y binutils && yum clean all
+
+WORKDIR /jre-build
+COPY .slim-it-artifacts/insight-service.jar app.jar
+
+RUN mkdir -p extracted && cd extracted && jar xf /jre-build/app.jar
+
+RUN DEPS=$(jdeps \
+    --ignore-missing-deps \
+    --print-module-deps \
+    --multi-release 21 \
+    -cp "extracted/BOOT-INF/lib/*" \
+    app.jar 2>/dev/null || echo "java.base") \
+    && echo "Detected modules: $DEPS" \
+    && jlink \
+    --add-modules "${DEPS},jdk.unsupported,java.security.jgss,java.sql,java.naming,java.instrument,java.logging,jdk.crypto.ec" \
+    --strip-debug \
+    --no-man-pages \
+    --no-header-files \
+    --compress=zip-6 \
+    --output /custom-jre
+
+FROM public.ecr.aws/amazonlinux/amazonlinux:2023-minimal AS runtime
+
+RUN microdnf install -y ca-certificates && microdnf clean all
+
+ENV JAVA_HOME=/opt/java
+COPY --from=jre-builder /custom-jre $JAVA_HOME
+ENV PATH="${JAVA_HOME}/bin:${PATH}"
+COPY --from=jre-builder /usr/lib/jvm/java-21-amazon-corretto/lib/security/cacerts ${JAVA_HOME}/lib/security/cacerts
+
+WORKDIR /app
+COPY .slim-it-artifacts/insight-service.jar app.jar
+
+COPY --from=public.ecr.aws/awsguru/aws-lambda-adapter:1.0.0 /lambda-adapter /opt/extensions/lambda-adapter
+
+EXPOSE 8080
+ENTRYPOINT ["java", "-jar", "/app/app.jar"]

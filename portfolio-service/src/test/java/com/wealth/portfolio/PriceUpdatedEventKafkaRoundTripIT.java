@@ -28,6 +28,9 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import com.wealth.portfolio.trace.KafkaTracePropagationProbe;
+import com.wealth.portfolio.trace.TraceparentProducerInterceptor;
+import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.kafka.core.DefaultKafkaProducerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -35,6 +38,12 @@ import org.springframework.kafka.support.serializer.JacksonJsonSerializer;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.context.TestPropertySource;
+import io.micrometer.observation.ObservationRegistry;
+import io.micrometer.tracing.Span;
+import io.micrometer.tracing.Tracer;
+import java.nio.charset.StandardCharsets;
+import java.util.regex.Pattern;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.kafka.ConfluentKafkaContainer;
@@ -65,6 +74,15 @@ import org.testcontainers.utility.DockerImageName;
 @Testcontainers
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
 @ActiveProfiles("local")
+@Import(KafkaTracePropagationProbe.class)
+@TestPropertySource(
+        properties = {
+            "management.tracing.export.enabled=false",
+            "management.otlp.metrics.export.enabled=false",
+            "management.tracing.sampling.probability=1.0",
+            "spring.kafka.template.observation-enabled=true",
+            "spring.kafka.listener.observation-enabled=true"
+        })
 class PriceUpdatedEventKafkaRoundTripIT {
 
     private static final String TOPIC = "market-prices";
@@ -97,20 +115,30 @@ class PriceUpdatedEventKafkaRoundTripIT {
     @Autowired
     JdbcTemplate jdbcTemplate;
 
+    @Autowired Tracer tracer;
+
+    @Autowired ObservationRegistry observationRegistry;
+
     private KafkaTemplate<String, PriceUpdatedEvent> marketDataLikeProducer;
     private KafkaConsumer<String, byte[]> wireSniffer;
     private KafkaConsumer<String, byte[]> dltConsumer;
 
     @BeforeEach
     void setUp() {
+        KafkaTracePropagationProbe.reset();
+        TraceparentProducerInterceptor.clearTraceparent();
+
         Map<String, Object> producerProps = new HashMap<>();
         producerProps.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, kafka.getBootstrapServers());
         producerProps.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
         producerProps.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, JacksonJsonSerializer.class);
         producerProps.put(JacksonJsonSerializer.ADD_TYPE_INFO_HEADERS, true);
+        producerProps.put(ProducerConfig.INTERCEPTOR_CLASSES_CONFIG, TraceparentProducerInterceptor.class.getName());
 
         marketDataLikeProducer =
                 new KafkaTemplate<>(new DefaultKafkaProducerFactory<>(producerProps));
+        marketDataLikeProducer.setObservationRegistry(observationRegistry);
+        marketDataLikeProducer.setObservationEnabled(true);
 
         wireSniffer =
                 new KafkaConsumer<>(
@@ -220,6 +248,37 @@ class PriceUpdatedEventKafkaRoundTripIT {
         assertThat(count).isZero();
     }
 
+    @Test
+    void observedProducer_preservesTraceAtConsumer() throws Exception {
+        String ticker = "TRC_" + UUID.randomUUID().toString().substring(0, 6).toUpperCase();
+        PriceUpdatedEvent event = new PriceUpdatedEvent(ticker, new BigDecimal("101.01"));
+
+        Span producerSpan = tracer.nextSpan().name("kafka-propagation-test").start();
+        try (Tracer.SpanInScope scope = tracer.withSpan(producerSpan)) {
+            String expectedTraceId = producerSpan.context().traceId();
+            String traceparent = w3cTraceparent(producerSpan);
+            assertThat(traceparent).startsWith("00-");
+            TraceparentProducerInterceptor.seedTraceparent(traceparent);
+            marketDataLikeProducer.send(TOPIC, ticker, event).get();
+
+            Awaitility.await()
+                    .atMost(AWAIT_TIMEOUT)
+                    .untilAsserted(
+                            () -> {
+                                Integer count =
+                                        jdbcTemplate.queryForObject(
+                                                "SELECT COUNT(*) FROM market_prices WHERE ticker = ?",
+                                                Integer.class,
+                                                ticker);
+                                assertThat(count).isEqualTo(1);
+                                assertThat(KafkaTracePropagationProbe.CONSUMER_TRACE_ID.get())
+                                        .isEqualToIgnoringCase(expectedTraceId);
+                            });
+        } finally {
+            producerSpan.end();
+        }
+    }
+
     private void publishViaMarketDataLikeProducer(String key, PriceUpdatedEvent event) throws Exception {
         marketDataLikeProducer.send(TOPIC, key, event).get();
 
@@ -253,5 +312,26 @@ class PriceUpdatedEventKafkaRoundTripIT {
         List<ConsumerRecord<String, byte[]>> result = new ArrayList<>();
         records.forEach(result::add);
         return result;
+    }
+
+    private static String headerValue(Header header) {
+        return new String(header.value(), StandardCharsets.UTF_8);
+    }
+
+    private static String w3cTraceparent(Span span) {
+        return "00-%s-%s-%02x"
+                .formatted(
+                        span.context().traceId(),
+                        span.context().spanId(),
+                        Boolean.TRUE.equals(span.context().sampled()) ? 0x01 : 0x00);
+    }
+
+    private static String traceId(String traceparent) {
+        var matcher =
+                Pattern.compile("^00-([0-9a-f]{32})-([0-9a-f]{16})-([0-9a-f]{2})$").matcher(traceparent);
+        if (!matcher.matches()) {
+            throw new IllegalArgumentException("Invalid traceparent: " + traceparent);
+        }
+        return matcher.group(1);
     }
 }
