@@ -9,10 +9,12 @@ import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
 /**
- * Test-only consumer that captures the active Micrometer span at consume time for Property 10b.
+ * Test-only consumer that captures the active Micrometer span at consume time (Property 10b listener
+ * observation gate).
  *
- * <p>Asserting {@link Tracer#currentSpan()} (not the raw {@code traceparent} header) verifies that
- * {@code spring.kafka.listener.observation-enabled} continues the producer trace.
+ * <p>Asserting {@link Tracer#currentSpan()} verifies {@code spring.kafka.listener.observation-enabled}
+ * fires when a {@code traceparent} control header is present. Trace-ID continuity vs the producer
+ * span is a separate deferred gate (see migration spec task 11.2 partial note).
  */
 @Component
 public class InsightKafkaTracePropagationProbe {
