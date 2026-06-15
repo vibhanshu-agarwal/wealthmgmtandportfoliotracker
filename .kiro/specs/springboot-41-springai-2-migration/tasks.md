@@ -188,39 +188,47 @@ work targets Java 21 + Gradle (Groovy DSL) per the existing build.
   - Ensure mock-profile unit tests and property tests pass; run the opt-in bedrock smoke test if credentials are available. Ask the user if questions arise.
   - **Done:** unit/property tests green; `AzureOpenAiLiveSmokeTest` passed (Entra via `az login`, deployment `gpt-4o-mini`).
 
-- [ ] 10. Migrate `api-gateway` (last) on Boot 4.1 + Spring Cloud 2025.1.2
-  - [ ] 10.1 Compile and wire the gateway on the new platform
+- [x] 10. Migrate `api-gateway` (last) on Boot 4.1 + Spring Cloud 2025.1.2
+  - [x] 10.1 Compile and wire the gateway on the new platform
     - Verify `spring-cloud-starter-gateway-server-webflux`, reactive Redis, and OAuth2 resource-server config compile on Framework 7.x; resolve any `NoSuchMethodError`/`ClassNotFoundException` surfaced by the train pairing
     - Preserve route table, JWT validation, and rate-limit semantics (profile-aware backing store)
     - _Design: Step 1.6, Components §2; Property 2_
+    - **Done:** compiles on Boot 4.1.0 + Spring Cloud 2025.1.2; AOT + unit tests green.
 
-  - [ ]* 10.2 Write `@WebFluxTest` slice test for gateway serialization boundary
+  - [x]* 10.2 Write `@WebFluxTest` slice test for gateway serialization boundary
     - **Property 11: Jackson 3 mapper at serialization boundaries**
     - **Validates: Testing — Jackson 3 serialization (slice b)**
     - Assert the autoconfigured Jackson 3 mapper handles gateway request/response serialization
+    - **Done:** `GatewaySerializationBoundarySliceTest` — `JsonMapper` is `tools.jackson.*`; login round-trip on wire.
 
-  - [ ]* 10.3 Write gateway boot/contract test (F2 safety gate)
+  - [x]* 10.3 Write gateway boot/contract test (F2 safety gate)
     - **Property 2: Gateway boots on the pinned train**
     - **Validates: Step 1/Step 3, Migration-specific gates**
     - Assert the gateway context starts cleanly with routing, JWT validation, and rate limiting intact on Boot 4.1 + Spring Cloud 2025.1.2
+    - **Done:** `GatewayBootContractTest` — routes, JWT decoder, rate-limit key resolver, health, auth paths.
 
 - [ ] 11. Standardize distributed tracing across all services
-  - [ ] 11.1 Add tracer + OTLP exporter to all services
+  - [x] 11.1 Add tracer + OTLP exporter to all services
     - Add `micrometer-tracing-bridge-otel` (or `-brave`) and `opentelemetry-exporter-otlp` to all four services; ensure reactive context propagation on the WebFlux gateway
     - Re-verify Micrometer/Observation API usage and `management.*` property names against Boot 4.1
     - Use Spring AI 2.0 log-based observation keys (`log-prompt`/`log-completion`) keeping `log-prompt=false`
-    - _Design: Step 3.2; Property 8, 10_
+    - _Design: Step 3.2; Property 8, 10a, 10b_
+    - **Done:** Instrumentation wired on all four services (`spring-boot-starter-opentelemetry`); OTLP trace/metrics export **gated off by default** via env (`MANAGEMENT_TRACING_EXPORT_ENABLED`, `MANAGEMENT_OTLP_METRICS_EXPORT_ENABLED`, `OTEL_EXPORTER_OTLP_ENDPOINT`). End-to-end propagation (Properties 10a/10b) deferred to Task 11.2. `log-prompt=false` unchanged on insight-service.
 
-  - [ ]* 11.2 Write trace-context propagation test
-    - **Property 10: Trace-context propagation**
+  - [ ]* 11.2 Write trace-context propagation test (ships with Kafka observation config — TDD pair)
+    - **Property 10a: HTTP trace-context propagation** — `api-gateway → insight-service`
+    - **Property 10b: Messaging trace-context propagation** — `market-data-service` → `portfolio-service` / `insight-service` over Kafka (`PriceUpdatedEvent`)
     - **Validates: Step 3.2, Migration-specific gates**
-    - Assert a single trace spans `api-gateway → insight-service` (and other leaf services) with the W3C `traceparent` header propagated unbroken across the reactive gateway boundary
+    - **HTTP gate:** assert W3C `traceparent` propagates unbroken across the reactive gateway boundary
+    - **Kafka gate:** enable `spring.kafka.template.observation-enabled` / `spring.kafka.listener.observation-enabled` on messaging services; assert producer→consumer `traceparent` continuity on `PriceUpdatedEvent` (no new root span at consumer)
+    - **Prerequisite:** Kafka observation flags must land in the same change set as this test (red until configured)
 
 - [ ] 12. Containerization and slim-JRE validation
   - [ ] 12.1 Update Dockerfiles for the Boot 4.1 platform
     - Keep `amazoncorretto:21`; optionally bump `GRADLE_VERSION` in the `gradle-dist` stage in sync with `gradle/wrapper`
     - Re-run `jdeps`/`jlink`; explicitly add `tools.jackson.core`, `tools.jackson.databind`, and (for records) `tools.jackson.module.paramnames` to `--add-modules` when serialization fails on the slim image
     - Confirm the `insight-service` build/image path after the azure-module swap; preserve AOT + slim JRE for Lambda cold start
+    - **GraalVM note (forward-looking):** runtime-toggling trace export via `management.tracing.export.enabled` can fail under native image; Lambda/slim-JRE work may need an empty `SpanExporters` bean workaround (see Boot OTel native-image guidance)
     - _Design: Step 3.1; Property 7_
 
   - [ ]* 12.2 Add slim-image boot/health verification
@@ -249,6 +257,10 @@ work targets Java 21 + Gradle (Groovy DSL) per the existing build.
   HTTP slice tests (6.3/6.6) are where Boot mapper wiring applies. Wave 5 runs 4.4 then the
   leaf migrations `{6.1, 6.4}` with their wire-contract unit tests `{6.2, 6.5}` in parallel;
   cross-service tests must wait for Wave 6 (`6.7`).
+- **Tracing (Tasks 11.1–11.2):** 11.1 = instrumentation on classpath, export gated off. Properties
+  **10a** (HTTP) and **10b** (Kafka) are proven together in 11.2; the Kafka propagation test is
+  red until `spring.kafka.*.observation-enabled` flags ship in the same change set. When enabling
+  OTLP metrics in cloud, set `management.otlp.metrics.export.url` alongside the traces endpoint.
 
 ## Task Dependency Graph
 
