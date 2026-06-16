@@ -22,6 +22,10 @@ ext {
     // Aligned with Spring Boot 4.1.0 BOM-managed Testcontainers (2.0.5)
     set('testcontainersVersion', '2.0.5')
     set('jqwikVersion', '1.9.2')
+    // Test-only: WireMock 4 modular stack (market-data-service) and spring-boot integration (portfolio-service)
+    set('wiremockVersion', '4.0.0-beta.36')
+    set('wiremockSpringBootVersion', '4.2.1')
+    set('pactSpring7Version', '4.7.1')
 }
 
 dependencies {
