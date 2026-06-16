@@ -1,9 +1,9 @@
 # Test Dependency Migration Audit — WireMock 4 & Pact (spring7)
 
 **Date:** 2026-06-14
-**Status:** DEFERRED — not yet implemented. Lower priority than the in-progress Spring AI migration.
+**Status:** IMPLEMENTED — PR [#73](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/73) (`feat/test-dependency-migration`). Versions pinned in root `build.gradle` `ext` (`wiremockVersion`, `wiremockSpringBootVersion`, `pactSpring7Version`).
 **Scope:** Test-only dependency upgrades (`testImplementation`) needed for alignment with the Spring Boot 4.x line.
-**Verification:** All findings below were empirically validated by applying the changes, resolving the dependency tree, compiling the test sources, and running the affected tests. The build files were then reverted to their original state (no code changes are currently committed).
+**Verification:** Findings were empirically validated by applying the changes, resolving the dependency tree, compiling test sources, and running the affected tests (`BUILD SUCCESSFUL` on branch, including `--rerun-tasks`).
 
 ---
 
@@ -17,6 +17,8 @@
 | `insight-service` | `au.com.dius.pact.provider:spring7` | `4.7.0-beta.4` | `4.7.1` | None |
 
 > Note: `common-dto` has **no** pact or wiremock dependency — earlier migration notes that referenced `common-dto` for pact were a misattribution. The pact dependency lives only in `portfolio-service` and `insight-service`.
+
+> **WireMock 4 beta:** `wiremockVersion` is pinned to `4.0.0-beta.36` (test scope only). This is acceptable for `testImplementation`, but revisit and drop the `-beta` qualifier when WireMock 4 reaches GA.
 
 ---
 
@@ -73,6 +75,7 @@ testImplementation 'org.wiremock:wiremock-httpclient-apache5:4.0.0-beta.36'
 
 - `wiremock-httpclient-apache5` is the module that provides the `HttpClientFactory` (resolves the startup error).
 - `wiremock-junit5` is **not** required here — the tests use plain `new WireMockServer(...)`, not the Jupiter `@WireMockTest` extension.
+- **Beta pin:** `4.0.0-beta.36` is intentional for test scope; bump `wiremockVersion` in root `ext` when WireMock 4 GA is published.
 
 **Consumers (no edits needed — `com.github.tomakehurst.wiremock.*` package is preserved in v4)**
 - `market-data-service/src/test/java/com/wealth/market/ExternalMarketDataClientWireMockTest.java`
@@ -121,11 +124,10 @@ testImplementation 'org.wiremock.integrations:wiremock-spring-boot:4.2.1'
 
 ---
 
-## Suggested implementation order (when picked up, after the Spring AI migration)
+## Implementation (completed in PR #73)
 
-1. `insight-service`: pact `4.7.1` (smallest, isolated).
-2. `portfolio-service`: pact `4.7.1` + `wiremock-spring-boot:4.2.1`.
-3. `market-data-service`: WireMock modular swap (§2).
-4. Run `./gradlew :insight-service:test :portfolio-service:test :portfolio-service:integrationTest :market-data-service:test` and confirm green.
-
-Consider pinning these versions via `rootProject.ext` in the root `build.gradle` (as is already done for `jqwik`/`testcontainers`) to keep them consistent across modules.
+1. `insight-service`: pact `4.7.1` ✓
+2. `portfolio-service`: pact `4.7.1` + `wiremock-spring-boot:4.2.1` ✓
+3. `market-data-service`: WireMock modular swap (§2) ✓
+4. Versions centralized in root `build.gradle` `ext` (`wiremockVersion`, `wiremockSpringBootVersion`, `pactSpring7Version`) ✓
+5. Verification: `./gradlew :insight-service:test :portfolio-service:test :portfolio-service:integrationTest :market-data-service:test` — green ✓
