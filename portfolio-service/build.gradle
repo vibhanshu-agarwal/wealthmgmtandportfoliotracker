@@ -39,8 +39,8 @@ dependencies {
 
     testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
     testImplementation 'org.testcontainers:testcontainers-postgresql'
-    testImplementation 'org.wiremock.integrations:wiremock-spring-boot:3.2.0'
+    testImplementation "org.wiremock.integrations:wiremock-spring-boot:${rootProject.ext.wiremockSpringBootVersion}"
     testImplementation 'org.testcontainers:testcontainers-kafka'
     testImplementation 'org.springframework.kafka:spring-kafka-test'
-    testImplementation 'au.com.dius.pact.provider:spring7:4.7.0-beta.4'
+    testImplementation "au.com.dius.pact.provider:spring7:${rootProject.ext.pactSpring7Version}"
 }

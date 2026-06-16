@@ -35,7 +35,9 @@ dependencies {
     testImplementation 'org.testcontainers:testcontainers-mongodb'
     testImplementation 'org.testcontainers:testcontainers-kafka'
     testImplementation 'org.springframework.kafka:spring-kafka-test'
-    testImplementation 'org.wiremock:wiremock-standalone:3.12.1'
+    testImplementation "org.wiremock:wiremock-core:${rootProject.ext.wiremockVersion}"
+    testImplementation "org.wiremock:wiremock-jetty:${rootProject.ext.wiremockVersion}"
+    testImplementation "org.wiremock:wiremock-httpclient-apache5:${rootProject.ext.wiremockVersion}"
     // jqwik powers the bug-condition / preservation property tests for the
     // chatbot-asset-coverage-fix seeder propagation work (Root Cause 1).
     testImplementation "net.jqwik:jqwik:${rootProject.ext.jqwikVersion}"

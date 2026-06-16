@@ -47,7 +47,7 @@ dependencies {
     implementation 'org.springframework.ai:spring-ai-client-chat'
     implementation 'org.springframework.boot:spring-boot-starter-opentelemetry'
 
-    testImplementation 'au.com.dius.pact.provider:spring7:4.7.0-beta.4'
+    testImplementation "au.com.dius.pact.provider:spring7:${rootProject.ext.pactSpring7Version}"
     testImplementation "net.jqwik:jqwik:${rootProject.ext.jqwikVersion}"
     testImplementation 'org.springframework.kafka:spring-kafka-test'
     testImplementation 'org.testcontainers:testcontainers'
