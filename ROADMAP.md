@@ -1,32 +1,55 @@
-This document outlines the strategic architectural evolution and upcoming feature expansions for the Wealth Management & Portfolio Tracker.
+This document outlines the strategic architectural evolution and feature expansion of the Wealth Management & Portfolio Tracker.
 
-## 🚀 Roadmap
+The system has deliberately progressed from a single deployment unit to a distributed, multi-cloud architecture. Phases 1–3 (and the multi-cloud expansion) are **implemented and live**; the remaining items below are forward-looking.
 
-Reviewing the code history will reveal the system's deliberate journey from a single deployment unit to a distributed cloud architecture.
+## 📦 Current State (June 2026)
 
-### 📍 Phase 1: The Modular Monolith (Current State)
+- **Architecture:** Four independently-deployable Spring Boot microservices (`api-gateway`, `portfolio-service`, `market-data-service`, `insight-service`) plus a shared `common-dto` contract module.
+- **Platform:** **Spring Boot 4.1.0 GA / Spring AI 2.0.0 GA** on **Java 21**, Jackson 3 (`tools.jackson`), Next.js 16 / React 19 frontend.
+- **Live deployment:** **Azure** — Container Apps (Central India, scale-to-zero) + Static Web Apps + **Azure OpenAI** (`gpt-4o-mini`, Entra ID auth), with Upstash Redis and Aiven Kafka, fronted by Cloudflare DNS at [vibhanshu-ai-portfolio.dev](https://vibhanshu-ai-portfolio.dev/).
+- **Standby cloud:** **AWS** (Lambda arm64 + CloudFront + Amazon Bedrock) — fully provisioned via Terraform but soft-disabled at the DNS layer.
+- **Observability:** OpenTelemetry instrumentation across all services (OTLP export feature-flagged off by default).
 
-- **Checkout Tag:** `v1.0-modular-monolith`
-- **Infrastructure:** Single Spring Boot JAR, single PostgreSQL instance with logically separated schemas (`schema_portfolio`, `schema_market`).
-- **Messaging:** In-memory Spring Events backed by JDBC Outbox.
+---
 
-### 📍 Phase 2: Event-Driven Data Extraction (Market Domain)
+## ✅ Completed Phases
 
-- **Focus:** Extract the `market` anti-corruption layer into its own deployable service while the rest of the system remains a modular monolith.
-- **Messaging Shift:** Replace internal Spring Events for price updates with **Amazon MSK (Apache Kafka)** to handle high-throughput, append-only market data streams.
-- **Target AWS Deployment:** Containerize the market data ingestion pipeline and run it on **Amazon ECS / AWS Fargate**, enabling independent scaling, blue/green deploys, and autoscaling tuned to ticker volume.
+### Phase 1 — The Modular Monolith *(superseded)*
 
-### 📍 Phase 3: Serverless AI Integration (Insight Domain)
+- **Tag:** `v1.0-modular-monolith`
+- Single Spring Boot deployable, single PostgreSQL instance with logically separated schemas, and **Spring Modulith** enforcing in-process bounded contexts.
+- Messaging via in-memory Spring Application Events backed by a JDBC outbox (Event Publication Registry).
+- *This stage has been fully decomposed into the microservices described below; Spring Modulith is no longer a runtime dependency.*
 
-- **Focus:** Extract the `insight` compute domain (AI Insights engine) into a fully serverless, on-demand compute layer.
-- **AWS Lambda + Docker:** Package the Java-based AI Insights engine as a **Docker container image** and deploy it as an **AWS Lambda** function, simplifying CI/CD and bypassing traditional Lambda deployment size limits.
-- **AWS Bedrock Integration (Implemented):** The containerized Lambda integrates with **Amazon Bedrock (Claude Haiku 4.5)** to generate financial insights, scaling AI workloads elastically and paying only for actual inference usage. The `BedrockAiInsightService` is activated via `@Profile("bedrock")` and runs in production under `SPRING_PROFILES_ACTIVE=prod,aws,bedrock`. Local development and CI use the deterministic `MockAiInsightService` (`@Profile("!bedrock")`). See [`docs/e2e-flows/insight-service-e2e.md`](docs/e2e-flows/insight-service-e2e.md) for the full end-to-end flow.
+### Phase 2 — Event-Driven Data Extraction (Market Domain) ✅
 
-### 🎯 Future Architectural Goals
+- The `market` anti-corruption layer was extracted into the standalone `market-data-service`.
+- Internal Spring Events for price updates were replaced with **Apache Kafka** (`PriceUpdatedEvent` on the `market-prices` topic) to handle high-throughput, append-only market data streams.
+- A **dead-letter topic** (`market-prices.DLT`) routes poison/malformed records on the `portfolio-service` consumer (`MalformedEventException` registered as non-retryable).
+- *Deployment note:* in production, Kafka runs as a managed **Aiven** cluster (free tier) rather than Amazon MSK, keeping the cost footprint near zero.
 
-- **Dedicated AI Microservice (Microsoft AI Foundry):** Evolve the local AI inference engine into a dedicated, high-performance microservice backed by **Microsoft AI Foundry**, initially integrated from the Java-based platform via hardened, REST-based contracts. Over time, this service is expected to surface a strongly typed, low-latency interface (e.g., gRPC or equivalent service-mesh abstraction), while preserving strict resource isolation between transactional workloads and AI compute, and enabling a cost profile that approaches near-zero marginal cost per additional AI request through elastic, right-sized capacity.
-- **Azure Multi-Cloud Expansion:** Extend the platform toward a pragmatic multi-cloud topology where AI and data workflows can operate across AWS and Azure boundaries, reducing provider concentration risk while preserving clear service contracts and operational resilience.
-- **Production Rate Limiting Strategy:** Define and implement a production-grade rate limiting strategy for the `aws` profile. Currently, the `RequestRateLimiter` filter is declared only in `application-local.yml`, leaving the gateway in a fail-open state (no throttling) on Lambda. Options to evaluate include hardening the existing Upstash Redis-backed `RequestRateLimiter` by adding an `application-aws.yml` `default-filters` block with appropriate `replenishRate`/`burstCapacity` values, or delegating coarse-grained throttling to **AWS API Gateway Usage Plans** and retiring the per-instance Redis filter for the `aws` profile.
-- **Multi-Provider Market Data Aggregation:** The current baseline is **Yahoo Finance** (`https://query1.finance.yahoo.com`), configured via `external-market-data.provider: yahoo` in `market-data-service`. Extend this with additional institutional-grade data providers (e.g., **Alpha Vantage**, **Polygon.io**) using an Adapter/Strategy abstraction layered behind the `ExternalMarketDataClient`. This enables high-availability failover, cross-provider price reconciliation and anomaly detection, and prevents long-term lock-in to any single market data vendor.
-- **Advanced AI-Driven Wealth Workflows:** Transform the AI layer from a primarily conversational assistant into an autonomous financial agent capable of orchestrating end-to-end wealth management workflows. Roadmap scenarios include predictive portfolio rebalancing simulations, real-time sentiment analysis over streaming market and news feeds, and automated tax-loss harvesting recommendations aligned with user-specific risk, jurisdictional constraints, and regulatory guardrails.
-- **Infrastructure Security Hardening:** Implement the Principle of Least Privilege at the database layer by migrating from the default owner role to a scoped `app_user` role with strictly limited schema permissions (`CONNECT`, `SELECT`, `INSERT`, `UPDATE`, `DELETE`).
+### Phase 3 — AI Integration (Insight Domain) ✅
+
+- The `insight` compute domain was extracted into the standalone `insight-service`, packaged as a **container image** and deployed serverlessly (AWS Lambda and, now, Azure Container Apps).
+- **LLM-grounded natural-language asset resolution:** a catalog-validated, multi-step pipeline resolves free-text asset names to canonical tickers, with correctness-property tests (P1–P8) guarding catalog-bounded, Redis-only, never-empty, and determinism invariants.
+- **AI providers (pluggable via profile):**
+  - `azure-ai` → `AzureOpenAiInsightService` (**Azure OpenAI `gpt-4o-mini`**, Entra ID / Managed Identity) — **active in production**.
+  - `bedrock` → `BedrockAiInsightService` (**Amazon Bedrock**, Anthropic Claude Haiku) — standby AWS path.
+  - default → `MockAiInsightService` (deterministic) for local development and CI.
+
+### Multi-Cloud Expansion (Azure) ✅
+
+- The platform now runs across **AWS and Azure** with a single Terraform-managed codebase under `infrastructure/terraform/{aws,azure}` and Spring profile isolation (`aws` vs `azure`).
+- Azure is the **active** cloud; AWS is preserved as a soft-disabled standby, reducing provider-concentration risk while keeping a tested rollback path.
+- Cloud selection is config/DNS-driven — no domain logic changes are required to switch providers.
+
+---
+
+## 🎯 Future Architectural Goals
+
+- **Dedicated AI Microservice (typed, low-latency contract):** Evolve the AI inference layer toward a dedicated high-performance service exposing a strongly typed, low-latency interface (e.g., **gRPC** or an equivalent service-mesh abstraction), while preserving strict resource isolation between transactional workloads and AI compute. A **Microsoft AI Foundry**-backed agent service is a candidate direction.
+- **Production Rate Limiting Strategy:** Finalise a production-grade, profile-aware rate-limiting story for the active cloud. Options under evaluation include hardening the Redis-backed `RequestRateLimiter` with cloud-profile `default-filters`, or delegating coarse-grained throttling to a platform-native mechanism (AWS API Gateway usage plans / an Azure-side equivalent) so the backing store is swappable by config alone. *(Tracked as a high-priority TODO.)*
+- **Multi-Provider Market Data Aggregation:** The current baseline is **Yahoo Finance** (`external-market-data.provider: yahoo`). Add institutional-grade providers (e.g., **Alpha Vantage**, **Polygon.io**) behind an Adapter/Strategy abstraction layered on `ExternalMarketDataClient` to enable high-availability failover, cross-provider price reconciliation/anomaly detection, and vendor-lock-in avoidance.
+- **Advanced AI-Driven Wealth Workflows:** Move the AI layer from a conversational assistant toward an autonomous financial agent — predictive rebalancing simulations, real-time sentiment analysis over streaming market/news feeds, and tax-loss-harvesting recommendations aligned with user-specific risk and jurisdictional guardrails.
+- **End-to-End Distributed Tracing:** OpenTelemetry instrumentation is already wired across all four services — W3C propagation, OTLP trace/metrics exporters (gated off by default), Kafka producer/consumer observation, and verified HTTP `traceparent` continuity across the reactive gateway boundary (`HttpTraceContextPropagationIT`). Two gaps remain: (1) **Kafka producer→consumer trace-ID continuity** — listener observation fires at consume time, but end-to-end continuity (consumer span sharing the producer's trace-ID, no new root span) is still deferred pending `PropagatingSenderTracingObservationHandler` verification under `@SpringBootTest`; and (2) **an OTLP collector for the active (Azure) cloud** — the ACA stack currently exports only container logs to a Log Analytics workspace, so trace/metric export to a real backend still needs to be wired and toggled on in production.
+- **Infrastructure Security Hardening:** Apply least-privilege at the database layer by migrating from the owner role to a scoped `app_user` role (`CONNECT`, `SELECT`, `INSERT`, `UPDATE`, `DELETE` only).
