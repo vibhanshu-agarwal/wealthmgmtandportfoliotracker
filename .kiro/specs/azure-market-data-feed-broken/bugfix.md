@@ -1,0 +1,55 @@
+# Bugfix Requirements Document
+
+## Introduction
+
+The Azure-active production dashboard renders stale prices ("1 day ago") and a uniform "—" / "+0.00%" 24h change for every holding. The investigation in this directory (`investigation.md`, commit `bd7ed72`) traces this to a **broken live market-data feed on Azure with three independent layers**, all read-only verified against the `wealth-azure-prod-rg` stack and the Neon `wealthmgmt-portfolio-db` read model on 2026-06-19:
+
+1. **The scheduled refresh has not run in 30 days.** `MarketDataRefreshJob` (`market-data-service/src/main/java/com/wealth/market/MarketDataRefreshJob.java`) is wired as a Spring `@Scheduled` cron at `0 0 8 * * *` (`application-azure.yml`), but `market-data-service` runs as an Azure Container App with `minReplicas: 0`. `@Scheduled` only fires while the JVM is alive, and Log Analytics shows `0` hits over 30 days for the job's log substrings (`investigation.md` Q1).
+2. **The only publisher on Azure is the demo seeder.** `MarketDataSeedService` invoked via `POST /api/internal/market-data/seed` (called by `.github/workflows/deploy-azure.yml` and `.github/workflows/synthetic-monitoring.yml` for `E2E_TEST_USER_ID = 00000000-0000-0000-0000-000000000e2e`) is the sole price source. It generates day-deterministic values via `DeterministicPriceCalculator.compute(basePrice, ticker, userId)` keyed on `LocalDate.now()`, so multiple seed calls within the same UTC day publish byte-identical prices (`investigation.md` "What's actually publishing on Azure"; the NVDA / TSLA `0.0000%` rows demonstrate the failure mode).
+3. **Cold-start hydration republish is a silent no-op.** `StartupHydrationService` (`market-data-service/.../StartupHydrationService.java`) sends `PriceUpdatedEvent` with `observedAt = AssetPrice.getUpdatedAt()` (the stored Mongo timestamp), and the consumer's `ON CONFLICT (ticker, observed_at) DO NOTHING` guard in `MarketPriceProjectionService` discards every replay — hydration cannot advance the read model from a stale Mongo state (`investigation.md` Q2).
+
+Net effect: between sporadic seed calls there are stretches — verified ≥18-hour stretches Jun 18 09:00–21:00 UTC — where the analytics 18–36h reference window in `PortfolioAnalyticsService` is empty AND no fresh observations exist. The dashboard then correctly renders the "honest-empty" semantics from the `dashboard-data-accuracy` spec ("—" / null change). The user-visible symptom is a faithful rendering of an upstream feed that has been silently broken for at least 30 days.
+
+PR #74 (`java.security.sasl` jlink fix, merged as `92ed3ee`) is **not** the fix. It hardens the AWS-standby slim image where the SASL module was missing from the jlinked runtime; the Azure-active runtime uses the full mariner OpenJDK base (`Dockerfile.azure`) where the module has always been present (`investigation.md` "Implications → For PR #74").
+
+This bugfix restores a live feed on Azure by introducing an **Azure Container Apps Job at 08:00 UTC** as the production refresh path, **demotes `MarketDataSeedService` to demo/test-only**, and **reduces `StartupHydrationService` to local in-memory cache warming**. See `investigation.md` for the full evidence trail (Log Analytics queries, Neon SQL, code references).
+
+## Bug Analysis
+
+### Current Behavior (Defect)
+
+The three layers below are independently verified by the investigation. Each is a necessary contributor to the observed dashboard regression; the user-visible "—" / "+0.00%" symptom is the downstream effect of all three combined with the empty analytics reference window.
+
+1.1 WHEN `market-data-service` is deployed to Azure Container Apps with `minReplicas: 0` AND the configured `@Scheduled` cron `0 0 8 * * *` is reached THEN `MarketDataRefreshJob.refreshAllTrackedTickers()` does not execute, because the JVM is scaled to zero between ticks and Spring's `@Scheduled` only fires while the JVM is alive. Verified: `0` hits in Log Analytics over 30 days for `MarketDataRefreshJob` / `marketDataRefreshJobId` / `starting refresh for` (`investigation.md` Q1).
+
+1.2 WHEN any caller posts to `/api/internal/market-data/seed` on the production Azure stack THEN `MarketDataSeedService` publishes prices via `DeterministicPriceCalculator.compute(basePrice, ticker, userId)` keyed on `LocalDate.now()`, and these calls are the **only** source of `PriceUpdatedEvent` traffic on Azure (multiple seed invocations within the same UTC day publish byte-identical prices, e.g. NVDA / TSLA at `0.0000%` change Jun 18 → Jun 19; `investigation.md` "What's actually publishing on Azure").
+
+1.3 WHEN `market-data-service` cold-starts AND `StartupHydrationService` republishes `PriceUpdatedEvent` from each persisted `AssetPrice` document THEN the event carries `observedAt = AssetPrice.getUpdatedAt()` (the stored Mongo timestamp), so `MarketPriceProjectionService`'s `INSERT … ON CONFLICT (ticker, observed_at) DO NOTHING` guard discards the row and the upsert's `WHERE market_prices.current_price IS DISTINCT FROM EXCLUDED.current_price` clause skips the row update — hydration is mechanically incapable of advancing the read model when Mongo is stale (`investigation.md` Q2).
+
+### Expected Behavior (Correct)
+
+Each clause below is paired with the matching defect clause above. Direction A from the user's architectural decisions is fixed (not an option to enumerate); the refresh refactor preserves multi-cloud portability of domain code.
+
+2.1 WHEN the production Azure deployment needs scheduled market-data refresh THEN the system SHALL run the refresh via an **Azure Container Apps Job triggered at 08:00 UTC** that boots the JVM, executes the refresh, and exits — independent of `market-data-service` replica count. The implementation SHALL extract the refresh logic into a shared `MarketDataRefreshService`, retain `MarketDataRefreshJob` as the `@Scheduled` adapter for local / non-Azure profiles, and add a conditional command-runner entry point invoked by the ACA Job container.
+
+2.2 WHEN the active Spring profile includes `prod` or `azure` THEN the system SHALL gate `MarketDataSeedService` and the `/api/internal/market-data/seed` endpoint behind a profile/property such that they are **not reachable as a refresh substitute** in production (in addition to the existing `INTERNAL_API_KEY` filter). The deterministic seeder SHALL NOT be reachable as a scheduled or implicit price source on Azure.
+
+2.3 WHEN `market-data-service` cold-starts THEN `StartupHydrationService` SHALL warm only the local in-memory market-data cache and SHALL NOT publish `PriceUpdatedEvent` to Kafka. The Kafka republish path is removed entirely; `observedAt` SHALL NOT be stamped to `Instant.now()` (which would pollute the event contract with fabricated observation times).
+
+### Unchanged Behavior (Regression Prevention)
+
+The following invariants are preserved by this fix and SHALL be guarded by the design and tests in subsequent phases.
+
+3.1 WHEN `market-data-service` has no live traffic THEN it SHALL CONTINUE TO scale to `minReplicas: 0` in Azure Container Apps — the May 2026 cost-spike fix (`docs/changes/CHANGES_AZURE_COST_SPIKE_FIX_2026-05-17.md`) remains in force, and the refresh path SHALL NOT force `minReplicas ≥ 1` on the long-running container.
+
+3.2 WHEN the analytics 18–36h reference window in `PortfolioAnalyticsService` is genuinely empty AND no fresh observations exist THEN the dashboard SHALL CONTINUE TO render the `dashboard-data-accuracy` "honest-empty" semantics ("—" / null change) and SHALL NOT silently emit zero — the rendering rule itself is correct and is not the bug.
+
+3.3 WHEN a `SINCE_PREVIOUS_SNAPSHOT` fallback emits non-null `change24hPercent` / `change24hAbsolute` values THEN the frontend `HoldingsTable` SHALL CONTINUE TO display them — the component inspects only the nullness of those two fields and not `changeBasis`, so fallback values display correctly today and remain unchanged.
+
+3.4 WHEN refresh logic is built or deployed THEN it SHALL CONTINUE TO be portable across clouds — the ACA Job is a deployment-layer concern only; no Azure-specific or AWS-specific SDKs SHALL be introduced into the domain layer of `market-data-service` (multi-cloud agnosticism guardrail from the workspace tech rules).
+
+3.5 WHEN running locally, in Docker Compose, or in demo workflows AND a valid `INTERNAL_API_KEY` is presented THEN `POST /api/internal/market-data/seed` SHALL CONTINUE TO accept the request and publish via `MarketDataSeedService` — the endpoint and its `INTERNAL_API_KEY` filter remain functional for the dev / demo / E2E user (`00000000-0000-0000-0000-000000000e2e`) workflows; only the prod / azure profile gates the path.
+
+3.6 WHEN `MarketPriceProjectionService` consumes a `PriceUpdatedEvent` THEN it SHALL CONTINUE TO apply the existing idempotency guards: the `WHERE market_prices.current_price IS DISTINCT FROM EXCLUDED.current_price` clause on the `market_prices` upsert and the `ON CONFLICT (ticker, observed_at) DO NOTHING` guard on `market_price_history` — these guards are correct, and the fix relies on them remaining unchanged.
+
+3.7 WHEN any service publishes or consumes `PriceUpdatedEvent` THEN the wire contract SHALL CONTINUE TO use ISO-8601 UTC timestamps and scale-2 monetary values defined in `common-dto` — the event schema is unchanged by this fix.
