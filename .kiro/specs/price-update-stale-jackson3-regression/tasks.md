@@ -1,0 +1,105 @@
+# Implementation Plan
+
+- [x] 1. Write bug condition exploration test (production transport / module set)
+  - **Property 1: Bug Condition** - Well-formed events not projected under the production runtime (missing `java.security.sasl` jlink module)
+  - **CRITICAL**: This test MUST FAIL on the unfixed build - failure confirms the bug exists
+  - **DO NOT attempt to fix the test or the code when it fails** - the failure is the evidence
+  - **NOTE**: This test encodes the expected behavior - it will validate the fix when it passes after implementation
+  - **GOAL**: Surface counterexamples that demonstrate the bug over the PRODUCTION transport/module set, NOT the green local PLAINTEXT path. A PLAINTEXT/full-JRE test cannot reproduce this defect (the full JRE already contains `java.security.sasl`).
+  - **Scoped PBT Approach**: For this deterministic packaging defect, scope the property to concrete failing cases over the production module set rather than a broad random domain.
+  - **Cheapest direct counterexample (H1 - PRIMARY)**: Add a build-time / unit assertion that the jlink `--add-modules` fallback list for each Kafka-connected service `Dockerfile` resolves a custom JRE that contains `java.security.sasl`.
+    - Parse the `--add-modules` line from `portfolio-service/Dockerfile`, `insight-service/Dockerfile`, `market-data-service/Dockerfile` (and their `.slim-it` / `.azure` variants), or run `jlink --add-modules <fallback-list> ... && java --list-modules | grep java.security.sasl` against the produced image.
+    - On the UNFIXED Dockerfiles this FAILS (the fallback list includes `java.security.jgss` but omits `java.security.sasl`).
+  - **JVM-level SASL-client probe (H1 - corroborating)**: Launch a JVM with the unfixed fallback module set simulated via `--limit-modules <fallback-list>` and attempt to create a Kafka SASL `PLAIN` client / `Sasl.createSaslClient(...)`. On the unfixed set this FAILS with a missing `javax.security.sasl.SaslClient` (`NoClassDefFoundError` / null client).
+  - The test assertions must match the Expected Behavior Property from design: a well-formed event under the production runtime SHALL advance `market_prices.updated_at` and append exactly one `market_price_history` row.
+  - **H1 → H2 → H3 fall-through (ONLY if H1 is refuted)**: If the module-set counterexample unexpectedly passes on the unfixed build (H1 refuted), fall through:
+    - **H2** — deferred migration **Task 11.2** producer-side `KafkaTemplate` W3C `traceparent` / trace-header injection misbehaving over the real wire; reproduce by exercising the production listener stack with `observation-enabled: true` over a SASL broker.
+    - **H3** — `ConcurrentKafkaListenerContainerFactoryConfigurer.configure(...)` reroute interaction in `PortfolioKafkaConfig` changing container behavior under a prod-only property set.
+  - Run test on UNFIXED code
+  - **EXPECTED OUTCOME**: Test FAILS (this is correct - it proves the module gap on the SASL_SSL path)
+  - Document counterexamples found (e.g. "produced slim JRE lacks `java.security.sasl`; Kafka SASL `PLAIN` client cannot be created over SASL_SSL → consumer never joins the group → projection never runs")
+  - Mark task complete when test is written, run, and failure is documented
+  - _Requirements: 1.1, 1.2, 1.3, 1.4_
+  - **Done (2026-06-19):** `JlinkSaslModuleBugConditionTest` + helpers; counterexample documented; both assertions failed on unfixed build and pass after 3.1.
+
+- [x] 2. Write preservation property tests (BEFORE implementing fix)
+  - **Property 2: Preservation** - All non-buggy behavior is unchanged
+  - **IMPORTANT**: Follow observation-first methodology — run the UNFIXED code on the green PLAINTEXT path, record actual outputs, then assert them.
+  - **Re-run the green PLAINTEXT suite unchanged and confirm it passes on the unfixed build:**
+    - `PriceUpdatedEventKafkaRoundTripIT` (PLAINTEXT, full JRE) — projection advances `updated_at` and appends one history row; listener observation active (baseline for 2.1/2.2, contrast for the bug).
+    - `PriceUpdatedEventProducerWireContractTest` — ISO-8601 UTC `observedAt` / `previousReferenceAt` + scale-2 `newPrice` / `previousReferencePrice` encoding (Req 3.4).
+    - `PriceUpdatedEventBackCompatTest` — old-shape (`ticker` + `newPrice` only) deserializes with `null` enrichment fields (Req 3.3).
+  - **Add / re-run property-based preservation tests over the non-buggy input domain:**
+    - Honest "—": a holding with no `market_price_history` reference in any window renders "—", never a fabricated +0.00% (Req 3.1).
+    - Malformed → DLT: null/blank ticker or null/non-positive `newPrice` throws `MalformedEventException` and routes to `market-prices.DLT` with no read-model update (Req 3.2).
+    - Old-shape: missing enrichment fields resolve to `null` and the history append is skipped — no synthetic receive-time substitution (Req 3.3).
+    - Idempotency: duplicate delivery of the same `(ticker, observed_at)` yields no duplicate history rows and no corrupted valuation; include `observedAt` values near millisecond boundaries to exercise truncation-based dedup (Req 3.5).
+    - Observation without exporter: with `template.observation-enabled` / `listener.observation-enabled: true` and export disabled, delivery still succeeds and does not depend on a tracing exporter (Req 3.6).
+  - Property-based testing generates many cases (tickers, prices, currencies, presence/absence of `observedAt`, duplicates) for stronger preservation guarantees.
+  - Run tests on UNFIXED code
+  - **EXPECTED OUTCOME**: Tests PASS (this confirms the baseline behavior to preserve)
+  - Mark task complete when tests are written, run, and passing on the unfixed build
+  - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6_
+  - **Done (2026-06-19):** `PriceUpdatedEventPreservationPropertyTest`, `PriceUpdatedEventPreservationPropertyIT`; green suite re-run and passing. Req 3.6 delegated to existing `PriceUpdatedEventKafkaRoundTripIT`.
+
+- [x] 3. Fix for the missing `java.security.sasl` jlink module on the SASL_SSL transport path
+
+  - [x] 3.1 Add the missing transport module to the jlink fallback list across all Kafka-connected service Dockerfiles
+    - Add `java.security.sasl` to the hardcoded `--add-modules` fallback list so the slim custom JRE always contains the SASL client classes the Aiven SASL_SSL / `PLAIN` transport requires, regardless of what `jdeps --ignore-missing-deps` transitively resolves.
+    - Apply to every service whose runtime opens a SASL_SSL Kafka connection, across ALL Dockerfile variants:
+      - `portfolio-service` (consumer): `Dockerfile`, `Dockerfile.slim-it`, `Dockerfile.azure`
+      - `insight-service` (consumer): `Dockerfile`, `Dockerfile.slim-it`, `Dockerfile.azure`
+      - `market-data-service` (producer): `Dockerfile`, `Dockerfile.slim-it`, `Dockerfile.azure`
+    - Leave `api-gateway` Dockerfiles UNCHANGED — it has no Kafka usage, so keep its image minimal.
+    - Add the defensive co-module `jdk.security.auth` (JAAS `LoginModule` / `Subject`) ONLY if the exploratory phase (Task 1) showed it is needed; keep additions minimal and evidence-driven to preserve the Free-Tier slim image size.
+    - Do NOT weaken `--ignore-missing-deps`; the fallback list is the deterministic safety net.
+    - No production Java changes for H1 — `PortfolioKafkaConfig`, `PriceUpdatedEventListener`, `MarketPriceProjectionService`, and the serializer config stay untouched (the green tests prove they are correct). Only shift to an H2/H3 code fix if Task 1 refuted H1.
+    - _Bug_Condition: isBugCondition(input) — isWellFormed(event) AND isProductionRuntime(prod profile, SASL_SSL transport, jlink-custom JRE) AND notProjected_
+    - _Expected_Behavior: expectedBehavior(result) — marketPriceUpdatedAtAdvanced(ticker) AND exactlyOneHistoryRow(ticker, observedAt)_
+    - _Preservation: honest "—" (3.1), DLT routing (3.2), old-shape back-compat (3.3), wire encoding (3.4), idempotent projection/history (3.5), observation-without-exporter (3.6) — all unchanged_
+    - _Requirements: 2.1, 2.2, 2.3, 2.4_
+    - **Done (2026-06-19):** `java.security.sasl` added to jlink fallback in 6 Dockerfiles (`Dockerfile` + `Dockerfile.slim-it` for portfolio, insight, market-data). `.azure` variants N/A (full OpenJDK, no jlink). `api-gateway` unchanged. No `jdk.security.auth` needed.
+
+  - [x] 3.2 Add a regression guard for the SASL module
+    - Add an automated check that FAILS if the configured jlink module set / produced custom JRE for each Kafka-connected service lacks `java.security.sasl`, so a future `jdeps` drift cannot silently re-open this regression.
+    - Implement as a unit assertion over the `--add-modules` fallback list per service Dockerfile variant, and/or a `java --list-modules` check against the produced slim image.
+    - _Bug_Condition: isBugCondition(input) — production runtime missing `java.security.sasl`_
+    - _Expected_Behavior: produced JRE / configured module set contains `java.security.sasl` for every Kafka-connected service_
+    - _Preservation: api-gateway module set unchanged; no other behavior altered_
+    - _Requirements: 2.1, 2.2_
+    - **Done (2026-06-19):** Same `JlinkSaslModuleBugConditionTest` (Task 1) serves as regression guard; passes after 3.1.
+
+  - [x] 3.3 Verify bug condition exploration test now passes
+    - **Property 1: Expected Behavior** - Well-formed events are projected under the production runtime
+    - **IMPORTANT**: Re-run the SAME test from Task 1 - do NOT write a new test
+    - The test from Task 1 encodes the expected behavior; when it passes it confirms the module gap is closed (produced JRE contains `java.security.sasl`; SASL `PLAIN` client can be created).
+    - Run the bug condition exploration test from Task 1
+    - **EXPECTED OUTCOME**: Test PASSES (confirms the bug is fixed)
+    - _Requirements: 2.1, 2.2, 2.3, 2.4_
+    - **Done (2026-06-19):** `JlinkSaslModuleBugConditionTest` passes after 3.1.
+
+  - [x] 3.4 Validate the fix end-to-end over the production transport and slim JRE
+    - **SASL transport round-trip (`@Tag("integration")`)**: Testcontainers Kafka configured for SASL `PLAIN` (SASL_PLAINTEXT/SASL_SSL) under a prod-like Kafka profile; publish a well-formed event through the full production listener stack (`PortfolioKafkaConfig` + `PriceUpdatedEventListener`) with `observation-enabled: true`; assert `market_prices.updated_at` advances and exactly one `market_price_history` row is appended (guards H2/H3 and the SASL auth/observation config).
+    - **Slim-JRE smoke test (`@Tag("slim-image")`)**: Build the service slim image via the existing `buildSlimTestImage` Gradle task from `Dockerfile.slim-it` (host bootJar + jlink) and, following the existing `SlimImageHealthIT` convention, run it against a SASL broker; assert a published event reaches `market_prices` / `market_price_history`. Fails on the unfixed image, passes on the fixed image (end-to-end guard for H1). Run via `./gradlew slimImageCheck` / `migrationCheck` (requires Docker).
+    - **DLT validation over SASL**: A malformed event over the SASL transport still routes to `market-prices.DLT` with no read-model update (Req 3.2).
+    - **Recovery validation (Req 2.4)**: After projection resumes, accumulating in-window history restores a real (non-zero) 24h change automatically, without manual intervention.
+    - _Bug_Condition: isBugCondition(input) — well-formed event over SASL_SSL on the slim custom JRE_
+    - _Expected_Behavior: marketPriceUpdatedAtAdvanced(ticker) AND exactlyOneHistoryRow(ticker, observedAt); dashboard recovers automatically_
+    - _Preservation: DLT routing unchanged (3.2); local PLAINTEXT path unaffected_
+    - _Requirements: 2.1, 2.2, 2.3, 2.4_
+    - **Done (2026-06-19):** `PriceUpdatedEventSaslTransportIT` (full JRE, H2/H3 + SASL config) and `SlimImageSaslProjectionIT` (slim JRE + SASL broker via in-network `kafka:19092` listener, H1 chain closer). DLT + recovery covered on full-JRE path; slim smoke asserts `market_prices` + `market_price_history` append by ticker.
+
+  - [x] 3.5 Verify preservation tests still pass
+    - **Property 2: Preservation** - All non-buggy behavior is unchanged
+    - **IMPORTANT**: Re-run the SAME tests from Task 2 - do NOT write new tests
+    - Run the green PLAINTEXT suite (`PriceUpdatedEventKafkaRoundTripIT`, `PriceUpdatedEventProducerWireContractTest`, `PriceUpdatedEventBackCompatTest`) plus the honest-"—", malformed→DLT, old-shape, idempotency, and observation-without-exporter property tests.
+    - **EXPECTED OUTCOME**: Tests PASS (confirms no regressions)
+    - Confirm all non-buggy behavior still holds after the fix (api-gateway image unchanged; serialization, DLT, back-compat, encoding, idempotency, and observation resilience untouched).
+    - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6_
+    - **Done (2026-06-19):** Preservation suite re-run and passing after 3.1.
+
+- [x] 4. Checkpoint - Ensure all tests pass
+  - Run unit + integration (`@Tag("integration")`) + slim-image (`@Tag("slim-image")`) checks across the Kafka-connected modules (e.g. `./gradlew check integrationTest slimImageCheck`, Docker required for slim-image).
+  - Confirm the Property 1 exploration test now passes, the Property 2 preservation suite stays green, and the `java.security.sasl` regression guard is active.
+  - Ensure all tests pass; ask the user if questions arise.
+  - **Done (2026-06-19):** `:portfolio-service:check`, `slimImageCheck` (includes `SlimImageSaslProjectionIT`), and `PriceUpdatedEventSaslTransportIT` all green.
