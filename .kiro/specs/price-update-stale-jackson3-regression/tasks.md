@@ -46,10 +46,11 @@
 
   - [x] 3.1 Add the missing transport module to the jlink fallback list across all Kafka-connected service Dockerfiles
     - Add `java.security.sasl` to the hardcoded `--add-modules` fallback list so the slim custom JRE always contains the SASL client classes the Aiven SASL_SSL / `PLAIN` transport requires, regardless of what `jdeps --ignore-missing-deps` transitively resolves.
-    - Apply to every service whose runtime opens a SASL_SSL Kafka connection, across ALL Dockerfile variants:
-      - `portfolio-service` (consumer): `Dockerfile`, `Dockerfile.slim-it`, `Dockerfile.azure`
-      - `insight-service` (consumer): `Dockerfile`, `Dockerfile.slim-it`, `Dockerfile.azure`
-      - `market-data-service` (producer): `Dockerfile`, `Dockerfile.slim-it`, `Dockerfile.azure`
+    - Apply to every service whose runtime opens a SASL_SSL Kafka connection on the **slim jlink path**:
+      - `portfolio-service` (consumer): `Dockerfile`, `Dockerfile.slim-it`
+      - `insight-service` (consumer): `Dockerfile`, `Dockerfile.slim-it`
+      - `market-data-service` (producer): `Dockerfile`, `Dockerfile.slim-it`
+      - `.azure` variants unchanged (full OpenJDK, no jlink stage)
     - Leave `api-gateway` Dockerfiles UNCHANGED — it has no Kafka usage, so keep its image minimal.
     - Add the defensive co-module `jdk.security.auth` (JAAS `LoginModule` / `Subject`) ONLY if the exploratory phase (Task 1) showed it is needed; keep additions minimal and evidence-driven to preserve the Free-Tier slim image size.
     - Do NOT weaken `--ignore-missing-deps`; the fallback list is the deterministic safety net.
@@ -102,4 +103,4 @@
   - Run unit + integration (`@Tag("integration")`) + slim-image (`@Tag("slim-image")`) checks across the Kafka-connected modules (e.g. `./gradlew check integrationTest slimImageCheck`, Docker required for slim-image).
   - Confirm the Property 1 exploration test now passes, the Property 2 preservation suite stays green, and the `java.security.sasl` regression guard is active.
   - Ensure all tests pass; ask the user if questions arise.
-  - **Done (2026-06-19):** `:portfolio-service:check`, `slimImageCheck` (includes `SlimImageSaslProjectionIT`), and `PriceUpdatedEventSaslTransportIT` all green.
+  - **Done (2026-06-19):** `:portfolio-service:check`, `PriceUpdatedEventSaslTransportIT`, and `slimImageCheck` / `SlimImageSaslProjectionIT` verified locally with Docker. `slimImageCheck` is not wired into CI workflows today.

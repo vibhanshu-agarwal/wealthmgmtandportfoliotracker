@@ -32,6 +32,19 @@ to **pin the exact failing link with a reproduction that runs over the productio
 set**, correct that link, and add a regression guard — without disturbing any of the intentional
 "honest —", DLT, back-compat, encoding, idempotency, or observation-resilience behaviors.
 
+### Scope note (2026-06-19 live verification)
+
+Read-only diagnostics against **Azure-active** prod (`wealth-azure-prod-rg`, Neon Postgres) show the
+dashboard regression there is **not** this jlink/SASL defect. All four ACA apps run images built from
+`Dockerfile.azure` (full mariner OpenJDK; `java.security.sasl` always present), profile
+`prod,azure`. The consumer projects cleanly when fed; the producer's daily cron never fires under
+`minReplicas: 0`; the read model is frozen by cadence/idempotency starvation (H4 — separate spec).
+
+**This spec and PR target the AWS-standby slim jlink path** (`Dockerfile` / `Dockerfile.slim-it` in
+`deploy-aws.yml`), where the missing `java.security.sasl` module is a real latent failure on
+SASL_SSL/PLAIN. Do not conflate `prod,azure` profile with slim jlink — Azure CI builds
+`Dockerfile.azure`.
+
 ## Glossary
 
 - **Bug_Condition (C)**: The condition that triggers the bug — a well-formed `PriceUpdatedEvent`
@@ -44,10 +57,14 @@ set**, correct that link, and add a regression guard — without disturbing any 
 - **Preservation**: All intentional behaviors that must remain unchanged — honest "—" (no silent
   zero), DLT routing of malformed events, old-shape back-compat, ISO-8601/scale-2 wire encoding,
   idempotent projection/history, and observation-without-exporter resilience.
-- **Production runtime**: The combination of the `prod` (and `prod,azure`) Spring profile,
-  the SASL_SSL / SASL `PLAIN` Kafka transport defined in
+- **Production runtime (AWS slim path — in scope for this spec)**: The combination of the `prod` Spring
+  profile, the SASL_SSL / SASL `PLAIN` Kafka transport defined in
   `common-dto/src/main/resources/config/application-prod-kafka.yml`, and the **jlink-generated slim
-  custom JRE** produced by each service `Dockerfile` (jdeps + jlink stages).
+  custom JRE** produced by `Dockerfile` / `Dockerfile.slim-it` (jdeps + jlink stages). This is what
+  `deploy-aws.yml` builds.
+- **Azure-active runtime (out of scope — verified not H1)**: Same `prod,azure` profile and SASL
+  transport, but images from `Dockerfile.azure` (full mariner OpenJDK, no jlink). Live prod runs this
+  path exclusively today.
 - **Green local path**: `local` profile, PLAINTEXT Confluent broker (Testcontainers / Docker
   Compose), full Amazon Corretto JRE. This is what every existing automated test exercises.
 - **`PriceUpdatedEventListener`**: `portfolio-service/.../PriceUpdatedEventListener.java` —
