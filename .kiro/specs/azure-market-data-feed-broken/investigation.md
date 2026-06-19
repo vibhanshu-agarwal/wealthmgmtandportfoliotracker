@@ -149,7 +149,7 @@ WHERE mph.observed_at BETWEEN now() - INTERVAL '36 hours'
 
 **Conclusion:** the window was completely empty for at least four 6-hour buckets in the last week (Jun 17 09:00 plus a continuous Jun 18 09:00–21:00 UTC stretch of ≥18 hours). Anyone hitting the dashboard during those windows would correctly see "—" or "+0.00%", because:
 - No row in `[now-36h, now-18h]` → no `WITHIN_24H_WINDOW` reference.
-- The analytics CTE falls back to `SINCE_PREVIOUS_SNAPSHOT` (rows older than 36h). At those moments the snapshot was the Jun 16 18:18 seed, whose prices happened to equal `current_price` (deterministic same-day seed re-applied) → `change = 0.0000%`.
+- The analytics CTE falls back to `SINCE_PREVIOUS_SNAPSHOT` (rows older than 36h). When that snapshot reference is a prior seed's **current**-price observation, it is byte-identical to today's `current_price` because `DeterministicPriceCalculator.compute(...)` is **day-invariant** (see "What's actually publishing on Azure" below) → `change = 0.0000%`.
 
 The user's screenshots most likely correspond to one of these stretches.
 
@@ -174,7 +174,12 @@ Cross-referencing seed-service log lines with `market_price_history` row timesta
 
 These map directly to history-row minute buckets. The userId on every entry is `00000000-0000-0000-0000-000000000e2e` — the demo E2E user — which matches `E2E_TEST_USER_ID` in `.github/workflows/deploy-azure.yml` and `.github/workflows/synthetic-monitoring.yml`.
 
-**Implication:** in production right now, the only source of "fresh" prices is `MarketDataSeedService` driven by external triggers (deploy / synthetic / manual), with `DeterministicPriceCalculator.compute(basePrice, ticker, userId)` keyed on `LocalDate.now()`. Multiple seed invocations within the same UTC day produce **identical prices**, so the variance the dashboard depends on only appears **across day boundaries**.
+**Implication:** in production right now, the only source of price events is `MarketDataSeedService` driven by external triggers (deploy / synthetic / manual). Per `MarketDataSeedService.seed()`, each call publishes **two** events per ticker — which is why the logs show `eventsPublished=320` for 160 tickers:
+
+1. a synthetic **history** observation at `now − 25h` (`historyObservedAt = now.minus(25, HOURS)`), priced by `DeterministicPriceCalculator.computeHistory(seededPrice, ticker, userId)` — keyed on `ticker:userId:LocalDate.now()`, a designed ±0.10–3.00% delta from current; and
+2. a **current** observation at `now`, priced by `DeterministicPriceCalculator.compute(basePrice, ticker, userId)`.
+
+Crucial correction (per the IntelliJ doc audit, verified against `DeterministicPriceCalculator.java`): `compute(...)` is **day-invariant** — keyed only on `(ticker, userId)`, with **no date component** — so a ticker's seeded *current* price does not change across seed runs or across days. Only `computeHistory(...)` carries `LocalDate.now()`. The earlier text here ("`compute` keyed on `LocalDate.now()`; identical prices within a day; variance only across day boundaries") was wrong on the mechanism and is corrected above.
 
 **Concrete demonstration (sampled at Jun 19 09:35 UTC):**
 
