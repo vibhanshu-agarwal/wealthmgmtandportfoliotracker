@@ -31,6 +31,10 @@ on:
         description: "Use public seed image for Container Apps (true for first apply before images exist in ACR)"
         type: boolean
         default: false
+      recover_market_data_job_acr_pull:
+        description: "Recovery: import/create market-data-refresh-job AcrPull before full apply"
+        type: boolean
+        default: false
   pull_request:
     paths:
       - "infrastructure/terraform/azure/**"
@@ -192,6 +196,48 @@ jobs:
 
           echo "Importing existing ${JOB_NAME} into Terraform state."
           terraform import "$RESOURCE_ADDRESS" "$JOB_ID"
+
+      - name: Recover market-data refresh Job AcrPull (targeted)
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply' && github.event.inputs.recover_market_data_job_acr_pull == 'true'
+        run: |
+          set -euo pipefail
+
+          RESOURCE_ADDRESS="azurerm_role_assignment.market_data_refresh_job_acr_pull"
+          JOB_NAME="market-data-refresh-job"
+          RESOURCE_GROUP="wealth-azure-prod-rg"
+          ACR_NAME="wealthprodacr"
+
+          if terraform state show "$RESOURCE_ADDRESS" >/dev/null 2>&1; then
+            echo "${RESOURCE_ADDRESS} is already managed in Terraform state."
+            exit 0
+          fi
+
+          JOB_PRINCIPAL_ID="$(az containerapp job show \
+            --name "$JOB_NAME" \
+            --resource-group "$RESOURCE_GROUP" \
+            --query identity.principalId \
+            --output tsv)"
+          ACR_ID="$(az acr show \
+            --name "$ACR_NAME" \
+            --resource-group "$RESOURCE_GROUP" \
+            --query id \
+            --output tsv)"
+          ROLE_ASSIGNMENT_ID="$(az role assignment list \
+            --assignee "$JOB_PRINCIPAL_ID" \
+            --scope "$ACR_ID" \
+            --query "[?roleDefinitionName=='AcrPull'] | [0].id" \
+            --output tsv)"
+
+          if [ -n "$ROLE_ASSIGNMENT_ID" ]; then
+            echo "Importing existing AcrPull role assignment into Terraform state."
+            terraform import "$RESOURCE_ADDRESS" "$ROLE_ASSIGNMENT_ID"
+          else
+            echo "Creating AcrPull role assignment with targeted Terraform apply."
+            terraform apply -target="$RESOURCE_ADDRESS" -auto-approve
+          fi
+
+          echo "Waiting for Azure RBAC propagation before full apply."
+          sleep 120
 
       - name: Terraform Plan (apply — for assertions)
         if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'
