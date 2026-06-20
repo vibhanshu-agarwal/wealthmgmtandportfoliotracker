@@ -41,4 +41,13 @@ dependencies {
     // jqwik powers the bug-condition / preservation property tests for the
     // chatbot-asset-coverage-fix seeder propagation work (Root Cause 1).
     testImplementation "net.jqwik:jqwik:${rootProject.ext.jqwikVersion}"
+    testImplementation 'com.tngtech.archunit:archunit-junit5:1.4.0'
+    testImplementation 'org.awaitility:awaitility:4.2.2'
+}
+
+tasks.named('integrationTest', Test) {
+    dependsOn tasks.named('bootJar')
+    systemProperty(
+            'market-data.boot.jar',
+            tasks.named('bootJar').get().archiveFile.get().asFile.absolutePath)
 }

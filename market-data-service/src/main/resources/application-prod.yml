@@ -24,9 +24,9 @@ spring:
     import: "classpath:config/application-prod-kafka.yml"
 
 market-data:
+  seed:
+    enabled: false
   refresh:
-    enabled: true
-  hydration:
     enabled: true
   baseline-seed:
     enabled: true

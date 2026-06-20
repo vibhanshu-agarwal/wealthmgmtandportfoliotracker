@@ -160,6 +160,14 @@ jobs:
             --resource-group $AZURE_RG \
             --image $ACR_NAME.azurecr.io/${{ matrix.service }}:${{ github.sha }}
 
+      - name: Update market-data-refresh Job image
+        if: matrix.service == 'market-data-service'
+        run: |
+          az containerapp job update \
+            --name market-data-refresh-job \
+            --resource-group $AZURE_RG \
+            --image $ACR_NAME.azurecr.io/market-data-service:${{ github.sha }}
+
       - name: Wait for revision to reach Succeeded state
         # G18 — initial sleep gives ACA internal DNS time to propagate the new revision
         # before the first poll. Polls every 30 s for up to ~10 minutes (20 iterations).
@@ -316,6 +324,7 @@ jobs:
         env:
           NEXT_PUBLIC_API_BASE_URL: https://api.vibhanshu-ai-portfolio.dev
           SKIP_BACKEND_HEALTH_CHECK: "true"
+          SKIP_MARKET_DATA_SEED: "true"
           INTERNAL_API_KEY: ${{ secrets.TF_VAR_INTERNAL_API_KEY }}
           E2E_TEST_USER_ID: ${{ secrets.E2E_TEST_USER_ID || '00000000-0000-0000-0000-000000000e2e' }}
         run: npx ts-node --project tests/e2e/tsconfig.e2e-test.json tests/e2e/global-setup.ts

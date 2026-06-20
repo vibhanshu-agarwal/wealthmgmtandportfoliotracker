@@ -16,23 +16,14 @@ market:
     enabled: false
 
 market-data:
-  # ACA containers are long-lived — scheduled refresh is reliable here, unlike
-  # Lambda where the instance may be recycled between cron invocations.
+  seed:
+    enabled: false
+  # Scheduled @Scheduled refresh is disabled on Azure; production refresh runs via the
+  # ACA Job (MarketDataRefreshJobRunner). See application-azure.yml / Terraform.
   refresh:
-    enabled: true
-    # Override the default hourly cron from application.yml. Hourly was the
-    # previous cadence but it forced market-data-service to wake from
-    # scale-to-zero every hour and was a contributor to the May-2026 cost spike.
-    # Daily is sufficient for a personal demo. Trade-off: prices read from
-    # /api/market/prices will be up to 24h stale between refreshes (the endpoint
-    # serves from MongoDB, not a live fetch). To restore intra-day freshness,
-    # tighten this cron and accept the proportional ACA wake-up cost.
+    enabled: false
+    # Daily cron retained for documentation; inactive while refresh.enabled is false.
     cron: "0 0 8 * * *" # daily at 08:00 (Spring 6-field: sec min hour dom month dow)
-  # Hydration populates the in-memory price cache from MongoDB on startup.
-  # Enabled on Azure so the first request after a scale-from-zero event is served
-  # from cache rather than triggering a live fetch.
-  hydration:
-    enabled: true
   baseline-seed:
     # Baseline seed is a one-time operation handled outside the application lifecycle
     # (e.g. via a Terraform provisioner or a manual run). Disable here to prevent

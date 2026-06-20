@@ -128,8 +128,6 @@ market-data:
   refresh:
     enabled: true
     cron: "0 0 */1 * * *" # every 1 hour (Spring 6-field: sec min hour dom month dow)
-  hydration:
-    enabled: true
   baseline-seed:
     enabled: true
 

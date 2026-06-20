@@ -1,6 +1,7 @@
 package com.wealth.market.seed;
 
 import com.wealth.market.seed.MarketDataSeedService.SeedResult;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -16,6 +17,7 @@ import java.util.Map;
  */
 @RestController
 @RequestMapping("/api/internal/market-data")
+@ConditionalOnProperty(prefix = "market-data.seed", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class MarketDataSeedController {
 
     private final MarketDataSeedService seedService;

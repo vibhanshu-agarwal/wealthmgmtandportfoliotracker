@@ -5,6 +5,7 @@ import com.wealth.market.events.PriceUpdatedEvent;
 import com.wealth.market.seed.SeedTickerRegistry.SeedTicker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.mongodb.core.BulkOperations;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -31,6 +32,7 @@ import java.util.List;
  * of {@link DeterministicPriceCalculator}.
  */
 @Service
+@ConditionalOnProperty(prefix = "market-data.seed", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class MarketDataSeedService {
 
     private static final Logger log = LoggerFactory.getLogger(MarketDataSeedService.class);
