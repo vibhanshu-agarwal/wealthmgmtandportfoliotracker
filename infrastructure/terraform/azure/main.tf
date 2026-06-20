@@ -210,7 +210,8 @@ module "portfolio_service" {
 }
 
 # market-data-service — internal ingress, fetches and streams market prices via Kafka.
-# Persists to MongoDB Atlas; scheduled refresh is enabled on ACA (long-lived containers).
+# Persists to MongoDB Atlas; scheduled refresh runs via azurerm_container_app_job.market_data_refresh
+# (daily ACA Job) — not via the long-lived container (@Scheduled disabled in application-azure.yml).
 module "market_data_service" {
   source = "./modules/container-app"
 
@@ -249,6 +250,112 @@ module "market_data_service" {
     KAFKA_SASL_PASSWORD     = var.kafka_sasl_password
     INTERNAL_API_KEY        = var.internal_api_key
   }
+}
+
+# market-data-service refresh Job — runs daily at 08:00 UTC.
+# Boots the JVM, calls MarketDataRefreshService.refresh(), then exits cleanly.
+# This is the sole production refresh path; the @Scheduled adapter is disabled
+# in application-azure.yml (market-data.refresh.enabled: false).
+resource "azurerm_container_app_job" "market_data_refresh" {
+  name                         = "market-data-refresh-job"
+  resource_group_name          = azurerm_resource_group.main.name
+  location                     = azurerm_resource_group.main.location
+  container_app_environment_id = azurerm_container_app_environment.main.id
+
+  identity {
+    type = "SystemAssigned"
+  }
+
+  schedule_trigger_config {
+    cron_expression          = "0 8 * * *"
+    parallelism              = 1
+    replica_completion_count = 1
+  }
+
+  replica_retry_limit        = 1
+  replica_timeout_in_seconds = 600
+
+  lifecycle {
+    ignore_changes = [
+      template[0].container[0].image,
+    ]
+  }
+
+  registry {
+    server   = azurerm_container_registry.main.login_server
+    identity = "system"
+  }
+
+  secret {
+    name  = "spring-data-mongodb-uri"
+    value = var.mongodb_connection_string
+  }
+  secret {
+    name  = "kafka-bootstrap-servers"
+    value = var.kafka_bootstrap_servers
+  }
+  secret {
+    name  = "kafka-sasl-username"
+    value = var.kafka_sasl_username
+  }
+  secret {
+    name  = "kafka-sasl-password"
+    value = var.kafka_sasl_password
+  }
+  secret {
+    name  = "internal-api-key"
+    value = var.internal_api_key
+  }
+
+  template {
+    container {
+      name   = "market-data-refresh"
+      image  = "${azurerm_container_registry.main.login_server}/market-data-service:${var.image_tag}"
+      cpu    = 0.5
+      memory = "1Gi"
+
+      env {
+        name  = "SPRING_PROFILES_ACTIVE"
+        value = "prod,azure"
+      }
+      env {
+        name  = "SPRING_MAIN_WEB_APPLICATION_TYPE"
+        value = "none"
+      }
+      env {
+        name  = "MARKET_DATA_JOB_RUNNER_ENABLED"
+        value = "true"
+      }
+
+      env {
+        name        = "SPRING_DATA_MONGODB_URI"
+        secret_name = "spring-data-mongodb-uri"
+      }
+      env {
+        name        = "KAFKA_BOOTSTRAP_SERVERS"
+        secret_name = "kafka-bootstrap-servers"
+      }
+      env {
+        name        = "KAFKA_SASL_USERNAME"
+        secret_name = "kafka-sasl-username"
+      }
+      env {
+        name        = "KAFKA_SASL_PASSWORD"
+        secret_name = "kafka-sasl-password"
+      }
+      env {
+        name        = "INTERNAL_API_KEY"
+        secret_name = "internal-api-key"
+      }
+    }
+  }
+}
+
+# AcrPull role for the refresh Job's system-assigned identity.
+resource "azurerm_role_assignment" "market_data_refresh_job_acr_pull" {
+  scope                = azurerm_container_registry.main.id
+  role_definition_name = "AcrPull"
+  principal_id         = azurerm_container_app_job.market_data_refresh.identity[0].principal_id
 }
 
 # insight-service — internal ingress, generates AI insights via Azure OpenAI.

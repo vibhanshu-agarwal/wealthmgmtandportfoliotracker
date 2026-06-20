@@ -9,9 +9,11 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.kafka.support.SendResult;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.*;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -33,6 +35,21 @@ class MarketDataRefreshJobWireMockTest {
     @AfterEach
     void tearDown() {
         wireMockServer.stop();
+    }
+
+    @SuppressWarnings("unchecked")
+    private KafkaTemplate<String, PriceUpdatedEvent> mockKafkaTemplate() {
+        KafkaTemplate<String, PriceUpdatedEvent> kafkaTemplate = mock(KafkaTemplate.class);
+        when(kafkaTemplate.send(anyString(), anyString(), any(PriceUpdatedEvent.class)))
+                .thenReturn(CompletableFuture.completedFuture(mock(SendResult.class)));
+        return kafkaTemplate;
+    }
+
+    private MarketDataRefreshService newRefreshService(AssetPriceRepository repo,
+                                                       ExternalMarketDataClient client,
+                                                       BaselineTickerProperties baseline,
+                                                       KafkaTemplate<String, PriceUpdatedEvent> kafkaTemplate) {
+        return new MarketDataRefreshService(repo, client, baseline, kafkaTemplate, meterRegistry);
     }
 
     @Test
@@ -65,12 +82,10 @@ class MarketDataRefreshJobWireMockTest {
         BaselineTickerProperties baseline = new BaselineTickerProperties();
         baseline.setTickers(List.of("AAPL"));
 
-        @SuppressWarnings("unchecked")
-        KafkaTemplate<String, PriceUpdatedEvent> kafkaTemplate = mock(KafkaTemplate.class);
+        KafkaTemplate<String, PriceUpdatedEvent> kafkaTemplate = mockKafkaTemplate();
+        MarketDataRefreshService refreshService = newRefreshService(repo, client, baseline, kafkaTemplate);
 
-        MarketDataRefreshJob job = new MarketDataRefreshJob(repo, client, baseline, kafkaTemplate, meterRegistry);
-
-        job.refreshAllTrackedTickers();
+        refreshService.refresh();
 
         ArgumentCaptor<AssetPrice> assetCaptor = ArgumentCaptor.forClass(AssetPrice.class);
         verify(repo).save(assetCaptor.capture());
@@ -79,9 +94,9 @@ class MarketDataRefreshJobWireMockTest {
 
         ArgumentCaptor<PriceUpdatedEvent> eventCaptor = ArgumentCaptor.forClass(PriceUpdatedEvent.class);
         verify(kafkaTemplate).send(eq("market-prices"), eq("AAPL"), eventCaptor.capture());
+        verify(kafkaTemplate).flush();
         assertThat(eventCaptor.getValue().ticker()).isEqualTo("AAPL");
         assertThat(eventCaptor.getValue().newPrice()).isEqualByComparingTo("150.0");
-        // Wave 2: observedAt must be populated (not null) and not a fabricated receive time.
         assertThat(eventCaptor.getValue().observedAt()).isNotNull();
     }
 
@@ -104,14 +119,11 @@ class MarketDataRefreshJobWireMockTest {
         BaselineTickerProperties baseline = new BaselineTickerProperties();
         baseline.setTickers(List.of("AAPL"));
 
-        @SuppressWarnings("unchecked")
-        KafkaTemplate<String, PriceUpdatedEvent> kafkaTemplate = mock(KafkaTemplate.class);
+        KafkaTemplate<String, PriceUpdatedEvent> kafkaTemplate = mockKafkaTemplate();
+        MarketDataRefreshService refreshService = newRefreshService(repo, client, baseline, kafkaTemplate);
 
-        MarketDataRefreshJob job = new MarketDataRefreshJob(repo, client, baseline, kafkaTemplate, meterRegistry);
+        refreshService.refresh();
 
-        job.refreshAllTrackedTickers();
-
-        // Existing price should not be overwritten with null, and no Kafka events published.
         verify(repo, never()).save(any());
         verifyNoInteractions(kafkaTemplate);
     }
@@ -124,13 +136,12 @@ class MarketDataRefreshJobWireMockTest {
         BaselineTickerProperties baseline = new BaselineTickerProperties();
         baseline.setTickers(List.of("AAPL"));
 
-        @SuppressWarnings("unchecked")
-        KafkaTemplate<String, PriceUpdatedEvent> kafka = mock(KafkaTemplate.class);
+        KafkaTemplate<String, PriceUpdatedEvent> kafka = mockKafkaTemplate();
 
-        MarketDataRefreshJob job = new MarketDataRefreshJob(
-                repo, mock(ExternalMarketDataClient.class), baseline, kafka, meterRegistry);
+        MarketDataRefreshService refreshService = newRefreshService(
+                repo, mock(ExternalMarketDataClient.class), baseline, kafka);
 
-        assertThat(job.resolveTrackedTickers()).containsExactly("AAPL", "MSFT");
+        assertThat(refreshService.resolveTrackedTickers()).containsExactly("AAPL", "MSFT");
     }
 
     @Test
@@ -164,16 +175,14 @@ class MarketDataRefreshJobWireMockTest {
         BaselineTickerProperties baseline = new BaselineTickerProperties();
         baseline.setTickers(List.of("AAPL"));
 
-        @SuppressWarnings("unchecked")
-        KafkaTemplate<String, PriceUpdatedEvent> kafkaTemplate = mock(KafkaTemplate.class);
+        KafkaTemplate<String, PriceUpdatedEvent> kafkaTemplate = mockKafkaTemplate();
+        MarketDataRefreshService refreshService = newRefreshService(repo, client, baseline, kafkaTemplate);
 
-        MarketDataRefreshJob job = new MarketDataRefreshJob(repo, client, baseline, kafkaTemplate, meterRegistry);
-
-        job.refreshAllTrackedTickers();
+        refreshService.refresh();
 
         verify(repo, times(2)).save(any(AssetPrice.class));
         verify(kafkaTemplate).send(eq("market-prices"), eq("AAPL"), any(PriceUpdatedEvent.class));
         verify(kafkaTemplate).send(eq("market-prices"), eq("MSFT"), any(PriceUpdatedEvent.class));
+        verify(kafkaTemplate).flush();
     }
 }
-

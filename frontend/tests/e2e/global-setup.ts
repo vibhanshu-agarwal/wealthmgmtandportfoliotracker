@@ -44,6 +44,8 @@ const SKIP_BACKEND_HEALTH_CHECK =
   (process.env.SKIP_BACKEND_HEALTH_CHECK ?? "").toLowerCase() === "true";
 const SKIP_GOLDEN_STATE_SEEDING =
   (process.env.SKIP_GOLDEN_STATE_SEEDING ?? "").toLowerCase() === "true";
+const SKIP_MARKET_DATA_SEED =
+  (process.env.SKIP_MARKET_DATA_SEED ?? "").toLowerCase() === "true";
 const IS_LOCAL_GATEWAY = /^https?:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/.test(GATEWAY_BASE);
 const SEED_MAX_RETRIES = Number(process.env.SEED_MAX_RETRIES ?? (IS_LOCAL_GATEWAY ? 3 : 8));
 const SEED_RETRY_DELAY_MS = Number(process.env.SEED_RETRY_DELAY_MS ?? (IS_LOCAL_GATEWAY ? 5_000 : 10_000));
@@ -195,15 +197,21 @@ async function runSeeding(): Promise<void> {
     const { portfolioId } = await portfolioResult.response.json();
     console.log(`[${timestamp()}] Portfolio seeded. ID: ${portfolioId}`);
 
-    // 2. Market Data Seeding
-    const marketResult = await seedFetch(
-      "Market data seeding",
-      `${GATEWAY_BASE}/api/internal/market-data/seed`,
-      { userId: TEST_USER_ID },
-    );
+    // 2. Market Data Seeding (skipped in prod/azure CI — ACA Job is the price source)
+    if (!SKIP_MARKET_DATA_SEED) {
+      const marketResult = await seedFetch(
+        "Market data seeding",
+        `${GATEWAY_BASE}/api/internal/market-data/seed`,
+        { userId: TEST_USER_ID },
+      );
 
-    await assertSeedOk("Market data seeding", marketResult);
-    console.log(`[${timestamp()}] Market data seeded.`);
+      await assertSeedOk("Market data seeding", marketResult);
+      console.log(`[${timestamp()}] Market data seeded.`);
+    } else {
+      console.log(
+        `[${timestamp()}] Skipping market-data seed: SKIP_MARKET_DATA_SEED=true.`,
+      );
+    }
 
     // 3. Insight Seeding (Cache Eviction)
     const insightResult = await seedFetch(

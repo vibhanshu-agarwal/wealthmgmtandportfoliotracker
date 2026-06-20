@@ -171,7 +171,7 @@ test.describe("Azure Synthetic: API live smoke", () => {
   });
 
   // ── 2. Idempotent seeding ─────────────────────────────────────────────────
-  test("seeding: POST portfolio and market-data seed endpoints are idempotent", async ({
+  test("seeding: portfolio seed is idempotent; market-data seed gated off in prod/azure", async ({
     request,
   }) => {
     const internalApiKey = envOrSecret([
@@ -203,9 +203,7 @@ test.describe("Azure Synthetic: API live smoke", () => {
       "portfolio seed must insert >= 160 holdings (Requirement 1.4)",
     ).toBeGreaterThanOrEqual(160);
 
-    // Market-data seed: controller requires { userId } in the request body
-    // (MarketDataSeedController.SeedRequest) — omitting it returns 400.
-    // Response: { pricesUpserted }
+    // Market-data seed is gated off under prod/azure (market-data.seed.enabled=false).
     const marketDataSeed = await request.post(
       `${baseUrl}/api/internal/market-data/seed`,
       {
@@ -215,14 +213,9 @@ test.describe("Azure Synthetic: API live smoke", () => {
       },
     );
     expect(
-      marketDataSeed.status(),
-      `POST /api/internal/market-data/seed returned HTTP ${marketDataSeed.status()}`,
-    ).toBe(200);
-    const marketDataSeedBody = await marketDataSeed.json();
-    expect(
-      marketDataSeedBody.pricesUpserted,
-      "market-data seed must upsert >= 160 prices (Requirement 1.4)",
-    ).toBeGreaterThanOrEqual(160);
+      [404, 503],
+      "market-data seed must be unreachable under prod/azure (404 gated, 503 ACA cold start)",
+    ).toContain(marketDataSeed.status());
   });
 
   // ── 3. Auth + protected endpoints ────────────────────────────────────────
