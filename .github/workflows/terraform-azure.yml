@@ -165,6 +165,34 @@ jobs:
         if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'
         run: terraform validate
 
+      - name: Import existing market-data refresh Job (apply recovery)
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'
+        run: |
+          set -euo pipefail
+
+          RESOURCE_ADDRESS="azurerm_container_app_job.market_data_refresh"
+          JOB_NAME="market-data-refresh-job"
+          RESOURCE_GROUP="wealth-azure-prod-rg"
+
+          if terraform state show "$RESOURCE_ADDRESS" >/dev/null 2>&1; then
+            echo "${RESOURCE_ADDRESS} is already managed in Terraform state."
+            exit 0
+          fi
+
+          JOB_ID="$(az containerapp job show \
+            --name "$JOB_NAME" \
+            --resource-group "$RESOURCE_GROUP" \
+            --query id \
+            --output tsv 2>/dev/null || true)"
+
+          if [ -z "$JOB_ID" ]; then
+            echo "${JOB_NAME} does not exist yet; Terraform will create it."
+            exit 0
+          fi
+
+          echo "Importing existing ${JOB_NAME} into Terraform state."
+          terraform import "$RESOURCE_ADDRESS" "$JOB_ID"
+
       - name: Terraform Plan (apply — for assertions)
         if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'
         run: terraform plan -out=tfplan
