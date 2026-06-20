@@ -262,6 +262,14 @@ resource "azurerm_container_app_job" "market_data_refresh" {
   location                     = azurerm_resource_group.main.location
   container_app_environment_id = azurerm_container_app_environment.main.id
 
+  # Match container-app module: centralindia revision provisioning can exceed 30m,
+  # and first create needs a public seed image before AcrPull role propagation completes.
+  timeouts {
+    create = "60m"
+    update = "60m"
+    delete = "30m"
+  }
+
   identity {
     type = "SystemAssigned"
   }
@@ -309,8 +317,10 @@ resource "azurerm_container_app_job" "market_data_refresh" {
 
   template {
     container {
-      name   = "market-data-refresh"
-      image  = "${azurerm_container_registry.main.login_server}/market-data-service:${var.image_tag}"
+      name = "market-data-refresh"
+      image = var.use_seed_image ? "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest" : (
+        "${azurerm_container_registry.main.login_server}/market-data-service:${var.image_tag}"
+      )
       cpu    = 0.5
       memory = "1Gi"
 
