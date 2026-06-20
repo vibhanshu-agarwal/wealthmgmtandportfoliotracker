@@ -163,9 +163,20 @@ jobs:
       - name: Update market-data-refresh Job image
         if: matrix.service == 'market-data-service'
         run: |
+          set -euo pipefail
+          JOB_NAME="market-data-refresh-job"
+          if ! az containerapp job show \
+              --name "$JOB_NAME" \
+              --resource-group "$AZURE_RG" \
+              --output none 2>/dev/null; then
+            echo "::warning::${JOB_NAME} not found in ${AZURE_RG}."
+            echo "::warning::Run 'terraform apply' in infrastructure/terraform/azure to create the refresh Job."
+            echo "::warning::Skipping Job image update; the long-running market-data-service deploy above still succeeded."
+            exit 0
+          fi
           az containerapp job update \
-            --name market-data-refresh-job \
-            --resource-group $AZURE_RG \
+            --name "$JOB_NAME" \
+            --resource-group "$AZURE_RG" \
             --image $ACR_NAME.azurecr.io/market-data-service:${{ github.sha }}
 
       - name: Wait for revision to reach Succeeded state
