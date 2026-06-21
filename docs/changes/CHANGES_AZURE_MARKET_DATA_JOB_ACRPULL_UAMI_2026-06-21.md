@@ -112,8 +112,9 @@ gh workflow run terraform-azure.yml --ref main \
 > (their `target_port` is not in `ignore_changes`), which would break live
 > apps still serving on `8080`. `recreate_market_data_job=true` already
 > enables a **Job-only** seed image automatically. The workflow now fails
-> fast if both flags are set, and a recovery-mode plan assertion rejects the
-> run if any Container App would change.
+> fast if both flags are set, and a recovery-mode plan assertion rejects unsafe
+> Container App changes while allowing the corrective `target_port` `80 -> 8080`
+> repair if production is still stuck on the seed-bootstrap port.
 
 Order of operations during this apply:
 
@@ -144,8 +145,9 @@ several smaller issues, all addressed here:
   `recreate_market_data_job`.
 - **Fail-fast guard** rejecting `recreate_market_data_job=true` + `use_seed_image=true`.
 - **Recovery-mode plan assertion** (`scripts/assert_recovery_plan.py`) that fails the
-  run if any `azurerm_container_app` would be created/updated/replaced/deleted during a
-  Job recovery (flags ingress `target_port` diffs explicitly).
+  run if any `azurerm_container_app` would be created/replaced/deleted, or updated in
+  any way other than the explicit corrective ingress `target_port` move `80 -> 8080`.
+  The opposite seed direction (`8080 -> 80`) and unrelated app drift still fail.
 - **Workflow timeout** raised `30m -> 90m` so GitHub does not kill an apply before
   Terraform's own 60m resource timeouts.
 - **`principal_type = "ServicePrincipal"`** on the Job's AcrPull role assignment to
@@ -189,9 +191,9 @@ retry there if a propagation flake is ever observed in practice.
 - Dummy local-backend `terraform plan` — graph builds with **no `Cycle` error**
   (it only failed later at Azure authorizer configuration), empirically confirming
   the UAMI → role → Job chain is acyclic.
-- `scripts/assert_recovery_plan.py` — smoke-tested both ways: exits `1` and prints the
-  `target_port 8080 -> 80` diff when a Container App would change; exits `0` when only
-  the Job changes.
+- `scripts/assert_recovery_plan.py` — smoke-tested the refined recovery policy: exits
+  `0` for corrective Container App ingress `target_port 80 -> 8080`; exits `1` for the
+  seed direction `8080 -> 80`; exits `1` for unrelated Container App updates.
 - `scripts/assert_job_identity_migration.py` — smoke-tested three ways: exits `1` on an
   in-place `SystemAssigned -> UserAssigned` update; exits `0` on a forced replace and on a
   benign in-place update that does not change identity/registry.
