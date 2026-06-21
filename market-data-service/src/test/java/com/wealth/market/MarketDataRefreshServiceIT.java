@@ -1,8 +1,20 @@
 package com.wealth.market;
 
+import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
+import static com.github.tomakehurst.wiremock.client.WireMock.equalTo;
+import static com.github.tomakehurst.wiremock.client.WireMock.get;
+import static com.github.tomakehurst.wiremock.client.WireMock.stubFor;
+import static com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
+
 import com.github.tomakehurst.wiremock.WireMockServer;
 import com.github.tomakehurst.wiremock.client.WireMock;
 import com.wealth.market.events.PriceUpdatedEvent;
+import java.time.Duration;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
@@ -21,21 +33,6 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.kafka.ConfluentKafkaContainer;
 import org.testcontainers.mongodb.MongoDBContainer;
-import org.testcontainers.utility.DockerImageName;
-
-import java.math.BigDecimal;
-import java.time.Duration;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
-
-import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
-import static com.github.tomakehurst.wiremock.client.WireMock.equalTo;
-import static com.github.tomakehurst.wiremock.client.WireMock.get;
-import static com.github.tomakehurst.wiremock.client.WireMock.stubFor;
-import static com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo;
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.awaitility.Awaitility.await;
 
 @Tag("integration")
 @Testcontainers
@@ -51,11 +48,11 @@ class MarketDataRefreshServiceIT {
     private static final String TOPIC = "market-prices";
 
     @Container
-    static final MongoDBContainer mongo = new MongoDBContainer("mongo:7");
+    static final MongoDBContainer mongo = new MongoDBContainer(TestContainerImages.MONGO);
 
     @Container
     static final ConfluentKafkaContainer kafka =
-            new ConfluentKafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:7.6.1"));
+            new ConfluentKafkaContainer(TestContainerImages.KAFKA);
 
     static WireMockServer wireMockServer;
 

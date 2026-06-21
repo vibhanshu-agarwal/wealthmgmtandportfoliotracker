@@ -1,5 +1,7 @@
 package com.wealth.market;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import com.wealth.market.events.PriceUpdatedEvent;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -11,11 +13,9 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
-import org.testcontainers.mongodb.MongoDBContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
-
-import static org.assertj.core.api.Assertions.assertThat;
+import org.testcontainers.mongodb.MongoDBContainer;
 
 /**
  * Verifies that {@link LocalMarketDataSeeder} is NOT present in the application context
@@ -29,7 +29,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class LocalMarketDataSeederAwsProfileIntegrationTest {
 
     @Container
-    static MongoDBContainer mongo = new MongoDBContainer("mongo:7");
+    static MongoDBContainer mongo = new MongoDBContainer(TestContainerImages.MONGO);
 
     @DynamicPropertySource
     static void mongoProperties(DynamicPropertyRegistry registry) {

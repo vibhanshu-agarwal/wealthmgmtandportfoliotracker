@@ -3,11 +3,11 @@
 #
 # This compose stack exists exclusively for local developer machines and the
 # local integration test loop. Production deploys the same four Spring services
-# to AWS Lambda (Image package type); production data stores (Postgres, Mongo,
-# Kafka, Redis) are third-party managed services (Neon, Atlas, Confluent Cloud,
-# Upstash) — NOT these Docker images.
+# to Azure Container Apps; production data stores (Postgres, Mongo, Kafka, Redis)
+# are external managed services (Neon, MongoDB Atlas, Aiven Kafka, Upstash)
+# configured through Azure Container App secrets — NOT these Docker images.
 #
-# Consequence: image bumps below (postgres:18.3, mongo:8.2.7, cp-kafka:8.2.0)
+# Consequence: image bumps below (postgres:18.4, mongo:8.0.26, cp-kafka:8.2.0, redis:8.2.0-alpine)
 # only affect local dev parity with the managed providers' current versions.
 # They do NOT require a coordinated production migration. A future PR may
 # replace these containers with the third-party providers' local-mode offerings
@@ -43,7 +43,7 @@ x-internal-key: &internal-key
 
 services:
   postgres:
-    image: 'postgres:18.3'
+    image: '${POSTGRES_IMAGE:-postgres:18.4}'
     container_name: portfolio-db
     environment:
       POSTGRES_DB: portfolio_db
@@ -61,7 +61,7 @@ services:
       start_period: 10s
 
   mongodb:
-    image: 'mongo:8.2.7'
+    image: '${MONGO_IMAGE:-mongo:8.0.26}'
     container_name: market-db
     environment:
       MONGO_INITDB_DATABASE: market_db
@@ -77,7 +77,7 @@ services:
       start_period: 10s
 
   kafka:
-    image: 'confluentinc/cp-kafka:8.2.0'
+    image: '${KAFKA_IMAGE:-confluentinc/cp-kafka:8.2.0}'
     container_name: event-broker
     ports:
       - '9092:9092'
@@ -100,7 +100,7 @@ services:
       - kafka-data:/var/lib/kafka/data
 
   redis:
-    image: 'redis:alpine'
+    image: '${REDIS_IMAGE:-redis:8.2.0-alpine}'
     container_name: gateway-cache
     ports:
       - '6379:6379'

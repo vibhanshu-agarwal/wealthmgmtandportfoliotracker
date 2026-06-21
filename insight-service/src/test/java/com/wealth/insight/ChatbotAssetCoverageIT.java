@@ -34,7 +34,6 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.utility.DockerImageName;
 
 /**
  * Testcontainers integration test for the {@code chatbot-asset-coverage-fix} spec — Task 7.
@@ -86,7 +85,7 @@ class ChatbotAssetCoverageIT {
   @Container
   @SuppressWarnings("resource")
   static final GenericContainer<?> redis =
-      new GenericContainer<>(DockerImageName.parse("redis:7-alpine")).withExposedPorts(REDIS_PORT);
+      new GenericContainer<>(TestContainerImages.REDIS).withExposedPorts(REDIS_PORT);
 
   @DynamicPropertySource
   static void containerProperties(DynamicPropertyRegistry registry) {

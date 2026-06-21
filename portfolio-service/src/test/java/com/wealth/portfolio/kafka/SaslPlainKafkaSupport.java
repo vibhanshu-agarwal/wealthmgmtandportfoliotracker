@@ -1,5 +1,6 @@
 package com.wealth.portfolio.kafka;
 
+import com.wealth.portfolio.TestContainerImages;
 import java.util.HashMap;
 import java.util.Map;
 import org.apache.kafka.clients.CommonClientConfigs;
@@ -7,14 +8,15 @@ import org.apache.kafka.common.config.SaslConfigs;
 import org.apache.kafka.common.security.auth.SecurityProtocol;
 import org.testcontainers.containers.Network;
 import org.testcontainers.kafka.ConfluentKafkaContainer;
-import org.testcontainers.utility.DockerImageName;
 
 /** Test-only helper: SASL/PLAIN Kafka broker matching Aiven-style client settings. */
 public final class SaslPlainKafkaSupport {
 
     public static final String USERNAME = "admin";
     public static final String PASSWORD = "admin";
-    public static final String KAFKA_IMAGE = "confluentinc/cp-kafka:7.6.1";
+    /** @deprecated Use {@link TestContainerImages#KAFKA} instead. */
+    @Deprecated
+    public static final String KAFKA_IMAGE = TestContainerImages.KAFKA.asCanonicalNameString();
     public static final String NETWORK_ALIAS = "kafka";
     /**
      * In-network listener registered via {@link ConfluentKafkaContainer#withListener(String)}.
@@ -36,7 +38,7 @@ public final class SaslPlainKafkaSupport {
      */
     public static ConfluentKafkaContainer createOnNetwork(Network network) {
         ConfluentKafkaContainer kafka =
-                new ConfluentKafkaContainer(DockerImageName.parse(KAFKA_IMAGE)) {
+                new ConfluentKafkaContainer(TestContainerImages.KAFKA) {
                     @Override
                     protected void configure() {
                         super.configure();
@@ -50,7 +52,7 @@ public final class SaslPlainKafkaSupport {
 
     /** Standalone SASL/PLAIN broker for host-side clients ({@code getBootstrapServers()}). */
     public static ConfluentKafkaContainer createStandalone() {
-        return applySaslPlainEnv(new ConfluentKafkaContainer(DockerImageName.parse(KAFKA_IMAGE)));
+        return applySaslPlainEnv(new ConfluentKafkaContainer(TestContainerImages.KAFKA));
     }
 
     private static ConfluentKafkaContainer applySaslPlainEnv(ConfluentKafkaContainer kafka) {

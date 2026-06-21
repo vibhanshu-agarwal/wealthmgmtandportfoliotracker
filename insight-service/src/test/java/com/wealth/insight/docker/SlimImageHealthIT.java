@@ -16,6 +16,7 @@ import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
+import com.wealth.insight.TestContainerImages;
 import org.testcontainers.utility.MountableFile;
 
 /** Property 7: slim-JRE image boots with Redis and reports {@code /actuator/health = UP}. */
@@ -32,7 +33,7 @@ class SlimImageHealthIT {
     @Container
     @SuppressWarnings("resource")
     static final GenericContainer<?> redis =
-            new GenericContainer<>(DockerImageName.parse("redis:7-alpine"))
+            new GenericContainer<>(TestContainerImages.REDIS)
                     .withNetwork(NETWORK)
                     .withNetworkAliases("redis")
                     .withExposedPorts(6379);

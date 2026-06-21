@@ -1,5 +1,8 @@
 package com.wealth.portfolio;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.NoSuchBeanDefinitionException;
@@ -11,10 +14,6 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
-import org.testcontainers.utility.DockerImageName;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Profile activation tests for {@link InfrastructureHealthLogger}.
@@ -39,7 +38,7 @@ class InfrastructureHealthLoggerProfileTest {
 
     @SuppressWarnings("resource")
     private static final PostgreSQLContainer POSTGRES =
-            new PostgreSQLContainer(DockerImageName.parse("postgres:16-alpine"))
+            new PostgreSQLContainer(TestContainerImages.POSTGRES)
                     .withDatabaseName("portfolio_db")
                     .withUsername("wealth_user")
                     .withPassword("wealth_pass");

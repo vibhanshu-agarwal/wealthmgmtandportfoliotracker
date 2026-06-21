@@ -30,6 +30,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.kafka.ConfluentKafkaContainer;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
+import com.wealth.portfolio.TestContainerImages;
 
 /**
  * Task 3.4 — H1 causal-chain closer: slim jlink JRE + SASL/PLAIN broker + live Kafka consumer.
@@ -52,7 +53,7 @@ class SlimImageSaslProjectionIT {
     @Container
     @SuppressWarnings("resource")
     static final PostgreSQLContainer postgres =
-            new PostgreSQLContainer(DockerImageName.parse("postgres:16-alpine"))
+            new PostgreSQLContainer(TestContainerImages.POSTGRES)
                     .withNetwork(NETWORK)
                     .withNetworkAliases("postgres")
                     .withDatabaseName("portfolio_db")
@@ -62,7 +63,7 @@ class SlimImageSaslProjectionIT {
     @Container
     @SuppressWarnings("resource")
     static final GenericContainer<?> redis =
-            new GenericContainer<>(DockerImageName.parse("redis:7-alpine"))
+            new GenericContainer<>(TestContainerImages.REDIS)
                     .withNetwork(NETWORK)
                     .withNetworkAliases("redis")
                     .withExposedPorts(6379);

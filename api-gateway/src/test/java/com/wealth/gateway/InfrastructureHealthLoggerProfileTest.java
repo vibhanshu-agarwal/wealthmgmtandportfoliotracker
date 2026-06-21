@@ -1,5 +1,8 @@
 package com.wealth.gateway;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.NoSuchBeanDefinitionException;
@@ -12,10 +15,6 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.utility.DockerImageName;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Profile activation tests for {@link InfrastructureHealthLogger}.
@@ -45,7 +44,7 @@ class InfrastructureHealthLoggerProfileTest {
         @Container
         @SuppressWarnings("resource")
         static final GenericContainer<?> redis =
-                new GenericContainer<>(DockerImageName.parse("redis:7-alpine")).withExposedPorts(REDIS_PORT);
+                new GenericContainer<>(TestContainerImages.REDIS).withExposedPorts(REDIS_PORT);
 
         @DynamicPropertySource
         static void localProperties(DynamicPropertyRegistry registry) {
@@ -71,7 +70,7 @@ class InfrastructureHealthLoggerProfileTest {
         @Container
         @SuppressWarnings("resource")
         static final GenericContainer<?> redis =
-                new GenericContainer<>(DockerImageName.parse("redis:7-alpine")).withExposedPorts(REDIS_PORT);
+                new GenericContainer<>(TestContainerImages.REDIS).withExposedPorts(REDIS_PORT);
 
         @DynamicPropertySource
         static void awsProperties(DynamicPropertyRegistry registry) {
@@ -96,7 +95,7 @@ class InfrastructureHealthLoggerProfileTest {
         @Container
         @SuppressWarnings("resource")
         static final GenericContainer<?> redis =
-                new GenericContainer<>(DockerImageName.parse("redis:7-alpine")).withExposedPorts(REDIS_PORT);
+                new GenericContainer<>(TestContainerImages.REDIS).withExposedPorts(REDIS_PORT);
 
         @DynamicPropertySource
         static void azureProperties(DynamicPropertyRegistry registry) {

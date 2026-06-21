@@ -1,7 +1,11 @@
 package com.wealth.insight;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import com.wealth.insight.dto.TickerSummary;
 import com.wealth.market.events.PriceUpdatedEvent;
+import java.math.BigDecimal;
+import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -15,12 +19,6 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.utility.DockerImageName;
-
-import java.math.BigDecimal;
-import java.util.Map;
-
-import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Integration tests for MarketDataService, InsightController, and ChatController
@@ -57,7 +55,7 @@ class MarketSummaryIntegrationTest {
     @Container
     @SuppressWarnings("resource")
     static final GenericContainer<?> redis =
-            new GenericContainer<>(DockerImageName.parse("redis:7-alpine"))
+            new GenericContainer<>(TestContainerImages.REDIS)
                     .withExposedPorts(REDIS_PORT);
 
     @DynamicPropertySource
