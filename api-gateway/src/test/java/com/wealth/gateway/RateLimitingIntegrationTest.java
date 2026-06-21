@@ -1,5 +1,10 @@
 package com.wealth.gateway;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -14,13 +19,6 @@ import org.springframework.test.web.reactive.server.WebTestClient;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.utility.DockerImageName;
-
-import java.time.Duration;
-import java.util.ArrayList;
-import java.util.List;
-
-import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Integration tests for Redis-backed distributed rate limiting.
@@ -49,7 +47,7 @@ class RateLimitingIntegrationTest {
     @Container
     @SuppressWarnings("resource")
     static final GenericContainer<?> redis =
-            new GenericContainer<>(DockerImageName.parse("redis:7-alpine"))
+            new GenericContainer<>(TestContainerImages.REDIS)
                     .withExposedPorts(REDIS_PORT);
 
     @DynamicPropertySource

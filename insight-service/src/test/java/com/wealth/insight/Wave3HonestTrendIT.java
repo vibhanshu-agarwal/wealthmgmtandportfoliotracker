@@ -16,6 +16,7 @@ import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
+import com.wealth.insight.TestContainerImages;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -64,7 +65,7 @@ class Wave3HonestTrendIT {
     @Container
     @SuppressWarnings("resource")
     static final GenericContainer<?> redis =
-            new GenericContainer<>(DockerImageName.parse("redis:7-alpine"))
+            new GenericContainer<>(TestContainerImages.REDIS)
                     .withExposedPorts(REDIS_PORT);
 
     @DynamicPropertySource

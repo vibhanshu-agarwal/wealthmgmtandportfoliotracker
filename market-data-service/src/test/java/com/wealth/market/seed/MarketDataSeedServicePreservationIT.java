@@ -22,6 +22,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.mongodb.MongoDBContainer;
+import com.wealth.market.TestContainerImages;
 
 import java.math.BigDecimal;
 import java.util.HashMap;
@@ -73,7 +74,7 @@ class MarketDataSeedServicePreservationIT {
 
     @Container
     @SuppressWarnings("resource")
-    static final MongoDBContainer mongo = new MongoDBContainer("mongo:7");
+    static final MongoDBContainer mongo = new MongoDBContainer(TestContainerImages.MONGO);
 
     @DynamicPropertySource
     static void integrationTestProperties(DynamicPropertyRegistry registry) {

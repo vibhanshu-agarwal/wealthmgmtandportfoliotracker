@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 
 import com.sun.net.httpserver.HttpServer;
+import com.wealth.gateway.TestContainerImages;
 import com.wealth.gateway.TestJwtFactory;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -30,7 +31,6 @@ import org.springframework.test.web.reactive.server.WebTestClient;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.utility.DockerImageName;
 
 /**
  * Property 10a: HTTP trace-context propagation — {@code api-gateway → insight-service}.
@@ -55,7 +55,7 @@ class HttpTraceContextPropagationIT {
     @Container
     @SuppressWarnings("resource")
     static final GenericContainer<?> redis =
-            new GenericContainer<>(DockerImageName.parse("redis:7-alpine")).withExposedPorts(REDIS_PORT);
+            new GenericContainer<>(TestContainerImages.REDIS).withExposedPorts(REDIS_PORT);
 
     private static final List<String> capturedTraceparents = new CopyOnWriteArrayList<>();
 

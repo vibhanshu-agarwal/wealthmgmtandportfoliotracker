@@ -2,7 +2,6 @@ package com.wealth.portfolio;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import tools.jackson.databind.json.JsonMapper;
 import com.wealth.market.events.PriceUpdatedEvent;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
@@ -29,14 +28,14 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.springframework.test.context.ActiveProfiles;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.kafka.ConfluentKafkaContainer;
 import org.testcontainers.postgresql.PostgreSQLContainer;
-import org.testcontainers.utility.DockerImageName;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * End-to-end integration tests for the Kafka DLQ pipeline.
@@ -63,11 +62,11 @@ class DlqIntegrationTest {
 
   @Container
   static final ConfluentKafkaContainer kafka =
-      new ConfluentKafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:7.6.1"));
+      new ConfluentKafkaContainer(TestContainerImages.KAFKA);
 
   @Container
   static final PostgreSQLContainer postgres =
-      new PostgreSQLContainer(DockerImageName.parse("postgres:16-alpine"))
+      new PostgreSQLContainer(TestContainerImages.POSTGRES)
           .withDatabaseName("portfolio_db")
           .withUsername("wealth_user")
           .withPassword("wealth_pass");

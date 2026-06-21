@@ -17,6 +17,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
+import com.wealth.portfolio.TestContainerImages;
 import org.testcontainers.utility.MountableFile;
 
 /** Property 7: slim-JRE image boots with Postgres and reports {@code /actuator/health = UP}. */
@@ -33,7 +34,7 @@ class SlimImageHealthIT {
     @Container
     @SuppressWarnings("resource")
     static final PostgreSQLContainer postgres =
-            new PostgreSQLContainer(DockerImageName.parse("postgres:16-alpine"))
+            new PostgreSQLContainer(TestContainerImages.POSTGRES)
                     .withNetwork(NETWORK)
                     .withNetworkAliases("postgres")
                     .withDatabaseName("portfolio_db")
@@ -43,7 +44,7 @@ class SlimImageHealthIT {
     @Container
     @SuppressWarnings("resource")
     static final GenericContainer<?> redis =
-            new GenericContainer<>(DockerImageName.parse("redis:7-alpine"))
+            new GenericContainer<>(TestContainerImages.REDIS)
                     .withNetwork(NETWORK)
                     .withNetworkAliases("redis")
                     .withExposedPorts(6379);

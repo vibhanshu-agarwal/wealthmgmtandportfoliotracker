@@ -48,7 +48,6 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.kafka.ConfluentKafkaContainer;
 import org.testcontainers.postgresql.PostgreSQLContainer;
-import org.testcontainers.utility.DockerImageName;
 
 /**
  * Cross-service Kafka wire contract integration test (Task 6.7).
@@ -96,11 +95,11 @@ class PriceUpdatedEventKafkaRoundTripIT {
 
     @Container
     static final ConfluentKafkaContainer kafka =
-            new ConfluentKafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:7.6.1"));
+            new ConfluentKafkaContainer(TestContainerImages.KAFKA);
 
     @Container
     static final PostgreSQLContainer postgres =
-            new PostgreSQLContainer(DockerImageName.parse("postgres:16-alpine"))
+            new PostgreSQLContainer(TestContainerImages.POSTGRES)
                     .withDatabaseName("portfolio_db")
                     .withUsername("wealth_user")
                     .withPassword("wealth_pass");

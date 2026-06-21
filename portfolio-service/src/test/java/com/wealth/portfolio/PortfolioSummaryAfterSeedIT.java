@@ -1,5 +1,13 @@
 package com.wealth.portfolio;
 
+import static com.github.tomakehurst.wiremock.client.WireMock.okJson;
+import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
+import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.wireMockConfig;
+import static com.wealth.portfolio.PortfolioConstants.X_USER_ID_HEADER;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
 import com.github.tomakehurst.wiremock.WireMockServer;
 import com.wealth.portfolio.seed.PortfolioSeedService;
 import org.junit.jupiter.api.AfterAll;
@@ -18,15 +26,6 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
-import org.testcontainers.utility.DockerImageName;
-
-import static com.wealth.portfolio.PortfolioConstants.X_USER_ID_HEADER;
-import static com.github.tomakehurst.wiremock.client.WireMock.okJson;
-import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
-import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.wireMockConfig;
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
  * Reproduces deploy-azure verify assertion (c): seeded E2E user + GET /api/portfolio/summary.
@@ -51,7 +50,7 @@ class PortfolioSummaryAfterSeedIT {
     @Container
     @SuppressWarnings("resource")
     static final PostgreSQLContainer postgres =
-            new PostgreSQLContainer(DockerImageName.parse("postgres:18-alpine"))
+            new PostgreSQLContainer(TestContainerImages.POSTGRES)
                     .withDatabaseName("portfolio_db")
                     .withUsername("wealth_user")
                     .withPassword("wealth_pass");

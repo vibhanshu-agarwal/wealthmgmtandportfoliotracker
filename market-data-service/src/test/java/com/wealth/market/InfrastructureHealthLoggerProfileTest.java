@@ -1,5 +1,8 @@
 package com.wealth.market;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import com.wealth.market.events.PriceUpdatedEvent;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -13,12 +16,8 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
-import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.mongodb.MongoDBContainer;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Profile activation tests for {@link InfrastructureHealthLogger}.
@@ -40,7 +39,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  */
 class InfrastructureHealthLoggerProfileTest {
 
-    private static final MongoDBContainer MONGO = new MongoDBContainer("mongo:7");
+    private static final MongoDBContainer MONGO = new MongoDBContainer(TestContainerImages.MONGO);
 
     static {
         MONGO.start();

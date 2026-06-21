@@ -23,7 +23,7 @@ import org.testcontainers.mongodb.MongoDBContainer;
 @Testcontainers
 class LocalMarketDataSeederIntegrationTest {
 
-  @Container static MongoDBContainer mongo = new MongoDBContainer("mongo:7");
+  @Container static MongoDBContainer mongo = new MongoDBContainer(TestContainerImages.MONGO);
 
   @DynamicPropertySource
   static void integrationTestProperties(DynamicPropertyRegistry registry) {

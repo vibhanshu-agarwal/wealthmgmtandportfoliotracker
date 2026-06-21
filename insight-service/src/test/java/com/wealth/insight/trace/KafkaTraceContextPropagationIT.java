@@ -3,6 +3,7 @@ package com.wealth.insight.trace;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 
+import com.wealth.insight.TestContainerImages;
 import com.wealth.market.events.PriceUpdatedEvent;
 import io.micrometer.observation.ObservationRegistry;
 import io.micrometer.tracing.Span;
@@ -12,6 +13,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import org.apache.kafka.clients.producer.ProducerRecord;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -20,7 +22,6 @@ import org.springframework.boot.kafka.autoconfigure.KafkaProperties;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.apache.kafka.clients.producer.ProducerRecord;
 import org.springframework.kafka.core.DefaultKafkaProducerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.core.ProducerFactory;
@@ -34,7 +35,6 @@ import org.springframework.test.context.TestPropertySource;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.utility.DockerImageName;
 
 /**
  * Property 10b (insight consumer): listener observation exposes an active span when a W3C
@@ -71,7 +71,7 @@ class KafkaTraceContextPropagationIT {
     @Container
     @SuppressWarnings("resource")
     static final GenericContainer<?> redis =
-            new GenericContainer<>(DockerImageName.parse("redis:7-alpine")).withExposedPorts(REDIS_PORT);
+            new GenericContainer<>(TestContainerImages.REDIS).withExposedPorts(REDIS_PORT);
 
     @DynamicPropertySource
     static void containerProperties(DynamicPropertyRegistry registry) {

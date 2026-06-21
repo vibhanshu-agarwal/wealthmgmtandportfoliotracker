@@ -17,6 +17,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.mongodb.MongoDBContainer;
 import org.testcontainers.utility.DockerImageName;
+import com.wealth.market.TestContainerImages;
 import org.testcontainers.utility.MountableFile;
 
 /** Property 7: slim-JRE image boots with MongoDB and reports {@code /actuator/health = UP}. */
@@ -33,7 +34,7 @@ class SlimImageHealthIT {
     @Container
     @SuppressWarnings("resource")
     static final MongoDBContainer mongo =
-            new MongoDBContainer("mongo:7").withNetwork(NETWORK).withNetworkAliases("mongo");
+            new MongoDBContainer(TestContainerImages.MONGO).withNetwork(NETWORK).withNetworkAliases("mongo");
 
     @Container
     @SuppressWarnings("resource")

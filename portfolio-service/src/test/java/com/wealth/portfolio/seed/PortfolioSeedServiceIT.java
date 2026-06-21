@@ -1,12 +1,21 @@
 package com.wealth.portfolio.seed;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import com.wealth.portfolio.AssetHolding;
 import com.wealth.portfolio.AssetHoldingRepository;
 import com.wealth.portfolio.Portfolio;
 import com.wealth.portfolio.PortfolioRepository;
 import com.wealth.portfolio.PortfolioService;
+import com.wealth.portfolio.TestContainerImages;
 import com.wealth.portfolio.seed.PortfolioSeedService.SeedResult;
 import com.wealth.portfolio.seed.SeedTickerRegistry.SeedTicker;
+import java.math.BigDecimal;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
+import java.util.stream.Collectors;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,16 +27,6 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
-import org.testcontainers.utility.DockerImageName;
-
-import java.math.BigDecimal;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
-import java.util.stream.Collectors;
-
-import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Testcontainers-backed integration test for {@link PortfolioSeedService}.
@@ -38,7 +37,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * invocation (counts are stable, per-ticker quantities and prices are byte-identical,
  * and the previous portfolio + its cascaded holdings are cleanly removed).
  *
- * <p>Uses {@code postgres:18-alpine} to match the production Neon Postgres 18 target
+ * <p>Uses {@link com.wealth.portfolio.TestContainerImages#POSTGRES} to match the production Neon Postgres 18.4 target
  * (design doc §11). Runs as part of the {@code integrationTest} task:
  * {@code ./gradlew :portfolio-service:integrationTest --tests "*PortfolioSeedServiceIT*"}.
  */
@@ -54,7 +53,7 @@ class PortfolioSeedServiceIT {
     @Container
     @SuppressWarnings("resource")
     static final PostgreSQLContainer postgres =
-            new PostgreSQLContainer(DockerImageName.parse("postgres:18-alpine"))
+            new PostgreSQLContainer(TestContainerImages.POSTGRES)
                     .withDatabaseName("portfolio_db")
                     .withUsername("wealth_user")
                     .withPassword("wealth_pass");

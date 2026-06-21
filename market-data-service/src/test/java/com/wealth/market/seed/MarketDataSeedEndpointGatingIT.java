@@ -13,6 +13,7 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.testcontainers.mongodb.MongoDBContainer;
+import com.wealth.market.TestContainerImages;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -30,7 +31,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 })
 class MarketDataSeedEndpointGatingIT {
 
-    private static final MongoDBContainer MONGO = new MongoDBContainer("mongo:7");
+    private static final MongoDBContainer MONGO = new MongoDBContainer(TestContainerImages.MONGO);
 
     static {
         MONGO.start();

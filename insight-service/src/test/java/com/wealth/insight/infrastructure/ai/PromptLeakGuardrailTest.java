@@ -1,12 +1,16 @@
 package com.wealth.insight.infrastructure.ai;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import com.wealth.InsightApplication;
 import com.wealth.insight.ChatResolutionService;
+import com.wealth.insight.TestContainerImages;
 import com.wealth.insight.catalog.TickerCatalogService;
 import com.wealth.insight.dto.ChatRequest;
+import java.nio.charset.StandardCharsets;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
@@ -18,11 +22,6 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.utility.DockerImageName;
-
-import java.nio.charset.StandardCharsets;
-
-import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Task 8.11 — Property 8: No prompt leakage.
@@ -48,7 +47,7 @@ class PromptLeakGuardrailTest {
 
     @SuppressWarnings("resource")
     private static final GenericContainer<?> REDIS =
-            new GenericContainer<>(DockerImageName.parse("redis:7-alpine"))
+            new GenericContainer<>(TestContainerImages.REDIS)
                     .withExposedPorts(REDIS_PORT);
 
     static {
