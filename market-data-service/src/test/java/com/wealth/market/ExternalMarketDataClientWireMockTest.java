@@ -152,6 +152,11 @@ class ExternalMarketDataClientWireMockTest {
         // The crumb fetch must itself present the cookie obtained from the cookie URL.
         WireMock.verify(getRequestedFor(urlPathEqualTo("/v1/test/getcrumb"))
                 .withHeader("Cookie", containing("A1=test-cookie")));
+        // The browser User-Agent must be sent on every leg of the handshake, not just the quote.
+        WireMock.verify(getRequestedFor(urlPathEqualTo("/cookie"))
+                .withHeader("User-Agent", containing("Mozilla/5.0")));
+        WireMock.verify(getRequestedFor(urlPathEqualTo("/v1/test/getcrumb"))
+                .withHeader("User-Agent", containing("Mozilla/5.0")));
     }
 
     @Test
@@ -195,5 +200,31 @@ class ExternalMarketDataClientWireMockTest {
                 .isInstanceOf(WebClientResponseException.Unauthorized.class);
 
         WireMock.verify(2, getRequestedFor(urlPathEqualTo("/v7/finance/quote")));
+    }
+
+    @Test
+    void proceedsWithoutCrumbWhenHandshakeIncomplete() {
+        // Cookie endpoint yields no Set-Cookie: the handshake is intentionally non-fatal.
+        // The client must proceed without a crumb (and not even attempt the crumb fetch),
+        // leaving the existing cached-price/401 fallback as the only failure path.
+        stubFor(get(urlPathEqualTo("/cookie"))
+                .willReturn(aResponse().withStatus(404)));
+        stubFor(get(urlPathEqualTo("/v7/finance/quote"))
+                .willReturn(aResponse()
+                        .withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("""
+                                {"quoteResponse":{"result":[{"symbol":"AAPL","regularMarketPrice":7.0}]}}
+                                """)));
+
+        YahooFinanceExternalMarketDataClient client = newClient(new ExternalMarketDataProperties());
+
+        Map<String, BigDecimal> prices = client.getLatestPrices(List.of("AAPL"));
+
+        assertThat(prices).containsEntry("AAPL", BigDecimal.valueOf(7.0));
+        // No cookie => crumb fetch is short-circuited, and the quote carries no crumb param.
+        WireMock.verify(0, getRequestedFor(urlPathEqualTo("/v1/test/getcrumb")));
+        WireMock.verify(getRequestedFor(urlPathEqualTo("/v7/finance/quote"))
+                .withQueryParam("crumb", absent()));
     }
 }
