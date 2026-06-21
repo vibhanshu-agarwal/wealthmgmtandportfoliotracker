@@ -2,6 +2,7 @@ package com.wealth.market;
 
 import com.github.tomakehurst.wiremock.WireMockServer;
 import com.github.tomakehurst.wiremock.client.WireMock;
+import com.github.tomakehurst.wiremock.stubbing.Scenario;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -27,11 +28,31 @@ class ExternalMarketDataClientWireMockTest {
         wireMockServer = new WireMockServer(0);
         wireMockServer.start();
         WireMock.configureFor("localhost", wireMockServer.port());
+
+        // Default Yahoo session handshake stubs so the cookie+crumb fetch resolves against
+        // WireMock (no real network) for every test. Individual tests can override these.
+        stubFor(get(urlPathEqualTo("/cookie"))
+                .willReturn(aResponse()
+                        .withStatus(404) // fc.yahoo.com answers 404 but still sets the cookie
+                        .withHeader("Set-Cookie", "A1=test-cookie; Path=/; Domain=.yahoo.com")));
+        stubFor(get(urlPathEqualTo("/v1/test/getcrumb"))
+                .willReturn(aResponse()
+                        .withStatus(200)
+                        .withHeader("Content-Type", "text/plain")
+                        .withBody("test-crumb")));
     }
 
     @AfterEach
     void tearDown() {
         wireMockServer.stop();
+    }
+
+    /** Builds a client whose base, cookie, and crumb endpoints all point at the WireMock server. */
+    private YahooFinanceExternalMarketDataClient newClient(ExternalMarketDataProperties props) {
+        String base = "http://localhost:" + wireMockServer.port();
+        props.setBaseUrl(base);
+        props.setCookieUrl(base + "/cookie");
+        return new YahooFinanceExternalMarketDataClient(props, meterRegistry);
     }
 
     @Test
@@ -54,10 +75,7 @@ class ExternalMarketDataClientWireMockTest {
                         .withHeader("Content-Type", "application/json")
                         .withBody(responseBody)));
 
-        ExternalMarketDataProperties props = new ExternalMarketDataProperties();
-        props.setBaseUrl("http://localhost:" + wireMockServer.port());
-
-        YahooFinanceExternalMarketDataClient client = new YahooFinanceExternalMarketDataClient(props, meterRegistry);
+        YahooFinanceExternalMarketDataClient client = newClient(new ExternalMarketDataProperties());
 
         Map<String, BigDecimal> prices = client.getLatestPrices(List.of("AAPL", "MSFT"));
 
@@ -70,10 +88,7 @@ class ExternalMarketDataClientWireMockTest {
         stubFor(get(urlPathEqualTo("/v7/finance/quote"))
                 .willReturn(aResponse().withStatus(503)));
 
-        ExternalMarketDataProperties props = new ExternalMarketDataProperties();
-        props.setBaseUrl("http://localhost:" + wireMockServer.port());
-
-        YahooFinanceExternalMarketDataClient client = new YahooFinanceExternalMarketDataClient(props, meterRegistry);
+        YahooFinanceExternalMarketDataClient client = newClient(new ExternalMarketDataProperties());
 
         assertThatThrownBy(() -> client.getLatestPrices(List.of("AAPL")))
                 .isInstanceOf(WebClientResponseException.class);
@@ -101,16 +116,84 @@ class ExternalMarketDataClientWireMockTest {
                                 """)));
 
         ExternalMarketDataProperties props = new ExternalMarketDataProperties();
-        props.setBaseUrl("http://localhost:" + wireMockServer.port());
         props.setBatchSize(1);
-
-        YahooFinanceExternalMarketDataClient client = new YahooFinanceExternalMarketDataClient(props, meterRegistry);
+        YahooFinanceExternalMarketDataClient client = newClient(props);
 
         Map<String, BigDecimal> prices = client.getLatestPrices(List.of("AAPL", "MSFT"));
 
         assertThat(prices).containsEntry("AAPL", BigDecimal.valueOf(1.0));
         assertThat(prices).containsEntry("MSFT", BigDecimal.valueOf(2.0));
         WireMock.verify(2, getRequestedFor(urlPathEqualTo("/v7/finance/quote")));
+        // The crumb handshake runs once and is cached across batches.
+        WireMock.verify(1, getRequestedFor(urlPathEqualTo("/v1/test/getcrumb")));
+    }
+
+    @Test
+    void sendsUserAgentCookieAndCrumbOnQuoteAfterHandshake() {
+        stubFor(get(urlPathEqualTo("/v7/finance/quote"))
+                .willReturn(aResponse()
+                        .withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("""
+                                {"quoteResponse":{"result":[{"symbol":"AAPL","regularMarketPrice":42.0}]}}
+                                """)));
+
+        YahooFinanceExternalMarketDataClient client = newClient(new ExternalMarketDataProperties());
+
+        Map<String, BigDecimal> prices = client.getLatestPrices(List.of("AAPL"));
+
+        assertThat(prices).containsEntry("AAPL", BigDecimal.valueOf(42.0));
+
+        // The quote request must carry the acquired crumb, the session cookie, and a browser UA.
+        WireMock.verify(getRequestedFor(urlPathEqualTo("/v7/finance/quote"))
+                .withQueryParam("crumb", equalTo("test-crumb"))
+                .withHeader("Cookie", containing("A1=test-cookie"))
+                .withHeader("User-Agent", containing("Mozilla/5.0")));
+        // The crumb fetch must itself present the cookie obtained from the cookie URL.
+        WireMock.verify(getRequestedFor(urlPathEqualTo("/v1/test/getcrumb"))
+                .withHeader("Cookie", containing("A1=test-cookie")));
+    }
+
+    @Test
+    void refreshesCrumbAndRetriesOnceWhenQuoteReturns401() {
+        // First quote attempt 401s (stale/absent crumb); after a re-handshake the retry succeeds.
+        stubFor(get(urlPathEqualTo("/v7/finance/quote"))
+                .inScenario("crumb-expiry")
+                .whenScenarioStateIs(Scenario.STARTED)
+                .willReturn(aResponse().withStatus(401))
+                .willSetStateTo("recovered"));
+        stubFor(get(urlPathEqualTo("/v7/finance/quote"))
+                .inScenario("crumb-expiry")
+                .whenScenarioStateIs("recovered")
+                .willReturn(aResponse()
+                        .withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("""
+                                {"quoteResponse":{"result":[{"symbol":"AAPL","regularMarketPrice":99.0}]}}
+                                """)));
+
+        YahooFinanceExternalMarketDataClient client = newClient(new ExternalMarketDataProperties());
+
+        Map<String, BigDecimal> prices = client.getLatestPrices(List.of("AAPL"));
+
+        assertThat(prices).containsEntry("AAPL", BigDecimal.valueOf(99.0));
+        // Quote attempted twice (401 then success); crumb re-fetched for the retry.
+        WireMock.verify(2, getRequestedFor(urlPathEqualTo("/v7/finance/quote")));
+        WireMock.verify(2, getRequestedFor(urlPathEqualTo("/v1/test/getcrumb")));
+    }
+
+    @Test
+    void propagatesUnauthorizedWhenRetryAlsoFails() {
+        // Persistent 401 (e.g. Yahoo IP block) — after one refresh+retry the error propagates
+        // so the caller (MarketDataRefreshService) can fall back to cached prices.
+        stubFor(get(urlPathEqualTo("/v7/finance/quote"))
+                .willReturn(aResponse().withStatus(401)));
+
+        YahooFinanceExternalMarketDataClient client = newClient(new ExternalMarketDataProperties());
+
+        assertThatThrownBy(() -> client.getLatestPrices(List.of("AAPL")))
+                .isInstanceOf(WebClientResponseException.Unauthorized.class);
+
+        WireMock.verify(2, getRequestedFor(urlPathEqualTo("/v7/finance/quote")));
     }
 }
-

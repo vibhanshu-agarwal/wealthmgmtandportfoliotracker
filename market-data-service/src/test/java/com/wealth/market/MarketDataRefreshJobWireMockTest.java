@@ -30,6 +30,18 @@ class MarketDataRefreshJobWireMockTest {
         wireMockServer = new WireMockServer(0);
         wireMockServer.start();
         WireMock.configureFor("localhost", wireMockServer.port());
+
+        // Yahoo session handshake stubs so the real client's cookie+crumb fetch resolves against
+        // WireMock (no real network to fc.yahoo.com). Tests below point cookie-url here too.
+        stubFor(get(urlPathEqualTo("/cookie"))
+                .willReturn(aResponse()
+                        .withStatus(404)
+                        .withHeader("Set-Cookie", "A1=test-cookie; Path=/; Domain=.yahoo.com")));
+        stubFor(get(urlPathEqualTo("/v1/test/getcrumb"))
+                .willReturn(aResponse()
+                        .withStatus(200)
+                        .withHeader("Content-Type", "text/plain")
+                        .withBody("test-crumb")));
     }
 
     @AfterEach
@@ -73,6 +85,7 @@ class MarketDataRefreshJobWireMockTest {
 
         ExternalMarketDataProperties props = new ExternalMarketDataProperties();
         props.setBaseUrl("http://localhost:" + wireMockServer.port());
+        props.setCookieUrl("http://localhost:" + wireMockServer.port() + "/cookie");
 
         ExternalMarketDataClient client = new YahooFinanceExternalMarketDataClient(props, meterRegistry);
 
@@ -108,6 +121,7 @@ class MarketDataRefreshJobWireMockTest {
 
         ExternalMarketDataProperties props = new ExternalMarketDataProperties();
         props.setBaseUrl("http://localhost:" + wireMockServer.port());
+        props.setCookieUrl("http://localhost:" + wireMockServer.port() + "/cookie");
 
         ExternalMarketDataClient client = new YahooFinanceExternalMarketDataClient(props, meterRegistry);
 
@@ -166,6 +180,7 @@ class MarketDataRefreshJobWireMockTest {
 
         ExternalMarketDataProperties props = new ExternalMarketDataProperties();
         props.setBaseUrl("http://localhost:" + wireMockServer.port());
+        props.setCookieUrl("http://localhost:" + wireMockServer.port() + "/cookie");
 
         ExternalMarketDataClient client = new YahooFinanceExternalMarketDataClient(props, meterRegistry);
 

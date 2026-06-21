@@ -138,6 +138,13 @@ external-market-data:
   max-retries: 3
   backoff-ms: 500
   batch-size: 50
+  # Yahoo's /v7/finance/quote endpoint requires a browser-like User-Agent plus a
+  # session cookie + crumb handshake (cookie-url -> crumb-path), otherwise it returns
+  # 401 Unauthorized. These defaults work as-is; override only if Yahoo changes hosts.
+  # NOTE (known fragility): this is an unofficial endpoint — see docs/todos/backlog.
+  user-agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+  cookie-url: https://fc.yahoo.com/
+  crumb-path: /v1/test/getcrumb
 
 resilience4j:
   retry:
