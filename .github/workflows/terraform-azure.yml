@@ -31,8 +31,8 @@ on:
         description: "Use public seed image for Container Apps (true for first apply before images exist in ACR)"
         type: boolean
         default: false
-      recover_market_data_job_acr_pull:
-        description: "Recovery: import/create market-data-refresh-job AcrPull before full apply"
+      recreate_market_data_job:
+        description: "Recovery: destroy+recreate market-data-refresh-job (terraform -replace). Auto-uses a Job-only seed image; do NOT also set use_seed_image (that would repoint the live apps' ingress port)."
         type: boolean
         default: false
   pull_request:
@@ -62,6 +62,10 @@ env:
   TF_VAR_azure_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
   TF_VAR_image_tag: ${{ github.sha }}
   TF_VAR_use_seed_image: ${{ github.event.inputs.use_seed_image || 'false' }}
+  # Job-only seed bootstrap, auto-enabled whenever a Job recreate is requested. This lets the
+  # -replace create the Job on the public seed image WITHOUT setting the global use_seed_image
+  # (which would repoint the four long-running apps' ingress target_port 8080 -> 80).
+  TF_VAR_market_data_refresh_job_use_seed_image: ${{ github.event.inputs.recreate_market_data_job || 'false' }}
   TF_VAR_auth_jwt_secret: ${{ secrets.AUTH_JWT_SECRET }}
   TF_VAR_app_auth_email: ${{ secrets.E2E_TEST_USER_EMAIL }}
   TF_VAR_app_auth_password: ${{ secrets.E2E_TEST_USER_PASSWORD }}
@@ -81,7 +85,7 @@ jobs:
   terraform:
     name: Terraform Azure
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 90
 
     steps:
       # ── Shared setup (both plan and apply paths) ──────────────────────────
@@ -144,7 +148,21 @@ jobs:
       # Runs ONLY on: workflow_dispatch with action=apply
       # Provisions the real backend-azure.hcl from the AZURE_BACKEND_HCL secret
       # before initialising Terraform with the remote backend.
-      # NOTE: terraform apply does NOT re-run the plan-assertion scripts.
+      # NOTE: the apply path DOES re-run the plan-assertion scripts (P1 + P5) against the
+      # saved plan before `terraform apply` — see the "Assert Plan" steps below.
+
+      - name: Guard — reject unsafe recovery flag combination (apply)
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event.inputs.recreate_market_data_job }}" = "true" ] && [ "${{ github.event.inputs.use_seed_image }}" = "true" ]; then
+            echo "::error::Do not combine use_seed_image=true with recreate_market_data_job=true."
+            echo "::error::The global use_seed_image flag flips all four Container Apps' ingress target_port to 80"
+            echo "::error::(target_port is NOT in the module's ignore_changes), which breaks live apps serving on 8080."
+            echo "::error::Job recovery already uses a Job-only seed image automatically — rerun with recreate_market_data_job=true ONLY (use_seed_image=false)."
+            exit 1
+          fi
+          echo "Recovery flag combination OK."
 
       - name: Provision Backend Config (apply only)
         if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'
@@ -197,55 +215,38 @@ jobs:
           echo "Importing existing ${JOB_NAME} into Terraform state."
           terraform import "$RESOURCE_ADDRESS" "$JOB_ID"
 
-      - name: Recover market-data refresh Job AcrPull (targeted)
-        if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply' && github.event.inputs.recover_market_data_job_acr_pull == 'true'
-        run: |
-          set -euo pipefail
-
-          RESOURCE_ADDRESS="azurerm_role_assignment.market_data_refresh_job_acr_pull"
-          JOB_NAME="market-data-refresh-job"
-          RESOURCE_GROUP="wealth-azure-prod-rg"
-          ACR_NAME="wealthprodacr"
-
-          if terraform state show "$RESOURCE_ADDRESS" >/dev/null 2>&1; then
-            echo "${RESOURCE_ADDRESS} is already managed in Terraform state."
-            exit 0
-          fi
-
-          JOB_PRINCIPAL_ID="$(az containerapp job show \
-            --name "$JOB_NAME" \
-            --resource-group "$RESOURCE_GROUP" \
-            --query identity.principalId \
-            --output tsv)"
-          ACR_ID="$(az acr show \
-            --name "$ACR_NAME" \
-            --resource-group "$RESOURCE_GROUP" \
-            --query id \
-            --output tsv)"
-          ROLE_ASSIGNMENT_ID="$(az role assignment list \
-            --assignee "$JOB_PRINCIPAL_ID" \
-            --scope "$ACR_ID" \
-            --query "[?roleDefinitionName=='AcrPull'] | [0].id" \
-            --output tsv)"
-
-          if [ -n "$ROLE_ASSIGNMENT_ID" ]; then
-            echo "Importing existing AcrPull role assignment into Terraform state."
-            terraform import "$RESOURCE_ADDRESS" "$ROLE_ASSIGNMENT_ID"
-          else
-            echo "Creating AcrPull role assignment with targeted Terraform apply."
-            terraform apply -target="$RESOURCE_ADDRESS" -auto-approve
-          fi
-
-          echo "Waiting for Azure RBAC propagation before full apply."
-          sleep 120
-
+      # Recovery: when recreate_market_data_job=true, the plan below is generated with
+      # -replace so the Job is destroyed and recreated. The user-assigned identity and its
+      # AcrPull role assignment (which do NOT depend on the Job) are created first, so the
+      # fresh Job is provisioned with pull access already in place. The recreate also
+      # auto-enables the Job-ONLY seed image (TF_VAR_market_data_refresh_job_use_seed_image,
+      # set from this input in the env block) so the create never blocks on an ACR pull —
+      # without touching the four long-running apps. deploy-azure.yml then rolls the real image.
       - name: Terraform Plan (apply — for assertions)
         if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'
-        run: terraform plan -out=tfplan
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event.inputs.recreate_market_data_job }}" = "true" ]; then
+            echo "Recovery requested: replacing azurerm_container_app_job.market_data_refresh"
+            terraform plan -replace=azurerm_container_app_job.market_data_refresh -out=tfplan
+          else
+            terraform plan -out=tfplan
+          fi
 
       - name: Terraform Show (JSON — apply)
         if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'
         run: terraform show -json tfplan > tfplan.json
+
+      - name: Assert Plan — No in-place Job identity migration (MANDATORY — apply)
+        # Runs on EVERY apply. Blocks a plain apply from planning the SystemAssigned ->
+        # UserAssigned in-place migration (which can stall on ACA Job provisioning) and
+        # steers the operator to rerun with recreate_market_data_job=true (forced -replace).
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'
+        run: python3 scripts/assert_job_identity_migration.py tfplan.json
+
+      - name: Assert Plan — Recovery is Job-scoped (recovery only)
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply' && github.event.inputs.recreate_market_data_job == 'true'
+        run: python3 scripts/assert_recovery_plan.py tfplan.json
 
       - name: Assert Plan — P1 Profile Mutual Exclusion (MANDATORY — apply)
         if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'

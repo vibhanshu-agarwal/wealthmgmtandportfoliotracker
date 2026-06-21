@@ -252,6 +252,22 @@ module "market_data_service" {
   }
 }
 
+# User-assigned managed identity for the refresh Job.
+#
+# WHY user-assigned (not system-assigned): a system-assigned identity only exists
+# AFTER the Job resource is created, so the AcrPull role assignment that references
+# `job.identity[0].principal_id` cannot be granted until the Job exists — yet the
+# Job needs that grant to pull its image. Terraform resolves this by always touching
+# the Job first when applying the role assignment (even with `-target`), which stalls
+# on ACA Job revision provisioning. A user-assigned identity has a `principal_id`
+# that is known as soon as the identity is created, so the AcrPull grant can be made
+# BEFORE the Job is provisioned. This permanently breaks the bootstrap cycle.
+resource "azurerm_user_assigned_identity" "market_data_refresh_job" {
+  name                = "wealth-${var.environment}-mdrefresh-job-id"
+  resource_group_name = azurerm_resource_group.main.name
+  location            = azurerm_resource_group.main.location
+}
+
 # market-data-service refresh Job — runs daily at 08:00 UTC.
 # Boots the JVM, calls MarketDataRefreshService.refresh(), then exits cleanly.
 # This is the sole production refresh path; the @Scheduled adapter is disabled
@@ -262,8 +278,16 @@ resource "azurerm_container_app_job" "market_data_refresh" {
   location                     = azurerm_resource_group.main.location
   container_app_environment_id = azurerm_container_app_environment.main.id
 
-  # Match container-app module: centralindia revision provisioning can exceed 30m,
-  # and first create needs a public seed image before AcrPull role propagation completes.
+  # Grant the UAMI's AcrPull role BEFORE the Job is created/replaced. The role
+  # assignment binds to the UAMI (not this Job), so this dependency is acyclic — it
+  # is what breaks the previous Job -> identity -> role -> Job bootstrap cycle that
+  # stalled `terraform apply`.
+  depends_on = [azurerm_role_assignment.market_data_refresh_job_acr_pull]
+
+  # Match container-app module: centralindia revision provisioning can exceed 30m.
+  # On first create/replace use a public seed image (use_seed_image=true); deploy-azure.yml
+  # then rolls the real image via `az containerapp job update`, so apply never blocks on
+  # an ACR pull (a scheduled Job pulls only when an execution is triggered, not at create).
   timeouts {
     create = "60m"
     update = "60m"
@@ -271,7 +295,8 @@ resource "azurerm_container_app_job" "market_data_refresh" {
   }
 
   identity {
-    type = "SystemAssigned"
+    type         = "UserAssigned"
+    identity_ids = [azurerm_user_assigned_identity.market_data_refresh_job.id]
   }
 
   schedule_trigger_config {
@@ -289,9 +314,12 @@ resource "azurerm_container_app_job" "market_data_refresh" {
     ]
   }
 
+  # Pull from ACR using the user-assigned identity. For a user-assigned identity the
+  # `identity` field is the UAMI resource ID (not "system", which selects the
+  # system-assigned identity used by the long-running Container Apps).
   registry {
     server   = azurerm_container_registry.main.login_server
-    identity = "system"
+    identity = azurerm_user_assigned_identity.market_data_refresh_job.id
   }
 
   secret {
@@ -318,7 +346,9 @@ resource "azurerm_container_app_job" "market_data_refresh" {
   template {
     container {
       name = "market-data-refresh"
-      image = var.use_seed_image ? "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest" : (
+      # Seed bootstrap for the Job is driven by EITHER the global flag (first full
+      # bootstrap) OR the Job-only flag (Job recovery without touching the apps).
+      image = (var.use_seed_image || var.market_data_refresh_job_use_seed_image) ? "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest" : (
         "${azurerm_container_registry.main.login_server}/market-data-service:${var.image_tag}"
       )
       cpu    = 0.5
@@ -361,11 +391,20 @@ resource "azurerm_container_app_job" "market_data_refresh" {
   }
 }
 
-# AcrPull role for the refresh Job's system-assigned identity.
+# AcrPull for the refresh Job's USER-ASSIGNED identity.
+# Bound to the UAMI's principal_id (known at create time) rather than the Job's
+# identity, so Terraform can grant the role before the Job exists. This is the fix
+# for the circular dependency that previously forced a Job update on every targeted
+# role-assignment apply and stalled on ACA Job revision provisioning.
 resource "azurerm_role_assignment" "market_data_refresh_job_acr_pull" {
   scope                = azurerm_container_registry.main.id
   role_definition_name = "AcrPull"
-  principal_id         = azurerm_container_app_job.market_data_refresh.identity[0].principal_id
+  principal_id         = azurerm_user_assigned_identity.market_data_refresh_job.principal_id
+
+  # The principal is a managed identity (service principal). Declaring the type lets the
+  # provider skip the AAD existence check that can transiently fail with "PrincipalNotFound"
+  # when the role is assigned immediately after the UAMI is created (replication lag).
+  principal_type = "ServicePrincipal"
 }
 
 # insight-service — internal ingress, generates AI insights via Azure OpenAI.

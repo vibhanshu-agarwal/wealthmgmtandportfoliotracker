@@ -208,9 +208,28 @@ The existing `cron` override in `application-azure.yml` becomes redundant once `
 
 Add the following resource block to `main.tf` after the `module.market_data_service` block. The stale comment on `module.market_data_service` ("scheduled refresh is enabled on ACA (long-lived containers)") must also be corrected in the same change to read: "scheduled refresh runs via the `azurerm_container_app_job.market_data_refresh` Job - not via the long-lived container."
 
-**ACR identity (P1 fix):** The existing container-app module uses each app's own `SystemAssigned` managed identity with an `AcrPull` role assignment for ACR access. The Job must follow the same pattern - it needs its own `identity { type = "SystemAssigned" }` block and a matching `azurerm_role_assignment`. Using `azurerm_container_app_environment.main.id` as the identity (as was in an earlier draft) is incorrect and will fail ACR pulls.
+**ACR identity (bootstrap-cycle fix, 2026-06-21):** An earlier revision of this
+design gave the Job a `SystemAssigned` identity and bound the `AcrPull` role to
+`azurerm_container_app_job.market_data_refresh.identity[0].principal_id`. That
+created a circular bootstrap dependency: a system-assigned `principal_id` only
+exists after the Job is created, so Terraform always had to touch the Job before
+the role assignment (even under `-target`), and the Job update stalled on ACA Job
+revision provisioning because it had no pull access yet. The Job now uses a
+**user-assigned** managed identity (`azurerm_user_assigned_identity`). A UAMI's
+`principal_id` is known as soon as the identity is created, so `AcrPull` is granted
+**before** the Job is provisioned and the cycle is gone. The four long-running
+Container Apps keep their `SystemAssigned` identities (they bootstrap via the seed
+image and are covered by the P5 plan assertion), so this change is scoped to the
+Job only. See `docs/changes/CHANGES_AZURE_MARKET_DATA_JOB_ACRPULL_UAMI_2026-06-21.md`.
 
 ```hcl
+# User-assigned identity for the Job - its principal_id is known at create time,
+# so AcrPull can be granted before the Job is provisioned (breaks the bootstrap cycle).
+resource "azurerm_user_assigned_identity" "market_data_refresh_job" {
+  name                = "wealth-${var.environment}-mdrefresh-job-id"
+  resource_group_name = azurerm_resource_group.main.name
+  location            = azurerm_resource_group.main.location
+}
 # market-data-service refresh Job - runs daily at 08:00 UTC.
 # Boots the JVM, calls MarketDataRefreshService.refresh(), then exits cleanly.
 # This is the sole production refresh path; the @Scheduled adapter is disabled
@@ -221,9 +240,10 @@ resource "azurerm_container_app_job" "market_data_refresh" {
   location                     = azurerm_resource_group.main.location
   container_app_environment_id = azurerm_container_app_environment.main.id
 
-  # SystemAssigned identity - required for ACR pull (see role assignment below).
+  # User-assigned identity - AcrPull is granted to it before the Job is created.
   identity {
-    type = "SystemAssigned"
+    type         = "UserAssigned"
+    identity_ids = [azurerm_user_assigned_identity.market_data_refresh_job.id]
   }
 
   # Cron trigger: daily at 08:00 UTC.
@@ -247,12 +267,12 @@ resource "azurerm_container_app_job" "market_data_refresh" {
     ]
   }
 
-  # Registry auth at resource level - mirrors the container-app module pattern.
-  # SystemAssigned identity is granted AcrPull below; `identity = "system"` tells
-  # the ACA runtime to use that identity when pulling from this registry.
+  # Registry auth at resource level. For a user-assigned identity the `identity`
+  # field is the UAMI resource id (not "system", which selects the system-assigned
+  # identity used by the long-running Container Apps).
   registry {
     server   = azurerm_container_registry.main.login_server
-    identity = "system"
+    identity = azurerm_user_assigned_identity.market_data_refresh_job.id
   }
 
   # Secrets at resource level - same pattern as the container-app module.
@@ -323,12 +343,15 @@ resource "azurerm_container_app_job" "market_data_refresh" {
   }
 }
 
-# AcrPull role for the Job's SystemAssigned identity.
-# Mirrors the pattern used by the container-app module for each long-running service.
+# AcrPull for the Job's user-assigned identity. Bound to the UAMI's principal_id
+# (known at create time), so the grant is made before the Job is provisioned. The
+# Job carries `depends_on = [azurerm_role_assignment.market_data_refresh_job_acr_pull]`
+# so the role precedes the Job; the role does NOT reference the Job, so the graph
+# stays acyclic.
 resource "azurerm_role_assignment" "market_data_refresh_job_acr_pull" {
   scope                = azurerm_container_registry.main.id
   role_definition_name = "AcrPull"
-  principal_id         = azurerm_container_app_job.market_data_refresh.identity[0].principal_id
+  principal_id         = azurerm_user_assigned_identity.market_data_refresh_job.principal_id
 }
 ```
 

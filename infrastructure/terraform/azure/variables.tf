@@ -69,6 +69,20 @@ variable "use_seed_image" {
   description = "When true, all Container Apps use a public mcr.microsoft.com/azuredocs/containerapps-helloworld:latest seed image instead of the ACR image. Set to true for the initial 'terraform apply' before any images have been pushed to ACR. After deploy-azure.yml has pushed real images, set back to false (or omit — default is false)."
 }
 
+variable "market_data_refresh_job_use_seed_image" {
+  type        = bool
+  default     = false
+  description = <<-EOT
+    Job-scoped seed bootstrap for the market-data-refresh Job ONLY. When true, the Job
+    uses the public seed image at create/replace time so a `-replace` recovery never blocks
+    on an ACR pull. Unlike the global `use_seed_image`, this does NOT touch the four
+    long-running Container Apps — so it cannot repoint their ingress `target_port` (which is
+    NOT in the module's `ignore_changes`) from 8080 back to 80 and break live traffic.
+    Set this (not the global flag) when recovering the Job; deploy-azure.yml rolls the real
+    image afterward. Default false.
+  EOT
+}
+
 # ---------------------------------------------------------------------------
 # Authentication
 # ---------------------------------------------------------------------------
