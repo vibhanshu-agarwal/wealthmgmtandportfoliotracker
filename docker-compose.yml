@@ -15,14 +15,14 @@
 # and prod run the exact same engine — that work is explicitly out of scope here.
 #
 # Operator notes for the version bumps:
-#   - postgres:16 → :18.3  → 18+ images require mounting /var/lib/postgresql,
+#   - postgres:16 → :18.4  → 18+ images require mounting /var/lib/postgresql,
 #     not /var/lib/postgresql/data. This stack therefore uses a new
 #     `postgres18-data` volume; remove old `<stack>_postgres-data` manually if you
 #     want to reclaim disk. No automatic major-version data migration.
 #   - cp-kafka:7.6.0 → :8.2.0 → CP 8.x is KRaft-only (ZooKeeper removed); the
 #     kafka block below already declares KAFKA_PROCESS_ROLES, CLUSTER_ID, and
 #     KAFKA_CONTROLLER_QUORUM_VOTERS, so this is drop-in compatible.
-#   - mongo:7.0 → :8.2.7  → minor; feature-compat defaults tightened.
+#   - mongo:7.0 → :8.0.26  → matches the Atlas production engine line.
 #   - INTERNAL_API_KEY prefers ${TF_VAR_internal_api_key} so a single
 #     Terraform-style env var feeds both compose and `terraform apply`, with
 #     ${INTERNAL_API_KEY} retained as a CI/local fallback for older scripts.
