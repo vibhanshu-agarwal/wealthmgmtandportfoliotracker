@@ -142,6 +142,113 @@ describe("ChatInterface — Loading indicator", () => {
   });
 });
 
+describe("ChatInterface — Rate limit handling (429)", () => {
+  it("shows a distinguishable rate-limit message (not the generic error copy) on 429", async () => {
+    const { RateLimitError } = await import("@/lib/api/fetchWithAuth");
+    mockPostChatMessage.mockRejectedValue(
+      new RateLimitError("Rate limit exceeded (429) for /api/chat", 6),
+    );
+
+    renderWithQueryClient();
+
+    const input = screen.getByTestId("chat-input");
+    const sendBtn = screen.getByTestId("chat-send");
+
+    await act(async () => {
+      fireEvent.change(input, { target: { value: "Tell me about AAPL" } });
+      fireEvent.click(sendBtn);
+    });
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("You're sending messages too quickly. Please wait 6s and try again."),
+      ).toBeInTheDocument();
+    });
+    expect(
+      screen.queryByText("Something went wrong. Please try again."),
+    ).not.toBeInTheDocument();
+  });
+
+  it("disables the submit control with a visible countdown after a 429", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const { RateLimitError } = await import("@/lib/api/fetchWithAuth");
+    mockPostChatMessage.mockRejectedValue(
+      new RateLimitError("Rate limit exceeded (429) for /api/chat", 3),
+    );
+
+    renderWithQueryClient();
+
+    const input = screen.getByTestId("chat-input");
+    const sendBtn = screen.getByTestId("chat-send");
+
+    await act(async () => {
+      fireEvent.change(input, { target: { value: "Tell me about AAPL" } });
+      fireEvent.click(sendBtn);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("chat-rate-limit-countdown")).toBeInTheDocument();
+    });
+    expect(sendBtn).toBeDisabled();
+    expect(input).toBeDisabled();
+
+    await act(async () => {
+      vi.advanceTimersByTime(3000);
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("chat-rate-limit-countdown")).not.toBeInTheDocument();
+    });
+    expect(sendBtn).not.toBeDisabled();
+
+    vi.useRealTimers();
+  });
+
+  it("falls back to a default cooldown when Retry-After is unparseable/absent", async () => {
+    const { RateLimitError } = await import("@/lib/api/fetchWithAuth");
+    mockPostChatMessage.mockRejectedValue(
+      new RateLimitError("Rate limit exceeded (429) for /api/chat", null),
+    );
+
+    renderWithQueryClient();
+
+    const input = screen.getByTestId("chat-input");
+    const sendBtn = screen.getByTestId("chat-send");
+
+    await act(async () => {
+      fireEvent.change(input, { target: { value: "Tell me about AAPL" } });
+      fireEvent.click(sendBtn);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("chat-rate-limit-countdown")).toBeInTheDocument();
+    });
+  });
+
+  it("does not automatically retry the request after a 429", async () => {
+    const { RateLimitError } = await import("@/lib/api/fetchWithAuth");
+    mockPostChatMessage.mockRejectedValue(
+      new RateLimitError("Rate limit exceeded (429) for /api/chat", 1),
+    );
+
+    renderWithQueryClient();
+
+    const input = screen.getByTestId("chat-input");
+    const sendBtn = screen.getByTestId("chat-send");
+
+    await act(async () => {
+      fireEvent.change(input, { target: { value: "Tell me about AAPL" } });
+      fireEvent.click(sendBtn);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("chat-rate-limit-countdown")).toBeInTheDocument();
+    });
+
+    expect(mockPostChatMessage).toHaveBeenCalledOnce();
+  });
+});
+
 describe("ChatInterface — Error handling", () => {
   it("displays 503-specific error message", async () => {
     mockPostChatMessage.mockRejectedValue(

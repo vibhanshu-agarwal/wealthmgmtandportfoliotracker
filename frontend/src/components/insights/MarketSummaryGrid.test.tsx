@@ -1,6 +1,7 @@
 import { render, screen, fireEvent } from "@testing-library/react";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import type { MarketSummaryResponse } from "@/types/insights";
+import { RateLimitError } from "@/lib/api/fetchWithAuth";
 
 // Recharts ResponsiveContainer requires ResizeObserver which jsdom doesn't provide
 beforeAll(() => {
@@ -20,6 +21,7 @@ const mockUseMarketSummary = vi.fn<
     data: MarketSummaryResponse | undefined;
     isLoading: boolean;
     isError: boolean;
+    error: Error | null;
     refetch: () => void;
   }
 >();
@@ -75,6 +77,7 @@ describe("MarketSummaryGrid — Loading state", () => {
       data: undefined,
       isLoading: true,
       isError: false,
+      error: null,
       refetch: mockRefetch,
     });
 
@@ -97,6 +100,7 @@ describe("MarketSummaryGrid — Error state", () => {
       data: undefined,
       isLoading: false,
       isError: true,
+      error: new Error("Request failed (500) for /api/insights/market-summary"),
       refetch: mockRefetch,
     });
 
@@ -121,6 +125,57 @@ describe("MarketSummaryGrid — Error state", () => {
       data: undefined,
       isLoading: false,
       isError: true,
+      error: new Error("Request failed (500) for /api/insights/market-summary"),
+      refetch: mockRefetch,
+    });
+
+    render(<MarketSummaryGrid />);
+    fireEvent.click(screen.getByTestId("market-summary-retry"));
+
+    expect(mockRefetch).toHaveBeenCalledOnce();
+  });
+});
+
+describe("MarketSummaryGrid — Rate-limited state (429)", () => {
+  it("renders a distinguishable rate-limit card instead of the generic error card", () => {
+    mockUseAuthenticatedUserId.mockReturnValue({
+      userId: "user-001",
+      token: "jwt",
+      status: "authenticated",
+      error: null,
+    });
+    mockUseMarketSummary.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: true,
+      error: new RateLimitError("Rate limit exceeded (429) for /api/insights/market-summary", 6),
+      refetch: mockRefetch,
+    });
+
+    render(<MarketSummaryGrid />);
+
+    expect(screen.getByTestId("market-summary-rate-limited")).toBeInTheDocument();
+    expect(screen.queryByTestId("market-summary-error")).not.toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "You're requesting market data too quickly. Please wait a moment and try again.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("still offers a retry action from the rate-limit card", () => {
+    mockRefetch.mockClear();
+    mockUseAuthenticatedUserId.mockReturnValue({
+      userId: "user-001",
+      token: "jwt",
+      status: "authenticated",
+      error: null,
+    });
+    mockUseMarketSummary.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: true,
+      error: new RateLimitError("Rate limit exceeded (429)", null),
       refetch: mockRefetch,
     });
 
@@ -143,6 +198,7 @@ describe("MarketSummaryGrid — Empty state", () => {
       data: {},
       isLoading: false,
       isError: false,
+      error: null,
       refetch: mockRefetch,
     });
 
@@ -167,6 +223,7 @@ describe("MarketSummaryGrid — Data state", () => {
       data: fixtureData,
       isLoading: false,
       isError: false,
+      error: null,
       refetch: mockRefetch,
     });
 
@@ -190,6 +247,7 @@ describe("MarketSummaryGrid — Auth diagnostics", () => {
       data: undefined,
       isLoading: false,
       isError: false,
+      error: null,
       refetch: mockRefetch,
     });
 
@@ -214,6 +272,7 @@ describe("MarketSummaryGrid — Auth diagnostics", () => {
       data: undefined,
       isLoading: false,
       isError: false,
+      error: null,
       refetch: mockRefetch,
     });
 

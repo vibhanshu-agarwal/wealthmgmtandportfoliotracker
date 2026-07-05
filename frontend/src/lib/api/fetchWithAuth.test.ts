@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { vi, describe, it, expect, beforeEach, afterEach } from "vitest";
-import { fetchWithAuthClient } from "./fetchWithAuth";
+import { fetchWithAuthClient, RateLimitError } from "./fetchWithAuth";
 
 // Mock @/lib/auth to prevent Better Auth from trying to load server modules in jsdom
 vi.mock("@/lib/auth", () => ({
@@ -85,6 +85,95 @@ describe("fetchWithAuthClient", () => {
     await expect(
       fetchWithAuthClient("/api/portfolio", "token"),
     ).rejects.toThrow("Request failed (500)");
+  });
+
+  it("throws a distinguishable RateLimitError on 429 response, carrying parsed Retry-After", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 429,
+      headers: { get: (name: string) => (name === "Retry-After" ? "6" : null) },
+    });
+
+    let caught: unknown;
+    try {
+      await fetchWithAuthClient("/api/chat", "token");
+    } catch (err) {
+      caught = err;
+    }
+
+    expect(caught).toBeInstanceOf(RateLimitError);
+    expect((caught as RateLimitError).retryAfterSeconds).toBe(6);
+  });
+
+  it("does not clear the session or redirect on 429 (unlike 401)", async () => {
+    const removeItemSpy = vi.fn();
+    vi.stubGlobal("localStorage", {
+      getItem: vi.fn(),
+      setItem: vi.fn(),
+      removeItem: removeItemSpy,
+    });
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 429,
+      headers: { get: () => null },
+    });
+
+    await expect(
+      fetchWithAuthClient("/api/chat", "token"),
+    ).rejects.toBeInstanceOf(RateLimitError);
+
+    expect(removeItemSpy).not.toHaveBeenCalled();
+  });
+
+  it("resolves retryAfterSeconds to null when the Retry-After header is absent", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 429,
+      headers: { get: () => null },
+    });
+
+    let caught: unknown;
+    try {
+      await fetchWithAuthClient("/api/chat", "token");
+    } catch (err) {
+      caught = err;
+    }
+
+    expect((caught as RateLimitError).retryAfterSeconds).toBeNull();
+  });
+
+  it("resolves retryAfterSeconds to null when the Retry-After header is unparseable", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 429,
+      headers: { get: () => "not-a-number" },
+    });
+
+    let caught: unknown;
+    try {
+      await fetchWithAuthClient("/api/chat", "token");
+    } catch (err) {
+      caught = err;
+    }
+
+    expect((caught as RateLimitError).retryAfterSeconds).toBeNull();
+  });
+
+  it("resolves retryAfterSeconds to null when the Retry-After header is negative", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 429,
+      headers: { get: () => "-1" },
+    });
+
+    let caught: unknown;
+    try {
+      await fetchWithAuthClient("/api/chat", "token");
+    } catch (err) {
+      caught = err;
+    }
+
+    expect((caught as RateLimitError).retryAfterSeconds).toBeNull();
   });
 
   it("passes through additional RequestInit options", async () => {

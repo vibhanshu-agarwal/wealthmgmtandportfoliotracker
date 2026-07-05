@@ -1,6 +1,7 @@
 plugins {
     id 'org.springframework.boot'
     id 'org.springframework.boot.aot'
+    id 'jacoco'
 }
 
 // Test AOT is only needed for GraalVM native test compilation (not a goal here).
@@ -29,4 +30,64 @@ dependencies {
     testImplementation 'io.jsonwebtoken:jjwt-api:0.12.6'
     testRuntimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'
     testRuntimeOnly 'io.jsonwebtoken:jjwt-gson:0.12.6'
+
+    // jqwik powers property-based tests for the production-rate-limiting spec
+    // (key-resolver spoof-resistance property).
+    testImplementation "net.jqwik:jqwik:${rootProject.ext.jqwikVersion}"
+
+    // ArchUnit — guards the "no software.amazon.awssdk.* / io.lettuce.* imports in
+    // com.wealth.gateway (beyond the pre-existing RedisSslConfig)" rule (Req 2.2).
+    testImplementation 'com.tngtech.archunit:archunit-junit5:1.4.0'
+}
+
+// JaCoCo coverage — scoped to api-gateway only (per the production-rate-limiting spec's
+// >80% coverage requirement). Report is built from BOTH the fast 'test' task and the
+// Testcontainers-backed 'integrationTest' task, since ProductionRateLimitingIntegrationTest
+// exercises code paths (Redis-backed limiter beans, fail-open behavior) that the unit-level
+// tests alone cannot reach.
+jacoco {
+    toolVersion = '0.8.12'
+}
+
+tasks.named('test') {
+    finalizedBy tasks.named('jacocoTestReport')
+}
+
+tasks.named('integrationTest') {
+    finalizedBy tasks.named('jacocoTestReport')
+}
+
+tasks.named('jacocoTestReport', JacocoReport) {
+    dependsOn tasks.named('test'), tasks.named('integrationTest')
+    executionData.setFrom(fileTree(layout.buildDirectory.dir('jacoco')) {
+        include '*.exec'
+    })
+    reports {
+        xml.required = true
+        html.required = true
+    }
+}
+
+tasks.register('jacocoRateLimitingCoverageCheck', JacocoCoverageVerification) {
+    description = 'Verifies >80% instruction coverage for the production-rate-limiting classes'
+    group = 'verification'
+    dependsOn tasks.named('jacocoTestReport')
+    executionData.setFrom(fileTree(layout.buildDirectory.dir('jacoco')) {
+        include '*.exec'
+    })
+    classDirectories.setFrom(files(sourceSets.main.output.classesDirs).collect {
+        fileTree(it) {
+            include 'com/wealth/gateway/GatewayRateLimitConfig.class',
+                    'com/wealth/gateway/RateLimitDenialResponseCustomizer.class',
+                    'com/wealth/gateway/RedisRateLimitStateLogger.class'
+        }
+    })
+    sourceDirectories.setFrom(files('src/main/java'))
+    violationRules {
+        rule {
+            limit {
+                minimum = 0.80
+            }
+        }
+    }
 }

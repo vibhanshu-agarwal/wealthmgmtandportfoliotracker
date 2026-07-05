@@ -14,7 +14,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { ChatMessage } from "@/types/insights";
 import { useAuthenticatedUserId } from "@/lib/hooks/useAuthenticatedUserId";
+import { useRetryAfterCountdown } from "@/lib/hooks/useRetryAfterCountdown";
 import { postChatMessage } from "@/lib/api/insights";
+import { RateLimitError } from "@/lib/api/fetchWithAuth";
+
+/** Fallback disable duration when a 429 response carries no parseable Retry-After header. */
+const DEFAULT_RATE_LIMIT_COOLDOWN_SECONDS = 5;
 
 /**
  * Client component for the conversational chat panel.
@@ -26,6 +31,7 @@ export function ChatInterface() {
   const [isPending, setIsPending] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const { token, status } = useAuthenticatedUserId();
+  const rateLimitCountdown = useRetryAfterCountdown();
 
   // Auto-scroll to latest message
   useEffect(() => {
@@ -73,6 +79,20 @@ export function ChatInterface() {
       const result = await postChatMessage({ message }, token);
       appendAssistantMessage(result.response);
     } catch (err) {
+      // 429 is distinguished from every other failure (Req 6.2, 6.3): it is a
+      // rate-limit pacing signal, not a service outage, so it gets its own
+      // message and disables the submit control with a visible countdown
+      // (Req 6.6) instead of the generic error copy. No automatic retry is
+      // ever issued (Req 6.7) — the user must resubmit once re-enabled.
+      if (err instanceof RateLimitError) {
+        const seconds = err.retryAfterSeconds ?? DEFAULT_RATE_LIMIT_COOLDOWN_SECONDS;
+        rateLimitCountdown.start(seconds);
+        appendAssistantMessage(
+          `You're sending messages too quickly. Please wait ${seconds}s and try again.`,
+        );
+        return;
+      }
+
       const statusMatch = (err as Error).message.match(/\((\d+)\)/);
       const requestStatus = statusMatch ? parseInt(statusMatch[1], 10) : 500;
       if (requestStatus === 503) {
@@ -85,7 +105,9 @@ export function ChatInterface() {
     } finally {
       setIsPending(false);
     }
-  }, [appendAssistantMessage, draftMessage, status, token]);
+  }, [appendAssistantMessage, draftMessage, rateLimitCountdown, status, token]);
+
+  const isSubmitDisabled = isPending || rateLimitCountdown.isActive;
 
   return (
     <Card>
@@ -127,6 +149,16 @@ export function ChatInterface() {
           <div ref={scrollRef} />
         </div>
 
+        {/* Rate-limit cooldown notice (Req 6.6) */}
+        {rateLimitCountdown.isActive && (
+          <p
+            className="text-xs text-muted-foreground text-center"
+            data-testid="chat-rate-limit-countdown"
+          >
+            You can send another message in {rateLimitCountdown.secondsRemaining}s.
+          </p>
+        )}
+
         {/* Input form */}
         <form
           onSubmit={handleSubmit}
@@ -138,14 +170,14 @@ export function ChatInterface() {
             placeholder="Ask about a ticker..."
             value={draftMessage}
             onChange={(event) => setDraftMessage(event.target.value)}
-            disabled={isPending}
+            disabled={isSubmitDisabled}
             autoComplete="off"
             data-testid="chat-input"
           />
           <Button
             type="submit"
             size="icon"
-            disabled={isPending}
+            disabled={isSubmitDisabled}
             data-testid="chat-send"
           >
             <Send className="h-4 w-4" />
