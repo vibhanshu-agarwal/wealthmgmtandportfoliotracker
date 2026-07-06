@@ -28,6 +28,7 @@ An enterprise-grade platform for managing investment portfolios, ingesting real-
 - **Kafka-Backed Price Propagation:** Fresh prices are published as `PriceUpdatedEvent` messages on **Kafka**, which in turn hydrate downstream services (like `insight-service`) and their **Redis** caches without coupling user requests to external APIs.
 - **Poison-Message Handling (DLT):** The `portfolio-service` consumer registers `MalformedEventException` as non-retryable and routes poison/malformed records to a dead-letter topic (`market-prices.DLT`) via Spring Kafka's `DefaultErrorHandler` + `DeadLetterPublishingRecoverer`, so a single bad event never stalls the consumer.
 - **Fallback Strategy:** If the external market data API is unavailable, the system **never** blocks user-facing HTTP requests. Instead, it seamlessly serves **last-known-good prices** from MongoDB and Redis, keeping the AI Insights chat and dashboards responsive even during upstream outages.
+- **Production Rate Limiting:** Redis-backed distributed rate limiting (Spring Cloud Gateway `RedisRateLimiter`, token-bucket algorithm) enforced in production via per-route filters. Two-tier limits: standard routes (10 req/s, burst 20) and cost-sensitive AI routes (~10 req/min, burst 5). **Fail-open design** ensures Redis unreachability never blocks startup or rejects traffic. 429 responses carry a `Retry-After` header and JSON body; the frontend renders a countdown timer and distinguishes rate-limited state from session expiry. Trusted-hop XFF key derivation prevents bucket-spoofing behind reverse proxies.
 
 ## 🏗️ Architectural Philosophy: Evolutionary Design
 
@@ -95,7 +96,7 @@ Local development and CI use a deterministic `MockAiInsightService` so no cloud 
 
 ## 🚀 Future Roadmap
 
-The architectural roadmap continues to evolve as we expand the multi-cloud and advanced-AI capabilities. See [ROADMAP.md](ROADMAP.md) for what's next, including a dedicated gRPC AI microservice, multi-provider market-data aggregation, and production-grade rate limiting.
+The architectural roadmap continues to evolve as we expand the multi-cloud and advanced-AI capabilities. See [ROADMAP.md](ROADMAP.md) for what's next, including a dedicated gRPC AI microservice, multi-provider market-data aggregation, and new user signup & profile management.
 
 ---
 
