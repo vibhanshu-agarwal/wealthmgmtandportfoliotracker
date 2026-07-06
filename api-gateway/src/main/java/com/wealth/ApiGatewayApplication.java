@@ -2,8 +2,13 @@ package com.wealth;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
+// @EnableScheduling is required for RedisRateLimitStateLogger's @Scheduled probe
+// (com.wealth.gateway, @Profile({"aws","azure"})). Harmless under other profiles since no
+// @Scheduled bean is registered there.
 @SpringBootApplication
+@EnableScheduling
 public class ApiGatewayApplication {
     public static void main(String[] args) {
         // Redis (Upstash) uses a publicly-trusted Let's Encrypt cert (ISRG Root X1/X2).

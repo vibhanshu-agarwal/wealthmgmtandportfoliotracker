@@ -14,7 +14,7 @@
 
 ## Frontend
 
-- **Framework:** Next.js 16 (App Router, standalone output)
+- **Framework:** Next.js 16 (App Router, static export — `output: "export"`, emits `frontend/out/`; no runtime Next.js server in production)
 - **Language:** TypeScript 5
 - **UI:** React 19, Tailwind CSS 3, shadcn/ui (Radix UI primitives)
 - **Data fetching:** TanStack Query v5
@@ -111,7 +111,7 @@ docker compose up -d postgres mongodb kafka redis
 
 - Do NOT provision: NAT Gateways, Multi-AZ RDS, Provisioned IOPS
 - Prefer serverless equivalents when managed services exceed Free Tier (e.g. SQS instead of MSK)
-- Active deployment plan: Route 53 → CloudFront → Lambda (Spring Cloud Function) — see `docs/agent-instructions/ROADMAP_AI_POWERED_WEALTH_TRACKER.md`
+- Active production cloud: **Azure Container Apps** (`prod,azure`) — see README "Production Deployment — Multi-Cloud, Azure-Active". The AWS path (Route 53 → CloudFront → Lambda, `prod,aws`) is **soft-disabled standby**, intentionally not decommissioned; Free Tier constraints above still apply to it
 - Scale-up path: ECR → ECS Fargate + ALB (Phase 4 demo only)
 
 ### Spring Profiles — Strict Isolation
@@ -122,9 +122,10 @@ docker compose up -d postgres mongodb kafka redis
 
 ### Redis / Rate Limiting
 
-- Redis is approved for local dev (Docker Compose / Testcontainers) only
+- Redis backends: Docker Compose / Testcontainers for local dev; **Upstash Redis over TLS (`rediss://`, `REDIS_URL`) in production on both clouds** (`application-prod.yml` + `RedisSslConfig`)
 - Rate limiting must be profile-aware so the backing store can be swapped without code changes
-- Abstraction must support: Redis (local), AWS API Gateway native usage plans, or DynamoDB (AWS) — switchable via config/profile only
+- Abstraction must support: Redis (current, local + production), AWS API Gateway native usage plans, or DynamoDB (AWS) — switchable via config/profile only (see the `app.rate-limiter.backend` escape hatch documented in `application-aws.yml`)
+- Rate limiting must **fail open**: Redis unreachability must never block gateway startup or reject traffic
 
 ### Cold-Start Mitigation (Serverless)
 
@@ -144,8 +145,7 @@ docker compose up -d postgres mongodb kafka redis
 
 These are known gaps that should be resolved before adding new features:
 
-1. **Redis-backed rate limiting** — `api-gateway/.../RequestRateLimitFilter.java:81`  
-   Replace local in-memory limiter with Redis distributed rate limiting.
+1. ~~**Redis-backed rate limiting**~~ — **DONE.** The in-memory `RequestRateLimitFilter` was replaced by Spring Cloud Gateway's Redis-backed `RedisRateLimiter` via `GatewayRateLimitConfig` (see `docs/specs/redis-rate-limiting/`). ~~Remaining gap — enforcement under production profiles~~ — **DONE.** Production route wiring, named per-route limiter beans, fail-startup-on-misconfiguration, `Retry-After`/JSON body on 429, degraded-state logging, and frontend 429-vs-401 handling are implemented per `.kiro/specs/production-rate-limiting/` (see `docs/changes/CHANGES_PRODUCTION_RATE_LIMITING_2026-07-05.md`).
 
 2. **Kafka Dead-Letter Queue** — `portfolio-service/.../PriceUpdatedEventListener.java:29`  
    Route malformed/poison Kafka events to a DLQ strategy after retries.

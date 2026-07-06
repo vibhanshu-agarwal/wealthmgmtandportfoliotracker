@@ -7,6 +7,7 @@ import { MarketSummaryCard } from "./MarketSummaryCard";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
+import { RateLimitError } from "@/lib/api/fetchWithAuth";
 
 // ── Skeleton state ────────────────────────────────────────────────────────────
 
@@ -41,7 +42,7 @@ function GridSkeleton() {
  */
 export function MarketSummaryGrid() {
   const auth = useAuthenticatedUserId();
-  const { data, isLoading, isError, refetch } = useMarketSummary();
+  const { data, isLoading, isError, error, refetch } = useMarketSummary();
 
   if (auth.status === "loading" || isLoading) {
     return <GridSkeleton />;
@@ -77,6 +78,30 @@ export function MarketSummaryGrid() {
           <p className="text-sm text-muted-foreground">
             Sign in to load AI market summaries.
           </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (isError && error instanceof RateLimitError) {
+    // Distinguishable from the generic failure card below (Req 6.2, 6.3): a 429 is a
+    // rate-limit pacing signal, not a service outage — no session clear/redirect, and the
+    // copy tells the user to slow down rather than implying something is broken.
+    return (
+      <Card data-testid="market-summary-rate-limited">
+        <CardContent className="flex flex-col items-center gap-3 p-6 text-center">
+          <p className="text-sm text-muted-foreground">
+            You&apos;re requesting market data too quickly. Please wait a moment and try again.
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => refetch()}
+            data-testid="market-summary-retry"
+          >
+            <RefreshCw className="mr-2 h-3.5 w-3.5" />
+            Retry
+          </Button>
         </CardContent>
       </Card>
     );

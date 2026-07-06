@@ -6,7 +6,9 @@ import {
   usePortfolio,
   usePortfolioSummary,
   portfolioKeys,
+  retryPolicy,
 } from "./usePortfolio";
+import { RateLimitError } from "@/lib/api/fetchWithAuth";
 
 // Mock the auth hook directly — avoids the internal useQuery chain
 vi.mock("./useAuthenticatedUserId", () => ({
@@ -96,6 +98,27 @@ describe("usePortfolio", () => {
     expect(keyA).not.toEqual(keyB);
     expect(keyA[1]).toBe("user-001");
     expect(keyB[1]).toBe("user-002");
+  });
+});
+
+describe("retryPolicy", () => {
+  it("does not retry a RateLimitError (429)", () => {
+    const error = new RateLimitError("Rate limit exceeded (429) for /api/portfolio", 6);
+
+    expect(retryPolicy(0, error)).toBe(false);
+  });
+
+  it("does not retry a 503 error", () => {
+    const error = new Error("Request failed (503) for /api/portfolio");
+
+    expect(retryPolicy(0, error)).toBe(false);
+  });
+
+  it("retries a generic error exactly once", () => {
+    const error = new Error("Network error");
+
+    expect(retryPolicy(0, error)).toBe(true);
+    expect(retryPolicy(1, error)).toBe(false);
   });
 });
 

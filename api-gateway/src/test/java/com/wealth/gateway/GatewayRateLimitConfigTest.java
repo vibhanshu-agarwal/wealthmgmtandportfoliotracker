@@ -86,11 +86,54 @@ class GatewayRateLimitConfigTest {
         assertThat(first).isEqualTo(second);
     }
 
+    // ── resolveTrustedHopKey: right-most (ingress-appended) XFF hop ─────────
+
+    @ParameterizedTest(name = "X-Forwarded-For \"{0}\" -> \"{1}\" (trusted hop)")
+    @CsvSource({
+        // spoofed prefix, trusted ingress-appended hop is right-most
+        "'203.0.113.1, 10.0.0.1',          '10.0.0.1'",
+        // single IP, no comma — the only hop is trusted
+        "'203.0.113.1',                     '203.0.113.1'",
+        // multi-hop chain — right-most wins regardless of spoofed prefixes
+        "'1.1.1.1, 2.2.2.2, 9.10.11.12',   '9.10.11.12'",
+        // whitespace around the trusted hop is trimmed
+        "'1.2.3.4 ,  10.0.0.5 ',            '10.0.0.5'"
+    })
+    void trustedHopReturnsRightMostSegmentTrimmed(String headerValue, String expectedKey) {
+        assertThat(GatewayRateLimitConfig.resolveTrustedHopKey(headerValue, "10.0.0.1"))
+                .isEqualTo(expectedKey);
+    }
+
+    @Test
+    void trustedHopNoXffFallsBackToRemoteAddress() {
+        assertThat(GatewayRateLimitConfig.resolveTrustedHopKey(null, "10.0.0.99"))
+                .isEqualTo("10.0.0.99");
+    }
+
+    @Test
+    void trustedHopBlankXffFallsBackToRemoteAddress() {
+        assertThat(GatewayRateLimitConfig.resolveTrustedHopKey("   ", "10.0.0.88"))
+                .isEqualTo("10.0.0.88");
+    }
+
+    @Test
+    void trustedHopNoAddressInformationReturnsAnonymous() {
+        assertThat(GatewayRateLimitConfig.resolveTrustedHopKey(null, null))
+                .isEqualTo("anonymous");
+    }
+
+    @Test
+    void trustedHopTrailingCommaFallsBackToRemoteAddress() {
+        // "1.2.3.4," -> last hop is blank after the trailing comma -> fall through to remote host
+        assertThat(GatewayRateLimitConfig.resolveTrustedHopKey("1.2.3.4,", "10.0.0.7"))
+                .isEqualTo("10.0.0.7");
+    }
+
     // ── Bean smoke test ───────────────────────────────────────────────────────
 
     @Test
     void userOrIpKeyResolverBeanIsNotNull() {
-        assertThat(new GatewayRateLimitConfig().userOrIpKeyResolver()).isNotNull();
+        assertThat(new GatewayRateLimitConfig().userOrIpKeyResolver(false)).isNotNull();
     }
 
     // ── userOrIpKeyResolver: authenticated principal uses sub claim ───────────
@@ -98,7 +141,7 @@ class GatewayRateLimitConfigTest {
     @Test
     void authenticatedPrincipalWithValidSubReturnsSub() {
         ServerWebExchange exchange = exchangeWithPrincipal("user-uuid-abc-123");
-        String key = new GatewayRateLimitConfig().userOrIpKeyResolver().resolve(exchange).block();
+        String key = new GatewayRateLimitConfig().userOrIpKeyResolver(false).resolve(exchange).block();
         assertThat(key).isEqualTo("user-uuid-abc-123");
     }
 
@@ -106,7 +149,7 @@ class GatewayRateLimitConfigTest {
     void authenticatedPrincipalWithBlankSubFallsBackToIp() {
         ServerWebExchange exchange = exchangeWithPrincipal("   ");
         // blank sub → falls back to IP; mocked exchange has no remote address → "anonymous"
-        String key = new GatewayRateLimitConfig().userOrIpKeyResolver().resolve(exchange).block();
+        String key = new GatewayRateLimitConfig().userOrIpKeyResolver(false).resolve(exchange).block();
         assertThat(key).isEqualTo("anonymous");
     }
 
@@ -114,8 +157,31 @@ class GatewayRateLimitConfigTest {
     void unauthenticatedExchangeFallsBackToIp() {
         ServerWebExchange exchange = exchangeWithNoPrincipal();
         // no principal → defaultIfEmpty path → "anonymous" (no remote address in mock)
-        String key = new GatewayRateLimitConfig().userOrIpKeyResolver().resolve(exchange).block();
+        String key = new GatewayRateLimitConfig().userOrIpKeyResolver(false).resolve(exchange).block();
         assertThat(key).isEqualTo("anonymous");
+    }
+
+    // ── userOrIpKeyResolver: trustXffLastHop=true uses trusted-hop path ───────
+
+    @Test
+    void trustXffLastHopTrueUsesTrustedHopForUnauthenticated() {
+        ServerWebExchange exchange = exchangeWithNoPrincipalAndXff("203.0.113.1, 10.0.0.1");
+        String key = new GatewayRateLimitConfig().userOrIpKeyResolver(true).resolve(exchange).block();
+        assertThat(key).isEqualTo("10.0.0.1");
+    }
+
+    @Test
+    void trustXffLastHopFalseUsesFirstHopForUnauthenticated() {
+        ServerWebExchange exchange = exchangeWithNoPrincipalAndXff("203.0.113.1, 10.0.0.1");
+        String key = new GatewayRateLimitConfig().userOrIpKeyResolver(false).resolve(exchange).block();
+        assertThat(key).isEqualTo("203.0.113.1");
+    }
+
+    @Test
+    void authenticatedPrincipalWinsRegardlessOfTrustXffLastHop() {
+        ServerWebExchange exchange = exchangeWithPrincipal("user-uuid-xyz-789");
+        String key = new GatewayRateLimitConfig().userOrIpKeyResolver(true).resolve(exchange).block();
+        assertThat(key).isEqualTo("user-uuid-xyz-789");
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
@@ -159,6 +225,24 @@ class GatewayRateLimitConfigTest {
         when(exchange.getRequest()).thenReturn(request);
         when(request.getHeaders()).thenReturn(headers);
         when(headers.getFirst("X-Forwarded-For")).thenReturn(null);
+        when(request.getRemoteAddress()).thenReturn(null);
+
+        return exchange;
+    }
+
+    /**
+     * Creates a mock ServerWebExchange with no authenticated principal and the given
+     * X-Forwarded-For header value (unauthenticated request behind a proxy chain).
+     */
+    private static ServerWebExchange exchangeWithNoPrincipalAndXff(String xff) {
+        ServerWebExchange exchange = mock(ServerWebExchange.class);
+        when(exchange.getPrincipal()).thenReturn(Mono.empty());
+
+        var request = mock(org.springframework.http.server.reactive.ServerHttpRequest.class);
+        var headers = mock(org.springframework.http.HttpHeaders.class);
+        when(exchange.getRequest()).thenReturn(request);
+        when(request.getHeaders()).thenReturn(headers);
+        when(headers.getFirst("X-Forwarded-For")).thenReturn(xff);
         when(request.getRemoteAddress()).thenReturn(null);
 
         return exchange;

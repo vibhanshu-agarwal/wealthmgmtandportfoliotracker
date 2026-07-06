@@ -20,6 +20,14 @@ spring:
       # Do NOT set spring.data.redis.ssl.bundle here — it requires an explicitly registered Spring Boot
       # SSL bundle name, not a file path. The RedisSslConfig bean reads REDIS_TRUSTSTORE_PATH directly
       # and configures Lettuce SslOptions from the extracted /tmp/kafka-truststore.jks file.
+      #
+      # Fail-open bound (Req 4.1, 4.2): a stalled/unreachable Redis must surface an error
+      # quickly rather than hang the request, so RedisRateLimiter's built-in fail-open kicks in
+      # within a bounded time. `timeout` is the steady-state per-command budget; `connect-timeout`
+      # is deliberately larger to absorb cold-start DNS resolution + TLS handshake to Upstash on
+      # the first request(s) after scale-from-zero without loosening the steady-state bound.
+      timeout: 1s
+      connect-timeout: 5s
 
   cloud:
     gateway:
@@ -35,6 +43,102 @@ spring:
             # than a raw 502 socket reset when a downstream Lambda is slow or overloaded.
             response-timeout: 55s
 
+          # Production route list — intentionally REDEFINED here (not merged) because Spring Boot
+          # replaces list-typed properties wholesale per profile document. This is deliberate: the
+          # profile-neutral application.yml route list (no rate-limit filters) is used only by the
+          # `local` profile; this list is the only one active under any `prod` profile.
+          #
+          # Each route attaches an explicit per-route RequestRateLimiter (never a global
+          # default-filters entry) so no request is ever charged against more than one bucket
+          # (Req 3.7). Cost-sensitive AI routes (/api/insights/**, /api/chat/**) use the stricter
+          # limiter; standard routes use the more permissive one; /api/internal/** (API-key gated
+          # E2E seeder routes) carries NO rate-limit filter (Req 3.8).
+          #
+          # The `retry-after-seconds` route metadata is read by RateLimitDenialResponseCustomizer
+          # to emit the Retry-After header/body on a 429 denial (Req 5.5) — it must match
+          # ceil(requestedTokens / replenishRate) for the limiter attached to that route.
+          routes:
+            - id: portfolio-service
+              uri: ${app.routes.portfolio-url}
+              predicates:
+                - Path=/api/portfolio/**
+              metadata:
+                retry-after-seconds: 1
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    key-resolver: "#{@userOrIpKeyResolver}"
+                    rate-limiter: "#{@standardRateLimiter}"
+            - id: market-data-service
+              uri: ${app.routes.market-data-url}
+              predicates:
+                - Path=/api/market/**
+              metadata:
+                retry-after-seconds: 1
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    key-resolver: "#{@userOrIpKeyResolver}"
+                    rate-limiter: "#{@standardRateLimiter}"
+            - id: insight-service
+              uri: ${app.routes.insight-url}
+              predicates:
+                - Path=/api/insights/**
+              metadata:
+                retry-after-seconds: 6
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    key-resolver: "#{@userOrIpKeyResolver}"
+                    rate-limiter: "#{@strictRateLimiter}"
+            - id: insight-chat
+              uri: ${app.routes.insight-url}
+              predicates:
+                - Path=/api/chat/**
+              metadata:
+                retry-after-seconds: 6
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    key-resolver: "#{@userOrIpKeyResolver}"
+                    rate-limiter: "#{@strictRateLimiter}"
+            # Golden-State E2E seeder routes — exempt from rate limiting (Req 3.8). The gateway is
+            # a dumb router for /api/internal/**: no JWT, no origin-verify, no X-User-Id injection,
+            # NO RequestRateLimiter filter. Each downstream service validates X-Internal-Api-Key
+            # itself (see InternalApiKeyFilter).
+            - id: internal-portfolio-seed
+              uri: ${app.routes.portfolio-url}
+              predicates:
+                - Path=/api/internal/portfolio/**
+            - id: internal-market-data-seed
+              uri: ${app.routes.market-data-url}
+              predicates:
+                - Path=/api/internal/market-data/**
+            - id: internal-insight-seed
+              uri: ${app.routes.insight-url}
+              predicates:
+                - Path=/api/internal/insight/**
+
 app:
   cors:
     allowed-origin-patterns: "https://vibhanshu-ai-portfolio.dev,https://*.vibhanshu-ai-portfolio.dev"
+
+  # Production rate-limit parameters (Req 2.4 — never defined in the profile-neutral
+  # application.yml). Read by the standardRateLimiter/strictRateLimiter beans in
+  # GatewayRateLimitConfig with NO @Value default, so a missing/blank value here fails
+  # startup loudly (Req 2.5) rather than silently applying a fallback — a deliberately
+  # distinct failure mode from the Redis-unreachable fail-open path (Req 1.5, 2.6).
+  rate-limit:
+    standard:
+      replenish-rate: 10
+      burst-capacity: 20
+      requested-tokens: 1
+    strict:
+      replenish-rate: 1
+      burst-capacity: 30
+      requested-tokens: 6
+    # Unauthenticated requests key off the right-most (ingress-appended) X-Forwarded-For hop
+    # rather than the client-supplied first entry, so a client cannot mint a fresh bucket by
+    # rotating a spoofed XFF prefix (Req 3.9). Defaults to false (see application.yml / local),
+    # only ever true under a prod profile.
+    trust-xff-last-hop: true
