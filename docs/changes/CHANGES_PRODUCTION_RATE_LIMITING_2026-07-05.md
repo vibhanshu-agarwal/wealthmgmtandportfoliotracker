@@ -132,3 +132,79 @@ container's mapped port changes on restart).
   (ArchUnit-enforced; pre-existing `RedisSslConfig` explicitly allow-listed).
 - `application.yml` (profile-neutral) remains free of Redis/rate-limit config; `local`
   profile behavior is unchanged.
+
+---
+
+## PR #82 — Code Review Follow-up (commit `eafd783`)
+
+**Date:** 2026-07-06
+**PR:** [#82](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/82) — merged, approved
+**Commit:** `eafd783` (on top of `66d4b31` feature commit and `b88f362` flaky-test fix)
+
+A code review of PR #82 surfaced one real resource leak plus several maintainability nits.
+All six review items were resolved in a single follow-up commit before merge.
+
+### Fixes
+
+1. **Redis connection leak (🟠 performance/resource leak)** —
+   `RedisRateLimitStateLogger.pingSucceeded()` called `getReactiveConnection()` every 30s but
+   never released it — a slow, unbounded connection leak for the life of the gateway process.
+   Fixed by wrapping the probe in `Mono.usingWhen(...)`, calling `ReactiveRedisConnection
+   ::closeLater()` on complete, error, and cancel.
+2. **Over-broad frontend retry gate (🟡 correctness)** — `QueryProvider.tsx`'s default retry
+   predicate used `error.message.includes("4")`, which suppresses retries for *any* error
+   whose message happens to contain the digit `4` (e.g. a legitimate `500` on a path like
+   `/portfolio/4567`). Extracted a named, directly-testable `defaultQueryRetry(failureCount,
+   error)` that checks `error instanceof RateLimitError` first, then a proper `/\(4\d{2}\)/`
+   status-code regex for other 4xx errors. Added `QueryProvider.test.ts` (4 tests) including a
+   regression guard reproducing the original bug.
+3. **String-matching retry policies (🟡 maintainability)** — `useInsights.ts` and
+   `usePortfolio.ts` each detected throttling via `message.includes("429")`, which breaks
+   silently if wording changes. Both now check `error instanceof RateLimitError` and export
+   `retryPolicy` for direct unit testing. Added `useInsights.test.ts` (new, 4 tests) and 3 new
+   tests in `usePortfolio.test.ts`.
+4. **Loose Retry-After parsing (🔵 minor)** — `fetchWithAuth.ts`'s `parseRetryAfterSeconds`
+   treated an empty header string as a valid `0` (`Number("") === 0`) and accepted decimal
+   values. Replaced with a strict `RETRY_AFTER_DELAY_SECONDS_PATTERN = /^\d+$/` check. Added 2
+   tests to `fetchWithAuth.test.ts` (empty string, decimal value).
+5. **Unpinned `setComplete()` assumption (🔵 minor)** — `RateLimitDenialResponseCustomizer`
+   only overrides `setComplete()`, which is correct against the current
+   `RequestRateLimiterGatewayFilterFactory` (denies via `setComplete()`, never `writeWith`),
+   but would silently stop attaching the `Retry-After` header/JSON body if a future Spring
+   Cloud Gateway version changed that. Added a class-level Javadoc comment pinning the
+   assumption and noting that `ProductionRateLimitingIntegrationTest` would fail (not silently
+   degrade) if the upstream behavior changes.
+6. **`retry-after-seconds` metadata drift (🔵 minor)** — the `retry-after-seconds` route
+   metadata in `application-prod.yml` must stay manually in sync with
+   `ceil(requestedTokens / replenishRate)` per route's assigned limiter bean; nothing enforced
+   this. Added `RateLimitConfigurationGuardrailTest
+   .retryAfterSecondsMatchesLimiterMathForEveryRoute`, which parses the YAML with SnakeYAML and
+   asserts consistency for every route.
+
+### Verification (re-run against `eafd783`, not cached)
+
+| Suite | Result |
+|---|---|
+| `./gradlew :api-gateway:test` (incl. `RedisRateLimitStateLoggerTest`, `RateLimitConfigurationGuardrailTest`) | ✅ BUILD SUCCESSFUL |
+| `./gradlew :api-gateway:integrationTest` (`ProductionRateLimitingIntegrationTest`, Testcontainers) | ✅ 8/8 pass |
+| `./gradlew :api-gateway:jacocoRateLimitingCoverageCheck` | ✅ pass |
+| `npx vitest run` (frontend, full suite) | ✅ 202/202 pass across 25 files |
+| `npx tsc --noEmit` / `eslint .` (frontend) | ✅ no errors (13 pre-existing unrelated warnings) |
+
+Source-file and test-report timestamps were cross-checked to confirm the Gradle run genuinely
+re-executed against the fixed code rather than serving stale `UP-TO-DATE` results.
+
+### Non-blocking follow-ups tracked from review (see `docs/todos/TODOS_2026-04-07.md`)
+
+- Fail-open removes the strict AI-route limit during a Redis outage — the exact cost exposure
+  the feature protects. Candidate mitigation: billing alert or a cheap in-process fallback cap
+  on cost routes.
+- `resolveTrustedHopKey` assumes exactly one trusted proxy (ACA ingress) appends the XFF hop;
+  revisit if a CDN/WAF is ever added in front of the gateway.
+- `REDIS_URL` falling back to `localhost:6379` when unset in production silently fails open
+  rather than erroring — intentional per Req 1.5, flagged as an operational watch-item.
+
+### Outcome
+
+PR #82 approved and merged into `main`. Qodana findings noted in review are pre-existing and
+out of scope for this change.
