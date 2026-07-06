@@ -6,6 +6,7 @@ import {
   fetchTickerSummary,
 } from "@/lib/api/insights";
 import { useAuthenticatedUserId } from "@/lib/hooks/useAuthenticatedUserId";
+import { RateLimitError } from "@/lib/api/fetchWithAuth";
 
 // ── Query keys ────────────────────────────────────────────────────────────────
 // Centralised here so invalidation is consistent across the app.
@@ -22,11 +23,11 @@ export const insightKeys = {
 // 429 (Lambda throttle) and 503 (service unavailable / Bedrock degraded) must
 // NOT be retried automatically — retrying a throttled request makes concurrency
 // pressure worse. Other transient errors get one exponential retry.
-const retryPolicy = (failureCount: number, error: unknown): boolean => {
-  if (error instanceof Error) {
-    const msg = error.message;
-    if (msg.includes("429") || msg.includes("503")) return false;
-  }
+export const retryPolicy = (failureCount: number, error: unknown): boolean => {
+  // RateLimitError is thrown by fetchWithAuthClient specifically for 429 responses —
+  // check it first so throttling detection doesn't depend on message wording.
+  if (error instanceof RateLimitError) return false;
+  if (error instanceof Error && error.message.includes("503")) return false;
   return failureCount < 1;
 };
 

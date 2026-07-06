@@ -10,9 +10,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Profile;
+import org.springframework.data.redis.connection.ReactiveRedisConnection;
 import org.springframework.data.redis.connection.ReactiveRedisConnectionFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+import reactor.core.publisher.Mono;
 
 /**
  * Recurring degraded-state monitor for the rate-limiter's Redis backend.
@@ -76,10 +78,24 @@ public class RedisRateLimitStateLogger {
     }
   }
 
+  /**
+   * Pings Redis and always releases the connection afterward, regardless of success, error, or
+   * timeout/cancellation. {@code getReactiveConnection()} allocates a connection per call; unlike
+   * {@link InfrastructureHealthLogger}'s equivalent one-shot startup probe, this runs every 30s
+   * for the lifetime of the gateway, so failing to close it would leak a connection per tick.
+   * {@link Mono#usingWhen} guarantees {@code closeLater()} runs on all three outcomes.
+   */
   private boolean pingSucceeded() {
     try {
-      redisConnectionFactory.getReactiveConnection().ping().timeout(PROBE_TIMEOUT).block(PROBE_TIMEOUT);
-      return true;
+      Boolean result = Mono.usingWhen(
+              Mono.fromSupplier(redisConnectionFactory::getReactiveConnection),
+              connection -> connection.ping().thenReturn(true),
+              ReactiveRedisConnection::closeLater,
+              (connection, error) -> connection.closeLater(),
+              ReactiveRedisConnection::closeLater)
+          .timeout(PROBE_TIMEOUT)
+          .block(PROBE_TIMEOUT);
+      return Boolean.TRUE.equals(result);
     } catch (Exception ex) {
       return false;
     }

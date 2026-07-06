@@ -42,6 +42,17 @@ import reactor.core.publisher.Mono;
  * {@code ceil(requestedTokens / replenishRate)} seconds — read from the route's
  * {@code retry-after-seconds} metadata (set per route in {@code application-prod.yml}), falling
  * back to the strict (larger, safer) value if the metadata is missing or mis-typed.
+ *
+ * <p><b>Known assumption.</b> This decorator only overrides {@link ServerHttpResponse#setComplete()}
+ * because that is how the stock {@code RequestRateLimiterGatewayFilterFactory} currently denies a
+ * request: it sets the {@code 429} status and calls {@code setComplete()} directly, without ever
+ * calling {@code writeWith(...)}. If a future Spring Cloud Gateway version changes
+ * {@code RequestRateLimiterGatewayFilterFactory} to deny via {@code writeWith(...)} instead (or in
+ * addition), this decorator would need a matching {@code writeWith} override, or the
+ * {@code Retry-After} header/JSON body would silently stop being attached to 429s.
+ * {@code ProductionRateLimitingIntegrationTest} pins today's {@code setComplete()}-based behavior,
+ * so a Spring Cloud Gateway upgrade that changes this would fail that test rather than fail
+ * silently.
  */
 @Component
 @Profile("prod")

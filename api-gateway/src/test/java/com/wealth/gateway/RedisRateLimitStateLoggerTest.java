@@ -94,11 +94,17 @@ class RedisRateLimitStateLoggerTest {
     private void stubPingFailure() {
         when(redisConnectionFactory.getReactiveConnection()).thenReturn(redisConnection);
         when(redisConnection.ping()).thenReturn(Mono.error(new RuntimeException("Connection refused")));
+        // pingSucceeded() always releases the connection via closeLater() (see
+        // RedisRateLimitStateLogger javadoc on the fix for the connection-leak issue) — the mock
+        // must return a real Mono here, or the reactive chain NPEs on the missing stub and the
+        // probe is (accidentally, for the wrong reason) treated as a failure.
+        when(redisConnection.closeLater()).thenReturn(Mono.empty());
     }
 
     private void stubPingSuccess() {
         when(redisConnectionFactory.getReactiveConnection()).thenReturn(redisConnection);
         when(redisConnection.ping()).thenReturn(Mono.just("PONG"));
+        when(redisConnection.closeLater()).thenReturn(Mono.empty());
     }
 
     private List<String> warnMessages() {

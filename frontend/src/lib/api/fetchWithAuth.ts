@@ -21,18 +21,25 @@ export class RateLimitError extends Error {
 }
 
 /**
+ * Matches a `Retry-After` value expressed as delay-seconds per RFC 9110 §10.2.3 — one or
+ * more ASCII digits, no sign, no whitespace, no decimal point. The gateway (see
+ * `RateLimitDenialResponseCustomizer`) always emits this delay-seconds form rather than
+ * the alternative HTTP-date form, so parsing only needs to handle this shape; the regex
+ * also rejects the empty string (`Number("")` would otherwise parse as `0`).
+ */
+const RETRY_AFTER_DELAY_SECONDS_PATTERN = /^\d+$/;
+
+/**
  * Parses the `Retry-After` header as a non-negative integer number of seconds.
  * Returns null when the header is absent or does not parse to a non-negative
  * integer, so callers can fall back to a sane default rather than propagating
  * `NaN` or a negative countdown into the UI.
  */
 function parseRetryAfterSeconds(headerValue: string | null): number | null {
-  if (headerValue === null) return null;
-  const seconds = Number(headerValue);
-  if (!Number.isFinite(seconds) || !Number.isInteger(seconds) || seconds < 0) {
+  if (headerValue === null || !RETRY_AFTER_DELAY_SECONDS_PATTERN.test(headerValue.trim())) {
     return null;
   }
-  return seconds;
+  return Number(headerValue.trim());
 }
 
 /**

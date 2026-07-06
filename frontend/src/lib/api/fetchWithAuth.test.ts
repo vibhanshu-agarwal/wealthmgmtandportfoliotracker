@@ -176,6 +176,42 @@ describe("fetchWithAuthClient", () => {
     expect((caught as RateLimitError).retryAfterSeconds).toBeNull();
   });
 
+  it("resolves retryAfterSeconds to null when the Retry-After header is an empty string", async () => {
+    // Regression guard: Number("") === 0, so a naive Number() parse would wrongly treat an
+    // empty header value as a valid "retry in 0 seconds" instead of "absent/invalid".
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 429,
+      headers: { get: () => "" },
+    });
+
+    let caught: unknown;
+    try {
+      await fetchWithAuthClient("/api/chat", "token");
+    } catch (err) {
+      caught = err;
+    }
+
+    expect((caught as RateLimitError).retryAfterSeconds).toBeNull();
+  });
+
+  it("resolves retryAfterSeconds to null for a decimal Retry-After value", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 429,
+      headers: { get: () => "1.5" },
+    });
+
+    let caught: unknown;
+    try {
+      await fetchWithAuthClient("/api/chat", "token");
+    } catch (err) {
+      caught = err;
+    }
+
+    expect((caught as RateLimitError).retryAfterSeconds).toBeNull();
+  });
+
   it("passes through additional RequestInit options", async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
