@@ -19,6 +19,11 @@ dependencies {
     // OAuth2 resource server (spring-security-oauth2-resource-server, Nimbus JOSE+JWT, WebFlux security)
     implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
 
+    // Blocking JDBC for the auth data layer (Req 2.5: no spring-boot-starter-data-jpa in a
+    // WebFlux app — plain spring-jdbc + HikariCP, bridged via Schedulers.boundedElastic()).
+    implementation 'org.springframework.boot:spring-boot-starter-jdbc'
+    runtimeOnly 'org.postgresql:postgresql'
+
     // Distributed tracing — Boot 4.1 starter bundles micrometer-tracing-bridge-otel + OTLP export
     implementation 'org.springframework.boot:spring-boot-starter-opentelemetry'
 
@@ -34,6 +39,12 @@ dependencies {
     // jqwik powers property-based tests for the production-rate-limiting spec
     // (key-resolver spoof-resistance property).
     testImplementation "net.jqwik:jqwik:${rootProject.ext.jqwikVersion}"
+
+    // Testcontainers Postgres for the auth integration test suite (Task 8). Artifact id carries
+    // the "testcontainers-" prefix (not the bare "postgres") to match this repo's
+    // testcontainers-bom 2.0.5 module naming — see portfolio-service/build.gradle and
+    // market-data-service/build.gradle for the same convention.
+    testImplementation 'org.testcontainers:testcontainers-postgresql'
 
     // ArchUnit — guards the "no software.amazon.awssdk.* / io.lettuce.* imports in
     // com.wealth.gateway (beyond the pre-existing RedisSslConfig)" rule (Req 2.2).

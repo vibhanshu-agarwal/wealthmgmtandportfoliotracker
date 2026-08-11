@@ -223,6 +223,8 @@ services:
     container_name: api-gateway
     entrypoint: [ "/opt/java/bin/java", "-jar", "/app/app.jar" ]
     depends_on:
+      postgres:
+        condition: service_healthy
       portfolio-service:
         condition: service_healthy
       market-data-service:
@@ -232,9 +234,10 @@ services:
       redis:
         condition: service_started
     environment:
-      # Match Flyway V3 seed (user_id user-001) so gateway login and DB demo data align.
       <<: [ *redis-env, *internal-key ]
-      APP_AUTH_USER_ID: ${APP_AUTH_USER_ID:-user-001}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://portfolio-db:5432/portfolio_db?options=-c%20timezone=Asia/Kolkata
+      SPRING_DATASOURCE_USERNAME: wealth_user
+      SPRING_DATASOURCE_PASSWORD: wealth_pass
       AUTH_JWT_SECRET: ${AUTH_JWT_SECRET:-local-dev-secret-change-me-min-32-chars}
       PORTFOLIO_SERVICE_URL: http://portfolio-service:8081
       MARKET_DATA_SERVICE_URL: http://market-data-service:8082

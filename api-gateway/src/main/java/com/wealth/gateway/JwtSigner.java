@@ -27,6 +27,10 @@ public class JwtSigner {
     }
 
     public String signHs256(String userId, String email, String name) throws JOSEException {
+        return signHs256(userId, email, name, false);
+    }
+
+    public String signHs256(String userId, String email, String name, boolean readOnly) throws JOSEException {
         Instant now = Instant.now();
         SignedJWT jwt = new SignedJWT(
                 new JWSHeader(JWSAlgorithm.HS256),
@@ -34,6 +38,7 @@ public class JwtSigner {
                         .subject(userId)
                         .claim("email", email)
                         .claim("name", name)
+                        .claim("ro", readOnly)
                         .issueTime(Date.from(now))
                         .expirationTime(Date.from(now.plusSeconds(3600)))
                         .build());
