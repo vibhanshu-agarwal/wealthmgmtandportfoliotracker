@@ -10,4 +10,6 @@ public final class SignupDtos {
      * preserved as submitted; only the functional index in Postgres is case-insensitive), and
      * the name is trimmed. */
     public record ValidatedSignup(String email, String password, String name) {}
+
+    public record FieldErrorResponse(String error, String field) {}
 }

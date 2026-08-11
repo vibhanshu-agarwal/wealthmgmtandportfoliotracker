@@ -1,5 +1,8 @@
 package com.wealth.gateway;
 
+import com.wealth.gateway.auth.AuthenticationService;
+import com.wealth.gateway.auth.LoginResponse;
+import com.wealth.gateway.auth.SignupService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -11,7 +14,9 @@ import org.springframework.cloud.gateway.route.RouteDefinitionLocator;
 import org.springframework.security.oauth2.jwt.ReactiveJwtDecoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.reactive.server.WebTestClient;
+import reactor.core.publisher.Mono;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -19,6 +24,7 @@ import java.util.List;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.when;
 
 /**
  * Gateway boot/contract gate (Task 10.3 / Property 2).
@@ -31,15 +37,22 @@ import static org.assertj.core.api.Assertions.assertThat;
 @ActiveProfiles("aws")
 @TestPropertySource(properties = {
         "auth.jwt.secret=test-secret-for-integration-tests-min-32-chars",
-        "app.auth.email=dev@localhost.local",
-        "app.auth.password=password",
-        "app.auth.user-id=user-001",
-        "app.auth.name=Development User",
         "management.health.redis.enabled=false",
         "management.tracing.export.enabled=false",
         "management.otlp.metrics.export.enabled=false"
 })
 class GatewayBootContractTest {
+
+    // AuthController (com.wealth.gateway) now constructor-injects AuthenticationService/
+    // SignupService (Task 5, new-user-signup-profile). Those beans only exist where
+    // GatewayAuthDataConfig activates (spring.datasource.url set) — never under the "aws"
+    // profile this test targets — so they're mocked here purely to satisfy AuthController's
+    // wiring; this class otherwise tests routing/JWT/rate-limit boot behavior, not auth logic.
+    @MockitoBean
+    AuthenticationService authenticationService;
+
+    @MockitoBean
+    SignupService signupService;
 
     private static final Set<String> EXPECTED_ROUTE_IDS = Set.of(
             "portfolio-service",
@@ -125,6 +138,12 @@ class GatewayBootContractTest {
 
     @Test
     void authLogin_issuesTokenViaGatewayController() {
+        // Task 5 replaced the hardcoded demo-credential login with per-user AuthenticationService
+        // lookups; this test now verifies gateway routing/serialization reaches AuthController and
+        // returns its token, not the (removed) hardcoded-credential check itself.
+        when(authenticationService.authenticate(new LoginDtos.LoginRequest("dev@localhost.local", "password")))
+                .thenReturn(Mono.just(new LoginResponse("test-token", "user-001", "dev@localhost.local", "Development User")));
+
         webTestClient.post()
                 .uri("/api/auth/login")
                 .bodyValue("""
