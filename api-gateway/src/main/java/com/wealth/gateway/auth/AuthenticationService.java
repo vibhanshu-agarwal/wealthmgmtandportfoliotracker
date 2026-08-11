@@ -45,10 +45,18 @@ public class AuthenticationService {
                         throw new InvalidCredentialsException();
                     }
                     var row = cred.get();
-                    // Req 4.6: absent/malformed stored hash -> uniform 401 (still run a match for timing).
+                    // Req 4.6: absent/malformed stored hash -> uniform 401, but still run a REAL
+                    // matches() call (against the dummy hash as a fallback) rather than
+                    // short-circuiting on null/blank — a short-circuit here would let this branch
+                    // return near-instantly, creating a timing oracle that distinguishes "email
+                    // exists but has a corrupted/null credential row" from the other two 401
+                    // outcomes (unknown email, wrong password against a real hash), defeating
+                    // Req 3.4's timing-equalization goal.
                     String storedHash = row.passwordHash();
-                    boolean matches = storedHash != null && !storedHash.isBlank()
-                            && passwordEncoder.matches(req.password(), storedHash);
+                    String hashToCheck = (storedHash != null && !storedHash.isBlank())
+                            ? storedHash
+                            : PasswordHasherConfig.DUMMY_PASSWORD_HASH;
+                    boolean matches = passwordEncoder.matches(req.password(), hashToCheck);
                     if (!matches) {
                         throw new InvalidCredentialsException();
                     }

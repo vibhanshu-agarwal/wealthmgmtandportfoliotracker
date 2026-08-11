@@ -55,6 +55,25 @@ class AuthenticationServiceTest {
     }
 
     @Test
+    void malformedStoredHashRunsDummyHashMatchThenFailsUniformly() throws Exception {
+        // Req 4.6 + timing-oracle fix: a null/blank stored hash must NOT short-circuit past
+        // passwordEncoder.matches(...) — it must still run a real match (against the dummy hash
+        // as a fallback), the same way the unknown-email branch does, so this outcome isn't
+        // distinguishable by timing from the other two 401 paths.
+        var row = new UserCredentialRepository.CredentialRow("u1", "a@b.com", "Alice", null, false);
+        when(repository.findByEmailIgnoreCase("a@b.com")).thenReturn(Optional.of(row));
+
+        try {
+            service().authenticate(new LoginDtos.LoginRequest("a@b.com", "somepassword")).block();
+        } catch (InvalidCredentialsException expected) {
+            // expected
+        }
+
+        verify(passwordEncoder).matches(eq("somepassword"), eq(PasswordHasherConfig.DUMMY_PASSWORD_HASH));
+        verify(jwtSigner, never()).signHs256(any(), any(), any(), anyBoolean());
+    }
+
+    @Test
     void wrongPasswordFailsUniformlyWithoutMintingAToken() throws Exception {
         var row = new UserCredentialRepository.CredentialRow("u1", "a@b.com", "Alice", "stored-hash", false);
         when(repository.findByEmailIgnoreCase("a@b.com")).thenReturn(Optional.of(row));
