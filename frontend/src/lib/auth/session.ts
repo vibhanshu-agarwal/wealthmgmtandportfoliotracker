@@ -135,6 +135,40 @@ export async function loginWithBackend(email: string, password: string): Promise
   return parsed;
 }
 
+export async function signupWithBackend(
+  email: string,
+  password: string,
+  name: string,
+): Promise<AuthSession> {
+  let response: Response;
+  try {
+    response = await fetch(apiPath("/auth/signup"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password, name }),
+    });
+  } catch {
+    throw new LoginError("Signup request failed", "network");
+  }
+
+  if (!response.ok) {
+    throw new LoginError(`Signup failed (${response.status})`, "http", response.status);
+  }
+
+  let raw: Record<string, unknown>;
+  try {
+    raw = (await response.json()) as Record<string, unknown>;
+  } catch {
+    throw new LoginError("Signup response was not valid JSON", "invalid-response");
+  }
+  const parsed = coerceSession(raw);
+  if (!parsed) {
+    throw new LoginError("Signup response missing token, userId, or email", "invalid-response");
+  }
+  saveAuthSession(parsed);
+  return parsed;
+}
+
 function subscribeToAuthSession(onStoreChange: () => void): () => void {
   if (typeof window === "undefined") return () => {};
 
