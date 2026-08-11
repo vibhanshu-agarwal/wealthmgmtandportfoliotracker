@@ -10,13 +10,13 @@
 --
 -- Password hashes below are bcrypt(cost=12), generated fresh via
 -- BCryptPasswordEncoder(12) — NOT reused from any legacy ba_account scrypt
--- hash (a different, incompatible algorithm). Plaintext passwords:
---   - Demo: "demo-wealthtracker-2026" (>=12 chars; intentionally public, wired
---     to NEXT_PUBLIC_DEMO_PASSWORD for the login pre-fill).
---   - Dev:  "local-dev-password-2026" (local-dev only).
---   - E2E:  "e2e-test-password-2026" (same plaintext documented in V10's
---     comment and .env.secrets; freshly bcrypt-hashed here, not reusing V10's
---     Better-Auth scrypt hash).
+-- hash (a different, incompatible algorithm). The demo account's plaintext
+-- password is intentionally public (see the comment above its INSERT below,
+-- wired to NEXT_PUBLIC_DEMO_PASSWORD for the login pre-fill) and is the only
+-- one of the three recorded in this file. The dev and E2E accounts are real
+-- (if low-value) credentials — their plaintext values are tracked out of
+-- band (local-dev notes / CI secrets respectively) and are deliberately not
+-- restated here.
 -- =============================================================================
 
 -- Demo/recruiter account (read-only). Password is >=12 chars and intentionally
