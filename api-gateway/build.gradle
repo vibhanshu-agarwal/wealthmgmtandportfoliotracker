@@ -46,6 +46,16 @@ dependencies {
     // market-data-service/build.gradle for the same convention.
     testImplementation 'org.testcontainers:testcontainers-postgresql'
 
+    // Flyway — test-only, used programmatically (Flyway.configure()...migrate()) by
+    // AuthIntegrationTest to run portfolio-service's migrations against the Testcontainers
+    // Postgres BEFORE the gateway's ApplicationContext starts. api-gateway itself never depends
+    // on Flyway in src/main — DataSourceAutoConfiguration is excluded in ApiGatewayApplication and
+    // this module owns no migrations of its own (see BetterAuthArchitectureTest). Versions are
+    // managed by Spring Boot's dependency-management BOM, matching portfolio-service's own
+    // flyway-database-postgresql (no explicit version here).
+    testImplementation 'org.flywaydb:flyway-core'
+    testImplementation 'org.flywaydb:flyway-database-postgresql'
+
     // ArchUnit — guards the "no software.amazon.awssdk.* / io.lettuce.* imports in
     // com.wealth.gateway (beyond the pre-existing RedisSslConfig)" rule (Req 2.2).
     testImplementation 'com.tngtech.archunit:archunit-junit5:1.4.0'
