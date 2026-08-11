@@ -145,6 +145,10 @@ app:
       replenish-rate: 1
       burst-capacity: 30
       requested-tokens: 6
+    auth:
+      replenish-rate: 1
+      burst-capacity: 60
+      requested-tokens: 12
     # Unauthenticated requests key off the right-most (ingress-appended) X-Forwarded-For hop
     # rather than the client-supplied first entry, so a client cannot mint a fresh bucket by
     # rotating a spoofed XFF prefix (Req 3.9). Defaults to false (see application.yml / local),
