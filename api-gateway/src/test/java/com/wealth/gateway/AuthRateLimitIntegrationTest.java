@@ -54,7 +54,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 class AuthRateLimitIntegrationTest {
 
     private static final int REDIS_PORT = 6379;
-    private static final int SMALL_BURST = 3; // small burst_capacity keeps the test fast
+    // Deliberately DIFFERENT from standard/strict's burst-capacity (3) below, not merely "small".
+    // standardRateLimiter is @Primary; if AuthRateLimitFilter's @Qualifier("authRateLimiter") were
+    // ever dropped, an unqualified constructor parameter would silently resolve to
+    // standardRateLimiter instead (see AuthRateLimitFilter's own javadoc on this exact hazard,
+    // and AuthRateLimitFilterBeanWiringTest, which already asserts correct wiring by reference
+    // identity). Giving the auth bucket a distinguishable burst capacity means that regression
+    // would also make exceedingTheAuthBucketReturns429WithPositiveRetryAfter's burst-capacity loop
+    // fail at request #4 instead of #6 — a second, independent signal at the integration level,
+    // rather than this test coincidentally still passing because the numbers happen to match.
+    private static final int SMALL_BURST = 5;
 
     @Container
     @SuppressWarnings("resource")

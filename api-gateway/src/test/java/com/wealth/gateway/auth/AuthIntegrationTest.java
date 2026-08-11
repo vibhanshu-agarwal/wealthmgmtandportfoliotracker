@@ -1,5 +1,7 @@
 package com.wealth.gateway.auth;
 
+import com.nimbusds.jose.JOSEException;
+import com.wealth.gateway.JwtSigner;
 import com.wealth.gateway.TestContainerImages;
 import com.wealth.gateway.TestJwtFactory;
 import org.flywaydb.core.Flyway;
@@ -14,6 +16,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.reactive.server.WebTestClient;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -23,6 +26,10 @@ import javax.sql.DataSource;
 import java.time.Duration;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 
 /**
  * .kiro/specs/new-user-signup-profile, Requirement 10 (10.1-10.3, 10.4-10.7, 10.10-10.12).
@@ -88,6 +95,15 @@ class AuthIntegrationTest {
     @Autowired DataSource dataSource;
     private JdbcTemplate jdbcTemplate;
 
+    // Wraps the REAL JwtSigner bean (shared by both AuthenticationService and SignupService) so a
+    // single test can force a JOSEException out of signHs256(...) — the exact failure point Req
+    // 10.3 requires proving a rollback for (both inserts already succeeded; signing is the last
+    // step before the transaction commits). Spring resets this spy's stubbing after each test
+    // method (MockReset.AFTER is the default for @MockitoSpyBean), and the stub below additionally
+    // matches on this test's specific email so it can never leak into any other test's calls even
+    // if reset semantics ever changed.
+    @MockitoSpyBean JwtSigner jwtSigner;
+
     @BeforeEach
     void setUpJdbcTemplate() {
         jdbcTemplate = new JdbcTemplate(dataSource);
@@ -118,6 +134,41 @@ class AuthIntegrationTest {
                 "SELECT count(*) FROM user_credentials WHERE user_id = ?::uuid", Integer.class, userId);
         assertThat(userCount).isEqualTo(1);
         assertThat(credCount).isEqualTo(1);
+    }
+
+    // ---- Requirement 10.3 — forced provisioning-transaction failure persists zero rows ----
+
+    @Test
+    void signupRollsBackBothRowsWhenTokenSigningFails() throws JOSEException {
+        String email = "forced-jose-failure@example.com";
+
+        // SignupService.provision() inserts the users row, then the user_credentials row, and
+        // only THEN calls jwtSigner.signHs256(...) to mint the response token — the last step
+        // before the transaction commits. Forcing that call to throw a JOSEException (matching
+        // the real exception type SignupService already catches: `catch (JOSEException e) {
+        // status.setRollbackOnly(); throw new ProvisioningFailedException(e); }`) exercises the
+        // genuine rollback path against a real Postgres transaction, not a mock-only unit test
+        // (Task 3's SignupServiceTest already covers the mock-level behavior).
+        //
+        // Matching on this test's specific email (rather than stubbing unconditionally) keeps the
+        // failure injection scoped to this one signup call — every other test's login/signup
+        // calls use different emails and hit the real signHs256 implementation unaffected.
+        doThrow(new JOSEException("forced failure for Req 10.3 rollback test"))
+                .when(jwtSigner).signHs256(anyString(), eq(email), anyString(), anyBoolean());
+
+        client().post().uri("/api/auth/signup")
+                .bodyValue(java.util.Map.of("email", email, "password", "a-strong-password-123", "name", "Rollback User"))
+                .exchange()
+                // AuthController.signup() maps ProvisioningFailedException -> 503 SERVICE_UNAVAILABLE
+                // (provisioningFailed()) — never 201.
+                .expectStatus().isEqualTo(503);
+
+        Integer userCount = jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM users WHERE lower(email) = lower(?)", Integer.class, email);
+        Integer credCount = jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM user_credentials WHERE lower(email) = lower(?)", Integer.class, email);
+        assertThat(userCount).as("users row must not persist when the transaction rolls back").isZero();
+        assertThat(credCount).as("user_credentials row must not persist when the transaction rolls back").isZero();
     }
 
     // ---- Requirement 10.7 — duplicate-email signup returns 409, row count stays 1 ----
@@ -183,11 +234,27 @@ class AuthIntegrationTest {
         String demoToken = TestJwtFactory.mint("00000000-0000-0000-0000-0000000d3110", Duration.ofHours(1),
                 TestJwtFactory.TEST_SECRET, java.util.Map.of("ro", true));
 
+        // ReadOnlyEnforcementFilter runs and rejects BEFORE the (nonexistent, in this test)
+        // downstream proxy is ever attempted, so "data unchanged" is provable directly against
+        // this same Postgres instance's asset_holdings table — a genuine before/after check, not
+        // just the 403 status code, proves the attempted mutation had zero effect.
+        Integer holdingsBefore = jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM asset_holdings h JOIN portfolios p ON p.id = h.portfolio_id "
+                        + "WHERE p.user_id = '00000000-0000-0000-0000-0000000d3110'",
+                Integer.class);
+
         client().post().uri("/api/portfolio/holdings")
                 .header("Authorization", "Bearer " + demoToken)
                 .bodyValue(java.util.Map.of("assetTicker", "AAPL", "quantity", 1))
                 .exchange()
                 .expectStatus().isEqualTo(403);
+
+        Integer holdingsAfter = jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM asset_holdings h JOIN portfolios p ON p.id = h.portfolio_id "
+                        + "WHERE p.user_id = '00000000-0000-0000-0000-0000000d3110'",
+                Integer.class);
+        assertThat(holdingsAfter).as("rejected write must leave the demo portfolio's holdings unchanged")
+                .isEqualTo(holdingsBefore);
     }
 
     @Test
