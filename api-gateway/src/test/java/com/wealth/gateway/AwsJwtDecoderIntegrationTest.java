@@ -10,6 +10,9 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.reactive.server.WebTestClient;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 
 import java.time.Duration;
 import java.util.Map;
@@ -21,11 +24,26 @@ import static org.assertj.core.api.Assertions.assertThat;
  * decoder accepts the same token on protected routes.
  */
 @Tag("integration")
+@Testcontainers
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles({"prod", "aws"})
 class AwsJwtDecoderIntegrationTest {
 
     private static final String DEMO_USER_ID = "00000000-0000-0000-0000-000000000e2e";
+
+    // This test activates the "prod" profile, and application-prod.yml declares
+    // spring.datasource.url/username/password as ${SPRING_DATASOURCE_URL}/etc with NO default
+    // (Req 2.5 — missing values must fail startup loudly). GatewayAuthDataConfig's
+    // @ConditionalOnProperty gate must resolve that property during context refresh, so an
+    // ephemeral real Postgres is required here purely to make that resolution succeed — this
+    // test exercises the AWS JWT decoder, not auth/datasource logic.
+    @Container
+    @SuppressWarnings({"resource", "rawtypes"})
+    static final PostgreSQLContainer postgres =
+            new PostgreSQLContainer(TestContainerImages.POSTGRES)
+                    .withDatabaseName("portfolio_db")
+                    .withUsername("wealth_user")
+                    .withPassword("wealth_pass");
 
     @DynamicPropertySource
     static void authProperties(DynamicPropertyRegistry registry) {
@@ -34,6 +52,10 @@ class AwsJwtDecoderIntegrationTest {
         registry.add("app.auth.password", () -> "demo-password");
         registry.add("app.auth.user-id", () -> DEMO_USER_ID);
         registry.add("app.auth.name", () -> "Demo User");
+
+        registry.add("spring.datasource.url", postgres::getJdbcUrl);
+        registry.add("spring.datasource.username", postgres::getUsername);
+        registry.add("spring.datasource.password", postgres::getPassword);
     }
 
     @LocalServerPort

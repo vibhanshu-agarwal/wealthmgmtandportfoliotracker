@@ -10,18 +10,6 @@ spring:
                 redis-rate-limiter.replenishRate: 1
                 redis-rate-limiter.burstCapacity: 3
                 redis-rate-limiter.requestedTokens: 1
-  # This test-resources file entirely replaces (not merges with) src/main/resources'
-  # application-local.yml on the test classpath, so spring.datasource.* must be repeated
-  # here too — without it, DataSourceAutoConfiguration cannot determine a driver class and
-  # every @SpringBootTest using the "local" profile fails to load its ApplicationContext,
-  # even tests unrelated to auth/signup (Req 2.5).
-  datasource:
-    url: jdbc:postgresql://localhost:5432/portfolio_db?options=-c%20timezone=Asia/Kolkata
-    username: wealth_user
-    password: wealth_pass
-    driver-class-name: org.postgresql.Driver
-    hikari:
-      maximum-pool-size: 4
 
 auth:
   jwt:

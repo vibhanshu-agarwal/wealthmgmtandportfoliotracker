@@ -63,6 +63,22 @@ class ProductionRateLimitingIntegrationTest {
     static final GenericContainer<?> redis =
             new GenericContainer<>(TestContainerImages.REDIS).withExposedPorts(REDIS_PORT);
 
+    // This test activates the "prod" profile, and application-prod.yml declares
+    // spring.datasource.url/username/password as ${SPRING_DATASOURCE_URL}/etc with NO default
+    // (Req 2.5 — missing values must fail startup loudly). GatewayAuthDataConfig's
+    // @ConditionalOnProperty gate must resolve that property during context refresh, so an
+    // ephemeral real Postgres is required here purely to make that resolution succeed — this
+    // test exercises rate limiting, not auth/datasource logic. Same pattern portfolio-service
+    // already uses for its own always-on datasource requirement (see e.g.
+    // portfolio-service's AzureCacheConfigTest).
+    @Container
+    @SuppressWarnings({"resource", "rawtypes"})
+    static final org.testcontainers.postgresql.PostgreSQLContainer postgres =
+            new org.testcontainers.postgresql.PostgreSQLContainer(TestContainerImages.POSTGRES)
+                    .withDatabaseName("portfolio_db")
+                    .withUsername("wealth_user")
+                    .withPassword("wealth_pass");
+
     @DynamicPropertySource
     static void redisAndRateLimitProperties(DynamicPropertyRegistry registry) {
         registry.add("spring.data.redis.url",
@@ -71,6 +87,10 @@ class ProductionRateLimitingIntegrationTest {
         // avoid spurious fail-open under CI/Docker-Desktop scheduling jitter in the other tests.
         registry.add("spring.data.redis.timeout", () -> "3s");
         registry.add("spring.data.redis.connect-timeout", () -> "3s");
+
+        registry.add("spring.datasource.url", postgres::getJdbcUrl);
+        registry.add("spring.datasource.username", postgres::getUsername);
+        registry.add("spring.datasource.password", postgres::getPassword);
 
         registry.add("auth.jwt.secret", () -> TestJwtFactory.TEST_SECRET);
 

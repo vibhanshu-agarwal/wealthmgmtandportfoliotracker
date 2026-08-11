@@ -2,7 +2,6 @@ package com.wealth.gateway.auth;
 
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
-import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
 import java.util.UUID;
@@ -10,8 +9,14 @@ import java.util.UUID;
 /**
  * Plain NamedParameterJdbcTemplate access to the users/user_credentials tables owned by
  * portfolio-service (Req 2.6 — api-gateway reads/writes but defines no migrations).
+ *
+ * <p>Deliberately NOT a {@code @Repository} (component-scanned) bean: this class is only
+ * instantiated by {@link GatewayAuthDataConfig}'s explicit {@code @Bean} method, which is
+ * gated on {@code spring.datasource.url} being present. Component-scanning this class
+ * unconditionally would make Spring eagerly try to instantiate it as a singleton in every
+ * profile's ApplicationContext (aws/azure included), failing with an unsatisfied
+ * {@code NamedParameterJdbcTemplate} dependency wherever no datasource is configured.
  */
-@Repository
 public class UserCredentialRepository {
 
     private final NamedParameterJdbcTemplate jdbc;
