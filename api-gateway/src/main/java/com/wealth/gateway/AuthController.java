@@ -59,7 +59,12 @@ public class AuthController {
                 .onErrorResume(ValidationException.class,
                         ex -> Mono.just(badRequest(ex.field())))
                 .onErrorResume(DuplicateEmailException.class, ex -> Mono.just(conflict()))
-                .onErrorResume(ProvisioningFailedException.class, ex -> Mono.just(provisioningFailed()));
+                .onErrorResume(ProvisioningFailedException.class, ex -> Mono.just(provisioningFailed()))
+                // Defensive catch-all (parity with login()): provision() maps most failures into
+                // the three specific exceptions above, but an exception thrown inside this
+                // method's own .map(...) step would otherwise escape unguarded to WebFlux's
+                // default error handler instead of this app's error body shape.
+                .onErrorResume(Throwable.class, ex -> Mono.just(genericServerError()));
     }
 
     private static ResponseEntity<Object> uniformAuthError() {
