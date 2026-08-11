@@ -1,5 +1,6 @@
 package com.wealth.gateway.auth;
 
+import com.wealth.gateway.JwtSigner;
 import com.zaxxer.hikari.HikariDataSource;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -8,6 +9,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -63,5 +65,29 @@ public class GatewayAuthDataConfig {
     @Bean
     public TransactionTemplate transactionTemplate(PlatformTransactionManager gatewayTransactionManager) {
         return new TransactionTemplate(gatewayTransactionManager);
+    }
+
+    // Explicit @Bean rather than @Service component-scanning, for the same reason as
+    // userCredentialRepository() above: AuthenticationService/SignupService depend on
+    // UserCredentialRepository (and SignupService also on TransactionTemplate), which only
+    // exist while this class is active. Registering them here — instead of relying on
+    // component-scan + @ConditionalOnBean, which Spring only evaluates reliably for
+    // auto-configuration classes, not regular @Configuration/@Component ordering — guarantees
+    // they are created if and only if this class is.
+    @Bean
+    public AuthenticationService authenticationService(
+            UserCredentialRepository userCredentialRepository,
+            PasswordEncoder passwordEncoder,
+            JwtSigner jwtSigner) {
+        return new AuthenticationService(userCredentialRepository, passwordEncoder, jwtSigner);
+    }
+
+    @Bean
+    public SignupService signupService(
+            UserCredentialRepository userCredentialRepository,
+            PasswordEncoder passwordEncoder,
+            JwtSigner jwtSigner,
+            TransactionTemplate transactionTemplate) {
+        return new SignupService(userCredentialRepository, passwordEncoder, jwtSigner, transactionTemplate);
     }
 }
