@@ -1,5 +1,6 @@
 package com.wealth.gateway;
 
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cloud.gateway.filter.ratelimit.KeyResolver;
 import org.springframework.cloud.gateway.filter.ratelimit.RateLimiter;
@@ -36,6 +37,18 @@ public class AuthRateLimitFilter implements WebFilter, Ordered {
     private final int retryAfterSeconds;
 
     public AuthRateLimitFilter(
+            // @Qualifier is required: under the "prod" profile, GatewayRateLimitConfig declares
+            // THREE RedisRateLimiter beans (standardRateLimiter, strictRateLimiter,
+            // authRateLimiter), and standardRateLimiter is marked @Primary so
+            // RequestRateLimiterGatewayFilterFactory's factory-level default can resolve
+            // unambiguously (see GatewayRateLimitConfig javadoc). Spring resolves an @Primary
+            // candidate BEFORE matching by parameter name, so an unqualified parameter here —
+            // even one literally named "authRateLimiter" — would silently receive
+            // standardRateLimiter's instance instead, enforcing the wrong (10x more permissive)
+            // limits while Retry-After still looked correct (it's computed independently from the
+            // @Value primitives below, not from this bean). See
+            // AuthRateLimitFilterBeanWiringTest for the regression test.
+            @Qualifier("authRateLimiter")
             org.springframework.cloud.gateway.filter.ratelimit.RedisRateLimiter authRateLimiter,
             @Value("${app.rate-limit.trust-xff-last-hop:false}") boolean trustXffLastHop,
             @Value("${app.rate-limit.auth.requested-tokens:12}") int requestedTokens,
@@ -54,6 +67,16 @@ public class AuthRateLimitFilter implements WebFilter, Ordered {
     @Override
     public int getOrder() {
         return Ordered.HIGHEST_PRECEDENCE + 1;
+    }
+
+    /**
+     * Package-visible for {@code AuthRateLimitFilterBeanWiringTest} to assert, by reference
+     * identity, that this filter is wired to the {@code authRateLimiter} bean and not
+     * {@code standardRateLimiter} (the {@code @Primary} candidate an unqualified constructor
+     * parameter would otherwise silently resolve to).
+     */
+    RateLimiter<?> authRateLimiterForTesting() {
+        return authRateLimiter;
     }
 
     @Override
