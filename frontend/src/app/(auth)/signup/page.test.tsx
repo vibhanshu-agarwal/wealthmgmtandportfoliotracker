@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import SignupPage from "./page";
 
 const pushMock = vi.fn();
@@ -70,5 +70,53 @@ describe("SignupPage", () => {
   it("has a link back to /login", () => {
     render(<SignupPage />);
     expect(screen.getByRole("link", { name: /sign in/i })).toHaveAttribute("href", "/login");
+  });
+
+  it("shows the password-specific message for a 400 response carrying field: password", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 400,
+      json: async () => ({ error: "invalid_request", field: "password" }),
+    });
+
+    render(<SignupPage />);
+    fillForm({ name: "Jane Doe", email: "jane@example.com", password: "a-strong-password-123" });
+    fireEvent.click(screen.getByRole("button", { name: /create account/i }));
+
+    expect(
+      await screen.findByText(/password must be at least 12 characters/i),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/check your input and try again/i)).not.toBeInTheDocument();
+  });
+
+  // Regression test for the reviewed bug: previously the AbortController's signal was never
+  // passed to fetch(), so a hung backend meant the awaited signupWithBackend() call never
+  // settled — finally() never ran, and the button stayed stuck on "Creating account…" forever.
+  it("does not hang forever when the backend never responds — the 10s timeout recovers the form", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    mockFetch.mockImplementationOnce((_url: string, init: RequestInit) => {
+      return new Promise((_resolve, reject) => {
+        init.signal?.addEventListener("abort", () => {
+          reject(new DOMException("The operation was aborted", "AbortError"));
+        });
+      });
+    });
+
+    render(<SignupPage />);
+    fillForm({ name: "Jane Doe", email: "jane@example.com", password: "a-strong-password-123" });
+    fireEvent.click(screen.getByRole("button", { name: /create account/i }));
+
+    expect(screen.getByRole("button", { name: /creating account/i })).toBeDisabled();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_000);
+    });
+
+    expect(
+      await screen.findByText(/signup could not be completed/i),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /create account/i })).not.toBeDisabled();
+
+    vi.useRealTimers();
   });
 });

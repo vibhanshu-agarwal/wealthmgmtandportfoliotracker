@@ -9,7 +9,14 @@ describe("validateSignup — property: mirrors the server SignupValidator", () =
     .tuple(fc.stringMatching(/^[a-z]{1,20}$/), fc.stringMatching(/^[a-z]{1,10}$/), fc.stringMatching(/^[a-z]{1,10}$/))
     .map(([local, d1, d2]) => `${local}@${d1}.${d2}`);
   const validPassword = fc.string({ minLength: 12, maxLength: 72, unit: "grapheme-ascii" });
-  const validName = fc.string({ minLength: 1, maxLength: 100, unit: "grapheme-ascii" }).map((s) => ` ${s} `);
+  // Filter out all-whitespace strings: padding one with extra spaces would still trim to
+  // "", which is exactly what the "accepts any valid triple" property must NOT generate
+  // (an empty-after-trim name is invalid input, not a valid one). Caught as a real,
+  // seed-dependent flaky failure while re-verifying the suite in fix round 1.
+  const validName = fc
+    .string({ minLength: 1, maxLength: 100, unit: "grapheme-ascii" })
+    .filter((s) => s.trim().length > 0)
+    .map((s) => ` ${s} `);
 
   it("accepts any (email, password, name) satisfying all three rules and trims the name", () => {
     fc.assert(

@@ -57,12 +57,18 @@ export default function SignupPage() {
     const timeoutId = setTimeout(() => controller.abort(), SIGNUP_TIMEOUT_MS);
 
     try {
-      await signupWithBackend(submittedEmail, submittedPassword, submittedName.trim());
+      await signupWithBackend(
+        submittedEmail,
+        submittedPassword,
+        submittedName.trim(),
+        controller.signal,
+      );
       router.push("/overview");
     } catch (err) {
       const status = (err as { status?: number })?.status;
+      const field = (err as { field?: string })?.field;
       if (status === 400 || status === 409) {
-        setError(serverErrorMessage(status));
+        setError(serverErrorMessage(status, field));
       } else {
         setError("Signup could not be completed. Please try again.");
       }
