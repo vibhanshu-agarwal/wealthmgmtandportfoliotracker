@@ -132,29 +132,35 @@ module "api_gateway" {
   # Sensitive env vars — values sourced from the secrets map below.
   # Keys must match keys in the secrets map (module derives secret name as lower(replace(key, "_", "-"))).
   secret_env_vars = {
-    AUTH_JWT_SECRET         = var.auth_jwt_secret
-    APP_AUTH_EMAIL          = var.app_auth_email
-    APP_AUTH_PASSWORD       = var.app_auth_password
-    APP_AUTH_USER_ID        = var.app_auth_user_id
-    APP_AUTH_NAME           = var.app_auth_name
-    REDIS_URL               = var.redis_url
-    INTERNAL_API_KEY        = var.internal_api_key
-    KAFKA_BOOTSTRAP_SERVERS = var.kafka_bootstrap_servers
-    KAFKA_SASL_USERNAME     = var.kafka_sasl_username
-    KAFKA_SASL_PASSWORD     = var.kafka_sasl_password
+    AUTH_JWT_SECRET            = var.auth_jwt_secret
+    APP_AUTH_EMAIL             = var.app_auth_email
+    APP_AUTH_PASSWORD          = var.app_auth_password
+    APP_AUTH_USER_ID           = var.app_auth_user_id
+    APP_AUTH_NAME              = var.app_auth_name
+    SPRING_DATASOURCE_URL      = var.postgres_connection_string
+    SPRING_DATASOURCE_USERNAME = var.postgres_username
+    SPRING_DATASOURCE_PASSWORD = var.postgres_password
+    REDIS_URL                  = var.redis_url
+    INTERNAL_API_KEY           = var.internal_api_key
+    KAFKA_BOOTSTRAP_SERVERS    = var.kafka_bootstrap_servers
+    KAFKA_SASL_USERNAME        = var.kafka_sasl_username
+    KAFKA_SASL_PASSWORD        = var.kafka_sasl_password
   }
 
   secrets = {
-    AUTH_JWT_SECRET         = var.auth_jwt_secret
-    APP_AUTH_EMAIL          = var.app_auth_email
-    APP_AUTH_PASSWORD       = var.app_auth_password
-    APP_AUTH_USER_ID        = var.app_auth_user_id
-    APP_AUTH_NAME           = var.app_auth_name
-    REDIS_URL               = var.redis_url
-    INTERNAL_API_KEY        = var.internal_api_key
-    KAFKA_BOOTSTRAP_SERVERS = var.kafka_bootstrap_servers
-    KAFKA_SASL_USERNAME     = var.kafka_sasl_username
-    KAFKA_SASL_PASSWORD     = var.kafka_sasl_password
+    AUTH_JWT_SECRET            = var.auth_jwt_secret
+    APP_AUTH_EMAIL             = var.app_auth_email
+    APP_AUTH_PASSWORD          = var.app_auth_password
+    APP_AUTH_USER_ID           = var.app_auth_user_id
+    APP_AUTH_NAME              = var.app_auth_name
+    SPRING_DATASOURCE_URL      = var.postgres_connection_string
+    SPRING_DATASOURCE_USERNAME = var.postgres_username
+    SPRING_DATASOURCE_PASSWORD = var.postgres_password
+    REDIS_URL                  = var.redis_url
+    INTERNAL_API_KEY           = var.internal_api_key
+    KAFKA_BOOTSTRAP_SERVERS    = var.kafka_bootstrap_servers
+    KAFKA_SASL_USERNAME        = var.kafka_sasl_username
+    KAFKA_SASL_PASSWORD        = var.kafka_sasl_password
   }
 }
 

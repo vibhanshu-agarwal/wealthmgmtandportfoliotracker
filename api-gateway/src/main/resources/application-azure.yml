@@ -26,6 +26,19 @@ management:
     # Cloud Gateway falls back to allow-all behaviour).
     redis:
       enabled: false
+    # Disable the JDBC health indicator on Azure Container Apps.
+    #
+    # Problem: api-gateway now holds a live DataSource bean (see GatewayAuthDataConfig),
+    # so Spring Boot's JDBC health contributor auto-configures and joins the readiness
+    # aggregate. A Postgres connection over the internet from a scale-from-zero ACA
+    # instance has the identical DNS/connect-stall risk profile as the Redis case
+    # documented above.
+    #
+    # Solution: exclude the DB health indicator on Azure, exactly as done on AWS.
+    # The DataSource still works normally for auth/signup — this only suppresses the
+    # health indicator.
+    db:
+      enabled: false
 
 app:
   cors:
