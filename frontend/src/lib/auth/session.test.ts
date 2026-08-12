@@ -179,7 +179,7 @@ describe("signupWithBackend", () => {
       json: async () => {
         throw new SyntaxError("Unexpected end of JSON input");
       },
-    } as Response);
+    } as unknown as Response);
 
     await expect(
       signupWithBackend("jane@example.com", "a-strong-password-123", "Jane Doe"),
