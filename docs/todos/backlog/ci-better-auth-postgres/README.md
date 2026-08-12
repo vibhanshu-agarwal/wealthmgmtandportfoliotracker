@@ -1,8 +1,35 @@
 # CI Fix: Better Auth Requires PostgreSQL in E2E Smoke Job
 
-**Status:** Ready to execute
-**Priority:** High
+**Status:** Superseded — no longer applicable (2026-08-12)
+**Priority:** ~~High~~
 **Date:** 2026-04-11
+
+---
+
+## Superseded
+
+The premise of this fix plan no longer exists. `new-user-signup-profile`
+([#85](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/85))
+fully retired Better Auth: `V16__Drop_Better_Auth_Tables.sql` dropped the
+`ba_*` tables, and Task 7 deleted `frontend/scripts/better-auth-schema.sql`,
+`frontend/scripts/seed-dev-user.ts`, and `frontend/src/lib/auth.ts` — every
+file this plan's "Files to Modify" / "Files Referenced" sections name.
+
+Separately, `e2e-smoke` in `frontend-ci.yml` (the job this plan targeted) no
+longer runs any auth flow at all: it now runs only the `static-smoke`
+Playwright project, which checks the static export is served and the login
+route returns HTML — no gateway, no database, nothing to seed. Gateway
+login is covered elsewhere (`frontend-e2e-integration.yml`, against real
+per-user auth via `/api/auth/login`). So the "Add PostgreSQL service
+container to e2e-smoke" fix this plan proposed is now moot on top of being
+inapplicable — that job doesn't touch auth or a database at either end.
+
+The vestigial `BETTER_AUTH_SECRET` / `BETTER_AUTH_URL` / `DATABASE_URL` env
+vars this plan added to `build-and-test` (proven unread by any code — not
+`src/`, not the Vitest suite, not the Next.js build) were removed in the
+same change that added this note.
+
+Left in place, unexecuted, as a historical record — do not action.
 
 ---
 
