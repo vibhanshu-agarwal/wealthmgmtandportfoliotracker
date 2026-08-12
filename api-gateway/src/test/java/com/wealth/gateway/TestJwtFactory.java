@@ -57,4 +57,25 @@ public final class TestJwtFactory {
     public static String validSeedUserToken() {
         return mint(SEED_USER_ID, Duration.ofHours(1));
     }
+
+    /**
+     * Mints a compact JWT string with additional custom claims (e.g. {@code ro=true} for
+     * read-only/demo-account test tokens).
+     */
+    public static String mint(String sub, Duration expiry, String secret, java.util.Map<String, Object> extraClaims) {
+        Instant now = Instant.now();
+        io.jsonwebtoken.JwtBuilder builder = Jwts.builder()
+                .subject(sub)
+                .issuedAt(Date.from(now))
+                .expiration(Date.from(now.plus(expiry)));
+        extraClaims.forEach(builder::claim);
+        return builder
+                .signWith(Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8)), Jwts.SIG.HS256)
+                .compact();
+    }
+
+    /** Convenience: a read-only (ro=true) token for the seed user, using the default test secret. */
+    public static String readOnlySeedUserToken() {
+        return mint(SEED_USER_ID, Duration.ofHours(1), TEST_SECRET, java.util.Map.of("ro", true));
+    }
 }

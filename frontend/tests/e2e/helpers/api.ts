@@ -10,10 +10,11 @@ const GATEWAY_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:80
  */
 async function resolveUserId(request: APIRequestContext): Promise<string> {
   try {
+    // Dev user seeded by V15__Reconcile_Auth_Seed_Users.sql (real per-user auth).
     const res = await request.post(`${GATEWAY_URL}/api/auth/login`, {
       data: {
-        email: "dev@localhost.local",
-        password: "password",
+        email: "dev@local",
+        password: "local-dev-password-2026",
       },
     });
     if (res.ok()) {

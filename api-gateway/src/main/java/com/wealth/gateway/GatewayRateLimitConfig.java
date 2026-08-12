@@ -65,6 +65,21 @@ public class GatewayRateLimitConfig {
   }
 
   /**
+   * Auth_Bucket (Req 6.3, 6.5): shared by /api/auth/login and /api/auth/signup via a single
+   * route id ("auth-bucket"), so combined login+signup volume from one client draws down one
+   * bucket. replenishRate=1, requestedTokens=12, burstCapacity=60 -> 12 tokens accrue every 12s
+   * (~5/min), burst allowance 60/12 = 5. Retry-After = ceil(12/1) = 12s.
+   */
+  @Bean
+  @Profile("prod")
+  RedisRateLimiter authRateLimiter(
+      @Value("${app.rate-limit.auth.replenish-rate:1}") int replenishRate,
+      @Value("${app.rate-limit.auth.burst-capacity:60}") int burstCapacity,
+      @Value("${app.rate-limit.auth.requested-tokens:12}") int requestedTokens) {
+    return new RedisRateLimiter(replenishRate, burstCapacity, requestedTokens);
+  }
+
+  /**
    * Rate-limit key resolver that uses the authenticated user's sub claim when available, falling
    * back to the client IP address for unauthenticated requests.
    *

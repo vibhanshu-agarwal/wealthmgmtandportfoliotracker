@@ -9,6 +9,14 @@ server:
   port: 8080
 
 spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: ${SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE:4}
+
   data:
     redis:
       # REDIS_URL format: redis[s]://[:password@]host[:port]
@@ -137,6 +145,10 @@ app:
       replenish-rate: 1
       burst-capacity: 30
       requested-tokens: 6
+    auth:
+      replenish-rate: 1
+      burst-capacity: 60
+      requested-tokens: 12
     # Unauthenticated requests key off the right-most (ingress-appended) X-Forwarded-For hop
     # rather than the client-supplied first entry, so a client cannot mint a fresh bucket by
     # rotating a spoofed XFF prefix (Req 3.9). Defaults to false (see application.yml / local),

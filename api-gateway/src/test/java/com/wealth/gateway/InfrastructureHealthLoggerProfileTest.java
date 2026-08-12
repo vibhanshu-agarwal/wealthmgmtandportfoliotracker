@@ -3,6 +3,8 @@ package com.wealth.gateway;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.wealth.gateway.auth.AuthenticationService;
+import com.wealth.gateway.auth.SignupService;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.NoSuchBeanDefinitionException;
@@ -12,6 +14,7 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -51,6 +54,16 @@ class InfrastructureHealthLoggerProfileTest {
             registerRedis(registry, redis);
         }
 
+        // AuthController (com.wealth.gateway) constructor-injects AuthenticationService/
+        // SignupService (Task 5, new-user-signup-profile); mocked here purely to satisfy that
+        // wiring so this class's actual subject (InfrastructureHealthLogger profile gating) can
+        // load, since this test doesn't otherwise provision a real datasource.
+        @MockitoBean
+        AuthenticationService authenticationService;
+
+        @MockitoBean
+        SignupService signupService;
+
         @Autowired
         private ApplicationContext applicationContext;
 
@@ -77,6 +90,12 @@ class InfrastructureHealthLoggerProfileTest {
             registerRedis(registry, redis);
         }
 
+        @MockitoBean
+        AuthenticationService authenticationService;
+
+        @MockitoBean
+        SignupService signupService;
+
         @Autowired
         private ApplicationContext applicationContext;
 
@@ -101,6 +120,12 @@ class InfrastructureHealthLoggerProfileTest {
         static void azureProperties(DynamicPropertyRegistry registry) {
             registerRedis(registry, redis);
         }
+
+        @MockitoBean
+        AuthenticationService authenticationService;
+
+        @MockitoBean
+        SignupService signupService;
 
         @Autowired
         private ApplicationContext applicationContext;

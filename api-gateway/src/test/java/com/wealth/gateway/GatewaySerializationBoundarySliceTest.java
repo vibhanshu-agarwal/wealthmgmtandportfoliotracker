@@ -1,15 +1,19 @@
 package com.wealth.gateway;
 
+import com.wealth.gateway.auth.AuthenticationService;
+import com.wealth.gateway.auth.LoginResponse;
+import com.wealth.gateway.auth.SignupService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webflux.test.autoconfigure.WebFluxTest;
-import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
-import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.reactive.server.WebTestClient;
+import reactor.core.publisher.Mono;
 import tools.jackson.databind.json.JsonMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.when;
 
 /**
  * Jackson 3 serialization boundary slice test (Task 10.2 / Property 11).
@@ -18,14 +22,6 @@ import static org.assertj.core.api.Assertions.assertThat;
  * serialization for {@link AuthController}.
  */
 @WebFluxTest(controllers = AuthController.class)
-@Import(JwtSigner.class)
-@TestPropertySource(properties = {
-        "app.auth.email=dev@localhost.local",
-        "app.auth.password=password",
-        "app.auth.user-id=user-001",
-        "app.auth.name=Development User",
-        "auth.jwt.secret=local-dev-secret-change-me-min-32-chars"
-})
 class GatewaySerializationBoundarySliceTest {
 
     @Autowired
@@ -33,6 +29,15 @@ class GatewaySerializationBoundarySliceTest {
 
     @Autowired
     JsonMapper jsonMapper;
+
+    // AuthController now constructor-injects AuthenticationService/SignupService (Task 5,
+    // new-user-signup-profile) instead of @Value-injected demo credentials; @WebFluxTest only
+    // loads the controller layer, so these datasource-backed beans are mocked to satisfy wiring.
+    @MockitoBean
+    AuthenticationService authenticationService;
+
+    @MockitoBean
+    SignupService signupService;
 
     @Test
     void autoconfiguredMapper_isJackson3JsonMapper() {
@@ -42,6 +47,9 @@ class GatewaySerializationBoundarySliceTest {
 
     @Test
     void loginResponse_serializesViaAutoconfiguredMapper() {
+        when(authenticationService.authenticate(new LoginDtos.LoginRequest("dev@localhost.local", "password")))
+                .thenReturn(Mono.just(new LoginResponse("test-token", "user-001", "dev@localhost.local", "Development User")));
+
         webTestClient.post()
                 .uri("/api/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)

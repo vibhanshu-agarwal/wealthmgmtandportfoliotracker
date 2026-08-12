@@ -14,6 +14,13 @@ spring:
                 redis-rate-limiter.replenishRate: 20
                 redis-rate-limiter.burstCapacity: 40
                 redis-rate-limiter.requestedTokens: 1
+  datasource:
+    url: jdbc:postgresql://localhost:5432/portfolio_db?options=-c%20timezone=Asia/Kolkata
+    username: wealth_user
+    password: wealth_pass
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 4
 
 auth:
   jwt:

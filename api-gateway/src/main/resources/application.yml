@@ -84,9 +84,3 @@ app:
     insight-url: ${INSIGHT_SERVICE_URL:http://localhost:8083}
   cors:
     allowed-origin-patterns: "http://localhost:3000,http://127.0.0.1:3000"
-  auth:
-    email: ${APP_AUTH_EMAIL:dev@localhost.local}
-    password: ${APP_AUTH_PASSWORD:password}
-    # Align with Flyway V3 seed (portfolios.user_id = user-001); override via APP_AUTH_USER_ID if needed.
-    user-id: ${APP_AUTH_USER_ID:user-001}
-    name: ${APP_AUTH_NAME:Development User}

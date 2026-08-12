@@ -20,6 +20,8 @@ export class LoginError extends Error {
     message: string,
     readonly kind: LoginErrorKind,
     readonly status?: number,
+    /** The server's `field` value from a `{error, field}` body (e.g. a 400 from /auth/signup). */
+    readonly field?: string,
   ) {
     super(message);
     this.name = "LoginError";
@@ -130,6 +132,52 @@ export async function loginWithBackend(email: string, password: string): Promise
   const parsed = coerceSession(raw);
   if (!parsed) {
     throw new LoginError("Login response missing token, userId, or email", "invalid-response");
+  }
+  saveAuthSession(parsed);
+  return parsed;
+}
+
+export async function signupWithBackend(
+  email: string,
+  password: string,
+  name: string,
+  signal?: AbortSignal,
+): Promise<AuthSession> {
+  let response: Response;
+  try {
+    response = await fetch(apiPath("/auth/signup"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password, name }),
+      signal,
+    });
+  } catch {
+    throw new LoginError("Signup request failed", "network");
+  }
+
+  if (!response.ok) {
+    // Best-effort: surface the server's {error, field} body (see AuthController.badRequest)
+    // so callers can render a field-specific message. Absent/non-JSON bodies (e.g. a bare
+    // 401/500) just fall back to no field.
+    let field: string | undefined;
+    try {
+      const errorBody = (await response.json()) as { field?: unknown };
+      field = typeof errorBody.field === "string" ? errorBody.field : undefined;
+    } catch {
+      field = undefined;
+    }
+    throw new LoginError(`Signup failed (${response.status})`, "http", response.status, field);
+  }
+
+  let raw: Record<string, unknown>;
+  try {
+    raw = (await response.json()) as Record<string, unknown>;
+  } catch {
+    throw new LoginError("Signup response was not valid JSON", "invalid-response");
+  }
+  const parsed = coerceSession(raw);
+  if (!parsed) {
+    throw new LoginError("Signup response missing token, userId, or email", "invalid-response");
   }
   saveAuthSession(parsed);
   return parsed;

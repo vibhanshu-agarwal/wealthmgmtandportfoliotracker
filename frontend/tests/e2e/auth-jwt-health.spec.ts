@@ -7,8 +7,8 @@ test("@auth-preflight auth preflight: backend login returns JWT payload", async 
 }) => {
   const response = await request.post(`${GATEWAY_BASE_URL}/api/auth/login`, {
     data: {
-      email: "dev@localhost.local",
-      password: "password",
+      email: "dev@local",
+      password: "local-dev-password-2026",
     },
   });
   expect(response.status()).toBe(200);
@@ -16,7 +16,7 @@ test("@auth-preflight auth preflight: backend login returns JWT payload", async 
   const body = await response.json();
   expect(body?.token).toBeTruthy();
   expect(body?.userId).toBeTruthy();
-  expect(body?.email).toBe("dev@localhost.local");
+  expect(body?.email).toBe("dev@local");
 });
 
 test("@auth-preflight auth preflight: minted JWT is accepted by API gateway", async ({
@@ -24,8 +24,8 @@ test("@auth-preflight auth preflight: minted JWT is accepted by API gateway", as
 }) => {
   const jwtRes = await request.post(`${GATEWAY_BASE_URL}/api/auth/login`, {
     data: {
-      email: "dev@localhost.local",
-      password: "password",
+      email: "dev@local",
+      password: "local-dev-password-2026",
     },
   });
   expect(jwtRes.status()).toBe(200);

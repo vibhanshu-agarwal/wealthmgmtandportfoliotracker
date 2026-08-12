@@ -260,9 +260,12 @@ jobs:
           # Injected at build time so the static export embeds the correct API origin;
           # the Next.js app uses it for all /api/* calls in the Azure deployment.
           NEXT_PUBLIC_API_BASE_URL: https://api.vibhanshu-ai-portfolio.dev
-          # Demo credentials — pre-populates the login form for recruiter demos.
-          NEXT_PUBLIC_DEMO_EMAIL: ${{ secrets.E2E_TEST_USER_EMAIL }}
-          NEXT_PUBLIC_DEMO_PASSWORD: ${{ secrets.E2E_TEST_USER_PASSWORD }}
+          # Demo credentials — pre-populates the login form for recruiter demos. This is the
+          # feature's dedicated read-only Demo_Account (read_only=true in the users table),
+          # not the E2E_TEST_USER_* secrets — those remain writable and are reserved for
+          # synthetic E2E test suites, not the public-facing demo login.
+          NEXT_PUBLIC_DEMO_EMAIL: demo@wealthtracker.dev
+          NEXT_PUBLIC_DEMO_PASSWORD: demo-wealthtracker-2026
         run: npm run build
 
       # staticwebapp.config.json lives in frontend/public/ so Next.js copies it to

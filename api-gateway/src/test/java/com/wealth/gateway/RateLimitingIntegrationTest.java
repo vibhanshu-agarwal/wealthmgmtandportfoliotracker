@@ -52,8 +52,13 @@ class RateLimitingIntegrationTest {
 
     @DynamicPropertySource
     static void redisProperties(DynamicPropertyRegistry registry) {
-        registry.add("spring.data.redis.host", redis::getHost);
-        registry.add("spring.data.redis.port", () -> redis.getMappedPort(REDIS_PORT));
+        // spring.data.redis.url (not separate host/port) matches the pattern already proven
+        // reliable in ProductionRateLimitingIntegrationTest; explicit timeout/connect-timeout
+        // avoid a slow first Redis round-trip reading as a fail-open allow.
+        registry.add("spring.data.redis.url",
+                () -> "redis://" + redis.getHost() + ":" + redis.getMappedPort(REDIS_PORT));
+        registry.add("spring.data.redis.timeout", () -> "3s");
+        registry.add("spring.data.redis.connect-timeout", () -> "3s");
         registry.add("auth.jwt.secret", () -> TestJwtFactory.TEST_SECRET);
         // Rate-limiter params (replenishRate:1, burstCapacity:3) are set in
         // src/test/resources/application-local.yml to avoid Spring Cloud Gateway
@@ -109,6 +114,13 @@ class RateLimitingIntegrationTest {
     // 6.3 — Requests exceeding burst capacity are throttled with 429
     // -------------------------------------------------------------------------
 
+    /**
+     * Upper bound on extra requests fired after the initial burst if none of them came back 429
+     * yet — a hedge against ordinary wall-clock replenishment drift, mirroring
+     * {@code ProductionRateLimitingIntegrationTest.awaitThrottledResponse}.
+     */
+    private static final int MAX_EXTRA_THROTTLE_ATTEMPTS = 30;
+
     @Test
     void requestsExceedingBurstAreThrottled() {
         List<Integer> statuses = new ArrayList<>();
@@ -116,6 +128,15 @@ class RateLimitingIntegrationTest {
         String token = TestJwtFactory.mint("rate-limit-user-throttle", Duration.ofHours(1));
 
         for (int i = 0; i < TEST_BURST_CAPACITY + 5; i++) {
+            webTestClient.get()
+                    .uri("/api/market/prices")
+                    .header("Authorization", "Bearer " + token)
+                    .header(XFF, "20.20.20.20")
+                    .exchange()
+                    .expectStatus().value(statuses::add);
+        }
+
+        for (int attempt = 0; !statuses.contains(429) && attempt < MAX_EXTRA_THROTTLE_ATTEMPTS; attempt++) {
             webTestClient.get()
                     .uri("/api/market/prices")
                     .header("Authorization", "Bearer " + token)

@@ -25,6 +25,20 @@ management:
     # logs [INFRA-FAIL] at startup and Spring Cloud Gateway falls back to allow-all behaviour).
     redis:
       enabled: false
+    # Disable the JDBC health indicator on Lambda (AWS profile).
+    #
+    # Problem: api-gateway now holds a live DataSource bean (see GatewayAuthDataConfig),
+    # so Spring Boot's JDBC health contributor auto-configures and joins the readiness
+    # aggregate. A Postgres connection over the internet from a cold-started Lambda has
+    # the identical DNS/connect-stall risk profile as the Redis case documented above —
+    # a slow or failed first connection would mark the service DOWN and stall the LWA
+    # readiness probe for AWS_LWA_READINESS_CHECK_MAX_RETRIES retries.
+    #
+    # Solution: exclude the DB health indicator on AWS, exactly as Redis is excluded above.
+    # The DataSource still works normally for auth/signup — this only suppresses the
+    # health indicator.
+    db:
+      enabled: false
 
 # This file is the extension point for future AWS-specific config,
 # e.g. if rate limiting moves from Redis to API Gateway usage plans:
