@@ -35,6 +35,16 @@ export default defineConfig({
         /dashboard-smoke\.spec\.ts$/,
         /aws-synthetic\/.*/,
         /azure-synthetic\/.*/,
+        // One-off verification scripts from the azure-demo-readiness-phase1 spec (already
+        // shipped) — plain ts-node scripts with no test()/describe() calls, meant to be run
+        // directly (see each file's own header comment), not picked up as Playwright specs.
+        // Their .test.ts naming matches Playwright's default testMatch glob, so without this
+        // they get loaded — and their top-level side-effecting code executed — as a side
+        // effect of every test run's file collection, adding ~15s of spawned child processes
+        // and reporting a stale, silently-failing assertion nobody sees.
+        /fix-verification\.test\.ts$/,
+        /global-setup-entrypoint\.test\.ts$/,
+        /global-setup-export\.test\.ts$/,
       ],
       use: {
         ...devices["Desktop Chrome"],
