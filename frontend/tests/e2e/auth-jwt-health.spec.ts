@@ -19,14 +19,7 @@ test("@auth-preflight auth preflight: backend login returns JWT payload", async 
   expect(body?.email).toBe("dev@local");
 });
 
-// Skipped: fails with a client-side "aborted" error on the proxied
-// GET /api/portfolio call even though the server returns 200 (confirmed via
-// Playwright's own call log and an identical curl reproduction that succeeds
-// instantly). Reproduces identically locally and in CI — see
-// https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/issues/87
-// for the investigation. Not an auth/credentials issue (the login inside this
-// test succeeds); isolated to the proxied-through-the-gateway call specifically.
-test.skip("@auth-preflight auth preflight: minted JWT is accepted by API gateway", async ({
+test("@auth-preflight auth preflight: minted JWT is accepted by API gateway", async ({
   request,
 }) => {
   const jwtRes = await request.post(`${GATEWAY_BASE_URL}/api/auth/login`, {

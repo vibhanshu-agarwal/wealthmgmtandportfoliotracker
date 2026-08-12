@@ -48,19 +48,19 @@ public class ReadOnlyEnforcementFilter implements GlobalFilter, Ordered {
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
+        // Resolve the block/allow decision to a Boolean *before* branching, so the terminal
+        // flatMap subscribes exactly one of writeForbidden/chain.filter, exactly once.
+        // Composing the Mono<Void> continuations directly (e.g. switchIfEmpty(chain.filter(...)))
+        // would re-subscribe the whole downstream chain, because Mono<Void> always completes empty.
         return exchange.getPrincipal()
-                .filter(p -> p instanceof JwtAuthenticationToken)
+                .filter(JwtAuthenticationToken.class::isInstance)
                 .cast(JwtAuthenticationToken.class)
-                .flatMap(jwt -> {
-                    boolean ro = Boolean.TRUE.equals(jwt.getToken().getClaims().get("ro"));
-                    String path = exchange.getRequest().getURI().getPath();
-                    HttpMethod method = exchange.getRequest().getMethod();
-                    if (decide(ro, method, path)) {
-                        return writeForbidden(exchange);
-                    }
-                    return chain.filter(exchange);
-                })
-                .switchIfEmpty(chain.filter(exchange));
+                .map(jwt -> decide(
+                        Boolean.TRUE.equals(jwt.getToken().getClaims().get("ro")),
+                        exchange.getRequest().getMethod(),
+                        exchange.getRequest().getURI().getPath()))
+                .defaultIfEmpty(Boolean.FALSE)
+                .flatMap(blocked -> blocked ? writeForbidden(exchange) : chain.filter(exchange));
     }
 
     /**

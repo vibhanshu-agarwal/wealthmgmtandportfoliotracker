@@ -234,10 +234,14 @@ class AuthIntegrationTest {
         String demoToken = TestJwtFactory.mint("00000000-0000-0000-0000-0000000d3110", Duration.ofHours(1),
                 TestJwtFactory.TEST_SECRET, java.util.Map.of("ro", true));
 
-        // ReadOnlyEnforcementFilter runs and rejects BEFORE the (nonexistent, in this test)
-        // downstream proxy is ever attempted, so "data unchanged" is provable directly against
-        // this same Postgres instance's asset_holdings table — a genuine before/after check, not
-        // just the 403 status code, proves the attempted mutation had zero effect.
+        // Checks the mutation had zero effect directly against this same Postgres instance's
+        // asset_holdings table, rather than trusting the 403 status code alone.
+        //
+        // Note this assertion alone is weaker than it looks: the downstream proxy target does not
+        // exist in this test context, so a request that leaked past the filter would die on
+        // connection-refused and still leave the table unchanged. That is exactly how the
+        // switchIfEmpty double-subscription bug hid here. ReadOnlyEnforcementFilterChainTest is
+        // what actually pins "the downstream chain is never subscribed on a blocked write".
         Integer holdingsBefore = jdbcTemplate.queryForObject(
                 "SELECT count(*) FROM asset_holdings h JOIN portfolios p ON p.id = h.portfolio_id "
                         + "WHERE p.user_id = '00000000-0000-0000-0000-0000000d3110'",

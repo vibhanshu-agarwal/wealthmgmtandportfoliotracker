@@ -115,28 +115,13 @@ class RateLimitingIntegrationTest {
     // -------------------------------------------------------------------------
 
     /**
-     * Upper bound on extra requests fired after the initial burst if none of them came back
-     * 429 yet. Added while investigating https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/issues/86
-     * as a hedge against ordinary wall-clock replenishment drift — it did not resolve the
-     * underlying failure (see the {@code @Disabled} reason below) but is left in place as
-     * legitimate hardening, mirroring {@code ProductionRateLimitingIntegrationTest.awaitThrottledResponse}.
+     * Upper bound on extra requests fired after the initial burst if none of them came back 429
+     * yet — a hedge against ordinary wall-clock replenishment drift, mirroring
+     * {@code ProductionRateLimitingIntegrationTest.awaitThrottledResponse}.
      */
     private static final int MAX_EXTRA_THROTTLE_ATTEMPTS = 30;
 
-    /**
-     * Fails deterministically, not flakily: every request proxies through to a real
-     * {@code Connection refused} against the intentionally-nonexistent downstream, meaning the
-     * {@code local}-profile's implicit autoconfigured {@link org.springframework.cloud.gateway.filter.ratelimit.RedisRateLimiter}
-     * never returns 429 across 38+ consecutive requests. Confirmed pre-existing (reproduces on
-     * {@code main}, file last touched in PR #81) and unrelated to the {@code local} rate-limiter
-     * key resolution or Redis reachability — see the investigation notes in
-     * https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/issues/86. Production's
-     * actual rate-limiting path (the {@code prod}-profile explicit named beans) is unaffected and
-     * separately verified passing in {@code ProductionRateLimitingIntegrationTest}.
-     */
     @Test
-    @org.junit.jupiter.api.Disabled("Deterministic failure in the local-profile implicit RedisRateLimiter bean, "
-            + "unrelated to prod's rate-limiting path — see issue #86 for the investigation")
     void requestsExceedingBurstAreThrottled() {
         List<Integer> statuses = new ArrayList<>();
         // Use a unique sub so this test has its own rate-limit bucket
