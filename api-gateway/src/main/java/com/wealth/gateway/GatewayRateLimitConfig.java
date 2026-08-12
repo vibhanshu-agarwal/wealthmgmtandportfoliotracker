@@ -18,11 +18,13 @@ import org.springframework.web.server.ServerWebExchange;
  * bean supplied by Spring Cloud Gateway's autoconfiguration together with the
  * {@link #userOrIpKeyResolver} bean below.
  *
- * <p>Under {@code prod} profiles, two named {@link RedisRateLimiter} beans —
- * {@link #standardRateLimiter} and {@link #strictRateLimiter} — are wired per-route in
- * {@code application-prod.yml} via {@code #{@standardRateLimiter}} / {@code #{@strictRateLimiter}}
- * SpEL references, replacing the global {@code default-filters} approach so no request is ever
- * charged against more than one bucket.
+ * <p>Under {@code prod} profiles, three named {@link RedisRateLimiter} beans —
+ * {@link #standardRateLimiter}, {@link #strictRateLimiter}, and {@link #authRateLimiter} — are
+ * wired per-route (the first two in {@code application-prod.yml} via
+ * {@code #{@standardRateLimiter}} / {@code #{@strictRateLimiter}} SpEL references; the third
+ * programmatically by {@link AuthRateLimitFilter}, since {@code /api/auth/**} is a controller
+ * endpoint, not a proxied route) replacing the global {@code default-filters} approach so no
+ * request is ever charged against more than one bucket.
  */
 @Configuration
 public class GatewayRateLimitConfig {
