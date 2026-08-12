@@ -1,5 +1,7 @@
 package com.wealth.gateway;
 
+import java.security.Principal;
+import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
@@ -59,34 +61,51 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
         // WebFilter). Using exchange.getPrincipal() instead of ReactiveSecurityContextHolder
         // because the Reactor Context is not reliably propagated to GlobalFilter instances
         // in Spring Cloud Gateway.
+        //
+        // Resolve to a value (the sub claim, or empty on any rejection) with .map() before
+        // branching. .map() preserves emission cardinality — it only completes empty when
+        // getPrincipal() itself was empty — so switchIfEmpty below fires exactly for that "no
+        // principal at all" case. Composing switchIfEmpty directly around chain.filter(...)
+        // instead (as this used to) re-ran the fallback after every request, successful or not,
+        // because chain.filter() returns Mono<Void>, which always completes empty regardless of
+        // outcome.
         return sanitised.getPrincipal()
-                .flatMap(principal -> {
-                    if (!(principal instanceof JwtAuthenticationToken jwtToken)) {
-                        // Non-JWT authentication type — treat as unauthenticated.
-                        log.debug("Principal is not a JwtAuthenticationToken — rejecting");
-                        sanitised.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
-                        return sanitised.getResponse().setComplete();
-                    }
-                    // Step 3: Extract sub claim — never log the raw token value.
-                    String sub = jwtToken.getToken().getClaimAsString("sub");
-                    if (sub == null || sub.isBlank()) {
-                        log.debug("JWT accepted but sub claim is missing or blank");
-                        sanitised.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
-                        return sanitised.getResponse().setComplete();
-                    }
-                    log.debug("JWT validated for sub={}", sub);
-                    // Step 4: Inject X-User-Id header and forward.
-                    ServerWebExchange mutated = sanitised.mutate()
-                            .request(r -> r.headers(h -> h.set(X_USER_ID, sub)))
-                            .build();
-                    return chain.filter(mutated);
-                })
-                .switchIfEmpty(Mono.defer(() -> {
+                .map(JwtAuthenticationFilter::extractSub)
+                .switchIfEmpty(Mono.fromSupplier(() -> {
                     // No principal at all — Spring Security should have rejected this
                     // already, but guard against misconfiguration.
                     log.debug("No principal found on exchange — rejecting request");
-                    sanitised.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
-                    return sanitised.getResponse().setComplete();
-                }));
+                    return Optional.<String>empty();
+                }))
+                .flatMap(sub -> {
+                    if (sub.isEmpty()) {
+                        sanitised.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
+                        return sanitised.getResponse().setComplete();
+                    }
+                    // Step 4: Inject X-User-Id header and forward.
+                    ServerWebExchange mutated = sanitised.mutate()
+                            .request(r -> r.headers(h -> h.set(X_USER_ID, sub.get())))
+                            .build();
+                    return chain.filter(mutated);
+                });
+    }
+
+    /**
+     * Step 3: validate the principal is a JWT with a usable sub claim, logging why it wasn't when
+     * it isn't. Never logs the raw token value.
+     */
+    private static Optional<String> extractSub(Principal principal) {
+        if (!(principal instanceof JwtAuthenticationToken jwtToken)) {
+            // Non-JWT authentication type — treat as unauthenticated.
+            log.debug("Principal is not a JwtAuthenticationToken — rejecting");
+            return Optional.empty();
+        }
+        String sub = jwtToken.getToken().getClaimAsString("sub");
+        if (sub == null || sub.isBlank()) {
+            log.debug("JWT accepted but sub claim is missing or blank");
+            return Optional.empty();
+        }
+        log.debug("JWT validated for sub={}", sub);
+        return Optional.of(sub);
     }
 }
