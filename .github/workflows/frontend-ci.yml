@@ -14,10 +14,7 @@ jobs:
       run:
         working-directory: ./frontend
     env:
-      BETTER_AUTH_SECRET: ci-dummy-jwt-secret-placeholder-min-32-chars!!
-      BETTER_AUTH_URL: http://localhost:3000
       AUTH_JWT_SECRET: ci-jwt-secret-placeholder-min-32-chars!!
-      DATABASE_URL: postgresql://dummy:dummy@localhost:5432/dummy
 
     steps:
       - name: Checkout Repository
