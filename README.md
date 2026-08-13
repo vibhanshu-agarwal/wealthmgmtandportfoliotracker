@@ -54,7 +54,7 @@ The system is divided into distinct business domains, each owning its top-level 
 2. **`com.wealth.market` (Anti-Corruption Layer):** Ingests, normalizes, and broadcasts pricing data from external market APIs. Backed by MongoDB for flexible tick/snapshot storage.
 3. **`com.wealth.insight` (Compute Domain):** Generates AI-driven investment insights and answers natural-language portfolio questions. CPU/IO-bound and operates asynchronously off the Kafka stream and a Redis cache.
 
-Identity is handled at the edge: the frontend mints HS256 JWTs (Better Auth) and the `api-gateway` validates them before routing — there is no separate user-management service.
+Identity is handled at the edge: the `api-gateway` owns login and self-service signup, verifies bcrypt-hashed credentials against PostgreSQL, mints the HS256 JWT, and validates it on every subsequent request before routing — there is no separate user-management service. A read-only demo account is enforced at the gateway (`ReadOnlyEnforcementFilter`) via a `ro` claim on the token.
 
 ### 🛡️ Enforcing Boundaries
 
@@ -96,7 +96,7 @@ Local development and CI use a deterministic `MockAiInsightService` so no cloud 
 
 ## 🚀 Future Roadmap
 
-The architectural roadmap continues to evolve as we expand the multi-cloud and advanced-AI capabilities. See [ROADMAP.md](ROADMAP.md) for what's next, including a dedicated gRPC AI microservice, multi-provider market-data aggregation, and new user signup & profile management.
+The architectural roadmap continues to evolve as we expand the multi-cloud and advanced-AI capabilities. See [ROADMAP.md](ROADMAP.md) for what's next, including a dedicated gRPC AI microservice, multi-provider market-data aggregation, and end-to-end distributed tracing. (Self-service signup and per-user authentication shipped in Phase 6 — see the same document.)
 
 ---
 

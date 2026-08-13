@@ -159,20 +159,28 @@ This revision reflects the current repository state as of 2026-04-30 and disting
 
 ## Focus area deep-dive: frequent issue zones
 
-### Authentication (gateway + BFF token exchange)
+### Authentication (gateway-owned identity)
+
+> **Updated 2026-08-13.** The risks previously listed here concerned frontend token minting via
+> Better Auth (`frontend/src/lib/auth/mintToken.ts`, the `AUTH_JWT_SECRET ?? BETTER_AUTH_SECRET`
+> fallback, and the `/api/auth/jwt` exchange route). **All three are structurally resolved and no
+> longer applicable:** `new-user-signup-profile` (PRs #85/#88, 2026-08-12) moved identity into the
+> `api-gateway`, retired Better Auth entirely, and deleted those files. Secret-source ambiguity is
+> gone because a single component now both signs and verifies with one secret.
 
 - Observed risks:
-  - `mintToken` can sign with an empty/incorrect secret when environment variables are misaligned, leading to intermittent gateway `401` responses.
-  - Secret source ambiguity (`AUTH_JWT_SECRET` vs `BETTER_AUTH_SECRET`) increases drift risk between frontend token minting and gateway validation.
-  - `/api/auth/jwt` route has no defensive error mapping for token-mint/session backend failures, which can surface as generic `500` behavior.
+  - The gateway now holds a live PostgreSQL `DataSource`, widening its failure surface: credential-store unavailability degrades login to a 503 rather than merely slowing a proxy hop.
+  - Auth config is opt-in per profile via `spring.datasource.url`. A profile that *should* have a datasource but does not gets a silently-successful boot with a permanently failing login — the fallback is fail-closed by design, but indistinguishable from a healthy gateway at the `/actuator/health` level.
+  - Related infrastructure gap, realized in production on 2026-08-12: the Terraform change injecting the datasource env vars was merged but never applied, so the fallback path activated live. Tracked in `docs/todos/backlog/terraform-apply-not-automatic-on-merge/`.
 - Evidence in code:
-  - Gateway validates JWT using profile-based decoder and `auth.jwt.secret` (`api-gateway`).
-  - Frontend token mint uses `AUTH_JWT_SECRET ?? BETTER_AUTH_SECRET` fallback (`frontend/src/lib/auth/mintToken.ts`).
-  - Existing integration tests already target secret-alignment regressions.
+  - `api-gateway` signs (`JwtSigner`) and validates (`JwtDecoderConfig`) with the same `AUTH_JWT_SECRET`; there is no second minting site.
+  - `GatewayAuthDataConfig` (real, DB-backed) and `GatewayAuthFallbackAutoConfiguration` (503 beans) are mutually exclusive on `spring.datasource.url`.
+  - `AuthenticationService` equalizes timing against a dummy bcrypt hash; `AuthController` returns a byte-identical 401 for every login-failure reason.
+  - Testcontainers integration suite (Postgres + Redis) and ArchUnit guardrails cover the auth package.
 - Mitigations:
-  - Enforce a single canonical signing secret variable for all runtimes and fail fast on startup if missing/weak.
-  - Add explicit guardrails in token minting (minimum key length and non-blank checks) and return deterministic API error payloads.
-  - Add operational check: startup health assertion that mint/verify round-trip succeeds with active config.
+  - Add `:` empty-string defaults to `application-prod.yml`'s datasource properties so a missing env var degrades to the clean fallback instead of a `PlaceholderResolutionException` crash-loop — logged in `docs/todos/TODOS_2026-04-07.md`.
+  - Surface credential-store reachability distinctly from gateway liveness, so a fail-closed auth path is visible in monitoring rather than only at login time.
+  - Keep `management.health.db.enabled: false` on the cloud profiles: a scale-from-zero instance probing Postgres over the internet carries the same DNS/connect-stall risk that already justified the Redis health-check exclusion.
 
 ### AI integration (insight-service advisor + sentiment paths)
 

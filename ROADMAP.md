@@ -1,14 +1,15 @@
 This document outlines the strategic architectural evolution and feature expansion of the Wealth Management & Portfolio Tracker.
 
-The system has deliberately progressed from a single deployment unit to a distributed, multi-cloud architecture. Phases 1–3 (and the multi-cloud expansion) are **implemented and live**; the remaining items below are forward-looking.
+The system has deliberately progressed from a single deployment unit to a distributed, multi-cloud architecture. Phases 1–3, the multi-cloud expansion, and Phases 5–6 are **implemented and live**; the remaining items below are forward-looking.
 
-## 📦 Current State (July 2026)
+## 📦 Current State (August 2026)
 
 - **Architecture:** Four independently-deployable Spring Boot microservices (`api-gateway`, `portfolio-service`, `market-data-service`, `insight-service`) plus a shared `common-dto` contract module.
 - **Platform:** **Spring Boot 4.1.0 GA / Spring AI 2.0.0 GA** on **Java 21**, Jackson 3 (`tools.jackson`), Next.js 16 / React 19 frontend.
 - **Live deployment:** **Azure** — Container Apps (Central India, scale-to-zero) + Static Web Apps + **Azure OpenAI** (`gpt-4o-mini`, Entra ID auth), with Upstash Redis and Aiven Kafka, fronted by Cloudflare DNS at [vibhanshu-ai-portfolio.dev](https://vibhanshu-ai-portfolio.dev/).
 - **Standby cloud:** **AWS** (Lambda arm64 + CloudFront + Amazon Bedrock) — fully provisioned via Terraform but soft-disabled at the DNS layer.
-- **Rate limiting:** Production-grade Redis-backed rate limiting enforced across all production profiles via per-route `RedisRateLimiter` filters (standard + strict tiers), with fail-open semantics and `Retry-After` response ergonomics.
+- **Rate limiting:** Production-grade Redis-backed rate limiting enforced across all production profiles via per-route `RedisRateLimiter` filters (standard + strict + auth tiers), with fail-open semantics and `Retry-After` response ergonomics.
+- **Identity:** Real per-user authentication owned by the `api-gateway` — bcrypt-hashed credentials in PostgreSQL (`user_credentials`), self-service signup at `POST /api/auth/signup`, gateway-minted HS256 JWTs, and a read-only demo account enforced at the edge. There is still no separate user-management service.
 - **Observability:** OpenTelemetry instrumentation across all services (OTLP export feature-flagged off by default).
 
 ---
@@ -53,6 +54,18 @@ The system has deliberately progressed from a single deployment unit to a distri
 - **Degraded-state observability:** A scheduled Redis probe (`RedisRateLimitStateLogger`) logs `[INFRA-DEGRADED]` / `[INFRA-OK]` transitions independently of request traffic.
 - **Frontend handling:** `fetchWithAuthClient` throws a distinct `RateLimitError` on 429 (no session clear, no redirect to login); `ChatInterface` shows a countdown timer and disables input for the `Retry-After` duration; `MarketSummaryGrid` renders a distinguishable rate-limited card.
 - **Spec:** `.kiro/specs/production-rate-limiting/` — **Changelog:** `docs/changes/CHANGES_PRODUCTION_RATE_LIMITING_2026-07-05.md`
+
+### Phase 6 — Self-Service Signup & Per-User Authentication ✅
+
+- **Real credential store:** The placeholder single-hardcoded-credential login (`app.auth.email` / `app.auth.password`) was replaced by a `user_credentials` table in PostgreSQL (bcrypt, cost 12), added in Flyway migrations **V14–V16** alongside `users.name` and `users.read_only`.
+- **Identity moved to the gateway:** A new `com.wealth.gateway.auth` package (`AuthenticationService`, `SignupService`, `SignupValidator`, `UserCredentialRepository`) **mints** HS256 JWTs after verifying credentials — the frontend no longer mints tokens. Claims carry `email`, `name`, and a `ro` (read-only) flag.
+- **Self-service signup:** `POST /api/auth/signup` provisions the user and their credential row in a single transaction and returns 201 with a JWT; the frontend gained a `/signup` page and login↔signup navigation.
+- **Uniform-failure login:** `POST /api/auth/login` returns a byte-identical 401 for every failure reason, and burns equivalent CPU against a fixed dummy bcrypt hash on the "unknown email" and "malformed stored hash" paths so no branch is distinguishable by timing.
+- **Read-only demo account:** `ReadOnlyEnforcementFilter` (order `HIGHEST_PRECEDENCE + 3`) blocks portfolio/market writes from the demo account, with an allowlist for AI routes (`/api/chat/**`, `/api/insights/generate/**`). Flyway V15 reassigns the seeded showcase portfolio to the demo account so a recruiter login lands on populated data.
+- **Auth-endpoint throttling:** `AuthRateLimitFilter` (order `HIGHEST_PRECEDENCE + 1`) throttles login/signup through a shared `Auth_Bucket` via a third named `authRateLimiter` bean, since `/api/auth/**` is a controller endpoint rather than a proxied route.
+- **Graceful degradation:** `GatewayAuthDataConfig` is gated on `spring.datasource.url`; `GatewayAuthFallbackAutoConfiguration` supplies fail-closed 503 beans so a profile without a datasource cannot prevent the whole gateway from booting.
+- **Better Auth retired:** V16 drops the `ba_*` tables; the frontend dependency, config, dev-seed script, and an orphaned chat Server Action were all removed.
+- **Spec:** `.kiro/specs/new-user-signup-profile/` — **Changelog:** `docs/changes/CHANGES_NEW_USER_SIGNUP_PROFILE_2026-08-12.md`
 
 ---
 
