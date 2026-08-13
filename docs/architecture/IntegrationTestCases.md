@@ -20,7 +20,7 @@ This document lists integration and end-to-end test cases to validate core flows
 ## 1. Gateway routing, JWT auth, and Redis rate limit
 
 Test: Gateway routes requests correctly to services and enforces distributed rate limits
-- Objective: Ensure API Gateway forwards HTTP requests to correct backend paths, validates JWTs via `AUTH_JWT_SECRET`, rejects requests missing the CloudFront `X-Origin-Verify` header (in production), and enforces **Redis-backed distributed rate limits** (`GatewayRateLimitConfig`, default 20 r/s, burst 40).
+- Objective: Ensure API Gateway forwards HTTP requests to correct backend paths, validates JWTs via `AUTH_JWT_SECRET`, rejects requests missing the CloudFront `X-Origin-Verify` header (in production), and enforces **Redis-backed distributed rate limits** (`GatewayRateLimitConfig`). Production uses three named, per-route limiter beans rather than one global default — `standardRateLimiter` (10 r/s, burst 20) on portfolio/market routes, `strictRateLimiter` (~10 req/min, burst 5 requests) on cost-sensitive AI routes, and `authRateLimiter` on `/api/auth/**` via `AuthRateLimitFilter`.
 - Setup: api-gateway + Testcontainers Redis + downstream stubs (WireMock) or real services.
 - Steps:
   1. Send HTTP GET `/api/portfolio/{id}` to Gateway with a valid HS256 JWT.

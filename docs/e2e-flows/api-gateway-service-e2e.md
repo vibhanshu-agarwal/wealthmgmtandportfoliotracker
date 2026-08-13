@@ -31,6 +31,8 @@ In production on Azure, these env vars are set to **ACA internal DNS names** (`h
 
 > **Internal seeder routes:** `/api/internal/**` routes are a "dumb router" path — no JWT, no origin verification, no `X-User-Id` injection at the gateway. Each downstream service validates an `X-Internal-Api-Key` itself (`InternalApiKeyFilter`). These exist for the Golden-State E2E seeder.
 
+> **Auth endpoints are not routes:** `POST /api/auth/login` and `POST /api/auth/signup` are handled by `AuthController` **inside** the gateway, not proxied to a downstream service. This is why they are throttled by a dedicated `WebFilter` rather than a per-route `RequestRateLimiter` (see §3B and §4).
+
 ## 3. Security Filter Chain
 The gateway runs a series of filters so every request is validated and authenticated before being forwarded.
 
@@ -40,12 +42,23 @@ The gateway runs a series of filters so every request is validated and authentic
 - **On Azure (current):** `CLOUDFRONT_ORIGIN_SECRET` is **not set**, so this filter is a **no-op** — the api-gateway Container App is reachable directly at `api.vibhanshu-ai-portfolio.dev`. Origin protection on Azure relies on JWT authentication and CORS rather than a shared origin secret.
 - **On AWS (standby):** CloudFront injects the secret header on every origin request, and the filter rejects any request hitting the Lambda Function URL directly.
 
-### B. JWT Authentication (`JwtDecoderConfig` & `SecurityConfig`)
-- **Function:** Validates the `Authorization: Bearer <JWT>` header.
-- **All active profiles (local + production):** symmetric **HS256** verification using `AUTH_JWT_SECRET` (must be ≥ 32 bytes). The frontend (Better Auth) mints these tokens.
+### B. Auth Endpoint Throttling (`AuthRateLimitFilter`)
+- **Order:** `HIGHEST_PRECEDENCE + 1`
+- **Function:** Throttles `POST /api/auth/login` and `POST /api/auth/signup` against a shared `Auth_Bucket` key, using the `authRateLimiter` bean. Because these are controller endpoints rather than proxied routes, Spring Cloud Gateway's per-route `RequestRateLimiter` filter never sees them — hence a plain `WebFilter` ahead of the routing machinery.
+- **Wiring note:** the `RedisRateLimiter` dependency **must** be `@Qualifier("authRateLimiter")`. An unqualified parameter silently resolves to the `@Primary` `standardRateLimiter` bean and enforces 10x-more-permissive limits while `Retry-After` still looks correct.
+
+### C. Credential Verification & Token Minting (`AuthController` → `AuthenticationService` / `SignupService`)
+- **Function:** The gateway **mints** the HS256 JWT (`JwtSigner`) after verifying a bcrypt-hashed credential from PostgreSQL. Claims: `sub` (user id), `email`, `name`, and `ro` (read-only flag).
+- **Login failures are uniform:** every reason — unknown email, wrong password, blank fields, malformed stored hash — returns a byte-identical 401, and `AuthenticationService` burns equivalent CPU against a fixed dummy bcrypt hash so no branch is distinguishable by timing.
+- **Signup:** `POST /api/auth/signup` inserts the `users` and `user_credentials` rows in a single transaction and returns 201 with a JWT; a duplicate email returns 409.
+- **Datasource is opt-in per profile:** `GatewayAuthDataConfig` is gated on `spring.datasource.url` being present. Where it is absent, `GatewayAuthFallbackAutoConfiguration` supplies beans that fail **closed** with a 503 — the gateway still boots and still proxies, but no login can succeed.
+
+### D. JWT Validation (`JwtDecoderConfig` & `SecurityConfig`)
+- **Function:** Validates the `Authorization: Bearer <JWT>` header on every non-auth request.
+- **All active profiles (local + production):** symmetric **HS256** verification using `AUTH_JWT_SECRET` (must be ≥ 32 bytes), the same secret the gateway signs with in §3C.
 - **`AUTH_JWK_URI`:** present in config but **reserved for a future external-IdP profile** — it is not active in the current auth path.
 
-### C. User Identity Injection (`JwtAuthenticationFilter`)
+### E. User Identity Injection (`JwtAuthenticationFilter`)
 - **Order:** `HIGHEST_PRECEDENCE + 2` (after origin verification and Spring Security's JWT validation, before routing)
 - **Function:**
     1. Strips any inbound `X-User-Id` header to prevent spoofing.
@@ -53,11 +66,21 @@ The gateway runs a series of filters so every request is validated and authentic
     3. Injects it as a fresh `X-User-Id` header.
 - **Result:** Downstream services trust `X-User-Id` for authorization/personalization without re-validating the JWT.
 
+### F. Read-Only Account Enforcement (`ReadOnlyEnforcementFilter`)
+- **Order:** `HIGHEST_PRECEDENCE + 3` (after identity injection, so the validated principal is available)
+- **Function:** Rejects portfolio/market **write** methods with a 403 when the JWT carries `ro: true` — the read-only demo account used for the recruiter-facing showcase. AI routes (`/api/chat/**`, `/api/insights/generate/**`) are allowlisted so the demo can still exercise the assistant.
+- **Reactive-composition caveat:** this filter and `JwtAuthenticationFilter` both once composed `switchIfEmpty` directly around a branch returning `chain.filter(exchange)`. Since `Mono<Void>` always completes empty, that re-subscribed the entire downstream chain a second time on every successful request — truncating chunked responses and, worse, forwarding a write downstream even while returning 403. Both now resolve the branch to a value before a single terminal `flatMap`. `ReadOnlyEnforcementFilterChainTest` and `JwtAuthenticationFilterChainTest` assert the subscription count. See `docs/changes/CHANGES_NEW_USER_SIGNUP_PROFILE_2026-08-12.md` (Phases 2–3).
+
 ## 4. Rate Limiting (`GatewayRateLimitConfig`)
 The gateway supports Redis-backed request rate limiting (Lettuce; **Upstash** TLS `rediss://` in managed deployments, the `redis` Docker Compose service locally).
 
-- **Key resolution:** authenticated requests key on the `sub` claim; anonymous requests fall back to client IP (`X-Forwarded-For` / remote address).
-- **Profile awareness:** the `RequestRateLimiter` default-filter is declared in `application-local.yml`. A production-profile rate-limiting strategy (cloud-profile `default-filters` vs. platform-native throttling) is still being finalized — see `ROADMAP.md`.
+- **Key resolution:** authenticated requests key on the `sub` claim; anonymous requests fall back to client IP. In prod, the resolver takes the right-most (ingress-appended) `X-Forwarded-For` hop when `app.rate-limit.trust-xff-last-hop=true`, preventing bucket-spoofing.
+- **Three named limiter beans**, all `@Profile("prod")` and wired by explicit SpEL per route — never a blanket `default-filters`:
+  - `standardRateLimiter` (10 req/s, burst 20) — portfolio and market-data routes.
+  - `strictRateLimiter` (~10 req/min, burst 5) — cost-sensitive AI routes.
+  - `authRateLimiter` — `/api/auth/login` and `/api/auth/signup`, applied by `AuthRateLimitFilter` (§3B) rather than a route filter.
+- **Profile awareness:** the `local` profile declares a `RequestRateLimiter` default-filter in `application-local.yml`; production enforcement landed in PR #82 — see `docs/changes/CHANGES_PRODUCTION_RATE_LIMITING_2026-07-05.md`.
+- **Fail-open:** Redis unreachability never blocks gateway startup or rejects traffic; `RedisRateLimitStateLogger` logs `[INFRA-DEGRADED]` / `[INFRA-OK]` transitions. 429 responses carry a `Retry-After` header and a JSON body via `RateLimitDenialResponseCustomizer`.
 
 ## Summary Flow Diagram (Azure — live)
 ```mermaid
@@ -66,16 +89,24 @@ graph TD
 
     subgraph "API Gateway Filter Chain"
         C1[CloudFrontOriginVerifyFilter: no-op on Azure]
+        CA[AuthRateLimitFilter: /api/auth/** only]
         C2[Spring Security: HS256 JWT Validation]
         C3[JwtAuthenticationFilter: X-User-Id Injection]
+        CR[ReadOnlyEnforcementFilter: 403 on demo writes]
         C4[RequestRateLimiter: Redis-backed]
 
-        C1 --> C2
+        C1 --> CA
+        CA --> C2
         C2 --> C3
-        C3 --> C4
+        C3 --> CR
+        CR --> C4
     end
 
+    CA -->|"POST /api/auth/login, /api/auth/signup"| AC["AuthController: bcrypt verify + mint HS256 JWT"]
+    AC <-->|"user_credentials"| PG[(Neon PostgreSQL)]
+
     C4 <-->|Check Tokens| D[(Upstash Redis)]
+    CA <-->|Auth_Bucket| D
 
     C4 -->|"/api/portfolio/* → http://portfolio-service"| E[portfolio-service: internal ACA]
     C4 -->|"/api/market/* → http://market-data-service"| F[market-data-service: internal ACA]

@@ -5,7 +5,14 @@ This document supersedes `roadmap_enhancements_v3.md`. It reflects the closure o
 **Production Rate-Limiting** item (PR #82, merged 2026-07-05), adds a **Status** column to the
 prioritization matrix, and updates spec references to their canonical `.kiro/specs/` locations.
 
-Everything below is checked against the actual repository state as of 2026-07-06.
+> **Revised 2026-08-13** — corrected in place (deliberately not forked to a v5) to close the
+> **New User Signup & Profile** item, which shipped on 2026-08-12 via PRs
+> [#85](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/85) and
+> [#88](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/88). Sections 1.1,
+> 3.1, 3.2, 5, and 6 were updated. No backlog entries were added or removed — this is a staleness
+> correction, not a re-scoping.
+
+Everything below is checked against the actual repository state as of 2026-08-13.
 
 ---
 
@@ -30,13 +37,15 @@ The repository root contains five Gradle modules with independent `build.gradle`
 - **Phase 1 (superseded):** a strictly modular monolith on Spring Modulith.
 - **Phase 2:** `market-data-service` extracted; in-process events replaced by Apache Kafka.
 - **Phase 3:** `insight-service` extracted as an independent container image.
-- **Phase 5 (NEW):** Production rate limiting enforced across all prod profiles.
+- **Phase 5:** Production rate limiting enforced across all prod profiles.
+- **Phase 6 (NEW):** Self-service signup and per-user authentication owned by `api-gateway`;
+  Better Auth retired.
 - **Today:** four services deployed as four separate Azure Container Apps (Central India,
   scale-to-zero), with `api-gateway` as the only externally-reachable app.
 
 | Module | Role | Datastore |
 |---|---|---|
-| `api-gateway` | Spring Cloud Gateway (WebFlux) — JWT validation, origin verification, rate limiting, routing | none (Redis for rate-limit token buckets) |
+| `api-gateway` | Spring Cloud Gateway (WebFlux) — login/signup, JWT minting + validation, origin verification, rate limiting, read-only enforcement, routing | Redis (rate-limit token buckets) + PostgreSQL (read-only credential access, opt-in per profile) |
 | `portfolio-service` | Holdings, valuations, analytics, FX conversion, Kafka projection, DLT handling | PostgreSQL + Flyway |
 | `market-data-service` | Ingests from Yahoo Finance, persists snapshots, publishes `PriceUpdatedEvent` | MongoDB |
 | `insight-service` | AI chat / market summary / natural-language asset resolution | Redis (cache) + Azure OpenAI / Bedrock / mock |
@@ -74,16 +83,38 @@ The repository root contains five Gradle modules with independent `build.gradle`
 
 ---
 
-## 3. User Experience & Identity (unchanged from v3, with spec reference update)
+## 3. User Experience & Identity
 
-### 3.1 Identity Management & New User Signup
+### 3.1 Identity Management & New User Signup — CLOSED
 
-The spec is complete and ready for implementation at `.kiro/specs/new-user-signup-profile/`
-(based on the root-level `new-user-signup-profile-spec.md`).
+**Status: CLOSED** (PRs #85 and #88, merged 2026-08-12)
 
-Current state: Better Auth schema/library exist in the codebase, but the live login path
-supports exactly one hardcoded credential pair. The frontend's static-export deployment blocks
-Better Auth's server routes from running — an architectural decision is needed first (see spec).
+**Spec:** `.kiro/specs/new-user-signup-profile/` (based on root-level `new-user-signup-profile-spec.md`)
+**Changelog:** `docs/changes/CHANGES_NEW_USER_SIGNUP_PROFILE_2026-08-12.md`
+
+The architectural decision this item was blocked on was resolved by moving identity **out of the
+frontend and into `api-gateway`**, which sidesteps the static-export constraint entirely: there
+are no server routes to run, because the gateway now owns login, signup, and JWT minting.
+
+What was delivered:
+
+- `user_credentials` table (bcrypt, cost 12) plus `users.name` / `users.read_only`, via Flyway
+  migrations V14–V16 in `portfolio-service`.
+- A `com.wealth.gateway.auth` package — `AuthenticationService`, `SignupService`,
+  `SignupValidator`, `UserCredentialRepository`, `PasswordHasherConfig` and typed exceptions.
+- `POST /api/auth/signup` (201 + JWT, users + credentials inserted in one transaction) and a
+  rewritten `POST /api/auth/login` returning a byte-identical 401 for every failure reason, with
+  timing equalized against a dummy bcrypt hash.
+- `ReadOnlyEnforcementFilter` for the read-only demo account (AI routes allowlisted) and
+  `AuthRateLimitFilter` throttling the auth endpoints via a third `authRateLimiter` bean.
+- `GatewayAuthFallbackAutoConfiguration` so a datasource-less profile fails auth closed with a
+  503 instead of preventing the gateway from booting.
+- Better Auth fully retired — `ba_*` tables dropped (V16), dependency and dead frontend code
+  removed.
+
+Verified live on `https://vibhanshu-ai-portfolio.dev/` (fresh signup, demo login, dev login) after
+a `terraform apply` that the merge itself did not trigger — that process gap is open as
+`docs/todos/backlog/terraform-apply-not-automatic-on-merge/`.
 
 ### 3.2 User Profiles & Personalization Settings
 
@@ -91,7 +122,9 @@ Better Auth's server routes from running — an architectural decision is needed
 - Dark/light theming works client-side (not persisted to a user account).
 - Base currency is a single global setting, not per-user.
 - Risk tolerance does not exist anywhere.
-- Blocked on Section 3.1 (needs a real persisted user identity).
+- **No longer blocked** — Section 3.1 delivered the persisted per-user identity this depended on.
+  `users` now carries `name` and `read_only`, but no preference columns exist yet, so the
+  remaining work is the settings surface and its schema.
 
 ### 3.3 Custom Asset & Portfolio Management
 
@@ -134,7 +167,7 @@ See Item C in Section 2 above.
 | # | Feature | Source | Importance | Usability | Ease | Priority | Status |
 |---|---|---|---|---|---|---|---|
 | 1 | **Production Rate-Limiting** | v1 / ROADMAP.md | High | Low | Medium | **1** | **CLOSED** |
-| 2 | **New User Signup & Profile** | v1 | High | High | Medium-High | **2** | **READY** |
+| 2 | **New User Signup & Profile** | v1 | High | High | Medium-High | **2** | **CLOSED** |
 | 3 | **Observability & App Insights** | v2 Item #3 | Medium | Low | Medium | **3** | NOT STARTED |
 | 4 | **User Settings (Personalization)** | v1 | Medium | Medium | Medium | **4** | NOT STARTED |
 | 5 | **Asset Picker (curated universe)** | v2 Item #5 | High | High | Low | **5** | NOT STARTED |
@@ -145,9 +178,12 @@ See Item C in Section 2 above.
 - `READY` — Spec complete at `.kiro/specs/`, ready for implementation in a dedicated session.
 - `NOT STARTED` — No spec or implementation exists yet.
 
-> **Implementation order:** Production Rate-Limiting is done. Next is **New User Signup & Profile**
-> (`.kiro/specs/new-user-signup-profile/`). Its auth-endpoint limiter reuses the shared
-> `RedisRateLimiter` wiring and trusted-hop resolver created by the rate-limiting spec.
+> **Implementation order:** Production Rate-Limiting and New User Signup & Profile are both done —
+> the latter's `authRateLimiter` bean and `AuthRateLimitFilter` did reuse the shared
+> `RedisRateLimiter` wiring and trusted-hop resolver the rate-limiting spec created, as planned.
+> Next by priority is **Observability & App Insights** (#3), whose two remaining gaps are named in
+> Section 2, Item A. **User Settings** (#4) is now unblocked by the persisted identity from #2 but
+> still needs a spec.
 
 ---
 
@@ -156,9 +192,12 @@ See Item C in Section 2 above.
 - `README.md` — "Enterprise Resilience & Event-Driven Data", "Architectural Philosophy", "Production Deployment"
 - `ROADMAP.md` — "Current State (July 2026)", "Completed Phases" (including Phase 5), "Future Architectural Goals"
 - `docs/changes/CHANGES_PRODUCTION_RATE_LIMITING_2026-07-05.md` — detailed changelog for the rate-limiting implementation
+- `docs/changes/CHANGES_NEW_USER_SIGNUP_PROFILE_2026-08-12.md` — detailed changelog for the signup/per-user-auth implementation
 - `.kiro/specs/production-rate-limiting/` — requirements.md, design.md, tasks.md (based on `production-rate-limiting-spec.md`)
 - `.kiro/specs/new-user-signup-profile/` — requirements.md, design.md, tasks.md (based on `new-user-signup-profile-spec.md`)
 - `api-gateway/src/main/resources/{application,application-local,application-prod,application-azure,application-aws}.yml`
 - `api-gateway/src/main/java/com/wealth/gateway/{GatewayRateLimitConfig,RateLimitDenialResponseCustomizer,RedisRateLimitStateLogger}.java`
-- `frontend/src/lib/api/fetchWithAuth.ts`, `frontend/src/lib/hooks/useRetryAfterCountdown.ts`
+- `api-gateway/src/main/java/com/wealth/gateway/{AuthController,AuthRateLimitFilter,ReadOnlyEnforcementFilter,JwtSigner}.java` and the `com.wealth.gateway.auth` package
+- `portfolio-service/src/main/resources/db/migration/V14–V16` — credential schema, auth seed reconciliation, Better Auth table drop
+- `frontend/src/lib/api/fetchWithAuth.ts`, `frontend/src/lib/hooks/useRetryAfterCountdown.ts`, `frontend/src/lib/auth/{session,signupValidator}.ts`
 - `roadmap_enhancements_v3.md` (superseded by this document)

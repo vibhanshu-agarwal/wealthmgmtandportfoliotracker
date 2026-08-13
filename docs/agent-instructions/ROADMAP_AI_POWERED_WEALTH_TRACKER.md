@@ -34,7 +34,7 @@
 ### Key Technologies
 * **Framework:** **Spring Boot 4.0.x** on **Java 25** (Amazon Corretto 25 base image, custom `jlink` JRE).
 * **Build:** **Multi-module Gradle** build (`api-gateway`, `portfolio-service`, `market-data-service`, `insight-service`, `common-dto`).
-* **Frontend:** **Next.js 16** with **React 19**, TanStack Query, Better Auth (HS256 JWT mint), Playwright for E2E, Vitest + MSW for unit tests, Pact for consumer contracts.
+* **Frontend:** **Next.js 16** with **React 19**, TanStack Query, Playwright for E2E, Vitest + MSW for unit tests, Pact for consumer contracts. Auth is **not** a frontend concern — the `api-gateway` owns login, signup, and HS256 JWT minting (Better Auth was retired in PR #85, 2026-08-12); the frontend only stores the returned session and attaches the bearer token.
 * **Persistence (Polyglot):**
     * **PostgreSQL (Relational):** Master record for user profiles, transactions, portfolios, holdings, and the projected `market_prices` read model.
     * **MongoDB (Document):** Flexible storage for raw market ticks and seeded snapshots.

@@ -1,9 +1,42 @@
 # E2E Test Remediation Plan — Better Auth Migration
 
-**Status:** Partially resolved (2026-04-11)  
-**Priority:** Medium (downgraded — remaining failure is non-critical)  
-**Date:** 2026-04-11  
-**Latest results:** 8/9 tests passing. See resolution notes below.
+**Status:** Superseded — no longer applicable (2026-08-13)
+**Priority:** ~~Medium~~
+**Date:** 2026-04-11
+**Latest results (historical):** 8/9 tests passing. See resolution notes below.
+
+---
+
+## Superseded
+
+Every failure mode in this plan — and its two follow-up rounds, `ROUND2.md` and `ROUND3.md` — is
+rooted in the Better Auth login flow, which no longer exists. `new-user-signup-profile`
+([#85](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/85)) retired Better
+Auth outright: `V16__Drop_Better_Auth_Tables.sql` dropped the `ba_*` tables, and Task 7 deleted
+`frontend/src/lib/auth.ts`, `frontend/scripts/better-auth-schema.sql`, and
+`frontend/scripts/seed-dev-user.ts`.
+
+The specific issues here are moot as a result:
+
+- **Issue 1 (form submits as GET before React hydrates)** — the `/login` page and its submit
+  handler were rewritten against the gateway's `POST /api/auth/login`, and the hydration-race
+  workaround this plan proposed no longer applies to the current form.
+- **`/api/auth/sign-in/email`** — that Better Auth endpoint is gone. Playwright auth setup now
+  obtains a real JWT by POSTing to the gateway's `/api/auth/login`
+  (`frontend/tests/e2e/helpers/{api,browser-auth}.ts`).
+- **`injectAuthSession`** — the helper this plan was written around still physically exists in
+  `frontend/tests/e2e/helpers/auth.ts` but has **no callers**, and its docblock and hardcoded
+  `dev@localhost.local` / `password` credentials both predate the migration (V15 seeds `dev@local`).
+  Dead code; logged in `docs/todos/TODOS_2026-04-07.md` for removal rather than fixed here.
+- **`dev@localhost.local` seeding** — superseded by Flyway V15, which idempotently seeds the demo,
+  dev, and E2E accounts with bcrypt hashes at migration time. There is no seed script to run.
+
+This closes the last of the two Better Auth backlog items;
+`docs/todos/backlog/ci-better-auth-postgres/` was closed the same way on 2026-08-12.
+
+Retained in place (not deleted) as a record of the migration-era E2E failures. Live coverage of
+the current auth path is in `frontend-e2e-integration.yml`. Full context:
+`docs/changes/CHANGES_NEW_USER_SIGNUP_PROFILE_2026-08-12.md`.
 
 ---
 
