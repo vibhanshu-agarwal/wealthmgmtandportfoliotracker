@@ -144,6 +144,10 @@ jobs:
         if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'plan')
         run: python3 scripts/test_acr_pull_property.py tfplan.json
 
+      - name: Assert Plan — Observability Caps, Budget, No Scheduled Alerts (MANDATORY)
+        if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'plan')
+        run: python3 scripts/assert_observability_plan.py tfplan.json
+
       # ── Apply path ────────────────────────────────────────────────────────
       # Runs ONLY on: workflow_dispatch with action=apply
       # Provisions the real backend-azure.hcl from the AZURE_BACKEND_HCL secret
@@ -255,6 +259,10 @@ jobs:
       - name: Assert Plan — P5 ACR Pull Authorization (MANDATORY — apply)
         if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'
         run: python3 scripts/test_acr_pull_property.py tfplan.json
+
+      - name: Assert Plan — Observability Caps, Budget, No Scheduled Alerts (MANDATORY — apply)
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'
+        run: python3 scripts/assert_observability_plan.py tfplan.json
 
       - name: Terraform Apply
         if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'
