@@ -435,8 +435,10 @@ Kafka scale rule — D7). The wake step is the workaround.
 
 ### Bound
 
-**15 minutes** from Job start. If the KQL join is empty at timeout, the check
-**FAIL**s. Never pass silently.
+**15 minutes** from Job start (`T0`). An empty join **before** `T0+15m` is not
+FAIL — wait out the bound (Job runtime, consumer scale-from-zero, ingestion
+lag) and re-query. At `T0+15m`, FAIL if there is still no row attributable to
+the Producer_Job Kafka produce. Never pass silently.
 
 ### Step 1 — Trigger Producer_Job
 
@@ -501,14 +503,34 @@ AppDependencies
   ) on OperationId
 ```
 
-**PASS:** the join returns at least one row (shared `OperationId` between a
-producer dependency and a consumer request) inside the 15-minute window.
-When `AppRoleName` is identifiable, confirm both `portfolio-service` and
-`insight-service` appear. Name filters are refined in task 15.7 — do not
-invent extra `Name` predicates until then.
+**PASS:** at least one joined row **attributable to the Producer_Job Kafka
+produce**, sharing `OperationId` with a consumer request, inside the 15-minute
+window. "At least one joined row" is **not** enough.
 
-**FAIL:** no joined row by `T0+15m`. Record FAIL and stop. Do not wait
-indefinitely. Do not treat an empty result as success.
+The wake HTTP goes through `api-gateway` (`/api/portfolio/**`,
+`/api/insights/**`). That emits an AppDependencies HTTP client span joined to
+the backend AppRequests on the same `OperationId`. The query has no `Name`
+filter (correct until 15.7), so those **health-path / gateway-proxy** rows
+appear in the join even if the Job never produced a Kafka trace. **Ignore
+them.** They do not prove a Kafka produce.
+
+To attribute a row to the Job, inspect the AppDependencies side of the joined
+`OperationId` (role, dependency type/name/target — the query projects only
+`OperationId` and times until 15.7). A qualifying row is a produce from
+`market-data-refresh-job` (Kafka / messaging), not an HTTP client call from
+`api-gateway` to a health or API path.
+
+When `AppRoleName` is identifiable on the request side, confirm both
+`portfolio-service` and `insight-service` appear **on Kafka-attributable
+rows**, not only on wake rows. Do not invent extra `Name` predicates until
+task 15.7.
+
+**Not FAIL yet:** an empty join **before** `T0+15m`. Wait and re-query.
+
+**FAIL:** by `T0+15m`, no joined row attributable to the Producer_Job Kafka
+produce (empty join, or wake-only / gateway-proxy rows). Record FAIL and stop.
+Do not wait indefinitely. Do not treat wake-only rows, or an empty result, as
+success.
 
 Absence of rows **outside** this bounded check is not an alert (constraint 10.10).
 
@@ -529,20 +551,33 @@ On **Telemetry_Workspace** (`wealth-prod-telemetry-la` / Telemetry_Cap):
 "Non-deliberate" means not an intentional representative run or audit
 exercise that was expected to be high.
 
-Helper (Telemetry_Workspace only; interpret, do not alert):
+Helper (Telemetry_Workspace only; interpret, do not alert). `make-series`
+fills a **calendar** seven days so zero-ingestion days count as 0% — a plain
+`avg` over Usage rows would drop those days and inflate the mean. There is
+**no** helper boolean: `MaxDayPct > 80` does not implement "non-deliberate",
+and must not auto-require a review.
 
 ```kql
 Usage
 | where TimeGenerated > ago(7d)
 | where IsBillable == true
-| summarize DailyGB = round(sum(Quantity) / 1024.0, 4) by bin(TimeGenerated, 1d)
+| make-series DailyGB = round(sum(Quantity) / 1024.0, 4) default=0 on TimeGenerated from ago(7d) to now() step 1d
+| mv-expand TimeGenerated to typeof(datetime), DailyGB to typeof(real)
 | extend CapGB = 0.023, PctOfCap = round(DailyGB / 0.023 * 100, 1)
 | summarize RollingSevenDayMeanPct = round(avg(PctOfCap), 1), MaxDayPct = max(PctOfCap)
-| extend Trigger = RollingSevenDayMeanPct > 50 or MaxDayPct > 80
 ```
 
-A `Trigger` of `true` requires a **documented review**. It is not an automated
-remediation.
+Read the numbers against the criteria above; do not treat the helper as a
+decision.
+
+- `RollingSevenDayMeanPct > 50` is the calendar seven-day mean (zeros
+  included). That criterion, if met, is a documented review.
+- `MaxDayPct` is informational. A day above 80% is a **candidate**; whether
+  it was **non-deliberate** is operator judgment (an intentional
+  representative run or audit that was expected to be high does not fire).
+  Do not auto-require a review from `MaxDayPct` alone.
+
+The review itself is not an automated remediation. Use the response menu.
 
 ### Response menu
 
