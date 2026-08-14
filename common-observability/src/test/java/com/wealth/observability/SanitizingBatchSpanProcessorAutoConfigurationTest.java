@@ -15,7 +15,9 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import java.io.InputStream;
 import java.lang.reflect.Method;
+import java.nio.charset.StandardCharsets;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -74,6 +76,17 @@ class SanitizingBatchSpanProcessorAutoConfigurationTest {
                     assertThat(context).hasNotFailed();
                     assertThat(context).hasSingleBean(BatchSpanProcessor.class);
                 });
+    }
+
+    @Test
+    void autoConfigurationImportsListsSanitizingProcessor() throws Exception {
+        try (InputStream in = getClass().getClassLoader().getResourceAsStream(
+                "META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports")) {
+            assertThat(in).isNotNull();
+            String contents = new String(in.readAllBytes(), StandardCharsets.UTF_8);
+            assertThat(contents.lines())
+                    .contains("com.wealth.observability.SanitizingBatchSpanProcessorAutoConfiguration");
+        }
     }
 
     @Test

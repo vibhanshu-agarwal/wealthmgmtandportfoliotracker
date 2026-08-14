@@ -1,1 +1,2 @@
 com.wealth.observability.ObservationRedactionAutoConfiguration
+com.wealth.observability.SanitizingBatchSpanProcessorAutoConfiguration
