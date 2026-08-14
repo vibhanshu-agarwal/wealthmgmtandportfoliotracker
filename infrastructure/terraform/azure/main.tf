@@ -183,11 +183,16 @@ module "api_gateway" {
 
   # Non-sensitive env vars — service discovery URLs use bare app names (ACA internal DNS).
   env_vars = {
-    SPRING_PROFILES_ACTIVE           = "prod,azure"
-    PORTFOLIO_SERVICE_URL            = "http://portfolio-service"
-    MARKET_DATA_SERVICE_URL          = "http://market-data-service"
-    INSIGHT_SERVICE_URL              = "http://insight-service"
-    APP_CORS_ALLOWED_ORIGIN_PATTERNS = var.cors_allowed_origin_patterns
+    SPRING_PROFILES_ACTIVE                                 = "prod,azure"
+    PORTFOLIO_SERVICE_URL                                  = "http://portfolio-service"
+    MARKET_DATA_SERVICE_URL                                = "http://market-data-service"
+    INSIGHT_SERVICE_URL                                    = "http://insight-service"
+    APP_CORS_ALLOWED_ORIGIN_PATTERNS                       = var.cors_allowed_origin_patterns
+    MANAGEMENT_TRACING_EXPORT_ENABLED                      = "true"
+    MANAGEMENT_OPENTELEMETRY_TRACING_EXPORT_OTLP_TRANSPORT = "grpc"
+    MANAGEMENT_TRACING_SAMPLING_PROBABILITY                = "1.0"
+    SERVICE_VERSION                                        = var.image_tag
+    DEPLOYMENT_ENVIRONMENT_NAME                            = "prod"
   }
 
   # Sensitive env vars — values sourced from the secrets map below.
@@ -250,7 +255,12 @@ module "portfolio_service" {
   memory           = "1Gi"
 
   env_vars = {
-    SPRING_PROFILES_ACTIVE = "prod,azure"
+    SPRING_PROFILES_ACTIVE                                 = "prod,azure"
+    MANAGEMENT_TRACING_EXPORT_ENABLED                      = "true"
+    MANAGEMENT_OPENTELEMETRY_TRACING_EXPORT_OTLP_TRANSPORT = "grpc"
+    MANAGEMENT_TRACING_SAMPLING_PROBABILITY                = "1.0"
+    SERVICE_VERSION                                        = var.image_tag
+    DEPLOYMENT_ENVIRONMENT_NAME                            = "prod"
   }
 
   secret_env_vars = {
@@ -299,7 +309,12 @@ module "market_data_service" {
   memory           = "1Gi"
 
   env_vars = {
-    SPRING_PROFILES_ACTIVE = "prod,azure"
+    SPRING_PROFILES_ACTIVE                                 = "prod,azure"
+    MANAGEMENT_TRACING_EXPORT_ENABLED                      = "true"
+    MANAGEMENT_OPENTELEMETRY_TRACING_EXPORT_OTLP_TRANSPORT = "grpc"
+    MANAGEMENT_TRACING_SAMPLING_PROBABILITY                = "1.0"
+    SERVICE_VERSION                                        = var.image_tag
+    DEPLOYMENT_ENVIRONMENT_NAME                            = "prod"
   }
 
   secret_env_vars = {
@@ -433,6 +448,30 @@ resource "azurerm_container_app_job" "market_data_refresh" {
         name  = "MARKET_DATA_JOB_RUNNER_ENABLED"
         value = "true"
       }
+      env {
+        name  = "MANAGEMENT_TRACING_EXPORT_ENABLED"
+        value = "true"
+      }
+      env {
+        name  = "MANAGEMENT_OPENTELEMETRY_TRACING_EXPORT_OTLP_TRANSPORT"
+        value = "grpc"
+      }
+      env {
+        name  = "MANAGEMENT_TRACING_SAMPLING_PROBABILITY"
+        value = "1.0"
+      }
+      env {
+        name  = "SERVICE_VERSION"
+        value = var.image_tag
+      }
+      env {
+        name  = "DEPLOYMENT_ENVIRONMENT_NAME"
+        value = "prod"
+      }
+      env {
+        name  = "OTEL_SERVICE_NAME"
+        value = "market-data-refresh-job"
+      }
 
       env {
         name        = "SPRING_DATA_MONGODB_URI"
@@ -504,9 +543,14 @@ module "insight_service" {
   # They align 1:1 with the env-var names read by application-azure-ai.yml (task 4.3).
   # AZURE_OPENAI_API_KEY is deliberately absent — Managed Identity is the auth path.
   env_vars = {
-    SPRING_PROFILES_ACTIVE  = "prod,azure,azure-ai"
-    AZURE_OPENAI_ENDPOINT   = azurerm_cognitive_account.openai.endpoint
-    AZURE_OPENAI_DEPLOYMENT = azurerm_cognitive_deployment.gpt4o_mini.name
+    SPRING_PROFILES_ACTIVE                                 = "prod,azure,azure-ai"
+    AZURE_OPENAI_ENDPOINT                                  = azurerm_cognitive_account.openai.endpoint
+    AZURE_OPENAI_DEPLOYMENT                                = azurerm_cognitive_deployment.gpt4o_mini.name
+    MANAGEMENT_TRACING_EXPORT_ENABLED                      = "true"
+    MANAGEMENT_OPENTELEMETRY_TRACING_EXPORT_OTLP_TRANSPORT = "grpc"
+    MANAGEMENT_TRACING_SAMPLING_PROBABILITY                = "1.0"
+    SERVICE_VERSION                                        = var.image_tag
+    DEPLOYMENT_ENVIRONMENT_NAME                            = "prod"
   }
 
   secret_env_vars = {
