@@ -8,18 +8,34 @@ import com.wealth.market.events.PriceUpdatedEvent;
 import io.micrometer.observation.ObservationRegistry;
 import io.micrometer.tracing.Span;
 import io.micrometer.tracing.Tracer;
+import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator;
+import io.opentelemetry.context.propagation.TextMapPropagator;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import org.apache.kafka.clients.consumer.ConsumerConfig;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.common.header.Header;
+import org.apache.kafka.common.serialization.ByteArrayDeserializer;
+import org.apache.kafka.common.serialization.StringDeserializer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.kafka.test.EmbeddedKafkaBroker;
 import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -32,8 +48,8 @@ import org.testcontainers.junit.jupiter.Testcontainers;
  * Property 10b (insight consumer): listener observation exposes an active span when a W3C
  * {@code traceparent} control header is present on the record.
  *
- * <p>Asserts {@link Tracer#currentSpan()} at consume time (not production {@code KafkaTemplate}
- * injection). Trace-ID continuity is deferred — see migration spec task 11.2 partial note.
+ * <p>Property 2 (consumer half): observation-injected {@code traceparent} continues the same
+ * trace ID under a distinct consumer span. Does not hand-stamp the header.
  */
 @Tag("integration")
 @Testcontainers
@@ -50,7 +66,10 @@ import org.testcontainers.junit.jupiter.Testcontainers;
             "spring.kafka.producer.properties.spring.json.add.type.headers=true"
         })
 @EmbeddedKafka(partitions = 1, topics = "market-prices")
-@Import(InsightKafkaTracePropagationProbe.class)
+@Import({
+    InsightKafkaTracePropagationProbe.class,
+    KafkaTraceContextPropagationIT.W3cPropagationConfig.class
+})
 @TestPropertySource(
         properties = {
             "management.tracing.export.enabled=false",
@@ -82,6 +101,8 @@ class KafkaTraceContextPropagationIT {
     @Autowired private ObservationRegistry observationRegistry;
 
     @Autowired private KafkaTemplate<String, PriceUpdatedEvent> observedProducer;
+
+    @Autowired private EmbeddedKafkaBroker embeddedKafkaBroker;
 
     @BeforeEach
     void setUp() {
@@ -122,6 +143,76 @@ class KafkaTraceContextPropagationIT {
                             });
         } finally {
             producerSpan.end();
+        }
+    }
+
+    /**
+     * Property 2 (consumer half): observation-injected {@code traceparent} continues the same
+     * trace ID under a distinct consumer span. Does not hand-stamp the header.
+     */
+    @Test
+    void injectedTraceparent_consumerContinuesSameTraceIdWithDistinctSpanId() throws Exception {
+        observedProducer
+                .send("market-prices", "TRACE", new PriceUpdatedEvent("TRACE", new BigDecimal("42.00")))
+                .get();
+
+        try (KafkaConsumer<String, byte[]> sniffer = wireSniffer()) {
+            embeddedKafkaBroker.consumeFromAnEmbeddedTopic(sniffer, "market-prices");
+            List<ConsumerRecord<String, byte[]>> seen = new ArrayList<>();
+            await().atMost(30, TimeUnit.SECONDS)
+                    .untilAsserted(
+                            () -> {
+                                sniffer.poll(Duration.ofMillis(500)).forEach(seen::add);
+                                ConsumerRecord<String, byte[]> record =
+                                        seen.stream()
+                                                .filter(r -> "TRACE".equals(r.key()))
+                                                .reduce((a, b) -> b)
+                                                .orElse(null);
+                                assertThat(record).isNotNull();
+                                Header header = record.headers().lastHeader("traceparent");
+                                assertThat(header)
+                                        .as("W3C traceparent must be injected by observation, not the test")
+                                        .isNotNull();
+                                String traceparent = new String(header.value(), StandardCharsets.UTF_8);
+                                String producerTraceId = TraceparentTestSupport.traceId(traceparent);
+                                String producerSpanId = TraceparentTestSupport.spanId(traceparent);
+
+                                assertThat(InsightKafkaTracePropagationProbe.CONSUMER_TRACE_ID.get())
+                                        .as("consumer must continue the producer trace")
+                                        .isEqualTo(producerTraceId);
+                                assertThat(InsightKafkaTracePropagationProbe.CONSUMER_SPAN_ID.get())
+                                        .as("consumer span must be distinct from producer-send span")
+                                        .isNotNull()
+                                        .isNotEqualTo(producerSpanId);
+                            });
+        }
+    }
+
+    private KafkaConsumer<String, byte[]> wireSniffer() {
+        return new KafkaConsumer<>(
+                Map.of(
+                        ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG,
+                        embeddedKafkaBroker.getBrokersAsString(),
+                        ConsumerConfig.GROUP_ID_CONFIG,
+                        "insight-wire-sniffer-" + UUID.randomUUID(),
+                        ConsumerConfig.AUTO_OFFSET_RESET_CONFIG,
+                        "earliest",
+                        ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG,
+                        StringDeserializer.class,
+                        ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG,
+                        ByteArrayDeserializer.class));
+    }
+
+    /**
+     * Boot 4 gates the W3C {@link TextMapPropagator} on tracing export. Keep OTLP export off
+     * (task 7.3) and still allow observation to inject {@code traceparent}.
+     */
+    @TestConfiguration(proxyBeanMethods = false)
+    static class W3cPropagationConfig {
+
+        @Bean
+        TextMapPropagator w3cTextMapPropagator() {
+            return W3CTraceContextPropagator.getInstance();
         }
     }
 }

@@ -20,10 +20,18 @@ final class TraceparentTestSupport {
     }
 
     static String traceId(String traceparent) {
+        return group(traceparent, 1);
+    }
+
+    static String spanId(String traceparent) {
+        return group(traceparent, 2);
+    }
+
+    private static String group(String traceparent, int group) {
         var matcher = TRACEPARENT.matcher(traceparent);
         if (!matcher.matches()) {
             throw new IllegalArgumentException("Invalid traceparent: " + traceparent);
         }
-        return matcher.group(1);
+        return matcher.group(group);
     }
 }
