@@ -7,7 +7,10 @@ import com.wealth.portfolio.trace.KafkaTracePropagationProbe;
 import io.micrometer.observation.ObservationRegistry;
 import io.micrometer.tracing.Span;
 import io.micrometer.tracing.Tracer;
+import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator;
+import io.opentelemetry.context.propagation.TextMapPropagator;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.Instant;
@@ -17,6 +20,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
@@ -34,6 +39,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.kafka.autoconfigure.KafkaProperties;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.kafka.core.DefaultKafkaProducerFactory;
@@ -73,7 +80,10 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 @Testcontainers
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
 @ActiveProfiles("local")
-@Import(KafkaTracePropagationProbe.class)
+@Import({
+    KafkaTracePropagationProbe.class,
+    PriceUpdatedEventKafkaRoundTripIT.W3cPropagationConfig.class
+})
 @TestPropertySource(
         properties = {
             "management.tracing.export.enabled=false",
@@ -89,6 +99,8 @@ class PriceUpdatedEventKafkaRoundTripIT {
     private static final String DLT_TOPIC = "market-prices.DLT";
     private static final Duration AWAIT_TIMEOUT = Duration.ofSeconds(30);
     private static final String TYPE_ID_HEADER = "__TypeId__";
+    private static final Pattern TRACEPARENT =
+            Pattern.compile("^00-([0-9a-f]{32})-([0-9a-f]{16})-([0-9a-f]{2})$");
 
     private static final Instant OBSERVED_AT = Instant.parse("2026-06-08T10:15:30Z");
     private static final Instant PREVIOUS_REFERENCE_AT = Instant.parse("2026-06-07T10:15:30Z");
@@ -256,8 +268,8 @@ class PriceUpdatedEventKafkaRoundTripIT {
      * on the record, listener observation exposes an active span at consume time.
      *
      * <p>The {@code traceparent} header is hand-stamped as a test fixture (not production
-     * {@code KafkaTemplate} injection). Trace-ID continuity (same id as producer span) is
-     * deferred — see migration spec task 11.2 partial note.
+     * {@code KafkaTemplate} injection). Trace-ID continuity of the injected header is
+     * {@link #injectedTraceparent_consumerContinuesSameTraceIdWithDistinctSpanId()}.
      */
     @Test
     void listenerObservation_activeSpanWhenTraceparentControlHeaderPresent() throws Exception {
@@ -290,6 +302,51 @@ class PriceUpdatedEventKafkaRoundTripIT {
         } finally {
             producerSpan.end();
         }
+    }
+
+    /**
+     * Property 2 (consumer half): observation-injected {@code traceparent} continues the same
+     * trace ID under a distinct consumer span. Does not hand-stamp the header.
+     */
+    @Test
+    void injectedTraceparent_consumerContinuesSameTraceIdWithDistinctSpanId() throws Exception {
+        String ticker = "TRC_" + UUID.randomUUID().toString().substring(0, 6).toUpperCase();
+        PriceUpdatedEvent event = new PriceUpdatedEvent(ticker, new BigDecimal("101.01"));
+
+        marketDataLikeProducer.send(TOPIC, ticker, event).get();
+
+        List<ConsumerRecord<String, byte[]>> seen = new ArrayList<>();
+        Awaitility.await()
+                .atMost(AWAIT_TIMEOUT)
+                .untilAsserted(
+                        () -> {
+                            seen.addAll(pollWire(TOPIC));
+                            ConsumerRecord<String, byte[]> record =
+                                    seen.stream()
+                                            .filter(r -> ticker.equals(r.key()))
+                                            .findFirst()
+                                            .orElse(null);
+                            assertThat(record).isNotNull();
+                            Header header = record.headers().lastHeader("traceparent");
+                            assertThat(header)
+                                    .as("W3C traceparent must be injected by observation, not the test")
+                                    .isNotNull();
+                            String traceparent = new String(header.value(), StandardCharsets.UTF_8);
+                            Matcher matcher = TRACEPARENT.matcher(traceparent);
+                            assertThat(matcher.matches())
+                                    .as("on-wire traceparent must be a valid W3C header: %s", traceparent)
+                                    .isTrue();
+                            String producerTraceId = matcher.group(1);
+                            String producerSpanId = matcher.group(2);
+
+                            assertThat(KafkaTracePropagationProbe.CONSUMER_TRACE_ID.get())
+                                    .as("consumer must continue the producer trace")
+                                    .isEqualTo(producerTraceId);
+                            assertThat(KafkaTracePropagationProbe.CONSUMER_SPAN_ID.get())
+                                    .as("consumer span must be distinct from producer-send span")
+                                    .isNotNull()
+                                    .isNotEqualTo(producerSpanId);
+                        });
     }
 
     private void publishViaMarketDataLikeProducer(String key, PriceUpdatedEvent event) throws Exception {
@@ -333,5 +390,18 @@ class PriceUpdatedEventKafkaRoundTripIT {
                         span.context().traceId(),
                         span.context().spanId(),
                         Boolean.TRUE.equals(span.context().sampled()) ? 0x01 : 0x00);
+    }
+
+    /**
+     * Boot 4 gates the W3C {@link TextMapPropagator} on tracing export. Keep OTLP export off
+     * (task 7.3) and still allow observation to inject {@code traceparent}.
+     */
+    @TestConfiguration(proxyBeanMethods = false)
+    static class W3cPropagationConfig {
+
+        @Bean
+        TextMapPropagator w3cTextMapPropagator() {
+            return W3CTraceContextPropagator.getInstance();
+        }
     }
 }
