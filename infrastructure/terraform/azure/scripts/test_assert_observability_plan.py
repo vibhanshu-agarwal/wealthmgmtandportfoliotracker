@@ -202,6 +202,23 @@ class TestBudgetFails(unittest.TestCase):
         errors = _errors(_plan(*_good_resources(budget=_budget(amount=500))))
         self.assertTrue(errors, "expected FAIL when budget amount is not 1100")
 
+    def test_resource_group_id_unknown_after_apply_passes(self):
+        # PR-time plan uses a local empty backend, so azurerm_resource_group.main.id
+        # is after_unknown, not a concrete after value.
+        budget = _budget(resource_group_id=False)
+        budget["change"]["after_unknown"] = {"resource_group_id": True}
+        errors = _errors(_plan(*_good_resources(budget=budget)))
+        self.assertEqual(
+            errors,
+            [],
+            f"expected PASS when resource_group_id is after_unknown, got FAIL: {errors}",
+        )
+
+    def test_missing_resource_group_id_fails(self):
+        errors = _errors(_plan(*_good_resources(budget=_budget(resource_group_id=False))))
+        self.assertTrue(errors, "expected FAIL when resource_group_id is absent from after and after_unknown")
+        self.assertTrue(any("resource_group" in e.lower() for e in errors), errors)
+
     def test_missing_actual_notification_fails(self):
         errors = _errors(
             _plan(

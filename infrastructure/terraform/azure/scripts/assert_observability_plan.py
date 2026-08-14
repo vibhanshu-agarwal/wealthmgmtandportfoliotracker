@@ -75,6 +75,25 @@ def _after(rc: dict) -> dict:
     return after if isinstance(after, dict) else {}
 
 
+def _after_unknown(rc: dict) -> dict:
+    unknown = rc.get("change", {}).get("after_unknown")
+    return unknown if isinstance(unknown, dict) else {}
+
+
+def _budget_has_resource_group_scope(rc: dict) -> bool:
+    """True if resource_group_id/name is set, or unknown because the RG is also new-in-plan.
+
+    PR-time `terraform plan` uses a local empty backend, so
+    `azurerm_resource_group.main.id` lands in `after_unknown`, not `after`.
+    That still proves the argument is wired; fail only when it is absent from both.
+    """
+    after = _after(rc)
+    if after.get("resource_group_id") or after.get("resource_group_name"):
+        return True
+    unknown = _after_unknown(rc)
+    return unknown.get("resource_group_id") is True or unknown.get("resource_group_name") is True
+
+
 def _address(rc: dict) -> str:
     return rc.get("address", "<unknown>")
 
@@ -178,8 +197,7 @@ def check_rg_budget(plan: dict) -> list[str]:
     for rc in rg_budgets:
         after = _after(rc)
         address = _address(rc)
-        rg_id = after.get("resource_group_id") or after.get("resource_group_name")
-        if not rg_id:
+        if not _budget_has_resource_group_scope(rc):
             errors.append(
                 f"FAIL [budget] {address} is missing resource_group_id "
                 f"(resource-group scope is required)."
