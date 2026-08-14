@@ -28,8 +28,9 @@ COPY gradle/ gradle/
 COPY build.gradle build.gradle
 COPY settings.gradle settings.gradle
 
-# Copy source for common-dto (dependency) and market-data-service
+# Copy source for common-dto and common-observability (dependencies) and market-data-service
 COPY common-dto/ common-dto/
+COPY common-observability/ common-observability/
 COPY market-data-service/ market-data-service/
 
 # Trim settings.gradle to only include modules needed for this service.

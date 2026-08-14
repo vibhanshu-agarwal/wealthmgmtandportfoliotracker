@@ -28,8 +28,9 @@ COPY gradle/ gradle/
 COPY build.gradle build.gradle
 COPY settings.gradle settings.gradle
 
-# Copy source for common-dto (dependency) and api-gateway
+# Copy source for common-dto and common-observability (dependencies) and api-gateway
 COPY common-dto/ common-dto/
+COPY common-observability/ common-observability/
 COPY api-gateway/ api-gateway/
 
 # Trim settings.gradle to only include modules needed for this service.
