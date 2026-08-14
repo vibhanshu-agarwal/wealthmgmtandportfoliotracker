@@ -84,24 +84,31 @@ status) but OTLP export stays gated off by default until the spec's Terraform la
 closes both previously-named gaps and adds the operational scaffolding neither v2 nor v3
 anticipated:
 
-- **Sink:** the ACA **managed OpenTelemetry agent** (chosen over the GA Application Insights Java
-  agent so the existing Spring/Micrometer instrumentation stays load-bearing) routes traces to a
-  new, dedicated Application Insights workspace — provisioned via a newly-added **AzAPI** Terraform
-  provider, since AzureRM does not yet model this resource.
+- **Sink (planned):** traces would route through the ACA **managed OpenTelemetry agent** (chosen
+  over the GA Application Insights Java agent so the existing Spring/Micrometer instrumentation
+  stays load-bearing) into a new, dedicated Application Insights workspace. That workspace and the
+  Application Insights resource itself are AzureRM-provisioned, same as everything else in this
+  Terraform root; a newly-added **AzAPI** Terraform provider is needed only to patch the ACA
+  managed environment's OpenTelemetry-agent configuration to point at it, since AzureRM does not
+  yet model that specific block.
 - **Kafka producer→consumer trace-ID continuity** (the gap named in v2/v3): root-caused as a test
   fixture defect, not a framework gap — both existing tests hand-build an unobserved
-  `KafkaTemplate` instead of using the auto-configured bean. Fixed as part of the spec, completing
-  Task 11.2 of `.kiro/specs/springboot-41-springai-2-migration/`.
-- **Cost control**, under the owner's non-negotiable **₹1100/month total** ceiling for
+  `KafkaTemplate` instead of using the auto-configured bean. The fix is planned (`tasks.md` 7.1–7.7)
+  but not yet applied, so Task 11.2 of `.kiro/specs/springboot-41-springai-2-migration/` remains
+  open.
+- **Cost control (planned)**, under the owner's non-negotiable **₹1100/month total** ceiling for
   `wealth-azure-prod-rg`: both workspace daily ingestion caps at Azure's 0.023 GB/day floor, sized
   so the ceiling holds even if the shared 5 GB/month Analytics allowance is exhausted elsewhere
   (`Allowance_Independence`), plus a new Cost Management budget alert — a gap open since it was
   first recommended on 2026-05-17.
-- **Redaction:** a new `common-observability` module sanitizes exported spans (query strings,
-  tokens, portfolio values, exception content) before they leave the process, since this platform
-  handles financial data.
+- **Redaction (planned):** a new `common-observability` module would sanitize exported spans
+  (query strings, tokens, portfolio values, exception content) before they leave the process,
+  since this platform handles financial data.
 - Verified against the live subscription during design: ACR is ≈100% of current project spend
-  (~553 INR/month); this feature's own projected marginal cost is ₹0.00 at current traffic.
+  (₹234.06 of a ₹551.78 full-month forecast). This feature's own projected marginal cost of ₹0.00
+  at current traffic is, per the spec (Requirement 11.4), an **unverified projection** — no trace
+  has ever been exported from this system — to be confirmed or refuted by the representative run
+  (`tasks.md` 15.7) once implemented.
 
 ### Item B: User-Defined Portfolio Composition & Asset Picker
 
