@@ -28,8 +28,9 @@ COPY gradle/ gradle/
 COPY build.gradle build.gradle
 COPY settings.gradle settings.gradle
 
-# Copy source for common-dto (dependency) and portfolio-service
+# Copy source for common-dto and common-observability (dependencies) and portfolio-service
 COPY common-dto/ common-dto/
+COPY common-observability/ common-observability/
 COPY portfolio-service/ portfolio-service/
 
 # Trim settings.gradle to only include modules needed for this service.

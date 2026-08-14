@@ -39,8 +39,9 @@ COPY gradle/ gradle/
 COPY build.gradle build.gradle
 COPY settings.gradle settings.gradle
 
-# Copy source for common-dto (dependency) and insight-service
+# Copy source for common-dto and common-observability (dependencies) and insight-service
 COPY common-dto/ common-dto/
+COPY common-observability/ common-observability/
 COPY insight-service/ insight-service/
 
 # Trim settings.gradle to only include modules needed for this service

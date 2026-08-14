@@ -24,6 +24,7 @@ tasks.named('processResources') {
 
 dependencies {
     implementation project(':common-dto')
+    implementation project(':common-observability')
     implementation 'org.springframework.boot:spring-boot-starter-webmvc'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
     implementation 'org.springframework.boot:spring-boot-starter-restclient'

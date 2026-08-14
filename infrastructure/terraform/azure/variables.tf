@@ -24,6 +24,16 @@ variable "azure_subscription_id" {
 }
 
 # ---------------------------------------------------------------------------
+# Cost Management
+# ---------------------------------------------------------------------------
+
+variable "budget_notification_emails" {
+  type        = list(string)
+  default     = ["vibhanshu.agarwal@outlook.com"]
+  description = "Cost Management budget notification recipients (free email channel, not an Azure Monitor action group). Default is the subscription owner from az account show 2026-08-14; override via TF_VAR_budget_notification_emails."
+}
+
+# ---------------------------------------------------------------------------
 # Deployment configuration
 # ---------------------------------------------------------------------------
 

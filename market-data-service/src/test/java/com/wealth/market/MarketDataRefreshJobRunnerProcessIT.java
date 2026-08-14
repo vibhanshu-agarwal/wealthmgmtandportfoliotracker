@@ -79,7 +79,7 @@ class MarketDataRefreshJobRunnerProcessIT {
 
     @Test
     void forkedRunnerExitsZeroAfterSuccessfulRefresh() throws Exception {
-        int exitCode = runForkedRunner(kafka.getBootstrapServers(), false, null);
+        int exitCode = runForkedRunner(kafka.getBootstrapServers(), false, null).exitCode();
         assertThat(exitCode).isZero();
     }
 
@@ -88,14 +88,43 @@ class MarketDataRefreshJobRunnerProcessIT {
         int exitCode = runForkedRunner(
                 kafka.getBootstrapServers(),
                 true,
-                "org.apache.kafka.common.serialization.ByteArraySerializer");
+                "org.apache.kafka.common.serialization.ByteArraySerializer")
+                .exitCode();
         assertThat(exitCode).isEqualTo(1);
     }
 
-    private static int runForkedRunner(
+    @Test
+    void forkedRunnerExitsZeroWhenRefreshSucceedsAndSpanFlushFails() throws Exception {
+        ForkedRun result = runForkedRunner(kafka.getBootstrapServers(), false, null, true);
+        assertThat(result.exitCode()).isZero();
+        assertThat(result.output()).contains("Failed to export spans");
+    }
+
+    @Test
+    void forkedRunnerExitsOneWhenKafkaPublishFailsAndSpanFlushFails() throws Exception {
+        ForkedRun result = runForkedRunner(
+                kafka.getBootstrapServers(),
+                true,
+                "org.apache.kafka.common.serialization.ByteArraySerializer",
+                true);
+        assertThat(result.exitCode()).isEqualTo(1);
+        assertThat(result.output()).contains("Failed to export spans");
+    }
+
+    private record ForkedRun(int exitCode, String output) {}
+
+    private static ForkedRun runForkedRunner(
             String kafkaBootstrapServers,
             boolean injectPublishFailure,
             String valueSerializerOverride) throws Exception {
+        return runForkedRunner(kafkaBootstrapServers, injectPublishFailure, valueSerializerOverride, false);
+    }
+
+    private static ForkedRun runForkedRunner(
+            String kafkaBootstrapServers,
+            boolean injectPublishFailure,
+            String valueSerializerOverride,
+            boolean failSpanFlush) throws Exception {
         String bootJar = System.getProperty("market-data.boot.jar");
         assertThat(bootJar)
                 .as("integrationTest task must set market-data.boot.jar to the bootJar output")
@@ -112,7 +141,14 @@ class MarketDataRefreshJobRunnerProcessIT {
         command.add("-Dmarket-data.seed.enabled=false");
         command.add("-Dmarket-data.baseline-seed.enabled=false");
         command.add("-Dmarket.seed.enabled=false");
-        command.add("-Dmanagement.tracing.export.enabled=false");
+        if (failSpanFlush) {
+            command.add("-Dmanagement.tracing.export.enabled=true");
+            command.add("-Dmanagement.opentelemetry.tracing.export.otlp.transport=grpc");
+            command.add("-Dmanagement.opentelemetry.tracing.export.otlp.endpoint=http://127.0.0.1:1");
+            command.add("-Dmanagement.opentelemetry.tracing.export.otlp.connect-timeout=1s");
+        } else {
+            command.add("-Dmanagement.tracing.export.enabled=false");
+        }
         command.add("-Dmanagement.otlp.metrics.export.enabled=false");
         command.add("-Dspring.mongodb.uri=" + mongo.getReplicaSetUrl());
         command.add("-Dspring.kafka.bootstrap-servers=" + kafkaBootstrapServers);
@@ -144,6 +180,9 @@ class MarketDataRefreshJobRunnerProcessIT {
         outputDrain.start();
 
         long timeoutSeconds = injectPublishFailure ? 90 : 180;
+        if (failSpanFlush) {
+            timeoutSeconds += 30;
+        }
         boolean finished = process.waitFor(timeoutSeconds, TimeUnit.SECONDS);
         outputDrain.join(5_000);
 
@@ -156,6 +195,6 @@ class MarketDataRefreshJobRunnerProcessIT {
         assertThat(exitCode)
                 .as("forked runner output:\n%s", processOutput)
                 .isIn(0, 1);
-        return exitCode;
+        return new ForkedRun(exitCode, processOutput);
     }
 }

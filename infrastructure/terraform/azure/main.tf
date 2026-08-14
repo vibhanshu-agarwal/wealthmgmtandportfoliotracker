@@ -3,7 +3,7 @@
 # Wealth Management & Portfolio Tracker
 #
 # Resource ordering (Terraform dependency resolution):
-#   1. Core resources (resource group, ACR, log analytics, ACA environment, SWA)
+#   1. Core resources (resource group, ACR, log analytics, telemetry workspace, App Insights, budget alert, ACA environment, SWA)
 #   2. Azure OpenAI account + deployment
 #   3. Four Container App module blocks
 #   4. Role assignment: insight-service → Azure OpenAI (references module output)
@@ -38,6 +38,67 @@ resource "azurerm_log_analytics_workspace" "main" {
   location            = azurerm_resource_group.main.location
   sku                 = "PerGB2018"
   retention_in_days   = 30
+  daily_quota_gb      = 0.023
+}
+
+# Telemetry Log Analytics workspace — dedicated App Insights sink, distinct from
+# wealth-${var.environment}-la so a telemetry ceiling cannot suppress ACA diagnostics.
+resource "azurerm_log_analytics_workspace" "telemetry" {
+  name                = "wealth-${var.environment}-telemetry-la"
+  resource_group_name = azurerm_resource_group.main.name
+  location            = azurerm_resource_group.main.location
+  sku                 = "PerGB2018"
+  retention_in_days   = 30
+  daily_quota_gb      = 0.023
+}
+
+# Application Insights — workspace-based Java component. The connection string
+# lives only in Terraform state (encrypted remote backend); do not output it.
+resource "azurerm_application_insights" "telemetry" {
+  name                = "wealth-${var.environment}-ai"
+  resource_group_name = azurerm_resource_group.main.name
+  location            = azurerm_resource_group.main.location
+  application_type    = "java"
+  workspace_id        = azurerm_log_analytics_workspace.telemetry.id
+
+  # Included 90-day interactive default for workspace-based App Insights (App*
+  # tables), not a paid retention extension. Do not override App* onto Auxiliary/Basic.
+  retention_in_days = 90
+
+  # D3: local auth is required by the managed agent. Exit when the Entra ingestion
+  # trigger is met (separate from GA; either order).
+  local_authentication_enabled = true
+}
+
+# Cost Management budget — resource-group scope (not subscription). Notifications
+# use Cost Management's free email channel; do not attach an Azure Monitor action group.
+resource "azurerm_consumption_budget_resource_group" "main" {
+  name              = "wealth-${var.environment}-rg-budget"
+  resource_group_id = azurerm_resource_group.main.id
+
+  amount     = 1100
+  time_grain = "Monthly"
+
+  # Azure requires first-of-month; 2026-08-01 is the month this budget was introduced.
+  time_period {
+    start_date = "2026-08-01T00:00:00Z"
+  }
+
+  notification {
+    enabled        = true
+    threshold      = 70
+    threshold_type = "Actual"
+    operator       = "GreaterThanOrEqualTo"
+    contact_emails = var.budget_notification_emails
+  }
+
+  notification {
+    enabled        = true
+    threshold      = 100
+    threshold_type = "Forecasted"
+    operator       = "GreaterThanOrEqualTo"
+    contact_emails = var.budget_notification_emails
+  }
 }
 
 # Azure Container Apps Environment — shared networking and observability plane for all four services.
@@ -47,6 +108,28 @@ resource "azurerm_container_app_environment" "main" {
   resource_group_name        = azurerm_resource_group.main.name
   location                   = azurerm_resource_group.main.location
   log_analytics_workspace_id = azurerm_log_analytics_workspace.main.id
+}
+
+# AzureRM does not model this managed-agent block today, so there is no drift-fight
+# with azurerm_container_app_environment / azurerm_application_insights. If a future
+# AzureRM version adds openTelemetryConfiguration, migrate this AzAPI resource
+# rather than running both.
+resource "azapi_update_resource" "aca_otel_agent" {
+  type        = "Microsoft.App/managedEnvironments@2025-10-02-preview"
+  resource_id = azurerm_container_app_environment.main.id
+
+  body = {
+    properties = {
+      appInsightsConfiguration = {
+        connectionString = azurerm_application_insights.telemetry.connection_string
+      }
+      openTelemetryConfiguration = {
+        tracesConfiguration = {
+          destinations = ["appInsights"]
+        }
+      }
+    }
+  }
 }
 
 # Static Web App — hosts the Next.js static export (frontend).
@@ -122,11 +205,16 @@ module "api_gateway" {
 
   # Non-sensitive env vars — service discovery URLs use bare app names (ACA internal DNS).
   env_vars = {
-    SPRING_PROFILES_ACTIVE           = "prod,azure"
-    PORTFOLIO_SERVICE_URL            = "http://portfolio-service"
-    MARKET_DATA_SERVICE_URL          = "http://market-data-service"
-    INSIGHT_SERVICE_URL              = "http://insight-service"
-    APP_CORS_ALLOWED_ORIGIN_PATTERNS = var.cors_allowed_origin_patterns
+    SPRING_PROFILES_ACTIVE                                 = "prod,azure"
+    PORTFOLIO_SERVICE_URL                                  = "http://portfolio-service"
+    MARKET_DATA_SERVICE_URL                                = "http://market-data-service"
+    INSIGHT_SERVICE_URL                                    = "http://insight-service"
+    APP_CORS_ALLOWED_ORIGIN_PATTERNS                       = var.cors_allowed_origin_patterns
+    MANAGEMENT_TRACING_EXPORT_ENABLED                      = "true"
+    MANAGEMENT_OPENTELEMETRY_TRACING_EXPORT_OTLP_TRANSPORT = "grpc"
+    MANAGEMENT_TRACING_SAMPLING_PROBABILITY                = "1.0"
+    SERVICE_VERSION                                        = var.image_tag
+    DEPLOYMENT_ENVIRONMENT_NAME                            = "prod"
   }
 
   # Sensitive env vars — values sourced from the secrets map below.
@@ -189,7 +277,12 @@ module "portfolio_service" {
   memory           = "1Gi"
 
   env_vars = {
-    SPRING_PROFILES_ACTIVE = "prod,azure"
+    SPRING_PROFILES_ACTIVE                                 = "prod,azure"
+    MANAGEMENT_TRACING_EXPORT_ENABLED                      = "true"
+    MANAGEMENT_OPENTELEMETRY_TRACING_EXPORT_OTLP_TRANSPORT = "grpc"
+    MANAGEMENT_TRACING_SAMPLING_PROBABILITY                = "1.0"
+    SERVICE_VERSION                                        = var.image_tag
+    DEPLOYMENT_ENVIRONMENT_NAME                            = "prod"
   }
 
   secret_env_vars = {
@@ -238,7 +331,12 @@ module "market_data_service" {
   memory           = "1Gi"
 
   env_vars = {
-    SPRING_PROFILES_ACTIVE = "prod,azure"
+    SPRING_PROFILES_ACTIVE                                 = "prod,azure"
+    MANAGEMENT_TRACING_EXPORT_ENABLED                      = "true"
+    MANAGEMENT_OPENTELEMETRY_TRACING_EXPORT_OTLP_TRANSPORT = "grpc"
+    MANAGEMENT_TRACING_SAMPLING_PROBABILITY                = "1.0"
+    SERVICE_VERSION                                        = var.image_tag
+    DEPLOYMENT_ENVIRONMENT_NAME                            = "prod"
   }
 
   secret_env_vars = {
@@ -372,6 +470,30 @@ resource "azurerm_container_app_job" "market_data_refresh" {
         name  = "MARKET_DATA_JOB_RUNNER_ENABLED"
         value = "true"
       }
+      env {
+        name  = "MANAGEMENT_TRACING_EXPORT_ENABLED"
+        value = "true"
+      }
+      env {
+        name  = "MANAGEMENT_OPENTELEMETRY_TRACING_EXPORT_OTLP_TRANSPORT"
+        value = "grpc"
+      }
+      env {
+        name  = "MANAGEMENT_TRACING_SAMPLING_PROBABILITY"
+        value = "1.0"
+      }
+      env {
+        name  = "SERVICE_VERSION"
+        value = var.image_tag
+      }
+      env {
+        name  = "DEPLOYMENT_ENVIRONMENT_NAME"
+        value = "prod"
+      }
+      env {
+        name  = "OTEL_SERVICE_NAME"
+        value = "market-data-refresh-job"
+      }
 
       env {
         name        = "SPRING_DATA_MONGODB_URI"
@@ -443,9 +565,14 @@ module "insight_service" {
   # They align 1:1 with the env-var names read by application-azure-ai.yml (task 4.3).
   # AZURE_OPENAI_API_KEY is deliberately absent — Managed Identity is the auth path.
   env_vars = {
-    SPRING_PROFILES_ACTIVE  = "prod,azure,azure-ai"
-    AZURE_OPENAI_ENDPOINT   = azurerm_cognitive_account.openai.endpoint
-    AZURE_OPENAI_DEPLOYMENT = azurerm_cognitive_deployment.gpt4o_mini.name
+    SPRING_PROFILES_ACTIVE                                 = "prod,azure,azure-ai"
+    AZURE_OPENAI_ENDPOINT                                  = azurerm_cognitive_account.openai.endpoint
+    AZURE_OPENAI_DEPLOYMENT                                = azurerm_cognitive_deployment.gpt4o_mini.name
+    MANAGEMENT_TRACING_EXPORT_ENABLED                      = "true"
+    MANAGEMENT_OPENTELEMETRY_TRACING_EXPORT_OTLP_TRANSPORT = "grpc"
+    MANAGEMENT_TRACING_SAMPLING_PROBABILITY                = "1.0"
+    SERVICE_VERSION                                        = var.image_tag
+    DEPLOYMENT_ENVIRONMENT_NAME                            = "prod"
   }
 
   secret_env_vars = {

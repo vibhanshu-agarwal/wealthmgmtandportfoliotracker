@@ -73,10 +73,25 @@ management:
       export:
         enabled: ${MANAGEMENT_OTLP_METRICS_EXPORT_ENABLED:false}
   opentelemetry:
+    resource-attributes:
+      service.version: ${SERVICE_VERSION:local}
+      deployment.environment.name: ${DEPLOYMENT_ENVIRONMENT_NAME:local}
     tracing:
+      sampler: parent-based-trace-id-ratio
+      limits:
+        max-attribute-value-length: 512
+        max-attributes: 64
+        max-events: 16
+        max-links: 8
       export:
+        max-queue-size: 2048
+        max-batch-size: 512
+        schedule-delay: 5s
+        timeout: 30s
         otlp:
           endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://localhost:4318/v1/traces}
+          compression: gzip
+          connect-timeout: 10s
 
 app:
   internal:
@@ -92,3 +107,5 @@ insight:
 logging:
   level:
     org.springframework.kafka: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX} %-5level [${OTEL_SERVICE_NAME:${spring.application.name:}},%X{traceId:-},%X{spanId:-}] %logger{36} - %msg%n"
