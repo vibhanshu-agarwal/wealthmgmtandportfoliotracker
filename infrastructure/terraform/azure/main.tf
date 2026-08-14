@@ -3,7 +3,7 @@
 # Wealth Management & Portfolio Tracker
 #
 # Resource ordering (Terraform dependency resolution):
-#   1. Core resources (resource group, ACR, log analytics, telemetry workspace, App Insights, ACA environment, SWA)
+#   1. Core resources (resource group, ACR, log analytics, telemetry workspace, App Insights, budget alert, ACA environment, SWA)
 #   2. Azure OpenAI account + deployment
 #   3. Four Container App module blocks
 #   4. Role assignment: insight-service → Azure OpenAI (references module output)
@@ -61,9 +61,44 @@ resource "azurerm_application_insights" "telemetry" {
   application_type    = "java"
   workspace_id        = azurerm_log_analytics_workspace.telemetry.id
 
+  # Included 90-day interactive default for workspace-based App Insights (App*
+  # tables), not a paid retention extension. Do not override App* onto Auxiliary/Basic.
+  retention_in_days = 90
+
   # D3: local auth is required by the managed agent. Exit when the Entra ingestion
   # trigger is met (separate from GA; either order).
   local_authentication_enabled = true
+}
+
+# Cost Management budget — resource-group scope (not subscription). Notifications
+# use Cost Management's free email channel; do not attach an Azure Monitor action group.
+resource "azurerm_consumption_budget_resource_group" "main" {
+  name              = "wealth-${var.environment}-rg-budget"
+  resource_group_id = azurerm_resource_group.main.id
+
+  amount     = 1100
+  time_grain = "Monthly"
+
+  # Azure requires first-of-month; 2026-08-01 is the month this budget was introduced.
+  time_period {
+    start_date = "2026-08-01T00:00:00Z"
+  }
+
+  notification {
+    enabled        = true
+    threshold      = 70
+    threshold_type = "Actual"
+    operator       = "GreaterThanOrEqualTo"
+    contact_emails = var.budget_notification_emails
+  }
+
+  notification {
+    enabled        = true
+    threshold      = 100
+    threshold_type = "Forecasted"
+    operator       = "GreaterThanOrEqualTo"
+    contact_emails = var.budget_notification_emails
+  }
 }
 
 # Azure Container Apps Environment — shared networking and observability plane for all four services.
