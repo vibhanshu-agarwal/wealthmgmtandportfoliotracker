@@ -81,16 +81,17 @@ The repository root contains five Gradle modules with independent `build.gradle`
 
 OpenTelemetry instrumentation is already wired across all four services (unchanged from prior
 status) but OTLP export stays gated off by default until the spec's Terraform lands. The spec
-closes both previously-named gaps and adds the operational scaffolding neither v2 nor v3
+addresses both previously-named gaps and defines the operational scaffolding neither v2 nor v3
 anticipated:
 
 - **Sink (planned):** traces would route through the ACA **managed OpenTelemetry agent** (chosen
   over the GA Application Insights Java agent so the existing Spring/Micrometer instrumentation
-  stays load-bearing) into a new, dedicated Application Insights workspace. That workspace and the
-  Application Insights resource itself are AzureRM-provisioned, same as everything else in this
-  Terraform root; a newly-added **AzAPI** Terraform provider is needed only to patch the ACA
-  managed environment's OpenTelemetry-agent configuration to point at it, since AzureRM does not
-  yet model that specific block.
+  stays load-bearing) into a workspace-based Application Insights resource — two distinct
+  resources, both AzureRM-provisioned same as everything else in this Terraform root: a new,
+  dedicated Log Analytics `Telemetry_Workspace`, and the Application Insights resource itself
+  backed by it. A newly-added **AzAPI** Terraform provider is needed only to patch the ACA managed
+  environment's OpenTelemetry-agent configuration to point at the resulting connection string,
+  since AzureRM does not yet model that specific block.
 - **Kafka producer→consumer trace-ID continuity** (the gap named in v2/v3): root-caused as a test
   fixture defect, not a framework gap — both existing tests hand-build an unobserved
   `KafkaTemplate` instead of using the auto-configured bean. The fix is planned (`tasks.md` 7.1–7.7)
@@ -105,10 +106,11 @@ anticipated:
   (query strings, tokens, portfolio values, exception content) before they leave the process,
   since this platform handles financial data.
 - Verified against the live subscription during design: ACR is ≈100% of current project spend
-  (₹234.06 of a ₹551.78 full-month forecast). This feature's own projected marginal cost of ₹0.00
-  at current traffic is, per the spec (Requirement 11.4), an **unverified projection** — no trace
-  has ever been exported from this system — to be confirmed or refuted by the representative run
-  (`tasks.md` 15.7) once implemented.
+  — ₹234.06 of a ₹234.07 month-to-date actual, against a ₹551.78 full-month forecast for the
+  project total. This feature's own projected marginal cost of ₹0.00 at current traffic is, per
+  the spec (Requirement 11.4), an **unverified projection** — no trace has ever been exported from
+  this system — to be confirmed or refuted by the representative run (`tasks.md` 15.7) once
+  implemented.
 
 ### Item B: User-Defined Portfolio Composition & Asset Picker
 
