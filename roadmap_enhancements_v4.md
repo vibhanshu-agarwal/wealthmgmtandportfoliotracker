@@ -12,6 +12,14 @@ prioritization matrix, and updates spec references to their canonical `.kiro/spe
 > 3.1, 3.2, 5, and 6 were updated. No backlog entries were added or removed — this is a staleness
 > correction, not a re-scoping.
 
+> **Revised 2026-08-14** — corrected in place again, same non-negotiable: no backlog entries added
+> or removed. The **Observability & App Insights** item (Section 2, Item A) moves from
+> `NOT STARTED` to `READY` now that a full Kiro spec exists at
+> `.kiro/specs/observability-app-insights/` (requirements → design → tasks, PR
+> [#91](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/91)). This is a
+> spec landing, not an implementation — `tasks.md` has not been executed and no infrastructure has
+> changed. Item A's status text and the Section 5 matrix were updated accordingly.
+
 Everything below is checked against the actual repository state as of 2026-08-13.
 
 ---
@@ -66,10 +74,34 @@ The repository root contains five Gradle modules with independent `build.gradle`
 
 ## 2. Refined Backlog Items Carried Forward (verified, unchanged from v3)
 
-### Item A: Observability & Application Insights Integration
+### Item A: Observability & Application Insights Integration — READY
 
-- **Status:** Partially done. OpenTelemetry instrumentation wired across all four services but OTLP export gated off by default. No OTLP collector deployed for the active Azure cloud yet.
-- **Remaining gaps:** (1) Kafka producer->consumer trace-ID continuity verification; (2) OTLP collector for Azure.
+**Status: READY** — spec complete at `.kiro/specs/observability-app-insights/`
+(requirements.md → design.md → tasks.md), not yet implemented.
+
+OpenTelemetry instrumentation is already wired across all four services (unchanged from prior
+status) but OTLP export stays gated off by default until the spec's Terraform lands. The spec
+closes both previously-named gaps and adds the operational scaffolding neither v2 nor v3
+anticipated:
+
+- **Sink:** the ACA **managed OpenTelemetry agent** (chosen over the GA Application Insights Java
+  agent so the existing Spring/Micrometer instrumentation stays load-bearing) routes traces to a
+  new, dedicated Application Insights workspace — provisioned via a newly-added **AzAPI** Terraform
+  provider, since AzureRM does not yet model this resource.
+- **Kafka producer→consumer trace-ID continuity** (the gap named in v2/v3): root-caused as a test
+  fixture defect, not a framework gap — both existing tests hand-build an unobserved
+  `KafkaTemplate` instead of using the auto-configured bean. Fixed as part of the spec, completing
+  Task 11.2 of `.kiro/specs/springboot-41-springai-2-migration/`.
+- **Cost control**, under the owner's non-negotiable **₹1100/month total** ceiling for
+  `wealth-azure-prod-rg`: both workspace daily ingestion caps at Azure's 0.023 GB/day floor, sized
+  so the ceiling holds even if the shared 5 GB/month Analytics allowance is exhausted elsewhere
+  (`Allowance_Independence`), plus a new Cost Management budget alert — a gap open since it was
+  first recommended on 2026-05-17.
+- **Redaction:** a new `common-observability` module sanitizes exported spans (query strings,
+  tokens, portfolio values, exception content) before they leave the process, since this platform
+  handles financial data.
+- Verified against the live subscription during design: ACR is ≈100% of current project spend
+  (~553 INR/month); this feature's own projected marginal cost is ₹0.00 at current traffic.
 
 ### Item B: User-Defined Portfolio Composition & Asset Picker
 
@@ -168,7 +200,7 @@ See Item C in Section 2 above.
 |---|---|---|---|---|---|---|---|
 | 1 | **Production Rate-Limiting** | v1 / ROADMAP.md | High | Low | Medium | **1** | **CLOSED** |
 | 2 | **New User Signup & Profile** | v1 | High | High | Medium-High | **2** | **CLOSED** |
-| 3 | **Observability & App Insights** | v2 Item #3 | Medium | Low | Medium | **3** | NOT STARTED |
+| 3 | **Observability & App Insights** | v2 Item #3 | Medium | Low | Medium | **3** | **READY** |
 | 4 | **User Settings (Personalization)** | v1 | Medium | Medium | Medium | **4** | NOT STARTED |
 | 5 | **Asset Picker (curated universe)** | v2 Item #5 | High | High | Low | **5** | NOT STARTED |
 | 6 | **Custom Asset & Portfolio Management** | v1 (Item C) | Medium | High | Low | **6** | NOT STARTED |
@@ -181,8 +213,8 @@ See Item C in Section 2 above.
 > **Implementation order:** Production Rate-Limiting and New User Signup & Profile are both done —
 > the latter's `authRateLimiter` bean and `AuthRateLimitFilter` did reuse the shared
 > `RedisRateLimiter` wiring and trusted-hop resolver the rate-limiting spec created, as planned.
-> Next by priority is **Observability & App Insights** (#3), whose two remaining gaps are named in
-> Section 2, Item A. **User Settings** (#4) is now unblocked by the persisted identity from #2 but
+> **Observability & App Insights** (#3) now has a complete spec (Section 2, Item A) and is next up
+> for implementation. **User Settings** (#4) is unblocked by the persisted identity from #2 but
 > still needs a spec.
 
 ---
