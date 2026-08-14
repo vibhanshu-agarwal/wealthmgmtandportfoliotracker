@@ -1,5 +1,6 @@
 package com.wealth.observability;
 
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -53,6 +54,15 @@ class AttributeDenySetTest {
 
     @ParameterizedTest
     @ValueSource(strings = {
+            "http.url.query",
+            "foo.access_token"
+    })
+    void deniesKeysThatEndWithConfiguredNames(String key) {
+        assertThat(AttributeDenySet.isDenied(key)).isTrue();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
             "traceparent",
             "trace.id",
             "span.id",
@@ -66,5 +76,15 @@ class AttributeDenySetTest {
     })
     void retainsSafeKeys(String key) {
         assertThat(AttributeDenySet.isDenied(key)).isFalse();
+    }
+
+    @Test
+    void denySetMatchingIsCaseInsensitiveUnlikePathKeys() {
+        assertThat(AttributeDenySet.isDenied("HTTP.REQUEST.HEADER.AUTHORIZATION")).isTrue();
+        assertThat(HttpRouteTemplater.isPathKey("http.route")).isTrue();
+        assertThat(HttpRouteTemplater.isPathKey("url.path")).isTrue();
+        assertThat(HttpRouteTemplater.isPathKey("http.target")).isTrue();
+        assertThat(HttpRouteTemplater.isPathKey("HTTP.ROUTE")).isFalse();
+        assertThat(HttpRouteTemplater.isPathKey("Http.Route")).isFalse();
     }
 }

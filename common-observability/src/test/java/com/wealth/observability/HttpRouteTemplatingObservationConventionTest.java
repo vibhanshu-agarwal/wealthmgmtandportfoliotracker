@@ -34,6 +34,35 @@ class HttpRouteTemplatingObservationConventionTest {
     }
 
     @Test
+    void mixedCasePathKeysAreNotTreatedAsPathKeys() {
+        Observation.Context context = new Observation.Context();
+        context.addLowCardinalityKeyValue(KeyValue.of("HTTP.ROUTE", CONCRETE_PORTFOLIO_PATH));
+        context.addHighCardinalityKeyValue(KeyValue.of("Http.Route", CONCRETE_PORTFOLIO_PATH));
+
+        assertThat(convention.supportsContext(context)).isFalse();
+        assertThat(convention.getLowCardinalityKeyValues(context).stream()).isEmpty();
+        assertThat(convention.getHighCardinalityKeyValues(context).stream()).isEmpty();
+        assertThat(value(context.getLowCardinalityKeyValues(), "HTTP.ROUTE"))
+                .isEqualTo(CONCRETE_PORTFOLIO_PATH);
+        assertThat(value(context.getHighCardinalityKeyValues(), "Http.Route"))
+                .isEqualTo(CONCRETE_PORTFOLIO_PATH);
+    }
+
+    @Test
+    void conventionReturnsOnlyTemplatedPathKeysNotOtherContextKeys() {
+        Observation.Context context = new Observation.Context();
+        context.addLowCardinalityKeyValue(KeyValue.of("http.route", CONCRETE_PORTFOLIO_PATH));
+        context.addLowCardinalityKeyValue(KeyValue.of("http.method", "GET"));
+
+        KeyValues low = convention.getLowCardinalityKeyValues(context);
+
+        assertThat(low.stream().map(KeyValue::getKey)).containsExactly("http.route");
+        assertThat(value(low, "http.route"))
+                .isEqualTo("/api/portfolio/{id}")
+                .isNotEqualTo(CONCRETE_PORTFOLIO_PATH);
+    }
+
+    @Test
     void numericPathSegmentsAreTemplated() {
         Observation.Context context = new Observation.Context();
         context.addLowCardinalityKeyValue(KeyValue.of("http.route", "/api/holdings/42/lots/7"));

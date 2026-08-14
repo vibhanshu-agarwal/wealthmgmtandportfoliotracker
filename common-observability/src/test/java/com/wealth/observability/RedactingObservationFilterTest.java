@@ -63,6 +63,60 @@ class RedactingObservationFilterTest {
     }
 
     @Test
+    void suffixDenySetKeysAreRemovedFromObservationContext() {
+        Observation.Context context = new Observation.Context();
+        context.addHighCardinalityKeyValue(KeyValue.of("http.url.query", "secret=1"));
+        context.addHighCardinalityKeyValue(KeyValue.of("foo.access_token", "tok"));
+        context.addLowCardinalityKeyValue(KeyValue.of("http.method", "GET"));
+
+        filter.map(context);
+
+        assertThat(allKeys(context))
+                .doesNotContain("http.url.query", "foo.access_token")
+                .contains("http.method");
+    }
+
+    @Test
+    void denyQueryStripAndTemplateApplyOnTheSameContext() {
+        Observation.Context context = new Observation.Context();
+        context.addHighCardinalityKeyValue(KeyValue.of("http.url.query", "secret=1"));
+        context.addHighCardinalityKeyValue(KeyValue.of("foo.access_token", "tok"));
+        context.addHighCardinalityKeyValue(
+                KeyValue.of("http.url", "https://example.com/api/portfolio?secret=token"));
+        context.addLowCardinalityKeyValue(KeyValue.of("http.route", CONCRETE_PORTFOLIO_PATH));
+        context.addLowCardinalityKeyValue(KeyValue.of("http.method", "GET"));
+
+        filter.map(context);
+
+        assertThat(allKeys(context))
+                .doesNotContain("http.url.query", "foo.access_token")
+                .contains("http.method", "http.route", "http.url");
+        assertThat(value(context, "http.url")).isEqualTo("https://example.com/api/portfolio");
+        assertThat(value(context, "http.route"))
+                .isEqualTo("/api/portfolio/{id}")
+                .isNotEqualTo(CONCRETE_PORTFOLIO_PATH);
+        assertThat(value(context, "http.method")).isEqualTo("GET");
+    }
+
+    @Test
+    void lowercasePathKeysAreTemplatedWhileMixedCaseAreNot() {
+        Observation.Context context = new Observation.Context();
+        context.addLowCardinalityKeyValue(KeyValue.of("http.route", CONCRETE_PORTFOLIO_PATH));
+        context.addHighCardinalityKeyValue(KeyValue.of("url.path", CONCRETE_PORTFOLIO_PATH));
+        context.addHighCardinalityKeyValue(KeyValue.of("http.target", CONCRETE_PORTFOLIO_PATH));
+        context.addLowCardinalityKeyValue(KeyValue.of("HTTP.ROUTE", CONCRETE_PORTFOLIO_PATH));
+        context.addHighCardinalityKeyValue(KeyValue.of("Http.Route", CONCRETE_PORTFOLIO_PATH));
+
+        filter.map(context);
+
+        assertThat(value(context, "http.route")).isEqualTo("/api/portfolio/{id}");
+        assertThat(value(context, "url.path")).isEqualTo("/api/portfolio/{id}");
+        assertThat(value(context, "http.target")).isEqualTo("/api/portfolio/{id}");
+        assertThat(value(context, "HTTP.ROUTE")).isEqualTo(CONCRETE_PORTFOLIO_PATH);
+        assertThat(value(context, "Http.Route")).isEqualTo(CONCRETE_PORTFOLIO_PATH);
+    }
+
+    @Test
     void queryStringsAreStrippedFromRetainedUrlShapedValues() {
         Observation.Context context = new Observation.Context();
         context.addHighCardinalityKeyValue(
