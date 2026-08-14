@@ -10,7 +10,7 @@ import org.springframework.stereotype.Component;
 
 /**
  * Test-only consumer that captures the active Micrometer span at consume time (Property 10b listener
- * observation gate, and Property 2 consumer-half continuity).
+ * observation gate, Property 2 consumer-half continuity, and Property 3 new-root fallback).
  *
  * <p>Asserting {@link Tracer#currentSpan()} verifies {@code spring.kafka.listener.observation-enabled}
  * fires when a {@code traceparent} control header is present. Trace and span IDs are captured so the

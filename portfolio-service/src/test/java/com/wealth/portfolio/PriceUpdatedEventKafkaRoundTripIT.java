@@ -101,6 +101,7 @@ class PriceUpdatedEventKafkaRoundTripIT {
     private static final String TYPE_ID_HEADER = "__TypeId__";
     private static final Pattern TRACEPARENT =
             Pattern.compile("^00-([0-9a-f]{32})-([0-9a-f]{16})-([0-9a-f]{2})$");
+    private static final Pattern HEX_32 = Pattern.compile("[0-9a-f]{32}");
 
     private static final Instant OBSERVED_AT = Instant.parse("2026-06-08T10:15:30Z");
     private static final Instant PREVIOUS_REFERENCE_AT = Instant.parse("2026-06-07T10:15:30Z");
@@ -134,6 +135,7 @@ class PriceUpdatedEventKafkaRoundTripIT {
     @Autowired KafkaProperties kafkaProperties;
 
     private KafkaTemplate<String, PriceUpdatedEvent> marketDataLikeProducer;
+    private KafkaTemplate<String, PriceUpdatedEvent> nonObservedProducer;
     private KafkaConsumer<String, byte[]> wireSniffer;
     private KafkaConsumer<String, byte[]> dltConsumer;
 
@@ -154,6 +156,16 @@ class PriceUpdatedEventKafkaRoundTripIT {
         marketDataLikeProducer = new KafkaTemplate<>(producerFactory);
         marketDataLikeProducer.setObservationEnabled(true);
         marketDataLikeProducer.setObservationRegistry(observationRegistry);
+
+        Map<String, Object> nonObservedProps = new HashMap<>(producerProps);
+        nonObservedProps.remove(ProducerConfig.INTERCEPTOR_CLASSES_CONFIG);
+        ProducerFactory<String, PriceUpdatedEvent> nonObservedFactory =
+                new DefaultKafkaProducerFactory<>(
+                        nonObservedProps,
+                        new StringSerializer(),
+                        new JacksonJsonSerializer<>());
+        nonObservedProducer = new KafkaTemplate<>(nonObservedFactory);
+        nonObservedProducer.setObservationEnabled(false);
 
         wireSniffer =
                 new KafkaConsumer<>(
@@ -180,6 +192,9 @@ class PriceUpdatedEventKafkaRoundTripIT {
     void tearDown() {
         if (marketDataLikeProducer != null) {
             marketDataLikeProducer.destroy();
+        }
+        if (nonObservedProducer != null) {
+            nonObservedProducer.destroy();
         }
         wireSniffer.close();
         dltConsumer.close();
@@ -347,6 +362,120 @@ class PriceUpdatedEventKafkaRoundTripIT {
                                     .isNotNull()
                                     .isNotEqualTo(producerSpanId);
                         });
+    }
+
+    /**
+     * Property 3: a missing {@code traceparent} starts a new valid W3C trace and the
+     * well-formed event is still processed (not failed / DLT).
+     */
+    @Test
+    void absentTraceparent_startsNewValidTraceAndProcessesMessage() throws Exception {
+        String ticker = "TRC_" + UUID.randomUUID().toString().substring(0, 6).toUpperCase();
+        PriceUpdatedEvent event = new PriceUpdatedEvent(ticker, new BigDecimal("101.01"));
+        sendWithoutObservation(new ProducerRecord<>(TOPIC, ticker, event));
+
+        List<ConsumerRecord<String, byte[]>> seen = new ArrayList<>();
+        Awaitility.await()
+                .atMost(AWAIT_TIMEOUT)
+                .untilAsserted(
+                        () -> {
+                            seen.addAll(pollWire(TOPIC));
+                            ConsumerRecord<String, byte[]> record =
+                                    seen.stream()
+                                            .filter(r -> ticker.equals(r.key()))
+                                            .findFirst()
+                                            .orElse(null);
+                            assertThat(record).isNotNull();
+                            assertThat(record.headers().lastHeader("traceparent"))
+                                    .as("absent-traceparent send must not inject a valid header")
+                                    .isNull();
+
+                            Integer count =
+                                    jdbcTemplate.queryForObject(
+                                            "SELECT COUNT(*) FROM market_prices WHERE ticker = ?",
+                                            Integer.class,
+                                            ticker);
+                            assertThat(count).as("message must still be processed").isEqualTo(1);
+
+                            assertThat(KafkaTracePropagationProbe.CONSUMER_TRACE_ID.get())
+                                    .as("consumer must start a new valid W3C trace")
+                                    .matches("[0-9a-f]{32}");
+                            assertThat(KafkaTracePropagationProbe.CONSUMER_SPAN_ID.get())
+                                    .as("consumer span id must be valid W3C")
+                                    .matches("[0-9a-f]{16}");
+                        });
+
+        assertThat(pollDlt().stream().map(ConsumerRecord::key))
+                .as("well-formed event must not land on DLT")
+                .doesNotContain(ticker);
+    }
+
+    /**
+     * Property 3: a malformed {@code traceparent} starts a new valid W3C trace and the
+     * well-formed event is still processed (not failed / DLT).
+     */
+    @Test
+    void malformedTraceparent_startsNewValidTraceAndProcessesMessage() throws Exception {
+        String ticker = "TRC_" + UUID.randomUUID().toString().substring(0, 6).toUpperCase();
+        String garbage = "not-a-traceparent";
+        PriceUpdatedEvent event = new PriceUpdatedEvent(ticker, new BigDecimal("101.01"));
+        ProducerRecord<String, PriceUpdatedEvent> outbound =
+                new ProducerRecord<>(TOPIC, ticker, event);
+        outbound.headers().add("traceparent", garbage.getBytes(StandardCharsets.UTF_8));
+        sendWithoutObservation(outbound);
+
+        List<ConsumerRecord<String, byte[]>> seen = new ArrayList<>();
+        Awaitility.await()
+                .atMost(AWAIT_TIMEOUT)
+                .untilAsserted(
+                        () -> {
+                            seen.addAll(pollWire(TOPIC));
+                            ConsumerRecord<String, byte[]> record =
+                                    seen.stream()
+                                            .filter(r -> ticker.equals(r.key()))
+                                            .findFirst()
+                                            .orElse(null);
+                            assertThat(record).isNotNull();
+                            Header header = record.headers().lastHeader("traceparent");
+                            assertThat(header).isNotNull();
+                            assertThat(new String(header.value(), StandardCharsets.UTF_8))
+                                    .as("malformed header must not be overwritten by observation")
+                                    .isEqualTo(garbage);
+
+                            Integer count =
+                                    jdbcTemplate.queryForObject(
+                                            "SELECT COUNT(*) FROM market_prices WHERE ticker = ?",
+                                            Integer.class,
+                                            ticker);
+                            assertThat(count).as("message must still be processed").isEqualTo(1);
+
+                            String consumerTraceId = KafkaTracePropagationProbe.CONSUMER_TRACE_ID.get();
+                            assertThat(consumerTraceId)
+                                    .as("consumer must start a new valid W3C trace")
+                                    .matches("[0-9a-f]{32}");
+                            assertThat(KafkaTracePropagationProbe.CONSUMER_SPAN_ID.get())
+                                    .as("consumer span id must be valid W3C")
+                                    .matches("[0-9a-f]{16}");
+                            Matcher fragment = HEX_32.matcher(garbage);
+                            while (fragment.find()) {
+                                assertThat(consumerTraceId)
+                                        .as("new trace must not reuse a 32-hex fragment of the garbage header")
+                                        .isNotEqualTo(fragment.group());
+                            }
+                        });
+
+        assertThat(pollDlt().stream().map(ConsumerRecord::key))
+                .as("well-formed event must not land on DLT")
+                .doesNotContain(ticker);
+    }
+
+    /**
+     * Send on a path that does not run Kafka observation, so a missing/malformed
+     * {@code traceparent} is not replaced by a valid injected header.
+     */
+    private void sendWithoutObservation(ProducerRecord<String, PriceUpdatedEvent> record)
+            throws Exception {
+        nonObservedProducer.send(record).get();
     }
 
     private void publishViaMarketDataLikeProducer(String key, PriceUpdatedEvent event) throws Exception {

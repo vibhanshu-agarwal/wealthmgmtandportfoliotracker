@@ -14,17 +14,22 @@ import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Pattern;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.header.Header;
 import org.apache.kafka.common.serialization.ByteArrayDeserializer;
 import org.apache.kafka.common.serialization.StringDeserializer;
+import org.apache.kafka.common.serialization.StringSerializer;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -34,7 +39,10 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.kafka.core.DefaultKafkaProducerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.kafka.core.ProducerFactory;
+import org.springframework.kafka.support.serializer.JacksonJsonSerializer;
 import org.springframework.kafka.test.EmbeddedKafkaBroker;
 import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -50,6 +58,10 @@ import org.testcontainers.junit.jupiter.Testcontainers;
  *
  * <p>Property 2 (consumer half): observation-injected {@code traceparent} continues the same
  * trace ID under a distinct consumer span. Does not hand-stamp the header.
+ *
+ * <p>Property 3: a malformed or absent {@code traceparent} starts a new valid trace and the
+ * message is still processed. Those cases send without Kafka observation so a valid header is
+ * not injected.
  */
 @Tag("integration")
 @Testcontainers
@@ -81,6 +93,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 class KafkaTraceContextPropagationIT {
 
     private static final int REDIS_PORT = 6379;
+    private static final Pattern HEX_32 = Pattern.compile("[0-9a-f]{32}");
 
     @Container
     @SuppressWarnings("resource")
@@ -104,15 +117,34 @@ class KafkaTraceContextPropagationIT {
 
     @Autowired private EmbeddedKafkaBroker embeddedKafkaBroker;
 
+    private KafkaTemplate<String, PriceUpdatedEvent> nonObservedProducer;
+
     @BeforeEach
     void setUp() {
         InsightKafkaTracePropagationProbe.reset();
         observedProducer.setObservationEnabled(true);
         observedProducer.setObservationRegistry(observationRegistry);
 
+        Map<String, Object> nonObservedProps = new HashMap<>();
+        nonObservedProps.put(
+                ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, embeddedKafkaBroker.getBrokersAsString());
+        nonObservedProps.put(JacksonJsonSerializer.ADD_TYPE_INFO_HEADERS, true);
+        ProducerFactory<String, PriceUpdatedEvent> nonObservedFactory =
+                new DefaultKafkaProducerFactory<>(
+                        nonObservedProps, new StringSerializer(), new JacksonJsonSerializer<>());
+        nonObservedProducer = new KafkaTemplate<>(nonObservedFactory);
+        nonObservedProducer.setObservationEnabled(false);
+
         var keys = redisTemplate.keys("market:*");
         if (keys != null && !keys.isEmpty()) {
             redisTemplate.delete(keys);
+        }
+    }
+
+    @AfterEach
+    void tearDown() {
+        if (nonObservedProducer != null) {
+            nonObservedProducer.destroy();
         }
     }
 
@@ -186,6 +218,115 @@ class KafkaTraceContextPropagationIT {
                                         .isNotEqualTo(producerSpanId);
                             });
         }
+    }
+
+    /**
+     * Property 3: a missing {@code traceparent} starts a new valid W3C trace and the
+     * well-formed event is still processed.
+     */
+    @Test
+    void absentTraceparent_startsNewValidTraceAndProcessesMessage() throws Exception {
+        sendWithoutObservation(
+                new ProducerRecord<>(
+                        "market-prices",
+                        "TRACE",
+                        new PriceUpdatedEvent("TRACE", new BigDecimal("43.00"))));
+
+        try (KafkaConsumer<String, byte[]> sniffer = wireSniffer()) {
+            embeddedKafkaBroker.consumeFromAnEmbeddedTopic(sniffer, "market-prices");
+            List<ConsumerRecord<String, byte[]>> seen = new ArrayList<>();
+            await().atMost(30, TimeUnit.SECONDS)
+                    .untilAsserted(
+                            () -> {
+                                sniffer.poll(Duration.ofMillis(500)).forEach(seen::add);
+                                ConsumerRecord<String, byte[]> record =
+                                        seen.stream()
+                                                .filter(r -> "TRACE".equals(r.key()))
+                                                .reduce((a, b) -> b)
+                                                .orElse(null);
+                                assertThat(record).isNotNull();
+                                assertThat(record.headers().lastHeader("traceparent"))
+                                        .as("absent-traceparent send must not inject a valid header")
+                                        .isNull();
+
+                                assertThat(redisTemplate.opsForValue().get("market:latest:TRACE"))
+                                        .as("message must still be processed")
+                                        .isEqualTo("43.00");
+
+                                assertThat(InsightKafkaTracePropagationProbe.CONSUMER_TRACE_ID.get())
+                                        .as("consumer must start a new valid W3C trace")
+                                        .matches("[0-9a-f]{32}");
+                                assertThat(InsightKafkaTracePropagationProbe.CONSUMER_SPAN_ID.get())
+                                        .as("consumer span id must be valid W3C")
+                                        .matches("[0-9a-f]{16}");
+                            });
+        }
+    }
+
+    /**
+     * Property 3: a malformed {@code traceparent} starts a new valid W3C trace and the
+     * well-formed event is still processed.
+     */
+    @Test
+    void malformedTraceparent_startsNewValidTraceAndProcessesMessage() throws Exception {
+        String garbage = "not-a-traceparent";
+        ProducerRecord<String, PriceUpdatedEvent> outbound =
+                new ProducerRecord<>(
+                        "market-prices",
+                        "TRACE",
+                        new PriceUpdatedEvent("TRACE", new BigDecimal("44.00")));
+        outbound.headers().add("traceparent", garbage.getBytes(StandardCharsets.UTF_8));
+        sendWithoutObservation(outbound);
+
+        try (KafkaConsumer<String, byte[]> sniffer = wireSniffer()) {
+            embeddedKafkaBroker.consumeFromAnEmbeddedTopic(sniffer, "market-prices");
+            List<ConsumerRecord<String, byte[]>> seen = new ArrayList<>();
+            await().atMost(30, TimeUnit.SECONDS)
+                    .untilAsserted(
+                            () -> {
+                                sniffer.poll(Duration.ofMillis(500)).forEach(seen::add);
+                                ConsumerRecord<String, byte[]> record =
+                                        seen.stream()
+                                                .filter(r -> "TRACE".equals(r.key()))
+                                                .reduce((a, b) -> b)
+                                                .orElse(null);
+                                assertThat(record).isNotNull();
+                                Header header = record.headers().lastHeader("traceparent");
+                                assertThat(header).isNotNull();
+                                assertThat(new String(header.value(), StandardCharsets.UTF_8))
+                                        .as("malformed header must not be overwritten by observation")
+                                        .isEqualTo(garbage);
+
+                                assertThat(redisTemplate.opsForValue().get("market:latest:TRACE"))
+                                        .as("message must still be processed")
+                                        .isEqualTo("44.00");
+
+                                String consumerTraceId =
+                                        InsightKafkaTracePropagationProbe.CONSUMER_TRACE_ID.get();
+                                assertThat(consumerTraceId)
+                                        .as("consumer must start a new valid W3C trace")
+                                        .matches("[0-9a-f]{32}");
+                                assertThat(InsightKafkaTracePropagationProbe.CONSUMER_SPAN_ID.get())
+                                        .as("consumer span id must be valid W3C")
+                                        .matches("[0-9a-f]{16}");
+                                var fragment = HEX_32.matcher(garbage);
+                                while (fragment.find()) {
+                                    assertThat(consumerTraceId)
+                                            .as(
+                                                    "new trace must not reuse a 32-hex fragment of the garbage header")
+                                            .isNotEqualTo(fragment.group());
+                                }
+                            });
+        }
+    }
+
+    /**
+     * Send on a path that does not run Kafka observation, so a missing/malformed
+     * {@code traceparent} is not replaced by a valid injected header.
+     */
+    private void sendWithoutObservation(ProducerRecord<String, PriceUpdatedEvent> record)
+            throws Exception {
+        nonObservedProducer.send(record).get();
     }
 
     private KafkaConsumer<String, byte[]> wireSniffer() {
