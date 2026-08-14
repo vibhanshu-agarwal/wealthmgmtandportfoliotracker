@@ -11,5 +11,6 @@ dependencyManagement {
 dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-opentelemetry'
     // Library modules do not apply the Boot plugin, which normally adds this for Gradle 9.
+    testImplementation 'io.opentelemetry:opentelemetry-sdk-testing'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
