@@ -110,6 +110,28 @@ resource "azurerm_container_app_environment" "main" {
   log_analytics_workspace_id = azurerm_log_analytics_workspace.main.id
 }
 
+# AzureRM does not model this managed-agent block today, so there is no drift-fight
+# with azurerm_container_app_environment / azurerm_application_insights. If a future
+# AzureRM version adds openTelemetryConfiguration, migrate this AzAPI resource
+# rather than running both.
+resource "azapi_update_resource" "aca_otel_agent" {
+  type        = "Microsoft.App/managedEnvironments@2025-10-02-preview"
+  resource_id = azurerm_container_app_environment.main.id
+
+  body = {
+    properties = {
+      appInsightsConfiguration = {
+        connectionString = azurerm_application_insights.telemetry.connection_string
+      }
+      openTelemetryConfiguration = {
+        tracesConfiguration = {
+          destinations = ["appInsights"]
+        }
+      }
+    }
+  }
+}
+
 # Static Web App — hosts the Next.js static export (frontend).
 # Location is hardcoded to "centralus" because the Free tier is only available in
 # a limited set of regions (centralus, eastus2, westus2, westeurope, eastasia, eastasiastagehk).

@@ -17,8 +17,9 @@ provider "azurerm" {
   resource_provider_registrations = "none"
 }
 
-# AzAPI — same OIDC/Workload Identity as azurerm. Registers the provider for a
-# later managed-agent patch; this slice adds no AzAPI resources.
+# AzAPI — same OIDC/Workload Identity as azurerm. Used by
+# azapi_update_resource.aca_otel_agent to patch the ACA environment's managed
+# OpenTelemetry agent (AzureRM does not model that block).
 provider "azapi" {
   use_oidc        = true
   client_id       = var.azure_client_id
