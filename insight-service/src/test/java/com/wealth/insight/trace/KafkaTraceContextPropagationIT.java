@@ -10,25 +10,17 @@ import io.micrometer.tracing.Span;
 import io.micrometer.tracing.Tracer;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.kafka.autoconfigure.KafkaProperties;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.kafka.core.DefaultKafkaProducerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
-import org.springframework.kafka.core.ProducerFactory;
-import org.springframework.kafka.support.serializer.JacksonJsonSerializer;
-import org.springframework.kafka.test.EmbeddedKafkaBroker;
 import org.springframework.kafka.test.context.EmbeddedKafka;
-import org.springframework.kafka.test.utils.KafkaTestUtils;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.TestPropertySource;
@@ -52,7 +44,10 @@ import org.testcontainers.junit.jupiter.Testcontainers;
             "spring.ai.openai.base-url=https://placeholder.openai.azure.com/",
             "spring.ai.openai.api-key=placeholder-key",
             "spring.kafka.consumer.auto-offset-reset=earliest",
-            "spring.kafka.template.observation-enabled=true"
+            "spring.kafka.template.observation-enabled=true",
+            "spring.kafka.producer.key-serializer=org.apache.kafka.common.serialization.StringSerializer",
+            "spring.kafka.producer.value-serializer=org.springframework.kafka.support.serializer.JacksonJsonSerializer",
+            "spring.kafka.producer.properties.spring.json.add.type.headers=true"
         })
 @EmbeddedKafka(partitions = 1, topics = "market-prices")
 @Import(InsightKafkaTracePropagationProbe.class)
@@ -82,27 +77,17 @@ class KafkaTraceContextPropagationIT {
 
     @Autowired private StringRedisTemplate redisTemplate;
 
-    @Autowired private EmbeddedKafkaBroker embeddedKafkaBroker;
-
     @Autowired private Tracer tracer;
 
     @Autowired private ObservationRegistry observationRegistry;
 
-    @Autowired private KafkaProperties kafkaProperties;
-
-    private KafkaTemplate<String, PriceUpdatedEvent> observedProducer;
+    @Autowired private KafkaTemplate<String, PriceUpdatedEvent> observedProducer;
 
     @BeforeEach
     void setUp() {
         InsightKafkaTracePropagationProbe.reset();
-        Map<String, Object> producerProps = new HashMap<>(kafkaProperties.buildProducerProperties());
-        producerProps.putAll(KafkaTestUtils.producerProps(embeddedKafkaBroker));
-        ProducerFactory<String, PriceUpdatedEvent> producerFactory =
-                new DefaultKafkaProducerFactory<>(
-                        producerProps,
-                        new org.apache.kafka.common.serialization.StringSerializer(),
-                        new JacksonJsonSerializer<>());
-        observedProducer = new KafkaTemplate<>(producerFactory);
+        observedProducer.setObservationEnabled(true);
+        observedProducer.setObservationRegistry(observationRegistry);
 
         var keys = redisTemplate.keys("market:*");
         if (keys != null && !keys.isEmpty()) {

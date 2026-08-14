@@ -140,6 +140,8 @@ class PriceUpdatedEventKafkaRoundTripIT {
                         new JacksonJsonSerializer<>());
 
         marketDataLikeProducer = new KafkaTemplate<>(producerFactory);
+        marketDataLikeProducer.setObservationEnabled(true);
+        marketDataLikeProducer.setObservationRegistry(observationRegistry);
 
         wireSniffer =
                 new KafkaConsumer<>(
