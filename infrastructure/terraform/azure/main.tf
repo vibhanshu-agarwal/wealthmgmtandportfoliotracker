@@ -3,7 +3,7 @@
 # Wealth Management & Portfolio Tracker
 #
 # Resource ordering (Terraform dependency resolution):
-#   1. Core resources (resource group, ACR, log analytics, ACA environment, SWA)
+#   1. Core resources (resource group, ACR, log analytics, telemetry workspace, App Insights, ACA environment, SWA)
 #   2. Azure OpenAI account + deployment
 #   3. Four Container App module blocks
 #   4. Role assignment: insight-service → Azure OpenAI (references module output)
@@ -38,6 +38,32 @@ resource "azurerm_log_analytics_workspace" "main" {
   location            = azurerm_resource_group.main.location
   sku                 = "PerGB2018"
   retention_in_days   = 30
+  daily_quota_gb      = 0.023
+}
+
+# Telemetry Log Analytics workspace — dedicated App Insights sink, distinct from
+# wealth-${var.environment}-la so a telemetry ceiling cannot suppress ACA diagnostics.
+resource "azurerm_log_analytics_workspace" "telemetry" {
+  name                = "wealth-${var.environment}-telemetry-la"
+  resource_group_name = azurerm_resource_group.main.name
+  location            = azurerm_resource_group.main.location
+  sku                 = "PerGB2018"
+  retention_in_days   = 30
+  daily_quota_gb      = 0.023
+}
+
+# Application Insights — workspace-based Java component. The connection string
+# lives only in Terraform state (encrypted remote backend); do not output it.
+resource "azurerm_application_insights" "telemetry" {
+  name                = "wealth-${var.environment}-ai"
+  resource_group_name = azurerm_resource_group.main.name
+  location            = azurerm_resource_group.main.location
+  application_type    = "java"
+  workspace_id        = azurerm_log_analytics_workspace.telemetry.id
+
+  # D3: local auth is required by the managed agent. Exit when the Entra ingestion
+  # trigger is met (separate from GA; either order).
+  local_authentication_enabled = true
 }
 
 # Azure Container Apps Environment — shared networking and observability plane for all four services.
