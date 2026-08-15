@@ -233,14 +233,18 @@ ContainerAppConsoleLogs_CL
 | join kind=inner (traces) on $left.traceId == $right.OperationId
 ```
 
-The extraction regex assumes the task-4.5 console prefix
-`[service,traceId,spanId]`. Refine it against real log lines once traces are
-flowing (task 15.7); exact whitespace/format cannot be fully verified before
-then. Name filters are likewise refined in 15.7.
+The extraction regex matches the production console prefix
+`[service,traceId,spanId]` with no spaces inside the brackets (confirmed
+2026-08-15 against live `ContainerAppConsoleLogs_CL`, including Job lines
+such as `[market-data-refresh-job,<32-hex>,<16-hex>]`). Startup lines with
+an empty trace id (`[service,,]`) correctly yield no extract and are
+dropped by `isnotempty`.
 
 **Verify against at least one Producer_Job (dependency-only) trace**, not only
-a request-bearing HTTP trace. If the Job's log lines do not join, the union is
-wrong or missing.
+a request-bearing HTTP trace. The Job's Kafka produce is AppDependencies
+`Name == "market-prices send"` on role `wealth-prod-aca-env.market-data-refresh-job`
+(there is no AppRequests row for the Job). If those log lines do not join
+on `OperationId`, the union is wrong or missing.
 
 ---
 
@@ -490,40 +494,32 @@ the replica is up.
 ### Step 3 — Query (Telemetry_Workspace / App Insights)
 
 Run on **`wealth-prod-telemetry-la`** (or App Insights `wealth-prod-ai`, same
-`App*` tables). Name filters are refined against real span names in task 15.7.
+`App*` tables). Span names below are from the 2026-08-15 representative run.
+`AppRoleName` is `wealth-prod-aca-env.<service>`; use `has` for the service
+token.
 
 ```kql
 AppDependencies
 | where TimeGenerated > ago(15m)
-| project OperationId, ProducerTime = TimeGenerated
+| where Name == "market-prices send"
+| where AppRoleName has "market-data-refresh-job"
+| project OperationId, ProducerTime = TimeGenerated, ProducerRole = AppRoleName
 | join kind=inner (
     AppRequests
     | where TimeGenerated > ago(15m)
+    | where Name == "market-prices process"
     | project OperationId, ConsumerService = AppRoleName, ConsumerTime = TimeGenerated
   ) on OperationId
 ```
 
-**PASS:** at least one joined row **attributable to the Producer_Job Kafka
-produce**, sharing `OperationId` with a consumer request, inside the 15-minute
-window. "At least one joined row" is **not** enough.
+**PASS:** at least one joined row from that query inside the 15-minute window,
+and **both** `portfolio-service` and `insight-service` appear as
+`ConsumerService` on those Kafka-attributable rows.
 
-The wake HTTP goes through `api-gateway` (`/api/portfolio/**`,
-`/api/insights/**`). That emits an AppDependencies HTTP client span joined to
-the backend AppRequests on the same `OperationId`. The query has no `Name`
-filter (correct until 15.7), so those **health-path / gateway-proxy** rows
-appear in the join even if the Job never produced a Kafka trace. **Ignore
-them.** They do not prove a Kafka produce.
-
-To attribute a row to the Job, inspect the AppDependencies side of the joined
-`OperationId` (role, dependency type/name/target — the query projects only
-`OperationId` and times until 15.7). A qualifying row is a produce from
-`market-data-refresh-job` (Kafka / messaging), not an HTTP client call from
-`api-gateway` to a health or API path.
-
-When `AppRoleName` is identifiable on the request side, confirm both
-`portfolio-service` and `insight-service` appear **on Kafka-attributable
-rows**, not only on wake rows. Do not invent extra `Name` predicates until
-task 15.7.
+The `Name` predicates exclude the wake HTTP. Gateway proxy of
+`/api/portfolio/health` and `/api/insights/health` shows up as AppRequests
+`http get /api/portfolio/health` / `http get /api/insights/health` (and
+gateway AppDependencies `GET`) — those must not be treated as a Kafka produce.
 
 **Not FAIL yet:** an empty join **before** `T0+15m`. Wait and re-query.
 
