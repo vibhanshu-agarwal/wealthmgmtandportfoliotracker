@@ -1,5 +1,43 @@
 # Design Document
 
+> **Revision 4 — 2026-08-16.** Incorporates the third design review (checkpoint entry [25]). The
+> single-CAS mechanism cleared on source inspection. Four blocking groups remained, all accepted
+> after verification.
+>
+> 1. **The CAS incremented the version but did not guarantee `updated_at` advanced.** Binding a plain
+>    application timestamp lets two transitions inside one tick write the same value after PostgreSQL
+>    truncation, and lets a clock regression write an earlier one — while the version CAS still
+>    succeeds. The aggregate would transition without its durable idle signal moving, which is what
+>    B2's reset eligibility reads. Now `updated_at = GREATEST(?, updated_at + INTERVAL '1
+>    microsecond')`, with the transition test supplying equal and regressed clocks.
+> 2. **Tuple preparation ran outside the permitted ordering.** Revision 3 drew the adapters *before*
+>    the operation, so the composition preparer would read current holdings — and could capture a new
+>    cost basis — before the version precondition rejected a stale request. Preparation is now a step
+>    **inside** one transactional orchestrator, reading only the locked snapshot. The validation
+>    order was also wrong: it put catalog and lifecycle before quantity and duplicates, inverting the
+>    frozen `409` → semantic `400` → `422` precedence, and would have deduplicated before reporting
+>    `duplicate_ticker`.
+> 3. **Rollback could still restore a versionless destructive writer.** Artifact 0 retired the two
+>    *public* legacy writers, but Artifact 2a deliberately keeps the old seed `POST`, which ignores
+>    the version and reaches delete-and-recreate. A documented R-C → R-B2 rollback would have
+>    restored it — daily, production-reachable, and outside Portfolio_Version. A new **R-B3** ships
+>    the version-required seed before the public endpoints, the floor rises to include it, and the
+>    rollback property now quantifies over every holdings writer rather than enumerating two.
+> 4. **The seed bridge had one safe order, not two, and three call sites, not one.** Before the
+>    version-bearing read ships there is no version to send, so the steps are strictly sequential.
+>    Beyond the workflow shell step, `global-setup.ts` and `api-live-smoke.spec.ts` also POST to the
+>    seed endpoint — an Azure synthetic run reaches all three — and `global-setup.ts` has no
+>    login-and-read step today, in contexts that do not all inject the E2E credentials.
+>
+> Also: the stale-summary sweep was run as a grep over superseded terms **before** committing this
+> time, which found the five normative restatements the review listed plus two more —
+> `CompositionService.replaceHoldings` in the Architecture diagram, Component 2, Component 3, D8 and
+> a provisioning table; `force-increment` in D1's heading, D2 step 5 and Component 1; and "Three
+> artifacts" against a table listing five. P11h now shares one `invalid_version` code across four
+> independent test cases rather than implying four codes. And the Golden-State preparer takes the
+> cost-basis anchor as an **input**, so B1's replacement of the shared seed machinery cannot silently
+> undo Spec A's move of the demo path onto its fixed `app.demo.cost-basis-anchor`.
+>
 > **Revision 3 — 2026-08-16.** Incorporates the second design review (checkpoint entry [23]), which
 > did not clear the gate. Six blocking groups, all accepted after independent verification —
 > including both runtime versions, re-resolved from the Gradle cache rather than taken on trust.
@@ -130,7 +168,7 @@ gateway-first cutover cheap enough to prefer.
 
 ### Key design decisions
 
-#### D1 — Two-phase optimistic path: explicit version comparison, force-increment only when state changes
+#### D1 — One explicit parent CAS, with a monotonic `updated_at`
 
 `Portfolio` gains `@Version private long version`. No composition or reset code path relies on JPA
 noticing a child change.
@@ -166,12 +204,27 @@ There is **one** parent CAS, expressed once:
 5. **Different →** issue one explicit parent update:
 
 ```sql
-UPDATE portfolios SET version = version + 1, updated_at = ?
+UPDATE portfolios
+   SET version    = version + 1,
+       updated_at = GREATEST(?, updated_at + INTERVAL '1 microsecond')
  WHERE id = ? AND version = ?
 ```
 
    It must affect **exactly one row**; zero rows is the concurrency conflict. The managed entity is
-   then refreshed so its in-memory version matches the database. Only after that does child DML run.
+   then refreshed so its in-memory version *and* the timestamp the database actually chose match the
+   row. Only after that does child DML run.
+
+   **The `GREATEST` expression is required, not defensive.** Binding a plain application timestamp
+   lets two failures through: PostgreSQL truncates to the column's precision, so two transitions
+   inside one tick write the *same* value; and a clock regression writes an *earlier* one. In both
+   cases the version CAS still succeeds, so the aggregate transitions while `updated_at` does not
+   advance — and `updated_at` is the durable signal B2's idle guard reads to decide reset
+   eligibility. A stalled timestamp there means a reset is judged eligible against state that has
+   been moving.
+
+   The transition test supplies an equal timestamp and then a **regressed** one, and asserts
+   `new.updated_at > old.updated_at` in both cases. The no-op test continues to require byte
+   identity.
 
 `OPTIMISTIC_FORCE_INCREMENT` is **not used anywhere in this design.** Neither is a deliberately
 dirtied-parent flush — either could serve as the single CAS in principle, but stacking them is the
@@ -191,19 +244,32 @@ which is why the exactly-once property is asserted numerically rather than as "c
 The ordering the requirements mandate — precondition, then no-op detection, then destructive work —
 is implemented as a single sequence in the application operation:
 
-1. Envelope decoded and validated; a failure here never reaches the operation (see D7).
-2. Load parent under an ordinary optimistic lock; compare `version` to `expectedVersion` explicitly.
-   Mismatch throws.
-3. Validate the complete desired set: catalog resolution, lifecycle permission, quantity domain,
-   uniqueness. Any failure throws before a row is touched.
-4. Compare desired state to stored state. Equal → return normally, no increment.
-5. Different → force-increment parent, set `updatedAt`, flush parent CAS, then child DML.
+1. **Envelope** decoded and validated at the framework boundary; a failure here never reaches the
+   operation (see D7).
+2. **Version.** Load the parent under an ordinary optimistic lock and compare `version` to
+   `expectedVersion` explicitly — or, for an Absent_Aggregate, enforce expected `0`. Mismatch throws.
+3. **Semantic `400`** over the *raw intent*: quantity domain, then duplicate tickers.
+4. **Catalog and lifecycle `422`**, aggregated over every offender.
+5. **Materialise** the complete `DesiredHoldingState` against the same locked snapshot.
+6. **Compare** to stored state. Equal → return normally, no update at all.
+7. **Different →** single parent CAS, refresh, then child DML.
+
+Steps 3 and 4 are in this order because the frozen precedence is `409` → semantic `400` →
+catalog/lifecycle `422`. Revision 3 listed catalog resolution and lifecycle *before* quantity and
+duplicates, which would have returned a `422` for a request whose real defect was a negative
+quantity.
+
+Duplicate rejection precedes deduplication for the same reason: the aggregate offender list is
+"request order, deduplicated", so deduplicating first would erase the very repetition that
+`duplicate_ticker` reports.
+
+Step 5 sits after steps 2 to 4 deliberately — see D3.
 
 Steps 2 and 3 are deliberately in this order. A stale request with an invalid body returns the
 conflict, not the validation error, because the requirements make the version precondition
 authoritative within stateful validation.
 
-#### D3 — One `CompositionService`, three entry points, no duplicated rules
+#### D3 — One orchestrator; preparation is a step inside it, not a stage before it
 
 One versioned replacement primitive persists holdings, but **preparation is separate from
 persistence**, because the two callers do not have the same input semantics.
@@ -215,28 +281,50 @@ that the seeder supplies deterministic cost bases. Those cannot both hold with o
 for retained tickers and can never converge on the Golden-State tuple; if it accepts a full tuple,
 the public DTO does not carry enough to call it.
 
+**Revision 3 drew the adapters ahead of the operation, which put state reads before the version
+check.** `CompositionTupleAdapter` must read current holdings to preserve retained cost bases; if it
+runs first, it reads — and may capture a new basis — for a request that is about to be rejected as
+stale. Materialisation is therefore a **step inside** the transaction, not a stage before it.
+
+One orchestrator, `HoldingReplacementService`, owns the whole sequence for both present and absent
+aggregates:
+
 ```
-CompositionRequest {ticker, quantity}  ──▶ CompositionTupleAdapter  ─┐
-                                                                    ├─▶ List<DesiredHoldingState>
-Golden-State catalog derivation        ──▶ GoldenStateTupleAdapter  ─┘        (fully materialised)
-                                                                              │
-                                                              HoldingReplacementService
-                                                              (validate, compare, CAS, persist)
+CompositionController ─┐                                    raw intent
+                       ├──▶ HoldingReplacementService ──────────────────────────┐
+GoldenStateSeedService ┘        │                                               │
+                                │ 1. load + version CAS precondition            │
+                                │ 2. semantic 400  (quantity, then duplicates)  │
+                                │ 3. catalog/lifecycle 422, aggregated          │
+                                │ 4. materialise ◀── TuplePreparer (injected) ──┘
+                                │       CompositionTuplePreparer  — reads the LOCKED snapshot
+                                │       GoldenStateTuplePreparer  — supplies its own full tuple
+                                │ 5. compare to stored state
+                                │ 6. parent CAS, refresh, child DML
 ```
 
-- **`CompositionTupleAdapter`** expands ticker/quantity into a full `DesiredHoldingState` by reading
-  current state: retained tickers carry their existing basis tuple forward unchanged even when
-  quantity changes; new tickers capture basis under the existing add-time rule.
-- **`GoldenStateTupleAdapter`** supplies its deterministic tuple — quantity and cost basis — directly.
-- **`HoldingReplacementService`** accepts only fully materialised states. It validates, compares
-  against stored state, performs the parent CAS, and persists. It contains no caller-specific rule.
+The caller supplies raw intent plus a `TuplePreparer`; the orchestrator decides *when* preparation
+runs. `CompositionTuplePreparer` reads only the snapshot already locked at step 1, so it cannot
+observe or capture state the precondition has not validated. `GoldenStateTuplePreparer` supplies its
+deterministic tuple and ignores current state, but it does not bypass step 1 — the frozen reset
+contract requires the seed to lose a race it did not win.
 
-Writer convergence is preserved — there is still exactly one thing that mutates holdings and one
-place the four-case matrix is proved — without pretending the two callers supply the same input.
+```java
+CompositionResult replace(String userId, long expectedVersion,
+                          List<RawIntent> intent, TuplePreparer preparer);
+```
+
+`CompositionService.replaceHoldings(userId, expectedVersion, List<DesiredHolding>)` — the signature
+Revision 2 introduced and Revision 3 left in the Architecture section and Component 2 — is
+**removed**. It cannot express this boundary: it takes already-materialised holdings, which is the
+thing the orchestrator must produce itself, after the precondition.
+
+Writer convergence is preserved: exactly one thing mutates holdings, and the four-case matrix is
+proved once against the orchestrator.
 
 #### D4 — Absent-aggregate creation is a distinct path that converges immediately
 
-When no portfolio exists, `replaceHoldings` cannot acquire a lock. The path is:
+When no portfolio exists, the orchestrator cannot acquire a lock. The path is:
 
 ```
 // The absent branch is TOTAL: every expected version has a defined outcome.
@@ -370,7 +458,7 @@ property of framework dispatch rather than of our evaluation order.
 #### D8 — The seed target stays fixed; a version arrives via a four-step compatibility bridge
 
 `PortfolioSeedService.seed()` loses its `deleteAll` opening entirely and delegates to
-`CompositionService.replaceHoldings` with the catalog-derived Golden-State tuple.
+`HoldingReplacementService.replace` with a `GoldenStateTuplePreparer`.
 
 **The target remains server-fixed.** `PortfolioSeedController` hard-codes `E2E_USER_ID` and takes no
 parameters. Revision 1 proposed a `{userId, expectedVersion}` body, which would have widened a
@@ -393,15 +481,35 @@ which is exactly what the requirement asks for. The destructive target remains s
 
 **The sequence spans the migration, because the version does not exist before it:**
 
-1. **After V17**, deploy a compatibility artifact exposing the version on the existing authenticated
-   read, while the old seed `POST` still tolerates the extra body field.
-2. Change the workflow to log in, read once, and send that exact version. Safe in either deployment
-   order relative to step 1's rollout, because the old `POST` ignores the field.
-3. Verify one successful scheduled or manual execution using the new request shape.
-4. Only then deploy the `POST` that **requires** the version and delegates to the versioned reset.
+**The order is strictly sequential.** Revision 3 called steps 1 and 2 safe in either order; they are
+not. Before the version-bearing read ships, the authenticated response carries no version for a
+caller to send, so a migrated caller has nothing to read. The compatibility is deliberately
+one-directional — the *old* endpoint tolerates an extra field, the *new* one rejects its absence:
 
-Revision 2 allocated no artifact for step 1 and placed the version-bearing read before the migration
-that creates the column. Step 4 before step 2 breaks the daily seed on its first run.
+```text
+R-B2  version-bearing authenticated read deployed and verified
+  →   every call site logs in, reads its target's state, sends that exact version
+  →   a real execution verified with the new request shape   (gate G5)
+  →   R-B3  version-required seed endpoint deployed
+```
+
+**There are three call sites, not one.** Revision 3 inventoried only the workflow shell step, and an
+Azure synthetic execution reaches all three in a single run:
+
+| call site | context |
+|---|---|
+| `.github/workflows/synthetic-monitoring.yml:170` | shell `seed_endpoint`, scheduled |
+| `frontend/tests/e2e/global-setup.ts:191` | Playwright global setup — AWS **and** Azure, invoked directly by `deploy-azure.yml`, and run by CI verification |
+| `frontend/tests/e2e/azure-synthetic/api-live-smoke.spec.ts:194` | a second direct Azure `POST` |
+
+`global-setup.ts` has no login-and-read step today, and some of its execution contexts do not inject
+the E2E credentials at that point — so migrating it is a real change in each context, not a copy of
+the workflow edit. Every site must either acquire the version from the same authenticated portfolio
+state it acts on, or be deliberately removed. A separate version endpoint remains prohibited in all
+three.
+
+G5 enumerates these sites and proves **zero missing-version requests**, rather than inferring
+migration from one green workflow run.
 
 **`409` fails the monitoring execution once, with the body logged, and is never retried.** Chosen
 rather than deferred. A `409` is correct data-plane behaviour and evidence the contract worked — a
@@ -411,7 +519,8 @@ silent overwrite the contract exists to prevent.
 
 #### D9 — Cutover is staged gateway-first, with quiescence as a proven fallback
 
-Selected per the requirements' permission and Codex's recommendation. Three artifacts, in order:
+Selected per the requirements' permission and the design review's recommendation. Six artifacts,
+in order — see the release table below, which is authoritative:
 
 **Artifact 0 — legacy writer retirement, migration-free.** Retires **both** legacy writers —
 `POST /api/portfolio` and the versionless `POST /api/portfolio/{portfolioId}/holdings` — and migrates
@@ -445,8 +554,14 @@ Portfolio_Version on the existing authenticated `GET /api/portfolio`, while the 
 tolerates the extra body field. This is D8 step 1, and it exists because the version column does not
 exist before V17 — Revision 2 allocated no artifact for it.
 
-**Artifact 3 — endpoints.** Composition `PUT`, `/api/assets`, and the version-**required** seed
-`POST` (D8 step 4), after the workflow migration in D8 steps 2 and 3 is verified against Artifact 2a.
+**Artifact 2b — version-required seed.** Switches the fixed-target seed `POST` to require
+`expectedVersion` and delegate to `HoldingReplacementService`, after every call site is migrated and
+verified against Artifact 2a. This is a **separate artifact from the public endpoints on purpose**:
+until it ships, the old seed `POST` ignores the version and still reaches delete-and-recreate, so an
+artifact containing the composition `PUT` but not this switch would leave a versionless destructive
+writer reachable underneath a live concurrency contract.
+
+**Artifact 3 — public endpoints.** Composition `PUT` and `/api/assets`.
 
 The dual-schema property is the whole basis for preferring this path, so it is a **proof
 obligation**, not an assumption: an integration test runs the gateway's provisioning insert against
@@ -476,7 +591,7 @@ PUT /api/portfolio/holdings
 CompositionController                     resolves userId from principal; no portfolio id on the wire
         │
         ▼
-CompositionService.replaceHoldings(userId, expectedVersion, desiredSet)
+HoldingReplacementService.replace(userId, expectedVersion, rawIntent, preparer)
         │
         ├─ 1. locate Primary_Portfolio
         │      ├─ absent  ──▶ expectedVersion != 0 ──▶ 409 (virtual current 0)
@@ -493,8 +608,8 @@ CompositionService.replaceHoldings(userId, expectedVersion, desiredSet)
                                                                      ──▶ 200 (or 201 on creation)
 ```
 
-The same `CompositionService` call sits under the reset and the seeder. Only the source of
-`desiredSet` and `expectedVersion` differs.
+The same orchestrator call sits under the reset and the seeder. They differ only in which
+`TuplePreparer` is supplied and where `expectedVersion` comes from.
 
 ### Provisioning paths
 
@@ -504,7 +619,7 @@ Three paths create a portfolio, and the design closes all of them against the un
 |---|---|---|
 | `SignupService` | every new user, in the signup transaction | `0` |
 | `Portfolio_Backfill` migration | existing users with none | `0` |
-| `CompositionService` creation | recovery fallback only | `1` |
+| `HoldingReplacementService` creation | recovery fallback only | `1` |
 
 The asymmetry is deliberate and required: the first two create an empty aggregate no client has
 acted on, while the third records a client's first desired state, which is a transition.
@@ -523,18 +638,19 @@ private Instant updatedAt;
 ```
 
 `updatedAt` is maintained by the service, not by `@PreUpdate`. A JPA lifecycle callback would fire
-on any dirty parent, including the force-increment of a no-op path if that path ever changed, which
-would decouple `updated_at` from "a transition happened". The requirements tie the two together, so
+on any dirty parent, including one dirtied for reasons unrelated to a transition, which would
+decouple `updated_at` from "a transition happened". The requirements tie the two together, so
 one place sets both.
 
 The existing prohibition on a `@ManyToOne` association to `com.wealth.user.User` is preserved; this
 design adds no cross-aggregate association.
 
-### 2. `CompositionService` — the only holdings writer
+### 2. `HoldingReplacementService` — the only holdings writer
 
 ```java
 @Transactional
-public CompositionResult replaceHoldings(String userId, long expectedVersion, List<DesiredHolding> desired);
+public CompositionResult replace(String userId, long expectedVersion,
+                                 List<RawIntent> intent, TuplePreparer preparer);
 ```
 
 Returns `CompositionResult(PortfolioResponse response, boolean created, boolean noOp)` so callers can
@@ -555,12 +671,21 @@ carrying a literal `160` into a new test would reintroduce the defect it removed
 
 
 Builds the desired set from the Catalog_Module's active entries with the existing deterministic
-quantity and cost-basis functions, then calls `replaceHoldings`. The `deleteAll` + `flush` opening is
-removed outright.
+quantity and cost-basis functions inside a `GoldenStateTuplePreparer`, then calls
+`HoldingReplacementService.replace`. The `deleteAll` + `flush` opening is removed outright.
 
 `computeDeterministicCostBasis` and the quantity derivation are unchanged, so seeded values stay
-reproducible. `costBasisAsOf` remains a moving 25-hour anchor — but the no-op comparison deliberately
-does **not** depend on that: it compares the complete persisted tuple, so if the anchor were ever
+reproducible.
+
+**The cost-basis anchor is supplied by the caller, not chosen by the shared machinery.** Spec A
+deliberately moved the independent `Demo_Portfolio` path off `Instant.now().minus(25h)` and onto the
+fixed `app.demo.cost-basis-anchor`, precisely so its desired holding set is a pure function of
+configuration; its own task list makes that timestamp part of the comparison tuple. Because B1
+replaces the shared seed machinery, a `GoldenStateTuplePreparer` that hardcoded the moving anchor
+would silently undo that. The preparer therefore takes the anchor as an input: the scheduled E2E seed
+passes its moving 25-hour value, and the demo initializer passes the fixed configured instant.
+
+The no-op comparison deliberately does **not** depend on which anchor was chosen: it compares the complete persisted tuple, so if the anchor were ever
 pinned, the concurrency contract would not silently change meaning.
 
 ### 4. `StrictDecimalStringDeserializer` / `ToPlainStringSerializer`
@@ -705,13 +830,19 @@ unequal, advancing the version and then persisting an unchanged child value — 
 that also breaks the reset's eligibility semantics. Quantity-domain validation already bounds scale
 to 8, so canonicalisation is total.
 
-**P11g — Rollback from any release at or above the floor restores no legacy writer.** After R-B, for
-every artifact reachable by rollback, neither `POST /api/portfolio` nor the versionless
-`POST /api/portfolio/{portfolioId}/holdings` is reachable.
+**P11g — Rollback from any release at or above the floor restores no legacy writer.** Quantified
+over **every** holdings writer, not an enumeration of the public ones: for every artifact reachable
+by rollback after R-B, no reachable path mutates `asset_holdings` without participating in
+Portfolio_Version. This covers `POST /api/portfolio`, the versionless
+`POST /api/portfolio/{portfolioId}/holdings`, **and** `POST /api/internal/portfolio/seed` — the last
+being the one Revision 3's property missed, and the only one of the three that runs daily in
+production.
 
 **P11h — Version tokens are decoded strictly.** A float (`7.9`), a string (`"7"`), a boolean, and a
-negative version each produce their own stable code rather than coercing to a `Long`, verified
-against the resolved Jackson runtime rather than assumed from defaults.
+negative version are each **tested independently** and each rejected rather than coerced to a `Long`,
+verified against the resolved Jackson runtime rather than assumed from its defaults. They share the
+one stable `invalid_version` code: the frozen contract distinguishes *missing* from *invalid*, and
+does not ask for four separate invalid-version codes. Separate test cases, one code.
 
 **P11i — Aggregate rejection reports every offender deterministically.** A composition request with
 three unsupported tickers returns all three in `tickers`, in request order, with `ticker` carrying
@@ -729,9 +860,15 @@ stable code, and each precedes any stateful check.
 **P11d — Artifact 0 closes the creator before the constraint exists.** No traffic-serving revision
 exposes `POST /api/portfolio` at the moment V17 runs.
 
-**P11e — The seed bridge is order-safe.** The old seed `POST` accepts the new request shape
-(ignoring the version) and the new `POST` rejects a request without one, so steps 2 and 4 of D8 are
-safe in either deployment order relative to each other.
+**P11e — The seed bridge is one-directionally compatible, and its order is fixed.** The old seed
+`POST` accepts the new request shape by ignoring the version; the new `POST` rejects a request
+without one. Compatibility therefore runs in exactly one direction, and the deployment order is
+R-B2 → caller migration → G5 → R-B3. Revision 3 claimed these steps were safe in either order, which
+is false in both directions: before R-B2 there is no version to read, and after R-B3 an unmigrated
+caller fails.
+
+**P11j — Every seed call site sends a version before the server requires one.** All three sites in
+D8's table are proved individually, in each of their AWS, Azure, deploy, and CI contexts.
 
 **P11 — Every user has exactly one portfolio.** After cutover, `SELECT user_id FROM portfolios GROUP
 BY user_id HAVING COUNT(*) <> 1` is empty, and no user in `users` is absent from `portfolios`.
@@ -754,6 +891,10 @@ guarantees nothing.
 **G3 — relational postcondition.** `P11` holds in production, checked after G2, not at migration
 commit time.
 
+**G5 — seed call sites migrated.** Every seed call site reads the version from the authenticated
+portfolio state it acts on, and a scheduled or manual execution has succeeded with the new request
+shape. Enumerated and proved per call site, not inferred from one workflow step.
+
 **G4 — Spec A steady state.** Composition endpoints do not become user-reachable until Spec A's
 enforcement activation is complete and verified. `/api/assets` may deploy dark before this, being
 read-only.
@@ -765,12 +906,12 @@ read-only.
 | **R-0** | 0 — both legacy writers retired, migration-free | G0 after |
 | **R-A** | 1 — provisioning-capable gateway | G1 before deploy, G2 after |
 | **R-B** | 2 — V17 migration | G0 and G2 before; G3 after |
-| **R-B2** | 2a — version-bearing authenticated read | G3 before; workflow migrated and verified after |
-| **R-C** | 3 — composition `PUT`, `/api/assets`, version-required seed | G4 **before deploy** |
+| **R-B2** | 2a — version-bearing authenticated read | G3 before; all seed call sites migrated and verified after |
+| **R-B3** | 2b — version-required seed endpoint | G5 before |
+| **R-C** | 3 — composition `PUT`, `/api/assets` | G4 **before deploy** |
 
-Five releases, not the "three artifacts" Revision 2's prose claimed while listing four. No release
-exists in which a duplicate-creating path is reachable while the unique constraint is present,
-because R-0 completes and is verified before R-B starts.
+Six releases. No release exists in which a duplicate-creating path is reachable while the unique
+constraint is present, because R-0 completes and is verified before R-B starts.
 
 **G4 is a pre-deploy gate, not a post-deploy one.** The existing `Path=/api/portfolio/**` gateway
 route means the composition `PUT` is reachable the moment its controller revision receives traffic —
@@ -785,10 +926,17 @@ Revision 1's rollback plan violated the invariant in both directions and is repl
 **The rollback floor is Artifact 0 + Artifact 1 together**, and it is executable precisely because
 Artifact 0 retires *both* legacy writers. Once R-B has run, no rollback may cross below that floor.
 
-Because every artifact at or above the floor already lacks both legacy writers, rolling R-C back to
-R-B2 — or R-B2 back to R-B — cannot restore a versionless writer. That is what makes the floor a
-real artifact boundary rather than a statement of intent; Revision 2 named a "B1-compatible artifact
-with new capabilities disabled" that did not exist in its own release list. Two specific errors this prevents:
+**Once R-C activates, the floor rises to include R-B3.** Revision 3's floor covered only the two
+*public* legacy writers, so a documented R-C → R-B2 rollback would have restored the old seed
+`POST` — a production-reachable, daily-invoked, destructive holdings writer that participates in
+neither Portfolio_Version nor identity preservation. That is the same defect as the versionless
+holdings `POST`, in the one writer the floor did not quantify over.
+
+Because every artifact at or above the raised floor lacks **all three** legacy writers — the public
+creator, the versionless holdings `POST`, and the versionless seed — rolling R-C back to R-B3 cannot
+restore any of them. Rolling below R-B3 after activation is prohibited; a defect there is corrected
+forward, or the public `PUT` is disabled within a B1-compatible artifact that retains the versioned
+seed. Two specific errors this prevents:
 
 - **Reverting the gateway after the backfill** stops signup provisioning, so new users are created
   with no portfolio. The composition fallback creates one on first write, but the invariant is
