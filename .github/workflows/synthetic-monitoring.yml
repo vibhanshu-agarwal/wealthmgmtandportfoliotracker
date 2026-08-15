@@ -138,9 +138,13 @@ jobs:
           done
           echo "Pre-warm complete. Container Apps are ready."
 
-      - name: Refresh seeded demo prices (24h delta)
-        # Re-seed portfolio history so 24h % and AI insight trends reflect today's
-        # deterministic delta. Market-data seed is gated off in prod/azure (ACA Job).
+      - name: Re-seed E2E portfolio holdings
+        # Holdings only. This endpoint used to also upsert market_prices and
+        # market_price_history for every catalogue ticker, which overwrote live refreshed
+        # prices globally on each run — against production, on the same 08:00 UTC cron as
+        # the market-data refresh ACA Job. It now writes portfolios and holdings only, and
+        # portfolio-service has no market-data write path at all. Do not reintroduce one.
+        # The market-data seed remains separately gated off in prod/azure (ACA Job).
         env:
           INTERNAL_API_KEY: ${{ secrets.TF_VAR_INTERNAL_API_KEY }}
           E2E_USER_ID: "00000000-0000-0000-0000-000000000e2e"

@@ -188,7 +188,8 @@ test.describe("Azure Synthetic: API live smoke", () => {
     const headers = { "X-Internal-Api-Key": internalApiKey! };
 
     // Portfolio seed: controller hardcodes the E2E user — no body needed.
-    // Response: { userId, portfolioId, holdingsInserted, marketPricesUpserted }
+    // Response: { userId, portfolioId, holdingsInserted }
+    // Holdings only — this endpoint must never write market_prices or market_price_history.
     const portfolioSeed = await request.post(
       `${baseUrl}/api/internal/portfolio/seed`,
       { headers, timeout: 70_000 },
@@ -202,6 +203,14 @@ test.describe("Azure Synthetic: API live smoke", () => {
       portfolioSeedBody.holdingsInserted,
       "portfolio seed must insert >= 160 holdings (Requirement 1.4)",
     ).toBeGreaterThanOrEqual(160);
+
+    // The seed endpoint must not report — and therefore must not perform — any market-data
+    // write. This field previously carried a count of market_prices rows the seeder upserted
+    // globally, overwriting live refreshed prices on every scheduled run against production.
+    expect(
+      portfolioSeedBody,
+      "seed response must not carry marketPricesUpserted — portfolio-service must never write market data",
+    ).not.toHaveProperty("marketPricesUpserted");
 
     // Market-data seed is gated off under prod/azure (market-data.seed.enabled=false).
     const marketDataSeed = await request.post(

@@ -32,10 +32,16 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
  * Testcontainers-backed integration test for {@link PortfolioSeedService}.
  *
  * <p>Validates Requirement 12 of the Golden-State Seeder spec: the seeder produces
- * exactly 1 portfolio + 160 holdings + 160 {@code market_prices} rows, returns the
- * generated {@code portfolioId}, and is idempotent at the value level on the second
- * invocation (counts are stable, per-ticker quantities and prices are byte-identical,
- * and the previous portfolio + its cascaded holdings are cleanly removed).
+ * exactly 1 portfolio + one holding per catalogue ticker, returns the generated
+ * {@code portfolioId}, and is idempotent at the value level on the second invocation
+ * (counts are stable, per-ticker quantities are byte-identical, and the previous
+ * portfolio + its cascaded holdings are cleanly removed).
+ *
+ * <p>It also guards the market-data boundary: {@code market_prices} and
+ * {@code market_price_history} are global tables owned by {@code market-data-service}, and
+ * the seeder must leave both byte-identical. The seeder previously overwrote every
+ * catalogue ticker's price with a synthetic value on each run, via an endpoint that is
+ * reachable in production and invoked there on a schedule.
  *
  * <p>Uses {@link com.wealth.portfolio.TestContainerImages#POSTGRES} to match the production Neon Postgres 18.4 target
  * (design doc §11). Runs as part of the {@code integrationTest} task:
@@ -80,12 +86,23 @@ class PortfolioSeedServiceIT {
 
     @Test
     void seederEstablishesGoldenStateAndIsIdempotent() {
-        // ── First invocation: must create 1 portfolio + 160 holdings + 160 prices ──
+        // Market data is global and owned by market-data-service. The seeder must not touch
+        // it, so snapshot every column of every row in both tables before seeding and assert
+        // they are identical afterwards.
+        //
+        // The sentinel is a ticker absent from the catalogue, carrying a price the seeder's
+        // formula would never produce. It fails if the seeder ever wipes-and-rewrites the
+        // table wholesale — a mutation that per-ticker comparison over catalogue symbols
+        // alone would not notice.
+        insertSentinelPriceRows();
+        List<Map<String, Object>> pricesBefore = snapshotMarketPrices();
+        List<Map<String, Object>> historyBefore = snapshotMarketPriceHistory();
+
+        // ── First invocation: must create 1 portfolio + 160 holdings, and no price rows ──
         SeedResult first = seedService.seed(E2E_USER_ID);
 
         assertThat(first.portfolioId()).as("portfolioId must be returned to the caller").isNotNull();
         assertThat(first.holdingsInserted()).isEqualTo(EXPECTED_HOLDINGS);
-        assertThat(first.marketPricesUpserted()).isEqualTo(EXPECTED_HOLDINGS);
 
         List<Portfolio> portfoliosAfterFirst = portfolioRepository.findByUserId(E2E_USER_ID);
         assertThat(portfoliosAfterFirst).hasSize(1);
@@ -101,18 +118,11 @@ class PortfolioSeedServiceIT {
                 .map(AssetHolding::getAssetTicker).collect(Collectors.toSet());
         assertThat(holdingTickers).isEqualTo(registryTickers);
 
-        // Every registry ticker must have exactly one market_prices row after the upsert.
-        // V2 already seeds some of these tickers; the upsert should leave total matches == 160.
-        Long marketPriceCount = jdbc.queryForObject(
-                "SELECT count(*) FROM market_prices WHERE ticker IN ("
-                        + placeholders(registryTickers.size()) + ")",
-                Long.class, registryTickers.toArray());
-        assertThat(marketPriceCount).isEqualTo((long) EXPECTED_HOLDINGS);
+        assertPriceTablesUnchanged(pricesBefore, historyBefore, "after first seed");
 
         Map<String, BigDecimal> quantitiesFirst = holdingsFirst.stream()
                 .collect(Collectors.toUnmodifiableMap(
                         AssetHolding::getAssetTicker, AssetHolding::getQuantity));
-        Map<String, BigDecimal> pricesFirst = snapshotPricesByTicker();
 
         // ── Second invocation: counts unchanged, prior portfolio row gone, new one present ──
         SeedResult second = seedService.seed(E2E_USER_ID);
@@ -127,24 +137,70 @@ class PortfolioSeedServiceIT {
         List<AssetHolding> holdingsSecond = assetHoldingRepository.findByPortfolio(portfoliosAfterSecond.get(0));
         assertThat(holdingsSecond).hasSize(EXPECTED_HOLDINGS);
 
-        // ── Determinism: quantities and prices are byte-identical per ticker ──
+        // ── Determinism: quantities are byte-identical per ticker across runs ──
         Map<String, BigDecimal> quantitiesSecond = holdingsSecond.stream()
                 .collect(Collectors.toUnmodifiableMap(
                         AssetHolding::getAssetTicker, AssetHolding::getQuantity));
         assertThat(quantitiesSecond).containsExactlyInAnyOrderEntriesOf(quantitiesFirst);
 
-        Map<String, BigDecimal> pricesSecond = snapshotPricesByTicker();
-        assertThat(pricesSecond.keySet()).isEqualTo(pricesFirst.keySet());
-        pricesFirst.forEach((ticker, expected) ->
-                assertThat(pricesSecond.get(ticker))
-                        .as("deterministic price for %s", ticker)
-                        .isEqualByComparingTo(expected));
+        assertPriceTablesUnchanged(pricesBefore, historyBefore, "after second seed");
+    }
+
+    /**
+     * Asserts the seeder left both global market-data tables byte-identical.
+     *
+     * <p>This is the regression guard for the defect that motivated the change: the seeder
+     * used to upsert one {@code market_prices} row per catalogue ticker with an unconditional
+     * {@code DO UPDATE}, overwriting live refreshed prices for every user. The endpoint that
+     * invokes it is reachable in production and is called there on a schedule.
+     *
+     * <p>Compares every column of every row, in a deterministic order, rather than a
+     * per-ticker price map and a row count. Value equality on the raw column maps is the
+     * strict check wanted here: {@link java.math.BigDecimal#equals} is scale-sensitive, so a
+     * rewrite preserving the numeric value but changing its scale would still fail, as would
+     * any change to {@code updated_at}.
+     */
+    private void assertPriceTablesUnchanged(List<Map<String, Object>> pricesBefore,
+                                            List<Map<String, Object>> historyBefore,
+                                            String phase) {
+        assertThat(snapshotMarketPrices())
+                .as("seeder must leave market_prices byte-identical (%s)", phase)
+                .isEqualTo(pricesBefore);
+        assertThat(snapshotMarketPriceHistory())
+                .as("seeder must leave market_price_history byte-identical (%s)", phase)
+                .isEqualTo(historyBefore);
+    }
+
+    /** Every column of every row, ordered by the primary key. */
+    private List<Map<String, Object>> snapshotMarketPrices() {
+        return jdbc.queryForList("SELECT * FROM market_prices ORDER BY ticker");
+    }
+
+    /** Every column of every row, ordered by the surrogate key. */
+    private List<Map<String, Object>> snapshotMarketPriceHistory() {
+        return jdbc.queryForList("SELECT * FROM market_price_history ORDER BY id");
+    }
+
+    /**
+     * Seeds rows the catalogue does not contain, so a wholesale wipe-and-rewrite of either
+     * table is detected even though no catalogue ticker would appear to change.
+     */
+    private void insertSentinelPriceRows() {
+        jdbc.update("""
+                INSERT INTO market_prices (ticker, current_price, updated_at)
+                VALUES ('__SENTINEL__', 4242.4242, timestamp '2020-01-01 00:00:00')
+                ON CONFLICT (ticker) DO NOTHING
+                """);
+        jdbc.update("""
+                INSERT INTO market_price_history (ticker, quote_currency, price, observed_at)
+                VALUES ('__SENTINEL__', 'USD', 4242.4242, timestamp '2020-01-01 00:00:00')
+                """);
     }
 
     // ── Wave 3 / Task 4.2: seeder writes non-trivial avg_cost_basis per holding ──
 
     @Test
-    void seeder_writesNonTrivialCostBasisAndHistoryCoverage() {
+    void seeder_writesNonTrivialCostBasis() {
         String cbUserId = E2E_USER_ID + "-cb";
         SeedResult result = seedService.seed(cbUserId);
 
@@ -208,46 +264,15 @@ class PortfolioSeedServiceIT {
                     .isLessThanOrEqualTo(0);
         });
 
-        // market_price_history must cover all 160 canonical tickers
-        Integer historyTickers = jdbc.queryForObject(
-                "SELECT COUNT(DISTINCT ticker) FROM market_price_history", Integer.class);
-        assertThat(historyTickers)
-                .as("market_price_history must cover all 160 canonical tickers after seed")
-                .isGreaterThanOrEqualTo(160);
-
-        // Each of the first 5 seeded tickers must have ≥1 history row
-        for (SeedTickerRegistry.SeedTicker t : registry.all().subList(0, 5)) {
-            Integer count = jdbc.queryForObject(
-                    "SELECT COUNT(*) FROM market_price_history WHERE ticker = ?",
-                    Integer.class, t.ticker());
-            assertThat(count)
-                    .as("Ticker %s must have ≥1 history row after seed", t.ticker())
-                    .isGreaterThanOrEqualTo(1);
-        }
+        // market_price_history coverage is deliberately NOT asserted here. The seeder no
+        // longer writes history rows — market data is owned by market-data-service, and
+        // this endpoint is production-reachable. Cost basis above is derived in-memory from
+        // the catalogue's basePrice, so it remains deterministic without any price write.
 
         // Clean up
         portfolioRepository.deleteAll(portfolioRepository.findByUserId(cbUserId));
     }
 
-    private Map<String, BigDecimal> snapshotPricesByTicker() {
-        List<SeedTicker> all = registry.all();
-        return jdbc.query(
-                "SELECT ticker, current_price FROM market_prices WHERE ticker IN ("
-                        + placeholders(all.size()) + ")",
-                ps -> {
-                    int i = 1;
-                    for (SeedTicker t : all) ps.setString(i++, t.ticker());
-                },
-                rs -> {
-                    Map<String, BigDecimal> out = new java.util.HashMap<>();
-                    while (rs.next()) out.put(rs.getString(1), rs.getBigDecimal(2));
-                    return out;
-                });
-    }
-
-    private static String placeholders(int n) {
-        return String.join(",", java.util.Collections.nCopies(n, "?"));
-    }
 
     /** Mirrors deploy-azure verify assertion (c) against the golden-state seed. */
     @Test

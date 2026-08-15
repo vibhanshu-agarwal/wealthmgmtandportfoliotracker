@@ -29,10 +29,15 @@ public class PortfolioSeedController {
     }
 
     /**
-     * Wipes and re-seeds the E2E user's portfolio: 1 portfolio with 160 holdings
-     * plus 160 deterministic {@code market_prices} rows. The response body carries
-     * {@code portfolioId} so the Playwright caller can chain it into subsequent
-     * seeder calls (market-data-service, insight-service) per the design doc.
+     * Wipes and re-seeds the E2E user's portfolio: 1 portfolio with one holding per
+     * catalogue ticker. The response body carries {@code portfolioId} so the Playwright
+     * caller can chain it into subsequent seeder calls (market-data-service,
+     * insight-service) per the design doc.
+     *
+     * <p>This endpoint is reachable in production and is invoked there on a schedule. It
+     * writes portfolios and holdings only — never {@code market_prices} or
+     * {@code market_price_history}. The removed {@code marketPricesUpserted} response field
+     * is deliberately not replaced; there is no price write to report.
      */
     @PostMapping("/seed")
     public ResponseEntity<Map<String, Object>> seed() {
@@ -41,8 +46,7 @@ public class PortfolioSeedController {
         return ResponseEntity.ok(Map.of(
                 "userId", E2E_USER_ID,
                 "portfolioId", portfolioId.toString(),
-                "holdingsInserted", result.holdingsInserted(),
-                "marketPricesUpserted", result.marketPricesUpserted()
+                "holdingsInserted", result.holdingsInserted()
         ));
     }
 }
