@@ -165,9 +165,23 @@ market-data-service/src/main/resources/seed/seed-tickers.json
 portfolio-service/src/main/resources/seed/seed-tickers.json
 ```
 
-Nothing enforces that they stay in sync. Item 3 requires editing the same entry in all four, and
-nothing fails if only three are updated. Either consolidate to a single source or add a CI check
-asserting the copies match — **before** the asset picker makes this list user-visible.
+> **Corrected 2026-08-15.** The claim below that "nothing enforces that they stay in sync" was
+> **wrong**, and the remedy it proposed would have made things worse. Each of the three services
+> registers a `copySeedTickers` Copy task wired as `dependsOn` of `processResources`
+> (e.g. `portfolio-service/build.gradle:15`), so **any build re-synchronises all four copies**.
+>
+> The actual defect is different: the task copies into **git-tracked** `src/main/resources/seed/`
+> directories. Generated content is therefore committed, git state and build state can disagree,
+> and a direct edit to a service copy is silently reverted by the next build.
+>
+> A CI check asserting the copies match would have *enforced a redundancy that should not exist*.
+> The fix is to remove the duplication: package the manifest from the repo root into build output
+> and delete the three tracked copies. That is Requirement 1 of
+> `.kiro/specs/supported-asset-integrity/` (see PR #98), which supersedes this item.
+
+~~Nothing enforces that they stay in sync.~~ Item 3 requires editing the same entry in all four,
+and — because the copies are tracked — a change committed without a build leaves the repository
+inconsistent with itself until someone rebuilds.
 
 Also worth resolving: the tracked set is `baseline (55) ∪ Mongo`, so the *effective* universe
 depends on what was historically seeded into Mongo rather than on a declared source of truth. That
