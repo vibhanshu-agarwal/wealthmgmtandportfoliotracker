@@ -114,6 +114,13 @@ resource "azurerm_container_app_environment" "main" {
 # with azurerm_container_app_environment / azurerm_application_insights. If a future
 # AzureRM version adds openTelemetryConfiguration, migrate this AzAPI resource
 # rather than running both.
+#
+# appLogsConfiguration is required on this PUT even though AzureRM already owns
+# the environment's log-analytics destination. azapi_update_resource GET-merge-PUTs
+# the environment; GET returns logAnalyticsConfiguration.sharedKey as null
+# (write-only), and Azure rejects the PUT ("LogAnalyticsConfiguration is invalid")
+# unless customerId + sharedKey are re-supplied. Destination is the Platform
+# workspace (same as azurerm_container_app_environment.main), not telemetry.
 resource "azapi_update_resource" "aca_otel_agent" {
   type        = "Microsoft.App/managedEnvironments@2025-10-02-preview"
   resource_id = azurerm_container_app_environment.main.id
@@ -122,6 +129,13 @@ resource "azapi_update_resource" "aca_otel_agent" {
     properties = {
       appInsightsConfiguration = {
         connectionString = azurerm_application_insights.telemetry.connection_string
+      }
+      appLogsConfiguration = {
+        destination = "log-analytics"
+        logAnalyticsConfiguration = {
+          customerId = azurerm_log_analytics_workspace.main.workspace_id
+          sharedKey  = azurerm_log_analytics_workspace.main.primary_shared_key
+        }
       }
       openTelemetryConfiguration = {
         tracesConfiguration = {

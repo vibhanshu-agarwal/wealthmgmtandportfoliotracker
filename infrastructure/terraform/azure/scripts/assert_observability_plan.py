@@ -12,6 +12,9 @@ Validates against the JSON output of `terraform show -json tfplan`:
      (Free_Controls_Constraint — Requirement 5.4).
   4. App Insights exists; no Auxiliary/Basic table-plan override; App* tables stay
      on the default Analytics plan (Requirement 4.20).
+  5. If azapi_update_resource.aca_otel_agent is in the plan, its body re-supplies
+     appLogsConfiguration.logAnalyticsConfiguration with customerId and sharedKey
+     (AzAPI GET-merge-PUT otherwise sends sharedKey=null and Azure rejects).
 
 Usage:
     python3 scripts/assert_observability_plan.py tfplan.json
@@ -47,6 +50,8 @@ APP_INSIGHTS_TYPE = "azurerm_application_insights"
 TABLE_TYPE = "azurerm_log_analytics_workspace_table"
 SCHEDULED_QUERY_ALERT_PREFIX = "azurerm_monitor_scheduled_query_rules_alert"
 FORBIDDEN_TABLE_PLANS = {"auxiliary", "basic"}
+AZAPI_UPDATE_TYPE = "azapi_update_resource"
+ACA_OTEL_AGENT_NAME = "aca_otel_agent"
 
 
 def load_plan(path: str) -> dict:
@@ -279,6 +284,113 @@ def check_analytics_plan(plan: dict) -> list[str]:
     return errors
 
 
+def _azapi_body(rc: dict) -> dict:
+    """Return the AzAPI `body` object from plan after, accepting object or JSON string."""
+    body = _after(rc).get("body")
+    if isinstance(body, str):
+        try:
+            body = json.loads(body)
+        except json.JSONDecodeError:
+            return {}
+    return body if isinstance(body, dict) else {}
+
+
+def _nonempty_string(value) -> bool:
+    return isinstance(value, str) and bool(value.strip())
+
+
+def _flagged_at(flag_root, keys: tuple[str, ...]) -> bool:
+    """True if any prefix of keys is True in a terraform after_unknown/after_sensitive tree."""
+    cur = flag_root
+    for key in keys:
+        if cur is True:
+            return True
+        if not isinstance(cur, dict):
+            return False
+        cur = cur.get(key)
+    return cur is True
+
+
+def _secret_or_unknown(rc: dict, keys: tuple[str, ...]) -> bool:
+    change = rc.get("change", {})
+    return _flagged_at(change.get("after_unknown"), keys) or _flagged_at(
+        change.get("after_sensitive"), keys
+    )
+
+
+def _la_field_present(rc: dict, la: dict, field: str) -> bool:
+    if _nonempty_string(la.get(field)):
+        return True
+    path = ("body", "properties", "appLogsConfiguration", "logAnalyticsConfiguration", field)
+    if _secret_or_unknown(rc, path):
+        return True
+    # Whole-body sensitivity (connection string) redacts nested values; the key
+    # must still exist on the object. A missing key is the apply-time failure mode.
+    return field in la and _secret_or_unknown(rc, ("body",))
+
+
+def check_azapi_otel_log_analytics(plan: dict) -> list[str]:
+    """Fail if aca_otel_agent is in the plan without a PUT-valid Log Analytics config.
+
+    azapi_update_resource GET-merge-PUTs the ACA environment. GET returns
+    logAnalyticsConfiguration.sharedKey as null (write-only). Azure then rejects
+    the PUT with InvalidRequestParameterWithDetails unless appLogsConfiguration
+    is re-supplied with customerId and sharedKey. Microsoft's ACA OTel Terraform
+    sample includes this block for that reason.
+
+    customerId/sharedKey may be after_unknown (PR empty backend) or after_sensitive
+    (workspace key / connection string). Those count as present; a null value with
+    neither flag is the apply-time failure mode.
+    """
+    errors = []
+    for rc in relevant_changes(plan, AZAPI_UPDATE_TYPE):
+        if rc.get("name") != ACA_OTEL_AGENT_NAME:
+            continue
+        address = _address(rc)
+        if _secret_or_unknown(rc, ("body",)) and not _azapi_body(rc):
+            continue
+        props = _azapi_body(rc).get("properties")
+        if not isinstance(props, dict):
+            errors.append(
+                f"FAIL [azapi otel] {address} body.properties is missing; "
+                "PUT of the ACA environment requires appLogsConfiguration."
+            )
+            continue
+        app_logs = props.get("appLogsConfiguration")
+        if not isinstance(app_logs, dict):
+            errors.append(
+                f"FAIL [azapi otel] {address} is missing appLogsConfiguration. "
+                "AzAPI GET-merge-PUT omits sharedKey (write-only); Azure rejects "
+                "the PUT as LogAnalyticsConfiguration is invalid unless this block "
+                "is re-supplied."
+            )
+            continue
+        destination = app_logs.get("destination")
+        if destination != "log-analytics":
+            errors.append(
+                f"FAIL [azapi otel] {address} appLogsConfiguration.destination="
+                f"{destination!r} (expected 'log-analytics')."
+            )
+        la = app_logs.get("logAnalyticsConfiguration")
+        if not isinstance(la, dict):
+            errors.append(
+                f"FAIL [azapi otel] {address} is missing "
+                "appLogsConfiguration.logAnalyticsConfiguration."
+            )
+            continue
+        if not _la_field_present(rc, la, "customerId"):
+            errors.append(
+                f"FAIL [azapi otel] {address} logAnalyticsConfiguration.customerId "
+                "is missing or empty."
+            )
+        if not _la_field_present(rc, la, "sharedKey"):
+            errors.append(
+                f"FAIL [azapi otel] {address} logAnalyticsConfiguration.sharedKey "
+                "is missing or empty (GET returns null; PUT requires the key)."
+            )
+    return errors
+
+
 def evaluate_plan(plan: dict) -> list[str]:
     """Return FAIL messages for a terraform show -json document. Empty list is PASS."""
     errors: list[str] = []
@@ -286,6 +398,7 @@ def evaluate_plan(plan: dict) -> list[str]:
     errors.extend(check_rg_budget(plan))
     errors.extend(check_no_scheduled_query_alerts(plan))
     errors.extend(check_analytics_plan(plan))
+    errors.extend(check_azapi_otel_log_analytics(plan))
     return errors
 
 
