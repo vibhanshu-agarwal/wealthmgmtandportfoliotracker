@@ -1,5 +1,26 @@
 # Design Document: Golden State Seeder Backend
 
+> **Erratum — 2026-08-15.** This document remains the delivery record for the feature as it was
+> designed and shipped; nothing below has been rewritten. One part of it is now superseded.
+>
+> The seed endpoint's market-data writes described in §4 — the `market_prices` upsert and the
+> `market_price_history` anchor rows, and the `marketPricesUpserted` response field that reported
+> them — **have been removed**. Both tables are global, keyed by ticker with no user scoping, and
+> the upsert carried an unconditional `DO UPDATE`, so seeding any user replaced the live refreshed
+> price of every ticker for every user. The endpoint is reachable in production and was invoked
+> there daily on the same cron as the market-data refresh job, so the two raced and production
+> carried synthetic prices whenever the seeder won.
+>
+> `portfolio-service` now writes portfolios and holdings only, in every profile, and has no
+> market-data write path. Market data is owned by `market-data-service`. See
+> `.kiro/specs/supported-asset-integrity/requirements.md` Requirement 11 for the specification
+> that governs this, and the `fix(portfolio): stop golden-state seeder overwriting production
+> market prices` commit for the change itself.
+>
+> The current response body is `{ "userId", "portfolioId", "holdingsInserted" }`. The removed
+> field is absent rather than zeroed, so a stale consumer fails rather than reading a plausible
+> `0`.
+
 ## Overview
 
 This feature delivers two coupled outcomes. **Phase 1** quarantines the failing

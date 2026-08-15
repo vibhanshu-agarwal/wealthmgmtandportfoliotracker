@@ -87,9 +87,16 @@ class PortfolioSeedServiceIT {
     @Test
     void seederEstablishesGoldenStateAndIsIdempotent() {
         // Market data is global and owned by market-data-service. The seeder must not touch
-        // it, so snapshot both price tables before seeding and assert they are untouched after.
-        Map<String, BigDecimal> pricesBefore = snapshotPricesByTicker();
-        Integer historyRowsBefore = countHistoryRows();
+        // it, so snapshot every column of every row in both tables before seeding and assert
+        // they are identical afterwards.
+        //
+        // The sentinel is a ticker absent from the catalogue, carrying a price the seeder's
+        // formula would never produce. It fails if the seeder ever wipes-and-rewrites the
+        // table wholesale — a mutation that per-ticker comparison over catalogue symbols
+        // alone would not notice.
+        insertSentinelPriceRows();
+        List<Map<String, Object>> pricesBefore = snapshotMarketPrices();
+        List<Map<String, Object>> historyBefore = snapshotMarketPriceHistory();
 
         // ── First invocation: must create 1 portfolio + 160 holdings, and no price rows ──
         SeedResult first = seedService.seed(E2E_USER_ID);
@@ -111,7 +118,7 @@ class PortfolioSeedServiceIT {
                 .map(AssetHolding::getAssetTicker).collect(Collectors.toSet());
         assertThat(holdingTickers).isEqualTo(registryTickers);
 
-        assertPriceTablesUnchanged(pricesBefore, historyRowsBefore, "after first seed");
+        assertPriceTablesUnchanged(pricesBefore, historyBefore, "after first seed");
 
         Map<String, BigDecimal> quantitiesFirst = holdingsFirst.stream()
                 .collect(Collectors.toUnmodifiableMap(
@@ -136,7 +143,7 @@ class PortfolioSeedServiceIT {
                         AssetHolding::getAssetTicker, AssetHolding::getQuantity));
         assertThat(quantitiesSecond).containsExactlyInAnyOrderEntriesOf(quantitiesFirst);
 
-        assertPriceTablesUnchanged(pricesBefore, historyRowsBefore, "after second seed");
+        assertPriceTablesUnchanged(pricesBefore, historyBefore, "after second seed");
     }
 
     /**
@@ -146,25 +153,48 @@ class PortfolioSeedServiceIT {
      * used to upsert one {@code market_prices} row per catalogue ticker with an unconditional
      * {@code DO UPDATE}, overwriting live refreshed prices for every user. The endpoint that
      * invokes it is reachable in production and is called there on a schedule.
+     *
+     * <p>Compares every column of every row, in a deterministic order, rather than a
+     * per-ticker price map and a row count. Value equality on the raw column maps is the
+     * strict check wanted here: {@link java.math.BigDecimal#equals} is scale-sensitive, so a
+     * rewrite preserving the numeric value but changing its scale would still fail, as would
+     * any change to {@code updated_at}.
      */
-    private void assertPriceTablesUnchanged(Map<String, BigDecimal> pricesBefore,
-                                            Integer historyRowsBefore,
+    private void assertPriceTablesUnchanged(List<Map<String, Object>> pricesBefore,
+                                            List<Map<String, Object>> historyBefore,
                                             String phase) {
-        Map<String, BigDecimal> pricesAfter = snapshotPricesByTicker();
-        assertThat(pricesAfter.keySet())
-                .as("seeder must not insert or delete market_prices rows (%s)", phase)
-                .isEqualTo(pricesBefore.keySet());
-        pricesBefore.forEach((ticker, expected) ->
-                assertThat(pricesAfter.get(ticker))
-                        .as("seeder must not modify the price of %s (%s)", ticker, phase)
-                        .isEqualByComparingTo(expected));
-        assertThat(countHistoryRows())
-                .as("seeder must not write market_price_history rows (%s)", phase)
-                .isEqualTo(historyRowsBefore);
+        assertThat(snapshotMarketPrices())
+                .as("seeder must leave market_prices byte-identical (%s)", phase)
+                .isEqualTo(pricesBefore);
+        assertThat(snapshotMarketPriceHistory())
+                .as("seeder must leave market_price_history byte-identical (%s)", phase)
+                .isEqualTo(historyBefore);
     }
 
-    private Integer countHistoryRows() {
-        return jdbc.queryForObject("SELECT COUNT(*) FROM market_price_history", Integer.class);
+    /** Every column of every row, ordered by the primary key. */
+    private List<Map<String, Object>> snapshotMarketPrices() {
+        return jdbc.queryForList("SELECT * FROM market_prices ORDER BY ticker");
+    }
+
+    /** Every column of every row, ordered by the surrogate key. */
+    private List<Map<String, Object>> snapshotMarketPriceHistory() {
+        return jdbc.queryForList("SELECT * FROM market_price_history ORDER BY id");
+    }
+
+    /**
+     * Seeds rows the catalogue does not contain, so a wholesale wipe-and-rewrite of either
+     * table is detected even though no catalogue ticker would appear to change.
+     */
+    private void insertSentinelPriceRows() {
+        jdbc.update("""
+                INSERT INTO market_prices (ticker, current_price, updated_at)
+                VALUES ('__SENTINEL__', 4242.4242, timestamp '2020-01-01 00:00:00')
+                ON CONFLICT (ticker) DO NOTHING
+                """);
+        jdbc.update("""
+                INSERT INTO market_price_history (ticker, quote_currency, price, observed_at)
+                VALUES ('__SENTINEL__', 'USD', 4242.4242, timestamp '2020-01-01 00:00:00')
+                """);
     }
 
     // ── Wave 3 / Task 4.2: seeder writes non-trivial avg_cost_basis per holding ──
@@ -243,25 +273,6 @@ class PortfolioSeedServiceIT {
         portfolioRepository.deleteAll(portfolioRepository.findByUserId(cbUserId));
     }
 
-    private Map<String, BigDecimal> snapshotPricesByTicker() {
-        List<SeedTicker> all = registry.all();
-        return jdbc.query(
-                "SELECT ticker, current_price FROM market_prices WHERE ticker IN ("
-                        + placeholders(all.size()) + ")",
-                ps -> {
-                    int i = 1;
-                    for (SeedTicker t : all) ps.setString(i++, t.ticker());
-                },
-                rs -> {
-                    Map<String, BigDecimal> out = new java.util.HashMap<>();
-                    while (rs.next()) out.put(rs.getString(1), rs.getBigDecimal(2));
-                    return out;
-                });
-    }
-
-    private static String placeholders(int n) {
-        return String.join(",", java.util.Collections.nCopies(n, "?"));
-    }
 
     /** Mirrors deploy-azure verify assertion (c) against the golden-state seed. */
     @Test
