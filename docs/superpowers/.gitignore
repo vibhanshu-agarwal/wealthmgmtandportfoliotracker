@@ -1,0 +1,4 @@
+# The live coordination log is scratch: an always-current tracked file would make every
+# agent turn dirty and leak coordination notes into unrelated branches and PRs.
+# Protocol and template live in CHECKPOINT_PROTOCOL.md, which IS tracked.
+CHECKPOINT.md
