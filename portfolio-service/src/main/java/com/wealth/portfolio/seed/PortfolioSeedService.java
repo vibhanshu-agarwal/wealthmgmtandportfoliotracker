@@ -7,9 +7,6 @@ import com.wealth.portfolio.PortfolioRepository;
 import com.wealth.portfolio.seed.SeedTickerRegistry.SeedTicker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
-import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
-import org.springframework.jdbc.core.namedparam.SqlParameterSource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,21 +18,34 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Resets a user's portfolio data to the deterministic "golden state": exactly 1 portfolio,
- * 160 holdings, and 160 Postgres {@code market_prices} rows, all derived from
- * {@link SeedTickerRegistry} + {@link DeterministicPriceCalculator}.
+ * Resets a user's portfolio data to the deterministic "golden state": exactly 1 portfolio
+ * and one holding per catalogue ticker, derived from {@link SeedTickerRegistry} +
+ * {@link DeterministicPriceCalculator}.
  *
  * <p>All database operations execute inside a single transaction — a failure at any step
  * rolls the whole seed back so the pre-existing state is preserved.
  *
- * <h2>Wave 3 — Task 4.2 additions</h2>
+ * <h2>This seeder never writes market data</h2>
+ *
+ * <p>It previously upserted one {@code market_prices} row and one {@code market_price_history}
+ * row per ticker, using synthetic values derived from {@code basePrice} and the seeded user's
+ * id. Both tables are <strong>global</strong> — keyed by ticker with no user scoping — so
+ * seeding any user overwrote the live refreshed price of every ticker for every user, with an
+ * unconditional {@code ON CONFLICT DO UPDATE} that had no freshness guard.
+ *
+ * <p>That mattered because this service's seed endpoint is reachable in production and is
+ * invoked there on a schedule, so real prices were being replaced by synthetic ones daily.
+ * Market data is owned by {@code market-data-service}; {@code portfolio-service} writes
+ * portfolios and holdings only, in every profile. Do not reintroduce a price write here.
+ *
+ * <h2>Cost basis</h2>
  * <ul>
  *   <li>Each seeded holding receives a deterministic {@code avg_cost_basis} computed as
  *       {@code seedPrice × (1 + signedJitter)} where the jitter is derived from
  *       {@code (ticker, userId)} hash in the range [−20%, +20%]. This produces stable,
  *       non-trivial P&amp;L across service restarts.</li>
- *   <li>Ensures {@code market_price_history} coverage for all 160 tickers by upserting
- *       a history row at the seed timestamp for each ticker (idempotent: ON CONFLICT DO NOTHING).</li>
+ *   <li>The seed price feeding that calculation is computed in-memory from the catalogue's
+ *       {@code basePrice} and is never persisted to {@code market_prices}.</li>
  * </ul>
  */
 @Service
@@ -52,43 +62,19 @@ public class PortfolioSeedService {
     private static final int COST_BASIS_JITTER_RANGE = 400;
     private static final int COST_BASIS_CENTRE       = 200; // midpoint → zero jitter
 
-    private static final String UPSERT_MARKET_PRICE_SQL = """
-            INSERT INTO market_prices (ticker, current_price, quote_currency, updated_at)
-            VALUES (:ticker, :price, :quoteCurrency, now())
-            ON CONFLICT (ticker) DO UPDATE
-              SET current_price  = EXCLUDED.current_price,
-                  quote_currency = EXCLUDED.quote_currency,
-                  updated_at     = EXCLUDED.updated_at
-            """;
-
-    /**
-     * Upserts a single seed history row per ticker so the analytics service has at
-     * least one history point per holding (enabling the 24h-change tolerance window query).
-     * The anchor timestamp is 25 hours in the past so it falls within the analytics
-     * 24h-reference window. ON CONFLICT DO NOTHING makes this idempotent.
-     */
-    private static final String UPSERT_HISTORY_SQL = """
-            INSERT INTO market_price_history (ticker, quote_currency, price, observed_at)
-            VALUES (:ticker, :quoteCurrency, :price, :observedAt)
-            ON CONFLICT (ticker, observed_at) DO NOTHING
-            """;
-
     private final PortfolioRepository portfolioRepository;
     private final AssetHoldingRepository assetHoldingRepository;
     private final SeedTickerRegistry registry;
-    private final NamedParameterJdbcTemplate jdbc;
 
     public PortfolioSeedService(PortfolioRepository portfolioRepository,
                                 AssetHoldingRepository assetHoldingRepository,
-                                SeedTickerRegistry registry,
-                                NamedParameterJdbcTemplate jdbc) {
+                                SeedTickerRegistry registry) {
         this.portfolioRepository = portfolioRepository;
         this.assetHoldingRepository = assetHoldingRepository;
         this.registry = registry;
-        this.jdbc = jdbc;
     }
 
-    public record SeedResult(UUID portfolioId, int holdingsInserted, int marketPricesUpserted) {}
+    public record SeedResult(UUID portfolioId, int holdingsInserted) {}
 
     @Transactional
     public SeedResult seed(String userId) {
@@ -108,8 +94,9 @@ public class PortfolioSeedService {
         Portfolio saved = portfolioRepository.save(new Portfolio(userId));
         List<SeedTicker> seeds = registry.all();
 
-        // Anchor timestamp used for seed history rows: 25 h ago (in the 24h window).
-        Instant seedHistoryTs = Instant.now().minus(25, ChronoUnit.HOURS)
+        // Cost-basis "as of" anchor: 25 h ago, so a seeded position reads as acquired
+        // before the most recent refresh rather than in the current instant.
+        Instant costBasisAsOf = Instant.now().minus(25, ChronoUnit.HOURS)
                 .truncatedTo(ChronoUnit.MILLIS);
 
         List<AssetHolding> holdings = seeds.stream()
@@ -125,44 +112,18 @@ public class PortfolioSeedService {
                     holding.setAvgCostBasis(costBasis);
                     holding.setCostBasisCurrency(t.quoteCurrency());
                     holding.setCostBasisSource("SEED");
-                    holding.setCostBasisAsOf(seedHistoryTs);
+                    holding.setCostBasisAsOf(costBasisAsOf);
 
                     return holding;
                 })
                 .toList();
         assetHoldingRepository.saveAll(holdings);
 
-        // 3. Upsert 160 Postgres market_prices rows in a single JDBC batch round-trip.
-        SqlParameterSource[] priceBatch = seeds.stream()
-                .map(t -> (SqlParameterSource) new MapSqlParameterSource()
-                        .addValue("ticker", t.ticker())
-                        .addValue("price", DeterministicPriceCalculator.compute(
-                                t.basePrice(), t.ticker(), userId))
-                        .addValue("quoteCurrency", t.quoteCurrency()))
-                .toArray(SqlParameterSource[]::new);
-        jdbc.batchUpdate(UPSERT_MARKET_PRICE_SQL, priceBatch);
-
-        // 4. Task 4.2: ensure market_price_history coverage for all 160 tickers.
-        //    Inserts one anchor point per ticker 25 h in the past (idempotent).
-        //    Uses computeHistory() so the 24h window sees a non-zero delta vs current price.
-        SqlParameterSource[] historyBatch = seeds.stream()
-                .map(t -> {
-                    BigDecimal currentPrice = DeterministicPriceCalculator.compute(
-                            t.basePrice(), t.ticker(), userId);
-                    BigDecimal historyPrice = DeterministicPriceCalculator.computeHistory(
-                            currentPrice, t.ticker(), userId);
-                    return (SqlParameterSource) new MapSqlParameterSource()
-                            .addValue("ticker", t.ticker())
-                            .addValue("quoteCurrency", t.quoteCurrency())
-                            .addValue("price", historyPrice)
-                            .addValue("observedAt", java.sql.Timestamp.from(seedHistoryTs));
-                })
-                .toArray(SqlParameterSource[]::new);
-        jdbc.batchUpdate(UPSERT_HISTORY_SQL, historyBatch);
-
-        log.info("Golden-state seed complete: userId={} portfolioId={} holdings={} marketPrices={} historyRows={}",
-                userId, saved.getId(), seeds.size(), seeds.size(), seeds.size());
-        return new SeedResult(saved.getId(), seeds.size(), seeds.size());
+        // No step 3. `market_prices` and `market_price_history` are global, owned by
+        // market-data-service, and are deliberately not written here — see the class javadoc.
+        log.info("Golden-state seed complete (holdings only): userId={} portfolioId={} holdings={}",
+                userId, saved.getId(), seeds.size());
+        return new SeedResult(saved.getId(), seeds.size());
     }
 
     /**

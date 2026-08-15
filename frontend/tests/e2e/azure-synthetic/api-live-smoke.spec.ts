@@ -188,7 +188,8 @@ test.describe("Azure Synthetic: API live smoke", () => {
     const headers = { "X-Internal-Api-Key": internalApiKey! };
 
     // Portfolio seed: controller hardcodes the E2E user — no body needed.
-    // Response: { userId, portfolioId, holdingsInserted, marketPricesUpserted }
+    // Response: { userId, portfolioId, holdingsInserted }
+    // Holdings only — this endpoint must never write market_prices or market_price_history.
     const portfolioSeed = await request.post(
       `${baseUrl}/api/internal/portfolio/seed`,
       { headers, timeout: 70_000 },
