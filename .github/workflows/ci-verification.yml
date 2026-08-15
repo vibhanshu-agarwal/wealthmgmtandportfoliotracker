@@ -148,8 +148,13 @@ jobs:
     env:
       # Keep gateway JWT validation and frontend token minting aligned (non-empty secret required to sign tokens).
       AUTH_JWT_SECRET: ${{ secrets.AUTH_JWT_SECRET || 'local-dev-secret-change-me-min-32-chars' }}
-      BETTER_AUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
-      BETTER_AUTH_URL: http://localhost:3000
+      # Vestigial Better Auth vars, commented out 2026-08-15 rather than deleted so the mapping
+      # stays greppable if something turns out to read them. Better Auth was retired in PR #88
+      # (ba_* tables dropped in V16); nothing in src/, the Vitest suite, or the Next.js build
+      # reads either name. Remove these — and the NEXTAUTH_SECRET repository secret — once a
+      # green run confirms nothing depends on them. See docs/todos/TODOS_2026-04-07.md.
+      # BETTER_AUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
+      # BETTER_AUTH_URL: http://localhost:3000
       DATABASE_URL: postgresql://wealth_user:wealth_pass@localhost:5432/portfolio_db
       # docker-compose.yml prefers Terraform-style interpolation, while Playwright
       # global-setup reads INTERNAL_API_KEY. Export both from the same GitHub secret.
