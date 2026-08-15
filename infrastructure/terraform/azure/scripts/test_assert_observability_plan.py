@@ -299,5 +299,116 @@ class TestTablePlanFails(unittest.TestCase):
         self.assertTrue(errors, "expected FAIL when App Insights is missing")
 
 
+def _azapi_otel(*, app_logs=None, include_app_logs=True) -> dict:
+    """Minimal azapi_update_resource.aca_otel_agent plan fragment.
+
+    `include_app_logs=False` reproduces the 2026-08-15 apply failure: GET-merge-PUT
+    of the ACA environment without re-supplying logAnalyticsConfiguration.sharedKey.
+    """
+    properties = {
+        "appInsightsConfiguration": {"connectionString": "InstrumentationKey=0000"},
+        "openTelemetryConfiguration": {
+            "tracesConfiguration": {"destinations": ["appInsights"]}
+        },
+    }
+    if include_app_logs:
+        properties["appLogsConfiguration"] = app_logs or {
+            "destination": "log-analytics",
+            "logAnalyticsConfiguration": {
+                "customerId": "00000000-0000-0000-0000-000000000000",
+                "sharedKey": "not-a-real-key",
+            },
+        }
+    return _rc(
+        "azapi_update_resource",
+        "aca_otel_agent",
+        {
+            "type": "Microsoft.App/managedEnvironments@2025-10-02-preview",
+            "body": {"properties": properties},
+        },
+    )
+
+
+class TestAzapiOtelLogAnalytics(unittest.TestCase):
+    def test_azapi_otel_missing_app_logs_fails(self):
+        errors = _errors(_plan(*_good_resources(), _azapi_otel(include_app_logs=False)))
+        self.assertTrue(
+            errors,
+            "expected FAIL when azapi_update_resource.aca_otel_agent omits "
+            "appLogsConfiguration (PUT requires sharedKey; GET returns it as null)",
+        )
+        joined = " ".join(errors).lower()
+        self.assertTrue(
+            "applogsconfiguration" in joined or "loganalytics" in joined or "sharedkey" in joined,
+            errors,
+        )
+
+    def test_azapi_otel_missing_shared_key_fails(self):
+        errors = _errors(
+            _plan(
+                *_good_resources(),
+                _azapi_otel(
+                    app_logs={
+                        "destination": "log-analytics",
+                        "logAnalyticsConfiguration": {
+                            "customerId": "00000000-0000-0000-0000-000000000000",
+                            "sharedKey": None,
+                        },
+                    }
+                ),
+            )
+        )
+        self.assertTrue(errors, "expected FAIL when logAnalyticsConfiguration.sharedKey is null")
+
+    def test_azapi_otel_with_log_analytics_passes(self):
+        errors = _errors(_plan(*_good_resources(), _azapi_otel()))
+        self.assertEqual(errors, [], f"expected PASS when appLogsConfiguration is complete, got FAIL: {errors}")
+
+    def test_azapi_otel_unknown_shared_key_passes(self):
+        # Apply/PR plans redact workspace keys; after_unknown must not false-FAIL.
+        rc = _azapi_otel(
+            app_logs={
+                "destination": "log-analytics",
+                "logAnalyticsConfiguration": {
+                    "customerId": "00000000-0000-0000-0000-000000000000",
+                    "sharedKey": None,
+                },
+            }
+        )
+        rc["change"]["after_unknown"] = {
+            "body": {
+                "properties": {
+                    "appLogsConfiguration": {
+                        "logAnalyticsConfiguration": {"sharedKey": True}
+                    }
+                }
+            }
+        }
+        errors = _errors(_plan(*_good_resources(), rc))
+        self.assertEqual(
+            errors,
+            [],
+            f"expected PASS when sharedKey is after_unknown, got FAIL: {errors}",
+        )
+
+    def test_azapi_otel_body_sensitive_null_shared_key_passes(self):
+        rc = _azapi_otel(
+            app_logs={
+                "destination": "log-analytics",
+                "logAnalyticsConfiguration": {
+                    "customerId": "00000000-0000-0000-0000-000000000000",
+                    "sharedKey": None,
+                },
+            }
+        )
+        rc["change"]["after_sensitive"] = {"body": True}
+        errors = _errors(_plan(*_good_resources(), rc))
+        self.assertEqual(
+            errors,
+            [],
+            f"expected PASS when body is after_sensitive and sharedKey key exists, got FAIL: {errors}",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
