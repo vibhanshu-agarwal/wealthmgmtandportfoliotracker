@@ -1,5 +1,46 @@
 # Design Document
 
+> **Revision 2 — 2026-08-15.** Incorporates the first design review (checkpoint entry [21]), which
+> did not clear the gate. Five blocking groups, all accepted after independent verification. Two
+> were errors in this document rather than gaps in it.
+>
+> 1. **The version mechanism was mechanically wrong.** `OPTIMISTIC_FORCE_INCREMENT` does not accept
+>    or compare a caller-supplied version — `find(OPTIMISTIC_FORCE_INCREMENT, expectedVersion)` was
+>    not a real JPA operation — and its increment may be immediate or deferred to flush by provider.
+>    Acquiring it before deciding whether anything changed, then marking a *successful* transaction
+>    rollback-only for the no-op path, made the returned version provider-dependent and coupled
+>    business flow to programmatic rollback. D1 is replaced with a two-phase path: ordinary
+>    optimistic load, explicit version comparison, and force-increment plus parent-CAS flush only
+>    when state actually changes.
+> 2. **The release sequence created the window the requirements forbid.** Artifact 2 carried the
+>    unique constraint while `POST /api/portfolio` was still retired only in Artifact 3 — and
+>    sharing a release would not have helped, since Flyway runs at portfolio-service startup while an
+>    older revision can still serve the creator. A migration-free **Artifact 0** now retires it
+>    first. The rollback plan violated the invariant in both directions and is replaced with a
+>    rollback floor. G4 becomes a **pre-deploy** gate, because `/api/portfolio/**` makes the
+>    composition `PUT` reachable as soon as its revision takes traffic.
+> 3. **The error envelope contradicted Spec A.** Spec A froze `error: "unsupported_asset"`; Revision
+>    1 wrote `code: "unsupported_assets"`, changing field name and pluralization on an inherited
+>    contract. Restored, with `tickers` added additively. Separately,
+>    `HttpMessageNotReadableException` does not fire for a *missing* field — it deserializes to
+>    `null` — so missing-version and invalid-version now come from two different framework
+>    boundaries, and `expectedVersion` is a boxed `Long` with `@NotNull` because a primitive would
+>    default a missing field to `0`, which is a meaningful value in this contract.
+> 4. **The seed bridge was unsequenced, and widened a destructive endpoint.** Revision 1 proposed a
+>    `{userId, expectedVersion}` body; the controller is deliberately fixed to the E2E user, and
+>    making the target caller-supplied would have broadened a production-reachable daily writer with
+>    no requirement behind it. The target stays fixed. A narrow internal `seed-state` read is added,
+>    because the workflow has only `X-Internal-Api-Key` and cannot call the authenticated API, and
+>    the signature change is sequenced in four steps.
+> 5. **Aggregate_Creation would have flushed a null `updated_at`.** `@PrePersist` sets only
+>    `createdAt`; Hibernate binds mapped fields explicitly, so the column default never applies.
+>
+> Also: V17 uses a named table constraint rather than a bare unique index; `PortfolioSeedServiceIT`'s
+> literal `EXPECTED_HOLDINGS = 160` is replaced with active-catalog cardinality so this spec does not
+> reintroduce Spec A's fixed-count defect; five correctness properties added; O1, O2 and O4 closed,
+> and O3's rationale corrected — it was wrong about scope, and the real reason to defer is unrelated
+> migration risk.
+>
 > **Revision 1 — 2026-08-15.** First design draft for B1, opened after the requirements gate cleared
 > at Revision 6 (`git hash-object cbba0b38741bf2358f6605ca21f5fa8912f2e2b1`, checkpoint entry [19]).
 >
@@ -45,30 +86,52 @@ gateway-first cutover cheap enough to prefer.
 
 ### Key design decisions
 
-#### D1 — The version is a JPA `@Version` column, but every write acquires it explicitly
+#### D1 — Two-phase optimistic path: explicit version comparison, force-increment only when state changes
 
 `Portfolio` gains `@Version private long version`. No composition or reset code path relies on JPA
-noticing a child change. Each mutating operation begins by loading the parent with
-`LockModeType.OPTIMISTIC_FORCE_INCREMENT`, which both asserts the expected version and guarantees
-exactly one increment at flush, regardless of whether the parent's own columns changed.
+noticing a child change.
 
-This satisfies the "child-only mutation still increments" rule structurally rather than by
-convention. It also gives the no-op rule a clean implementation: the operation acquires the lock,
-compares desired state to stored state, and if they are equal it marks the transaction rollback-only
-and returns the unchanged aggregate — so no increment is written, while the precondition has already
-been enforced by the lock acquisition.
+**Revision 1 got the mechanics wrong and this supersedes it.** `OPTIMISTIC_FORCE_INCREMENT` does
+**not** accept or compare a caller-supplied version — it operates on the version snapshot held by
+the managed entity — so `find(OPTIMISTIC_FORCE_INCREMENT, expectedVersion)` was not a real JPA
+operation. The forced increment may also be applied immediately or deferred to flush depending on
+the provider, so acquiring it *before* deciding whether anything changed makes the returned version
+depend on provider timing. And the no-op path in Revision 1 relied on marking a **successful**
+transaction rollback-only, which couples ordinary business flow to programmatic rollback — an
+invasive fallback rather than the normal transaction model.
+
+The path is two-phase:
+
+1. Load the parent under an **ordinary** optimistic lock.
+2. Compare `portfolio.getVersion()` to the caller's `expectedVersion` explicitly. Mismatch →
+   `PortfolioVersionConflictException`. This is a plain field comparison, not a lock mode.
+3. Validate the complete desired set.
+4. Compare desired state to stored state. **Equal → return normally.** No force increment, no
+   rollback marker, no `updatedAt` advance. The ordinary optimistic lock still detects a concurrent
+   update on this path, so a no-op is not a hole in the concurrency contract.
+5. **Different →** request `OPTIMISTIC_FORCE_INCREMENT` on the parent, set `updatedAt`, **flush the
+   parent CAS before any child DML**, then replace children in the same transaction.
+
+Flushing the parent before child writes is what makes the increment a real compare-and-set against
+the database rather than an in-memory assumption: a concurrent writer that moved the version is
+detected before this transaction has touched a single holding.
+
+Tests must assert the **response** version as well as the stored version. A database rollback alone
+would not catch an incorrectly incremented in-memory DTO, which is the failure a naive
+force-increment-first implementation produces.
 
 #### D2 — Version comparison happens at lock acquisition, before anything else touches state
 
 The ordering the requirements mandate — precondition, then no-op detection, then destructive work —
 is implemented as a single sequence in the application operation:
 
-1. Envelope decoded by Jackson; a failure here never reaches the operation.
-2. Load parent with `OPTIMISTIC_FORCE_INCREMENT` at the expected version. Mismatch throws.
+1. Envelope decoded and validated; a failure here never reaches the operation (see D7).
+2. Load parent under an ordinary optimistic lock; compare `version` to `expectedVersion` explicitly.
+   Mismatch throws.
 3. Validate the complete desired set: catalog resolution, lifecycle permission, quantity domain,
    uniqueness. Any failure throws before a row is touched.
-4. Compare desired state to stored state. Equal → no-op return.
-5. Apply.
+4. Compare desired state to stored state. Equal → return normally, no increment.
+5. Different → force-increment parent, set `updatedAt`, flush parent CAS, then child DML.
 
 Steps 2 and 3 are deliberately in this order. A stale request with an invalid body returns the
 conflict, not the validation error, because the requirements make the version precondition
@@ -91,14 +154,25 @@ When no portfolio exists, `replaceHoldings` cannot acquire a lock. The path is:
 
 ```
 try {
-    portfolio = new Portfolio(userId);      // version 0 at construction
+    portfolio = new Portfolio(userId);      // version 0; @PrePersist sets BOTH timestamps
     portfolioRepository.saveAndFlush(portfolio);   // may violate uq_portfolios_user_id
 } catch (DataIntegrityViolationException e) {
     if (!isNamedConstraint(e, "uq_portfolios_user_id")) throw e;
-    throw new PortfolioVersionConflictException(/* current version re-read by caller */);
+    throw new PortfolioVersionConflictException();   // current version re-read by the handler
 }
 applyDesiredState(portfolio, desiredSet);   // force-increment → version 1
 ```
+
+**`@PrePersist` must initialize `updatedAt`, not only `createdAt`.** It currently sets `createdAt`
+alone. Hibernate includes mapped fields in the INSERT, so a non-null `updatedAt` column with no
+initializer is bound as an explicit `null` and the database `DEFAULT now()` never applies — the
+insert fails. Both timestamps are set in `@PrePersist`; later transitions set `updatedAt` from the
+service, per the component notes below.
+
+Initial timestamp semantics are the same for all three creation paths: `createdAt = updatedAt =`
+creation instant. For signup and backfill that is a portfolio at version `0` which has never
+transitioned, so the two being equal is accurate. For Aggregate_Creation the subsequent transition
+to version `1` overwrites `updatedAt` in the same transaction.
 
 The creation and the holdings application are one transaction, so the externally observable result
 is a single aggregate at version `1`, satisfying the requirement that absent creation ends at `1`
@@ -130,40 +204,93 @@ production use, so this is a real round-trip, not a hypothetical one.
 
 #### D7 — One error envelope, one enum, no per-site shapes
 
+**The machine-code field is `error`, and Spec A's value is preserved verbatim.** Spec A froze
+`error: "unsupported_asset"` — singular, field named `error` — as an HTTP contract requirement. A new
+unified envelope cannot silently rename the field or pluralize the value; B1 extends that contract,
+it does not replace it.
+
 ```json
-{ "code": "portfolio_version_conflict", "message": "...", "currentVersion": 7 }
-{ "code": "unsupported_assets", "message": "...", "catalogVersion": "…", "tickers": ["FOO"] }
+{ "error": "portfolio_version_conflict", "message": "...", "currentVersion": 7 }
+{ "error": "unsupported_asset",  "message": "...", "catalogVersion": "…", "tickers": ["FOO"] }
+{ "error": "lifecycle_not_permitted", "message": "...", "catalogVersion": "…", "tickers": ["TATAMOTORS.NS"] }
 ```
+
+`unsupported_asset` keeps its singular Spec A value while gaining the `tickers` collection B1
+requires — an additive change to an inherited contract rather than a redefinition.
 
 A `ContractErrorCode` enum owns every stable identifier. `GlobalExceptionHandler` gains typed
-handlers that all produce this shape. The existing ad-hoc `Map` responses for unrelated errors are
-left alone — rewriting them is out of scope and would touch endpoints this spec does not own.
+handlers producing this shape. Existing ad-hoc `Map` responses on endpoints this spec does not own
+are left alone.
 
-Envelope failures are handled by overriding `ResponseEntityExceptionHandler`'s
-`HttpMessageNotReadableException` hook, which fires before any controller method is entered. That is
-what makes "envelope before stateful" implementable rather than aspirational: at that point there is
-no decoded version to compare, so the ordering is a property of the framework's dispatch, not of our
-evaluation sequence.
+**Envelope failures need two framework boundaries, not one.** Revision 1 routed them all through
+`HttpMessageNotReadableException`, which is wrong: that fires on malformed JSON and on a type
+mismatch, but a **missing** record field deserializes to `null` (or `0` for a primitive) and reaches
+the controller without any exception. The required distinct codes therefore come from two places:
 
-#### D8 — The seed endpoint takes a version; the daily caller reads one observation
+| condition | boundary | code |
+|---|---|---|
+| malformed JSON, non-integer version, quantity as JSON number | `HttpMessageNotReadableException` handler | `malformed_request`, `invalid_version`, `quantity_not_string` |
+| absent `expectedVersion` field | `@Valid` + `@NotNull` on the request DTO, via `MethodArgumentNotValidException` | `missing_version` |
 
-`POST /api/internal/portfolio/seed` becomes:
+The request DTO declares `expectedVersion` as a **boxed** `Long` with `@NotNull`. A primitive `long`
+would silently default a missing field to `0`, which is a meaningful value in this contract — it
+denotes Absent_Aggregate — so a missing version would be indistinguishable from a deliberate
+creation attempt. That is the specific reason the boxing is required rather than stylistic.
 
-```json
-{ "userId": "…", "expectedVersion": 7 }
-```
+Both boundaries fire before any controller body executes, so "envelope before stateful" remains a
+property of framework dispatch rather than of our evaluation order.
+
+#### D8 — The seed target stays fixed; a version arrives via a four-step compatibility bridge
 
 `PortfolioSeedService.seed()` loses its `deleteAll` opening entirely and delegates to
 `CompositionService.replaceHoldings` with the catalog-derived Golden-State tuple.
 
-The existing daily caller — the `synthetic-monitoring.yml` step — must read the portfolio once,
-carry that exact version into the seed call, and treat `409` as a lost race that is **not** retried.
-This is the B1 half of the reset contract: B2 will eventually own the eligibility decision, but the
-already-running caller has to supply a version before B2 exists, so the migration cannot wait.
+**The target remains server-fixed.** `PortfolioSeedController` hard-codes `E2E_USER_ID` and takes no
+parameters. Revision 1 proposed a `{userId, expectedVersion}` body, which would have widened a
+destructive, production-reachable, daily-invoked endpoint to arbitrary users — with no requirement
+asking for it. The body carries `expectedVersion` only; the target stays the compiled-in E2E id.
+(The workflow already sends `{"userId": …}` today and the controller ignores it; that field stays
+ignored rather than becoming meaningful.)
+
+**The caller cannot read the version through the authenticated API.** The workflow's seed step
+carries `X-Internal-Api-Key` and no user JWT, so `GET /api/portfolio` is unreachable to it. A narrow
+internal read is added:
+
+```
+GET /api/internal/portfolio/seed-state     →  { "portfolioId": "…", "version": 7 }
+```
+
+protected by the same internal key, reporting the fixed E2E target, and returning virtual version
+`0` when no portfolio exists.
+
+**The signature change is sequenced, because the caller and the endpoint deploy independently:**
+
+1. Deploy `seed-state` while the existing seed `POST` still accepts the current call unchanged.
+2. Change the workflow to read once and send that exact version. The old `POST` ignores the extra
+   JSON field during this interval, so this step is safe in either deployment order.
+3. Verify one successful scheduled or manual execution using the new request shape.
+4. Only then deploy the `POST` that **requires** the version and delegates to the versioned reset.
+
+Reversing steps 1 and 4 breaks the daily seed on the first run after deploy.
+
+**`409` needs a deliberate workflow outcome.** The step currently asserts `HTTP != 200 → exit 1`, so
+a lost race would fail the monitoring job. A `409` is correct behaviour and evidence of data safety —
+it means a user edit won — but it is also not a successful seed. It is treated as a non-retryable
+outcome with an explicitly chosen workflow status rather than inheriting the current blanket failure,
+and it is never retried, since retrying against the newer version is the silent overwrite the
+contract exists to prevent.
 
 #### D9 — Cutover is staged gateway-first, with quiescence as a proven fallback
 
 Selected per the requirements' permission and Codex's recommendation. Three artifacts, in order:
+
+**Artifact 0 — creator retirement, migration-free.** Retires `POST /api/portfolio` and migrates its
+E2E caller. Contains **no migration**, so it can be fully deployed and verified before any schema
+change exists. Revision 1 placed this in the last artifact, which put the unique constraint and a
+reachable duplicate-creating endpoint in the same release — precisely what the requirements forbid.
+Sharing a release with the migration is not sufficient either: Flyway runs when the new
+portfolio-service revision starts, while an older traffic-serving revision can still expose the
+creator.
 
 **Artifact 1 — provisioning-capable gateway.** `SignupService` gains a `portfolios` insert inside
 its existing `TransactionTemplate`. The insert must work against **both** schemas, which it does
@@ -172,10 +299,11 @@ created_at) VALUES (...)`. The new `version` and `updated_at` columns take their
 Deployed and verified on every traffic-serving revision before artifact 2 starts.
 
 **Artifact 2 — migration.** Backfill, unique constraint, quantity check, version and `updated_at`
-columns.
+columns. May not start until Artifact 0 and Artifact 1 are both verified on every traffic-serving
+revision.
 
-**Artifact 3 — endpoints.** Composition `PUT`, `/api/assets`, retirement of `POST /api/portfolio`
-and the versionless holdings `POST`, seed signature change.
+**Artifact 3 — endpoints.** Composition `PUT`, `/api/assets`, retirement of the versionless holdings
+`POST`, seed signature change per D8's four-step bridge.
 
 The dual-schema property is the whole basis for preferring this path, so it is a **proof
 obligation**, not an assumption: an integration test runs the gateway's provisioning insert against
@@ -275,6 +403,12 @@ user never supplied.
 
 ### 3. `GoldenStateSeedService` — replaces the delete-and-recreate body
 
+`PortfolioSeedServiceIT` declares `EXPECTED_HOLDINGS = 160` and asserts it twice. When that test is
+rewritten for identity preservation, the literal is replaced with **active-catalog cardinality**
+read from the Catalog_Module. Spec A removed fixed catalog counts as an invariant deliberately;
+carrying a literal `160` into a new test would reintroduce the defect it removed.
+
+
 Builds the desired set from the Catalog_Module's active entries with the existing deterministic
 quantity and cost-basis functions, then calls `replaceHoldings`. The `deleteAll` + `flush` opening is
 removed outright.
@@ -342,7 +476,9 @@ That change belongs to B2; it is named here so the constraint is not rediscovere
    FROM users u
    WHERE NOT EXISTS (SELECT 1 FROM portfolios p WHERE p.user_id = u.id::text);
    ```
-4. `CREATE UNIQUE INDEX uq_portfolios_user_id ON portfolios (user_id)`
+4. `ALTER TABLE portfolios ADD CONSTRAINT uq_portfolios_user_id UNIQUE (user_id)` — a named
+   **table constraint**, not a bare unique index, because the exception translator matches on
+   constraint name and a plain index does not reliably surface one.
 5. `ALTER TABLE asset_holdings ALTER COLUMN quantity DROP DEFAULT`
 6. `ALTER TABLE asset_holdings ADD CONSTRAINT chk_asset_holdings_quantity_positive CHECK (quantity > 0)`
 
@@ -406,12 +542,35 @@ code, never as `409`.
 byte-identity of `market_prices` and `market_price_history` across repeated seeds, sentinel rows
 included. This is the PR #97 regression guard and it survives the seeder rewrite unchanged in intent.
 
+**P11a — Creation binds both timestamps.** A portfolio created by any of the three paths inserts
+with non-null `createdAt` and `updatedAt`; no path relies on a database default to replace an
+explicitly bound null.
+
+**P11b — The no-op path performs no write and no increment.** A matching-version request whose
+desired state equals stored state leaves `version` and `updated_at` byte-identical, and the
+**response** version equals the stored version — asserted on the DTO, not only on the row, since an
+in-memory over-increment survives a database rollback.
+
+**P11c — Every envelope-failure code is reachable and distinct.** Malformed JSON, a non-integer
+version, an absent `expectedVersion`, and a quantity sent as a JSON number each produce their own
+stable code, and each precedes any stateful check.
+
+**P11d — Artifact 0 closes the creator before the constraint exists.** No traffic-serving revision
+exposes `POST /api/portfolio` at the moment V17 runs.
+
+**P11e — The seed bridge is order-safe.** The old seed `POST` accepts the new request shape
+(ignoring the version) and the new `POST` rejects a request without one, so steps 2 and 4 of D8 are
+safe in either deployment order relative to each other.
+
 **P11 — Every user has exactly one portfolio.** After cutover, `SELECT user_id FROM portfolios GROUP
 BY user_id HAVING COUNT(*) <> 1` is empty, and no user in `users` is absent from `portfolios`.
 
 ## Sequencing and Cutover
 
 ### Gates
+
+**G0 — creator retired.** No traffic-serving portfolio-service revision exposes `POST
+/api/portfolio`, and its E2E caller is migrated. Verified by revision listing plus traffic weights.
 
 **G1 — dual-schema proof.** The gateway provisioning insert passes against both pre- and
 post-migration schemas. If this fails, switch to the quiescence path before proceeding.
@@ -430,41 +589,61 @@ read-only.
 
 ### Releases
 
+**R-0 — creator retirement.** Artifact 0. Gate: G0 after.
 **R-A — gateway provisioning.** Artifact 1. Gate: G1 before deploy, G2 after.
-**R-B — migration.** Artifact 2. Gate: G3 after.
-**R-C — endpoints.** Artifact 3. Gate: G4 before making composition reachable.
+**R-B — migration.** Artifact 2. Gates: G0 and G2 before; G3 after.
+**R-C — endpoints.** Artifact 3. Gate: G4 **before deploy**.
 
-Retirement of `POST /api/portfolio` and the versionless holdings `POST` lands in R-C together with
-their E2E consumer migration, so no release exists in which a duplicate-creating path is reachable
-while the unique constraint is present.
+No release exists in which a duplicate-creating path is reachable while the unique constraint is
+present, because R-0 completes and is verified before R-B starts.
+
+**G4 is a pre-deploy gate, not a post-deploy one.** The existing `Path=/api/portfolio/**` gateway
+route means the composition `PUT` is reachable the moment its controller revision receives traffic —
+there is no dark-deploy switch in this design, and adding one would be more machinery than
+sequencing the release correctly. `/api/assets` is exempt: it is read-only and side-effect free, so
+it may ship earlier.
 
 ### Rollback
 
-R-A is independently revertible: the provisioning insert is additive and a reverted gateway simply
-stops provisioning, which the composition fallback covers. R-B is a Flyway migration and is not
-reverted; a defect there is corrected forward. R-C is revertible by redeploying the prior artifact,
-which restores the old endpoints — acceptable only before G4, because after activation the picker
-depends on them.
+Revision 1's rollback plan violated the invariant in both directions and is replaced.
+
+**The rollback floor is Artifact 0 + Artifact 1 together.** Once R-B has run, no rollback may cross
+below that floor. Two specific errors this prevents:
+
+- **Reverting the gateway after the backfill** stops signup provisioning, so new users are created
+  with no portfolio. The composition fallback creates one on first write, but the invariant is
+  "every user has exactly one portfolio", not "every user who writes gets one" — a signed-up user
+  who never opens the picker would sit outside it indefinitely.
+- **Reverting to a pre-B1 artifact after activation** restores both forbidden writers — the
+  duplicate creator and the versionless holdings `POST` — underneath a live unique constraint and a
+  live concurrency contract.
+
+Within the floor: R-C is reverted by redeploying a **B1-compatible** artifact with the new
+capabilities disabled, not by redeploying a pre-B1 one. R-B is a Flyway migration and is corrected
+forward, never reverted. If gateway provisioning itself must be rolled back, signup is quiesced
+until a forward fix is serving traffic — the same mechanism the cutover already permits as its
+fallback, reused rather than invented.
 
 ## Open Decisions
 
-**O1 — Where the reset's eligibility observation is read in B1.** The daily caller must read the
-portfolio version before calling seed. Whether that read is a new lightweight endpoint or a reuse of
-`GET /api/portfolio` is unresolved; B2 will replace this caller anyway, so the cheaper option is
-probably right, but it should not be chosen without checking what the workflow step can call.
+**O1 — CLOSED.** Reuse of `GET /api/portfolio` is impossible: the workflow's seed step carries only
+`X-Internal-Api-Key` and no user JWT. Resolved as a narrow internal `GET
+/api/internal/portfolio/seed-state` on the fixed E2E target — see D8.
 
-**O2 — Whether `CompositionResult.noOp` is exposed to clients.** The requirements demand `200` with
-an unchanged version for a no-op, which a client can already detect by comparing versions. An
-explicit flag may be redundant.
+**O2 — CLOSED as internal-only.** `CompositionResult.noOp` is useful for controller-to-service
+mapping but adds no wire field. An unchanged version already expresses the public result.
 
-**O3 — `portfolios.user_id` is `VARCHAR(255)`, not `UUID`.** Found while verifying this design's
-backfill SQL. `users.id` is `UUID`; the mismatch is bridged with `::text` casts here rather than
-corrected, because widening the column touches `Portfolio.userId`, every repository method keyed on
-it, and the seeder — none of which this spec owns, and all of which would enlarge a migration that
-gates a production cutover. Worth its own change. Note that `V7__Fix_Portfolio_User_Id_To_UUID.sql`
-does **not** do this despite its filename: it updates a value, not a type.
+**O3 — `portfolios.user_id` is `VARCHAR(255)`, not `UUID`; deferred, with the rationale corrected.**
+`users.id` is `UUID`, and the mismatch is bridged with `::text` casts here.
 
-**O4 — Backfill portfolio `created_at`.** The migration sets `now()`, which claims these portfolios
-were created at migration time rather than at user signup. Using the user's `created_at` would be
-more truthful but implies a portfolio existed when it did not. Neither is clearly right; `now()` is
-chosen provisionally.
+Revision 1 justified deferring this on the grounds that the affected code is out of scope. **That
+was wrong** — B1 directly owns `Portfolio`, its repositories, and the seeder, all of which it
+already modifies. The correct reason to defer is that converting a live identifier column is
+migration risk unrelated to anything B1 needs: it rewrites every row of a table whose constraint and
+backfill are already gating a production cutover, for no benefit to this spec. It is also a type
+*conversion*, not a "widening". Worth its own change, on its own risk budget.
+
+`V7__Fix_Portfolio_User_Id_To_UUID.sql` does not do this despite its filename: it updates a value.
+
+**O4 — CLOSED with `now()`.** The portfolio is genuinely created by the backfill at migration time.
+Reusing the user's `created_at` would claim the aggregate existed when it did not.
