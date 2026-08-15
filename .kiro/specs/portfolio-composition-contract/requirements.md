@@ -1,5 +1,40 @@
 # Requirements Document
 
+> **Revision 3 — 2026-08-15.** Incorporates the second adversarial review (checkpoint entry [11]),
+> which cleared every Revision 2 fix but found four new blockers by modelling creation and
+> concurrency as **state transitions** rather than as endpoint behaviours. All four accepted after
+> independent verification, plus four consistency corrections.
+>
+> 1. **The exactly-one cutover still admitted users with zero portfolios.** R1.15's "no later than"
+>    was an intention, not a mechanism. Verified: `deploy-azure.yml:121-123` deploys `api-gateway`
+>    and `portfolio-service` as **parallel matrix entries**, and Flyway runs at `portfolio-service`
+>    startup — so the backfill can commit while the previous gateway revision is still accepting
+>    signups. A user created in that window is permanently missed, and the unique constraint cannot
+>    detect it because it enforces only *at most* one. Requirement 1 now carries an explicit
+>    Signup_Cutover_Gate (1.16 to 1.20).
+> 2. **Expected version `0` conflated absence with an existing zero-version aggregate.** R6.24
+>    returned version `1` for an empty creation while R5 defined increments only for holdings
+>    mutations — those could not both hold. Worse, two concurrent empty first requests would both
+>    observe absence and both compute a matching expected version, so no pre-write comparison could
+>    produce R6.22's mandatory `409`. Resolved by Codex's model 1: Aggregate_Creation is a versioned
+>    transition, and the loser's `409` is raised on the **constraint outcome** rather than on a
+>    version comparison (6.20 to 6.29, 5.16 to 5.18). See D21.
+> 3. **The Golden_State_Seeder could not both delete the aggregate and join its version.** R8.15
+>    said the conflict would be "reconciled" in design; no design can reconcile it, because deleting
+>    the parent destroys the identity and the monotonic sequence. R8.14 to R8.20 now require
+>    delegation to the Identity_Preserving_Reset. The seeder's non-concurrency is also demoted from
+>    invariant to observation: it is HTTP-reachable and runs daily.
+> 4. **Error precedence crossed a boundary it cannot control.** R7.12 put `409` ahead of `400`, but
+>    a quantity sent as a JSON number, malformed JSON, or a missing version all fail before a
+>    version exists to compare. Split into Envelope_Failure `400` before any stateful check, then
+>    the stateful ordering (7.12 to 7.20).
+>
+> Consistency corrections: `Portfolio_Provisioning` and `Activation_Gate` glossary entries were
+> stale; R8.4 cited 8.5 (the old creator) where the exemption is 8.10; D12 cited 5.9 where the
+> `updated_at` criterion is 5.14. All four are the semantic-drift class the reference checker
+> cannot catch — it verifies that a reference *resolves*, not that it points at the right thing.
+> D2's "not a new failure mode" is narrowed to "no new distributed failure boundary".
+>
 > **Revision 2 — 2026-08-15.** Incorporates the adversarial review in checkpoint entry [9], which
 > did not clear the gate. Five blocking findings, all accepted after independent verification:
 >
@@ -107,7 +142,11 @@ Scope is deliberately limited to the contract. This spec delivers no frontend ch
 - **Portfolio_Version**: A monotonically increasing integer on the Portfolio_Aggregate, incremented exactly once per holdings mutation, supplied by the client on write and compared before mutation.
 - **Version_Conflict**: The condition where a supplied Portfolio_Version does not match the stored one. Yields `409` and no mutation.
 - **Primary_Portfolio**: The single portfolio belonging to a user. This spec makes "exactly one per user" an invariant rather than a convention.
-- **Portfolio_Provisioning**: Creation of a user's Primary_Portfolio. Occurs on first write via the Composition_Operation, and for pre-existing users via the Portfolio_Backfill.
+- **Portfolio_Provisioning**: Creation of a user's Primary_Portfolio. Occurs at signup (the primary path), for pre-existing users via the Portfolio_Backfill, and on first composition as a recovery fallback.
+- **Aggregate_Creation**: Provisioning performed *by* a Composition_Operation, modelled as a versioned state transition from Absent_Aggregate to Portfolio_Version `1`. Distinct from signup and backfill provisioning, which create at Portfolio_Version `0`.
+- **Absent_Aggregate**: The state of a user having no Primary_Portfolio. Addressed on the wire by expected Portfolio_Version `0`, which denotes absence *or* an existing unmutated aggregate — the two are distinguished by outcome, not by token. See D21.
+- **Envelope_Failure**: A request rejected before any stored state is consulted — malformed JSON, a quantity supplied as a JSON number, a missing or non-integer version. Precedes every stateful check because the system has no decoded request to compare against.
+- **Signup_Cutover_Gate**: The deployment condition under which the Portfolio_Backfill may run: every signup writer capable of creating a user without a portfolio is gone.
 - **Portfolio_Backfill**: The migration creating an empty Primary_Portfolio for every existing user who has none.
 - **Quantity_Domain**: The permitted value range for a holding quantity: required, strictly positive, at most 11 integer digits and 8 fractional digits, maximum `99999999999.99999999`. Derived from the `NUMERIC(19, 8)` column contract.
 - **Decimal_String**: A quantity represented on the wire as a JSON string in plain decimal notation, never as a JSON number and never in exponential notation.
@@ -116,7 +155,7 @@ Scope is deliberately limited to the contract. This spec delivers no frontend ch
 - **Retained_Deprecated_Position**: An existing Deprecated_Position carried unchanged or reduced through a Composition_Operation. It may be retained, reduced, or removed; it may not be introduced or increased.
 - **Writer_Convergence**: The requirement that every remaining holdings write path either routes through the Composition_Operation or participates in the same Portfolio_Version.
 - **Identity_Preserving_Reset**: A reset that replaces a portfolio's holdings **within** the existing portfolio row, preserving its id and advancing its Portfolio_Version. Distinct from the Golden_State_Seeder, which deletes and recreates.
-- **Activation_Gate**: The production condition under which the Composition_Operation becomes user-reachable — Spec A's Requirement 4 cutover complete and verified.
+- **Activation_Gate**: The production condition under which the Composition_Operation becomes user-reachable — Spec A's enforcement activation and verified steady state, the milestone its cutover sequence labels the R4 release artifact. Deliberately not written as a requirement number: in Spec A the token `R4` names a release stage, while `Requirement 4` concerns symbol corrections.
 - **Supported_Catalog**, **Catalog_Version**, **Catalog_Module**, **Lifecycle_Status**, **Active_Asset**, **Deprecated_Asset**, **Deprecated_Position**, **Application_Operation**, **Http_Entry_Point**, **Golden_State_Seeder**, **New_Write_Invariant**: as defined in `supported-asset-integrity/requirements.md`. Not redefined here; this spec traces to those definitions rather than restating them.
 
 ## Requirements
@@ -140,8 +179,14 @@ Scope is deliberately limited to the contract. This spec delivers no frontend ch
 11. IF provisioning and composition cannot both commit under 1.9, THEN THE system SHALL commit neither.
 12. THE Composition_Operation SHALL NOT accept a portfolio identifier in its path or body; it SHALL target the caller's Primary_Portfolio, resolved from the authenticated principal.
 13. THE existing multi-portfolio capability SHALL be treated as unreachable rather than merely unused: no product path creates a second portfolio and no path selects between portfolios.
-14. THE Portfolio_Backfill SHALL be verified against production counts before and after, since the preflight established `users=7, portfolios=2` and expects `portfolios=7` afterwards.
-15. THE ordering SHALL be: Portfolio_Backfill and the unique constraint land together; signup provisioning ships no later than the constraint; the second creation path in Requirement 8 is closed no later than the constraint. THE constraint SHALL NOT land while a path capable of creating a duplicate remains reachable.
+14. THE Portfolio_Backfill SHALL be verified by asserting the **invariant relationally** — that no user has a portfolio count other than one — and SHALL NOT assert a fixed total.
+15. Criterion 1.14 SHALL NOT encode the preflight's `users=7, portfolios=2`, because a legitimate signup before cutover changes that number, and because equal totals can mask one missing user against one duplicate. THOSE figures are retained as dated evidence in the introduction, not as a migration postcondition.
+16. THE Portfolio_Backfill SHALL NOT run until the Signup_Cutover_Gate holds: every deployed signup writer capable of creating a user without a portfolio is gone.
+17. Criterion 1.16 SHALL be satisfied by an explicit deployment gate, NOT by ordering within one release. `deploy-azure.yml` deploys `api-gateway` and `portfolio-service` as **parallel matrix entries** (`strategy: matrix: service:`), and Flyway runs at `portfolio-service` startup — so a migration can commit while the previous gateway revision is still accepting signups.
+18. A user created in the window described by 1.17 SHALL be impossible, rather than repaired afterwards: the unique constraint enforces only *at most* one portfolio and therefore cannot detect or reject a user who has none.
+19. THE gate in 1.16 SHALL be satisfied by one of: deploying and verifying the provisioning-capable gateway **before** the release containing the backfill, or quiescing signup from the backfill precondition through activation.
+20. THE final evidence SHALL be collected after every old signup writer is gone, not at migration commit time, because the migration's own snapshot cannot observe a concurrent signup against a prior revision.
+21. THE unique constraint SHALL NOT land while any path capable of creating a duplicate remains reachable — specifically the second creation path closed in Requirement 8.
 
 ### Requirement 2: Asset discovery
 
@@ -200,19 +245,23 @@ Scope is deliberately limited to the contract. This spec delivers no frontend ch
 #### Acceptance Criteria
 
 1. THE Portfolio_Aggregate SHALL carry a Portfolio_Version.
-2. THE Portfolio_Version SHALL increment exactly once per holdings mutation, whether that mutation adds, changes, or removes holdings.
-3. A mutation touching only child rows SHALL still increment the Portfolio_Version, because holdings are child rows and an unmodified parent would otherwise leave the version static.
-4. THE system SHALL use an **explicit parent-version mechanism** — comparing the expected version against the parent row and forcing its increment within the same transaction as the child mutation, by `OPTIMISTIC_FORCE_INCREMENT` or an equivalent parent-row compare-and-set.
-5. THE mechanism in 5.4 SHALL be mandatory. THE system SHALL NOT rely on a JPA inverse collection propagating a child mutation to the parent version, because that behaviour is mapping-dependent and would leave the concurrency contract resting on an implementation detail rather than a stated one.
-6. THE mechanism in 5.4 SHALL additionally be verified by concurrent integration test, so that the guarantee is demonstrated rather than assumed from the annotation alone.
-7. A request whose desired state equals the stored state SHALL be exempt from the increment in 5.2, per 5.11.
-8. THE `PortfolioResponse` SHALL carry the Portfolio_Version.
-9. THE system SHALL NOT expose the Portfolio_Version through a separate endpoint, because a read-then-read sequence reintroduces the race the version exists to close.
-10. WHEN a Composition_Operation succeeds, THE response SHALL be the complete `PortfolioResponse` carrying the new Portfolio_Version.
-11. WHEN a Composition_Operation is submitted whose desired state equals the current state, THE system SHALL return `200` idempotently with the version unchanged and no `updated_at` advance.
-12. THE `portfolios` table SHALL gain an `updated_at` column, which does not exist today — see D12.
-13. THE `updated_at` column SHALL advance on every holdings mutation that increments the Portfolio_Version, so that B2's idle-guard reset has a durable signal to read.
-14. A newly provisioned Primary_Portfolio SHALL have Portfolio_Version `0`.
+2. THE Portfolio_Version SHALL increment exactly once per **aggregate state transition**, which comprises any holdings mutation *and* Aggregate_Creation by a Composition_Operation.
+3. Criterion 5.2 SHALL NOT be scoped to holdings mutations alone. Aggregate_Creation with an empty desired set changes no holding but does transition the aggregate from Absent_Aggregate to existing, and a version that did not move would make that transition invisible to the concurrency contract.
+4. A mutation touching only child rows SHALL still increment the Portfolio_Version, because holdings are child rows and an unmodified parent would otherwise leave the version static.
+5. THE system SHALL use an **explicit parent-version mechanism** — comparing the expected version against the parent row and forcing its increment within the same transaction as the child mutation, by `OPTIMISTIC_FORCE_INCREMENT` or an equivalent parent-row compare-and-set.
+6. THE mechanism in 5.5 SHALL be mandatory. THE system SHALL NOT rely on a JPA inverse collection propagating a child mutation to the parent version, because that behaviour is mapping-dependent and would leave the concurrency contract resting on an implementation detail rather than a stated one.
+7. THE mechanism in 5.5 SHALL additionally be verified by concurrent integration test, so that the guarantee is demonstrated rather than assumed from the annotation alone.
+8. A request whose desired state equals the stored state of an **existing** aggregate SHALL be exempt from the increment in 5.2, per 5.13.
+9. THE exemption in 5.8 SHALL NOT extend to Aggregate_Creation. An empty desired set against an Absent_Aggregate is not a no-op, because it changes whether the aggregate exists.
+10. THE `PortfolioResponse` SHALL carry the Portfolio_Version.
+11. THE system SHALL NOT expose the Portfolio_Version through a separate endpoint, because a read-then-read sequence reintroduces the race the version exists to close.
+12. WHEN a Composition_Operation succeeds, THE response SHALL be the complete `PortfolioResponse` carrying the new Portfolio_Version.
+13. WHEN a Composition_Operation is submitted whose desired state equals the current state of an existing aggregate, THE system SHALL return `200` idempotently with the version unchanged and no `updated_at` advance.
+14. THE `portfolios` table SHALL gain an `updated_at` column, which does not exist today — see D12.
+15. THE `updated_at` column SHALL advance on every transition that increments the Portfolio_Version, so that B2's idle-guard reset has a durable signal to read.
+16. A Primary_Portfolio provisioned at **signup** or by the **Portfolio_Backfill** SHALL have Portfolio_Version `0`.
+17. A Primary_Portfolio created by **Aggregate_Creation** SHALL have Portfolio_Version `1`, because the creating request is itself the first transition.
+18. THE asymmetry between 5.16 and 5.17 SHALL be deliberate: signup and backfill create an aggregate no client has yet acted on, whereas Aggregate_Creation records a client's first desired state.
 
 ### Requirement 6: Desired-state composition
 
@@ -239,12 +288,16 @@ Scope is deliberately limited to the contract. This spec delivers no frontend ch
 17. THE system SHALL NOT infer a weighted purchase price from a quantity change, because that would invent a transaction the user never supplied — this is a snapshot editor, not a trade ledger.
 18. THE system SHALL validate the **complete** desired set — every ticker's catalog resolution, lifecycle permission, quantity domain, and uniqueness — before performing any destructive replacement or cost-basis capture, so that an invalid desired set cannot leave partial state behind.
 19. Criterion 6.18 SHALL hold independently of transactional rollback, because ordering validation first makes the atomicity in 6.3 a property of the operation rather than solely of the transaction manager.
-20. WHEN a user has no Primary_Portfolio, THE Composition_Operation SHALL require an expected Portfolio_Version of `0`.
-21. WHEN a first Composition_Operation carrying expected version `0` succeeds against a non-empty desired set, THE system SHALL provision the Primary_Portfolio, apply the desired state, and return `201` with Portfolio_Version `1`.
-22. WHEN two concurrent first requests race, THE system SHALL allow exactly one to create the Primary_Portfolio; the loser SHALL receive `409` per Requirement 7 and SHALL NOT create a second portfolio.
-23. Criterion 6.22 SHALL be enforced by the unique constraint in 1.8, not by application-level check-then-act, which cannot exclude the race.
-24. WHEN a first Composition_Operation carries an **empty** desired set and the user has no Primary_Portfolio, THE system SHALL provision an empty Primary_Portfolio and return `201` with Portfolio_Version `1`, rather than rejecting — this is the same end state the Portfolio_Backfill produces, so rejecting it would make the two provisioning paths disagree.
-25. WHEN the expected Portfolio_Version is `0` but a Primary_Portfolio already exists with a non-zero version, THE system SHALL return `409` and SHALL NOT create or mutate anything.
+20. WHEN a user has no Primary_Portfolio, THE Composition_Operation SHALL require an expected Portfolio_Version of `0`, denoting Absent_Aggregate.
+21. Expected version `0` SHALL be permitted to denote **either** Absent_Aggregate **or** an existing aggregate at version `0` — signup- or backfill-provisioned and not yet mutated. THE two SHALL be distinguished by outcome rather than by a distinct wire token, per D21.
+22. WHEN expected version `0` is supplied and no Primary_Portfolio exists, THE system SHALL perform Aggregate_Creation: provision the portfolio, apply the desired state, and return `201` with Portfolio_Version `1`.
+23. Criterion 6.22 SHALL apply whether the desired set is empty or non-empty. AN empty first set SHALL create an empty Primary_Portfolio at version `1` rather than being rejected or treated as a no-op, because it transitions the aggregate from absent to existing.
+24. WHEN expected version `0` is supplied and a Primary_Portfolio already exists at version `0`, THE system SHALL apply the desired state as an ordinary mutation, returning `200` with Portfolio_Version `1` — or `200` with the version unchanged if the desired state equals the stored state, per 5.13.
+25. WHEN expected version `0` is supplied and a Primary_Portfolio exists at a **non-zero** version, THE system SHALL return `409` and SHALL NOT create or mutate anything.
+26. WHEN two concurrent requests both carrying expected version `0` race against an Absent_Aggregate, THE system SHALL allow exactly one to perform Aggregate_Creation; the loser SHALL receive `409` and SHALL NOT create a second portfolio.
+27. Criterion 6.26 SHALL be enforced by the unique constraint in 1.8, not by application-level check-then-act, which cannot exclude the race.
+28. THE loser in 6.26 SHALL receive `409` even though its expected version `0` matched the state it observed, because by commit time the aggregate exists at version `1`. THE `409` SHALL therefore be raised on the **constraint outcome**, not solely on a version comparison performed before the write.
+29. Criterion 6.28 SHALL hold for the empty-desired-set case as well, which is the case a pre-write version comparison alone cannot distinguish: two concurrent empty creators both observe absence and both compute a matching expected version.
 
 ### Requirement 7: Error contract
 
@@ -263,12 +316,17 @@ Scope is deliberately limited to the contract. This spec delivers no frontend ch
 9. THE two `422` classes SHALL be distinguishable by code, because they have different remedies: an absent ticker means the client's catalog is stale and it should refetch, whereas a lifecycle rejection means the catalog is current and the requested change is not permitted.
 10. WHEN a quantity violates the Quantity_Domain, THE system SHALL return `400` with a code distinguishing it from an unsupported asset.
 11. WHEN a request contains duplicate tickers, THE system SHALL return `400` with a distinct code.
-12. WHEN a single request contains more than one class of error, THE system SHALL apply this precedence: Version_Conflict `409` first, then malformed input `400`, then catalog and lifecycle rejection `422`.
-13. THE precedence in 7.12 SHALL be deterministic and specified rather than an artifact of implementation order, so that a caller receives the same status for the same request regardless of internal evaluation sequence.
-14. Version_Conflict SHALL outrank the others because a stale request's other contents describe an intent formed against state the caller can no longer see; re-reading is the necessary first step regardless of what else is wrong.
-15. WITHIN one status class, THE system SHALL aggregate every offending element rather than reporting only the first, so that a caller can correct a request in one pass.
-16. EVERY rejection in this requirement SHALL leave stored state unmutated.
-17. THE error codes SHALL be stable identifiers, so that B2 can branch on them without string matching on human-readable text.
+12. AN Envelope_Failure SHALL return `400` **before any stateful check**, and SHALL take precedence over every other class including Version_Conflict.
+13. Criterion 7.12 SHALL cover: malformed JSON; a quantity supplied as a JSON number per 4.7; a missing expected version; and a non-integer or otherwise undecodable expected version.
+14. THE precedence in 7.12 SHALL exist because the system **cannot** return a state-dependent `409` for a request whose version it has not decoded. A precedence placing `409` ahead of all `400`s would be unimplementable at the deserialization boundary, not merely inconvenient.
+15. THE system SHALL define stable distinct codes for a missing expected version and an invalid expected version, so that a client can distinguish "you forgot the version" from "your version is unreadable".
+16. ONCE the envelope is decoded and an expected version is available, THE system SHALL apply this precedence: Version_Conflict `409`, then semantic `400` (quantity domain, duplicate tickers), then catalog and lifecycle rejection `422`.
+17. THE precedence in 7.16 SHALL be deterministic and specified rather than an artifact of implementation order, so that a caller receives the same status for the same request regardless of internal evaluation sequence.
+18. Version_Conflict SHALL outrank the semantic classes because a stale request's other contents describe an intent formed against state the caller can no longer see; re-reading is the necessary first step regardless of what else is wrong.
+19. THE split between 7.12 and 7.16 SHALL be understood as a boundary rather than a ranking: the first group is decided without consulting stored state, the second only after it.
+20. WITHIN one status class, THE system SHALL aggregate every offending element rather than reporting only the first, so that a caller can correct a request in one pass.
+21. EVERY rejection in this requirement SHALL leave stored state unmutated.
+22. THE error codes SHALL be stable identifiers, so that B2 can branch on them without string matching on human-readable text.
 
 ### Requirement 8: Writer convergence
 
@@ -279,18 +337,23 @@ Scope is deliberately limited to the contract. This spec delivers no frontend ch
 1. EVERY holdings write path SHALL either route through the Composition_Operation or participate in the same Portfolio_Version.
 2. THE versionless `POST /api/portfolio/{portfolioId}/holdings` SHALL be retired in this spec, not deferred — see D11.
 3. THE E2E consumers of that endpoint SHALL be migrated as part of this spec; `frontend/tests/e2e/helpers/api.ts` is the only live consumer, and no production frontend code calls it.
-4. THE retirement SHALL leave no holdings writer that accepts a mutation without a version check, except the paths explicitly exempted in 8.5.
-5. THE second creation path `POST /api/portfolio`, which calls `PortfolioService.createPortfolio` unconditionally, SHALL be closed in this spec — either retired, or made idempotent so that it resolves and returns the caller's existing Primary_Portfolio instead of creating another.
-6. THE E2E helper that calls `POST /api/portfolio` whenever the portfolio list is empty SHALL be migrated as part of this spec.
-7. THE system SHALL NOT surface a unique-constraint violation as the public error for a duplicate creation attempt; the outcome of 8.5 SHALL be a specified response, not a database exception escaping the boundary.
-8. Criterion 8.5 SHALL be sequenced no later than the unique constraint in 1.8, per 1.15, because the constraint would otherwise convert a reachable duplicate-creation path into a raw database error.
-9. THE Golden_State_Seeder and Flyway migrations SHALL be exempt from the version check, because they are not concurrent user edits; they SHALL nonetheless satisfy the Quantity_Domain and Spec A's New_Write_Invariant.
-10. THE system SHALL provide an Identity_Preserving_Reset that replaces holdings within the existing portfolio row, preserving its id and advancing its Portfolio_Version.
-11. THE Identity_Preserving_Reset SHALL NOT reuse `PortfolioSeedService.seed()`, which opens by deleting every portfolio for the user, making identity preservation impossible with that implementation.
+4. THE retirement SHALL leave no holdings writer that accepts a mutation without a version check, except the paths explicitly exempted in 8.10.
+5. THE second creation path `POST /api/portfolio`, which calls `PortfolioService.createPortfolio` unconditionally, SHALL be **retired**, not made idempotent.
+6. Criterion 8.5 SHALL choose retirement because retirement and idempotence are observably different API contracts, and carrying an idempotent compatibility path serves no consumer: the only live caller is the E2E helper, migrated under 8.7, and no production client calls it.
+7. THE E2E helper that calls `POST /api/portfolio` whenever the portfolio list is empty SHALL be migrated as part of this spec.
+8. THE response of the retired route SHALL be pinned — normally `405 Method Not Allowed` on the surviving collection route — so that the outcome is a specified contract rather than a unique-constraint violation escaping the boundary as a database error.
+9. Criterion 8.5 SHALL be sequenced no later than the unique constraint in 1.8, per 1.21, because the constraint would otherwise convert a reachable duplicate-creation path into a raw database error.
+10. FLYWAY migrations SHALL be exempt from the runtime version check, because they run outside the application context and cannot participate in it; they SHALL nonetheless satisfy the Quantity_Domain and Spec A's New_Write_Invariant.
+11. THE system SHALL provide an Identity_Preserving_Reset that replaces holdings within the existing portfolio row, preserving its id and advancing its Portfolio_Version.
 12. THE Identity_Preserving_Reset SHALL be delivered here as a mechanism; its trigger and schedule belong to B2.
 13. THE reset SHALL be holdings-only, per Spec A's D20.
-14. WHEN a concurrent edit collides with a reset, THE user SHALL receive the settled `409`, not a `404` — which is what a delete-and-recreate implementation would produce.
-15. THE Golden_State_Seeder's delete-and-recreate behaviour SHALL be reconciled with the unique constraint in 1.8 and the exactly-one invariant, since it deletes every portfolio for a user and creates a fresh one.
+14. THE Golden_State_Seeder SHALL delegate to the Identity_Preserving_Reset, or to an equivalent shared replacement primitive, rather than deleting and recreating the portfolio.
+15. Criterion 8.14 SHALL be a requirement rather than a design choice, because R8.1 requires every holdings writer to participate in the same Portfolio_Version, and **no design can make a writer that deletes the parent row participate in that row's version** — deletion destroys both the identity and the monotonic sequence.
+16. WHEN a Primary_Portfolio exists, THE Golden_State_Seeder SHALL preserve its id and advance its Portfolio_Version exactly once for the holdings replacement.
+17. WHEN no Primary_Portfolio exists, THE Golden_State_Seeder MAY provision one at Portfolio_Version `0`, consistent with 5.16.
+18. THE Golden_State_Seeder SHALL NOT be exempted from Writer_Convergence on the grounds that it is not a concurrent user edit. `PortfolioSeedController` exposes it over HTTP, it is production-reachable, and it is invoked daily on a schedule — so non-concurrency is a property of current usage, not an invariant.
+19. WHEN a concurrent edit collides with a reset or seed, THE user SHALL receive the settled `409`, not a `404` — which is what a delete-and-recreate implementation would produce.
+20. `PortfolioSeedService.seed()`'s current opening step, which deletes every portfolio for the user, SHALL be removed as part of satisfying 8.14.
 
 ### Requirement 9: Activation gate
 
@@ -332,7 +395,10 @@ That premise is false: `api-gateway` **already** writes `users`, a table owned b
 (`UserCredentialRepository.java:49`), whose own javadoc describes the tables as "owned by"
 portfolio-service. The boundary D2 invoked does not exist in practice, and provisioning a portfolio
 in the same `TransactionTemplate` that already creates the user is neither a cross-service call nor
-a new failure mode — it is one more insert in a transaction that already spans these tables.
+a new **distributed** failure boundary — it is one more insert in a transaction that already spans
+these tables. It is not failure-free: another SQL insert is another possible failure cause. The
+claim is narrower than Revision 2 stated — the existing transaction and its `503` path contain that
+failure safely, whereas a cross-service call would introduce a boundary they do not cover.
 
 The decisive argument, though, is not cost but correctness. The owner's requirement is that **every
 user has a portfolio**. Lazy provisioning cannot satisfy that: between signup and first composition,
@@ -408,7 +474,7 @@ endpoint.
 Entry [6] answered Q9 by proposing an idle guard on `portfolios.updated_at` and asserted the column
 already exists, citing `V1__Initial_Schema.sql:32`. That line is `market_prices.updated_at`. The
 `portfolios` table is `(id, user_id, created_at)` and no later migration adds to it. The column is
-therefore new work, placed here in Requirement 5.9 because this spec owns portfolio identity and
+therefore new work, placed here in Requirement 5.14 because this spec owns portfolio identity and
 versioning, even though its only consumer is B2's reset trigger.
 
 ### D13 — Freshness is portfolio-level, and B1 adds nothing for it
@@ -439,8 +505,9 @@ and is fixed.
 Requirement 1's unique constraint is only safe once **every** creation path is accounted for. There
 are three: signup (1.5), the composition fallback (1.9), and `POST /api/portfolio` (8.5). Revision 1
 specified the constraint while leaving the third reachable, which would have produced duplicates
-before the constraint landed and an unhandled database error after. The ordering in 1.15 exists to
-make that sequencing explicit rather than incidental.
+before the constraint landed and an unhandled database error after. The Signup_Cutover_Gate in 1.16
+to 1.20 and the constraint ordering in 1.21 exist to make that sequencing **enforced** rather than
+incidental — see D23 for why an ordering word alone was not enough.
 
 ### D19 — Error precedence is specified because it is otherwise emergent
 A request can be simultaneously stale, malformed, and lifecycle-invalid. Without a stated
@@ -449,10 +516,49 @@ yield different statuses across refactors. `409` outranks the rest because a sta
 contents describe an intent formed against state the caller can no longer see — re-reading is the
 necessary first step regardless of what else is wrong.
 
+### D21 — Expected version `0` is overloaded deliberately, and the `409` moves to the constraint
+Two models were available for creation. Give absence its own precondition token (`-1`,
+`If-None-Match: *`), or treat Aggregate_Creation as a versioned transition from a virtual `0` to a
+stored `1`. The second is chosen: it preserves the wire shape, needs no sentinel a client could
+send by accident, and keeps `0` meaning "I believe nothing has happened yet" in both readings.
+
+The cost is that `0` no longer identifies a unique state — it means Absent_Aggregate *or* an
+existing unmutated aggregate. That is tolerable only because the two are separated by **outcome**:
+absence yields `201` at version `1`, existence yields `200`. What it is *not* tolerable to do is
+decide the race by comparing versions before the write. Two concurrent empty creators both observe
+absence and both hold a matching expected `0`, so a pre-write comparison finds no conflict and both
+would proceed. The `409` is therefore raised on the **unique-constraint outcome** (6.28, 6.29). This
+is the one place in the spec where the concurrency contract is enforced by the database rather than
+by the version, and it is deliberate: application-level check-then-act cannot exclude this race.
+
+### D22 — "Not concurrent" is a usage observation, never an exemption
+Revision 2 exempted the Golden_State_Seeder from Writer_Convergence because it is "not a concurrent
+user edit". That reasoning does not survive contact with how it is deployed: `PortfolioSeedController`
+exposes it over HTTP, it is production-reachable, and a scheduled job invokes it daily. Non-concurrency
+is a property of present usage, not a property of the writer. Flyway is genuinely exempt — it runs
+outside the application context and *cannot* participate — and that distinction is the test: exempt a
+writer only when participation is impossible, never when it merely appears unnecessary.
+
+### D23 — Sequencing claims need a mechanism, not an ordering word
+R1.15 said signup provisioning ships "no later than" the backfill. Two independent reviews read that
+as sufficient; it is not, because the deployment topology places the two writers in parallel matrix
+entries with the migration running from one of them at startup. A requirement that depends on
+ordering must name the gate that enforces it and the evidence that confirms it, and the evidence must
+be collected after every old writer is gone rather than at commit time — a migration's own snapshot
+cannot observe a concurrent signup against a prior revision.
+
 ### D20 — Open for review
 D2 has now reversed twice (see D17), so it warrants scrutiny rather than acceptance, and this
-revision's other architectural claims should be treated as carrying the same unverified-boundary
-risk. Requirement 6's creation contract (6.20 to 6.25) is new in this revision and has had no
-adversarial pass. The Golden_State_Seeder reconciliation in 8.15 is stated as a requirement without
-a proposed mechanism, which is deliberate — it belongs to design — but it may prove to conflict with
-the exactly-one invariant in a way that forces a requirements change.
+document's architectural claims should be treated as carrying the same unverified-boundary risk.
+
+New in Revision 3 and therefore unreviewed: the creation contract in 6.20 to 6.29, particularly the
+decision in D21 to raise the concurrent-creator `409` on the unique-constraint outcome rather than
+on a version comparison; the Signup_Cutover_Gate in 1.16 to 1.20, whose two permitted mechanisms
+(gate the deployment, or quiesce signup) have different operational costs that this document does
+not choose between; and the seeder delegation in 8.14 to 8.20, which changes a production-reachable
+daily writer and should be read against Spec A's D20 holdings-only constraint.
+
+Three references in Revision 2's own decision text had drifted to point at renumbered criteria, and
+three more drifted during this revision. All six were found by `--pairs`, none by the contiguity
+check. That ratio is the argument for running the paired mode on every revision: the checker proves
+a reference **resolves**, never that it resolves to what the sentence claims.
