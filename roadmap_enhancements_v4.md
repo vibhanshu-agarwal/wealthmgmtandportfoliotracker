@@ -20,6 +20,15 @@ prioritization matrix, and updates spec references to their canonical `.kiro/spe
 > spec landing, not an implementation — `tasks.md` has not been executed and no infrastructure has
 > changed. Item A's status text and the Section 5 matrix were updated accordingly.
 
+> **Revised 2026-08-15** — corrected in place, no entries added or removed. **Observability & App
+> Insights is now `CLOSED`**: implemented and deployed to production via PRs
+> [#93](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/93),
+> [#94](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/94), and
+> [#95](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/95). Traces are
+> live, Task 11.2 of the Spring Boot 4.1 migration spec is complete, and the cost bound holds with
+> ₹117.15 of margin. Item A and the Section 5 matrix updated; the implementation order note now
+> points at **Asset Picker** as next.
+
 Everything below is checked against the actual repository state as of 2026-08-13.
 
 ---
@@ -74,43 +83,46 @@ The repository root contains five Gradle modules with independent `build.gradle`
 
 ## 2. Refined Backlog Items Carried Forward (verified, unchanged from v3)
 
-### Item A: Observability & Application Insights Integration — READY
+### Item A: Observability & Application Insights Integration — CLOSED
 
-**Status: READY** — spec complete at `.kiro/specs/observability-app-insights/`
-(requirements.md → design.md → tasks.md), not yet implemented.
+**Status: CLOSED** (PRs #93, #94, #95, deployed 2026-08-15)
 
-OpenTelemetry instrumentation is already wired across all four services (unchanged from prior
-status) but OTLP export stays gated off by default until the spec's Terraform lands. The spec
-addresses both previously-named gaps and defines the operational scaffolding neither v2 nor v3
-anticipated:
+**Spec:** `.kiro/specs/observability-app-insights/` (requirements.md → design.md → tasks.md → KICKOFF.md)
+**Changelog:** `docs/changes/CHANGES_OBSERVABILITY_APP_INSIGHTS_2026-08-15.md`
+**Runbook:** `docs/runbooks/OBSERVABILITY.md`
 
-- **Sink (planned):** traces would route through the ACA **managed OpenTelemetry agent** (chosen
-  over the GA Application Insights Java agent so the existing Spring/Micrometer instrumentation
-  stays load-bearing) into a workspace-based Application Insights resource — two distinct
-  resources, both AzureRM-provisioned same as everything else in this Terraform root: a new,
-  dedicated Log Analytics `Telemetry_Workspace`, and the Application Insights resource itself
-  backed by it. A newly-added **AzAPI** Terraform provider is needed only to patch the ACA managed
-  environment's OpenTelemetry-agent configuration to point at the resulting connection string,
-  since AzureRM does not yet model that specific block.
-- **Kafka producer→consumer trace-ID continuity** (the gap named in v2/v3): root-caused as a test
-  fixture defect, not a framework gap — both existing tests hand-build an unobserved
-  `KafkaTemplate` instead of using the auto-configured bean. The fix is planned (`tasks.md` 7.1–7.7)
-  but not yet applied, so Task 11.2 of `.kiro/specs/springboot-41-springai-2-migration/` remains
-  open.
-- **Cost control (planned)**, under the owner's non-negotiable **₹1100/month total** ceiling for
-  `wealth-azure-prod-rg`: both workspace daily ingestion caps at Azure's 0.023 GB/day floor, sized
-  so the ceiling holds even if the shared 5 GB/month Analytics allowance is exhausted elsewhere
-  (`Allowance_Independence`), plus a new Cost Management budget alert — a gap open since it was
-  first recommended on 2026-05-17.
-- **Redaction (planned):** a new `common-observability` module would sanitize exported spans
-  (query strings, tokens, portfolio values, exception content) before they leave the process,
-  since this platform handles financial data.
-- Verified against the live subscription during design: ACR is ≈100% of current project spend
-  — ₹234.06 of a ₹234.07 month-to-date actual, against a ₹551.78 full-month forecast for the
-  project total. This feature's own projected marginal cost of ₹0.00 at current traffic is, per
-  the spec (Requirement 11.4), an **unverified projection** — no trace has ever been exported from
-  this system — to be confirmed or refuted by the representative run (`tasks.md` 15.7) once
-  implemented.
+Both gaps named in v2/v3 are closed, and the operational scaffolding neither anticipated is in
+place:
+
+- **Sink:** traces route through the ACA **managed OpenTelemetry agent** (chosen over the GA
+  Application Insights Java agent so the existing Spring/Micrometer instrumentation stays
+  load-bearing) into a workspace-based Application Insights resource. Both the dedicated Log
+  Analytics telemetry workspace and the Application Insights resource are AzureRM-provisioned; a
+  newly-added **AzAPI** provider patches only the ACA managed environment's OpenTelemetry-agent
+  configuration, pinned to `Microsoft.App/managedEnvironments@2025-10-02-preview`, since AzureRM
+  does not model that block.
+- **Kafka producer→consumer trace-ID continuity** — **closed**, completing Task 11.2 of
+  `.kiro/specs/springboot-41-springai-2-migration/`. Root-caused as a test-fixture defect, not a
+  framework gap: both pre-existing tests hand-built an unobserved `KafkaTemplate` rather than using
+  the auto-configured bean. Verified live at **159/159** and **158/158** dual-consumer joins on a
+  shared `OperationId`.
+- **Cost control:** both workspace daily ingestion caps at Azure's 0.023 GB/day floor, sized so the
+  ₹1100/month ceiling holds even with the shared 5 GB/month Analytics allowance assumed **zero**
+  (`31 × 0.046 × ₹303.9479 + ₹549.42 = ₹982.85`, margin **₹117.15**). Enforced by
+  `allowance_independence_check.py`, which takes the INR meter rate and forecast as arguments so a
+  stale figure cannot silently pass. Resource-group Cost Management budget (₹1100, Actual 70% /
+  Forecasted 100%) is live — closing a gap open since 2026-05-17.
+- **Redaction:** the new `common-observability` module sanitizes spans before export. The exporter
+  replaces every `ExceptionEventData` with a plain `EventData`, because that type exposes the
+  original `Throwable` via `getException()` — redacting only its attributes would have left message
+  and stack trace reachable.
+- **Accepted preview exposure:** the managed agent is Public Preview — traces but not metrics, gRPC
+  only, single non-HA replica, App Insights local authentication. Two *independent* exit criteria
+  are recorded (native Azure Monitor OTLP reaching GA; Entra-authenticated ingestion), deliberately
+  not collapsed into one "when it's GA" clause.
+- The feature's own marginal cost remains an **unverified projection** per Requirement 11.4: the
+  3.63 MB measured by the representative run is one deliberate verification burst, not a steady-state
+  daily rate. Log Analytics and Azure Monitor both billed ₹0.00 at implementation time.
 
 ### Item B: User-Defined Portfolio Composition & Asset Picker
 
@@ -209,7 +221,7 @@ See Item C in Section 2 above.
 |---|---|---|---|---|---|---|---|
 | 1 | **Production Rate-Limiting** | v1 / ROADMAP.md | High | Low | Medium | **1** | **CLOSED** |
 | 2 | **New User Signup & Profile** | v1 | High | High | Medium-High | **2** | **CLOSED** |
-| 3 | **Observability & App Insights** | v2 Item #3 | Medium | Low | Medium | **3** | **READY** |
+| 3 | **Observability & App Insights** | v2 Item #3 | Medium | Low | Medium | **3** | **CLOSED** |
 | 4 | **User Settings (Personalization)** | v1 | Medium | Medium | Medium | **4** | NOT STARTED |
 | 5 | **Asset Picker (curated universe)** | v2 Item #5 | High | High | Low | **5** | NOT STARTED |
 | 6 | **Custom Asset & Portfolio Management** | v1 (Item C) | Medium | High | Low | **6** | NOT STARTED |
@@ -222,9 +234,17 @@ See Item C in Section 2 above.
 > **Implementation order:** Production Rate-Limiting and New User Signup & Profile are both done —
 > the latter's `authRateLimiter` bean and `AuthRateLimitFilter` did reuse the shared
 > `RedisRateLimiter` wiring and trusted-hop resolver the rate-limiting spec created, as planned.
-> **Observability & App Insights** (#3) now has a complete spec (Section 2, Item A) and is next up
-> for implementation. **User Settings** (#4) is unblocked by the persisted identity from #2 but
-> still needs a spec.
+> **Observability & App Insights** (#3) is now also closed and live in production.
+>
+> Next is the **Asset Picker** (#5), promoted ahead of **User Settings** (#4) despite the matrix
+> ordering: new accounts currently sign up with an empty portfolio, so the picker is what makes
+> multi-user demos realistic. It also structurally closes a live bug class — sourcing its options
+> from the tracked refresh universe makes it impossible to create a holding whose price is never
+> refreshed (see `docs/todos/backlog/demo-portfolio-and-ticker-integrity/`). Two things to settle
+> first, both recorded in that entry: the ~160-asset universe is duplicated across four
+> `seed-tickers.json` copies with nothing enforcing they match, and the demo account currently
+> holds V3's 3-asset seed rather than the 160-asset portfolio it had before #85.
+> **User Settings** (#4) remains unblocked by the persisted identity from #2 but still needs a spec.
 
 ---
 

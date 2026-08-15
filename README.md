@@ -29,6 +29,7 @@ An enterprise-grade platform for managing investment portfolios, ingesting real-
 - **Poison-Message Handling (DLT):** The `portfolio-service` consumer registers `MalformedEventException` as non-retryable and routes poison/malformed records to a dead-letter topic (`market-prices.DLT`) via Spring Kafka's `DefaultErrorHandler` + `DeadLetterPublishingRecoverer`, so a single bad event never stalls the consumer.
 - **Fallback Strategy:** If the external market data API is unavailable, the system **never** blocks user-facing HTTP requests. Instead, it seamlessly serves **last-known-good prices** from MongoDB and Redis, keeping the AI Insights chat and dashboards responsive even during upstream outages.
 - **Production Rate Limiting:** Redis-backed distributed rate limiting (Spring Cloud Gateway `RedisRateLimiter`, token-bucket algorithm) enforced in production via per-route filters. Two-tier limits: standard routes (10 req/s, burst 20) and cost-sensitive AI routes (~10 req/min, burst 5). **Fail-open design** ensures Redis unreachability never blocks startup or rejects traffic. 429 responses carry a `Retry-After` header and JSON body; the frontend renders a countdown timer and distinguishes rate-limited state from session expiry. Trusted-hop XFF key derivation prevents bucket-spoofing behind reverse proxies.
+- **End-to-End Distributed Tracing:** OpenTelemetry traces exported from all four services **and** the market-data refresh Job into workspace-based **Azure Application Insights**, via the ACA managed OpenTelemetry agent — so the application boundary stays vendor-neutral OTLP with no Azure SDK or Java agent in any service. W3C `traceparent` continuity is proven across both the reactive gateway boundary **and** the Kafka producer→consumer hop to both consumers. Spans are sanitized before export (exception content, query strings, tokens, portfolio values) by a dedicated `common-observability` module, and telemetry export can never affect request handling: bounded exporter queues drop spans rather than block, and an unreachable collector cannot fail startup.
 
 ## 🏗️ Architectural Philosophy: Evolutionary Design
 
@@ -96,7 +97,7 @@ Local development and CI use a deterministic `MockAiInsightService` so no cloud 
 
 ## 🚀 Future Roadmap
 
-The architectural roadmap continues to evolve as we expand the multi-cloud and advanced-AI capabilities. See [ROADMAP.md](ROADMAP.md) for what's next, including a dedicated gRPC AI microservice, multi-provider market-data aggregation, and end-to-end distributed tracing. (Self-service signup and per-user authentication shipped in Phase 6 — see the same document.)
+The architectural roadmap continues to evolve as we expand the multi-cloud and advanced-AI capabilities. See [ROADMAP.md](ROADMAP.md) for what's next, including a user-facing asset picker over the curated ~160-asset universe, a dedicated gRPC AI microservice, and multi-provider market-data aggregation. (Self-service signup and per-user authentication shipped in Phase 6; end-to-end distributed tracing into Application Insights shipped in Phase 7 — see the same document.)
 
 ---
 
