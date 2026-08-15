@@ -1,5 +1,22 @@
 # Requirements Document
 
+> **Revision 6 — 2026-08-15.** Incorporates the fifth adversarial review (checkpoint entry [17]).
+> The frozen reset precondition held. One contradiction remained, plus three lagging summaries.
+>
+> 1. **Stale-but-equal was required to return both `200` and `409`.** 5.13 made a desired state
+>    equal to current state an idempotent `200`; 7.1 made a non-matching version a `409`; nothing
+>    ordered them. The intersection is reachable: reset eligibility freezes `N`, a user commits
+>    `N+1` whose holding tuple happens to equal the Golden-State tuple, and the reset arrives with
+>    expected `N` against a state its body now matches. Resolved in favour of the precondition —
+>    5.8, 5.13, and 8.17 now apply only after the expected version matches, and 7.21, 7.22, and
+>    8.40 make a stale request a conflict regardless of body equality. 8.41 and 8.42 require the
+>    interleaving and all four match/equality combinations to be tested on both writers. See D28.
+> 2. **Three summaries lagged the contract.** 8.25 and D24 still said "typed conflict" where 8.37
+>    had already mandated Requirement 7's `409` envelope; the `Portfolio_Version` glossary
+>    attributed the reset's version to **B2**, when B1 itself migrates the already-running
+>    Golden-State caller, which must supply a version before B2 exists; and D25 still called the
+>    cutover mechanism "the owner's to make" after entry [16] settled it as a design choice.
+>
 > **Revision 5 — 2026-08-15.** Incorporates the fourth adversarial review (checkpoint entry [15]).
 > The version-`1` creation rule and the reachability model both held. One blocker remained, plus two
 > stale summaries and four reference defects.
@@ -197,7 +214,7 @@ Scope is deliberately limited to the contract. This spec delivers no frontend ch
 - **Composition_Operation**: The single Application_Operation that replaces a portfolio's complete holding set with a caller-supplied desired state, atomically and under an optimistic version check. The only holdings writer this spec leaves generally reachable.
 - **Desired_State_Write**: A write whose payload is the complete intended result rather than a delta. Omission means deletion. Contrast with the existing additive `POST /api/portfolio/{portfolioId}/holdings`.
 - **Portfolio_Aggregate**: The portfolio row together with its `asset_holdings` child rows, treated as one consistency and versioning unit. The unit the Portfolio_Version protects.
-- **Portfolio_Version**: A monotonically increasing integer on the Portfolio_Aggregate, incremented exactly once per **aggregate state transition** — any holdings mutation, and Aggregate_Creation by a Composition_Operation or by the Golden_State_Seeder. Supplied by the **initiating writer** on write and compared before mutation — an end-user client for a composition write, and B2's reset-eligibility decision for a reset. See 8.32. Deliberately not scoped to holdings mutations alone; see 5.2 and 5.3.
+- **Portfolio_Version**: A monotonically increasing integer on the Portfolio_Aggregate, incremented exactly once per **aggregate state transition** — any holdings mutation, and Aggregate_Creation by a Composition_Operation or by the Golden_State_Seeder. Supplied by the **initiating writer** on write and compared before mutation — an end-user client for a composition write, and the **initiating caller's eligibility observation** for a reset. B2 is the eventual such caller, but B1 itself migrates the already-running Golden-State caller, which must supply a version before B2 exists. See 8.32. Deliberately not scoped to holdings mutations alone; see 5.2 and 5.3.
 - **Version_Conflict**: The condition where a supplied Portfolio_Version does not match the stored one. Yields `409` and no mutation.
 - **Primary_Portfolio**: The single portfolio belonging to a user. This spec makes "exactly one per user" an invariant rather than a convention.
 - **Portfolio_Provisioning**: Creation of a user's Primary_Portfolio. Occurs at signup (the primary path), for pre-existing users via the Portfolio_Backfill, and on first composition as a recovery fallback.
@@ -313,12 +330,12 @@ Scope is deliberately limited to the contract. This spec delivers no frontend ch
 5. THE system SHALL use an **explicit parent-version mechanism** — comparing the expected version against the parent row and forcing its increment within the same transaction as the child mutation, by `OPTIMISTIC_FORCE_INCREMENT` or an equivalent parent-row compare-and-set.
 6. THE mechanism in 5.5 SHALL be mandatory. THE system SHALL NOT rely on a JPA inverse collection propagating a child mutation to the parent version, because that behaviour is mapping-dependent and would leave the concurrency contract resting on an implementation detail rather than a stated one.
 7. THE mechanism in 5.5 SHALL additionally be verified by concurrent integration test, so that the guarantee is demonstrated rather than assumed from the annotation alone.
-8. A request whose desired state equals the stored state of an **existing** aggregate SHALL be exempt from the increment in 5.2, per 5.13.
+8. A request whose desired state equals the stored state of an **existing** aggregate SHALL be exempt from the increment in 5.2, per 5.13 — but ONLY IF its supplied expected Portfolio_Version matches the stored version. THE version precondition SHALL be evaluated **before** no-op detection.
 9. THE exemption in 5.8 SHALL NOT extend to Aggregate_Creation. An empty desired set against an Absent_Aggregate is not a no-op, because it changes whether the aggregate exists.
 10. THE `PortfolioResponse` SHALL carry the Portfolio_Version.
 11. THE system SHALL NOT expose the Portfolio_Version through a separate endpoint, because a read-then-read sequence reintroduces the race the version exists to close.
 12. WHEN a Composition_Operation succeeds, THE response SHALL be the complete `PortfolioResponse` carrying the new Portfolio_Version.
-13. WHEN a Composition_Operation is submitted whose desired state equals the current state of an existing aggregate, THE system SHALL return `200` idempotently with the version unchanged and no `updated_at` advance.
+13. WHEN a Composition_Operation whose expected Portfolio_Version **matches** is submitted with a desired state equal to the current state of an existing aggregate, THE system SHALL return `200` idempotently with the version unchanged and no `updated_at` advance.
 14. THE `portfolios` table SHALL gain an `updated_at` column, which does not exist today — see D12.
 15. THE `updated_at` column SHALL advance on every transition that increments the Portfolio_Version, so that B2's idle-guard reset has a durable signal to read.
 16. A Primary_Portfolio provisioned at **signup** or by the **Portfolio_Backfill** SHALL have Portfolio_Version `0`.
@@ -390,8 +407,10 @@ Scope is deliberately limited to the contract. This spec delivers no frontend ch
 18. Version_Conflict SHALL outrank the semantic classes because a stale request's other contents describe an intent formed against state the caller can no longer see; re-reading is the necessary first step regardless of what else is wrong.
 19. THE split between 7.12 and 7.16 SHALL be understood as a boundary rather than a ranking: the first group is decided without consulting stored state, the second only after it.
 20. WITHIN one status class, THE system SHALL aggregate every offending element rather than reporting only the first, so that a caller can correct a request in one pass.
-21. EVERY rejection in this requirement SHALL leave stored state unmutated.
-22. THE error codes SHALL be stable identifiers, so that B2 can branch on them without string matching on human-readable text.
+21. WHEN a request's expected Portfolio_Version does not match the stored version, THE system SHALL return `409` **even if its desired state coincidentally equals the current state**.
+22. Criterion 7.21 SHALL take precedence over every idempotent no-op rule — 5.8, 5.13, and 8.17 — because the version precondition is the authoritative check and no-op detection is an optimisation applied after it passes.
+23. EVERY rejection in this requirement SHALL leave stored state unmutated.
+24. THE error codes SHALL be stable identifiers, so that B2 can branch on them without string matching on human-readable text.
 
 ### Requirement 8: Writer convergence
 
@@ -415,7 +434,7 @@ Scope is deliberately limited to the contract. This spec delivers no frontend ch
 14. THE Golden_State_Seeder SHALL delegate to the Identity_Preserving_Reset, or to an equivalent shared replacement primitive, rather than deleting and recreating the portfolio.
 15. Criterion 8.14 SHALL be a requirement rather than a design choice, because R8.1 requires every holdings writer to participate in the same Portfolio_Version, and **no design can make a writer that deletes the parent row participate in that row's version** — deletion destroys both the identity and the monotonic sequence.
 16. WHEN a Primary_Portfolio exists, THE Golden_State_Seeder SHALL preserve its id and advance its Portfolio_Version exactly once **when the replacement actually changes the persisted holding state**.
-17. AN identical replacement SHALL be a no-op that advances neither the Portfolio_Version nor `updated_at`, consistent with 5.8 and 5.13. THE seeder SHALL NOT be the one writer whose no-op still counts as a transition.
+17. AN identical replacement whose expected Portfolio_Version **matches** SHALL be a no-op that advances neither the Portfolio_Version nor `updated_at`, consistent with 5.8 and 5.13. THE seeder SHALL NOT be the one writer whose no-op still counts as a transition.
 18. THE comparison in 8.17 SHALL be over the complete persisted tuple the primitive owns — ticker, quantity, and the cost-basis fields — not over ticker and quantity alone.
 19. Criterion 8.18 SHALL NOT rely on `costBasisAsOf` moving to make a seed differ. THAT timestamp will usually cause a difference in practice, but an incidental behaviour SHALL NOT define the concurrency contract; if it were later pinned, 8.16 would silently change meaning.
 20. WHEN no Primary_Portfolio exists, THE Golden_State_Seeder SHALL perform Aggregate_Creation and finish at Portfolio_Version `1`, on the same transition model as a composition write.
@@ -423,7 +442,7 @@ Scope is deliberately limited to the contract. This spec delivers no frontend ch
 22. WHERE an implementation provisions an empty portfolio at `0` and then replaces holdings, BOTH steps SHALL occur in one transaction and the externally observable result SHALL be a single aggregate at Portfolio_Version `1`.
 23. WHEN a user edit and a reset or seed collide, EXACTLY ONE transition SHALL commit. THE arbitration SHALL be **symmetric** compare-and-set: whichever writer's expected version no longer matches at commit time loses.
 24. IF the user's edit loses, THE user SHALL receive `409`, and SHALL NOT receive `404` — which is what a delete-and-recreate implementation would produce.
-25. IF the reset or seed loses, THE internal endpoint SHALL return a typed conflict to its caller and SHALL NOT automatically retry over the user's newer state.
+25. IF the reset or seed loses, THE internal endpoint SHALL return the Requirement 7 conflict envelope — `409` with `portfolio_version_conflict` and the current Portfolio_Version, per 8.37 — and SHALL NOT automatically retry over the user's newer state. THE phrase "typed conflict" SHALL NOT be used, so that an implementer reading the arbitration rule does not invent a second internal error contract.
 26. THE contract SHALL NOT require that the user always receives `409`. That is unachievable: if the user's edit commits first, the edit has already succeeded and no later reset can retroactively convert it into a conflict. THE achievable invariant is 8.23 — exactly one commits — not maintenance-writer priority.
 27. THE system SHALL NOT introduce a write-maintenance gate giving reset or seed priority over user edits. THAT would be substantially heavier machinery and would contradict the settled optimistic model, in exchange for a guarantee the product does not need: what the product requires is that no successful edit is silently overwritten, which 8.23 and 8.25 already deliver.
 28. THE Golden_State_Seeder SHALL NOT be exempted from Writer_Convergence on the grounds that it is not a concurrent user edit. `PortfolioSeedController` exposes it over HTTP, it is production-reachable, and it is invoked daily on a schedule — so non-concurrency is a property of current usage, not an invariant.
@@ -438,6 +457,9 @@ Scope is deliberately limited to the contract. This spec delivers no frontend ch
 37. WHEN the reset's compare-and-set fails, THE HTTP-reachable seed endpoint SHALL return `409` with the `portfolio_version_conflict` code and the current Portfolio_Version, reusing the stable contract in Requirement 7 rather than an undefined "typed conflict".
 38. WHERE no Primary_Portfolio exists, THE reset invocation SHALL supply expected Portfolio_Version `0` and SHALL be arbitrated by the constraint outcome per D21, on the same terms as a composition creation.
 39. THE current `POST /api/internal/portfolio/seed`, which accepts no body and no version, SHALL be changed to accept the expected Portfolio_Version required by 8.32.
+40. WHEN a reset's frozen expected Portfolio_Version no longer matches, THE system SHALL return the 8.37 conflict **even if the reset's desired Golden-State tuple coincidentally equals the current state**, per 7.21.
+41. Criterion 8.40 SHALL be tested explicitly for the interleaving that produces it: eligibility freezes `N`, a user commits `N+1` whose holding tuple happens to equal the Golden-State tuple, and the reset then arrives with expected `N`.
+42. THE test suite SHALL cover all four combinations of version match/mismatch against desired-state equal/different, for **both** the Composition_Operation and the reset, so that no-op detection cannot silently absorb a stale request.
 
 ### Requirement 9: Activation gate
 
@@ -646,7 +668,8 @@ settled optimistic model.
 
 The achievable invariant is that **exactly one transition commits**. Whichever writer's expected
 version no longer matches at commit time loses: the user gets `409`, the internal endpoint gets a
-typed conflict and does not retry over the user's newer state. That delivers what the product
+the Requirement 7 `409` envelope (8.25, 8.37) and does not retry over the user's newer state.
+That delivers what the product
 actually requires — no successful edit is silently overwritten — without inventing a priority the
 product never asked for.
 
@@ -658,7 +681,9 @@ so one permitted mechanism could not satisfy the definition permitting it.
 Reachability is the correct frame: a deployed writer receiving no traffic is safe; a deployed writer
 still serving signups is not, whatever the release ordering says. The mechanism — staged
 gateway-first, or signup quiescence — is left to design, because the two differ in operational cost
-rather than in what they guarantee, and that trade-off is the owner's to make. What the requirements
+rather than in what they guarantee, so the choice belongs in `design.md` — staged gateway-first
+recommended, quiescence as the fallback if dual-schema compatibility cannot be proved. It needs no
+owner decision at the requirements gate. What the requirements
 must pin, and now do, is the reopening condition: Revision 3's "through activation" was ambiguous
 between signup reactivation, B1 activation, and Spec A's Activation_Gate.
 
@@ -688,6 +713,24 @@ version after losing — that is the same silent overwrite, one round later. And
 endpoint, which today accepts no body and no version, must change signature, which makes this a
 contract requirement rather than an implementation note.
 
+### D28 — The version precondition is authoritative; no-op detection runs after it
+Two rules overlapped without an ordering. A desired state equal to current state was an idempotent
+`200`; a non-matching expected version was a `409`. Nothing said which applied when both were true,
+and the intersection is reachable rather than academic: reset eligibility freezes `N`, a user commits
+`N+1` whose holding tuple happens to equal the Golden-State tuple, and the reset arrives with
+expected `N` and a desired state that matches current state.
+
+The precondition wins. A supplied version asserts "I am acting on state version N"; if that is false,
+the request is stale no matter what its body contains. Letting an accidental body match convert a
+stale request into a success would mean a writer could succeed by coincidence, and — worse for the
+reset — the endpoint would report a completed reset it never performed, against state it never
+observed. The no-op rule is an optimisation that avoids a pointless version bump; it is not a
+substitute for the precondition, and it applies only after the precondition passes.
+
+This makes the symmetric arbitration in D24 total: every combination of version match/mismatch and
+desired-state equal/different now has exactly one defined outcome, and 8.42 requires all four be
+tested on both writers.
+
 ### D20 — Review record
 D2 reversed twice (see D17), so its conclusion is settled but its reasoning history is a caution
 rather than a credential.
@@ -696,10 +739,12 @@ rather than a credential.
 the envelope/stateful error split; the reachability cutover gate, which has now had two reads; the
 seeder delegation and version semantics; and the symmetric arbitration *outcome* in 8.23.
 
-**Newest and least reviewed:** the reset precondition in 8.32 to 8.39 (D27), added in Revision 5.
-The arbitration outcome was agreed a round earlier; what is new is requiring the initiating writer
-to freeze its expected version at the eligibility decision, and the resulting signature change to
-the internal seed endpoint.
+**Cleared in Revision 5's review:** the frozen reset precondition (D27) — existing version `N`,
+absent version `0`, user-wins, reset-wins, and retry-after-loss all have executable outcomes.
+
+**Newest and least reviewed:** the no-op precedence rule in D28, added in Revision 6. It resolves a
+contradiction rather than introducing a mechanism, but it changes the outcome of a reachable
+interleaving and its four-combination test matrix (8.42) has had no adversarial pass.
 
 Ten reference defects have been found across five revisions. Eight resolved numerically and passed
 the contiguity check, visible only in paired mode or by reading the cited target; two of those were
