@@ -23,11 +23,19 @@ jobs:
     env:
       # Align Playwright mintJwt with the gateway container; empty repo secrets fall back to Compose default.
       AUTH_JWT_SECRET: ${{ secrets.AUTH_JWT_SECRET || 'local-dev-secret-change-me-min-32-chars' }}
-      BETTER_AUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
-      AUTH_URL: http://localhost:3000
-      BETTER_AUTH_URL: http://localhost:3000
+      # Vestigial Better Auth / Auth.js v5 vars, commented out 2026-08-15 rather than deleted so
+      # the mapping stays greppable if something turns out to read them. Both auth stacks were
+      # retired (Auth.js first, then Better Auth in PR #88 — ba_* tables dropped in V16); real
+      # auth now runs through the gateway's /api/auth/login. Remove these — and the
+      # NEXTAUTH_SECRET repository secret — once a green run confirms nothing depends on them.
+      # BETTER_AUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
+      # AUTH_URL: http://localhost:3000
+      # BETTER_AUTH_URL: http://localhost:3000
       NEXT_PUBLIC_API_BASE_URL: http://localhost:8080
-      # Better Auth connects to the Postgres container via port-mapped localhost
+      # Points at the Postgres container via port-mapped localhost. The original consumer was
+      # Better Auth, now retired -- left in place because the current consumer has not been
+      # confirmed and removing it blind would surface only on the next run. See
+      # docs/todos/TODOS_2026-04-07.md.
       DATABASE_URL: postgresql://wealth_user:wealth_pass@localhost:5432/portfolio_db
 
     steps:
