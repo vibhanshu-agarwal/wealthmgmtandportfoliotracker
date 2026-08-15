@@ -1,5 +1,32 @@
 # Requirements Document
 
+> **Revision 5 — 2026-08-15.** Incorporates the fourth adversarial review (checkpoint entry [15]).
+> The version-`1` creation rule and the reachability model both held. One blocker remained, plus two
+> stale summaries and four reference defects.
+>
+> 1. **The reset had no frozen expected version.** Revision 4 said whichever writer's expected
+>    version no longer matches loses, but never said where the reset's version comes from — and a
+>    version read inside the reset, immediately before mutating, matches by construction, so the
+>    rule was unenforceable on that side. The interleaving it permits: B2's idle guard observes `N`
+>    and judges a reset eligible, a user commits `N+1`, the reset reads `N+1`, its compare-and-set
+>    succeeds, and a successful edit is silently discarded. 8.32 to 8.39 require the invocation to
+>    carry the version observed **with the eligibility decision**, forbid retrying against newer
+>    state, reuse Requirement 7's `409` envelope rather than an undefined "typed conflict", and
+>    change the internal seed endpoint's signature accordingly. See D27.
+> 2. **Two authoritative summaries still carried the rejected "gone" definition.** The
+>    `Signup_Cutover_Gate` glossary entry and D23 both required old writers to be *gone*, which the
+>    permitted quiescence mechanism cannot satisfy — the exact contradiction Revision 4 fixed in the
+>    criteria and left standing in the summaries.
+> 3. **Four wrong-but-existing references**, all created by Revision 4's own renumbering: 8.9 and
+>    D18 cited 1.21 (mechanism choice) where the constraint ordering is 1.25; the
+>    `Identity_Preserving_Reset` entry cited 8.20 (absent seeding) where the delete-all removal is
+>    8.29; and D20 still described cleared work as unreviewed. All resolved numerically, so the
+>    checker was correctly green.
+>
+> Cutover mechanism stays out of the requirements by agreement: Requirement 1 states the safety
+> invariant and its evidence independently of release machinery, and the staged-versus-quiesced
+> choice belongs in `design.md`. No owner decision is needed at this gate.
+>
 > **Revision 4 — 2026-08-15.** Incorporates the third adversarial review (checkpoint entry [13]).
 > D21's constraint-outcome `409` and the envelope/stateful error split both **cleared**. Three
 > blockers remained, all accepted after verification, plus two consistency findings.
@@ -170,14 +197,14 @@ Scope is deliberately limited to the contract. This spec delivers no frontend ch
 - **Composition_Operation**: The single Application_Operation that replaces a portfolio's complete holding set with a caller-supplied desired state, atomically and under an optimistic version check. The only holdings writer this spec leaves generally reachable.
 - **Desired_State_Write**: A write whose payload is the complete intended result rather than a delta. Omission means deletion. Contrast with the existing additive `POST /api/portfolio/{portfolioId}/holdings`.
 - **Portfolio_Aggregate**: The portfolio row together with its `asset_holdings` child rows, treated as one consistency and versioning unit. The unit the Portfolio_Version protects.
-- **Portfolio_Version**: A monotonically increasing integer on the Portfolio_Aggregate, incremented exactly once per **aggregate state transition** — any holdings mutation, and Aggregate_Creation by a Composition_Operation or by the Golden_State_Seeder. Supplied by the client on write and compared before mutation. Deliberately not scoped to holdings mutations alone; see 5.2 and 5.3.
+- **Portfolio_Version**: A monotonically increasing integer on the Portfolio_Aggregate, incremented exactly once per **aggregate state transition** — any holdings mutation, and Aggregate_Creation by a Composition_Operation or by the Golden_State_Seeder. Supplied by the **initiating writer** on write and compared before mutation — an end-user client for a composition write, and B2's reset-eligibility decision for a reset. See 8.32. Deliberately not scoped to holdings mutations alone; see 5.2 and 5.3.
 - **Version_Conflict**: The condition where a supplied Portfolio_Version does not match the stored one. Yields `409` and no mutation.
 - **Primary_Portfolio**: The single portfolio belonging to a user. This spec makes "exactly one per user" an invariant rather than a convention.
 - **Portfolio_Provisioning**: Creation of a user's Primary_Portfolio. Occurs at signup (the primary path), for pre-existing users via the Portfolio_Backfill, and on first composition as a recovery fallback.
 - **Aggregate_Creation**: Provisioning performed *by* a Composition_Operation, modelled as a versioned state transition from Absent_Aggregate to Portfolio_Version `1`. Distinct from signup and backfill provisioning, which create at Portfolio_Version `0`.
 - **Absent_Aggregate**: The state of a user having no Primary_Portfolio. Addressed on the wire by expected Portfolio_Version `0`, which denotes absence *or* an existing unmutated aggregate — the two are distinguished by outcome, not by token. See D21.
 - **Envelope_Failure**: A request rejected before any stored state is consulted — malformed JSON, a quantity supplied as a JSON number, a missing or non-integer version. Precedes every stateful check because the system has no decoded request to compare against.
-- **Signup_Cutover_Gate**: The deployment condition under which the Portfolio_Backfill may run: every signup writer capable of creating a user without a portfolio is gone.
+- **Signup_Cutover_Gate**: The condition under which the Portfolio_Backfill may run: **no request can reach** a signup writer that creates a user without a Primary_Portfolio. Stated as reachability, not deployment state — a deployed-but-unreachable writer satisfies it. See 1.19 and D25.
 - **Portfolio_Backfill**: The migration creating an empty Primary_Portfolio for every existing user who has none.
 - **Quantity_Domain**: The permitted value range for a holding quantity: required, strictly positive, at most 11 integer digits and 8 fractional digits, maximum `99999999999.99999999`. Derived from the `NUMERIC(19, 8)` column contract.
 - **Decimal_String**: A quantity represented on the wire as a JSON string in plain decimal notation, never as a JSON number and never in exponential notation.
@@ -185,7 +212,7 @@ Scope is deliberately limited to the contract. This spec delivers no frontend ch
 - **Selectable_Asset**: An Active_Asset, per Spec A's Lifecycle_Status. The only kind a Composition_Operation may introduce or increase.
 - **Retained_Deprecated_Position**: An existing Deprecated_Position carried unchanged or reduced through a Composition_Operation. It may be retained, reduced, or removed; it may not be introduced or increased.
 - **Writer_Convergence**: The requirement that every remaining holdings write path either routes through the Composition_Operation or participates in the same Portfolio_Version.
-- **Identity_Preserving_Reset**: The shared primitive that replaces a portfolio's holdings **within** the existing portfolio row, preserving its id and advancing its Portfolio_Version. The Golden_State_Seeder delegates to it rather than deleting and recreating — see 8.14 and 8.20. Its delete-and-recreate behaviour is what this spec removes, not a distinction this spec preserves.
+- **Identity_Preserving_Reset**: The shared primitive that replaces a portfolio's holdings **within** the existing portfolio row, preserving its id and advancing its Portfolio_Version. The Golden_State_Seeder delegates to it rather than deleting and recreating — delegation in 8.14, removal of the delete-all step in 8.29. Its delete-and-recreate behaviour is what this spec removes, not a distinction this spec preserves.
 - **Activation_Gate**: The production condition under which the Composition_Operation becomes user-reachable — Spec A's enforcement activation and verified steady state, the milestone its cutover sequence labels the R4 release artifact. Deliberately not written as a requirement number: in Spec A the token `R4` names a release stage, while `Requirement 4` concerns symbol corrections.
 - **Supported_Catalog**, **Catalog_Version**, **Catalog_Module**, **Lifecycle_Status**, **Active_Asset**, **Deprecated_Asset**, **Deprecated_Position**, **Application_Operation**, **Http_Entry_Point**, **Golden_State_Seeder**, **New_Write_Invariant**: as defined in `supported-asset-integrity/requirements.md`. Not redefined here; this spec traces to those definitions rather than restating them.
 
@@ -380,7 +407,7 @@ Scope is deliberately limited to the contract. This spec delivers no frontend ch
 6. Criterion 8.5 SHALL choose retirement because retirement and idempotence are observably different API contracts, and carrying an idempotent compatibility path serves no consumer: the only live caller is the E2E helper, migrated under 8.7, and no production client calls it.
 7. THE E2E helper that calls `POST /api/portfolio` whenever the portfolio list is empty SHALL be migrated as part of this spec.
 8. THE response of the retired route SHALL be pinned — normally `405 Method Not Allowed` on the surviving collection route — so that the outcome is a specified contract rather than a unique-constraint violation escaping the boundary as a database error.
-9. Criterion 8.5 SHALL be sequenced no later than the unique constraint in 1.8, per 1.21, because the constraint would otherwise convert a reachable duplicate-creation path into a raw database error.
+9. Criterion 8.5 SHALL be sequenced no later than the unique constraint in 1.8, per 1.25, because the constraint would otherwise convert a reachable duplicate-creation path into a raw database error.
 10. FLYWAY migrations SHALL be exempt from the runtime version check, because they run outside the application context and cannot participate in it; they SHALL nonetheless satisfy the Quantity_Domain and Spec A's New_Write_Invariant.
 11. THE system SHALL provide an Identity_Preserving_Reset that replaces holdings within the existing portfolio row, preserving its id and advancing its Portfolio_Version.
 12. THE Identity_Preserving_Reset SHALL be delivered here as a mechanism; its trigger and schedule belong to B2.
@@ -403,6 +430,14 @@ Scope is deliberately limited to the contract. This spec delivers no frontend ch
 29. `PortfolioSeedService.seed()`'s current opening step, which deletes every portfolio for the user, SHALL be removed as part of satisfying 8.14.
 30. THE rewrite of `PortfolioSeedServiceIT` SHALL retain Spec A Requirement 11's **full-table byte-identity** regression across repeated seeds, including its sentinel rows, and SHALL NOT replace it with a narrower holdings-only assertion.
 31. Criterion 8.30 SHALL hold because this spec edits the exact production writer involved in the PR #97 incident, where the seeder overwrote global prices daily. THE existing delete-and-recreate expectations in that test are what change; the price-write regression boundary is not.
+32. THE invocation of an Identity_Preserving_Reset or Golden_State_Seeder SHALL **carry** the expected Portfolio_Version observed at the moment the reset-eligibility decision was made, and SHALL compare-and-set exactly that version.
+33. THE reset SHALL NOT obtain its expected version by reading current state inside the reset operation. A version read immediately before mutation always matches, which makes the arbitration in 8.23 unenforceable on the reset side: the reset can never lose a race it does not have a precondition for.
+34. Criterion 8.33 SHALL exist because of a specific interleaving. B2's idle guard observes Portfolio_Version `N` and judges a reset eligible; a user then commits `N+1`; if the reset reads `N+1` for itself, its compare-and-set succeeds and silently replaces a successful user edit. THE eligibility decision and the write precondition must be the **same** observation, or the guard's decision is made against state that no longer exists at write time.
+35. THE reset SHALL NOT re-read a newer version as a fresh precondition after a failed compare-and-set, and SHALL NOT retry.
+36. Criterion 8.35 SHALL hold because a retry against newer state is exactly the silent overwrite 8.23 exists to prevent, differing only in that it happens one round later.
+37. WHEN the reset's compare-and-set fails, THE HTTP-reachable seed endpoint SHALL return `409` with the `portfolio_version_conflict` code and the current Portfolio_Version, reusing the stable contract in Requirement 7 rather than an undefined "typed conflict".
+38. WHERE no Primary_Portfolio exists, THE reset invocation SHALL supply expected Portfolio_Version `0` and SHALL be arbitrated by the constraint outcome per D21, on the same terms as a composition creation.
+39. THE current `POST /api/internal/portfolio/seed`, which accepts no body and no version, SHALL be changed to accept the expected Portfolio_Version required by 8.32.
 
 ### Requirement 9: Activation gate
 
@@ -555,7 +590,7 @@ Requirement 1's unique constraint is only safe once **every** creation path is a
 are three: signup (1.5), the composition fallback (1.9), and `POST /api/portfolio` (8.5). Revision 1
 specified the constraint while leaving the third reachable, which would have produced duplicates
 before the constraint landed and an unhandled database error after. The Signup_Cutover_Gate in 1.16
-to 1.20 and the constraint ordering in 1.21 exist to make that sequencing **enforced** rather than
+to 1.24 and the constraint ordering in 1.25 exist to make that sequencing **enforced** rather than
 incidental — see D23 for why an ordering word alone was not enough.
 
 ### D19 — Error precedence is specified because it is otherwise emergent
@@ -598,7 +633,8 @@ R1.15 said signup provisioning ships "no later than" the backfill. Two independe
 as sufficient; it is not, because the deployment topology places the two writers in parallel matrix
 entries with the migration running from one of them at startup. A requirement that depends on
 ordering must name the gate that enforces it and the evidence that confirms it, and the evidence must
-be collected after every old writer is gone rather than at commit time — a migration's own snapshot
+be collected once no request can reach an old writer — not merely once that writer is undeployed,
+and not at commit time — a migration's own snapshot
 cannot observe a concurrent signup against a prior revision.
 
 ### D24 — Collision arbitration is symmetric; reset has no priority
@@ -634,18 +670,38 @@ complete persisted tuple the shared primitive owns, deliberately **not** relying
 moving to make seeds differ in practice: that is an incidental behaviour, and pinning the timestamp
 later would silently change the concurrency contract.
 
-### D20 — Open for review
-D2 has now reversed twice (see D17), so it warrants scrutiny rather than acceptance, and this
-document's architectural claims should be treated as carrying the same unverified-boundary risk.
+### D27 — The reset's precondition is frozen at the eligibility decision, not at the write
+Revision 4 established that exactly one of a colliding edit and reset commits, and that whichever
+writer's expected version no longer matches loses. It did not say where the reset's expected version
+comes from, which left the rule unenforceable on that side: a version read inside the reset,
+immediately before mutating, matches by construction. A writer that cannot lose is not participating
+in arbitration.
 
-New in Revision 3 and therefore unreviewed: the creation contract in 6.20 to 6.29, particularly the
-decision in D21 to raise the concurrent-creator `409` on the unique-constraint outcome rather than
-on a version comparison; the Signup_Cutover_Gate in 1.16 to 1.20, whose two permitted mechanisms
-(gate the deployment, or quiesce signup) have different operational costs that this document does
-not choose between; and the seeder delegation in 8.14 to 8.20, which changes a production-reachable
-daily writer and should be read against Spec A's D20 holdings-only constraint.
+The failure it permits is specific rather than theoretical. B2's idle guard observes version `N` and
+judges a reset eligible; a user commits `N+1`; the reset reads `N+1` and its compare-and-set
+succeeds, silently discarding a successful edit. The eligibility decision and the write precondition
+have to be the **same** observation, or the guard is deciding about state that no longer exists when
+the write lands.
 
-Three references in Revision 2's own decision text had drifted to point at renumbered criteria, and
-three more drifted during this revision. All six were found by `--pairs`, none by the contiguity
-check. That ratio is the argument for running the paired mode on every revision: the checker proves
-a reference **resolves**, never that it resolves to what the sentence claims.
+Two consequences are stated rather than left to design. The reset must not retry against a newer
+version after losing — that is the same silent overwrite, one round later. And the internal seed
+endpoint, which today accepts no body and no version, must change signature, which makes this a
+contract requirement rather than an implementation note.
+
+### D20 — Review record
+D2 reversed twice (see D17), so its conclusion is settled but its reasoning history is a caution
+rather than a credential.
+
+**Cleared across four adversarial passes:** the constraint-outcome `409` and creation model (D21);
+the envelope/stateful error split; the reachability cutover gate, which has now had two reads; the
+seeder delegation and version semantics; and the symmetric arbitration *outcome* in 8.23.
+
+**Newest and least reviewed:** the reset precondition in 8.32 to 8.39 (D27), added in Revision 5.
+The arbitration outcome was agreed a round earlier; what is new is requiring the initiating writer
+to freeze its expected version at the eligibility decision, and the resulting signature change to
+the internal seed endpoint.
+
+Ten reference defects have been found across five revisions. Eight resolved numerically and passed
+the contiguity check, visible only in paired mode or by reading the cited target; two of those were
+introduced while fixing the same class. `--pairs` is necessary and not sufficient — it shows what a
+reference resolves to, and a human still has to assert that is what the sentence claims.
