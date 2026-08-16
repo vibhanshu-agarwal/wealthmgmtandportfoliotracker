@@ -1,5 +1,35 @@
 # Implementation Plan
 
+> **Revision 5 — 2026-08-16.** Incorporates the fourth tasks review (checkpoint entry [41]). Three
+> P1s and two P2s, all accepted. The open PR question from entry [40] is resolved by the review
+> rather than by me.
+>
+> 1. **7.4 asserted both that the suites test the JAR and that they do not.** The Revision 4
+>    correction landed in 7.5 and never reached the procedure it corrected, so the normative text
+>    still said "test that JAR" twenty-five lines above the paragraph explaining why that is
+>    impossible. Replaced with **one named `candidateVerification` aggregate** — `test`,
+>    `integrationTest`, `bootJar` in one invocation from a clean checkout — plus a report-based
+>    assertion that every manifest class executed, and the JAR hashed **after** the graph. The suites
+>    are evidence about the graph; only 7.5a is evidence about the artifact.
+> 2. **7.5a permitted proving the host JAR while Azure serves an unproved image.** "The staged JAR
+>    (or the built candidate image)" are not equivalent proof strengths — `java -jar` exercises
+>    neither the Mariner runtime, the entrypoint, the container filesystem, nor the object Container
+>    Apps pulls. It now pulls and runs the **exact ACR `repository@sha256:…`**, which closes both
+>    remaining joins in one step.
+> 3. **Wave P's gate never tested its own new path.** P.2 proved only that *unselected* apps are
+>    untouched, so a workflow that ignored the digest, rebuilt the selected service, or updated the
+>    wrong repository passed the whole gate. **Wave P splits into P-A (service selection) and P-B
+>    (digest deployment)**, ordered, each with its own executable gate and abort; the release lane is
+>    blocked on both. P-B.2 makes the trust boundary fail closed on ambiguous selection, tag
+>    references, foreign repositories and unresolvable manifests.
+> 4. **`git diff --name-only` cannot enforce forbidden symbols** — it contains no source text, so a
+>    prohibited Redis or freshness change inside an allowed file is invisible. GC.5 now has a path
+>    guard and a separate content/AST guard.
+> 5. **"A matching ignore rule" was dangerous** in the paragraph about `.dockerignore`. The staging
+>    directory belongs in `.gitignore` and must **not** be in `.dockerignore` — the precedent is
+>    exact: `.gitignore:115` lists `.slim-it-artifacts/` and `.dockerignore` deliberately omits it. A
+>    check now asserts the staged JAR is not excluded.
+>
 > **Revision 4 — 2026-08-16.** Incorporates the third tasks review (checkpoint entry [39]). The AOT
 > question from entry [38] is closed — a real Gradle dry-run confirms `bootJar` already depends on
 > `processAot`, `compileAotJava`, `processAotResources` and `aotClasses`, so copying the completed JAR
@@ -147,10 +177,19 @@ assertions are what make these durable.
   constraints implementation can violate**, not absence of work; treating them as declared gaps gave
   the equality guard permission to ignore exactly the scope creep they prohibit.
 
-  **Assertion:** a CI script over `git diff --name-only <B1-base>..<cut-C>`, with an explicit
-  allowlist (test fixtures, workflow files) and forbidden production paths and symbols: no production
-  frontend change, no presence or Redis mechanism, no `ReadOnlyEnforcementFilter` modification, no
-  per-holding freshness field, no FX, valuation or refresh-pipeline change.
+  **Assertion — two checks, because one cannot do both jobs.** Revision 4 named
+  `git diff --name-only` and then asked it to enforce forbidden *symbols*; name-only output contains
+  no source text, so a prohibited valuation, freshness or Redis change inside an otherwise-allowed
+  file is invisible to it.
+
+  - **Path guard:** `git diff --name-only <B1-base>..<cut-C>` with an explicit allowlist (test
+    fixtures, workflow files) and forbidden production paths — no production frontend change, no
+    `ReadOnlyEnforcementFilter` modification, no FX/valuation/refresh-pipeline files.
+  - **Content guard:** a content or AST check over the full diff for symbol-level prohibitions — no
+    presence/Redis mechanism, no per-holding freshness field — which can appear inside files the path
+    guard permits.
+
+  Both outputs are stored as source-governance evidence.
 
   **The base is the B1 base commit, pinned — not cut-B3.** Comparing only the last two cuts would
   miss scope creep merged into an earlier artifact.
@@ -178,30 +217,67 @@ still pass the guard.
 
 ---
 
-## Wave P — Deployment prerequisite (separate PR) · *release lane*
+## Wave P — Deployment prerequisites · *release lane* · **two ordered PRs**
 
-- [ ] **P.1 Add a service allowlist to `deploy-azure.yml`.** An unselected service receives **no
+Split into **P-A** then **P-B**, per the review. The allowlist is safe and independently useful; the
+digest path depends on it and has a different failure surface — it is a privileged deployment mode.
+If P-B fails review or is rolled back, P-A remains valid. One combined PR buys no atomicity, because
+the release lane cannot open until both gates are green regardless.
+
+### P-A — service selection
+
+- [ ] **P-A.1 Add a service allowlist to `deploy-azure.yml`.** An unselected service receives **no
   `az containerapp update` at all** — not a re-deploy at its existing digest, which can still create
   or mutate revision state. Full-deploy stays the default for `workflow_call` and ordinary dispatch.
   _Requirements: 1.17, 1.19, 1.21_
-- [ ] **P.1a Add a prebuilt-digest deploy path.** `deploy-azure.yml` currently runs
-  `docker build --no-cache --pull -f <service>/Dockerfile.azure` (line 145) and then
-  `az containerapp update --image …:${{ github.sha }}` (line 161) — so it **rebuilds independently
-  and deploys by tag**. Without a change here, the serving proof would describe a fresh
-  `Dockerfile.azure` rebuild rather than the attested candidate: the original defect, one step later
-  in the chain. Add an input accepting a prebuilt `repository@sha256:…` manifest digest and a
-  skip-build branch that updates the Container App to **that exact digest**, without building or
-  retagging. A local image ID is not an ACR manifest digest.
-  _Requirements: 9.7_
-- [ ] **P.2 Prove non-interference.** For a filtered run naming only `portfolio-service`, assert every
-  **unselected** app's revision name, image digest, and traffic weight are byte-identical before and
-  after. Store the before/after capture.
+- [ ] **P-A.2 Prove non-interference.** For a filtered run naming only `portfolio-service`, assert
+  every **unselected** app's revision name, image digest, and traffic weight are byte-identical before
+  and after. Store the before/after capture.
   _Requirements: 1.17, 1.24_
-- [ ] **P.3 STOP/GO — deployment prerequisite.**
-  **Go:** P.2 green.
-  **Abort:** fall back to signup quiescence for V20 and an activation control for R-C, then re-derive
-  the release lane before proceeding. Implementation work is unaffected either way.
+- [ ] **P-A.3 Prove the default path is unchanged.** An ordinary dispatch with no allowlist still
+  deploys all four services exactly as today.
+  _Requirements: 1.21_
+- [ ] **P-A.4 STOP/GO — P-A.**
+  **Go:** P-A.2 and P-A.3 green.
+  **Abort:** revert the allowlist; the release lane stays closed and implementation is unaffected.
   _Requirements: 1.21, 1.22, 1.23_
+
+### P-B — digest deployment (based on P-A)
+
+- [ ] **P-B.1 Add a prebuilt-digest deploy path.** `deploy-azure.yml` currently runs
+  `docker build --no-cache --pull -f <service>/Dockerfile.azure` (line 145) and then
+  `az containerapp update --image …:${{ github.sha }}` (line 161) — it **rebuilds independently and
+  deploys by tag**. Without this, the serving proof would describe a fresh rebuild rather than the
+  attested candidate. Add an input accepting `repository@sha256:…` and a skip-build branch updating
+  the Container App to **that exact manifest digest**, without building, pushing or retagging.
+  _Requirements: 9.7_
+- [ ] **P-B.2 Fail closed at the trust boundary.** The mode is privileged, so every ambiguity is an
+  error rather than a default. Reject before any update when:
+  - the selection is not **exactly one** service (a typed per-service map would be a deliberate
+    design, not an inference from a scalar input);
+  - the ACR repository does not equal the selected service;
+  - the reference is a tag rather than immutable `sha256:` syntax;
+  - the manifest does not resolve in the expected ACR; or
+  - a foreign registry or repository is named.
+  Revision 4 specified one scalar digest alongside an allowlist and said nothing about zero, multiple
+  or mismatched selections.
+  _Requirements: 9.7_
+- [ ] **P-B.3 Prove the digest path actually works.** P-A.2 proves only that *unselected* apps are
+  untouched — a workflow that ignores the digest, rebuilds the selected service, or updates the wrong
+  repository passes it. Assert: no build or push step executed, and the **selected** Container App
+  resolves to the exact requested digest.
+  _Requirements: 9.7_
+- [ ] **P-B.4 Prove each rejection case fails before any update**, and that the default full-deploy
+  path still works with the digest input absent.
+  _Requirements: 9.7, 1.21_
+- [ ] **P-B.5 STOP/GO — P-B.**
+  **Go:** P-B.3 and P-B.4 green.
+  **Abort:** revert P-B only. P-A survives; the release lane stays closed until a digest path exists,
+  or the candidate/serving model is re-derived around the fallback activation control.
+  _Requirements: 9.7, 1.21_
+
+**Both P-A.4 and P-B.5 are hard predecessors of the release lane.** Implementation is unaffected by
+either.
 
 ---
 
@@ -518,18 +594,33 @@ Portfolio-service only; the asset route shipped in Wave 2.
   and 99, then independently rebuilds the image with `docker compose build`. Green tests therefore
   describe a different compiled artifact from the one that serves.
 
-  **Chosen: build one JAR, test that JAR, and have the image consume it without recompiling.**
+  **Chosen: one verification graph from one immutable checkout, then package what that graph
+  built.** Revision 4 said "test that JAR" here and then said the opposite in 7.5 — correctly, since
+  Gradle's `test` and `integrationTest` run against source-set outputs and never substitute the fat
+  JAR. The contradiction is removed rather than annotated: the suites are evidence about the **graph**,
+  and only the image smoke in 7.5a is evidence about the **packaged artifact**.
 
-  1. `./gradlew :portfolio-service:bootJar` — build once.
-  2. `sha256sum portfolio-service/build/libs/portfolio-service.jar` → record as `JAR_SHA`.
-  3. Run the candidate suites (7.5) against **that** JAR artifact, not a fresh source compile.
+  1. Register a `candidateVerification` aggregate task — one named invocation — depending on
+     `:portfolio-service:test`, `:portfolio-service:integrationTest` and `:portfolio-service:bootJar`,
+     with `bootJar` ordered last. One command runs the whole graph from a clean checkout.
+  2. Assert from the JUnit XML reports that **every class in the 7.5 manifest executed**, and that no
+     task selected zero tests. Revision 4 stated zero-test failure as an outcome; this is the check
+     that produces it.
+  3. `sha256sum` the `bootJar` output **after** the graph completes → record as `JAR_SHA`. Hashing
+     before the graph would hash an artifact the suites never accompanied.
   4. **Stage the JAR outside `build/`.** The root `.dockerignore` excludes `**/build/` — with a
      comment saying it exists precisely to stop a host JAR entering the builder — so a
      `COPY portfolio-service/build/libs/…` cannot work from the repo context. Reuse the proven
      pattern: a `prepareCandidateArtifact` Copy task, modelled on the existing
      `prepareSlimItArtifact` (`build.gradle:138`), stages it to
-     `.candidate-artifacts/portfolio-service.jar` with a matching ignore rule, exactly as
-     `Dockerfile.slim-it` consumes `.slim-it-artifacts/`.
+     `.candidate-artifacts/portfolio-service.jar`, exactly as `Dockerfile.slim-it` consumes
+     `.slim-it-artifacts/`.
+
+     **The staging directory goes in `.gitignore` and must NOT go in `.dockerignore`.** The precedent
+     is explicit: `.gitignore:115` lists `.slim-it-artifacts/` and `.dockerignore` deliberately does
+     not, because Docker has to see it. Revision 4 said "a matching ignore rule", which is easiest to
+     implement in exactly the file whose exclusion caused this blocker. A check asserts the staged JAR
+     is **not** excluded by `.dockerignore`.
   5. Assert the staged file's SHA equals `JAR_SHA` **before** the build.
   6. Add `portfolio-service/Dockerfile.candidate`, based on **`Dockerfile.azure`'s Mariner runtime**
      — not the AWS/Lambda Dockerfile — whose builder stage `COPY`s the staged JAR instead of running
@@ -576,11 +667,17 @@ Portfolio-service only; the asset route shipped in Wave 2.
   GC.5 is deliberately absent from this table; it is source-governance evidence, not a JUnit suite —
   see GC.5.
   _Requirements: 9.7, 8.30_
-- [ ] **7.5a Black-box run against the packaged artifact.** The only proof that genuinely exercises
-  the JAR: launch the exact staged JAR (or the built candidate image) and run an HTTP contract smoke
-  covering startup, the composition endpoint, `GET /api/assets`, and the `409` envelope. This is what
-  "tests the artifact" means; 7.5's suites are bound to it through the shared task graph and
-  `JAR_SHA`, not by claiming to run inside it.
+- [ ] **7.5a Black-box run against the exact ACR manifest digest.** **Pull and run
+  `repository@sha256:…`** — the digest recorded in 7.4 step 8 — and run an HTTP contract smoke
+  covering startup, the composition endpoint, `GET /api/assets`, and the `409` envelope.
+
+  Not the host JAR, and not a mutable local tag. Revision 4 offered "the staged JAR **or** the built
+  candidate image" as equivalents; they are not. `java -jar` on the host exercises neither the Mariner
+  runtime, nor the entrypoint, nor the container filesystem, nor the object Container Apps will
+  actually pull. It also reintroduced a choice one paragraph after 7.4 says a mechanism was chosen.
+
+  Running the registry digest closes both remaining joins in one step: local image → registry
+  manifest, and registry manifest → deployed manifest.
   _Requirements: 9.7, 6.1, 7.1_
 - [ ] **7.6 Exhaustive holdings-writer inventory.** Enumerate from the source tree every path that
   mutates `asset_holdings` and show each participates in Portfolio_Version. Store the output with the
@@ -594,7 +691,7 @@ Portfolio-service only; the asset route shipped in Wave 2.
   **Go:** 7.4–7.7 green. A prohibited rollback is a policy, not evidence.
   **Abort:** do not deploy. The system remains at R-B3, which is a safe steady state.
   _Requirements: 9.1, 9.7_
-- [ ] **7.9 Deploy the attested digest; collect the serving proof.** Use P.1a's prebuilt-digest path
+- [ ] **7.9 Deploy the attested digest; collect the serving proof.** Use P-B.1's prebuilt-digest path
   to update the Container App to the **exact ACR manifest digest** recorded in 7.4 — no rebuild, no
   retag. Then: active revision → that digest, traffic, controlled probe. If the deploy invokes
   `Dockerfile.azure` again, the serving proof describes a different artifact and the chain is broken.
@@ -673,7 +770,7 @@ Two lanes. Implementation is gated on code; releases are gated on evidence.
 ```
 IMPLEMENTATION LANE                          RELEASE LANE
 ───────────────────                          ────────────
-Spec A implementation                        Wave P green ─────────┐
+Spec A implementation                        P-A + P-B green ──────┐
         │                                    Spec A production     │
         ▼                                    steady state ─────────┤
 Wave 0 (fixtures) ─────────────────────────────────────▶ Wave 1 (R-0)
@@ -694,6 +791,6 @@ Wave 7.1–7.2 (controller + HTTP tests) ─────────────
                                                           Wave 7 (R-C)
 ```
 
-Wave P and Spec A's **production** steady state block the release lane only. Wave 0 and Wave 4 need
+Wave P (P-A then P-B) and Spec A's **production** steady state block the release lane only. Wave 0 and Wave 4 need
 Spec A's *implementation* — for canonical tickers and the catalog module — not its cutover, per the
 frozen requirement that the activation gate is not a development dependency.
