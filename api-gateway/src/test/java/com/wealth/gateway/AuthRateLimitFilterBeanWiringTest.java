@@ -12,6 +12,8 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
 import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
+import org.springframework.web.cors.reactive.CorsConfigurationSource;
+import org.springframework.web.cors.reactive.UrlBasedCorsConfigurationSource;
 
 /**
  * Regression test for a Critical bug found in review: {@link AuthRateLimitFilter}'s constructor
@@ -77,6 +79,17 @@ class AuthRateLimitFilterBeanWiringTest {
         @Bean
         RedisRateLimiter authRateLimiter() {
             return new RedisRateLimiter(1, 60, 12);
+        }
+
+        /**
+         * AuthRateLimitFilter takes the same CorsConfigurationSource SecurityConfig publishes, so
+         * that a short-circuited 429 carries CORS headers from one allow-list rather than a second
+         * copy. This narrow context does not load SecurityConfig, so the bean is supplied here —
+         * its contents are irrelevant to what this test asserts (limiter bean identity).
+         */
+        @Bean
+        CorsConfigurationSource corsConfigurationSource() {
+            return new UrlBasedCorsConfigurationSource();
         }
     }
 

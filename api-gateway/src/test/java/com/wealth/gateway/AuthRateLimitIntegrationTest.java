@@ -12,6 +12,8 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.reactive.server.EntityExchangeResult;
 import org.springframework.test.web.reactive.server.WebTestClient;
+import org.junit.jupiter.api.BeforeEach;
+import org.springframework.http.MediaType;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -65,6 +67,16 @@ class AuthRateLimitIntegrationTest {
     // rather than this test coincidentally still passing because the numbers happen to match.
     private static final int SMALL_BURST = 5;
 
+    /**
+     * Pinned by {@code @DynamicPropertySource} below rather than inherited from a profile.
+     *
+     * <p>These tests run under {@code prod,azure}, and both profiles set
+     * {@code app.cors.allowed-origin-patterns} — so which one wins is a property-precedence
+     * question that has nothing to do with the behaviour under test. Registering the value
+     * explicitly makes the CORS assertions depend only on the filter.
+     */
+    private static final String ALLOWED_ORIGIN = "https://wealth-demo.azurestaticapps.net";
+
     @Container
     @SuppressWarnings("resource")
     static final GenericContainer<?> redis =
@@ -106,12 +118,30 @@ class AuthRateLimitIntegrationTest {
         registry.add("app.rate-limit.strict.burst-capacity", () -> 3);
         registry.add("app.rate-limit.strict.requested-tokens", () -> 1);
 
+        // Pin the CORS allow-list so the throttled-response assertions do not depend on which of
+        // the two active profiles supplies allowed-origin-patterns.
+        registry.add("app.cors.allowed-origin-patterns", () -> ALLOWED_ORIGIN);
+
         registry.add("app.rate-limit.auth.replenish-rate", () -> 1);
         registry.add("app.rate-limit.auth.burst-capacity", () -> SMALL_BURST);
         registry.add("app.rate-limit.auth.requested-tokens", () -> 1);
     }
 
     @LocalServerPort int port;
+
+    /**
+     * Every test in this class shares one Auth_Bucket: the key derives from the remote address,
+     * which is localhost for all of them. Without a reset, each test inherits whatever the previous
+     * one left behind and only passes because 1 token/second happens to replenish enough between
+     * methods. That made the suite order- and timing-dependent, and adding a test that legitimately
+     * drains the bucket surfaced it as failures in unrelated, unmodified tests.
+     *
+     * <p>Flushing gives each test a full bucket deterministically.
+     */
+    @BeforeEach
+    void resetAuthBucket() throws Exception {
+        redis.execInContainer("redis-cli", "FLUSHALL");
+    }
 
     private WebTestClient client() {
         return WebTestClient.bindToServer().baseUrl("http://localhost:" + port)
@@ -129,9 +159,19 @@ class AuthRateLimitIntegrationTest {
     private static final int MAX_THROTTLE_WAIT_ATTEMPTS = 30;
 
     private EntityExchangeResult<String> awaitThrottledResponse(String uri, Map<String, Object> body) {
+        return awaitThrottledResponse(uri, body, null);
+    }
+
+    /** {@code origin} non-null exercises the cross-origin path, where CORS headers matter. */
+    private EntityExchangeResult<String> awaitThrottledResponse(
+            String uri, Map<String, Object> body, String origin) {
         EntityExchangeResult<String> last = null;
         for (int attempt = 0; attempt < MAX_THROTTLE_WAIT_ATTEMPTS; attempt++) {
-            last = client().post().uri(uri).bodyValue(body).exchange()
+            var request = client().post().uri(uri);
+            if (origin != null) {
+                request = request.header("Origin", origin);
+            }
+            last = request.bodyValue(body).exchange()
                     .expectBody(String.class)
                     .returnResult();
             if (last.getStatus().value() == 429) {
@@ -155,6 +195,82 @@ class AuthRateLimitIntegrationTest {
 
         EntityExchangeResult<String> throttled = awaitThrottledResponse("/api/auth/login", body);
         assertThat(Integer.parseInt(throttled.getResponseHeaders().getFirst("Retry-After"))).isPositive();
+    }
+
+    /**
+     * A browser issues an {@code OPTIONS} preflight before every cross-origin
+     * {@code POST /api/auth/login}. Charging it to the Auth_Bucket drained the bucket at twice the
+     * intended rate, which is what exhausted it during scheduled synthetic monitoring on
+     * 2026-08-15 and 2026-08-16.
+     *
+     * <p>Proved through the running gateway rather than by invoking the filter directly: the unit
+     * tests mock the limiter, so they cannot show that a real Redis token was not spent.
+     */
+    @Test
+    void corsPreflightDoesNotConsumeAuthBucketTokens() {
+        Map<String, Object> body = Map.of("email", "preflight-test@example.com", "password", "wrong-password-1");
+
+        // Far more preflights than the burst would tolerate if they were charged.
+        for (int i = 0; i < SMALL_BURST * 3; i++) {
+            client().options().uri("/api/auth/login")
+                    .header("Origin", ALLOWED_ORIGIN)
+                    .header("Access-Control-Request-Method", "POST")
+                    .exchange()
+                    .expectStatus().value(status -> assertThat(status).isNotEqualTo(429));
+        }
+
+        // The bucket must still be intact: a real POST burst still succeeds afterwards.
+        for (int i = 0; i < SMALL_BURST; i++) {
+            client().post().uri("/api/auth/login").bodyValue(body).exchange()
+                    .expectStatus().value(status -> assertThat(status).isNotEqualTo(429));
+        }
+    }
+
+    /**
+     * The filter runs at {@code HIGHEST_PRECEDENCE + 1}, ahead of Spring's CORS filter, and
+     * short-circuits. Without CORS headers the browser blocks the 429 and the frontend maps it to
+     * a network error — reporting "Unable to reach the login service" for what is actually a
+     * throttle. That is precisely how a rate limit was mistaken for a production outage.
+     */
+    @Test
+    void throttledLoginIsReadableByTheBrowser() {
+        Map<String, Object> body = Map.of("email", "cors-throttle@example.com", "password", "wrong-password-1");
+
+        for (int i = 0; i < SMALL_BURST; i++) {
+            client().post().uri("/api/auth/login")
+                    .header("Origin", ALLOWED_ORIGIN)
+                    .bodyValue(body).exchange()
+                    .expectStatus().value(status -> assertThat(status).isNotEqualTo(429));
+        }
+
+        EntityExchangeResult<String> throttled =
+                awaitThrottledResponse("/api/auth/login", body, ALLOWED_ORIGIN);
+
+        var headers = throttled.getResponseHeaders();
+        assertThat(headers.getFirst("Access-Control-Allow-Origin")).isEqualTo(ALLOWED_ORIGIN);
+        assertThat(headers.getFirst("Access-Control-Allow-Credentials")).isEqualTo("true");
+        // Retry-After is not on the CORS safelist, so without this JavaScript cannot read the
+        // value the response is sending it.
+        assertThat(headers.getFirst("Access-Control-Expose-Headers")).contains("Retry-After");
+        assertThat(Integer.parseInt(headers.getFirst("Retry-After"))).isPositive();
+        assertThat(headers.getContentType()).isEqualTo(MediaType.APPLICATION_JSON);
+        assertThat(throttled.getResponseBody()).contains("rate_limited");
+    }
+
+    /** Endpoints are POST-only; a GET to them must not spend an Auth_Bucket token. */
+    @Test
+    void nonPostRequestsToAuthPathsAreNotCharged() {
+        Map<String, Object> body = Map.of("email", "get-not-charged@example.com", "password", "wrong-password-1");
+
+        for (int i = 0; i < SMALL_BURST * 3; i++) {
+            client().get().uri("/api/auth/login").exchange()
+                    .expectStatus().value(status -> assertThat(status).isNotEqualTo(429));
+        }
+
+        for (int i = 0; i < SMALL_BURST; i++) {
+            client().post().uri("/api/auth/login").bodyValue(body).exchange()
+                    .expectStatus().value(status -> assertThat(status).isNotEqualTo(429));
+        }
     }
 
     @Test
