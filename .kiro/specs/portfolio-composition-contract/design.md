@@ -1,5 +1,43 @@
 # Design Document
 
+> **Revision 6 — 2026-08-16.** Incorporates the gate-algebra review (checkpoint entry [29]). The four
+> Revision 5 corrections held; three blocking groups remained, two in the gate model and one in the
+> fixture D10 selected.
+>
+> 1. **The release graph assumed service-scoped artifacts the deployer cannot produce.**
+>    `deploy-azure.yml` declares one unconditional four-service matrix, and the Container Apps module
+>    is `revision_mode = "Single"` at 100% traffic — so every invocation activates a new revision of
+>    all four services. R-B therefore rolls a fresh, unverified gateway while V20 runs, and R-C rolls
+>    a fresh portfolio revision that the `/api/portfolio/**` route makes reachable immediately,
+>    invalidating the G2b and G6 observations taken against R-B3. Recapturing the gates afterwards
+>    cannot fix R-B, because Flyway has already run. D9 now requires **service-scoped deployment with
+>    immutable digest reuse**, with every gate bound to the candidate digest — a prerequisite of the
+>    graph rather than an optimisation. This is Revision 1's deployment-window defect again, moved
+>    from release ordering into release mechanics.
+> 2. **Nine gate labels, not eight, and they were not nine independent facts.** Entry [28] miscounted.
+>    The gates section is rewritten as an algebra: each gate declares its **kind** (independent,
+>    point-in-time, revalidation), its predicate, and **what invalidates it**. G0 is split into G0a
+>    (route retirement, proved by revision/traffic) and G0b (fixture works on a fresh database) —
+>    Revision 5 cited a revision listing as evidence for both, and it is evidence for neither half of
+>    the second. All capability gates now use one evidence shape: immutable digest, active revision →
+>    that digest with traffic, controlled probe. **G6 becomes a derived checkpoint** rather than an
+>    independent gate: as written it was a conjunction of G0's route half and G2b with no predicate of
+>    its own, and it enumerated three paths after P11g-2 had moved to quantifying over all writers. It
+>    now additionally requires an exhaustive writer inventory. R-C's activation checkpoint gains fresh
+>    G2 and a recollected G3, since Writer_Convergence says nothing about the exactly-one invariant
+>    the same release depends on.
+> 3. **D10 migrated the API helper and left the browser logged in as dev.** The suites authenticate
+>    along two independent paths — `helpers/api.ts` for the API token and `helpers/browser-auth.ts`
+>    for the browser session, both resolving `dev@local`. Moving only the first means the API
+>    assertions pass against the E2E portfolio while the page renders dev's empty one: a green suite
+>    proving nothing. D10 now migrates the whole identity boundary — API token, browser session,
+>    credential wiring in every local/CI/AWS/Azure context, and the `BTC` → `BTC-USD` ticker
+>    expectations that Spec A's repair makes stale.
+>
+> Also: G1's dual-schema proof is pinned to the exact **V19 → V20** pair, since Spec A is now the
+> graph predecessor; a test starting from today's V16 would pass without exercising the composed
+> boundary the release crosses.
+>
 > **Revision 5 — 2026-08-16.** Incorporates the whole-graph design review (checkpoint entry [27]),
 > which confirmed six releases is a defensible structure and then found four blocking groups by
 > reading the graph as a state machine.
@@ -560,7 +598,40 @@ silent overwrite the contract exists to prevent.
 #### D9 — Cutover is staged gateway-first, with quiescence as a proven fallback
 
 Selected per the requirements' permission and the design review's recommendation. Six artifacts,
-in order — see the release table below, which is authoritative:
+in order — see the release table below, which is authoritative.
+
+**The releases require a deployment mechanism the repository does not have yet.** `deploy-azure.yml`
+declares one unconditional four-service matrix — `api-gateway`, `portfolio-service`,
+`market-data-service`, `insight-service` — and the Container Apps module runs
+`revision_mode = "Single"` with `percentage = 100` and `latest_revision = true`. Every invocation
+therefore builds, pushes and activates a new revision of **all four** services at full traffic.
+
+That breaks the graph's evidence in two places, and re-running the gates afterwards does not repair
+either:
+
+- **R-B invalidates G2.** R-A proves the gateway provisions. Starting R-B rolls a *new* gateway
+  revision in parallel with the portfolio-service startup that runs V20, so the migration can commit
+  against a gateway nobody has verified. Recapturing G2 afterwards is too late — Flyway has already
+  run.
+- **R-C invalidates G2b and G6.** Both are observations of R-B3's portfolio-service revision. R-C
+  rolls another portfolio-service revision containing the public controller, and the generic
+  `/api/portfolio/**` route makes it reachable the moment that revision takes traffic. The evidence
+  describes an artifact that is no longer serving.
+
+This is the deployment-window class from Revision 1, moved from release *ordering* into release
+*mechanics*: ordering six releases correctly does not help while one invocation changes all four
+services.
+
+**The design therefore requires service-scoped deployment with immutable digest reuse.**
+`deploy-azure.yml` gains a service filter; unchanged services are re-deployed by their existing
+image digest rather than rebuilt, so a release that names only `portfolio-service` cannot produce a
+new gateway revision. Every gate binds to the **candidate digest**, not to a service name or a
+revision label. This is a prerequisite of the release graph, not an optimisation of it.
+
+Where a release genuinely cannot be service-scoped, the fallback is the one the cutover already
+permits: quiesce the affected traffic for V20, and for R-C use an activation control that keeps the
+new revision dark until its gate is recaptured. What is not acceptable is the current shape, where
+the artifact that activates is never the artifact that was proved.
 
 **Artifact 0 — legacy writer retirement, migration-free.** Retires **both** legacy writers —
 `POST /api/portfolio` and the versionless `POST /api/portfolio/{portfolioId}/holdings` — and replaces
@@ -637,17 +708,39 @@ there is no target to migrate them to at that point. This is worse than it looks
 `V15` reassigned the only Flyway-seeded dev portfolio to the read-only demo user, so the dev user has
 **no** portfolio and the self-healing path is the one that runs.
 
-The suites move to the already-seeded **E2E identity** and the helper becomes read-and-assert against
-the Golden-State setup that global setup establishes, failing hard if seeding was skipped rather than
-silently repairing. The fixed internal seed target is not parameterised to reach the dev user — that
+**The migration is of the whole fixture identity boundary, not of one helper.** Revision 5 moved
+`ensurePortfolioWithHoldings` and stopped there, which does not work: the suites authenticate along
+**two independent paths**. `helpers/api.ts` resolves `dev@local` for the API bearer token, and
+`helpers/browser-auth.ts` separately logs the *browser* in as `dev@local`
+(`local-dev-password-2026`), which `global.setup.ts` and `golden-path.spec.ts` install immediately
+before calling the API helper. Pointing only the API helper at the E2E portfolio leaves the browser
+as dev, so the API assertions pass while the page renders the dev user's empty portfolio — a green
+suite proving nothing.
+
+Four things move together:
+
+1. **API token** — `helpers/api.ts` resolves the E2E identity.
+2. **Browser session** — `helpers/browser-auth.ts` and the local-storage session it installs.
+3. **Credential wiring** — the E2E email and password must be present in *every* execution context:
+   local, CI verification, AWS, and Azure. Some contexts do not inject them at this step today, so
+   this is real work per context rather than one edit.
+4. **Ticker expectations** — `golden-path.spec.ts` asserts `BTC` in two places. After Spec A the
+   Golden-State set contains the canonical `BTC-USD` and the legacy `BTC` holding has been repaired,
+   so those assertions must move to the canonical symbol. The file's own header comment still
+   describes the V3 seed as the source of `AAPL, TSLA, BTC`, which is no longer how the fixture is
+   established.
+
+The helper then becomes read-and-assert against the Golden-State setup global setup establishes,
+failing hard if seeding was skipped rather than silently repairing. The fixed internal seed target is not parameterised to reach the dev user — that
 would re-widen the destructive endpoint this design deliberately keeps server-fixed.
 
 A dedicated test-fixture write mechanism is the alternative if read-and-assert proves insufficient;
 what is not available is keeping the production write paths alive for test convenience.
 
-R-0's gate runs the affected `golden-path` and `dashboard-data` suites **against a fresh database**,
+**G0b** runs the affected `golden-path` and `dashboard-data` suites against a **fresh database**,
 because that is precisely the case the current helper repairs and therefore the case where its
-removal bites.
+removal bites. It is a separate gate from G0a on purpose: a revision listing proves a route is gone
+and says nothing about whether the fixture still works without it.
 
 There is a second reason this cannot wait on B1 alone: the helper seeds `BTC`, the legacy ticker Spec
 A repairs to `BTC-USD` and then rejects at the write boundary. Re-pointing at the seeded E2E identity
@@ -972,55 +1065,70 @@ BY user_id HAVING COUNT(*) <> 1` is empty, and no user in `users` is absent from
 
 ### Gates
 
-**G0 — both public legacy writers retired.** No traffic-serving portfolio-service revision exposes
-`POST /api/portfolio` **or** the versionless `POST /api/portfolio/{portfolioId}/holdings`, and their
-E2E callers are migrated per D10. Verified by revision listing plus traffic weights. Revision 4's G0
-named only the creator while Artifact 0 retires both.
+There are **nine** labels, not eight — entry [28] miscounted G0 through G6 as six. They are also not
+nine independent observations, and treating them as a flat list is what let a derived checkpoint
+stand in for a property it does not establish.
 
-**G1 — dual-schema proof.** The gateway provisioning insert passes against both pre- and
-post-migration schemas. If this fails, switch to the quiescence path before proceeding.
+**Every capability gate uses the same evidence shape.** Revision 5 let some gates conclude a
+universal capability from reachability evidence alone. All of them now require:
 
-**G2 — gateway reachability.** Every traffic-serving gateway revision provisions. Verified by
-revision listing plus traffic weights, not by deployment ordering — `deploy-azure.yml` runs
-`api-gateway` and `portfolio-service` as parallel matrix entries, so ordering within a release
-guarantees nothing.
+1. CI or contract evidence bound to an **immutable image digest**;
+2. active revision → that exact digest, plus traffic evidence; and
+3. a controlled live probe wherever the behaviour can be exercised safely.
 
-**G3 — relational postcondition.** `P11` holds in production, checked after G2, not at migration
-commit time.
+**Every gate declares what invalidates it.** A gate is not a fact about the system; it is a fact
+about a digest that was serving at an instant, and any rollout of that service invalidates it.
 
-**G5 — seed call sites migrated.** Every seed call site reads the version from the authenticated
-portfolio state it acts on, and a scheduled or manual execution has succeeded with the new request
-shape. Enumerated and proved per call site, not inferred from one workflow step. G5 runs against the
-**old** endpoint, so it proves the callers' request shape and nothing about the server.
+| gate | kind | predicate | invalidated by |
+|---|---|---|---|
+| **G0a** | independent | No traffic-serving portfolio revision exposes `POST /api/portfolio` or the versionless holdings `POST` | any portfolio rollout |
+| **G0b** | independent | The E2E fixture no longer requires either retired route: affected suites pass against a **fresh database** on the migrated identity | any fixture or suite change |
+| **G1** | independent | Provisioning insert passes at V19 **and** V20, binding `userId.toString()` | change to the insert or either schema |
+| **G2** | independent | Every serving gateway digest provisions at signup | any gateway rollout |
+| **G2a** | independent | Every serving portfolio digest returns Portfolio_Version on the authenticated read | any portfolio rollout |
+| **G2b** | independent | Every serving portfolio digest requires the version and delegates the seed to `HoldingReplacementService`, proved by a controlled seed showing identity preservation and Spec A's price regression | any portfolio rollout |
+| **G3** | point-in-time | Relational postcondition: no user has a portfolio count other than one | any signup interval in which G2 is false; any other direct user/portfolio writer |
+| **G5** | independent | Every seed **call site**, in every execution context, sends a version | any caller or context change |
+| **G4** | revalidation | Spec A's enforcement activation and steady state still hold | Spec A rollout or repair |
 
-**G2a — version-bearing read on every serving revision.** After R-B2 and **before** any caller
-migration begins, every traffic-serving portfolio-service revision returns Portfolio_Version on the
-authenticated read. Without this, one caller's successful read can hit the new revision while another
-still reaches an old response carrying no version.
+Revision 5's **G0** bundled route retirement with fixture migration while citing revision listings as
+proof of both; a revision list is evidence for the first and says nothing about the second. Split
+into **G0a** and **G0b**.
 
-**G2b — version-required identity-preserving seed on every serving revision.** After R-B3, every
-traffic-serving revision requires the version and delegates the seed to
-`HoldingReplacementService`. Proved by revision/image/traffic evidence, then by a controlled seed
-against the fully serving artifact demonstrating identity preservation, the expected version
-outcome, and Spec A's price-table regression.
+**G6 is a derived activation checkpoint, not a tenth independent gate.** As written in Revision 5 it
+was a conjunction of G0's route half and G2b, adding no predicate of its own — and it enumerated
+three legacy paths after P11g-2 had deliberately moved to quantifying over every writer. It is
+retained only as a named checkpoint, defined as:
 
-**G6 — Writer_Convergence.** No traffic-serving revision exposes either public legacy writer, and
-none exposes an R-B2-era seed. Required **alongside** G4 before R-C.
+> **G6 (derived).** Fresh G0a, G2a and G2b, **plus** an exhaustive writer inventory: every code path
+> that mutates `asset_holdings` is enumerated from the source tree and each is shown to participate
+> in Portfolio_Version. The inventory is what makes G6 satisfy P11g-2; the conjunction alone does
+> not, because a conjunction of three named paths cannot establish a property quantified over all
+> of them.
 
-**G4 — Spec A steady state.** Composition endpoints do not become user-reachable until Spec A's
-enforcement activation is complete and verified. `/api/assets` may deploy dark before this, being
-read-only.
+**R-C's activation checkpoint is broader than holdings convergence.** Requiring only G4 and G6 proves
+Writer_Convergence while saying nothing about the exactly-one invariant that the same release depends
+on. Activation requires:
 
+- fresh **G6** (and therefore fresh G0a, G2a, G2b);
+- fresh **G2** — provisioning must still be present, not merely proved before R-B;
+- **G3 recollected** after the latest valid G2 evidence, since a signup interval without provisioning
+  invalidates it; and
+- **G4**.
+
+A prohibited rollback is a policy, not evidence. Either these are re-established at activation, or an
+immutable-artifact chain shows no intervening rollout invalidated them — which is precisely what the
+service-scoped deployment in D9 makes possible.
 ### Releases
 
 | release | artifact | gates |
 |---|---|---|
-| **R-0** | 0 — both legacy writers retired, migration-free | G0 after |
+| **R-0** | 0 — both legacy writers retired, migration-free | G0a **and G0b** after |
 | **R-A** | 1 — provisioning-capable gateway | G1 before deploy, G2 after |
-| **R-B** | 2 — V20 migration | G0 and G2 before; G3 after |
+| **R-B** | 2 — V20 migration | G0a, G0b and G2 before; G3 after |
 | **R-B2** | 2a — version-bearing authenticated read | G3 before; **G2a** after, then caller migration |
 | **R-B3** | 2b — version-required seed endpoint | G5 before; **G2b** after |
-| **R-C** | 3 — composition `PUT`, `/api/assets` | G4 **and G6** before deploy |
+| **R-C** | 3 — composition `PUT`, `/api/assets` | activation checkpoint before deploy: fresh G6, fresh G2, G3 recollected, G4 |
 
 Six releases. No release exists in which a duplicate-creating path is reachable while the unique
 constraint is present, because R-0 completes and is verified before R-B starts.
