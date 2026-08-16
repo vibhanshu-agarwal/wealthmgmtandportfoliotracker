@@ -1,5 +1,29 @@
 # Implementation Plan
 
+> **Revision 6 — 2026-08-16.** Incorporates the fifth tasks review (checkpoint entry [43]), which
+> read the **whole workflow** rather than the backend matrix. Two P1s and one P2, all accepted. One
+> required a bounded design erratum — `design.md` is now Revision 9.
+>
+> 1. **A filtered backend deploy still shipped the frontend and reset production data.**
+>    `deploy-frontend` (line 230) has no service-filter condition, `seed` (line 314) chains off it,
+>    and `verify` (line 353) chains off `seed` — and the seed POSTs to
+>    `/api/internal/portfolio/seed`, a production data-plane writer, not an observation. So "service
+>    scoped" was true of the matrix and false of the workflow, and P-A.2 snapshotted only unselected
+>    Container Apps, making all of it invisible. D9 now defines **full** and **scoped backend**
+>    modes; P-A.2 asserts the downstream jobs were skipped as well as comparing app state.
+> 2. **P-A proved one selector; P-B was accidentally generic.** B1's R-A needs an
+>    **`api-gateway`-only** deploy, so a portfolio-only run cannot establish the selection contract —
+>    P-A.3 now exercises every declared value, including that `market-data-service` also updates
+>    `market-data-refresh-job` (lines 163–180). And P-B is narrowed to **`portfolio-service` only**:
+>    generically, a `market-data-service` digest deploy would pin the Container App while its
+>    companion Job still moved by tag, breaking the exact-artifact invariant inside one service.
+> 3. **The manifest is now generated from the JUnit XML**, with 7.5's table as a required floor
+>    rather than the selection. This closes the hole named in entry [42] *without* the tag or package
+>    selector I suggested there — the review is right that an opt-in tag recreates the same omission
+>    risk one boundary later, since `candidateVerification` already runs both tasks unfiltered.
+>    Discovery failures are caught by reconciling B1-changed test sources against the generated
+>    manifest.
+>
 > **Revision 5 — 2026-08-16.** Incorporates the fourth tasks review (checkpoint entry [41]). Three
 > P1s and two P2s, all accepted. The open PR question from entry [40] is resolved by the review
 > rather than by me.
@@ -226,19 +250,36 @@ the release lane cannot open until both gates are green regardless.
 
 ### P-A — service selection
 
-- [ ] **P-A.1 Add a service allowlist to `deploy-azure.yml`.** An unselected service receives **no
-  `az containerapp update` at all** — not a re-deploy at its existing digest, which can still create
-  or mutate revision state. Full-deploy stays the default for `workflow_call` and ordinary dispatch.
+- [ ] **P-A.1 Add a service allowlist and two explicit workflow modes.** Scoping is a property of
+  the **whole workflow**, not the backend matrix: `deploy-frontend` (line 230) has no service-filter
+  condition, `seed` (line 314) chains off it, and `verify` (line 353) chains off `seed`. Per design
+  Revision 9:
+  - **full deploy** (no selection) — today's chain unchanged: four backends, frontend, seed, verify;
+  - **scoped backend deploy** — the selected backend only; `deploy-frontend`, `seed` and the chained
+    `verify` are **skipped**.
+
+  An unselected service receives **no `az containerapp update` at all** — not a re-deploy at its
+  existing digest, which can still create or mutate revision state.
   _Requirements: 1.17, 1.19, 1.21_
-- [ ] **P-A.2 Prove non-interference.** For a filtered run naming only `portfolio-service`, assert
-  every **unselected** app's revision name, image digest, and traffic weight are byte-identical before
-  and after. Store the before/after capture.
+- [ ] **P-A.2 Prove non-interference — Container Apps *and* downstream jobs.** For each scoped run,
+  assert every **unselected** app's revision name, image digest and traffic weight are byte-identical
+  before and after, **and** that `deploy-frontend`, `seed` and `verify` did not execute. Revision 5
+  snapshotted only unselected Container Apps, so a run that redeployed the Static Web App and reset
+  the portfolio data plane would have passed its non-interference proof. The seed is a production
+  writer — `global-setup.ts:172-195` POSTs to `/api/internal/portfolio/seed` — not an observation.
   _Requirements: 1.17, 1.24_
-- [ ] **P-A.3 Prove the default path is unchanged.** An ordinary dispatch with no allowlist still
-  deploys all four services exactly as today.
+- [ ] **P-A.3 Prove every declared selection shape**, not one. B1's R-A needs an
+  **`api-gateway`-only** deployment and its later releases need **`portfolio-service`-only**, so a
+  single portfolio run cannot establish the selection contract. Exercise both B1-used values, and
+  cover all four structurally — including that selecting `market-data-service` also updates
+  **`market-data-refresh-job`** (lines 163–180), which is a service-specific auxiliary target rather
+  than a uniform one.
+  _Requirements: 1.17, 1.21_
+- [ ] **P-A.4 Prove the default path is unchanged.** An ordinary dispatch with no allowlist still
+  deploys all four backends, the frontend, the seed and the verify chain exactly as today.
   _Requirements: 1.21_
-- [ ] **P-A.4 STOP/GO — P-A.**
-  **Go:** P-A.2 and P-A.3 green.
+- [ ] **P-A.5 STOP/GO — P-A.**
+  **Go:** P-A.2, P-A.3 and P-A.4 green.
   **Abort:** revert the allowlist; the release lane stays closed and implementation is unaffected.
   _Requirements: 1.21, 1.22, 1.23_
 
@@ -251,10 +292,19 @@ the release lane cannot open until both gates are green regardless.
   attested candidate. Add an input accepting `repository@sha256:…` and a skip-build branch updating
   the Container App to **that exact manifest digest**, without building, pushing or retagging.
   _Requirements: 9.7_
-- [ ] **P-B.2 Fail closed at the trust boundary.** The mode is privileged, so every ambiguity is an
-  error rather than a default. Reject before any update when:
-  - the selection is not **exactly one** service (a typed per-service map would be a deliberate
-    design, not an inference from a scalar input);
+- [ ] **P-B.2 Fail closed at the trust boundary — and accept `portfolio-service` only.** The mode is
+  privileged, so every ambiguity is an error rather than a default.
+
+  **The digest path is deliberately narrow.** B1 needs it only for R-C. A generic form would accept
+  `market-data-service`, whose Container App would take the supplied digest while
+  `market-data-refresh-job` still moved by `${github.sha}` tag — breaking the exact-artifact invariant
+  inside one logical service deployment. Any service other than `portfolio-service` is rejected.
+  Generalising later needs a design covering every service-specific target; a half-generic mode is
+  worse than a narrow honest one.
+
+  Reject before any update when:
+  - the selected service is not `portfolio-service`;
+  - the selection is not **exactly one** service;
   - the ACR repository does not equal the selected service;
   - the reference is a tag rather than immutable `sha256:` syntax;
   - the manifest does not resolve in the expected ACR; or
@@ -264,8 +314,8 @@ the release lane cannot open until both gates are green regardless.
   _Requirements: 9.7_
 - [ ] **P-B.3 Prove the digest path actually works.** P-A.2 proves only that *unselected* apps are
   untouched — a workflow that ignores the digest, rebuilds the selected service, or updates the wrong
-  repository passes it. Assert: no build or push step executed, and the **selected** Container App
-  resolves to the exact requested digest.
+  repository passes it. Assert: no build or push step executed, the **selected** Container App
+  resolves to the exact requested digest, and the scoped-mode skips from P-A.2 still hold.
   _Requirements: 9.7_
 - [ ] **P-B.4 Prove each rejection case fails before any update**, and that the default full-deploy
   path still works with the digest input absent.
@@ -603,9 +653,11 @@ Portfolio-service only; the asset route shipped in Wave 2.
   1. Register a `candidateVerification` aggregate task — one named invocation — depending on
      `:portfolio-service:test`, `:portfolio-service:integrationTest` and `:portfolio-service:bootJar`,
      with `bootJar` ordered last. One command runs the whole graph from a clean checkout.
-  2. Assert from the JUnit XML reports that **every class in the 7.5 manifest executed**, and that no
-     task selected zero tests. Revision 4 stated zero-test failure as an outcome; this is the check
-     that produces it.
+  2. **Generate** the evidence manifest from **all classes present in both JUnit XML report sets**,
+     and assert that every class in 7.5's required floor appears in it. `candidateVerification` runs
+     the complete, unfiltered `test` and `integrationTest` tasks, so a normally-discovered new suite
+     executes automatically and lands in the generated manifest without anyone remembering to list
+     it. Assert also that no task reported zero tests.
   3. `sha256sum` the `bootJar` output **after** the graph completes → record as `JAR_SHA`. Hashing
      before the graph would hash an artifact the suites never accompanied.
   4. **Stage the JAR outside `build/`.** The root `.dockerignore` excludes `**/build/` — with a
@@ -648,7 +700,7 @@ Portfolio-service only; the asset route shipped in Wave 2.
   the packaged artifact. Each entry names its Gradle **task**, not just a selector, because an `*IT`
   selector applied to `test` silently executes nothing.
 
-  | suite | gradle task | selector |
+  | suite | gradle task | required report class pattern |
   |---|---|---|
   | Legacy route contract (both retirements) | `test` | `--tests '*LegacyWriterRetirementTest'` |
   | Asset discovery contract | `test` | `--tests '*AssetDiscoveryContractTest'` |
@@ -661,8 +713,18 @@ Portfolio-service only; the asset route shipped in Wave 2.
   | Seed delegation, identity, **price regression `P10`** | `integrationTest` | `--tests '*PortfolioSeedServiceIT'` |
   | Migration and repository | `integrationTest` | `--tests '*V20MigrationIT'` |
 
-  **Zero-test selections fail the run.** A selector that matches nothing must be an error, not a
-  pass — otherwise a mis-assigned suite reports green by executing nothing.
+  **This table is a required minimum, not the selection.** `candidateVerification` runs both tasks
+  unfiltered; these patterns are asserted **present in the generated report manifest**, so the table
+  cannot silently shrink the run. The `--tests` arguments are no longer part of any invocation.
+
+  **Zero-test tasks fail the run**, and a required pattern absent from the generated manifest fails
+  it too — otherwise a mis-tagged suite reports green by executing nothing.
+
+  **Discovery reconciliation.** A suite can still be written and then excluded or mis-tagged so it
+  never runs at all. Compare B1-added and B1-modified `*Test.java` / `*IT.java` files against the
+  generated manifest, with an explicit allowlist for abstract and helper classes. Entry [42] floated
+  an opt-in tag or package as the completeness authority; that would recreate the omission risk at a
+  new boundary, since a suite could then be written without the tag.
 
   GC.5 is deliberately absent from this table; it is source-governance evidence, not a JUnit suite —
   see GC.5.
