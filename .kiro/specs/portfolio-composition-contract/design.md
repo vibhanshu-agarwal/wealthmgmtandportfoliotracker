@@ -1,5 +1,19 @@
 # Design Document
 
+> **Revision 8 — 2026-08-16.** Three bounded errata from the gate-clearing review (checkpoint entry
+> [33]). No architectural change; the candidate/serving model is unchanged and the requirements are
+> untouched.
+>
+> 1. D9's Artifact 3 summary still read "Composition `PUT` and `/api/assets`" after D11 and the
+>    release table moved the asset route to Artifact 1 — the stale-summary class again. Artifact 1
+>    now names the route explicitly and Artifact 3 is portfolio-only.
+> 2. D9's dual-schema sentence had lost the V19 → V20 precision that G1 carries; the exact pair is
+>    named in both places now.
+> 3. The context matrix left `frontend-e2e-integration.yml` as "either wire it or declare it
+>    non-gating". It is **wired**: it runs the affected suites on a fresh stack, so declaring it
+>    non-gating would leave a known-red manual workflow rather than removing an obligation.
+>    `ci-verification.yml` stays the required G0b gate; the manual workflow is secondary evidence.
+>
 > **Revision 7 — 2026-08-16.** Incorporates the activation-model review (checkpoint entry [31]). One
 > P1 remained, plus two matters entry [30] had left as possible owner decisions and which this
 > revision settles as design rather than escalating.
@@ -692,7 +706,7 @@ If the holdings `POST` must remain reachable for any interval, it carries Quanti
 for that whole interval — the requirements demand it for as long as the path exists, and an interval
 where it is reachable but unvalidated would be a regression introduced by this cutover.
 
-**Artifact 1 — provisioning-capable gateway.** `SignupService` gains a `portfolios` insert inside
+**Artifact 1 — provisioning-capable gateway, including the `/api/assets` route.** `SignupService` gains a `portfolios` insert inside
 its existing `TransactionTemplate`. The insert must work against **both** schemas, which it does
 because it names only columns present before and after: `INSERT INTO portfolios (id, user_id)
 VALUES (...)`. The gateway generates a `UUID` while `portfolios.user_id` is `VARCHAR(255)`, so the
@@ -732,11 +746,14 @@ until it ships, the old seed `POST` ignores the version and still reaches delete
 artifact containing the composition `PUT` but not this switch would leave a versionless destructive
 writer reachable underneath a live concurrency contract.
 
-**Artifact 3 — public endpoints.** Composition `PUT` and `/api/assets`.
+**Artifact 3 — public endpoint.** Composition `PUT` only. **Portfolio-service only** — the
+`/api/assets` gateway route ships in Artifact 1, per D11, so this release cannot invalidate G2.
 
 The dual-schema property is the whole basis for preferring this path, so it is a **proof
 obligation**, not an assumption: an integration test runs the gateway's provisioning insert against
-a pre-migration schema and a post-migration schema in the same suite. If that test cannot be made to
+a database at **V19** — Spec A's final migration, and this graph's predecessor — and one at **V20**,
+in the same suite. Naming the exact pair matters, per G1: a run starting from today's V16 or an
+unspecified baseline passes without ever crossing the boundary the release crosses. If that test cannot be made to
 pass, the fallback is signup quiescence — make the signup route unreachable, run artifact 2, deploy
 artifact 1, verify, reopen. Login stays available throughout either path.
 
@@ -793,12 +810,18 @@ in every context", which conflates two separable things:
   send it. That is **G5**, and it needs no fresh database at all; the AWS and Azure synthetic
   projects have live identities already and do not run these two suites.
 
+`frontend-e2e-integration.yml` is wired rather than declared non-gating. It still runs the affected
+suites on a fresh stack, so leaving it unwired would leave a known-red manual workflow that nobody
+would trust or repair — the failure mode where a workflow is nominally optional and actually just
+broken. `ci-verification.yml` remains the required G0b gate; the manual workflow is secondary
+evidence.
+
 So no fresh AWS or Azure database is manufactured. The context matrix:
 
 | context | fresh DB | role |
 |---|---|---|
 | `ci-verification.yml` | yes — disposable stack | **G0b**; needs E2E email/password added |
-| `frontend-e2e-integration.yml` | yes — fresh stack | supplies neither the internal key nor E2E credentials today. Either wire it to the same fixture contract or declare it non-gating and stop describing it as exercising Golden-State |
+| `frontend-e2e-integration.yml` | yes — fresh stack | **wired to the same fixture contract**: gains `INTERNAL_API_KEY` and the E2E credentials, which it has neither of today. Secondary evidence, not the required gate |
 | `deploy-azure.yml` seed step | no | **G5**; carries the E2E user id and internal key, and must gain email/password for the login-read-write sequence |
 | AWS / Azure synthetic | no | **G5** via existing live identities |
 
