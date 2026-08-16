@@ -1,5 +1,36 @@
 # Implementation Plan
 
+> **Revision 4 — 2026-08-16.** Incorporates the third tasks review (checkpoint entry [39]). The AOT
+> question from entry [38] is closed — a real Gradle dry-run confirms `bootJar` already depends on
+> `processAot`, `compileAotJava`, `processAotResources` and `aotClasses`, so copying the completed JAR
+> retains them. Three P1s and two P2s remained, all in artifact handling.
+>
+> 1. **The Gradle selectors do not test the fat JAR.** `build.gradle:122-123` wires `integrationTest`
+>    to `sourceSets.test.runtimeClasspath`, and `test` uses the same model; `--tests` selects test
+>    classes and never substitutes the JAR for the main classpath. Calling them "tests against the
+>    JAR" was simply false. Replaced with one immutable checkout and one Gradle task graph producing
+>    tests and `bootJar` from the same main-class outputs, **plus** a real black-box run (7.5a) against
+>    the packaged artifact. Every suite now names its task as well as its selector, because an `*IT`
+>    selector applied to `test` executes nothing silently — and zero-test selections now fail.
+> 2. **The proved image is not the image Azure deploys.** `deploy-azure.yml:145` rebuilds with
+>    `--no-cache -f Dockerfile.azure` and `:161` updates by `${github.sha}` tag, so the serving proof
+>    would describe a fresh rebuild — the original defect one step later. New **P.1a** adds a
+>    prebuilt-digest input and skip-build branch; 7.9 deploys the exact **ACR manifest digest**, which
+>    is not the same identifier as a local image ID.
+> 3. **`.dockerignore` excludes the artifact the plan told Docker to copy.** `**/build/` is excluded
+>    with a comment saying it exists to stop exactly that. Now staged to `.candidate-artifacts/` via a
+>    `prepareCandidateArtifact` task modelled on the existing `prepareSlimItArtifact`
+>    (`build.gradle:138`), with pre- and post-copy SHA assertions, and built on **`Dockerfile.azure`'s
+>    Mariner runtime** rather than the AWS/Lambda base — a candidate proved on a different runtime
+>    proves the wrong image.
+> 4. **GC.5 was the wrong authority.** A portfolio-service JUnit run cannot make a monorepo-wide
+>    changed-path claim or define its comparison base. It is now a CI diff over
+>    `<B1-base>..<cut-C>`, pinned to the B1 base rather than the last cut, classified as
+>    source-governance evidence beside the candidate bundle.
+> 5. **The banned alternate-contract phrase was still in live tasks 6.1 and 6.3.** Removed; only the
+>    exact `409 portfolio_version_conflict` envelope names that outcome. It survives solely in this
+>    revision history.
+>
 > **Revision 3 — 2026-08-16.** Incorporates the second tasks review (checkpoint entry [37]). Four
 > P1s and both P2s accepted; two of the P1s were introduced by Revision 2's own remediation.
 >
@@ -112,12 +143,22 @@ assertions are what make these durable.
   than the portfolio read returns a Portfolio_Version" — would have failed correct code.
   _Requirements: 5.11, 5.12, 7.2_
 
-- [ ] **GC.5 Scope guard.** Non-goals are **negative constraints implementation can violate**, not
-  absence of work — treating them as declared gaps gave the equality guard permission to ignore
-  exactly the scope creep they prohibit. **Assertion:** a changed-path / architecture check in the
-  final candidate proof asserts this change set contains no production frontend change (test fixtures
-  excepted), no presence or Redis mechanism, no `ReadOnlyEnforcementFilter` modification, no
-  per-holding freshness field, and no FX, valuation or refresh-pipeline change.
+- [ ] **GC.5 Scope guard — source governance, not a JUnit suite.** Non-goals are **negative
+  constraints implementation can violate**, not absence of work; treating them as declared gaps gave
+  the equality guard permission to ignore exactly the scope creep they prohibit.
+
+  **Assertion:** a CI script over `git diff --name-only <B1-base>..<cut-C>`, with an explicit
+  allowlist (test fixtures, workflow files) and forbidden production paths and symbols: no production
+  frontend change, no presence or Redis mechanism, no `ReadOnlyEnforcementFilter` modification, no
+  per-holding freshness field, no FX, valuation or refresh-pipeline change.
+
+  **The base is the B1 base commit, pinned — not cut-B3.** Comparing only the last two cuts would
+  miss scope creep merged into an earlier artifact.
+
+  Classified as **source-governance evidence** stored beside the candidate bundle, not as a binary
+  suite: a portfolio-service JUnit run against a JAR is the wrong authority for a monorepo-wide
+  changed-path claim, and it cannot define the comparison base. Revision 3 listed it as
+  `--tests '*ScopeGuardTest'`, which was that mistake.
   _Requirements: 10.1, 10.2, 10.3, 10.4, 10.6_
 
 Two further non-goals have direct carriers rather than needing the guard: criterion 10.5 on task 7.1,
@@ -143,6 +184,15 @@ still pass the guard.
   `az containerapp update` at all** — not a re-deploy at its existing digest, which can still create
   or mutate revision state. Full-deploy stays the default for `workflow_call` and ordinary dispatch.
   _Requirements: 1.17, 1.19, 1.21_
+- [ ] **P.1a Add a prebuilt-digest deploy path.** `deploy-azure.yml` currently runs
+  `docker build --no-cache --pull -f <service>/Dockerfile.azure` (line 145) and then
+  `az containerapp update --image …:${{ github.sha }}` (line 161) — so it **rebuilds independently
+  and deploys by tag**. Without a change here, the serving proof would describe a fresh
+  `Dockerfile.azure` rebuild rather than the attested candidate: the original defect, one step later
+  in the chain. Add an input accepting a prebuilt `repository@sha256:…` manifest digest and a
+  skip-build branch that updates the Container App to **that exact digest**, without building or
+  retagging. A local image ID is not an ACR manifest digest.
+  _Requirements: 9.7_
 - [ ] **P.2 Prove non-interference.** For a filtered run naming only `portfolio-service`, assert every
   **unselected** app's revision name, image digest, and traffic weight are byte-identical before and
   after. Store the before/after capture.
@@ -412,16 +462,16 @@ Named individually so the R-C manifest can enumerate them rather than gesture at
 ## Wave 6 — Version-required seed (Artifact 2b → R-B3)
 
 - [ ] **6.1 Seed `POST` requires `expectedVersion`** and delegates to `HoldingReplacementService`.
-  Target stays compiled-in. Failure returns Requirement 7's `409` envelope, not an undefined typed
-  conflict.
+  Target stays compiled-in. Failure returns Requirement 7's `409` envelope with
+  `portfolio_version_conflict` and the current Portfolio_Version.
   _Requirements: 8.14, 8.16, 8.20, 8.21, 8.22, 8.25, 8.37, 8.38, 8.39_
 - [ ] **6.2 Remove `PortfolioSeedService.seed()`'s `deleteAll` + `flush` opening.**
   _Requirements: 8.29_
 - [ ] **6.3 Collision arbitration** — symmetric compare-and-set: exactly one transition commits; a
   losing user edit gets `409` rather than `404`; a losing reset returns **Requirement 7's exact
   envelope — `409` with `portfolio_version_conflict` and the current Portfolio_Version** — and does
-  not retry. No write-maintenance gate. The phrase "typed conflict" is not used: it is what led
-  earlier revisions to invent a second internal error contract.
+  not retry. No write-maintenance gate. Only the Requirement 7 envelope names this outcome; no
+  alternate internal contract is introduced.
   _Requirements: 8.23, 8.24, 8.26, 8.27, 8.28, 8.33, 8.40_
 - [ ] **6.4 Rewrite `PortfolioSeedServiceIT`** for identity preservation. Replace
   `EXPECTED_HOLDINGS = 160` with **active-catalog cardinality** — a literal would reintroduce the
@@ -473,34 +523,65 @@ Portfolio-service only; the asset route shipped in Wave 2.
   1. `./gradlew :portfolio-service:bootJar` — build once.
   2. `sha256sum portfolio-service/build/libs/portfolio-service.jar` → record as `JAR_SHA`.
   3. Run the candidate suites (7.5) against **that** JAR artifact, not a fresh source compile.
-  4. Add a `Dockerfile.candidate` whose builder stage **`COPY`s the prebuilt JAR** instead of running
-     `bootJar`. This is a real repository change, not a convention.
-  5. `docker build` → record `IMAGE_DIGEST`.
-  6. Store the attestation `JAR_SHA → IMAGE_DIGEST → commit SHA` alongside the suite reports.
+  4. **Stage the JAR outside `build/`.** The root `.dockerignore` excludes `**/build/` — with a
+     comment saying it exists precisely to stop a host JAR entering the builder — so a
+     `COPY portfolio-service/build/libs/…` cannot work from the repo context. Reuse the proven
+     pattern: a `prepareCandidateArtifact` Copy task, modelled on the existing
+     `prepareSlimItArtifact` (`build.gradle:138`), stages it to
+     `.candidate-artifacts/portfolio-service.jar` with a matching ignore rule, exactly as
+     `Dockerfile.slim-it` consumes `.slim-it-artifacts/`.
+  5. Assert the staged file's SHA equals `JAR_SHA` **before** the build.
+  6. Add `portfolio-service/Dockerfile.candidate`, based on **`Dockerfile.azure`'s Mariner runtime**
+     — not the AWS/Lambda Dockerfile — whose builder stage `COPY`s the staged JAR instead of running
+     `bootJar`. Runtime parity with production is the point; a candidate proved on a different base
+     proves the wrong image.
+  7. Assert the extracted `app.jar` SHA inside the built image equals `JAR_SHA` **after** the build.
+  8. `docker build` → push once to ACR → record the **registry manifest digest**, not the local image
+     ID. Those are different identifiers and only the manifest digest is deployable.
+  9. Store the attestation `JAR_SHA → ACR manifest digest → commit SHA` alongside the suite reports.
+
+  The AOT chain is safe under this scheme: a real dry-run confirms `bootJar` already depends on
+  `processAot`, `compileAotJava`, `processAotResources` and `aotClasses`, so copying the completed
+  JAR retains the AOT outputs. That was the open question in entry [38] and it is closed.
 
   The attestation is an output of this chain, not a substitute for it.
   _Requirements: 9.7_
-- [ ] **7.5 Candidate proof manifest — runnable suites, not task numbers.** Task IDs stay the
-  traceability layer; they cannot be the executable inventory. Each entry names the suite and the one
-  command that selects it:
+- [ ] **7.5 Candidate proof manifest — two proof kinds, not one.** Revision 3 said these suites run
+  "against that JAR". **They do not.** `build.gradle:122-123` wires `integrationTest` to
+  `sourceSets.test.output.classesDirs` and `sourceSets.test.runtimeClasspath`, and `test` uses the
+  same source-set model; `--tests` selects test **classes** and never substitutes the fat JAR for the
+  main runtime classpath. Calling them JAR tests was wrong.
 
-  | suite | selector |
-  |---|---|
-  | Legacy route contract (both retirements pinned) | `--tests '*LegacyWriterRetirementTest'` |
-  | Asset discovery contract | `--tests '*AssetDiscoveryContractTest'` |
-  | Composition controller HTTP contract | `--tests '*CompositionControllerTest'` |
-  | Composition service + four-case matrix | `--tests '*HoldingReplacementServiceTest'` |
-  | Concurrency (P2, P3, P4, P11b) | `--tests '*ConcurrentCompositionIT'` |
-  | Envelope and error precedence (P8, P11c, P11h, P11i) | `--tests '*ErrorContractTest'` |
-  | Decimal fidelity and no-op equality (P7, P11f) | `--tests '*DecimalFidelityIT'` |
-  | Version read | `--tests '*PortfolioVersionReadTest'` |
-  | Seed delegation, identity preservation, **price regression `P10`** | `--tests '*PortfolioSeedServiceIT'` |
-  | Migration and repository | `--tests '*V20MigrationIT'` |
-  | Scope guard (GC.5) | `--tests '*ScopeGuardTest'` |
+  The binding is instead: **one immutable checkout, one Gradle task graph** producing both the test
+  results and the `bootJar` from the *same* main-class outputs — plus a genuine black-box run against
+  the packaged artifact. Each entry names its Gradle **task**, not just a selector, because an `*IT`
+  selector applied to `test` silently executes nothing.
 
-  Revision 1 named only 4.10–4.18, omitting the PR #97 regression carried in the same digest;
-  Revision 2 named implementation tasks rather than suites.
+  | suite | gradle task | selector |
+  |---|---|---|
+  | Legacy route contract (both retirements) | `test` | `--tests '*LegacyWriterRetirementTest'` |
+  | Asset discovery contract | `test` | `--tests '*AssetDiscoveryContractTest'` |
+  | Composition controller HTTP contract | `test` | `--tests '*CompositionControllerTest'` |
+  | Composition service + four-case matrix | `test` | `--tests '*HoldingReplacementServiceTest'` |
+  | Error envelope and precedence (P8, P11c, P11h, P11i) | `test` | `--tests '*ErrorContractTest'` |
+  | Version read | `test` | `--tests '*PortfolioVersionReadTest'` |
+  | Concurrency (P2, P3, P4, P11b) | `integrationTest` | `--tests '*ConcurrentCompositionIT'` |
+  | Decimal fidelity and no-op equality (P7, P11f) | `integrationTest` | `--tests '*DecimalFidelityIT'` |
+  | Seed delegation, identity, **price regression `P10`** | `integrationTest` | `--tests '*PortfolioSeedServiceIT'` |
+  | Migration and repository | `integrationTest` | `--tests '*V20MigrationIT'` |
+
+  **Zero-test selections fail the run.** A selector that matches nothing must be an error, not a
+  pass — otherwise a mis-assigned suite reports green by executing nothing.
+
+  GC.5 is deliberately absent from this table; it is source-governance evidence, not a JUnit suite —
+  see GC.5.
   _Requirements: 9.7, 8.30_
+- [ ] **7.5a Black-box run against the packaged artifact.** The only proof that genuinely exercises
+  the JAR: launch the exact staged JAR (or the built candidate image) and run an HTTP contract smoke
+  covering startup, the composition endpoint, `GET /api/assets`, and the `409` envelope. This is what
+  "tests the artifact" means; 7.5's suites are bound to it through the shared task graph and
+  `JAR_SHA`, not by claiming to run inside it.
+  _Requirements: 9.7, 6.1, 7.1_
 - [ ] **7.6 Exhaustive holdings-writer inventory.** Enumerate from the source tree every path that
   mutates `asset_holdings` and show each participates in Portfolio_Version. Store the output with the
   same digest. This is what makes G6 satisfy **P11g-2**; a conjunction of three named paths cannot
@@ -513,8 +594,10 @@ Portfolio-service only; the asset route shipped in Wave 2.
   **Go:** 7.4–7.7 green. A prohibited rollback is a policy, not evidence.
   **Abort:** do not deploy. The system remains at R-B3, which is a safe steady state.
   _Requirements: 9.1, 9.7_
-- [ ] **7.9 Deploy; collect the serving proof.** Active revision → the 7.3 digest, traffic, controlled
-  probe.
+- [ ] **7.9 Deploy the attested digest; collect the serving proof.** Use P.1a's prebuilt-digest path
+  to update the Container App to the **exact ACR manifest digest** recorded in 7.4 — no rebuild, no
+  retag. Then: active revision → that digest, traffic, controlled probe. If the deploy invokes
+  `Dockerfile.azure` again, the serving proof describes a different artifact and the chain is broken.
   _Requirements: 9.7_
 - [ ] **7.10 STOP/GO — post-deploy.**
   **Go:** 7.9 green.
