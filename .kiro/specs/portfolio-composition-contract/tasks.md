@@ -1,273 +1,485 @@
 # Implementation Plan
 
-> **Revision 1 — 2026-08-16.** Written against `design.md` Revision 8
-> (`git hash-object 81a36be00d4386ae4d68c1a98c6d840831e4bbd6`) and `requirements.md` Revision 6
-> (frozen, `cbba0b38741bf2358f6605ca21f5fa8912f2e2b1`).
+> **Revision 2 — 2026-08-16.** Incorporates the tasks review (checkpoint entry [35]). Five blockers,
+> all accepted.
 >
-> **Name-based references only**, as in the design: tasks cite decisions and gates by name
-> (`D1`, `G2b`, `P11g-2`), never by requirement criterion number. Ten reference defects were found
-> across six requirements revisions, eight of which resolved numerically and passed the checker.
+> 1. **Coverage was 0/184.** Name-based references gave design traceability and no requirements
+>    traceability. `_Requirements:` trailers are added alongside them — the requirements are frozen,
+>    so the renumbering hazard that motivated name-only design references no longer applies here.
+> 2. **No task introduced `CompositionController`.** It is now an explicit Wave 7 pre-build task, not
+>    Wave 4: Wave 4's code ships inside the intermediate artifacts, and the generic
+>    `/api/portfolio/**` route would have made the controller reachable before R-C's gate.
+> 3. **The R-C candidate proof was narrower than the digest it proves.** Every design property is now
+>    classified; `P10` (the PR #97 price regression, carried by the seed rewrite) and a new `P11i`
+>    test join the candidate manifest.
+> 4. **Production prerequisites blocked implementation.** Requirement 9 makes Spec A steady state a
+>    production activation gate, *not* a development dependency; Revision 1's single chain
+>    contradicted it. The graph is now two lanes.
+> 5. **Intermediate releases had no abort actions.** Every release boundary names its go condition
+>    *and* its exact abort, respecting the floor at that phase.
+>
+> Global Constraints are kept but made executable, per the review: each is a task-level assertion
+> rather than a repeated sentence. My Revision 1 claim that "a prohibition cannot drift" was wrong —
+> any duplicated normative sentence can go stale, which is what the assertions prevent.
+>
+> **Revision 1 — 2026-08-16.** First plan, written against `design.md` Revision 8
+> (`81a36be00d4386ae4d68c1a98c6d840831e4bbd6`) and `requirements.md` Revision 6 (frozen,
+> `cbba0b38741bf2358f6605ca21f5fa8912f2e2b1`).
 
 ## Overview
 
-Eight waves plus a predecessor. The ordering encodes two constraints that took nine design revisions
-to state correctly:
+Nine waves. Two lanes: **implementation** (code and tests, gated only on code dependencies) and
+**release** (production transitions, gated on operational evidence). Revision 1 collapsed them into
+one chain, which serialised the largest implementation wave behind two operational events and
+contradicted the frozen requirement that Spec A's steady state is an activation gate rather than a
+development dependency.
 
-1. **Evidence must describe the artifact that serves.** Every capability gate splits into a candidate
+The release ordering encodes two constraints that took nine design revisions to state:
+
+1. **Evidence must describe the artifact that serves.** Each capability gate splits into a candidate
    proof bound to an immutable digest and a serving proof collected after rollout. A task that
    "verifies" a service and then rebuilds it has proved nothing.
-2. **No release may invalidate its own evidence.** This is why the asset route ships with the
-   gateway, why the seed switch is its own release, and why Wave P exists at all.
+2. **No release may invalidate its own evidence.** Hence the asset route ships with the gateway, the
+   seed switch is its own release, and Wave P exists.
 
-**Wave P is a separate pull request and a hard predecessor.** Nothing in Waves 0–7 may start until
-its stop/go checkpoint is green.
-
-**Spec A is the graph predecessor.** B1's migration is **V20**; Spec A owns V17–V19 in the same
-directory, and two migrations numbered 17 do not merge badly — Flyway refuses to start. B1 may be
-built and tested in parallel, but its releases run after Spec A reaches verified steady state.
+**B1's migration is V20.** Spec A owns V17–V19 in the same directory; two migrations numbered 17 do
+not merge badly — Flyway refuses to start.
 
 The design is frozen at Revision 8. Where a task and the design disagree, **the design is
 normative**; raise it rather than resolving it in code.
 
 Stack: **Java 21 / Spring Boot 4.1**, `hibernate-core 7.4.1.Final`,
-`tools.jackson.core:jackson-databind 3.1.4`, JUnit 5 + Testcontainers (Postgres) for integration,
-Playwright for E2E, GitHub Actions for the release gates.
+`tools.jackson.core:jackson-databind 3.1.4`, JUnit 5 + Testcontainers (Postgres), Playwright, GitHub
+Actions.
 
 ## Global Constraints
 
-- **`OPTIMISTIC_FORCE_INCREMENT` is not used.** One explicit parent `UPDATE … SET version = version +
+Four prohibitions, each carried by an executable assertion rather than by restatement alone. Revision
+1 argued a prohibition cannot drift; that is false — any duplicated normative sentence can. The
+assertions are what make these durable.
+
+- [ ] **GC.1 No `OPTIMISTIC_FORCE_INCREMENT`.** One explicit parent `UPDATE … SET version = version +
   1, updated_at = GREATEST(?, updated_at + INTERVAL '1 microsecond') WHERE id = ? AND version = ?`,
-  exactly one affected row, before any child DML. Stacking it with a dirtying flush double-increments
-  on this Hibernate version.
-- **Spec A's frozen HTTP body is not modified.** `{"error": "unsupported_asset", "ticker": …,
-  "catalogVersion": …}` stays byte-identical on the existing single-write path. B1 adds `tickers`
-  alongside `ticker` on the composition path only.
-- **The internal seed target stays server-fixed.** No task parameterises it to accept a caller-supplied
-  user id.
-- **No separate version endpoint.** The version travels with the portfolio state its reader observed.
-- **Every gate binds to a digest**, never to a service name or revision label.
+  exactly one affected row, before any child DML. **Assertion:** an architecture/source check fails
+  the build if the token appears in `portfolio-service`. Stacking it with a dirtying flush
+  double-increments on this Hibernate version.
+  _Requirements: 5.5, 5.6_
+- [ ] **GC.2 Spec A's frozen body is unmodified.** **Assertion:** a snapshot test pins the existing
+  single-write 422 body to `{"error": "unsupported_asset", "ticker": …, "catalogVersion": …}`
+  byte-for-byte.
+  _Requirements: 7.4, 7.5_
+- [ ] **GC.3 The seed target stays server-fixed.** **Assertion:** a test asserts the seed request DTO
+  and controller expose no caller-supplied target, so the endpoint cannot be pointed at another user.
+  _Requirements: 8.39_
+- [ ] **GC.4 No separate version endpoint.** **Assertion:** a route test asserts no path other than
+  the portfolio read returns a Portfolio_Version.
+  _Requirements: 5.11_
+
+**Declared intentional gaps.** Non-goals are scope statements with no implementable behaviour; they
+are asserted by the absence of work, not by tasks: **10.1, 10.2, 10.3, 10.4, 10.5, 10.6, 10.7**.
+
+Pure-rationale criteria — each states *why* an adjacent behavioural criterion is worded as it is, and
+carries no separately implementable behaviour: **1.15**, **1.20**, **5.3**, **5.18**, **6.19**,
+**7.14**, **7.19**, **8.15**, **9.4**, **9.5**, **9.6**.
+
+Seven further rationale criteria were listed here in a first pass and then found to be **cited** by a
+task after all — 1.18, 6.31, 8.19, 8.26, 8.31, 8.34, 8.36. They are removed from this list rather
+than from their tasks: a stale declaration is what lets a criterion later lose its only citation and
+still pass the guard.
 
 ---
 
-## Wave P — Deployment prerequisite (separate PR)
+## Wave P — Deployment prerequisite (separate PR) · *release lane*
 
 - [ ] **P.1 Add a service allowlist to `deploy-azure.yml`.** An unselected service receives **no
   `az containerapp update` at all** — not a re-deploy at its existing digest, which can still create
-  or mutate revision state. Full-deploy remains the default for `workflow_call` and ordinary
-  dispatch; the cutover passes an explicit allowlist.
+  or mutate revision state. Full-deploy stays the default for `workflow_call` and ordinary dispatch.
+  _Requirements: 1.17, 1.19, 1.21_
 - [ ] **P.2 Prove non-interference.** For a filtered run naming only `portfolio-service`, assert every
   **unselected** app's revision name, image digest, and traffic weight are byte-identical before and
-  after. Store the before/after capture as the artifact.
-- [ ] **P.3 STOP/GO — deployment prerequisite.** P.2 green. **No wave below may begin until this
-  checkpoint passes.** If it cannot pass, the cutover falls back to signup quiescence for V20 and an
-  activation control for R-C, and the release graph must be re-derived before proceeding.
+  after. Store the before/after capture.
+  _Requirements: 1.17, 1.24_
+- [ ] **P.3 STOP/GO — deployment prerequisite.**
+  **Go:** P.2 green.
+  **Abort:** fall back to signup quiescence for V20 and an activation control for R-C, then re-derive
+  the release lane before proceeding. Implementation work is unaffected either way.
+  _Requirements: 1.21, 1.22, 1.23_
 
 ---
 
-## Wave 0 — Fixture identity migration (no production change)
+## Wave 0 — Fixture identity migration · *implementation lane*
 
-Behaviour-neutral in production; it changes only test fixtures. It comes first because Artifact 0
-removes the two endpoints these fixtures currently depend on.
+Production-neutral. It precedes Wave 1 because Artifact 0 removes the endpoints these fixtures use.
 
-- [ ] **0.1 Move `helpers/api.ts` to the E2E identity.** Resolve the E2E user rather than `dev@local`.
-- [ ] **0.2 Move `helpers/browser-auth.ts` to the E2E identity.** This is the second, independent
-  identity path — `global.setup.ts` and `golden-path.spec.ts` install the browser session immediately
-  before the API helper runs. Migrating only the API helper yields a green suite that proves nothing:
-  API assertions pass against the E2E portfolio while the page renders dev's empty one.
-- [ ] **0.3 Convert `ensurePortfolioWithHoldings` to read-and-assert.** It currently creates a
-  portfolio via `POST /api/portfolio` and adds holdings via the versionless `POST`. It must instead
-  assert the Golden-State setup and **fail hard** when seeding was skipped, never repair silently.
-- [ ] **0.4 Update ticker expectations to canonical symbols.** `golden-path.spec.ts` asserts `BTC` in
-  two places; after Spec A the Golden-State set carries `BTC-USD`. Update the file's header comment
-  too — it still describes the V3 seed as the fixture source.
-- [ ] **0.5 Wire E2E credentials into `ci-verification.yml`.** It supplies `INTERNAL_API_KEY` today
-  and no E2E email or password.
-- [ ] **0.6 Wire `frontend-e2e-integration.yml`** with both the internal key and E2E credentials. It
-  has neither and still runs the affected suites, so leaving it unwired would leave a known-red
-  manual workflow.
+- [ ] **0.1 Move `helpers/api.ts` to the E2E identity.**
+  _Requirements: 8.3, 8.7_
+- [ ] **0.2 Move `helpers/browser-auth.ts` to the E2E identity.** The second, independent identity
+  path — `global.setup.ts` and `golden-path.spec.ts` install the browser session immediately before
+  the API helper runs. Migrating only the API helper yields a green suite proving nothing: API
+  assertions pass against the E2E portfolio while the page renders dev's empty one.
+  _Requirements: 8.3, 8.7_
+- [ ] **0.3 Convert `ensurePortfolioWithHoldings` to read-and-assert.** It creates a portfolio via
+  `POST /api/portfolio` and adds holdings via the versionless `POST` today. It must assert the
+  Golden-State setup and **fail hard** when seeding was skipped, never repair silently.
+  _Requirements: 8.3, 8.7, 8.13_
+- [ ] **0.4 Update ticker expectations to canonical symbols.** `golden-path.spec.ts` asserts `BTC`
+  twice; after Spec A the Golden-State set carries `BTC-USD`. Update the header comment, which still
+  names the V3 seed as the fixture source.
+  _Requirements: 6.7_
+- [ ] **0.5 Wire E2E credentials into `ci-verification.yml`**, which supplies `INTERNAL_API_KEY` and
+  neither credential.
+  _Requirements: 8.3_
+- [ ] **0.6 Wire `frontend-e2e-integration.yml`** with the internal key and E2E credentials. It has
+  neither and still runs the affected suites, so leaving it unwired leaves a known-red manual
+  workflow.
+  _Requirements: 8.3_
 - [ ] **0.7 G0b evidence.** `golden-path` and `dashboard-data` pass against a **fresh disposable
-  database** in one hermetic `ci-verification.yml` run, on the migrated identity.
+  database** in one hermetic `ci-verification.yml` run, on the migrated identity. Requires Spec A's
+  *implementation*, not its production cutover.
+  _Requirements: 8.3, 8.7_
 
 ## Wave 1 — Legacy writer retirement (Artifact 0 → R-0)
 
 - [ ] **1.1 Retire `POST /api/portfolio`.** Pin the response — normally `405` on the surviving
   collection route. A unique-constraint violation must never surface as the public error.
+  _Requirements: 8.5, 8.6, 8.8, 1.13_
 - [ ] **1.2 Retire the versionless `POST /api/portfolio/{portfolioId}/holdings`.**
-- [ ] **1.3 Apply Quantity_Domain validation to any interval either path remains reachable.** If both
-  retire together this is vacuous; state that explicitly rather than skipping the check.
-- [ ] **1.4 G0a evidence.** No traffic-serving portfolio digest exposes either route. Revision → digest
-  → traffic capture.
-- [ ] **1.5 STOP/GO — R-0.** G0a and G0b both green.
+  _Requirements: 8.1, 8.2, 8.4_
+- [ ] **1.3 Quantity_Domain on any interval either path stays reachable.** If both retire together
+  this is vacuous — state that explicitly rather than skipping the check.
+  _Requirements: 3.3_
+- [ ] **1.4 G0a evidence.** No traffic-serving portfolio digest exposes either route: revision →
+  digest → traffic capture.
+  _Requirements: 8.9, 1.25_
+- [ ] **1.5 STOP/GO — R-0.**
+  **Go:** G0a and G0b green.
+  **Abort:** redeploy the prior portfolio digest, restoring both routes. Safe at this phase — no
+  constraint exists yet, so a restored creator cannot produce a raw database error.
+  _Requirements: 8.9, 1.25_
 
 ## Wave 2 — Gateway provisioning + asset route (Artifact 1 → R-A)
 
-- [ ] **2.1 Add the provisioning insert to `SignupService`**, inside its existing
-  `TransactionTemplate`, after `insertCredential`. Bind `userId.toString()` explicitly — the gateway
-  generates a `UUID` and `portfolios.user_id` is `VARCHAR(255)`. Name only columns present in both
-  schemas: `INSERT INTO portfolios (id, user_id)`, letting both timestamps and `version` default.
-- [ ] **2.2 G1 candidate proof — dual schema, pinned to V19 → V20.** Integration test runs the insert
-  against a database at V19 and one at V20, exercising the `toString()` binding. A run from today's
-  V16 or an unspecified baseline does not satisfy this.
+- [ ] **2.1 Provisioning insert in `SignupService`**, inside its existing `TransactionTemplate` after
+  `insertCredential`. Bind `userId.toString()` explicitly — the gateway generates a `UUID` and
+  `portfolios.user_id` is `VARCHAR(255)`. Name only columns present in both schemas: `INSERT INTO
+  portfolios (id, user_id)`, letting both timestamps and `version` default. Failure rolls back
+  signup rather than producing a user without a portfolio.
+  _Requirements: 1.5, 1.6, 1.7, 5.16_
+- [ ] **2.2 G1 candidate proof — dual schema, V19 → V20.** The insert runs against a database at V19
+  and one at V20, exercising the `toString()` binding. A run from today's V16 or an unspecified
+  baseline does not satisfy this.
+  _Requirements: 1.5, 1.17_
 - [ ] **2.3 Add the `/api/assets/**` gateway route.** Ships here, not with the composition endpoint,
   so R-C cannot invalidate G2.
-- [ ] **2.4 STOP/GO — G1 before deploy.** If 2.2 cannot pass, switch to the signup-quiescence path
-  and re-derive the remaining waves before continuing.
+  _Requirements: 2.8, 9.3_
+- [ ] **2.4 STOP/GO — G1 before deploy.**
+  **Go:** 2.2 green.
+  **Abort:** switch to the signup-quiescence path, re-derive the remaining release lane, and do not
+  proceed to Wave 3.
+  _Requirements: 1.21, 1.22, 1.23_
 - [ ] **2.5 G2 serving proof.** Every serving gateway digest provisions at signup: revision → digest,
   traffic, controlled probe.
+  _Requirements: 1.16, 1.19, 1.24_
+- [ ] **2.6 STOP/GO — R-A.**
+  **Go:** 2.5 green.
+  **Abort:** redeploy the prior gateway digest and **do not start Wave 3** — the backfill must not run
+  while a non-provisioning signup writer can receive traffic.
+  _Requirements: 1.16, 1.18, 1.25_
 
 ## Wave 3 — Schema (Artifact 2 → R-B)
 
 - [ ] **3.1 Write `V20`.** In file order: add `version BIGINT NOT NULL DEFAULT 0`; add `updated_at
   TIMESTAMP NOT NULL DEFAULT now()`; backfill with `u.id::text` casts on **both** the `INSERT` and the
   `NOT EXISTS` correlation; `ALTER TABLE portfolios ADD CONSTRAINT uq_portfolios_user_id UNIQUE
-  (user_id)` as a **named table constraint**, not a bare index; drop the `quantity` default; add
+  (user_id)` as a **named table constraint**; drop the `quantity` default; add
   `chk_asset_holdings_quantity_positive`.
+  _Requirements: 1.1, 1.2, 1.3, 1.8, 3.5, 3.6, 3.7, 5.1, 5.14_
 - [ ] **3.2 Prove backfill idempotency** under Flyway re-execution, and prove the `NOT EXISTS`
-  correlation actually matches. A silent type mismatch there treats every user as unprovisioned and
-  inserts duplicates on re-run.
-- [ ] **3.3 Add `version` and `updatedAt` to `Portfolio`; set both timestamps from one instant in
-  `@PrePersist`.** Two `Instant.now()` calls can differ, which would make the equal-at-creation
-  semantics false at database precision.
-- [ ] **3.4 STOP/GO — R-B preconditions.** G0a, G0b and G2 all green **before** the migration runs.
-- [ ] **3.5 G3 evidence.** Relational postcondition after migration: no user has a portfolio count
+  correlation matches. A silent type mismatch treats every user as unprovisioned and inserts
+  duplicates on re-run.
+  _Requirements: 1.4_
+- [ ] **3.3 Migration fails rather than clamps** if a violating quantity exists. The preflight found
+  none across 163 holdings, but it is a point-in-time observation and the migration runs later.
+  _Requirements: 3.8_
+- [ ] **3.4 Add `version` and `updatedAt` to `Portfolio`; set both timestamps from one instant in
+  `@PrePersist`.** Two `Instant.now()` calls can differ, making the equal-at-creation semantics false
+  at database precision.
+  _Requirements: 5.1, 5.14, 5.16_
+- [ ] **3.5 STOP/GO — R-B preconditions.**
+  **Go:** G0a, G0b and G2 green **before** the migration runs.
+  **Abort:** do not run V20. No forward-repair problem exists while the migration has not executed.
+  _Requirements: 1.16, 1.25, 8.9_
+- [ ] **3.6 G3 evidence.** Relational postcondition after migration: no user has a portfolio count
   other than one. Assert the invariant, never a fixed total — a legitimate signup changes the number,
   and equal totals can mask one missing user against one duplicate.
+  _Requirements: 1.14, 1.24_
+- [ ] **3.7 STOP/GO — R-B post-migration.**
+  **Go:** 3.6 green.
+  **Abort — forward repair only.** V20 has committed; Flyway migrations are not reverted. Keep
+  traffic safe and repair forward **without crossing below Artifact 0 + Artifact 1**: reverting the
+  gateway would resume creating portfolio-less users under a live constraint. If G3 fails, identify
+  the offending users and repair in a follow-on migration before Wave 5 begins.
+  _Requirements: 1.1, 1.14, 1.16_
 
-## Wave 4 — Contract implementation (no public exposure)
+## Wave 4 — Contract implementation · *implementation lane, no public exposure*
 
-Buildable and fully testable before any of it is reachable.
+Buildable and fully testable from the start. It has no release of its own and becomes reachable only
+in Waves 5–7.
+
+### 4a — Orchestrator and preparers
 
 - [ ] **4.1 `HoldingReplacementService`** — the single orchestrator, in D2's exact order: version
   precondition → semantic `400` (quantity, then duplicates) → catalog/lifecycle `422` aggregated →
   materialise via the injected `TuplePreparer` against the locked snapshot → compare → single parent
-  CAS → refresh → child DML.
+  CAS → refresh → child DML. Atomic: the whole desired state persists or none of it does.
+  _Requirements: 5.2, 5.4, 5.5, 5.7, 5.8, 5.9, 5.12, 5.13, 5.15, 5.17, 6.3, 6.4, 6.5, 6.11, 6.12, 6.13, 6.18, 7.16, 7.17, 7.18, 7.20, 7.21, 7.22, 7.23, 8.1_
 - [ ] **4.2 `CompositionTuplePreparer`** — expands ticker/quantity, preserving retained cost-basis
-  tuples and capturing new ones. Reads **only** the snapshot locked in step 1.
+  tuples and capturing new ones. Reads **only** the snapshot locked in step 1. No weighted-average
+  inference: this is a snapshot editor, not a trade ledger.
+  _Requirements: 6.14, 6.15, 6.16, 6.17_
 - [ ] **4.3 `GoldenStateTuplePreparer`** — supplies its deterministic tuple and **takes the cost-basis
   anchor as an input**. Hardcoding the moving 25-hour value would silently undo Spec A's move of the
   demo path onto its fixed `app.demo.cost-basis-anchor`.
+  _Requirements: 8.11, 8.12, 8.14, 8.18_
 - [ ] **4.4 Absent-aggregate path.** Reject every non-zero expected version with `409` and virtual
   current version `0` **before** validation or insert; then validate, insert, and arbitrate on the
-  named `uq_portfolios_user_id` constraint only.
-- [ ] **4.5 Error envelope.** `ContractError` shape with `error` as the machine-code field. Plural
+  named `uq_portfolios_user_id` constraint only. Provisioning and composition commit together or
+  neither does.
+  _Requirements: 1.9, 1.10, 1.11, 6.20, 6.21, 6.22, 6.23, 6.24, 6.25, 6.26, 6.27, 6.28, 6.29, 6.30, 6.32_
+- [ ] **4.5 Catalog and lifecycle validation.** Canonical tickers only, no aliases. Active assets may
+  be created, changed, retained or removed; a retained deprecated position may be retained, reduced
+  or removed but never introduced or increased.
+  _Requirements: 6.6, 6.7, 6.8, 6.9, 6.10_
+
+### 4b — Boundary, DTOs and error envelope
+
+- [ ] **4.6 Quantity_Domain at the application boundary** — required, strictly positive, at most 11
+  integer digits and 8 fractional digits, maximum `99999999999.99999999`. The database `CHECK` is a
+  backstop, not the specification. Rejection is a typed failure with atomic rollback at the
+  Application_Operation layer, not a controller check.
+  _Requirements: 3.1, 3.2, 3.4, 3.9_
+- [ ] **4.7 Error envelope.** `ContractError` with `error` as the machine-code field. Plural
   `UnsupportedAssetsException` for aggregation; Spec A's singular exception and handler untouched on
-  their path.
-- [ ] **4.6 Envelope boundary.** `HttpMessageNotReadableException` handler for malformed JSON and
+  their path. Stable identifiers so B2 can branch without string matching.
+  _Requirements: 7.1, 7.2, 7.3, 7.6, 7.7, 7.8, 7.9, 7.10, 7.11, 7.24_
+- [ ] **4.8 Envelope boundary.** `HttpMessageNotReadableException` handler for malformed JSON and
   rejected tokens; `MethodArgumentNotValidException` handler for a missing `expectedVersion`. Boxed
   `Long` with `@NotNull`, plus a **property-scoped strict deserializer accepting only an integer
   token** — Jackson 3.1.4 defaults to `TryConvert` with `ACCEPT_FLOAT_AS_INT`, so `7.9` and `"7"`
-  would otherwise decode as valid versions.
-- [ ] **4.7 Decimal fidelity both directions.** Strict string deserializer on write;
-  `toPlainString()` serializer on `HoldingResponse.quantity`, which emits a JSON number today.
-- [ ] **4.8 `GET /api/assets` controller**, `ETag` on Catalog_Version, `Cache-Control: private,
-  no-cache`, `304` on match. No prices, no `basePrice`.
-- [ ] **4.9 Add `version` to `PortfolioResponse`.**
+  would otherwise decode as valid versions. Non-negative domain validated at the same boundary.
+  _Requirements: 7.12, 7.13, 7.15_
+- [ ] **4.9 Decimal fidelity both directions.** Strict string deserializer on write;
+  `toPlainString()` serializer on `HoldingResponse.quantity`, which emits a JSON number today. No
+  exponential notation; trailing fractional zeros preserved as stored.
+  _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 4.7_
+- [ ] **4.10 Add `version` to `PortfolioResponse`.**
+  _Requirements: 5.10_
+- [ ] **4.11 `GET /api/assets` controller.** Returns the Catalog_Version and the **full**
+  Supported_Catalog entry set including deprecated assets — not active-only, since a retained
+  deprecated position must render with its metadata. Each entry carries canonical ticker, name,
+  aliases, asset class, quote currency and lifecycle status. No prices, no `basePrice`. `ETag` on
+  Catalog_Version, `Cache-Control: private, no-cache`, `304` on match, no second client-side
+  persistent cache. Authentication required, as on every `/api` route. Served by portfolio-service,
+  which already holds the Catalog_Module in memory.
+  _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 2.9, 2.10, 2.11, 2.12, 2.13_
 
-### Correctness properties — the candidate proof suite
+### 4c — Candidate property suites
 
-Named here so the R-C evidence bundle can enumerate exactly what it contains.
+Named individually so the R-C manifest can enumerate them rather than gesture at a range.
 
-- [ ] **4.10 P1** — four-case matrix (version match/mismatch × desired equal/differs) on **both**
+- [ ] **4.12 P1** — four-case matrix (version match/mismatch × desired equal/differs) on **both**
   writers.
-- [ ] **4.11 P2** — child-only change advances the parent version **exactly once**. Assert the
-  numeric delta, not "changed": a double increment moves it too.
-- [ ] **4.12 P3, P4** — concurrent composition, and two concurrent creators with **empty** desired
-  sets, which is the case a pre-write version comparison cannot distinguish.
-- [ ] **4.13 P5, P6** — stale-but-equal reset yields `409`; a lost reset performs no retry.
-- [ ] **4.14 P7, P11f** — round-trip `0.75000000` byte-identical; no-op equality decided on the
+  _Requirements: 8.42_
+- [ ] **4.13 P2** — child-only change advances the parent version **exactly once**. Assert the numeric
+  delta, not "changed": a double increment moves it too.
+  _Requirements: 5.4, 5.7_
+- [ ] **4.14 P3, P4** — concurrent composition; two concurrent creators with **empty** desired sets,
+  the case a pre-write version comparison cannot distinguish.
+  _Requirements: 6.26, 6.27, 6.28, 6.29_
+- [ ] **4.15 P5, P6** — stale-but-equal reset yields `409`; a lost reset performs no retry.
+  _Requirements: 8.35, 8.40, 8.41_
+- [ ] **4.16 P7, P11f** — round-trip `0.75000000` byte-identical; no-op equality decided on the
   persisted `NUMERIC(19,8)` representation, since `BigDecimal.equals` reports `0.75` and `0.75000000`
   unequal.
-- [ ] **4.15 P8, P11c, P11h** — envelope precedence; every envelope-failure code reachable and
+  _Requirements: 4.6, 8.17_
+- [ ] **4.17 P8, P11c, P11h** — envelope precedence; every envelope-failure code reachable and
   distinct; float, string, boolean and negative version tokens tested **independently**, sharing the
   one `invalid_version` code.
-- [ ] **4.16 P9** — a quantity `CHECK` violation surfaces as its own `400`, never as `409`.
-- [ ] **4.17 P11a, P11b** — creation binds both timestamps; the no-op path writes nothing and the
+  _Requirements: 7.12, 7.13, 7.15_
+- [ ] **4.18 P9** — a quantity `CHECK` violation surfaces as its own `400`, never as `409`.
+  _Requirements: 6.31, 7.10_
+- [ ] **4.19 P11a, P11b** — creation binds both timestamps; the no-op path writes nothing and the
   **response** version equals the stored version.
-- [ ] **4.18 Monotonic `updated_at`** — supply an equal timestamp, then a **regressed** one, and
+  _Requirements: 5.13, 5.16_
+- [ ] **4.20 P11i** — aggregate rejection reports **every** offender deterministically in request
+  order, with the first in singular `ticker` and the full list in `tickers`, while Spec A's
+  single-write body stays byte-identical. New in Revision 2: this property had no task.
+  _Requirements: 7.6, 7.8, 7.20_
+- [ ] **4.21 Monotonic `updated_at`** — supply an equal timestamp, then a **regressed** one, and
   assert `new.updated_at > old.updated_at` in both cases.
+  _Requirements: 5.15_
 
 ## Wave 5 — Version-bearing read (Artifact 2a → R-B2)
 
 - [ ] **5.1 Expose `version` on the authenticated `GET /api/portfolio`** while the old seed `POST`
   still tolerates the extra body field.
+  _Requirements: 5.10, 5.11_
 - [ ] **5.2 G2a serving proof.** **Every** serving portfolio digest returns the version, **before**
   any caller migration begins. One caller's successful read can otherwise hit the new revision while
   another still reaches an old response with no version.
-- [ ] **5.3 Migrate all three seed call sites** to log in, read once, and send that exact version:
+  _Requirements: 8.32_
+- [ ] **5.3 STOP/GO — R-B2.**
+  **Go:** 5.2 green.
+  **Abort:** redeploy the prior portfolio digest and **do not begin caller migration**. Safe: no
+  caller depends on the version yet. Never cross below Artifact 0 + Artifact 1.
+  _Requirements: 8.32_
+- [ ] **5.4 Migrate all three seed call sites** to log in, read once, and send that exact version:
   `synthetic-monitoring.yml:170`, `global-setup.ts:191`, `api-live-smoke.spec.ts:194`. An Azure
-  synthetic run reaches all three. `global-setup.ts` has no login-and-read step today.
-- [ ] **5.4 Add E2E email/password to `deploy-azure.yml`'s seed step**, which carries only the user
-  id and internal key.
-- [ ] **5.5 Choose the `409` workflow outcome:** fail the execution once, log the body, **never
-  retry**. Retrying against the newer version is the silent overwrite the contract prevents.
-- [ ] **5.6 G5 evidence.** Every call site, in every execution context, sends a version. Zero
+  synthetic run reaches all three; `global-setup.ts` has no login-and-read step today.
+  _Requirements: 8.32, 8.33, 8.34_
+- [ ] **5.5 Add E2E email/password to `deploy-azure.yml`'s seed step**, which carries only the user id
+  and internal key.
+  _Requirements: 8.32_
+- [ ] **5.6 `409` workflow outcome:** fail the execution once, log the body, **never retry**. Retrying
+  against the newer version is the silent overwrite the contract prevents.
+  _Requirements: 8.25, 8.35, 8.36, 8.37_
+- [ ] **5.7 G5 evidence.** Every call site, in every execution context, sends a version. Zero
   missing-version requests — enumerated per site, not inferred from one green run.
+  _Requirements: 8.32, 8.39_
 
 ## Wave 6 — Version-required seed (Artifact 2b → R-B3)
 
 - [ ] **6.1 Seed `POST` requires `expectedVersion`** and delegates to `HoldingReplacementService`.
-  Target stays compiled-in.
+  Target stays compiled-in. Failure returns Requirement 7's `409` envelope, not an undefined typed
+  conflict.
+  _Requirements: 8.14, 8.16, 8.20, 8.21, 8.22, 8.25, 8.37, 8.38, 8.39_
 - [ ] **6.2 Remove `PortfolioSeedService.seed()`'s `deleteAll` + `flush` opening.**
-- [ ] **6.3 Rewrite `PortfolioSeedServiceIT`** for identity preservation. Replace
+  _Requirements: 8.29_
+- [ ] **6.3 Collision arbitration** — symmetric compare-and-set: exactly one transition commits; a
+  losing user edit gets `409` rather than `404`; a losing reset returns the typed conflict and does
+  not retry. No write-maintenance gate.
+  _Requirements: 8.23, 8.24, 8.26, 8.27, 8.28, 8.33, 8.40_
+- [ ] **6.4 Rewrite `PortfolioSeedServiceIT`** for identity preservation. Replace
   `EXPECTED_HOLDINGS = 160` with **active-catalog cardinality** — a literal would reintroduce the
   fixed-count defect Spec A removed. **Retain Spec A's full-table byte-identity price regression,
-  sentinel rows included**: this edits the exact writer from the PR #97 incident.
-- [ ] **6.4 STOP/GO — G5 before deploy.**
-- [ ] **6.5 G2b serving proof.** Every serving digest requires the version and delegates; proved by a
+  sentinel rows included** (`P10`): this edits the exact writer from the PR #97 incident.
+  _Requirements: 8.13, 8.19, 8.30, 8.31, 3.4_
+- [ ] **6.5 STOP/GO — G5 before deploy.**
+  **Go:** 5.7 green.
+  **Abort:** do not deploy the version-required endpoint; unmigrated callers would fail on the first
+  run.
+  _Requirements: 8.32, 8.39_
+- [ ] **6.6 G2b serving proof.** Every serving digest requires the version and delegates; proved by a
   controlled seed showing identity preservation, the expected version outcome, and the price
   regression.
+  _Requirements: 8.14, 8.16, 8.30_
+- [ ] **6.7 STOP/GO — R-B3.**
+  **Go:** 6.6 green.
+  **Abort:** redeploy the R-B2 digest, restoring the version-tolerant seed, and do not begin Wave 7.
+  The floor is Artifact 0 + Artifact 1 until R-C activates; it rises to R-B3 afterwards.
+  _Requirements: 8.4, 8.28_
 
 ## Wave 7 — Activation (Artifact 3 → R-C)
 
-Portfolio-service only. The asset route already shipped in Wave 2.
+Portfolio-service only; the asset route shipped in Wave 2.
 
-- [ ] **7.1 Build the R-C portfolio image once; capture its immutable digest.** Everything below binds
+- [ ] **7.1 Introduce `CompositionController`** — `PUT /api/portfolio/holdings`, taking the expected
+  version and the desired set, resolving the target from the authenticated principal with **no
+  portfolio identifier on the wire**. This is a **Wave 7 pre-build task, deliberately not Wave 4**:
+  Wave 4's code ships inside the intermediate artifacts, and the generic `/api/portfolio/**` route
+  would make a controller placed there user-reachable before R-C's gate.
+  _Requirements: 1.12, 6.1, 6.2, 9.1_
+- [ ] **7.2 HTTP contract tests for the public endpoint** — request shape, `200`/`201` statuses,
+  response body, and every error envelope. These exercise the endpoint, not just the service
+  primitive.
+  _Requirements: 6.1, 6.2, 7.1, 7.10, 7.11, 7.12, 7.23_
+- [ ] **7.3 Build the R-C portfolio image once; capture its immutable digest.** Everything below binds
   to this digest.
-- [ ] **7.2 Bind the candidate contract/integration run to that exact digest** — run against the image,
-  or emit a provenance attestation mapping tested artifact and commit to it. Testing source and later
-  rebuilding independently does not satisfy this.
-- [ ] **7.3 Enumerate the candidate suites** included in the proof: tasks 4.10 through 4.18 by name.
-- [ ] **7.4 Exhaustive holdings-writer inventory.** Enumerate from the source tree every path that
+  _Requirements: 9.7_
+- [ ] **7.4 Bind the candidate run to that exact digest** — run against the image, or emit a
+  provenance attestation mapping tested artifact and commit to it. Testing source and later rebuilding
+  independently does not satisfy this.
+  _Requirements: 9.7_
+- [ ] **7.5 Candidate proof manifest.** The suites exercising the **final digest**: route-retirement
+  contracts (1.1, 1.2); composition HTTP and service contracts (7.2, 4.1–4.11); version read (5.1);
+  seed delegation, identity preservation and the price regression (6.1, 6.4 — including `P10`); and
+  the property suites 4.12–4.21 including the new `P11i`. Revision 1 named only 4.10–4.18, which
+  omitted the PR #97 regression carried in the same digest.
+  _Requirements: 9.7, 8.30_
+- [ ] **7.6 Exhaustive holdings-writer inventory.** Enumerate from the source tree every path that
   mutates `asset_holdings` and show each participates in Portfolio_Version. Store the output with the
   same digest. This is what makes G6 satisfy **P11g-2**; a conjunction of three named paths cannot
   establish a property quantified over all of them.
-- [ ] **7.5 Record the pre-deploy serving evidence:** serving G2, G3 recollected after the latest valid
+  _Requirements: 8.1, 8.4, 8.10_
+- [ ] **7.7 Record pre-deploy serving evidence:** serving G2, G3 recollected after the latest valid
   G2, G4, and G6 (serving G0a, G2a, G2b).
-- [ ] **7.6 STOP/GO — R-C pre-deploy.** 7.2–7.5 all green. A prohibited rollback is a policy, not
-  evidence.
-- [ ] **7.7 Deploy; collect the serving proof.** Active revision → the 7.1 digest, traffic, controlled
+  _Requirements: 9.1, 9.2, 9.7, 1.14_
+- [ ] **7.8 STOP/GO — R-C pre-deploy.**
+  **Go:** 7.4–7.7 green. A prohibited rollback is a policy, not evidence.
+  **Abort:** do not deploy. The system remains at R-B3, which is a safe steady state.
+  _Requirements: 9.1, 9.7_
+- [ ] **7.9 Deploy; collect the serving proof.** Active revision → the 7.3 digest, traffic, controlled
   probe.
-- [ ] **7.8 STOP/GO — post-deploy.** On failure, execute the documented rollback to **R-B3** and verify
-  that safe digest is serving again. Never roll below the floor: it would restore a legacy writer
-  under a live constraint.
-- [ ] **7.9 P11g-1 / P11g-2 evidence.** Transitional floor before activation; Writer_Convergence floor
-  after.
+  _Requirements: 9.7_
+- [ ] **7.10 STOP/GO — post-deploy.**
+  **Go:** 7.9 green.
+  **Abort:** roll back to **R-B3** and verify that safe digest is serving again. Never below the
+  floor — it would restore a legacy writer under a live constraint.
+  _Requirements: 9.1, 9.7, 8.4_
+- [ ] **7.11 P11g-1 / P11g-2 evidence.** Transitional floor before activation; Writer_Convergence
+  floor after.
+  _Requirements: 8.1, 8.4_
+
+## Property classification
+
+Every design property, classified so none is silently absent.
+
+| property | class | carried by |
+|---|---|---|
+| P1–P9, P11a–P11c, P11f, P11h, P11i | candidate | 4.12–4.21, 7.2 |
+| P10 | candidate | 6.4, manifested in 7.5 |
+| P11d | serving | 1.4 (G0a) |
+| P11e, P11j | serving | 5.7 (G5) |
+| P11g-1, P11g-2 | serving | 7.11 |
+| P11 | serving | 3.6 (G3), recollected in 7.7 |
 
 ## Notes
 
 - **`portfolios.user_id` stays `VARCHAR(255)`** (design O3). The `::text` casts bridge it. Converting
-  a live identifier column is unrelated migration risk on a table already gating a production cutover;
-  it is a type conversion, not a widening, and it is not deferred because the code is out of scope —
-  B1 owns `Portfolio`, its repositories, and the seeder.
-- **`ReadOnlyEnforcementFilter` is not modified here.** Its allowlist is path-only; the demo account
-  reaching the composition `PUT` needs method-plus-path matching, which belongs to B2.
-- **No per-holding freshness.** Spec A exposes an aggregate; if B2 wants row badges, the backend
-  computes them there. The client never derives freshness independently.
+  a live identifier column is unrelated migration risk on a table already gating a production
+  cutover; it is a type conversion, not a widening, and it is not deferred because the code is out of
+  scope — B1 owns `Portfolio`, its repositories, and the seeder.
+- **`ReadOnlyEnforcementFilter` is not modified here.** Its allowlist is path-only; method-plus-path
+  matching belongs to B2.
 
 ## Task Dependency Graph
 
+Two lanes. Implementation is gated on code; releases are gated on evidence.
+
 ```
-Wave P (separate PR) ──────────────────────────────────────────┐
-                                                               │ hard predecessor
-Spec A verified steady state ──────────────────────────────────┤
-                                                               ▼
-Wave 0 (fixtures) ──▶ Wave 1 (R-0) ──▶ Wave 2 (R-A) ──▶ Wave 3 (R-B)
-                                                               │
-                                     Wave 4 (contract, unexposed — parallel from Wave 0)
-                                                               │
-                                                               ▼
-                              Wave 5 (R-B2) ──▶ Wave 6 (R-B3) ──▶ Wave 7 (R-C)
+IMPLEMENTATION LANE                          RELEASE LANE
+───────────────────                          ────────────
+Spec A implementation                        Wave P green ─────────┐
+        │                                    Spec A production     │
+        ▼                                    steady state ─────────┤
+Wave 0 (fixtures) ─────────────────────────────────────▶ Wave 1 (R-0)
+        │                                                          │
+Wave 4 (contract, unexposed)                                       ▼
+   4a orchestrator                                        Wave 2 (R-A)
+   4b boundary/DTO                                                 │
+   4c property suites                                              ▼
+        │                                                 Wave 3 (R-B)
+        │                                                          │
+        ├──────────────────────────────────────────────▶ Wave 5 (R-B2)
+        │                                                          │
+        │                                                          ▼
+        │                                                 Wave 6 (R-B3)
+        │                                                          │
+Wave 7.1–7.2 (controller + HTTP tests) ────────────────────────────┤
+                                                                   ▼
+                                                          Wave 7 (R-C)
 ```
 
-Wave 4 has no release of its own and may proceed in parallel from the start; it becomes reachable
-only in Waves 5–7.
+Wave P and Spec A's **production** steady state block the release lane only. Wave 0 and Wave 4 need
+Spec A's *implementation* — for canonical tickers and the catalog module — not its cutover, per the
+frozen requirement that the activation gate is not a development dependency.
