@@ -1,5 +1,21 @@
 # Design Document
 
+> **Revision 9 — 2026-08-16.** One bounded erratum from the tasks review (checkpoint entry [43]).
+> No change to the candidate/serving model, the gate algebra, or the release graph.
+>
+> D9's "service-scoped deployment" was scoped to the **backend matrix** and silently assumed the rest
+> of `deploy-azure.yml` followed. It does not: `deploy-frontend` has no service-filter condition,
+> `seed` chains off it, and `verify` chains off `seed` — and the seed is a production data-plane
+> writer, not an observation. A filtered backend release would therefore still redeploy the frontend
+> and reset portfolio data, invisible to a non-interference proof that only snapshots unselected
+> Container Apps.
+>
+> D9 now defines **full deploy** and **scoped backend deploy** as explicit modes, with the frontend,
+> seed and chained verify skipped and asserted absent in scoped mode. It also records that any
+> digest-pinned mode must be portfolio-service only, because selecting `market-data-service` also
+> updates `market-data-refresh-job` by tag — a generic mode would pin one target to a digest and
+> leave its companion moving by tag inside a single service deployment.
+>
 > **Revision 8 — 2026-08-16.** Three bounded errata from the gate-clearing review (checkpoint entry
 > [33]). No architectural change; the candidate/serving model is unchanged and the requirements are
 > untouched.
@@ -677,6 +693,29 @@ re-deploy at its existing digest. Re-deploying with the same digest can still cr
 revision state, which defeats the entire no-invalidation claim the filter exists to make. The
 invariant is *untouched*, not *unchanged*. Every gate binds to the **candidate digest**, never to a
 service name or revision label.
+
+**Service scoping is a property of the whole workflow, not of the backend matrix.**
+`deploy-azure.yml` does not end at the four-service matrix. `deploy-frontend` (line 230) depends on
+`deploy` with **no service-filter condition**; `seed` (line 314) chains off `deploy-frontend`; and
+`verify` (line 353) chains off `seed`. The seed is not observational — it invokes
+`POST /api/internal/portfolio/seed`, a production data-plane writer. So a "scoped" backend release
+would still redeploy the Static Web App and reset portfolio data, and a non-interference proof that
+snapshots only unselected Container Apps would not see any of it.
+
+Two explicit modes:
+
+- **Full deploy** (no selection): today's chain unchanged — four backends, frontend, seed, verify.
+- **Scoped backend deploy**: the selected backend service only. `deploy-frontend`, `seed` and the
+  chained `verify` are **skipped**, and their absence is asserted rather than assumed. The release
+  graph already owns its controlled serving probes; an implicit production reset is not one of them.
+
+**Auxiliary deployment targets belong to their service's selection.** Selecting
+`market-data-service` also updates `market-data-refresh-job` (workflow lines 163–180) by
+`${github.sha}` tag. Any digest-pinned mode must therefore be **portfolio-service only**: a generic
+one would pin the Container App to a digest while its companion Job still moved by tag, breaking the
+exact-artifact invariant inside a single logical service deployment. Generalising it later requires
+a design covering every service-specific target; a half-generic mode is worse than a narrow honest
+one.
 
 **This ships as a separate predecessor PR, owned by B1.** It modifies a workflow that deploys four
 services for reasons unrelated to this spec, so it does not belong inside a B1 feature commit — but
