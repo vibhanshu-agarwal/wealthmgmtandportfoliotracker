@@ -1,5 +1,37 @@
 # Implementation Plan
 
+> **Revision 3 — 2026-08-16.** Incorporates the second tasks review (checkpoint entry [37]). Four
+> P1s and both P2s accepted; two of the P1s were introduced by Revision 2's own remediation.
+>
+> 1. **GC.4 forbade responses the frozen contract requires.** "No path other than the portfolio read
+>    returns a Portfolio_Version" would have failed correct code: composition success returns the
+>    complete `PortfolioResponse`, `409` carries the current version, and the seed reuses that
+>    envelope. The guard is now about **route shape** — no dedicated version-only mapping. The
+>    stale-summary class inside an executable assertion, where it fails working code rather than
+>    merely misdescribing it.
+> 2. **The candidate proof named no tested binary.** 7.4 offered a choice of mechanisms rather than
+>    one, and 7.5 listed implementation task numbers rather than suites. The repository permits
+>    exactly the gap: `Dockerfile:66` runs `bootJar` and never tests, and `ci-verification.yml` tests
+>    source at 53/99 then rebuilds independently at `docker compose build`. One mechanism is now
+>    chosen — build one JAR, test that JAR, `COPY` it into a `Dockerfile.candidate` without
+>    recompiling, attest `JAR_SHA → IMAGE_DIGEST → commit` — and the manifest names runnable suites
+>    with their selectors.
+> 3. **The two lanes had no merge cut points.** CI builds the whole source tree and an image tag is a
+>    commit boundary, not a selection of task numbers, so parallel work would contaminate earlier
+>    artifacts. A new **Artifact Manifest** gives every release its cut and its must-not-contain set.
+>    Wave 4 may be *developed* from the start but may not *merge* before cut-B2 — the distinction
+>    Revision 2 asserted without enforcing.
+> 4. **Task 6.3 restored the banned "typed conflict" wording**, which the frozen requirement
+>    prohibits precisely because it led earlier revisions to invent a second internal contract. It now
+>    uses Requirement 7's exact envelope, as 6.1 already did six lines above.
+>
+> Both P2s: the seven non-goals were wrongly declared as gaps — they are negative constraints
+> implementation can violate, so treating them as absence of work let the equality guard ignore the
+> scope creep they prohibit. 10.5 and 10.7 now have direct carriers; the rest are asserted by a new
+> **GC.5 scope guard**. Coverage rises to **173/184**, with only the eleven pure-rationale criteria
+> declared. Four composition behaviours covered solely by 4.1's catch-all citation gain explicit
+> cases (4.20a), and aggregation is extended to semantic `400`s (4.20b).
+>
 > **Revision 2 — 2026-08-16.** Incorporates the tasks review (checkpoint entry [35]). Five blockers,
 > all accepted.
 >
@@ -71,16 +103,32 @@ assertions are what make these durable.
 - [ ] **GC.3 The seed target stays server-fixed.** **Assertion:** a test asserts the seed request DTO
   and controller expose no caller-supplied target, so the endpoint cannot be pointed at another user.
   _Requirements: 8.39_
-- [ ] **GC.4 No separate version endpoint.** **Assertion:** a route test asserts no path other than
-  the portfolio read returns a Portfolio_Version.
-  _Requirements: 5.11_
+- [ ] **GC.4 No dedicated version-only route.** The prohibition is on **route shape**, not on
+  response occurrence. **Assertion:** a route test asserts no mapping exists whose sole purpose is to
+  return a Portfolio_Version — e.g. `GET /api/portfolio/version`. Responses that carry the version as
+  part of a larger contract are **required** and must remain allowed: a successful composition
+  returns the complete `PortfolioResponse`, a `409 portfolio_version_conflict` carries the current
+  version, and the seed endpoint reuses that same envelope. Revision 2's wording — "no path other
+  than the portfolio read returns a Portfolio_Version" — would have failed correct code.
+  _Requirements: 5.11, 5.12, 7.2_
 
-**Declared intentional gaps.** Non-goals are scope statements with no implementable behaviour; they
-are asserted by the absence of work, not by tasks: **10.1, 10.2, 10.3, 10.4, 10.5, 10.6, 10.7**.
+- [ ] **GC.5 Scope guard.** Non-goals are **negative constraints implementation can violate**, not
+  absence of work — treating them as declared gaps gave the equality guard permission to ignore
+  exactly the scope creep they prohibit. **Assertion:** a changed-path / architecture check in the
+  final candidate proof asserts this change set contains no production frontend change (test fixtures
+  excepted), no presence or Redis mechanism, no `ReadOnlyEnforcementFilter` modification, no
+  per-holding freshness field, and no FX, valuation or refresh-pipeline change.
+  _Requirements: 10.1, 10.2, 10.3, 10.4, 10.6_
 
-Pure-rationale criteria — each states *why* an adjacent behavioural criterion is worded as it is, and
-carries no separately implementable behaviour: **1.15**, **1.20**, **5.3**, **5.18**, **6.19**,
-**7.14**, **7.19**, **8.15**, **9.4**, **9.5**, **9.6**.
+Two further non-goals have direct carriers rather than needing the guard: criterion 10.5 on task 7.1,
+whose endpoint deliberately has no portfolio identifier or multi-portfolio selector, and criterion
+10.7 on task 4.2, which explicitly refuses trade-ledger inference. They are cited, not declared —
+written unbolded here because the guard parses bold numerals in this section as gap declarations.
+
+**Declared intentional gaps — pure-rationale criteria only.** Each states *why* an adjacent
+behavioural criterion is worded as it is and carries no separately implementable behaviour:
+**1.15**, **1.20**, **5.3**, **5.18**, **6.19**, **7.14**, **7.19**, **8.15**, **9.4**, **9.5**,
+**9.6**. Eleven, down from eighteen: the seven non-goals moved to GC.5, 7.1 and 4.2.
 
 Seven further rationale criteria were listed here in a first pass and then found to be **cited** by a
 task after all — 1.18, 6.31, 8.19, 8.26, 8.31, 8.34, 8.36. They are removed from this list rather
@@ -235,8 +283,8 @@ in Waves 5–7.
   _Requirements: 5.2, 5.4, 5.5, 5.7, 5.8, 5.9, 5.12, 5.13, 5.15, 5.17, 6.3, 6.4, 6.5, 6.11, 6.12, 6.13, 6.18, 7.16, 7.17, 7.18, 7.20, 7.21, 7.22, 7.23, 8.1_
 - [ ] **4.2 `CompositionTuplePreparer`** — expands ticker/quantity, preserving retained cost-basis
   tuples and capturing new ones. Reads **only** the snapshot locked in step 1. No weighted-average
-  inference: this is a snapshot editor, not a trade ledger.
-  _Requirements: 6.14, 6.15, 6.16, 6.17_
+  inference and no transaction history: this is a snapshot editor, not a trade ledger.
+  _Requirements: 6.14, 6.15, 6.16, 6.17, 10.7_
 - [ ] **4.3 `GoldenStateTuplePreparer`** — supplies its deterministic tuple and **takes the cost-basis
   anchor as an input**. Hardcoding the moving 25-hour value would silently undo Spec A's move of the
   demo path onto its fixed `app.demo.cost-basis-anchor`.
@@ -315,6 +363,20 @@ Named individually so the R-C manifest can enumerate them rather than gesture at
   order, with the first in singular `ticker` and the full list in `tickers`, while Spec A's
   single-write body stays byte-identical. New in Revision 2: this property had no task.
   _Requirements: 7.6, 7.8, 7.20_
+- [ ] **4.20a Composition behaviours that 4.1's citation does not exercise.** Four criteria were
+  covered only by 4.1's catch-all and had no case stating the behaviour:
+  - **request order is semantically irrelevant** — a reordered identical set is a no-op, with version
+    and `updated_at` unchanged;
+  - **no fixed maximum set size** — a request naming the **full active catalog** succeeds, bounded by
+    catalog cardinality rather than a literal;
+  - **Catalog_Version is not a write precondition** — a composition succeeds after an irrelevant
+    catalog edit moves the version;
+  - **the empty desired set is valid** — against an existing aggregate it removes every holding.
+  _Requirements: 6.5, 6.11, 6.12, 6.13_
+- [ ] **4.20b Aggregate every offender within a status class, not only tickers.** Extend the
+  aggregation rule to semantic `400`s where multiple elements can fail — several out-of-domain
+  quantities in one request report all of them, not the first.
+  _Requirements: 7.20_
 - [ ] **4.21 Monotonic `updated_at`** — supply an equal timestamp, then a **regressed** one, and
   assert `new.updated_at > old.updated_at` in both cases.
   _Requirements: 5.15_
@@ -356,8 +418,10 @@ Named individually so the R-C manifest can enumerate them rather than gesture at
 - [ ] **6.2 Remove `PortfolioSeedService.seed()`'s `deleteAll` + `flush` opening.**
   _Requirements: 8.29_
 - [ ] **6.3 Collision arbitration** — symmetric compare-and-set: exactly one transition commits; a
-  losing user edit gets `409` rather than `404`; a losing reset returns the typed conflict and does
-  not retry. No write-maintenance gate.
+  losing user edit gets `409` rather than `404`; a losing reset returns **Requirement 7's exact
+  envelope — `409` with `portfolio_version_conflict` and the current Portfolio_Version** — and does
+  not retry. No write-maintenance gate. The phrase "typed conflict" is not used: it is what led
+  earlier revisions to invent a second internal error contract.
   _Requirements: 8.23, 8.24, 8.26, 8.27, 8.28, 8.33, 8.40_
 - [ ] **6.4 Rewrite `PortfolioSeedServiceIT`** for identity preservation. Replace
   `EXPECTED_HOLDINGS = 160` with **active-catalog cardinality** — a literal would reintroduce the
@@ -387,8 +451,9 @@ Portfolio-service only; the asset route shipped in Wave 2.
   version and the desired set, resolving the target from the authenticated principal with **no
   portfolio identifier on the wire**. This is a **Wave 7 pre-build task, deliberately not Wave 4**:
   Wave 4's code ships inside the intermediate artifacts, and the generic `/api/portfolio/**` route
-  would make a controller placed there user-reachable before R-C's gate.
-  _Requirements: 1.12, 6.1, 6.2, 9.1_
+  would make a controller placed there user-reachable before R-C's gate. No multi-portfolio selector
+  is introduced.
+  _Requirements: 1.12, 6.1, 6.2, 9.1, 10.5_
 - [ ] **7.2 HTTP contract tests for the public endpoint** — request shape, `200`/`201` statuses,
   response body, and every error envelope. These exercise the endpoint, not just the service
   primitive.
@@ -396,15 +461,45 @@ Portfolio-service only; the asset route shipped in Wave 2.
 - [ ] **7.3 Build the R-C portfolio image once; capture its immutable digest.** Everything below binds
   to this digest.
   _Requirements: 9.7_
-- [ ] **7.4 Bind the candidate run to that exact digest** — run against the image, or emit a
-  provenance attestation mapping tested artifact and commit to it. Testing source and later rebuilding
-  independently does not satisfy this.
+- [ ] **7.4 Bind the candidate run to that exact digest — one mechanism, chosen.** Revision 2 offered
+  "run against the image **or** emit an attestation", which is a choice rather than a procedure. The
+  repository currently permits precisely the gap this closes: `portfolio-service/Dockerfile:66` runs
+  `:portfolio-service:bootJar` only — never tests — and `ci-verification.yml` tests source at lines 53
+  and 99, then independently rebuilds the image with `docker compose build`. Green tests therefore
+  describe a different compiled artifact from the one that serves.
+
+  **Chosen: build one JAR, test that JAR, and have the image consume it without recompiling.**
+
+  1. `./gradlew :portfolio-service:bootJar` — build once.
+  2. `sha256sum portfolio-service/build/libs/portfolio-service.jar` → record as `JAR_SHA`.
+  3. Run the candidate suites (7.5) against **that** JAR artifact, not a fresh source compile.
+  4. Add a `Dockerfile.candidate` whose builder stage **`COPY`s the prebuilt JAR** instead of running
+     `bootJar`. This is a real repository change, not a convention.
+  5. `docker build` → record `IMAGE_DIGEST`.
+  6. Store the attestation `JAR_SHA → IMAGE_DIGEST → commit SHA` alongside the suite reports.
+
+  The attestation is an output of this chain, not a substitute for it.
   _Requirements: 9.7_
-- [ ] **7.5 Candidate proof manifest.** The suites exercising the **final digest**: route-retirement
-  contracts (1.1, 1.2); composition HTTP and service contracts (7.2, 4.1–4.11); version read (5.1);
-  seed delegation, identity preservation and the price regression (6.1, 6.4 — including `P10`); and
-  the property suites 4.12–4.21 including the new `P11i`. Revision 1 named only 4.10–4.18, which
-  omitted the PR #97 regression carried in the same digest.
+- [ ] **7.5 Candidate proof manifest — runnable suites, not task numbers.** Task IDs stay the
+  traceability layer; they cannot be the executable inventory. Each entry names the suite and the one
+  command that selects it:
+
+  | suite | selector |
+  |---|---|
+  | Legacy route contract (both retirements pinned) | `--tests '*LegacyWriterRetirementTest'` |
+  | Asset discovery contract | `--tests '*AssetDiscoveryContractTest'` |
+  | Composition controller HTTP contract | `--tests '*CompositionControllerTest'` |
+  | Composition service + four-case matrix | `--tests '*HoldingReplacementServiceTest'` |
+  | Concurrency (P2, P3, P4, P11b) | `--tests '*ConcurrentCompositionIT'` |
+  | Envelope and error precedence (P8, P11c, P11h, P11i) | `--tests '*ErrorContractTest'` |
+  | Decimal fidelity and no-op equality (P7, P11f) | `--tests '*DecimalFidelityIT'` |
+  | Version read | `--tests '*PortfolioVersionReadTest'` |
+  | Seed delegation, identity preservation, **price regression `P10`** | `--tests '*PortfolioSeedServiceIT'` |
+  | Migration and repository | `--tests '*V20MigrationIT'` |
+  | Scope guard (GC.5) | `--tests '*ScopeGuardTest'` |
+
+  Revision 1 named only 4.10–4.18, omitting the PR #97 regression carried in the same digest;
+  Revision 2 named implementation tasks rather than suites.
   _Requirements: 9.7, 8.30_
 - [ ] **7.6 Exhaustive holdings-writer inventory.** Enumerate from the source tree every path that
   mutates `asset_holdings` and show each participates in Portfolio_Version. Store the output with the
@@ -451,6 +546,42 @@ Every design property, classified so none is silently absent.
   scope — B1 owns `Portfolio`, its repositories, and the seeder.
 - **`ReadOnlyEnforcementFilter` is not modified here.** Its allowlist is path-only; method-plus-path
   matching belongs to B2.
+
+## Artifact Manifest — merge cut points
+
+Two lanes are boxes on a diagram until this exists. CI builds the **complete service source tree**,
+and a main-branch image tag is a commit boundary — not a selection of task numbers from that commit.
+So parallel implementation must stay *off the source used for an earlier artifact*, or that artifact
+silently contains later code.
+
+Three concrete contaminations this prevents: Wave 4 or the V20 entity mapping merging before the R-0
+image is built would put schema-dependent code inside an artifact labelled Artifact 0; the controller
+merging before R-C would activate through the generic gateway route; and any reachability-sensitive
+work merging early would be served without its gate.
+
+**Rule.** Each release names its **merge cut** — the last commit that may be in its source. Work not
+listed for an artifact lives on a branch until that artifact's cut has passed. Schema- or
+reachability-sensitive work may never merge ahead of its cut.
+
+| release | may contain | must NOT contain | cut |
+|---|---|---|---|
+| **R-0** (Artifact 0) | Waves 0, 1 | Wave 3 entity mapping, Wave 4, Wave 5 read, Wave 6 seed, Wave 7 controller | cut-0 |
+| **R-A** (Artifact 1) | + Wave 2 (gateway, asset route) | Wave 3 entity mapping, Waves 4–7 | cut-A |
+| **R-B** (Artifact 2) | + Wave 3 (V20, entity mapping) | Waves 4–7 | cut-B |
+| **R-B2** (Artifact 2a) | + Wave 4, Wave 5.1 | Wave 6 seed switch, Wave 7 controller | cut-B2 |
+| **R-B3** (Artifact 2b) | + Wave 6 | Wave 7 controller | cut-B3 |
+| **R-C** (Artifact 3) | + Wave 7 | — | cut-C |
+
+Wave 4 may be **developed** from the start, per the two-lane graph; it may not **merge** before
+cut-B2. That is the distinction Revision 2's lanes asserted without enforcing.
+
+- [ ] **AM.1 Record each cut as a tagged commit** at the moment its artifact is built, so an image
+  digest maps to an auditable source boundary rather than to "whatever was on main".
+  _Requirements: 9.2, 9.7_
+- [ ] **AM.2 Assert artifact composition.** For each release, a check confirms the built source
+  contains none of its "must NOT contain" set — the controller mapping and the V20 entity fields are
+  the two that matter most, being reachability- and schema-sensitive respectively.
+  _Requirements: 9.1, 9.2_
 
 ## Task Dependency Graph
 
