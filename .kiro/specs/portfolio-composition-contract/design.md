@@ -1,5 +1,40 @@
 # Design Document
 
+> **Revision 5 — 2026-08-16.** Incorporates the whole-graph design review (checkpoint entry [27]),
+> which confirmed six releases is a defensible structure and then found four blocking groups by
+> reading the graph as a state machine.
+>
+> 1. **Spec A and B1 both allocated Flyway `V17`.** Spec A takes V17 (repair archive/audit plus the
+>    observation-timestamp alter), V18 and V19, in the same migration directory. Two migrations
+>    numbered 17 do not merge badly — Flyway refuses to start. B1's migration becomes **V20**, and
+>    Spec A's production completion becomes the predecessor of this entire release graph rather than
+>    a gate on one endpoint.
+> 2. **P11g claimed Writer_Convergence during a phase that deliberately violates it.** R-B and R-B2
+>    keep the old versionless seed on purpose, so the property failed on the very releases whose
+>    floor it was meant to prove. Split into a transitional floor (no duplicate creator, provisioning
+>    present) and a post-activation Writer_Convergence floor.
+> 3. **The graph gated deployment order but never proved the serving revisions changed.** G5 runs
+>    against the *old* endpoint, so it proves caller request shape and nothing about the server.
+>    Added G2a (version-bearing read on every serving revision, before caller migration begins), G2b
+>    (version-required identity-preserving seed on every serving revision, proved by a controlled
+>    seed), and G6 (Writer_Convergence), with R-C requiring G4 **and** G6.
+> 4. **Artifact 0 removed both of the E2E helper's write mechanisms with no replacement.**
+>    `ensurePortfolioWithHoldings` is self-healing by design — it creates a portfolio via
+>    `POST /api/portfolio` and adds holdings via the versionless `POST` — and the composition `PUT`
+>    does not exist until R-C. On a fresh database that is the path that runs, because `V15`
+>    reassigned the seeded dev portfolio to the demo user. New D10 re-points the suites at the seeded
+>    E2E identity as read-and-assert, and R-0's gate runs the affected suites against a fresh
+>    database.
+>
+> Also: G0 now verifies both public legacy routes rather than only the creator; the gateway
+> provisioning statement binds `userId.toString()` explicitly, since it generates a `UUID` while the
+> column is `VARCHAR(255)`, and the dual-schema test exercises that binding.
+>
+> **On the stale-summary class.** The three remaining restatements were stale in *order*, not in
+> vocabulary — every token in them was still legitimate — so the term-grep introduced in Revision 4
+> could not find them. They are regenerated from D2's sequence rather than edited in place, which is
+> the only reliable fix for that class.
+>
 > **Revision 4 — 2026-08-16.** Incorporates the third design review (checkpoint entry [25]). The
 > single-CAS mechanism cleared on source inspection. Four blocking groups remained, all accepted
 > after verification.
@@ -327,11 +362,13 @@ proved once against the orchestrator.
 When no portfolio exists, the orchestrator cannot acquire a lock. The path is:
 
 ```
-// The absent branch is TOTAL: every expected version has a defined outcome.
-if (expectedVersion != 0L) {
+// The absent branch is TOTAL, and runs D2's steps in D2's order.
+if (expectedVersion != 0L) {                        // 2. version precondition
     throw new PortfolioVersionConflictException(/* virtual current version */ 0L);
 }
-validateWholeSet(desired);                  // before any insert
+validateSemantic(intent);                           // 3. quantity, then duplicates  -> 400
+validateCatalogAndLifecycle(intent);                // 4. aggregated                 -> 422
+var desired = preparer.materialise(intent, /* no stored state */ List.of());  // 5.
 try {
     portfolio = new Portfolio(userId);      // version 0; @PrePersist sets BOTH timestamps
     portfolioRepository.saveAndFlush(portfolio);   // may violate uq_portfolios_user_id
@@ -341,6 +378,9 @@ try {
 }
 applyDesiredState(portfolio, desired);      // single parent CAS → version 1
 ```
+
+The empty desired set still creates at version `1`: creation is itself the transition, so step 5's
+comparison does not short-circuit it into a no-op.
 
 **Revision 2's absent branch accepted any expected version.** It tested only for absence and then
 constructed immediately, so a caller supplying `7` against an absent aggregate would have created
@@ -523,13 +563,13 @@ Selected per the requirements' permission and the design review's recommendation
 in order — see the release table below, which is authoritative:
 
 **Artifact 0 — legacy writer retirement, migration-free.** Retires **both** legacy writers —
-`POST /api/portfolio` and the versionless `POST /api/portfolio/{portfolioId}/holdings` — and migrates
-their E2E callers. Contains **no migration**, so it deploys and verifies before any schema change
+`POST /api/portfolio` and the versionless `POST /api/portfolio/{portfolioId}/holdings` — and replaces
+their E2E caller per D10. Contains **no migration**, so it deploys and verifies before any schema change
 exists.
 
 Revision 2 retired only the creator here and left the versionless holdings writer until Artifact 3,
 which made the rollback floor unexecutable: rolling Artifact 3 back to Artifact 2 restored a writer
-that bypasses Portfolio_Version entirely. Both retirements now land before V17, so **every artifact
+that bypasses Portfolio_Version entirely. Both retirements now land before V20, so **every artifact
 at or above the floor is free of both legacy writers**.
 
 If the holdings `POST` must remain reachable for any interval, it carries Quantity_Domain validation
@@ -539,20 +579,35 @@ where it is reachable but unvalidated would be a regression introduced by this c
 **Artifact 1 — provisioning-capable gateway.** `SignupService` gains a `portfolios` insert inside
 its existing `TransactionTemplate`. The insert must work against **both** schemas, which it does
 because it names only columns present before and after: `INSERT INTO portfolios (id, user_id)
-VALUES (...)`. Both timestamps and the new `version` column come from database defaults in that one
+VALUES (...)`. The gateway generates a `UUID` while `portfolios.user_id` is `VARCHAR(255)`, so the
+statement binds `userId.toString()` explicitly rather than relying on an implicit JDBC or PostgreSQL
+assignment cast — and the pre/post-schema integration test exercises that exact binding. Both timestamps and the new `version` column come from database defaults in that one
 statement — `created_at` is omitted too, so the two timestamps are equal by construction rather than
 by two separately-supplied values. Revision 2 supplied `created_at` explicitly while letting
 `updated_at` default, which would have contradicted the equal-timestamps semantics it asserted.
 Deployed and verified on every traffic-serving revision before artifact 2 starts.
 
 **Artifact 2 — migration.** Backfill, unique constraint, quantity check, version and `updated_at`
-columns. May not start until Artifact 0 and Artifact 1 are both verified on every traffic-serving
-revision.
+columns, as **V20**. May not start until Artifact 0 and Artifact 1 are both verified on every
+traffic-serving revision.
+
+**The version number is not arbitrary and V17 was wrong.** Spec A allocates `V17` (repair archive
+and audit tables, plus the observation-timestamp alter), `V18` (the `BTC` → `BTC-USD` repair) and
+`V19` (`MM.NS` → `M&M.NS`). Both specs write into the same
+`portfolio-service/src/main/resources/db/migration` directory, so two migrations numbered 17 do not
+merge badly — Flyway refuses to start. B1 consumes Spec A's allocation and begins at V20.
+
+**Spec A's production completion is therefore the predecessor of this whole release graph**, not
+merely a gate on the composition endpoint. B1 may still be built and tested in parallel, as its
+requirements permit, but its releases run after Spec A reaches verified steady state. That ordering
+is independently necessary: Artifact 0 removes a write path while Spec A's plan is still adding
+validation to the shared write boundary, and the E2E helper Artifact 0 must replace seeds the
+legacy `BTC` ticker that Spec A repairs.
 
 **Artifact 2a — version-bearing read.** Post-migration compatibility artifact exposing
 Portfolio_Version on the existing authenticated `GET /api/portfolio`, while the old seed `POST` still
 tolerates the extra body field. This is D8 step 1, and it exists because the version column does not
-exist before V17 — Revision 2 allocated no artifact for it.
+exist before V20 — Revision 2 allocated no artifact for it.
 
 **Artifact 2b — version-required seed.** Switches the fixed-target seed `POST` to require
 `expectedVersion` and delegate to `HoldingReplacementService`, after every call site is migrated and
@@ -569,7 +624,36 @@ a pre-migration schema and a post-migration schema in the same suite. If that te
 pass, the fallback is signup quiescence — make the signup route unreachable, run artifact 2, deploy
 artifact 1, verify, reopen. Login stays available throughout either path.
 
-#### D10 — `/api/assets` is served by portfolio-service and cached by ETag alone
+#### D10 — The E2E helper is re-pointed at the seeded identity before its endpoints are retired
+
+`ensurePortfolioWithHoldings` is not an assertion helper. Its own comment describes it as
+"self-healing: creates a portfolio and seeds holdings if none exist", and it does exactly that: it
+authenticates as `dev@local`, calls `POST /api/portfolio` when the list comes back empty, then adds
+`AAPL` and `BTC` through the versionless holdings `POST`.
+
+Artifact 0 removes **both** of those mechanisms, and the composition `PUT` that would replace them
+does not exist until R-C. Saying Artifact 0 "migrates the E2E callers" was therefore not a plan —
+there is no target to migrate them to at that point. This is worse than it looks on a fresh database:
+`V15` reassigned the only Flyway-seeded dev portfolio to the read-only demo user, so the dev user has
+**no** portfolio and the self-healing path is the one that runs.
+
+The suites move to the already-seeded **E2E identity** and the helper becomes read-and-assert against
+the Golden-State setup that global setup establishes, failing hard if seeding was skipped rather than
+silently repairing. The fixed internal seed target is not parameterised to reach the dev user — that
+would re-widen the destructive endpoint this design deliberately keeps server-fixed.
+
+A dedicated test-fixture write mechanism is the alternative if read-and-assert proves insufficient;
+what is not available is keeping the production write paths alive for test convenience.
+
+R-0's gate runs the affected `golden-path` and `dashboard-data` suites **against a fresh database**,
+because that is precisely the case the current helper repairs and therefore the case where its
+removal bites.
+
+There is a second reason this cannot wait on B1 alone: the helper seeds `BTC`, the legacy ticker Spec
+A repairs to `BTC-USD` and then rejects at the write boundary. Re-pointing at the seeded E2E identity
+resolves that too.
+
+#### D11 — `/api/assets` is served by portfolio-service and cached by ETag alone
 
 The catalog is already in memory there via the Catalog_Module, so discovery needs no cross-service
 call. A new gateway route `Path=/api/assets/**` joins the existing table. The response carries
@@ -599,12 +683,17 @@ HoldingReplacementService.replace(userId, expectedVersion, rawIntent, preparer)
         │      └─ present ──▶ ordinary optimistic load
         │                          └─ version != expectedVersion ──▶ 409 portfolio_version_conflict
         │
-        ├─ 2. validate whole desired set ──▶ 422 unsupported_asset / lifecycle_not_permitted
-        │                                    400 quantity_out_of_domain / duplicate_ticker
+        ├─ 2. semantic 400 over RAW intent ──▶ quantity_out_of_domain, then duplicate_ticker
         │
-        ├─ 3. compare to stored state ──▶ equal ──▶ 200, no update at all
+        ├─ 3. catalog / lifecycle 422, aggregated ──▶ unsupported_asset / lifecycle_not_permitted
         │
-        └─ 4. single parent CAS (UPDATE … WHERE id=? AND version=?, 1 row) ──▶ then child DML
+        ├─ 4. materialise DesiredHoldingState via injected TuplePreparer,
+        │     reading ONLY the snapshot locked at step 1
+        │
+        ├─ 5. compare to stored state ──▶ equal ──▶ 200, no update at all
+        │
+        └─ 6. single parent CAS (UPDATE … SET version+1, updated_at = GREATEST(…)
+              WHERE id=? AND version=?, exactly 1 row) ──▶ refresh ──▶ child DML
                                                                      ──▶ 200 (or 201 on creation)
 ```
 
@@ -656,9 +745,9 @@ public CompositionResult replace(String userId, long expectedVersion,
 Returns `CompositionResult(PortfolioResponse response, boolean created, boolean noOp)` so callers can
 map `201` versus `200` without re-inspecting state.
 
-Cost-basis rules are applied per ticker during step 4: retained tickers keep their existing tuple
-untouched even when quantity changes; new tickers capture basis under the existing add-time rule;
-removed tickers lose holding and basis. No weighted-average recomputation occurs anywhere — this is
+Cost-basis rules live in `CompositionTuplePreparer` and run at **D2 step 5**, against the snapshot
+locked at step 2: retained tickers keep their existing tuple untouched even when quantity changes;
+new tickers capture basis under the existing add-time rule; removed tickers lose holding and basis. No weighted-average recomputation occurs anywhere — this is
 a snapshot editor, and inferring a purchase price from a quantity edit would invent a transaction the
 user never supplied.
 
@@ -731,7 +820,7 @@ That change belongs to B2; it is named here so the constraint is not rediscovere
 
 ## Data Models
 
-### `portfolios` after V17
+### `portfolios` after V20
 
 | column | type | note |
 |---|---|---|
@@ -741,7 +830,7 @@ That change belongs to B2; it is named here so the constraint is not rediscovere
 | `version` | `BIGINT NOT NULL DEFAULT 0` | new |
 | `updated_at` | `TIMESTAMP NOT NULL DEFAULT now()` | new |
 
-### Migration V17 — ordering within the file matters
+### Migration V20 — ordering within the file matters
 
 1. `ALTER TABLE portfolios ADD COLUMN version BIGINT NOT NULL DEFAULT 0`
 2. `ALTER TABLE portfolios ADD COLUMN updated_at TIMESTAMP NOT NULL DEFAULT now()`
@@ -830,13 +919,19 @@ unequal, advancing the version and then persisting an unchanged child value — 
 that also breaks the reset's eligibility semantics. Quantity-domain validation already bounds scale
 to 8, so canonicalisation is total.
 
-**P11g — Rollback from any release at or above the floor restores no legacy writer.** Quantified
-over **every** holdings writer, not an enumeration of the public ones: for every artifact reachable
-by rollback after R-B, no reachable path mutates `asset_holdings` without participating in
-Portfolio_Version. This covers `POST /api/portfolio`, the versionless
-`POST /api/portfolio/{portfolioId}/holdings`, **and** `POST /api/internal/portfolio/seed` — the last
-being the one Revision 3's property missed, and the only one of the three that runs daily in
-production.
+**P11g-1 — Transitional floor, after R-B and before R-C.** For every artifact reachable by
+rollback: no duplicate-creating path returns, and signup provisioning remains present. The
+transitional seed **may** still be versionless — R-B and R-B2 deliberately retain it, so this phase
+cannot claim Writer_Convergence and must not be described as doing so.
+
+**P11g-2 — Writer_Convergence floor, after R-C activation.** Quantified over **every** holdings
+writer rather than an enumeration: no reachable path mutates `asset_holdings` without participating
+in Portfolio_Version and preserving identity. This covers `POST /api/portfolio`, the versionless
+`POST /api/portfolio/{portfolioId}/holdings`, and `POST /api/internal/portfolio/seed`.
+
+Revision 4 attached the second invariant to the first phase, so the property failed on the very
+releases whose floor it was meant to prove. Writer_Convergence does not become true until R-B3 is
+fully serving.
 
 **P11h — Version tokens are decoded strictly.** A float (`7.9`), a string (`"7"`), a boolean, and a
 negative version are each **tested independently** and each rejected rather than coerced to a `Long`,
@@ -858,7 +953,7 @@ version, an absent `expectedVersion`, and a quantity sent as a JSON number each 
 stable code, and each precedes any stateful check.
 
 **P11d — Artifact 0 closes the creator before the constraint exists.** No traffic-serving revision
-exposes `POST /api/portfolio` at the moment V17 runs.
+exposes either public legacy writer at the moment V20 runs.
 
 **P11e — The seed bridge is one-directionally compatible, and its order is fixed.** The old seed
 `POST` accepts the new request shape by ignoring the version; the new `POST` rejects a request
@@ -877,8 +972,10 @@ BY user_id HAVING COUNT(*) <> 1` is empty, and no user in `users` is absent from
 
 ### Gates
 
-**G0 — creator retired.** No traffic-serving portfolio-service revision exposes `POST
-/api/portfolio`, and its E2E caller is migrated. Verified by revision listing plus traffic weights.
+**G0 — both public legacy writers retired.** No traffic-serving portfolio-service revision exposes
+`POST /api/portfolio` **or** the versionless `POST /api/portfolio/{portfolioId}/holdings`, and their
+E2E callers are migrated per D10. Verified by revision listing plus traffic weights. Revision 4's G0
+named only the creator while Artifact 0 retires both.
 
 **G1 — dual-schema proof.** The gateway provisioning insert passes against both pre- and
 post-migration schemas. If this fails, switch to the quiescence path before proceeding.
@@ -893,7 +990,22 @@ commit time.
 
 **G5 — seed call sites migrated.** Every seed call site reads the version from the authenticated
 portfolio state it acts on, and a scheduled or manual execution has succeeded with the new request
-shape. Enumerated and proved per call site, not inferred from one workflow step.
+shape. Enumerated and proved per call site, not inferred from one workflow step. G5 runs against the
+**old** endpoint, so it proves the callers' request shape and nothing about the server.
+
+**G2a — version-bearing read on every serving revision.** After R-B2 and **before** any caller
+migration begins, every traffic-serving portfolio-service revision returns Portfolio_Version on the
+authenticated read. Without this, one caller's successful read can hit the new revision while another
+still reaches an old response carrying no version.
+
+**G2b — version-required identity-preserving seed on every serving revision.** After R-B3, every
+traffic-serving revision requires the version and delegates the seed to
+`HoldingReplacementService`. Proved by revision/image/traffic evidence, then by a controlled seed
+against the fully serving artifact demonstrating identity preservation, the expected version
+outcome, and Spec A's price-table regression.
+
+**G6 — Writer_Convergence.** No traffic-serving revision exposes either public legacy writer, and
+none exposes an R-B2-era seed. Required **alongside** G4 before R-C.
 
 **G4 — Spec A steady state.** Composition endpoints do not become user-reachable until Spec A's
 enforcement activation is complete and verified. `/api/assets` may deploy dark before this, being
@@ -905,10 +1017,10 @@ read-only.
 |---|---|---|
 | **R-0** | 0 — both legacy writers retired, migration-free | G0 after |
 | **R-A** | 1 — provisioning-capable gateway | G1 before deploy, G2 after |
-| **R-B** | 2 — V17 migration | G0 and G2 before; G3 after |
-| **R-B2** | 2a — version-bearing authenticated read | G3 before; all seed call sites migrated and verified after |
-| **R-B3** | 2b — version-required seed endpoint | G5 before |
-| **R-C** | 3 — composition `PUT`, `/api/assets` | G4 **before deploy** |
+| **R-B** | 2 — V20 migration | G0 and G2 before; G3 after |
+| **R-B2** | 2a — version-bearing authenticated read | G3 before; **G2a** after, then caller migration |
+| **R-B3** | 2b — version-required seed endpoint | G5 before; **G2b** after |
+| **R-C** | 3 — composition `PUT`, `/api/assets` | G4 **and G6** before deploy |
 
 Six releases. No release exists in which a duplicate-creating path is reachable while the unique
 constraint is present, because R-0 completes and is verified before R-B starts.
@@ -925,6 +1037,10 @@ Revision 1's rollback plan violated the invariant in both directions and is repl
 
 **The rollback floor is Artifact 0 + Artifact 1 together**, and it is executable precisely because
 Artifact 0 retires *both* legacy writers. Once R-B has run, no rollback may cross below that floor.
+
+Without G2a, G2b and G6 the table permits a state where every caller sends a version, some
+R-B2-era seed replicas still ignore it and delete-and-recreate, and R-C activates anyway because G4
+alone is green — the exact bypass R-B3 exists to remove.
 
 **Once R-C activates, the floor rises to include R-B3.** Revision 3's floor covered only the two
 *public* legacy writers, so a documented R-C → R-B2 rollback would have restored the old seed
