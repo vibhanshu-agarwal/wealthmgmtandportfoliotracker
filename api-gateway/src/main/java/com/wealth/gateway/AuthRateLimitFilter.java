@@ -10,12 +10,17 @@ import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
+import org.springframework.http.HttpMethod;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.reactive.CorsConfigurationSource;
+import org.springframework.web.cors.reactive.CorsUtils;
 import org.springframework.web.server.ServerWebExchange;
 import org.springframework.web.server.WebFilter;
 import org.springframework.web.server.WebFilterChain;
 import reactor.core.publisher.Mono;
 
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 
 /**
  * Throttles /api/auth/login and /api/auth/signup by programmatically invoking the shared
@@ -33,6 +38,7 @@ public class AuthRateLimitFilter implements WebFilter, Ordered {
             .getBytes(StandardCharsets.UTF_8);
 
     private final RateLimiter<?> authRateLimiter;
+    private final CorsConfigurationSource corsConfigurationSource;
     private final KeyResolver authKeyResolver;
     private final int retryAfterSeconds;
 
@@ -52,8 +58,14 @@ public class AuthRateLimitFilter implements WebFilter, Ordered {
             org.springframework.cloud.gateway.filter.ratelimit.RedisRateLimiter authRateLimiter,
             @Value("${app.rate-limit.trust-xff-last-hop:false}") boolean trustXffLastHop,
             @Value("${app.rate-limit.auth.requested-tokens:12}") int requestedTokens,
-            @Value("${app.rate-limit.auth.replenish-rate:1}") int replenishRate) {
+            @Value("${app.rate-limit.auth.replenish-rate:1}") int replenishRate,
+            CorsConfigurationSource corsConfigurationSource) {
         this.authRateLimiter = authRateLimiter;
+        // The SAME bean SecurityConfig hands to Spring's CORS filter. A second CorsConfiguration
+        // built here from the same property would still be a second source of truth: it would not
+        // pick up allowed-method, allowed-header or max-age changes, and nothing would fail when
+        // the two drifted.
+        this.corsConfigurationSource = corsConfigurationSource;
         this.authKeyResolver = exchange -> Mono.just(
                 GatewayRateLimitConfig.resolveTrustedHopKey(
                         exchange.getRequest().getHeaders().getFirst("X-Forwarded-For"),
@@ -81,6 +93,20 @@ public class AuthRateLimitFilter implements WebFilter, Ordered {
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, WebFilterChain chain) {
+        // A CORS preflight is not an authentication attempt. It carries no credentials and
+        // cannot succeed or fail as a login, yet a browser issues one before every
+        // cross-origin POST — so counting it charged the bucket twice per real login and
+        // exhausted it at half the intended rate.
+        if (CorsUtils.isPreFlightRequest(exchange.getRequest())) {
+            return chain.filter(exchange);
+        }
+
+        // Both endpoints are POST-only. Charging a GET, HEAD or non-CORS OPTIONS against them to
+        // the auth bucket spends tokens on requests that can never be a login attempt.
+        if (exchange.getRequest().getMethod() != HttpMethod.POST) {
+            return chain.filter(exchange);
+        }
+
         String path = exchange.getRequest().getURI().getPath();
         if (!path.equals("/api/auth/login") && !path.equals("/api/auth/signup")) {
             return chain.filter(exchange);
@@ -93,10 +119,44 @@ public class AuthRateLimitFilter implements WebFilter, Ordered {
                             }
                             exchange.getResponse().setStatusCode(HttpStatus.TOO_MANY_REQUESTS);
                             exchange.getResponse().getHeaders().add("Retry-After", String.valueOf(retryAfterSeconds));
+                            // This filter short-circuits before Spring's CORS filter runs, so
+                            // without these headers the browser blocks the response and surfaces
+                            // a generic network/CORS error instead of the 429 — which is what
+                            // made a rate limit indistinguishable from an outage.
+                            applyCorsHeaders(exchange);
                             exchange.getResponse().getHeaders().setContentType(MediaType.APPLICATION_JSON);
                             DataBuffer buffer = exchange.getResponse().bufferFactory().wrap(THROTTLED_BODY);
                             return exchange.getResponse().writeWith(Mono.just(buffer));
                         }))
                 .onErrorResume(ex -> chain.filter(exchange)); // Req 6.7: fail open
+    }
+
+    /**
+     * Echoes the request Origin onto a short-circuited response when it matches the configured
+     * allowed patterns. Uses {@link CorsConfiguration#checkOrigin} rather than a local matcher so
+     * the allow-list semantics cannot drift from {@code SecurityConfig}.
+     */
+    private void applyCorsHeaders(ServerWebExchange exchange) {
+        String origin = exchange.getRequest().getHeaders().getOrigin();
+        if (origin == null) {
+            return;
+        }
+        CorsConfiguration config = corsConfigurationSource.getCorsConfiguration(exchange);
+        if (config == null) {
+            return;
+        }
+        String allowed = config.checkOrigin(origin);
+        if (allowed == null) {
+            return;
+        }
+        exchange.getResponse().getHeaders().add("Access-Control-Allow-Origin", allowed);
+        if (Boolean.TRUE.equals(config.getAllowCredentials())) {
+            exchange.getResponse().getHeaders().add("Access-Control-Allow-Credentials", "true");
+        }
+        // Without this, JavaScript cannot read Retry-After on a cross-origin response: the CORS
+        // spec exposes only a small safelist, and Retry-After is not on it. A client that cannot
+        // read it cannot back off correctly, which is the entire point of sending it.
+        exchange.getResponse().getHeaders().add("Access-Control-Expose-Headers", "Retry-After");
+        exchange.getResponse().getHeaders().add("Vary", "Origin");
     }
 }

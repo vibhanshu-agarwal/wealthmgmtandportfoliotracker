@@ -45,7 +45,14 @@ public class SecurityConfig {
                 .build();
     }
 
-    private CorsConfigurationSource corsConfigurationSource() {
+    /**
+     * Exposed as a bean so {@link AuthRateLimitFilter} can apply the same CORS contract to the
+     * responses it short-circuits. It runs ahead of Spring's CORS filter, so a throttled response
+     * would otherwise carry no CORS headers and the browser would report a network error instead
+     * of the 429. Sharing this bean keeps one allow-list rather than two that can drift.
+     */
+    @Bean
+    CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
         config.setAllowedOriginPatterns(allowedOriginPatterns);
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));

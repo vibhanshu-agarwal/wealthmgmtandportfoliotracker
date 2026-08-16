@@ -26,7 +26,10 @@ test.describe("Azure Synthetic: AI Insights", () => {
       .locator('input[type="password"]')
       .fill(process.env.E2E_TEST_USER_PASSWORD!);
     await page.getByRole("button", { name: /sign in|log in/i }).click();
-    await expect(page).toHaveURL(/.*\/overview|.*\/portfolio/);
+    // 30s matches the Azure login budget used by login.spec.ts and azure-synthetic.spec.ts.
+    // The default 5s is not enough: a Container Apps cold start can take the auth round trip
+    // past it, and a run on 2026-08-16 failed here at 4.7s with the dashboard already rendered.
+    await expect(page).toHaveURL(/.*\/overview|.*\/portfolio/, { timeout: 30_000 });
   });
 
   test("AI Insights page loads: heading, chat panel, and market summary settled", async ({
