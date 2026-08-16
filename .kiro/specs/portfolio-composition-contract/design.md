@@ -1,5 +1,14 @@
 # Design Document
 
+> **Revision 10 — 2026-08-16.** Second bounded erratum from checkpoint entry [45]. Revision 9
+> inserted the whole-workflow rule at D9 and left the pre-existing proof paragraph beneath it stating
+> the superseded model: "a separate predecessor PR" against the two ordered PRs the tasks now
+> require, and a proof consisting only of unselected Container App equality — precisely the
+> incomplete proof Revision 9 declared insufficient. Since the design is normative, tasks could not
+> repair it. Replaced, not qualified. The skipped-job conclusions are now stated as required evidence,
+> because GitHub reports a skipped job as a successful check and workflow success therefore cannot
+> distinguish "did not run" from "ran".
+>
 > **Revision 9 — 2026-08-16.** One bounded erratum from the tasks review (checkpoint entry [43]).
 > No change to the candidate/serving model, the gate algebra, or the release graph.
 >
@@ -717,14 +726,30 @@ exact-artifact invariant inside a single logical service deployment. Generalisin
 a design covering every service-specific target; a half-generic mode is worse than a narrow honest
 one.
 
-**This ships as a separate predecessor PR, owned by B1.** It modifies a workflow that deploys four
+**This ships as two ordered predecessor PRs, owned by B1.** It modifies a workflow that deploys four
 services for reasons unrelated to this spec, so it does not belong inside a B1 feature commit — but
 it is not outside B1's scope either, since B1 is what requires it. Full-deploy behaviour stays the
 default for `workflow_call` and ordinary dispatch; the cutover passes an explicit allowlist.
 
-Its proof: for a filtered run, every **unselected** app's revision name, image digest, and traffic
-weight are byte-identical before and after. The release graph may not begin until that proof is
-green.
+**P-A — service selection.** Its proof, for each scoped run: every **unselected** app's revision
+name, image digest and traffic weight are byte-identical before and after; `deploy-frontend`, `seed`
+and `verify` each report a conclusion of **`skipped`**; every declared selection value is exercised,
+including that `market-data-service` additionally updates `market-data-refresh-job`; and the default
+no-selection path still deploys all four backends, the frontend, the seed and the verify chain.
+
+The skipped-conclusion evidence is required rather than inferred from a green workflow: GitHub
+reports a skipped job as a **successful** check, so overall workflow success does not distinguish
+"did not run" from "ran". `needs.<job>.result` does.
+
+**P-B — digest deployment, `portfolio-service` only, based on P-A.** Its proof: no build or push step
+executed; the selected Container App resolves to the exact requested manifest digest; every rejection
+case fails before any update; P-A's scoped-mode skips still hold; and the default full-deploy path is
+unaffected when the digest input is absent.
+
+The release graph may not begin until **both** proofs are green. Splitting them is deliberate — the
+allowlist is independently useful and survives a P-B revert, and the digest path is a privileged
+mode with a different failure surface. A single PR buys no atomicity, since the lane cannot open on
+one gate anyway.
 
 Where a release genuinely cannot be service-scoped, the fallback is the one the cutover already
 permits: quiesce the affected traffic for V20, and for R-C use an activation control that keeps the

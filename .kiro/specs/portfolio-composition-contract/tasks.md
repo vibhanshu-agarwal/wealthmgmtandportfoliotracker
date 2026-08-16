@@ -1,5 +1,27 @@
 # Implementation Plan
 
+> **Revision 7 — 2026-08-16.** Three bounded corrections from checkpoint entry [45]. The GitHub
+> Actions skip question from entry [44] is closed: a skipped prerequisite skips its dependants unless
+> a condition such as `always()` overrides it, and neither `seed` nor `verify` uses one — so the
+> chain skips cleanly with no new mechanism.
+>
+> 1. **D9's pre-existing proof paragraph still stated the superseded model** — one PR, and a proof
+>    consisting only of unselected Container App equality. Since the design is normative, tasks could
+>    not repair it; `design.md` is now **Revision 10** with the two-PR model and both complete proof
+>    obligations.
+> 2. **The release predecessor cited P-A.4** after Revision 6 renumbered the STOP/GO to P-A.5. Read
+>    literally, that opened the release lane on the default-path check alone, without the
+>    non-interference proof or selector coverage. Another wrong-but-existing reference, invisible to
+>    the checker because it does not parse task IDs.
+> 3. **The floor table still held `--tests` selectors** despite the column being renamed and the
+>    prose saying they participate in no invocation. Replaced with plain class patterns, and the floor
+>    now requires each class to have **at least one non-skipped test case** — XML presence plus a
+>    nonzero task total would otherwise let a required class be entirely skipped while unrelated
+>    classes kept the task green.
+>
+> P-A.2 also now records each downstream job's conclusion as `skipped` rather than inferring it from
+> a green workflow, since GitHub reports a skipped job as a successful check.
+>
 > **Revision 6 — 2026-08-16.** Incorporates the fifth tasks review (checkpoint entry [43]), which
 > read the **whole workflow** rather than the backend matrix. Two P1s and one P2, all accepted. One
 > required a bounded design erratum — `design.md` is now Revision 9.
@@ -221,7 +243,7 @@ assertions are what make these durable.
   Classified as **source-governance evidence** stored beside the candidate bundle, not as a binary
   suite: a portfolio-service JUnit run against a JAR is the wrong authority for a monorepo-wide
   changed-path claim, and it cannot define the comparison base. Revision 3 listed it as
-  `--tests '*ScopeGuardTest'`, which was that mistake.
+  `*ScopeGuardTest`, which was that mistake.
   _Requirements: 10.1, 10.2, 10.3, 10.4, 10.6_
 
 Two further non-goals have direct carriers rather than needing the guard: criterion 10.5 on task 7.1,
@@ -263,7 +285,11 @@ the release lane cannot open until both gates are green regardless.
   _Requirements: 1.17, 1.19, 1.21_
 - [ ] **P-A.2 Prove non-interference — Container Apps *and* downstream jobs.** For each scoped run,
   assert every **unselected** app's revision name, image digest and traffic weight are byte-identical
-  before and after, **and** that `deploy-frontend`, `seed` and `verify` did not execute. Revision 5
+  before and after, **and** that `deploy-frontend`, `seed` and `verify` each report a conclusion of
+  **`skipped`**. Record the conclusions explicitly: GitHub reports a skipped job as a *successful*
+  check, so a green workflow does not distinguish "did not run" from "ran" — `needs.<job>.result`
+  does. Skip propagation itself needs no new mechanism: a skipped prerequisite skips its dependants
+  unless a condition such as `always()` overrides it, and neither `seed` nor `verify` uses one. Revision 5
   snapshotted only unselected Container Apps, so a run that redeployed the Static Web App and reset
   the portfolio data plane would have passed its non-interference proof. The seed is a production
   writer — `global-setup.ts:172-195` POSTs to `/api/internal/portfolio/seed` — not an observation.
@@ -326,7 +352,7 @@ the release lane cannot open until both gates are green regardless.
   or the candidate/serving model is re-derived around the fallback activation control.
   _Requirements: 9.7, 1.21_
 
-**Both P-A.4 and P-B.5 are hard predecessors of the release lane.** Implementation is unaffected by
+**Both P-A.5 and P-B.5 are hard predecessors of the release lane.** Implementation is unaffected by
 either.
 
 ---
@@ -654,7 +680,10 @@ Portfolio-service only; the asset route shipped in Wave 2.
      `:portfolio-service:test`, `:portfolio-service:integrationTest` and `:portfolio-service:bootJar`,
      with `bootJar` ordered last. One command runs the whole graph from a clean checkout.
   2. **Generate** the evidence manifest from **all classes present in both JUnit XML report sets**,
-     and assert that every class in 7.5's required floor appears in it. `candidateVerification` runs
+     carrying per-class **test, skipped, failure and error counts**, and assert that every class in
+     7.5's required floor appears in it **with at least one non-skipped test case**. Presence in the
+     XML plus a nonzero task total is not sufficient: a required class can be entirely skipped while
+     unrelated classes keep the task green. `candidateVerification` runs
      the complete, unfiltered `test` and `integrationTest` tasks, so a normally-discovered new suite
      executes automatically and lands in the generated manifest without anyone remembering to list
      it. Assert also that no task reported zero tests.
@@ -702,23 +731,24 @@ Portfolio-service only; the asset route shipped in Wave 2.
 
   | suite | gradle task | required report class pattern |
   |---|---|---|
-  | Legacy route contract (both retirements) | `test` | `--tests '*LegacyWriterRetirementTest'` |
-  | Asset discovery contract | `test` | `--tests '*AssetDiscoveryContractTest'` |
-  | Composition controller HTTP contract | `test` | `--tests '*CompositionControllerTest'` |
-  | Composition service + four-case matrix | `test` | `--tests '*HoldingReplacementServiceTest'` |
-  | Error envelope and precedence (P8, P11c, P11h, P11i) | `test` | `--tests '*ErrorContractTest'` |
-  | Version read | `test` | `--tests '*PortfolioVersionReadTest'` |
-  | Concurrency (P2, P3, P4, P11b) | `integrationTest` | `--tests '*ConcurrentCompositionIT'` |
-  | Decimal fidelity and no-op equality (P7, P11f) | `integrationTest` | `--tests '*DecimalFidelityIT'` |
-  | Seed delegation, identity, **price regression `P10`** | `integrationTest` | `--tests '*PortfolioSeedServiceIT'` |
-  | Migration and repository | `integrationTest` | `--tests '*V20MigrationIT'` |
+  | Legacy route contract (both retirements) | `test` | `*LegacyWriterRetirementTest` |
+  | Asset discovery contract | `test` | `*AssetDiscoveryContractTest` |
+  | Composition controller HTTP contract | `test` | `*CompositionControllerTest` |
+  | Composition service + four-case matrix | `test` | `*HoldingReplacementServiceTest` |
+  | Error envelope and precedence (P8, P11c, P11h, P11i) | `test` | `*ErrorContractTest` |
+  | Version read | `test` | `*PortfolioVersionReadTest` |
+  | Concurrency (P2, P3, P4, P11b) | `integrationTest` | `*ConcurrentCompositionIT` |
+  | Decimal fidelity and no-op equality (P7, P11f) | `integrationTest` | `*DecimalFidelityIT` |
+  | Seed delegation, identity, **price regression `P10`** | `integrationTest` | `*PortfolioSeedServiceIT` |
+  | Migration and repository | `integrationTest` | `*V20MigrationIT` |
 
   **This table is a required minimum, not the selection.** `candidateVerification` runs both tasks
-  unfiltered; these patterns are asserted **present in the generated report manifest**, so the table
-  cannot silently shrink the run. The `--tests` arguments are no longer part of any invocation.
+  unfiltered; these are **report class patterns** matched against the generated manifest, not
+  command-line arguments — no `--tests` selector participates in any invocation.
 
-  **Zero-test tasks fail the run**, and a required pattern absent from the generated manifest fails
-  it too — otherwise a mis-tagged suite reports green by executing nothing.
+  **Three failure conditions:** a task reporting zero tests; a required pattern absent from the
+  generated manifest; and a required class present but with **no non-skipped test case**. The third
+  stops a mis-tagged or fully-skipped suite from reporting green by executing nothing.
 
   **Discovery reconciliation.** A suite can still be written and then excluded or mis-tagged so it
   never runs at all. Compare B1-added and B1-modified `*Test.java` / `*IT.java` files against the
