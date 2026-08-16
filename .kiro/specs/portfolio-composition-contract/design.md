@@ -1,5 +1,40 @@
 # Design Document
 
+> **Revision 7 — 2026-08-16.** Incorporates the activation-model review (checkpoint entry [31]). One
+> P1 remained, plus two matters entry [30] had left as possible owner decisions and which this
+> revision settles as design rather than escalating.
+>
+> 1. **R-C required live serving evidence from a digest that was not yet deployed.** Revision 6 made
+>    every capability gate require an immutable digest, an active revision mapped to it, and a live
+>    probe — then required fresh G6 and G2 *before* R-C deploys. Before deploy the candidate is not
+>    the active revision and cannot be probed; after deploy the generic `Path=/api/portfolio/**`
+>    route makes it reachable immediately. Revision 6 also stated that no dark-deploy switch exists
+>    while D9 offered an activation control as its fallback — contrary decisions in one document.
+>    Evidence now splits into a **candidate proof** (bound to the digest, available before
+>    activation) and a **serving proof** (active revision, traffic, live probe — only after rollout).
+>    R-C's pre-deploy checkpoint is serving G2/G3/G4/G6 **plus** the R-C candidate proof.
+> 2. **R-C is now portfolio-only.** The `/api/assets` gateway route moves into R-A. Leaving it in R-C
+>    made that release change both the gateway and portfolio-service, so activating it would have
+>    invalidated the fresh G2 its own checkpoint requires. Service scoping stops *cross-service*
+>    invalidation; it cannot stop a release invalidating its own evidence, and a two-service R-C did
+>    exactly that.
+> 3. **"Unchanged services are re-deployed at their existing digest" was not strong enough.** An
+>    unselected service now receives **no `az containerapp update` at all** — re-deploying the same
+>    digest can still create or mutate revision state, defeating the no-invalidation claim the filter
+>    exists to make. The invariant is *untouched*, not *unchanged*. It ships as a **separate
+>    predecessor PR owned by B1**, with full-deploy remaining the default and the cutover passing an
+>    explicit allowlist, proved by asserting every unselected app's revision name, digest and traffic
+>    are byte-identical across a filtered run.
+> 4. **G0b is one hermetic CI gate, not a fresh database per context.** Fixture semantics need
+>    exactly one full-stack disposable-database run — `ci-verification.yml`, which already supplies
+>    `INTERNAL_API_KEY` and needs the E2E credentials added. Per-context caller wiring is **G5** and
+>    needs no fresh database. A context matrix replaces "fresh database in every context", and
+>    `frontend-e2e-integration.yml` — which supplies neither credential today — is either wired to
+>    the same fixture contract or declared non-gating.
+>
+> The gate summary now reads **nine base predicates plus one derived checkpoint** rather than a label
+> total. Counting labels has been wrong twice, so the structure is stated instead of the number.
+>
 > **Revision 6 — 2026-08-16.** Incorporates the gate-algebra review (checkpoint entry [29]). The four
 > Revision 5 corrections held; three blocking groups remained, two in the gate model and one in the
 > fixture D10 selected.
@@ -622,11 +657,21 @@ This is the deployment-window class from Revision 1, moved from release *orderin
 *mechanics*: ordering six releases correctly does not help while one invocation changes all four
 services.
 
-**The design therefore requires service-scoped deployment with immutable digest reuse.**
-`deploy-azure.yml` gains a service filter; unchanged services are re-deployed by their existing
-image digest rather than rebuilt, so a release that names only `portfolio-service` cannot produce a
-new gateway revision. Every gate binds to the **candidate digest**, not to a service name or a
-revision label. This is a prerequisite of the release graph, not an optimisation of it.
+**The design therefore requires service-scoped deployment.** `deploy-azure.yml` gains a service
+allowlist, and an unselected service receives **no `az containerapp update` at all** — not a
+re-deploy at its existing digest. Re-deploying with the same digest can still create or mutate
+revision state, which defeats the entire no-invalidation claim the filter exists to make. The
+invariant is *untouched*, not *unchanged*. Every gate binds to the **candidate digest**, never to a
+service name or revision label.
+
+**This ships as a separate predecessor PR, owned by B1.** It modifies a workflow that deploys four
+services for reasons unrelated to this spec, so it does not belong inside a B1 feature commit — but
+it is not outside B1's scope either, since B1 is what requires it. Full-deploy behaviour stays the
+default for `workflow_call` and ordinary dispatch; the cutover passes an explicit allowlist.
+
+Its proof: for a filtered run, every **unselected** app's revision name, image digest, and traffic
+weight are byte-identical before and after. The release graph may not begin until that proof is
+green.
 
 Where a release genuinely cannot be service-scoped, the fallback is the one the cutover already
 permits: quiesce the affected traffic for V20, and for R-C use an activation control that keeps the
@@ -737,19 +782,41 @@ would re-widen the destructive endpoint this design deliberately keeps server-fi
 A dedicated test-fixture write mechanism is the alternative if read-and-assert proves insufficient;
 what is not available is keeping the production write paths alive for test convenience.
 
-**G0b** runs the affected `golden-path` and `dashboard-data` suites against a **fresh database**,
-because that is precisely the case the current helper repairs and therefore the case where its
-removal bites. It is a separate gate from G0a on purpose: a revision listing proves a route is gone
-and says nothing about whether the fixture still works without it.
+**G0b is one hermetic CI gate, not a fresh database per context.** Revision 6 said "fresh database
+in every context", which conflates two separable things:
+
+- **Fixture semantics** — that the suites work without the retired routes. This needs exactly one
+  full-stack run on a disposable database. `ci-verification.yml` is the natural home: it already
+  starts the Docker stack and supplies `INTERNAL_API_KEY`, and needs only the E2E email and password
+  added.
+- **Per-context caller wiring** — that each live context can authenticate, read the version, and
+  send it. That is **G5**, and it needs no fresh database at all; the AWS and Azure synthetic
+  projects have live identities already and do not run these two suites.
+
+So no fresh AWS or Azure database is manufactured. The context matrix:
+
+| context | fresh DB | role |
+|---|---|---|
+| `ci-verification.yml` | yes — disposable stack | **G0b**; needs E2E email/password added |
+| `frontend-e2e-integration.yml` | yes — fresh stack | supplies neither the internal key nor E2E credentials today. Either wire it to the same fixture contract or declare it non-gating and stop describing it as exercising Golden-State |
+| `deploy-azure.yml` seed step | no | **G5**; carries the E2E user id and internal key, and must gain email/password for the login-read-write sequence |
+| AWS / Azure synthetic | no | **G5** via existing live identities |
+
+G0b is a separate gate from G0a on purpose: a revision listing proves a route is gone and says
+nothing about whether the fixture still works without it.
 
 There is a second reason this cannot wait on B1 alone: the helper seeds `BTC`, the legacy ticker Spec
 A repairs to `BTC-USD` and then rejects at the write boundary. Re-pointing at the seeded E2E identity
 resolves that too.
 
-#### D11 — `/api/assets` is served by portfolio-service and cached by ETag alone
+#### D11 — `/api/assets` is served by portfolio-service, routed in R-A, and cached by ETag alone
 
 The catalog is already in memory there via the Catalog_Module, so discovery needs no cross-service
-call. A new gateway route `Path=/api/assets/**` joins the existing table. The response carries
+call. A new gateway route `Path=/api/assets/**` joins the existing table — **in the R-A gateway
+artifact**, not in R-C. Shipping it with R-C would make that release change both the gateway and
+portfolio-service, so activating it would invalidate the very G2 its own checkpoint requires. The
+route is safe to stage early: the endpoint is read-only and side-effect free, and may sit dark until
+its controller ships. The response carries
 `ETag: "<catalogVersion>"` and `Cache-Control: private, no-cache`, so a client revalidates every
 time and normally receives `304` with no body. No second client-side persistent cache is introduced:
 catalog changes are deployment events, and an application-level cache would add invalidation
@@ -1065,16 +1132,25 @@ BY user_id HAVING COUNT(*) <> 1` is empty, and no user in `users` is absent from
 
 ### Gates
 
-There are **nine** labels, not eight — entry [28] miscounted G0 through G6 as six. They are also not
-nine independent observations, and treating them as a flat list is what let a derived checkpoint
-stand in for a property it does not establish.
+**Nine base predicates plus one derived checkpoint.** Not "nine labels" — that was the second
+miscount, after entry [28] read G0 through G6 as six. The base predicates are G0a, G0b, G1, G2, G2a,
+G2b, G3, G5 and G4; G6 is a derived checkpoint over them. Counting labels has now been wrong twice,
+so the structure is stated instead of the total.
 
-**Every capability gate uses the same evidence shape.** Revision 5 let some gates conclude a
-universal capability from reachability evidence alone. All of them now require:
+They are also not nine independent observations, and treating them as a flat list is what let a
+derived checkpoint stand in for a property it does not establish.
 
-1. CI or contract evidence bound to an **immutable image digest**;
-2. active revision → that exact digest, plus traffic evidence; and
-3. a controlled live probe wherever the behaviour can be exercised safely.
+**Every capability gate uses the same evidence shape, in two halves.** Revision 5 let some gates
+conclude a universal capability from reachability evidence alone; Revision 6 fixed that but then
+demanded all three parts before a deploy, which is impossible for a digest that is not yet serving.
+
+- **Candidate proof** — CI or contract evidence bound to an **immutable image digest**. Available
+  before activation; claims nothing about serving state.
+- **Serving proof** — active revision → that exact digest, plus traffic evidence, plus a controlled
+  live probe wherever the behaviour can be exercised safely. Available only after rollout.
+
+A gate cited *before* a deploy means its candidate proof plus the serving proof of the artifact
+currently in production. A gate cited *after* a deploy means the serving proof of the new digest.
 
 **Every gate declares what invalidates it.** A gate is not a fact about the system; it is a fact
 about a digest that was serving at an instant, and any rollout of that service invalidates it.
@@ -1082,7 +1158,7 @@ about a digest that was serving at an instant, and any rollout of that service i
 | gate | kind | predicate | invalidated by |
 |---|---|---|---|
 | **G0a** | independent | No traffic-serving portfolio revision exposes `POST /api/portfolio` or the versionless holdings `POST` | any portfolio rollout |
-| **G0b** | independent | The E2E fixture no longer requires either retired route: affected suites pass against a **fresh database** on the migrated identity | any fixture or suite change |
+| **G0b** | independent | The E2E fixture no longer requires either retired route: `golden-path` and `dashboard-data` pass against a **fresh disposable database** on the migrated identity, in one hermetic full-stack CI run | any fixture or suite change |
 | **G1** | independent | Provisioning insert passes at V19 **and** V20, binding `userId.toString()` | change to the insert or either schema |
 | **G2** | independent | Every serving gateway digest provisions at signup | any gateway rollout |
 | **G2a** | independent | Every serving portfolio digest returns Portfolio_Version on the authenticated read | any portfolio rollout |
@@ -1110,11 +1186,16 @@ retained only as a named checkpoint, defined as:
 Writer_Convergence while saying nothing about the exactly-one invariant that the same release depends
 on. Activation requires:
 
-- fresh **G6** (and therefore fresh G0a, G2a, G2b);
-- fresh **G2** — provisioning must still be present, not merely proved before R-B;
+- **serving** G6 (and therefore serving G0a, G2a, G2b) on the artifacts currently in production;
+- **serving G2** — provisioning must still be present, not merely proved before R-B;
 - **G3 recollected** after the latest valid G2 evidence, since a signup interval without provisioning
-  invalidates it; and
-- **G4**.
+  invalidates it;
+- **G4**; and
+- the **R-C candidate proof** — contract and integration evidence bound to the R-C digest, plus the
+  exhaustive writer inventory.
+
+The R-C *serving* proof is collected after rollout, not before. That is the half Revision 6 demanded
+prematurely.
 
 A prohibited rollback is a policy, not evidence. Either these are re-established at activation, or an
 immutable-artifact chain shows no intervening rollout invalidated them — which is precisely what the
@@ -1124,20 +1205,40 @@ service-scoped deployment in D9 makes possible.
 | release | artifact | gates |
 |---|---|---|
 | **R-0** | 0 — both legacy writers retired, migration-free | G0a **and G0b** after |
-| **R-A** | 1 — provisioning-capable gateway | G1 before deploy, G2 after |
+| **R-A** | 1 — provisioning-capable gateway **+ `/api/assets` route** | G1 before deploy, G2 after |
 | **R-B** | 2 — V20 migration | G0a, G0b and G2 before; G3 after |
 | **R-B2** | 2a — version-bearing authenticated read | G3 before; **G2a** after, then caller migration |
 | **R-B3** | 2b — version-required seed endpoint | G5 before; **G2b** after |
-| **R-C** | 3 — composition `PUT`, `/api/assets` | activation checkpoint before deploy: fresh G6, fresh G2, G3 recollected, G4 |
+| **R-C** | 3 — composition `PUT` (**portfolio-only**) | pre-deploy: serving G2/G3/G4/G6 **+ R-C candidate proof**. post-deploy: serving proof of the R-C digest |
 
 Six releases. No release exists in which a duplicate-creating path is reachable while the unique
 constraint is present, because R-0 completes and is verified before R-B starts.
 
-**G4 is a pre-deploy gate, not a post-deploy one.** The existing `Path=/api/portfolio/**` gateway
-route means the composition `PUT` is reachable the moment its controller revision receives traffic —
-there is no dark-deploy switch in this design, and adding one would be more machinery than
-sequencing the release correctly. `/api/assets` is exempt: it is read-only and side-effect free, so
-it may ship earlier.
+**Capability evidence has two halves, and only one of them can precede a deploy.** Revision 6
+required every capability gate to carry an immutable digest, an active revision mapped to it, and a
+live probe — and then required fresh G6 and G2 *before* R-C deploys. Those cannot both hold: before
+deploy the R-C digest is not the active revision and cannot be probed; after deploy the generic
+`Path=/api/portfolio/**` route makes its controller reachable immediately. Revision 6 also asserted
+that no dark-deploy switch exists while D9 offered an activation control as a fallback — two contrary
+decisions in the same document.
+
+Evidence is therefore split:
+
+- **Candidate proof**, before activation: contract and integration evidence bound to the exact
+  candidate digests, plus the exhaustive writer inventory. It makes no claim about serving state.
+- **Serving proof**, after rollout: active revision → that digest, traffic evidence, and the
+  controlled live probe.
+
+R-C's **pre-deploy** checkpoint is therefore: currently-serving G2, G3, G4 and G6, **plus** the R-C
+candidate proof. Its **post-deploy** checkpoint verifies the serving R-C digests, and on failure
+rolls only to the safe floor. Nothing pretends an undeployed digest has live evidence.
+
+**R-C is portfolio-only.** The `/api/assets` gateway route moves into the R-A gateway artifact,
+where it is safe because the endpoint is read-only, side-effect free, and may deploy dark. Leaving it
+in R-C would have made that release change *both* the gateway and portfolio-service, so activating it
+would invalidate the fresh G2 the same checkpoint requires. Service scoping prevents cross-service
+invalidation; it cannot stop a release from invalidating its own evidence, and a two-service R-C did
+exactly that.
 
 ### Rollback
 
