@@ -2,9 +2,20 @@ package com.wealth.gateway;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.sun.net.httpserver.HttpServer;
+import com.wealth.gateway.ratelimit.BurstRunner;
+import com.wealth.gateway.ratelimit.ProvenWindowRunner;
+import com.wealth.gateway.ratelimit.RawAttempt;
+import com.wealth.gateway.ratelimit.RedisTimeParser;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -57,6 +68,12 @@ class ProductionRateLimitingIntegrationTest {
     // Small burst capacities keep the suite fast while still exercising the real limiter beans.
     private static final int STANDARD_BURST = 3;
     private static final int STRICT_BURST = 2;
+    private static final int MAX_WINDOW_PROOF_ATTEMPTS = 30;
+    private static final Duration MAX_WINDOW_PROOF_SOFT_ELAPSED = Duration.ofSeconds(10);
+
+    private static HttpServer portfolioStub;
+    private static int portfolioStubPort;
+    private static final AtomicLong downstreamRequestCount = new AtomicLong();
 
     @Container
     @SuppressWarnings("resource")
@@ -80,7 +97,9 @@ class ProductionRateLimitingIntegrationTest {
                     .withPassword("wealth_pass");
 
     @DynamicPropertySource
-    static void redisAndRateLimitProperties(DynamicPropertyRegistry registry) {
+    static void redisAndRateLimitProperties(DynamicPropertyRegistry registry) throws IOException {
+        startPortfolioStub();
+        registry.add("app.routes.portfolio-url", () -> "http://127.0.0.1:" + portfolioStubPort);
         registry.add("spring.data.redis.url",
                 () -> "redis://" + redis.getHost() + ":" + redis.getMappedPort(REDIS_PORT));
         // Bound fail-open latency for the failOpenWhenRedisDown test, but generous enough to
@@ -113,7 +132,41 @@ class ProductionRateLimitingIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        webTestClient = WebTestClient.bindToServer().baseUrl("http://localhost:" + port).build();
+        webTestClient = WebTestClient.bindToServer()
+                .baseUrl("http://localhost:" + port)
+                .responseTimeout(Duration.ofSeconds(5))
+                .build();
+    }
+
+    private static void startPortfolioStub() throws IOException {
+        if (portfolioStub != null) {
+            return;
+        }
+        portfolioStub = HttpServer.create(new InetSocketAddress(0), 0);
+        portfolioStubPort = portfolioStub.getAddress().getPort();
+        portfolioStub.createContext("/", exchange -> {
+            downstreamRequestCount.incrementAndGet();
+            byte[] body = "{}".getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(200, body.length);
+            try (OutputStream out = exchange.getResponseBody()) {
+                out.write(body);
+            }
+        });
+        portfolioStub.start();
+    }
+
+    @AfterAll
+    static void stopPortfolioStub() {
+        if (portfolioStub != null) {
+            portfolioStub.stop(0);
+            portfolioStub = null;
+        }
+    }
+
+    private String redisTimeSeconds() throws Exception {
+        org.testcontainers.containers.Container.ExecResult result =
+                redis.execInContainer("redis-cli", "TIME");
+        return RedisTimeParser.parse(result.getExitCode(), result.getStdout());
     }
 
     private static String tokenFor(String sub) {
@@ -174,33 +227,37 @@ class ProductionRateLimitingIntegrationTest {
     // -------------------------------------------------------------------------
 
     @Test
-    void burstAllowedThenThrottledWithDecrement() {
-        String token = tokenFor("prod-standard-burst-user");
-        List<String> remainingValues = new ArrayList<>();
+    void burstAllowedThenThrottledWithDecrement() throws Exception {
+        BurstRunner productionBurstRunner = key -> {
+            long baseline = downstreamRequestCount.get();
+            List<EntityExchangeResult<String>> burst = new ArrayList<>();
+            for (int i = 0; i < STANDARD_BURST; i++) {
+                burst.add(webTestClient.get().uri(PORTFOLIO_PATH).header("Authorization", "Bearer " + key)
+                        .exchange().expectBody(String.class).returnResult());
+            }
+            EntityExchangeResult<String> excess = webTestClient.get().uri(PORTFOLIO_PATH)
+                    .header("Authorization", "Bearer " + key).exchange().expectBody(String.class).returnResult();
+            return new RawAttempt(burst, excess, downstreamRequestCount.get() - baseline);
+        };
 
-        for (int i = 0; i < STANDARD_BURST; i++) {
-            final int requestNum = i + 1;
-            webTestClient.get()
-                    .uri(PORTFOLIO_PATH)
-                    .header("Authorization", "Bearer " + token)
-                    .exchange()
-                    .expectStatus().value(status ->
-                            assertThat(status).as("request %d should be allowed", requestNum).isNotEqualTo(429))
-                    .expectHeader().value("X-RateLimit-Remaining", remainingValues::add);
+        RawAttempt proven = new ProvenWindowRunner(this::redisTimeSeconds,
+                () -> tokenFor("proven-window-" + System.nanoTime()), productionBurstRunner)
+                .run(MAX_WINDOW_PROOF_ATTEMPTS, MAX_WINDOW_PROOF_SOFT_ELAPSED);
+
+        List<String> remaining = new ArrayList<>();
+        for (int i = 0; i < proven.burstResponses().size(); i++) {
+            EntityExchangeResult<String> r = proven.burstResponses().get(i);
+            assertThat(r.getStatus().value()).as("burst request %d proxied successfully", i + 1).isEqualTo(200);
+            remaining.add(r.getResponseHeaders().getFirst("X-RateLimit-Remaining"));
         }
+        assertThat(remaining).containsExactly("2", "1", "0");
 
-        // Decrements from burstCapacity - 1 down to 0 across the STANDARD_BURST allowed requests.
-        assertThat(remainingValues).containsExactly("2", "1", "0");
-
-        // Once the bucket is exhausted it must reach 429 (retried to absorb wall-clock
-        // replenishment drift under CI scheduling jitter — see awaitThrottledResponse), not
-        // proxied, with Retry-After + JSON body (Property 9, Req 5.5).
-        EntityExchangeResult<String> throttled = awaitThrottledResponse(PORTFOLIO_PATH, token);
-        assertThat(throttled.getResponseHeaders().getFirst("Retry-After")).isEqualTo("1");
-        assertThat(throttled.getResponseHeaders().getContentType()).isEqualTo(MediaType.APPLICATION_JSON);
-        assertThat(throttled.getResponseBody())
-                .contains("\"error\":\"rate_limited\"")
-                .contains("\"retryAfterSeconds\":1");
+        EntityExchangeResult<String> excess = proven.firstExcessResponse();
+        assertThat(excess.getStatus().value()).isEqualTo(429);
+        assertThat(excess.getResponseHeaders().getFirst("Retry-After")).isEqualTo("1");
+        assertThat(excess.getResponseHeaders().getContentType()).isEqualTo(MediaType.APPLICATION_JSON);
+        assertThat(excess.getResponseBody()).contains("\"error\":\"rate_limited\"").contains("\"retryAfterSeconds\":1");
+        assertThat(proven.downstreamDelta()).isEqualTo(STANDARD_BURST);
     }
 
     // -------------------------------------------------------------------------
