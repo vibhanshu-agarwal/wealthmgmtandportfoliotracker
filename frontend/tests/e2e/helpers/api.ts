@@ -8,16 +8,18 @@ const GATEWAY_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:80
  *
  * Falls back to "user-001" (Flyway seed) if login is unavailable.
  */
-async function resolveUserId(request: APIRequestContext): Promise<string> {
+async function resolveUserId(): Promise<string> {
   try {
     // Dev user seeded by V15__Reconcile_Auth_Seed_Users.sql (real per-user auth).
-    const res = await request.post(`${GATEWAY_URL}/api/auth/login`, {
-      data: {
+    const res = await fetch(`${GATEWAY_URL}/api/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
         email: "dev@local",
         password: "local-dev-password-2026",
-      },
+      }),
     });
-    if (res.ok()) {
+    if (res.ok) {
       const data = await res.json();
       if (data?.userId) {
         console.log(`[api] Resolved login userId: ${data.userId}`);
@@ -45,7 +47,7 @@ export async function ensurePortfolioWithHoldings(
   token?: string,
 ): Promise<string> {
   // Resolve the active userId and mint a matching JWT
-  const userId = await resolveUserId(request);
+  const userId = await resolveUserId();
   const bearerToken = token ?? mintJwt(userId);
 
   // ── 1. Fetch existing portfolios ──────────────────────────────────────────
