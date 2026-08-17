@@ -28,10 +28,17 @@ jobs:
           test -d playwright-report/trace || { echo "::error::missing trace/ output"; exit 1; }
           zip_count=$(find playwright-report/data -maxdepth 1 -name '*.zip' | wc -l)
           [ "$zip_count" -eq 1 ] || { echo "::error::expected 1 nested zip, found $zip_count"; exit 1; }
+      - name: Sanitize Playwright artifacts
+        id: sanitize
+        uses: ./.github/actions/sanitize-playwright-artifacts
+        with:
+          source-dir: .github/actions/sanitize-playwright-artifacts/test/canary/playwright-report
+          staging-dir: ${{ runner.temp }}/sanitized-ivcheck
+          mode: fallback-only
       - uses: actions/upload-artifact@v4
         with:
           name: ivcheck-prefix
-          path: .github/actions/sanitize-playwright-artifacts/test/canary/playwright-report
+          path: ${{ runner.temp }}/sanitized-ivcheck
   detect:
     needs: produce
     runs-on: ubuntu-latest
@@ -53,7 +60,8 @@ jobs:
           SANITIZE_STAGING_DIR="${{ runner.temp }}/ivcheck-staging" \
           SANITIZE_MODE=fallback-only node sanitize.js
           if diff -rq "${{ github.workspace }}/downloaded" "${{ runner.temp }}/ivcheck-staging" > /dev/null; then
-            echo "::error::expected the pre-fix artifact to contain the sentinel — none detected"
+            echo "post-fix clean: downloaded artifact is byte-identical to a fresh sanitize pass"
+          else
+            echo "::error::expected the post-fix artifact to contain no residual sentinel"
             exit 1
           fi
-          echo "pre-fix leak confirmed: sentinel detected and would have been withheld"
