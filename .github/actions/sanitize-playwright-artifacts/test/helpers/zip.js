@@ -28,9 +28,15 @@ function createZip(entries, { comment = "", prefix = Buffer.alloc(0) } = {}) {
     const name = Buffer.isBuffer(entry.name) ? entry.name : Buffer.from(entry.name);
     const data = Buffer.isBuffer(entry.data) ? entry.data : Buffer.from(entry.data);
     const extra = entry.extra ? Buffer.from(entry.extra) : Buffer.alloc(0);
+    const localExtra = entry.localExtra ? Buffer.from(entry.localExtra) : extra;
     const fileComment = entry.comment ? Buffer.from(entry.comment) : Buffer.alloc(0);
     const crc = zlib.crc32(data);
-    const compression = entry.deflate ? 8 : 0;
+    const compression =
+      entry.compressionMethod != null
+        ? entry.compressionMethod
+        : entry.deflate
+          ? 8
+          : 0;
     const payload = entry.deflate ? zlib.deflateRawSync(data) : data;
     const flags = entry.flags || 0;
 
@@ -45,16 +51,16 @@ function createZip(entries, { comment = "", prefix = Buffer.alloc(0) } = {}) {
       u32(payload.length),
       u32(data.length),
       u16(name.length),
-      u16(extra.length),
+      u16(localExtra.length),
       name,
-      extra,
+      localExtra,
       payload,
     ]);
     locals.push(local);
 
     const central = Buffer.concat([
       Buffer.from("PK\x01\x02", "binary"),
-      u16(20),
+      u16(entry.versionMadeBy || 20),
       u16(20),
       u16(flags),
       u16(compression),

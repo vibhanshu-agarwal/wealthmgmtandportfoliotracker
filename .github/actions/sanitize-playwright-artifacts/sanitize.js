@@ -107,12 +107,36 @@ function resolveAgainstWorkspace(p) {
   return path.resolve(workspace, p);
 }
 
+function copyTreeNoSymlinks(src, dest) {
+  let stat;
+  try {
+    stat = fs.lstatSync(src);
+  } catch (err) {
+    throw new UninspectableError(`COPY_STAT: ${err.message}`);
+  }
+  if (stat.isSymbolicLink()) {
+    throw new UninspectableError("SYMLINK");
+  }
+  if (stat.isDirectory()) {
+    fs.mkdirSync(dest, { recursive: true });
+    for (const name of fs.readdirSync(src)) {
+      copyTreeNoSymlinks(path.join(src, name), path.join(dest, name));
+    }
+    return;
+  }
+  if (stat.isFile()) {
+    fs.copyFileSync(src, dest);
+    return;
+  }
+  throw new UninspectableError("UNSUPPORTED_FILE_TYPE");
+}
+
 function copySourceToStaging(sourceDir, stagingDir) {
   fs.mkdirSync(stagingDir, { recursive: true });
   if (!fs.existsSync(sourceDir)) {
     return;
   }
-  fs.cpSync(sourceDir, stagingDir, { recursive: true });
+  copyTreeNoSymlinks(sourceDir, stagingDir);
 }
 
 function defaultSentinelVariants() {
@@ -399,6 +423,10 @@ async function inspectZipEntry(zipfile, entry, ctx) {
     if (crc !== entry.crc32) {
       return { outcome: "B", reason: "CRC_MISMATCH" };
     }
+    ctx.archiveUncompressed = (ctx.archiveUncompressed || 0) + uncompressed;
+    if (ctx.archiveUncompressed > PER_ARCHIVE_UNCOMPRESSED_LIMIT) {
+      return { outcome: "B", reason: "PER_ARCHIVE_LIMIT" };
+    }
     if (entry.compressedSize > 0) {
       const ratio = uncompressed / entry.compressedSize;
       if (ratio > MAX_COMPRESSION_RATIO) {
@@ -447,16 +475,12 @@ async function structuredScan(filePath, options = {}) {
 
     const seenNames = new Set();
     let matched = false;
+    const entryCtx = { sentinels, depth, budget, seenNames, archiveUncompressed: 0 };
     await new Promise((resolve, reject) => {
       zipfile.on("error", reject);
       zipfile.on("end", resolve);
       zipfile.on("entry", (entry) => {
-        inspectZipEntry(zipfile, entry, {
-          sentinels,
-          depth,
-          budget,
-          seenNames,
-        })
+        inspectZipEntry(zipfile, entry, entryCtx)
           .then((entryResult) => {
             if (entryResult.outcome === "B") {
               const err = new Error(entryResult.reason);
@@ -488,12 +512,204 @@ async function structuredScan(filePath, options = {}) {
   }
 }
 
-function main() {
+function resolveSentinelValues(mode, e2ePassword) {
+  const password = e2ePassword || "";
+  if (mode === "live-secret") {
+    if (password.trim() === "") {
+      throw new UninspectableError("mode=live-secret requires a non-empty e2e-password");
+    }
+  } else if (mode === "fallback-only") {
+    if (password.trim() !== "") {
+      throw new UninspectableError("mode=fallback-only must not receive e2e-password");
+    }
+  } else {
+    throw new UninspectableError(
+      `mode must be 'live-secret' or 'fallback-only', got: ${mode}`,
+    );
+  }
+  const values = [
+    ...(password ? [password] : []),
+    ...KNOWN_NON_SECRET_LITERALS,
+  ];
+  return buildSentinelVariants(values);
+}
+
+function loadAllowlistMap() {
+  const manifestPath = path.join(__dirname, "known-playwright-report-assets.json");
+  if (!fs.existsSync(manifestPath)) return new Map();
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+  const map = new Map();
+  if (Array.isArray(manifest.assets)) {
+    for (const asset of manifest.assets) {
+      map.set(asset.path, { sha256: asset.sha256 });
+    }
+  }
+  return map;
+}
+
+function walkFiles(root) {
+  const files = [];
+  function rec(dir) {
+    for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, ent.name);
+      if (ent.isSymbolicLink()) {
+        throw new UninspectableError("SYMLINK");
+      }
+      if (ent.isDirectory()) rec(full);
+      else if (ent.isFile()) files.push(full);
+      else throw new UninspectableError("UNSUPPORTED_FILE_TYPE");
+    }
+  }
+  rec(root);
+  return files;
+}
+
+function replaceWithPlaceholder(filePath) {
+  fs.unlinkSync(filePath);
+  fs.writeFileSync(filePath, PLACEHOLDER_CONTENTS);
+}
+
+async function rawArchiveScan(filePath, options = {}) {
+  const sentinels = options.sentinels || defaultSentinelVariants();
+  const budget = options.budget || { consumed: 0, limit: GLOBAL_BYTE_BUDGET };
+  const overlapLen = Math.max(0, longestVariantLength(sentinels) - 1);
+  let bytesRead = 0;
+  let overlapTail = Buffer.alloc(0);
+  let matched = false;
+  try {
+    await new Promise((resolve, reject) => {
+      const stream = fs.createReadStream(filePath, {
+        highWaterMark: STREAM_HIGH_WATER_MARK,
+      });
+      stream.on("error", reject);
+      stream.on("end", resolve);
+      stream.on("data", (chunk) => {
+        bytesRead += chunk.length;
+        budget.consumed += chunk.length;
+        if (
+          bytesRead > PER_ARCHIVE_UNCOMPRESSED_LIMIT ||
+          budget.consumed > budget.limit
+        ) {
+          stream.destroy();
+          const err = new UninspectableError("RAW_ARCHIVE_BUDGET");
+          err.outcome = "B";
+          reject(err);
+          return;
+        }
+        const searchable = Buffer.concat([overlapTail, chunk]);
+        if (bufferContainsAny(searchable, sentinels)) matched = true;
+        overlapTail = overlapTailOf(chunk, overlapLen);
+      });
+    });
+  } catch (err) {
+    return { outcome: "B", reason: err.reason || err.message };
+  }
+  return matched ? { outcome: "A", reason: "RAW_ARCHIVE_MATCH" } : { outcome: "clean" };
+}
+
+async function handleFile(filePath, stagingDir, ctx) {
+  const { sentinels, allowlist, budget, mutating } = ctx;
+  const classified = await classify(filePath, stagingDir, {
+    sentinels,
+    allowlist,
+    budget,
+  });
+  if (classified.type === "UNINSPECTABLE") {
+    return { outcome: "B", reason: classified.reason || "UNINSPECTABLE" };
+  }
+  if (classified.type === "TEXT") {
+    if (classified.matched) {
+      if (mutating) replaceWithPlaceholder(filePath);
+      return { outcome: "A", reason: "TEXT_MATCH" };
+    }
+    return { outcome: "clean" };
+  }
+
+  const zipResult = await structuredScan(filePath, { sentinels, budget });
+  if (zipResult.outcome === "B") return zipResult;
+  const rawResult = await rawArchiveScan(filePath, { sentinels, budget });
+  if (rawResult.outcome === "B") return rawResult;
+  if (zipResult.outcome === "A" || rawResult.outcome === "A") {
+    if (mutating) replaceWithPlaceholder(filePath);
+    return { outcome: "A", reason: zipResult.reason || rawResult.reason };
+  }
+  return { outcome: "clean" };
+}
+
+function assertSourceInsideWorkspace(sourceDir) {
+  const workspace = process.env.GITHUB_WORKSPACE
+    ? path.resolve(process.env.GITHUB_WORKSPACE)
+    : "";
+  if (!workspace) {
+    throw new UninspectableError("GITHUB_WORKSPACE is required");
+  }
+  const resolved = path.resolve(sourceDir);
+  const rel = path.relative(workspace, resolved);
+  if (rel.startsWith("..") || path.isAbsolute(rel)) {
+    throw new UninspectableError("source-dir must canonicalize inside GITHUB_WORKSPACE");
+  }
+}
+
+function assertStagingIsFreshTempChild(stagingDir) {
+  const tempRoot = process.env.RUNNER_TEMP
+    ? path.resolve(process.env.RUNNER_TEMP)
+    : "";
+  if (!tempRoot) {
+    throw new UninspectableError("RUNNER_TEMP is required");
+  }
+  if (fs.lstatSync(tempRoot).isSymbolicLink()) {
+    throw new UninspectableError("RUNNER_TEMP must not be a symlink");
+  }
+  const resolved = path.resolve(stagingDir);
+  if (fs.existsSync(resolved)) {
+    throw new UninspectableError("staging-dir must be a fresh child of RUNNER_TEMP");
+  }
+  if (path.resolve(path.dirname(resolved)) !== tempRoot) {
+    throw new UninspectableError("staging-dir must be a fresh non-symlink child of RUNNER_TEMP");
+  }
+}
+
+async function runSanitizeFromEnv() {
+  const mode = process.env.SANITIZE_MODE;
+  const e2ePassword = process.env.SANITIZE_E2E_PASSWORD || "";
+  const sentinels = resolveSentinelValues(mode, e2ePassword);
   const sourceDir = resolveAgainstWorkspace(process.env.SANITIZE_SOURCE_DIR);
-  const stagingDir = resolveAgainstWorkspace(process.env.SANITIZE_STAGING_DIR);
-  void process.env.SANITIZE_MODE;
-  void process.env.SANITIZE_E2E_PASSWORD;
+  const stagingDir = path.resolve(process.env.SANITIZE_STAGING_DIR);
+  assertSourceInsideWorkspace(sourceDir);
+  assertStagingIsFreshTempChild(stagingDir);
+
+  const budget = { consumed: 0, limit: GLOBAL_BYTE_BUDGET };
+  const allowlist = loadAllowlistMap();
+  const sourceMissing = !fs.existsSync(sourceDir);
   copySourceToStaging(sourceDir, stagingDir);
+
+  const ctx = { sentinels, allowlist, budget, mutating: true };
+  if (!sourceMissing) {
+    for (const filePath of walkFiles(stagingDir)) {
+      const result = await handleFile(filePath, stagingDir, ctx);
+      if (result.outcome === "B") {
+        throw new UninspectableError(result.reason || "OUTCOME_B");
+      }
+    }
+  }
+
+  ctx.mutating = false;
+  for (const filePath of walkFiles(stagingDir)) {
+    const result = await handleFile(filePath, stagingDir, ctx);
+    if (result.outcome !== "clean") {
+      throw new UninspectableError(
+        `pass 2 ${result.outcome}: ${result.reason || "residual"}`,
+      );
+    }
+  }
+}
+
+async function main() {
+  try {
+    await runSanitizeFromEnv();
+  } catch (err) {
+    fail(err.message);
+  }
 }
 
 if (require.main === module) {
@@ -503,6 +719,10 @@ if (require.main === module) {
 module.exports = {
   classify,
   structuredScan,
+  rawArchiveScan,
+  runSanitizeFromEnv,
+  resolveSentinelValues,
+  handleFile,
   TOP_LEVEL_FILE_BYTE_LIMIT,
   PER_ENTRY_UNCOMPRESSED_LIMIT,
   PER_ARCHIVE_UNCOMPRESSED_LIMIT,
