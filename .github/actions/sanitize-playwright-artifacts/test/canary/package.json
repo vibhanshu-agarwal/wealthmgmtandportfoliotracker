@@ -1,0 +1,8 @@
+{
+  "name": "sanitize-playwright-canary",
+  "private": true,
+  "version": "1.0.0",
+  "devDependencies": {
+    "@playwright/test": "1.59.0"
+  }
+}

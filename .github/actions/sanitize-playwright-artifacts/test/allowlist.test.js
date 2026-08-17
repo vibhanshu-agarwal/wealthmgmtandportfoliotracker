@@ -202,6 +202,34 @@ describe("classify allowlist branch", () => {
       fs.createReadStream = original;
     }
   });
+
+  it("authenticates the real Playwright 1.59.0 binary assets only with a matching digest", async () => {
+    const canaryTrace = path.join(__dirname, "canary", "playwright-report", "trace");
+    const manifest = JSON.parse(
+      fs.readFileSync(
+        path.join(__dirname, "..", "known-playwright-report-assets.json"),
+        "utf8",
+      ),
+    );
+    const byPath = new Map(manifest.assets.map((asset) => [asset.path, asset.sha256]));
+    const rels = ["trace/codicon.DCmgc-ay.ttf", "trace/uiMode.Vipi55dB.js"];
+    for (const rel of rels) {
+      const src = path.join(canaryTrace, ...rel.split("/").slice(1));
+      assert.equal(fs.existsSync(src), true, `missing real canary asset ${src}`);
+      const bytes = fs.readFileSync(src);
+      const dest = writeFile(rel, bytes);
+      const matched = await classify(dest, stagingRoot, {
+        allowlist: new Map([[rel, { sha256: byPath.get(rel) }]]),
+      });
+      assert.notEqual(matched.type, "UNINSPECTABLE", rel);
+      const wrong = await classify(dest, stagingRoot, {
+        allowlist: new Map([[rel, { sha256: "ab".repeat(32) }]]),
+      });
+      if (rel.endsWith(".ttf")) {
+        assert.equal(wrong.type, "UNINSPECTABLE", rel);
+      }
+    }
+  });
 });
 
 describe("known-assets-manifest-tool", () => {
@@ -310,5 +338,12 @@ describe("known-assets-manifest-tool", () => {
     assert.throws(() =>
       verifyManifest(reportDir, manifestPath, { lockfilePath: divergedLock }),
     );
+  });
+
+  it("verifies the committed manifest against the real canary playwright-report", () => {
+    const realReport = path.join(__dirname, "canary", "playwright-report");
+    const committed = path.join(__dirname, "..", "known-playwright-report-assets.json");
+    assert.equal(fs.existsSync(path.join(realReport, "trace")), true);
+    verifyManifest(realReport, committed);
   });
 });
