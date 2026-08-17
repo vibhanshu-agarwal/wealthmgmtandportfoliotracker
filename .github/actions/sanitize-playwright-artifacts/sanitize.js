@@ -3,6 +3,8 @@
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
+const zlib = require("zlib");
+const os = require("os");
 const yauzl = require("yauzl");
 
 const TOP_LEVEL_FILE_BYTE_LIMIT = 50 * 1024 * 1024;
@@ -252,6 +254,204 @@ async function classify(filePath, stagingDirRoot, options = {}) {
   return { type: "TEXT", matched, digest };
 }
 
+function valueMatchesSentinels(value, sentinels) {
+  if (value == null || value === "") return false;
+  const buf = Buffer.isBuffer(value) ? value : Buffer.from(String(value), "utf8");
+  return bufferContainsAny(buf, sentinels);
+}
+
+function isZipSymlink(entry) {
+  const madeByUnix = (entry.versionMadeBy >> 8) === 3;
+  const fileType = (entry.externalFileAttributes >> 16) & 0xf000;
+  return madeByUnix && fileType === 0xa000;
+}
+
+async function inspectZipEntry(zipfile, entry, ctx) {
+  const { sentinels, depth, budget, seenNames } = ctx;
+  const nameKey = Buffer.isBuffer(entry.fileName)
+    ? entry.fileName.toString("hex")
+    : String(entry.fileName);
+  if (seenNames.has(nameKey)) {
+    return { outcome: "B", reason: "DUPLICATE_ENTRY" };
+  }
+  seenNames.add(nameKey);
+  if (seenNames.size > MAX_ZIP_ENTRIES) {
+    return { outcome: "B", reason: "ENTRY_COUNT" };
+  }
+  if (isZipSymlink(entry)) {
+    return { outcome: "B", reason: "SYMLINK_ENTRY" };
+  }
+
+  const metaFields = [
+    entry.fileName,
+    entry.fileNameRaw,
+    entry.fileComment,
+    entry.fileCommentRaw,
+    entry.extraFieldRaw,
+  ];
+  if (Array.isArray(entry.extraFields)) {
+    for (const field of entry.extraFields) {
+      metaFields.push(field.data);
+    }
+  }
+  const metaMatch = metaFields.some((value) =>
+    valueMatchesSentinels(value, sentinels),
+  );
+
+  if (entry.uncompressedSize > PER_ENTRY_UNCOMPRESSED_LIMIT) {
+    return { outcome: "B", reason: "PER_ENTRY_LIMIT" };
+  }
+
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "sanitize-entry-"));
+  const tmpFile = path.join(tmpDir, "content");
+  try {
+    const readStream = await zipfile.openReadStreamPromise(entry);
+    const writeStream = fs.createWriteStream(tmpFile);
+    let uncompressed = 0;
+    let crc = 0;
+    let decodeOk = true;
+    const decoder = new TextDecoder("utf-8", { fatal: true });
+    let overlapTail = Buffer.alloc(0);
+    const overlapLen = Math.max(0, longestVariantLength(sentinels) - 1);
+    let contentMatch = false;
+
+    await new Promise((resolve, reject) => {
+      const failB = (reason) => {
+        readStream.destroy();
+        const err = new Error(reason);
+        err.outcome = "B";
+        err.reason = reason;
+        reject(err);
+      };
+      readStream.on("error", reject);
+      writeStream.on("error", reject);
+      writeStream.on("finish", resolve);
+      readStream.on("data", (chunk) => {
+        uncompressed += chunk.length;
+        budget.consumed += chunk.length;
+        if (
+          uncompressed > PER_ENTRY_UNCOMPRESSED_LIMIT ||
+          budget.consumed > budget.limit
+        ) {
+          failB("ENTRY_SIZE");
+          return;
+        }
+        crc = zlib.crc32(chunk, crc);
+        const searchable = Buffer.concat([overlapTail, chunk]);
+        if (bufferContainsAny(searchable, sentinels)) contentMatch = true;
+        overlapTail = overlapTailOf(chunk, overlapLen);
+        if (decodeOk) {
+          try {
+            const decoded = decoder.decode(chunk, { stream: true });
+            if (hasDisallowedControl(decoded)) throw new ControlByteViolation();
+          } catch {
+            decodeOk = false;
+          }
+        }
+        writeStream.write(chunk);
+      });
+      readStream.on("end", () => writeStream.end());
+    });
+
+    try {
+      const flushed = decoder.decode();
+      if (hasDisallowedControl(flushed)) decodeOk = false;
+    } catch {
+      decodeOk = false;
+    }
+
+    if (crc !== entry.crc32) {
+      return { outcome: "B", reason: "CRC_MISMATCH" };
+    }
+    if (entry.compressedSize > 0) {
+      const ratio = uncompressed / entry.compressedSize;
+      if (ratio > MAX_COMPRESSION_RATIO) {
+        return { outcome: "B", reason: "COMPRESSION_RATIO" };
+      }
+    }
+
+    if (await tryOpenZip(tmpFile)) {
+      return structuredScan(tmpFile, { sentinels, depth: depth + 1, budget });
+    }
+    if (!decodeOk) {
+      return { outcome: "B", reason: "UNINSPECTABLE_ENTRY" };
+    }
+    if (metaMatch || contentMatch) {
+      return { outcome: "A", reason: "MATCH" };
+    }
+    return { outcome: "clean" };
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+}
+
+async function structuredScan(filePath, options = {}) {
+  const sentinels = options.sentinels || defaultSentinelVariants();
+  const depth = options.depth || 0;
+  const budget = options.budget || { consumed: 0, limit: GLOBAL_BYTE_BUDGET };
+  if (depth > MAX_ZIP_NESTING) {
+    return { outcome: "B", reason: "NESTING" };
+  }
+
+  let zipfile;
+  try {
+    zipfile = await yauzl.openPromise(filePath, {
+      validateEntrySizes: true,
+      strictFileNames: true,
+      lazyEntries: true,
+    });
+  } catch (err) {
+    return { outcome: "B", reason: `ZIP_OPEN: ${err.message}` };
+  }
+
+  try {
+    if (valueMatchesSentinels(zipfile.comment, sentinels)) {
+      return { outcome: "A", reason: "ARCHIVE_COMMENT" };
+    }
+
+    const seenNames = new Set();
+    let matched = false;
+    await new Promise((resolve, reject) => {
+      zipfile.on("error", reject);
+      zipfile.on("end", resolve);
+      zipfile.on("entry", (entry) => {
+        inspectZipEntry(zipfile, entry, {
+          sentinels,
+          depth,
+          budget,
+          seenNames,
+        })
+          .then((entryResult) => {
+            if (entryResult.outcome === "B") {
+              const err = new Error(entryResult.reason);
+              err.outcome = "B";
+              err.reason = entryResult.reason;
+              reject(err);
+              return;
+            }
+            if (entryResult.outcome === "A") matched = true;
+            zipfile.readEntry();
+          })
+          .catch(reject);
+      });
+      zipfile.readEntry();
+    });
+    if (matched) return { outcome: "A", reason: "ENTRY_MATCH" };
+    return { outcome: "clean" };
+  } catch (err) {
+    if (err && err.outcome === "B") {
+      return { outcome: "B", reason: err.reason || err.message };
+    }
+    return { outcome: "B", reason: `SCANNER_ERROR: ${err && err.message}` };
+  } finally {
+    try {
+      zipfile.close();
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
 function main() {
   const sourceDir = resolveAgainstWorkspace(process.env.SANITIZE_SOURCE_DIR);
   const stagingDir = resolveAgainstWorkspace(process.env.SANITIZE_STAGING_DIR);
@@ -266,6 +466,7 @@ if (require.main === module) {
 
 module.exports = {
   classify,
+  structuredScan,
   TOP_LEVEL_FILE_BYTE_LIMIT,
   PER_ENTRY_UNCOMPRESSED_LIMIT,
   PER_ARCHIVE_UNCOMPRESSED_LIMIT,

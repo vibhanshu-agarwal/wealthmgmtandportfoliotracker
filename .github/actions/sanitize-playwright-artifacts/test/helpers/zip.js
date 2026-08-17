@@ -94,4 +94,22 @@ function createZip(entries, { comment = "", prefix = Buffer.alloc(0) } = {}) {
   return Buffer.concat([prefixBuf, ...locals, centralBuf, eocd]);
 }
 
-module.exports = { createZip };
+function extraField(id, data) {
+  const payload = Buffer.isBuffer(data) ? data : Buffer.from(data);
+  const header = Buffer.alloc(4);
+  header.writeUInt16LE(id, 0);
+  header.writeUInt16LE(payload.length, 2);
+  return Buffer.concat([header, payload]);
+}
+
+function unicodePathExtra(rawName, unicodeName) {
+  const raw = Buffer.isBuffer(rawName) ? rawName : Buffer.from(rawName);
+  const data = Buffer.concat([
+    Buffer.from([1]),
+    u32(zlib.crc32(raw)),
+    Buffer.from(unicodeName, "utf8"),
+  ]);
+  return extraField(0x7075, data);
+}
+
+module.exports = { createZip, extraField, unicodePathExtra };
