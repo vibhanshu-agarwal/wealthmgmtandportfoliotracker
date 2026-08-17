@@ -1,0 +1,13 @@
+{
+  "name": "sanitize-playwright-artifacts",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Fail-closed Playwright artifact sanitizer for GitHub Actions uploads",
+  "main": "sanitize.js",
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "yauzl": "3.4.0"
+  }
+}
