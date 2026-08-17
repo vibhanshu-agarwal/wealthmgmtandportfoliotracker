@@ -1,0 +1,40 @@
+# Composite action: sanitize Playwright output before actions/upload-artifact.
+name: Sanitize Playwright artifacts
+description: Copy Playwright output into a staging directory and fail closed if a secret sentinel remains.
+inputs:
+  source-dir:
+    required: true
+  staging-dir:
+    required: true
+  mode:
+    required: true
+    description: "'live-secret' or 'fallback-only'"
+  e2e-password:
+    required: false
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Node for the sanitizer
+      uses: actions/setup-node@v4
+      with:
+        node-version: "22"
+
+    - name: Install sanitizer dependencies
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      run: npm ci --ignore-scripts
+
+    - name: Audit sanitizer dependencies
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      run: npm audit --omit=dev --audit-level=low
+
+    - name: Run sanitizer
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      env:
+        SANITIZE_SOURCE_DIR: ${{ inputs.source-dir }}
+        SANITIZE_STAGING_DIR: ${{ inputs.staging-dir }}
+        SANITIZE_MODE: ${{ inputs.mode }}
+        SANITIZE_E2E_PASSWORD: ${{ inputs.e2e-password }}
+      run: node "${{ github.action_path }}/sanitize.js"

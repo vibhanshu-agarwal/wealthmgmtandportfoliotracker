@@ -23,11 +23,17 @@ export async function installGatewaySessionInitScript(
   // (portfolio-service/src/main/resources/db/migration/V15__Reconcile_Auth_Seed_Users.sql) —
   // real per-user auth replaced the old app.auth.* hardcoded-credential default
   // (dev@localhost.local / password) that this used to rely on.
-  const res = await request.post(`${GATEWAY_URL}/api/auth/login`, {
-    data: { email: "dev@local", password: "local-dev-password-2026" },
+  void request;
+  const res = await fetch(`${GATEWAY_URL}/api/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      email: "dev@local",
+      password: "local-dev-password-2026",
+    }),
   });
-  if (!res.ok()) {
-    throw new Error(`[e2e] login failed: ${res.status()} ${await res.text()}`);
+  if (!res.ok) {
+    throw new Error(`[e2e] login failed: ${res.status} ${await res.text()}`);
   }
   const payload = (await res.json()) as SessionPayload;
 

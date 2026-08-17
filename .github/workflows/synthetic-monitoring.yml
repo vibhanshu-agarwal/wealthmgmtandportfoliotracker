@@ -87,12 +87,23 @@ jobs:
           E2E_TEST_USER_PASSWORD: ${{ secrets.E2E_TEST_USER_PASSWORD }}
         run: npx playwright test --project=aws-synthetic
 
-      - name: Upload Report
+      - name: Sanitize Playwright artifacts
+        id: sanitize
         if: always()
+        uses: ./.github/actions/sanitize-playwright-artifacts
+        with:
+          source-dir: frontend/playwright-report
+          staging-dir: ${{ runner.temp }}/sanitized-playwright-report
+          mode: live-secret
+          e2e-password: ${{ secrets.E2E_TEST_USER_PASSWORD }}
+
+      - name: Upload Report
+        id: upload-report
+        if: always() && steps.sanitize.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: playwright-report
-          path: frontend/playwright-report/
+          path: ${{ runner.temp }}/sanitized-playwright-report
           retention-days: 7
 
   run-azure-synthetic-tests:
@@ -186,10 +197,21 @@ jobs:
           E2E_TEST_USER_PASSWORD: ${{ secrets.E2E_TEST_USER_PASSWORD }}
         run: npx playwright test --project=azure-synthetic
 
-      - name: Upload Report
+      - name: Sanitize Playwright artifacts
+        id: sanitize
         if: always()
+        uses: ./.github/actions/sanitize-playwright-artifacts
+        with:
+          source-dir: frontend/playwright-report
+          staging-dir: ${{ runner.temp }}/sanitized-playwright-report
+          mode: live-secret
+          e2e-password: ${{ secrets.E2E_TEST_USER_PASSWORD }}
+
+      - name: Upload Report
+        id: upload-report
+        if: always() && steps.sanitize.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: playwright-report-azure
-          path: frontend/playwright-report/
+          path: ${{ runner.temp }}/sanitized-playwright-report
           retention-days: 7

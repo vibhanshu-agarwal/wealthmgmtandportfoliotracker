@@ -1,0 +1,69 @@
+{
+  "playwrightTestVersion": "1.59.0",
+  "assets": [
+    {
+      "path": "trace/assets/codeMirrorModule-DS0FLvoc.js",
+      "sha256": "dd5360bef14066001507518e8c2f6b3e525ac1cc41fa7fdf23c34e96f4efadb1"
+    },
+    {
+      "path": "trace/assets/defaultSettingsView-GTWI-W_B.js",
+      "sha256": "9c48649a4dfc1ba799a687c4ac96a6a9ada57696116044c227c67c51ebbfdce7"
+    },
+    {
+      "path": "trace/codeMirrorModule.DYBRYzYX.css",
+      "sha256": "70bf421a13e87857ca684bfa2cc55f06d7c5a50f71253a3ff1d74769b14a957e"
+    },
+    {
+      "path": "trace/codicon.DCmgc-ay.ttf",
+      "sha256": "0f1d5219934e96e83b8db162d60b4d8c09b5de1e7d38031cbafe4a3c0f2889c9"
+    },
+    {
+      "path": "trace/defaultSettingsView.B4dS75f0.css",
+      "sha256": "844a328b121a95937eec1893b391d5a3473194568dc585ba927f16c8ed0f90c8"
+    },
+    {
+      "path": "trace/index.CzXZzn5A.css",
+      "sha256": "4ec2a3d49db259ce9025cb4fa48d73b1afd58215e567eef3b4a4cbf76c1674d9"
+    },
+    {
+      "path": "trace/index.Dtstcb7U.js",
+      "sha256": "e4ed160396e5ed318bdafa1c89f2bde6a98cb688f6af4796264c0ed917a3c8ea"
+    },
+    {
+      "path": "trace/index.html",
+      "sha256": "9f58327c1ab4357f8674989360cab231b92d3bd30abdae52ffb47c40c0e74e90"
+    },
+    {
+      "path": "trace/manifest.webmanifest",
+      "sha256": "d8540500603a32a39fe7e5a0375dc0f9ebafd11118e06a846db7efc608223ab9"
+    },
+    {
+      "path": "trace/playwright-logo.svg",
+      "sha256": "6b0a4367bdeab10995bc239278f04c68c10e48adbec15e799e01909a0d66dcb9"
+    },
+    {
+      "path": "trace/snapshot.html",
+      "sha256": "e192546675329f804bb9d4afbd96f7a1368e53cc42a05f0cc4a57949df7bc245"
+    },
+    {
+      "path": "trace/sw.bundle.js",
+      "sha256": "c76aa023df69a0835d12bfae95dddf91c5c90e4e87791d64f41aa051f394d678"
+    },
+    {
+      "path": "trace/uiMode.Btcz36p_.css",
+      "sha256": "bfe8330cc78eeb1b1c4d8983aab7068d725526e407903ee19e515996250cb221"
+    },
+    {
+      "path": "trace/uiMode.Vipi55dB.js",
+      "sha256": "fb1005d82811458ffd6ae041d79cc7ebabcb6073f7fe03b5f7694c093433ba7b"
+    },
+    {
+      "path": "trace/uiMode.html",
+      "sha256": "6cb988cb543334e85350fea36b4ccecae80e76294e0f6c326d7067a1cfa7aaaa"
+    },
+    {
+      "path": "trace/xtermModule.DYP7pi_n.css",
+      "sha256": "7c5a01f382f76539fc9b4db6b18e18a7035741845fd14968c5cdc0a7e373d817"
+    }
+  ]
+}

@@ -367,3 +367,13 @@ jobs:
 
       - name: Verify live demo data
         run: bash .github/workflows/scripts/verify-azure-demo.sh
+
+      - name: Sanitize Playwright artifacts
+        id: sanitize
+        if: always()
+        uses: ./.github/actions/sanitize-playwright-artifacts
+        with:
+          source-dir: frontend/playwright-report
+          staging-dir: ${{ runner.temp }}/sanitized-playwright-report
+          mode: live-secret
+          e2e-password: ${{ secrets.E2E_TEST_USER_PASSWORD }}
