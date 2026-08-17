@@ -119,6 +119,44 @@ function defaultSentinelVariants() {
   return buildSentinelVariants(KNOWN_NON_SECRET_LITERALS);
 }
 
+function isValidTraceSegment(segment) {
+  if (segment === "" || segment === "." || segment === "..") return false;
+  if (segment.includes("\\")) return false;
+  for (let i = 0; i < segment.length; i += 1) {
+    if (segment.charCodeAt(i) <= 0x1f) return false;
+  }
+  return true;
+}
+
+function toCanonicalTracePath(filePath, stagingDirRoot) {
+  const rel = path.relative(stagingDirRoot, filePath);
+  if (rel === "" || path.isAbsolute(rel) || rel.startsWith("..")) return null;
+  const normalized = rel.split(path.sep).join("/");
+  const segments = normalized.split("/");
+  for (const segment of segments) {
+    if (!isValidTraceSegment(segment)) return null;
+  }
+  if (segments[0] !== "trace") return null;
+  return normalized;
+}
+
+function validateManifestTracePath(raw, stagingDirRoot) {
+  if (typeof raw !== "string" || raw === "") return null;
+  if (raw.includes("\\") || path.isAbsolute(raw)) return null;
+  for (let i = 0; i < raw.length; i += 1) {
+    if (raw.charCodeAt(i) <= 0x1f) return null;
+  }
+  const rawSegments = raw.split("/");
+  for (const segment of rawSegments) {
+    if (!isValidTraceSegment(segment)) return null;
+  }
+  if (rawSegments[0] !== "trace") return null;
+  const resolvedFilePath = path.resolve(stagingDirRoot, raw);
+  const canonical = toCanonicalTracePath(resolvedFilePath, stagingDirRoot);
+  if (canonical !== raw) return null;
+  return raw;
+}
+
 function overlapTailOf(chunk, overlapLen) {
   if (overlapLen <= 0) return Buffer.alloc(0);
   if (chunk.length <= overlapLen) return Buffer.from(chunk);
@@ -144,15 +182,15 @@ async function tryOpenZip(filePath) {
  * Allowlist candidacy is wired in A5; A3 uses the non-candidate path only.
  */
 async function classify(filePath, stagingDirRoot, options = {}) {
-  void stagingDirRoot;
   const sentinels = options.sentinels || defaultSentinelVariants();
   const overlapLen = Math.max(0, longestVariantLength(sentinels) - 1);
   const allowlist = options.allowlist || new Map();
   const budget = options.budget || { consumed: 0, limit: GLOBAL_BYTE_BUDGET };
-  const isAllowlistCandidate =
-    typeof options.isAllowlistCandidate === "function"
-      ? options.isAllowlistCandidate(filePath, stagingDirRoot)
-      : false;
+  const canonicalPath = toCanonicalTracePath(
+    path.resolve(filePath),
+    path.resolve(stagingDirRoot),
+  );
+  const isAllowlistCandidate = canonicalPath !== null;
 
   if (await tryOpenZip(filePath)) {
     return { type: "ZIP", matched: false };
@@ -242,9 +280,7 @@ async function classify(filePath, stagingDirRoot, options = {}) {
   }
 
   const digest = hasher.digest("hex");
-  const canonicalPath =
-    typeof options.canonicalPath === "string" ? options.canonicalPath : null;
-  const allowlistEntry = canonicalPath ? allowlist.get(canonicalPath) : null;
+  const allowlistEntry = allowlist.get(canonicalPath);
   if (allowlistEntry && allowlistEntry.sha256 === digest) {
     return { type: "TEXT", matched, authenticated: true, digest };
   }
@@ -484,5 +520,8 @@ module.exports = {
   fail,
   UninspectableError,
   ControlByteViolation,
+  isValidTraceSegment,
+  toCanonicalTracePath,
+  validateManifestTracePath,
   main,
 };
