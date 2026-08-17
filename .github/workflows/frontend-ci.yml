@@ -43,6 +43,7 @@ jobs:
         run: npm run build
 
       - name: Upload static export artifact
+        id: upload-static-export
         uses: actions/upload-artifact@v4
         with:
           name: next-static-export
@@ -90,10 +91,20 @@ jobs:
       - name: Run E2E smoke tests (static export only)
         run: npx playwright test --project=static-smoke --reporter=list
 
-      - name: Upload Playwright report on failure
+      - name: Sanitize Playwright artifacts
+        id: sanitize
         if: failure()
+        uses: ./.github/actions/sanitize-playwright-artifacts
+        with:
+          source-dir: frontend/playwright-report
+          staging-dir: ${{ runner.temp }}/sanitized-playwright-report
+          mode: fallback-only
+
+      - name: Upload Playwright report on failure
+        id: upload-playwright-report
+        if: failure() && steps.sanitize.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: playwright-smoke-report
           retention-days: 7
-          path: frontend/playwright-report/
+          path: ${{ runner.temp }}/sanitized-playwright-report

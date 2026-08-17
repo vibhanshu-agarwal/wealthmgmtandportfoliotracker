@@ -58,6 +58,7 @@ jobs:
         run: ./gradlew test --no-daemon
 
       - name: Upload Test Results on Failure
+        id: upload-unit-test-results
         if: failure()
         uses: actions/upload-artifact@v4
         with:
@@ -118,6 +119,7 @@ jobs:
         run: ./gradlew integrationTest --no-daemon
 
       - name: Upload Test Results on Failure
+        id: upload-integration-test-results
         if: failure()
         uses: actions/upload-artifact@v4
         with:

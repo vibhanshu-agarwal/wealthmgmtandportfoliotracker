@@ -15,11 +15,97 @@ env:
   IMAGE_PREFIX: ghcr.io/${{ github.repository }}
 
 jobs:
+  static-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Run static sanitizer wiring guard
+        run: |
+          cd scripts && npm ci --ignore-scripts && npm audit --omit=dev --audit-level=low && node check-sanitizer-secret-wiring.js
+
+  sanitizer-canary:
+    runs-on: ubuntu-latest
+    needs: static-guard
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install sanitizer action dependencies
+        working-directory: .github/actions/sanitize-playwright-artifacts
+        run: npm ci --ignore-scripts && npm audit --omit=dev --audit-level=low
+
+      - name: Run generated Playwright canary
+        working-directory: .github/actions/sanitize-playwright-artifacts/test/canary
+        run: |
+          export GITHUB_WORKSPACE="${GITHUB_WORKSPACE:-$(git rev-parse --show-toplevel)}"
+          created_runner_temp=0
+          if [ -z "${RUNNER_TEMP:-}" ]; then
+            export RUNNER_TEMP="$(mktemp -d)"
+            created_runner_temp=1
+          fi
+          cleanup() {
+            if [ "$created_runner_temp" -eq 1 ]; then rm -rf "$RUNNER_TEMP"; fi
+          }
+          trap cleanup EXIT
+
+          rm -rf test-results playwright-report
+          if npm ci --ignore-scripts; then npm_status=0; else npm_status=$?; fi
+          [ "$npm_status" -eq 0 ] || { echo "FAIL: npm ci failed"; exit 1; }
+
+          if node sync-canary-playwright-version.js --check; then sync_status=0; else sync_status=$?; fi
+          [ "$sync_status" -eq 0 ] || { echo "FAIL: canary Playwright version diverges from frontend/package-lock.json"; exit 1; }
+
+          if npx playwright install --with-deps chromium; then install_status=0; else install_status=$?; fi
+          [ "$install_status" -eq 0 ] || { echo "FAIL: playwright install failed"; exit 1; }
+
+          if npx playwright test; then playwright_status=0; else playwright_status=$?; fi
+          if [ "$playwright_status" -eq 0 ]; then echo "FAIL: canary spec unexpectedly passed"; exit 1; fi
+          test -d test-results && test -d playwright-report \
+            || { echo "FAIL: expected output directories missing"; exit 1; }
+          zip_count=$(find playwright-report/data -maxdepth 1 -name '*.zip' | wc -l)
+          [ "$zip_count" -eq 1 ] || { echo "FAIL: expected exactly 1 nested report zip, found $zip_count"; exit 1; }
+
+          for root in playwright-report test-results; do
+            staging1=$(node -e "const path=require('path'),crypto=require('crypto');console.log(path.join(process.env.RUNNER_TEMP,'canary-staging-'+crypto.randomBytes(8).toString('hex')))")
+            if SANITIZE_SOURCE_DIR="$(pwd)/$root" SANITIZE_STAGING_DIR="$staging1" SANITIZE_MODE=fallback-only \
+                node ../../sanitize.js; then s1=0; else s1=$?; fi
+            [ "$s1" -eq 0 ] || { echo "FAIL: dirty-proof sanitize aborted for $root"; exit 1; }
+            diff -rq "$root" "$staging1" > /dev/null && { echo "FAIL: $root staging identical to source — sentinel not detected"; exit 1; }
+
+            clean_src="$(pwd)/.a13-clean-$root"
+            rm -rf "$clean_src"
+            cp -a "$staging1" "$clean_src"
+            staging2=$(node -e "const path=require('path'),crypto=require('crypto');console.log(path.join(process.env.RUNNER_TEMP,'canary-staging-'+crypto.randomBytes(8).toString('hex')))")
+            if SANITIZE_SOURCE_DIR="$clean_src" SANITIZE_STAGING_DIR="$staging2" SANITIZE_MODE=fallback-only \
+                node ../../sanitize.js; then s2=0; else s2=$?; fi
+            [ "$s2" -eq 0 ] || { echo "FAIL: clean-proof re-sanitize aborted for $root"; exit 1; }
+            diff -rq "$clean_src" "$staging2" > /dev/null || { echo "FAIL: re-sanitized $root output not byte-identical — not actually clean"; exit 1; }
+            rm -rf "$clean_src"
+          done
+
+          if node ../../known-assets-manifest-tool.js --verify playwright-report ../../known-playwright-report-assets.json; then
+            manifest_status=0
+          else
+            manifest_status=$?
+          fi
+          [ "$manifest_status" -eq 0 ] || { echo "FAIL: manifest does not match real producer output"; exit 1; }
+
+          echo "PASS: both roots proven dirty-then-clean; manifest verified"
+
   # ──────────────────────────────────────────────
   # Job 1: Unit tests (fast, no infrastructure)
   # ──────────────────────────────────────────────
   unit-tests:
     runs-on: ubuntu-latest
+    needs: static-guard
     steps:
       - uses: actions/checkout@v4
 
@@ -54,6 +140,7 @@ jobs:
         run: ./gradlew test --no-daemon
 
       - name: Upload test results on failure
+        id: upload-unit-test-results
         if: failure()
         uses: actions/upload-artifact@v4
         with:
@@ -100,6 +187,7 @@ jobs:
         run: ./gradlew integrationTest --no-daemon
 
       - name: Upload test results on failure
+        id: upload-integration-test-results
         if: failure()
         uses: actions/upload-artifact@v4
         with:
@@ -131,6 +219,7 @@ jobs:
         run: npm run test:pact
 
       - name: Upload Pact files
+        id: upload-pact-contracts
         uses: actions/upload-artifact@v4
         with:
           name: pact-contracts
@@ -278,12 +367,22 @@ jobs:
       # With --reporter=list no HTML report is generated; the actionable
       # artifacts are the per-failure traces + error-context snapshots that
       # Playwright writes to test-results/ (trace: retain-on-failure).
-      - name: Upload Playwright traces on failure
+      - name: Sanitize Playwright artifacts
+        id: sanitize
         if: failure()
+        uses: ./.github/actions/sanitize-playwright-artifacts
+        with:
+          source-dir: frontend/test-results
+          staging-dir: ${{ runner.temp }}/sanitized-output
+          mode: fallback-only
+
+      - name: Upload Playwright traces on failure
+        id: upload-playwright-traces
+        if: failure() && steps.sanitize.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: playwright-traces
-          path: frontend/test-results/
+          path: ${{ runner.temp }}/sanitized-output
           retention-days: 14
           if-no-files-found: ignore
 
@@ -292,6 +391,7 @@ jobs:
         run: docker compose logs --no-color > container-logs.txt 2>&1
 
       - name: Upload container logs on failure
+        id: upload-container-logs
         if: failure()
         uses: actions/upload-artifact@v4
         with:

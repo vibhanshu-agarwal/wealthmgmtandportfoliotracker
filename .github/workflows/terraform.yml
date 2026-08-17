@@ -110,6 +110,7 @@ jobs:
         run: python3 scripts/assert_plan.py plan.json
 
       - name: Upload Plan Artifact
+        id: upload-plan-artifact
         uses: actions/upload-artifact@v4
         with:
           name: tfplan
@@ -172,6 +173,7 @@ jobs:
           echo "✓ All 4 warming rules and 4 API destinations confirmed in ap-south-1"
 
       - name: Upload Apply Artifact
+        id: upload-apply-artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:

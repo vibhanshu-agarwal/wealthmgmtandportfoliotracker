@@ -1,0 +1,91 @@
+[
+  {
+    "workflow": ".github/workflows/synthetic-monitoring.yml",
+    "job": "run-synthetic-tests",
+    "stepId": "upload-report",
+    "playwright": true,
+    "baseline": "always"
+  },
+  {
+    "workflow": ".github/workflows/synthetic-monitoring.yml",
+    "job": "run-azure-synthetic-tests",
+    "stepId": "upload-report",
+    "playwright": true,
+    "baseline": "always"
+  },
+  {
+    "workflow": ".github/workflows/frontend-e2e-integration.yml",
+    "job": "e2e-full-stack",
+    "stepId": "upload-playwright-report",
+    "playwright": true,
+    "baseline": "failure"
+  },
+  {
+    "workflow": ".github/workflows/frontend-ci.yml",
+    "job": "e2e-smoke",
+    "stepId": "upload-playwright-report",
+    "playwright": true,
+    "baseline": "failure"
+  },
+  {
+    "workflow": ".github/workflows/ci-verification.yml",
+    "job": "docker-build-verify",
+    "stepId": "upload-playwright-traces",
+    "playwright": true,
+    "baseline": "failure"
+  },
+  {
+    "workflow": ".github/workflows/ci-verification.yml",
+    "job": "unit-tests",
+    "stepId": "upload-unit-test-results",
+    "playwright": false
+  },
+  {
+    "workflow": ".github/workflows/ci-verification.yml",
+    "job": "integration-tests",
+    "stepId": "upload-integration-test-results",
+    "playwright": false
+  },
+  {
+    "workflow": ".github/workflows/ci-verification.yml",
+    "job": "pact-consumer",
+    "stepId": "upload-pact-contracts",
+    "playwright": false
+  },
+  {
+    "workflow": ".github/workflows/ci-verification.yml",
+    "job": "docker-build-verify",
+    "stepId": "upload-container-logs",
+    "playwright": false
+  },
+  {
+    "workflow": ".github/workflows/ci.yml",
+    "job": "unit-tests",
+    "stepId": "upload-unit-test-results",
+    "playwright": false
+  },
+  {
+    "workflow": ".github/workflows/ci.yml",
+    "job": "integration-tests",
+    "stepId": "upload-integration-test-results",
+    "playwright": false
+  },
+  {
+    "workflow": ".github/workflows/frontend-ci.yml",
+    "job": "build-and-test",
+    "stepId": "upload-static-export",
+    "playwright": false
+  },
+  {
+    "workflow": ".github/workflows/terraform.yml",
+    "job": "validate",
+    "stepId": "upload-plan-artifact",
+    "playwright": false
+  },
+  {
+    "workflow": ".github/workflows/terraform.yml",
+    "job": "apply",
+    "stepId": "upload-apply-artifact",
+    "playwright": false
+  }
+]
