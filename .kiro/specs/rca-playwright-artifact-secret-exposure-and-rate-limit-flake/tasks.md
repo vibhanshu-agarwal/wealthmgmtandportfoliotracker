@@ -1,34 +1,19 @@
 # Tasks Document
 
-Revision 8. Built on the approved, frozen `bugfix.md` Revision 4
+Revision 9. Built on the approved, frozen `bugfix.md` Revision 4
 (`10bdb3d8bb4ae3b2b68628726f20143ccb52b8f1`) and the cleared `design.md` Revision 16
-(`92c85b95c1fd0b8eda1a26acaf908cf5935bbaf1`) — both unchanged, not reopened. Addresses all three
-narrow executable-oracle findings in checkpoint entry [53] against Revision 7
-(`3fd399c707833edc34f6b08db919074c86039cef`) — B9's recorded-`BASE_SHA` line written as an
-angle-bracket placeholder that bash actually parses as input redirection, not assignment (`bash -n`
-exit 2); A15's `|| true` attached to the whole `git ls-files | grep` pipeline, so it silently
-absorbed an upstream `git ls-files` failure, not just `grep`'s harmless zero-match exit; and B5
-printing `PASS` for a run even when its own required `BUILD SUCCESSFUL in Xs` duration-evidence
-extraction failed or came back empty. A6 is confirmed cleared and was not touched. Not a re-opening
-of any accepted architecture or design decision. This document is planning only: drafting it
-authorizes nothing beyond itself. No production/test/workflow code change, deployment, workflow
-dispatch, push, Terraform change or apply, password rotation, production probe, or real-credential
-use has been performed to produce it, and none is authorized until the owner approves all three SDD
-artifacts as a set. **Revision 7's self-audit claimed the complete B5/B8/B9 blocks were `bash -n`
-syntax-checked, but that check was run against a hand-retyped scratch copy, not the literal text in
-the document — the exact defect entry [53] finding 1 caught.** This revision's verification
-methodology is corrected accordingly: every fix below was checked by `sed`-extracting the precise
-line range from the on-disk document itself (never retyped) before running `bash -n` or a functional
-test against it, so what was verified is provably what is displayed. Several claims below were
-independently reproduced this way, not taken on citation alone: B9's exact displayed
-`BASE_SHA=<...>` line does `bash -n`-fail with exit 2 (confirmed before fixing, on the literal
-line); the corrected `: "${BASE_SHA:?...}"` form is ordinary valid shell and fails closed when unset
-(confirmed both ways); A15's old `|| true` swallows a genuine upstream `git ls-files` failure into a
-false `PASS` (confirmed via an invalid flag), and the corrected form fails closed in that same case
-while still passing clean and failing dirty; B5's old duration line lets a run print `PASS` with an
-empty duration (confirmed), and the corrected form returns 1 for that run instead. All five
-final blocks (A15, B5, B8's two blocks, B9), extracted verbatim by line range from the completed
-Revision 8 document, `bash -n` clean.
+(`92c85b95c1fd0b8eda1a26acaf908cf5935bbaf1`) — both unchanged, not reopened. Narrow owner-approved
+amendment of Revision 8 (`402a362551b25c7cb063dbc25a2f58526d8152c8`). Addresses the frozen-design
+conflict Codex recorded on PR #103 after P0/P1 closed on `9cf2c2b`: restoring A9's whole-job secret
+oracle against the real workflow tree requires a `live-secret` sanitizer on `deploy-azure.yml`'s
+`verify` job, but Revision 8's exhaustive Track A file scope did not list that workflow. The owner
+approved Option A: keep the `9cf2c2b` wiring and extend this document's file scope (and A10's
+site-count verify wording) accordingly. A10's "exactly 5" still counts Playwright-upload sanitizer
+sites only. No architecture, Layer 1/2 mechanism, Track B, or other Track A task is reopened.
+Revision 8's body, including the entry [53] executable-oracle fixes and the `bash -n`-checked final
+blocks, is carried forward unchanged except the file-scope and A10 verify passages listed under
+"What changed since Revision 8". This amendment does not authorize Track B, Terraform apply,
+password rotation, or dispatching `deploy-azure.yml`.
 
 ## What changed since Revision 3
 
@@ -280,6 +265,29 @@ on-disk Revision 8 document — never a retyped or paraphrased copy — before r
 functional test. All five bash blocks in the document (A15's, B5's, B8's two blocks, B9's),
 extracted this way, `bash -n` clean.
 
+## What changed since Revision 8 (owner-approved scope amendment, PR #103)
+
+1. **Track A file scope now includes `deploy-azure.yml`.** A9's whole-job oracle (design.md: the
+   secret/mode check is a separate pass over every parsed job, not only ones with an upload) fails
+   closed when `verify` independently references `secrets.E2E_TEST_USER_PASSWORD` as job-level
+   `DEMO_PASSWORD` with no sanitizer. Revision 8's exhaustive file list omitted that workflow, so
+   the implementation that restored the oracle was out of scope. Owner-approved exception: modify
+   the `verify` job only, adding one `live-secret` sanitizer (`id: sanitize`, `if: always()`, exact
+   `e2e-password` expression). This job has no `actions/upload-artifact` step and is not one of
+   A10's 5 Playwright-upload sites; it does not gain an upload `id:`. A missing in-workspace
+   `source-dir` (`frontend/playwright-report` is absent in this job) yields empty staging and
+   success. **Deployment-workflow behavior change, accepted by the owner:** `verify` gains one extra
+   composite-action step on every run, which can fail-close the job if the sanitizer itself fails;
+   it does not upload and does not alter `verify-azure-demo.sh`.
+2. **A10 verify wording.** Manual diff review still confirms exactly 5 Playwright-upload sites
+   gained a sanitize step and exactly 14 upload sites gained an `id:`. Separately,
+   `deploy-azure.yml` `verify` gained one oracle-required sanitizer that does not count toward
+   those two numbers.
+3. **This `tasks.md` is itself in Track A's diff** so the amendment is reviewable on the
+   implementation PR. `bugfix.md` and `design.md` are not modified. Workflow-level secret `env` on
+   `terraform.yml` / `terraform-azure.yml` remains outside the job AST the frozen oracle walks and
+   is not brought into scope by this revision.
+
 ## Prerequisite (before either implementation branch is created)
 
 The three approved SDD documents are currently uncommitted, on branch
@@ -453,6 +461,14 @@ this document, not only these two shared forms — applied explicitly in A13's c
   rewriting the upload step's `with.path`/`if:`.
 - Modified: `.github/workflows/ci-verification.yml` — two new jobs (`static-guard`,
   `sanitizer-canary`) and one `needs:` change on the existing `unit-tests` job (A12).
+- Modified: `.github/workflows/deploy-azure.yml` — `verify` job only (Revision 9, owner-approved).
+  Insert one sanitizer step immediately after the existing verify script: `id: sanitize`,
+  `if: always()`, `mode: live-secret`, `e2e-password: ${{ secrets.E2E_TEST_USER_PASSWORD }}`,
+  `source-dir: frontend/playwright-report`, `staging-dir` a fresh child of `${{ runner.temp }}`.
+  Required by A9's whole-job oracle because this job independently references the real secret;
+  not an A10 Playwright-upload site; no upload `id:` is added.
+- Modified: this `tasks.md` (Revision 9) — the scope amendment itself. `bugfix.md` and `design.md`
+  are not touched.
 - **Not part of the final diff:** a temporary `.github/workflows/_scratch-ivcheck.yml` used only
   during A14, deleted before the PR is opened — its absence is checked at A15.
 - No other file is touched by this track.
@@ -954,11 +970,13 @@ only, `fallback-only` for the other three); point the upload step's `path:` at t
 baseline. For the remaining 9 non-Playwright sites, add only an explicit `id:`.
 
 **Verify:** `js-yaml`'s `load()` against every changed file confirms it still parses. Manual diff
-review confirms exactly 5 sites gained a sanitize step and exactly 14 total sites gained an `id:`.
-An executable structural assertion (a small one-off script, or A9's own guard run against the
-modified tree) confirms every one of the 5 sanitize steps' own `if:` literally equals
-`always()`/`failure()` per its site's baseline — not merely that the upload step's conjunction
-mentions it.
+review confirms exactly 5 Playwright-upload sites gained a sanitize step and exactly 14 total
+upload sites gained an `id:`. Separately (Revision 9), `deploy-azure.yml` `verify` gained one
+`live-secret` sanitizer required by the whole-job oracle; it is not an A10 Playwright-upload site
+and does not add an upload `id:`. An executable structural assertion (a small one-off script, or
+A9's own guard run against the modified tree) confirms every one of the 5 Playwright-upload
+sanitize steps' own `if:` literally equals `always()`/`failure()` per its site's baseline — not
+merely that the upload step's conjunction mentions it.
 
 ### A11 — Checked-in upload manifest
 
@@ -1814,8 +1832,9 @@ Every `bugfix.md`/`design.md` obligation, mapped to the task(s) that implement a
 
 ## Owner approval gate
 
-`tasks.md` Revision 8 is complete. No task in it has been executed. Per `bugfix.md`'s Recorded
-Decisions and every checkpoint entry through [53]: **implementation may not begin until the owner
-approves all three SDD artifacts — `bugfix.md` Revision 4, `design.md` Revision 16, and this
-document — as a set.** Codex's traceability/executability/PR-boundary/stop-go review of this
-document is the next step; owner approval follows that review, not before it.
+`tasks.md` Revision 9 is a narrow owner-approved amendment of Revision 8. `bugfix.md` Revision 4 and
+`design.md` Revision 16 remain the frozen pair. The owner approved this scope amendment (Option A)
+on 2026-08-17: keep the `9cf2c2b` `deploy-azure.yml` `verify` sanitizer and extend Track A's
+exhaustive file scope plus A10's verify wording to match. Codex re-review of that amendment on
+PR #103 is the next step; required-status-check configuration on `main` remains an owner-side
+pre-merge gate.
