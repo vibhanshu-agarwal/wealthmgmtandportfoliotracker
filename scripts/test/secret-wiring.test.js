@@ -499,7 +499,7 @@ ${sanitizerBlock}
     assert.deepEqual(failures, []);
   });
 
-  it("passes a credential-using job that has neither a sanitizer nor an upload-artifact step", () => {
+  it("fails an independent secret reference with no sanitizer even when the job has no upload-artifact step", () => {
     const workflow = yamlFor(`
   j:
     runs-on: ubuntu-latest
@@ -517,7 +517,7 @@ ${sanitizerBlock}
         return workflow;
       },
     });
-    assert.deepEqual(failures, []);
+    assert.ok(failures.some((m) => /independently references the real secret/.test(m)));
   });
 
   it("fails an upload whose predecessor and path are correct but whose if omits the gate", () => {

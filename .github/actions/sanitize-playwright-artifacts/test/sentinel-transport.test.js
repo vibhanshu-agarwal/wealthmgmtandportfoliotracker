@@ -70,4 +70,26 @@ describe("sentinel transport", () => {
     const result = run({ mode: "anything", dirs: makeDirs() });
     assert.notEqual(result.status, 0);
   });
+
+  it("matches the URLSearchParams form of TestPassword123!", () => {
+    const { buildSentinelVariants, PLACEHOLDER_CONTENTS } = require("../sanitize.js");
+    const encoded = new URLSearchParams({ password: "TestPassword123!" }).toString();
+    assert.match(encoded, /TestPassword123%21/);
+    const variants = buildSentinelVariants(["TestPassword123!"]).map((buf) =>
+      buf.toString("utf8"),
+    );
+    assert.ok(
+      variants.includes("TestPassword123%21"),
+      `variants=${JSON.stringify(variants)}`,
+    );
+
+    const dirs = makeDirs();
+    fs.writeFileSync(path.join(dirs.sourceDir, "query.txt"), `${encoded}\n`);
+    const result = run({ mode: "fallback-only", dirs });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(
+      fs.readFileSync(path.join(dirs.stagingDir, "query.txt"), "utf8"),
+      PLACEHOLDER_CONTENTS,
+    );
+  });
 });

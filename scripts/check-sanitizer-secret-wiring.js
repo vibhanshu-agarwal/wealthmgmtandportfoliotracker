@@ -140,12 +140,6 @@ function referencesSecretIndependently(job) {
   return walk(independentJobView(job));
 }
 
-function jobHasUploadArtifact(job) {
-  return (job.steps ?? []).some((step) =>
-    (step.uses ?? "").startsWith("actions/upload-artifact@"),
-  );
-}
-
 function checkSecretMode(allParsedJobs) {
   for (const [jobId, job] of allParsedJobs) {
     const sanitizeSteps = (job.steps ?? []).filter(usesSanitizerAction);
@@ -157,7 +151,7 @@ function checkSecretMode(allParsedJobs) {
     }
     const sanitizer = sanitizeSteps[0];
     const independent = referencesSecretIndependently(job);
-    if (independent && (sanitizer || jobHasUploadArtifact(job))) {
+    if (independent) {
       const correctlyWired =
         sanitizer &&
         sanitizer.with?.mode === "live-secret" &&

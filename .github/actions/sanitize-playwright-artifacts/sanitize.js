@@ -62,13 +62,27 @@ function htmlEntityEncode(value) {
     .replace(/'/g, "&#39;");
 }
 
+function percentEncodeEveryNonAlphanumeric(value) {
+  let encoded = "";
+  for (const byte of Buffer.from(value, "utf8")) {
+    const alphanumeric =
+      (byte >= 0x30 && byte <= 0x39) ||
+      (byte >= 0x41 && byte <= 0x5a) ||
+      (byte >= 0x61 && byte <= 0x7a);
+    encoded += alphanumeric
+      ? String.fromCharCode(byte)
+      : `%${byte.toString(16).toUpperCase().padStart(2, "0")}`;
+  }
+  return encoded;
+}
+
 function buildSentinelVariants(values) {
   const unique = new Set();
   for (const value of values) {
     if (!value) continue;
     unique.add(value);
     unique.add(JSON.stringify(value).slice(1, -1));
-    unique.add(encodeURIComponent(value));
+    unique.add(percentEncodeEveryNonAlphanumeric(value));
     unique.add(htmlEntityEncode(value));
   }
   return [...unique].map((v) => Buffer.from(v, "utf8"));
