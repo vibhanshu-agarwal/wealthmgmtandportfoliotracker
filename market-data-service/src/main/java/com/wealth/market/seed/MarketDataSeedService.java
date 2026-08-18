@@ -63,7 +63,7 @@ public class MarketDataSeedService {
         // succeeds — this prevents Redis from being hydrated for documents that never persisted.
         List<PriceUpdatedEvent> pendingEvents = new ArrayList<>();
 
-        for (SeedTicker t : registry.all()) {
+        for (SeedTicker t : registry.active()) {
             Query q = new Query(Criteria.where("_id").is(t.ticker()));
             // Capture the computed price once so MongoDB and Kafka use the identical value.
             BigDecimal seededPrice = DeterministicPriceCalculator.compute(t.basePrice(), t.ticker(), userId);
@@ -107,6 +107,6 @@ public class MarketDataSeedService {
         int modified = result.getModifiedCount();
         log.info("Golden-state market-data seed complete: userId={} upserts={} modified={} matched={} eventsPublished={}",
                 userId, upserts, modified, result.getMatchedCount(), published);
-        return new SeedResult(registry.all().size());
+        return new SeedResult(registry.active().size());
     }
 }

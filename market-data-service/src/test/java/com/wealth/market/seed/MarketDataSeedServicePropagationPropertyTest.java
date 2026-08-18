@@ -178,7 +178,7 @@ class MarketDataSeedServicePropagationPropertyTest {
     @SuppressWarnings("unchecked")
     private static MarketDataSeedService newSeedService(List<SeedTicker> subset, List<Captured> published) {
         SeedTickerRegistry registry = mock(SeedTickerRegistry.class);
-        when(registry.all()).thenReturn(subset);
+        when(registry.active()).thenReturn(subset);
 
         MongoTemplate mongoTemplate = mock(MongoTemplate.class);
         BulkOperations bulk = mock(BulkOperations.class);

@@ -1,5 +1,6 @@
 package com.wealth.insight;
 
+import com.wealth.catalog.UnsupportedAssetException;
 import com.wealth.insight.advisor.AdvisorUnavailableException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -25,5 +26,13 @@ public class GlobalExceptionHandler {
                 "error", "AI advisor unavailable",
                 "retryable", true
         ));
+    }
+
+    @ExceptionHandler(UnsupportedAssetException.class)
+    public ResponseEntity<Map<String, Object>> handleUnsupportedAsset(UnsupportedAssetException ex) {
+        return ResponseEntity.unprocessableEntity().body(Map.of(
+                "error", "unsupported_asset",
+                "ticker", ex.ticker(),
+                "catalogVersion", ex.catalogVersion()));
     }
 }

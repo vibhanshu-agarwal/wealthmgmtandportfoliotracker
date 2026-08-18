@@ -258,7 +258,7 @@ class MarketDataSeedServicePropagationHardeningTest {
                                                         List<Captured> published,
                                                         boolean bulkThrows) {
         SeedTickerRegistry registry = mock(SeedTickerRegistry.class);
-        when(registry.all()).thenReturn(subset);
+        when(registry.active()).thenReturn(subset);
 
         MongoTemplate mongoTemplate = mock(MongoTemplate.class);
         BulkOperations bulk = mock(BulkOperations.class);

@@ -98,6 +98,9 @@ management:
           connect-timeout: 10s
 
 app:
+  catalog:
+    reject-unsupported-events: false
+    enforce-holding-invariant: false
   internal:
     # Shared secret gating /api/internal/** endpoints (Golden-State seeder).
     # Injected at runtime via the Lambda INTERNAL_API_KEY env var; blank in local dev

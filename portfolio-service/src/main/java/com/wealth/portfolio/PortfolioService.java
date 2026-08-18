@@ -11,6 +11,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.wealth.portfolio.catalog.SupportedAssetValidator;
 import com.wealth.portfolio.dto.PortfolioSummaryDto;
 import com.wealth.portfolio.fx.FxProperties;
 import com.wealth.user.UserRepository;
@@ -25,18 +26,21 @@ public class PortfolioService {
   private final UserRepository userRepository;
   private final FxRateProvider fxRateProvider;
   private final FxProperties fxProperties;
+  private final SupportedAssetValidator supportedAssetValidator;
 
   public PortfolioService(
       PortfolioRepository portfolioRepository,
       JdbcTemplate jdbcTemplate,
       UserRepository userRepository,
       FxRateProvider fxRateProvider,
-      FxProperties fxProperties) {
+      FxProperties fxProperties,
+      SupportedAssetValidator supportedAssetValidator) {
     this.portfolioRepository = portfolioRepository;
     this.jdbcTemplate = jdbcTemplate;
     this.userRepository = userRepository;
     this.fxRateProvider = fxRateProvider;
     this.fxProperties = fxProperties;
+    this.supportedAssetValidator = supportedAssetValidator;
   }
 
   // Task 1.3 verified: @Transactional(readOnly = true) keeps the JPA session open so
@@ -59,19 +63,21 @@ public class PortfolioService {
         .filter(p -> p.getUserId().equals(userId))
         .orElseThrow(() -> new UserNotFoundException(userId));
 
-    // Update quantity if holding already exists, otherwise add new with cost-basis capture
-    portfolio.getHoldings().stream()
-        .filter(h -> h.getAssetTicker().equals(ticker))
-        .findFirst()
-        .ifPresentOrElse(
-            h -> h.setQuantity(quantity),
-            () -> {
-              AssetHolding newHolding = new AssetHolding(portfolio, ticker, quantity);
-              // Task 4.2: capture cost basis at add-time when a current price exists.
-              captureCostBasis(newHolding, ticker);
-              portfolio.addHolding(newHolding);
-            }
-        );
+    var existing =
+        portfolio.getHoldings().stream()
+            .filter(h -> h.getAssetTicker().equals(ticker))
+            .findFirst();
+    BigDecimal currentQuantity = existing.map(AssetHolding::getQuantity).orElse(null);
+    supportedAssetValidator.requireHoldingWrite(ticker, currentQuantity, quantity);
+
+    existing.ifPresentOrElse(
+        h -> h.setQuantity(quantity),
+        () -> {
+          AssetHolding newHolding = new AssetHolding(portfolio, ticker, quantity);
+          // Task 4.2: capture cost basis at add-time when a current price exists.
+          captureCostBasis(newHolding, ticker);
+          portfolio.addHolding(newHolding);
+        });
 
     return toResponse(portfolioRepository.save(portfolio));
   }

@@ -33,9 +33,13 @@ public class SeedTickerRegistry {
     private final List<SeedTicker> tickers;
     private final Map<String, SeedTicker> byTicker;
 
+    private final List<SeedTicker> activeTickers;
+
     public SeedTickerRegistry(SupportedCatalog catalog, SeedCatalogView seedView) {
         this.tickers =
                 catalog.all().stream().map(entry -> toSeedTicker(entry, seedView)).toList();
+        this.activeTickers =
+                catalog.active().stream().map(entry -> toSeedTicker(entry, seedView)).toList();
         this.byTicker =
                 tickers.stream()
                         .collect(Collectors.toUnmodifiableMap(SeedTicker::ticker, ticker -> ticker));
@@ -43,6 +47,11 @@ public class SeedTickerRegistry {
 
     public List<SeedTicker> all() {
         return tickers;
+    }
+
+    /** Seed paths enumerate Active_Assets only. Lookup via {@link #find} still covers deprecated. */
+    public List<SeedTicker> active() {
+        return activeTickers;
     }
 
     public Optional<SeedTicker> find(String ticker) {

@@ -127,40 +127,40 @@ python scripts/check-spec-references.py   .kiro/specs/supported-asset-integrity/
       no price-count field
     - _Requirements: 11.1, 11.2, 11.3, 11.4, 11.5, 11.6, 11.7, 11.8, 11.9, 11.10_
 
-- [ ] 4. Write-boundary validation and freshness code (gated off)
-  - [ ] 4.1 `SupportedAssetValidator` + `UnsupportedAssetException`
+- [x] 4. Write-boundary validation and freshness code (gated off)
+  - [x] 4.1 `SupportedAssetValidator` + `UnsupportedAssetException`
     - Canonical ticker only; no alias resolution; in-process; no cross-service call
     - _Requirements: 6.1, 6.5, 6.6_
 
-  - [ ] 4.2 `@RestControllerAdvice` → HTTP 422 `unsupported_asset` + ticker + catalogVersion
+  - [x] 4.2 `@RestControllerAdvice` → HTTP 422 `unsupported_asset` + ticker + catalogVersion
     - Applies to **every** `Http_Entry_Point` including the internal seed endpoint
     - _Requirements: 6.2, 6.4_
 
-  - [ ] 4.3 Typed failure and rollback for `Application_Operation` and `Direct_Caller`
+  - [x] 4.3 Typed failure and rollback for `Application_Operation` and `Direct_Caller`
     - Identical detection regardless of caller; no partial mutation
     - _Requirements: 6.3, 6.10_
 
-  - [ ] 4.4 Deprecated-position rules
+  - [x] 4.4 Deprecated-position rules
     - Reduce/remove permitted; create/increase rejected; never retroactive
     - _Requirements: 6.8, 6.9_
 
-  - [ ] 4.5 Both seed paths enumerate `SupportedCatalog.active()` via `SeedCatalogView`
+  - [x] 4.5 Both seed paths enumerate `SupportedCatalog.active()` via `SeedCatalogView`
     - Without this the seeder writes `TATAMOTORS.NS` and rolls back its own repair once enforced
     - _Requirements: 6.7, 8.4_
 
-  - [ ] 4.6 Gate both enforcement properties, default `false` in this artifact
+  - [x] 4.6 Gate both enforcement properties, default `false` in this artifact
     - `app.catalog.reject-unsupported-events`, `app.catalog.enforce-holding-invariant`
     - _Requirements: 6.1_
 
-- [ ] 5. Refresh suspension machinery and Terraform plan safety
-  - [ ] 5.1 Suspended-mode runner
+- [x] 5. Refresh suspension machinery and Terraform plan safety
+  - [x] 5.1 Suspended-mode runner
     - Second `CommandLineRunner`, **mutually exclusive** with `MarketDataRefreshJobRunner`
     - Writes nothing: no Mongo, no Kafka, no Postgres
     - Emits `refresh_suspended` with the Job execution identity; flushes telemetry before exit
     - Calls `SpringApplication.exit` with code **`0`** — a suspended run is a success
     - _Requirements: 7.23_
 
-  - [ ] 5.2 Test the **full runner matrix**, not just three modes
+  - [x] 5.2 Test the **full runner matrix**, not just three modes
     - `MARKET_DATA_JOB_RUNNER_ENABLED=false` activates the **suspended** runner, which calls
       `SpringApplication.exit(0)`. A repair Job configured as "repair enabled, refresh disabled"
       would therefore start **both** the repair runner and the suspended runner, and the suspended
@@ -180,21 +180,21 @@ python scripts/check-spec-references.py   .kiro/specs/supported-asset-integrity/
     - Assert the suspended runner terminates with exit 0 rather than running to replica timeout
     - _Requirements: 7.22, 7.23_
 
-  - [ ] 5.3 Terraform: `ingress_enabled` input on the `container-app` module
+  - [x] 5.3 Terraform: `ingress_enabled` input on the `container-app` module
     - `dynamic "ingress"` omitted when false; gateway wired to it
     - _Requirements: 7.21_
 
-  - [ ] 5.4 **Plan assertion: changing the runner env var must not replace the Job**
+  - [x] 5.4 **Plan assertion: changing the runner env var must not replace the Job**
     - Python plan test asserting `azurerm_container_app_job.market_data_refresh` shows `update`,
       **not** `create`/`delete`, when only `MARKET_DATA_JOB_RUNNER_ENABLED` changes
     - Rationale: in azurerm 4.81.0 `schedule_trigger_config` is `ForceNew`; this test is what proves
       the chosen mechanism avoids it, and what will fail loudly on a provider upgrade
     - _Requirements: 7.22_
 
-  - [ ] 5.5 Plan assertion: `ingress_enabled = false` does not replace the gateway app
+  - [x] 5.5 Plan assertion: `ingress_enabled = false` does not replace the gateway app
     - _Requirements: 7.21_
 
-  - [ ] 5.6 Global-constraints review checkpoint
+  - [x] 5.6 Global-constraints review checkpoint
     - Walk the Global Constraints list; confirm none was violated by waves 0–5
 
 - [ ] 6. Postgres repair (V17–V19) — **first irreversible wave**

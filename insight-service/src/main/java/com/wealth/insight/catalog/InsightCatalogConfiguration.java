@@ -40,11 +40,17 @@ class InsightCatalogConfiguration {
 
     @Bean
     ApplicationListener<ApplicationReadyEvent> catalogLoadedLogger(SupportedCatalog catalog) {
+        boolean rejectUnsupportedEvents =
+                environment.getProperty("app.catalog.reject-unsupported-events", Boolean.class, false);
+        boolean enforceHoldingInvariant =
+                environment.getProperty("app.catalog.enforce-holding-invariant", Boolean.class, false);
         return event ->
                 log.info(
-                        "catalog_loaded version={} entries={} active={} rejectUnsupportedEvents=false enforceHoldingInvariant=false",
+                        "catalog_loaded version={} entries={} active={} rejectUnsupportedEvents={} enforceHoldingInvariant={}",
                         catalog.version(),
                         catalog.all().size(),
-                        catalog.active().size());
+                        catalog.active().size(),
+                        rejectUnsupportedEvents,
+                        enforceHoldingInvariant);
     }
 }

@@ -39,7 +39,7 @@ class PortfolioServiceFxTest {
     FxProperties props = new FxProperties("USD", null, null, null);
     service =
         new PortfolioService(
-            portfolioRepository, jdbcTemplate, userRepository, fxRateProvider, props);
+            portfolioRepository, jdbcTemplate, userRepository, fxRateProvider, props, mock());
   }
 
   // Property 7: FX-normalised total value — 10 × 100 EUR × 1.08 = 1080.0000 USD

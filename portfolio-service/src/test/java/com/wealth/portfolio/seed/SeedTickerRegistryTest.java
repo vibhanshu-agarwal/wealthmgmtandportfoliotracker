@@ -47,6 +47,16 @@ class SeedTickerRegistryTest {
         assertThat(counts.get("FOREX")).isEqualTo(10L);
     }
 
+    @Test
+    void load_activeEnumerationExcludesDeprecatedAndKeepsLookup() {
+        SupportedCatalog catalog = SupportedCatalog.load();
+        assertThat(registry.active()).hasSize(catalog.active().size());
+        assertThat(registry.active().stream().map(SeedTicker::ticker))
+                .doesNotContain("TATAMOTORS.NS");
+        assertThat(registry.find("TATAMOTORS.NS")).isPresent();
+        assertThat(registry.all()).hasSize(catalog.all().size());
+    }
+
     // ── Enriched fields: US_EQUITY ─────────────────────────────────────────────────────────
 
     @Test

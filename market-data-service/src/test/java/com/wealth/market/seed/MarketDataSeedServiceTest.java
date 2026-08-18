@@ -48,7 +48,7 @@ class MarketDataSeedServiceTest {
     @BeforeEach
     void setUp() {
         service = new MarketDataSeedService(mongoTemplate, registry, kafkaTemplate);
-        when(registry.all()).thenReturn(List.of(AAPL));
+        when(registry.active()).thenReturn(List.of(AAPL));
 
         BulkOperations bulk = mock(BulkOperations.class);
         when(mongoTemplate.bulkOps(any(BulkOperations.BulkMode.class), anyString())).thenReturn(bulk);

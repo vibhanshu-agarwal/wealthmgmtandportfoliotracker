@@ -4,6 +4,7 @@ import com.wealth.portfolio.AssetHolding;
 import com.wealth.portfolio.AssetHoldingRepository;
 import com.wealth.portfolio.Portfolio;
 import com.wealth.portfolio.PortfolioRepository;
+import com.wealth.portfolio.catalog.SupportedAssetValidator;
 import com.wealth.portfolio.seed.SeedTickerRegistry.SeedTicker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -65,13 +66,16 @@ public class PortfolioSeedService {
     private final PortfolioRepository portfolioRepository;
     private final AssetHoldingRepository assetHoldingRepository;
     private final SeedTickerRegistry registry;
+    private final SupportedAssetValidator supportedAssetValidator;
 
     public PortfolioSeedService(PortfolioRepository portfolioRepository,
                                 AssetHoldingRepository assetHoldingRepository,
-                                SeedTickerRegistry registry) {
+                                SeedTickerRegistry registry,
+                                SupportedAssetValidator supportedAssetValidator) {
         this.portfolioRepository = portfolioRepository;
         this.assetHoldingRepository = assetHoldingRepository;
         this.registry = registry;
+        this.supportedAssetValidator = supportedAssetValidator;
     }
 
     public record SeedResult(UUID portfolioId, int holdingsInserted) {}
@@ -82,17 +86,21 @@ public class PortfolioSeedService {
         //    Portfolio.holdings cascades the delete down to asset_holdings in the same
         //    transaction; the explicit flush() guarantees the DELETE runs before the
         //    subsequent INSERT so we don't hit any transient unique-constraint edges.
+        List<SeedTicker> seeds = registry.active();
+        for (SeedTicker ticker : seeds) {
+            supportedAssetValidator.requireActive(ticker.ticker());
+        }
+
         List<Portfolio> existing = portfolioRepository.findByUserId(userId);
         if (!existing.isEmpty()) {
             portfolioRepository.deleteAll(existing);
             portfolioRepository.flush();
         }
 
-        // 2. Persist one fresh portfolio, then its 160 holdings via the holdings
-        //    repository. Going through AssetHoldingRepository avoids touching the
+        // 2. Persist one fresh portfolio, then one holding per active catalogue ticker.
+        //    Going through AssetHoldingRepository avoids touching the
         //    package-private Portfolio.addHolding() helper from this sub-package.
         Portfolio saved = portfolioRepository.save(new Portfolio(userId));
-        List<SeedTicker> seeds = registry.all();
 
         // Cost-basis "as of" anchor: 25 h ago, so a seeded position reads as acquired
         // before the most recent refresh rather than in the current instant.

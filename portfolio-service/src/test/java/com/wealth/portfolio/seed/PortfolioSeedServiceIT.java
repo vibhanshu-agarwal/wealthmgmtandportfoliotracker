@@ -54,7 +54,6 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 class PortfolioSeedServiceIT {
 
     private static final String E2E_USER_ID = "00000000-0000-0000-0000-000000000e2e";
-    private static final int EXPECTED_HOLDINGS = 160;
 
     @Container
     @SuppressWarnings("resource")
@@ -100,9 +99,10 @@ class PortfolioSeedServiceIT {
 
         // ── First invocation: must create 1 portfolio + 160 holdings, and no price rows ──
         SeedResult first = seedService.seed(E2E_USER_ID);
+        int expectedHoldings = registry.active().size();
 
         assertThat(first.portfolioId()).as("portfolioId must be returned to the caller").isNotNull();
-        assertThat(first.holdingsInserted()).isEqualTo(EXPECTED_HOLDINGS);
+        assertThat(first.holdingsInserted()).isEqualTo(expectedHoldings);
 
         List<Portfolio> portfoliosAfterFirst = portfolioRepository.findByUserId(E2E_USER_ID);
         assertThat(portfoliosAfterFirst).hasSize(1);
@@ -110,13 +110,14 @@ class PortfolioSeedServiceIT {
 
         Portfolio portfolioFirst = portfoliosAfterFirst.get(0);
         List<AssetHolding> holdingsFirst = assetHoldingRepository.findByPortfolio(portfolioFirst);
-        assertThat(holdingsFirst).hasSize(EXPECTED_HOLDINGS);
+        assertThat(holdingsFirst).hasSize(expectedHoldings);
 
-        Set<String> registryTickers = registry.all().stream()
+        Set<String> registryTickers = registry.active().stream()
                 .map(SeedTicker::ticker).collect(Collectors.toSet());
         Set<String> holdingTickers = holdingsFirst.stream()
                 .map(AssetHolding::getAssetTicker).collect(Collectors.toSet());
         assertThat(holdingTickers).isEqualTo(registryTickers);
+        assertThat(holdingTickers).doesNotContain("TATAMOTORS.NS");
 
         assertPriceTablesUnchanged(pricesBefore, historyBefore, "after first seed");
 
@@ -135,7 +136,7 @@ class PortfolioSeedServiceIT {
         assertThat(portfolioRepository.findById(first.portfolioId())).isEmpty();
 
         List<AssetHolding> holdingsSecond = assetHoldingRepository.findByPortfolio(portfoliosAfterSecond.get(0));
-        assertThat(holdingsSecond).hasSize(EXPECTED_HOLDINGS);
+        assertThat(holdingsSecond).hasSize(expectedHoldings);
 
         // ── Determinism: quantities are byte-identical per ticker across runs ──
         Map<String, BigDecimal> quantitiesSecond = holdingsSecond.stream()
@@ -282,6 +283,6 @@ class PortfolioSeedServiceIT {
         assertThat(summary.totalValue())
                 .as("GET /api/portfolio/summary totalValue must be > 0 after seed")
                 .isGreaterThan(BigDecimal.ZERO);
-        assertThat(summary.totalHoldings()).isEqualTo(EXPECTED_HOLDINGS);
+        assertThat(summary.totalHoldings()).isEqualTo(registry.active().size());
     }
 }

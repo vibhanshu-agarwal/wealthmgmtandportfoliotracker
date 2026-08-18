@@ -73,6 +73,12 @@ variable "api_gateway_min_replicas" {
   description = "Minimum replica count for api-gateway. Set to 1 to keep a warm instance (~$3-4/month extra); 0 for full scale-to-zero."
 }
 
+variable "api_gateway_ingress_enabled" {
+  type        = bool
+  default     = true
+  description = "When false, omits the api-gateway ingress block so the maintenance window closes all routes including /api/internal/**. Default true. Changing this must update the existing app, not replace it."
+}
+
 variable "use_seed_image" {
   type        = bool
   default     = false

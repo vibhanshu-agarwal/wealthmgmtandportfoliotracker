@@ -4,6 +4,7 @@ import com.wealth.portfolio.AssetHolding;
 import com.wealth.portfolio.AssetHoldingRepository;
 import com.wealth.portfolio.Portfolio;
 import com.wealth.portfolio.PortfolioRepository;
+import com.wealth.portfolio.catalog.SupportedAssetValidator;
 import com.wealth.portfolio.seed.SeedTickerRegistry.SeedTicker;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -17,9 +18,13 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Unit tests for the golden-state seeder.
@@ -43,21 +48,23 @@ class PortfolioSeedServiceTest {
     @Mock private PortfolioRepository portfolioRepository;
     @Mock private AssetHoldingRepository assetHoldingRepository;
     @Mock private SeedTickerRegistry registry;
+    @Mock private SupportedAssetValidator supportedAssetValidator;
 
     private PortfolioSeedService service;
 
     @BeforeEach
     void setUp() {
-        service = new PortfolioSeedService(portfolioRepository, assetHoldingRepository, registry);
-        when(registry.all()).thenReturn(List.of(AAPL));
-        when(portfolioRepository.findByUserId(E2E_USER)).thenReturn(List.of());
+        service = new PortfolioSeedService(
+                portfolioRepository, assetHoldingRepository, registry, supportedAssetValidator);
+        when(registry.active()).thenReturn(List.of(AAPL));
+        lenient().when(portfolioRepository.findByUserId(E2E_USER)).thenReturn(List.of());
 
-        when(portfolioRepository.save(any(Portfolio.class))).thenAnswer(inv -> {
+        lenient().when(portfolioRepository.save(any(Portfolio.class))).thenAnswer(inv -> {
             Portfolio p = inv.getArgument(0);
             ReflectionTestUtils.setField(p, "id", UUID.randomUUID());
             return p;
         });
-        when(assetHoldingRepository.saveAll(any())).thenReturn(List.of());
+        lenient().when(assetHoldingRepository.saveAll(any())).thenReturn(List.of());
     }
 
     @Test
@@ -104,5 +111,19 @@ class PortfolioSeedServiceTest {
                 .isEqualByComparingTo(runs.get(0).get(0).getAvgCostBasis());
         assertThat(runs.get(1).get(0).getQuantity())
                 .isEqualByComparingTo(runs.get(0).get(0).getQuantity());
+    }
+
+    @Test
+    void seed_validatorRejectionLeavesNoPartialMutation() {
+        org.mockito.Mockito.doThrow(new com.wealth.catalog.UnsupportedAssetException("AAPL", "v"))
+                .when(supportedAssetValidator)
+                .requireActive("AAPL");
+
+        assertThatThrownBy(() -> service.seed(E2E_USER))
+                .isInstanceOf(com.wealth.catalog.UnsupportedAssetException.class);
+
+        verify(portfolioRepository, never()).deleteAll(any());
+        verify(portfolioRepository, never()).save(any());
+        verify(assetHoldingRepository, never()).saveAll(any());
     }
 }

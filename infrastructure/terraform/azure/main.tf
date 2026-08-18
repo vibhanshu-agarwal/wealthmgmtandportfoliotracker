@@ -212,6 +212,7 @@ module "api_gateway" {
   seed_image          = var.use_seed_image ? "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest" : ""
   target_port         = var.use_seed_image ? 80 : 8080
   external_ingress    = true
+  ingress_enabled     = var.api_gateway_ingress_enabled
   min_replicas        = var.api_gateway_min_replicas
   max_replicas        = 3
   cpu                 = 0.5

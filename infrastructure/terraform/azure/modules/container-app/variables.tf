@@ -50,6 +50,12 @@ variable "external_ingress" {
   description = "When true, the Container App is accessible from the public internet. Only api-gateway should set this to true."
 }
 
+variable "ingress_enabled" {
+  type        = bool
+  default     = true
+  description = "When false, the ingress block is omitted so the app has no HTTP ingress. Used to quiesce the gateway during a maintenance window. Default true."
+}
+
 variable "min_replicas" {
   type        = number
   default     = 0
