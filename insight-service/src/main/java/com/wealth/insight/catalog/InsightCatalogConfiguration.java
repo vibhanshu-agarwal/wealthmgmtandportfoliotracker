@@ -4,19 +4,28 @@ import com.wealth.catalog.CatalogLoadFailedException;
 import com.wealth.catalog.SupportedCatalog;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.ApplicationListener;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
 
 @Configuration
 class InsightCatalogConfiguration {
 
     private static final Logger log = LoggerFactory.getLogger(InsightCatalogConfiguration.class);
+    private static final String FALLBACK_SERVICE_NAME = "insight-service";
+
+    private final Environment environment;
+
+    InsightCatalogConfiguration(Environment environment) {
+        this.environment = environment;
+    }
 
     @Bean
-    SupportedCatalog supportedCatalog(@Value("${spring.application.name}") String serviceName) {
+    SupportedCatalog supportedCatalog() {
+        String serviceName =
+                environment.getProperty("spring.application.name", FALLBACK_SERVICE_NAME);
         try {
             return SupportedCatalog.load();
         } catch (CatalogLoadFailedException e) {
