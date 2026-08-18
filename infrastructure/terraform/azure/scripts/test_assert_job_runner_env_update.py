@@ -67,6 +67,39 @@ class JobRunnerEnvUpdateTests(unittest.TestCase):
     def test_job_absent_from_plan_passes(self):
         self.assertEqual(aje.evaluate_plan({"resource_changes": []}), [])
 
+    def test_greenfield_create_passes(self):
+        """PR plans use a local empty backend; the Job is created, not replaced."""
+        plan = {
+            "resource_changes": [
+                {
+                    "address": aje.JOB_ADDRESS,
+                    "type": "azurerm_container_app_job",
+                    "name": "market_data_refresh",
+                    "change": {
+                        "actions": ["create"],
+                        "before": None,
+                        "after": {
+                            "template": [
+                                {
+                                    "container": [
+                                        {
+                                            "env": [
+                                                {
+                                                    "name": "MARKET_DATA_JOB_RUNNER_ENABLED",
+                                                    "value": "true",
+                                                }
+                                            ]
+                                        }
+                                    ]
+                                }
+                            ]
+                        },
+                    },
+                }
+            ]
+        }
+        self.assertEqual(aje.evaluate_plan(plan), [])
+
     def test_delete_only_fails_when_env_changes(self):
         plan = _plan(_job(actions=["delete"], before_value="true", after_value=None))
         errors = aje.evaluate_plan(plan)

@@ -64,6 +64,9 @@ def evaluate_plan(plan: dict) -> list[str]:
     if before == after:
         return []
     actions = set(change.get("actions") or [])
+    # Greenfield create (PR plans use an empty local backend) is not a replace.
+    if before is None and "create" in actions and "delete" not in actions:
+        return []
     if actions & REPLACE_ACTIONS:
         return [
             f"FAIL [job runner env] {JOB_ADDRESS} changes {ENV_NAME} "
