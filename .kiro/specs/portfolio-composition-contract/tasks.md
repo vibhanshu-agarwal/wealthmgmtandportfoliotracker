@@ -326,14 +326,14 @@ the release lane cannot open until both gates are green regardless.
 
 ### P-B — digest deployment (based on P-A)
 
-- [ ] **P-B.1 Add a prebuilt-digest deploy path.** `deploy-azure.yml` currently runs
+- [x] **P-B.1 Add a prebuilt-digest deploy path.** `deploy-azure.yml` currently runs
   `docker build --no-cache --pull -f <service>/Dockerfile.azure` (line 145) and then
   `az containerapp update --image …:${{ github.sha }}` (line 161) — it **rebuilds independently and
   deploys by tag**. Without this, the serving proof would describe a fresh rebuild rather than the
   attested candidate. Add an input accepting `repository@sha256:…` and a skip-build branch updating
   the Container App to **that exact manifest digest**, without building, pushing or retagging.
   _Requirements: 9.7_
-- [ ] **P-B.2 Fail closed at the trust boundary — and accept `portfolio-service` only.** The mode is
+- [x] **P-B.2 Fail closed at the trust boundary — and accept `portfolio-service` only.** The mode is
   privileged, so every ambiguity is an error rather than a default.
 
   **The digest path is deliberately narrow.** B1 needs it only for R-C. A generic form would accept
@@ -353,18 +353,41 @@ the release lane cannot open until both gates are green regardless.
   Revision 4 specified one scalar digest alongside an allowlist and said nothing about zero, multiple
   or mismatched selections.
   _Requirements: 9.7_
-- [ ] **P-B.3 Prove the digest path actually works.** P-A.2 proves only that *unselected* apps are
+- [x] **P-B.3 Prove the digest path actually works.** P-A.2 proves only that *unselected* apps are
   untouched — a workflow that ignores the digest, rebuilds the selected service, or updates the wrong
   repository passes it. Assert: no build or push step executed, the **selected** Container App
   resolves to the exact requested digest, and the scoped-mode skips from P-A.2 still hold.
   _Requirements: 9.7_
-- [ ] **P-B.4 Prove each rejection case fails before any update**, and that the default full-deploy
+- [x] **P-B.4 Prove each rejection case fails before any update**, and that the default full-deploy
   path still works with the digest input absent.
   _Requirements: 9.7, 1.21_
-- [ ] **P-B.5 STOP/GO — P-B.**
+- [x] **P-B.5 STOP/GO — P-B.**
   **Go:** P-B.3 and P-B.4 green.
   **Abort:** revert P-B only. P-A survives; the release lane stays closed until a digest path exists,
   or the candidate/serving model is re-derived around the fallback activation control.
+  **Outcome (2026-08-18): GO.** Shipped in #108 (`5b9156d`).
+  Gate order inverted: Azure OIDC is `ref:refs/heads/main` only, so live proofs ran after merge.
+  Abort remains a revert of #108. Digest mode is unreachable except by deliberate dispatch of
+  `deploy-azure.yml` — `deploy.yml` does not forward `prebuilt_digest`.
+  Candidate: `wealthprodacr.azurecr.io/portfolio-service@sha256:abaaa97c8da97c800e911b2d4e98c6ab1d51dda2ea4f56d00290bb811da75145`
+  (purpose-built from `main` @ `5b9156d`, not a salvaged serving image).
+
+  | Task | Run | What it showed |
+  |---|---|---|
+  | P-B.4b | [32117991737](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/32117991737) | Merge-triggered full path with digest input absent: four `deploy (…)` matrix entries (api-gateway, portfolio-service, insight-service, market-data-service), plus frontend, seed, verify all `success`; `assert-scoped-non-interference` `skipped` |
+  | P-B.3 | [32123580730](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/32123580730) | `services=portfolio-service` with that digest: Update Container App `success`; `market-data-refresh-job` `skipped`; revision Succeeded; `assert-scoped-non-interference` `success` (requested digest, three-layer `GITHUB_SHA` close); frontend/seed/verify `skipped` |
+
+  Load-bearing P-B.3 evidence is **step-level**, not job-level. On that run,
+  `Build Docker image` and `Push Docker image` were `skipped`, and the dedicated
+  **Prove digest path skipped build and push** step succeeded. A green job conclusion
+  does not distinguish a skipped rebuild from a silent rebuild; that assertion is
+  what the digest model rests on.
+
+  P-B.4a (every rejection fails before any update) is unit-tested in #108, not a live roll.
+  Residual coupling: the comparator's `market-data-refresh-job` assertion is inert in digest
+  mode (`--git-sha ""`). Safety lives in `resolve_digest_deploy.py` rejecting
+  `market-data-service` before any update. Do not generalise the digest allowlist without a
+  design covering every service-specific target.
   _Requirements: 9.7, 1.21_
 
 **Both P-A.5 and P-B.5 are hard predecessors of the release lane.** Implementation is unaffected by
