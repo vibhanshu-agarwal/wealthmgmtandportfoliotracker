@@ -48,7 +48,7 @@ COPY api-gateway/ api-gateway/
 
 # Trim settings.gradle to only include modules needed for this service
 # (Gradle 9.x fails if included project directories don't exist)
-RUN sed -i "/include 'portfolio-service'/d; /include 'market-data-service'/d; /include 'insight-service'/d" settings.gradle
+RUN sed -i "/include 'portfolio-service'/d; /include 'market-data-service'/d; /include 'insight-service'/d; /include 'common-catalog'/d" settings.gradle
 
 # Remove the Java toolchain block from build.gradle so Gradle uses the ambient
 # JDK from PATH (provided by the amazoncorretto:21 base) rather than trying to
