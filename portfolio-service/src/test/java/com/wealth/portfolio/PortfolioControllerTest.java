@@ -7,14 +7,20 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
+import java.math.BigDecimal;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Stream;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -76,5 +82,21 @@ class PortfolioControllerTest {
         mockMvc.perform(get(endpoint))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error").exists());
+    }
+
+    @Test
+    void addHoldingUnsupportedAssetReturns422Contract() throws Exception {
+        UUID portfolioId = UUID.randomUUID();
+        when(portfolioService.addHolding(eq(USER_ID), eq(portfolioId), eq("FAKE"), any(BigDecimal.class)))
+                .thenThrow(new com.wealth.catalog.UnsupportedAssetException("FAKE", "c3dcb95e4e09212a"));
+
+        mockMvc.perform(post("/api/portfolio/{portfolioId}/holdings", portfolioId)
+                        .header("X-User-Id", USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"ticker\":\"FAKE\",\"quantity\":1}"))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.error").value("unsupported_asset"))
+                .andExpect(jsonPath("$.ticker").value("FAKE"))
+                .andExpect(jsonPath("$.catalogVersion").value("c3dcb95e4e09212a"));
     }
 }

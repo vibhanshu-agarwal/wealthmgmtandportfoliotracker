@@ -62,7 +62,6 @@ class MarketDataRefreshServiceIT {
         registry.add("spring.kafka.bootstrap-servers", kafka::getBootstrapServers);
         registry.add("external-market-data.base-url", () -> "http://localhost:" + wireMockServer.port());
         registry.add("market-data.refresh.enabled", () -> false);
-        registry.add("market-data.job-runner.enabled", () -> false);
         registry.add("market-data.seed.enabled", () -> false);
         registry.add("market-data.baseline-seed.enabled", () -> false);
         registry.add("market.seed.enabled", () -> false);

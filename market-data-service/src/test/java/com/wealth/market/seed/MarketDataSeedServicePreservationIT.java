@@ -69,7 +69,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 class MarketDataSeedServicePreservationIT {
 
     private static final String COLLECTION = "market_prices";
-    private static final int EXPECTED_REGISTRY_TICKERS = 160;
     private static final String DEFAULT_USER_ID = "e2e-user";
 
     @Container
@@ -109,31 +108,29 @@ class MarketDataSeedServicePreservationIT {
     // deterministic price written to currentPrice (req 3.5, 3.8).
     // ------------------------------------------------------------------------------------------
     @Test
-    void seed_upsertsExactlyTheRegistryTickers_withDeterministicCurrentPrice() {
-        assertThat(registry.all())
-                .as("registry must load all 160 tickers from seed-tickers.json")
-                .hasSize(EXPECTED_REGISTRY_TICKERS);
+    void seed_upsertsExactlyTheActiveRegistryTickers_withDeterministicCurrentPrice() {
+        int expected = registry.active().size();
+        assertThat(registry.active().stream().map(SeedTicker::ticker))
+                .doesNotContain("TATAMOTORS.NS");
 
         SeedResult result = seedService.seed(DEFAULT_USER_ID);
-        assertThat(result.pricesUpserted()).isEqualTo(EXPECTED_REGISTRY_TICKERS);
+        assertThat(result.pricesUpserted()).isEqualTo(expected);
 
-        Set<String> registryTickers = registry.all().stream()
+        Set<String> registryTickers = registry.active().stream()
                 .map(SeedTicker::ticker).collect(Collectors.toSet());
 
-        // Exactly 160 documents, and their _id set equals the registry ticker set.
         assertThat(mongoTemplate.getCollection(COLLECTION).countDocuments())
-                .isEqualTo(EXPECTED_REGISTRY_TICKERS);
+                .isEqualTo(expected);
         assertThat(storedIds()).isEqualTo(registryTickers);
 
-        // Each currentPrice equals DeterministicPriceCalculator.compute(basePrice, ticker, userId).
-        for (SeedTicker t : registry.all()) {
+        for (SeedTicker t : registry.active()) {
             AssetPrice stored = mongoTemplate.findById(t.ticker(), AssetPrice.class, COLLECTION);
             assertThat(stored).as("document for %s", t.ticker()).isNotNull();
-            BigDecimal expected =
+            BigDecimal expectedPrice =
                     DeterministicPriceCalculator.compute(t.basePrice(), t.ticker(), DEFAULT_USER_ID);
             assertThat(stored.getCurrentPrice())
                     .as("currentPrice for %s", t.ticker())
-                    .isEqualByComparingTo(expected);
+                    .isEqualByComparingTo(expectedPrice);
         }
     }
 
@@ -160,11 +157,11 @@ class MarketDataSeedServicePreservationIT {
         assertThat(after.getString("quoteCurrency")).isEqualTo("XYZ");
         assertThat(after.getString("marker")).isEqualTo("untouched");
 
-        // 160 registry docs + the single untouched sentinel.
+        int expected = registry.active().size();
         assertThat(mongoTemplate.getCollection(COLLECTION).countDocuments())
-                .isEqualTo(EXPECTED_REGISTRY_TICKERS + 1L);
+                .isEqualTo(expected + 1L);
         assertThat(storedIds())
-                .hasSize(EXPECTED_REGISTRY_TICKERS + 1)
+                .hasSize(expected + 1)
                 .contains(sentinelId);
     }
 
@@ -187,12 +184,11 @@ class MarketDataSeedServicePreservationIT {
         seedService.seed(userId);
         Map<String, BigDecimal> secondRun = currentPricesByTicker();
 
-        // Idempotent at the document-count level: still exactly 160 registry docs.
+        int expected = registry.active().size();
         assertThat(mongoTemplate.getCollection(COLLECTION).countDocuments())
-                .isEqualTo(EXPECTED_REGISTRY_TICKERS);
+                .isEqualTo(expected);
 
-        // Idempotent at the value level: identical currentPrice for every ticker.
-        assertThat(firstRun).hasSize(EXPECTED_REGISTRY_TICKERS);
+        assertThat(firstRun).hasSize(expected);
         assertThat(secondRun.keySet()).isEqualTo(firstRun.keySet());
         firstRun.forEach((ticker, price) ->
                 assertThat(secondRun.get(ticker))
@@ -214,7 +210,7 @@ class MarketDataSeedServicePreservationIT {
 
     private Map<String, BigDecimal> currentPricesByTicker() {
         Map<String, BigDecimal> prices = new HashMap<>();
-        for (SeedTicker t : registry.all()) {
+        for (SeedTicker t : registry.active()) {
             AssetPrice stored = mongoTemplate.findById(t.ticker(), AssetPrice.class, COLLECTION);
             if (stored != null) {
                 prices.put(t.ticker(), stored.getCurrentPrice());

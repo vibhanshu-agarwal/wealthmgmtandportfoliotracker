@@ -1,11 +1,15 @@
 package com.wealth.portfolio.seed;
 
+import com.wealth.catalog.UnsupportedAssetException;
+import com.wealth.portfolio.GlobalExceptionHandler;
 import com.wealth.portfolio.seed.PortfolioSeedService.SeedResult;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.ResponseEntity;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.util.Map;
 import java.util.UUID;
@@ -13,6 +17,9 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
  * Contract test for the internal seed endpoint's response body.
@@ -54,5 +61,22 @@ class PortfolioSeedControllerTest {
 
         assertThat(body.get("portfolioId")).isEqualTo(portfolioId.toString());
         assertThat(body.get("holdingsInserted")).isEqualTo(160);
+    }
+
+    @Test
+    void seedUnsupportedAssetReturns422Contract() throws Exception {
+        when(seedService.seed(anyString()))
+                .thenThrow(new UnsupportedAssetException("TATAMOTORS.NS", "c3dcb95e4e09212a"));
+
+        MockMvc mockMvc = MockMvcBuilders
+                .standaloneSetup(new PortfolioSeedController(seedService))
+                .setControllerAdvice(new GlobalExceptionHandler())
+                .build();
+
+        mockMvc.perform(post("/api/internal/portfolio/seed"))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.error").value("unsupported_asset"))
+                .andExpect(jsonPath("$.ticker").value("TATAMOTORS.NS"))
+                .andExpect(jsonPath("$.catalogVersion").value("c3dcb95e4e09212a"));
     }
 }

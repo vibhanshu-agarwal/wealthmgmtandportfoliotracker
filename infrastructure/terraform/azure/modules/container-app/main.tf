@@ -45,17 +45,20 @@ resource "azurerm_container_app" "this" {
     identity = "system"
   }
 
-  # Ingress configuration — external for api-gateway, internal for all other services.
+  # Ingress configuration — omitted entirely when ingress_enabled is false (maintenance window).
   # Internal services are reachable within the ACA environment via http://<name>
   # (ACA maps port 80 → target_port automatically).
-  ingress {
-    external_enabled = var.external_ingress
-    target_port      = var.target_port
-    transport        = "auto"
+  dynamic "ingress" {
+    for_each = var.ingress_enabled ? [1] : []
+    content {
+      external_enabled = var.external_ingress
+      target_port      = var.target_port
+      transport        = "auto"
 
-    traffic_weight {
-      percentage      = 100
-      latest_revision = true
+      traffic_weight {
+        percentage      = 100
+        latest_revision = true
+      }
     }
   }
 

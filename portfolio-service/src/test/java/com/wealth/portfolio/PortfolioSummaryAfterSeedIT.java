@@ -10,6 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.github.tomakehurst.wiremock.WireMockServer;
 import com.wealth.portfolio.seed.PortfolioSeedService;
+import com.wealth.portfolio.seed.SeedTickerRegistry;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Tag;
@@ -97,6 +98,7 @@ class PortfolioSummaryAfterSeedIT {
     @Autowired PortfolioSeedService seedService;
     @Autowired PortfolioService portfolioService;
     @Autowired PortfolioSummaryController summaryController;
+    @Autowired SeedTickerRegistry registry;
 
     @Test
     void seededE2eUser_summaryReturns200WithPositiveTotal() throws Exception {
@@ -106,7 +108,7 @@ class PortfolioSummaryAfterSeedIT {
         assertThat(summary.totalValue())
                 .as("verify assertion (c): totalValue must be > 0 after golden-state seed")
                 .isGreaterThan(java.math.BigDecimal.ZERO);
-        assertThat(summary.totalHoldings()).isEqualTo(160);
+        assertThat(summary.totalHoldings()).isEqualTo(registry.active().size());
 
         MockMvc mockMvc = MockMvcBuilders
                 .standaloneSetup(summaryController)

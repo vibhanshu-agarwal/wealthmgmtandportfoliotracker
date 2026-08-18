@@ -42,6 +42,15 @@ class SeedTickerRegistryTest {
     }
 
     @Test
+    void load_activeEnumerationExcludesDeprecatedAndKeepsLookup() {
+        SupportedCatalog catalog = SupportedCatalog.load();
+        assertThat(registry.active()).hasSize(catalog.active().size());
+        assertThat(registry.active().stream().map(SeedTicker::ticker))
+                .doesNotContain("TATAMOTORS.NS");
+        assertThat(registry.find("TATAMOTORS.NS")).isPresent();
+    }
+
+    @Test
     void load_mahindraTickerUsesCorrectSymbol() {
         assertThat(registry.find("MM.NS")).isPresent();
         assertThat(registry.find("M&M.NS")).isEmpty();
