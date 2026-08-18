@@ -43,8 +43,8 @@ class SeedTickerRegistryTest {
 
     @Test
     void load_mahindraTickerUsesCorrectSymbol() {
-        assertThat(registry.find("M&M.NS")).isPresent();
-        assertThat(registry.find("MM.NS")).isEmpty();
+        assertThat(registry.find("MM.NS")).isPresent();
+        assertThat(registry.find("M&M.NS")).isEmpty();
     }
 
     @Test

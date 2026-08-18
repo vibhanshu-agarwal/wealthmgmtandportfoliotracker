@@ -75,9 +75,9 @@ python scripts/check-spec-references.py   .kiro/specs/supported-asset-integrity/
     - _Requirements: 10.1, 10.6_
 
 - [x] 2. Manifest and packaging
-  - [x] 2.1 Add `lifecycleStatus` to all 160 entries **and** apply symbol corrections in the same commit
-    - `MM.NS` → `M&M.NS` (`ACTIVE`); `TATAMOTORS.NS` → `DEPRECATED`; `USDINR=X` untouched
-    - This is one commit by construction: shipping validation before the field fails startup everywhere
+  - [x] 2.1 Add `lifecycleStatus` to all 160 entries
+    - `TATAMOTORS.NS` → `DEPRECATED`; `USDINR=X` untouched
+    - `MM.NS` → `M&M.NS` (`ACTIVE`) is intentionally deferred to task 6 due to Requirement 4.8
     - _Requirements: 3.1, 3.2, 3.5, 3.6, 3.7, 3.8, 4.1, 4.3, 4.6, 4.7, 4.8_
 
   - [x] 2.2 Verify `&` URL-encoding for `M&M.NS` against the provider client

@@ -1,7 +1,6 @@
 package com.wealth.market.catalog;
 
 import com.wealth.catalog.CatalogLoadFailedException;
-import com.wealth.catalog.SeedCatalogView;
 import com.wealth.catalog.SupportedCatalog;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,11 +30,6 @@ class MarketDataCatalogConfiguration {
     }
 
     @Bean
-    SeedCatalogView seedCatalogView(SupportedCatalog catalog) {
-        return catalog;
-    }
-
-    @Bean
     ApplicationListener<ApplicationReadyEvent> catalogLoadedLogger(SupportedCatalog catalog) {
         return event ->
                 log.info(
@@ -45,3 +39,4 @@ class MarketDataCatalogConfiguration {
                         catalog.active().size());
     }
 }
+
