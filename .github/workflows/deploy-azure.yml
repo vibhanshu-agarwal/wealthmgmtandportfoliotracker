@@ -20,10 +20,33 @@
 # deploy jobs are skipped with a clear message — run terraform-azure.yml apply first.
 # This prevents cryptic RP-not-registered errors when the workflow fires before
 # Terraform has ever been applied.
+#
+# Wave P service selection (whole-workflow modes, not matrix-only):
+#   full deploy   — empty `services` input (the default for workflow_call and
+#                   ordinary dispatch): four backends, frontend, seed, verify.
+#   scoped deploy — non-empty allowlist: selected backends only; frontend, seed
+#                   and verify are skipped. Unselected apps get no
+#                   `az containerapp update` at all.
 
 on:
   workflow_dispatch:
+    inputs:
+      services:
+        description: >
+          Comma-separated backend services to deploy (api-gateway,
+          portfolio-service, market-data-service, insight-service). Empty = full
+          deploy. Non-empty = scoped backend deploy (frontend/seed/verify skipped).
+        required: false
+        type: string
+        default: ""
   workflow_call:
+    inputs:
+      services:
+        description: >
+          Comma-separated backend services to deploy. Empty = full deploy.
+        required: false
+        type: string
+        default: ""
 
 env:
   AZURE_RG: wealth-azure-prod-rg
@@ -46,8 +69,20 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       infra_ready: ${{ steps.check.outputs.infra_ready }}
+      deploy_mode: ${{ steps.selection.outputs.deploy_mode }}
+      selected_services: ${{ steps.selection.outputs.selected_services }}
+      snapshot: ${{ steps.snapshot.outputs.snapshot }}
 
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Resolve service selection
+        id: selection
+        env:
+          SERVICES_INPUT: ${{ inputs.services }}
+        run: python3 .github/workflows/scripts/resolve_deploy_selection.py
+
       - name: Azure login (OIDC)
         uses: azure/login@v2
         with:
@@ -109,6 +144,11 @@ jobs:
             echo "::warning::Run 'gh workflow run terraform-azure.yml --field action=apply' first, then re-run this workflow."
           fi
 
+      - name: Snapshot Container Apps and refresh Job
+        id: snapshot
+        if: steps.check.outputs.infra_ready == 'true' && steps.selection.outputs.deploy_mode == 'scoped'
+        run: python3 .github/workflows/scripts/snapshot_container_apps.py snapshot
+
   # ---------------------------------------------------------------------------
   # Backend: build and push service images, update Container Apps.
   # Skipped when infra_ready=false (infrastructure not yet provisioned).
@@ -120,11 +160,7 @@ jobs:
     if: needs.preflight.result == 'success' && needs.preflight.outputs.infra_ready == 'true'
     strategy:
       matrix:
-        service:
-          - api-gateway
-          - portfolio-service
-          - market-data-service
-          - insight-service
+        service: ${{ fromJSON(needs.preflight.outputs.selected_services) }}
 
     steps:
       - name: Checkout code
@@ -228,7 +264,11 @@ jobs:
   deploy-frontend:
     runs-on: ubuntu-latest
     needs: [preflight, deploy]
-    if: needs.preflight.result == 'success' && needs.preflight.outputs.infra_ready == 'true' && needs.deploy.result == 'success'
+    if: >-
+      needs.preflight.outputs.deploy_mode == 'full' &&
+      needs.preflight.result == 'success' &&
+      needs.preflight.outputs.infra_ready == 'true' &&
+      needs.deploy.result == 'success'
 
     steps:
       - name: Checkout code
@@ -313,6 +353,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [preflight, deploy, deploy-frontend]
     if: >-
+      needs.preflight.outputs.deploy_mode == 'full' &&
       needs.preflight.result == 'success' &&
       needs.preflight.outputs.infra_ready == 'true' &&
       needs.deploy.result == 'success' &&
@@ -352,6 +393,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [preflight, seed]
     if: >-
+      needs.preflight.outputs.deploy_mode == 'full' &&
       needs.preflight.result == 'success' &&
       needs.preflight.outputs.infra_ready == 'true' &&
       needs.seed.result == 'success'
@@ -377,3 +419,60 @@ jobs:
           staging-dir: ${{ runner.temp }}/sanitized-playwright-report
           mode: live-secret
           e2e-password: ${{ secrets.E2E_TEST_USER_PASSWORD }}
+
+  # ---------------------------------------------------------------------------
+  # Wave P P-A.2 / P-A.3: scoped-mode proof. GitHub paints a skipped job as a
+  # successful check, so this job records needs.<job>.result explicitly and
+  # compares Container App / refresh-Job identity for every unselected target.
+  # ---------------------------------------------------------------------------
+  assert-scoped-non-interference:
+    runs-on: ubuntu-latest
+    needs: [preflight, deploy, deploy-frontend, seed, verify]
+    if: >-
+      always() &&
+      needs.preflight.result == 'success' &&
+      needs.preflight.outputs.infra_ready == 'true' &&
+      needs.preflight.outputs.deploy_mode == 'scoped' &&
+      needs.deploy.result == 'success'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Record skipped conclusions for deploy-frontend, seed and verify
+        env:
+          FRONTEND_RESULT: ${{ needs.deploy-frontend.result }}
+          SEED_RESULT: ${{ needs.seed.result }}
+          VERIFY_RESULT: ${{ needs.verify.result }}
+        run: |
+          set -euo pipefail
+          fail=0
+          echo "deploy-frontend.result=${FRONTEND_RESULT}"
+          echo "seed.result=${SEED_RESULT}"
+          echo "verify.result=${VERIFY_RESULT}"
+          for pair in "deploy-frontend:${FRONTEND_RESULT}" "seed:${SEED_RESULT}" "verify:${VERIFY_RESULT}"; do
+            name="${pair%%:*}"
+            result="${pair#*:}"
+            if [ "$result" != "skipped" ]; then
+              echo "::error::${name} conclusion was '${result}', expected 'skipped'"
+              fail=1
+            fi
+          done
+          exit "$fail"
+
+      - name: Assert unselected apps and jobs are byte-identical
+        env:
+          BEFORE: ${{ needs.preflight.outputs.snapshot }}
+          SELECTED: ${{ needs.preflight.outputs.selected_services }}
+        run: |
+          python3 .github/workflows/scripts/snapshot_container_apps.py compare \
+            --before "$BEFORE" \
+            --selected "$SELECTED" \
+            --git-sha "${{ github.sha }}"
