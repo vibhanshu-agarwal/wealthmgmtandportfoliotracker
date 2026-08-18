@@ -241,7 +241,7 @@ class MarketDataSeedServicePropagationPropertyTest {
     private static List<SeedTicker> loadRegistry() {
         try {
             SupportedCatalog catalog = SupportedCatalog.load();
-            SeedTickerRegistry registry = new SeedTickerRegistry(catalog, catalog);
+            SeedTickerRegistry registry = new SeedTickerRegistry(catalog, catalog.seedView());
             List<SeedTicker> all = registry.all();
             if (!all.isEmpty()) {
                 return all;

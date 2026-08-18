@@ -1,6 +1,7 @@
 package com.wealth.portfolio.catalog;
 
 import com.wealth.catalog.CatalogLoadFailedException;
+import com.wealth.catalog.SeedCatalogView;
 import com.wealth.catalog.SupportedCatalog;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,6 +28,11 @@ class PortfolioCatalogConfiguration {
                     e.violations());
             throw e;
         }
+    }
+
+    @Bean
+    SeedCatalogView seedCatalogView(SupportedCatalog catalog) {
+        return catalog.seedView();
     }
 
     @Bean

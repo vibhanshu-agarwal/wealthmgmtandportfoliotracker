@@ -27,7 +27,7 @@ class SupportedCatalogTest {
         assertThat(catalog.all()).hasSize(4);
         assertThat(catalog.active()).hasSize(4);
         assertThat(catalog.version()).hasSize(16);
-        assertThat(catalog.basePrice("AAPL")).contains(new BigDecimal("1.0"));
+        assertThat(catalog.seedView().basePrice("AAPL")).contains(new BigDecimal("1.0"));
     }
 
     @Test

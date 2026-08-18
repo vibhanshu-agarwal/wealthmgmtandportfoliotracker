@@ -20,7 +20,7 @@ class SeedTickerRegistryTest {
     @BeforeEach
     void setUp() {
         SupportedCatalog catalog = SupportedCatalog.load();
-        registry = new SeedTickerRegistry(catalog, catalog);
+        registry = new SeedTickerRegistry(catalog, catalog.seedView());
         assumeTrue(!registry.all().isEmpty(),
                 "catalog/seed-tickers.json not found on classpath – run ./gradlew :market-data-service:processResources");
     }

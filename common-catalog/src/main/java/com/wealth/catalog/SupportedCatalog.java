@@ -12,7 +12,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-public final class SupportedCatalog implements SeedCatalogView {
+public final class SupportedCatalog {
 
     public static final String DEFAULT_RESOURCE_PATH = "catalog/seed-tickers.json";
 
@@ -143,11 +143,12 @@ public final class SupportedCatalog implements SeedCatalogView {
         return version;
     }
 
-    @Override
-    public Optional<BigDecimal> basePrice(String ticker) {
-        if (ticker == null) {
-            return Optional.empty();
-        }
-        return Optional.ofNullable(basePrices.get(ticker));
+    public SeedCatalogView seedView() {
+        return ticker -> {
+            if (ticker == null) {
+                return Optional.empty();
+            }
+            return Optional.ofNullable(basePrices.get(ticker));
+        };
     }
 }

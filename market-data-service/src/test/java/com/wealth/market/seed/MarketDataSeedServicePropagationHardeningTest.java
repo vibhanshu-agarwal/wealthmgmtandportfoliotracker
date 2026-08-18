@@ -312,7 +312,7 @@ class MarketDataSeedServicePropagationHardeningTest {
     private static List<SeedTicker> loadRegistry() {
         try {
             SupportedCatalog catalog = SupportedCatalog.load();
-            SeedTickerRegistry r = new SeedTickerRegistry(catalog, catalog);
+            SeedTickerRegistry r = new SeedTickerRegistry(catalog, catalog.seedView());
             List<SeedTicker> all = r.all();
             if (!all.isEmpty()) return all;
         } catch (Exception ignored) { }
