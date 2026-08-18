@@ -81,9 +81,7 @@ class Wave3HistoryAppendIT {
         PriceUpdatedEvent event = new PriceUpdatedEvent(
                 "HIT_APPEND", new BigDecimal("100.00"), "USD", obs, null, null);
 
-        // upsertLatestPrice is @Async — invoke and wait briefly
         projectionService.upsertLatestPrice(event);
-        Thread.sleep(500);
 
         Integer count = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM market_price_history WHERE ticker = 'HIT_APPEND'",
@@ -100,7 +98,6 @@ class Wave3HistoryAppendIT {
                 "HIT_DEDUP", new BigDecimal("200.00"), "USD", obs, null, null);
 
         projectionService.upsertLatestPrice(event);
-        Thread.sleep(300);
         projectionService.upsertLatestPrice(event); // replay same observation
         Thread.sleep(300);
 
@@ -145,7 +142,6 @@ class Wave3HistoryAppendIT {
         PriceUpdatedEvent event = new PriceUpdatedEvent("HIT_OLD_SHAPE", new BigDecimal("400.00"));
 
         projectionService.upsertLatestPrice(event);
-        Thread.sleep(500);
 
         Integer count = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM market_price_history WHERE ticker = 'HIT_OLD_SHAPE'",

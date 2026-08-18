@@ -61,6 +61,10 @@ server:
   port: 8083
 
 management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
   tracing:
     sampling:
       probability: ${MANAGEMENT_TRACING_SAMPLING_PROBABILITY:1.0}

@@ -1,5 +1,6 @@
 package com.wealth.market.seed;
 
+import com.wealth.catalog.SupportedCatalog;
 import com.mongodb.bulk.BulkWriteResult;
 import com.wealth.market.events.PriceUpdatedEvent;
 import com.wealth.market.seed.SeedTickerRegistry.SeedTicker;
@@ -239,8 +240,8 @@ class MarketDataSeedServicePropagationPropertyTest {
 
     private static List<SeedTicker> loadRegistry() {
         try {
-            SeedTickerRegistry registry = new SeedTickerRegistry();
-            registry.load();
+            SupportedCatalog catalog = SupportedCatalog.load();
+            SeedTickerRegistry registry = new SeedTickerRegistry(catalog, catalog);
             List<SeedTicker> all = registry.all();
             if (!all.isEmpty()) {
                 return all;

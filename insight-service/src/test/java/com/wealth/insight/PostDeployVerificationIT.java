@@ -3,6 +3,7 @@ package com.wealth.insight;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
+import com.wealth.catalog.SupportedCatalog;
 import com.wealth.insight.catalog.TickerCatalogService;
 import com.wealth.insight.chat.ChatResponseBuilder;
 import com.wealth.insight.dto.TickerSummary;
@@ -101,8 +102,7 @@ class PostDeployVerificationIT {
 
     @BeforeEach
     void setUp() throws Exception {
-        catalogService = new TickerCatalogService();
-        catalogService.load();
+        catalogService = new TickerCatalogService(SupportedCatalog.load());
         assertThat(catalogService.isSupported("AAPL"))
                 .as("seed/seed-tickers.json must be on the test classpath — run ./gradlew copySeedTickers")
                 .isTrue();
@@ -317,15 +317,14 @@ class PostDeployVerificationIT {
         assertThat(stubClient.callCount()).as("exact suffixed forex symbol must resolve via preflight only").isZero();
     }
 
-    // ── Req 9.1: catalogVersion is an 8-char hex hash consistent across requests ──────────
+    // ── Req 9.1: catalogVersion is a 16-char hex hash consistent across requests ─────────
 
     /**
-     * Verifies that {@code catalogVersion} in the structured log is a stable, 8-char hex string
-     * consistent with the hash computed from the loaded {@code seed-tickers.json}.
-     * This confirms the expected catalog version is present on the live deployment.
+     * Verifies that {@code catalogVersion} in the structured log is a stable, 16-char hex string
+     * from {@link SupportedCatalog}.
      */
     @Test
-    void req9_1_catalogVersion_isStable8HexChars_matchesExpectedHash() throws Exception {
+    void req9_1_catalogVersion_isStable16HexChars_matchesExpectedHash() throws Exception {
         seedMarketData("AAPL", "178.50");
 
         mockMvc.perform(post("/api/chat").contentType(MediaType.APPLICATION_JSON)
@@ -335,7 +334,7 @@ class PostDeployVerificationIT {
                 .andExpect(status().isOk());
 
         String expectedVersion = catalogService.catalogVersion();
-        assertThat(expectedVersion).matches("[0-9a-f]{8}");
+        assertThat(expectedVersion).matches("[0-9a-f]{16}");
 
         String log = capturedLog();
         assertThat(log).contains("catalogVersion=" + expectedVersion);

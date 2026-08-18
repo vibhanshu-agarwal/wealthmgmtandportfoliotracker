@@ -1,6 +1,7 @@
 package com.wealth.insight;
 
 import tools.jackson.databind.json.JsonMapper;
+import com.wealth.catalog.SupportedCatalog;
 import com.wealth.insight.catalog.TickerCatalogService;
 import com.wealth.insight.chat.ChatResponseBuilder;
 import com.wealth.insight.dto.TickerSummary;
@@ -64,10 +65,9 @@ class Wave6ResolutionEndToEndTest {
 
     @BeforeEach
     void setUp() throws Exception {
-        catalogService = new TickerCatalogService();
-        catalogService.load();
+        catalogService = new TickerCatalogService(SupportedCatalog.load());
         org.assertj.core.api.Assertions.assertThat(catalogService.isSupported("AAPL"))
-                .as("seed/seed-tickers.json must be on the test classpath — run ./gradlew copySeedTickers")
+                .as("catalog/seed-tickers.json must be on the test classpath — run ./gradlew :insight-service:processResources")
                 .isTrue();
 
         stubClient = new StubAssetResolutionClient();

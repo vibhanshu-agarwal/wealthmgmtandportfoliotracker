@@ -47,63 +47,63 @@ python scripts/check-spec-references.py   .kiro/specs/supported-asset-integrity/
 
 ## Tasks
 
-- [ ] 1. `common-catalog` module foundation
-  - [ ] 1.1 Create the Gradle module
+- [x] 1. `common-catalog` module foundation
+  - [x] 1.1 Create the Gradle module
     - Plain Java, no Spring imports; joins `common-dto` / `common-observability` convention
     - _Requirements: 2.1, 2.2_
 
-  - [ ] 1.2 `CatalogEntry`, `LifecycleStatus`, `SupportedCatalog`, `SeedCatalogView`
+  - [x] 1.2 `CatalogEntry`, `LifecycleStatus`, `SupportedCatalog`, `SeedCatalogView`
     - `basePrice` reachable **only** through `SeedCatalogView`
     - _Requirements: 2.2, 2.10, 2.11_
 
-  - [ ] 1.3 Integrity validation
+  - [x] 1.3 Integrity validation
     - Reject blank ticker / name / assetClass / quoteCurrency, null aliases, duplicate tickers,
       absent or unrecognised `lifecycleStatus`, `basePrice` null or non-positive; require at least
       one `ACTIVE` per asset class. Collect **all** violations into one message.
     - Assert **no** fixed total or per-class count is enforced
     - _Requirements: 2.4, 3.3, 3.4_
 
-  - [ ] 1.4 `Catalog_Version`
+  - [x] 1.4 `Catalog_Version`
     - SHA-256 over ticker, name, sorted aliases, assetClass, quoteCurrency, lifecycleStatus,
       **and `basePrice`**; entries sorted by ticker; 16 hex chars
     - Test: changing only `basePrice` changes the version; changing only `lifecycleStatus` changes it
     - _Requirements: 2.7, 2.8, 2.9_
 
-  - [ ] 1.5 `CatalogLoadFailedException` and fail-closed loading
+  - [x] 1.5 `CatalogLoadFailedException` and fail-closed loading
     - Throws on absent, unreadable, unparseable, integrity-failing, or zero-active-asset manifest;
       never returns empty or partial; no cached/previous fallback
     - _Requirements: 10.1, 10.6_
 
-- [ ] 2. Manifest and packaging
-  - [ ] 2.1 Add `lifecycleStatus` to all 160 entries **and** apply symbol corrections in the same commit
+- [x] 2. Manifest and packaging
+  - [x] 2.1 Add `lifecycleStatus` to all 160 entries **and** apply symbol corrections in the same commit
     - `MM.NS` → `M&M.NS` (`ACTIVE`); `TATAMOTORS.NS` → `DEPRECATED`; `USDINR=X` untouched
     - This is one commit by construction: shipping validation before the field fails startup everywhere
     - _Requirements: 3.1, 3.2, 3.5, 3.6, 3.7, 3.8, 4.1, 4.3, 4.6, 4.7, 4.8_
 
-  - [ ] 2.2 Verify `&` URL-encoding for `M&M.NS` against the provider client
+  - [x] 2.2 Verify `&` URL-encoding for `M&M.NS` against the provider client
     - _Requirements: 4.2_
 
-  - [ ] 2.3 Non-mutating build packaging
+  - [x] 2.3 Non-mutating build packaging
     - `processResources` copies `config/seed-tickers.json` → `build/resources/main/catalog/` in each
       consumer; delete the three `copySeedTickers` tasks and the three tracked
       `src/main/resources/seed/seed-tickers.json` copies
     - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5_
 
-- [ ] 3. Consumers adopt the module
-  - [ ] 3.1 Replace both `SeedTickerRegistry` implementations
+- [x] 3. Consumers adopt the module
+  - [x] 3.1 Replace both `SeedTickerRegistry` implementations
     - _Requirements: 2.3_
 
-  - [ ] 3.2 `insight-service` delegates loading/integrity/versioning; remove fail-open
+  - [x] 3.2 `insight-service` delegates loading/integrity/versioning; remove fail-open
     - Its log-error-set-empty-continue path is deleted
     - _Requirements: 10.2, 10.3_
 
-  - [ ] 3.3 Fail-to-start in all three services, all normal profiles
+  - [x] 3.3 Fail-to-start in all three services, all normal profiles
     - Emit structured `catalog_load_failed` (resource path, violation list, service) before the
       failure propagates; distinct exception type; distinct from request-level `unsupported_asset`
     - Unit tests may inject fixture catalogs; no runtime fallback in application code
     - _Requirements: 10.4, 10.5, 10.7, 10.8_
 
-  - [ ] 3.4 **Remove `@Async` from `MarketPriceProjectionService` — ships in R1**
+  - [x] 3.4 **Remove `@Async` from `MarketPriceProjectionService` — ships in R1**
     - Projection moves onto the listener thread, stays `@Transactional`
     - Test: a database failure now reaches the Kafka error handler and DLT rather than being
       swallowed by the executor
@@ -112,12 +112,12 @@ python scripts/check-spec-references.py   .kiro/specs/supported-asset-integrity/
     - _Design: D10_ (no requirement criterion governs `@Async`; `9.30` governs `updated_at`
       receive-time semantics and belongs to 8.4)
 
-  - [ ] 3.5 Actuator exposure and startup log
+  - [x] 3.5 Actuator exposure and startup log
     - Add `health,info` exposure to `portfolio-service` and `insight-service` (**never** a wildcard);
       emit `catalog_loaded version= entries= active= rejectUnsupportedEvents= enforceHoldingInvariant=`
     - _Requirements: 2.6, 10.9_
 
-  - [ ] 3.6 **Regression guard for the delivered price-write invariant**
+  - [x] 3.6 **Regression guard for the delivered price-write invariant**
     - Requirement 11 is delivered but retained as a regression boundary, and nothing else in this
       plan exercises it. Confirm `PortfolioSeedServiceIT` and `PortfolioSeedControllerTest` still
       pass after the seeder switches to `active()` enumeration in 4.5, and that both price tables
