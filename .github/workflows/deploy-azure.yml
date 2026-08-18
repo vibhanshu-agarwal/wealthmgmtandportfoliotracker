@@ -27,6 +27,9 @@
 #   scoped deploy — non-empty allowlist: selected backends only; frontend, seed
 #                   and verify are skipped. Unselected apps get no
 #                   `az containerapp update` at all.
+#   digest deploy — `prebuilt_digest` set: portfolio-service only, skip build
+#                   and push, update the Container App to that exact manifest
+#                   digest. Frontend/seed/verify skipped (scoped).
 
 on:
   workflow_dispatch:
@@ -39,11 +42,26 @@ on:
         required: false
         type: string
         default: ""
+      prebuilt_digest:
+        description: >
+          Optional immutable image, exactly
+          wealthprodacr.azurecr.io/portfolio-service@sha256:<64 hex>.
+          Empty = tag-based build/push. Non-empty skips build and push and
+          requires services=portfolio-service.
+        required: false
+        type: string
+        default: ""
   workflow_call:
     inputs:
       services:
         description: >
           Comma-separated backend services to deploy. Empty = full deploy.
+        required: false
+        type: string
+        default: ""
+      prebuilt_digest:
+        description: >
+          Optional immutable image for portfolio-service only. Empty = tag path.
         required: false
         type: string
         default: ""
@@ -71,6 +89,9 @@ jobs:
       infra_ready: ${{ steps.check.outputs.infra_ready }}
       deploy_mode: ${{ steps.selection.outputs.deploy_mode }}
       selected_services: ${{ steps.selection.outputs.selected_services }}
+      digest_mode: ${{ steps.digest.outputs.digest_mode }}
+      digest_image: ${{ steps.digest.outputs.digest_image }}
+      digest: ${{ steps.digest.outputs.digest }}
       snapshot: ${{ steps.snapshot.outputs.snapshot }}
 
     steps:
@@ -82,6 +103,13 @@ jobs:
         env:
           SERVICES_INPUT: ${{ inputs.services }}
         run: python3 .github/workflows/scripts/resolve_deploy_selection.py
+
+      - name: Validate prebuilt digest
+        id: digest
+        env:
+          PREBUILT_DIGEST: ${{ inputs.prebuilt_digest }}
+          SELECTED_SERVICES: ${{ steps.selection.outputs.selected_services }}
+        run: python3 .github/workflows/scripts/resolve_digest_deploy.py --skip-lookup
 
       - name: Azure login (OIDC)
         uses: azure/login@v2
@@ -144,6 +172,19 @@ jobs:
             echo "::warning::Run 'gh workflow run terraform-azure.yml --field action=apply' first, then re-run this workflow."
           fi
 
+      - name: Resolve prebuilt digest in ACR
+        if: steps.digest.outputs.digest_mode == 'true'
+        env:
+          PREBUILT_DIGEST: ${{ inputs.prebuilt_digest }}
+          SELECTED_SERVICES: ${{ steps.selection.outputs.selected_services }}
+        run: |
+          set -euo pipefail
+          if [ "${{ steps.check.outputs.infra_ready }}" != "true" ]; then
+            echo "::error::prebuilt digest requires a provisioned ACR to resolve the manifest."
+            exit 1
+          fi
+          python3 .github/workflows/scripts/resolve_digest_deploy.py
+
       - name: Snapshot Container Apps and refresh Job
         id: snapshot
         if: steps.check.outputs.infra_ready == 'true' && steps.selection.outputs.deploy_mode == 'scoped'
@@ -174,9 +215,12 @@ jobs:
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Log in to ACR
+        if: needs.preflight.outputs.digest_mode != 'true'
         run: az acr login --name $ACR_NAME
 
       - name: Build Docker image
+        id: build
+        if: needs.preflight.outputs.digest_mode != 'true'
         run: |
           docker build \
             --no-cache \
@@ -186,15 +230,42 @@ jobs:
             .
 
       - name: Push Docker image
+        id: push
+        if: needs.preflight.outputs.digest_mode != 'true'
         run: |
           docker push $ACR_NAME.azurecr.io/${{ matrix.service }}:${{ github.sha }}
 
+      - name: Prove digest path skipped build and push
+        if: needs.preflight.outputs.digest_mode == 'true'
+        env:
+          BUILD_OUTCOME: ${{ steps.build.outcome }}
+          PUSH_OUTCOME: ${{ steps.push.outcome }}
+        run: |
+          set -euo pipefail
+          fail=0
+          echo "build.outcome=${BUILD_OUTCOME}"
+          echo "push.outcome=${PUSH_OUTCOME}"
+          if [ "$BUILD_OUTCOME" != "skipped" ]; then
+            echo "::error::digest deploy executed build (outcome=${BUILD_OUTCOME}); expected skipped"
+            fail=1
+          fi
+          if [ "$PUSH_OUTCOME" != "skipped" ]; then
+            echo "::error::digest deploy executed push (outcome=${PUSH_OUTCOME}); expected skipped"
+            fail=1
+          fi
+          exit "$fail"
+
       - name: Update Container App
         run: |
+          if [ "${{ needs.preflight.outputs.digest_mode }}" = "true" ]; then
+            IMAGE="${{ needs.preflight.outputs.digest_image }}"
+          else
+            IMAGE="$ACR_NAME.azurecr.io/${{ matrix.service }}:${{ github.sha }}"
+          fi
           az containerapp update \
             --name ${{ matrix.service }} \
             --resource-group $AZURE_RG \
-            --image $ACR_NAME.azurecr.io/${{ matrix.service }}:${{ github.sha }}
+            --image "$IMAGE"
 
       - name: Update market-data-refresh Job image
         if: matrix.service == 'market-data-service'
@@ -471,8 +542,17 @@ jobs:
         env:
           BEFORE: ${{ needs.preflight.outputs.snapshot }}
           SELECTED: ${{ needs.preflight.outputs.selected_services }}
+          DIGEST_MODE: ${{ needs.preflight.outputs.digest_mode }}
+          REQUESTED_DIGEST: ${{ needs.preflight.outputs.digest }}
         run: |
-          python3 .github/workflows/scripts/snapshot_container_apps.py compare \
-            --before "$BEFORE" \
-            --selected "$SELECTED" \
-            --git-sha "${{ github.sha }}"
+          if [ "$DIGEST_MODE" = "true" ]; then
+            python3 .github/workflows/scripts/snapshot_container_apps.py compare \
+              --before "$BEFORE" \
+              --selected "$SELECTED" \
+              --requested-digest "$REQUESTED_DIGEST"
+          else
+            python3 .github/workflows/scripts/snapshot_container_apps.py compare \
+              --before "$BEFORE" \
+              --selected "$SELECTED" \
+              --git-sha "${{ github.sha }}"
+          fi

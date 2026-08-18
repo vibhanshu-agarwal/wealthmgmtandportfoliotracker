@@ -114,6 +114,37 @@ class TestCompareNonInterference(unittest.TestCase):
         )
         self.assertTrue(any("market-data-refresh-job" in e for e in errors))
 
+    def test_selected_app_must_carry_requested_digest(self):
+        digest = "sha256:" + "b" * 64
+        image = f"wealthprodacr.azurecr.io/portfolio-service@{digest}"
+        after = {
+            **self.baseline,
+            "portfolio-service": _app("pf-2", image),
+        }
+        errors = self.mod.compare(
+            self.baseline,
+            after,
+            ["portfolio-service"],
+            requested_digest=digest,
+        )
+        self.assertEqual(errors, [])
+
+    def test_selected_app_missing_requested_digest_is_a_failure(self):
+        after = {
+            **self.baseline,
+            "portfolio-service": _app(
+                "pf-2",
+                "wealthprodacr.azurecr.io/portfolio-service:abc123",
+            ),
+        }
+        errors = self.mod.compare(
+            self.baseline,
+            after,
+            ["portfolio-service"],
+            requested_digest="sha256:" + "b" * 64,
+        )
+        self.assertTrue(any("digest" in e for e in errors))
+
     def test_selecting_market_data_passes_when_app_and_job_carry_git_sha(self):
         after = {
             **self.baseline,
