@@ -2,6 +2,7 @@ package com.wealth.market.seed;
 
 import com.mongodb.bulk.BulkWriteResult;
 import com.wealth.market.events.PriceUpdatedEvent;
+import com.wealth.catalog.SupportedCatalog;
 import com.wealth.market.seed.SeedTickerRegistry.SeedTicker;
 import net.jqwik.api.Arbitraries;
 import net.jqwik.api.Arbitrary;
@@ -310,8 +311,8 @@ class MarketDataSeedServicePropagationHardeningTest {
 
     private static List<SeedTicker> loadRegistry() {
         try {
-            SeedTickerRegistry r = new SeedTickerRegistry();
-            r.load();
+            SupportedCatalog catalog = SupportedCatalog.load();
+            SeedTickerRegistry r = new SeedTickerRegistry(catalog, catalog.seedView());
             List<SeedTicker> all = r.all();
             if (!all.isEmpty()) return all;
         } catch (Exception ignored) { }

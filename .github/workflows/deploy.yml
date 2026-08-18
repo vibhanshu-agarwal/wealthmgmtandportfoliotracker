@@ -4,7 +4,7 @@
 # cloud-specific workflow based on the repository variable `vars.CLOUD_PROVIDER`.
 #
 # Path filtering: only triggers when backend services, frontend, common-dto,
-# common-observability, or workflow files change. Docs-only pushes do NOT
+# common-observability, common-catalog, or workflow files change. Docs-only pushes do NOT
 # trigger deployment.
 #
 # Set the repo variable CLOUD_PROVIDER to "azure" or "aws" in:
@@ -26,6 +26,7 @@ on:
       - "insight-service/**"
       - "common-dto/**"
       - "common-observability/**"
+      - "common-catalog/**"
       - "frontend/**"
       - ".github/workflows/deploy.yml"
       - ".github/workflows/deploy-azure.yml"

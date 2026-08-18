@@ -1,5 +1,6 @@
 package com.wealth.portfolio.seed;
 
+import com.wealth.catalog.SupportedCatalog;
 import com.wealth.portfolio.seed.SeedTickerRegistry.SeedTicker;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -14,25 +15,18 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
  * Unit tests for {@link SeedTickerRegistry} verifying that the enriched
- * {@code seed/seed-tickers.json} (with {@code name}/{@code aliases} fields) loads correctly,
- * that the 160-entry count and asset-class distribution are preserved, and that the
- * optional {@code name}/{@code aliases} fields are populated (Task 2 / Req 7.3, 9.5).
- *
- * <p>The test is skipped automatically when {@code seed/seed-tickers.json} is not on the
- * classpath (e.g. in IDE runs before {@code copySeedTickers} has executed).
- * Run via {@code ./gradlew :portfolio-service:test} to guarantee the file is present.
+ * {@code catalog/seed-tickers.json} loads correctly through {@link SupportedCatalog}.
  */
 class SeedTickerRegistryTest {
 
     private SeedTickerRegistry registry;
 
     @BeforeEach
-    void setUp() throws Exception {
-        registry = new SeedTickerRegistry();
-        registry.load();
-        // Skip the test suite if seed-tickers.json is absent (IDE run without copySeedTickers).
+    void setUp() {
+        SupportedCatalog catalog = SupportedCatalog.load();
+        registry = new SeedTickerRegistry(catalog, catalog.seedView());
         assumeTrue(!registry.all().isEmpty(),
-                "seed/seed-tickers.json not found on classpath – run ./gradlew copySeedTickers first");
+                "catalog/seed-tickers.json not found on classpath – run ./gradlew :portfolio-service:processResources");
     }
 
     // ── Count and distribution ─────────────────────────────────────────────────────────────
@@ -121,6 +115,12 @@ class SeedTickerRegistryTest {
         assertThat(noAliases)
                 .as("all entries must have a non-null aliases list after catalog enrichment")
                 .isEmpty();
+    }
+
+    @Test
+    void load_mahindraTickerUsesCorrectSymbol() {
+        assertThat(registry.find("MM.NS")).isPresent();
+        assertThat(registry.find("M&M.NS")).isEmpty();
     }
 
     // ── Core seeding fields preserved ─────────────────────────────────────────────────────

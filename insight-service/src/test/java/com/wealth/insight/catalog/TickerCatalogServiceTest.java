@@ -1,5 +1,6 @@
 package com.wealth.insight.catalog;
 
+import com.wealth.catalog.SupportedCatalog;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -26,11 +27,10 @@ class TickerCatalogServiceTest {
     private TickerCatalogService service;
 
     @BeforeEach
-    void setUp() throws Exception {
-        service = new TickerCatalogService();
-        service.load();
+    void setUp() {
+        service = new TickerCatalogService(SupportedCatalog.load());
         assumeTrue(service.isSupported("AAPL"),
-                "seed/seed-tickers.json not on classpath – run ./gradlew copySeedTickers first");
+                "catalog/seed-tickers.json not on classpath – run ./gradlew :insight-service:processResources");
     }
 
     // ── normalize: exact passthrough ──────────────────────────────────────────────────────
@@ -163,8 +163,8 @@ class TickerCatalogServiceTest {
     }
 
     @Test
-    void catalogVersion_isEightCharHex() {
-        assertThat(service.catalogVersion()).matches("[0-9a-f]{8}");
+    void catalogVersion_isSixteenCharHex() {
+        assertThat(service.catalogVersion()).matches("[0-9a-f]{16}");
     }
 
     // ── groundingView ─────────────────────────────────────────────────────────────────────
