@@ -369,11 +369,19 @@ the release lane cannot open until both gates are green regardless.
   Gate order inverted: Azure OIDC is `ref:refs/heads/main` only, so live proofs ran after merge.
   Abort remains a revert of #108. Digest mode is unreachable except by deliberate dispatch of
   `deploy-azure.yml` — `deploy.yml` does not forward `prebuilt_digest`.
+  Candidate: `wealthprodacr.azurecr.io/portfolio-service@sha256:abaaa97c8da97c800e911b2d4e98c6ab1d51dda2ea4f56d00290bb811da75145`
+  (purpose-built from `main` @ `5b9156d`, not a salvaged serving image).
 
   | Task | Run | What it showed |
   |---|---|---|
   | P-B.4b | [32117991737](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/32117991737) | Merge-triggered full path with digest input absent: four `deploy (…)` matrix entries (api-gateway, portfolio-service, insight-service, market-data-service), plus frontend, seed, verify all `success`; `assert-scoped-non-interference` `skipped` |
-  | P-B.3 | [32123580730](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/32123580730) | `services=portfolio-service` with purpose-built digest `wealthprodacr.azurecr.io/portfolio-service@sha256:abaaa97c8da97c800e911b2d4e98c6ab1d51dda2ea4f56d00290bb811da75145`: ACR login, build, and push `skipped`; dedicated skip-proof `success`; Update Container App `success`; `market-data-refresh-job` `skipped`; revision Succeeded; `assert-scoped-non-interference` `success` (requested digest, three-layer `GITHUB_SHA` close); frontend/seed/verify `skipped` |
+  | P-B.3 | [32123580730](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/32123580730) | `services=portfolio-service` with that digest: Update Container App `success`; `market-data-refresh-job` `skipped`; revision Succeeded; `assert-scoped-non-interference` `success` (requested digest, three-layer `GITHUB_SHA` close); frontend/seed/verify `skipped` |
+
+  Load-bearing P-B.3 evidence is **step-level**, not job-level. On that run,
+  `Build Docker image` and `Push Docker image` were `skipped`, and the dedicated
+  **Prove digest path skipped build and push** step succeeded. A green job conclusion
+  does not distinguish a skipped rebuild from a silent rebuild; that assertion is
+  what the digest model rests on.
 
   P-B.4a (every rejection fails before any update) is unit-tested in #108, not a live roll.
   Residual coupling: the comparator's `market-data-refresh-job` assertion is inert in digest
