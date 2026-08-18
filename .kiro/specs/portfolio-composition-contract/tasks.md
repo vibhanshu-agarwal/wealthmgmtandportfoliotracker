@@ -272,7 +272,7 @@ the release lane cannot open until both gates are green regardless.
 
 ### P-A — service selection
 
-- [ ] **P-A.1 Add a service allowlist and two explicit workflow modes.** Scoping is a property of
+- [x] **P-A.1 Add a service allowlist and two explicit workflow modes.** Scoping is a property of
   the **whole workflow**, not the backend matrix: `deploy-frontend` (line 230) has no service-filter
   condition, `seed` (line 314) chains off it, and `verify` (line 353) chains off `seed`. Per design
   Revision 9:
@@ -283,7 +283,7 @@ the release lane cannot open until both gates are green regardless.
   An unselected service receives **no `az containerapp update` at all** — not a re-deploy at its
   existing digest, which can still create or mutate revision state.
   _Requirements: 1.17, 1.19, 1.21_
-- [ ] **P-A.2 Prove non-interference — Container Apps *and* downstream jobs.** For each scoped run,
+- [x] **P-A.2 Prove non-interference — Container Apps *and* downstream jobs.** For each scoped run,
   assert every **unselected** app's revision name, image digest and traffic weight are byte-identical
   before and after, **and** that `deploy-frontend`, `seed` and `verify` each report a conclusion of
   **`skipped`**. Record the conclusions explicitly: GitHub reports a skipped job as a *successful*
@@ -294,19 +294,34 @@ the release lane cannot open until both gates are green regardless.
   the portfolio data plane would have passed its non-interference proof. The seed is a production
   writer — `global-setup.ts:172-195` POSTs to `/api/internal/portfolio/seed` — not an observation.
   _Requirements: 1.17, 1.24_
-- [ ] **P-A.3 Prove every declared selection shape**, not one. B1's R-A needs an
+- [x] **P-A.3 Prove every declared selection shape**, not one. B1's R-A needs an
   **`api-gateway`-only** deployment and its later releases need **`portfolio-service`-only**, so a
   single portfolio run cannot establish the selection contract. Exercise both B1-used values, and
   cover all four structurally — including that selecting `market-data-service` also updates
   **`market-data-refresh-job`** (lines 163–180), which is a service-specific auxiliary target rather
   than a uniform one.
   _Requirements: 1.17, 1.21_
-- [ ] **P-A.4 Prove the default path is unchanged.** An ordinary dispatch with no allowlist still
+- [x] **P-A.4 Prove the default path is unchanged.** An ordinary dispatch with no allowlist still
   deploys all four backends, the frontend, the seed and the verify chain exactly as today.
   _Requirements: 1.21_
-- [ ] **P-A.5 STOP/GO — P-A.**
+- [x] **P-A.5 STOP/GO — P-A.**
   **Go:** P-A.2, P-A.3 and P-A.4 green.
   **Abort:** revert the allowlist; the release lane stays closed and implementation is unaffected.
+  **Outcome (2026-08-18): GO.** Shipped in #105 (`500a8c5`). Spec text in #106 (`70486b4`).
+  Gate order inverted: Azure OIDC is `ref:refs/heads/main` only, so live proofs ran after merge.
+  Abort remains a revert of #105. Scoped mode is unreachable except by deliberate dispatch.
+
+  | Task | Run | What it showed |
+  |---|---|---|
+  | P-A.4 | [32099171495](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/32099171495) | Merge-triggered full path: four `deploy (…)` matrix entries (api-gateway, portfolio-service, insight-service, market-data-service), plus frontend, seed, verify all `success`; `assert-scoped-non-interference` `skipped` |
+  | P-A.2 / P-A.3 | [32099750088](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/32099750088) | `services=api-gateway`: exactly one matrix entry; frontend/seed/verify `skipped`; assert `success` |
+  | P-A.2 / P-A.3 | [32100281322](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/32100281322) | `services=portfolio-service`: exactly one matrix entry; frontend/seed/verify `skipped`; assert `success` |
+
+  `market-data-service` → `market-data-refresh-job` is covered structurally (local positive and
+  negative comparator tests), not with a third live roll. After the scoped rebuilds, prod is
+  serving three distinct `--no-cache` digests of the same commit (`api-gateway` and
+  `portfolio-service` from their scoped runs; `insight-service` and `market-data-service` from
+  the merge deploy) — identical source, non-reproducible images.
   _Requirements: 1.21, 1.22, 1.23_
 
 ### P-B — digest deployment (based on P-A)
