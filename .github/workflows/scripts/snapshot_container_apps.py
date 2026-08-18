@@ -100,15 +100,29 @@ def compare(
     after: dict[str, Any],
     selected: list[str],
     git_sha: str | None = None,
+    requested_digest: str | None = None,
 ) -> list[str]:
     errors: list[str] = []
     selected_set = set(selected)
+    digest = (requested_digest or "").strip() or None
+    sha = (git_sha or "").strip() or None
+    if digest:
+        marker, marker_label = digest, "digest"
+    elif sha:
+        marker, marker_label = sha, "git sha"
+    else:
+        marker, marker_label = None, "digest or git sha"
     for name in KNOWN_SERVICES:
         if name in selected_set:
             image = str(after.get(name, {}).get("image", ""))
-            if git_sha and git_sha not in image:
+            if not marker:
                 errors.append(
-                    f"selected {name} image {image!r} does not contain git sha {git_sha}"
+                    f"selected {name} image {image!r} cannot be checked: "
+                    "neither digest nor git sha was provided"
+                )
+            elif marker not in image:
+                errors.append(
+                    f"selected {name} image {image!r} does not contain {marker_label} {marker}"
                 )
         elif before.get(name) != after.get(name):
             errors.append(
@@ -141,13 +155,21 @@ def _write_output(name: str, value: str) -> None:
             handle.write(f"{name}={value}\n")
 
 
-def main() -> int:
+def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
     parser.add_argument("command", choices=("snapshot", "compare"))
     parser.add_argument("--before", default="")
     parser.add_argument("--selected", default="[]")
-    parser.add_argument("--git-sha", default=os.environ.get("GITHUB_SHA", ""))
-    args = parser.parse_args()
+    # Empty default on purpose: do not inherit GITHUB_SHA from the environment.
+    # Digest mode omits --git-sha; falling back to the commit SHA would let a
+    # rebuild pass the selected-app assertion.
+    parser.add_argument("--git-sha", default="")
+    parser.add_argument("--requested-digest", default="")
+    return parser
+
+
+def main() -> int:
+    args = _parser().parse_args()
 
     resource_group = os.environ.get("AZURE_RG", "")
     if not resource_group:
@@ -164,7 +186,13 @@ def main() -> int:
     before = json.loads(args.before)
     selected = json.loads(args.selected)
     after = capture(resource_group)
-    errors = compare(before, after, selected, args.git_sha or None)
+    errors = compare(
+        before,
+        after,
+        selected,
+        git_sha=args.git_sha or None,
+        requested_digest=args.requested_digest or None,
+    )
     print(json.dumps({"after": after, "errors": errors}, indent=2))
     if errors:
         for error in errors:
