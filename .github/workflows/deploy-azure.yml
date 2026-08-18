@@ -546,10 +546,15 @@ jobs:
           REQUESTED_DIGEST: ${{ needs.preflight.outputs.digest }}
         run: |
           if [ "$DIGEST_MODE" = "true" ]; then
+            if [ -z "$REQUESTED_DIGEST" ]; then
+              echo "::error::digest mode compare requires a requested digest; refusing to fall back to github.sha"
+              exit 1
+            fi
             python3 .github/workflows/scripts/snapshot_container_apps.py compare \
               --before "$BEFORE" \
               --selected "$SELECTED" \
-              --requested-digest "$REQUESTED_DIGEST"
+              --requested-digest "$REQUESTED_DIGEST" \
+              --git-sha ""
           else
             python3 .github/workflows/scripts/snapshot_container_apps.py compare \
               --before "$BEFORE" \

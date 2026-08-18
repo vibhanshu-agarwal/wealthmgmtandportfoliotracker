@@ -58,7 +58,12 @@ def _acr_lookup(registry: str, repository: str, digest: str) -> bool:
         text=True,
         encoding="utf-8",
     )
-    return result.returncode == 0
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout).strip()
+        if detail:
+            print(f"::error::az acr manifest show failed: {detail}", file=sys.stderr)
+        return False
+    return True
 
 
 def resolve(

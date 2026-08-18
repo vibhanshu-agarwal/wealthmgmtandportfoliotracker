@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import importlib.util
+import os
 import sys
 import unittest
 from pathlib import Path
@@ -113,6 +114,71 @@ class TestCompareNonInterference(unittest.TestCase):
             self.baseline, after, ["market-data-service"], git_sha="newsha"
         )
         self.assertTrue(any("market-data-refresh-job" in e for e in errors))
+
+    def test_requested_digest_wins_over_git_sha(self):
+        digest = "sha256:" + "b" * 64
+        after = {
+            **self.baseline,
+            "portfolio-service": _app(
+                "pf-2",
+                f"wealthprodacr.azurecr.io/portfolio-service@{digest}",
+            ),
+        }
+        errors = self.mod.compare(
+            self.baseline,
+            after,
+            ["portfolio-service"],
+            git_sha=self.sha,
+            requested_digest=digest,
+        )
+        self.assertEqual(errors, [])
+
+    def test_git_sha_image_fails_when_requested_digest_is_set(self):
+        digest = "sha256:" + "b" * 64
+        after = {
+            **self.baseline,
+            "portfolio-service": _app(
+                "pf-2",
+                f"wealthprodacr.azurecr.io/portfolio-service:{self.sha}",
+            ),
+        }
+        errors = self.mod.compare(
+            self.baseline,
+            after,
+            ["portfolio-service"],
+            git_sha=self.sha,
+            requested_digest=digest,
+        )
+        self.assertTrue(any("digest" in e for e in errors))
+        self.assertFalse(any("git sha" in e for e in errors))
+
+    def test_selected_app_without_marker_is_a_failure(self):
+        after = {
+            **self.baseline,
+            "portfolio-service": _app(
+                "pf-2",
+                f"wealthprodacr.azurecr.io/portfolio-service:{self.sha}",
+            ),
+        }
+        errors = self.mod.compare(
+            self.baseline,
+            after,
+            ["portfolio-service"],
+        )
+        self.assertTrue(any("neither digest nor git sha" in e for e in errors))
+
+    def test_git_sha_arg_does_not_default_to_github_sha_env(self):
+        previous = os.environ.get("GITHUB_SHA")
+        os.environ["GITHUB_SHA"] = "should-not-leak"
+        try:
+            args = self.mod._parser().parse_args(["compare"])
+            self.assertEqual(args.git_sha, "")
+            self.assertEqual(args.requested_digest, "")
+        finally:
+            if previous is None:
+                os.environ.pop("GITHUB_SHA", None)
+            else:
+                os.environ["GITHUB_SHA"] = previous
 
     def test_selected_app_must_carry_requested_digest(self):
         digest = "sha256:" + "b" * 64

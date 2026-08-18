@@ -117,6 +117,14 @@ class TestResolveDigestDeploy(unittest.TestCase):
         self.assertEqual(lookup.calls, [])
         self.assertIn("portfolio-service", str(caught.exception))
 
+    def test_market_data_service_is_rejected_without_lookup(self):
+        lookup = RecordingLookup()
+        with self.assertRaises(self.mod.DigestError) as caught:
+            self.mod.resolve(VALID, ["market-data-service"], lookup)
+        self.assertEqual(lookup.calls, [])
+        self.assertIn("portfolio-service", str(caught.exception))
+        self.assertIn("market-data-service", str(caught.exception))
+
     def test_tag_reference_is_rejected_without_lookup(self):
         lookup = RecordingLookup()
         with self.assertRaises(self.mod.DigestError) as caught:

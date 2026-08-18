@@ -25,12 +25,12 @@ class TestDeployAzurePrebuiltDigest(unittest.TestCase):
             self.assertRegex(block, r"prebuilt_digest:[\s\S]*?default:\s*\"\"")
 
     def test_dispatcher_does_not_pass_a_digest_so_push_to_main_stays_tag_based(self):
+        self.assertNotIn("prebuilt_digest:", self.dispatcher)
         azure_job = re.search(
             r"deploy-azure:\s*\n(?:.*\n)*?    secrets: inherit",
             self.dispatcher,
         )
         self.assertIsNotNone(azure_job)
-        self.assertNotIn("prebuilt_digest:", azure_job.group(0))
         self.assertNotIn("with:", azure_job.group(0))
 
     def test_cheap_digest_validation_runs_before_azure_login(self):
@@ -38,6 +38,13 @@ class TestDeployAzurePrebuiltDigest(unittest.TestCase):
         login = self.text.find("Azure login (OIDC)")
         self.assertGreater(cheap, 0)
         self.assertGreater(login, cheap)
+
+    def test_cheap_validation_skips_lookup_and_acr_step_does_not(self):
+        cheap = self._step("Validate prebuilt digest")
+        lookup = self._step("Resolve prebuilt digest in ACR")
+        self.assertIn("--skip-lookup", cheap)
+        self.assertNotIn("--skip-lookup", lookup)
+        self.assertIn("resolve_digest_deploy.py", lookup)
 
     def test_acr_manifest_lookup_is_after_infra_check_and_before_deploy_update(self):
         infra = self.text.find("Check whether infrastructure has been provisioned")
@@ -76,6 +83,19 @@ class TestDeployAzurePrebuiltDigest(unittest.TestCase):
     def test_digest_update_uses_preflight_digest_image(self):
         deploy = self._job("deploy:")
         self.assertIn("needs.preflight.outputs.digest_image", deploy)
+
+    def test_digest_compare_refuses_empty_digest_and_clears_git_sha(self):
+        body = self._job("assert-scoped-non-interference:")
+        self.assertIn("digest mode compare requires a requested digest", body)
+        self.assertIn('--git-sha ""', body)
+
+    def _step(self, name: str) -> str:
+        needle = f"- name: {name}"
+        start = self.text.find(needle)
+        self.assertGreater(start, 0, name)
+        nxt = self.text.find("\n      - name:", start + len(needle))
+        end = nxt if nxt > 0 else start + 800
+        return self.text[start:end]
 
     def _block(self, heading: str) -> str:
         idx = self.text.find(heading)
