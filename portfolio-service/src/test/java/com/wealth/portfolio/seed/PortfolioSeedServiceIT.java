@@ -97,7 +97,7 @@ class PortfolioSeedServiceIT {
         List<Map<String, Object>> pricesBefore = snapshotMarketPrices();
         List<Map<String, Object>> historyBefore = snapshotMarketPriceHistory();
 
-        // ── First invocation: must create 1 portfolio + 160 holdings, and no price rows ──
+        // ── First invocation: must create 1 portfolio + one holding per active ticker ──
         SeedResult first = seedService.seed(E2E_USER_ID);
         int expectedHoldings = registry.active().size();
 
@@ -205,7 +205,7 @@ class PortfolioSeedServiceIT {
         String cbUserId = E2E_USER_ID + "-cb";
         SeedResult result = seedService.seed(cbUserId);
 
-        // Verify via raw JDBC (bypasses JPA cache) — all 160 holdings must have cost basis
+        // Verify via raw JDBC (bypasses JPA cache) — every active holding must have cost basis
         List<Map<String, Object>> rows = jdbc.queryForList(
                 """
                 SELECT h.asset_ticker, h.avg_cost_basis, h.cost_basis_currency,
@@ -216,7 +216,7 @@ class PortfolioSeedServiceIT {
                 """,
                 result.portfolioId().toString());
 
-        assertThat(rows).hasSize(160);
+        assertThat(rows).hasSize(registry.active().size());
 
         for (Map<String, Object> row : rows) {
             String ticker = (String) row.get("asset_ticker");
