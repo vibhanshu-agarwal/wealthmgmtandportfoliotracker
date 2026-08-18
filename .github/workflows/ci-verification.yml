@@ -28,6 +28,21 @@ jobs:
         run: |
           cd scripts && npm ci --ignore-scripts && npm audit --omit=dev --audit-level=low && node check-sanitizer-secret-wiring.js
 
+  deploy-workflow-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Wave P deploy-azure service-allowlist contract
+        run: |
+          python scripts/tests/test_resolve_deploy_selection.py
+          python scripts/tests/test_deploy_azure_service_allowlist.py
+          python scripts/tests/test_snapshot_container_apps.py
+
   sanitizer-canary:
     runs-on: ubuntu-latest
     needs: static-guard

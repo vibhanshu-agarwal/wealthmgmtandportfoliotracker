@@ -60,6 +60,8 @@ Thumbs.db
 ### Tooling artifacts ###
 frontend/.junie/
 app-inspect.jar
+__pycache__/
+*.py[cod]
 
 ### Terraform ###
 infrastructure/terraform/.terraform/
