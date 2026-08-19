@@ -1,9 +1,10 @@
 package com.wealth.portfolio;
 
+import com.wealth.catalog.SupportedCatalog;
 import com.wealth.market.events.PriceUpdatedEvent;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataAccessResourceFailureException;
@@ -22,14 +23,20 @@ class MarketPriceProjectionServiceFailureTest {
     @Mock
     private JdbcTemplate jdbcTemplate;
 
-    @InjectMocks
     private MarketPriceProjectionService projectionService;
+
+    @BeforeEach
+    void setUp() {
+        projectionService =
+                new MarketPriceProjectionService(
+                        jdbcTemplate, SupportedCatalog.load(), false, new PriceProjectionSignals());
+    }
 
     @Test
     void databaseFailurePropagatesSynchronously() {
         doThrow(new DataAccessResourceFailureException("db down"))
                 .when(jdbcTemplate)
-                .update(anyString(), any(), any(), any());
+                .update(anyString(), any(), any(), any(), any());
 
         assertThatThrownBy(
                         () ->

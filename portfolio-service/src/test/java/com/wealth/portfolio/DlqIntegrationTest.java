@@ -152,7 +152,7 @@ class DlqIntegrationTest {
   void validEvent_updatesProjection_andNothingOnDlt() throws Exception {
     String ticker = "INTG_" + UUID.randomUUID().toString().substring(0, 6).toUpperCase();
     String validJson =
-        objectMapper.writeValueAsString(new PriceUpdatedEvent(ticker, new BigDecimal("250.00")));
+        objectMapper.writeValueAsString(new PriceUpdatedEvent(ticker, new BigDecimal("250.00"), "USD", null, null, null));
 
     producer
         .send(new ProducerRecord<>(TOPIC, ticker, validJson.getBytes(StandardCharsets.UTF_8)))

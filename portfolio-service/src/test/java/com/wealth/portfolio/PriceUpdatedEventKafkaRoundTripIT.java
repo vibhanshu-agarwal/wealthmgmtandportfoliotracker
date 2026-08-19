@@ -289,7 +289,7 @@ class PriceUpdatedEventKafkaRoundTripIT {
     @Test
     void listenerObservation_activeSpanWhenTraceparentControlHeaderPresent() throws Exception {
         String ticker = "TRC_" + UUID.randomUUID().toString().substring(0, 6).toUpperCase();
-        PriceUpdatedEvent event = new PriceUpdatedEvent(ticker, new BigDecimal("101.01"));
+        PriceUpdatedEvent event = new PriceUpdatedEvent(ticker, new BigDecimal("101.01"), "USD", null, null, null);
 
         Span producerSpan = tracer.nextSpan().name("kafka-propagation-test").start();
         try (Tracer.SpanInScope scope = tracer.withSpan(producerSpan)) {
@@ -326,7 +326,7 @@ class PriceUpdatedEventKafkaRoundTripIT {
     @Test
     void injectedTraceparent_consumerContinuesSameTraceIdWithDistinctSpanId() throws Exception {
         String ticker = "TRC_" + UUID.randomUUID().toString().substring(0, 6).toUpperCase();
-        PriceUpdatedEvent event = new PriceUpdatedEvent(ticker, new BigDecimal("101.01"));
+        PriceUpdatedEvent event = new PriceUpdatedEvent(ticker, new BigDecimal("101.01"), "USD", null, null, null);
 
         marketDataLikeProducer.send(TOPIC, ticker, event).get();
 
@@ -371,7 +371,7 @@ class PriceUpdatedEventKafkaRoundTripIT {
     @Test
     void absentTraceparent_startsNewValidTraceAndProcessesMessage() throws Exception {
         String ticker = "TRC_" + UUID.randomUUID().toString().substring(0, 6).toUpperCase();
-        PriceUpdatedEvent event = new PriceUpdatedEvent(ticker, new BigDecimal("101.01"));
+        PriceUpdatedEvent event = new PriceUpdatedEvent(ticker, new BigDecimal("101.01"), "USD", null, null, null);
         sendWithoutObservation(new ProducerRecord<>(TOPIC, ticker, event));
 
         List<ConsumerRecord<String, byte[]>> seen = new ArrayList<>();
@@ -418,7 +418,7 @@ class PriceUpdatedEventKafkaRoundTripIT {
     void malformedTraceparent_startsNewValidTraceAndProcessesMessage() throws Exception {
         String ticker = "TRC_" + UUID.randomUUID().toString().substring(0, 6).toUpperCase();
         String garbage = "not-a-traceparent";
-        PriceUpdatedEvent event = new PriceUpdatedEvent(ticker, new BigDecimal("101.01"));
+        PriceUpdatedEvent event = new PriceUpdatedEvent(ticker, new BigDecimal("101.01"), "USD", null, null, null);
         ProducerRecord<String, PriceUpdatedEvent> outbound =
                 new ProducerRecord<>(TOPIC, ticker, event);
         outbound.headers().add("traceparent", garbage.getBytes(StandardCharsets.UTF_8));

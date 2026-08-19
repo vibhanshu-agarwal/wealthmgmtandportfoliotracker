@@ -6,8 +6,7 @@ import java.math.BigDecimal;
  * Summary response for {@code GET /api/portfolio/summary}.
  *
  * @param partialValuation true when one or more holdings were excluded from {@code totalValue}
- *                         because their FX rate was unavailable at computation time.
- *                         Consumers should label the total as partial/approximate.
+ *                         (unavailable FX or missing price). Staleness does not set this flag.
  */
 public record PortfolioSummaryDto(
         String userId,
@@ -15,11 +14,19 @@ public record PortfolioSummaryDto(
         int totalHoldings,
         BigDecimal totalValue,
         String baseCurrency,
-        boolean partialValuation
+        boolean partialValuation,
+        AssetPriceFreshnessDto assetPriceFreshness
 ) {
     /** Convenience constructor for fully-valued portfolios (backward compat). */
     public PortfolioSummaryDto(String userId, int portfolioCount, int totalHoldings,
                                BigDecimal totalValue, String baseCurrency) {
-        this(userId, portfolioCount, totalHoldings, totalValue, baseCurrency, false);
+        this(userId, portfolioCount, totalHoldings, totalValue, baseCurrency, false,
+                AssetPriceFreshnessDto.emptyPortfolio());
+    }
+
+    public PortfolioSummaryDto(String userId, int portfolioCount, int totalHoldings,
+                               BigDecimal totalValue, String baseCurrency, boolean partialValuation) {
+        this(userId, portfolioCount, totalHoldings, totalValue, baseCurrency, partialValuation,
+                AssetPriceFreshnessDto.emptyPortfolio());
     }
 }

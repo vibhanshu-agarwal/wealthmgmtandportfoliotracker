@@ -2,6 +2,9 @@ package com.wealth.portfolio;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.sql.Timestamp;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -11,7 +14,11 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.wealth.portfolio.dto.AssetPriceFreshnessDto;
 import com.wealth.portfolio.dto.PortfolioSummaryDto;
+import com.wealth.portfolio.freshness.AssetPriceFreshness;
+import com.wealth.portfolio.freshness.AssetPriceFreshnessProperties;
+import com.wealth.portfolio.freshness.FreshnessState;
 import com.wealth.portfolio.fx.FxProperties;
 import com.wealth.user.UserRepository;
 
@@ -25,18 +32,21 @@ public class PortfolioService {
   private final UserRepository userRepository;
   private final FxRateProvider fxRateProvider;
   private final FxProperties fxProperties;
+  private final AssetPriceFreshnessProperties freshnessProperties;
 
   public PortfolioService(
       PortfolioRepository portfolioRepository,
       JdbcTemplate jdbcTemplate,
       UserRepository userRepository,
       FxRateProvider fxRateProvider,
-      FxProperties fxProperties) {
+      FxProperties fxProperties,
+      AssetPriceFreshnessProperties freshnessProperties) {
     this.portfolioRepository = portfolioRepository;
     this.jdbcTemplate = jdbcTemplate;
     this.userRepository = userRepository;
     this.fxRateProvider = fxRateProvider;
     this.fxProperties = fxProperties;
+    this.freshnessProperties = freshnessProperties;
   }
 
   // Task 1.3 verified: @Transactional(readOnly = true) keeps the JPA session open so
@@ -59,33 +69,67 @@ public class PortfolioService {
             """
                 SELECT h.asset_ticker,
                        h.quantity,
-                       COALESCE(mp.current_price, 0)      AS current_price,
-                       COALESCE(mp.quote_currency, 'USD') AS quote_currency
+                       mp.current_price,
+                       mp.quote_currency,
+                       mp.ticker IS NOT NULL AS price_row_present,
+                       mp.observed_at
                 FROM asset_holdings h
                 JOIN portfolios p ON p.id = h.portfolio_id
                 LEFT JOIN market_prices mp ON mp.ticker = h.asset_ticker
                 WHERE p.user_id = ?
                 """,
-            (rs, i) ->
-                new HoldingValuationRow(
-                    rs.getString("asset_ticker"),
-                    rs.getBigDecimal("quantity"),
-                    rs.getBigDecimal("current_price"),
-                    rs.getString("quote_currency")),
+            (rs, i) -> {
+              Timestamp observed = rs.getTimestamp("observed_at");
+              return new HoldingValuationRow(
+                  rs.getString("asset_ticker"),
+                  rs.getBigDecimal("quantity"),
+                  rs.getBigDecimal("current_price"),
+                  rs.getString("quote_currency"),
+                  rs.getBoolean("price_row_present"),
+                  observed == null ? null : observed.toInstant());
+            },
             userId);
 
-    // FX conversion loop — loop invariant: totalValue = sum of converted values so far
+    Duration threshold = freshnessProperties.threshold();
+    Instant now = Instant.now();
+    FreshnessState overall = FreshnessState.FRESH;
+    int staleHoldings = 0;
+    int unknownPriceHoldings = 0;
+    int missingPriceHoldings = 0;
+    Instant oldestKnown = null;
+
     BigDecimal totalValue = BigDecimal.ZERO;
     boolean partialValuation = false;
     for (HoldingValuationRow row : rows) {
+      FreshnessState holdingState =
+          AssetPriceFreshness.evaluate(row.priceRowPresent(), row.observedAt(), threshold, now);
+      overall = FreshnessState.mostSevere(overall, holdingState);
+      switch (holdingState) {
+        case STALE -> staleHoldings++;
+        case UNKNOWN -> unknownPriceHoldings++;
+        case MISSING -> missingPriceHoldings++;
+        case FRESH -> {
+          // counted via overall reduction
+        }
+      }
+      if (row.priceRowPresent() && row.observedAt() != null) {
+        if (oldestKnown == null || row.observedAt().isBefore(oldestKnown)) {
+          oldestKnown = row.observedAt();
+        }
+      }
+
+      if (!row.priceRowPresent()) {
+        partialValuation = true;
+        continue;
+      }
+
       BigDecimal rate;
-      if (row.quoteCurrency().equals(baseCurrency)) {
-        rate = BigDecimal.ONE; // same-currency short-circuit: no FX call
+      if (baseCurrency.equals(row.quoteCurrency())) {
+        rate = BigDecimal.ONE;
       } else {
         try {
           rate = fxRateProvider.getRate(row.quoteCurrency(), baseCurrency);
         } catch (FxRateUnavailableException e) {
-          // Task 6.2: exclude this holding from the aggregate rather than using 1:1.
           log.debug("FX rate unavailable for {} → {} — holding {} excluded from total",
               row.quoteCurrency(), baseCurrency, row.assetTicker());
           partialValuation = true;
@@ -106,7 +150,18 @@ public class PortfolioService {
     int totalHoldings = portfolios.stream().mapToInt(p -> p.getHoldings().size()).sum();
 
     return new PortfolioSummaryDto(
-        userId, portfolios.size(), totalHoldings, totalValue, baseCurrency, partialValuation);
+        userId,
+        portfolios.size(),
+        totalHoldings,
+        totalValue,
+        baseCurrency,
+        partialValuation,
+        new AssetPriceFreshnessDto(
+            overall,
+            oldestKnown,
+            staleHoldings,
+            unknownPriceHoldings,
+            missingPriceHoldings));
   }
 
   private void requireUserExists(String userId) {
