@@ -74,37 +74,49 @@ Therefore, while Wave 2 is stacked on `feat/supported-asset-postgres-repair`:
 - [ ] **Do not open a PR** from the stacked branch.
 - [ ] **Do not merge it** to `main` under any circumstance.
 - [ ] **Do not run any deploy-capable or production-mutating workflow from it** — specifically `deploy.yml`, `deploy-azure.yml`, `deploy-aws.yml`, `terraform-azure.yml` with `action=apply`, and `synthetic-monitoring.yml` (its global setup POSTs to the production seed endpoint).
-- [ ] **Build-and-test CI is explicitly permitted and encouraged** — `ci-verification.yml`, `frontend-ci.yml`, `frontend-e2e-integration.yml`, and any Gradle or Playwright run. These build and test only; none of them deploys or writes to production. Push the branch freely so these run.
+- [ ] **Build-and-test CI is explicitly permitted and encouraged** — `ci-verification.yml`, `frontend-ci.yml`, and any local Gradle or Playwright run. These build and test only; none deploys or writes to production.
+
+**Name the stacked branch `feature/…`, not `feat/…`.** This is not cosmetic. `ci-verification.yml` and `frontend-ci.yml` trigger on push for `main`, `architecture/**` and **`feature/**`** — they do **not** match the repository's usual `feat/**` convention. And Option A forbids opening a PR, so the `pull_request` trigger is unavailable too. A branch named `feat/b1-wave-2` would therefore receive **no CI whatsoever** while stacked.
+
+Use e.g. `feature/b1-wave-2-provisioning`. `frontend-e2e-integration.yml` is `workflow_dispatch:` only and must be invoked manually:
+
+```bash
+gh workflow run frontend-e2e-integration.yml --ref feature/b1-wave-2-provisioning
+```
 
 **After R3a lands on `main`:**
 
 - [ ] **Rebase** the Wave 2 branch onto `main`.
-- [ ] **Prove no Spec A migration survived the rebase** before opening a PR. The check below covers the migration directory and `V17`–`V19` filenames — which is the whole of what a Wave 2 branch can inherit from Spec A's repair branch, since Spec A's other files were already merged to `main` in earlier PRs. It fails loudly rather than printing a warning:
+- [ ] **Prove nothing outside Wave 2's own surface survived the rebase**, before opening a PR.
+
+  **A migration-only check is not sufficient.** The repair branch is R3a — Spec A's task 6 *and* tasks 8.2–8.6 — and none of it has merged. Measured against `main`, it carries **38 changed files: 3 migrations and 35 others**, including `MarketPriceProjectionService`, `PortfolioService`, `PostMigrationIntegrityAssertion`, the freshness DTOs and contracts, `config/seed-tickers.json`, and `portfolio-service/src/main/resources/application.yml`. A guard that only inspects `db/migration` would pass while stale or conflicted Spec A production code rode along.
+
+  Use an **allowlist of the paths Wave 2 legitimately touches**, and fail on anything else:
 
 ```bash
 set -e
 git fetch origin
 git rebase origin/main
 
-# Any migration diff at all against main is a stack remnant: Wave 2 owns no migration.
-if [ -n "$(git diff --name-only origin/main...HEAD -- portfolio-service/src/main/resources/db/migration/)" ]; then
-  echo "STOP: Wave 2 must not change db/migration; the rebase did not drop Spec A's commits."
-  git diff --name-only origin/main...HEAD -- portfolio-service/src/main/resources/db/migration/
+# Wave 2 changes the gateway (provisioning insert + /api/assets route) and its own spec ticks.
+# Anything outside this set is a stack remnant from the repair branch.
+ALLOWED='^(api-gateway/src/(main|test)/|api-gateway/build\.gradle$|\.kiro/specs/portfolio-composition-contract/tasks\.md$)'
+
+STRAY=$(git diff --name-only origin/main...HEAD | grep -vE "$ALLOWED" || true)
+if [ -n "$STRAY" ]; then
+  echo "STOP: files outside Wave 2's surface remain after rebase —"
+  echo "$STRAY"
   exit 1
 fi
 
-# Belt and braces: no V17-V19 file anywhere in the diff.
-if git diff --name-only origin/main...HEAD | grep -qE 'V1[789]__'; then
-  echo "STOP: Spec A migrations still present in the diff."
-  exit 1
-fi
-
-echo "clean — no Spec A migration remains"
+echo "clean — diff is confined to Wave 2's own paths"
 ```
+
+  Widen `ALLOWED` only for a path Wave 2 genuinely owns, and say why in the PR. Never widen it to admit a `portfolio-service` path: Wave 2 changes no service code.
 
 - [ ] Only then open the PR.
 
-If either guard trips, the branch still carries migrations it does not own — stop and re-derive the rebase rather than merging past it.
+If the guard trips, the branch still carries files it does not own — stop and re-derive the rebase rather than merging past it.
 
 ---
 
