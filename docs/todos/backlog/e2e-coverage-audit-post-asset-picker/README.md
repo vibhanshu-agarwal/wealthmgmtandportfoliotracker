@@ -97,6 +97,17 @@ Both layers, deliberately — the point is that neither alone caught the defects
 - [ ] **Live browser tests.** Real user journeys end to end, asserting **values** and not only
   that a page rendered: signup → login → view portfolio → add holding via the picker → observe
   price and freshness → conflict handling → demo reset → profile changes.
+- [ ] **First, establish that every test intended to run actually runs.** Owner's hypothesis
+  (2026-08-19), recorded because it is distinct from assertion-vacuity and cheap to check: a
+  narrowing may have been introduced deliberately as a temporary measure — to unblock something,
+  to work around a flake — and then simply stuck, possibly months ago and possibly by someone who
+  is no longer expecting it. Check `playwright.config.ts` `testIgnore` / `testMatch` / project
+  filters, any `grep` or `--project` narrowing in `synthetic-monitoring.yml` and
+  `ci-verification.yml`, `test.skip` / `test.fixme` / `describe.only`, and Gradle `--tests` filters
+  or JUnit `@Tag` exclusions. For each exclusion found: was it intentional, is the reason recorded,
+  and does it still hold? The `azure-synthetic` project runs **5 of the 18** spec files; that split
+  is plausibly by design (the rest need a local stack) but has never been confirmed in writing.
+  Do this before auditing assertions — there is no point hardening a test that does not execute.
 - [ ] **Audit every existing assertion for vacuity.** For each: *can this pass while the
   behaviour it names is broken?* `>= N`, `toContainText` substring matches (a literal `"GOOG"`
   matched `GOOGL` during Spec A), and any test whose named condition is established by setup
