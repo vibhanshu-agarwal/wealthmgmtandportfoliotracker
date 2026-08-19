@@ -18,9 +18,12 @@ class ProductionManifestTest {
 
         assertThat(catalog.all()).hasSize(160);
         assertThat(catalog.active()).hasSize(159);
-        assertThat(catalog.find("MM.NS"))
-                .isPresent();
-        assertThat(catalog.find("M&M.NS")).isEmpty();
+        assertThat(catalog.find("M&M.NS"))
+                .isPresent()
+                .get()
+                .extracting(CatalogEntry::lifecycleStatus)
+                .isEqualTo(LifecycleStatus.ACTIVE);
+        assertThat(catalog.find("MM.NS")).isEmpty();
         assertThat(catalog.find("TATAMOTORS.NS"))
                 .isPresent()
                 .get()

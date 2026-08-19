@@ -43,11 +43,11 @@ class AuthSchemaMigrationIntegrationTest {
   @Autowired JdbcTemplate jdbcTemplate;
 
   @Test
-  void v16IsHighestAppliedVersionAndBetterAuthTablesAreAbsent() {
+  void v19IsHighestAppliedVersionAndBetterAuthTablesAreAbsent() {
     String maxVersion = jdbcTemplate.queryForObject(
         "SELECT version FROM flyway_schema_history WHERE success = true ORDER BY installed_rank DESC LIMIT 1",
         String.class);
-    assertThat(maxVersion).isEqualTo("16");
+    assertThat(maxVersion).isEqualTo("19");
 
     List<String> baTables = jdbcTemplate.queryForList(
         "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' "
@@ -99,7 +99,7 @@ class AuthSchemaMigrationIntegrationTest {
         .dataSource(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())
         .locations("classpath:db/migration")
         .load();
-    flyway.migrate(); // no-op: already at V16
+    flyway.migrate(); // no-op: already at V19
 
     Integer demoCount = jdbcTemplate.queryForObject(
         "SELECT count(*) FROM users WHERE id = '00000000-0000-0000-0000-0000000d3110'::uuid",
