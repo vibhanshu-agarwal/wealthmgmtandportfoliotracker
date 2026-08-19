@@ -24,12 +24,6 @@ market-data:
     enabled: false
     # Daily cron retained for documentation; inactive while refresh.enabled is false.
     cron: "0 0 8 * * *" # daily at 08:00 (Spring 6-field: sec min hour dom month dow)
-  baseline-seed:
-    # Baseline seed is a one-time operation handled outside the application lifecycle
-    # (e.g. via a Terraform provisioner or a manual run). Disable here to prevent
-    # re-seeding on every container restart.
-    enabled: false
-
 management:
   health:
     # Keep the MongoDB health contributor enabled. Uses the custom mongoHealthIndicator

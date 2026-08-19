@@ -2,6 +2,9 @@ package com.wealth.market;
 
 import com.github.tomakehurst.wiremock.WireMockServer;
 import com.github.tomakehurst.wiremock.client.WireMock;
+import com.wealth.catalog.CatalogEntry;
+import com.wealth.catalog.LifecycleStatus;
+import com.wealth.catalog.SupportedCatalog;
 import com.wealth.market.events.PriceUpdatedEvent;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.AfterEach;
@@ -13,6 +16,7 @@ import org.springframework.kafka.support.SendResult;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.*;
@@ -59,9 +63,9 @@ class MarketDataRefreshJobWireMockTest {
 
     private MarketDataRefreshService newRefreshService(AssetPriceRepository repo,
                                                        ExternalMarketDataClient client,
-                                                       BaselineTickerProperties baseline,
+                                                       SupportedCatalog supportedCatalog,
                                                        KafkaTemplate<String, PriceUpdatedEvent> kafkaTemplate) {
-        return new MarketDataRefreshService(repo, client, baseline, kafkaTemplate, meterRegistry);
+        return new MarketDataRefreshService(repo, client, supportedCatalog, kafkaTemplate, meterRegistry);
     }
 
     @Test
@@ -90,13 +94,15 @@ class MarketDataRefreshJobWireMockTest {
         ExternalMarketDataClient client = new YahooFinanceExternalMarketDataClient(props, meterRegistry);
 
         AssetPriceRepository repo = mock(AssetPriceRepository.class);
-        when(repo.findAll()).thenReturn(List.of());
+        when(repo.findById("AAPL")).thenReturn(Optional.empty());
 
-        BaselineTickerProperties baseline = new BaselineTickerProperties();
-        baseline.setTickers(List.of("AAPL"));
+        SupportedCatalog supportedCatalog = mock(SupportedCatalog.class);
+        when(supportedCatalog.active()).thenReturn(List.of(
+                new CatalogEntry("AAPL", "Apple", List.of(), "US_EQUITY", "USD", LifecycleStatus.ACTIVE)));
 
         KafkaTemplate<String, PriceUpdatedEvent> kafkaTemplate = mockKafkaTemplate();
-        MarketDataRefreshService refreshService = newRefreshService(repo, client, baseline, kafkaTemplate);
+        MarketDataRefreshService refreshService =
+                newRefreshService(repo, client, supportedCatalog, kafkaTemplate);
 
         refreshService.refresh();
 
@@ -127,14 +133,15 @@ class MarketDataRefreshJobWireMockTest {
 
         AssetPrice existing = new AssetPrice("AAPL", BigDecimal.valueOf(100.0));
         AssetPriceRepository repo = mock(AssetPriceRepository.class);
-        when(repo.findAll()).thenReturn(List.of());
         when(repo.findById("AAPL")).thenReturn(java.util.Optional.of(existing));
 
-        BaselineTickerProperties baseline = new BaselineTickerProperties();
-        baseline.setTickers(List.of("AAPL"));
+        SupportedCatalog supportedCatalog = mock(SupportedCatalog.class);
+        when(supportedCatalog.active()).thenReturn(List.of(
+                new CatalogEntry("AAPL", "Apple", List.of(), "US_EQUITY", "USD", LifecycleStatus.ACTIVE)));
 
         KafkaTemplate<String, PriceUpdatedEvent> kafkaTemplate = mockKafkaTemplate();
-        MarketDataRefreshService refreshService = newRefreshService(repo, client, baseline, kafkaTemplate);
+        MarketDataRefreshService refreshService =
+                newRefreshService(repo, client, supportedCatalog, kafkaTemplate);
 
         refreshService.refresh();
 
@@ -143,23 +150,24 @@ class MarketDataRefreshJobWireMockTest {
     }
 
     @Test
-    void resolveTrackedTickersUnionsBaselineWithMongo() {
+    void resolveTrackedTickersReturnsActiveCatalogTickers() {
         AssetPriceRepository repo = mock(AssetPriceRepository.class);
-        when(repo.findAll()).thenReturn(List.of(new AssetPrice("MSFT", BigDecimal.ONE)));
-
-        BaselineTickerProperties baseline = new BaselineTickerProperties();
-        baseline.setTickers(List.of("AAPL"));
+        SupportedCatalog supportedCatalog = mock(SupportedCatalog.class);
+        when(supportedCatalog.active()).thenReturn(List.of(
+                new CatalogEntry("AAPL", "Apple", List.of(), "US_EQUITY", "USD", LifecycleStatus.ACTIVE),
+                new CatalogEntry("MSFT", "Microsoft", List.of(), "US_EQUITY", "USD", LifecycleStatus.ACTIVE)));
 
         KafkaTemplate<String, PriceUpdatedEvent> kafka = mockKafkaTemplate();
 
         MarketDataRefreshService refreshService = newRefreshService(
-                repo, mock(ExternalMarketDataClient.class), baseline, kafka);
+                repo, mock(ExternalMarketDataClient.class), supportedCatalog, kafka);
 
         assertThat(refreshService.resolveTrackedTickers()).containsExactly("AAPL", "MSFT");
+        verifyNoInteractions(repo);
     }
 
     @Test
-    void refreshUsesUnionOfBaselineAndMongoTickers() {
+    void refreshUpdatesAndPublishesActiveCatalogTickers() {
         String responseBody = """
             {
               "quoteResponse": {
@@ -185,13 +193,17 @@ class MarketDataRefreshJobWireMockTest {
         ExternalMarketDataClient client = new YahooFinanceExternalMarketDataClient(props, meterRegistry);
 
         AssetPriceRepository repo = mock(AssetPriceRepository.class);
-        when(repo.findAll()).thenReturn(List.of(new AssetPrice("MSFT", BigDecimal.TEN)));
+        when(repo.findById("AAPL")).thenReturn(Optional.empty());
+        when(repo.findById("MSFT")).thenReturn(Optional.empty());
 
-        BaselineTickerProperties baseline = new BaselineTickerProperties();
-        baseline.setTickers(List.of("AAPL"));
+        SupportedCatalog supportedCatalog = mock(SupportedCatalog.class);
+        when(supportedCatalog.active()).thenReturn(List.of(
+                new CatalogEntry("AAPL", "Apple", List.of(), "US_EQUITY", "USD", LifecycleStatus.ACTIVE),
+                new CatalogEntry("MSFT", "Microsoft", List.of(), "US_EQUITY", "USD", LifecycleStatus.ACTIVE)));
 
         KafkaTemplate<String, PriceUpdatedEvent> kafkaTemplate = mockKafkaTemplate();
-        MarketDataRefreshService refreshService = newRefreshService(repo, client, baseline, kafkaTemplate);
+        MarketDataRefreshService refreshService =
+                newRefreshService(repo, client, supportedCatalog, kafkaTemplate);
 
         refreshService.refresh();
 

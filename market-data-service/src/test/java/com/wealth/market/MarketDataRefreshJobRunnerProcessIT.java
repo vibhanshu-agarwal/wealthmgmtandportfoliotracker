@@ -1,7 +1,6 @@
 package com.wealth.market;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
-import static com.github.tomakehurst.wiremock.client.WireMock.equalTo;
 import static com.github.tomakehurst.wiremock.client.WireMock.get;
 import static com.github.tomakehurst.wiremock.client.WireMock.stubFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo;
@@ -56,14 +55,14 @@ class MarketDataRefreshJobRunnerProcessIT {
             {
               "quoteResponse": {
                 "result": [
-                  {"symbol": "AAPL", "regularMarketPrice": 150.0}
+                  {"symbol": "AAPL", "regularMarketPrice": 150.0},
+                  {"symbol": "MSFT", "regularMarketPrice": 300.0}
                 ]
               }
             }
             """;
 
         stubFor(get(urlPathEqualTo("/v7/finance/quote"))
-                .withQueryParam("symbols", equalTo("AAPL"))
                 .willReturn(aResponse()
                         .withStatus(200)
                         .withHeader("Content-Type", "application/json")
@@ -156,7 +155,6 @@ class MarketDataRefreshJobRunnerProcessIT {
             command.add("-Dspring.kafka.producer.value-serializer=" + valueSerializerOverride);
         }
         command.add("-Dexternal-market-data.base-url=http://127.0.0.1:" + wireMockServer.port());
-        command.add("-Dmarket.baseline.tickers[0]=AAPL");
         command.add("-jar");
         command.add(bootJar);
 

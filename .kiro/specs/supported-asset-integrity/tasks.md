@@ -328,7 +328,7 @@ python scripts/check-spec-references.py   .kiro/specs/supported-asset-integrity/
     - _Requirements: 7.5, 7.6, 7.14, 7.15, 7.16_
 
 - [ ] 8. Refresh set, freshness, demo, and projection
-  - [ ] 8.1 `resolveTrackedTickers()` returns Active_Assets; retire the Mongo union
+  - [x] 8.1 `resolveTrackedTickers()` returns Active_Assets; retire the Mongo union
     - _Requirements: 5.1, 5.2, 5.3, 5.6, 5.7_
 
   - [ ] 8.2 Projection: currency normalization before comparison
