@@ -332,40 +332,40 @@ python scripts/check-spec-references.py   .kiro/specs/supported-asset-integrity/
   - [ ] 8.1 `resolveTrackedTickers()` returns Active_Assets; retire the Mongo union
     - _Requirements: 5.1, 5.2, 5.3, 5.6, 5.7_
 
-  - [ ] 8.2 Projection: currency normalization before comparison
+  - [x] 8.2 Projection: currency normalization before comparison
     - null → resolve from catalog; unresolvable → reject+surface; non-null must equal catalog,
       mismatch → reject+surface; ticker absent from catalog → reject+surface regardless of currency
     - Never default to `USD`
     - _Requirements: 9.3, 9.4, 9.5, 9.6, 9.11, 9.12_
 
-  - [ ] 8.3 Projection: tuple upsert, every transition **and its outcome**
+  - [x] 8.3 Projection: tuple upsert, every transition **and its outcome**
     - Rows-affected alone collapses cases that must be distinguished. Against **real Postgres**:
-    - [ ] 8.3.1 newer-over-known → tuple written
-    - [ ] 8.3.2 older-over-known → **nothing** written: not price, not currency, not timestamp
-    - [ ] 8.3.3 equal timestamp, **identical** payload → idempotent no-op
-    - [ ] 8.3.4 equal timestamp, **conflicting** payload → surfaced, not silently dropped
-    - [ ] 8.3.5 known-over-null → written (legacy row acquires provenance)
-    - [ ] 8.3.6 null-over-known → **nothing** written (no downgrade to `UNKNOWN`)
-    - [ ] 8.3.7 null-over-null → written, timestamp stays null, **later-received wins**, and the
+    - [x] 8.3.1 newer-over-known → tuple written
+    - [x] 8.3.2 older-over-known → **nothing** written: not price, not currency, not timestamp
+    - [x] 8.3.3 equal timestamp, **identical** payload → idempotent no-op
+    - [x] 8.3.4 equal timestamp, **conflicting** payload → surfaced, not silently dropped
+    - [x] 8.3.5 known-over-null → written (legacy row acquires provenance)
+    - [x] 8.3.6 null-over-known → **nothing** written (no downgrade to `UNKNOWN`)
+    - [x] 8.3.7 null-over-null → written, timestamp stays null, **later-received wins**, and the
           observable undated-event signal is emitted
-    - [ ] 8.3.8 first insert with and without a timestamp
+    - [x] 8.3.8 first insert with and without a timestamp
     - A happy-path-only test would pass while the predicate permitted the downgrade
     - _Requirements: 9.2, 9.13, 9.14, 9.15, 9.16, 9.17, 9.18, 9.19, 9.20, 9.21, 9.22, 9.29_
 
-  - [ ] 8.4 Projection: one normalised observation identity
+  - [x] 8.4 Projection: one normalised observation identity
     - Normalise once at the top; bind the identical value to both statements
     - `@Async` removal is task 3.4 (R1) — it must precede checkpoint 9.4, not ship here
     - The observable undated-event signal (9.22) is implemented and asserted in 8.3.7
     - Preserve `updated_at` receive-time semantics; it is never a freshness input
     - _Requirements: 9.30_ · _Design: D9_
 
-  - [ ] 8.5 History conflict detection and single transaction
+  - [x] 8.5 History conflict detection and single transaction
     - Insert-then-compare; identical → no-op; conflicting → surface; latest-row + history in one
       transaction so a conflict leaves both tables unchanged
     - Undated event: latest row only, **no** history row, no Receive_Time substitute, signal emitted
     - _Requirements: 9.23, 9.24, 9.25, 9.26, 9.27, 9.28_
 
-  - [ ] 8.6 Freshness pure function and summary contract
+  - [x] 8.6 Freshness pure function and summary contract
     - Inputs: row presence, observation timestamp, threshold, evaluation time
     - Threshold `(N × 24h) + grace`, defaults **N = 2, grace = 2h → 50h**
     - `assetPriceFreshness` with state, `oldestKnownAssetPriceObservationTimestamp`, and stale /

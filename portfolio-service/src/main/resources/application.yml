@@ -34,6 +34,10 @@ app:
   catalog:
     reject-unsupported-events: false
     enforce-holding-invariant: false
+  asset-price-freshness:
+    # (N × 24h) + grace. Defaults keep a single successful daily refresh FRESH (9.43).
+    missed-cycles: 2
+    grace: 2h
   internal:
     # Shared secret gating /api/internal/** endpoints (Golden-State seeder).
     # Injected at runtime via the Lambda INTERNAL_API_KEY env var; blank in local dev

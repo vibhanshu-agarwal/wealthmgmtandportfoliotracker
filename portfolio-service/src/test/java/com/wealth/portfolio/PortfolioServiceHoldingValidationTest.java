@@ -48,7 +48,8 @@ class PortfolioServiceHoldingValidationTest {
                         userRepository,
                         fxRateProvider,
                         new FxProperties("USD", null, null, null),
-                        validator);
+                        validator,
+                        com.wealth.portfolio.freshness.AssetPriceFreshnessProperties.defaults());
         portfolioId = UUID.randomUUID();
         portfolio = new Portfolio(USER_ID);
         ReflectionTestUtils.setField(portfolio, "id", portfolioId);

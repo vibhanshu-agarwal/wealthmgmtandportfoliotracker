@@ -65,7 +65,10 @@ class PortfolioKafkaConfig {
 
         // Retry 3 times with a short backoff before publishing to DLT.
         DefaultErrorHandler handler = new DefaultErrorHandler(recoverer, new FixedBackOff(1000L, 3L));
-        handler.addNotRetryableExceptions(MalformedEventException.class);
+        handler.addNotRetryableExceptions(
+                MalformedEventException.class,
+                RejectedPriceEventException.class,
+                ObservationConflictException.class);
         return handler;
     }
 

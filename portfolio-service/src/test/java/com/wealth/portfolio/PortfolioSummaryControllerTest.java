@@ -1,6 +1,8 @@
 package com.wealth.portfolio;
 
+import com.wealth.portfolio.dto.AssetPriceFreshnessDto;
 import com.wealth.portfolio.dto.PortfolioSummaryDto;
+import com.wealth.portfolio.freshness.FreshnessState;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -12,6 +14,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.stream.Stream;
 
 import static org.mockito.Mockito.when;
@@ -45,7 +48,38 @@ class PortfolioSummaryControllerTest {
         mockMvc.perform(get("/api/portfolio/summary")
                         .header("X-User-Id", USER_ID))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.userId").value(USER_ID));
+                .andExpect(jsonPath("$.userId").value(USER_ID))
+                .andExpect(jsonPath("$.assetPriceFreshness.state").value("FRESH"))
+                .andExpect(jsonPath("$.assetPriceFreshness.staleHoldings").value(0))
+                .andExpect(jsonPath("$.assetPriceFreshness.unknownPriceHoldings").value(0))
+                .andExpect(jsonPath("$.assetPriceFreshness.missingPriceHoldings").value(0))
+                .andExpect(jsonPath("$.assetPriceFreshness.oldestKnownAssetPriceObservationTimestamp")
+                        .doesNotExist());
+    }
+
+    @Test
+    void unavailableFxExclusion_doesNotChangeFreshnessContract() throws Exception {
+        var summary =
+                new PortfolioSummaryDto(
+                        USER_ID,
+                        1,
+                        2,
+                        new BigDecimal("1000.0000"),
+                        "USD",
+                        true,
+                        new AssetPriceFreshnessDto(
+                                FreshnessState.FRESH,
+                                Instant.parse("2026-08-18T08:00:00Z"),
+                                0,
+                                0,
+                                0));
+        when(portfolioService.getSummary(USER_ID)).thenReturn(summary);
+
+        mockMvc.perform(get("/api/portfolio/summary").header("X-User-Id", USER_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.partialValuation").value(true))
+                .andExpect(jsonPath("$.assetPriceFreshness.state").value("FRESH"))
+                .andExpect(jsonPath("$.assetPriceFreshness.missingPriceHoldings").value(0));
     }
 
     // 19.2: missing X-User-Id header → 400
