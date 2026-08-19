@@ -5,8 +5,11 @@
 > V17-V19 leaves them unapplied and fails startup validation under Flyway's default
 > `outOfOrder=false`, so `portfolio-service` does not start when they land. Wave 3 therefore cannot ship until Spec A's R3a
 > is applied to production, and 3.5's go condition now requires reading `flyway_schema_history`
-> rather than inferring it. No requirement is touched and Requirement 9.2 still holds: all of B1 may
-> be implemented and tested meanwhile.
+> rather than inferring it. This sharpens the release-lane predecessor already recorded in the
+> dependency graph below — it does not narrow it to Wave 3; R-0 and R-A wait on Spec A's cutover for
+> their own independent reasons. Task 2.2 also gains task 3.1 as an explicit predecessor, since its
+> `V20` fixture cannot exist before the migration is written. No requirement is touched and
+> Requirement 9.2 still holds: all of B1 may be implemented and tested meanwhile.
 >
 > **Revision 7 — 2026-08-16.** Three bounded corrections from checkpoint entry [45]. The GitHub
 > Actions skip question from entry [44] is closed: a skipped prerequisite skips its dependants unless
@@ -476,6 +479,10 @@ Production-neutral. It precedes Wave 1 because Artifact 0 removes the endpoints 
 - [ ] **2.2 G1 candidate proof — dual schema, V19 → V20.** The insert runs against a database at V19
   and one at V20, exercising the `toString()` binding. A run from today's V16 or an unspecified
   baseline does not satisfy this.
+  **Predecessor: task 3.1.** `V19` exists only on Spec A's repair branch and `V20` does not exist at
+  all until 3.1 writes it, so both schemas must be present on this branch before the proof can run.
+  Authoring `V20` is implementation work under requirement 9.2; **applying** it to production stays
+  gated at 3.5.
   _Requirements: 1.5, 1.17_
 - [ ] **2.3 Add the `/api/assets/**` gateway route.** Ships here, not with the composition endpoint,
   so R-C cannot invalidate G2.

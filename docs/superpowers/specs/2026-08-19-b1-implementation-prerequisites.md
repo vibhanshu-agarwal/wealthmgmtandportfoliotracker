@@ -24,9 +24,11 @@ Four categories:
 
 ### 1.1 Spec A's `V17`–`V19` must be applied to production before B1's `V20`
 
-**Blocks: Wave 3 (release R-B). Does not block Waves 0, 1, 2, 4.**
+**Blocks: Wave 3 (release R-B), with a database-corrupting failure mode. Does not block *implementation* in Waves 0, 1, 2, 4.**
 
-This is the finding that motivated design Revision 11. It was not in the spec.
+**It is not the only thing gating the release lane.** D9 and the tasks dependency graph already make Spec A's production steady state the predecessor of the **entire** release lane, for reasons independent of migration ordering. R-0 (Wave 1) and R-A (Wave 2) therefore wait on Spec A's cutover as well — see §5, which separates each wave's implementation from its release.
+
+This is the finding that motivated design Revision 11. The *ordering mechanism* was not in the spec; the whole-lane release constraint already was. Revision 11 adds the mechanism and a check beneath that constraint, and does not relax it.
 
 The tasks file anticipated a migration-number *collision* — *"two migrations numbered 17 do not merge badly — Flyway refuses to start"* — which remains true and is a different failure. This one is **ordering**.
 
@@ -45,13 +47,13 @@ Exit 1. In a running service this surfaces as **`portfolio-service` failing to s
 
 **Why no requirement covers it.** Requirement 9.1 gates the Composition_Operation's *user-reachability* on Spec A's steady state, which binds at **R-C**. The ordering constraint binds at **R-B**, three release transitions earlier (R-B → R-B2 → R-B3 → R-C). The stated gates therefore permit a sequence that breaks the database. Requirement 9.2 is unaffected — B1 may be implemented and tested in full meanwhile; only *applying* V20 is constrained.
 
-**Consequence for planning.** Spec A's R3a is the first irreversible step of a cutover that is itself blocked on proving the Neon restore path. So **B1's release lane inherits that blocker at Wave 3**, sooner than reading the spec would suggest. R-B's precondition is that R3a has **already passed its own gates** — R-B does not repeat them. The verified-backup checkpoint belongs to R3a, because R3a is the irreversible step; R-B's own verification is the narrower one below. Waves 0–2 and 4 are unaffected and represent substantial work — roughly half the wave count — that can proceed today.
+**Consequence for planning.** Spec A's R3a is the first irreversible step of a cutover that is itself blocked on proving the Neon restore path. The whole release lane already waited on that cutover; what this finding adds is that at **Wave 3** the consequence of ignoring it is not a policy violation but a database that will not start. R-B's precondition is that R3a has **already passed its own gates** — R-B does not repeat them. The verified-backup checkpoint belongs to R3a, because R3a is the irreversible step; R-B's own verification is the narrower one below. **Implementation** in Waves 0, 1, 2 and 4 is unaffected — 41 of the 81 remaining tasks, just over half — and can proceed today; the releases those waves end in cannot.
 
 **Verification, when the time comes:** read `flyway_schema_history` and confirm `V17`, `V18`, `V19` present and successful. Do **not** infer it from a merge or a green deploy.
 
 ### 1.2 Task 2.2 cannot be written from `main`
 
-**Blocks: Wave 2.**
+**Blocks Wave 2 from `main`; resolved by Option A — but Option A supplies only half the fixture. See §1.3.**
 
 Task 2.2 requires the gateway provisioning insert be proven against *"a database at V19 and one at V20"*, and states explicitly that *"a run from today's V16 or an unspecified baseline does not satisfy this."*
 
@@ -80,8 +82,10 @@ Therefore, while Wave 2 is stacked on `feat/supported-asset-postgres-repair`:
 
 Use e.g. `feature/b1-wave-2-provisioning`. `frontend-e2e-integration.yml` is `workflow_dispatch:` only and must be invoked manually:
 
+`reason` is `required: true` on that workflow, so a run without `-f reason=…` is rejected before it starts:
+
 ```bash
-gh workflow run frontend-e2e-integration.yml --ref feature/b1-wave-2-provisioning
+gh workflow run frontend-e2e-integration.yml --ref feature/b1-wave-2-provisioning -f reason='Wave 2 stacked-branch verification'
 ```
 
 **After R3a lands on `main`:**
@@ -124,6 +128,37 @@ echo "clean — diff is confined to Wave 2's own paths"
 - [ ] Only then open the PR.
 
 If the guard trips, the branch still carries files it does not own — stop and re-derive the rebase rather than merging past it.
+
+### 1.3 Option A supplies `V19`, but not `V20` — task 3.1 must be written before task 2.2
+
+**Blocks: task 2.2. Resolved inside the implementation lane; needs no production action.**
+
+Task 2.2 requires **both** endpoints of the boundary — *"the insert runs against a database at V19 and one at V20"*. Option A only fixes the lower one:
+
+| schema | where it exists today |
+|---|---|
+| `V16` | `main` — the baseline task 2.2 explicitly rejects |
+| `V17`–`V19` | `feat/supported-asset-postgres-repair` — supplied by Option A |
+| **`V20`** | **nowhere. It is authored by task 3.1, in Wave 3.** |
+
+So Option A alone leaves task 2.2 unbuildable, and Wave 2 still blocked at its proof.
+
+**Resolution: task 3.1's *authoring* is an explicit predecessor of task 2.2.** This is consistent with §1.1 rather than in tension with it — §1.1 constrains only when `V20` is **applied to production**, not when the file is written. Writing the migration is ordinary implementation work under requirement 9.2.
+
+Concretely:
+
+- [ ] Write `V20` per task 3.1 on the Wave 2 stacked branch, in **one** commit, so the Testcontainers fixture can migrate to it.
+- [ ] **Its production application stays gated at task 3.5**, unchanged — the STOP/GO that reads `flyway_schema_history`. Authoring it early grants no permission to run it.
+
+**`V20` must not ride into Wave 2's merge.** This is the same hazard §1.2 guards for `V17`–`V19`, and it applies to B1's own migration for the same reason: Wave 2 ends at R-A, and if `V20` lands on `main` with it, the next production deploy applies the migration before R-B exists and before 3.5 has gated anything. Authoring early is safe; merging early is the defect this document was written to prevent.
+
+Therefore:
+
+- [ ] **Do not widen §1.2's `ALLOWED` to admit any `db/migration` path** — including `V20`. The allowlist rejecting `portfolio-service/**` already produces the right answer, and the "never widen it to admit a `portfolio-service` path" rule stands exactly as written. If the guard trips on `V20` at rebase time, that is the guard working.
+- [ ] **Carry the authoring commit forward into Wave 3's branch** rather than re-typing the migration there. One authored `V20`, moved; never two copies free to drift — the failure mode that ruled out Option C.
+- [ ] `V20` reaches `main` **only** through Wave 3's PR.
+
+Order within the stack: task 3.1 (author only) → task 2.1 → task 2.2. Waves 0, 1 and 4 are untouched by this.
 
 ---
 
@@ -193,21 +228,23 @@ Verified against `main` @ `25120cc`.
 
 ## §5 What can start today
 
-| Wave | Blocked? | By |
-|---|---|---|
-| **0** — fixture identity | **No** | — (kickoff written) |
-| **1** — legacy writer retirement | **No** | — |
-| **2** — gateway provisioning + `/api/assets` | **No** | §1.2 decided — stack on the repair branch under Option A's mandatory conditions |
-| **3** — schema (`V20`) | **Yes** | §1.1 — Spec A R3a must be applied to production first |
-| **4** — contract implementation (23 tasks) | **No** | Requirement 9.2 permits full implementation and testing |
-| **5–7** — release waves | **Yes** | downstream of Wave 3 |
+**Implementation and release are separately gated, and the distinction is the whole point of this section.** Requirement 9.2 lets B1 be built and tested in full today; D9 makes Spec A's production steady state the predecessor of every B1 release. A wave marked "start now" means write and test the code — not ship it.
 
-Waves 0, 1 and 4 are roughly half of B1's remaining 81 tasks and need nothing that does not already exist.
+| Wave | Implementation | Release | Notes |
+|---|---|---|---|
+| **0** — fixture identity | **Start now** | *no release* | kickoff written |
+| **1** — legacy writer retirement | **Start now** | **R-0 blocked** | §1.1 — whole release lane waits on Spec A's cutover |
+| **2** — gateway provisioning + `/api/assets` | **Start now** | **R-A blocked** | §1.2 Option A + §1.3 `V20` predecessor; same lane block as R-0 |
+| **3** — schema (`V20`) | **3.1 required early** | **R-B blocked** | §1.3 authors `V20`; §1.1 gates applying it, at task 3.5 |
+| **4** — contract implementation (23 tasks) | **Start now** | *no release* | requirement 9.2 permits full implementation and testing |
+| **5–7** — release waves | downstream of Wave 4 | **blocked** | downstream of R-B |
+
+Waves 0, 1, 2 and 4 hold `7 + 5 + 6 + 23 = 41` of B1's 81 remaining tasks — just over half — and need nothing that does not already exist.
 
 ---
 
 ## Open items
 
-No open question remains for B1's implementation start. §1.2 is decided (Option A). Waves 0, 1, 2 and 4 may all proceed.
+No open question remains for B1's implementation start. §1.2 is decided (Option A), and §1.3 resolves the `V20` half of it inside the implementation lane. Waves 0, 1, 2 and 4 may all be **built and tested** now.
 
-The one thing still outstanding is **outside B1**: Wave 3 and everything downstream wait on Spec A's R3a reaching production, which waits on the Neon restore path being proven. That is an operational prerequisite owned by the operator, not an implementation question, and it does not block the four waves above.
+The one thing still outstanding is **outside B1**: every B1 release — R-0 onward, not only R-B — waits on Spec A's R3a reaching production, which waits on the Neon restore path being proven. That is an operational prerequisite owned by the operator, not an implementation question, and it blocks no implementation work above.

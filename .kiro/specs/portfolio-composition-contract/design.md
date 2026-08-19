@@ -1,9 +1,14 @@
 # Design Document
 
 > **Revision 11 — 2026-08-19. Bounded erratum; the freeze stands. No requirement is touched.**
-> The release table gated **R-B** on B1's own evidence alone (`G0a`, `G0b`, `G2` before; `G3` after)
-> and omitted a cross-spec precondition that is not inferable from any requirement: **Spec A's R3a
-> must be applied to production before V20 is.**
+> The release table gated **R-B** on B1's own evidence alone (`G0a`, `G0b`, `G2` before; `G3` after),
+> so the table by itself permitted V20 to run before Spec A's migrations. The governing constraint
+> was already present in prose — D9 states that "Spec A's production completion is therefore the
+> predecessor of this whole release graph, not merely a gate on the composition endpoint," and the
+> tasks dependency graph says the same. **That constraint stands, unrelaxed.** What no requirement,
+> gate or table made explicit is the *mechanism* and the *check*: **Spec A's R3a must be applied to
+> production before V20 is, and R-B must confirm that by reading `flyway_schema_history` rather than
+> assuming it.**
 >
 > The tasks file anticipated a *number* collision — "two migrations numbered 17 do not merge badly
 > — Flyway refuses to start" — and that remains true, but it is a different failure. This one is
@@ -27,7 +32,9 @@
 > is unaffected and still holds: B1 may be *implemented and tested* in full while Spec A proceeds —
 > this constrains only when V20 is **applied to production**.
 >
-> The R-B row gains the precondition. Nothing else changes.
+> The R-B row gains the explicit precondition and task 3.5 gains the `flyway_schema_history` check.
+> Both sit **beneath** D9's whole-lane ordering as defense in depth, not in place of it. Nothing else
+> changes.
 >
 > **Revision 10 — 2026-08-16.** Second bounded erratum from checkpoint entry [45]. Revision 9
 > inserted the whole-workflow rule at D9 and left the pre-existing proof paragraph beneath it stating
@@ -1340,8 +1347,11 @@ them. R3a carries the verified-backup checkpoint because R3a is the irreversible
 on that having happened, and its own verification is the narrower one in task 3.5: read
 `flyway_schema_history` and confirm V17, V18 and V19 present and successful.
 
-This is the only point where B1's release lane depends on Spec A's *cutover* rather than its
-implementation. Requirement 9.2 is untouched: implementation and testing proceed independently.
+This does **not** narrow the cross-spec dependency to R-B. D9 already makes Spec A's production
+completion the predecessor of the **whole** release graph, for independent reasons that bind at R-0;
+that ordering is unchanged. What this row adds is the migration-ordering mechanism and a specific,
+checkable precondition at the one release where skipping it leaves the database unable to start.
+Requirement 9.2 is untouched: implementation and testing proceed independently.
 
 **Capability evidence has two halves, and only one of them can precede a deploy.** Revision 6
 required every capability gate to carry an immutable digest, an active revision mapped to it, and a
