@@ -57,15 +57,15 @@ Task 2.2 requires the gateway provisioning insert be proven against *"a database
 
 `V17`–`V19` exist only on the unmerged `feat/supported-asset-postgres-repair` branch. The task is therefore unbuildable as written from `main`.
 
-**Options, needing a decision before Wave 2 starts:**
+**Options considered. Option A is the decision** (owner, 2026-08-19); B and C are recorded for why they were not taken:
 
 - **A.** Branch B1's Wave 2 work from `feat/supported-asset-postgres-repair` instead of `main`, so the migration files are present for test fixtures only. Keeps `main` clean; means Wave 2's branch carries unmerged migrations it does not own.
 - **B.** Merge Spec A's R3a first. Removes the problem entirely and also clears §1.1 — but R3a's merge *executes* the migrations in production, which is checkpoint 9.6 and needs the cutover.
 - **C.** Copy `V17`–`V19` into a test-only fixture directory used by the Testcontainers harness, never into `db/migration`. Cheapest; carries a drift risk if Spec A's migrations change before merging.
 
-**Recommendation: A**, under the hard conditions below. It is honest about the dependency, needs no production action, and Wave 2's PR can rebase onto `main` once R3a lands. C invites two copies of an irreversible migration to disagree.
+**Decision: A**, under the hard conditions below — they are not optional. It is honest about the dependency, needs no production action, and Wave 2's PR can rebase onto `main` once R3a lands. C invites two copies of an irreversible migration to disagree.
 
-#### Option A is a *local development* arrangement only — hard conditions
+#### Option A is a *local development* arrangement only — mandatory conditions
 
 A stacked branch carries `V17`–`V19` in `db/migration`. Merging or deploying it would execute Spec A's irreversible repair outside the cutover, at an arbitrary moment, with no maintenance window, no verified backup, and no `Post_Migration_Integrity_Assertion` gate. That is a worse outcome than the ordering defect this document exists to prevent.
 
@@ -102,7 +102,14 @@ git rebase origin/main
 # Anything outside this set is a stack remnant from the repair branch.
 ALLOWED='^(api-gateway/src/(main|test)/|api-gateway/build\.gradle$|\.kiro/specs/portfolio-composition-contract/tasks\.md$)'
 
-STRAY=$(git diff --name-only origin/main...HEAD | grep -vE "$ALLOWED" || true)
+# Capture the diff as its own command, so `set -e` still catches a failing `git diff`.
+# Do NOT inline this into the pipeline below: `$(git diff … | grep … || true)` makes the
+# `|| true` cover the whole pipeline, so a bad ref prints `fatal: ambiguous argument`,
+# leaves STRAY empty, and the guard reports "clean" and exits 0. `set -o pipefail` does
+# not help — `|| true` swallows the pipeline's status either way.
+CHANGED=$(git diff --name-only origin/main...HEAD)
+
+STRAY=$(printf '%s\n' "$CHANGED" | grep -vE "$ALLOWED" || true)
 if [ -n "$STRAY" ]; then
   echo "STOP: files outside Wave 2's surface remain after rebase —"
   echo "$STRAY"
@@ -190,7 +197,7 @@ Verified against `main` @ `25120cc`.
 |---|---|---|
 | **0** — fixture identity | **No** | — (kickoff written) |
 | **1** — legacy writer retirement | **No** | — |
-| **2** — gateway provisioning + `/api/assets` | Partially | §1.2 — needs a decision on the V19 fixture source |
+| **2** — gateway provisioning + `/api/assets` | **No** | §1.2 decided — stack on the repair branch under Option A's mandatory conditions |
 | **3** — schema (`V20`) | **Yes** | §1.1 — Spec A R3a must be applied to production first |
 | **4** — contract implementation (23 tasks) | **No** | Requirement 9.2 permits full implementation and testing |
 | **5–7** — release waves | **Yes** | downstream of Wave 3 |
@@ -199,6 +206,8 @@ Waves 0, 1 and 4 are roughly half of B1's remaining 81 tasks and need nothing th
 
 ---
 
-## Open question for the owner
+## Open items
 
-**§1.2 needs a decision** — options A, B or C — before Wave 2 begins. Waves 0, 1 and 4 can proceed while it is pending.
+No open question remains for B1's implementation start. §1.2 is decided (Option A). Waves 0, 1, 2 and 4 may all proceed.
+
+The one thing still outstanding is **outside B1**: Wave 3 and everything downstream wait on Spec A's R3a reaching production, which waits on the Neon restore path being proven. That is an operational prerequisite owned by the operator, not an implementation question, and it does not block the four waves above.
