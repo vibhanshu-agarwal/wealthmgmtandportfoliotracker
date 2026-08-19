@@ -4,7 +4,7 @@ import { expect, test } from "@playwright/test";
  * AWS Synthetic Monitoring: AI Insights Verification
  * 
  * Verifies that the Bedrock-powered insights page can process
- * the 160-asset portfolio and generate analysis.
+ * the full active-catalog portfolio and generate analysis.
  */
 
 test.describe("AWS Synthetic: AI Insights", () => {
@@ -16,7 +16,7 @@ test.describe("AWS Synthetic: AI Insights", () => {
     await expect(page).toHaveURL(/.*\/overview|.*\/portfolio/);
   });
 
-  test("Verify Bedrock handles 160 assets and returns analysis", async ({ page }) => {
+  test("Verify Bedrock handles the full active catalog and returns analysis", async ({ page }) => {
     // Navigate to insights page
     await page.goto("/insights");
 

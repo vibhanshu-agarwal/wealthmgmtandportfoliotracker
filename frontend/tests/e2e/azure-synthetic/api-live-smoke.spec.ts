@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { expect, test } from "@playwright/test";
+import { activeAssetCount } from "../helpers/catalog";
 
 const SEEDED_DEMO_USER_ID = "00000000-0000-0000-0000-000000000e2e";
 
@@ -199,10 +200,15 @@ test.describe("Azure Synthetic: API live smoke", () => {
       `POST /api/internal/portfolio/seed returned HTTP ${portfolioSeed.status()}`,
     ).toBe(200);
     const portfolioSeedBody = await portfolioSeed.json();
+    // Spec A Requirement 8.8: assert the seeded count is EQUAL to the cardinality of
+    // the Active_Asset set, derived from the canonical manifest — not >= a literal.
+    // A literal both contradicts Requirement 3.4 (no fixed catalog size) and would pass
+    // silently if the seeder over-seeded; `>= 160` began failing outright once
+    // TATAMOTORS.NS was deprecated and both seed paths moved to active() enumeration.
     expect(
       portfolioSeedBody.holdingsInserted,
-      "portfolio seed must insert >= 160 holdings (Requirement 1.4)",
-    ).toBeGreaterThanOrEqual(160);
+      `portfolio seed must insert exactly the Active_Asset count (${activeAssetCount()})`,
+    ).toBe(activeAssetCount());
 
     // The seed endpoint must not report — and therefore must not perform — any market-data
     // write. This field previously carried a count of market_prices rows the seeder upserted
