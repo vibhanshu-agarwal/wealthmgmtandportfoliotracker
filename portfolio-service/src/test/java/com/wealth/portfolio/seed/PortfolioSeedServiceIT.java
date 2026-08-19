@@ -11,6 +11,7 @@ import com.wealth.portfolio.TestContainerImages;
 import com.wealth.portfolio.seed.PortfolioSeedService.SeedResult;
 import com.wealth.portfolio.seed.SeedTickerRegistry.SeedTicker;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -124,6 +125,9 @@ class PortfolioSeedServiceIT {
         Map<String, BigDecimal> quantitiesFirst = holdingsFirst.stream()
                 .collect(Collectors.toUnmodifiableMap(
                         AssetHolding::getAssetTicker, AssetHolding::getQuantity));
+        Map<String, Instant> costBasisAsOfFirst = holdingsFirst.stream()
+                .collect(Collectors.toUnmodifiableMap(
+                        AssetHolding::getAssetTicker, AssetHolding::getCostBasisAsOf));
 
         // ── Second invocation: counts unchanged, prior portfolio row gone, new one present ──
         SeedResult second = seedService.seed(E2E_USER_ID);
@@ -138,11 +142,20 @@ class PortfolioSeedServiceIT {
         List<AssetHolding> holdingsSecond = assetHoldingRepository.findByPortfolio(portfoliosAfterSecond.get(0));
         assertThat(holdingsSecond).hasSize(expectedHoldings);
 
-        // ── Determinism: quantities are byte-identical per ticker across runs ──
+        // ── Determinism: quantities and cost_basis_as_of are byte-identical per ticker ──
         Map<String, BigDecimal> quantitiesSecond = holdingsSecond.stream()
                 .collect(Collectors.toUnmodifiableMap(
                         AssetHolding::getAssetTicker, AssetHolding::getQuantity));
         assertThat(quantitiesSecond).containsExactlyInAnyOrderEntriesOf(quantitiesFirst);
+
+        Map<String, Instant> costBasisAsOfSecond = holdingsSecond.stream()
+                .collect(Collectors.toUnmodifiableMap(
+                        AssetHolding::getAssetTicker, AssetHolding::getCostBasisAsOf));
+        assertThat(costBasisAsOfSecond)
+                .as("fixed app.demo.cost-basis-anchor must make cost_basis_as_of identical across seeds")
+                .containsExactlyInAnyOrderEntriesOf(costBasisAsOfFirst);
+        assertThat(costBasisAsOfSecond.values())
+                .allMatch(asOf -> asOf.equals(costBasisAsOfFirst.values().iterator().next()));
 
         assertPriceTablesUnchanged(pricesBefore, historyBefore, "after second seed");
     }

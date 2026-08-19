@@ -377,7 +377,7 @@ python scripts/check-spec-references.py   .kiro/specs/supported-asset-integrity/
       not read as freshness
     - _Requirements: 9.31, 9.32, 9.33, 9.34, 9.35, 9.36, 9.37, 9.38, 9.39, 9.40, 9.41, 9.42, 9.43, 9.44, 9.45, 9.46, 9.47, 9.49_
 
-  - [ ] 8.7 `DemoPortfolioInitializer` — **built and shipped gated off**
+  - [x] 8.7 `DemoPortfolioInitializer` — **built and shipped gated off**
     - `pg_advisory_xact_lock` on the **same transaction and connection** as compare/delete/recreate
     - `app.demo.seed-on-startup` default `false`; `app.demo.cost-basis-anchor` fixed
     - Compares complete desired state **including `costBasisAsOf`**

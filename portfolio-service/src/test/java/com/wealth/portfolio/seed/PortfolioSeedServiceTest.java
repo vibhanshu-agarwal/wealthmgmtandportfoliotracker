@@ -15,6 +15,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -42,6 +43,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class PortfolioSeedServiceTest {
 
     private static final String E2E_USER = "00000000-0000-0000-0000-000000000e2e";
+    private static final Instant COST_BASIS_ANCHOR = Instant.parse("2019-06-15T12:30:00Z");
+    private static final DemoProperties DEMO_PROPERTIES = new DemoProperties(false, COST_BASIS_ANCHOR);
     private static final SeedTicker AAPL = new SeedTicker(
             "AAPL", "US_EQUITY", "USD", new BigDecimal("190.00"), "Apple Inc.", null);
 
@@ -55,7 +58,8 @@ class PortfolioSeedServiceTest {
     @BeforeEach
     void setUp() {
         service = new PortfolioSeedService(
-                portfolioRepository, assetHoldingRepository, registry, supportedAssetValidator);
+                portfolioRepository, assetHoldingRepository, registry, supportedAssetValidator,
+                DEMO_PROPERTIES);
         when(registry.active()).thenReturn(List.of(AAPL));
         lenient().when(portfolioRepository.findByUserId(E2E_USER)).thenReturn(List.of());
 
@@ -84,7 +88,7 @@ class PortfolioSeedServiceTest {
         assertThat(aapl.getAssetTicker()).isEqualTo("AAPL");
         assertThat(aapl.getCostBasisSource()).isEqualTo("SEED");
         assertThat(aapl.getCostBasisCurrency()).isEqualTo("USD");
-        assertThat(aapl.getCostBasisAsOf()).isNotNull();
+        assertThat(aapl.getCostBasisAsOf()).isEqualTo(COST_BASIS_ANCHOR);
 
         // Cost basis is seedPrice ± bounded jitter, both derived from basePrice alone.
         BigDecimal seedPrice =
@@ -111,6 +115,10 @@ class PortfolioSeedServiceTest {
                 .isEqualByComparingTo(runs.get(0).get(0).getAvgCostBasis());
         assertThat(runs.get(1).get(0).getQuantity())
                 .isEqualByComparingTo(runs.get(0).get(0).getQuantity());
+        assertThat(runs.get(1).get(0).getCostBasisAsOf())
+                .as("costBasisAsOf must be the configured anchor, identical across seeds")
+                .isEqualTo(runs.get(0).get(0).getCostBasisAsOf())
+                .isEqualTo(COST_BASIS_ANCHOR);
     }
 
     @Test
