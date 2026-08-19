@@ -1,5 +1,16 @@
 # Implementation Plan
 
+> **Revision 8 — 2026-08-19.** One bounded correction, tracking design Revision 11. The V20 note
+> covered a migration-number collision but not migration *ordering*: applying V20 before Spec A's
+> V17-V19 leaves them unapplied and fails startup validation under Flyway's default
+> `outOfOrder=false`, so `portfolio-service` does not start when they land. Wave 3 therefore cannot ship until Spec A's R3a
+> is applied to production, and 3.5's go condition now requires reading `flyway_schema_history`
+> rather than inferring it. This sharpens the release-lane predecessor already recorded in the
+> dependency graph below — it does not narrow it to Wave 3; R-0 and R-A wait on Spec A's cutover for
+> their own independent reasons. Task 2.2 also gains task 3.1 as an explicit predecessor, since its
+> `V20` fixture cannot exist before the migration is written. No requirement is touched and
+> Requirement 9.2 still holds: all of B1 may be implemented and tested meanwhile.
+>
 > **Revision 7 — 2026-08-16.** Three bounded corrections from checkpoint entry [45]. The GitHub
 > Actions skip question from entry [44] is closed: a skipped prerequisite skips its dependants unless
 > a condition such as `always()` overrides it, and neither `seed` nor `verify` uses one — so the
@@ -184,8 +195,20 @@ The release ordering encodes two constraints that took nine design revisions to 
 **B1's migration is V20.** Spec A owns V17–V19 in the same directory; two migrations numbered 17 do
 not merge badly — Flyway refuses to start.
 
-The design is frozen at Revision 8. Where a task and the design disagree, **the design is
-normative**; raise it rather than resolving it in code.
+**And V20 must not be *applied* before V17–V19 are** (design Rev 11). That is a separate failure from
+the number collision above. `spring.flyway.out-of-order` is unset, so it defaults `false`, and Spring
+Boot runs `validateOnMigrate=true` — applying V20 first leaves V17–V19 **unapplied and fails startup
+validation**, so `portfolio-service` does not start when they land. The gap is recoverable only by
+explicitly enabling `outOfOrder`, a deliberate configuration change with its own review, not a
+property of the current setup. Verified against PostgreSQL 18.6 / Flyway 11.20.3:
+`Detected resolved migration not applied to database: 17. … 18. … 19.`, exit 1. Spec A's R3a is on the
+unmerged `feat/supported-asset-postgres-repair` branch, so **Wave 3 cannot ship until R3a has been
+applied to production.** Waves 0–2 and 4 are unaffected; Requirement 9.2 still permits implementing
+and testing all of B1 meanwhile.
+
+The design was frozen at Revision 8; **Revision 11 is the current normative design**, reached through
+three bounded errata (9, 10, 11) that the freeze permits. Where a task and the design disagree,
+**the design is normative**; raise it rather than resolving it in code.
 
 Stack: **Java 21 / Spring Boot 4.1**, `hibernate-core 7.4.1.Final`,
 `tools.jackson.core:jackson-databind 3.1.4`, JUnit 5 + Testcontainers (Postgres), Playwright, GitHub
@@ -456,6 +479,10 @@ Production-neutral. It precedes Wave 1 because Artifact 0 removes the endpoints 
 - [ ] **2.2 G1 candidate proof — dual schema, V19 → V20.** The insert runs against a database at V19
   and one at V20, exercising the `toString()` binding. A run from today's V16 or an unspecified
   baseline does not satisfy this.
+  **Predecessor: task 3.1.** `V19` exists only on Spec A's repair branch and `V20` does not exist at
+  all until 3.1 writes it, so both schemas must be present on this branch before the proof can run.
+  Authoring `V20` is implementation work under requirement 9.2; **applying** it to production stays
+  gated at 3.5.
   _Requirements: 1.5, 1.17_
 - [ ] **2.3 Add the `/api/assets/**` gateway route.** Ships here, not with the composition endpoint,
   so R-C cannot invalidate G2.
@@ -494,7 +521,9 @@ Production-neutral. It precedes Wave 1 because Artifact 0 removes the endpoints 
   at database precision.
   _Requirements: 5.1, 5.14, 5.16_
 - [ ] **3.5 STOP/GO — R-B preconditions.**
-  **Go:** G0a, G0b and G2 green **before** the migration runs.
+  **Go:** G0a, G0b and G2 green **before** the migration runs, **and Spec A's R3a applied to
+  production** — verify by reading `flyway_schema_history` and confirming V17, V18 and V19 are
+  present and successful, not by inferring it from a merge or a deploy (design Rev 11).
   **Abort:** do not run V20. No forward-repair problem exists while the migration has not executed.
   _Requirements: 1.16, 1.25, 8.9_
 - [ ] **3.6 G3 evidence.** Relational postcondition after migration: no user has a portfolio count

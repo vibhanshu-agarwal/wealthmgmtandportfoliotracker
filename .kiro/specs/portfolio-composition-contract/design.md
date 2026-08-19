@@ -1,5 +1,41 @@
 # Design Document
 
+> **Revision 11 — 2026-08-19. Bounded erratum; the freeze stands. No requirement is touched.**
+> The release table gated **R-B** on B1's own evidence alone (`G0a`, `G0b`, `G2` before; `G3` after),
+> so the table by itself permitted V20 to run before Spec A's migrations. The governing constraint
+> was already present in prose — D9 states that "Spec A's production completion is therefore the
+> predecessor of this whole release graph, not merely a gate on the composition endpoint," and the
+> tasks dependency graph says the same. **That constraint stands, unrelaxed.** What no requirement,
+> gate or table made explicit is the *mechanism* and the *check*: **Spec A's R3a must be applied to
+> production before V20 is, and R-B must confirm that by reading `flyway_schema_history` rather than
+> assuming it.**
+>
+> The tasks file anticipated a *number* collision — "two migrations numbered 17 do not merge badly
+> — Flyway refuses to start" — and that remains true, but it is a different failure. This one is
+> **ordering**. Spec A owns `V17`–`V19`; B1 owns `V20`. `spring.flyway.out-of-order` is unset in
+> both `application.yml` and `application-prod.yml`, so it defaults `false`, and Spring Boot runs
+> `validateOnMigrate=true`. Applying `V20` while `V17`–`V19` are still unmerged therefore does not
+> merely defer them: **under this configuration they are left unapplied and startup validation
+> fails**, so `portfolio-service` does not start once they land. The gap is recoverable only by
+> explicitly enabling `outOfOrder`, which is a deliberate configuration change with its own review —
+> not something to reach for under cutover pressure, and not a property of the current setup.
+>
+> Verified empirically 2026-08-19 against PostgreSQL 18.6 with Flyway 11.20.3: apply `V16` then
+> `V20`, then introduce `V17`–`V19` and re-run `migrate` —
+> `ERROR: Validate failed: Migrations have failed validation. Detected resolved migration not
+> applied to database: 17. … 18. … 19.` Exit 1.
+>
+> Requirement 9.1 does not cover this. It gates the Composition_Operation's **user-reachability** on
+> Spec A's steady state, which binds at **R-C**. The ordering constraint binds at **R-B**, three
+> release transitions earlier (R-B → R-B2 → R-B3 → R-C), so the stated gates permit a sequence that
+> breaks the database. Requirement 9.2
+> is unaffected and still holds: B1 may be *implemented and tested* in full while Spec A proceeds —
+> this constrains only when V20 is **applied to production**.
+>
+> The R-B row gains the explicit precondition and task 3.5 gains the `flyway_schema_history` check.
+> Both sit **beneath** D9's whole-lane ordering as defense in depth, not in place of it. Nothing else
+> changes.
+>
 > **Revision 10 — 2026-08-16.** Second bounded erratum from checkpoint entry [45]. Revision 9
 > inserted the whole-workflow rule at D9 and left the pre-existing proof paragraph beneath it stating
 > the superseded model: "a separate predecessor PR" against the two ordered PRs the tasks now
@@ -1293,13 +1329,29 @@ service-scoped deployment in D9 makes possible.
 |---|---|---|
 | **R-0** | 0 — both legacy writers retired, migration-free | G0a **and G0b** after |
 | **R-A** | 1 — provisioning-capable gateway **+ `/api/assets` route** | G1 before deploy, G2 after |
-| **R-B** | 2 — V20 migration | G0a, G0b and G2 before; G3 after |
+| **R-B** | 2 — V20 migration | G0a, G0b and G2 before; **Spec A's R3a applied to production** before (Rev 11); G3 after |
 | **R-B2** | 2a — version-bearing authenticated read | G3 before; **G2a** after, then caller migration |
 | **R-B3** | 2b — version-required seed endpoint | G5 before; **G2b** after |
 | **R-C** | 3 — composition `PUT` (**portfolio-only**) | pre-deploy: serving G2/G3/G4/G6 **+ R-C candidate proof**. post-deploy: serving proof of the R-C digest |
 
 Six releases. No release exists in which a duplicate-creating path is reachable while the unique
 constraint is present, because R-0 completes and is verified before R-B starts.
+
+**R-B additionally waits on another spec (Revision 11).** Spec A's `V17`–`V19` must be applied to
+production before B1's `V20` is. Flyway's default `outOfOrder=false` means a lower-versioned
+migration appearing after a higher one is not applied late — it is left unapplied and validation
+fails, and with Spring Boot's `validateOnMigrate=true` the service does not start.
+
+R-B's precondition is that **Spec A's R3a has already passed its own gates** — it does not repeat
+them. R3a carries the verified-backup checkpoint because R3a is the irreversible step; R-B depends
+on that having happened, and its own verification is the narrower one in task 3.5: read
+`flyway_schema_history` and confirm V17, V18 and V19 present and successful.
+
+This does **not** narrow the cross-spec dependency to R-B. D9 already makes Spec A's production
+completion the predecessor of the **whole** release graph, for independent reasons that bind at R-0;
+that ordering is unchanged. What this row adds is the migration-ordering mechanism and a specific,
+checkable precondition at the one release where skipping it leaves the database unable to start.
+Requirement 9.2 is untouched: implementation and testing proceed independently.
 
 **Capability evidence has two halves, and only one of them can precede a deploy.** Revision 6
 required every capability gate to carry an immutable digest, an active revision mapped to it, and a
