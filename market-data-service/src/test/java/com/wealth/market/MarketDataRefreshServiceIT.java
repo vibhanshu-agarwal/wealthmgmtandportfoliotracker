@@ -1,7 +1,6 @@
 package com.wealth.market;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
-import static com.github.tomakehurst.wiremock.client.WireMock.equalTo;
 import static com.github.tomakehurst.wiremock.client.WireMock.get;
 import static com.github.tomakehurst.wiremock.client.WireMock.stubFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo;
@@ -15,12 +14,14 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.math.BigDecimal;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -65,7 +66,6 @@ class MarketDataRefreshServiceIT {
         registry.add("market-data.seed.enabled", () -> false);
         registry.add("market-data.baseline-seed.enabled", () -> false);
         registry.add("market.seed.enabled", () -> false);
-        registry.add("market.baseline.tickers[0]", () -> "AAPL");
     }
 
     @BeforeAll
@@ -85,7 +85,6 @@ class MarketDataRefreshServiceIT {
             """;
 
         stubFor(get(urlPathEqualTo("/v7/finance/quote"))
-                .withQueryParam("symbols", equalTo("AAPL"))
                 .willReturn(aResponse()
                         .withStatus(200)
                         .withHeader("Content-Type", "application/json")
@@ -101,6 +100,11 @@ class MarketDataRefreshServiceIT {
 
     @Autowired MarketDataRefreshService refreshService;
     @Autowired AssetPriceRepository assetPriceRepository;
+
+    @BeforeEach
+    void resetWiremockRequests() {
+        wireMockServer.resetRequests();
+    }
 
     @Test
     void refreshPersistsAssetPriceAndPublishesPriceUpdatedEvent() {
@@ -122,6 +126,36 @@ class MarketDataRefreshServiceIT {
                 assertThat(record.value().observedAt()).isNotNull();
             });
         }
+    }
+
+    @Test
+    void refreshDoesNotFetchOrDeleteOffCatalogMongoDocuments() {
+        assetPriceRepository.save(
+                new AssetPrice("GOOG", BigDecimal.valueOf(123.45)));
+        AssetPrice before = assetPriceRepository.findById("GOOG").orElseThrow();
+        var beforeUpdatedAt = before.getUpdatedAt();
+
+        refreshService.refresh();
+
+        AssetPrice after = assetPriceRepository.findById("GOOG").orElseThrow();
+        assertThat(after.getCurrentPrice()).isEqualByComparingTo("123.45");
+        assertThat(after.getUpdatedAt()).isEqualTo(beforeUpdatedAt);
+
+        // Explicitly prove we didn't even request GOOG from the provider.
+        // Compare whole symbol tokens, not substrings: the active catalog legitimately contains
+        // GOOGL, and WireMock.containing("GOOG") would match it.
+        List<String> requestedSymbols = wireMockServer.findAll(
+                        WireMock.getRequestedFor(WireMock.urlPathEqualTo("/v7/finance/quote")))
+                .stream()
+                .map(r -> r.queryParameter("symbols"))
+                .filter(q -> q != null && q.isPresent())
+                .flatMap(q -> q.values().stream())
+                .flatMap(v -> java.util.Arrays.stream(v.split(",")))
+                .map(String::trim)
+                .toList();
+        assertThat(requestedSymbols).isNotEmpty();
+        assertThat(requestedSymbols).doesNotContain("GOOG");
+        assertThat(requestedSymbols).contains("GOOGL");
     }
 
     private static KafkaConsumer<String, PriceUpdatedEvent> kafkaConsumer() {

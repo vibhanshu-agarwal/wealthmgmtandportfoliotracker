@@ -28,5 +28,3 @@ market-data:
     enabled: false
   refresh:
     enabled: true
-  baseline-seed:
-    enabled: true

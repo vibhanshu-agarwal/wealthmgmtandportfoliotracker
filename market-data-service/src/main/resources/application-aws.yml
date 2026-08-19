@@ -20,9 +20,6 @@ market-data:
     enabled: false
   hydration:
     enabled: true
-  baseline-seed:
-    enabled: false
-
 management:
   health:
     # Keep the Mongo health contributor enabled, but use our custom

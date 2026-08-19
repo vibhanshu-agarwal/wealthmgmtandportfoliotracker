@@ -1,5 +1,7 @@
 package com.wealth.market;
 
+import com.wealth.catalog.CatalogEntry;
+import com.wealth.catalog.SupportedCatalog;
 import com.wealth.market.events.PriceUpdatedEvent;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
@@ -14,10 +16,8 @@ import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
@@ -29,18 +29,18 @@ public class MarketDataRefreshService {
 
     private final AssetPriceRepository assetPriceRepository;
     private final ExternalMarketDataClient externalMarketDataClient;
-    private final BaselineTickerProperties baselineTickerProperties;
+    private final SupportedCatalog supportedCatalog;
     private final KafkaTemplate<String, PriceUpdatedEvent> kafkaTemplate;
     private final MeterRegistry meterRegistry;
 
     MarketDataRefreshService(AssetPriceRepository assetPriceRepository,
                                ExternalMarketDataClient externalMarketDataClient,
-                               BaselineTickerProperties baselineTickerProperties,
+                               SupportedCatalog supportedCatalog,
                                KafkaTemplate<String, PriceUpdatedEvent> kafkaTemplate,
                                MeterRegistry meterRegistry) {
         this.assetPriceRepository = assetPriceRepository;
         this.externalMarketDataClient = externalMarketDataClient;
-        this.baselineTickerProperties = baselineTickerProperties;
+        this.supportedCatalog = supportedCatalog;
         this.kafkaTemplate = kafkaTemplate;
         this.meterRegistry = meterRegistry;
     }
@@ -53,7 +53,7 @@ public class MarketDataRefreshService {
         try {
             List<String> tickers = resolveTrackedTickers();
             if (tickers.isEmpty()) {
-                log.info("MarketDataRefreshJob: no tracked tickers (baseline + Mongo); skipping refresh.");
+                log.info("MarketDataRefreshJob: no tracked tickers (active catalog); skipping refresh.");
                 meterRegistry.counter("market.data.refresh.outcome", "result", "empty").increment();
                 return;
             }
@@ -139,23 +139,14 @@ public class MarketDataRefreshService {
     }
 
     /**
-     * Tracked tickers = configured baseline ∪ any ticker already stored in Mongo (e.g. user-added).
+     * Tracked tickers = active catalog assets.
      */
     List<String> resolveTrackedTickers() {
-        Set<String> symbols = new LinkedHashSet<>();
-        List<String> baseline = baselineTickerProperties.getTickers();
-        if (baseline != null) {
-            for (String t : baseline) {
-                if (t != null && !t.isBlank()) {
-                    symbols.add(t.trim());
-                }
-            }
-        }
-        for (AssetPrice ap : assetPriceRepository.findAll()) {
-            if (ap.getTicker() != null && !ap.getTicker().isBlank()) {
-                symbols.add(ap.getTicker().trim());
-            }
-        }
-        return new ArrayList<>(symbols);
+        // Intentionally does not consult Mongo: active() defines what the product supports.
+        return supportedCatalog.active().stream()
+                .map(CatalogEntry::ticker)
+                .filter(t -> t != null && !t.isBlank())
+                .map(String::trim)
+                .toList();
     }
 }
