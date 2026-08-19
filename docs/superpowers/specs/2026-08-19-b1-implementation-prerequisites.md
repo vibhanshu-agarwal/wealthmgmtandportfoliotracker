@@ -30,7 +30,7 @@ This is the finding that motivated design Revision 11. It was not in the spec.
 
 The tasks file anticipated a migration-number *collision* — *"two migrations numbered 17 do not merge badly — Flyway refuses to start"* — which remains true and is a different failure. This one is **ordering**.
 
-`spring.flyway.out-of-order` is unset in both `portfolio-service/src/main/resources/application.yml` and `application-prod.yml`, so it defaults `false`. Spring Boot runs `validateOnMigrate=true`. Applying `V20` while `V17`–`V19` are unmerged therefore does not defer them — it makes them **permanently unapplicable**.
+`spring.flyway.out-of-order` is unset in both `portfolio-service/src/main/resources/application.yml` and `application-prod.yml`, so it defaults `false`. Spring Boot runs `validateOnMigrate=true`. Applying `V20` while `V17`–`V19` are unmerged therefore does not defer them: **under this configuration they are left unapplied and startup validation fails**. The gap is recoverable only by explicitly enabling [`outOfOrder`](https://documentation.red-gate.com/fd/flyway-out-of-order-setting-277579015.html) — a deliberate configuration change with its own review, not a property of the current setup and not something to reach for under cutover pressure.
 
 Verified empirically against PostgreSQL 18.6 with Flyway 11.20.3 — apply `V16` then `V20`, then introduce `V17`–`V19` and re-run `migrate`:
 
@@ -43,9 +43,9 @@ Detected resolved migration not applied to database: 19.
 
 Exit 1. In a running service this surfaces as **`portfolio-service` failing to start**.
 
-**Why no requirement covers it.** Requirement 9.1 gates the Composition_Operation's *user-reachability* on Spec A's steady state, which binds at **R-C**. The ordering constraint binds at **R-B**, four releases earlier. The stated gates therefore permit a sequence that breaks the database. Requirement 9.2 is unaffected — B1 may be implemented and tested in full meanwhile; only *applying* V20 is constrained.
+**Why no requirement covers it.** Requirement 9.1 gates the Composition_Operation's *user-reachability* on Spec A's steady state, which binds at **R-C**. The ordering constraint binds at **R-B**, three release transitions earlier (R-B → R-B2 → R-B3 → R-C). The stated gates therefore permit a sequence that breaks the database. Requirement 9.2 is unaffected — B1 may be implemented and tested in full meanwhile; only *applying* V20 is constrained.
 
-**Consequence for planning.** Spec A's R3a is the first irreversible step of a cutover that is itself blocked on proving the Neon restore path. So **B1's release lane inherits that blocker at Wave 3**, sooner than reading the spec would suggest. Waves 0–2 and 4 are unaffected and represent substantial work — roughly half the wave count — that can proceed today.
+**Consequence for planning.** Spec A's R3a is the first irreversible step of a cutover that is itself blocked on proving the Neon restore path. So **B1's release lane inherits that blocker at Wave 3**, sooner than reading the spec would suggest. R-B's precondition is that R3a has **already passed its own gates** — R-B does not repeat them. The verified-backup checkpoint belongs to R3a, because R3a is the irreversible step; R-B's own verification is the narrower one below. Waves 0–2 and 4 are unaffected and represent substantial work — roughly half the wave count — that can proceed today.
 
 **Verification, when the time comes:** read `flyway_schema_history` and confirm `V17`, `V18`, `V19` present and successful. Do **not** infer it from a merge or a green deploy.
 
@@ -63,7 +63,35 @@ Task 2.2 requires the gateway provisioning insert be proven against *"a database
 - **B.** Merge Spec A's R3a first. Removes the problem entirely and also clears §1.1 — but R3a's merge *executes* the migrations in production, which is checkpoint 9.6 and needs the cutover.
 - **C.** Copy `V17`–`V19` into a test-only fixture directory used by the Testcontainers harness, never into `db/migration`. Cheapest; carries a drift risk if Spec A's migrations change before merging.
 
-**Recommendation: A.** It is honest about the dependency, needs no production action, and Wave 2's PR can rebase onto `main` once R3a lands. C invites two copies of an irreversible migration to disagree.
+**Recommendation: A**, under the hard conditions below. It is honest about the dependency, needs no production action, and Wave 2's PR can rebase onto `main` once R3a lands. C invites two copies of an irreversible migration to disagree.
+
+#### Option A is a *local development* arrangement only — hard conditions
+
+A stacked branch carries `V17`–`V19` in `db/migration`. Merging or deploying it would execute Spec A's irreversible repair outside the cutover, at an arbitrary moment, with no maintenance window, no verified backup, and no `Post_Migration_Integrity_Assertion` gate. That is a worse outcome than the ordering defect this document exists to prevent.
+
+Therefore, while Wave 2 is stacked on `feat/supported-asset-postgres-repair`:
+
+- [ ] **Do not open a PR** from the stacked branch.
+- [ ] **Do not merge it** to `main` under any circumstance.
+- [ ] **Do not deploy it**, and do not dispatch any workflow that builds or deploys from it.
+- [ ] Treat it as a local/CI test vehicle only. Push it if you need CI, but its PR stays unopened.
+
+**After R3a lands on `main`:**
+
+- [ ] **Rebase** the Wave 2 branch onto `main`.
+- [ ] **Prove the stack is gone** before opening a PR — no Spec A file may remain in the diff:
+
+```bash
+git fetch origin
+git rebase origin/main
+git diff --stat origin/main...HEAD -- portfolio-service/src/main/resources/db/migration/
+# MUST be empty. Any V17/V18/V19 line here means the rebase did not drop Spec A's commits.
+git diff --name-only origin/main...HEAD | grep -E 'V1[789]__' && echo 'STOP: Spec A migrations still present' || echo 'clean'
+```
+
+- [ ] Only then open the PR.
+
+If the diff is not empty, the branch still carries migrations it does not own — stop and re-derive the rebase rather than merging past it.
 
 ---
 

@@ -10,8 +10,10 @@
 > **ordering**. Spec A owns `V17`–`V19`; B1 owns `V20`. `spring.flyway.out-of-order` is unset in
 > both `application.yml` and `application-prod.yml`, so it defaults `false`, and Spring Boot runs
 > `validateOnMigrate=true`. Applying `V20` while `V17`–`V19` are still unmerged therefore does not
-> merely defer them — it makes them **permanently unapplicable**, and `portfolio-service` fails to
-> start the moment they land.
+> merely defer them: **under this configuration they are left unapplied and startup validation
+> fails**, so `portfolio-service` does not start once they land. The gap is recoverable only by
+> explicitly enabling `outOfOrder`, which is a deliberate configuration change with its own review —
+> not something to reach for under cutover pressure, and not a property of the current setup.
 >
 > Verified empirically 2026-08-19 against PostgreSQL 18.6 with Flyway 11.20.3: apply `V16` then
 > `V20`, then introduce `V17`–`V19` and re-run `migrate` —
@@ -19,8 +21,9 @@
 > applied to database: 17. … 18. … 19.` Exit 1.
 >
 > Requirement 9.1 does not cover this. It gates the Composition_Operation's **user-reachability** on
-> Spec A's steady state, which binds at **R-C**. The ordering constraint binds at **R-B**, four
-> releases earlier, so the stated gates permit a sequence that breaks the database. Requirement 9.2
+> Spec A's steady state, which binds at **R-C**. The ordering constraint binds at **R-B**, three
+> release transitions earlier (R-B → R-B2 → R-B3 → R-C), so the stated gates permit a sequence that
+> breaks the database. Requirement 9.2
 > is unaffected and still holds: B1 may be *implemented and tested* in full while Spec A proceeds —
 > this constrains only when V20 is **applied to production**.
 >
@@ -1329,12 +1332,16 @@ constraint is present, because R-0 completes and is verified before R-B starts.
 
 **R-B additionally waits on another spec (Revision 11).** Spec A's `V17`–`V19` must be applied to
 production before B1's `V20` is. Flyway's default `outOfOrder=false` means a lower-versioned
-migration appearing after a higher one is not applied late — it fails validation, and with Spring
-Boot's `validateOnMigrate=true` the service does not start. This is the only point where B1's
-release lane depends on Spec A's *cutover* rather than its implementation; note that Spec A's R3a is
-itself the first irreversible step of that cutover, so R-B inherits every precondition R3a carries,
-including a verified database backup. Requirement 9.2 is untouched: implementation and testing
-proceed independently of this.
+migration appearing after a higher one is not applied late — it is left unapplied and validation
+fails, and with Spring Boot's `validateOnMigrate=true` the service does not start.
+
+R-B's precondition is that **Spec A's R3a has already passed its own gates** — it does not repeat
+them. R3a carries the verified-backup checkpoint because R3a is the irreversible step; R-B depends
+on that having happened, and its own verification is the narrower one in task 3.5: read
+`flyway_schema_history` and confirm V17, V18 and V19 present and successful.
+
+This is the only point where B1's release lane depends on Spec A's *cutover* rather than its
+implementation. Requirement 9.2 is untouched: implementation and testing proceed independently.
 
 **Capability evidence has two halves, and only one of them can precede a deploy.** Revision 6
 required every capability gate to carry an immutable digest, an active revision mapped to it, and a

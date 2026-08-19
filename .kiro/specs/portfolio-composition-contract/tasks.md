@@ -2,8 +2,8 @@
 
 > **Revision 8 — 2026-08-19.** One bounded correction, tracking design Revision 11. The V20 note
 > covered a migration-number collision but not migration *ordering*: applying V20 before Spec A's
-> V17-V19 makes them permanently unapplicable under Flyway's default `outOfOrder=false`, and
-> `portfolio-service` fails to start when they land. Wave 3 therefore cannot ship until Spec A's R3a
+> V17-V19 leaves them unapplied and fails startup validation under Flyway's default
+> `outOfOrder=false`, so `portfolio-service` does not start when they land. Wave 3 therefore cannot ship until Spec A's R3a
 > is applied to production, and 3.5's go condition now requires reading `flyway_schema_history`
 > rather than inferring it. No requirement is touched and Requirement 9.2 still holds: all of B1 may
 > be implemented and tested meanwhile.
@@ -194,15 +194,18 @@ not merge badly — Flyway refuses to start.
 
 **And V20 must not be *applied* before V17–V19 are** (design Rev 11). That is a separate failure from
 the number collision above. `spring.flyway.out-of-order` is unset, so it defaults `false`, and Spring
-Boot runs `validateOnMigrate=true` — applying V20 first makes V17–V19 permanently unapplicable and
-`portfolio-service` fails to start when they land. Verified against PostgreSQL 18.6 / Flyway 11.20.3:
+Boot runs `validateOnMigrate=true` — applying V20 first leaves V17–V19 **unapplied and fails startup
+validation**, so `portfolio-service` does not start when they land. The gap is recoverable only by
+explicitly enabling `outOfOrder`, a deliberate configuration change with its own review, not a
+property of the current setup. Verified against PostgreSQL 18.6 / Flyway 11.20.3:
 `Detected resolved migration not applied to database: 17. … 18. … 19.`, exit 1. Spec A's R3a is on the
 unmerged `feat/supported-asset-postgres-repair` branch, so **Wave 3 cannot ship until R3a has been
 applied to production.** Waves 0–2 and 4 are unaffected; Requirement 9.2 still permits implementing
 and testing all of B1 meanwhile.
 
-The design is frozen at Revision 8. Where a task and the design disagree, **the design is
-normative**; raise it rather than resolving it in code.
+The design was frozen at Revision 8; **Revision 11 is the current normative design**, reached through
+three bounded errata (9, 10, 11) that the freeze permits. Where a task and the design disagree,
+**the design is normative**; raise it rather than resolving it in code.
 
 Stack: **Java 21 / Spring Boot 4.1**, `hibernate-core 7.4.1.Final`,
 `tools.jackson.core:jackson-databind 3.1.4`, JUnit 5 + Testcontainers (Postgres), Playwright, GitHub
