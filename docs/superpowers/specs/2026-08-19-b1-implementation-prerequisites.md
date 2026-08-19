@@ -73,25 +73,38 @@ Therefore, while Wave 2 is stacked on `feat/supported-asset-postgres-repair`:
 
 - [ ] **Do not open a PR** from the stacked branch.
 - [ ] **Do not merge it** to `main` under any circumstance.
-- [ ] **Do not deploy it**, and do not dispatch any workflow that builds or deploys from it.
-- [ ] Treat it as a local/CI test vehicle only. Push it if you need CI, but its PR stays unopened.
+- [ ] **Do not run any deploy-capable or production-mutating workflow from it** — specifically `deploy.yml`, `deploy-azure.yml`, `deploy-aws.yml`, `terraform-azure.yml` with `action=apply`, and `synthetic-monitoring.yml` (its global setup POSTs to the production seed endpoint).
+- [ ] **Build-and-test CI is explicitly permitted and encouraged** — `ci-verification.yml`, `frontend-ci.yml`, `frontend-e2e-integration.yml`, and any Gradle or Playwright run. These build and test only; none of them deploys or writes to production. Push the branch freely so these run.
 
 **After R3a lands on `main`:**
 
 - [ ] **Rebase** the Wave 2 branch onto `main`.
-- [ ] **Prove the stack is gone** before opening a PR — no Spec A file may remain in the diff:
+- [ ] **Prove no Spec A migration survived the rebase** before opening a PR. The check below covers the migration directory and `V17`–`V19` filenames — which is the whole of what a Wave 2 branch can inherit from Spec A's repair branch, since Spec A's other files were already merged to `main` in earlier PRs. It fails loudly rather than printing a warning:
 
 ```bash
+set -e
 git fetch origin
 git rebase origin/main
-git diff --stat origin/main...HEAD -- portfolio-service/src/main/resources/db/migration/
-# MUST be empty. Any V17/V18/V19 line here means the rebase did not drop Spec A's commits.
-git diff --name-only origin/main...HEAD | grep -E 'V1[789]__' && echo 'STOP: Spec A migrations still present' || echo 'clean'
+
+# Any migration diff at all against main is a stack remnant: Wave 2 owns no migration.
+if [ -n "$(git diff --name-only origin/main...HEAD -- portfolio-service/src/main/resources/db/migration/)" ]; then
+  echo "STOP: Wave 2 must not change db/migration; the rebase did not drop Spec A's commits."
+  git diff --name-only origin/main...HEAD -- portfolio-service/src/main/resources/db/migration/
+  exit 1
+fi
+
+# Belt and braces: no V17-V19 file anywhere in the diff.
+if git diff --name-only origin/main...HEAD | grep -qE 'V1[789]__'; then
+  echo "STOP: Spec A migrations still present in the diff."
+  exit 1
+fi
+
+echo "clean — no Spec A migration remains"
 ```
 
 - [ ] Only then open the PR.
 
-If the diff is not empty, the branch still carries migrations it does not own — stop and re-derive the rebase rather than merging past it.
+If either guard trips, the branch still carries migrations it does not own — stop and re-derive the rebase rather than merging past it.
 
 ---
 
