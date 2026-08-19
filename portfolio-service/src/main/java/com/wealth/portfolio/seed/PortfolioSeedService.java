@@ -14,7 +14,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.UUID;
 
@@ -47,6 +46,8 @@ import java.util.UUID;
  *       non-trivial P&amp;L across service restarts.</li>
  *   <li>The seed price feeding that calculation is computed in-memory from the catalogue's
  *       {@code basePrice} and is never persisted to {@code market_prices}.</li>
+ *   <li>{@code cost_basis_as_of} is the configured {@code app.demo.cost-basis-anchor}, not
+ *       {@code Instant.now()}, so a complete desired-state comparison can converge.</li>
  * </ul>
  */
 @Service
@@ -67,18 +68,43 @@ public class PortfolioSeedService {
     private final AssetHoldingRepository assetHoldingRepository;
     private final SeedTickerRegistry registry;
     private final SupportedAssetValidator supportedAssetValidator;
+    private final DemoProperties demoProperties;
 
     public PortfolioSeedService(PortfolioRepository portfolioRepository,
                                 AssetHoldingRepository assetHoldingRepository,
                                 SeedTickerRegistry registry,
-                                SupportedAssetValidator supportedAssetValidator) {
+                                SupportedAssetValidator supportedAssetValidator,
+                                DemoProperties demoProperties) {
         this.portfolioRepository = portfolioRepository;
         this.assetHoldingRepository = assetHoldingRepository;
         this.registry = registry;
         this.supportedAssetValidator = supportedAssetValidator;
+        this.demoProperties = demoProperties;
     }
 
     public record SeedResult(UUID portfolioId, int holdingsInserted) {}
+
+    /**
+     * The complete desired holding tuple for {@code userId}: a pure function of
+     * {@code (active catalog, userId, app.demo.cost-basis-anchor)}.
+     */
+    public record DesiredHolding(
+            String ticker,
+            BigDecimal quantity,
+            BigDecimal avgCostBasis,
+            String costBasisCurrency,
+            String costBasisSource,
+            Instant costBasisAsOf) {}
+
+    /**
+     * Computes the holdings {@link #seed(String)} would persist, without writing.
+     */
+    public List<DesiredHolding> desiredHoldings(String userId) {
+        Instant costBasisAsOf = demoProperties.costBasisAnchor();
+        return registry.active().stream()
+                .map(t -> toDesiredHolding(t, userId, costBasisAsOf))
+                .toList();
+    }
 
     @Transactional
     public SeedResult seed(String userId) {
@@ -102,26 +128,14 @@ public class PortfolioSeedService {
         //    package-private Portfolio.addHolding() helper from this sub-package.
         Portfolio saved = portfolioRepository.save(new Portfolio(userId));
 
-        // Cost-basis "as of" anchor: 25 h ago, so a seeded position reads as acquired
-        // before the most recent refresh rather than in the current instant.
-        Instant costBasisAsOf = Instant.now().minus(25, ChronoUnit.HOURS)
-                .truncatedTo(ChronoUnit.MILLIS);
-
-        List<AssetHolding> holdings = seeds.stream()
-                .map(t -> {
-                    int quantity = Math.floorMod(t.ticker().hashCode(), QUANTITY_RANGE) + 1;
-                    BigDecimal seedPrice = DeterministicPriceCalculator.compute(
-                            t.basePrice(), t.ticker(), userId);
-
-                    AssetHolding holding = new AssetHolding(saved, t.ticker(), BigDecimal.valueOf(quantity));
-
-                    // Task 4.2: deterministic cost basis — seed price ± signed jitter (±20%)
-                    BigDecimal costBasis = computeDeterministicCostBasis(seedPrice, t.ticker(), userId);
-                    holding.setAvgCostBasis(costBasis);
-                    holding.setCostBasisCurrency(t.quoteCurrency());
-                    holding.setCostBasisSource("SEED");
-                    holding.setCostBasisAsOf(costBasisAsOf);
-
+        List<DesiredHolding> desired = desiredHoldings(userId);
+        List<AssetHolding> holdings = desired.stream()
+                .map(d -> {
+                    AssetHolding holding = new AssetHolding(saved, d.ticker(), d.quantity());
+                    holding.setAvgCostBasis(d.avgCostBasis());
+                    holding.setCostBasisCurrency(d.costBasisCurrency());
+                    holding.setCostBasisSource(d.costBasisSource());
+                    holding.setCostBasisAsOf(d.costBasisAsOf());
                     return holding;
                 })
                 .toList();
@@ -132,6 +146,20 @@ public class PortfolioSeedService {
         log.info("Golden-state seed complete (holdings only): userId={} portfolioId={} holdings={}",
                 userId, saved.getId(), seeds.size());
         return new SeedResult(saved.getId(), seeds.size());
+    }
+
+    private DesiredHolding toDesiredHolding(SeedTicker t, String userId, Instant costBasisAsOf) {
+        int quantity = Math.floorMod(t.ticker().hashCode(), QUANTITY_RANGE) + 1;
+        BigDecimal seedPrice = DeterministicPriceCalculator.compute(
+                t.basePrice(), t.ticker(), userId);
+        BigDecimal costBasis = computeDeterministicCostBasis(seedPrice, t.ticker(), userId);
+        return new DesiredHolding(
+                t.ticker(),
+                BigDecimal.valueOf(quantity),
+                costBasis,
+                t.quoteCurrency(),
+                "SEED",
+                costBasisAsOf);
     }
 
     /**

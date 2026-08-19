@@ -34,6 +34,13 @@ app:
   catalog:
     reject-unsupported-events: false
     enforce-holding-invariant: false
+  demo:
+    # Built in wave 8, shipped gated off. Activated at cutover checkpoint 9.12.
+    # When false the initializer returns immediately — no lock, no read, no compare.
+    seed-on-startup: false
+    # Fixed acquisition instant so desired holding state is a pure function of
+    # (active catalog, userId, anchor). Instant.now()-25h would reseed every boot.
+    cost-basis-anchor: "2020-01-01T00:00:00Z"
   internal:
     # Shared secret gating /api/internal/** endpoints (Golden-State seeder).
     # Injected at runtime via the Lambda INTERNAL_API_KEY env var; blank in local dev
