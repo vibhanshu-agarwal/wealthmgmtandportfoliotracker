@@ -210,6 +210,8 @@ python scripts/check-spec-references.py   .kiro/specs/supported-asset-integrity/
     - _Requirements: 9.1_
 
   - [ ] 6.3 V17: add `market_prices.observed_at TIMESTAMP(3)`, alter history to `TIMESTAMP(3)`
+    - **`USING date_trunc('milliseconds', observed_at)`** — design Rev 10: the default cast rounds,
+      while the writer and the 6.2 preflight truncate; the clause makes all three share one function
     - _Requirements: 9.1_
 
   - [ ] 6.4 V18: `BTC` → `BTC-USD` holding; archive+delete synthetic `BTC` history; drop `BTC` price row

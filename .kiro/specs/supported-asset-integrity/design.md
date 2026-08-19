@@ -7,6 +7,23 @@
 > could not see. Names cannot drift that way. Where a number is unavoidable it is validated by
 > `scripts/check-spec-references.py --pairs`, which prints each reference beside its target text.
 
+> **Revision 10 — 2026-08-19. Bounded erratum; the freeze stands.** Four corrections to Section 12,
+> found in pre-implementation review; no requirement is touched. (1) V17's history alteration gains
+> `USING date_trunc('milliseconds', observed_at)`: Postgres's default cast to `TIMESTAMP(3)`
+> **rounds**, while the preflight and the existing history writer (`truncatedTo(MILLIS)`)
+> **truncate** — an unqualified `ALTER` would collide on a different key than the preflight checks,
+> and would give converted rows a different identity than live-written ones, which is the
+> dual-identity defect D9 exists to remove. (2) The preflight's rationale claimed post-`ALTER`
+> discovery means the data is already merged; the `(ticker, observed_at)` unique index makes the
+> actual failure a constraint violation rolling back the whole migration — loud, transactional, and
+> at the worst possible time. The preflight's value is moving that failure into a test, and it only
+> does so if its key matches the conversion's, which (1) guarantees. (3) The identical-payload
+> collapse now names its survivor — lowest original `id` — so archive contents are deterministic
+> and assertable. (4) Two sentences said discarded `market_prices` values are captured in "the
+> audit record"; `repair_audit` structurally cannot hold a price row (its key includes
+> `portfolio_id` and it has no payload column). The mechanism is `repair_archive`, as that table's
+> own charter already states.
+
 > **Revision 9 — 2026-08-15. FINAL — design frozen after this revision.** Bounded correction to the
 > refresh-suspension mechanism only. Disabling `MarketDataRefreshJobRunner` removes the **only** caller
 > of `SpringApplication.exit` in `market-data-service`, so a "suspended" execution would start with no
@@ -919,17 +936,26 @@ will exist — there is no healthy process left to query.
 
 - **V17** — creates **both** `repair_archive` and `repair_audit` (below), then
   `ALTER TABLE market_prices ADD COLUMN IF NOT EXISTS observed_at TIMESTAMP(3) NULL` and
-  `ALTER TABLE market_price_history ALTER COLUMN observed_at TYPE TIMESTAMP(3)`. Both halves of one
-  observation identity must carry the same precision, or the normalisation in D9 is undone by the
-  schema.
+  `ALTER TABLE market_price_history ALTER COLUMN observed_at TYPE TIMESTAMP(3)
+  USING date_trunc('milliseconds', observed_at)`. The `USING` clause is load-bearing (Rev 10):
+  Postgres's default cast to lower precision **rounds**, while the history writer normalises by
+  **truncation** (`truncatedTo(MILLIS)`) — an unqualified `ALTER` would give converted rows a
+  different identity than live-written ones, the dual-identity defect D9 exists to remove, and
+  would collide on a different key than the preflight checks. With the clause, the conversion, the
+  writer, and the preflight all apply one function. Both halves of one observation identity must
+  carry the same precision, or the normalisation in D9 is undone by the schema.
 
   **The history alteration is lossy and needs a preflight.** Truncating to milliseconds can collapse
   two rows whose `observed_at` differed only below the millisecond, and `(ticker, observed_at)` is a
-  uniqueness key — so the `ALTER` would either fail on a constraint or silently merge two distinct
-  observations. Before altering, V17 groups history by `(ticker, date_trunc('milliseconds',
-  observed_at))`: groups whose rows carry identical payloads are collapsed, with the discarded rows
-  archived as `COLLISION_LOSER`; any group with conflicting payloads **aborts the migration** before
-  the type change. Discovering this after the `ALTER` would mean the data is already merged.
+  uniqueness key — the unique index makes a silent merge impossible, so the failure mode is a
+  constraint violation rolling back the whole migration mid-cutover (Rev 10; an earlier revision
+  claimed the data would be "already merged"). The preflight exists to move that failure into a
+  test. Before altering, V17 groups history by `(ticker, date_trunc('milliseconds', observed_at))`
+  — the same function the `USING` clause applies, so the preflight's key equals the post-`ALTER`
+  key by construction. Groups whose rows carry identical payloads are collapsed — the row with the
+  **lowest original `id`** survives and the rest are archived as `COLLISION_LOSER`, so archive
+  contents are deterministic — and any group with conflicting payloads **aborts the migration**
+  before the type change.
 - **V18** — `BTC` holding to `BTC-USD` preserving quantity and cost basis; archive the synthetic
   `BTC` history rows verbatim to `repair_archive` with reason `LEGACY_SYNTHETIC` and delete them from
   `market_price_history`; delete the orphaned `BTC` `market_prices` row; collision rules applied
@@ -958,8 +984,8 @@ table above, every basis field including `cost_basis_source` is null — a `MERG
 null basis would assert a merge that produced nothing.
 
 *`market_prices`.* Retain the row with the newer `observed_at`; known beats null; where both are
-null retain the destination. The discarded row's values are written to the migration audit record
-before deletion.
+null retain the destination. The discarded row is archived verbatim to `repair_archive` (reason
+`COLLISION_LOSER`) before deletion.
 
 *`market_price_history`.* Identical `(ticker, observed_at, price, quote_currency)` collapses;
 the same key with a conflicting payload is surfaced and the migration aborts rather than choosing.
@@ -981,7 +1007,8 @@ removal is reversible and auditable. The `market_prices` current row for `BTC` i
 because that is the row valuation reads.
 
 Removed rows are exempt from preservation: the orphaned `BTC` current-price row and collision losers
-are discarded by design, with their prior values captured in the audit record first.
+are discarded by design, with their prior values captured verbatim in `repair_archive` first —
+`repair_audit` cannot hold them, since its key includes `portfolio_id` and it carries no payload.
 
 ### 13. `Post_Migration_Integrity_Assertion`
 
