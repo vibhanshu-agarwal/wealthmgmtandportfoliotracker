@@ -550,6 +550,152 @@ resource "azurerm_role_assignment" "market_data_refresh_job_acr_pull" {
   principal_type = "ServicePrincipal"
 }
 
+# market-data-service Mongo repair Job — Spec A task 7 / R3b.
+# Manual trigger only. Repair property true, refresh property ABSENT (not false):
+# false would start the suspended runner, whose SpringApplication.exit(0) can kill
+# an in-flight repair. replica_retry_limit is 0 so FAILED_CONFLICT is not retried.
+resource "azurerm_user_assigned_identity" "market_data_repair_job" {
+  name                = "wealth-${var.environment}-mdrepair-job-id"
+  resource_group_name = azurerm_resource_group.main.name
+  location            = azurerm_resource_group.main.location
+}
+
+resource "azurerm_container_app_job" "market_data_repair" {
+  name                         = "market-data-repair-job"
+  resource_group_name          = azurerm_resource_group.main.name
+  location                     = azurerm_resource_group.main.location
+  container_app_environment_id = azurerm_container_app_environment.main.id
+
+  depends_on = [azurerm_role_assignment.market_data_repair_job_acr_pull]
+
+  timeouts {
+    create = "60m"
+    update = "60m"
+    delete = "30m"
+  }
+
+  identity {
+    type         = "UserAssigned"
+    identity_ids = [azurerm_user_assigned_identity.market_data_repair_job.id]
+  }
+
+  manual_trigger_config {
+    parallelism              = 1
+    replica_completion_count = 1
+  }
+
+  replica_retry_limit        = 0
+  replica_timeout_in_seconds = 300
+
+  lifecycle {
+    ignore_changes = [
+      template[0].container[0].image,
+    ]
+  }
+
+  registry {
+    server   = azurerm_container_registry.main.login_server
+    identity = azurerm_user_assigned_identity.market_data_repair_job.id
+  }
+
+  secret {
+    name  = "spring-data-mongodb-uri"
+    value = var.mongodb_connection_string
+  }
+  secret {
+    name  = "kafka-bootstrap-servers"
+    value = var.kafka_bootstrap_servers
+  }
+  secret {
+    name  = "kafka-sasl-username"
+    value = var.kafka_sasl_username
+  }
+  secret {
+    name  = "kafka-sasl-password"
+    value = var.kafka_sasl_password
+  }
+  secret {
+    name  = "internal-api-key"
+    value = var.internal_api_key
+  }
+
+  template {
+    container {
+      name = "market-data-repair"
+      image = (var.use_seed_image || var.market_data_repair_job_use_seed_image) ? "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest" : (
+        "${azurerm_container_registry.main.login_server}/market-data-service:${var.image_tag}"
+      )
+      cpu    = 0.5
+      memory = "1Gi"
+
+      env {
+        name  = "SPRING_PROFILES_ACTIVE"
+        value = "prod,azure"
+      }
+      env {
+        name  = "SPRING_MAIN_WEB_APPLICATION_TYPE"
+        value = "none"
+      }
+      env {
+        name  = "MARKET_DATA_REPAIR_ENABLED"
+        value = "true"
+      }
+      env {
+        name  = "MANAGEMENT_TRACING_EXPORT_ENABLED"
+        value = "true"
+      }
+      env {
+        name  = "MANAGEMENT_OPENTELEMETRY_TRACING_EXPORT_OTLP_TRANSPORT"
+        value = "grpc"
+      }
+      env {
+        name  = "MANAGEMENT_TRACING_SAMPLING_PROBABILITY"
+        value = "1.0"
+      }
+      env {
+        name  = "SERVICE_VERSION"
+        value = var.image_tag
+      }
+      env {
+        name  = "DEPLOYMENT_ENVIRONMENT_NAME"
+        value = "prod"
+      }
+      env {
+        name  = "OTEL_SERVICE_NAME"
+        value = "market-data-repair-job"
+      }
+
+      env {
+        name        = "SPRING_DATA_MONGODB_URI"
+        secret_name = "spring-data-mongodb-uri"
+      }
+      env {
+        name        = "KAFKA_BOOTSTRAP_SERVERS"
+        secret_name = "kafka-bootstrap-servers"
+      }
+      env {
+        name        = "KAFKA_SASL_USERNAME"
+        secret_name = "kafka-sasl-username"
+      }
+      env {
+        name        = "KAFKA_SASL_PASSWORD"
+        secret_name = "kafka-sasl-password"
+      }
+      env {
+        name        = "INTERNAL_API_KEY"
+        secret_name = "internal-api-key"
+      }
+    }
+  }
+}
+
+resource "azurerm_role_assignment" "market_data_repair_job_acr_pull" {
+  scope                = azurerm_container_registry.main.id
+  role_definition_name = "AcrPull"
+  principal_id         = azurerm_user_assigned_identity.market_data_repair_job.principal_id
+  principal_type       = "ServicePrincipal"
+}
+
 # insight-service — internal ingress, generates AI insights via Azure OpenAI.
 # SPRING_PROFILES_ACTIVE=prod,azure,azure-ai activates both the azure overlay and
 # the azure-ai overlay (Azure OpenAI endpoint + deployment config).

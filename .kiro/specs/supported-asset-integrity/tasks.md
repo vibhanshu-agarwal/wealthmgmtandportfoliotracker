@@ -266,8 +266,8 @@ python scripts/check-spec-references.py   .kiro/specs/supported-asset-integrity/
     - Re-execution of the full set is idempotent
     - _Requirements: 7.1, 7.3, 7.7, 7.9, 7.10, 7.11, 7.12, 7.18, 7.19, 7.20, 7.28, 7.29, 7.30_
 
-- [ ] 7. Mongo repair Job
-  - [ ] 7.1 Dedicated `azurerm_container_app_job`, manual trigger
+- [x] 7. Mongo repair Job
+  - [x] 7.1 Dedicated `azurerm_container_app_job`, manual trigger
     - Same `market-data-service` image; non-web mode; bounded execution timeout
     - **Repair property `true`, refresh property ABSENT** — not `false`, which would activate the
       suspended runner alongside the repair (see 5.2)
@@ -275,28 +275,28 @@ python scripts/check-spec-references.py   .kiro/specs/supported-asset-integrity/
       or unverifiable state
     - _Requirements: 7.4, 7.5, 7.24, 7.25_
 
-  - [ ] 7.2 Lease claim
+  - [x] 7.2 Lease claim
     - Conditional update matching absent-or-expired, excluding **both** `COMPLETE` and
       `FAILED_CONFLICT`; `$inc` generation
     - _Requirements: 7.5, 7.6_
 
-  - [ ] 7.3 Duplicate-key classification
+  - [x] 7.3 Duplicate-key classification
     - Read the durable record: `COMPLETE` → exit 0; `FAILED_CONFLICT` → non-zero; unexpired foreign
       lease → non-zero. Never "already held, skip"
     - _Requirements: 7.5_
 
-  - [ ] 7.4 Two-phase fencing on source **and** destination
+  - [x] 7.4 Two-phase fencing on source **and** destination
     - Acquire: absent-or-lower → set `= G`. Mutate/delete: `= G` **plus the expected five-field
       tuple** (no stored hash)
     - _Requirements: 7.6, 7.14, 7.15, 7.16_
 
-  - [ ] 7.5 Zero-row classification by reread
+  - [x] 7.5 Zero-row classification by reread
     - generation differs → lost fence, stop; tuple equals intended result → idempotent success,
       record `MIGRATED`; generation matches and tuple equals captured input → retry CAS; else
       `FAILED_CONFLICT`. Source absence classified the same way
     - _Requirements: 7.6_
 
-  - [ ] 7.6 Archive collection with reconciliation
+  - [x] 7.6 Archive collection with reconciliation
     - Fields: `repairId`, `generation`, `sourceCollection`, `sourceId`, `payload`, `payloadHash`,
       `decision`, `status` (`PENDING` → `COMMITTED` | `SUPERSEDED`)
     - Unique index on `(repairId, generation, sourceCollection, sourceId)`; **partial** unique index
@@ -305,26 +305,26 @@ python scripts/check-spec-references.py   .kiro/specs/supported-asset-integrity/
     - **No recovery path deletes a source without first proving the destination holds the expected tuple**
     - _Requirements: 7.6, 7.14, 7.15, 7.16_
 
-  - [ ] 7.7 **Integration tests: crash, retry, and fencing scenarios**
+  - [x] 7.7 **Integration tests: crash, retry, and fencing scenarios**
     - Fifteen concrete Testcontainers MongoDB tests, not reasoning exercises:
-    - [ ] 7.7.1 crash after destination write, before `MIGRATED` → retry converges, no duplicate
-    - [ ] 7.7.2 crash after source delete, before `MIGRATED` → absence classified as success
-    - [ ] 7.7.3 crash between archive `PENDING` and source delete → reconciliation retries and commits
-    - [ ] 7.7.4 crash after source delete, before archive `COMMITTED` → `PENDING` promoted, not re-deleted
-    - [ ] 7.7.5 lease expiry mid-repair, reclaim by new generation, **stale runner's write rejected**
-    - [ ] 7.7.6 concurrent first-claim upsert race → exactly one winner, loser classified not skipped
-    - [ ] 7.7.7 same-generation retry against an already-fenced document → succeeds (regression: the
+    - [x] 7.7.1 crash after destination write, before `MIGRATED` → retry converges, no duplicate
+    - [x] 7.7.2 crash after source delete, before `MIGRATED` → absence classified as success
+    - [x] 7.7.3 crash between archive `PENDING` and source delete → reconciliation retries and commits
+    - [x] 7.7.4 crash after source delete, before archive `COMMITTED` → `PENDING` promoted, not re-deleted
+    - [x] 7.7.5 lease expiry mid-repair, reclaim by new generation, **stale runner's write rejected**
+    - [x] 7.7.6 concurrent first-claim upsert race → exactly one winner, loser classified not skipped
+    - [x] 7.7.7 same-generation retry against an already-fenced document → succeeds (regression: the
           absent-or-lower predicate blocked this)
-    - [ ] 7.7.8 conflicting `updatedAt` payloads → `FAILED_CONFLICT`, terminal, not retried on next claim
-    - [ ] 7.7.9 both documents exist, **newer `updatedAt` wins**
-    - [ ] 7.7.10 both exist, **known `updatedAt` beats null**
-    - [ ] 7.7.11 both exist, **both `updatedAt` null → destination retained**, source archived
-    - [ ] 7.7.12 both exist, same `updatedAt`, **identical field values → collapse idempotently**
-    - [ ] 7.7.13 the **five-field tuple moves atomically** — assert no destination document ever holds
+    - [x] 7.7.8 conflicting `updatedAt` payloads → `FAILED_CONFLICT`, terminal, not retried on next claim
+    - [x] 7.7.9 both documents exist, **newer `updatedAt` wins**
+    - [x] 7.7.10 both exist, **known `updatedAt` beats null**
+    - [x] 7.7.11 both exist, **both `updatedAt` null → destination retained**, source archived
+    - [x] 7.7.12 both exist, same `updatedAt`, **identical field values → collapse idempotently**
+    - [x] 7.7.13 the **five-field tuple moves atomically** — assert no destination document ever holds
           `currentPrice` from one source with `previousReferencePrice`/`previousReferenceAt` from the
           other, which would produce a change figure describing no real interval
-    - [ ] 7.7.14 multiple prior `PENDING` generations → highest corroborated wins, others `SUPERSEDED`
-    - [ ] 7.7.15 destination missing expected tuple → deletion refused, no data loss
+    - [x] 7.7.14 multiple prior `PENDING` generations → highest corroborated wins, others `SUPERSEDED`
+    - [x] 7.7.15 destination missing expected tuple → deletion refused, no data loss
     - _Requirements: 7.5, 7.6, 7.14, 7.15, 7.16_
 
 - [ ] 8. Refresh set, freshness, demo, and projection
