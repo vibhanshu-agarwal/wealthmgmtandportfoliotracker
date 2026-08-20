@@ -275,6 +275,10 @@ jobs:
       # global-setup reads INTERNAL_API_KEY. Export both from the same GitHub secret.
       TF_VAR_internal_api_key: ${{ secrets.TF_VAR_INTERNAL_API_KEY }}
       INTERNAL_API_KEY: ${{ secrets.TF_VAR_INTERNAL_API_KEY }}
+      # Same secrets as synthetic-monitoring.yml — Playwright helpers login as
+      # the Golden-State E2E user, not the local-dev account.
+      E2E_TEST_USER_EMAIL: ${{ secrets.E2E_TEST_USER_EMAIL }}
+      E2E_TEST_USER_PASSWORD: ${{ secrets.E2E_TEST_USER_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
 
@@ -400,7 +404,12 @@ jobs:
         with:
           source-dir: frontend/test-results
           staging-dir: ${{ runner.temp }}/sanitized-output
-          mode: fallback-only
+          # live-secret, not fallback-only: this job now exports the real
+          # E2E_TEST_USER_PASSWORD so the Playwright helpers can log in as the
+          # Golden-State user. fallback-only scrubs the known default
+          # passwords, so it cannot redact a secret value it was never given.
+          mode: live-secret
+          e2e-password: ${{ secrets.E2E_TEST_USER_PASSWORD }}
 
       - name: Upload Playwright traces on failure
         id: upload-playwright-traces

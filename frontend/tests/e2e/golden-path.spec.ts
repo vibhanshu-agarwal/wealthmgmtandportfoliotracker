@@ -8,7 +8,7 @@
  * Requires:
  *   - Next.js server running on http://localhost:3000
  *   - Spring Boot API Gateway running on http://127.0.0.1:8080
- *   - Flyway V3 seed migration applied (seeds user-001 with AAPL, TSLA, BTC)
+ *   - Golden-State seeder applied (E2E user with AAPL, BTC-USD, and the rest of the set)
  *
  * Run:
  *   npx playwright test tests/e2e/golden-path.spec.ts --reporter=list
@@ -64,7 +64,7 @@ test.describe("Golden Path — Data Creation", () => {
   });
 
   test("portfolio holdings are persisted and returned by the API", async ({ page }) => {
-    await gotoPortfolioAndWaitForTickers(page, ["AAPL", "BTC"]);
+    await gotoPortfolioAndWaitForTickers(page, ["AAPL", "BTC-USD"]);
   });
 });
 
@@ -84,7 +84,7 @@ test.describe("Golden Path — Analytics Validation", () => {
     });
   });
 
-  test("holdings table contains AAPL and BTC tickers", async ({ page }) => {
-    await gotoPortfolioAndWaitForTickers(page, ["AAPL", "BTC"]);
+  test("holdings table contains AAPL and BTC-USD tickers", async ({ page }) => {
+    await gotoPortfolioAndWaitForTickers(page, ["AAPL", "BTC-USD"]);
   });
 });

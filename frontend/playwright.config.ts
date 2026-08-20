@@ -10,6 +10,7 @@ const ciChannel = process.env.CI === "true" ? { channel: "chrome" as const } : {
 
 export default defineConfig({
   testDir: path.resolve(__dirname, "tests/e2e"),
+  testIgnore: ["**/helpers/__tests__/**"],
   globalSetup: path.resolve(__dirname, "tests/e2e/global-setup.ts"),
   timeout: 120_000,
   retries: 0,
@@ -45,6 +46,7 @@ export default defineConfig({
         /fix-verification\.test\.ts$/,
         /global-setup-entrypoint\.test\.ts$/,
         /global-setup-export\.test\.ts$/,
+        /helpers[\\/]__tests__[\\/].*/,
       ],
       use: {
         ...devices["Desktop Chrome"],
