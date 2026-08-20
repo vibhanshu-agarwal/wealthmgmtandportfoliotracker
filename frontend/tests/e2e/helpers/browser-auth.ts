@@ -1,4 +1,5 @@
 import type { APIRequestContext, Page } from "@playwright/test";
+import { e2eLoginCredentials } from "./e2e-credentials";
 
 const GATEWAY_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
 const AUTH_STORAGE_KEY = "wmpt.auth.session";
@@ -14,23 +15,21 @@ type SessionPayload = {
  * Registers an init script that writes the gateway login session into localStorage
  * before any frame loads. This avoids races where React reads auth before Playwright
  * storageState hydration completes on static-export pages.
+ *
+ * Identity is the Golden-State E2E user (`00000000-0000-0000-0000-000000000e2e`),
+ * credentials from `E2E_TEST_USER_EMAIL` / `E2E_TEST_USER_PASSWORD` (see
+ * `e2e-credentials.ts`). This must stay aligned with `helpers/api.ts`.
  */
 export async function installGatewaySessionInitScript(
   page: Page,
   request: APIRequestContext,
 ): Promise<void> {
-  // Credentials match the dev user seeded by portfolio-service's V15 migration
-  // (portfolio-service/src/main/resources/db/migration/V15__Reconcile_Auth_Seed_Users.sql) —
-  // real per-user auth replaced the old app.auth.* hardcoded-credential default
-  // (dev@localhost.local / password) that this used to rely on.
   void request;
+  const credentials = e2eLoginCredentials();
   const res = await fetch(`${GATEWAY_URL}/api/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      email: "dev@local",
-      password: "local-dev-password-2026",
-    }),
+    body: JSON.stringify(credentials),
   });
   if (!res.ok) {
     throw new Error(`[e2e] login failed: ${res.status} ${await res.text()}`);

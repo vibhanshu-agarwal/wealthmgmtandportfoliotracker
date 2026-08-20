@@ -19,10 +19,14 @@ function signJwt(headerB64: string, payloadB64: string): string {
 /**
  * Mint a HS256 JWT for use as an API Gateway Bearer token.
  *
- * Uses "user-001" as the default sub claim — this matches the Flyway V3 seed
- * migration (user_id = 'user-001') and the Better Auth dev user seed.
+ * `userId` is **required**. It previously defaulted to `"user-001"` — the
+ * Flyway V3 seed identity — which made it possible to mint a token for the
+ * wrong user by omitting an argument. B1 Wave 0 removed the identity fallbacks
+ * from the E2E fixtures; a default here would reintroduce one by the back door.
+ * Every caller passes an explicit subject, so this is a compile-time guard
+ * rather than a behaviour change.
  */
-export function mintJwt(userId = "user-001"): string {
+export function mintJwt(userId: string): string {
   const header = Buffer.from(
     JSON.stringify({ alg: "HS256", typ: "JWT" }),
   ).toString("base64url");

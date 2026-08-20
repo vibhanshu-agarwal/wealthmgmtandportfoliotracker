@@ -105,12 +105,14 @@ test.describe("Dashboard Data Integration Diagnostics", () => {
   });
 
   /**
-   * Test 2 — Portfolio page loads and total-value is not $0.00
+   * Test 2 — Portfolio page loads and total-value is not $0.00.
+   *
+   * Previously quarantined (2026-04-19) because the helper POSTed
+   * `/api/portfolio/{id}/holdings` and that writer returned 500. Wave 0
+   * converted the helper to read-and-assert Golden State, so that reason
+   * no longer applies.
    */
-  // SKIPPED: Backend POST /api/portfolio/{id}/holdings returned 500 (2026-04-19 CI run).
-  // The outer describe block is now active but this test remains quarantined until
-  // the holdings endpoint is confirmed healthy in a live run.
-  test.skip("2. /portfolio renders total-value and it is not $0.00 after 5 s", async ({ page, request }) => {
+  test("2. /portfolio renders total-value and it is not $0.00 after 5 s", async ({ page, request }) => {
     const calls: ApiCall[] = [];
     attachNetworkLogger(page, calls);
 

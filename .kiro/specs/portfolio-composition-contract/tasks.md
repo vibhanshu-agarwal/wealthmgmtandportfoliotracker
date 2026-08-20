@@ -422,25 +422,25 @@ either.
 
 Production-neutral. It precedes Wave 1 because Artifact 0 removes the endpoints these fixtures use.
 
-- [ ] **0.1 Move `helpers/api.ts` to the E2E identity.**
+- [x] **0.1 Move `helpers/api.ts` to the E2E identity.**
   _Requirements: 8.3, 8.7_
-- [ ] **0.2 Move `helpers/browser-auth.ts` to the E2E identity.** The second, independent identity
+- [x] **0.2 Move `helpers/browser-auth.ts` to the E2E identity.** The second, independent identity
   path — `global.setup.ts` and `golden-path.spec.ts` install the browser session immediately before
   the API helper runs. Migrating only the API helper yields a green suite proving nothing: API
   assertions pass against the E2E portfolio while the page renders dev's empty one.
   _Requirements: 8.3, 8.7_
-- [ ] **0.3 Convert `ensurePortfolioWithHoldings` to read-and-assert.** It creates a portfolio via
+- [x] **0.3 Convert `ensurePortfolioWithHoldings` to read-and-assert.** It creates a portfolio via
   `POST /api/portfolio` and adds holdings via the versionless `POST` today. It must assert the
   Golden-State setup and **fail hard** when seeding was skipped, never repair silently.
   _Requirements: 8.3, 8.7, 8.13_
-- [ ] **0.4 Update ticker expectations to canonical symbols.** `golden-path.spec.ts` asserts `BTC`
+- [x] **0.4 Update ticker expectations to canonical symbols.** `golden-path.spec.ts` asserts `BTC`
   twice; after Spec A the Golden-State set carries `BTC-USD`. Update the header comment, which still
   names the V3 seed as the fixture source.
   _Requirements: 6.7_
-- [ ] **0.5 Wire E2E credentials into `ci-verification.yml`**, which supplies `INTERNAL_API_KEY` and
+- [x] **0.5 Wire E2E credentials into `ci-verification.yml`**, which supplies `INTERNAL_API_KEY` and
   neither credential.
   _Requirements: 8.3_
-- [ ] **0.6 Wire `frontend-e2e-integration.yml`** with the internal key and E2E credentials. It has
+- [x] **0.6 Wire `frontend-e2e-integration.yml`** with the internal key and E2E credentials. It has
   neither and still runs the affected suites, so leaving it unwired leaves a known-red manual
   workflow.
   _Requirements: 8.3_
