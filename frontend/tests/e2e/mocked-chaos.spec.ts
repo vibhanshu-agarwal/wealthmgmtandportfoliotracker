@@ -62,10 +62,15 @@ test.describe("Mocked Chaos Tests (Error Boundaries)", () => {
 
     await page.goto("/market-data");
 
-    // Wait for a few seconds to give TanStack Query time to potentially spam
+    // Historical body, preserved for the quarantine (see the SKIP note above).
+    // The waitForTimeout and the `<= 3` bound assume retry/backoff, but there is
+    // no retry on this path: `requestCount` measures ticker-BATCH cardinality
+    // (ceil(uniqueTickers / MARKET_PRICE_BATCH_SIZE)), not retry attempts. It is
+    // 7 under the Golden-State identity (159 active tickers), so this assertion
+    // fails deterministically -- which is why the test is skipped, not because
+    // any backoff logic regressed.
     await page.waitForTimeout(5000);
 
-    // Assert that TanStack Query stopped retrying (e.g., max 2 or 3 requests total)
     expect(requestCount).toBeLessThanOrEqual(3);
 
     // Assert the UI survived

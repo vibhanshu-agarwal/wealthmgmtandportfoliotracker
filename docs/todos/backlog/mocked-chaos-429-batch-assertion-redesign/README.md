@@ -27,9 +27,10 @@ assertion never measured what its name claims:
 
 The mismatch predates Wave 0. Retry policy is already covered directly by
 `QueryProvider.test.ts`; batch cardinality and partial-failure by
-`portfolio.batching.test.ts`. So the quarantine loses no real coverage — but the
-end-to-end error-boundary behavior this test *meant* to check (does the UI
-survive N concurrent 429s?) is now untested.
+`portfolio.batching.test.ts`. So the quarantine loses **no retry-policy or
+batching-unit coverage** — but the E2E error-boundary behavior this test *meant*
+to check (does the UI survive N concurrent 429s?) **is deliberately deferred and
+now untested** until the redesign below lands.
 
 ## What a proper replacement should do
 
