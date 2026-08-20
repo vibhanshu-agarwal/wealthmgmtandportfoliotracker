@@ -11,7 +11,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.wealth.portfolio.catalog.SupportedAssetValidator;
 import com.wealth.portfolio.dto.PortfolioSummaryDto;
 import com.wealth.portfolio.fx.FxProperties;
 import com.wealth.user.UserRepository;
@@ -26,21 +25,18 @@ public class PortfolioService {
   private final UserRepository userRepository;
   private final FxRateProvider fxRateProvider;
   private final FxProperties fxProperties;
-  private final SupportedAssetValidator supportedAssetValidator;
 
   public PortfolioService(
       PortfolioRepository portfolioRepository,
       JdbcTemplate jdbcTemplate,
       UserRepository userRepository,
       FxRateProvider fxRateProvider,
-      FxProperties fxProperties,
-      SupportedAssetValidator supportedAssetValidator) {
+      FxProperties fxProperties) {
     this.portfolioRepository = portfolioRepository;
     this.jdbcTemplate = jdbcTemplate;
     this.userRepository = userRepository;
     this.fxRateProvider = fxRateProvider;
     this.fxProperties = fxProperties;
-    this.supportedAssetValidator = supportedAssetValidator;
   }
 
   // Task 1.3 verified: @Transactional(readOnly = true) keeps the JPA session open so
@@ -49,63 +45,6 @@ public class PortfolioService {
   public List<PortfolioResponse> getByUserId(String userId) {
     requireUserExists(userId);
     return portfolioRepository.findByUserId(userId).stream().map(this::toResponse).toList();
-  }
-
-  @Transactional
-  public PortfolioResponse createPortfolio(String userId) {
-    var portfolio = new Portfolio(userId);
-    return toResponse(portfolioRepository.save(portfolio));
-  }
-
-  @Transactional
-  public PortfolioResponse addHolding(String userId, UUID portfolioId, String ticker, BigDecimal quantity) {
-    var portfolio = portfolioRepository.findById(portfolioId)
-        .filter(p -> p.getUserId().equals(userId))
-        .orElseThrow(() -> new UserNotFoundException(userId));
-
-    var existing =
-        portfolio.getHoldings().stream()
-            .filter(h -> h.getAssetTicker().equals(ticker))
-            .findFirst();
-    BigDecimal currentQuantity = existing.map(AssetHolding::getQuantity).orElse(null);
-    supportedAssetValidator.requireHoldingWrite(ticker, currentQuantity, quantity);
-
-    existing.ifPresentOrElse(
-        h -> h.setQuantity(quantity),
-        () -> {
-          AssetHolding newHolding = new AssetHolding(portfolio, ticker, quantity);
-          // Task 4.2: capture cost basis at add-time when a current price exists.
-          captureCostBasis(newHolding, ticker);
-          portfolio.addHolding(newHolding);
-        });
-
-    return toResponse(portfolioRepository.save(portfolio));
-  }
-
-  /**
-   * Looks up the current market price for {@code ticker} and records it as the cost basis
-   * at the time of holding creation. If no market price is available, the cost-basis fields
-   * remain null (meaning "unavailable"), which is the correct typed-unavailable state.
-   */
-  private void captureCostBasis(AssetHolding holding, String ticker) {
-    try {
-      var result = jdbcTemplate.queryForList(
-          "SELECT current_price, quote_currency FROM market_prices WHERE ticker = ?",
-          ticker);
-      if (!result.isEmpty()) {
-        BigDecimal price = (BigDecimal) result.get(0).get("current_price");
-        String quoteCurrency = (String) result.get(0).get("quote_currency");
-        if (price != null && price.compareTo(BigDecimal.ZERO) > 0) {
-          holding.setAvgCostBasis(price);
-          holding.setCostBasisCurrency(quoteCurrency != null ? quoteCurrency : "USD");
-          holding.setCostBasisSource("ADD_TIME");
-          holding.setCostBasisAsOf(java.time.Instant.now());
-          log.debug("Cost basis captured for {}: {} {}", ticker, price, quoteCurrency);
-        }
-      }
-    } catch (Exception e) {
-      log.debug("Could not capture cost basis for {} — fields remain null: {}", ticker, e.getMessage());
-    }
   }
 
   @Transactional(readOnly = true)
