@@ -613,18 +613,33 @@ function isValidFrontendTraceAssetPath(candidate) {
  * Fail-closed on any of thirteen malformed/stale states: returns an empty Map
  * (authenticates nothing) rather than throwing past the point where the rest
  * of the sanitizer would otherwise run, but never silently -- each case calls
- * `reportError` with a `::error::`-annotated, secret-free diagnostic naming
- * which one fired. `manifestPath`/`lockfilePath`/`reportError` are
- * injectable so tests can exercise every failure mode against temporary
- * files instead of production content.
+ * `reportError` with a `::error::`-annotated diagnostic.
+ *
+ * The diagnostic is a fixed category constant, optionally followed by a safe
+ * integer asset index. It NEVER interpolates raw manifest or lockfile field
+ * values (boundToPackage, an asset path, a version string, a file path). Those
+ * are attacker-influenceable and, for a path that has just failed
+ * segment validation, may contain control bytes -- emitting them verbatim into
+ * a `::error::` GitHub Actions workflow-command annotation is precisely the
+ * log-injection / annotation-forging class this sanitizer exists to prevent.
+ * The category alone identifies the failure; a value would add injection risk
+ * without materially aiding diagnosis. `manifestPath`/`lockfilePath`/
+ * `reportError` are injectable so tests can exercise every failure mode against
+ * temporary files instead of production content.
  */
 function loadFrontendTraceResourceAllowlist({
   manifestPath = path.join(__dirname, "known-frontend-trace-resources.json"),
   lockfilePath = path.join(__dirname, "../../../frontend/package-lock.json"),
   reportError = console.error,
 } = {}) {
-  const fail = (category, detail) => {
-    reportError(`::error::${category}: ${detail}`);
+  // `category` is always one of the fixed string constants below. `assetIndex`,
+  // when given, is coerced to a non-negative integer -- never a raw value.
+  const fail = (category, assetIndex) => {
+    const suffix =
+      Number.isInteger(assetIndex) && assetIndex >= 0
+        ? ` (asset index ${assetIndex})`
+        : "";
+    reportError(`::error::${category}${suffix}`);
     return new Map();
   };
 
@@ -632,14 +647,14 @@ function loadFrontendTraceResourceAllowlist({
   try {
     manifestRaw = fs.readFileSync(manifestPath, "utf8");
   } catch {
-    return fail("MANIFEST_MISSING_OR_UNREADABLE", manifestPath);
+    return fail("MANIFEST_MISSING_OR_UNREADABLE");
   }
 
   let manifest;
   try {
     manifest = JSON.parse(manifestRaw);
   } catch {
-    return fail("MANIFEST_MALFORMED_JSON", manifestPath);
+    return fail("MANIFEST_MALFORMED_JSON");
   }
 
   if (
@@ -647,39 +662,41 @@ function loadFrontendTraceResourceAllowlist({
     manifest === null ||
     !Array.isArray(manifest.assets)
   ) {
-    return fail("MANIFEST_SCHEMA_INVALID", "manifest is not an object with an assets array");
+    return fail("MANIFEST_SCHEMA_INVALID");
   }
-  for (const asset of manifest.assets) {
+  for (let i = 0; i < manifest.assets.length; i += 1) {
+    const asset = manifest.assets[i];
     if (
       typeof asset !== "object" ||
       asset === null ||
       typeof asset.path !== "string" ||
       typeof asset.sha256 !== "string"
     ) {
-      return fail("MANIFEST_SCHEMA_INVALID", "an asset entry is missing path or sha256");
+      return fail("MANIFEST_SCHEMA_INVALID", i);
     }
   }
 
   if (typeof manifest.boundToPackage !== "string" || manifest.boundToPackage === "") {
-    return fail("MANIFEST_MISSING_BOUND_PACKAGE", manifestPath);
+    return fail("MANIFEST_MISSING_BOUND_PACKAGE");
   }
   if (manifest.boundToPackage !== "next") {
-    return fail("MANIFEST_WRONG_BOUND_PACKAGE", manifest.boundToPackage);
+    return fail("MANIFEST_WRONG_BOUND_PACKAGE");
   }
   if (typeof manifest.boundToVersion !== "string" || manifest.boundToVersion === "") {
-    return fail("MANIFEST_MISSING_BOUND_VERSION", manifestPath);
+    return fail("MANIFEST_MISSING_BOUND_VERSION");
   }
 
   const seenPaths = new Set();
-  for (const asset of manifest.assets) {
+  for (let i = 0; i < manifest.assets.length; i += 1) {
+    const asset = manifest.assets[i];
     if (!isValidFrontendTraceAssetPath(asset.path)) {
-      return fail("MANIFEST_NONCANONICAL_PATH", asset.path);
+      return fail("MANIFEST_NONCANONICAL_PATH", i);
     }
     if (!FRONTEND_TRACE_DIGEST_PATTERN.test(asset.sha256)) {
-      return fail("MANIFEST_MALFORMED_DIGEST", asset.path);
+      return fail("MANIFEST_MALFORMED_DIGEST", i);
     }
     if (seenPaths.has(asset.path)) {
-      return fail("MANIFEST_DUPLICATE_PATH", asset.path);
+      return fail("MANIFEST_DUPLICATE_PATH", i);
     }
     seenPaths.add(asset.path);
   }
@@ -688,25 +705,22 @@ function loadFrontendTraceResourceAllowlist({
   try {
     lockfileRaw = fs.readFileSync(lockfilePath, "utf8");
   } catch {
-    return fail("LOCKFILE_MISSING_OR_UNREADABLE", lockfilePath);
+    return fail("LOCKFILE_MISSING_OR_UNREADABLE");
   }
 
   let lockfile;
   try {
     lockfile = JSON.parse(lockfileRaw);
   } catch {
-    return fail("LOCKFILE_MALFORMED_JSON", lockfilePath);
+    return fail("LOCKFILE_MALFORMED_JSON");
   }
 
   const resolvedNextVersion = lockfile?.packages?.["node_modules/next"]?.version;
   if (typeof resolvedNextVersion !== "string" || resolvedNextVersion === "") {
-    return fail("LOCKFILE_MISSING_NEXT_VERSION", lockfilePath);
+    return fail("LOCKFILE_MISSING_NEXT_VERSION");
   }
   if (resolvedNextVersion !== manifest.boundToVersion) {
-    return fail(
-      "MANIFEST_VERSION_MISMATCH",
-      `manifest bound to ${manifest.boundToVersion}, lockfile resolves next to ${resolvedNextVersion}`,
-    );
+    return fail("MANIFEST_VERSION_MISMATCH");
   }
 
   const map = new Map();

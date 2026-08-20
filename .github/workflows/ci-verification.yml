@@ -117,6 +117,15 @@ jobs:
 
           echo "PASS: both roots proven dirty-then-clean; manifest verified"
 
+      # Runs AFTER the canary step so the real Playwright report/trace it
+      # generates exists on disk: allowlist.test.js reads
+      # test/canary/playwright-report/trace/ assets, and this is the only place
+      # in CI those are produced. On this Linux runner GNU /usr/bin/time -v is
+      # present, so hostile-archive-resource.test.js's RSS bound also runs.
+      - name: Run sanitizer Node test suite
+        working-directory: .github/actions/sanitize-playwright-artifacts
+        run: node --test test/*.test.js
+
   # ──────────────────────────────────────────────
   # Job 1: Unit tests (fast, no infrastructure)
   # ──────────────────────────────────────────────
