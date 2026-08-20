@@ -140,7 +140,12 @@ jobs:
         with:
           source-dir: frontend/playwright-report
           staging-dir: ${{ runner.temp }}/sanitized-playwright-report
-          mode: fallback-only
+          # live-secret, not fallback-only: this job now exports the real
+          # E2E_TEST_USER_PASSWORD so the Playwright helpers can log in as the
+          # Golden-State user. fallback-only scrubs the known default
+          # passwords, so it cannot redact a secret value it was never given.
+          mode: live-secret
+          e2e-password: ${{ secrets.E2E_TEST_USER_PASSWORD }}
 
       - name: Upload Playwright report on failure
         id: upload-playwright-report
