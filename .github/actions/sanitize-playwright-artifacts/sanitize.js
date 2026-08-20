@@ -341,9 +341,12 @@ function isZipSymlink(entry) {
 }
 
 async function inspectZipEntry(zipfile, entry, ctx) {
-  const { sentinels, depth, budget, seenNames } = ctx;
+  const { sentinels, depth, budget, seenNames, frontendTraceAllowlist } = ctx;
   const nameKey = Buffer.isBuffer(entry.fileName)
     ? entry.fileName.toString("hex")
+    : String(entry.fileName);
+  const canonicalEntryPath = Buffer.isBuffer(entry.fileName)
+    ? entry.fileName.toString("utf8")
     : String(entry.fileName);
   if (seenNames.has(nameKey)) {
     return { outcome: "B", reason: "DUPLICATE_ENTRY" };
@@ -388,6 +391,7 @@ async function inspectZipEntry(zipfile, entry, ctx) {
     let overlapTail = Buffer.alloc(0);
     const overlapLen = Math.max(0, longestVariantLength(sentinels) - 1);
     let contentMatch = false;
+    const hasher = frontendTraceAllowlist ? crypto.createHash("sha256") : null;
 
     await new Promise((resolve, reject) => {
       const failB = (reason) => {
@@ -411,6 +415,7 @@ async function inspectZipEntry(zipfile, entry, ctx) {
           return;
         }
         crc = zlib.crc32(chunk, crc);
+        if (hasher) hasher.update(chunk);
         const searchable = Buffer.concat([overlapTail, chunk]);
         if (bufferContainsAny(searchable, sentinels)) contentMatch = true;
         overlapTail = overlapTailOf(chunk, overlapLen);
@@ -451,7 +456,22 @@ async function inspectZipEntry(zipfile, entry, ctx) {
     if (await tryOpenZip(tmpFile)) {
       return structuredScan(tmpFile, { sentinels, depth: depth + 1, budget });
     }
-    if (!decodeOk) {
+
+    // Authentication only ever changes whether UNINSPECTABLE_ENTRY fires; it
+    // never bypasses the sentinel-match check below (Property 2, P-A.2). A
+    // manifest-matched entry that also happens to contain a sentinel must
+    // still surface as Outcome A, exactly like any other decodable entry
+    // would -- so this check runs first, but the metaMatch/contentMatch
+    // branch immediately after is untouched.
+    let authenticated = false;
+    if (hasher && isValidFrontendTraceAssetPath(canonicalEntryPath)) {
+      const manifestEntry = frontendTraceAllowlist.get(canonicalEntryPath);
+      if (manifestEntry && manifestEntry.sha256 === hasher.digest("hex")) {
+        authenticated = true;
+      }
+    }
+
+    if (!decodeOk && !authenticated) {
       return { outcome: "B", reason: "UNINSPECTABLE_ENTRY" };
     }
     if (metaMatch || contentMatch) {
@@ -470,6 +490,12 @@ async function structuredScan(filePath, options = {}) {
   if (depth > MAX_ZIP_NESTING) {
     return { outcome: "B", reason: "NESTING" };
   }
+  // Authentication applies only at the outermost trace-archive depth (0).
+  // This is enforced structurally, not by a conditional inside
+  // inspectZipEntry: frontendTraceAllowlist simply is not forwarded into the
+  // recursive call below (see the nested-zip branch), so a depth-1+ "font"
+  // has no allowlist to check against, by construction.
+  const frontendTraceAllowlist = depth === 0 ? options.frontendTraceAllowlist : undefined;
 
   let zipfile;
   try {
@@ -489,7 +515,14 @@ async function structuredScan(filePath, options = {}) {
 
     const seenNames = new Set();
     let matched = false;
-    const entryCtx = { sentinels, depth, budget, seenNames, archiveUncompressed: 0 };
+    const entryCtx = {
+      sentinels,
+      depth,
+      budget,
+      seenNames,
+      archiveUncompressed: 0,
+      frontendTraceAllowlist,
+    };
     await new Promise((resolve, reject) => {
       zipfile.on("error", reject);
       zipfile.on("end", resolve);
@@ -561,6 +594,142 @@ function loadAllowlistMap() {
   return map;
 }
 
+const FRONTEND_TRACE_DIGEST_PATTERN = /^[0-9a-f]{64}$/;
+
+function isValidFrontendTraceAssetPath(candidate) {
+  if (typeof candidate !== "string" || candidate === "") return false;
+  if (candidate.includes("\\") || path.isAbsolute(candidate)) return false;
+  return candidate.split("/").every(isValidTraceSegment);
+}
+
+/**
+ * Loads the font-resource allowlist for content embedded inside trace.zip
+ * itself (a different trust root from known-playwright-report-assets.json,
+ * which authenticates Playwright's own shipped, version-pinned trace-viewer
+ * bundle). This manifest authenticates this application's own font build
+ * output, so its freshness is bound to `next`'s resolved version in
+ * frontend/package-lock.json instead.
+ *
+ * Fail-closed on any of thirteen malformed/stale states: returns an empty Map
+ * (authenticates nothing) rather than throwing past the point where the rest
+ * of the sanitizer would otherwise run, but never silently -- each case calls
+ * `reportError` with a `::error::`-annotated diagnostic.
+ *
+ * The diagnostic is a fixed category constant, optionally followed by a safe
+ * integer asset index. It NEVER interpolates raw manifest or lockfile field
+ * values (boundToPackage, an asset path, a version string, a file path). Those
+ * are attacker-influenceable and, for a path that has just failed
+ * segment validation, may contain control bytes -- emitting them verbatim into
+ * a `::error::` GitHub Actions workflow-command annotation is precisely the
+ * log-injection / annotation-forging class this sanitizer exists to prevent.
+ * The category alone identifies the failure; a value would add injection risk
+ * without materially aiding diagnosis. `manifestPath`/`lockfilePath`/
+ * `reportError` are injectable so tests can exercise every failure mode against
+ * temporary files instead of production content.
+ */
+function loadFrontendTraceResourceAllowlist({
+  manifestPath = path.join(__dirname, "known-frontend-trace-resources.json"),
+  lockfilePath = path.join(__dirname, "../../../frontend/package-lock.json"),
+  reportError = console.error,
+} = {}) {
+  // `category` is always one of the fixed string constants below. `assetIndex`,
+  // when given, is coerced to a non-negative integer -- never a raw value.
+  const fail = (category, assetIndex) => {
+    const suffix =
+      Number.isInteger(assetIndex) && assetIndex >= 0
+        ? ` (asset index ${assetIndex})`
+        : "";
+    reportError(`::error::${category}${suffix}`);
+    return new Map();
+  };
+
+  let manifestRaw;
+  try {
+    manifestRaw = fs.readFileSync(manifestPath, "utf8");
+  } catch {
+    return fail("MANIFEST_MISSING_OR_UNREADABLE");
+  }
+
+  let manifest;
+  try {
+    manifest = JSON.parse(manifestRaw);
+  } catch {
+    return fail("MANIFEST_MALFORMED_JSON");
+  }
+
+  if (
+    typeof manifest !== "object" ||
+    manifest === null ||
+    !Array.isArray(manifest.assets)
+  ) {
+    return fail("MANIFEST_SCHEMA_INVALID");
+  }
+  for (let i = 0; i < manifest.assets.length; i += 1) {
+    const asset = manifest.assets[i];
+    if (
+      typeof asset !== "object" ||
+      asset === null ||
+      typeof asset.path !== "string" ||
+      typeof asset.sha256 !== "string"
+    ) {
+      return fail("MANIFEST_SCHEMA_INVALID", i);
+    }
+  }
+
+  if (typeof manifest.boundToPackage !== "string" || manifest.boundToPackage === "") {
+    return fail("MANIFEST_MISSING_BOUND_PACKAGE");
+  }
+  if (manifest.boundToPackage !== "next") {
+    return fail("MANIFEST_WRONG_BOUND_PACKAGE");
+  }
+  if (typeof manifest.boundToVersion !== "string" || manifest.boundToVersion === "") {
+    return fail("MANIFEST_MISSING_BOUND_VERSION");
+  }
+
+  const seenPaths = new Set();
+  for (let i = 0; i < manifest.assets.length; i += 1) {
+    const asset = manifest.assets[i];
+    if (!isValidFrontendTraceAssetPath(asset.path)) {
+      return fail("MANIFEST_NONCANONICAL_PATH", i);
+    }
+    if (!FRONTEND_TRACE_DIGEST_PATTERN.test(asset.sha256)) {
+      return fail("MANIFEST_MALFORMED_DIGEST", i);
+    }
+    if (seenPaths.has(asset.path)) {
+      return fail("MANIFEST_DUPLICATE_PATH", i);
+    }
+    seenPaths.add(asset.path);
+  }
+
+  let lockfileRaw;
+  try {
+    lockfileRaw = fs.readFileSync(lockfilePath, "utf8");
+  } catch {
+    return fail("LOCKFILE_MISSING_OR_UNREADABLE");
+  }
+
+  let lockfile;
+  try {
+    lockfile = JSON.parse(lockfileRaw);
+  } catch {
+    return fail("LOCKFILE_MALFORMED_JSON");
+  }
+
+  const resolvedNextVersion = lockfile?.packages?.["node_modules/next"]?.version;
+  if (typeof resolvedNextVersion !== "string" || resolvedNextVersion === "") {
+    return fail("LOCKFILE_MISSING_NEXT_VERSION");
+  }
+  if (resolvedNextVersion !== manifest.boundToVersion) {
+    return fail("MANIFEST_VERSION_MISMATCH");
+  }
+
+  const map = new Map();
+  for (const asset of manifest.assets) {
+    map.set(asset.path, { sha256: asset.sha256 });
+  }
+  return map;
+}
+
 function walkFiles(root) {
   const files = [];
   function rec(dir) {
@@ -622,7 +791,7 @@ async function rawArchiveScan(filePath, options = {}) {
 }
 
 async function handleFile(filePath, stagingDir, ctx) {
-  const { sentinels, allowlist, budget, mutating } = ctx;
+  const { sentinels, allowlist, budget, mutating, frontendTraceAllowlist } = ctx;
   const classified = await classify(filePath, stagingDir, {
     sentinels,
     allowlist,
@@ -639,7 +808,7 @@ async function handleFile(filePath, stagingDir, ctx) {
     return { outcome: "clean" };
   }
 
-  const zipResult = await structuredScan(filePath, { sentinels, budget });
+  const zipResult = await structuredScan(filePath, { sentinels, budget, frontendTraceAllowlist });
   if (zipResult.outcome === "B") return zipResult;
   const rawResult = await rawArchiveScan(filePath, { sentinels, budget });
   if (rawResult.outcome === "B") return rawResult;
@@ -694,10 +863,11 @@ async function runSanitizeFromEnv() {
 
   const budget = { consumed: 0, limit: GLOBAL_BYTE_BUDGET };
   const allowlist = loadAllowlistMap();
+  const frontendTraceAllowlist = loadFrontendTraceResourceAllowlist();
   const sourceMissing = !fs.existsSync(sourceDir);
   copySourceToStaging(sourceDir, stagingDir);
 
-  const ctx = { sentinels, allowlist, budget, mutating: true };
+  const ctx = { sentinels, allowlist, frontendTraceAllowlist, budget, mutating: true };
   if (!sourceMissing) {
     for (const filePath of walkFiles(stagingDir)) {
       const result = await handleFile(filePath, stagingDir, ctx);
@@ -737,6 +907,7 @@ module.exports = {
   runSanitizeFromEnv,
   resolveSentinelValues,
   handleFile,
+  loadFrontendTraceResourceAllowlist,
   TOP_LEVEL_FILE_BYTE_LIMIT,
   PER_ENTRY_UNCOMPRESSED_LIMIT,
   PER_ARCHIVE_UNCOMPRESSED_LIMIT,

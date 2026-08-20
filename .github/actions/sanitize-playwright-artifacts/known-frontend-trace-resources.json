@@ -1,0 +1,8 @@
+{
+  "boundToPackage": "next",
+  "boundToVersion": "16.2.3",
+  "assets": [
+    { "path": "resources/0e04bb6e7b54057d64c421b959c8c22774ae632d.woff2", "sha256": "5f3d6ad60f29d6cb708414ec6887163d63bf197377ef5417d2483ff31ace6c3b" },
+    { "path": "resources/9d846db84c501327431670fe23b1a8ea1d2a5349.woff2", "sha256": "9b6f5ff45b278c744b5f379a2c4ecbaf858a842b8eaf82ac8d21b699ca16c608" }
+  ]
+}
