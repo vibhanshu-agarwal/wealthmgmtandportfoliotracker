@@ -90,12 +90,15 @@ describe("loadFrontendTraceResourceAllowlist -- fail-closed validation (A-2.4)",
 
   // Every failing case must: authenticate nothing, log exactly one diagnostic,
   // and that diagnostic must EXACTLY equal the safe format `::error::CATEGORY`
-  // or `::error::CATEGORY (asset index N)` -- nothing else. Exact-match is a
-  // stronger guarantee than a substring check: if the whole string is one of
-  // those two shapes, no raw field value could have leaked into it. The
-  // explicit POISON / control-byte assertions are belt-and-suspenders on top,
-  // and are non-vacuous because the fixtures below inject POISON into exactly
-  // the fields the pre-fix code interpolated.
+  // or `::error::CATEGORY (asset index N)` -- nothing else. This exact-match
+  // runs on ALL cases and is the primary guarantee: if the whole string is one
+  // of those two shapes, no raw field value could have leaked into it. The
+  // explicit POISON / control-byte assertions are belt-and-suspenders, and are
+  // non-vacuous specifically on the cases that carry a POISON value -- the
+  // value-bearing fields the pre-fix code interpolated (boundToPackage in case
+  // 5, an asset path in 7, a digest in 8, version strings in 13). Cases with no
+  // interpolable field (a missing/malformed file, a missing key) have nothing to
+  // inject and rely on the exact-match guarantee alone.
   function expectSafeDiagnostic(category, opts = {}) {
     const { reportError, calls } = captureErrors();
     const map = load(reportError);

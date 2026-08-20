@@ -55,6 +55,12 @@ describe("structuredScan — sentinel-vs-authentication ordering (Property 2, P-
       frontendTraceAllowlist,
     });
 
+    // structuredScan is the public seam: inspectZipEntry's internal
+    // { outcome: "A", reason: "MATCH" } surfaces here as the archive-level
+    // "ENTRY_MATCH". Assert the exact public result, not just outcome === "A",
+    // so this test would catch a regression that returned "clean" (authentication
+    // wrongly suppressing the sentinel) as sharply as one that returned "B".
     assert.equal(result.outcome, "A");
+    assert.equal(result.reason, "ENTRY_MATCH");
   });
 });

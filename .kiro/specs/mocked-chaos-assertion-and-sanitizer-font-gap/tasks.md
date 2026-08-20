@@ -40,7 +40,7 @@ Requirement IDs are prefixed `A-`/`B-` (see `bugfix.md`) — never a bare `1.1`.
   - Build `fixtureBytes = Buffer.concat([realFontBytes, sentinelBytes])` — real font bytes appended with a test sentinel literal (never the real `E2E_TEST_USER_PASSWORD` value, per existing test convention). Appending avoids needing to understand or preserve WOFF2's internal structure.
   - Compute `digest = sha256(fixtureBytes)`. Build a fixture zip with entry name `resources/test-sentinel-fixture.woff2` — obviously test-only, distinct from the two real production paths.
   - Call `structuredScan(fixtureZipPath, { sentinels, frontendTraceAllowlist: new Map([["resources/test-sentinel-fixture.woff2", { sha256: digest }]]) })` — a **test-local, in-memory `Map`**. **Do not add this entry to `known-frontend-trace-resources.json`** — the production manifest holds only the two real fonts, ever.
-  - Assert `result.outcome === "A"` — authenticated AND sentinel-matched must still surface as a match, never `clean`.
+  - Assert `result.outcome === "A"` **and** `result.reason === "ENTRY_MATCH"` — authenticated AND sentinel-matched must still surface as a match, never `clean`. (The test seam is the public `structuredScan`, which reports `ENTRY_MATCH`; `inspectZipEntry`'s internal `MATCH` is not directly observable since that function is not exported. Asserting the exact reason catches a `clean` regression as sharply as a `B` one.)
   - **EXPECTED OUTCOME on unfixed code**: fails because no authentication path exists yet — confirm it fails for that structural reason (entry returns `B` before sentinel matching is ever consulted in the return logic), not a fixture bug.
   - _Requirements: A-2.1_
 
@@ -111,7 +111,7 @@ Requirement IDs are prefixed `A-`/`B-` (see `bugfix.md`) — never a bare `1.1`.
 
   - [x] 4.6 Verify task 3's sentinel-ordering test now passes correctly
     - Re-run the SAME test from task 3
-    - **EXPECTED OUTCOME**: `{ outcome: "A", reason: "MATCH" }` — confirming authentication did not suppress the sentinel match
+    - **EXPECTED OUTCOME** (through the public `structuredScan` seam): `{ outcome: "A", reason: "ENTRY_MATCH" }` — confirming authentication did not suppress the sentinel match. (`inspectZipEntry`'s internal `reason: "MATCH"` is wrapped to `ENTRY_MATCH` at the archive level.)
     - _Requirements: A-2.1_
 
   - [x] 4.7 Verify task 2's preservation tests still pass
@@ -128,7 +128,7 @@ Requirement IDs are prefixed `A-`/`B-` (see `bugfix.md`) — never a bare `1.1`.
     - One test per case (manifest missing/unreadable, malformed JSON, schema-invalid, missing `boundToPackage`, wrong `boundToPackage` value, missing `boundToVersion`, bad entry path, bad digest, duplicate path, lockfile missing/unreadable, lockfile malformed JSON, lockfile missing next-version, version mismatch)
     - Each case: write a temporary manifest and/or lockfile file (via `fs.mkdtempSync`/`os.tmpdir()`, cleaned up after) exhibiting exactly that malformation, and a `reportError` spy/capture function
     - Call `loadFrontendTraceResourceAllowlist({ manifestPath: tempManifestPath, lockfilePath: tempLockfilePath, reportError: capturedReportError })` — never the production `known-frontend-trace-resources.json` or `frontend/package-lock.json`
-    - **Inject a hostile marker (secret sentinel + a forged `::error::` annotation + a newline + a C0 control byte) into whichever field each case malforms** — otherwise the non-leakage assertion is vacuous (the reviewer's point: ordinary fixture values prove nothing). Assert the diagnostic **exactly equals** `::error::<CATEGORY>` or `::error::<CATEGORY> (asset index N)` — exact-match inherently proves no field value leaked — and additionally assert the marker's sentinel/forged-fragment/control-bytes never appear. Confirm the return is an empty `Map` and `sanitize.js` does not crash.
+    - Assert, on **every** case, that the diagnostic **exactly equals** `::error::<CATEGORY>` or `::error::<CATEGORY> (asset index N)` — exact-match inherently proves no field value leaked, and is the primary guarantee. Additionally, on the **value-bearing** cases (the fields the pre-fix code interpolated: `boundToPackage`, an asset path, a digest, version strings), inject a hostile marker (sentinel + forged `::error::` + newline + C0 control byte) into that field and assert the marker never appears — otherwise those cases' non-leakage claim would be vacuous. Cases with no interpolable field (missing/malformed file, missing key) have nothing to inject and rely on exact-match alone. Confirm the return is an empty `Map` and `sanitize.js` does not crash.
     - _Requirements: A-2.4_
 
 - [x] 5. Add sanitizer-level regression coverage for the font-authentication path — do not restructure the `sanitizer-canary` job's assertions
@@ -186,6 +186,6 @@ Requirement IDs are prefixed `A-`/`B-` (see `bugfix.md`) — never a bare `1.1`.
 ## Final
 
 - [x] 10. Confirm both tracks are independently mergeable
-  - Track A's diff touches only `.github/actions/sanitize-playwright-artifacts/**`
-  - Track B's diff touches only `frontend/tests/e2e/mocked-chaos.spec.ts` and `docs/todos/backlog/**`
-  - No file appears in both diffs; either can merge without the other
+  - Track A's diff touches: `.github/actions/sanitize-playwright-artifacts/**` (the fix, fixture, and tests), `.github/workflows/ci-verification.yml` (the `node --test` step added in task 5.1 — no restructuring of the canary's assertions), and the shared spec docs under `.kiro/specs/mocked-chaos-assertion-and-sanitizer-font-gap/**`.
+  - Track B's diff touches only `frontend/tests/e2e/mocked-chaos.spec.ts` and `docs/todos/backlog/**`.
+  - No file appears in both diffs; either can merge without the other. The shared spec docs live on the Track A branch only, so they land when Track A (#122) merges — not with whichever merges first.
