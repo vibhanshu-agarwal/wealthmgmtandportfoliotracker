@@ -444,20 +444,25 @@ Production-neutral. It precedes Wave 1 because Artifact 0 removes the endpoints 
   neither and still runs the affected suites, so leaving it unwired leaves a known-red manual
   workflow.
   _Requirements: 8.3_
-- [ ] **0.7 G0b evidence.** `golden-path` and `dashboard-data` pass against a **fresh disposable
+- [x] **0.7 G0b evidence.** `golden-path` and `dashboard-data` pass against a **fresh disposable
   database** in one hermetic `ci-verification.yml` run, on the migrated identity. Requires Spec A's
   *implementation*, not its production cutover.
+  Evidence: [run 32399211853](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/32399211853)
+  job `docker-build-verify` ([96530029529](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/32399211853/job/96530029529)),
+  conclusion `success`, commit `dd25e8b64f90a51c4c9a9c73fe14e05cc1c29b97`.
   _Requirements: 8.3, 8.7_
 
 ## Wave 1 — Legacy writer retirement (Artifact 0 → R-0)
 
-- [ ] **1.1 Retire `POST /api/portfolio`.** Pin the response — normally `405` on the surviving
+- [x] **1.1 Retire `POST /api/portfolio`.** Pin the response — normally `405` on the surviving
   collection route. A unique-constraint violation must never surface as the public error.
   _Requirements: 8.5, 8.6, 8.8, 1.13_
-- [ ] **1.2 Retire the versionless `POST /api/portfolio/{portfolioId}/holdings`.**
+- [x] **1.2 Retire the versionless `POST /api/portfolio/{portfolioId}/holdings`.**
   _Requirements: 8.1, 8.2, 8.4_
-- [ ] **1.3 Quantity_Domain on any interval either path stays reachable.** If both retire together
+- [x] **1.3 Quantity_Domain on any interval either path stays reachable.** If both retire together
   this is vacuous — state that explicitly rather than skipping the check.
+  Vacuous by construction: 1.1 and 1.2 retire both routes in the same change, so there is no
+  interval where the versionless holdings POST stays reachable without the version check.
   _Requirements: 3.3_
 - [ ] **1.4 G0a evidence.** No traffic-serving portfolio digest exposes either route: revision →
   digest → traffic capture.
