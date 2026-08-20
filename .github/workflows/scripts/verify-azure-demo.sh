@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 # verify-azure-demo.sh — post-seed live-demo assertion.
-# Asserts the four invariants from bugfix.md §2.5 against the live API gateway.
+# Asserts the four invariants from bugfix.md §2.5 (a-d) against the live API
+# gateway, plus two B1 Wave 1 G0a route-retirement checks (e-f) — task 1.4 in
+# .kiro/specs/portfolio-composition-contract/tasks.md, Requirements 8.9/1.25:
+# "No traffic-serving portfolio digest exposes either route: revision →
+# digest → traffic capture." (a-d) are the original azure-demo-readiness-phase1
+# scope; (e-f) are a separate, later addition — kept in this script rather than
+# a new one because both hit the same live gateway with the same demo JWT.
 # Exits 0 on all-pass, exits 1 on any assertion failure (with a clear message).
 #
 # Required env vars:
@@ -100,4 +106,40 @@ if [ "${NONEMPTY_COUNT}" = "0" ]; then
 fi
 echo "::endgroup::"
 
-echo "All four verify assertions passed."
+# Assertion (e): POST /api/portfolio is retired — 405 with Allow: GET
+echo "::group::Assertion (e) — POST /api/portfolio returns 405"
+CREATE_STATUS=$(curl --silent --show-error --retry 3 --retry-delay 5 --max-time 30 \
+  -o /tmp/create.json -D /tmp/create-headers.txt -w '%{http_code}' \
+  -X POST -H "Authorization: Bearer ${JWT}" -H 'Content-Type: application/json' \
+  "${API_BASE}/api/portfolio" || true)
+echo "HTTP ${CREATE_STATUS}"
+cat /tmp/create-headers.txt
+if [ "${CREATE_STATUS}" != "405" ]; then
+  echo "::error::POST /api/portfolio: expected 405 (retired route), got ${CREATE_STATUS} — the legacy writer may have come back"
+  cat /tmp/create.json
+  exit 1
+fi
+if ! tr -d '\r' < /tmp/create-headers.txt | grep -qi '^allow: *GET *$'; then
+  echo "::error::POST /api/portfolio returned 405 but without 'Allow: GET' — the surviving GET route may be missing too"
+  exit 1
+fi
+echo "::endgroup::"
+
+# Assertion (f): POST /api/portfolio/{id}/holdings is retired — no surviving
+# mapping at that path, so this is 404, not 405. See B1 kickoff §2 for why the
+# two retired routes pin to different statuses.
+echo "::group::Assertion (f) — POST /api/portfolio/{id}/holdings returns 404"
+ADD_HOLDING_STATUS=$(curl --silent --show-error --retry 3 --retry-delay 5 --max-time 30 \
+  -o /tmp/add-holding.json -w '%{http_code}' \
+  -X POST -H "Authorization: Bearer ${JWT}" -H 'Content-Type: application/json' \
+  -d '{"ticker":"AAPL","quantity":1}' \
+  "${API_BASE}/api/portfolio/00000000-0000-0000-0000-000000000000/holdings" || true)
+echo "HTTP ${ADD_HOLDING_STATUS}"
+if [ "${ADD_HOLDING_STATUS}" != "404" ]; then
+  echo "::error::POST /api/portfolio/{id}/holdings: expected 404 (retired route, no surviving mapping), got ${ADD_HOLDING_STATUS} — the legacy writer may have come back"
+  cat /tmp/add-holding.json
+  exit 1
+fi
+echo "::endgroup::"
+
+echo "All six verify assertions passed."
