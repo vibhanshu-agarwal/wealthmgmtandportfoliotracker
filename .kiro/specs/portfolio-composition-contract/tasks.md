@@ -464,8 +464,30 @@ Production-neutral. It precedes Wave 1 because Artifact 0 removes the endpoints 
   Vacuous by construction: 1.1 and 1.2 retire both routes in the same change, so there is no
   interval where the versionless holdings POST stays reachable without the version check.
   _Requirements: 3.3_
-- [ ] **1.4 G0a evidence.** No traffic-serving portfolio digest exposes either route: revision →
+- [x] **1.4 G0a evidence.** No traffic-serving portfolio digest exposes either route: revision →
   digest → traffic capture.
+  Evidence — R-0 deploy fired by PR #125's merge:
+  - Revision `portfolio-service--0000069`, digest
+    `sha256:783c27e17d19d5d0027816e73feb2faea8d3492fc2890247101728a09698eba0`, built from commit
+    `e27762c039de5861ca2444ab2e093730b1a75020`. `activeRevisionsMode: Single`, ingress traffic
+    weight `100` to that revision — [deploy run 32408275319](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/32408275319),
+    job `deploy-azure / deploy (portfolio-service)`.
+  - Source verified independently, not inferred from the deploy succeeding: rebuilt and tested
+    commit `e27762c` in an isolated worktree — `createPortfolio`/`addHolding`/`AddHoldingRequest`
+    absent from the compiled artifact, 175/175 tests green including `LegacyWriterRetirementTest`'s
+    405/404 pins.
+  - Live confirmation the digest is genuinely serving, not just deployed: `GET
+    https://api.vibhanshu-ai-portfolio.dev/api/portfolio/health` → `200
+    {"service":"portfolio-service","status":"UP"}`, captured live against this exact revision.
+  - Gap, flagged rather than closed silently: a live *authenticated* probe of the two retired
+    routes was not completed manually. Unauthenticated attempts against
+    `POST /api/portfolio` and `POST /api/portfolio/{id}/holdings` got `401` with
+    `WWW-Authenticate: Bearer` from the gateway, and obtaining a session requires entering a
+    password, which was declined. PR #126 added assertions (e)/(f) to the `verify` job's live
+    demo check for exactly this — `POST /api/portfolio` → 405, `POST
+    /api/portfolio/{id}/holdings` → 404 — but merging #126 did not itself trigger a deploy
+    (`.github/workflows/scripts/**` is outside `deploy.yml`'s path filter), so those assertions
+    have not yet executed against production. They will self-verify on the next deploy.
   _Requirements: 8.9, 1.25_
 - [ ] **1.5 STOP/GO — R-0.**
   **Go:** G0a and G0b green.
