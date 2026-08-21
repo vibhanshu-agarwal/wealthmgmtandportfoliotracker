@@ -531,7 +531,7 @@ fresh CI/review, and the rest of Wave 2's required proof before R-A can be calle
   Authoring `V20` is implementation work under requirement 9.2; **applying** it to production stays
   gated at 3.5.
   _Requirements: 1.5, 1.17_
-- [ ] **2.3 Add the `/api/assets/**` gateway route.** Ships here, not with the composition endpoint,
+- [x] **2.3 Add the `/api/assets/**` gateway route.** Ships here, not with the composition endpoint,
   so R-C cannot invalidate G2.
   _Requirements: 2.8, 9.3_
 - [ ] **2.4 STOP/GO — G1 before deploy.**

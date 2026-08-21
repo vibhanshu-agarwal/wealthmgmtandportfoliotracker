@@ -4,6 +4,7 @@ import com.nimbusds.jose.JOSEException;
 import com.wealth.gateway.JwtSigner;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DuplicateKeyException;
@@ -68,6 +69,25 @@ class SignupServiceTest {
         assertThat(result.name()).isEqualTo("Alice"); // trimmed
         verify(repository).insertUser(any(), eq("a@b.com"), eq("Alice"));
         verify(repository).insertCredential(any(), eq("a@b.com"), eq("hashed"));
+    }
+
+    @Test
+    void provisionInsertsPortfolioAfterCredentialAndBeforeTokenSigning() throws Exception {
+        stubTransactionToRunCallback();
+        when(passwordEncoder.encode("password12345")).thenReturn("hashed");
+        when(jwtSigner.signHs256(any(), eq("a@b.com"), eq("Alice"), eq(false))).thenReturn("jwt");
+
+        var req = new SignupDtos.SignupRequest("a@b.com", "password12345", "  Alice  ");
+        service().provision(req).block();
+
+        // Task 2.1: insertPortfolio is wired after the email DuplicateKeyException catch and
+        // before token signing. Persistence tests cannot distinguish "inserted then rolled back"
+        // from "never inserted"; this InOrder proof is the only test that does.
+        InOrder order = inOrder(repository, jwtSigner);
+        order.verify(repository).insertUser(any(), eq("a@b.com"), eq("Alice"));
+        order.verify(repository).insertCredential(any(), eq("a@b.com"), eq("hashed"));
+        order.verify(repository).insertPortfolio(any(), any());
+        order.verify(jwtSigner).signHs256(any(), eq("a@b.com"), eq("Alice"), eq(false));
     }
 
     @Test
