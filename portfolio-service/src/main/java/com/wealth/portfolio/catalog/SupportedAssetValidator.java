@@ -5,8 +5,6 @@ import com.wealth.catalog.UnsupportedAssetException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-import java.math.BigDecimal;
-
 /**
  * In-process write-boundary check against the catalog. Matches canonical ticker only;
  * no alias resolution and no cross-service call.
@@ -31,25 +29,6 @@ public class SupportedAssetValidator {
             return;
         }
         if (!catalog.isActive(ticker)) {
-            throw new UnsupportedAssetException(ticker, catalog.version());
-        }
-    }
-
-    /**
-     * Create/increase of a non-active ticker is rejected. Reduce/remove of an existing
-     * deprecated (or otherwise non-active) position is permitted and is not retroactive.
-     */
-    public void requireHoldingWrite(String ticker, BigDecimal currentQuantity, BigDecimal newQuantity) {
-        if (!enforceHoldingInvariant) {
-            return;
-        }
-        if (catalog.isActive(ticker)) {
-            return;
-        }
-        boolean creating = currentQuantity == null;
-        boolean increasing =
-                !creating && newQuantity != null && newQuantity.compareTo(currentQuantity) > 0;
-        if (creating || increasing) {
             throw new UnsupportedAssetException(ticker, catalog.version());
         }
     }
