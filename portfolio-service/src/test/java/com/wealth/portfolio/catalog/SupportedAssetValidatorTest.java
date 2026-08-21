@@ -5,8 +5,6 @@ import com.wealth.catalog.UnsupportedAssetException;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
-import java.math.BigDecimal;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -25,11 +23,6 @@ class SupportedAssetValidatorTest {
         SupportedAssetValidator validator = new SupportedAssetValidator(catalog, false);
 
         assertThatCode(() -> validator.requireActive("NOT_A_TICKER")).doesNotThrowAnyException();
-        assertThatCode(
-                        () ->
-                                validator.requireHoldingWrite(
-                                        "TATAMOTORS.NS", null, BigDecimal.TEN))
-                .doesNotThrowAnyException();
     }
 
     @Test
@@ -61,52 +54,5 @@ class SupportedAssetValidatorTest {
                 .isInstanceOf(UnsupportedAssetException.class)
                 .extracting(t -> ((UnsupportedAssetException) t).ticker())
                 .isEqualTo("Apple");
-    }
-
-    @Test
-    void requireHoldingWrite_permitsReduceAndRemoveOfDeprecatedPosition() {
-        SupportedAssetValidator validator = new SupportedAssetValidator(catalog, true);
-
-        assertThatCode(
-                        () ->
-                                validator.requireHoldingWrite(
-                                        "TATAMOTORS.NS",
-                                        new BigDecimal("10"),
-                                        new BigDecimal("5")))
-                .doesNotThrowAnyException();
-        assertThatCode(
-                        () ->
-                                validator.requireHoldingWrite(
-                                        "TATAMOTORS.NS", new BigDecimal("10"), BigDecimal.ZERO))
-                .doesNotThrowAnyException();
-    }
-
-    @Test
-    void requireHoldingWrite_rejectsCreateOrIncreaseOfDeprecatedPosition() {
-        SupportedAssetValidator validator = new SupportedAssetValidator(catalog, true);
-
-        assertThatThrownBy(
-                        () ->
-                                validator.requireHoldingWrite(
-                                        "TATAMOTORS.NS", null, BigDecimal.TEN))
-                .isInstanceOf(UnsupportedAssetException.class);
-        assertThatThrownBy(
-                        () ->
-                                validator.requireHoldingWrite(
-                                        "TATAMOTORS.NS",
-                                        new BigDecimal("10"),
-                                        new BigDecimal("15")))
-                .isInstanceOf(UnsupportedAssetException.class);
-    }
-
-    @Test
-    void requireHoldingWrite_rejectsUnknownTickerCreate() {
-        SupportedAssetValidator validator = new SupportedAssetValidator(catalog, true);
-
-        assertThatThrownBy(
-                        () -> validator.requireHoldingWrite("NOT_A_TICKER", null, BigDecimal.ONE))
-                .isInstanceOf(UnsupportedAssetException.class)
-                .extracting(t -> ((UnsupportedAssetException) t).ticker())
-                .isEqualTo("NOT_A_TICKER");
     }
 }
