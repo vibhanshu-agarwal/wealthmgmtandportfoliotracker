@@ -1,6 +1,6 @@
 # Spec B2: Asset Picker Composition — Design
 
-**Revision 2** — materially revised across twenty-three review passes, **twenty-two by Codex
+**Revision 2** — materially revised across twenty-four review passes, **twenty-three by Codex
 adversarial review and one (pass 7) an internal parallel-agent audit** (2026-08-21/22; pass 7 is
 Claude-run, not
 Codex — labeled distinctly below so this isn't misread as a Codex round):
@@ -165,6 +165,14 @@ rigor gap (an MVC-slice test could fabricate proof of Golden-State materialisati
 the real chain), an E2E identity/fixture gap, and cleanup semantics relying on an endpoint that
 cannot target the demo user — all fixed in `tasks.md` and the master plan; this document's own D5
 text was not implicated.
+**pass 24 (Codex, `tasks.md` review round)** found 5 further P1 + 3 P2 — the master plan's
+production gate silently lost Wave 8's deployment requirement when pass 23 narrowed a different
+dependency; Test 2 (this section, above) needed a non-blank internal-api-key test config, an
+independently-derived tuple oracle rather than catalog-membership alone, and B1's own sentinel-backed
+price-table regression discipline instead of "writes no row"; two `tasks.md` E2E tasks
+forward-referenced each other in a genuine cycle; the production pre-exposure probe accepted an
+unvalidated `200`; and cleanup/rollback steps lacked completion verification. This section's Test 2
+description is corrected above; the rest is `tasks.md`/master-plan level.
 Companion to
 `requirements.md` Revision 2. A visual mockup of the five core screens (Portfolio entry point,
 Browse/draft, Review/confirm, Success, and the 409 conflict state) exists two ways:

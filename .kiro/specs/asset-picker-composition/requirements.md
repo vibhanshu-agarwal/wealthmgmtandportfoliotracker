@@ -1,6 +1,6 @@
 # Spec B2: Asset Picker Composition — Requirements
 
-**Revision 2** — materially revised across twenty-three review passes, **twenty-two by Codex
+**Revision 2** — materially revised across twenty-four review passes, **twenty-three by Codex
 adversarial review and one (pass 7) an internal parallel-agent audit** (2026-08-21/22; pass 7 is
 Claude-run, not
 Codex — labeled distinctly so this isn't misread as a Codex round):
@@ -165,7 +165,13 @@ needed correction.
 mismatch, a test-rigor gap in proving the Golden-State reset chain, an E2E identity/fixture gap, and
 cleanup semantics that relied on an endpoint unable to target the demo user — all task-breakdown and
 master-plan level, fixed in `tasks.md` and the master plan; this document again needed no
-correction. Unlike
+correction.
+**pass 24 (Codex, `tasks.md` review round)** found 5 further P1 + 3 P2 — a master-plan production
+gate that lost Wave 8's deployment requirement when pass 23 correctly narrowed a different
+dependency, an executability/rigor gap in the Golden-State reset proof, a genuine dependency cycle
+between two E2E tasks, an unvalidated production probe, and cleanup/rollback verification gaps — all
+fixed in `tasks.md`, `design.md`, and the master plan; this document again needed no correction.
+Unlike
 B1's
 requirements.md
 (13 revisions), this started as a first synthesis of decisions settled in
