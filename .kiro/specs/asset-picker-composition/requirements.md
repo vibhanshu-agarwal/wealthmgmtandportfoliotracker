@@ -1,6 +1,6 @@
 # Spec B2: Asset Picker Composition — Requirements
 
-**Revision 2** — materially revised across twenty-five review passes, **twenty-three by Codex
+**Revision 2** — materially revised across twenty-six review passes, **twenty-four by Codex
 adversarial review and two (passes 7 and 25) internal parallel-agent audits** (2026-08-21/22; passes
 7 and 25 are Claude-run, not
 Codex — labeled distinctly so this isn't misread as a Codex round):
@@ -176,7 +176,15 @@ request after nine rounds, each agent given a distinct real-source-grounded cate
 generic re-read. Found a stale requirements citation, an uncompileable cross-module test, an
 unassigned check, and a missing B1 dependency (B1's `GET /api/assets` controller isn't includable
 until B1's R-B2 release, not merely Wave 2) — all `tasks.md`-level; this document needed no
-correction. Unlike
+correction.
+**pass 26 (Codex, `tasks.md` review round)** found 4 further P1 + 3 P2 — design.md D5's own rollout
+language exposed the manual-reset control before login orchestration deployed, contradicting
+`tasks.md`'s own production gate; a version-observation constraint required the wrong behavior at
+two of three call sites; a test oracle could still call the real formulas it needed independence
+from; a real composition conflict was never actually tested; a demo-identity check compared two
+downstream copies without checking their actual source; a stale test-type label and a stale
+untracked-files note both survived earlier corrections. All fixed in `design.md`, `tasks.md`, and
+the master plan; this document again needed no correction. Unlike
 B1's
 requirements.md
 (13 revisions), this started as a first synthesis of decisions settled in

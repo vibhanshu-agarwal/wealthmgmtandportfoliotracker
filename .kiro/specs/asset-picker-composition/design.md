@@ -1,6 +1,6 @@
 # Spec B2: Asset Picker Composition — Design
 
-**Revision 2** — materially revised across twenty-five review passes, **twenty-three by Codex
+**Revision 2** — materially revised across twenty-six review passes, **twenty-four by Codex
 adversarial review and two (passes 7 and 25) internal parallel-agent audits** (2026-08-21/22; passes
 7 and 25 are Claude-run, not
 Codex — labeled distinctly below so this isn't misread as a Codex round):
@@ -185,6 +185,20 @@ controller, task 4.11, isn't includable until B1's R-B2 release per B1's own Art
 2 alone ships only the gateway route, not the controller behind it). CI/CD wiring and
 identity/production-safety came back clean. All fixed in `tasks.md`; this document's own D5/D3 text
 was not additionally implicated beyond pass 24's fix.
+**pass 26 (Codex, `tasks.md` review round)** found 4 further P1 + 3 P2 — this section's own Stage
+5/6 rollout language said "expose" the frontend control before Stage 6 (login orchestration)
+deployed, contradicting `tasks.md`'s own mandatory Wave 10 gate, and its rollback order assumed the
+same wrong sequence; GC.6's "one GET per operation" was wrong for two of three call sites (the
+picker save and manual reset capture their version earlier and perform zero GETs during the
+mutation itself; only the login self-call genuinely reads then writes in one sequence); Test 2's
+oracle description (this section, above) still permitted calling the real deterministic-formula
+production code it should be independent of, and conflated wire-visible response fields with
+persistence-only ones; a real composition `409` was never actually tested anywhere, only mocked
+ones; the demo-UUID alignment check compared two downstream copies without checking the actual V15
+migration that's their common source; a stale "MVC test" label survived pass 24's own correction
+elsewhere in this document; and the master plan's untracked-files note had gone stale once the spec
+was actually committed. This section's Stage 5-8 rollout sequence and Test 2's oracle scope are
+corrected above.
 Companion to
 `requirements.md` Revision 2. A visual mockup of the five core screens (Portfolio entry point,
 Browse/draft, Review/confirm, Success, and the 409 conflict state) exists two ways:
@@ -1043,14 +1057,23 @@ which fails every `/api/internal/**` request with `503` before the controller is
 non-blank expected value never exercises anything past the filter — `DemoResetAuthorizationFilter`
 never runs in this test either way (there is no gateway in scope), and the explicit header is the
 *only* thing that ever attaches this value for the `PUT` path; portfolio-service's internal endpoint
-otherwise receives no key from anywhere, by design, for either verb. **The golden set assertion
-SHALL be checked against an independently-derived oracle, not the catalog's ticker membership
-alone** — querying `Catalog_Module` proves the ticker *set* matches, not that each holding's
-quantity, cost basis, currency/source, and the fixed `app.demo.cost-basis-anchor` were computed
-correctly; the oracle SHALL compute the complete expected tuple from raw catalog data, the demo
-UUID, and the anchor using B1's own frozen deterministic formulas ("computeDeterministicCostBasis
-and the quantity derivation are unchanged," above) applied directly in the test, never by invoking
-`GoldenStateTuplePreparer` or `DemoResetService` to produce the expected side of the comparison.
+otherwise receives no key from anywhere, by design, for either verb. **Response vs. persisted-row
+scope, split explicitly (pass 26 correction): `PortfolioResponse.HoldingResponse` currently declares
+only `id`, `assetTicker`, `quantity` (`PortfolioResponse.java:33-37`) — no cost-basis, currency,
+source, or anchor-derived field crosses the HTTP boundary, and B1 adds `version` plus decimal-string
+serialization to this response, not cost-basis fields.** The golden-set response assertion is
+therefore scoped to ticker set and quantity only; **the complete tuple — quantity, cost basis,
+currency/source, and the anchor-derived value — is asserted only against the persisted repository
+rows**, which do carry it. **Both SHALL be checked against an independently-derived oracle, not the
+catalog's ticker membership alone** — querying `Catalog_Module` proves the ticker *set* matches, not
+that each value was computed correctly; the oracle SHALL compute the complete expected tuple from
+raw catalog data, the demo UUID, and the anchor, **reproducing B1's frozen deterministic formulas as
+separate, test-only code — never by calling the production implementations that compute them (pass
+26 correction: an earlier draft prohibited `GoldenStateTuplePreparer`/`DemoResetService` but left
+`PortfolioSeedService.computeDeterministicCostBasis` and `DeterministicPriceCalculator.compute` —
+both real, existing classes — unprohibited, which would make the oracle tautological just as surely,
+since B1's design commits `GoldenStateTuplePreparer` to reusing exactly these functions
+internally)**. Every production transformation/helper in that chain is off-limits to the oracle.
 **Price-table non-mutation SHALL be a full-table, sentinel-backed byte-identity snapshot
 before/after, matching B1's own `P10` regression discipline (`portfolio-composition-contract/tasks.md`
 task 6.4)** — "writes no row" is weaker than what B1 already requires of the same class of
@@ -1116,7 +1139,11 @@ not an incremental widening:**
 2. Build and deploy `DemoResetService` itself (this document, above) and a **new** internal controller
    mapping `/api/internal/portfolio/demo-reset` to **both** `POST` and `PUT` from the start — there is
    no "old" mapping to widen, so both verbs ship together, not `POST` first with `PUT` added later.
-   Include Test 2 (the portfolio-service MVC test, below) as part of this same stage, not a follow-up.
+   Include Test 2 (the Testcontainers integration test through the real
+   `DemoResetService → HoldingReplacementService → GoldenStateTuplePreparer → Catalog_Module →
+   persistence` chain, defined above — pass 26 correction: an earlier draft still called this "the
+   portfolio-service MVC test" and pointed "below," both stale once pass 24 corrected Test 2's own
+   definition, which precedes this list) as part of this same stage, not a follow-up.
 3. Verify directly against the deployed environment (an authenticated `PUT`, with the internal key,
    against the live internal endpoint) that it actually works before proceeding — this is the point
    where "purely additive, safe standalone" genuinely applies: once this stage is live, nothing yet
@@ -1129,10 +1156,15 @@ not an incremental widening:**
    route would forward `PUT` requests to an internal endpoint that doesn't exist at all (a `404` or
    connection failure at the proxy target, not the `405` an earlier draft of this note predicted —
    `405` presumes a real mapping that merely rejects the verb; nothing here is real yet at that point).
-5. Expose the frontend's manual-reset control, as its own follow-up change — decouples "the backend
-   capability exists and is verified" from "a user can trigger it," so a gap between earlier stages
-   landing is never user-visible even if it takes more than one deploy cycle. **The manual-reset path
-   is now complete end to end**, independent of step 6 below.
+5. Deploy the frontend's manual-reset control **hidden, not exposed (pass 26 correction: an earlier
+   draft of this step said "expose," which reads as real user visibility — that directly contradicted
+   the mandatory release gate two paragraphs below, which requires the login-orchestrated self-call
+   deployed before either picker control is user-visible, not merely before this particular
+   control's own backend exists).** `tasks.md`'s own build-time feature flag is what keeps this
+   control non-user-visible once deployed — decouples "the backend capability exists and is
+   verified" from "a user can trigger it," so a gap between earlier stages landing is never
+   user-visible even if it takes more than one deploy cycle, without prematurely exposing the
+   control ahead of step 6.
 6. **The login-orchestrated self-call is a separate, later gateway deployment — not part of step 4's
    bundle (pass 21 correction of the pass 19/20 text, which bundled it in).** Bundling it there either
    blocks the manual path, which needs nothing beyond `version` and is unaffected by the `updated_at`
@@ -1145,11 +1177,22 @@ not an incremental widening:**
    and lands on `PortfolioResponse` (a missing implementation commitment, D7 above — the trigger
    cannot be *built*, let alone deployed, without it), and the idle-reset threshold and the
    login self-call's per-leg/overall timeouts are decided (D7's open product/operational items). None
-   of these gate step 4 or step 5.
-7. Roll back in the reverse order, per stage actually deployed: disable/remove the frontend control,
-   then the login-orchestration self-call (if shipped), then the manual-reset gateway bundle, then
-   portfolio-service's endpoint (this last step actually does need care once real — by then it's live
-   production surface, not the pre-traffic case stage 3 describes).
+   of these gate step 4 or step 5 — step 5's deploy is hidden regardless, so it never waits on step
+   6's own open items either.
+7. **Only once step 6 is deployed does exposure happen — a separate step, not a side effect of step 5
+   (pass 26 addition).** `tasks.md`'s own production-exposure gate (Wave 10) is the authoritative
+   mechanism: both the picker's and the manual-reset control's feature flags are enabled together,
+   requiring — among Wave 10's other conditions — step 6 (Wave 8, login orchestration) already
+   deployed. This is what makes step 5's "hidden, not exposed" correction in step 5 actually load-
+   bearing, not merely a wording change: without it, nothing in this sequence stopped the manual
+   control from reaching real users before Requirement 7's login-orchestrated half existed at all.
+8. **Roll back in the true reverse order of the sequence above — round-26 correction: an earlier
+   draft's rollback order assumed step 5 was user-visible before step 6 deployed, which is exactly
+   the ordering this pass corrects.** Disable exposure first (both flags off, a new build/deploy per
+   `tasks.md` Wave 10); then remove/roll back the login-orchestration self-call (step 6, if shipped);
+   then remove the now-hidden-again frontend control (step 5); then the manual-reset gateway bundle
+   (step 4); then portfolio-service's endpoint (step 1-3, this last step actually does need care once
+   real — by then it's live production surface, not the pre-traffic case stage 3 describes).
 
 **This is a mandatory release gate, not a product acceptance criterion (pass 20 clarification —
 resolving a real inconsistency: an earlier draft of this note said exactly that, "not a new acceptance
