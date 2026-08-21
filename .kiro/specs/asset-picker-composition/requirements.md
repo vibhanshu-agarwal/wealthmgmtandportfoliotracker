@@ -1,6 +1,6 @@
 # Spec B2: Asset Picker Composition — Requirements
 
-**Revision 2** — materially revised across twenty-two review passes, **twenty-one by Codex
+**Revision 2** — materially revised across twenty-three review passes, **twenty-two by Codex
 adversarial review and one (pass 7) an internal parallel-agent audit** (2026-08-21/22; pass 7 is
 Claude-run, not
 Codex — labeled distinctly so this isn't misread as a Codex round):
@@ -160,7 +160,12 @@ expand ticker/quantity from a supplied intent; the evidence cited for the P0 (th
 demo initializer) reflects a mechanism B1 Wave 4/6 replaces, not the target one this call site is
 written against. This document does not itself describe `intent`/`GoldenStateTuplePreparer`
 construction at all — design.md D5 carries the clarifying detail (pass 22 note there); nothing here
-needed correction. Unlike
+needed correction.
+**pass 23 (Codex, `tasks.md` review round)** found 4 further P1 + 1 P2 — a Wave 9/Wave 8 dependency
+mismatch, a test-rigor gap in proving the Golden-State reset chain, an E2E identity/fixture gap, and
+cleanup semantics that relied on an endpoint unable to target the demo user — all task-breakdown and
+master-plan level, fixed in `tasks.md` and the master plan; this document again needed no
+correction. Unlike
 B1's
 requirements.md
 (13 revisions), this started as a first synthesis of decisions settled in

@@ -1,6 +1,6 @@
 # Spec B2: Asset Picker Composition — Design
 
-**Revision 2** — materially revised across twenty-two review passes, **twenty-one by Codex
+**Revision 2** — materially revised across twenty-three review passes, **twenty-two by Codex
 adversarial review and one (pass 7) an internal parallel-agent audit** (2026-08-21/22; pass 7 is
 Claude-run, not
 Codex — labeled distinctly below so this isn't misread as a Codex round):
@@ -158,6 +158,13 @@ preparer, not a defect; `DemoPortfolioInitializer`'s current code predates B1's 
 replacement and uses a different mechanism, already flagged as such six lines below this note.
 Resolved by clarifying the call site in place (added above) rather than changing it, so a future
 reader verifying against source doesn't reach the same reasonable-looking wrong conclusion.
+**pass 23 (Codex, `tasks.md` review round)** found 4 further P1 + 1 P2, none touching this document
+directly — a task-breakdown-level dependency mismatch (Wave 9 wrongly re-coupled to Wave 8's
+login-orchestration in `tasks.md`'s own Overview and the master plan's Live Integration row), a test
+rigor gap (an MVC-slice test could fabricate proof of Golden-State materialisation without exercising
+the real chain), an E2E identity/fixture gap, and cleanup semantics relying on an endpoint that
+cannot target the demo user — all fixed in `tasks.md` and the master plan; this document's own D5
+text was not implicated.
 Companion to
 `requirements.md` Revision 2. A visual mockup of the five core screens (Portfolio entry point,
 Browse/draft, Review/confirm, Success, and the 409 conflict state) exists two ways:
