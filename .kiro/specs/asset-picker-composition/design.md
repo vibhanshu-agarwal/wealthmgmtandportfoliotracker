@@ -1003,16 +1003,38 @@ document's own review history found, not a hypothetical:
   sends a caller-supplied duplicate of that header on the original request (proves replace, not
   append — pass 17).
 
-**Test 2 — Portfolio-service MVC/integration test** (portfolio-service's own test suite, no gateway
-involved at all — a direct, in-process call to the internal endpoint). SHALL assert that an
+**Test 2 — a real Testcontainers integration test through the actual chain, not merely an MVC
+slice (pass 24 correction: an MVC slice can mock `DemoResetService` itself and return a
+hand-fabricated golden-looking response without ever touching `HoldingReplacementService`,
+`GoldenStateTuplePreparer`, the catalog, or persistence — none of the assertions below distinguish
+that from a real reset)** — portfolio-service's own test suite, no gateway involved at all (a
+direct, in-process call to the internal endpoint), exercising the genuine
+`DemoResetService → HoldingReplacementService → GoldenStateTuplePreparer → Catalog_Module →
+persistence` chain end to end, with no component in that chain mocked. SHALL assert that an
 authenticated `POST` to `/api/internal/portfolio/demo-reset` and an authenticated `PUT` to the same
 path each invoke the same controller method and the same `DemoResetService.reset(...)` call exactly
-once — proving the dual-verb mapping is one shared entry point, not two independent ones that could
-drift (pass 17), this time provable because the test runs against portfolio-service's real code, not
-a stub. **The test itself SHALL supply a valid `X-Internal-Api-Key` explicitly on both requests** —
-`DemoResetAuthorizationFilter` never runs in this test (there is no gateway in scope), and it is the
-*only* thing that ever attaches this header for the `PUT` path; portfolio-service's internal endpoint
-otherwise receives no key from anywhere, by design, for either verb.
+once (a spy, not a stub, if call-count verification needs one) — proving the dual-verb mapping is
+one shared entry point, not two independent ones that could drift (pass 17), this time provable
+because the test runs against portfolio-service's real code, not a stub. **The test itself SHALL
+configure a non-blank `app.internal.api-key` test property and supply the matching
+`X-Internal-Api-Key` explicitly on both requests** — `InternalApiKeyFilter`'s default is blank,
+which fails every `/api/internal/**` request with `503` before the controller is ever reached
+(`InternalApiKeyFilter.java:41-46`), so a test that supplies the header without also configuring a
+non-blank expected value never exercises anything past the filter — `DemoResetAuthorizationFilter`
+never runs in this test either way (there is no gateway in scope), and the explicit header is the
+*only* thing that ever attaches this value for the `PUT` path; portfolio-service's internal endpoint
+otherwise receives no key from anywhere, by design, for either verb. **The golden set assertion
+SHALL be checked against an independently-derived oracle, not the catalog's ticker membership
+alone** — querying `Catalog_Module` proves the ticker *set* matches, not that each holding's
+quantity, cost basis, currency/source, and the fixed `app.demo.cost-basis-anchor` were computed
+correctly; the oracle SHALL compute the complete expected tuple from raw catalog data, the demo
+UUID, and the anchor using B1's own frozen deterministic formulas ("computeDeterministicCostBasis
+and the quantity derivation are unchanged," above) applied directly in the test, never by invoking
+`GoldenStateTuplePreparer` or `DemoResetService` to produce the expected side of the comparison.
+**Price-table non-mutation SHALL be a full-table, sentinel-backed byte-identity snapshot
+before/after, matching B1's own `P10` regression discipline (`portfolio-composition-contract/tasks.md`
+task 6.4)** — "writes no row" is weaker than what B1 already requires of the same class of
+assertion elsewhere in this program.
 
 `RewritePath` carries no secret and is
 Spring Cloud Gateway's standard, first-party path-rewrite filter — deliberately not a raw secret
