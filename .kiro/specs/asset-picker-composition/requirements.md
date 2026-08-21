@@ -1,6 +1,6 @@
 # Spec B2: Asset Picker Composition — Requirements
 
-**Revision 2** — materially revised across twenty-seven review passes, **twenty-five by Codex
+**Revision 2** — materially revised across twenty-eight review passes, **twenty-six by Codex
 adversarial review and two (passes 7 and 25) internal parallel-agent audits** (2026-08-21/22; passes
 7 and 25 are Claude-run, not
 Codex — labeled distinctly so this isn't misread as a Codex round):
@@ -193,7 +193,17 @@ assertion too broadly; a live E2E success case proved only that setup advanced s
 picker's own save did; a cleanup branch assumed a state B1's own release ordering makes impossible
 by the time that test can run; Test 2's dual-verb proof shared state across both verbs; and
 design.md's own rollout-ordering language contradicted `tasks.md` Wave 6. All fixed in `design.md`
-and `tasks.md`; this document again needed no correction. Unlike
+and `tasks.md`; this document again needed no correction.
+**pass 28 (Codex, `tasks.md` review round)** found 4 further P1 + 1 P2 — the master plan and
+design.md's production-exposure gate silently dropped pass 27's new live-serving-proof requirement,
+permitting exposure on deployment alone; Task 8.9 couldn't run at Wave 8's declared dependency
+boundary, since its own setup write needs B1 Wave 7 and the Wave 5 write allowlist (now explicit
+blockers); the proof had no defense against the shared, public demo identity being reset by a
+concurrent visitor rather than the designated login (fixed with a setup version-advance assertion,
+immediate pre/post-login re-observation, and a documented residual race-window risk); the live probe
+had no failure cleanup or threshold-override restoration; and the happy-path probe's "proves
+fail-open" claim was an overclaim, removed. All fixed in `tasks.md`, `design.md`, and the master
+plan; this document again needed no correction. Unlike
 B1's
 requirements.md
 (13 revisions), this started as a first synthesis of decisions settled in

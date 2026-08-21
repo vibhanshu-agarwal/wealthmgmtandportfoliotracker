@@ -1,6 +1,6 @@
 # Spec B2: Asset Picker Composition — Design
 
-**Revision 2** — materially revised across twenty-seven review passes, **twenty-five by Codex
+**Revision 2** — materially revised across twenty-eight review passes, **twenty-six by Codex
 adversarial review and two (passes 7 and 25) internal parallel-agent audits** (2026-08-21/22; passes
 7 and 25 are Claude-run, not
 Codex — labeled distinctly below so this isn't misread as a Codex round):
@@ -209,6 +209,22 @@ save/manual reset was scoped too broadly (any `GET`, not specifically `GET /api/
 wasn't the original non-golden fixture; and this section's own "each stage verified before the next
 starts" contradicted `tasks.md` Wave 6's explicit "may deploy at any time" for the flag-hidden
 frontend stage — resolved by exempting inert, flag-gated deployments from that ordering, above.
+**pass 28 (Codex, `tasks.md` review round)** found 4 further P1 + 1 P2 — the master plan's
+production-exposure gate and flow diagram, and this section's Stage 7, still permitted exposure on
+login-orchestration deployment alone, silently dropping pass 27's new 8.9 serving-proof requirement
+(propagated into all three); Task 8.9 as pass 27 specified it couldn't actually run at Wave 8's
+declared dependency boundary, since its setup performs a real composition write requiring B1 Wave 7
+and the Wave 5 write allowlist (now explicit blockers, with Wave 8's intro split so 8.1-8.8 stay
+independent of them); the proof had no defense against the shared, public demo identity being reset
+by a concurrent visitor rather than by the designated login (fixed with an asserted non-golden setup
+write, immediate pre- and post-login re-observation, and an explicitly accepted residual race-window
+risk rather than a false elimination); the live probe had no failure cleanup or threshold-override
+restoration, risking a production demo account left deliberately non-golden (fixed with unconditional
+cleanup via the real reset route, bounded retry, and override restoration+verification); and the
+happy-path probe's "proves fail-open" claim was removed as an overclaim — ordinary successful login
+and reset prove only that, not survival of either leg failing, which remains 8.3-8.7/GC.8's job. All
+fixed in `tasks.md`, `design.md` (this section), and the master plan; this document again needed no
+further correction.
 Companion to
 `requirements.md` Revision 2. A visual mockup of the five core screens (Portfolio entry point,
 Browse/draft, Review/confirm, Success, and the 409 conflict state) exists two ways:
@@ -1189,13 +1205,17 @@ not an incremental widening:**
    login self-call's per-leg/overall timeouts are decided (D7's open product/operational items). None
    of these gate step 4 or step 5 — step 5's deploy is hidden regardless, so it never waits on step
    6's own open items either.
-7. **Only once step 6 is deployed does exposure happen — a separate step, not a side effect of step 5
-   (pass 26 addition).** `tasks.md`'s own production-exposure gate (Wave 10) is the authoritative
+7. **Only once step 6 is deployed *and live serving-proven* does exposure happen — a separate step,
+   not a side effect of step 5 (pass 26 addition, corrected pass 28: "deployed" alone is not the
+   full condition).** `tasks.md`'s own production-exposure gate (Wave 10) is the authoritative
    mechanism: both the picker's and the manual-reset control's feature flags are enabled together,
-   requiring — among Wave 10's other conditions — step 6 (Wave 8, login orchestration) already
-   deployed. This is what makes step 5's "hidden, not exposed" correction in step 5 actually load-
-   bearing, not merely a wording change: without it, nothing in this sequence stopped the manual
-   control from reaching real users before Requirement 7's login-orchestrated half existed at all.
+   requiring — among Wave 10's other conditions — step 6 (Wave 8, login orchestration) **deployed
+   and its own live serving proof green** (`tasks.md` Task 8.9, not merely 8.8's build-level gate —
+   because login is deliberately fail-open, a deployed-but-broken self-call is invisible without a
+   proof that actually exercises it against real infrastructure). This is what makes step 5's
+   "hidden, not exposed" correction in step 5 actually load-bearing, not merely a wording change:
+   without it, nothing in this sequence stopped the manual control from reaching real users before
+   Requirement 7's login-orchestrated half existed at all, working, in production.
 8. **Roll back in the true reverse order of the sequence above — round-26 correction: an earlier
    draft's rollback order assumed step 5 was user-visible before step 6 deployed, which is exactly
    the ordering this pass corrects.** Disable exposure first (both flags off, a new build/deploy per
