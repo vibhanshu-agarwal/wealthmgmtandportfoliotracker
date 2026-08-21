@@ -1,6 +1,6 @@
 # Spec B2: Asset Picker Composition — Design
 
-**Revision 2** — materially revised across twenty-six review passes, **twenty-four by Codex
+**Revision 2** — materially revised across twenty-seven review passes, **twenty-five by Codex
 adversarial review and two (passes 7 and 25) internal parallel-agent audits** (2026-08-21/22; passes
 7 and 25 are Claude-run, not
 Codex — labeled distinctly below so this isn't misread as a Codex round):
@@ -199,6 +199,16 @@ migration that's their common source; a stale "MVC test" label survived pass 24'
 elsewhere in this document; and the master plan's untracked-files note had gone stale once the spec
 was actually committed. This section's Stage 5-8 rollout sequence and Test 2's oracle scope are
 corrected above.
+**pass 27 (Codex, `tasks.md` review round)** found 4 further P1 + 3 P2 — Wave 8 could deploy and
+pass its gate without any live-cloud proof the fail-open login-orchestrated reset actually resets
+anything (login's own fail-open design makes a broken deployment invisible by construction, `tasks.md`
+Wave 8 gains a live serving proof, 8.9); GC.6's login-path matrix still required a `POST` on every
+outcome when D5 already specifies fail-open skips it, and its "zero GETs" framing for the picker
+save/manual reset was scoped too broadly (any `GET`, not specifically `GET /api/portfolio`); Test
+2's dual-verb proof shared one seed/spy across `POST` and `PUT`, so the second call's starting state
+wasn't the original non-golden fixture; and this section's own "each stage verified before the next
+starts" contradicted `tasks.md` Wave 6's explicit "may deploy at any time" for the flag-hidden
+frontend stage — resolved by exempting inert, flag-gated deployments from that ordering, above.
 Companion to
 `requirements.md` Revision 2. A visual mockup of the five core screens (Portfolio entry point,
 Browse/draft, Review/confirm, Success, and the 409 conflict state) exists two ways:
@@ -1198,10 +1208,19 @@ not an incremental widening:**
 resolving a real inconsistency: an earlier draft of this note said exactly that, "not a new acceptance
 criterion," while requirements.md's own copy of this same sequencing used normative `SHALL` language,
 which reads as exactly the opposite classification).** The gate itself — stage order, and that each
-stage is verified live before the next starts — is release orchestration, not user-visible product
-behavior, so it's tracked authoritatively in the master plan's task breakdown, not stated as a
-requirements.md acceptance criterion; requirements.md cross-references it without asserting its own
-`SHALL` for the sequencing itself.
+**live-traffic-affecting** stage is verified before the next one that affects live traffic starts —
+is release orchestration, not user-visible product behavior, so it's tracked authoritatively in the
+master plan's task breakdown, not stated as a requirements.md acceptance criterion; requirements.md
+cross-references it without asserting its own `SHALL` for the sequencing itself. **Stage 5's
+hidden, flag-gated frontend deployment is exempt from this ordering (pass 27 clarification —
+resolving a real contradiction: `tasks.md`'s own Wave 6 explicitly allows its code to "merge and
+deploy at any time," while this paragraph's prior wording, "each stage... before the next starts,"
+read as applying uniformly to every stage including Stage 5).** It's inert while its feature flag is
+off, so deploying it before Stage 4 is live-verified carries none of the risk this gate exists to
+prevent — the same reasoning already used elsewhere in this document to justify treating a
+flag-hidden deploy as safe regardless of backend readiness. The ordering constraint binds Stages
+1-4, 6, and 7 (each of which does affect what a real request can reach once deployed); Stage 5 may
+land whenever its own code is ready.
 
 **Filter scoping, made explicit against a real leak risk (self-audit addition):**
 `DemoResetAuthorizationFilter` SHALL match on the exact pair `(HttpMethod.PUT,

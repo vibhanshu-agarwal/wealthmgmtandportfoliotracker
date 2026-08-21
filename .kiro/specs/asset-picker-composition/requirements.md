@@ -1,6 +1,6 @@
 # Spec B2: Asset Picker Composition — Requirements
 
-**Revision 2** — materially revised across twenty-six review passes, **twenty-four by Codex
+**Revision 2** — materially revised across twenty-seven review passes, **twenty-five by Codex
 adversarial review and two (passes 7 and 25) internal parallel-agent audits** (2026-08-21/22; passes
 7 and 25 are Claude-run, not
 Codex — labeled distinctly so this isn't misread as a Codex round):
@@ -184,7 +184,16 @@ two of three call sites; a test oracle could still call the real formulas it nee
 from; a real composition conflict was never actually tested; a demo-identity check compared two
 downstream copies without checking their actual source; a stale test-type label and a stale
 untracked-files note both survived earlier corrections. All fixed in `design.md`, `tasks.md`, and
-the master plan; this document again needed no correction. Unlike
+the master plan; this document again needed no correction.
+**pass 27 (Codex, `tasks.md` review round)** found 4 further P1 + 3 P2 — Wave 8 (login
+orchestration) could pass its own gate without any live-cloud proof it actually resets anything,
+invisible by construction since the trigger is fail-open; the version-observation matrix still
+required a write on an outcome design.md D5 specifies as fail-open, and scoped its read-count
+assertion too broadly; a live E2E success case proved only that setup advanced state, not that the
+picker's own save did; a cleanup branch assumed a state B1's own release ordering makes impossible
+by the time that test can run; Test 2's dual-verb proof shared state across both verbs; and
+design.md's own rollout-ordering language contradicted `tasks.md` Wave 6. All fixed in `design.md`
+and `tasks.md`; this document again needed no correction. Unlike
 B1's
 requirements.md
 (13 revisions), this started as a first synthesis of decisions settled in
