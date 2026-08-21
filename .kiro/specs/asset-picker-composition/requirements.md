@@ -1,8 +1,8 @@
 # Spec B2: Asset Picker Composition — Requirements
 
-**Revision 2** — materially revised across twenty-four review passes, **twenty-three by Codex
-adversarial review and one (pass 7) an internal parallel-agent audit** (2026-08-21/22; pass 7 is
-Claude-run, not
+**Revision 2** — materially revised across twenty-five review passes, **twenty-three by Codex
+adversarial review and two (passes 7 and 25) internal parallel-agent audits** (2026-08-21/22; passes
+7 and 25 are Claude-run, not
 Codex — labeled distinctly so this isn't misread as a Codex round):
 pass 1 found seven P1 + three P2; pass 2 found three further P1 + five P2; pass 3 found four
 further P1 + three P2; pass 4 found four further P1 + four P2 — the reset's `updated_at`
@@ -171,7 +171,12 @@ gate that lost Wave 8's deployment requirement when pass 23 correctly narrowed a
 dependency, an executability/rigor gap in the Golden-State reset proof, a genuine dependency cycle
 between two E2E tasks, an unvalidated production probe, and cleanup/rollback verification gaps — all
 fixed in `tasks.md`, `design.md`, and the master plan; this document again needed no correction.
-Unlike
+**pass 25 (internal, five-agent parallel audit, not Codex)** — dispatched at the spec owner's
+request after nine rounds, each agent given a distinct real-source-grounded category rather than a
+generic re-read. Found a stale requirements citation, an uncompileable cross-module test, an
+unassigned check, and a missing B1 dependency (B1's `GET /api/assets` controller isn't includable
+until B1's R-B2 release, not merely Wave 2) — all `tasks.md`-level; this document needed no
+correction. Unlike
 B1's
 requirements.md
 (13 revisions), this started as a first synthesis of decisions settled in

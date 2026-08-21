@@ -1,8 +1,8 @@
 # Spec B2: Asset Picker Composition — Design
 
-**Revision 2** — materially revised across twenty-four review passes, **twenty-three by Codex
-adversarial review and one (pass 7) an internal parallel-agent audit** (2026-08-21/22; pass 7 is
-Claude-run, not
+**Revision 2** — materially revised across twenty-five review passes, **twenty-three by Codex
+adversarial review and two (passes 7 and 25) internal parallel-agent audits** (2026-08-21/22; passes
+7 and 25 are Claude-run, not
 Codex — labeled distinctly below so this isn't misread as a Codex round):
 pass 1 found seven P1 + three P2; pass 2 found three further P1 + five P2; pass 3 found four
 further P1 + three P2 — the demo-reset boundary's call target, its authorization, and the Conflict
@@ -173,6 +173,18 @@ price-table regression discipline instead of "writes no row"; two `tasks.md` E2E
 forward-referenced each other in a genuine cycle; the production pre-exposure probe accepted an
 unvalidated `200`; and cleanup/rollback steps lacked completion verification. This section's Test 2
 description is corrected above; the rest is `tasks.md`/master-plan level.
+**pass 25 (internal, five-agent parallel audit, not Codex)** — dispatched at the spec owner's
+request after nine rounds, each agent given a distinct real-source-grounded category (cross-document
+consistency, dependency-graph cycles, test executability, CI/CD wiring, identity/production-safety)
+rather than a generic re-read. Found: `tasks.md` Task 2.2's stale `_Requirements: 8.3_` citation
+contradicting its own corrected body; a genuinely uncompileable "contract test" in Task 5.1/5.6
+(api-gateway has no build dependency on portfolio-service, verified against `build.gradle`),
+replaced with a text-level check; GC.6's source-level no-re-read check asserted with no task
+actually assigned to build it; and Task 9.1 missing its real B1 dependency (B1's `GET /api/assets`
+controller, task 4.11, isn't includable until B1's R-B2 release per B1's own Artifact Manifest — Wave
+2 alone ships only the gateway route, not the controller behind it). CI/CD wiring and
+identity/production-safety came back clean. All fixed in `tasks.md`; this document's own D5/D3 text
+was not additionally implicated beyond pass 24's fix.
 Companion to
 `requirements.md` Revision 2. A visual mockup of the five core screens (Portfolio entry point,
 Browse/draft, Review/confirm, Success, and the 409 conflict state) exists two ways:
