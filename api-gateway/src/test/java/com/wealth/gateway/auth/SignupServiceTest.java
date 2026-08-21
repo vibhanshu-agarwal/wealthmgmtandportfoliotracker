@@ -107,6 +107,20 @@ class SignupServiceTest {
     }
 
     @Test
+    void duplicateKeyOnInsertPortfolioMapsToProvisioningFailedNotDuplicateEmail() {
+        stubTransactionToRunCallback();
+        when(passwordEncoder.encode(any())).thenReturn("hashed");
+        doThrow(new DuplicateKeyException("dup")).when(repository).insertPortfolio(any(), any());
+
+        var req = new SignupDtos.SignupRequest("a@b.com", "password12345", "Alice");
+
+        // InOrder cannot distinguish insertPortfolio after the email catch from inside it.
+        // Inside the catch, this DuplicateKeyException would become DuplicateEmailException → 409.
+        assertThatThrownBy(() -> service().provision(req).block())
+                .isInstanceOf(ProvisioningFailedException.class);
+    }
+
+    @Test
     void jwtSigningFailureRollsBackTransactionAndMapsToProvisioningFailed() throws Exception {
         stubTransactionToRunCallback();
         when(passwordEncoder.encode(any())).thenReturn("hashed");
