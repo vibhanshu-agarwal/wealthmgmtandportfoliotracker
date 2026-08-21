@@ -22,8 +22,8 @@ frontend plus a real slice of its own backend — not just "one touch": a demo-p
 (JWT `jti` claim, Redis session tracking, a new gateway endpoint) and two new demo-reset
 endpoints, in addition to the `ReadOnlyEnforcementFilter` allowlist change). B1 is mid-flight.
 **B2 now has a Revision 2 spec and a visual design** — both produced this pass from decisions that
-were already settled in a prior brainstorm but never formalized, then corrected across twenty-one
-review passes — twenty by Codex adversarial review, plus one internal parallel-agent audit
+were already settled in a prior brainstorm but never formalized, then corrected across twenty-two
+review passes — twenty-one by Codex adversarial review, plus one internal parallel-agent audit
 (Claude-run, not Codex). **Architecture shape is substantially settled — this is not fully
 decision-complete.** *(Pass 6 correction: this line previously said "nothing here waits on a
 design conversation anymore," which overstates it — `updatedAt` ownership on `PortfolioResponse`
@@ -75,7 +75,7 @@ stops starting this today.
 ### 1.3 B2 frontend (`asset-picker-composition`) — now has a Revision 2 spec + visual design
 
 - **`.kiro/specs/asset-picker-composition/requirements.md` and `design.md`** now exist — Revision
-  2 (twenty-one review passes as of 2026-08-21 — twenty Codex, one internal Claude audit), synthesized from decisions already settled in
+  2 (twenty-two review passes as of 2026-08-22 — twenty-one Codex, one internal Claude audit), synthesized from decisions already settled in
   `docs/superpowers/brainstorm/2026-08-16-spec-b1-and-auth-ratelimit-hotfix.md` entries [0], [4]-[6]
   (a Claude↔Codex Q&A that resolved the picker's shape, presence mechanism, reset trigger, and
   decimal-fidelity handling in detail — it was just never turned into a spec document or a visual

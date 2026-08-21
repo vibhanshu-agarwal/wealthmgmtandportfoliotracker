@@ -1,7 +1,8 @@
 # Spec B2: Asset Picker Composition — Requirements
 
-**Revision 2** — materially revised across twenty-one review passes, **twenty by Codex adversarial
-review and one (pass 7) an internal parallel-agent audit** (2026-08-21; pass 7 is Claude-run, not
+**Revision 2** — materially revised across twenty-two review passes, **twenty-one by Codex
+adversarial review and one (pass 7) an internal parallel-agent audit** (2026-08-21/22; pass 7 is
+Claude-run, not
 Codex — labeled distinctly so this isn't misread as a Codex round):
 pass 1 found seven P1 + three P2; pass 2 found three further P1 + five P2; pass 3 found four
 further P1 + three P2; pass 4 found four further P1 + four P2 — the reset's `updated_at`
@@ -149,7 +150,17 @@ gateway pieces with the login-orchestrated self-call as one deployable unit, blo
 otherwise-ready manual path (needs only `version`, unaffected by the `updated_at` gap) on unrelated,
 still-open work — split into a manual-reset gateway bundle and a separately-gated, later
 login-orchestration deployment; this document's own text was not itself in error, since it already
-deferred to design.md/the master plan for the full sequence rather than duplicating it. Unlike
+deferred to design.md/the master plan for the full sequence rather than duplicating it.
+**pass 22 (Codex, raised via a `tasks.md` review round)** raised a P0 concern that `intent: []` in
+`DemoResetService.reset`'s call to B1's `replace` empties the demo portfolio instead of restoring
+it — resolved as a clarification, not a defect: B1 `design.md` D3 states `GoldenStateTuplePreparer`
+derives its own full desired-holdings tuple internally from the active catalog for a deliberately
+empty, validation-passing intent, contrasted there against `CompositionTuplePreparer`, which does
+expand ticker/quantity from a supplied intent; the evidence cited for the P0 (the current, pre-B1
+demo initializer) reflects a mechanism B1 Wave 4/6 replaces, not the target one this call site is
+written against. This document does not itself describe `intent`/`GoldenStateTuplePreparer`
+construction at all — design.md D5 carries the clarifying detail (pass 22 note there); nothing here
+needed correction. Unlike
 B1's
 requirements.md
 (13 revisions), this started as a first synthesis of decisions settled in

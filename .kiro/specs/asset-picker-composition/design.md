@@ -1,7 +1,8 @@
 # Spec B2: Asset Picker Composition — Design
 
-**Revision 2** — materially revised across twenty-one review passes, **twenty by Codex adversarial
-review and one (pass 7) an internal parallel-agent audit** (2026-08-21; pass 7 is Claude-run, not
+**Revision 2** — materially revised across twenty-two review passes, **twenty-one by Codex
+adversarial review and one (pass 7) an internal parallel-agent audit** (2026-08-21/22; pass 7 is
+Claude-run, not
 Codex — labeled distinctly below so this isn't misread as a Codex round):
 pass 1 found seven P1 + three P2; pass 2 found three further P1 + five P2; pass 3 found four
 further P1 + three P2 — the demo-reset boundary's call target, its authorization, and the Conflict
@@ -146,6 +147,17 @@ timeouts), or contradicts this section's own release-gate framing; split into a 
 bundle (stage 4, shippable once stage 1-3 land) and a separately-gated, later login-orchestration
 deployment (stage 6, gated on the three open items above), with the frontend control (stage 5)
 completing the manual path independent of stage 6.
+**pass 22 (Codex, raised via a `tasks.md` review round rather than a review of this document
+directly)** raised a P0 concern that `intent: []` in `DemoResetService.reset`'s call to `replace`
+empties the demo portfolio instead of restoring it, citing `DemoPortfolioInitializer.java`'s current
+`desiredHoldings()`-based mechanism as evidence a real desired list must be constructed. Verified
+directly against B1's own `design.md` D3: `GoldenStateTuplePreparer` "supplies its own full tuple"
+and "ignores current state" — deliberately contrasted there against `CompositionTuplePreparer`,
+which does expand ticker/quantity from the supplied intent — so `intent: []` is correct for this
+preparer, not a defect; `DemoPortfolioInitializer`'s current code predates B1's own planned
+replacement and uses a different mechanism, already flagged as such six lines below this note.
+Resolved by clarifying the call site in place (added above) rather than changing it, so a future
+reader verifying against source doesn't reach the same reasonable-looking wrong conclusion.
 Companion to
 `requirements.md` Revision 2. A visual mockup of the five core screens (Portfolio entry point,
 Browse/draft, Review/confirm, Success, and the 409 conflict state) exists two ways:
@@ -465,6 +477,33 @@ login-orchestrated trigger, described further below). `DemoResetService.reset` i
   DemoResetService.reset(long expectedVersion)                              (portfolio-service)
     → replace(DEMO_USER_ID, expectedVersion, intent: [],
         preparer: new GoldenStateTuplePreparer(app.demo.cost-basis-anchor))
+    → **`intent: []` is correct, not a placeholder that silently empties the portfolio — made
+      explicit here (pass 22 addition) after a tasks.md review round raised this as a P0 concern,
+      citing `DemoPortfolioInitializer.java`'s current `desiredHoldings(DEMO_USER_ID)` call as
+      evidence that a real desired-holdings list must be constructed and passed as `intent`.** That
+      citation is accurate about *today's* source but not about the target mechanism this call site
+      is written against: `DemoPortfolioInitializer` currently uses the pre-B1 `PortfolioSeedService`
+      path (no `TuplePreparer` involved at all, per the correction six lines below), which is exactly
+      why it needs a separately-constructed desired list. B1's own `design.md` D3 states the
+      `HoldingReplacementService`/`TuplePreparer` contract differently and explicitly for the
+      golden-state case: `GoldenStateTuplePreparer` "**supplies its own full tuple**" and "**ignores
+      current state**" — contrasted deliberately, in the same sentence, against
+      `CompositionTuplePreparer`, which *does* expand ticker/quantity **from the supplied intent**.
+      B1 `design.md`'s own description of `GoldenStateSeedService` (its future replacement for
+      today's `DemoPortfolioInitializer`) confirms the same split: it "builds the desired set from
+      the Catalog_Module's active entries... **inside a `GoldenStateTuplePreparer`**" — the
+      catalog-derivation logic lives inside the preparer's own `materialise()` implementation, not in
+      a list the caller assembles beforehand. **Precisely, not "regardless of `intent`" (tightened
+      per review): `intent` still passes through D2's semantic/catalog validation steps (3-4)
+      unconditionally** — an arbitrary or malformed intent would still fail there, before
+      materialisation ever runs; this call site's deliberately **empty** list is simply vacuously
+      valid at that stage. Given this specific, valid, empty raw-intent list, step 5's
+      materialisation — not steps 3-4's validation — is what actually produces the golden-state
+      holdings, and `GoldenStateTuplePreparer` derives that full tuple internally rather than reading
+      it from `intent`. This entry exists specifically so a future reader verifying "directly against
+      source" doesn't
+      make the same, reasonable-looking mistake of treating the current, pre-B1 demo initializer as
+      the target architecture this call site is already written against.
     → target is server-fixed to DEMO_USER_ID (a compiled-in constant, mirroring B1's E2E_USER_ID —
       not a caller-supplied id of any kind), matching B1 D8's own reasoning for refusing one
     → the preparer is B1's exact `GoldenStateTuplePreparer` (not a distinct "GoldenStatePreparer" —
