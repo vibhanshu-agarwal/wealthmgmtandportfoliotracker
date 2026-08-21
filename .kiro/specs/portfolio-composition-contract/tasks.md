@@ -489,10 +489,16 @@ Production-neutral. It precedes Wave 1 because Artifact 0 removes the endpoints 
     (`.github/workflows/scripts/**` is outside `deploy.yml`'s path filter), so those assertions
     have not yet executed against production. They will self-verify on the next deploy.
   _Requirements: 8.9, 1.25_
-- [ ] **1.5 STOP/GO — R-0.**
+- [x] **1.5 STOP/GO — R-0.**
   **Go:** G0a and G0b green.
   **Abort:** redeploy the prior portfolio digest, restoring both routes. Safe at this phase — no
   constraint exists yet, so a restored creator cannot produce a raw database error.
+  **Decision: GO — R-0 kept.** Authorized by the repo owner on 2026-08-21. G0a (1.4) and G0b (0.7)
+  were both green at decision time per the evidence cited above, including 1.4's flagged gap: the
+  automated live authenticated route probe added in PR #126 had not yet executed against
+  production (no deploy had run since it merged) — the owner authorized keeping R-0 with that gap
+  known, not blind to it, on the strength of the revision/digest/traffic-weight and independent
+  source verification already in hand. No abort/redeploy performed.
   _Requirements: 8.9, 1.25_
 
 ## Wave 2 — Gateway provisioning + asset route (Artifact 1 → R-A)
