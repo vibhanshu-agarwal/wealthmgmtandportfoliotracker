@@ -48,6 +48,7 @@ public class SignupService {
                             status.setRollbackOnly(); // Req 2.2, 2.7, 2.8, 1.9
                             throw new DuplicateEmailException();
                         }
+                        credentialRepository.insertPortfolio(UUID.randomUUID(), userId);
                         String token;
                         try {
                             token = jwtSigner.signHs256(userId.toString(), v.email(), v.name(), false);

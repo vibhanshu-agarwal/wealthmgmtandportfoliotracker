@@ -503,7 +503,7 @@ Production-neutral. It precedes Wave 1 because Artifact 0 removes the endpoints 
 
 ## Wave 2 — Gateway provisioning + asset route (Artifact 1 → R-A)
 
-- [ ] **2.1 Provisioning insert in `SignupService`**, inside its existing `TransactionTemplate` after
+- [x] **2.1 Provisioning insert in `SignupService`**, inside its existing `TransactionTemplate` after
   `insertCredential`. Bind `userId.toString()` explicitly — the gateway generates a `UUID` and
   `portfolios.user_id` is `VARCHAR(255)`. Name only columns present in both schemas: `INSERT INTO
   portfolios (id, user_id)`, letting both timestamps and `version` default. Failure rolls back
@@ -517,7 +517,7 @@ Production-neutral. It precedes Wave 1 because Artifact 0 removes the endpoints 
   Authoring `V20` is implementation work under requirement 9.2; **applying** it to production stays
   gated at 3.5.
   _Requirements: 1.5, 1.17_
-- [ ] **2.3 Add the `/api/assets/**` gateway route.** Ships here, not with the composition endpoint,
+- [x] **2.3 Add the `/api/assets/**` gateway route.** Ships here, not with the composition endpoint,
   so R-C cannot invalidate G2.
   _Requirements: 2.8, 9.3_
 - [ ] **2.4 STOP/GO — G1 before deploy.**
