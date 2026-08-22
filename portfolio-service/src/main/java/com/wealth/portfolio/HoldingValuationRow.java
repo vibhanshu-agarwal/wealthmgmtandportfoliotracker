@@ -22,8 +22,12 @@ record HoldingValuationRow(
         boolean priceRowPresent,
         Instant observedAt
 ) {
+    // observedAt defaults to null (UNKNOWN), never a fabricated timestamp: this constructor
+    // exists for fixtures that don't care about freshness, and a specific instant here would
+    // claim provenance the row never had -- and would itself age past the freshness threshold,
+    // silently turning "don't care" into "STALE" for any caller that later starts asserting on it.
     HoldingValuationRow(
             String assetTicker, BigDecimal quantity, BigDecimal currentPrice, String quoteCurrency) {
-        this(assetTicker, quantity, currentPrice, quoteCurrency, true, Instant.parse("2026-08-19T08:00:00Z"));
+        this(assetTicker, quantity, currentPrice, quoteCurrency, true, null);
     }
 }
