@@ -1,5 +1,10 @@
 # Spec B2: Asset Picker Composition — Requirements
 
+**Review-accounting note (Azure-first consolidation, 2026-08-22):** the numbered pass narrative
+below is retained as historical provenance, not as mutable normative metadata. Git history and the
+current scope-specific authority rules determine the reviewed state; future edits SHALL NOT bump or
+reconcile cumulative pass counters across documents.
+
 **Revision 2** — materially revised across twenty-eight review passes, **twenty-six by Codex
 adversarial review and two (passes 7 and 25) internal parallel-agent audits** (2026-08-21/22; passes
 7 and 25 are Claude-run, not
@@ -29,7 +34,7 @@ affordance Main has; **pass 9 (Codex)** found five further P1 + one P2 — pass 
 pass 8's `INTERNAL_API_KEY` binding resolves blank in api-gateway as written, Conflict's draft
 still wasn't genuinely scrollable/readable, the mockup's freshness example was impossible under
 Spec A's 50-hour stale threshold, the timeout decision was dropped from the production gate, and
-the Details affordance had no interaction contract, all addressed below); **pass 10 (Codex)** found
+the Details affordance had no interaction contract, all addressed below; **pass 10 (Codex)** found
 three further P1 + one P2 — the Conflict draft's scroll container had `pointer-events:none`
 silently defeating wheel-scroll while claiming to show "all preserved holdings" with only 11 of 146
 rows actually rendered, the freshness-details button's `aria-haspopup="true"` was the wrong
@@ -567,8 +572,8 @@ sensible portfolio most of the time, even if a previous visitor left it edited o
    conflicts.)* **That observation SHALL come from B1's existing `GET /api/portfolio` response**
    (which is *specified* to carry `version` — B1 Requirement 5.10 — but does not yet: B1 tasks 4.10
    and 5.1 are both unchecked and `PortfolioResponse` carries no version field in source today,
-   verified directly. Whether it carries `updated_at` is a separate, currently **unassigned** gap —
-   see 3d below, not a Wave-3 given. *(Pass 5 cross-audit finding: this criterion had reverted to
+   verified directly. `updatedAt` is a separate B2 Task 8.1 dependency after B1's V20 and
+   version-bearing read — see 3d below, not a Wave-3 given. *(Pass 5 cross-audit finding: this criterion had reverted to
    the pre-pass-5 "already carries" framing design.md's D5 was corrected out of; both now agree.)*),
    never from a dedicated version-read endpoint, which B1 permanently prohibits (`requirements.md`
    5.11: *"THE
@@ -657,8 +662,13 @@ sensible portfolio most of the time, even if a previous visitor left it edited o
    orchestration, not user-visible product behavior, so it belongs in the master plan's task
    breakdown as a mandatory gate; this document defers to it rather than duplicating a second,
    inconsistent classification). Full sequence and the gate itself: design.md D5 and the master plan.
-   **IF `System.getenv("INTERNAL_API_KEY")` resolves null or blank at api-gateway
-   (pass 19 addition), THE filter SHALL fail closed with `503`
+   **IF the shared `InternalApiKeyProvider` bean resolves the internal key null or blank at
+   api-gateway (pass 19 addition; pass 33 amendment — this clause previously said
+   `System.getenv("INTERNAL_API_KEY")`, the superseded filter-local read: pass 29 replaced it
+   with the shared constructor-injected provider and pass 32 amended design.md and the master
+   plan accordingly, but this document's copy of the same normative clause was missed, leaving
+   the highest-precedence document mandating an architecture the other two prohibit — caught by
+   the round-44 internal audit), THE filter SHALL fail closed with `503`
    (`{ "error": "internal_api_key_not_configured", "message": "The demo reset feature is temporarily
    unavailable." }`) and make no downstream call** — never forward a blank/absent key and let
    portfolio-service's own `403 invalid_internal_api_key` stand in for it, which would misreport a
@@ -690,13 +700,14 @@ sensible portfolio most of the time, even if a previous visitor left it edited o
    timeout: skip, proceed, no user-visible error. *(Pass 6 addition: `design.md` D5 identifies two
    concretely reachable 4xx cases — an `X-Origin-Verify` mismatch on the gateway self-call, and the
    portfolio route's own rate limiter — that an enumerated "timeout, 5xx" list would have missed.)*
-3d. **`updated_at` exposure on `PortfolioResponse` is an unassigned cross-spec gap, not a
-   Wave-3 given.** Verified against B1's actual tasks: B1 Wave 3/V20 adds the `updated_at`
+3d. **B2 owns exposing `updatedAt` on `PortfolioResponse`; it is not a Wave-3 given.** Verified
+   against B1's actual tasks: B1 Wave 3/V20 adds the `updated_at`
    **column** to the `portfolios` table (B1 `requirements.md` 5.14-5.15), but no B1 task exposes it
    on the wire — Wave 5 task 5.1 exposes only `version` on `GET /api/portfolio`
-   (`portfolio-composition-contract/tasks.md:688`). Until either B1 gains a task exposing
-   `updatedAt` there (the natural sibling of 5.1) or B2 is explicitly told to own that read-contract
-   addition itself, criterion 4's idle-reset trigger below is not implementable. *(Pass 4 finding:
+   (`portfolio-composition-contract/tasks.md:688`). This B2 plan therefore owns the additive DTO
+   field, entity-to-response mapping, and exact ISO-8601 contract test after B1's V20 column and
+   Task 5.1 response work land; criterion 4 remains blocked on that implementation, not on an
+   owner-selection decision. *(Architecture reconciliation after the parallel Azure audit:
    an earlier draft of criterion 3 assumed Wave 3 alone would put `updated_at` on the response.)*
 4. THE reset trigger SHALL be: on demo login, reset if and only if the demo portfolio has been
    idle longer than a threshold (provisionally **30 minutes** — OPEN). *(Settled, entry [6] Q9:
@@ -793,17 +804,6 @@ Portfolio page (which B1 does not touch) breaks.
 - **The frontend decimal-adapter migration's rollout sequencing** (Requirement 8.3) — needs
   explicit coordination with B1's Wave 4/5 deploy timing, not just a statement that it must happen
   first.
-- **`updatedAt` exposure on `PortfolioResponse` has no owner** (Requirement 7.3d) — **blocking**,
-  not a nice-to-have: without it, criterion 4's idle-reset trigger cannot be built at all. Added on
-  pass 5 review, which found this gap acknowledged in 7.3d but absent from this list and from
-  `design.md` D7 — the two places a reader would actually look for open items. The contract this
-  needs, once assigned: wire field name **`updatedAt`** (camelCase, not the database column's
-  `updated_at`), type **ISO-8601 timestamp string** (matching `createdAt`'s existing encoding on
-  the same response, not a new convention), positioned on each element of the `List<PortfolioResponse>`
-  `GET /api/portfolio` already returns (see `design.md` D5's list-shape note), gated on whichever
-  B1 wave takes the task, with its own contract test analogous to B1's existing `version` tests.
-  Until assigned, this OPEN item and 7.4's implementability gate are the same fact stated twice —
-  closing one closes the other.
 - **`assetPriceFreshness` has not landed yet** (Requirement 3.2, and now 3.4 too) — Spec A
   (`supported-asset-integrity`) `tasks.md` task 8.6, the freshness summary contract that would
   produce this field, is unchecked; the field appears nowhere in `portfolio-service` or frontend
@@ -812,7 +812,8 @@ Portfolio page (which B1 does not touch) breaks.
   `design.md` D7, the two places a reader checks for open items. Requirement 3.4 (post-save
   freshness display) depends on the same field and widens this dependency's blast radius without
   having been cross-referenced here until now.)* Not a product decision to make — a backend
-  implementation dependency to track, same class as `updatedAt` above.
+  implementation dependency to track, the same class that `updatedAt` occupied before B2 Task 8.1
+  was assigned to close it.
 
 **Closed, removed from this list on review (pass 1):** a quantity upper bound was previously
 listed as open. It is not — B1 Requirement 3.1 already freezes the domain at

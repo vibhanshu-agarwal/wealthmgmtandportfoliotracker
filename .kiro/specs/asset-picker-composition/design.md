@@ -1,5 +1,10 @@
 # Spec B2: Asset Picker Composition — Design
 
+**Review-accounting note (Azure-first consolidation, 2026-08-22):** the numbered pass narrative
+below is retained as historical provenance, not as mutable normative metadata. Git history and the
+current scope-specific authority rules determine the reviewed state; future edits SHALL NOT bump or
+reconcile cumulative pass counters across documents.
+
 **Revision 2** — materially revised across twenty-eight review passes, **twenty-six by Codex
 adversarial review and two (passes 7 and 25) internal parallel-agent audits** (2026-08-21/22; passes
 7 and 25 are Claude-run, not
@@ -36,7 +41,7 @@ the Details affordance Main has; **pass 9 (Codex)** found five further P1 + one 
 resolves blank in api-gateway as written, Conflict's draft summary still wasn't genuinely
 scrollable/readable, the mockup's freshness example was arithmetically impossible under Spec A's
 50-hour stale threshold, the timeout decision was tracked in Open items but dropped from the
-production gate, and the Details affordance had no interaction contract — all addressed below);
+production gate, and the Details affordance had no interaction contract — all addressed below;
 **pass 10 (Codex)** found three further P1 + one P2 — the Conflict draft's scroll container had
 `pointer-events:none` silently defeating wheel-scroll while claiming to show "all preserved
 holdings" with only 11 of 146 rows actually rendered, the freshness-details button's
@@ -447,6 +452,8 @@ On authenticated demo traffic:
   EXPIRE presence:demo <TTL + slack>                     (whole-set safety net if traffic stops entirely)
 
 `GET /api/presence/demo` handler:
+  ZADD presence:demo <now_epoch_seconds> <caller's sessionKey>  (local handler records itself)
+  EXPIRE presence:demo <TTL + slack>
   ZREMRANGEBYSCORE presence:demo -inf (<now - TTL>       (evict stale members first)
   count = ZCARD presence:demo
   anotherSessionActive = (count - <1 if this caller's own sessionKey is a member, else 0>) > 0
@@ -458,6 +465,11 @@ membership implicitly expires by the read-time `ZREMRANGEBYSCORE` sweep rather t
 (simpler than tracking N independent key TTLs, and self-cleaning on every read regardless of
 traffic pattern). **TTL value is OPEN** (requirements.md 6.2) — entry [5]'s 150 seconds was
 proposed as provisional, not committed.
+
+The handler-side `ZADD` is mandatory even though routed demo traffic also refreshes presence: this
+endpoint is a gateway-local controller and therefore does not traverse Gateway `GlobalFilter`s. A
+picker-open presence read may be a newly logged-in session's first request, so read-without-touch
+would let two simultaneous first opens both remain invisible.
 
 No websocket, no polling loop, no lock. A Redis error on either path is swallowed; the picker
 proceeds with `active: false` rather than surfacing an error banner for an unrelated failure.
@@ -509,16 +521,16 @@ already correctly gated behind B1 Wave 7 for live integration elsewhere in this 
 imprecisely here.)* Once implemented, that single read is the eligibility observation for the
 manual trigger below — never a second, reset-time re-read.
 
-**`updated_at` is a separate, unresolved dependency — caught on pass 4, not assumed away.**
+**`updated_at` is a separate dependency with explicit B2 ownership — caught on pass 4, no longer
+assumed away or left ownerless.**
 Verified against B1's actual tasks, not its schema intent: B1 Wave 3/V20 adds the `updated_at`
 **column** to the `portfolios` table (`portfolio-composition-contract/requirements.md` 5.14-5.15),
 but no B1 task puts it on the wire — Wave 5 task 5.1 exposes only `version` on
 `GET /api/portfolio` (`portfolio-composition-contract/tasks.md:688`). Nothing in B1's current
-scope exposes `updatedAt` on `PortfolioResponse`. **This is an unassigned gap, not a Wave-3
-side-effect:** either B1 gains a task exposing `updatedAt` there (the natural sibling of Wave 5's
-5.1 — same row, same response), or B2 is explicitly told to own that read-contract addition itself.
-Until one of those happens, **the login-orchestrated idle-reset trigger (requirements.md 7.4),
-which needs `updated_at` to decide eligibility, is not implementable** — a narrower and later gate
+scope exposes `updatedAt` on `PortfolioResponse`. **B2 Task 8.1 owns that additive read-contract
+field and its mapping/serialization test after B1's V20 column and version-bearing read land.**
+Until those prerequisites and Task 8.1 complete, **the login-orchestrated idle-reset trigger
+(requirements.md 7.4), which needs `updated_at` to decide eligibility, is not implementable** — a narrower and later gate
 than "blocked on Wave 3" alone. The manual trigger below needs only `version` — specified but, per
 the correction above, not yet implemented — and is unaffected by the `updated_at` gap specifically.
 *(Pass 5 cross-audit correction: this sentence still said "already exposed," reintroducing the
@@ -667,18 +679,23 @@ login-orchestrated trigger, described further below). `DemoResetService.reset` i
       invariant ("no JWT, no `X-User-Id`, by the time a request reaches the internal controller" —
       true only for requests that actually originated under `/api/internal/**`, not for this
       rewritten one) — `DemoResetAuthorizationFilter` restores that invariant explicitly rather than
-      leaving it accidentally true; (c) reads the internal key — **through a test seam, not a bare
-      `System.getenv` call inline (pass 20 addition): the production `@Component` constructor calls
-      `System.getenv("INTERNAL_API_KEY")` once and passes the resolved (possibly null/blank) value
-      into a package-visible constructor that takes the raw `String` (or a `Supplier<String>`)
-      directly — the same pattern `CloudFrontOriginVerifyFilter` already uses for its own secret**
-      (that class resolves `CLOUDFRONT_ORIGIN_SECRET` once in its constructor, not per-request; this
-      filter mirrors it, one level more testable). `System.getenv` reads a static, effectively
-      immutable JVM environment snapshot that ordinary Mockito cannot stub without extra tooling this
-      codebase doesn't otherwise depend on (`mockito-inline` static mocking, PowerMock) — routing the
-      read through a constructor argument means a test can simply construct the filter directly with
-      `null`, `""`, or a real value, no environment mutation or static mocking required. Whatever
-      value construction resolved is what the filter checks per request; **if that
+      leaving it accidentally true; (c) obtains the internal key — **from the shared
+      `InternalApiKeyProvider` bean, constructor-injected, not a filter-local `System.getenv` call
+      (pass 20 introduced a filter-local read behind a raw-value test seam; pass 29 replaced it with
+      the shared provider, and pass 32 amends this passage — which had continued to mandate the
+      superseded shape, leaving two contradictory architectures in one normative document). The
+      provider resolves `System.getenv("INTERNAL_API_KEY")` exactly once and is injected into both
+      this filter and the login self-call's reset leg, so a single resolved value serves both
+      transports** — the same resolve-once discipline `CloudFrontOriginVerifyFilter` already
+      applies to its own secret (and which, as of pass 32, is likewise extracted into a
+      `CloudFrontOriginSecretProvider` shared with the eligibility self-call). The provider
+      indirection also preserves the testability the pass-20 seam existed for: `System.getenv` reads
+      a static, effectively immutable JVM environment snapshot that ordinary Mockito cannot stub
+      without extra tooling this codebase doesn't otherwise depend on (`mockito-inline` static
+      mocking, PowerMock) — injecting a *provider double* resolving `null`, `""`, or a real value
+      gives a test the same control with no environment mutation or static mocking, and, unlike the
+      raw-value constructor, keeps exactly one value path in production code. Whatever
+      value the provider resolved is what the filter checks per request; **if that
       value is null or blank, fails closed right here — pass 19 addition, a gap the design left open
       through pass 18: returns `503` with body `{ "error": "internal_api_key_not_configured",
       "message": "The demo reset feature is temporarily unavailable." }` and makes NO downstream
@@ -697,16 +714,33 @@ login-orchestrated trigger, described further below). `DemoResetService.reset` i
       authoritative value — pass 17 correction: a caller-supplied duplicate of this header must not
       survive alongside the real one, however Spring resolves multiple values for a header lookup.
       This new failure mode SHALL be covered by its own filter-level unit test — constructing
-      `DemoResetAuthorizationFilter` directly via the package-visible, value-accepting constructor
-      above with `null` and with `""`, asserting `503` and zero downstream calls for each (pass 20
+      `DemoResetAuthorizationFilter` with an injected `InternalApiKeyProvider` double resolving
+      `null` and `""`, asserting `503` and zero downstream calls for each (pass 20
       correction: an earlier draft said "stub `System.getenv`," which ordinary Mockito cannot do
-      without extra tooling this codebase doesn't otherwise pull in — the seam above exists precisely
-      so this test doesn't need to) — a distinct case from the JWT-subject-mismatch `403`, and
+      without extra tooling this codebase doesn't otherwise pull in; pass 32 amendment: the
+      pass-20 raw-value constructor this test previously used is replaced by the provider double,
+      so production keeps a single value path — the provider's own null/blank resolution is tested
+      once, on the provider itself) — a distinct case from the JWT-subject-mismatch `403`, and
       orthogonal to Tests 1 and 2 below, which both construct the filter with a real value and assume
       the key is actually configured. All of (a)-(d) use the same exchange-mutation technique
       `JwtAuthenticationFilter` and `CloudFrontOriginVerifyFilter` already use for header changes, not
       a new mechanism; a mismatch on (a) or the JWT-subject check short-circuits with the pinned 403
-      before the route is ever reached
+      before the route is ever reached. **(Pass 33 addition — a normative omission the round-44
+      internal audit caught: this passage specified the filter's behavior exhaustively while
+      omitting a duty tasks.md 5.1/5.3a had made normative since its round-31. On EVERY response
+      this filter itself produces — the fail-closed `503`, the subject-mismatch `403`, both
+      route-attribute rejections — and on the ordinary proxied path, the filter SETS an
+      `X-Gateway-Replica-Token` response header carrying the opaque token from the shared
+      `ReplicaTokenProvider` bean (tasks.md 5.1b): a 12-hex-character truncated SHA-256 derivation
+      of the Azure replica identity, never the raw `CONTAINER_APP_REPLICA_NAME` value itself,
+      since this route is reachable by anyone who can authenticate as the demo account and the raw
+      identifier is Azure-internal information. Replace, never merge or append — exactly one
+      value, the gateway's own, even when a downstream response supplies a conflicting same-name
+      header. The header exists because this filter deliberately logs nothing: it is the only
+      evidence tasks.md Task 8.9's probe diagnosis can use to correlate a live response back to a
+      specific serving replica. The token formula, packaging, and test obligations are normative
+      in tasks.md 5.1b/5.3a; this document records the duty itself so an implementer building from
+      D5 alone cannot ship a filter that silently breaks that diagnosis.)**
     → the CLIENT supplies expectedVersion, from the same GET /api/portfolio response the browser
       already holds (the version it last observed) — nothing in this path re-reads "current"
       version. If that version is stale, DemoResetService's underlying compare-and-set rejects the
@@ -783,7 +817,15 @@ possible; this design picks one explicitly:
   self-call already has access to the identical value the filter reads — **the self-call SHALL set
   `X-Origin-Verify` to that value only when it is non-blank, and SHALL omit the header entirely
   otherwise (pass 9 correction: an earlier draft said "SHALL set... directly," unconditionally,
-  which is not cross-cloud safe).** Verified
+  which is not cross-cloud safe).** **Both sides SHALL obtain it from one shared
+  `CloudFrontOriginSecretProvider` rather than two independent `System.getenv` reads (pass 32
+  addition, mirroring `InternalApiKeyProvider` above): the filter is refactored to consume it with
+  its current behavior unchanged, and the provider's own `isRequired()` non-blank predicate — the
+  same condition that decides whether the filter is a live check or a no-op — is what the self-call
+  branches on, and what the task breakdown's `originVerifyRequired` diagnostic field reports. One
+  resolved value, two consumers, one predicate; a value mismatch between them stops being a
+  reachable failure mode, which is what lets the task breakdown attribute an origin-verification
+  `403` on the loopback leg to a failed *attach* specifically.** Verified
   directly: `CloudFrontOriginVerifyFilter.java` reads this variable once at construction
   (`System.getenv("CLOUDFRONT_ORIGIN_SECRET")`) and treats a null/blank value as "no-op — accept
   everything" (line 39-41, then the early `if (expectedSecret == null) return chain.filter(...)`
@@ -852,13 +894,19 @@ possible; this design picks one explicitly:
   binding bug of the kind above would actually produce, assuming `portfolio-service` itself is
   configured normally: a real caller, but with the wrong (empty) credential, not an unconfigured
   server. THE self-call code
-  SHALL instead read the environment variable directly — `System.getenv("INTERNAL_API_KEY")`,
-  mirroring how `CloudFrontOriginVerifyFilter` already reads its own secret in this same process —
-  or, if a Spring-managed binding is preferred, api-gateway's own `application*.yml` SHALL first
-  gain the equivalent mapping (`app.internal.api-key: ${INTERNAL_API_KEY:}`) before any code
-  references `${app.internal.api-key}`. **No new secret provisioning, Terraform change, or
-  deployment gate is required** — this is ordinary application code (or, at most, one new YAML
-  line) reading an environment variable that has been deployed to this process all along.
+  SHALL obtain the value from a single shared `InternalApiKeyProvider` bean — one resolve-once
+  `System.getenv("INTERNAL_API_KEY")` read, mirroring how `CloudFrontOriginVerifyFilter` already
+  reads its own secret in this same process — injected into both the manual-trigger filter
+  (`DemoResetAuthorizationFilter`) and the login self-call's reset leg. *(Pass 29 correction,
+  propagated from `tasks.md` rounds 22-23: an earlier revision of this passage permitted a direct
+  self-call `System.getenv` read or a new YAML binding as an open, self-call-local choice — i.e. a
+  second, independent read of the same variable alongside the manual-trigger filter's own. That
+  two-independent-reads architecture made the value's alignment with `portfolio-service`
+  unobservable from either path's behavior alone, defeating the diagnostic reasoning the tasks
+  breakdown builds on the shared value; one provider, two consumers, is now the normative
+  architecture, and the YAML-binding alternative is withdrawn.)* **No new secret provisioning,
+  Terraform change, or deployment gate is required** — this is ordinary application code reading an
+  environment variable that has been deployed to this process all along.
 - **Response shape:** `GET /api/portfolio` returns **`List<PortfolioResponse>`**, not a single
   object — verified directly against `PortfolioController.java:34-38`
   (`ResponseEntity<List<PortfolioResponse>>`). *(Pass 5 finding: this section's own earlier prose —
@@ -1110,7 +1158,9 @@ Spring Cloud Gateway's standard, first-party path-rewrite filter — deliberatel
 value in YAML (`AddRequestHeader` with an interpolated `${INTERNAL_API_KEY}`), since this app exposes
 all actuator endpoints (`management.endpoints.web.exposure.include: "*"`, `application.yml`) and a
 resolved route definition is the kind of thing an actuator endpoint can surface; the actual key
-attachment happens in `DemoResetAuthorizationFilter`'s Java code (`System.getenv`, above), matching
+attachment happens in `DemoResetAuthorizationFilter`'s Java code (from the shared
+`InternalApiKeyProvider`, above — pass 32 amendment, this clause previously said "`System.getenv`,"
+the superseded filter-local read), matching
 how this codebase already avoids putting `INTERNAL_API_KEY` in `@Value`-bound YAML properties. **This
 specific combination — a `GlobalFilter` mutating request headers on an exchange a route-level
 `RewritePath` filter subsequently rewrites — also has no direct precedent in this codebase** (the
@@ -1188,10 +1238,10 @@ not an incremental widening:**
    deployed before either picker control is user-visible, not merely before this particular
    control's own backend exists).** `tasks.md`'s own build-time feature flag is what keeps this
    control non-user-visible once deployed — decouples "the backend capability exists and is
-   verified" from "a user can trigger it," so a gap between earlier stages landing is never
-   user-visible even if it takes more than one deploy cycle, without prematurely exposing the
-   control ahead of step 6.
-6. **The login-orchestrated self-call is a separate, later gateway deployment — not part of step 4's
+   verified" from "a user can trigger it." **This is an independent DAG node, not a predecessor-
+   ordered stage:** it may deploy before or after steps 1, 4, and 6 while the flag remains off; it
+   earns no exposure readiness until its own backend/e2e gates pass.
+6. **The login-orchestrated self-call is a separate gateway deployment — not part of step 4's
    bundle (pass 21 correction of the pass 19/20 text, which bundled it in).** Bundling it there either
    blocks the manual path, which needs nothing beyond `version` and is unaffected by the `updated_at`
    gap (above), on unrelated unresolved work, or silently contradicts this document's own "mandatory
@@ -1199,9 +1249,8 @@ not an incremental widening:**
    riding along with ready ones. Stage 1's internal endpoint already accepts `POST` from the moment it
    ships — nothing further is needed there for this trigger — so this step is purely gateway-side: the
    self-call code, `DemoResetAuthorizationFilter`'s and D6's coverage already being in place from step
-   4. It ships only once three independent, currently-open items clear: `updated_at` gains an owner
-   and lands on `PortfolioResponse` (a missing implementation commitment, D7 above — the trigger
-   cannot be *built*, let alone deployed, without it), and the idle-reset threshold and the
+   4. It ships only once its three independent prerequisites clear: B2 Task 8.1 lands `updatedAt`
+   on `PortfolioResponse` (the trigger cannot be deployed without it), and the idle-reset threshold and the
    login self-call's per-leg/overall timeouts are decided (D7's open product/operational items). None
    of these gate step 4 or step 5 — step 5's deploy is hidden regardless, so it never waits on step
    6's own open items either.
@@ -1216,19 +1265,17 @@ not an incremental widening:**
    "hidden, not exposed" correction in step 5 actually load-bearing, not merely a wording change:
    without it, nothing in this sequence stopped the manual control from reaching real users before
    Requirement 7's login-orchestrated half existed at all, working, in production.
-8. **Roll back in the true reverse order of the sequence above — round-26 correction: an earlier
-   draft's rollback order assumed step 5 was user-visible before step 6 deployed, which is exactly
-   the ordering this pass corrects.** Disable exposure first (both flags off, a new build/deploy per
-   `tasks.md` Wave 10); then remove/roll back the login-orchestration self-call (step 6, if shipped);
-   then remove the now-hidden-again frontend control (step 5); then the manual-reset gateway bundle
-   (step 4); then portfolio-service's endpoint (step 1-3, this last step actually does need care once
-   real — by then it's live production surface, not the pre-traffic case stage 3 describes).
+8. **Rollback follows dependency edges, not a fabricated total order.** Disable exposure first
+   (both flags off and verify the new frontend deploy). The hidden frontend, manual gateway bundle,
+   and login-orchestration deployment may then be rolled back independently when their consumers
+   are absent. The portfolio-service endpoint is removed last, after both gateway consumers are
+   gone. This is the reverse of the actual DAG, not the reverse of one possible deployment history.
 
-**This is a mandatory release gate, not a product acceptance criterion (pass 20 clarification —
+**This is a mandatory release DAG, not a product acceptance criterion (pass 20 clarification —
 resolving a real inconsistency: an earlier draft of this note said exactly that, "not a new acceptance
 criterion," while requirements.md's own copy of this same sequencing used normative `SHALL` language,
-which reads as exactly the opposite classification).** The gate itself — stage order, and that each
-**live-traffic-affecting** stage is verified before the next one that affects live traffic starts —
+which reads as exactly the opposite classification).** The gate itself — dependency edges, and that each
+consumer is verified only after its prerequisite is live —
 is release orchestration, not user-visible product behavior, so it's tracked authoritatively in the
 master plan's task breakdown, not stated as a requirements.md acceptance criterion; requirements.md
 cross-references it without asserting its own `SHALL` for the sequencing itself. **Stage 5's
@@ -1238,9 +1285,9 @@ deploy at any time," while this paragraph's prior wording, "each stage... before
 read as applying uniformly to every stage including Stage 5).** It's inert while its feature flag is
 off, so deploying it before Stage 4 is live-verified carries none of the risk this gate exists to
 prevent — the same reasoning already used elsewhere in this document to justify treating a
-flag-hidden deploy as safe regardless of backend readiness. The ordering constraint binds Stages
-1-4, 6, and 7 (each of which does affect what a real request can reach once deployed); Stage 5 may
-land whenever its own code is ready.
+flag-hidden deploy as safe regardless of backend readiness. The one hard backend edge is Stages
+1-3 before Stage 4. Stage 6 also needs Stages 1-3 but does not depend on Stage 4 or Stage 5; those
+three branches converge only at Stage 7 exposure. Stage 5 may land whenever its own code is ready.
 
 **Filter scoping, made explicit against a real leak risk (self-audit addition):**
 `DemoResetAuthorizationFilter` SHALL match on the exact pair `(HttpMethod.PUT,
@@ -1299,10 +1346,10 @@ B1 Wave 5 task 5.1 (which exposes `version` on `GET /api/portfolio`) and the bou
 composition-`PUT` activation gate; nothing in Wave 6 or 7 is a stated dependency of this trigger
 anywhere else in this section, and the surrounding "Precisely, not 'already'" correction above
 already ties it to Wave 5/task 5.1 specifically)*. The login-orchestrated idle-reset trigger additionally needs
-`updated_at` on `PortfolioResponse` — the unassigned gap described above, not merely "B1 Wave 3,"
+`updatedAt` on `PortfolioResponse` — now explicitly owned by B2 Task 8.1, not merely "B1 Wave 3,"
 which adds only the column. `portfolios.updated_at` does not exist in the current schema at all
-yet; Wave 3/V20 adds it, but exposing it on the wire is the separate, currently-unowned step this
-design flags.
+yet; Wave 3/V20 adds it, and B2's additive DTO/mapping/contract-test task runs after that migration
+and B1 Task 5.1 rather than leaving the release-blocking field ownerless.
 
 ## D6 — `ReadOnlyEnforcementFilter` allowlist change
 
@@ -1336,16 +1383,12 @@ Wave 4/5 deploys, by whom — is not decided, matching requirements.md's own fra
 still open. This section exists specifically to catch open items D3 states as settled-in-shape but
 unsettled-in-timing; it had not, until this pass.
 
-**`updatedAt` exposure on `PortfolioResponse` — blocking, added on pass 5 review.** D5 above flags
-this in detail; it belongs here too, since this is the section a reader checks for what's
-unresolved. Wire contract once assigned: field `updatedAt` (camelCase; the database column is
-`updated_at`, the wire field is not), ISO-8601 timestamp string matching `createdAt`'s existing
-encoding, one per element of the `List<PortfolioResponse>` `GET /api/portfolio` returns, gated on
-whichever B1 wave takes the task, with a contract test. Without an owner assigned, the
-login-orchestrated idle-reset trigger (requirements.md 7.4) cannot be built — this is not a
-decision B2 can pick a default for; unlike the four items above (pass 9 correction: this said
-"three" after the timeout item was added above it as a fourth), it is a missing implementation
-commitment, not a missing product call.
+**`updatedAt` exposure on `PortfolioResponse` is no longer open.** The parallel Azure handoff audit
+confirmed that leaving a production-gating field ownerless made the plan literally unexecutable.
+B2 Task 8.1 now owns the additive field `updatedAt` (camelCase; database column `updated_at`), its
+entity-to-response mapping, ISO-8601 encoding matching `createdAt`, and a contract test on every
+element of the existing `List<PortfolioResponse>`. It remains blocked on B1's V20 column and Task
+5.1 response work, but ownership is settled and this item is removed from the Open-items count.
 
 **`assetPriceFreshness` has not landed yet either — added pass 7, same failure mode as
 `updatedAt`.** Requirement 3.2 (and 3.4, new this pass) depend on this field; Spec A
