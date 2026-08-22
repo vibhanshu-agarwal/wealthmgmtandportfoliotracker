@@ -20,7 +20,6 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
@@ -30,7 +29,10 @@ import static org.mockito.Mockito.when;
 class PortfolioServiceFreshnessValuationTest {
 
     private static final String USER_ID = "00000000-0000-0000-0000-000000000001";
-    private static final Instant NOWISH = Instant.parse("2026-08-19T08:00:00Z");
+    // Runtime-relative, not a fixed literal: PortfolioService#getSummary evaluates freshness
+    // against real Instant.now(), so a hardcoded past date drifts out of the 50h threshold as
+    // real time passes, silently flipping "fresh" fixtures to STALE independent of any code change.
+    private static final Instant NOWISH = Instant.now();
 
     @Mock FxRateProvider fxRateProvider;
     @Mock PortfolioRepository portfolioRepository;
@@ -48,7 +50,6 @@ class PortfolioServiceFreshnessValuationTest {
                         userRepository,
                         fxRateProvider,
                         new FxProperties("USD", null, null, null),
-                        mock(),
                         AssetPriceFreshnessProperties.defaults());
         when(userRepository.existsById(UUID.fromString(USER_ID))).thenReturn(true);
         when(portfolioRepository.findByUserId(USER_ID)).thenReturn(List.of());
