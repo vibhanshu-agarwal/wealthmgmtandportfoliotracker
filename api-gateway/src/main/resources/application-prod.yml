@@ -77,6 +77,17 @@ spring:
                   args:
                     key-resolver: "#{@userOrIpKeyResolver}"
                     rate-limiter: "#{@standardRateLimiter}"
+            - id: asset-discovery
+              uri: ${app.routes.portfolio-url}
+              predicates:
+                - Path=/api/assets/**
+              metadata:
+                retry-after-seconds: 1
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    key-resolver: "#{@userOrIpKeyResolver}"
+                    rate-limiter: "#{@standardRateLimiter}"
             - id: market-data-service
               uri: ${app.routes.market-data-url}
               predicates:

@@ -61,4 +61,11 @@ public class UserCredentialRepository {
                 .addValue("email", email)
                 .addValue("hash", hash));
     }
+
+    public void insertPortfolio(UUID id, UUID userId) {
+        String sql = "INSERT INTO portfolios (id, user_id) VALUES (:id, :userId)";
+        jdbc.update(sql, new MapSqlParameterSource()
+                .addValue("id", id)
+                .addValue("userId", userId.toString()));
+    }
 }
