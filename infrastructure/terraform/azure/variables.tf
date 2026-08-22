@@ -75,8 +75,8 @@ variable "api_gateway_min_replicas" {
 
 variable "api_gateway_ingress_enabled" {
   type        = bool
-  default     = true
-  description = "When false, omits the api-gateway ingress block so the maintenance window closes all routes including /api/internal/**. Default true. Changing this must update the existing app, not replace it."
+  default     = false
+  description = "When false, omits the api-gateway ingress block so the maintenance window closes all routes including /api/internal/**. Default true. Changing this must update the existing app, not replace it. (Cutover checkpoint 9.5, supported-asset-integrity Task 9: closed for the duration of the Postgres/Mongo repair, 9.6/9.7. Restored to true at checkpoint 9.14.)"
 }
 
 variable "use_seed_image" {
