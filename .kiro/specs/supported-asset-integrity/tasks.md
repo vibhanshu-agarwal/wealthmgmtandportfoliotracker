@@ -392,27 +392,51 @@ python scripts/check-spec-references.py   .kiro/specs/supported-asset-integrity/
   Every irreversible action is its own checkpoint. **Do not batch them.** Each states its go
   condition and its abort action; if the go condition is unmet, abort rather than proceed.
 
-  - [ ] 9.1 **CHECKPOINT — R1 deployed, inert**
+  - [x] 9.1 **CHECKPOINT — R1 deployed, inert** (verified 2026-08-22 against live Log Analytics:
+    all three services — `portfolio-service--0000070`, `market-data-service--0000069`,
+    `insight-service--0000069` — report identical `catalog_loaded version=c3dcb95e4e09212a
+    entries=160 active=159 rejectUnsupportedEvents=false enforceHoldingInvariant=false`; Flyway
+    history stops at V16, matching the working tree, confirming no repair migration in the
+    artifact)
     - Go: all three services report the same `catalogVersion`; no migrations in the artifact; both
       enforcement gates `false`
     - Abort: redeploy previous artifact. Fully reversible.
 
-  - [ ] 9.2 **CHECKPOINT — R2 producer narrowed**
+  - [x] 9.2 **CHECKPOINT — R2 producer narrowed** (verified 2026-08-22: the last two scheduled
+    refresh executions reported `updated=157/158, skipped=2/1` — 159 total, matching `active=159`
+    exactly, not the old baseline-∪-Mongo emergent set; no execution `Running` at check time)
     - Go: refresh desired set is Active_Assets; no execution of a prior Job revision is running
     - Abort: revert R2. Reversible.
 
-  - [ ] 9.3 **CHECKPOINT — refresh write capability disabled**
+  - [x] 9.3 **CHECKPOINT — refresh write capability disabled** (applied 2026-08-22 via
+    `infrastructure/terraform/azure/main.tf` + PR #133, `terraform apply` — in-place update, 0
+    added/6 changed/0 destroyed, confirmed by `assert_job_runner_env_update.py`. Env var read back
+    as `false`; no execution `Running`. Rather than wait ~14h for the next cron fire, verified by
+    manually starting an execution — `market-data-refresh-job-yw0cnma` — which succeeded and
+    emitted `c.w.m.MarketDataRefreshSuspendedJobRunner - refresh_suspended`, the identical code path
+    a scheduled fire takes)
     - Go: `MARKET_DATA_JOB_RUNNER_ENABLED=false` read back from the deployed Job; no execution
       `Running`; the next scheduled fire **succeeded** and emitted `refresh_suspended`
     - **Abort the cutover if verification fails** — an execution still running, or a fire that
       refreshed instead of suspending. A property update does not stop an in-flight execution.
 
-  - [ ] 9.4 **CHECKPOINT — Kafka drained**
+  - [x] 9.4 **CHECKPOINT — Kafka drained** (verified 2026-08-22, observed after 9.3 as required:
+    topic `market-prices` end offset 24541 on its single partition; both `portfolio-group` and
+    `insight-group` committed at 24541 — lag zero on both, no waiver needed)
     - Go: consumer lag zero on **every** partition, observed after 9.3, or retention window elapsed
     - Waivable **only here**, explicitly and on the record, with discarded events counted and surfaced
     - _Requirements: 9.7, 9.8, 9.9, 9.10_
 
-  - [ ] 9.5 **CHECKPOINT — holding writes quiesced**
+  - [x] 9.5 **CHECKPOINT — holding writes quiesced** (applied 2026-08-22 via
+    `infrastructure/terraform/azure/variables.tf` + PR #134, `terraform apply` — in-place update, 0
+    added/6 changed/0 destroyed, confirmed by `assert_ingress_enabled_plan.py`. Live query confirms
+    `properties.configuration.ingress: null` on api-gateway; an external request to
+    `api.vibhanshu-ai-portfolio.dev` now gets connection reset, confirming the site is genuinely
+    offline. No synthetic seed invocation was running before or after — the only invocation path is
+    HTTP, now itself unreachable. **En route, `modules/container-app/outputs.tf`'s `app_fqdn`
+    output had a real, unguarded `ingress[0]` index that throws once any container app's ingress is
+    disabled — caught by this PR's own CI plan, fixed with `try(...,  null)` in the same PR, since
+    nothing else in the module graph consumes that output**)
     - Go: `ingress_enabled = false` applied; in-flight requests drained; no synthetic seed invocation running
     - Abort: re-enable ingress. Reversible.
 
