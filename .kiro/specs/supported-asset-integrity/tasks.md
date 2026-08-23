@@ -572,12 +572,14 @@ python scripts/check-spec-references.py   .kiro/specs/supported-asset-integrity/
       `actionlint` clean.
 
     - **`production` GitHub Environment** — created via API (none existed before): required reviewer
-      `vibhanshu-agarwal`; `deployment_branch_policy` restricted to `main` only. **`can_admins_bypass:
-      true` and `prevent_self_review: false`** — neither is a settable field on the environments API
-      (confirmed against `docs.github.com`); both are platform defaults for a personal-account repo, not
-      something this hardening can close. Acceptable given this repo's portfolio/demo framing, but a real
-      limit on how strong the gate actually is — an admin can bypass it, and a self-approval isn't
-      blocked.
+      `vibhanshu-agarwal`; `deployment_branch_policy` restricted to `main` only. Two distinct properties,
+      not one: **`can_admins_bypass: true`** is not a settable field on the environments API (confirmed
+      against `docs.github.com`) — a genuine platform limitation for a personal-account repo, not
+      something this hardening can close. **`prevent_self_review: false`**, by contrast, *is* a settable
+      field on that same API — it was simply never set (left at its default) when the environment was
+      created, not a platform limitation. Leaving it `false` is a reasonable, deliberate choice for a
+      single-maintainer repo (the required reviewer and the person dispatching are the same person
+      either way), but it should be understood as a choice, not a constraint.
 
     - **11-step bootstrap, executed in full** (per the corrected procedure from Codex's first review
       round on PR #139):
@@ -611,8 +613,11 @@ python scripts/check-spec-references.py   .kiro/specs/supported-asset-integrity/
           the third; both terminated cleanly with no deployment.
       11. Final production snapshot — byte-identical to the pre-bootstrap baseline from step 2.
 
-    - **Final Azure state, directly read back, matching the pre-bootstrap baseline throughout**: all
-      four Container Apps and both Jobs remain on image `9b2cf0d655b4b7ae2ce20ff7b67e4ad750df6900`;
+    - **Final Azure state, directly read back, matching the pre-bootstrap baseline throughout**: the
+      four Container Apps and `market-data-refresh-job` remain on image
+      `9b2cf0d655b4b7ae2ce20ff7b67e4ad750df6900`. `market-data-repair-job` is separate — still
+      digest-pinned to `market-data-service@sha256:8548199f...` (ACR tag `31c4a739...`, from the 9.7
+      Mongo repair, predating this bootstrap), unaffected by and unrelated to this hardening.
       `portfolio-service`/`market-data-service`/`insight-service` retain
       `APP_CATALOG_REJECT_UNSUPPORTED_EVENTS=false` / `APP_CATALOG_ENFORCE_HOLDING_INVARIANT=false`;
       `api-gateway` ingress remains absent/closed; `market-data-refresh-job`'s
