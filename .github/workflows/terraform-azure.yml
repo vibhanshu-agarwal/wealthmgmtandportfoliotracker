@@ -3,15 +3,33 @@
 # Azure Terraform workflow — validates and applies the Azure Container Apps
 # infrastructure defined in infrastructure/terraform/azure/.
 #
-# Plan path  : runs on every pull_request touching the Azure Terraform root,
-#              and on manual dispatch with action=plan.
-#              Writes a backend_override.tf that swaps the azurerm backend for
-#              a local backend, so no real backend credentials are required
-#              for PR validation (backend-azure.hcl is gitignored).
+# Plan path        : runs on every pull_request touching the Azure Terraform root,
+#                     and on manual dispatch with action=plan.
+#                     Writes a backend_override.tf that swaps the azurerm backend for
+#                     a local backend, so no real backend credentials are required
+#                     for PR validation (backend-azure.hcl is gitignored). This path
+#                     is STRUCTURAL ONLY — it cannot preview the real production delta.
 #
-# Apply path : runs ONLY on manual dispatch with action=apply.
-#              Provisions the real backend-azure.hcl from the AZURE_BACKEND_HCL
-#              secret before initialising Terraform.
+# Remote-plan path : runs ONLY on manual dispatch with action=remote-plan. Real
+#                     backend, read-only (plan, never apply) — the way to actually see
+#                     what a live-state change will do before authorizing it.
+#
+# Apply path       : runs ONLY on manual dispatch with action=apply.
+#                     Provisions the real backend-azure.hcl from the AZURE_BACKEND_HCL
+#                     secret before initialising Terraform. Gated behind the
+#                     `production` GitHub Environment (required-reviewer approval).
+#
+# Live-state hardening (Spec A checkpoint-9.9 prerequisite, 2026-08-23): remote-plan
+# and apply now require expected_main_sha (dispatch must target the exact commit
+# intended, not whatever main has drifted to) and deployed_image_tag (explicit —
+# TF_VAR_image_tag no longer silently defaults to the dispatch commit's own SHA for
+# these operations, which would otherwise change SERVICE_VERSION on every app/Job to
+# an unrelated IaC commit while the actual, lifecycle-ignored image stayed on
+# whatever was last deployed). validate_dispatch.py enforces both, plus that the
+# dispatch targets refs/heads/main and that the two 9.9 change profiles never combine
+# with the seed-image/Job-recreate recovery flags. See
+# .kiro/specs/supported-asset-integrity/tasks.md checkpoint 9.9 and
+# docs/superpowers/plans/2026-08-23-spec-a-checkpoint-9.9-execution.md.
 #
 # Authentication uses OIDC (azure/login@v2) — no client_secret is used or stored.
 
@@ -25,8 +43,37 @@ on:
         type: choice
         options:
           - plan
+          - remote-plan
           - apply
         default: plan
+      expected_main_sha:
+        description: >
+          Required for remote-plan/apply: the full commit SHA on main you intend to run
+          against. Must match the SHA this workflow actually dispatches against, and the
+          dispatch must target main itself, or it fails closed before touching Azure.
+        required: false
+        type: string
+        default: ""
+      deployed_image_tag:
+        description: >
+          Required for remote-plan/apply: the full 40-character image tag currently
+          deployed to the four Container Apps (e.g. the R4 tag during checkpoint 9.9).
+          Sets TF_VAR_image_tag explicitly for live-state operations so SERVICE_VERSION
+          cannot silently drift to this workflow's own dispatch commit.
+        required: false
+        type: string
+        default: ""
+      change_profile:
+        description: >
+          standard = ordinary apply, no extra scope assertion. spec-a-9.9-enable /
+          spec-a-9.9-abort = checkpoint 9.9's cutover/rollback, asserted to touch
+          exactly the three catalog-service Container Apps as in-place updates.
+        type: choice
+        options:
+          - standard
+          - spec-a-9.9-enable
+          - spec-a-9.9-abort
+        default: standard
       use_seed_image:
         description: "Use public seed image for Container Apps (true for first apply before images exist in ACR)"
         type: boolean
@@ -40,7 +87,7 @@ on:
       - "infrastructure/terraform/azure/**"
       - ".github/workflows/terraform-azure.yml"
 
-# Serialize runs so concurrent plans do not race on the same remote state.
+# Serialize runs so concurrent plans/applies do not race on the same remote state.
 concurrency:
   group: terraform-azure-${{ github.repository }}
   cancel-in-progress: false
@@ -60,6 +107,7 @@ env:
   TF_VAR_azure_client_id: ${{ secrets.AZURE_CLIENT_ID }}
   TF_VAR_azure_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
   TF_VAR_azure_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+  # Structural (pr-plan) path only — live-state jobs override this with deployed_image_tag.
   TF_VAR_image_tag: ${{ github.sha }}
   TF_VAR_use_seed_image: ${{ github.event.inputs.use_seed_image || 'false' }}
   # Job-only seed bootstrap, auto-enabled whenever a Job recreate is requested. This lets the
@@ -82,14 +130,16 @@ env:
   TF_VAR_internal_api_key: ${{ secrets.TF_VAR_INTERNAL_API_KEY }}
 
 jobs:
-  terraform:
-    name: Terraform Azure
+  # ===========================================================================
+  # pr-plan: unchanged structural plan — local backend, PR-triggered or
+  # action=plan. Cannot preview the real production delta; use remote-plan for that.
+  # ===========================================================================
+  pr-plan:
+    if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'plan')
+    name: Terraform Azure (structural plan)
     runs-on: ubuntu-latest
-    timeout-minutes: 90
-
+    timeout-minutes: 30
     steps:
-      # ── Shared setup (both plan and apply paths) ──────────────────────────
-
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -103,16 +153,11 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
 
-      # ── Plan path ─────────────────────────────────────────────────────────
-      # Runs on: pull_request  OR  workflow_dispatch with action=plan
-      # Overrides the azurerm backend declared in versions.tf with a local
-      # backend so plan can run without the AZURE_BACKEND_HCL secret. Terraform
-      # auto-merges any *_override.tf file with the main configuration, so the
-      # committed `backend "azurerm" {}` block is replaced for this run only.
-      # backend_override.tf is gitignored.
-
+      # Overrides the azurerm backend declared in versions.tf with a local backend so
+      # plan can run without the AZURE_BACKEND_HCL secret. Terraform auto-merges any
+      # *_override.tf file with the main configuration, so the committed
+      # `backend "azurerm" {}` block is replaced for this run only. Gitignored.
       - name: Override backend for plan (local backend)
-        if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'plan')
         run: |
           cat > backend_override.tf <<'EOF'
           terraform {
@@ -121,54 +166,223 @@ jobs:
           EOF
 
       - name: Terraform Init (plan — local backend override)
-        if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'plan')
         run: terraform init
 
       - name: Terraform Validate (plan)
-        if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'plan')
         run: terraform validate
 
       - name: Terraform Plan
-        if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'plan')
         run: terraform plan -out=tfplan
 
       - name: Terraform Show (JSON)
-        if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'plan')
         run: terraform show -json tfplan > tfplan.json
 
       - name: Assert Plan — P1 Profile Mutual Exclusion (MANDATORY)
-        if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'plan')
         run: python3 scripts/assert_plan.py tfplan.json
 
       - name: Assert Plan — P5 ACR Pull Authorization (MANDATORY)
-        if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'plan')
         run: python3 scripts/test_acr_pull_property.py tfplan.json
 
       - name: Assert Plan — Observability Caps, Budget, No Scheduled Alerts (MANDATORY)
-        if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'plan')
         run: python3 scripts/assert_observability_plan.py tfplan.json
 
       - name: Assert Plan — Job runner env update is in-place (MANDATORY)
-        if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'plan')
         run: python3 scripts/assert_job_runner_env_update.py tfplan.json
 
       - name: Assert Plan — ingress_enabled does not replace gateway (MANDATORY)
-        if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'plan')
         run: python3 scripts/assert_ingress_enabled_plan.py tfplan.json
 
       - name: Assert Plan — Mongo repair Job contract (MANDATORY)
-        if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'plan')
         run: python3 scripts/assert_mongo_repair_job_plan.py tfplan.json
 
-      # ── Apply path ────────────────────────────────────────────────────────
-      # Runs ONLY on: workflow_dispatch with action=apply
-      # Provisions the real backend-azure.hcl from the AZURE_BACKEND_HCL secret
-      # before initialising Terraform with the remote backend.
-      # NOTE: the apply path DOES re-run the plan-assertion scripts (P1 + P5) against the
-      # saved plan before `terraform apply` — see the "Assert Plan" steps below.
+  # ===========================================================================
+  # validate-dispatch: fail closed before touching Azure at all, for any live-state
+  # operation (remote-plan or apply).
+  # ===========================================================================
+  validate-dispatch:
+    if: github.event_name == 'workflow_dispatch' && (github.event.inputs.action == 'remote-plan' || github.event.inputs.action == 'apply')
+    name: Validate live-state dispatch
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: Guard — reject unsafe recovery flag combination (apply)
-        if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validate dispatch inputs
+        env:
+          ACTUAL_REF: ${{ github.ref }}
+          ACTUAL_SHA: ${{ github.sha }}
+          EXPECTED_MAIN_SHA: ${{ github.event.inputs.expected_main_sha }}
+          DEPLOYED_IMAGE_TAG: ${{ github.event.inputs.deployed_image_tag }}
+          CHANGE_PROFILE: ${{ github.event.inputs.change_profile }}
+          USE_SEED_IMAGE: ${{ github.event.inputs.use_seed_image }}
+          RECREATE_MARKET_DATA_JOB: ${{ github.event.inputs.recreate_market_data_job }}
+        run: python3 infrastructure/terraform/azure/scripts/validate_dispatch.py
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # deployed_image_tag passed the format check above; now prove it actually exists
+      # in ACR for every service this workflow can touch, so a typo'd or stale tag
+      # cannot silently apply as SERVICE_VERSION against a manifest that isn't real.
+      # Skipped ONLY for standard + use_seed_image=true: that's the first-provisioning
+      # bootstrap path, before any real service image (or possibly the registry itself)
+      # exists — deployed_image_tag is meaningless there. Every other combination,
+      # including both 9.9 profiles and ordinary non-seed applies, still requires it.
+      - name: Confirm deployed_image_tag resolves in ACR
+        if: '! (github.event.inputs.change_profile == ''standard'' && github.event.inputs.use_seed_image == ''true'')'
+        run: |
+          set -euo pipefail
+          TAG="${{ github.event.inputs.deployed_image_tag }}"
+          for REPO in portfolio-service market-data-service insight-service api-gateway; do
+            COUNT=$(az acr manifest list-metadata --registry wealthprodacr --name "$REPO" \
+              --query "length([?tags != null && contains(tags, '${TAG}')])" -o tsv)
+            if [ "$COUNT" != "1" ]; then
+              echo "::error::deployed_image_tag '${TAG}' resolves to ${COUNT} manifest(s) in wealthprodacr/${REPO} (expected exactly 1)."
+              exit 1
+            fi
+            echo "OK: ${REPO}:${TAG} resolves to exactly one manifest."
+          done
+
+  # ===========================================================================
+  # remote-plan: real backend, read-only. The only way to preview the actual
+  # production delta before authorizing an apply.
+  # ===========================================================================
+  remote-plan:
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'remote-plan'
+    needs: validate-dispatch
+    name: Terraform Azure (remote plan)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      TF_VAR_image_tag: ${{ github.event.inputs.deployed_image_tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Provision Backend Config
+        env:
+          BACKEND_HCL_CONTENT: ${{ secrets.AZURE_BACKEND_HCL }}
+        run: |
+          printf '%s' "$BACKEND_HCL_CONTENT" > backend-azure.hcl
+          echo "--- backend-azure.hcl keys written ---"
+          grep -o '^[^=]*' backend-azure.hcl | sed 's/^/  /' || true
+
+      - name: Terraform Init (remote-plan — real backend)
+        run: terraform init -backend-config=backend-azure.hcl
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      - name: Terraform Plan (read-only)
+        run: terraform plan -out=tfplan
+
+      - name: Terraform Show (JSON)
+        run: terraform show -json tfplan > tfplan.json
+
+      - name: Assert Plan — No in-place Job identity migration (MANDATORY)
+        run: python3 scripts/assert_job_identity_migration.py tfplan.json
+
+      - name: Assert Plan — P1 Profile Mutual Exclusion (MANDATORY)
+        run: python3 scripts/assert_plan.py tfplan.json
+
+      - name: Assert Plan — P5 ACR Pull Authorization (MANDATORY)
+        run: python3 scripts/test_acr_pull_property.py tfplan.json
+
+      - name: Assert Plan — Observability Caps, Budget, No Scheduled Alerts (MANDATORY)
+        run: python3 scripts/assert_observability_plan.py tfplan.json
+
+      - name: Assert Plan — Job runner env update is in-place (MANDATORY)
+        run: python3 scripts/assert_job_runner_env_update.py tfplan.json
+
+      - name: Assert Plan — ingress_enabled does not replace gateway (MANDATORY)
+        run: python3 scripts/assert_ingress_enabled_plan.py tfplan.json
+
+      - name: Assert Plan — Mongo repair Job contract (MANDATORY)
+        run: python3 scripts/assert_mongo_repair_job_plan.py tfplan.json
+
+      # Runs for every change_profile, not only the two 9.9 profiles: under standard,
+      # this is a guard forbidding any change to the 9.9 protected surface (min_replicas,
+      # the two catalog-override env vars) on the three services — not a no-op. Once the
+      # 9.9 desired-state change lands in main.tf, a dispatch left on the default
+      # standard profile must not be able to apply it without going through the
+      # exact-scope proof below.
+      - name: Assert Plan — Spec A 9.9 profile guard / exact scope
+        run: python3 scripts/assert_spec_a_9_9_plan.py tfplan.json --profile "${{ github.event.inputs.change_profile }}" --expected-image-tag "${{ github.event.inputs.deployed_image_tag }}"
+
+      # Sanitized summary only — built from tfplan.json via summarize_plan.py, which
+      # emits ONLY "<address> <actions>" per changed resource, never attribute paths,
+      # before/after objects, or values. `terraform show`'s human-readable output was
+      # tried first and rejected: its changed-attribute lines (e.g. `~ value = "..."`)
+      # match the same prefix characters as the resource-header lines, so a text-based
+      # filter over it could not be trusted not to leak a TF_VAR_*-sourced value. Never
+      # upload raw tfplan/tfplan.json either, for the same reason.
+      - name: Publish sanitized plan summary
+        run: |
+          {
+            echo "### Terraform remote-plan summary"
+            echo ""
+            echo "Profile: \`${{ github.event.inputs.change_profile }}\`"
+            echo ""
+            echo '```'
+            python3 scripts/summarize_plan.py tfplan.json
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ===========================================================================
+  # apply: real backend, mutates production. `needs: validate-dispatch` means the
+  # cheap fail-closed guards run and pass BEFORE the `production` Environment's
+  # required-reviewer approval is ever requested (GitHub evaluates a job's `needs:`
+  # before its own environment protection rules). Creates its own fresh plan in this
+  # same run and applies that exact plan — never accepts a plan artifact from another
+  # run (remote-plan's plan is preview-only). `environment:` is valid directly on
+  # this job because it is an ordinary job, not a `uses:` reusable-workflow call —
+  # confirmed with actionlint, not assumed (a job calling a reusable workflow cannot
+  # declare `environment:` at all; that constraint doesn't apply here).
+  # ===========================================================================
+  apply:
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'
+    needs: validate-dispatch
+    name: Terraform Azure (apply)
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    environment: production
+    env:
+      TF_VAR_image_tag: ${{ github.event.inputs.deployed_image_tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Guard — reject unsafe recovery flag combination
         run: |
           set -euo pipefail
           if [ "${{ github.event.inputs.recreate_market_data_job }}" = "true" ] && [ "${{ github.event.inputs.use_seed_image }}" = "true" ]; then
@@ -180,8 +394,7 @@ jobs:
           fi
           echo "Recovery flag combination OK."
 
-      - name: Provision Backend Config (apply only)
-        if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'
+      - name: Provision Backend Config
         # AZURE_BACKEND_HCL secret contains the HCL content set via:
         #   gh secret set AZURE_BACKEND_HCL < infrastructure/terraform/azure/backend-azure.hcl
         # The secret is written to a file using an env var to avoid shell interpolation issues.
@@ -196,25 +409,37 @@ jobs:
           grep -o '^[^=]*' backend-azure.hcl | sed 's/^/  /' || true
 
       - name: Terraform Init (apply — real backend)
-        if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'
         run: terraform init -backend-config=backend-azure.hcl
 
-      - name: Terraform Validate (apply)
-        if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'
+      - name: Terraform Validate
         run: terraform validate
 
+      # For the two 9.9 profiles this is READ-ONLY: `terraform import` mutates the real
+      # backend's state immediately, before any plan or assertion runs — during an
+      # enforcement cutover that would be a state mutation outside the declared
+      # three-resource scope, invisible to assert_spec_a_9_9_plan.py (which only ever
+      # sees the plan that comes *after* state already changed). If the Job is
+      # unexpectedly absent from state during a 9.9 apply, stop; state repair is a
+      # separate, reviewed operation, not something to fold silently into a cutover.
+      # standard keeps the original auto-import recovery behavior unchanged.
       - name: Import existing market-data refresh Job (apply recovery)
-        if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'
         run: |
           set -euo pipefail
 
           RESOURCE_ADDRESS="azurerm_container_app_job.market_data_refresh"
           JOB_NAME="market-data-refresh-job"
           RESOURCE_GROUP="wealth-azure-prod-rg"
+          PROFILE="${{ github.event.inputs.change_profile }}"
 
           if terraform state show "$RESOURCE_ADDRESS" >/dev/null 2>&1; then
             echo "${RESOURCE_ADDRESS} is already managed in Terraform state."
             exit 0
+          fi
+
+          if [ "$PROFILE" = "spec-a-9.9-enable" ] || [ "$PROFILE" = "spec-a-9.9-abort" ]; then
+            echo "::error::${RESOURCE_ADDRESS} is not in Terraform state, and change_profile=${PROFILE} only permits a read-only check here — auto-import is not allowed during a 9.9 cutover apply, since it would mutate the backend before any plan or assertion runs."
+            echo "::error::Repair state through a separate, reviewed operation (e.g. dispatch with change_profile=standard first) before retrying the 9.9 apply."
+            exit 1
           fi
 
           JOB_ID="$(az containerapp job show \
@@ -239,7 +464,6 @@ jobs:
       # set from this input in the env block) so the create never blocks on an ACR pull —
       # without touching the four long-running apps. deploy-azure.yml then rolls the real image.
       - name: Terraform Plan (apply — for assertions)
-        if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'
         run: |
           set -euo pipefail
           if [ "${{ github.event.inputs.recreate_market_data_job }}" = "true" ]; then
@@ -250,44 +474,44 @@ jobs:
           fi
 
       - name: Terraform Show (JSON — apply)
-        if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'
         run: terraform show -json tfplan > tfplan.json
 
-      - name: Assert Plan — No in-place Job identity migration (MANDATORY — apply)
-        # Runs on EVERY apply. Blocks a plain apply from planning the SystemAssigned ->
-        # UserAssigned in-place migration (which can stall on ACA Job provisioning) and
-        # steers the operator to rerun with recreate_market_data_job=true (forced -replace).
-        if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'
+      - name: Assert Plan — No in-place Job identity migration (MANDATORY)
+        # Blocks a plain apply from planning the SystemAssigned -> UserAssigned in-place
+        # migration (which can stall on ACA Job provisioning) and steers the operator to
+        # rerun with recreate_market_data_job=true (forced -replace).
         run: python3 scripts/assert_job_identity_migration.py tfplan.json
 
       - name: Assert Plan — Recovery is Job-scoped (recovery only)
-        if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply' && github.event.inputs.recreate_market_data_job == 'true'
+        if: github.event.inputs.recreate_market_data_job == 'true'
         run: python3 scripts/assert_recovery_plan.py tfplan.json
 
-      - name: Assert Plan — P1 Profile Mutual Exclusion (MANDATORY — apply)
-        if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'
+      - name: Assert Plan — P1 Profile Mutual Exclusion (MANDATORY)
         run: python3 scripts/assert_plan.py tfplan.json
 
-      - name: Assert Plan — P5 ACR Pull Authorization (MANDATORY — apply)
-        if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'
+      - name: Assert Plan — P5 ACR Pull Authorization (MANDATORY)
         run: python3 scripts/test_acr_pull_property.py tfplan.json
 
-      - name: Assert Plan — Observability Caps, Budget, No Scheduled Alerts (MANDATORY — apply)
-        if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'
+      - name: Assert Plan — Observability Caps, Budget, No Scheduled Alerts (MANDATORY)
         run: python3 scripts/assert_observability_plan.py tfplan.json
 
-      - name: Assert Plan — Job runner env update is in-place (MANDATORY — apply)
-        if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'
+      - name: Assert Plan — Job runner env update is in-place (MANDATORY)
         run: python3 scripts/assert_job_runner_env_update.py tfplan.json
 
-      - name: Assert Plan — ingress_enabled does not replace gateway (MANDATORY — apply)
-        if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'
+      - name: Assert Plan — ingress_enabled does not replace gateway (MANDATORY)
         run: python3 scripts/assert_ingress_enabled_plan.py tfplan.json
 
-      - name: Assert Plan — Mongo repair Job contract (MANDATORY — apply)
-        if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'
+      - name: Assert Plan — Mongo repair Job contract (MANDATORY)
         run: python3 scripts/assert_mongo_repair_job_plan.py tfplan.json
 
+      # Runs for every change_profile, not only the two 9.9 profiles: under standard,
+      # this is a guard forbidding any change to the 9.9 protected surface (min_replicas,
+      # the two catalog-override env vars) on the three services — not a no-op. Once the
+      # 9.9 desired-state change lands in main.tf, a dispatch left on the default
+      # standard profile must not be able to apply it without going through the
+      # exact-scope proof below.
+      - name: Assert Plan — Spec A 9.9 profile guard / exact scope
+        run: python3 scripts/assert_spec_a_9_9_plan.py tfplan.json --profile "${{ github.event.inputs.change_profile }}" --expected-image-tag "${{ github.event.inputs.deployed_image_tag }}"
+
       - name: Terraform Apply
-        if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'
         run: terraform apply -auto-approve tfplan
