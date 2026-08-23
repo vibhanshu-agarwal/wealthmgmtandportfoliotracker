@@ -10,6 +10,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.context.TestPropertySource;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -43,6 +44,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 @Testcontainers
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
 @ActiveProfiles("local")
+// History-append tests use synthetic, non-catalog tickers (e.g. "HIT_APPEND", "HIT_DEDUP") —
+// catalog membership isn't the concern here (see SupportedAssetValidatorTest /
+// MarketPriceProjectionCurrencyTest for that). Explicitly hold the pre-cutover-checkpoint-9.8
+// permissive default so these synthetic tickers keep passing through regardless of the packaged
+// artifact default (.kiro/specs/supported-asset-integrity/tasks.md Task 9).
+@TestPropertySource(
+        properties = {
+            "app.catalog.reject-unsupported-events=false",
+            "app.catalog.enforce-holding-invariant=false"
+        })
 class Wave3HistoryAppendIT {
 
     @Container

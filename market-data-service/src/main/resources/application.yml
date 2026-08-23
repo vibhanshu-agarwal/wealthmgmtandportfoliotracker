@@ -20,8 +20,12 @@ spring:
 
 app:
   catalog:
-    reject-unsupported-events: false
-    enforce-holding-invariant: false
+    # Artifact default flipped true at cutover checkpoint 9.8 (supported-asset-integrity
+    # Task 9). Held effectively false through 9.8 by an explicit Terraform override on the
+    # Container App; the override is removed at checkpoint 9.9 to let this default take effect.
+    # Not load-bearing in this service today — read only for the catalog_loaded startup log line.
+    reject-unsupported-events: true
+    enforce-holding-invariant: true
   internal:
     # Shared secret gating /api/internal/** endpoints (Golden-State seeder).
     # Injected at runtime via the Lambda INTERNAL_API_KEY env var; blank in local dev

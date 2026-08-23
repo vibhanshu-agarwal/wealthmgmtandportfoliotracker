@@ -58,7 +58,7 @@ class MarketPriceProjectionService {
     MarketPriceProjectionService(
             JdbcTemplate jdbcTemplate,
             SupportedCatalog catalog,
-            @Value("${app.catalog.reject-unsupported-events:false}") boolean rejectUnsupportedEvents,
+            @Value("${app.catalog.reject-unsupported-events:true}") boolean rejectUnsupportedEvents,
             PriceProjectionSignals signals) {
         this.jdbcTemplate = jdbcTemplate;
         this.catalog = catalog;

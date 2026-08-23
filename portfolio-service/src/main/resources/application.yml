@@ -32,8 +32,11 @@ spring:
 
 app:
   catalog:
-    reject-unsupported-events: false
-    enforce-holding-invariant: false
+    # Artifact default flipped true at cutover checkpoint 9.8 (supported-asset-integrity
+    # Task 9). Held effectively false through 9.8 by an explicit Terraform override on the
+    # Container App; the override is removed at checkpoint 9.9 to let this default take effect.
+    reject-unsupported-events: true
+    enforce-holding-invariant: true
   demo:
     # Built in wave 8, shipped gated off. Activated at cutover checkpoint 9.12.
     # When false the initializer returns immediately — no lock, no read, no compare.

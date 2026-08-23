@@ -9,7 +9,8 @@ import org.springframework.stereotype.Component;
  * In-process write-boundary check against the catalog. Matches canonical ticker only;
  * no alias resolution and no cross-service call.
  *
- * <p>Gated by {@code app.catalog.enforce-holding-invariant} (default {@code false}).
+ * <p>Gated by {@code app.catalog.enforce-holding-invariant} (default {@code true} since cutover
+ * checkpoint 9.8, supported-asset-integrity Task 9).
  */
 @Component
 public class SupportedAssetValidator {
@@ -19,7 +20,7 @@ public class SupportedAssetValidator {
 
     public SupportedAssetValidator(
             SupportedCatalog catalog,
-            @Value("${app.catalog.enforce-holding-invariant:false}") boolean enforceHoldingInvariant) {
+            @Value("${app.catalog.enforce-holding-invariant:true}") boolean enforceHoldingInvariant) {
         this.catalog = catalog;
         this.enforceHoldingInvariant = enforceHoldingInvariant;
     }
