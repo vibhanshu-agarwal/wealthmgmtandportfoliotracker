@@ -222,7 +222,7 @@ jobs:
           CHANGE_PROFILE: ${{ github.event.inputs.change_profile }}
           USE_SEED_IMAGE: ${{ github.event.inputs.use_seed_image }}
           RECREATE_MARKET_DATA_JOB: ${{ github.event.inputs.recreate_market_data_job }}
-        run: python3 infrastructure/terraform/azure/scripts/validate_dispatch.py
+        run: python3 scripts/validate_dispatch.py
 
       - name: Azure Login (OIDC)
         uses: azure/login@v2
