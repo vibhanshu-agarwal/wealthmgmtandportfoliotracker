@@ -156,6 +156,20 @@ resource "azurerm_static_web_app" "frontend" {
   location            = "centralus" # SWA Free tier region constraint — do not change to var.location
   sku_tier            = "Free"
   sku_size            = "Free"
+
+  lifecycle {
+    ignore_changes = [
+      # Azure records the GitHub repository association as computed attributes after the SWA
+      # is connected via the portal. Terraform does not manage that connection: frontend
+      # content is deployed by deploy-azure.yml using SWA_DEPLOYMENT_TOKEN (the external-
+      # provider / deployment-token model). Re-declaring these fields would also require
+      # managing repository_token — an admin-capable credential with no deployment benefit.
+      # Ignoring both keeps the plan clean without touching the existing GitHub link.
+      # Confirmed present via baseline remote-plan run 32655541821 (2026-08-23).
+      repository_url,
+      repository_branch,
+    ]
+  }
 }
 
 # ---------------------------------------------------------------------------
@@ -495,7 +509,7 @@ resource "azurerm_container_app_job" "market_data_refresh" {
         value = "none"
       }
       env {
-        name  = "MARKET_DATA_JOB_RUNNER_ENABLED"
+        name = "MARKET_DATA_JOB_RUNNER_ENABLED"
         # Cutover checkpoint 9.3 (supported-asset-integrity Task 9): suspended for the
         # duration of the Postgres/Mongo repair (9.6/9.7). Restored to "true" at
         # checkpoint 9.11, through Terraform, after the Mongo repair reaches terminal
