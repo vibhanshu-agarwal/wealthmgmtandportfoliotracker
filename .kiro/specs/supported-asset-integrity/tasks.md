@@ -647,7 +647,7 @@ python scripts/check-spec-references.py   .kiro/specs/supported-asset-integrity/
       prerequisite closes the deploy-pipeline gap that caused the 9.8 incident; it does not itself
       authorize 9.9.
 
-  - [ ] 9.9 **CHECKPOINT — enforcement enabled**
+  - [x] 9.9 **CHECKPOINT — enforcement enabled**
     - Terraform removes both overrides **and** raises `min_replicas` 0 → 1 in the same apply;
       **ingress stays disabled**
     - Go: active revision is the R4 revision, image digest matches, every startup line under that
@@ -660,6 +660,35 @@ python scripts/check-spec-references.py   .kiro/specs/supported-asset-integrity/
       **actual enforcement** only needs to come from `portfolio-service`. This does not require new
       gating logic in the other two services — it's a scope fact about the existing code, not a gap.
     - Abort: re-add overrides — but **only with writes still closed**
+    - **EXECUTED 2026-08-23 (UTC) — GO:**
+      - Task 2 PR: [#145](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/145)
+        merged as merge commit `409b706` (main SHA: `409b70676bd4bb55276a709d9b407abc3b95e6a6`)
+        via `--merge` strategy; rollback ancestry verified: `git merge-base rollback/spec-a-9.9-abort main`
+        → `36c9ee0532c59197624ef258512af012f9559f00` ✓
+      - **Out-of-band prerequisite (2026-08-23T21:44Z):** `github-production-environment` federated
+        identity credential added to the Entra App Registration (`appId: 7afa23a3-6641-40dd-af94-c9a66b782da8`)
+        — subject `repo:vibhanshu-agarwal/wealthmgmtandportfoliotracker:environment:production`,
+        issuer `https://token.actions.githubusercontent.com`, audience `api://AzureADTokenExchange`.
+        This was not one of Terraform's three changes; it was a prerequisite for the `production`
+        Environment OIDC gate added in PR #141. Documented in `docs/runbooks/AZURE_SECRETS_SETUP.md`.
+      - Remote plan: run [32667213373](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/32667213373)
+        — `spec-a-9.9-enable`, SHA `409b70676bd4bb55276a709d9b407abc3b95e6a6`, image tag
+        `9b2cf0d655b4b7ae2ce20ff7b67e4ad750df6900`; plan: 0 add, **3 change**, 0 destroy;
+        all mandatory assertions PASS
+      - Apply: run [32668880869](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/32668880869)
+        — approved by `vibhanshu-agarwal` at the `production` Environment gate; all assertions PASS;
+        `Apply complete! Resources: 0 added, 3 changed, 0 destroyed.`
+      - Revision convergence (independently verified):
+        - `portfolio-service` → `--0000079`, Healthy/Running, 1 ready replica
+        - `market-data-service` → `--0000078`, Healthy/Running, 1 ready replica
+        - `insight-service` → `--0000078`, Healthy/Running, 1 ready replica
+      - Startup tuple on all three new revisions: catalog version `a00b32ac0267e1a9`,
+        `rejectUnsupportedEvents=true`, `enforceHoldingInvariant=true`; both overrides absent; R4 image/version intact
+      - Negative checks: no inconsistent tuples, no DLT events, no catalog failures; zero startup errors
+      - Safety fences post-apply: ingress null; refresh flag false; no refresh/repair Job execution running
+      - Kafka at `2026-08-23T22:08:06Z`: both `portfolio-group` and `insight-group` — committed 24541,
+        log-end 24541, lag 0
+      - ACR digests: all four unchanged from pre-apply baseline
 
   - [ ] 9.10 **CHECKPOINT — controlled refresh execution**
     - Start **one** execution with a **full-template override** enabling refresh; persisted Job
