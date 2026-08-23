@@ -45,6 +45,11 @@ jobs:
           python scripts/tests/test_resolve_digest_deploy.py
           python scripts/tests/test_deploy_azure_prebuilt_digest.py
 
+      - name: Deploy-pipeline hardening contract (Spec A checkpoint-9.8 incident)
+        run: |
+          python scripts/tests/test_validate_deploy_dispatch.py
+          python scripts/tests/test_deploy_pipeline_hardening.py
+
   sanitizer-canary:
     runs-on: ubuntu-latest
     needs: static-guard

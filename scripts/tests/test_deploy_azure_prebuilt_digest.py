@@ -18,20 +18,23 @@ class TestDeployAzurePrebuiltDigest(unittest.TestCase):
         cls.text = WORKFLOW.read_text(encoding="utf-8")
         cls.dispatcher = DISPATCHER.read_text(encoding="utf-8")
 
-    def test_both_triggers_declare_prebuilt_digest_defaulting_empty(self):
-        for heading in ("workflow_dispatch:", "workflow_call:"):
-            block = self._block(heading)
-            self.assertIn("prebuilt_digest:", block, heading)
-            self.assertRegex(block, r"prebuilt_digest:[\s\S]*?default:\s*\"\"")
+    def test_workflow_call_declares_prebuilt_digest_defaulting_empty(self):
+        block = self._block("workflow_call:")
+        self.assertIn("prebuilt_digest:", block)
+        self.assertRegex(block, r"prebuilt_digest:[\s\S]*?default:\s*\"\"")
 
-    def test_dispatcher_does_not_pass_a_digest_so_push_to_main_stays_tag_based(self):
-        self.assertNotIn("prebuilt_digest:", self.dispatcher)
+    def test_dispatcher_declares_and_passes_prebuilt_digest_through(self):
+        # Spec A checkpoint-9.8 hardening: deploy.yml is now the only entry point and
+        # must declare + forward prebuilt_digest itself (deploy-azure.yml no longer has
+        # a standalone workflow_dispatch to accept it directly).
+        self.assertIn("prebuilt_digest:", self.dispatcher)
         azure_job = re.search(
-            r"deploy-azure:\s*\n(?:.*\n)*?    secrets: inherit",
+            r"deploy-azure:\s*\n(?:.*\n)*?    environment: production",
             self.dispatcher,
         )
         self.assertIsNotNone(azure_job)
-        self.assertNotIn("with:", azure_job.group(0))
+        self.assertIn("with:", azure_job.group(0))
+        self.assertIn("prebuilt_digest: ${{ inputs.prebuilt_digest }}", azure_job.group(0))
 
     def test_cheap_digest_validation_runs_before_azure_login(self):
         cheap = self.text.find("Validate prebuilt digest")
