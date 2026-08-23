@@ -62,15 +62,19 @@ class TestDeployPipelineHardening(unittest.TestCase):
         # "workflow_call-only" only closes the gap if nothing else can reach these files.
         # No alternate caller exists in this repo today, but the contract should assert
         # that structurally, not rely on it staying true by absence.
+        # Both extensions (.yml/.yaml) and optionally-quoted `uses:` values must be
+        # recognized, or a valid alternate caller could slip past this check.
+        caller_pattern = re.compile(
+            r"""uses:\s*["']?\./\.github/workflows/deploy-(azure|aws)\.yml["']?"""
+        )
         workflow_dir = REPO / ".github" / "workflows"
+        excluded = {"deploy.yml", "deploy-azure.yml", "deploy-aws.yml"}
         callers = {
             path
-            for path in workflow_dir.glob("*.yml")
-            if path.name not in ("deploy.yml", "deploy-azure.yml", "deploy-aws.yml")
-            and re.search(
-                r"uses:\s*\./\.github/workflows/deploy-(azure|aws)\.yml",
-                path.read_text(encoding="utf-8"),
-            )
+            for pattern in ("*.yml", "*.yaml")
+            for path in workflow_dir.glob(pattern)
+            if path.name not in excluded
+            and caller_pattern.search(path.read_text(encoding="utf-8"))
         }
         self.assertEqual(
             callers,
@@ -79,9 +83,11 @@ class TestDeployPipelineHardening(unittest.TestCase):
             f"found an additional caller: {callers}",
         )
         self.assertRegex(
-            self.dispatcher, r"uses:\s*\./\.github/workflows/deploy-azure\.yml"
+            self.dispatcher, r"""uses:\s*["']?\./\.github/workflows/deploy-azure\.yml["']?"""
         )
-        self.assertRegex(self.dispatcher, r"uses:\s*\./\.github/workflows/deploy-aws\.yml")
+        self.assertRegex(
+            self.dispatcher, r"""uses:\s*["']?\./\.github/workflows/deploy-aws\.yml["']?"""
+        )
 
     # -- (3) environment gate + concurrency ------------------------------------
 
