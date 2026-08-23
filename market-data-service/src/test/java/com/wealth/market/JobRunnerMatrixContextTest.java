@@ -15,7 +15,10 @@ class JobRunnerMatrixContextTest {
                             MarketDataRefreshJobRunner.class,
                             MarketDataRefreshSuspendedJobRunner.class,
                             MarketDataRepairJobRunner.class)
-                    .withBean(MarketDataRefreshService.class, () -> mock(MarketDataRefreshService.class));
+                    .withBean(MarketDataRefreshService.class, () -> mock(MarketDataRefreshService.class))
+                    .withBean(
+                            com.wealth.market.repair.MongoMmNsRepairService.class,
+                            () -> mock(com.wealth.market.repair.MongoMmNsRepairService.class));
 
     @Test
     void bothAbsent_activatesNeitherRunner() {

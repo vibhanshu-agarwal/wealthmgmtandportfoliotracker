@@ -99,6 +99,16 @@ variable "market_data_refresh_job_use_seed_image" {
   EOT
 }
 
+variable "market_data_repair_job_use_seed_image" {
+  type        = bool
+  default     = false
+  description = <<-EOT
+    Job-scoped seed bootstrap for the market-data-repair Job ONLY. Same isolation as
+    market_data_refresh_job_use_seed_image: does not retarget live Container App ingress.
+    Default false.
+  EOT
+}
+
 # ---------------------------------------------------------------------------
 # Authentication
 # ---------------------------------------------------------------------------
