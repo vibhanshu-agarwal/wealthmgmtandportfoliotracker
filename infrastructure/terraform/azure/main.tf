@@ -300,7 +300,7 @@ module "portfolio_service" {
   # Inside ACA each service has its own internal FQDN, so port uniqueness is not required.
   target_port      = var.use_seed_image ? 80 : 8080
   external_ingress = false
-  min_replicas     = 0
+  min_replicas     = 1
   max_replicas     = 3
   cpu              = 0.5
   memory           = "1Gi"
@@ -312,12 +312,6 @@ module "portfolio_service" {
     MANAGEMENT_TRACING_SAMPLING_PROBABILITY                = "1.0"
     SERVICE_VERSION                                        = var.image_tag
     DEPLOYMENT_ENVIRONMENT_NAME                            = "prod"
-    # Cutover checkpoint 9.8 (supported-asset-integrity Task 9): explicit belt-and-braces
-    # override, forcing the enforcement gates false even though the artifact's own default
-    # flipped to true at 9.8. Removed (not flipped) at checkpoint 9.9 to enable enforcement.
-    # See .kiro/specs/supported-asset-integrity/tasks.md Task 9.
-    APP_CATALOG_REJECT_UNSUPPORTED_EVENTS = "false"
-    APP_CATALOG_ENFORCE_HOLDING_INVARIANT = "false"
   }
 
   secret_env_vars = {
@@ -360,7 +354,7 @@ module "market_data_service" {
   # target_port 8080 — see comment in module.portfolio_service for rationale.
   target_port      = var.use_seed_image ? 80 : 8080
   external_ingress = false
-  min_replicas     = 0
+  min_replicas     = 1
   max_replicas     = 3
   cpu              = 0.5
   memory           = "1Gi"
@@ -372,13 +366,6 @@ module "market_data_service" {
     MANAGEMENT_TRACING_SAMPLING_PROBABILITY                = "1.0"
     SERVICE_VERSION                                        = var.image_tag
     DEPLOYMENT_ENVIRONMENT_NAME                            = "prod"
-    # Cutover checkpoint 9.8 (supported-asset-integrity Task 9): explicit belt-and-braces
-    # override, forcing the enforcement gates false even though the artifact's own default
-    # flipped to true at 9.8. Removed (not flipped) at checkpoint 9.9 to enable enforcement.
-    # Not load-bearing in this service today — read only for the catalog_loaded startup log line.
-    # See .kiro/specs/supported-asset-integrity/tasks.md Task 9.
-    APP_CATALOG_REJECT_UNSUPPORTED_EVENTS = "false"
-    APP_CATALOG_ENFORCE_HOLDING_INVARIANT = "false"
   }
 
   secret_env_vars = {
@@ -748,7 +735,7 @@ module "insight_service" {
   # target_port 8080 — see comment in module.portfolio_service for rationale.
   target_port      = var.use_seed_image ? 80 : 8080
   external_ingress = false
-  min_replicas     = 0
+  min_replicas     = 1
   max_replicas     = 3
   cpu              = 0.5
   memory           = "1Gi"
@@ -765,13 +752,6 @@ module "insight_service" {
     MANAGEMENT_TRACING_SAMPLING_PROBABILITY                = "1.0"
     SERVICE_VERSION                                        = var.image_tag
     DEPLOYMENT_ENVIRONMENT_NAME                            = "prod"
-    # Cutover checkpoint 9.8 (supported-asset-integrity Task 9): explicit belt-and-braces
-    # override, forcing the enforcement gates false even though the artifact's own default
-    # flipped to true at 9.8. Removed (not flipped) at checkpoint 9.9 to enable enforcement.
-    # Not load-bearing in this service today — read only for the catalog_loaded startup log line.
-    # See .kiro/specs/supported-asset-integrity/tasks.md Task 9.
-    APP_CATALOG_REJECT_UNSUPPORTED_EVENTS = "false"
-    APP_CATALOG_ENFORCE_HOLDING_INVARIANT = "false"
   }
 
   secret_env_vars = {
