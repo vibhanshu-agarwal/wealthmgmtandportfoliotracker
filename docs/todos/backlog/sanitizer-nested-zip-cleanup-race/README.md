@@ -4,9 +4,9 @@
 **Owner:** unassigned
 **Tracked in:** Found investigating `sanitizer-canary`'s `FAILURE` on
 [PR #136](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/136) (checkpoint
-9.7 prep). PR #136 does not touch the sanitizer action at all — this was pre-existing and unrelated
-to that PR's actual change. Fixed on the same branch to unblock the required check, since the
-underlying repair-Job payload had nothing to do with it.
+9.7 prep). The original 9.7 payload (commit `ae10ea8`, the Mongo repair Job) did not touch the
+sanitizer action at all — this was pre-existing and unrelated to that change. The fix itself was
+then added to the same PR branch (commit `7f421e8`) to unblock the required check.
 
 ---
 
@@ -82,6 +82,6 @@ independently of that PR — worth confirming after PR #136 lands that this fix 
   conflict from 2026-08-20. Worth treating "sanitizer test failure" as a signal to investigate, not
   a default flake-and-retry, given the track record — confirmed again here: two identical retries
   before the fix, zero after, across three separate local runs.
-- Was not blocking checkpoint 9.7 substantively (the repair Job's own PR doesn't touch this code),
-  but was a required CI check, so PR #136 stayed legitimately blocked until this was fixed for
+- Was not blocking checkpoint 9.7 substantively (the repair Job payload itself never touched this
+  code), but was a required CI check, so PR #136 stayed legitimately blocked until this was fixed for
   real — not bypassed, not retried into passing by luck.
