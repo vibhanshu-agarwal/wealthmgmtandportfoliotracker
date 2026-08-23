@@ -47,9 +47,9 @@ class MarketDataCatalogConfiguration {
     @Bean
     ApplicationListener<ApplicationReadyEvent> catalogLoadedLogger(SupportedCatalog catalog) {
         boolean rejectUnsupportedEvents =
-                environment.getProperty("app.catalog.reject-unsupported-events", Boolean.class, false);
+                environment.getProperty("app.catalog.reject-unsupported-events", Boolean.class, true);
         boolean enforceHoldingInvariant =
-                environment.getProperty("app.catalog.enforce-holding-invariant", Boolean.class, false);
+                environment.getProperty("app.catalog.enforce-holding-invariant", Boolean.class, true);
         return event ->
                 log.info(
                         "catalog_loaded version={} entries={} active={} rejectUnsupportedEvents={} enforceHoldingInvariant={}",

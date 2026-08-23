@@ -298,6 +298,12 @@ module "portfolio_service" {
     MANAGEMENT_TRACING_SAMPLING_PROBABILITY                = "1.0"
     SERVICE_VERSION                                        = var.image_tag
     DEPLOYMENT_ENVIRONMENT_NAME                            = "prod"
+    # Cutover checkpoint 9.8 (supported-asset-integrity Task 9): explicit belt-and-braces
+    # override, forcing the enforcement gates false even though the artifact's own default
+    # flipped to true at 9.8. Removed (not flipped) at checkpoint 9.9 to enable enforcement.
+    # See .kiro/specs/supported-asset-integrity/tasks.md Task 9.
+    APP_CATALOG_REJECT_UNSUPPORTED_EVENTS = "false"
+    APP_CATALOG_ENFORCE_HOLDING_INVARIANT = "false"
   }
 
   secret_env_vars = {
@@ -352,6 +358,13 @@ module "market_data_service" {
     MANAGEMENT_TRACING_SAMPLING_PROBABILITY                = "1.0"
     SERVICE_VERSION                                        = var.image_tag
     DEPLOYMENT_ENVIRONMENT_NAME                            = "prod"
+    # Cutover checkpoint 9.8 (supported-asset-integrity Task 9): explicit belt-and-braces
+    # override, forcing the enforcement gates false even though the artifact's own default
+    # flipped to true at 9.8. Removed (not flipped) at checkpoint 9.9 to enable enforcement.
+    # Not load-bearing in this service today — read only for the catalog_loaded startup log line.
+    # See .kiro/specs/supported-asset-integrity/tasks.md Task 9.
+    APP_CATALOG_REJECT_UNSUPPORTED_EVENTS = "false"
+    APP_CATALOG_ENFORCE_HOLDING_INVARIANT = "false"
   }
 
   secret_env_vars = {
@@ -738,6 +751,13 @@ module "insight_service" {
     MANAGEMENT_TRACING_SAMPLING_PROBABILITY                = "1.0"
     SERVICE_VERSION                                        = var.image_tag
     DEPLOYMENT_ENVIRONMENT_NAME                            = "prod"
+    # Cutover checkpoint 9.8 (supported-asset-integrity Task 9): explicit belt-and-braces
+    # override, forcing the enforcement gates false even though the artifact's own default
+    # flipped to true at 9.8. Removed (not flipped) at checkpoint 9.9 to enable enforcement.
+    # Not load-bearing in this service today — read only for the catalog_loaded startup log line.
+    # See .kiro/specs/supported-asset-integrity/tasks.md Task 9.
+    APP_CATALOG_REJECT_UNSUPPORTED_EVENTS = "false"
+    APP_CATALOG_ENFORCE_HOLDING_INVARIANT = "false"
   }
 
   secret_env_vars = {
