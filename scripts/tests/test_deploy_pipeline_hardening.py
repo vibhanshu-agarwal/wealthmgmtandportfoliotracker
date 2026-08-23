@@ -7,8 +7,10 @@ was supposed to shadow it existed — with no gate in between. These assertions 
 regressions on any of the four fixes fail in CI, not in production:
 
   1. deploy.yml has no push trigger — workflow_dispatch is the only way in.
-  2. deploy-azure.yml / deploy-aws.yml have no standalone workflow_dispatch — deploy.yml
-     is their only entry point, so its guards cover every path to production.
+  2. deploy-azure.yml / deploy-aws.yml have no standalone workflow_dispatch, AND no other
+     workflow file calls them via `uses:` — deploy.yml is their only entry point (proven,
+     not just assumed by removing their own dispatch triggers), so its guards cover every
+     path to production.
   3. Every production-mutating call is gated behind the `production` GitHub Environment
      and a non-cancelling concurrency group (two dispatches queue, never overlap).
   4. deploy.yml requires an explicit deployment_mode and an expected_main_sha, both
@@ -55,6 +57,31 @@ class TestDeployPipelineHardening(unittest.TestCase):
         on_block = self._on_block(self.deploy_aws)
         self.assertNotIn("workflow_dispatch:", on_block)
         self.assertIn("workflow_call:", on_block)
+
+    def test_deploy_yml_is_the_only_caller_of_the_cloud_workflows(self):
+        # "workflow_call-only" only closes the gap if nothing else can reach these files.
+        # No alternate caller exists in this repo today, but the contract should assert
+        # that structurally, not rely on it staying true by absence.
+        workflow_dir = REPO / ".github" / "workflows"
+        callers = {
+            path
+            for path in workflow_dir.glob("*.yml")
+            if path.name not in ("deploy.yml", "deploy-azure.yml", "deploy-aws.yml")
+            and re.search(
+                r"uses:\s*\./\.github/workflows/deploy-(azure|aws)\.yml",
+                path.read_text(encoding="utf-8"),
+            )
+        }
+        self.assertEqual(
+            callers,
+            set(),
+            f"deploy-azure.yml/deploy-aws.yml must only be called from deploy.yml; "
+            f"found an additional caller: {callers}",
+        )
+        self.assertRegex(
+            self.dispatcher, r"uses:\s*\./\.github/workflows/deploy-azure\.yml"
+        )
+        self.assertRegex(self.dispatcher, r"uses:\s*\./\.github/workflows/deploy-aws\.yml")
 
     # -- (3) environment gate + concurrency ------------------------------------
 
