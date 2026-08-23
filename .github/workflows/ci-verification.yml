@@ -50,6 +50,21 @@ jobs:
           python scripts/tests/test_validate_deploy_dispatch.py
           python scripts/tests/test_deploy_pipeline_hardening.py
 
+      - name: Install pinned actionlint (GitHub Actions schema validation)
+        # Text-based contract tests above only prove intent, not that GitHub's Actions
+        # schema actually accepts the YAML — that gap let an invalid `environment:` on a
+        # `uses:` job pass every other check on PR #139 (Spec A checkpoint-9.8 review).
+        # Pinned to a specific version + verified checksum, not a floating action tag,
+        # for the same reason the rest of this hardening avoids unverified assumptions.
+        run: |
+          curl -sSLO https://github.com/rhysd/actionlint/releases/download/v1.7.7/actionlint_1.7.7_linux_amd64.tar.gz
+          echo "023070a287cd8cccd71515fedc843f1985bf96c436b7effaecce67290e7e0757  actionlint_1.7.7_linux_amd64.tar.gz" | sha256sum -c -
+          tar -xzf actionlint_1.7.7_linux_amd64.tar.gz actionlint
+          ./actionlint -version
+
+      - name: actionlint — deploy workflows
+        run: ./actionlint .github/workflows/deploy.yml .github/workflows/deploy-azure.yml .github/workflows/deploy-aws.yml .github/workflows/ci-verification.yml
+
   sanitizer-canary:
     runs-on: ubuntu-latest
     needs: static-guard

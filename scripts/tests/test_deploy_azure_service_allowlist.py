@@ -40,7 +40,7 @@ class TestDeployAzureServiceAllowlist(unittest.TestCase):
 
     def test_dispatcher_passes_services_and_prebuilt_digest_through(self):
         azure_job = re.search(
-            r"deploy-azure:\s*\n(?:.*\n)*?    environment: production",
+            r"deploy-azure:\s*\n(?:.*\n)*?    secrets: inherit",
             self.dispatcher,
         )
         self.assertIsNotNone(azure_job)

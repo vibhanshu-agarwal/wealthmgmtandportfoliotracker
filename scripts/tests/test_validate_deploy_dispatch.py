@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Unit tests for .github/workflows/scripts/validate_deploy_dispatch.py.
 
-Deploy-pipeline hardening (post checkpoint-9.8 incident): expected_main_sha must match
-the actual dispatch SHA, and deployment_mode must be consistent with services/
-prebuilt_digest — no silent full-deploy inference at the dispatcher layer.
+Deploy-pipeline hardening (post checkpoint-9.8 incident, extended after Codex review of
+PR #139): expected_main_sha must match the actual dispatch SHA, the dispatch must target
+refs/heads/main exactly (a matching SHA on another ref is not sufficient), deployment_mode
+must be consistent with services/prebuilt_digest (including rejecting the sentinel
+dropdown default), and AWS may only receive deployment_mode=full.
 """
 
 from __future__ import annotations
@@ -18,6 +20,7 @@ SCRIPT = REPO / ".github" / "workflows" / "scripts" / "validate_deploy_dispatch.
 
 SHA = "9b2cf0d655b4b7ae2ce20ff7b67e4ad750df6900"
 OTHER_SHA = "db1db2f8ab4e9d2291864d20490177f100e10055"
+MAIN_REF = "refs/heads/main"
 
 
 def _load():
@@ -42,6 +45,8 @@ class TestValidateDeployDispatch(unittest.TestCase):
             prebuilt_digest="",
             expected_main_sha=SHA,
             actual_sha=SHA,
+            actual_ref=MAIN_REF,
+            cloud_provider="azure",
         )
         base.update(overrides)
         return self.mod.DispatchInputs(**base)
@@ -66,6 +71,20 @@ class TestValidateDeployDispatch(unittest.TestCase):
     def test_empty_actual_sha_fails_closed(self):
         with self.assertRaises(self.mod.DispatchValidationError):
             self.mod.validate(self._inputs(actual_sha=""))
+
+    # -- ref guard -------------------------------------------------------------
+
+    def test_non_main_ref_fails_closed_even_with_matching_sha(self):
+        with self.assertRaises(self.mod.DispatchValidationError) as ctx:
+            self.mod.validate(self._inputs(actual_ref="refs/heads/feature-branch"))
+        self.assertIn("must be dispatched against", str(ctx.exception))
+
+    def test_tag_ref_fails_closed(self):
+        with self.assertRaises(self.mod.DispatchValidationError):
+            self.mod.validate(self._inputs(actual_ref="refs/tags/v1.0.0"))
+
+    def test_main_ref_passes(self):
+        self.mod.validate(self._inputs(actual_ref=MAIN_REF))
 
     # -- mode guard: full ------------------------------------------------------
 
@@ -134,11 +153,45 @@ class TestValidateDeployDispatch(unittest.TestCase):
                 )
             )
 
-    # -- unknown mode ------------------------------------------------------------
+    # -- unknown mode / sentinel default -----------------------------------------
 
     def test_unknown_mode_fails_closed(self):
         with self.assertRaises(self.mod.DispatchValidationError):
             self.mod.validate(self._inputs(deployment_mode="bogus"))
+
+    def test_sentinel_default_fails_closed(self):
+        # The dropdown's pre-filled first option — accepting it without choosing a real
+        # mode must not silently resolve to "full".
+        with self.assertRaises(self.mod.DispatchValidationError) as ctx:
+            self.mod.validate(self._inputs(deployment_mode="select-deployment-mode"))
+        self.assertIn("explicitly choose", str(ctx.exception))
+
+    # -- AWS provider guard --------------------------------------------------------
+
+    def test_aws_full_mode_passes(self):
+        self.mod.validate(self._inputs(cloud_provider="aws", deployment_mode="full"))
+
+    def test_aws_scoped_mode_fails_closed(self):
+        with self.assertRaises(self.mod.DispatchValidationError) as ctx:
+            self.mod.validate(
+                self._inputs(cloud_provider="aws", deployment_mode="scoped", services="api-gateway")
+            )
+        self.assertIn("not supported for CLOUD_PROVIDER=aws", str(ctx.exception))
+
+    def test_aws_digest_mode_fails_closed(self):
+        with self.assertRaises(self.mod.DispatchValidationError):
+            self.mod.validate(
+                self._inputs(
+                    cloud_provider="aws",
+                    deployment_mode="digest",
+                    prebuilt_digest="wealthprodacr.azurecr.io/portfolio-service@sha256:" + "a" * 64,
+                )
+            )
+
+    def test_azure_scoped_mode_unaffected_by_provider_guard(self):
+        self.mod.validate(
+            self._inputs(cloud_provider="azure", deployment_mode="scoped", services="api-gateway")
+        )
 
 
 if __name__ == "__main__":

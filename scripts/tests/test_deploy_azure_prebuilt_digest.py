@@ -29,7 +29,7 @@ class TestDeployAzurePrebuiltDigest(unittest.TestCase):
         # a standalone workflow_dispatch to accept it directly).
         self.assertIn("prebuilt_digest:", self.dispatcher)
         azure_job = re.search(
-            r"deploy-azure:\s*\n(?:.*\n)*?    environment: production",
+            r"deploy-azure:\s*\n(?:.*\n)*?    secrets: inherit",
             self.dispatcher,
         )
         self.assertIsNotNone(azure_job)

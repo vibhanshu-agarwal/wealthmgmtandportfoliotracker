@@ -67,13 +67,23 @@ class TestDeployPipelineHardening(unittest.TestCase):
         self.assertIsNotNone(match, "deploy.yml must declare a top-level concurrency group")
         self.assertEqual(match.group(2), "false")
 
-    def test_deploy_azure_job_requires_production_environment(self):
-        job = self._job(self.dispatcher, "deploy-azure:")
+    def test_authorize_production_job_gates_on_the_production_environment(self):
+        # A job calling a reusable workflow with `uses:` cannot itself declare
+        # `environment:` — not a supported keyword (confirmed with actionlint, not
+        # assumed). The gate must live on a normal job instead.
+        job = self._job(self.dispatcher, "authorize-production:")
         self.assertIn("environment: production", job)
+        self.assertNotIn("uses:", job)
 
-    def test_deploy_aws_job_requires_production_environment(self):
-        job = self._job(self.dispatcher, "deploy-aws:")
-        self.assertIn("environment: production", job)
+    def test_deploy_jobs_do_not_declare_environment_directly(self):
+        for heading in ("deploy-azure:", "deploy-aws:"):
+            job = self._job(self.dispatcher, heading)
+            self.assertNotIn("environment:", job)
+
+    def test_route_and_deploy_jobs_transitively_require_authorization(self):
+        self.assertIn("needs: authorize-production", self._job(self.dispatcher, "route:"))
+        self.assertIn("needs: route", self._job(self.dispatcher, "deploy-azure:"))
+        self.assertIn("needs: route", self._job(self.dispatcher, "deploy-aws:"))
 
     # -- (4) required, validated dispatch inputs -------------------------------
 
@@ -88,17 +98,28 @@ class TestDeployPipelineHardening(unittest.TestCase):
             r"expected_main_sha:[\s\S]*?required:\s*true",
         )
 
-    def test_validate_job_runs_before_route_and_deploy_jobs(self):
-        self.assertIn("validate:", self.dispatcher)
-        route_job = self._job(self.dispatcher, "route:")
-        self.assertIn("needs: validate", route_job)
-        self.assertIn("needs: route", self._job(self.dispatcher, "deploy-azure:"))
+    def test_deployment_mode_defaults_to_a_rejected_sentinel(self):
+        # type: choice pre-fills the dropdown with the first option. If that option were
+        # a real mode (e.g. "full"), clicking Run without touching the dropdown would
+        # silently deploy. The first option must be a sentinel the validator rejects.
+        block = self._block(self.dispatcher, "deployment_mode:")
+        options = re.search(r"options:\s*\n((?:\s+-\s+\S+\s*\n)+)", block)
+        self.assertIsNotNone(options)
+        first_option = options.group(1).strip().splitlines()[0].strip().lstrip("- ").strip()
+        self.assertEqual(first_option, "select-deployment-mode")
 
-    def test_validate_job_invokes_the_validation_script_with_actual_sha(self):
+    def test_validate_job_runs_before_authorize_production(self):
+        self.assertIn("validate:", self.dispatcher)
+        authorize_job = self._job(self.dispatcher, "authorize-production:")
+        self.assertIn("needs: validate", authorize_job)
+
+    def test_validate_job_invokes_the_validation_script_with_actual_sha_ref_and_provider(self):
         validate_job = self._job(self.dispatcher, "validate:")
         self.assertIn("validate_deploy_dispatch.py", validate_job)
         self.assertIn("ACTUAL_SHA: ${{ github.sha }}", validate_job)
+        self.assertIn("ACTUAL_REF: ${{ github.ref }}", validate_job)
         self.assertIn("EXPECTED_MAIN_SHA: ${{ inputs.expected_main_sha }}", validate_job)
+        self.assertIn("CLOUD_PROVIDER: ${{ vars.CLOUD_PROVIDER }}", validate_job)
 
     def test_validation_script_exists(self):
         self.assertTrue(VALIDATE_SCRIPT.is_file())
