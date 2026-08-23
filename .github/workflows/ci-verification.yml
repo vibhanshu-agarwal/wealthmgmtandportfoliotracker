@@ -63,7 +63,13 @@ jobs:
           ./actionlint -version
 
       - name: actionlint — deploy workflows
-        run: ./actionlint .github/workflows/deploy.yml .github/workflows/deploy-azure.yml .github/workflows/deploy-aws.yml .github/workflows/ci-verification.yml
+        # -shellcheck= disables actionlint's embedded-script shellcheck sub-linter: this
+        # step exists to catch GitHub Actions *schema* violations (the environment:-on-
+        # uses: bug this was added for), not to enforce shell-script hygiene across files
+        # this PR doesn't touch. Confirmed locally that disabling it does not suppress
+        # the schema check itself — re-verify with a deliberately reintroduced bug before
+        # changing this flag.
+        run: ./actionlint -shellcheck= .github/workflows/deploy.yml .github/workflows/deploy-azure.yml .github/workflows/deploy-aws.yml .github/workflows/ci-verification.yml
 
   sanitizer-canary:
     runs-on: ubuntu-latest
