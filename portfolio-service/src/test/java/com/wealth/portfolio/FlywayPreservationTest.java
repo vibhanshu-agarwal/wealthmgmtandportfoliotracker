@@ -68,7 +68,7 @@ class FlywayPreservationTest {
             "portfolios", Set.of("id", "user_id", "created_at"),
             "asset_holdings", Set.of("id", "portfolio_id", "asset_ticker", "quantity",
                     "avg_cost_basis", "cost_basis_currency", "cost_basis_source", "cost_basis_as_of"),
-            "market_prices", Set.of("ticker", "current_price", "updated_at", "quote_currency")
+            "market_prices", Set.of("ticker", "current_price", "updated_at", "quote_currency", "observed_at")
     );
 
     /**
@@ -101,7 +101,8 @@ class FlywayPreservationTest {
                     "ticker", "character varying",
                     "current_price", "numeric",
                     "updated_at", "timestamp without time zone",
-                    "quote_currency", "character varying"
+                    "quote_currency", "character varying",
+                    "observed_at", "timestamp without time zone"
             )
     );
 
@@ -219,9 +220,13 @@ class FlywayPreservationTest {
         assertThat(seededUserCount).as("Seeded dev user from V4 should be preserved").isEqualTo(1);
 
         Integer seededPriceCount = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM market_prices WHERE ticker IN ('AAPL', 'TSLA', 'BTC')",
+                "SELECT COUNT(*) FROM market_prices WHERE ticker IN ('AAPL', 'TSLA')",
                 Integer.class);
-        assertThat(seededPriceCount).as("Seeded market prices from V2 should be preserved").isEqualTo(3);
+        assertThat(seededPriceCount).as("Seeded AAPL/TSLA market prices from V2 should be preserved").isEqualTo(2);
+        Integer legacyBtcPriceCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM market_prices WHERE ticker = 'BTC'",
+                Integer.class);
+        assertThat(legacyBtcPriceCount).as("V18 removes the orphaned V2 BTC price row").isZero();
     }
 
     // ── Test 3: Flyway history preservation ──────────────────────────────────

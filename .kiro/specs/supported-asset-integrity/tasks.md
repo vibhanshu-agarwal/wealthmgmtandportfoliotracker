@@ -197,37 +197,38 @@ python scripts/check-spec-references.py   .kiro/specs/supported-asset-integrity/
   - [x] 5.6 Global-constraints review checkpoint
     - Walk the Global Constraints list; confirm none was violated by waves 0–5
 
-- [ ] 6. Postgres repair (V17–V19) — **first irreversible wave**
-  - [ ] 6.1 V17: `repair_archive` + `repair_audit`
+- [x] 6. Postgres repair (V17–V19) — **first irreversible wave**
+  - [x] 6.1 V17: `repair_archive` + `repair_audit`
     - Archive: `UNIQUE (migration_version, source_table, natural_key)`, natural key **full-precision**
     - Audit: `PRIMARY KEY (migration_version, portfolio_id, asset_ticker)`
     - _Requirements: 7.2, 7.20_
 
-  - [ ] 6.2 V17: `TIMESTAMP(3)` truncation preflight
+  - [x] 6.2 V17: `TIMESTAMP(3)` truncation preflight
     - Group history by `(ticker, date_trunc('milliseconds', observed_at))`; identical payloads
       collapse with losers archived as `COLLISION_LOSER`; **any conflicting group aborts before the
       `ALTER`** — discovering it afterwards means the data is already merged
     - _Requirements: 9.1_
 
-  - [ ] 6.3 V17: add `market_prices.observed_at TIMESTAMP(3)`, alter history to `TIMESTAMP(3)`
+  - [x] 6.3 V17: add `market_prices.observed_at TIMESTAMP(3)`, alter history to `TIMESTAMP(3)`
     - **`USING date_trunc('milliseconds', observed_at)`** — design Rev 10: the default cast rounds,
       while the writer and the 6.2 preflight truncate; the clause makes all three share one function
     - _Requirements: 9.1_
 
-  - [ ] 6.4 V18: `BTC` → `BTC-USD` holding; archive+delete synthetic `BTC` history; drop `BTC` price row
+  - [x] 6.4 V18: `BTC` → `BTC-USD` holding; archive+delete synthetic `BTC` history; drop `BTC` price row
     - Archive with reason `LEGACY_SYNTHETIC`, verbatim, before deletion
     - _Requirements: 7.1, 7.2, 7.18, 7.19, 7.20_
 
-  - [ ] 6.5 V19: `MM.NS` → `M&M.NS` across holdings, prices, history
+  - [x] 6.5 V19: `MM.NS` → `M&M.NS` across holdings, prices, history
+    - Canonical_Manifest ticker rename ships in the same change (Requirement 4.8 / task 2.1 deferral)
     - _Requirements: 7.3, 7.26, 7.27_
 
-  - [ ] 6.6 Collision rules, decided outcomes
+  - [x] 6.6 Collision rules, decided outcomes
     - Holdings **combine**, quantity-weighted basis; currency mismatch → abort; either basis null →
       whole basis tuple null with both originals archived; `q1+q2 <= 0` → abort;
       `cost_basis_as_of` = **later**; `cost_basis_source = MERGED` on successful non-null merge only
     - _Requirements: 7.7, 7.8, 7.9, 7.10, 7.11, 7.12, 7.13_
 
-  - [ ] 6.7 `Post_Migration_Integrity_Assertion`
+  - [x] 6.7 `Post_Migration_Integrity_Assertion`
     - Checks **both**: migration-created/replaced holdings (from `repair_audit`) name Active_Assets,
       **and** the whole table satisfies the Referential_Invariant; pre-existing deprecated positions
       exempt from the first
@@ -235,33 +236,33 @@ python scripts/check-spec-references.py   .kiro/specs/supported-asset-integrity/
     - Per-migration postconditions per the design's table
     - _Requirements: 6.11, 6.12, 6.13, 6.14, 6.15, 6.16, 7.30_
 
-  - [ ] 6.8 Idempotency under Flyway re-execution
+  - [x] 6.8 Idempotency under Flyway re-execution
     - _Requirements: 7.29_
 
-  - [ ] 6.9 **Integration tests: migration scenarios** — the Postgres equivalent of 7.7
+  - [x] 6.9 **Integration tests: migration scenarios** — the Postgres equivalent of 7.7
     - Eighteen concrete Testcontainers-Postgres cases. These run **before** the maintenance window;
       only the deployment at 9.6 is irreversible, so there is no reason to discover any of this live.
-    - [ ] 6.9.1 precision collision, identical payloads → collapse, losers archived `COLLISION_LOSER`
-    - [ ] 6.9.2 precision collision, conflicting payloads → **abort before the `ALTER`**
-    - [ ] 6.9.3 `BTC` history archived verbatim → archive count equals pre-migration count, and
+    - [x] 6.9.1 precision collision, identical payloads → collapse, losers archived `COLLISION_LOSER`
+    - [x] 6.9.2 precision collision, conflicting payloads → **abort before the `ALTER`**
+    - [x] 6.9.3 `BTC` history archived verbatim → archive count equals pre-migration count, and
           `payload = to_jsonb(row)` round-trips to original types for every column
-    - [ ] 6.9.4 zero operational `BTC` history rows remain after V18
-    - [ ] 6.9.5 holding collision, both symbols held → quantities combined, weighted basis correct
-    - [ ] 6.9.6 holding collision, currency mismatch → abort
-    - [ ] 6.9.7 holding collision, either basis null → whole basis tuple null, both originals archived
-    - [ ] 6.9.8 holding collision, `q1+q2 <= 0` → abort
-    - [ ] 6.9.9 `MM.NS` migrated across holdings, prices, and history with continuity preserved
-    - [ ] 6.9.10 `market_prices` collision, **newer** `observed_at` wins
-    - [ ] 6.9.11 `market_prices` collision, **known beats null**
-    - [ ] 6.9.12 `market_prices` collision, **both null → destination retained**, source archived
-    - [ ] 6.9.13 `market_price_history` collision at one `(ticker, observed_at)`, identical payload → collapse
-    - [ ] 6.9.14 `market_price_history` collision at one `(ticker, observed_at)`, conflicting payload → **abort**
-    - [ ] 6.9.15 `market_prices` collision, **equal known `observed_at` + identical payload** → idempotent collapse
-    - [ ] 6.9.16 `market_prices` collision, **equal known `observed_at` + conflicting payload** → migration
+    - [x] 6.9.4 zero operational `BTC` history rows remain after V18
+    - [x] 6.9.5 holding collision, both symbols held → quantities combined, weighted basis correct
+    - [x] 6.9.6 holding collision, currency mismatch → abort
+    - [x] 6.9.7 holding collision, either basis null → whole basis tuple null, both originals archived
+    - [x] 6.9.8 holding collision, `q1+q2 <= 0` → abort
+    - [x] 6.9.9 `MM.NS` migrated across holdings, prices, and history with continuity preserved
+    - [x] 6.9.10 `market_prices` collision, **newer** `observed_at` wins
+    - [x] 6.9.11 `market_prices` collision, **known beats null**
+    - [x] 6.9.12 `market_prices` collision, **both null → destination retained**, source archived
+    - [x] 6.9.13 `market_price_history` collision at one `(ticker, observed_at)`, identical payload → collapse
+    - [x] 6.9.14 `market_price_history` collision at one `(ticker, observed_at)`, conflicting payload → **abort**
+    - [x] 6.9.15 `market_prices` collision, **equal known `observed_at` + identical payload** → idempotent collapse
+    - [x] 6.9.16 `market_prices` collision, **equal known `observed_at` + conflicting payload** → migration
           **aborts without deleting or altering either candidate** — both rows survive for operator resolution
-    - [ ] 6.9.17 `Post_Migration_Integrity_Assertion` fails a migration-created deprecated position,
+    - [x] 6.9.17 `Post_Migration_Integrity_Assertion` fails a migration-created deprecated position,
           and passes a pre-existing one — the distinction the audit table exists to make
-    - [ ] 6.9.18 any persisted `TATAMOTORS.NS` holding is **byte-unchanged** after all migrations —
+    - [x] 6.9.18 any persisted `TATAMOTORS.NS` holding is **byte-unchanged** after all migrations —
           not deleted, not reassigned, quantity and cost basis intact
     - Re-execution of the full set is idempotent
     - _Requirements: 7.1, 7.3, 7.7, 7.9, 7.10, 7.11, 7.12, 7.18, 7.19, 7.20, 7.28, 7.29, 7.30_
@@ -331,40 +332,40 @@ python scripts/check-spec-references.py   .kiro/specs/supported-asset-integrity/
   - [x] 8.1 `resolveTrackedTickers()` returns Active_Assets; retire the Mongo union
     - _Requirements: 5.1, 5.2, 5.3, 5.6, 5.7_
 
-  - [ ] 8.2 Projection: currency normalization before comparison
+  - [x] 8.2 Projection: currency normalization before comparison
     - null → resolve from catalog; unresolvable → reject+surface; non-null must equal catalog,
       mismatch → reject+surface; ticker absent from catalog → reject+surface regardless of currency
     - Never default to `USD`
     - _Requirements: 9.3, 9.4, 9.5, 9.6, 9.11, 9.12_
 
-  - [ ] 8.3 Projection: tuple upsert, every transition **and its outcome**
+  - [x] 8.3 Projection: tuple upsert, every transition **and its outcome**
     - Rows-affected alone collapses cases that must be distinguished. Against **real Postgres**:
-    - [ ] 8.3.1 newer-over-known → tuple written
-    - [ ] 8.3.2 older-over-known → **nothing** written: not price, not currency, not timestamp
-    - [ ] 8.3.3 equal timestamp, **identical** payload → idempotent no-op
-    - [ ] 8.3.4 equal timestamp, **conflicting** payload → surfaced, not silently dropped
-    - [ ] 8.3.5 known-over-null → written (legacy row acquires provenance)
-    - [ ] 8.3.6 null-over-known → **nothing** written (no downgrade to `UNKNOWN`)
-    - [ ] 8.3.7 null-over-null → written, timestamp stays null, **later-received wins**, and the
+    - [x] 8.3.1 newer-over-known → tuple written
+    - [x] 8.3.2 older-over-known → **nothing** written: not price, not currency, not timestamp
+    - [x] 8.3.3 equal timestamp, **identical** payload → idempotent no-op
+    - [x] 8.3.4 equal timestamp, **conflicting** payload → surfaced, not silently dropped
+    - [x] 8.3.5 known-over-null → written (legacy row acquires provenance)
+    - [x] 8.3.6 null-over-known → **nothing** written (no downgrade to `UNKNOWN`)
+    - [x] 8.3.7 null-over-null → written, timestamp stays null, **later-received wins**, and the
           observable undated-event signal is emitted
-    - [ ] 8.3.8 first insert with and without a timestamp
+    - [x] 8.3.8 first insert with and without a timestamp
     - A happy-path-only test would pass while the predicate permitted the downgrade
     - _Requirements: 9.2, 9.13, 9.14, 9.15, 9.16, 9.17, 9.18, 9.19, 9.20, 9.21, 9.22, 9.29_
 
-  - [ ] 8.4 Projection: one normalised observation identity
+  - [x] 8.4 Projection: one normalised observation identity
     - Normalise once at the top; bind the identical value to both statements
     - `@Async` removal is task 3.4 (R1) — it must precede checkpoint 9.4, not ship here
     - The observable undated-event signal (9.22) is implemented and asserted in 8.3.7
     - Preserve `updated_at` receive-time semantics; it is never a freshness input
     - _Requirements: 9.30_ · _Design: D9_
 
-  - [ ] 8.5 History conflict detection and single transaction
+  - [x] 8.5 History conflict detection and single transaction
     - Insert-then-compare; identical → no-op; conflicting → surface; latest-row + history in one
       transaction so a conflict leaves both tables unchanged
     - Undated event: latest row only, **no** history row, no Receive_Time substitute, signal emitted
     - _Requirements: 9.23, 9.24, 9.25, 9.26, 9.27, 9.28_
 
-  - [ ] 8.6 Freshness pure function and summary contract
+  - [x] 8.6 Freshness pure function and summary contract
     - Inputs: row presence, observation timestamp, threshold, evaluation time
     - Threshold `(N × 24h) + grace`, defaults **N = 2, grace = 2h → 50h**
     - `assetPriceFreshness` with state, `oldestKnownAssetPriceObservationTimestamp`, and stale /

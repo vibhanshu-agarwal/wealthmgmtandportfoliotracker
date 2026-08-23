@@ -1024,12 +1024,13 @@
     "lifecycleStatus": "ACTIVE"
   },
   {
-    "ticker": "MM.NS",
+    "ticker": "M&M.NS",
     "name": "Mahindra & Mahindra",
     "aliases": [
       "Mahindra",
       "M&M",
-      "Mahindra and Mahindra"
+      "Mahindra and Mahindra",
+      "MM.NS"
     ],
     "assetClass": "NSE",
     "quoteCurrency": "INR",
