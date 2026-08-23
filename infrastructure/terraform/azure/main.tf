@@ -300,7 +300,7 @@ module "portfolio_service" {
   # Inside ACA each service has its own internal FQDN, so port uniqueness is not required.
   target_port      = var.use_seed_image ? 80 : 8080
   external_ingress = false
-  min_replicas     = 1
+  min_replicas     = 0
   max_replicas     = 3
   cpu              = 0.5
   memory           = "1Gi"
@@ -312,6 +312,10 @@ module "portfolio_service" {
     MANAGEMENT_TRACING_SAMPLING_PROBABILITY                = "1.0"
     SERVICE_VERSION                                        = var.image_tag
     DEPLOYMENT_ENVIRONMENT_NAME                            = "prod"
+    # Checkpoint 9.9 abort: restore enforcement-gate overrides to false and min_replicas
+    # to 0 to undo the 9.9 enable apply. See assert_spec_a_9_9_plan.py --profile spec-a-9.9-abort.
+    APP_CATALOG_REJECT_UNSUPPORTED_EVENTS = "false"
+    APP_CATALOG_ENFORCE_HOLDING_INVARIANT = "false"
   }
 
   secret_env_vars = {
@@ -354,7 +358,7 @@ module "market_data_service" {
   # target_port 8080 — see comment in module.portfolio_service for rationale.
   target_port      = var.use_seed_image ? 80 : 8080
   external_ingress = false
-  min_replicas     = 1
+  min_replicas     = 0
   max_replicas     = 3
   cpu              = 0.5
   memory           = "1Gi"
@@ -366,6 +370,10 @@ module "market_data_service" {
     MANAGEMENT_TRACING_SAMPLING_PROBABILITY                = "1.0"
     SERVICE_VERSION                                        = var.image_tag
     DEPLOYMENT_ENVIRONMENT_NAME                            = "prod"
+    # Checkpoint 9.9 abort: restore enforcement-gate overrides to false and min_replicas
+    # to 0 to undo the 9.9 enable apply. See assert_spec_a_9_9_plan.py --profile spec-a-9.9-abort.
+    APP_CATALOG_REJECT_UNSUPPORTED_EVENTS = "false"
+    APP_CATALOG_ENFORCE_HOLDING_INVARIANT = "false"
   }
 
   secret_env_vars = {
@@ -735,7 +743,7 @@ module "insight_service" {
   # target_port 8080 — see comment in module.portfolio_service for rationale.
   target_port      = var.use_seed_image ? 80 : 8080
   external_ingress = false
-  min_replicas     = 1
+  min_replicas     = 0
   max_replicas     = 3
   cpu              = 0.5
   memory           = "1Gi"
@@ -752,6 +760,10 @@ module "insight_service" {
     MANAGEMENT_TRACING_SAMPLING_PROBABILITY                = "1.0"
     SERVICE_VERSION                                        = var.image_tag
     DEPLOYMENT_ENVIRONMENT_NAME                            = "prod"
+    # Checkpoint 9.9 abort: restore enforcement-gate overrides to false and min_replicas
+    # to 0 to undo the 9.9 enable apply. See assert_spec_a_9_9_plan.py --profile spec-a-9.9-abort.
+    APP_CATALOG_REJECT_UNSUPPORTED_EVENTS = "false"
+    APP_CATALOG_ENFORCE_HOLDING_INVARIANT = "false"
   }
 
   secret_env_vars = {
