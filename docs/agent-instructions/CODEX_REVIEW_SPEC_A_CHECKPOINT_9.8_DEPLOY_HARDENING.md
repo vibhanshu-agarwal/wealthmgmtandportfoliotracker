@@ -66,6 +66,9 @@ actually dispatched this workflow against the real gate — see the bootstrap pl
 check this reading; if it's wrong, the "production" gate is decorative, and that's exactly the kind of
 gap that caused the original incident.
 
+**Update: this reading was wrong** — see "Review resolution" below. `environment:` is not a supported
+keyword on a job with `uses:` at all; confirmed with `actionlint`, not another docs read.
+
 ## The bootstrap problem — and why it's not solved by this PR alone
 
 The **old** `deploy.yml`, still on `main` until this merges, matches its own push-trigger path filter on
@@ -77,16 +80,47 @@ which has no `push:` trigger, might mean this never fires. I am deliberately not
 subtlety, for the same reason as the point above: today's incident came from trusting exactly this kind
 of unverified platform-behaviour assumption.)
 
-**Planned, not yet executed**:
-1. `gh workflow disable deploy.yml` — belt-and-braces: stops any run regardless of which trigger-rule
-   interpretation is correct.
-2. Merge this PR.
-3. Independently re-read the merged `deploy.yml` from `main` (not the branch) to confirm it's what's
-   actually live.
-4. `gh workflow enable deploy.yml` — safe now: workflow_dispatch-only, nothing left to auto-fire.
-5. Verify the gate with a **failure-path-only** dispatch — deliberately wrong `expected_main_sha`, or an
-   omitted required input — proving `validate` rejects it before the environment-gated job is ever
-   reached. No valid/full dispatch until a separate, explicit go-ahead.
+**Planned, not yet executed** — the 11-step version below, per the first review round:
+1. Confirm no queued/running Deploy runs.
+2. Snapshot all app/job images, revisions, overrides, ingress, and refresh fence.
+3. `gh workflow disable deploy.yml`; verify it reports disabled.
+4. Merge the corrected, fully-green PR.
+5. Confirm no merge-triggered Deploy run exists and the production snapshot is unchanged.
+6. Re-read the merged workflows and Environment policy from `main` (not the branch).
+7. `gh workflow enable deploy.yml`.
+8. Dispatch a wrong-SHA run; verify validation fails and routing/deploy jobs never start.
+9. Dispatch a valid run, let it stop at Environment approval, then reject it. Verify no reusable
+   deployment job or Azure mutation started.
+10. Optionally dispatch two valid runs while the first awaits approval, to prove the second queues under
+    concurrency; reject/cancel both.
+11. Recompare the production snapshot.
+
+## Review resolution (Codex, first round on PR #139)
+
+All five findings addressed, independently re-verified before pushing (not just re-read):
+
+- **[P1] `environment:` invalid on a `uses:` job** — confirmed independently with a pinned, checksum-
+  verified `actionlint` binary (v1.7.7) run locally against the pre-fix files: it reproduced the exact
+  rejection Codex described. My earlier WebSearch-based "confirmation" was wrong — a lesson in why this
+  round leans on `actionlint` instead of another docs read. Fixed: the gate now lives on a new
+  `authorize-production` job (plain job, no `uses:`) that `validate` feeds into and that
+  `route`/`deploy-azure`/`deploy-aws` all transitively depend on via the `needs:` chain.
+- **[P1] tests encoded the invalid syntax** — added the pinned `actionlint` step to
+  `deploy-workflow-contract` (checksum-verified download, not a floating Action tag), plus rewrote the
+  affected assertions for the new `authorize-production` pattern.
+- **[P2] `expected_main_sha` didn't prove the ref** — `validate_deploy_dispatch.py` now also requires
+  `github.ref == refs/heads/main`, passed through as `ACTUAL_REF`.
+- **[P2] AWS silently dropped scoped/digest intent** — the validator now rejects any
+  `deployment_mode != full` when `CLOUD_PROVIDER=aws`, reading the same repo variable directly.
+- **[P2] `full` as the first/default choice** — `deployment_mode`'s options now start with a sentinel
+  (`select-deployment-mode`) that the validator explicitly rejects with a clear message.
+- **`can_admins_bypass`** — confirmed against `docs.github.com`'s environments API reference that this
+  is not a settable request-body field on `PUT .../environments/{name}`. Not fixable via API; flagging as
+  a platform limitation rather than silently leaving it unaddressed.
+
+Local verification before this push: 89 tests across the full deploy contract suite (`test_validate_deploy_dispatch`
+now 23, `test_deploy_pipeline_hardening` now 12, plus the five untouched/updated sibling files), and
+`actionlint` reporting zero errors on all four edited workflow files.
 
 ## What NOT to re-litigate
 
