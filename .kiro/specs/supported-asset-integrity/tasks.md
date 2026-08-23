@@ -489,23 +489,68 @@ python scripts/check-spec-references.py   .kiro/specs/supported-asset-integrity/
     - Abort: `FAILED_CONFLICT` or non-zero exit stops the cutover for operator resolution. Do **not**
       re-run blindly; the state machine is terminal by design.
 
-  - [ ] 9.8 **CHECKPOINT — R4 deployed, still overridden**
+  - [x] 9.8 **CHECKPOINT — R4 deployed, still overridden** — complete, executed out of order,
+    recovered clean (see "What actually happened" below)
     - Go: artifact deployed with defaults `true` but Terraform overrides still `false`; behaviour
       unchanged. Reversible.
-    - **Execution order is safety-critical — apply Terraform before deploying the R4 image, never the
-      reverse.** The container-app module's `lifecycle { ignore_changes = [template[0].container[0].image] }`
+    - **Intended execution order (designed, reviewed by Codex on PR #137, but NOT what actually
+      happened — see below) — apply Terraform before deploying the R4 image, never the reverse.**
+      The container-app module's `lifecycle { ignore_changes = [template[0].container[0].image] }`
       (`infrastructure/terraform/azure/modules/container-app/main.tf:30-34`) means a Terraform apply
       only ever touches env vars/scaling/etc., never the running image — so applying first is safe and
       cannot itself trigger an image rollout. Deploying the R4 image first, before the override env vars
       exist on the live revision, would run portfolio-service with its `true` defaults **unshadowed** —
       real enforcement activating early, violating this checkpoint's "behaviour unchanged" contract.
-      - 9.8.1 `terraform apply` (adds `APP_CATALOG_REJECT_UNSUPPORTED_EVENTS`/
+      - 9.8.1 (intended) `terraform apply` (adds `APP_CATALOG_REJECT_UNSUPPORTED_EVENTS`/
         `APP_CATALOG_ENFORCE_HOLDING_INVARIANT` = `"false"` to all three Container Apps); read the
         applied env vars back on the live revision before proceeding
-      - 9.8.2 Deploy the R4 image (`deploy-azure.yml`) to all three services; verify the new revision's
-        image digest, and that the two override env vars are still present and `false`
-    - (Reviewed by Codex, PR #137 — the ordering finding above and the Terraform-mechanism/gating-scope
-      conclusions below came from that review.)
+      - 9.8.2 (intended) Deploy the R4 image (`deploy-azure.yml`) to all three services; verify the
+        new revision's image digest, and that the two override env vars are still present and `false`
+
+    - **What actually happened, in real order (2026-08-23, all times UTC):**
+      1. **09:39** — Merging PR #137 pushed to `main`. Unrecognized at design time: `deploy.yml`
+         auto-triggers on `push` to `main` for any path under `portfolio-service/**`,
+         `market-data-service/**`, `insight-service/**` (`.github/workflows/deploy.yml:19-33`), with
+         no Terraform-override gate. Merging #137 (which touched all three service paths) therefore
+         **auto-deployed the R4 image before any Terraform override existed** — the 9.8.1/9.8.2
+         ordering above was never actually followed, because "deploy the image" was not the separate,
+         controllable step it was designed to be. A separate direct push to `main` (`9b2cf0d`, a
+         docstring-only fix, still under `portfolio-service/**`) triggered a second, identical
+         auto-deploy shortly after.
+      2. **09:39–~10:08** — Both auto-deploy runs were manually cancelled once discovered. All three
+         Container Apps ended up running image `9b2cf0d` with **no Terraform override present** —
+         `app.catalog.reject-unsupported-events`/`enforce-holding-invariant` live at their artifact
+         default of `true`, unshadowed, for this window.
+      3. **10:08** — Recovery: [Terraform apply run
+         32632938894](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/32632938894)
+         (`terraform-azure.yml`, `action=apply`, triggered manually on `main`) added the two `false`
+         overrides to all three services — no image change (module ignores image drift). Every
+         apply-specific mandatory assertion passed.
+      4. **Post-recovery, independently verified** (Azure CLI + Log Analytics, not just the apply
+         run's own report): all three services run `9b2cf0d` with both overrides explicitly `false`;
+         their own startup logs report `catalog_loaded ... rejectUnsupportedEvents=false
+         enforceHoldingInvariant=false`; all three active revisions are healthy and scaled back to
+         zero replicas; API gateway ingress remains absent/closed; refresh writes remain fenced
+         (`MARKET_DATA_JOB_RUNNER_ENABLED=false`); no deployment workflow remains active.
+      - **Exposure-window evidence (09:39–10:08, ~29 min):** Log Analytics searched for
+        `RejectedPriceEventException`, `UnsupportedAssetException`, `gatedReject`, `TICKER_ABSENT`,
+        `CURRENCY_MISMATCH`, and generic `ERROR` across all three services — zero matches. Ingress was
+        closed and the refresh Job fenced throughout, so no externally- or refresh-driven traffic
+        reached the unshadowed-`true` services. The live seed process reached only failed health
+        `GET`s and made no writes. **No rejected catalog events, no writes, no data-integrity impact
+        during the exposure window.**
+      - Net effect: 9.8's intended resting state (artifact `true`, effective `false` via override,
+        behaviour unchanged) was reached, but via an unplanned real-enforcement exposure window in the
+        middle rather than the designed apply-then-deploy sequence. The exposure caused no observed
+        harm, entirely because ingress and the refresh fence — both independent of this checkpoint —
+        happened to be closed for unrelated reasons at the time.
+      - **Root cause and prevention**: see the deploy-pipeline hardening tracked separately (deploy.yml
+        push-trigger removal, `production` environment gate, concurrency control) before checkpoint 9.9
+        proceeds — the same auto-deploy path filter would fire again on any future commit touching
+        these service directories.
+    - (Design reviewed by Codex, PR #137 — the intended ordering above and the Terraform-mechanism/
+      gating-scope conclusions below came from that review, and held up as the *correct target state*;
+      what went wrong was a deployment-pipeline gap outside the reviewed diff, not the design itself.)
 
   - [ ] 9.9 **CHECKPOINT — enforcement enabled**
     - Terraform removes both overrides **and** raises `min_replicas` 0 → 1 in the same apply;
