@@ -15,10 +15,18 @@ import assert_spec_a_9_9_plan as sut  # noqa: E402
 
 EXPECTED_TAG = "9b2cf0d655b4b7ae2ce20ff7b67e4ad750df6900"
 WRONG_TAG = "deadbeef" * 5
-IMAGE = f"wealthprodacr.azurecr.io/portfolio-service:{EXPECTED_TAG}"
+ACR = sut.ACR_LOGIN_SERVER
 
 
-def _side(*, min_replicas, overrides_present, image=IMAGE, service_version=EXPECTED_TAG):
+def _expected_image(address: str, tag: str = EXPECTED_TAG) -> str:
+    return f"{ACR}/{sut.SERVICE_IMAGE_REPOSITORIES[address]}:{tag}"
+
+
+# Convenience alias — tests that only need one service can use this directly.
+PORTFOLIO_IMAGE = _expected_image(sut.SERVICE_ADDRESSES[0])
+
+
+def _side(*, min_replicas, overrides_present, image=PORTFOLIO_IMAGE, service_version=EXPECTED_TAG):
     env = [
         {"name": "SPRING_PROFILES_ACTIVE", "value": "prod,azure"},
         {"name": "SERVICE_VERSION", "value": service_version},
@@ -45,8 +53,8 @@ def _enable_plan(*, extra_changes=()):
         _service_rc(
             addr,
             actions=["update"],
-            before=_side(min_replicas=0, overrides_present=True),
-            after=_side(min_replicas=1, overrides_present=False),
+            before=_side(min_replicas=0, overrides_present=True, image=_expected_image(addr)),
+            after=_side(min_replicas=1, overrides_present=False, image=_expected_image(addr)),
         )
         for addr in sut.SERVICE_ADDRESSES
     ]
@@ -60,8 +68,8 @@ def _abort_plan():
             _service_rc(
                 addr,
                 actions=["update"],
-                before=_side(min_replicas=1, overrides_present=False),
-                after=_side(min_replicas=0, overrides_present=True),
+                before=_side(min_replicas=1, overrides_present=False, image=_expected_image(addr)),
+                after=_side(min_replicas=0, overrides_present=True, image=_expected_image(addr)),
             )
             for addr in sut.SERVICE_ADDRESSES
         ]
@@ -130,7 +138,7 @@ class SpecA99PlanTests(unittest.TestCase):
 
     def test_image_change_fails(self):
         plan = _enable_plan()
-        after = _side(min_replicas=1, overrides_present=False, image=f"wealthprodacr.azurecr.io/portfolio-service:{WRONG_TAG}")
+        after = _side(min_replicas=1, overrides_present=False, image=_expected_image(sut.SERVICE_ADDRESSES[0], WRONG_TAG))
         plan["resource_changes"][0]["change"]["after"] = after
         errors = _evaluate(plan, "spec-a-9.9-enable")
         self.assertTrue(any("[image]" in e for e in errors))
@@ -167,7 +175,8 @@ class SpecA99PlanTests(unittest.TestCase):
         before==after-only check would wrongly pass. This is the real gap: "unchanged"
         and "correct" are different claims, and only pinning to the actual
         deployed_image_tag catches a resource that was never on the right image."""
-        wrong_image = f"wealthprodacr.azurecr.io/portfolio-service:{WRONG_TAG}"
+        addr = sut.SERVICE_ADDRESSES[0]
+        wrong_image = _expected_image(addr, WRONG_TAG)
         plan = _enable_plan()
         plan["resource_changes"][0]["change"]["before"] = _side(
             min_replicas=0, overrides_present=True, image=wrong_image, service_version=WRONG_TAG
@@ -181,7 +190,8 @@ class SpecA99PlanTests(unittest.TestCase):
         self.assertTrue(any("service_version" in e for e in errors))
 
     def test_wrong_identity_before_only_fails(self):
-        wrong_image = f"wealthprodacr.azurecr.io/portfolio-service:{WRONG_TAG}"
+        addr = sut.SERVICE_ADDRESSES[0]
+        wrong_image = _expected_image(addr, WRONG_TAG)
         plan = _enable_plan()
         plan["resource_changes"][0]["change"]["before"] = _side(
             min_replicas=0, overrides_present=True, image=wrong_image, service_version=WRONG_TAG
@@ -193,23 +203,94 @@ class SpecA99PlanTests(unittest.TestCase):
         # A plan correctly pinned to a DIFFERENT expected tag than EXPECTED_TAG must
         # still pass — proves the check uses the passed-in value, not a hardcoded one.
         other_tag = "1111111111111111111111111111111111abcd"
-        other_image = f"wealthprodacr.azurecr.io/portfolio-service:{other_tag}"
         plan = {
             "resource_changes": [
                 _service_rc(
                     addr,
                     actions=["update"],
                     before=_side(
-                        min_replicas=0, overrides_present=True, image=other_image, service_version=other_tag
+                        min_replicas=0, overrides_present=True,
+                        image=_expected_image(addr, other_tag), service_version=other_tag
                     ),
                     after=_side(
-                        min_replicas=1, overrides_present=False, image=other_image, service_version=other_tag
+                        min_replicas=1, overrides_present=False,
+                        image=_expected_image(addr, other_tag), service_version=other_tag
                     ),
                 )
                 for addr in sut.SERVICE_ADDRESSES
             ]
         }
         self.assertEqual(_evaluate(plan, "spec-a-9.9-enable", expected_tag=other_tag), [])
+
+    # -- adversarial registry/repository checks ----------------------------------------
+
+    def test_wrong_registry_correct_repo_and_tag_fails(self):
+        """evil.example/portfolio-service:{correct_tag} ends with the right tag but is
+        from the wrong registry — the old endswith check would accept it."""
+        addr = sut.SERVICE_ADDRESSES[0]
+        evil_image = f"evil.example/{sut.SERVICE_IMAGE_REPOSITORIES[addr]}:{EXPECTED_TAG}"
+        plan = _enable_plan()
+        plan["resource_changes"][0]["change"]["before"] = _side(
+            min_replicas=0, overrides_present=True, image=evil_image
+        )
+        plan["resource_changes"][0]["change"]["after"] = _side(
+            min_replicas=1, overrides_present=False, image=evil_image
+        )
+        errors = _evaluate(plan, "spec-a-9.9-enable")
+        self.assertTrue(any("[image]" in e for e in errors), errors)
+
+    def test_correct_registry_wrong_repository_fails(self):
+        """The right ACR but the wrong service image (portfolio-service on the market-data
+        address, for example) must be rejected."""
+        addr = sut.SERVICE_ADDRESSES[1]  # market-data-service address
+        wrong_repo_image = f"{ACR}/portfolio-service:{EXPECTED_TAG}"  # portfolio repo on wrong address
+        plan = _enable_plan()
+        plan["resource_changes"][1]["change"]["before"] = _side(
+            min_replicas=0, overrides_present=True, image=wrong_repo_image
+        )
+        plan["resource_changes"][1]["change"]["after"] = _side(
+            min_replicas=1, overrides_present=False, image=wrong_repo_image
+        )
+        errors = _evaluate(plan, "spec-a-9.9-enable")
+        self.assertTrue(any("[image]" in e for e in errors), errors)
+
+    def test_missing_image_fails(self):
+        """A container entry with no image key at all must be rejected."""
+        plan = _enable_plan()
+        # Strip the image key from the container
+        before = _side(min_replicas=0, overrides_present=True)
+        del before["template"][0]["container"][0]["image"]
+        plan["resource_changes"][0]["change"]["before"] = before
+        errors = _evaluate(plan, "spec-a-9.9-enable")
+        self.assertTrue(any("[image]" in e and "before" in e for e in errors), errors)
+
+    def test_each_service_must_use_its_own_repository(self):
+        """All three services using the portfolio-service image must fail for the two
+        non-portfolio addresses — this is the cross-service repository masking that the
+        original fixtures hid."""
+        # Build a plan where every address uses the portfolio-service image regardless.
+        portfolio_image = _expected_image(sut.SERVICE_ADDRESSES[0])
+        plan = {
+            "resource_changes": [
+                _service_rc(
+                    addr,
+                    actions=["update"],
+                    before=_side(min_replicas=0, overrides_present=True, image=portfolio_image),
+                    after=_side(min_replicas=1, overrides_present=False, image=portfolio_image),
+                )
+                for addr in sut.SERVICE_ADDRESSES
+            ]
+        }
+        errors = _evaluate(plan, "spec-a-9.9-enable")
+        # market-data and insight addresses should fail; portfolio should be clean.
+        market_errors = [e for e in errors if "[image]" in e and sut.SERVICE_ADDRESSES[1] in e]
+        insight_errors = [e for e in errors if "[image]" in e and sut.SERVICE_ADDRESSES[2] in e]
+        self.assertTrue(market_errors, "market-data-service with portfolio image must fail")
+        self.assertTrue(insight_errors, "insight-service with portfolio image must fail")
+
+    def test_correct_distinct_repository_per_service_passes(self):
+        """Each service carrying its own correct image must all pass together."""
+        self.assertEqual(_evaluate(_enable_plan(), "spec-a-9.9-enable"), [])
 
     # -- standard guard: forbids touching the 9.9 protected surface at all --------------
 
@@ -225,7 +306,7 @@ class SpecA99PlanTests(unittest.TestCase):
                     sut.SERVICE_ADDRESSES[0],
                     actions=["update"],
                     before=_side(min_replicas=0, overrides_present=True),
-                    after=_side(min_replicas=0, overrides_present=True, image=IMAGE),
+                    after=_side(min_replicas=0, overrides_present=True, image=PORTFOLIO_IMAGE),
                 )
             ]
         }
@@ -267,7 +348,7 @@ class SpecA99PlanTests(unittest.TestCase):
                     sut.SERVICE_ADDRESSES[0],
                     actions=["update"],
                     before=_side(min_replicas=None, overrides_present=True),
-                    after=_side(min_replicas=0, overrides_present=True, image=IMAGE),
+                    after=_side(min_replicas=0, overrides_present=True, image=PORTFOLIO_IMAGE),
                 )
             ]
         }

@@ -44,6 +44,16 @@ OVERRIDE_ENV_NAMES = (
     "APP_CATALOG_ENFORCE_HOLDING_INVARIANT",
 )
 
+ACR_LOGIN_SERVER = "wealthprodacr.azurecr.io"
+
+# Maps each service address to its expected image repository on the production ACR.
+# The full expected image is f"{ACR_LOGIN_SERVER}/{repo}:{deployed_image_tag}".
+SERVICE_IMAGE_REPOSITORIES: dict[str, str] = {
+    "module.portfolio_service.azurerm_container_app.this": "portfolio-service",
+    "module.market_data_service.azurerm_container_app.this": "market-data-service",
+    "module.insight_service.azurerm_container_app.this": "insight-service",
+}
+
 
 def load_plan(path: str) -> dict:
     with open(path) as f:
@@ -231,16 +241,16 @@ def _evaluate_9_9_transition(plan: dict, profile: str, expected_image_tag: str) 
                         f"the abort apply, got {after_env.get(name)!r}."
                     )
 
-        # Pin to expected_image_tag, not merely to each other: before==after alone would
-        # accept a plan where both sides already carry the same wrong tag.
-        image_suffix = f":{expected_image_tag}"
+        # Require exact registry/repository/tag equality — endswith(":{tag}") would accept
+        # a wrong registry or wrong repository carrying the correct tag.
+        expected_repo = SERVICE_IMAGE_REPOSITORIES[address]
+        expected_image = f"{ACR_LOGIN_SERVER}/{expected_repo}:{expected_image_tag}"
         before_image, after_image = _image(before), _image(after)
         for label, image in (("before", before_image), ("after", after_image)):
-            if image is None or not image.endswith(image_suffix):
+            if image != expected_image:
                 errors.append(
-                    f"FAIL [image] {address} {label} image is {image!r}; expected it to end "
-                    f"with {image_suffix!r} (deployed_image_tag), not merely to match its "
-                    "counterpart on the other side of the diff."
+                    f"FAIL [image] {address} {label} image is {image!r}; expected exactly "
+                    f"{expected_image!r} — registry, repository, and tag must all match."
                 )
 
         before_version = before_env.get("SERVICE_VERSION")
