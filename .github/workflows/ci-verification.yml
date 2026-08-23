@@ -50,6 +50,16 @@ jobs:
           python scripts/tests/test_validate_deploy_dispatch.py
           python scripts/tests/test_deploy_pipeline_hardening.py
 
+      - name: Terraform-azure scripts contract (Spec A checkpoint-9.9 prerequisite)
+        # Previously never run in CI at all — infrastructure/terraform/azure/scripts/'s own
+        # unit tests (the plan-assertion scripts terraform-azure.yml runs against tfplan.json)
+        # existed only as local/manual-run developer tests. Brings the full suite in for the
+        # first time, alongside the new dispatch-validation and 9.9-scope-assertion tests.
+        run: python -m unittest discover -s infrastructure/terraform/azure/scripts -p "test_*.py" -v
+
+      - name: Terraform-azure workflow hardening contract (Spec A checkpoint-9.9 prerequisite)
+        run: python scripts/tests/test_terraform_azure_workflow_hardening.py
+
       - name: Install pinned actionlint (GitHub Actions schema validation)
         # Text-based contract tests above only prove intent, not that GitHub's Actions
         # schema actually accepts the YAML — that gap let an invalid `environment:` on a
@@ -69,7 +79,7 @@ jobs:
         # this PR doesn't touch. Confirmed locally that disabling it does not suppress
         # the schema check itself — re-verify with a deliberately reintroduced bug before
         # changing this flag.
-        run: ./actionlint -shellcheck= .github/workflows/deploy.yml .github/workflows/deploy-azure.yml .github/workflows/deploy-aws.yml .github/workflows/ci-verification.yml
+        run: ./actionlint -shellcheck= .github/workflows/deploy.yml .github/workflows/deploy-azure.yml .github/workflows/deploy-aws.yml .github/workflows/ci-verification.yml .github/workflows/terraform-azure.yml
 
   sanitizer-canary:
     runs-on: ubuntu-latest
