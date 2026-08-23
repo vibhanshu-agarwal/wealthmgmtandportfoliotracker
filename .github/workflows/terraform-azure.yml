@@ -234,7 +234,12 @@ jobs:
       # deployed_image_tag passed the format check above; now prove it actually exists
       # in ACR for every service this workflow can touch, so a typo'd or stale tag
       # cannot silently apply as SERVICE_VERSION against a manifest that isn't real.
+      # Skipped ONLY for standard + use_seed_image=true: that's the first-provisioning
+      # bootstrap path, before any real service image (or possibly the registry itself)
+      # exists — deployed_image_tag is meaningless there. Every other combination,
+      # including both 9.9 profiles and ordinary non-seed applies, still requires it.
       - name: Confirm deployed_image_tag resolves in ACR
+        if: '! (github.event.inputs.change_profile == ''standard'' && github.event.inputs.use_seed_image == ''true'')'
         run: |
           set -euo pipefail
           TAG="${{ github.event.inputs.deployed_image_tag }}"
@@ -315,16 +320,22 @@ jobs:
       - name: Assert Plan — Mongo repair Job contract (MANDATORY)
         run: python3 scripts/assert_mongo_repair_job_plan.py tfplan.json
 
-      - name: Assert Plan — Spec A 9.9 exact scope (enable profile)
-        if: github.event.inputs.change_profile == 'spec-a-9.9-enable'
-        run: python3 scripts/assert_spec_a_9_9_plan.py tfplan.json --profile enable --expected-image-tag "${{ github.event.inputs.deployed_image_tag }}"
+      # Runs for every change_profile, not only the two 9.9 profiles: under standard,
+      # this is a guard forbidding any change to the 9.9 protected surface (min_replicas,
+      # the two catalog-override env vars) on the three services — not a no-op. Once the
+      # 9.9 desired-state change lands in main.tf, a dispatch left on the default
+      # standard profile must not be able to apply it without going through the
+      # exact-scope proof below.
+      - name: Assert Plan — Spec A 9.9 profile guard / exact scope
+        run: python3 scripts/assert_spec_a_9_9_plan.py tfplan.json --profile "${{ github.event.inputs.change_profile }}" --expected-image-tag "${{ github.event.inputs.deployed_image_tag }}"
 
-      - name: Assert Plan — Spec A 9.9 exact scope (abort profile)
-        if: github.event.inputs.change_profile == 'spec-a-9.9-abort'
-        run: python3 scripts/assert_spec_a_9_9_plan.py tfplan.json --profile abort --expected-image-tag "${{ github.event.inputs.deployed_image_tag }}"
-
-      # Sanitized summary only — never upload raw tfplan/tfplan.json, which can contain
-      # sensitive values (connection strings, secrets passed as TF_VAR_*).
+      # Sanitized summary only — built from tfplan.json via summarize_plan.py, which
+      # emits ONLY "<address> <actions>" per changed resource, never attribute paths,
+      # before/after objects, or values. `terraform show`'s human-readable output was
+      # tried first and rejected: its changed-attribute lines (e.g. `~ value = "..."`)
+      # match the same prefix characters as the resource-header lines, so a text-based
+      # filter over it could not be trusted not to leak a TF_VAR_*-sourced value. Never
+      # upload raw tfplan/tfplan.json either, for the same reason.
       - name: Publish sanitized plan summary
         run: |
           {
@@ -333,7 +344,7 @@ jobs:
             echo "Profile: \`${{ github.event.inputs.change_profile }}\`"
             echo ""
             echo '```'
-            terraform show -no-color tfplan | grep -E '^\s*(#|~|\+|-) ' || true
+            python3 scripts/summarize_plan.py tfplan.json
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -403,6 +414,14 @@ jobs:
       - name: Terraform Validate
         run: terraform validate
 
+      # For the two 9.9 profiles this is READ-ONLY: `terraform import` mutates the real
+      # backend's state immediately, before any plan or assertion runs — during an
+      # enforcement cutover that would be a state mutation outside the declared
+      # three-resource scope, invisible to assert_spec_a_9_9_plan.py (which only ever
+      # sees the plan that comes *after* state already changed). If the Job is
+      # unexpectedly absent from state during a 9.9 apply, stop; state repair is a
+      # separate, reviewed operation, not something to fold silently into a cutover.
+      # standard keeps the original auto-import recovery behavior unchanged.
       - name: Import existing market-data refresh Job (apply recovery)
         run: |
           set -euo pipefail
@@ -410,10 +429,17 @@ jobs:
           RESOURCE_ADDRESS="azurerm_container_app_job.market_data_refresh"
           JOB_NAME="market-data-refresh-job"
           RESOURCE_GROUP="wealth-azure-prod-rg"
+          PROFILE="${{ github.event.inputs.change_profile }}"
 
           if terraform state show "$RESOURCE_ADDRESS" >/dev/null 2>&1; then
             echo "${RESOURCE_ADDRESS} is already managed in Terraform state."
             exit 0
+          fi
+
+          if [ "$PROFILE" = "spec-a-9.9-enable" ] || [ "$PROFILE" = "spec-a-9.9-abort" ]; then
+            echo "::error::${RESOURCE_ADDRESS} is not in Terraform state, and change_profile=${PROFILE} only permits a read-only check here — auto-import is not allowed during a 9.9 cutover apply, since it would mutate the backend before any plan or assertion runs."
+            echo "::error::Repair state through a separate, reviewed operation (e.g. dispatch with change_profile=standard first) before retrying the 9.9 apply."
+            exit 1
           fi
 
           JOB_ID="$(az containerapp job show \
@@ -478,13 +504,14 @@ jobs:
       - name: Assert Plan — Mongo repair Job contract (MANDATORY)
         run: python3 scripts/assert_mongo_repair_job_plan.py tfplan.json
 
-      - name: Assert Plan — Spec A 9.9 exact scope (enable profile)
-        if: github.event.inputs.change_profile == 'spec-a-9.9-enable'
-        run: python3 scripts/assert_spec_a_9_9_plan.py tfplan.json --profile enable --expected-image-tag "${{ github.event.inputs.deployed_image_tag }}"
-
-      - name: Assert Plan — Spec A 9.9 exact scope (abort profile)
-        if: github.event.inputs.change_profile == 'spec-a-9.9-abort'
-        run: python3 scripts/assert_spec_a_9_9_plan.py tfplan.json --profile abort --expected-image-tag "${{ github.event.inputs.deployed_image_tag }}"
+      # Runs for every change_profile, not only the two 9.9 profiles: under standard,
+      # this is a guard forbidding any change to the 9.9 protected surface (min_replicas,
+      # the two catalog-override env vars) on the three services — not a no-op. Once the
+      # 9.9 desired-state change lands in main.tf, a dispatch left on the default
+      # standard profile must not be able to apply it without going through the
+      # exact-scope proof below.
+      - name: Assert Plan — Spec A 9.9 profile guard / exact scope
+        run: python3 scripts/assert_spec_a_9_9_plan.py tfplan.json --profile "${{ github.event.inputs.change_profile }}" --expected-image-tag "${{ github.event.inputs.deployed_image_tag }}"
 
       - name: Terraform Apply
         run: terraform apply -auto-approve tfplan

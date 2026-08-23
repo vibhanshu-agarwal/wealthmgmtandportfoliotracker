@@ -68,6 +68,22 @@ class TestTerraformAzureWorkflowHardening(unittest.TestCase):
         job = self._job("validate-dispatch:")
         self.assertIn("az acr manifest list-metadata", job)
 
+    def test_acr_check_skipped_only_for_standard_seed_bootstrap(self):
+        # standard + use_seed_image=true is the first-provisioning path where
+        # deployed_image_tag is meaningless — every other combination (both 9.9
+        # profiles, ordinary non-seed applies, Job-only recovery) must still require it.
+        job = self._job("validate-dispatch:")
+        idx = job.find("Confirm deployed_image_tag resolves in ACR")
+        self.assertGreaterEqual(idx, 0)
+        preceding = job[:idx]
+        if_line = re.search(r"if:\s*'([^\n]*)'\n", job[idx:])
+        self.assertIsNotNone(if_line, "expected a quoted if: condition on this step")
+        condition = if_line.group(1)
+        self.assertIn("change_profile", condition)
+        self.assertIn("'standard'", condition)
+        self.assertIn("use_seed_image", condition)
+        self.assertIn("'true'", condition)
+
     # -- apply job: needs + environment gate ----------------------------------------
 
     def test_apply_job_needs_validate_dispatch(self):
@@ -90,10 +106,28 @@ class TestTerraformAzureWorkflowHardening(unittest.TestCase):
         job = self._job("apply:")
         self.assertIn("TF_VAR_image_tag: ${{ github.event.inputs.deployed_image_tag }}", job)
 
-    def test_apply_job_invokes_both_9_9_profile_assertions(self):
+    def test_apply_job_invokes_profile_guard_unconditionally_for_every_profile(self):
+        # Not gated by if: change_profile == ... — must run for standard too, or a
+        # dispatch left on the default profile could apply the 9.9 change unguarded.
         job = self._job("apply:")
-        self.assertIn("assert_spec_a_9_9_plan.py tfplan.json --profile enable --expected-image-tag", job)
-        self.assertIn("assert_spec_a_9_9_plan.py tfplan.json --profile abort --expected-image-tag", job)
+        self.assertIn(
+            'assert_spec_a_9_9_plan.py tfplan.json --profile "${{ github.event.inputs.change_profile }}" --expected-image-tag',
+            job,
+        )
+
+    def test_job_import_step_is_read_only_for_9_9_profiles(self):
+        # `terraform import` mutates the real backend's state immediately, before any
+        # plan or assertion runs — during a 9.9 apply that must never happen silently
+        # (it would be a state mutation outside the declared three-resource scope,
+        # invisible to the profile-guard assertion which only ever sees the plan that
+        # comes after). standard keeps the original auto-import recovery behavior.
+        job = self._job("apply:")
+        import_step = job[job.find("Import existing market-data refresh Job") :]
+        import_step = import_step[: import_step.find("\n\n      - name:")]
+        self.assertIn("spec-a-9.9-enable", import_step)
+        self.assertIn("spec-a-9.9-abort", import_step)
+        self.assertIn("exit 1", import_step)
+        self.assertIn("terraform import", import_step)  # still present for standard
 
     # -- remote-plan job -----------------------------------------------------------
 
@@ -110,10 +144,12 @@ class TestTerraformAzureWorkflowHardening(unittest.TestCase):
         job = self._job("remote-plan:")
         self.assertIn("TF_VAR_image_tag: ${{ github.event.inputs.deployed_image_tag }}", job)
 
-    def test_remote_plan_invokes_both_9_9_profile_assertions(self):
+    def test_remote_plan_invokes_profile_guard_unconditionally_for_every_profile(self):
         job = self._job("remote-plan:")
-        self.assertIn("assert_spec_a_9_9_plan.py tfplan.json --profile enable --expected-image-tag", job)
-        self.assertIn("assert_spec_a_9_9_plan.py tfplan.json --profile abort --expected-image-tag", job)
+        self.assertIn(
+            'assert_spec_a_9_9_plan.py tfplan.json --profile "${{ github.event.inputs.change_profile }}" --expected-image-tag',
+            job,
+        )
 
     def test_remote_plan_never_applies(self):
         job = self._job("remote-plan:")
@@ -125,6 +161,20 @@ class TestTerraformAzureWorkflowHardening(unittest.TestCase):
         job = self._job("remote-plan:")
         self.assertNotIn("upload-artifact", job)
         self.assertIn("GITHUB_STEP_SUMMARY", job)
+
+    def test_remote_plan_summary_uses_summarize_plan_not_raw_terraform_show(self):
+        # `terraform show -no-color tfplan | grep ...` was rejected: its changed-
+        # attribute lines (e.g. `~ value = "..."`) match the same prefix characters as
+        # resource-header lines, so a text filter over it can't be trusted not to leak a
+        # TF_VAR_*-sourced value. Only the structured, tested summarize_plan.py may feed
+        # the step summary.
+        job = self._job("remote-plan:")
+        self.assertIn("summarize_plan.py", job)
+        self.assertNotIn("terraform show -no-color tfplan | grep", job)
+
+    def test_summarize_plan_script_exists(self):
+        script = REPO / "infrastructure" / "terraform" / "azure" / "scripts" / "summarize_plan.py"
+        self.assertTrue(script.is_file())
 
     # -- pr-plan job: unaffected --------------------------------------------------------
 
