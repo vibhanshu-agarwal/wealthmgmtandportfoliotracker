@@ -34,9 +34,10 @@ name: Deploy (AWS)
 #   branch deploys independently and merges to main also trigger a deploy without divergence.
 
 on:
-  workflow_dispatch:
-  # workflow_call is preserved so deploy.yml can still route to this workflow
-  # when CLOUD_PROVIDER=aws. Remove once AWS deployment is fully decommissioned.
+  # workflow_call-only (Spec A checkpoint-9.8 incident, 2026-08-23): standalone
+  # workflow_dispatch removed — it bypassed deploy.yml's dispatch guards and production
+  # Environment gate. deploy.yml is now the only entry point, same as deploy-azure.yml.
+  # See .kiro/specs/supported-asset-integrity/tasks.md checkpoint 9.8.
   workflow_call:
 
 jobs:

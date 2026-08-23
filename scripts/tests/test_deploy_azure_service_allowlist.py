@@ -27,23 +27,25 @@ class TestDeployAzureServiceAllowlist(unittest.TestCase):
         cls.text = _read(WORKFLOW)
         cls.dispatcher = _read(DISPATCHER)
 
-    def test_workflow_dispatch_declares_services_input_defaulting_empty(self):
-        dispatch = self._block("workflow_dispatch:")
-        self.assertIn("services:", dispatch)
-        self.assertRegex(dispatch, r"services:[\s\S]*?default:\s*\"\"")
-
     def test_workflow_call_declares_services_input_defaulting_empty(self):
         call = self._block("workflow_call:")
         self.assertIn("services:", call)
         self.assertRegex(call, r"services:[\s\S]*?default:\s*\"\"")
 
-    def test_dispatcher_does_not_pass_an_allowlist_so_push_to_main_stays_full(self):
+    def test_has_no_standalone_workflow_dispatch(self):
+        # Spec A checkpoint-9.8 incident: a standalone workflow_dispatch here was a
+        # second, unvalidated entry point to production, bypassing deploy.yml's
+        # expected_main_sha/deployment_mode guards and its production Environment gate.
+        self.assertNotIn("workflow_dispatch:", self.text)
+
+    def test_dispatcher_passes_services_and_prebuilt_digest_through(self):
         azure_job = re.search(
             r"deploy-azure:\s*\n(?:.*\n)*?    secrets: inherit",
             self.dispatcher,
         )
         self.assertIsNotNone(azure_job)
-        self.assertNotIn("services:", azure_job.group(0))
+        self.assertIn("services: ${{ inputs.services }}", azure_job.group(0))
+        self.assertIn("prebuilt_digest: ${{ inputs.prebuilt_digest }}", azure_job.group(0))
 
     def test_preflight_emits_deploy_mode_and_selected_services(self):
         self.assertIn("deploy_mode:", self.text)

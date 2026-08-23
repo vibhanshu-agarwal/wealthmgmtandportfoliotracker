@@ -3,34 +3,76 @@
 # Single entry point for all cloud deployments. Routes to the appropriate
 # cloud-specific workflow based on the repository variable `vars.CLOUD_PROVIDER`.
 #
-# Path filtering: only triggers when backend services, frontend, common-dto,
-# common-observability, common-catalog, or workflow files change. Docs-only pushes do NOT
-# trigger deployment.
+# workflow_dispatch-only (Spec A checkpoint-9.8 incident, 2026-08-23): this workflow used
+# to also trigger on push to main for backend/frontend paths. Merging (or any direct push
+# touching those paths) silently deployed production with no way to gate it behind a
+# Terraform-applied config change first. See
+# .kiro/specs/supported-asset-integrity/tasks.md checkpoint 9.8 for the incident record.
+# Every production deploy now requires a deliberate, validated dispatch:
+#   - deployment_mode must be explicitly chosen (full/scoped/digest) and must agree with
+#     the services/prebuilt_digest inputs — no empty-input-means-full-deploy inference.
+#     The first/default choice is a sentinel ("select-deployment-mode") that fails
+#     validation, so accepting the pre-filled dropdown without touching it cannot
+#     silently mean "full".
+#   - expected_main_sha must match the commit actually being dispatched, AND the
+#     dispatch ref must be exactly refs/heads/main — a caller-selected branch/tag whose
+#     tip happens to match a given SHA is rejected, not just an SHA mismatch.
+#   - AWS does not yet support scoped/digest selection (deploy-aws.yml has no inputs to
+#     receive them) — deployment_mode must be "full" whenever CLOUD_PROVIDER=aws.
+#   - deploy-azure.yml/deploy-aws.yml are workflow_call-only (see those files) — this is
+#     their only entry point, so the guards below cover every path to production.
+#   - The `production` GitHub Environment gates the actual mutation behind a required
+#     reviewer approval (Settings → Environments → production). A job calling a reusable
+#     workflow with `uses:` cannot itself declare `environment:` (not a supported
+#     keyword — verified with actionlint, not assumed), so the gate lives on a separate
+#     `authorize-production` job that routing and both cloud jobs transitively depend on.
+#   - A non-cancelling concurrency group prevents two deploys from overlapping.
 #
 # Set the repo variable CLOUD_PROVIDER to "azure" or "aws" in:
 #   Settings → Secrets and variables → Actions → Variables
-#
-# Manual dispatch (workflow_dispatch) always runs regardless of path filters.
 
 name: Deploy
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
-    paths:
-      - "api-gateway/**"
-      - "portfolio-service/**"
-      - "market-data-service/**"
-      - "insight-service/**"
-      - "common-dto/**"
-      - "common-observability/**"
-      - "common-catalog/**"
-      - "frontend/**"
-      - ".github/workflows/deploy.yml"
-      - ".github/workflows/deploy-azure.yml"
-      - ".github/workflows/deploy-aws.yml"
+    inputs:
+      deployment_mode:
+        description: "Explicit deploy intent. Must agree with services/prebuilt_digest below."
+        required: true
+        type: choice
+        options:
+          - select-deployment-mode
+          - full
+          - scoped
+          - digest
+      expected_main_sha:
+        description: >
+          The full commit SHA on main you intend to deploy. Must match the SHA this
+          workflow actually runs against, and the dispatch must target the main branch
+          itself, or it fails closed before touching any Container App.
+        required: true
+        type: string
+      services:
+        description: >
+          Comma-separated backend services (api-gateway, portfolio-service,
+          market-data-service, insight-service). Required (non-empty) for
+          deployment_mode=scoped; must be empty for deployment_mode=full; must be empty
+          or exactly "portfolio-service" for deployment_mode=digest.
+        required: false
+        type: string
+        default: ""
+      prebuilt_digest:
+        description: >
+          Required for deployment_mode=digest, exactly
+          wealthprodacr.azurecr.io/portfolio-service@sha256:<64 hex>. Must be empty for
+          full/scoped.
+        required: false
+        type: string
+        default: ""
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
 
 permissions:
   id-token: write
@@ -38,10 +80,49 @@ permissions:
 
 jobs:
   # ---------------------------------------------------------------------------
+  # Validate: fail closed before asking anyone to approve anything if the dispatch
+  # doesn't target main at the intended commit, the mode disagrees with
+  # services/prebuilt_digest, or the mode is unsupported for the active cloud provider.
+  # ---------------------------------------------------------------------------
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validate dispatch inputs
+        env:
+          DEPLOYMENT_MODE: ${{ inputs.deployment_mode }}
+          SERVICES_INPUT: ${{ inputs.services }}
+          PREBUILT_DIGEST: ${{ inputs.prebuilt_digest }}
+          EXPECTED_MAIN_SHA: ${{ inputs.expected_main_sha }}
+          ACTUAL_SHA: ${{ github.sha }}
+          ACTUAL_REF: ${{ github.ref }}
+          CLOUD_PROVIDER: ${{ vars.CLOUD_PROVIDER }}
+        run: python3 .github/workflows/scripts/validate_deploy_dispatch.py
+
+  # ---------------------------------------------------------------------------
+  # Authorize: the actual production gate. A normal job (no `uses:`) so `environment:`
+  # is valid here; pauses for the production Environment's required-reviewer approval.
+  # Everything that can mutate production transitively needs this job.
+  # ---------------------------------------------------------------------------
+  authorize-production:
+    needs: validate
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Production deployment authorized
+        run: echo "Approved — proceeding to route and deploy."
+
+  # ---------------------------------------------------------------------------
   # Route: log which cloud provider is active and call the correct workflow.
   # If CLOUD_PROVIDER is not set or unrecognized, fail with a clear message.
   # ---------------------------------------------------------------------------
   route:
+    needs: authorize-production
     runs-on: ubuntu-latest
     outputs:
       provider: ${{ steps.check.outputs.provider }}
@@ -78,6 +159,9 @@ jobs:
     needs: route
     if: needs.route.outputs.provider == 'azure'
     uses: ./.github/workflows/deploy-azure.yml
+    with:
+      services: ${{ inputs.services }}
+      prebuilt_digest: ${{ inputs.prebuilt_digest }}
     secrets: inherit
 
   deploy-aws:
@@ -85,18 +169,3 @@ jobs:
     if: needs.route.outputs.provider == 'aws'
     uses: ./.github/workflows/deploy-aws.yml
     secrets: inherit
-
-  # Log a clear message when the non-active provider is skipped
-  skipped-notice:
-    needs: route
-    if: always()
-    runs-on: ubuntu-latest
-    steps:
-      - name: Report skipped provider
-        run: |
-          PROVIDER="${{ needs.route.outputs.provider }}"
-          if [ "$PROVIDER" = "azure" ]; then
-            echo "::warning::deploy-aws.yml was NOT called because CLOUD_PROVIDER=azure. To deploy to AWS, change the repo variable to 'aws'."
-          elif [ "$PROVIDER" = "aws" ]; then
-            echo "::warning::deploy-azure.yml was NOT called because CLOUD_PROVIDER=aws. To deploy to Azure, change the repo variable to 'azure'."
-          fi

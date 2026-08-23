@@ -22,8 +22,9 @@
 # Terraform has ever been applied.
 #
 # Wave P service selection (whole-workflow modes, not matrix-only):
-#   full deploy   — empty `services` input (the default for workflow_call and
-#                   ordinary dispatch): four backends, frontend, seed, verify.
+#   full deploy   — empty `services` input (the default for workflow_call, dispatched
+#                   from deploy.yml with deployment_mode=full): four backends, frontend,
+#                   seed, verify.
 #   scoped deploy — non-empty allowlist: selected backends only; frontend, seed
 #                   and verify are skipped. Unselected apps get no
 #                   `az containerapp update` at all.
@@ -32,25 +33,12 @@
 #                   digest. Frontend/seed/verify skipped (scoped).
 
 on:
-  workflow_dispatch:
-    inputs:
-      services:
-        description: >
-          Comma-separated backend services to deploy (api-gateway,
-          portfolio-service, market-data-service, insight-service). Empty = full
-          deploy. Non-empty = scoped backend deploy (frontend/seed/verify skipped).
-        required: false
-        type: string
-        default: ""
-      prebuilt_digest:
-        description: >
-          Optional immutable image, exactly
-          wealthprodacr.azurecr.io/portfolio-service@sha256:<64 hex>.
-          Empty = tag-based build/push. Non-empty skips build and push and
-          requires services=portfolio-service.
-        required: false
-        type: string
-        default: ""
+  # workflow_call-only (Spec A checkpoint-9.8 incident, 2026-08-23): this used to also
+  # accept workflow_dispatch directly, which was a second, unvalidated entry point to
+  # production — bypassing deploy.yml's expected_main_sha / deployment_mode guards, its
+  # production Environment approval gate, and its concurrency group. deploy.yml is now
+  # the only way to reach this workflow. See
+  # .kiro/specs/supported-asset-integrity/tasks.md checkpoint 9.8.
   workflow_call:
     inputs:
       services:
