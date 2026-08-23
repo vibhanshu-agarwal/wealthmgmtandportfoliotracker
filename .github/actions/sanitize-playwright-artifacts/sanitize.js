@@ -454,7 +454,11 @@ async function inspectZipEntry(zipfile, entry, ctx) {
     }
 
     if (await tryOpenZip(tmpFile)) {
-      return structuredScan(tmpFile, { sentinels, depth: depth + 1, budget });
+      // Must be awaited, not just returned: this call is inside the try of the
+      // try/finally below, whose finally deletes tmpDir (and tmpFile with it).
+      // Returning the promise unawaited lets finally fire immediately, racing
+      // the recursive scan's own async read of tmpFile.
+      return await structuredScan(tmpFile, { sentinels, depth: depth + 1, budget });
     }
 
     // Authentication only ever changes whether UNINSPECTABLE_ENTRY fires; it
