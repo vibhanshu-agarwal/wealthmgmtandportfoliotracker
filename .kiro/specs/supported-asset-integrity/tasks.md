@@ -426,6 +426,15 @@ python scripts/check-spec-references.py   .kiro/specs/supported-asset-integrity/
     `insight-group` committed at 24541 — lag zero on both, no waiver needed)
     - Go: consumer lag zero on **every** partition, observed after 9.3, or retention window elapsed
     - Waivable **only here**, explicitly and on the record, with discarded events counted and surfaced
+    - **Pre-9.9 re-verification (2026-08-23T19:05:10Z) — PASS, zero lag confirmed:**
+      - Command: `kafka-consumer-groups --bootstrap-server "$KAFKA_BOOTSTRAP_SERVERS" --command-config client.properties --group <group> --describe --offsets --timeout 30000`
+      - Image: `confluentinc/cp-kafka:8.2.0` (sha256:acbbf674f2ed40e5d0a8ca51beb0f00692c866fc22b5ce06f8cadbdc54cd4436)
+      - Credentials: existing Aiven SASL_SSL/PLAIN + JKS truststore; ephemeral client.properties, deleted afterward
+      - `portfolio-group` partition 0: committed=24541, log-end=24541, lag=0
+      - `insight-group`  partition 0: committed=24541, log-end=24541, lag=0
+      - No consumer joined either group; no reset/delete/execute operation used (read-only `--describe`)
+      - Runbook: `docs/runbooks/SPEC_A_KAFKA_LAG_CHECK.md`; the 2026-08-22 command-gap is now closed
+    - **Re-run this check immediately before the 9.9 apply and again during GO** — record new output
     - _Requirements: 9.7, 9.8, 9.9, 9.10_
 
   - [x] 9.5 **CHECKPOINT — holding writes quiesced** (applied 2026-08-22 via
