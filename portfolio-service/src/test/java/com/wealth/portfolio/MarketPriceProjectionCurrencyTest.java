@@ -22,7 +22,9 @@ import static org.mockito.Mockito.when;
 
 /**
  * Task 8.2: currency normalisation happens before any tuple comparison, and rejection
- * is gated by {@code app.catalog.reject-unsupported-events} (default false).
+ * is gated by {@code app.catalog.reject-unsupported-events} (default {@code true} since cutover
+ * checkpoint 9.8, supported-asset-integrity Task 9; this test constructs the service directly with
+ * an explicit flag value per case, independent of that default).
  */
 @ExtendWith(MockitoExtension.class)
 class MarketPriceProjectionCurrencyTest {
