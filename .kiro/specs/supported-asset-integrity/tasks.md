@@ -544,13 +544,99 @@ python scripts/check-spec-references.py   .kiro/specs/supported-asset-integrity/
         middle rather than the designed apply-then-deploy sequence. The exposure caused no observed
         harm, entirely because ingress and the refresh fence — both independent of this checkpoint —
         happened to be closed for unrelated reasons at the time.
-      - **Root cause and prevention**: see the deploy-pipeline hardening tracked separately (deploy.yml
-        push-trigger removal, `production` environment gate, concurrency control) before checkpoint 9.9
-        proceeds — the same auto-deploy path filter would fire again on any future commit touching
-        these service directories.
+      - **Root cause and prevention**: deploy-pipeline hardening, executed and verified below — complete
+        as of 2026-08-23T12:23Z.
     - (Design reviewed by Codex, PR #137 — the intended ordering above and the Terraform-mechanism/
       gating-scope conclusions below came from that review, and held up as the *correct target state*;
       what went wrong was a deployment-pipeline gap outside the reviewed diff, not the design itself.)
+
+  - [x] **PREREQUISITE for 9.9 — deploy-pipeline hardening designed, reviewed, merged, and bootstrapped**
+    (2026-08-23, all times UTC). Two PRs, both reviewed by Codex through multiple rounds before merge:
+
+    - **[PR #138](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/138)**
+      (docs-only, checkpoint 9.8 actual chronology) — merged `e8d4e22`. No deploy triggered (path
+      doesn't match the old filter; independently confirmed via `deploy.yml` run history).
+    - **[PR #139](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/139)**
+      (deploy-pipeline hardening) — merged `bc6492f`. Removes `deploy.yml`'s push trigger entirely
+      (workflow_dispatch-only, with required `deployment_mode`/`expected_main_sha` and a
+      `validate_deploy_dispatch.py` job that fails closed on SHA mismatch, non-main ref,
+      mode/services/digest disagreement, or a non-`full` mode under `CLOUD_PROVIDER=aws`); removes the
+      standalone `workflow_dispatch` from `deploy-azure.yml`/`deploy-aws.yml` (workflow_call-only,
+      `deploy.yml` proven the sole caller — structural test covers `.yml`/`.yaml` and quoted `uses:`);
+      adds a non-cancelling `production-deploy` concurrency group; adds a new `authorize-production` job
+      (`environment: production`) that `route`/`deploy-azure`/`deploy-aws` all transitively depend on —
+      not `environment:` directly on the `uses:` jobs, which is not a supported keyword (caught by Codex
+      review round 1, confirmed independently with a pinned, checksum-verified `actionlint` v1.7.7, which
+      round 2 added to `deploy-workflow-contract` itself, schema-scoped via `-shellcheck=` after CI caught
+      unrelated pre-existing shellcheck noise). Final state: 90 tests across the deploy contract suite,
+      `actionlint` clean.
+
+    - **`production` GitHub Environment** — created via API (none existed before): required reviewer
+      `vibhanshu-agarwal`; `deployment_branch_policy` restricted to `main` only. Two distinct properties,
+      not one: **`can_admins_bypass: true`** is not a settable field on the environments API (confirmed
+      against `docs.github.com`) — a genuine platform limitation for a personal-account repo, not
+      something this hardening can close. **`prevent_self_review: false`**, by contrast, *is* a settable
+      field on that same API — it was simply never set (left at its default) when the environment was
+      created, not a platform limitation. Leaving it `false` is a reasonable, deliberate choice for a
+      single-maintainer repo (the required reviewer and the person dispatching are the same person
+      either way), but it should be understood as a choice, not a constraint.
+
+    - **11-step bootstrap, executed in full** (per the corrected procedure from Codex's first review
+      round on PR #139):
+      1. Confirmed no queued/running Deploy runs beforehand.
+      2. Captured a full pre-bootstrap production snapshot (images, revisions, override env vars,
+         ingress, refresh fence).
+      3. `gh workflow disable deploy.yml` — verified `disabled_manually`.
+      4. Merged PR #139 → `bc6492f`.
+      5. Confirmed no merge-triggered Deploy run for `bc6492f`; snapshot byte-identical to step 2
+         (only the capture timestamp differed).
+      6. Re-read `deploy.yml`/`deploy-azure.yml`/`deploy-aws.yml`/`ci-verification.yml` directly from
+         `origin/main` (not the merged branch) — `actionlint` clean; `authorize-production` present
+         with `environment: production`; `production` Environment policy confirmed live via API.
+      7. `gh workflow enable deploy.yml` — verified `active`.
+      8. Dispatched a deliberately wrong-SHA run
+         ([32639043536](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/32639043536)):
+         `validate` failed with the exact expected mismatch error; `authorize-production`/`route`/
+         `deploy-azure`/`deploy-aws` all `skipped` — the approval gate was never even reached.
+      9. Dispatched a valid run
+         ([32639079625](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/32639079625)):
+         `validate` passed, `authorize-production` entered `waiting` — and critically, `route`/
+         `deploy-azure`/`deploy-aws` had not even been created yet at that point. Rejected via the
+         pending-deployments API. Final state: `authorize-production` `failure`, the other three
+         `skipped`. Direct Azure read-back confirmed `portfolio-service`'s active revision unchanged.
+      10. Concurrency proof (optional step, executed): dispatched a second valid run
+          ([32639141730](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/32639141730))
+          then, while it awaited approval, a third
+          ([32639222453](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/32639222453)).
+          The third showed `status: pending` with **zero jobs created** — genuinely queued behind the
+          non-cancelling `production-deploy` group, not run in parallel. Rejected the second, cancelled
+          the third; both terminated cleanly with no deployment.
+      11. Final production snapshot — byte-identical to the pre-bootstrap baseline from step 2.
+
+    - **Final Azure state, directly read back, matching the pre-bootstrap baseline throughout**: the
+      four Container Apps and `market-data-refresh-job` remain on image
+      `9b2cf0d655b4b7ae2ce20ff7b67e4ad750df6900`. `market-data-repair-job` is separate — still
+      digest-pinned to `market-data-service@sha256:8548199f...` (ACR tag `31c4a739...`, from the 9.7
+      Mongo repair, predating this bootstrap), unaffected by and unrelated to this hardening.
+      `portfolio-service`/`market-data-service`/`insight-service` retain
+      `APP_CATALOG_REJECT_UNSUPPORTED_EVENTS=false` / `APP_CATALOG_ENFORCE_HOLDING_INVARIANT=false`;
+      `api-gateway` ingress remains absent/closed; `market-data-refresh-job`'s
+      `MARKET_DATA_JOB_RUNNER_ENABLED` remains `false` (its daily cron continues to fire and exit
+      cleanly under the fence — no real refresh executes).
+
+    - **Anomalous records, noted for completeness, not a concern**: two `deploy.yml`-attributed CI run
+      records appeared against commits on the hardening branch itself (`8b74ff8`, `80c4bb6`) with
+      `event: push` despite that branch never matching the trigger's branch filter under any normal
+      reading. Both independently confirmed inert: each contained only a zero-step, `neutral`-conclusion
+      "Qodana for JVM" check apparently cross-attributed from a separate Qodana workflow run — no
+      `route`, `deploy-azure`, `deploy-aws`, or any executable job/log, and no new Container App
+      revisions exist anywhere near those timestamps. The exact GitHub-side attribution cause was not
+      root-caused; it is structurally moot going forward since `deploy.yml` now has no push trigger at
+      all to misfire.
+
+    - **9.9 still requires its own separate plan review and explicit execution approval** — this
+      prerequisite closes the deploy-pipeline gap that caused the 9.8 incident; it does not itself
+      authorize 9.9.
 
   - [ ] 9.9 **CHECKPOINT — enforcement enabled**
     - Terraform removes both overrides **and** raises `min_replicas` 0 → 1 in the same apply;
