@@ -13,6 +13,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.context.TestPropertySource;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -44,6 +45,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 @Testcontainers
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
 @ActiveProfiles("local")
+// This suite tests the projection→analytics pipeline with a synthetic, non-catalog ticker
+// ("W6_E2E") — catalog membership isn't the concern here (see SupportedAssetValidatorTest /
+// MarketPriceProjectionCurrencyTest for that). Explicitly hold the pre-cutover-checkpoint-9.8
+// permissive default so this synthetic ticker keeps passing through regardless of the packaged
+// artifact default (.kiro/specs/supported-asset-integrity/tasks.md Task 9).
+@TestPropertySource(
+        properties = {
+            "app.catalog.reject-unsupported-events=false",
+            "app.catalog.enforce-holding-invariant=false"
+        })
 class Wave6DashboardDataAccuracyIT {
 
     private static final String DEV_USER_ID = "00000000-0000-0000-0000-000000000001";

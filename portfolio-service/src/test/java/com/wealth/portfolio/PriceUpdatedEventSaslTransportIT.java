@@ -57,6 +57,11 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
 @ActiveProfiles("local")
 @Import(KafkaTracePropagationProbe.class)
+// This suite tests SASL/Kafka transport mechanics with synthetic, non-catalog tickers — catalog
+// membership isn't the concern here (see SupportedAssetValidatorTest /
+// MarketPriceProjectionCurrencyTest for that). Explicitly hold the pre-cutover-checkpoint-9.8
+// permissive default so these synthetic tickers keep passing through regardless of the packaged
+// artifact default (.kiro/specs/supported-asset-integrity/tasks.md Task 9).
 @TestPropertySource(
         properties = {
             "management.tracing.export.enabled=false",
@@ -64,7 +69,9 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
             "management.tracing.sampling.probability=1.0",
             "management.tracing.propagation.type=w3c",
             "spring.kafka.template.observation-enabled=true",
-            "spring.kafka.listener.observation-enabled=true"
+            "spring.kafka.listener.observation-enabled=true",
+            "app.catalog.reject-unsupported-events=false",
+            "app.catalog.enforce-holding-invariant=false"
         })
 class PriceUpdatedEventSaslTransportIT {
 
