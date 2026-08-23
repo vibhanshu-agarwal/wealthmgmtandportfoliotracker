@@ -441,10 +441,27 @@ python scripts/check-spec-references.py   .kiro/specs/supported-asset-integrity/
     - Go: `ingress_enabled = false` applied; in-flight requests drained; no synthetic seed invocation running
     - Abort: re-enable ingress. Reversible.
 
-  - [ ] 9.6 **CHECKPOINT — R3a Postgres repair — IRREVERSIBLE**
+  - [x] 9.6 **CHECKPOINT — R3a Postgres repair — IRREVERSIBLE** (executed 2026-08-23 via PR #135,
+    `portfolio-service` scoped deploy, revision `portfolio-service--0000073`, image tag
+    `96a7e47b27154f013ac02f1cf360633f7d98a791`. PR #135 itself was a rebase of the stale
+    `feat/supported-asset-postgres-repair` branch onto current `main` — that branch predated B1 Wave
+    1's legacy-writer retirement and needed 4 conflicts plus 2 latent stale-test bugs resolved first;
+    full trail in `docs/agent-instructions/CODEX_REVIEW_SPEC_A_REPAIR_BRANCH_STALENESS.md`. Backup
+    precondition: Neon PITR, 6h rolling retention, confirmed via console; database verified quiescent
+    since 9.5 (identical row counts across the whole gap) so the current window's restorability
+    covers the full post-9.5 state in substance, even though the literal 9.5-completion instant had
+    aged out of the 6h window by the time of execution)
     - Go: 9.3, 9.4, 9.5 all green
     - _Requirements: 7.17, 7.31_
-    - Post: `Post_Migration_Integrity_Assertion` passes; audit records written
+    - Post: `Post_Migration_Integrity_Assertion` passes; audit records written — **verified two ways,
+      not just log absence: (a) `Started PortfolioApplication in 45.405 seconds` printed, only
+      reachable if the assertion's `@DependsOn("flywayInitializer")` constructor completed without
+      throwing, and no `post_migration_integrity_failed` line exists; (b) independently re-ran the
+      assertion's own 6 postcondition queries directly against Postgres — all zero (`BTC`/`MM.NS`
+      gone from `asset_holdings`, `market_prices`, and operational `market_price_history`).
+      `repair_audit`: 2 rows, one V18 (`BTC-USD`) one V19 (`M&M.NS`), matching the single BTC and
+      single MM.NS holding found in 9.1's baseline exactly. `repair_archive`: 51 rows, reason
+      `LEGACY_SYNTHETIC` — the fabricated BTC price history, archived per Requirement 7.18-7.20.**
     - Abort: **database restore only.** This is the point of no return; do not proceed without a
       verified backup taken after 9.5.
 
