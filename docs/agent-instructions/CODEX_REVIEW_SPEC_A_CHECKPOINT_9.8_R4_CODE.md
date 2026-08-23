@@ -16,8 +16,9 @@ Job is still suspended (9.3), and both are staying that way through this checkpo
 **9.8 is "R4 deployed, still overridden"** — tasks.md's go-condition: "artifact deployed with defaults
 `true` but Terraform overrides still `false`; behaviour unchanged. Reversible." This is the first
 application-code change in the Task 9 cutover sequence (9.1–9.7 were all Terraform/operational). Branch:
-`codex/spec-a-checkpoint-9.8-r4`, one commit (`c72112f`), not yet pushed or opened as a PR — held for
-this review first, per explicit instruction from the repo owner not to merge R4 code unilaterally.
+`codex/spec-a-checkpoint-9.8-r4`, opened as [PR #137](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/137)
+(commits `c72112f` the change, `7339133` this brief) — held there for this review first, per explicit
+instruction from the repo owner not to merge R4 code unilaterally.
 
 ## What R4 actually requires — and a gap found while scoping it
 
@@ -103,6 +104,26 @@ added first and that's a materially bigger change than what's described here.
    Reversible, so the bar is "does this correctly leave production behaviour unchanged," not "is this
    fully hardened."
 
-Branch is `codex/spec-a-checkpoint-9.8-r4`, one commit, not pushed yet — will push and open a PR once
-this review comes back so CI (including the required checks that gated 9.6/9.7) has something to run
-against.
+Branch `codex/spec-a-checkpoint-9.8-r4` is pushed and open as [PR #137](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/137),
+with CI (including the required checks that gated 9.6/9.7) running against it.
+
+---
+
+## Review resolution (Codex, PR #137)
+
+- **P1 (execution order)** — confirmed and load-bearing: Terraform must be applied before the R4 image
+  deploys, never the reverse, because the container-app module's
+  `lifecycle { ignore_changes = [template[0].container[0].image] }` means an apply only ever touches env
+  vars/scaling, not the running image — so applying first is safe. Deploying the image first would run
+  portfolio-service's `true` defaults unshadowed, activating real enforcement early and violating this
+  checkpoint's "behaviour unchanged" contract. Independently verified
+  (`infrastructure/terraform/azure/modules/container-app/main.tf:30-34`) and now recorded as explicit
+  9.8.1/9.8.2 sub-steps in `tasks.md`.
+- **P3 (stale brief text)** — fixed above; the branch/commit/PR references now match PR #137's actual
+  state.
+- **Terraform mechanism** — confirmed correct: hardcoded `env_vars` entries, no dedicated toggle
+  variable, consistent with checkpoint 9.3's precedent.
+- **Gating scope** — confirmed: only portfolio-service is behaviourally gated; the other two services'
+  flags are startup-log-only. 9.9 does not need new gating logic in those two services. `tasks.md`'s 9.9
+  entry now states this explicitly, including that actual-enforcement proof only needs to come from
+  portfolio-service while the startup-log check still applies to all three.

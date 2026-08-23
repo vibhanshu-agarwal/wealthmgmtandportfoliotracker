@@ -492,6 +492,20 @@ python scripts/check-spec-references.py   .kiro/specs/supported-asset-integrity/
   - [ ] 9.8 **CHECKPOINT — R4 deployed, still overridden**
     - Go: artifact deployed with defaults `true` but Terraform overrides still `false`; behaviour
       unchanged. Reversible.
+    - **Execution order is safety-critical — apply Terraform before deploying the R4 image, never the
+      reverse.** The container-app module's `lifecycle { ignore_changes = [template[0].container[0].image] }`
+      (`infrastructure/terraform/azure/modules/container-app/main.tf:30-34`) means a Terraform apply
+      only ever touches env vars/scaling/etc., never the running image — so applying first is safe and
+      cannot itself trigger an image rollout. Deploying the R4 image first, before the override env vars
+      exist on the live revision, would run portfolio-service with its `true` defaults **unshadowed** —
+      real enforcement activating early, violating this checkpoint's "behaviour unchanged" contract.
+      - 9.8.1 `terraform apply` (adds `APP_CATALOG_REJECT_UNSUPPORTED_EVENTS`/
+        `APP_CATALOG_ENFORCE_HOLDING_INVARIANT` = `"false"` to all three Container Apps); read the
+        applied env vars back on the live revision before proceeding
+      - 9.8.2 Deploy the R4 image (`deploy-azure.yml`) to all three services; verify the new revision's
+        image digest, and that the two override env vars are still present and `false`
+    - (Reviewed by Codex, PR #137 — the ordering finding above and the Terraform-mechanism/gating-scope
+      conclusions below came from that review.)
 
   - [ ] 9.9 **CHECKPOINT — enforcement enabled**
     - Terraform removes both overrides **and** raises `min_replicas` 0 → 1 in the same apply;
@@ -499,6 +513,12 @@ python scripts/check-spec-references.py   .kiro/specs/supported-asset-integrity/
     - Go: active revision is the R4 revision, image digest matches, every startup line under that
       revision reports one distinct `(catalogVersion, rejectUnsupportedEvents=true,
       enforceHoldingInvariant=true)`
+    - Only `portfolio-service` is behaviourally gated by these flags today — `market-data-service` and
+      `insight-service` read them solely for the `catalog_loaded` startup log line, not for any actual
+      gate (confirmed by grep + read of both services' code; no separate gating logic exists there).
+      So the go-condition's startup-log check above is required on all three services, but proof of
+      **actual enforcement** only needs to come from `portfolio-service`. This does not require new
+      gating logic in the other two services — it's a scope fact about the existing code, not a gap.
     - Abort: re-add overrides — but **only with writes still closed**
 
   - [ ] 9.10 **CHECKPOINT — controlled refresh execution**
