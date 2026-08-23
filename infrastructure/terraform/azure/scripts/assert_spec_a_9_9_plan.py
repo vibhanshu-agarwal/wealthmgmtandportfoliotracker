@@ -23,8 +23,8 @@ expected image to begin with) — a real gap, since "unchanged" and "correct" ar
 
 Usage:
     python3 scripts/assert_spec_a_9_9_plan.py tfplan.json --profile standard --expected-image-tag <sha>
-    python3 scripts/assert_spec_a_9_9_plan.py tfplan.json --profile enable --expected-image-tag <sha>
-    python3 scripts/assert_spec_a_9_9_plan.py tfplan.json --profile abort --expected-image-tag <sha>
+    python3 scripts/assert_spec_a_9_9_plan.py tfplan.json --profile spec-a-9.9-enable --expected-image-tag <sha>
+    python3 scripts/assert_spec_a_9_9_plan.py tfplan.json --profile spec-a-9.9-abort --expected-image-tag <sha>
 """
 
 from __future__ import annotations
