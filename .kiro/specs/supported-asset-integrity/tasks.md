@@ -465,7 +465,25 @@ python scripts/check-spec-references.py   .kiro/specs/supported-asset-integrity/
     - Abort: **database restore only.** This is the point of no return; do not proceed without a
       verified backup taken after 9.5.
 
-  - [ ] 9.7 **CHECKPOINT — R3b Mongo repair — IRREVERSIBLE**
+  - [x] 9.7 **CHECKPOINT — R3b Mongo repair — IRREVERSIBLE** (executed 2026-08-23 per
+    `docs/runbooks/SPEC_A_MONGO_REPAIR.md`. Provisioned via [PR #136](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/136)
+    (merge `31c4a73`) + scoped `market-data-service` deploy + `terraform-azure.yml apply` (3
+    added: `market-data-repair-job`, its user-assigned identity, its ACR-pull role assignment) +
+    digest pin to `market-data-service@sha256:8548199f...`. Full pre-trigger gate re-verified live
+    immediately before starting: 9.6 intact, ingress closed, refresh fence `false`, zero running
+    executions, Job config exact (Manual/1/1/0/300s), env vars correct, image digest matched,
+    backup export re-checksummed and confirmed intact, live Mongo preflight clean (source present,
+    destination absent, no lease, no archive). Started execution
+    `market-data-repair-job-qz2v4rg`; log finish line `outcome=COMPLETE generation=1 exit=0`.
+    **Independently re-verified against live Mongo, not just the log line**: `repair_leases/
+    mm-ns-repair` durably `state: COMPLETE` at generation 1; `market_prices/MM.NS` absent;
+    `market_prices/M&M.NS` exists with the exact source tuple (`currentPrice=2202.4540,
+    quoteCurrency=INR, updatedAt=2026-06-19T08:51:01.627Z`); no `repairGeneration` left on the
+    destination (fence cleared); exactly one `repair_archive` record, `status: COMMITTED`,
+    `decision: MIGRATE_SOURCE` (no prior destination existed, so this was a non-colliding
+    migration, not the equal-time collision path); execution's recorded image matches the pinned
+    digest exactly. Ingress and the refresh writer deliberately left untouched — those are
+    checkpoints 9.11/9.14, not this one.)
     - Go: 9.6 assertion passed; refresh still suspended
     - Run the repair Job explicitly; Go on exit `0` and durable `COMPLETE`
     - Abort: `FAILED_CONFLICT` or non-zero exit stops the cutover for operator resolution. Do **not**
