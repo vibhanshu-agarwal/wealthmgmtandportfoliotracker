@@ -317,11 +317,11 @@ jobs:
 
       - name: Assert Plan — Spec A 9.9 exact scope (enable profile)
         if: github.event.inputs.change_profile == 'spec-a-9.9-enable'
-        run: python3 scripts/assert_spec_a_9_9_plan.py tfplan.json --profile enable
+        run: python3 scripts/assert_spec_a_9_9_plan.py tfplan.json --profile enable --expected-image-tag "${{ github.event.inputs.deployed_image_tag }}"
 
       - name: Assert Plan — Spec A 9.9 exact scope (abort profile)
         if: github.event.inputs.change_profile == 'spec-a-9.9-abort'
-        run: python3 scripts/assert_spec_a_9_9_plan.py tfplan.json --profile abort
+        run: python3 scripts/assert_spec_a_9_9_plan.py tfplan.json --profile abort --expected-image-tag "${{ github.event.inputs.deployed_image_tag }}"
 
       # Sanitized summary only — never upload raw tfplan/tfplan.json, which can contain
       # sensitive values (connection strings, secrets passed as TF_VAR_*).
@@ -480,11 +480,11 @@ jobs:
 
       - name: Assert Plan — Spec A 9.9 exact scope (enable profile)
         if: github.event.inputs.change_profile == 'spec-a-9.9-enable'
-        run: python3 scripts/assert_spec_a_9_9_plan.py tfplan.json --profile enable
+        run: python3 scripts/assert_spec_a_9_9_plan.py tfplan.json --profile enable --expected-image-tag "${{ github.event.inputs.deployed_image_tag }}"
 
       - name: Assert Plan — Spec A 9.9 exact scope (abort profile)
         if: github.event.inputs.change_profile == 'spec-a-9.9-abort'
-        run: python3 scripts/assert_spec_a_9_9_plan.py tfplan.json --profile abort
+        run: python3 scripts/assert_spec_a_9_9_plan.py tfplan.json --profile abort --expected-image-tag "${{ github.event.inputs.deployed_image_tag }}"
 
       - name: Terraform Apply
         run: terraform apply -auto-approve tfplan

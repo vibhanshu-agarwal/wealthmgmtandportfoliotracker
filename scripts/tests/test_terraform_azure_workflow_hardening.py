@@ -92,8 +92,8 @@ class TestTerraformAzureWorkflowHardening(unittest.TestCase):
 
     def test_apply_job_invokes_both_9_9_profile_assertions(self):
         job = self._job("apply:")
-        self.assertIn("assert_spec_a_9_9_plan.py tfplan.json --profile enable", job)
-        self.assertIn("assert_spec_a_9_9_plan.py tfplan.json --profile abort", job)
+        self.assertIn("assert_spec_a_9_9_plan.py tfplan.json --profile enable --expected-image-tag", job)
+        self.assertIn("assert_spec_a_9_9_plan.py tfplan.json --profile abort --expected-image-tag", job)
 
     # -- remote-plan job -----------------------------------------------------------
 
@@ -112,8 +112,8 @@ class TestTerraformAzureWorkflowHardening(unittest.TestCase):
 
     def test_remote_plan_invokes_both_9_9_profile_assertions(self):
         job = self._job("remote-plan:")
-        self.assertIn("assert_spec_a_9_9_plan.py tfplan.json --profile enable", job)
-        self.assertIn("assert_spec_a_9_9_plan.py tfplan.json --profile abort", job)
+        self.assertIn("assert_spec_a_9_9_plan.py tfplan.json --profile enable --expected-image-tag", job)
+        self.assertIn("assert_spec_a_9_9_plan.py tfplan.json --profile abort --expected-image-tag", job)
 
     def test_remote_plan_never_applies(self):
         job = self._job("remote-plan:")

@@ -8,9 +8,14 @@ restoring min_replicas 0) must be equally exact-scoped. This script proves, from
 alone, that a dispatched remote-plan/apply touches ONLY those three resources, only as in-place
 updates, and does not silently also change the running image or SERVICE_VERSION identity.
 
+--expected-image-tag pins that identity to a specific value (the dispatch's own
+deployed_image_tag), not merely to itself: checking only before==after would accept a plan where
+both sides already carry the same WRONG tag (e.g. stale state, or a resource that was never on the
+expected image to begin with) — a real gap, since "unchanged" and "correct" are different claims.
+
 Usage:
-    python3 scripts/assert_spec_a_9_9_plan.py tfplan.json --profile enable
-    python3 scripts/assert_spec_a_9_9_plan.py tfplan.json --profile abort
+    python3 scripts/assert_spec_a_9_9_plan.py tfplan.json --profile enable --expected-image-tag <sha>
+    python3 scripts/assert_spec_a_9_9_plan.py tfplan.json --profile abort --expected-image-tag <sha>
 """
 
 from __future__ import annotations
@@ -87,7 +92,7 @@ def _image(side: dict | None) -> str | None:
     return container.get("image") if container else None
 
 
-def evaluate_plan(plan: dict, profile: str) -> list[str]:
+def evaluate_plan(plan: dict, profile: str, expected_image_tag: str) -> list[str]:
     errors: list[str] = []
     resource_changes = plan.get("resource_changes", [])
 
@@ -172,20 +177,27 @@ def evaluate_plan(plan: dict, profile: str) -> list[str]:
                         f"the abort apply, got {after_env.get(name)!r}."
                     )
 
+        # Pin to expected_image_tag, not merely to each other: before==after alone would
+        # accept a plan where both sides already carry the same wrong tag.
+        image_suffix = f":{expected_image_tag}"
         before_image, after_image = _image(before), _image(after)
-        if before_image != after_image:
-            errors.append(
-                f"FAIL [image] {address} image changes ({before_image!r} -> {after_image!r}); "
-                "9.9 must not change the running image identity."
-            )
+        for label, image in (("before", before_image), ("after", after_image)):
+            if image is None or not image.endswith(image_suffix):
+                errors.append(
+                    f"FAIL [image] {address} {label} image is {image!r}; expected it to end "
+                    f"with {image_suffix!r} (deployed_image_tag), not merely to match its "
+                    "counterpart on the other side of the diff."
+                )
 
         before_version = before_env.get("SERVICE_VERSION")
         after_version = after_env.get("SERVICE_VERSION")
-        if before_version != after_version:
-            errors.append(
-                f"FAIL [service_version] {address} SERVICE_VERSION changes "
-                f"({before_version!r} -> {after_version!r}); 9.9 must not change deployment identity."
-            )
+        for label, version in (("before", before_version), ("after", after_version)):
+            if version != expected_image_tag:
+                errors.append(
+                    f"FAIL [service_version] {address} {label} SERVICE_VERSION is {version!r}; "
+                    f"expected {expected_image_tag!r} (deployed_image_tag), not merely to match "
+                    "its counterpart on the other side of the diff."
+                )
 
     return errors
 
@@ -194,6 +206,11 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("plan_json")
     parser.add_argument("--profile", choices=("enable", "abort"), required=True)
+    parser.add_argument(
+        "--expected-image-tag",
+        required=True,
+        help="The deployed_image_tag this plan must show before AND after on all three services.",
+    )
     args = parser.parse_args()
 
     try:
@@ -205,7 +222,7 @@ def main() -> int:
         print(f"ERROR: Failed to parse plan JSON from '{args.plan_json}': {e}", file=sys.stderr)
         return 1
 
-    errors = evaluate_plan(plan, args.profile)
+    errors = evaluate_plan(plan, args.profile, args.expected_image_tag)
     if errors:
         print(f"SPEC A 9.9 PLAN ASSERTION FAILED (profile={args.profile}):")
         for err in errors:
