@@ -85,13 +85,27 @@ az ad app federated-credential create \
     "audiences": ["api://AzureADTokenExchange"]
   }'
 
-# For main branch (deploy-azure.yml + terraform-azure.yml apply)
+# For main branch (deploy-azure.yml + terraform-azure.yml remote-plan/validate-dispatch)
 az ad app federated-credential create \
   --id "$APP_ID" \
   --parameters '{
     "name": "github-main",
     "issuer": "https://token.actions.githubusercontent.com",
     "subject": "repo:vibhanshu-agarwal/wealthmgmtandportfoliotracker:ref:refs/heads/main",
+    "audiences": ["api://AzureADTokenExchange"]
+  }'
+
+# For the production GitHub Environment gate (terraform-azure.yml apply job only)
+# Required because the apply job has `environment: production` — GitHub issues an
+# environment-scoped OIDC token (subject: …:environment:production) instead of a
+# branch-scoped one. The main-branch credential above does NOT cover this case.
+# Added 2026-08-23 as an out-of-band prerequisite for checkpoint 9.9 apply.
+az ad app federated-credential create \
+  --id "$APP_ID" \
+  --parameters '{
+    "name": "github-production-environment",
+    "issuer": "https://token.actions.githubusercontent.com",
+    "subject": "repo:vibhanshu-agarwal/wealthmgmtandportfoliotracker:environment:production",
     "audiences": ["api://AzureADTokenExchange"]
   }'
 ```
