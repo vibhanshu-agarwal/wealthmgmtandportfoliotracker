@@ -234,7 +234,7 @@ Companion to
 `requirements.md` Revision 2. A visual mockup of the five core screens (Portfolio entry point,
 Browse/draft, Review/confirm, Success, and the 409 conflict state) exists two ways:
 
-- **In the working tree** (not yet committed — see note below), openable in any browser with no
+- **Tracked in the repository**, openable in any browser with no
   dependency on artifact-sharing permissions or a live session, offline-openable with a
   system-font fallback: `.kiro/specs/asset-picker-composition/mockup/asset-picker-design.html`.
   **Not fully self-contained** — each screen links Geist from `fonts.googleapis.com` for visual
@@ -244,11 +244,7 @@ Browse/draft, Review/confirm, Success, and the 409 conflict state) exists two wa
   Pass 2 found the previous revision linked only the hosted canvas below, which is **private by
   default** — a reviewer without access to it saw "Page not found," making the design
   unreviewable from a fresh checkout alone despite the link being present. This file is
-  the fix within this session: durable and independently openable **once committed**. *(Pass 5
-  correction: calling this "checked in" overstated its status — `git log --all` shows zero commits
-  touching `.kiro/specs/asset-picker-composition/` on any branch; it is present in this working
-  tree only, same as every other artifact from this review cycle, pending the standing
-  commit-after-clean-review step.)*
+  the durable, independently openable repository copy.
 - **Hosted, editable**: https://claude.ai/code/artifact/cd67255f-f482-4e3d-84c8-2ad41b2779cb — same
   content, pan/zoom canvas, not guaranteed accessible to every reviewer.
 
@@ -1390,11 +1386,7 @@ entity-to-response mapping, ISO-8601 encoding matching `createdAt`, and a contra
 element of the existing `List<PortfolioResponse>`. It remains blocked on B1's V20 column and Task
 5.1 response work, but ownership is settled and this item is removed from the Open-items count.
 
-**`assetPriceFreshness` has not landed yet either — added pass 7, same failure mode as
-`updatedAt`.** Requirement 3.2 (and 3.4, new this pass) depend on this field; Spec A
-(`supported-asset-integrity`) `tasks.md` task 8.6 — the freshness summary contract that would
-produce it — is unchecked, and the field appears nowhere in `portfolio-service` or frontend source
-today. This was stated inline in requirements.md 3.2 but, like `updatedAt` before it, never added
-to either Open-items surface until this pass. Not a product decision — a backend implementation
-dependency, same class as `updatedAt` above, now doubly load-bearing since Requirement 3.4 depends
-on it too.
+**`assetPriceFreshness` dependency closed on 2026-08-24.** Spec A task 8.6 is complete and the
+aggregate field exists in `portfolio-service`'s portfolio-summary response. Requirements 3.2 and
+3.4 still require B2's frontend adapter and live wiring, but no additional backend freshness
+contract work blocks them.

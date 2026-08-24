@@ -1,284 +1,260 @@
 # Asset Picker — E2E Master Plan to Production
 
-**Review-accounting note (Azure-first consolidation, 2026-08-22):** historical pass counts below
-are provenance only. They are no longer synchronized or incremented as acceptance metadata; git
-history plus the current scope-specific authority and executable gates are authoritative.
+**Last verified:** 2026-08-24
 
-**Date:** 2026-08-21
-**Status:** Living index document. Points at the real spec artifacts rather than duplicating them —
-per project convention, feature content lives in `.kiro/specs/`, this file is the cross-cutting
-program view tying Spec A, B1, B2, and known bugs together.
-**Authority is scope-specific, not blanket:** B2 `requirements.md` owns product behavior;
-`design.md` owns architecture and component boundaries; this master plan owns cross-spec dependencies
-and release ordering; `tasks.md` owns executable task/test mechanics. A conflict is a freeze blocker
-to reconcile across the affected artifacts, never permission for one file to silently override an
-unrelated scope.
-**Current delivery scope is Azure first.** AWS-only CloudFront/Lambda work is explicitly deferred
-while AWS production is disabled and does not block the Azure Asset Picker release. Shared code and
-cross-cloud contracts remain in scope; deferred AWS gates must be re-audited before AWS is re-enabled.
-**Verification level, precisely** (softened on review — an earlier draft's blanket "everything
-verified directly" overstated this): specific checkpoints (9.3, 9.5), file contents, and git
-branches were checked with live calls, cited inline where they were. Others were **not** checked
-this pass — 9.1/9.2, and every "credential present in `.env.secrets`" row in the Prerequisites
-table, which is presence, not a tested connection. Anything not explicitly marked as live-verified
-below should be treated as unconfirmed, not assumed true — same standard §1.6 asks of spec-doc
-checkboxes.
+**Program-state code baseline:** `main@e221662b6c891639a56894289e150ee01fb537f6`. This update is
+documentation-only; its merge SHA becomes the document revision without changing the recorded
+runtime or implementation state.
 
----
+**Program state:** Spec A checkpoint 9.10 is complete. Checkpoints 9.11–9.14 are pending and
+unauthorized. B1's safe composition backend is incomplete. B2's implementation has not started.
 
-## 0. Where things actually stand
+**User-visible state:** there is no functional Asset Picker in the application today.
 
-"Asset Picker" spans two specs by deliberate design (not an oversight — see §1.3): **B1**
-(`portfolio-composition-contract`, backend contract) and **B2** (`asset-picker-composition`,
-frontend plus a real slice of its own backend — not just "one touch": a demo-presence subsystem
-(JWT `jti` claim, Redis session tracking, a new gateway endpoint) and two new demo-reset
-endpoints, in addition to the `ReadOnlyEnforcementFilter` allowlist change). B1 is mid-flight.
-**B2 now has a Revision 2 spec and a visual design** — both produced this pass from decisions that
-were already settled in a prior brainstorm but never formalized, then corrected across twenty-eight
-review passes — twenty-six by Codex adversarial review, plus two internal parallel-agent audits
-(Claude-run, not Codex). **Architecture shape is substantially settled — this is not fully
-decision-complete.** `updatedAt` exposure is now explicitly owned by B2 Task 8.1 after B1's V20
-column and version-bearing read land; it is no longer an ownerless cross-spec gap. Three product
-decisions remain open (idle-reset threshold, manual-reset placement, presence TTL). What's left is
-implementation, dependency-aware sequencing, and those open product calls (§4.3).
+**Handoff state:** this is the intentional Claude-to-Cursor cutoff. No checkpoint 9.11 action has
+started.
 
----
+This is the living, human-facing status document for the Asset Picker program. It is not a
+historical snapshot. Detailed requirements, designs, task mechanics, and operational evidence live
+in the linked owning documents; this file summarizes their current state, dependencies, blockers,
+active work, and next decisions.
 
-## 1. Ground truth, verified today
+## 0. Status governance
 
-### 1.1 Infrastructure prerequisite — Spec A cutover (`supported-asset-integrity`, task 9)
+### 0.1 Authority
 
-Checked against **live Azure state**, not the spec's checkboxes:
+- This master plan owns cross-spec status, dependency ordering, active work, blockers, and the next
+  decision requiring owner authorization.
+- Each spec's `requirements.md` owns behavior, `design.md` owns architecture, and `tasks.md` owns
+  detailed implementation and verification mechanics.
+- Runbooks own durable operational evidence. They are linked from task records rather than copied
+  here.
+- Git history preserves chronology. Historical status paragraphs do not remain in the living view
+  after they become false.
 
-| Checkpoint | Requires | Actual state | How verified |
+### 0.2 Required update rule
+
+Every PR or operational checkpoint that changes Asset Picker program status must update this file
+in the same change that records the detailed task evidence. A PR that touches Spec A, B1, B2, their
+release workflows, or an Asset Picker blocker must do exactly one of the following:
+
+1. update this master plan and the owning task ledger; or
+2. state `Master-plan impact: none` in the PR description and explain why no program status,
+   dependency, blocker, or next action changed.
+
+A checkbox is marked complete only when its owning acceptance evidence exists. Work implemented on
+an unmerged branch is described as **implemented but unmerged**, never as complete on `main`.
+
+The repository does not yet enforce this rule automatically. Adding a structural CI guard is the
+first process-hardening task for the Cursor handoff; it is intentionally not implemented in this
+documentation-only PR.
+
+### 0.3 Update checklist
+
+At every meaningful merge or live checkpoint:
+
+- update `Last verified` and the program-state code baseline;
+- update the program snapshot and affected track row;
+- update the active PR/branch table;
+- update blockers and the next authorization boundary;
+- update the owning `tasks.md` evidence;
+- remove or rewrite statements that have become false; and
+- keep secrets and raw operational artifacts out of tracked documentation.
+
+## 1. Executive program snapshot
+
+| Track | Delivered | Current position | Remaining outcome |
 |---|---|---|---|
-| 9.1 | R1 deployed, inert | Not independently re-verified this pass | — |
-| 9.2 | Refresh producer narrowed | Not independently re-verified this pass | — |
-| 9.3 | `MARKET_DATA_JOB_RUNNER_ENABLED=false`, refresh suspended | **`=true`**, job ran normally on its `0 8 * * *` cron yesterday (2026-08-20), succeeded | `az containerapp job show` / `execution list` |
-| 9.4 | Kafka consumer lag zero | Not yet checked — credentials available in `.env.secrets` | — |
-| 9.5 | `api_gateway_ingress_enabled=false` | **`external: true`**, 100% traffic on the live revision — full site is live | `az containerapp show` |
-| 9.6 | Postgres repair — **IRREVERSIBLE** | Blocked: needs 9.3-9.5 green + a verified post-9.5 backup. Code exists, tested green, on unmerged `feat/supported-asset-postgres-repair` | branch diff, tasks.md |
-| 9.7 | Mongo repair — **IRREVERSIBLE** | Blocked: needs 9.6 done. Code exists, tested green, on unmerged `feat/supported-asset-mongo-repair` (no Flyway migrations — Mongo-only) | branch diff |
-| 9.8-9.9+ | R4 deployed, catalog identity confirmed | Not reached | — |
+| **A — Spec A catalog/data cutover** | Shared catalog, Postgres/Mongo repair, R4 rollout, enforcement, and one reconciled controlled refresh | **10 of 14 cutover checkpoints complete**; 9.11 is the next unauthorized checkpoint | Persist refresh, activate demo portfolio, restore scale-to-zero, reopen ingress |
+| **B — B1 portfolio composition backend** | Deployment prerequisites, fixture identity migration, legacy writer retirement | **3 of 9 waves complete** (`P`, `0`, `1`); Wave 2 is partially implemented only in draft PR #131 | V20, versioned reads, catalog endpoint, safe desired-state writer, activation |
+| **C — B2 Asset Picker product** | Requirements, design, task plan, and five-screen visual mockup | **No implementation wave complete** | Picker UI, decimal adapter, presence/reset support, live integration, exposure |
+| **D — Demo credibility** | Canonical prices refreshed and reconciled; demo initializer exists gated off | Demo activation has not run | Spec A 9.12 must seed and verify the complete Active Asset set without touching E2E data |
 
-**This blocks B1 Waves 3, 5, 6, 7** and, per design.md, arguably the release of Wave 2's remaining
-tasks too — see §2. **Prerequisites for 9.3-9.5 are ready now** (§ Prerequisites below) — nothing
-stops starting this today.
+### What is actually usable today
 
-### 1.2 B1 backend (`portfolio-composition-contract`) — 9 waves, P through 7
+| Capability | Status |
+|---|---|
+| Canonical Active Asset catalog inside services | ✅ Shipped |
+| Repaired and reconciled price data | ✅ Shipped and verified |
+| Enforcement against unsupported holdings/events | ✅ Enabled |
+| `GET /api/assets` serving catalog data | ❌ Controller does not exist on `main` |
+| Version-bearing portfolio read | ❌ Not implemented |
+| `PUT /api/portfolio/holdings` safe composition write | ❌ Not implemented |
+| Asset Picker button/modal/browse/review/conflict UI | ❌ Not implemented |
+| Asset Picker full-stack E2E proof | ❌ Not implemented |
+| Asset Picker exposed to production users | ❌ Not implemented |
 
-| Wave | What | Status |
+The recent flakiness fixes were incidental blockers. The main delivered work was production data,
+catalog, enforcement, and deployment safety. That foundation is necessary, but it is not the
+user-facing picker.
+
+## 2. Track A — Spec A catalog/data foundation
+
+Authority: [`.kiro/specs/supported-asset-integrity/tasks.md`](../../.kiro/specs/supported-asset-integrity/tasks.md)
+
+| Checkpoint | Status | Durable outcome |
 |---|---|---|
-| P | Deployment prerequisites | ✅ Done, live |
-| 0 | Fixture identity migration | ✅ Done (PR #121) |
-| 1 | Legacy writer retirement (R-0) | ✅ Done — deployed, kept (GO recorded) |
-| 2 | Gateway provisioning + `/api/assets` route (R-A) | **2.1/2.3 done**, verified, [PR #131](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/131) open as a **draft**. 2.2/2.4/2.5/2.6 blocked on §1.1. |
-| 3 | Schema — V20 migration | Blocked on Spec A (§1.1) |
-| 4 | Contract implementation (orchestrator, error envelope, decimal fidelity, `GET /api/assets` controller) | **Not blocked — startable now.** 23 tasks (4.1-4.21, plus 4.20a/4.20b — inserted by a later B1 review pass, same nesting level as their neighbors, not sub-bullets), zero started. *(Pass 5 correction: previously counted 21, missing the two lettered insertions.)* |
-| 5 | Version-bearing read (R-B2) | Blocked on Wave 3 |
-| 6 | Version-required seed (R-B3) | Blocked on Wave 5 |
-| 7 | Activation — `PUT /api/portfolio/holdings` goes live (R-C) | Blocked on Wave 6 |
+| 9.1–9.5 | ✅ Complete | R1/R2 deployed, refresh fenced, Kafka drained, writes/ingress quiesced |
+| 9.6 | ✅ Complete | V17–V19 Postgres repair applied; integrity assertion and repair audit verified |
+| 9.7 | ✅ Complete | Mongo repair Job completed and verified |
+| 9.8 | ✅ Complete | R4 deployed with catalog identity confirmed; actual chronology recorded |
+| 9.9 | ✅ Complete | Catalog enforcement enabled; three services held at `min_replicas=1` |
+| 9.10 | ✅ Complete | One controlled refresh succeeded and was reconciled across Kafka, Mongo, and Postgres |
+| 9.11 | ⏸ Pending authorization | Persist `MARKET_DATA_JOB_RUNNER_ENABLED=true` through Terraform |
+| 9.12 | ⏸ Pending | Activate and verify the deterministic full demo portfolio while replicas remain running |
+| 9.13 | ⏸ Pending | Restore `min_replicas=0` and verify configuration-level state |
+| 9.14 | ⏸ Pending | Reopen ingress after 9.11–9.13 are green |
 
-### 1.3 B2 frontend (`asset-picker-composition`) — now has a Revision 2 spec + visual design
+Additional unfinished Spec A implementation task: **8.8**, replacing remaining hard-coded
+catalog-size assertions. Tasks 8.1–8.7, including the aggregate `assetPriceFreshness` contract,
+are complete.
 
-- **`.kiro/specs/asset-picker-composition/requirements.md` and `design.md`** now exist — Revision
-  2 (twenty-eight review passes as of 2026-08-22 — twenty-six Codex, two internal Claude audits), synthesized from decisions already settled in
-  `docs/superpowers/brainstorm/2026-08-16-spec-b1-and-auth-ratelimit-hotfix.md` entries [0], [4]-[6]
-  (a Claude↔Codex Q&A that resolved the picker's shape, presence mechanism, reset trigger, and
-  decimal-fidelity handling in detail — it was just never turned into a spec document or a visual
-  design until this pass).
-- **A visual design exists**: five screens (Portfolio page with the entry point, Browse/draft,
-  Review/confirm, post-save success, and the 409 conflict state), **built from the app's real
-  design tokens** (shadcn/ui, emerald/slate palette, existing Card/Table/Badge anatomy) — not
-  claimed as pixel-exact, since that hasn't been independently verified against the running
-  frontend. Present in the working tree at
-  `.kiro/specs/asset-picker-composition/mockup/asset-picker-design.html` (opens in any browser
-  offline, with a system-font fallback; **not fully self-contained**, since each screen links Geist
-  from `fonts.googleapis.com` for visual fidelity and falls back to `system-ui` without network
-  access) and also published as an editable design canvas (private by default, not guaranteed
-  reachable by every reviewer). **Since committed (pass 26 correction — this note is now stale and
-  historical, kept for the record rather than deleted).** Pass 5's audit originally found the whole
-  spec directory, `.kiro/specs/asset-picker-composition/`, untracked (`git ls-files` returned
-  nothing for it, `git log --all` showed zero commits touching it on any branch), unlike B1's spec
-  directory, which was tracked from the start; that gap was the reason this section existed. As of
-  the spec owner's explicit freeze-and-commit direction after round 21, `requirements.md`,
-  `design.md`, the mockup, and this master plan document itself are all tracked and committed
-  (`docs/b2-asset-picker-composition-spec`, commit `1639565` and later amendments) — verified
-  directly via `git ls-files`, all four now return a match. **`tasks.md` (the implementation task
-  breakdown) is the one artifact in this spec family still uncommitted**, by the same deliberate
-  "review before freezing" pattern the other four went through first.
-- Why B2 is a separate spec at all, stated plainly: B1's own Requirement 10 (non-goals) says *"THIS
-  spec SHALL deliver no frontend change... belongs to B2"* — a deliberate split, reasoned from Spec
-  A's own experience that mixing persistence/API/frontend review in one spec caused repeated
-  rework. Not an oversight; a decision now correctly followed through on.
-- Genuinely open (not resolved by this pass, see §4.3): the demo reset idle threshold's exact
-  value, where the manual reset control lives in the UI, and the presence TTL's exact value. (A
-  quantity upper bound was listed here in an earlier pass — removed on review: B1 already freezes
-  it at `99999999999.99999999`, cited in B2's own `requirements.md` Requirement 2.5.)
-- Also found on review, not resolved yet: B2's spec had two real design bugs that would have
-  shipped wrong behavior if implemented as first drafted — the `PUT` used the wrong field name
-  (`version` instead of B1's actual `expectedVersion`), and the demo-reset design duplicated
-  B1-owned persistence instead of delegating to it. Both are now fixed in
-  `.kiro/specs/asset-picker-composition/design.md`; noted here so the correction isn't lost from
-  the program-level view.
+### Current production safety boundary
 
-### 1.4 "Profile changes" — still completely unscoped
+- Persisted refresh runner: `false`.
+- Refresh retry limit: `0`.
+- Gateway ingress: closed.
+- `portfolio-service`, `market-data-service`, and `insight-service`: enforcement enabled,
+  `min_replicas=1` for the verification window.
+- Controlled refresh: exactly one execution completed; its override was not persisted.
+- Demo portfolio activation: not run.
+- Checkpoints 9.11–9.14: not authorized.
 
-- `frontend/src/app/(dashboard)/settings/page.tsx` is an 8-line placeholder.
-- No spec anywhere named profile/settings; referenced only in passing in one backlog item.
-- Still need your input on what this should contain.
+Checkpoint 9.10 evidence:
+[`docs/runbooks/SPEC_A_9_10_CONTROLLED_REFRESH.md`](../runbooks/SPEC_A_9_10_CONTROLLED_REFRESH.md).
 
-### 1.5 Known bugs already blocking a credible demo, independent of B1/B2
+## 3. Track B — B1 portfolio composition backend
 
-**`demo-portfolio-and-ticker-integrity`** (open since 2026-08-15, unfixed): demo account shows 3
-holdings instead of ~160 (wrong seeded user, from `V15`/PR #85); BTC priced two different ways on
-two pages ($70,775 stale seed price on Portfolio vs. $0.00 on Market Data). Root-caused, nothing
-fixed yet.
+Authority: [`.kiro/specs/portfolio-composition-contract/tasks.md`](../../.kiro/specs/portfolio-composition-contract/tasks.md)
 
-**`e2e-coverage-audit-post-asset-picker`** (open, *deliberately* deferred until B1+B2+Profile land)
-— noted so it isn't lost, not something to start now.
-
-### 1.6 Checkbox/spec hygiene — confirmed as a real, recurring problem
-
-`new-user-signup-profile` — a fully shipped, working-in-production feature — shows 0 of 11 tasks
-ticked. An unticked box has meant both "not done" (Spec A's task 9, confirmed live this pass) and
-"done, not recorded" (B1 Wave 0's task 0.7, earlier this session) — genuinely ambiguous.
-**Proposed fix (§4.2):** a CI check failing any PR that touches a spec's implementation files
-without also updating that spec's `tasks.md` in the same diff.
-
----
-
-## Prerequisites — everything required upfront, by track
-
-Compiled so nothing below is a surprise mid-execution blocker.
-
-### For Track A (Spec A cutover, checkpoints 9.3-9.9)
-
-| Requirement | Status |
-|---|---|
-| Azure CLI (`az`) authenticated to tenant `3b7c1239-b414-4fd6-9b91-176b4cfba1b4`, subscription `ee625b3f-...` | ✅ Confirmed working this session — a live `az account show`/`az containerapp` round-trip, not just credential presence |
-| Azure MCP Server tool access | ❌ **Broken as observed this session** — authenticated to the wrong tenant (`f8cdef31-...`), 401 on every call. Worked around via `az` CLI directly for every check. Recorded as prior-session history; a later session should re-confirm rather than assume it's still broken, since no Azure MCP tool was exposed to re-test this in the review pass. |
-| Kafka access (`KAFKA_BOOTSTRAP_SERVERS`, `KAFKA_SASL_USERNAME`, `KAFKA_SASL_PASSWORD`) | ⚠️ Keys present in `.env.secrets` — **connectivity not yet exercised.** Presence of a credential is not proof it's current or that consumer-lag reads (9.4) actually succeed with it. |
-| Neon Postgres connection (`POSTGRES_CONNECTION_STRING`) | ⚠️ Key present in `.env.secrets` — connectivity/authorization not yet exercised. **Hard gate, not a one-line follow-up:** 9.6 is Spec A's own irreversible checkpoint, and its stated abort condition is "do not proceed without a verified backup taken after 9.5." Before 9.6 can run, this needs an actual decision — which Neon mechanism (point-in-time restore vs. an explicit branch snapshot) counts as "verified" here — confirmed and exercised, not assumed. |
-| MongoDB connection (`MONGODB_CONNECTION_STRING`) | ⚠️ Key present in `.env.secrets` — connectivity not yet exercised. Needed for 9.7. |
-| GitHub Actions access to run/monitor `feat/supported-asset-postgres-repair` and `feat/supported-asset-mongo-repair` branches' CI, and to merge them | ✅ Same `gh` CLI access exercised repeatedly and successfully throughout this session |
-| Explicit owner sign-off that downtime (gateway ingress disabled, §1.1 9.5) is acceptable now | ✅ **Given** — "Downtime is not an issue" |
-
-### For Track B (B1 Wave 4)
-
-| Requirement | Status |
-|---|---|
-| Local Java 21 / Gradle build, Docker (Testcontainers for integration tests) | ✅ Already used successfully throughout this session |
-| No external access needed — pure code against `main` | ✅ |
-
-### For Track C (B2) — a dependency DAG, not one start condition or a total order
-
-The portfolio-service reset endpoint is the common predecessor of the two reset consumers. Presence
-and the flag-hidden frontend are independent branches; the manual-reset gateway bundle and the
-login-orchestration gateway work may advance after the endpoint on their own prerequisites, without
-being serialized behind each other. Live integration waits on
-B1 Wave 7 plus the relevant B2 manual/demo-write pieces. Production exposure is the convergence
-gate and waits for every required branch and its live evidence.
-
-| Phase | Needs | Status |
+| Wave | Status | Meaning |
 |---|---|---|
-| **UI development against frozen contracts/mocks** — build screens, wire local state, no live backend calls | `.kiro/specs/asset-picker-composition/{requirements,design}.md` + visual design reference (both ✅ produced this pass); Node/npm toolchain (✅ present) | **Startable now.** B1's contract shape (request/response fields) is fixed by its spec regardless of which release gate is open. |
-| **B2-owned backend build (DAG branches)** — (a) JWT `jti` plus Redis presence and the authenticated gateway-local presence endpoint; (b) portfolio-service `DemoResetService` and the dual-verb internal controller; (c) the manual-reset gateway route/filter/allowlist bundle; (d) B2 Task 8.1 `updatedAt` exposure plus the separately-gated login orchestration; and (e) Azure deployment-evidence foundation Task 8.8b. Presence and the flag-hidden frontend are independent; the portfolio endpoint is the common predecessor only for its manual and login reset consumers, which do not depend on each other. The real-chain reset proof is Task 4.4's Testcontainers integration through `DemoResetService → HoldingReplacementService → GoldenStateTuplePreparer → catalog → persistence`; a thin MVC slice is optional and proves only both verbs map to the same call site. | Full B1 Wave-4 prerequisite cluster **4.1, 4.3, 4.7, 4.9, and 4.10**, plus B1 **5.1** before version-bearing live probes; Redis; Spec A Task 8.6 for `assetPriceFreshness` (owned but unfinished). B2 Task 8.1 owns `updatedAt` after V20/B1 5.1; it is not ownerless. | **Not started.** UI/mock work and independent backend branches are startable where their own Needs are green. Login orchestration does not block the manual bundle or hidden frontend; all branches converge at Production exposure. |
-| **Live integration** — picker save and manual reset against the assembled backend | B1 Wave 7 `CompositionController`; B2 manual/demo-write pieces; Task 9.5 waits on owned-but-unfinished Spec A Task 8.6 for freshness. Login orchestration is not a live-integration prerequisite. | Blocked until those specific dependencies land; then Tasks 9.1-9.9 verify catalog caching, price/freshness, deterministic save `200`/`409`, manual reset, and cleanup. |
-| **Production exposure** — Azure users can see both controls | **All six:** (1) B1/Spec A activation gates; (2) decimal adapter live before B1's string read contract; (3) Live integration complete; (4) idle threshold, manual-control placement, and presence TTL resolved; (5) login self-call timeout values resolved; (6) presence Task 3.7, portfolio endpoint 4.5, manual bundle 5.6, hidden frontend 6.3/9.8, login deployment 8.8, Azure evidence foundation 8.8b, and trace-correlated live proof 8.9 all green against the revisions currently serving. AWS-only Task 8.8a is deferred while AWS is disabled. | **Blocked until all six clear.** Exposure is one Azure frontend rebuild with both flags enabled; rollback is another rebuild with both disabled, verified from a fresh client. |
+| P — deployment prerequisites | ✅ Complete | Scoped service deployment and immutable portfolio digest path live |
+| 0 — fixture identity migration | ✅ Complete | E2E fixture paths moved to the correct identity |
+| 1 — legacy writer retirement | ✅ Complete | Old portfolio creator and versionless holding writer removed and kept retired |
+| 2 — gateway provisioning + asset route | 🟡 Partially implemented, unmerged | Tasks 2.1 and 2.3 exist only in draft PR #131; tasks 2.2 and 2.4–2.6 remain incomplete |
+| 3 — V20 schema | ⬜ Not started | Version/timestamps, one-portfolio invariant, quantity constraint |
+| 4 — contract implementation | ⬜ Not started, startable | Replacement orchestrator, preparers, error envelope, decimal fidelity, `GET /api/assets` controller |
+| 5 — version-bearing read | ⬜ Not started | Authenticated portfolio read returns version |
+| 6 — version-required seed | ⬜ Not started | Seeder delegates through the safe replacement service |
+| 7 — activation | ⬜ Not started | Public `PUT /api/portfolio/holdings`, attested candidate, serving proof |
 
-Outstanding product decisions (idle-reset threshold, manual-reset placement, presence TTL) —
-`requirements.md`'s Open items — don't block UI-development-phase work, but do block finalizing the
-reset/presence screens' actual behavior and copy, **and now explicitly block production exposure
-above too, not just polish.**
+Spec A V17–V19 are now applied in production, so the old “R3a is unmerged” blocker is closed. Wave
+3 still depends on B1 Wave 2's candidate and serving gates, and Wave 4 remains independently
+startable as implementation work.
 
-### For Track D (demo bug fix)
+### Active B1 work
 
-| Requirement | Status |
-|---|---|
-| Read access to production Postgres to confirm the root cause against live data | ⚠️ Connection string present in `.env.secrets`; connectivity/authorization not yet exercised |
-| Understanding of `V15`'s reassignment and the seed-price staleness mechanism | ✅ Already written up in the backlog item |
-| No infra/external blocker **once Postgres connectivity above is confirmed** | Not yet claimed — the row above is the actual open item; this isn't a separate green light |
+| Item | Current state | Required before relying on it |
+|---|---|---|
+| [PR #131](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/131) | Draft, head `1d3bd730`; tasks 2.1/2.3 implemented but not on `main`; last CI is from 2026-08-21 | Rebase onto current `main`, reconcile Spec A changes, complete Wave 2 prerequisites/proofs, fresh review and CI |
 
-### Cross-cutting
+The temporary product state is intentional but incomplete: the unsafe legacy writer is gone, while
+the safe versioned replacement has not yet been built. A frontend picker cannot save holdings until
+B1 Wave 7 activates the new endpoint.
 
-| Requirement | Status |
-|---|---|
-| `.env.secrets` present at repo root, with non-empty AWS/Azure/Kafka/Postgres/MongoDB/Terraform-var keys | ⚠️ Presence confirmed this session; **currency/validity of the values themselves not tested** — a key existing is not proof it still works |
-| A working Azure access path, given the MCP tool was observed broken earlier this session | ✅ `az` CLI directly, exercised successfully and repeatedly. Whether the MCP tool is *still* broken is unconfirmed as of this pass (§ above) — `az` CLI is the proven path regardless, worth keeping as the standing default rather than re-litigating each time |
+## 4. Track C — B2 Asset Picker product
 
----
+Authorities:
 
-## 2. Why merging PR #131 alone wouldn't have "finished" anything visible
+- [requirements](../../.kiro/specs/asset-picker-composition/requirements.md)
+- [design](../../.kiro/specs/asset-picker-composition/design.md)
+- [implementation tasks](../../.kiro/specs/asset-picker-composition/tasks.md)
+- [visual mockup](../../.kiro/specs/asset-picker-composition/mockup/asset-picker-design.html)
 
-Even with 2.2/2.4 cleared and #131 merged: R-A activates a `portfolio` insert at signup (invisible)
-and a gateway route to a controller that doesn't exist until Wave 4/7 ships. Nothing changes on
-screen yet — noted here once so it's never reported as a surprise blocker again.
+All four artifacts are tracked. No B2 implementation task is complete on `main`.
 
----
+| Wave | Status | Dependency note |
+|---|---|---|
+| 1 — mock-backed picker shell | ⬜ Not started; partially startable now | Feature flags, modal, browse/draft/review/conflict UX, mocked save/freshness/presence |
+| 2 — decimal adapter | ⬜ Not started | Rollout sequencing with B1 Wave 4/5 remains an explicit open coordination decision |
+| 3 — Redis-backed presence | ⬜ Not started | Independent B2 backend branch; exact TTL remains open |
+| 4 — portfolio-service demo reset | ⬜ Blocked | Requires B1 Wave 4 tasks 4.1, 4.3, 4.7, 4.9, and 4.10 |
+| 5 — manual-reset gateway bundle | ⬜ Blocked on Wave 4 | Route, authorization filter, read-only allowlist, identity providers |
+| 6 — manual reset frontend | ⬜ Blocked on Wave 5 and B1 5.1 | Hidden control and versioned reset call |
+| 7 — decimal rollout note | ℹ Informational | No independent release gate |
+| 8 — login-orchestrated reset | ⬜ Not started/partly blocked | Requires B1/V20/version read, open idle/timeouts, and its own deployment evidence |
+| 9 — live integration | ⬜ Blocked | Requires B1 catalog/read/write endpoints and relevant B2 Waves 1–6 |
+| 10 — production exposure | ⬜ Blocked | Convergence gate after all required live evidence and open decisions close |
 
-## 3. The path to production — four tracks, three startable immediately
+The aggregate `assetPriceFreshness` backend dependency is now **closed**: Spec A task 8.6 is
+complete and `PortfolioSummaryDto.assetPriceFreshness` exists. B2 still must implement its frontend
+adapter and UI wiring in Waves 1 and 9.
 
-```
-Track A: Spec A cutover (infra)         Track B: B1 backend Wave 4 (code)
-  9.3 → 9.4 → 9.5 → [backup] → 9.6         4.1-4.21, no external dependency
-  → 9.7 → 9.8 → 9.9                        STARTABLE NOW
-  STARTABLE NOW (prereqs ready,                   │
-  downtime accepted)                              │
-        │                                         │
-        └──────────────┬──────────────────────────┘
-                        ▼
-              B1 Wave 3 (V20 applied) — needs Track A done
-                        │
-                        ▼
-              B1 Waves 5 → 6 → 7 (R-B2 → R-B3 → R-C)
-              PUT /api/portfolio/holdings goes live
-                        │
-                        ▼
-Track C: B2 dependency DAG (Azure first)
-  UI shell/mocks ───────────────────────────────┐
-  Presence (3.1-3.7) ──────────────────────────┤
-  Hidden frontend/reset control (Wave 6) ─────────┤
-  Portfolio reset endpoint (Wave 4) ─┬─ manual gateway bundle (Wave 5)
-                                      └─ login orchestration (Wave 8)
-                                           ├─ B2-owned updatedAt (8.1)
-                                           ├─ threshold/timeouts (8.2)
-                                           └─ Azure evidence (8.8b → 8.9)
-  B1 Wave 7 + relevant B2 manual/demo-write pieces → Live integration (Wave 9)
-  All branches + live evidence + open decisions ───→ Production exposure (Wave 10)
-  AWS-only 8.8a: DEFERRED while AWS production is disabled
-Track D: demo-portfolio-and-ticker-integrity bug fix
-  STARTABLE NOW — independent of everything above,
-  and arguably most visible fix available today.
+### Open B2 decisions
+
+1. Demo reset idle threshold; 30 minutes is provisional.
+2. Manual reset control placement in the UI.
+3. Presence TTL; 150 seconds is provisional.
+4. Login self-call timeouts; 2 seconds per leg and 4 seconds overall are provisional.
+5. Decimal-adapter deployment sequencing relative to B1 Wave 4/5.
+
+These do not block starting the mock-backed picker shell. They do block the affected reset/presence
+behavior and final production exposure.
+
+## 5. Dependency path to a production Asset Picker
+
+```text
+Track A: 9.11 -> 9.12 -> 9.13 -> 9.14
+                    (production foundation closes)
+
+Track B: Wave 2 -> Wave 3 -> Wave 5 -> Wave 6 -> Wave 7
+                    ^          ^                   |
+                    |          |                   v
+              Wave 4 implementation --------> real read/write APIs
+
+Track C: Wave 1 mock UI + Wave 2 adapter + independent presence work
+                    |                              |
+                    +---- relevant Waves 3-6 ------+
+                                                   v
+                                    Wave 9 live integration
+                                                   v
+                                    Wave 10 production exposure
 ```
 
----
+Track A operational work, B1 Wave 4 implementation, and the startable portion of B2 Wave 1 do not
+need to be serialized. Production transitions retain their individual approval gates.
 
-## 4. Concrete next actions
+## 6. Next meaningful work and authorization boundary
 
-### 4.1 Starting now, no further gating
+### Current cutoff
 
-- **Track D**: fix `demo-portfolio-and-ticker-integrity`.
-- **Track A**: exercise the Kafka/Postgres/MongoDB credentials to confirm they actually work (not
-  just that they're present), verify 9.4 (Kafka lag), then execute 9.3 → 9.5 in order, confirm
-  which Neon mechanism satisfies 9.6's "verified backup" requirement and exercise it, then 9.6,
-  then 9.7 — each its own checkpoint, reported as it completes.
-- **Track B**: B1 Wave 4 (4.1 onward).
-- **Track C, UI-development phase only**: buildable now against the spec/design, with no live
-  backend — not gated behind Track B or A.
+The program is deliberately stopped after Spec A 9.10. This is a clean handoff point because:
 
-### 4.2 Process fix
+- the controlled refresh has a GO decision and durable evidence;
+- no temporary refresh override remains active;
+- no 9.11 change has started;
+- the demo portfolio is untouched;
+- scale and ingress fences remain explicit; and
+- B1/B2 implementation status is cleanly separable from the production cutover.
 
-- CI check: a PR touching a spec's implementation files must also update that spec's `tasks.md` in
-  the same diff.
+### Next choices
 
-### 4.3 Still needs your input — narrow, not blocking Tracks A/B/D
+1. **Operational lane:** design/review and explicitly authorize Spec A 9.11, then continue through
+   9.14 one checkpoint at a time.
+2. **Backend lane:** rebase and finish B1 draft PR #131, while starting B1 Wave 4 implementation.
+3. **Frontend lane:** begin the startable mock-backed subset of B2 Wave 1 against frozen contracts.
+4. **Process lane:** implement the master-plan/status propagation CI guard before or alongside the
+   first Cursor implementation PR.
 
-- **Demo reset idle threshold** — provisionally 30 minutes in the B2 design; confirm or adjust.
-- **Manual reset control placement** — not yet decided where in the UI.
-- **Presence TTL** — provisionally 150 seconds, explicitly marked provisional in the original
-  brainstorm; confirm or adjust.
-- **Profile changes scope** (§1.4) — completely unscoped beyond the name.
-- **Azure MCP tool's broken tenant auth** — worth fixing properly, or is `az` CLI directly an
-  acceptable standing workaround? (Unconfirmed whether it's still broken — no Azure MCP tool was
-  available to re-test during the review pass; re-check before relying on this.)
+No item above is authorized merely by being listed. The Cursor handoff must name the chosen first
+task, its exact scope, predecessor evidence, stop condition, and whether it is documentation,
+implementation, or a production operation.
+
+## 7. Handoff requirements
+
+The Cursor handoff created after this documentation PR merges must be self-contained and anchored to
+the resulting `main` SHA. It must include:
+
+- this master plan as the first-read program dashboard;
+- the exact owning requirements/design/tasks documents for the chosen task;
+- current production fences and explicit non-authorizations;
+- active/draft PRs and whether their code is on `main`;
+- commands and tests required to verify the chosen task;
+- known stale-branch/rebase hazards;
+- the five unresolved B2 decisions without silently choosing values;
+- the status-governance rule from §0; and
+- an instruction to update this plan and the owning task ledger in every status-changing PR.
+
+AWS-only work remains deferred while AWS production is disabled. Azure is the current delivery
+target; shared behavior and cross-cloud contracts must not be weakened.

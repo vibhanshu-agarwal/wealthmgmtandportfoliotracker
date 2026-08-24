@@ -373,9 +373,9 @@ slowed down by pricing every catalog entry.
    *(Settled, entry [5] Q6: a row badge would require the client to duplicate backend
    freshness-precedence logic and would drift; if per-holding badges are wanted later, that is a
    backend addition specified separately — the client must not derive it independently.)*
-   **Status, not assumption (pass 5 cross-audit finding, citation corrected pass 6):**
-   `assetPriceFreshness` is a Spec A (`supported-asset-integrity`) *design* commitment, not a field
-   the running backend returns today. The portfolio-level rationale (why one aggregate signal, not
+   **Current dependency status (updated 2026-08-24):** `assetPriceFreshness` is now implemented by
+   Spec A task 8.6 and returned by `portfolio-service`'s portfolio-summary response. The
+   portfolio-level rationale (why one aggregate signal, not
    a per-holding one) is B1's own `requirements.md` D13 ("Freshness is portfolio-level, and B1 adds
    nothing for it") — *not* B1 `design.md`, which has its own, separate D-lettered decisions running
    only D1 through D11 and has no D13 at all. (B1 `requirements.md`'s own D-series runs further, to
@@ -383,12 +383,9 @@ slowed down by pricing every catalog entry.
    is ambiguous between them and this criterion previously resolved it to the wrong one.) The actual
    response contract — the `assetPriceFreshness`
    JSON shape itself — lives in **Spec A's `design.md`** (`{ "state": ..., "staleHoldings": ... }`
-   on the portfolio-summary response), not in either of B1's documents at all. Verified directly:
-   the field appears nowhere in `portfolio-service` or frontend source, and Spec A's own
-   `tasks.md` task 8.6 (the freshness summary contract that would produce it) is unchecked.
-   This criterion is unaffected in shape (B2 still consumes the aggregate, never derives it
-   independently), but is gated on that Spec A task landing, same as every other backend field this
-   spec depends on and hasn't previously flagged as pending.
+   on the portfolio-summary response), not in either of B1's documents. B2 still consumes that
+   aggregate and never derives it independently; B2's frontend adapter and live wiring remain
+   implementation work.
 3. THE freshness status SHALL disclose counts by state (stale / unknown / missing) in a tooltip or
    detail view, not only a single aggregate word.
 3a. **The "Details" affordance's interaction contract, written out — added pass 9, since a button
@@ -784,8 +781,7 @@ Portfolio page (which B1 does not touch) breaks.
    inference — the picker edits a snapshot; it does not record a transaction the user didn't
    supply (matches B1 Requirement 6.17).
 3. THIS spec SHALL NOT add per-holding freshness state to the backend as a prerequisite — it
-   consumes the aggregate signal Requirement 3 depends on (pending Spec A task 8.6, per that
-   requirement's pass-5 note — "existing" overstated this before). A future per-holding freshness
+   consumes the aggregate signal delivered by Spec A task 8.6. A future per-holding freshness
    feature is a backend addition specified elsewhere, not assumed here.
 4. THIS spec SHALL NOT implement "Profile changes" (account settings) — a separate, currently
    unscoped initiative.
@@ -804,16 +800,10 @@ Portfolio page (which B1 does not touch) breaks.
 - **The frontend decimal-adapter migration's rollout sequencing** (Requirement 8.3) — needs
   explicit coordination with B1's Wave 4/5 deploy timing, not just a statement that it must happen
   first.
-- **`assetPriceFreshness` has not landed yet** (Requirement 3.2, and now 3.4 too) — Spec A
-  (`supported-asset-integrity`) `tasks.md` task 8.6, the freshness summary contract that would
-  produce this field, is unchecked; the field appears nowhere in `portfolio-service` or frontend
-  source today. *(Added pass 7: this gap was already stated inline in Requirement 3.2's own text,
-  but — same failure mode as the `updatedAt` gap above — was never added to this list or to
-  `design.md` D7, the two places a reader checks for open items. Requirement 3.4 (post-save
-  freshness display) depends on the same field and widens this dependency's blast radius without
-  having been cross-referenced here until now.)* Not a product decision to make — a backend
-  implementation dependency to track, the same class that `updatedAt` occupied before B2 Task 8.1
-  was assigned to close it.
+
+**Closed on 2026-08-24:** the former `assetPriceFreshness` backend dependency is removed from this
+list. Spec A task 8.6 is complete and the aggregate field exists in `portfolio-service`; B2 retains
+the frontend adapter and live-wiring work.
 
 **Closed, removed from this list on review (pass 1):** a quantity upper bound was previously
 listed as open. It is not — B1 Requirement 3.1 already freezes the domain at
