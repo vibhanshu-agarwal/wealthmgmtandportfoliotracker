@@ -703,6 +703,27 @@ python scripts/check-spec-references.py   .kiro/specs/supported-asset-integrity/
       `market_prices` / `market_price_history` against what it claims to have done. Retry **only**
       once that reconciliation shows a consistent partial state. A blind retry against a partially
       advanced projection is how a conflicting observation gets written at the same timestamp.
+    - **RETRY-POLICY PREREQUISITE (Tasks 1–2) EXECUTED 2026-08-24 (UTC) — 9.10 still OPEN:**
+      - This records only the checkpoint 9.10 retry-policy prerequisite (`replica_retry_limit 1 → 0`).
+        It does **not** complete 9.10: no Job execution has been started; Tasks 3–6 remain pending and
+        `job start` requires a separate production authorization.
+      - Task 1 PR: [#147](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/147)
+        merged via `--squash` as `acf718d` (main SHA: `acf718d82d9f727f06f14d7ac53883f7fb240b48`);
+        adds a fail-closed full-template builder/validator and disables unsafe refresh-Job retries.
+      - Remote plan: run [32696139782](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/32696139782)
+        — `standard`, SHA `acf718d82d9f727f06f14d7ac53883f7fb240b48`, image tag
+        `9b2cf0d655b4b7ae2ce20ff7b67e4ad750df6900`; plan: 0 add, **1 change**, 0 destroy
+        (`azurerm_container_app_job.market_data_refresh`: `replica_retry_limit 1 → 0`, all other
+        attributes/blocks unchanged); all mandatory assertions PASS.
+      - Apply: run [32706717308](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/32706717308)
+        — approved by `vibhanshu-agarwal` at the `production` Environment gate; all assertions PASS;
+        `Apply complete! Resources: 0 added, 1 changed, 0 destroyed.`
+      - Live read-back (independently verified): retry limit `0`, timeout `600`, runner `false`,
+        image tag `9b2cf0d…`, schedule `0 8 * * *`, parallelism `1`, completion count `1`,
+        ACR-pull UAMI `wealth-prod-mdrefresh-job-id`, no execution running; today's `0 8 * * *`
+        scheduled run (`market-data-refresh-job-29792640`) had already `Succeeded` (gated no-op).
+      - Follow-up remote plan: run [32708809577](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/32708809577)
+        — `standard`, `No changes. Your infrastructure matches the configuration.`
 
   - [ ] 9.11 **CHECKPOINT — persist refresh enablement**
     - Go: `MARKET_DATA_JOB_RUNNER_ENABLED=true` persisted through Terraform and read back
