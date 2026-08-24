@@ -19,14 +19,36 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
       - name: Run static sanitizer wiring guard
         run: |
           cd scripts && npm ci --ignore-scripts && npm audit --omit=dev --audit-level=low && node check-sanitizer-secret-wiring.js
+
+      - name: Master-plan status propagation contract tests
+        run: python scripts/tests/test_master_plan_status_propagation.py -v
+
+      - name: Master-plan status propagation guard (pull requests)
+        if: github.event_name == 'pull_request'
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          # Write the body to a file so shell/env length limits cannot silently
+          # truncate the impact declaration the guard is meant to enforce.
+          printf '%s' "$PR_BODY" > "$RUNNER_TEMP/pr-body.md"
+          python scripts/check_master_plan_status_propagation.py \
+            --base "${{ github.event.pull_request.base.sha }}" \
+            --head "${{ github.event.pull_request.head.sha }}" \
+            --pr-body-file "$RUNNER_TEMP/pr-body.md"
 
   deploy-workflow-contract:
     runs-on: ubuntu-latest

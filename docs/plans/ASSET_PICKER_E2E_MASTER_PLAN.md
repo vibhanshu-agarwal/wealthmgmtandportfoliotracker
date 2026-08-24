@@ -48,9 +48,10 @@ release workflows, or an Asset Picker blocker must do exactly one of the followi
 A checkbox is marked complete only when its owning acceptance evidence exists. Work implemented on
 an unmerged branch is described as **implemented but unmerged**, never as complete on `main`.
 
-The repository does not yet enforce this rule automatically. Adding a structural CI guard is the
-first process-hardening task for the Cursor handoff; it is intentionally not implemented in this
-documentation-only PR.
+The structural CI guard for this rule is **implemented but unmerged** on branch
+`ci/master-plan-status-propagation-guard` (required `static-guard` job in
+`.github/workflows/ci-verification.yml`, script `scripts/check_master_plan_status_propagation.py`).
+Until that PR merges, enforcement on `main` is still review discipline only.
 
 ### 0.3 Update checklist
 
@@ -152,6 +153,12 @@ startable as implementation work.
 |---|---|---|
 | [PR #131](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/131) | Draft, head `1d3bd730`; tasks 2.1/2.3 implemented but not on `main`; last CI is from 2026-08-21 | Rebase onto current `main`, reconcile Spec A changes, complete Wave 2 prerequisites/proofs, fresh review and CI |
 
+### Active process work
+
+| Item | Current state | Required before relying on it |
+|---|---|---|
+| Branch `ci/master-plan-status-propagation-guard` | Master-plan/status propagation CI guard implemented but unmerged; adversarial contract tests + required `static-guard` wiring | Merge after review; until then do not treat automatic enforcement as live on `main` |
+
 The temporary product state is intentional but incomplete: the unsafe legacy writer is gone, while
 the safe versioned replacement has not yet been built. A frontend picker cannot save holdings until
 B1 Wave 7 activates the new endpoint.
@@ -237,8 +244,8 @@ The program is deliberately stopped after Spec A 9.10. This is a clean handoff p
    9.14 one checkpoint at a time.
 2. **Backend lane:** rebase and finish B1 draft PR #131, while starting B1 Wave 4 implementation.
 3. **Frontend lane:** begin the startable mock-backed subset of B2 Wave 1 against frozen contracts.
-4. **Process lane:** implement the master-plan/status propagation CI guard before or alongside the
-   first Cursor implementation PR.
+4. **Process lane:** master-plan/status propagation CI guard is implemented but unmerged on
+   `ci/master-plan-status-propagation-guard`; merge it before relying on automatic enforcement.
 
 No item above is authorized merely by being listed. The Cursor handoff must name the chosen first
 task, its exact scope, predecessor evidence, stop condition, and whether it is documentation,
