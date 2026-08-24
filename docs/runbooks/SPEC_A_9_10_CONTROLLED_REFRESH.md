@@ -129,11 +129,13 @@ drain): `kafka-get-offsets --time -1` (log-end) = `80`; `--time -2` (log-start) 
 A single post-run reading of `start == end == 80` does **not**, by itself, rule out a record being
 appended during the execution and then removed by retention before the check — that would also
 present as `start == end == 80`. This gap was closed with a pre-`T0` anchor: a Log Analytics
-search of `portfolio-service` logs over the preceding 30 days found exactly **one**
-`portfolio-group-dlt` consumption event ever recorded — `topic=market-prices.DLT partition=0
-offset=79`, with the record's own Kafka-assigned `CreateTime` = **`2026-08-19T08:42:37.523Z`**
-(consumer log line ingested `08:42:38.344Z`) — **five days before `T0`**, and no consumption event
-at any higher offset exists in that 30-day window. Because offset `79` existing means the
+query of `portfolio-service` logs over the explicit UTC window
+**`[2026-07-25T00:00:00Z, 2026-08-24T13:30:00Z)`** (query text below, reproducible independent of
+when it is re-run) found exactly **one** `portfolio-group-dlt` consumption event within that
+window — `topic=market-prices.DLT partition=0 offset=79`, with the record's own Kafka-assigned
+`CreateTime` = **`2026-08-19T08:42:37.523Z`** (consumer log line ingested `08:42:38.344Z`) —
+**five days before `T0`**, and no consumption event at any higher offset exists within the queried
+window. Because offset `79` existing means the
 partition's end-offset was already `>= 80` as of `2026-08-19T08:42:37Z`, and Kafka end-offsets are
 monotonically non-decreasing (never reused or decremented), the end-offset must have been pinned
 at **exactly 80 continuously** from `2026-08-19T08:42:37Z` through the `12:42:53Z` measurement —
@@ -208,10 +210,15 @@ kafka-consumer-groups --bootstrap-server $BOOT --command-config client.propertie
 kafka-get-offsets --bootstrap-server $BOOT --command-config client.properties --topic market-prices.DLT --time -1   # end
 kafka-get-offsets --bootstrap-server $BOOT --command-config client.properties --topic market-prices.DLT --time -2   # start
 
-# Pre-T0 anchor: has the DLT consumer ever logged an offset >= the post-run end-offset?
-# (closes the append-then-retention-delete gap that a single post-run start==end reading leaves open)
+# Pre-T0 anchor: within the queried window, has the DLT consumer logged an offset >= the
+# post-run end-offset? (closes the append-then-retention-delete gap that a single post-run
+# start==end reading leaves open). Bounds are baked into the query text so a re-run is exactly
+# reproducible regardless of when it is executed -- verified against
+# [2026-07-25T00:00:00Z, 2026-08-24T13:30:00Z), which returned exactly one row (offset=79,
+# CreateTime=2026-08-19T08:42:37.523Z, no higher offset in the window).
 ContainerAppConsoleLogs_CL
 | where ContainerAppName_s == 'portfolio-service'
+| where TimeGenerated between (datetime(2026-07-25T00:00:00Z) .. datetime(2026-08-24T13:30:00Z))
 | where Log_s has 'DLT: Failed record received'
 | project TimeGenerated, Log_s
 | order by TimeGenerated asc

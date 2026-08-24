@@ -775,10 +775,12 @@ python scripts/check-spec-references.py   .kiro/specs/supported-asset-integrity/
         post-drain (`11:30Z`, past the `11:24:08Z` drain confirmation), and the `market-prices.DLT`
         topic was checked directly rather than inferred from consumer lag — a post-run
         `start-offset == end-offset == 80` reading alone does not rule out append-then-delete
-        within the window, so this was closed with a pre-`T0` anchor: the sole `portfolio-group-dlt`
-        consumption event in 30 days of logs (`offset=79`, Kafka `CreateTime=2026-08-19T08:42:37Z`,
-        five days before `T0`, no higher offset ever logged) establishes end-offset was already
-        `>= 80` before `T0`; combined with the post-run reading of exactly `80` and Kafka
+        within the window, so this was closed with a pre-`T0` anchor: querying the explicit UTC
+        window `[2026-07-25T00:00:00Z, 2026-08-24T13:30:00Z)` found exactly one
+        `portfolio-group-dlt` consumption event within that 30-day window (`offset=79`, Kafka
+        `CreateTime=2026-08-19T08:42:37Z`, five days before `T0`), with no higher offset logged
+        within that same window — establishing end-offset was already `>= 80` before `T0`;
+        combined with the post-run reading of exactly `80` and Kafka
         end-offsets being monotonically non-decreasing, end-offset was pinned at exactly `80`
         continuously across the entire execution+drain window — ruling out append-then-delete, not
         just proving currently-empty; (b) Mongo `updatedAt` vs Postgres `market_prices.observed_at`
