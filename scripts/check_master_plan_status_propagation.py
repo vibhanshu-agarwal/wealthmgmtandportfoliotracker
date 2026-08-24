@@ -1,22 +1,21 @@
 #!/usr/bin/env python3
 """Fail-closed CI guard for Asset Picker master-plan/status propagation.
 
-Rule (docs/plans/ASSET_PICKER_E2E_MASTER_PLAN.md §0.2):
+Every pull request must carry exactly one canonical declaration:
 
-  A PR that touches Spec A, B1, B2, their release workflows, or an Asset Picker
-  blocker must do exactly one of:
+  Master-plan impact: updated — <tracks>
+  Master-plan impact: none: <same-line rationale>
 
-  1. update the living master plan and every owning task ledger whose track was
-     touched; or
-  2. state `Master-plan impact: none` in the PR body with a non-empty rationale.
+Tracks are a comma-separated list from {Spec A, B1, B2, process}.
 
-Process-only changes (guard scripts, release workflow text, handoff/runbook
-docs, the master plan itself) require the master-plan update when they change
-program status, and do not invent a false Spec A/B1/B2 ledger touch.
+  - `updated` requires `docs/plans/ASSET_PICKER_E2E_MASTER_PLAN.md` plus each
+    declared Spec A/B1/B2 owning `tasks.md` ledger (`process` has no ledger).
+  - `none` requires a non-empty same-line rationale and rejects HTML placeholders,
+    checklist text, and concurrent master-plan/ledger edits (conflict).
 
-This script inspects the PR body directly. If a future GitHub Actions change
-makes that body unavailable, fail closed — do not silently fall back to a
-path-only approximation.
+This closes path-only bypasses: feature UI, composition controllers, and CI
+workflow edits are not exempt. The PR body is inspected directly; if it is
+unavailable, fail closed — do not degrade to a path-only approximation.
 """
 
 from __future__ import annotations
@@ -29,54 +28,52 @@ from dataclasses import dataclass
 
 MASTER_PLAN = "docs/plans/ASSET_PICKER_E2E_MASTER_PLAN.md"
 
+IMPACT_LINE = re.compile(r"(?im)^[ \t]*Master-plan impact:[ \t]*(.*?)[ \t]*$")
+
+UPDATED_VALUE = re.compile(
+    r"(?i)^updated\s*[—–-]\s*(.+)$"
+)
+NONE_VALUE = re.compile(r"(?i)^none\s*:\s*(.+)$")
+# `none` without a same-line rationale (bare `none`, em-dash forms, etc.)
+NONE_BARE = re.compile(r"(?i)^none(?:\s*[—–-]\s*)?$")
+
+PLACEHOLDER_RATIONALE = re.compile(
+    r"(?i)(<!--|-->|^\s*-\s*\[[ xX]\]|placeholder|TODO\b|TBD\b|\bN/?A\b|"
+    r"add a description)"
+)
+
+TRACK_ALIASES = {
+    "spec a": "spec-a",
+    "spec-a": "spec-a",
+    "a": "spec-a",
+    "b1": "b1",
+    "b2": "b2",
+    "process": "process",
+}
+
+TRACK_LEDGERS = {
+    "spec-a": ".kiro/specs/supported-asset-integrity/tasks.md",
+    "b1": ".kiro/specs/portfolio-composition-contract/tasks.md",
+    "b2": ".kiro/specs/asset-picker-composition/tasks.md",
+}
+
+TRACK_LABELS = {
+    "spec-a": "Spec A",
+    "b1": "B1",
+    "b2": "B2",
+    "process": "process",
+}
+
+
 @dataclass(frozen=True)
-class Track:
-    name: str
-    prefix: str
-    ledger: str
-
-
-TRACKS = (
-    Track(
-        "Spec A",
-        ".kiro/specs/supported-asset-integrity/",
-        ".kiro/specs/supported-asset-integrity/tasks.md",
-    ),
-    Track(
-        "B1",
-        ".kiro/specs/portfolio-composition-contract/",
-        ".kiro/specs/portfolio-composition-contract/tasks.md",
-    ),
-    Track(
-        "B2",
-        ".kiro/specs/asset-picker-composition/",
-        ".kiro/specs/asset-picker-composition/tasks.md",
-    ),
-)
-
-# Release / process surfaces that govern Asset Picker program status without
-# belonging to a single Spec A/B1/B2 ledger.
-EXTRA_GOVERNED_PREFIXES = (
-    MASTER_PLAN,
-    "docs/agent-instructions/CURSOR_HANDOFF_ASSET_PICKER",
-    "docs/runbooks/SPEC_A_",
-    ".github/workflows/deploy.yml",
-    ".github/workflows/deploy-azure.yml",
-    ".github/workflows/deploy-aws.yml",
-    ".github/workflows/terraform-azure.yml",
-    ".github/workflows/terraform.yml",
-    ".github/workflows/frontend-cd.yml",
-    "scripts/check_master_plan_status_propagation.py",
-    "scripts/tests/test_master_plan_status_propagation.py",
-)
-
-IMPACT_LINE = re.compile(
-    r"(?im)^[ \t]*Master-plan impact:[ \t]*(.*?)[ \t]*$"
-)
+class ImpactDeclaration:
+    kind: str  # "updated" | "none"
+    tracks: tuple[str, ...]
+    rationale: str
 
 
 class GuardError(ValueError):
-    """Raised when a governed PR lacks a valid status-propagation outcome."""
+    """Raised when a PR lacks a valid status-propagation declaration/outcome."""
 
 
 def normalize_files(changed_files: list[str] | tuple[str, ...] | None) -> list[str]:
@@ -88,81 +85,98 @@ def normalize_files(changed_files: list[str] | tuple[str, ...] | None) -> list[s
     return files
 
 
-def is_governed(path: str) -> bool:
-    for track in TRACKS:
-        if path.startswith(track.prefix) or path == track.ledger:
-            return True
-    for prefix in EXTRA_GOVERNED_PREFIXES:
-        if path == prefix or path.startswith(prefix):
-            return True
-    return False
+def parse_tracks(raw: str) -> tuple[str, ...]:
+    parts = [part.strip() for part in raw.split(",")]
+    parts = [part for part in parts if part]
+    if not parts:
+        raise GuardError(
+            "Malformed Master-plan impact declaration: `updated — <tracks>` requires "
+            "at least one track from {Spec A, B1, B2, process}."
+        )
+    resolved: list[str] = []
+    unknown: list[str] = []
+    for part in parts:
+        key = TRACK_ALIASES.get(part.lower())
+        if key is None:
+            unknown.append(part)
+            continue
+        if key not in resolved:
+            resolved.append(key)
+    if unknown:
+        raise GuardError(
+            "Malformed Master-plan impact declaration: unknown track(s) "
+            f"{unknown!r}. Allowed: Spec A, B1, B2, process."
+        )
+    return tuple(resolved)
 
 
-def touched_tracks(changed_files: list[str]) -> list[Track]:
-    found: list[Track] = []
-    for track in TRACKS:
-        if any(
-            path.startswith(track.prefix) or path == track.ledger
-            for path in changed_files
-        ):
-            found.append(track)
-    return found
+def rationale_is_placeholder(rationale: str) -> bool:
+    text = rationale.strip()
+    if not text:
+        return True
+    if PLACEHOLDER_RATIONALE.search(text):
+        return True
+    # Reject rationale that is only punctuation / checkbox debris.
+    alnum = re.sub(r"[^a-zA-Z0-9]+", "", text)
+    return len(alnum) < 12
 
 
-def parse_none_rationale(pr_body: str | None) -> str | None:
-    """Return the non-empty none-impact rationale, or None if undeclared.
-
-    Raises GuardError when an impact line is present but malformed, or when
-    `none` is declared without a non-empty explanation.
-    """
+def parse_impact_declaration(pr_body: str | None) -> ImpactDeclaration:
     if pr_body is None:
-        return None
+        raise GuardError(
+            "PR body is unavailable; refusing to degrade to a path-only approximation. "
+            "Every PR needs exactly one `Master-plan impact:` declaration."
+        )
 
     matches = list(IMPACT_LINE.finditer(pr_body))
     if not matches:
-        return None
-
-    match = matches[-1]
-    value = match.group(1).strip()
-    if not value:
         raise GuardError(
-            "Malformed Master-plan impact declaration: expected "
-            "`Master-plan impact: none` plus a non-empty rationale, or omit the "
-            "marker and update the master plan + owning task ledger(s)."
+            "Missing Master-plan impact declaration. Every PR must include exactly one "
+            "of: `Master-plan impact: updated — <tracks>` or "
+            "`Master-plan impact: none: <same-line rationale>`."
+        )
+    if len(matches) > 1:
+        raise GuardError(
+            f"Duplicate Master-plan impact declarations ({len(matches)} found). "
+            "Require exactly one canonical declaration; remove extras or conflicts."
         )
 
-    # Accept `none` or `none — rationale` / `none: rationale` on one line.
-    if re.match(r"(?i)^none\b", value):
-        inline = re.sub(r"(?i)^none\b\s*[-—–:]?\s*", "", value).strip()
-        if inline:
-            return inline
-        after = pr_body[match.end() :]
-        rationale_lines: list[str] = []
-        for line in after.splitlines():
-            stripped = line.strip()
-            if not stripped:
-                if rationale_lines:
-                    break
-                continue
-            if IMPACT_LINE.match(stripped):
-                break
-            if stripped.startswith("#"):
-                if rationale_lines:
-                    break
-                continue
-            rationale_lines.append(stripped)
-        rationale = " ".join(rationale_lines).strip()
-        if not rationale:
-            raise GuardError(
-                "Master-plan impact: none requires a non-empty rationale explaining "
-                "why program status, dependencies, blockers, and next actions are "
-                "unchanged."
-            )
-        return rationale
+    value = matches[0].group(1).strip()
+    if not value:
+        raise GuardError(
+            "Malformed Master-plan impact declaration: empty value after the colon."
+        )
 
-    # A non-none impact line is reviewer documentation only; it does not satisfy
-    # the mechanical none-declaration path. Fall through to the path-update rule.
-    return None
+    updated = UPDATED_VALUE.match(value)
+    if updated:
+        tracks = parse_tracks(updated.group(1))
+        return ImpactDeclaration(kind="updated", tracks=tracks, rationale="")
+
+    none = NONE_VALUE.match(value)
+    if none:
+        rationale = none.group(1).strip()
+        if rationale_is_placeholder(rationale):
+            raise GuardError(
+                "Master-plan impact: none requires a non-empty same-line rationale "
+                "that is not an HTML placeholder, checklist item, or stub."
+            )
+        return ImpactDeclaration(kind="none", tracks=(), rationale=rationale)
+
+    if NONE_BARE.match(value) or re.match(r"(?i)^none\b", value):
+        raise GuardError(
+            "Malformed Master-plan impact declaration: `none` requires a same-line "
+            "rationale using `Master-plan impact: none: <rationale>`."
+        )
+
+    raise GuardError(
+        "Malformed Master-plan impact declaration: expected "
+        "`updated — <tracks>` or `none: <same-line rationale>`."
+    )
+
+
+def status_paths_in(files: list[str]) -> list[str]:
+    watched = {MASTER_PLAN, *TRACK_LEDGERS.values()}
+    return [path for path in files if path in watched]
 
 
 def evaluate_status_propagation(
@@ -171,35 +185,34 @@ def evaluate_status_propagation(
     pr_body: str | None,
 ) -> None:
     files = normalize_files(changed_files)
-    governed = [path for path in files if is_governed(path)]
-    if not governed:
+    declaration = parse_impact_declaration(pr_body)
+
+    if declaration.kind == "none":
+        conflicting = status_paths_in(files)
+        if conflicting:
+            raise GuardError(
+                "Conflicting Master-plan impact: declared `none` but also changed "
+                f"status surfaces {conflicting}. Use `updated — <tracks>` when the "
+                "living master plan or an owning task ledger changes."
+            )
         return
 
-    none_rationale = parse_none_rationale(pr_body)
-    if none_rationale is not None:
-        return
-
-    tracks = touched_tracks(files)
     missing: list[str] = []
-
     if MASTER_PLAN not in files:
-        missing.append(
-            f"update `{MASTER_PLAN}` (or declare `Master-plan impact: none` "
-            "with a non-empty rationale)"
-        )
+        missing.append(f"update `{MASTER_PLAN}`")
 
-    for track in tracks:
-        if track.ledger not in files:
+    for track in declaration.tracks:
+        ledger = TRACK_LEDGERS.get(track)
+        if ledger and ledger not in files:
             missing.append(
-                f"update owning ledger `{track.ledger}` for touched {track.name} paths"
+                f"update owning ledger `{ledger}` for declared {TRACK_LABELS[track]}"
             )
 
     if missing:
-        touched = ", ".join(governed)
-        details = "; ".join(missing)
         raise GuardError(
-            "Governed Asset Picker program paths changed without a valid status "
-            f"propagation outcome. Touched: {touched}. Required: {details}."
+            "Master-plan impact: updated requires matching file updates. Missing: "
+            + "; ".join(missing)
+            + "."
         )
 
 
@@ -220,7 +233,7 @@ def list_changed_files(base: str, head: str) -> list[str]:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Enforce Asset Picker master-plan/status propagation on governed PRs."
+        description="Enforce Asset Picker master-plan/status propagation on every PR."
     )
     parser.add_argument("--base", required=True, help="PR base SHA")
     parser.add_argument("--head", required=True, help="PR head SHA")
@@ -251,8 +264,7 @@ def main(argv: list[str] | None = None) -> int:
     evaluate_status_propagation(changed_files=changed, pr_body=body)
     print(
         "Master-plan status propagation guard passed "
-        f"({len(changed)} changed paths, "
-        f"{sum(1 for path in changed if is_governed(path))} governed)."
+        f"({len(changed)} changed paths)."
     )
     return 0
 

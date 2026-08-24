@@ -2,11 +2,12 @@
 
 **Last verified:** 2026-08-24
 
-**Program-state code baseline:** `main@e221662b6c891639a56894289e150ee01fb537f6`. This update is
-documentation-only; its merge SHA becomes the document revision without changing the recorded
-runtime or implementation state.
+**Program-state code baseline (runtime):** `main@e221662b6c891639a56894289e150ee01fb537f6`.
+This is the last SHA that changed Asset Picker program runtime/application behavior (catalog,
+enforcement, controlled refresh). Process-control and documentation merges do not advance it.
 
-**Authoritative documentation revision:** `main@48ef468f2a679f6031d892873eb7f9b185e2958f`.
+**Authoritative documentation revision:** advances when this file or related program docs change;
+independent of the runtime baseline above.
 
 **Program state:** Spec A checkpoint 9.10 is complete. Checkpoints 9.11–9.14 are pending and
 unauthorized. B1's safe composition backend is incomplete. B2's implementation has not started.
@@ -37,21 +38,25 @@ active work, and next decisions.
 
 ### 0.2 Required update rule
 
-Every PR or operational checkpoint that changes Asset Picker program status must update this file
-in the same change that records the detailed task evidence. A PR that touches Spec A, B1, B2, their
-release workflows, or an Asset Picker blocker must do exactly one of the following:
+Every pull request must include **exactly one** canonical declaration in the PR body:
 
-1. update this master plan and the owning task ledger; or
-2. state `Master-plan impact: none` in the PR description and explain why no program status,
-   dependency, blocker, or next action changed.
+1. `Master-plan impact: updated — <tracks>` where `<tracks>` is a comma-separated list from
+   `{Spec A, B1, B2, process}`; or
+2. `Master-plan impact: none: <same-line rationale>` explaining why program status, dependencies,
+   blockers, and next actions are unchanged.
+
+For `updated`, the same change must update this master plan and every owning `tasks.md` ledger for
+the declared Spec A/B1/B2 tracks (`process` has no ledger). For `none`, the rationale must be on the
+same line, must not be an HTML placeholder/checklist/stub, and must not accompany edits to this
+master plan or an owning ledger (that is a conflict — use `updated` instead).
 
 A checkbox is marked complete only when its owning acceptance evidence exists. Work implemented on
 an unmerged branch is described as **implemented but unmerged**, never as complete on `main`.
 
-The structural CI guard for this rule is **implemented but unmerged** on branch
-`ci/master-plan-status-propagation-guard` (required `static-guard` job in
-`.github/workflows/ci-verification.yml`, script `scripts/check_master_plan_status_propagation.py`).
-Until that PR merges, enforcement on `main` is still review discipline only.
+**Process-control enforcement:** required `static-guard` in `.github/workflows/ci-verification.yml`
+runs `scripts/check_master_plan_status_propagation.py` (contract tests on every run; live PR-body
+check on `pull_request`). When those paths exist in the revision being read, the guard is part of
+that revision's process controls. Runtime/application Asset Picker capability is unaffected.
 
 ### 0.3 Update checklist
 
@@ -157,7 +162,7 @@ startable as implementation work.
 
 | Item | Current state | Required before relying on it |
 |---|---|---|
-| Branch `ci/master-plan-status-propagation-guard` | Master-plan/status propagation CI guard implemented but unmerged; adversarial contract tests + required `static-guard` wiring | Merge after review; until then do not treat automatic enforcement as live on `main` |
+| Status-propagation CI guard | Required `static-guard` runs `scripts/check_master_plan_status_propagation.py` with the universal `Master-plan impact:` declaration contract | Process-control only; does not advance the runtime baseline or create user-facing Asset Picker capability |
 
 The temporary product state is intentional but incomplete: the unsafe legacy writer is gone, while
 the safe versioned replacement has not yet been built. A frontend picker cannot save holdings until
@@ -244,8 +249,8 @@ The program is deliberately stopped after Spec A 9.10. This is a clean handoff p
    9.14 one checkpoint at a time.
 2. **Backend lane:** rebase and finish B1 draft PR #131, while starting B1 Wave 4 implementation.
 3. **Frontend lane:** begin the startable mock-backed subset of B2 Wave 1 against frozen contracts.
-4. **Process lane:** master-plan/status propagation CI guard is implemented but unmerged on
-   `ci/master-plan-status-propagation-guard`; merge it before relying on automatic enforcement.
+4. **Process lane:** keep the status-propagation CI guard healthy in required `static-guard`; it is
+   process-control only and does not advance the runtime baseline.
 
 No item above is authorized merely by being listed. The Cursor handoff must name the chosen first
 task, its exact scope, predecessor evidence, stop condition, and whether it is documentation,
