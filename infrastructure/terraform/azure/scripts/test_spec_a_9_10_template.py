@@ -54,11 +54,14 @@ def _live_env() -> list[dict]:
 
 
 def _live_template() -> dict:
+    """Return a fixture that mirrors the real Azure Container App Job template shape."""
     return {
         "containers": [
             {
                 "name": "market-data-refresh",
                 "image": LIVE_IMAGE,
+                "imageType": "ContainerImage",
+                "probes": [],
                 "resources": {"cpu": 0.5, "memory": "1Gi", "ephemeralStorage": "2Gi"},
                 "env": _live_env(),
             }
@@ -82,6 +85,8 @@ def _valid_override() -> dict:
             {
                 "name": "market-data-refresh",
                 "image": OVERRIDE_IMAGE,
+                "imageType": "ContainerImage",
+                "probes": [],
                 "resources": {"cpu": 0.5, "memory": "1Gi", "ephemeralStorage": "2Gi"},
                 "env": _override_env(),
             }
@@ -151,6 +156,30 @@ class PinnedIdentityTest(unittest.TestCase):
 
     def test_build_wrong_digest_rejected(self) -> None:
         _assert_fails(self, sut.build, _live_template(), EXPECTED_TAG, "sha256:" + "00" * 32)
+
+
+class AzureNativeFieldTest(unittest.TestCase):
+    """Azure-specific container fields imageType and probes must be present with exact values."""
+
+    def test_missing_image_type_rejected(self) -> None:
+        live = _live_template()
+        del live["containers"][0]["imageType"]
+        _assert_fails(self, sut.verify, live, _valid_override(), EXPECTED_TAG, EXPECTED_DIGEST)
+
+    def test_wrong_image_type_rejected(self) -> None:
+        live = _live_template()
+        live["containers"][0]["imageType"] = "Docker"
+        _assert_fails(self, sut.verify, live, _valid_override(), EXPECTED_TAG, EXPECTED_DIGEST)
+
+    def test_missing_probes_rejected(self) -> None:
+        live = _live_template()
+        del live["containers"][0]["probes"]
+        _assert_fails(self, sut.verify, live, _valid_override(), EXPECTED_TAG, EXPECTED_DIGEST)
+
+    def test_non_empty_probes_rejected(self) -> None:
+        live = _live_template()
+        live["containers"][0]["probes"] = [{"type": "livenessProbe"}]
+        _assert_fails(self, sut.verify, live, _valid_override(), EXPECTED_TAG, EXPECTED_DIGEST)
 
 
 class PartialTemplateTest(unittest.TestCase):
@@ -318,6 +347,28 @@ class DuplicateEnvEntryTest(unittest.TestCase):
         _assert_fails(self, sut.verify, _live_template(), override, EXPECTED_TAG, EXPECTED_DIGEST)
 
 
+class EnvEntryKeyEnforcementTest(unittest.TestCase):
+    """Extra fields inside an env entry object must be rejected regardless of their content."""
+
+    def test_extra_key_in_plain_env_rejected(self) -> None:
+        """An extra field in a plain env entry (even a harmless one) is rejected."""
+        override = _valid_override()
+        for entry in override["containers"][0]["env"]:
+            if entry["name"] == "SPRING_PROFILES_ACTIVE":
+                entry["metadata"] = "injected"
+                break
+        _assert_fails(self, sut.verify, _live_template(), override, EXPECTED_TAG, EXPECTED_DIGEST)
+
+    def test_extra_key_in_secret_env_rejected(self) -> None:
+        """An extra field in a secret env entry is rejected even when secretRef is correct."""
+        override = _valid_override()
+        for entry in override["containers"][0]["env"]:
+            if entry["name"] == "SPRING_DATA_MONGODB_URI":
+                entry["metadata"] = "injected"
+                break
+        _assert_fails(self, sut.verify, _live_template(), override, EXPECTED_TAG, EXPECTED_DIGEST)
+
+
 class AlteredResourcesTest(unittest.TestCase):
     def test_altered_cpu_rejected(self) -> None:
         override = _valid_override()
@@ -432,6 +483,19 @@ class ExtraDiffPathTest(unittest.TestCase):
                 entry["secretRef"] = "kafka-sasl-password"  # swapped
                 break
         _assert_fails(self, sut.verify, _live_template(), override, EXPECTED_TAG, EXPECTED_DIGEST)
+
+
+class BuildSafetyTest(unittest.TestCase):
+    """build() must fail closed (SystemExit) on malformed live templates, never traceback."""
+
+    def test_malformed_live_no_containers_fails_closed(self) -> None:
+        live = {"initContainers": None, "volumes": None}
+        _assert_fails(self, sut.build, live, EXPECTED_TAG, EXPECTED_DIGEST)
+
+    def test_malformed_live_empty_containers_fails_closed(self) -> None:
+        live = _live_template()
+        live["containers"] = []
+        _assert_fails(self, sut.build, live, EXPECTED_TAG, EXPECTED_DIGEST)
 
 
 class SecretSafeErrorTest(unittest.TestCase):

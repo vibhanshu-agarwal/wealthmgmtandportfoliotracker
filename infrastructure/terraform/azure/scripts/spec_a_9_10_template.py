@@ -70,10 +70,18 @@ EXPECTED_SECRET_NAMES = set(SECRET_REF_MAP.keys())
 ALL_EXPECTED_ENV_NAMES = EXPECTED_PLAIN_NAMES | EXPECTED_SECRET_NAMES
 
 # Exact key sets for structural enforcement.  Any key outside these sets is rejected
-# so a live template with command/args/probes/volumeMounts cannot be silently copied.
+# so a live template with unexpected fields cannot be silently copied.
+# imageType and probes are Azure Container Apps fields returned by az containerapp job show.
 ALLOWED_TEMPLATE_KEYS: frozenset[str] = frozenset({"containers", "initContainers", "volumes"})
-ALLOWED_CONTAINER_KEYS: frozenset[str] = frozenset({"name", "image", "resources", "env"})
+ALLOWED_CONTAINER_KEYS: frozenset[str] = frozenset(
+    {"name", "image", "resources", "env", "imageType", "probes"}
+)
 ALLOWED_RESOURCE_KEYS: frozenset[str] = frozenset({"cpu", "memory", "ephemeralStorage"})
+
+# Exact key sets for env entry objects.  Extra fields in an entry—even one that
+# could carry secret material—are rejected rather than silently copied.
+ALLOWED_PLAIN_ENV_KEYS: frozenset[str] = frozenset({"name", "value"})
+ALLOWED_SECRET_ENV_KEYS: frozenset[str] = frozenset({"name", "secretRef"})
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -191,6 +199,22 @@ def _validate_structure(template: dict, label: str) -> tuple[dict, dict[str, dic
             f"{label}: container name must be '{CONTAINER_NAME}'; got '{container.get('name')}'"
         )
 
+    # Azure Container Apps native fields — must be present with exact values
+    image_type = container.get("imageType")
+    if image_type != "ContainerImage":
+        errors.append(
+            f"{label}: container imageType must be 'ContainerImage'; got {image_type!r}"
+        )
+
+    probes = container.get("probes")
+    if probes != []:
+        n_desc = (
+            str(len(probes)) if isinstance(probes, list) else type(probes).__name__
+        )
+        errors.append(
+            f"{label}: container probes must be [] (empty); found {n_desc}"
+        )
+
     # Resources
     resources = container.get("resources", {})
 
@@ -254,48 +278,69 @@ def _validate_env_entries(
     # Validate plain entries
     for name, expected_value in PLAIN_ENV_LIVE.items():
         entry = env_map[name]
+
+        # Exact allowed keys for a plain env entry
+        extra_keys = set(entry.keys()) - ALLOWED_PLAIN_ENV_KEYS
+        if extra_keys:
+            errors.append(
+                f"{label}: plain env '{name}' has unexpected keys: {sorted(extra_keys)}"
+            )
+
         # Reject if secretRef appears where a plain value is expected
         if "secretRef" in entry:
             errors.append(
                 f"{label}: plain env '{name}' has 'secretRef'; must use 'value'"
             )
             continue
+
         actual = entry.get("value")
         if name == "MARKET_DATA_JOB_RUNNER_ENABLED":
             if actual != runner_value:
                 errors.append(
-                    f"{label}: MARKET_DATA_JOB_RUNNER_ENABLED must be "
-                    f"'{runner_value}'; got '{actual}'"
+                    f"{label}: MARKET_DATA_JOB_RUNNER_ENABLED must be '{runner_value}'; "
+                    "actual value does not match"
                 )
         elif name == "SERVICE_VERSION":
             if actual != expected_tag:
                 errors.append(
-                    f"{label}: SERVICE_VERSION must be '{expected_tag}'; got '{actual}'"
+                    f"{label}: SERVICE_VERSION must be '{expected_tag}'; "
+                    "actual value does not match"
                 )
         else:
             if actual != expected_value:
                 errors.append(
-                    f"{label}: env '{name}' must be '{expected_value}'; got '{actual}'"
+                    f"{label}: env '{name}' must be '{expected_value}'; "
+                    "actual value does not match"
                 )
 
     # Validate secret entries: must use secretRef, never value
     for name, required_ref in SECRET_REF_MAP.items():
         entry = env_map[name]
+
+        # Exact allowed keys for a secret env entry
+        extra_keys = set(entry.keys()) - ALLOWED_SECRET_ENV_KEYS
+        if extra_keys:
+            errors.append(
+                f"{label}: secret env '{name}' has unexpected keys: {sorted(extra_keys)}"
+            )
+
         if "value" in entry:
             errors.append(
                 f"{label}: secret env '{name}' must use 'secretRef', not 'value' "
                 "(plaintext secret rejected)"
             )
             continue
+
         actual_ref = entry.get("secretRef")
         if actual_ref not in ALLOWED_SECRET_REFS:
             errors.append(
-                f"{label}: env '{name}' secretRef '{actual_ref}' is not in the "
-                f"allowed set {sorted(ALLOWED_SECRET_REFS)}"
+                f"{label}: env '{name}' secretRef is not an allowed reference name "
+                f"(allowed: {sorted(ALLOWED_SECRET_REFS)})"
             )
         elif actual_ref != required_ref:
             errors.append(
-                f"{label}: env '{name}' secretRef must be '{required_ref}'; got '{actual_ref}'"
+                f"{label}: env '{name}' secretRef must be '{required_ref}'; "
+                "actual reference does not match"
             )
 
     if errors:
@@ -386,6 +431,10 @@ def build(
     """
     _check_pinned_identity(expected_tag, expected_digest)
 
+    # Validate the live template fail-closed before any indexing.
+    # Without this, malformed input causes an uncontrolled traceback.
+    _validate_structure(live, "live")
+
     override = copy.deepcopy(live)
     container = override["containers"][0]
 
@@ -402,7 +451,7 @@ def build(
     if not runner_changed:
         _fail("MARKET_DATA_JOB_RUNNER_ENABLED not found in live template env")
 
-    # verify raises on any violation
+    # verify raises on any violation (includes full re-validation)
     verify(live, override, expected_tag, expected_digest)
     return override
 
