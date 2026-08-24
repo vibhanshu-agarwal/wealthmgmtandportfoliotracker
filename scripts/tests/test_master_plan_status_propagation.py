@@ -191,6 +191,29 @@ class TestInferredTracks(unittest.TestCase):
             pr_body="Master-plan impact: updated — Spec A",
         )
 
+    def test_rename_out_of_spec_a_still_requires_spec_a_track(self):
+        # git diff --no-renames reports both the deleted Spec A source and the
+        # added destination. Rename detection alone would hide the source and
+        # let `updated — process` slip through.
+        with self.assertRaises(GuardError) as ctx:
+            evaluate_status_propagation(
+                changed_files=[
+                    MASTER_PLAN,
+                    SPEC_A_REQS,
+                    "docs/archive/supported-asset-integrity-requirements.md",
+                ],
+                pr_body="Master-plan impact: updated — process",
+            )
+        message = str(ctx.exception).lower()
+        self.assertRegex(message, r"underclassif|inferred|spec a")
+
+    def test_list_changed_files_disables_rename_detection(self):
+        source = GUARD_SCRIPT.read_text(encoding="utf-8")
+        self.assertRegex(
+            source,
+            r'["\']git["\']\s*,\s*["\']diff["\']\s*,\s*["\']--no-renames["\']\s*,\s*["\']--name-only["\']',
+        )
+
 
 class TestUpdatedDeclaration(unittest.TestCase):
     def test_updated_without_master_plan_fails(self):

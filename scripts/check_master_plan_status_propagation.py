@@ -17,7 +17,9 @@ Tracks are a comma-separated list from {Spec A, B1, B2, process}.
 
 The live PR-body check belongs in a dedicated lightweight workflow that also runs
 on `pull_request` `edited`, so body edits are revalidated without relying on a
-stale heavy-CI event payload. The PR body is inspected directly; if it is
+stale heavy-CI event payload. Changed paths are listed with
+`git diff --no-renames --name-only` so a rename out of a Spec A/B1/B2 directory
+still exposes the source track. The PR body is inspected directly; if it is
 unavailable, fail closed — do not degrade to a path-only approximation.
 """
 
@@ -247,8 +249,10 @@ def evaluate_status_propagation(
 
 def list_changed_files(base: str, head: str) -> list[str]:
     try:
+        # --no-renames: rename detection would report only the destination path and
+        # hide a Spec A/B1/B2 source directory when a file is moved out of it.
         output = subprocess.check_output(
-            ["git", "diff", "--name-only", f"{base}...{head}"],
+            ["git", "diff", "--no-renames", "--name-only", f"{base}...{head}"],
             text=True,
             stderr=subprocess.STDOUT,
         )
