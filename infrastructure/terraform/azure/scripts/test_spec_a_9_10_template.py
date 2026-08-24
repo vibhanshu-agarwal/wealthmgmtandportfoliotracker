@@ -497,6 +497,28 @@ class BuildSafetyTest(unittest.TestCase):
         live["containers"] = []
         _assert_fails(self, sut.build, live, EXPECTED_TAG, EXPECTED_DIGEST)
 
+    def test_top_level_list_fails_closed(self) -> None:
+        """A top-level JSON array instead of object must produce a controlled fail."""
+        _assert_fails(self, sut.build, [_live_template()], EXPECTED_TAG, EXPECTED_DIGEST)
+
+    def test_scalar_container_fails_closed(self) -> None:
+        """A scalar value in containers[] must produce a controlled fail."""
+        live = _live_template()
+        live["containers"] = [42]
+        _assert_fails(self, sut.build, live, EXPECTED_TAG, EXPECTED_DIGEST)
+
+    def test_list_resources_fails_closed(self) -> None:
+        """A list-valued 'resources' must produce a controlled fail."""
+        live = _live_template()
+        live["containers"][0]["resources"] = ["cpu", "0.5"]
+        _assert_fails(self, sut.build, live, EXPECTED_TAG, EXPECTED_DIGEST)
+
+    def test_scalar_env_entry_fails_closed(self) -> None:
+        """A scalar value in the env list must produce a controlled fail."""
+        live = _live_template()
+        live["containers"][0]["env"].append(42)
+        _assert_fails(self, sut.build, live, EXPECTED_TAG, EXPECTED_DIGEST)
+
 
 class SecretSafeErrorTest(unittest.TestCase):
     """Failure messages must never leak plaintext secret values to stderr."""

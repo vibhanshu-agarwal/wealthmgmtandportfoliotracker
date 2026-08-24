@@ -112,6 +112,8 @@ def _env_by_name(env_list: list[dict]) -> dict[str, dict]:
     """Return {name: entry} mapping, detecting duplicates."""
     seen: dict[str, dict] = {}
     for entry in env_list:
+        if not isinstance(entry, dict):
+            _fail(f"env entry must be a JSON object; got {type(entry).__name__}")
         name = entry.get("name")
         if not name:
             _fail("env entry missing 'name' field")
@@ -147,6 +149,9 @@ def _validate_structure(template: dict, label: str) -> tuple[dict, dict[str, dic
     Returns (container_dict, env_by_name_dict).
     Calls _fail on any violation.
     """
+    if not isinstance(template, dict):
+        _fail(f"{label}: template must be a JSON object; got {type(template).__name__}")
+
     errors: list[str] = []
 
     # Exact allowed top-level keys
@@ -185,6 +190,11 @@ def _validate_structure(template: dict, label: str) -> tuple[dict, dict[str, dic
 
     container = containers[0]
 
+    if not isinstance(container, dict):
+        _fail(
+            f"{label}: container must be a JSON object; got {type(container).__name__}"
+        )
+
     # Exact allowed container keys
     extra_container_keys = set(container.keys()) - ALLOWED_CONTAINER_KEYS
     if extra_container_keys:
@@ -217,6 +227,11 @@ def _validate_structure(template: dict, label: str) -> tuple[dict, dict[str, dic
 
     # Resources
     resources = container.get("resources", {})
+
+    if not isinstance(resources, dict):
+        _fail(
+            f"{label}: 'resources' must be a JSON object; got {type(resources).__name__}"
+        )
 
     # Exact allowed resource keys
     extra_resource_keys = set(resources.keys()) - ALLOWED_RESOURCE_KEYS
