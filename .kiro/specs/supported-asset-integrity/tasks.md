@@ -773,14 +773,20 @@ python scripts/check-spec-references.py   .kiro/specs/supported-asset-integrity/
       - **Review round 2 closed three additional proof obligations** before this checkpoint was
         considered verified: (a) the DLT negative-check window was extended from `T0+5m` through
         post-drain (`11:30Z`, past the `11:24:08Z` drain confirmation), and the `market-prices.DLT`
-        topic was checked directly rather than inferred from consumer lag —
-        `start-offset == end-offset == 80` at `12:42:53Z` proves zero records were appended to the
-        DLT at any point through the entire execution+drain window; (b) Mongo `updatedAt` vs
-        Postgres `market_prices.observed_at` were compared at millisecond precision across all 154
-        tickers with zero mismatches, and an in-database SQL join proved `market_prices` and
-        `market_price_history` agree on ticker/price/currency/observed-at with zero mismatches and
-        zero orphans; (c) this durable runbook record was added under `docs/runbooks/` since
-        `.artifacts/` is gitignored and cannot serve as the checkpoint's durable evidence.
+        topic was checked directly rather than inferred from consumer lag — a post-run
+        `start-offset == end-offset == 80` reading alone does not rule out append-then-delete
+        within the window, so this was closed with a pre-`T0` anchor: the sole `portfolio-group-dlt`
+        consumption event in 30 days of logs (`offset=79`, Kafka `CreateTime=2026-08-19T08:42:37Z`,
+        five days before `T0`, no higher offset ever logged) establishes end-offset was already
+        `>= 80` before `T0`; combined with the post-run reading of exactly `80` and Kafka
+        end-offsets being monotonically non-decreasing, end-offset was pinned at exactly `80`
+        continuously across the entire execution+drain window — ruling out append-then-delete, not
+        just proving currently-empty; (b) Mongo `updatedAt` vs Postgres `market_prices.observed_at`
+        were compared at millisecond precision across all 154 tickers with zero mismatches, and an
+        in-database SQL join proved `market_prices` and `market_price_history` agree on
+        ticker/price/currency/observed-at with zero mismatches and zero orphans; (c) this durable
+        runbook record was added under `docs/runbooks/` since `.artifacts/` is gitignored and
+        cannot serve as the checkpoint's durable evidence.
       - Checkpoint 9.10 does not persist refresh enablement, seed the demo portfolio, restore
         scale-to-zero, or reopen ingress — none of that occurred. 9.11–9.14 remain unchecked and
         unauthorized.

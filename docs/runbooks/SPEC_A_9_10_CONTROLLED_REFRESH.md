@@ -124,12 +124,25 @@ error/DLT/conflict signals.
 
 **Negative check — DLT topic itself, not inferred from lag or app logs**: `market-prices.DLT` has
 `ReplicationFactor: 2`, `cleanup.policy=delete`. Checked at `12:42:53Z` (well after execution and
-drain): `kafka-get-offsets --time -1` (log-end) = `80`; `--time -2` (log-start) = `80`. Because a
-partition's end-offset only increases when a message is appended, and it currently equals the
-start-offset with no growth observed since, this proves **zero messages were appended to the DLT
-topic at any point up to the check time** — which necessarily spans the entire execution and
-drain window. (A message-content dump via `kafka-console-consumer` was also attempted for
-completeness but is not load-bearing here — see Tooling caveats below.)
+drain): `kafka-get-offsets --time -1` (log-end) = `80`; `--time -2` (log-start) = `80`.
+
+A single post-run reading of `start == end == 80` does **not**, by itself, rule out a record being
+appended during the execution and then removed by retention before the check — that would also
+present as `start == end == 80`. This gap was closed with a pre-`T0` anchor: a Log Analytics
+search of `portfolio-service` logs over the preceding 30 days found exactly **one**
+`portfolio-group-dlt` consumption event ever recorded — `topic=market-prices.DLT partition=0
+offset=79`, with the record's own Kafka-assigned `CreateTime` = **`2026-08-19T08:42:37.523Z`**
+(consumer log line ingested `08:42:38.344Z`) — **five days before `T0`**, and no consumption event
+at any higher offset exists in that 30-day window. Because offset `79` existing means the
+partition's end-offset was already `>= 80` as of `2026-08-19T08:42:37Z`, and Kafka end-offsets are
+monotonically non-decreasing (never reused or decremented), the end-offset must have been pinned
+at **exactly 80 continuously** from `2026-08-19T08:42:37Z` through the `12:42:53Z` measurement —
+a span that fully contains the execution+drain window (`11:05:39Z`–`11:24:08Z` on `08-24`). If a
+record had been appended and later deleted during that window, the end-offset would have exceeded
+80 at some point and could never have returned to exactly 80. This rules out the
+append-then-delete case, not just the currently-empty case. (A message-content dump via
+`kafka-console-consumer` was also attempted for completeness but is not load-bearing here — see
+Tooling caveats below.)
 
 ## Control-plane reconfirm (Task 5 Step 6)
 
@@ -194,6 +207,14 @@ kafka-consumer-groups --bootstrap-server $BOOT --command-config client.propertie
 # DLT topic offsets
 kafka-get-offsets --bootstrap-server $BOOT --command-config client.properties --topic market-prices.DLT --time -1   # end
 kafka-get-offsets --bootstrap-server $BOOT --command-config client.properties --topic market-prices.DLT --time -2   # start
+
+# Pre-T0 anchor: has the DLT consumer ever logged an offset >= the post-run end-offset?
+# (closes the append-then-retention-delete gap that a single post-run start==end reading leaves open)
+ContainerAppConsoleLogs_CL
+| where ContainerAppName_s == 'portfolio-service'
+| where Log_s has 'DLT: Failed record received'
+| project TimeGenerated, Log_s
+| order by TimeGenerated asc
 
 # Mongo, observation window [T0, T1)
 db.market_prices.find({updatedAt: {$gte: T0, $lt: T1}}, {_id:1, currentPrice:1, quoteCurrency:1, updatedAt:1})
