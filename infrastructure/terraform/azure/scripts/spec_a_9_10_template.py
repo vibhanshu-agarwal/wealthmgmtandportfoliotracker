@@ -26,6 +26,7 @@ import copy
 import hashlib
 import json
 import sys
+from pathlib import Path
 from typing import Any, NoReturn
 
 # ── Constants ────────────────────────────────────────────────────────────────
@@ -33,6 +34,12 @@ from typing import Any, NoReturn
 ACR = "wealthprodacr.azurecr.io"
 REPOSITORY = "market-data-service"
 CONTAINER_NAME = "market-data-refresh"
+
+# Pinned checkpoint 9.10 artifact identity — only these values are accepted.
+# Prevents a caller-controlled --expected-tag/--expected-digest from making any
+# arbitrary image appear valid by definition.
+PINNED_TAG = "9b2cf0d655b4b7ae2ce20ff7b67e4ad750df6900"
+PINNED_DIGEST = "sha256:ad61144b2e747a5dd1b1fc9f5b5a091916559adf7c30117beae3563123aa2256"
 
 # Plain env entries present in both live and override templates.
 # Values listed are the expected live values; the override replaces only RUNNER.
@@ -61,6 +68,12 @@ ALLOWED_SECRET_REFS = set(SECRET_REF_MAP.values())
 EXPECTED_PLAIN_NAMES = set(PLAIN_ENV_LIVE.keys())
 EXPECTED_SECRET_NAMES = set(SECRET_REF_MAP.keys())
 ALL_EXPECTED_ENV_NAMES = EXPECTED_PLAIN_NAMES | EXPECTED_SECRET_NAMES
+
+# Exact key sets for structural enforcement.  Any key outside these sets is rejected
+# so a live template with command/args/probes/volumeMounts cannot be silently copied.
+ALLOWED_TEMPLATE_KEYS: frozenset[str] = frozenset({"containers", "initContainers", "volumes"})
+ALLOWED_CONTAINER_KEYS: frozenset[str] = frozenset({"name", "image", "resources", "env"})
+ALLOWED_RESOURCE_KEYS: frozenset[str] = frozenset({"cpu", "memory", "ephemeralStorage"})
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -100,6 +113,23 @@ def _env_by_name(env_list: list[dict]) -> dict[str, dict]:
     return seen
 
 
+def _check_pinned_identity(expected_tag: str, expected_digest: str) -> None:
+    """Reject any tag/digest that does not match the pinned checkpoint 9.10 values."""
+    errors: list[str] = []
+    if expected_tag != PINNED_TAG:
+        errors.append(
+            f"--expected-tag must be the pinned checkpoint 9.10 tag {PINNED_TAG!r}; "
+            f"got {expected_tag!r}"
+        )
+    if expected_digest != PINNED_DIGEST:
+        errors.append(
+            f"--expected-digest must be the pinned checkpoint 9.10 digest {PINNED_DIGEST!r}; "
+            f"got {expected_digest!r}"
+        )
+    if errors:
+        _fail(*errors)
+
+
 # ── Structural validation (shared between live and override) ─────────────────
 
 def _validate_structure(template: dict, label: str) -> tuple[dict, dict[str, dict]]:
@@ -111,24 +141,49 @@ def _validate_structure(template: dict, label: str) -> tuple[dict, dict[str, dic
     """
     errors: list[str] = []
 
+    # Exact allowed top-level keys
+    extra_template_keys = set(template.keys()) - ALLOWED_TEMPLATE_KEYS
+    if extra_template_keys:
+        errors.append(
+            f"{label}: unexpected template keys: {sorted(extra_template_keys)} "
+            f"(allowed: {sorted(ALLOWED_TEMPLATE_KEYS)})"
+        )
+
     # No init containers
     init = template.get("initContainers")
     if init:
-        errors.append(f"{label}: initContainers must be absent/null/empty; got {init}")
+        n = len(init) if isinstance(init, list) else 1
+        errors.append(
+            f"{label}: initContainers must be absent/null/empty; found {n} entry(ies)"
+        )
 
     # No volumes
     vols = template.get("volumes")
     if vols:
-        errors.append(f"{label}: volumes must be absent/null/empty; got {vols}")
+        n = len(vols) if isinstance(vols, list) else 1
+        errors.append(
+            f"{label}: volumes must be absent/null/empty; found {n} entry(ies)"
+        )
 
     # Exactly one container
     containers = template.get("containers")
     if not isinstance(containers, list) or len(containers) != 1:
-        errors.append(f"{label}: must have exactly 1 container; got {containers}")
+        n_desc = (
+            str(len(containers)) if isinstance(containers, list) else type(containers).__name__
+        )
+        errors.append(f"{label}: must have exactly 1 container; found {n_desc}")
         if errors:
             _fail(*errors)
 
     container = containers[0]
+
+    # Exact allowed container keys
+    extra_container_keys = set(container.keys()) - ALLOWED_CONTAINER_KEYS
+    if extra_container_keys:
+        errors.append(
+            f"{label}: unexpected container keys: {sorted(extra_container_keys)} "
+            f"(allowed: {sorted(ALLOWED_CONTAINER_KEYS)})"
+        )
 
     # Correct container name
     if container.get("name") != CONTAINER_NAME:
@@ -138,12 +193,24 @@ def _validate_structure(template: dict, label: str) -> tuple[dict, dict[str, dic
 
     # Resources
     resources = container.get("resources", {})
+
+    # Exact allowed resource keys
+    extra_resource_keys = set(resources.keys()) - ALLOWED_RESOURCE_KEYS
+    if extra_resource_keys:
+        errors.append(
+            f"{label}: unexpected resource keys: {sorted(extra_resource_keys)} "
+            f"(allowed: {sorted(ALLOWED_RESOURCE_KEYS)})"
+        )
+
     cpu = resources.get("cpu")
     memory = resources.get("memory")
+    ephemeral = resources.get("ephemeralStorage")
     if cpu != 0.5:
         errors.append(f"{label}: cpu must be 0.5; got {cpu!r}")
     if memory != "1Gi":
         errors.append(f"{label}: memory must be '1Gi'; got {memory!r}")
+    if ephemeral != "2Gi":
+        errors.append(f"{label}: ephemeralStorage must be '2Gi'; got {ephemeral!r}")
 
     # Env entries must be a list
     env_list = container.get("env")
@@ -187,7 +254,7 @@ def _validate_env_entries(
     # Validate plain entries
     for name, expected_value in PLAIN_ENV_LIVE.items():
         entry = env_map[name]
-        # Reject if plaintext secret value present where secretRef expected
+        # Reject if secretRef appears where a plain value is expected
         if "secretRef" in entry:
             errors.append(
                 f"{label}: plain env '{name}' has 'secretRef'; must use 'value'"
@@ -249,11 +316,13 @@ def verify(
     Returns the two-path diff string on success.
     Calls _fail on any violation.
     """
+    _check_pinned_identity(expected_tag, expected_digest)
+
     # Validate structure of both templates
     live_container, live_env = _validate_structure(live, "live")
     override_container, override_env = _validate_structure(override, "override")
 
-    # Live: runner must be false (do not start execution from an already-enabled template)
+    # Live: runner must be false (do not start from an already-enabled template)
     _validate_env_entries(live_env, expected_tag, runner_value="false", label="live")
 
     # Override: runner must be true
@@ -267,13 +336,9 @@ def verify(
     override_image = override_container.get("image", "")
 
     if live_image != expected_live_image:
-        _fail(
-            f"live image must be '{expected_live_image}'; got '{live_image}'"
-        )
+        _fail(f"live image must be '{expected_live_image}'; got '{live_image}'")
     if override_image != expected_override_image:
-        _fail(
-            f"override image must be '{expected_override_image}'; got '{override_image}'"
-        )
+        _fail(f"override image must be '{expected_override_image}'; got '{override_image}'")
 
     # Diff check: reverse the two approved changes on override and compare with live.
     # This proves no other path differs.
@@ -290,7 +355,6 @@ def verify(
             break
 
     if reversed_override != live:
-        # Compute the actual diff for the error message (sanitized: no secret values)
         _fail(
             "override template differs from live in more than the two approved paths "
             "(image and MARKET_DATA_JOB_RUNNER_ENABLED). "
@@ -320,6 +384,8 @@ def build(
     Deep-copies live, changes only the two approved paths, runs verify.
     Returns the validated override dict.
     """
+    _check_pinned_identity(expected_tag, expected_digest)
+
     override = copy.deepcopy(live)
     container = override["containers"][0]
 
@@ -348,6 +414,11 @@ def _checksum(data: bytes) -> str:
 
 
 def cmd_build(args: argparse.Namespace) -> None:
+    if Path(args.live_template).resolve() == Path(args.output).resolve():
+        _fail(
+            "--live-template and --output must be different paths; "
+            "same path would overwrite the live template"
+        )
     live = _load(args.live_template)
     override = build(live, args.expected_tag, args.expected_digest)
     canonical = json.dumps(override, indent=2, sort_keys=False, ensure_ascii=False).encode()

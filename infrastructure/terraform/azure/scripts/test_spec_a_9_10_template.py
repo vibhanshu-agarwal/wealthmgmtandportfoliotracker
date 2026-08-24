@@ -7,9 +7,14 @@ plus a golden test that confirms the exact two-path diff and the PASS code path.
 """
 from __future__ import annotations
 
+import contextlib
 import copy
+import io
 import json
+import os
+import shutil
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -19,8 +24,8 @@ if str(SCRIPTS_DIR) not in sys.path:
 
 import spec_a_9_10_template as sut  # noqa: E402
 
-EXPECTED_TAG = "9b2cf0d655b4b7ae2ce20ff7b67e4ad750df6900"
-EXPECTED_DIGEST = "sha256:ad61144b2e747a5dd1b1fc9f5b5a091916559adf7c30117beae3563123aa2256"
+EXPECTED_TAG = sut.PINNED_TAG
+EXPECTED_DIGEST = sut.PINNED_DIGEST
 
 ACR = sut.ACR
 REPOSITORY = sut.REPOSITORY
@@ -54,7 +59,7 @@ def _live_template() -> dict:
             {
                 "name": "market-data-refresh",
                 "image": LIVE_IMAGE,
-                "resources": {"cpu": 0.5, "memory": "1Gi"},
+                "resources": {"cpu": 0.5, "memory": "1Gi", "ephemeralStorage": "2Gi"},
                 "env": _live_env(),
             }
         ],
@@ -77,7 +82,7 @@ def _valid_override() -> dict:
             {
                 "name": "market-data-refresh",
                 "image": OVERRIDE_IMAGE,
-                "resources": {"cpu": 0.5, "memory": "1Gi"},
+                "resources": {"cpu": 0.5, "memory": "1Gi", "ephemeralStorage": "2Gi"},
                 "env": _override_env(),
             }
         ],
@@ -115,7 +120,7 @@ class GoldenPathTest(unittest.TestCase):
         live = _live_template()
         override = _valid_override()
         diff = sut.verify(live, override, EXPECTED_TAG, EXPECTED_DIGEST)
-        lines = [l.strip() for l in diff.splitlines() if l.strip()]
+        lines = [line.strip() for line in diff.splitlines() if line.strip()]
         # Expect exactly: "containers[0].image:", the two image lines, the runner line
         self.assertEqual(len(lines), 4, f"Expected 4 diff lines; got:\n{diff}")
 
@@ -124,6 +129,28 @@ class GoldenPathTest(unittest.TestCase):
         live_copy = copy.deepcopy(live)
         sut.build(live, EXPECTED_TAG, EXPECTED_DIGEST)
         self.assertEqual(live, live_copy)
+
+
+class PinnedIdentityTest(unittest.TestCase):
+    """verify() and build() must reject any tag/digest not matching the pinned constants."""
+
+    def test_verify_wrong_tag_rejected(self) -> None:
+        _assert_fails(
+            self, sut.verify, _live_template(), _valid_override(),
+            "wrong-tag-value", EXPECTED_DIGEST,
+        )
+
+    def test_verify_wrong_digest_rejected(self) -> None:
+        _assert_fails(
+            self, sut.verify, _live_template(), _valid_override(),
+            EXPECTED_TAG, "sha256:" + "00" * 32,
+        )
+
+    def test_build_wrong_tag_rejected(self) -> None:
+        _assert_fails(self, sut.build, _live_template(), "wrong-tag-value", EXPECTED_DIGEST)
+
+    def test_build_wrong_digest_rejected(self) -> None:
+        _assert_fails(self, sut.build, _live_template(), EXPECTED_TAG, "sha256:" + "00" * 32)
 
 
 class PartialTemplateTest(unittest.TestCase):
@@ -303,6 +330,44 @@ class AlteredResourcesTest(unittest.TestCase):
         _assert_fails(self, sut.verify, _live_template(), override, EXPECTED_TAG, EXPECTED_DIGEST)
 
 
+class EphemeralStorageTest(unittest.TestCase):
+    """ephemeralStorage must be exactly '2Gi' in both live and override."""
+
+    def test_missing_ephemeral_storage_rejected(self) -> None:
+        live = _live_template()
+        del live["containers"][0]["resources"]["ephemeralStorage"]
+        _assert_fails(self, sut.verify, live, _valid_override(), EXPECTED_TAG, EXPECTED_DIGEST)
+
+    def test_wrong_ephemeral_storage_value_rejected(self) -> None:
+        live = _live_template()
+        live["containers"][0]["resources"]["ephemeralStorage"] = "4Gi"
+        _assert_fails(self, sut.verify, live, _valid_override(), EXPECTED_TAG, EXPECTED_DIGEST)
+
+    def test_ephemeral_altered_in_override_rejected(self) -> None:
+        override = _valid_override()
+        override["containers"][0]["resources"]["ephemeralStorage"] = "4Gi"
+        _assert_fails(self, sut.verify, _live_template(), override, EXPECTED_TAG, EXPECTED_DIGEST)
+
+
+class UnexpectedKeyTest(unittest.TestCase):
+    """Unexpected keys in the container or at the template level must be rejected."""
+
+    def test_command_in_container_rejected(self) -> None:
+        live = _live_template()
+        live["containers"][0]["command"] = ["/bin/sh", "-c", "echo injected"]
+        _assert_fails(self, sut.verify, live, _valid_override(), EXPECTED_TAG, EXPECTED_DIGEST)
+
+    def test_args_in_container_rejected(self) -> None:
+        override = _valid_override()
+        override["containers"][0]["args"] = ["--inject"]
+        _assert_fails(self, sut.verify, _live_template(), override, EXPECTED_TAG, EXPECTED_DIGEST)
+
+    def test_extra_template_level_key_rejected(self) -> None:
+        live = _live_template()
+        live["terminationGracePeriodSeconds"] = 30
+        _assert_fails(self, sut.verify, live, _valid_override(), EXPECTED_TAG, EXPECTED_DIGEST)
+
+
 class RunnerAlreadyEnabledTest(unittest.TestCase):
     """build() must reject a live template where runner is already true."""
 
@@ -354,21 +419,11 @@ class ExtraDiffPathTest(unittest.TestCase):
                 break
         _assert_fails(self, sut.verify, _live_template(), override, EXPECTED_TAG, EXPECTED_DIGEST)
 
-    def test_extra_resource_change_rejected(self) -> None:
-        live = _live_template()
+    def test_extra_resource_key_change_rejected(self) -> None:
+        """An unexpected resource key in the override is rejected by key enforcement and diff."""
         override = _valid_override()
-        # Both pass individual checks but differ in resources
-        live["containers"][0]["resources"]["cpu"] = 0.25
-        override["containers"][0]["resources"]["cpu"] = 0.25
-        # Now valid individually but if we change only override's cpu it differs
-        override["containers"][0]["resources"]["cpu"] = 0.5
-        live["containers"][0]["resources"]["cpu"] = 0.5
-        # Actually introduce a silent third diff
-        override["containers"][0]["resources"]["memory"] = "1Gi"
-        live["containers"][0]["resources"]["memory"] = "1Gi"
-        # Introduce a real hidden diff — a new key in resources
-        override["containers"][0]["resources"]["ephemeralStorage"] = "2Gi"
-        _assert_fails(self, sut.verify, live, override, EXPECTED_TAG, EXPECTED_DIGEST)
+        override["containers"][0]["resources"]["bandwidthMbps"] = 100
+        _assert_fails(self, sut.verify, _live_template(), override, EXPECTED_TAG, EXPECTED_DIGEST)
 
     def test_wrong_secret_ref_change_rejected(self) -> None:
         override = _valid_override()
@@ -377,6 +432,121 @@ class ExtraDiffPathTest(unittest.TestCase):
                 entry["secretRef"] = "kafka-sasl-password"  # swapped
                 break
         _assert_fails(self, sut.verify, _live_template(), override, EXPECTED_TAG, EXPECTED_DIGEST)
+
+
+class SecretSafeErrorTest(unittest.TestCase):
+    """Failure messages must never leak plaintext secret values to stderr."""
+
+    def _capture_stderr(self, fn, *args, **kwargs) -> str:
+        buf = io.StringIO()
+        with self.assertRaises(SystemExit):
+            with contextlib.redirect_stderr(buf):
+                fn(*args, **kwargs)
+        return buf.getvalue()
+
+    def test_plaintext_secret_not_in_stderr(self) -> None:
+        sentinel = "SENTINEL_SECRET_XK9j3_DO_NOT_LOG"
+        live = _live_template()
+        for entry in live["containers"][0]["env"]:
+            if entry["name"] == "SPRING_DATA_MONGODB_URI":
+                del entry["secretRef"]
+                entry["value"] = sentinel
+                break
+        err = self._capture_stderr(
+            sut.verify, live, _valid_override(), EXPECTED_TAG, EXPECTED_DIGEST
+        )
+        self.assertNotIn(sentinel, err, "Secret sentinel must never appear in error output")
+
+    def test_container_count_error_does_not_print_contents(self) -> None:
+        """A wrong-container-count error must not dump container dict contents."""
+        sentinel = "SENTINEL_SECRET_YQ7r2_DO_NOT_LOG"
+        live = _live_template()
+        # Embed a recognizable value; add second container to trigger the count error
+        live["containers"][0]["env"][0]["value"] = sentinel
+        live["containers"].append(copy.deepcopy(live["containers"][0]))
+        err = self._capture_stderr(
+            sut.verify, live, _valid_override(), EXPECTED_TAG, EXPECTED_DIGEST
+        )
+        self.assertNotIn(
+            sentinel, err, "Container object contents must not appear in error output"
+        )
+
+
+class CLITest(unittest.TestCase):
+    """CLI-level integration tests for cmd_build and main()."""
+
+    def setUp(self) -> None:
+        self.tmpdir = tempfile.mkdtemp()
+
+    def tearDown(self) -> None:
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def _live_path(self) -> str:
+        p = os.path.join(self.tmpdir, "live.json")
+        with open(p, "w", encoding="utf-8") as fh:
+            json.dump(_live_template(), fh)
+        return p
+
+    def _build_argv(self, live: str, out: str) -> list[str]:
+        return [
+            "build",
+            "--live-template", live,
+            "--output", out,
+            "--expected-tag", EXPECTED_TAG,
+            "--expected-digest", EXPECTED_DIGEST,
+        ]
+
+    def test_build_writes_output_file(self) -> None:
+        out_path = os.path.join(self.tmpdir, "override.json")
+        sut.main(self._build_argv(self._live_path(), out_path))
+        self.assertTrue(os.path.exists(out_path))
+        with open(out_path, encoding="utf-8") as fh:
+            override = json.load(fh)
+        self.assertEqual(override["containers"][0]["image"], OVERRIDE_IMAGE)
+        env = {e["name"]: e for e in override["containers"][0]["env"]}
+        self.assertEqual(env["MARKET_DATA_JOB_RUNNER_ENABLED"]["value"], "true")
+
+    def test_build_checksum_is_deterministic(self) -> None:
+        out1 = os.path.join(self.tmpdir, "override1.json")
+        out2 = os.path.join(self.tmpdir, "override2.json")
+        sut.main(self._build_argv(self._live_path(), out1))
+        sut.main(self._build_argv(self._live_path(), out2))
+        with open(out1, "rb") as f1, open(out2, "rb") as f2:
+            self.assertEqual(f1.read(), f2.read(), "Build output must be deterministic")
+
+    def test_malformed_json_fails_gracefully(self) -> None:
+        bad_path = os.path.join(self.tmpdir, "bad.json")
+        with open(bad_path, "w") as fh:
+            fh.write("{not valid json}")
+        out_path = os.path.join(self.tmpdir, "override.json")
+        with self.assertRaises(SystemExit):
+            sut.main(self._build_argv(bad_path, out_path))
+
+    def test_same_input_output_path_rejected(self) -> None:
+        live_path = self._live_path()
+        with self.assertRaises(SystemExit):
+            sut.main(self._build_argv(live_path, live_path))
+
+    def test_secret_never_in_stderr(self) -> None:
+        """Even on error, a plaintext secret in the live template must not appear in stderr."""
+        sentinel = "SENTINEL_CLI_SECRET_ZM4p8_DO_NOT_LOG"
+        live = _live_template()
+        for entry in live["containers"][0]["env"]:
+            if entry["name"] == "SPRING_DATA_MONGODB_URI":
+                del entry["secretRef"]
+                entry["value"] = sentinel
+                break
+        bad_path = os.path.join(self.tmpdir, "bad_live.json")
+        with open(bad_path, "w", encoding="utf-8") as fh:
+            json.dump(live, fh)
+        out_path = os.path.join(self.tmpdir, "override.json")
+        buf = io.StringIO()
+        with self.assertRaises(SystemExit):
+            with contextlib.redirect_stderr(buf):
+                sut.main(self._build_argv(bad_path, out_path))
+        self.assertNotIn(
+            sentinel, buf.getvalue(), "Secret sentinel must never appear in stderr"
+        )
 
 
 if __name__ == "__main__":

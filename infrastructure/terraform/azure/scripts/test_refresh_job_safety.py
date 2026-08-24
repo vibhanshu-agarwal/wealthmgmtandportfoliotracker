@@ -96,7 +96,7 @@ class RefreshJobSafetyTest(unittest.TestCase):
 
     def test_persisted_runner_disabled(self) -> None:
         """MARKET_DATA_JOB_RUNNER_ENABLED must be 'false' in the persisted Job template."""
-        value = _runner_enabled_value(self.full_content)
+        value = _runner_enabled_value(self.job_block)
         self.assertEqual(
             value,
             "false",
