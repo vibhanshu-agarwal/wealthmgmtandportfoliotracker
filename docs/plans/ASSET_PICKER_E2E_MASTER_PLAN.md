@@ -46,17 +46,24 @@ Every pull request must include **exactly one** canonical declaration in the PR 
    blockers, and next actions are unchanged.
 
 For `updated`, the same change must update this master plan and every owning `tasks.md` ledger for
-the declared Spec A/B1/B2 tracks (`process` has no ledger). For `none`, the rationale must be on the
-same line, must not be an HTML placeholder/checklist/stub, and must not accompany edits to this
-master plan or an owning ledger (that is a conflict — use `updated` instead).
+the declared Spec A/B1/B2 tracks (`process` has no ledger). Declared tracks must also cover every
+Spec A/B1/B2 specification directory the PR touches; `process` cannot substitute for an inferred
+spec track. For `none`, the rationale must be on the same line, must not be an HTML
+placeholder/checklist/stub, and must not accompany edits to this master plan or an owning ledger
+(that is a conflict — use `updated` instead).
 
 A checkbox is marked complete only when its owning acceptance evidence exists. Work implemented on
 an unmerged branch is described as **implemented but unmerged**, never as complete on `main`.
 
-**Process-control enforcement:** required `static-guard` in `.github/workflows/ci-verification.yml`
-runs `scripts/check_master_plan_status_propagation.py` (contract tests on every run; live PR-body
-check on `pull_request`). When those paths exist in the revision being read, the guard is part of
-that revision's process controls. Runtime/application Asset Picker capability is unaffected.
+**Process-control enforcement:**
+
+- Contract tests run in required `static-guard` (`.github/workflows/ci-verification.yml`).
+- The live PR-body check runs in the dedicated lightweight workflow
+  `.github/workflows/master-plan-status-propagation.yml` on `opened` / `synchronize` /
+  `reopened` / `edited`, so body edits are revalidated without folding `edited` into the heavy CI
+  chain. Script: `scripts/check_master_plan_status_propagation.py`.
+- When those paths exist in the revision being read, the guard is part of that revision's process
+  controls. Runtime/application Asset Picker capability is unaffected.
 
 ### 0.3 Update checklist
 
@@ -162,7 +169,7 @@ startable as implementation work.
 
 | Item | Current state | Required before relying on it |
 |---|---|---|
-| Status-propagation CI guard | Required `static-guard` runs `scripts/check_master_plan_status_propagation.py` with the universal `Master-plan impact:` declaration contract | Process-control only; does not advance the runtime baseline or create user-facing Asset Picker capability |
+| Status-propagation CI guard | Contract tests in `static-guard`; live PR-body check in dedicated `master-plan-status-propagation` workflow (`opened`/`synchronize`/`reopened`/`edited`) | Process-control only; does not advance the runtime baseline or create user-facing Asset Picker capability |
 
 The temporary product state is intentional but incomplete: the unsafe legacy writer is gone, while
 the safe versioned replacement has not yet been built. A frontend picker cannot save holdings until

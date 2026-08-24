@@ -6,12 +6,14 @@ Contract (PR #151 review hardening):
   - Every PR must carry exactly one canonical `Master-plan impact:` declaration.
   - Forms: `updated — <tracks>` or `none: <same-line rationale>`.
   - `updated` requires the living master plan plus each declared track's ledger.
+  - Declared tracks must cover inferred Spec A/B1/B2 specification directories;
+    `process` cannot substitute for them.
   - `none` rejects empty, multi-line-only, HTML placeholder, and checklist rationales.
   - Duplicate or conflicting markers fail closed.
   - Feature-code / CI paths are not exempt: missing declaration fails even when no
     Spec A/B1/B2 folder is touched.
-
-Also pins that the guard is wired into the required `static-guard` job.
+  - Live PR-body check is wired in a dedicated lightweight workflow that includes
+    the `edited` activity type; heavy CI does not claim that duty alone.
 """
 
 from __future__ import annotations
@@ -30,6 +32,9 @@ from check_master_plan_status_propagation import (  # noqa: E402
 )
 
 CI_VERIFICATION = REPO / ".github" / "workflows" / "ci-verification.yml"
+STATUS_PROP_WORKFLOW = (
+    REPO / ".github" / "workflows" / "master-plan-status-propagation.yml"
+)
 GUARD_SCRIPT = REPO / "scripts" / "check_master_plan_status_propagation.py"
 MASTER_PLAN = "docs/plans/ASSET_PICKER_E2E_MASTER_PLAN.md"
 SPEC_A_TASKS = ".kiro/specs/supported-asset-integrity/tasks.md"
@@ -161,6 +166,32 @@ class TestNoneRationale(unittest.TestCase):
         )
 
 
+class TestInferredTracks(unittest.TestCase):
+    def test_process_cannot_substitute_for_touched_spec_a(self):
+        with self.assertRaises(GuardError) as ctx:
+            evaluate_status_propagation(
+                changed_files=[MASTER_PLAN, SPEC_A_REQS],
+                pr_body="Master-plan impact: updated — process",
+            )
+        message = str(ctx.exception).lower()
+        self.assertRegex(message, r"underclassif|inferred|spec a")
+        self.assertIn("process", message)
+
+    def test_process_plus_spec_a_still_requires_spec_a_ledger(self):
+        with self.assertRaises(GuardError) as ctx:
+            evaluate_status_propagation(
+                changed_files=[MASTER_PLAN, SPEC_A_REQS],
+                pr_body="Master-plan impact: updated — process, Spec A",
+            )
+        self.assertIn("supported-asset-integrity/tasks.md", str(ctx.exception))
+
+    def test_updated_covering_inferred_spec_a_passes(self):
+        evaluate_status_propagation(
+            changed_files=[MASTER_PLAN, SPEC_A_TASKS, SPEC_A_REQS],
+            pr_body="Master-plan impact: updated — Spec A",
+        )
+
+
 class TestUpdatedDeclaration(unittest.TestCase):
     def test_updated_without_master_plan_fails(self):
         with self.assertRaises(GuardError) as ctx:
@@ -236,34 +267,63 @@ class TestUpdatedDeclaration(unittest.TestCase):
 class TestMasterPlanMergeStableWording(unittest.TestCase):
     def test_master_plan_does_not_claim_unmerged_or_docs_only_for_this_guard(self):
         text = (REPO / MASTER_PLAN).read_text(encoding="utf-8")
-        # Merge-stable: these claims become false the moment the workflow/Python PR merges.
         self.assertNotRegex(
             text,
             r"(?i)implemented but unmerged.*status propagation|status propagation.*implemented but unmerged",
         )
-        # The runtime baseline blurb must not call this process-control revision docs-only.
         header = "\n".join(text.splitlines()[:20])
         self.assertNotRegex(header, r"(?i)this update is documentation-only")
         self.assertRegex(header, r"(?i)runtime|program-state code baseline")
         self.assertIn("check_master_plan_status_propagation.py", text)
+        self.assertIn("master-plan-status-propagation.yml", text)
 
 
-class TestGuardWiredIntoRequiredCi(unittest.TestCase):
+class TestGuardWiredIntoCi(unittest.TestCase):
     def test_guard_script_exists(self):
         self.assertTrue(GUARD_SCRIPT.is_file())
 
-    def test_static_guard_runs_contract_tests_and_live_pr_check(self):
+    def test_static_guard_runs_contract_tests_only(self):
         text = CI_VERIFICATION.read_text(encoding="utf-8")
         job = self._job(text, "static-guard:")
         self.assertIn("test_master_plan_status_propagation.py", job)
-        self.assertIn("check_master_plan_status_propagation.py", job)
-        self.assertIn("github.event.pull_request.body", job)
-        self.assertIn("github.event_name == 'pull_request'", job)
+        # Live body check must not live only here — body edits would not revalidate.
+        self.assertNotIn("pr-body.md", job)
+        self.assertNotIn("--pr-body-file", job)
 
     def test_static_guard_does_not_drop_existing_sanitizer_check(self):
         text = CI_VERIFICATION.read_text(encoding="utf-8")
         job = self._job(text, "static-guard:")
         self.assertIn("check-sanitizer-secret-wiring.js", job)
+
+    def test_heavy_ci_does_not_subscribe_to_edited(self):
+        text = CI_VERIFICATION.read_text(encoding="utf-8")
+        on_block = self._on_block(text)
+        self.assertNotRegex(on_block, r"(?m)^\s*types:")
+        self.assertNotIn("edited", on_block)
+
+    def test_dedicated_workflow_runs_live_check_on_edited(self):
+        self.assertTrue(STATUS_PROP_WORKFLOW.is_file())
+        text = STATUS_PROP_WORKFLOW.read_text(encoding="utf-8")
+        on_block = self._on_block(text)
+        for activity in ("opened", "synchronize", "reopened", "edited"):
+            self.assertIn(activity, on_block)
+        job = self._job(text, "master-plan-status-propagation:")
+        self.assertIn("check_master_plan_status_propagation.py", job)
+        self.assertIn("github.event.pull_request.body", job)
+        self.assertIn("--pr-body-file", job)
+        self.assertIn("test_master_plan_status_propagation.py", job)
+
+    def test_actionlint_covers_dedicated_workflow(self):
+        text = CI_VERIFICATION.read_text(encoding="utf-8")
+        self.assertIn(
+            ".github/workflows/master-plan-status-propagation.yml",
+            text,
+        )
+
+    def _on_block(self, text: str) -> str:
+        match = re.search(r"^on:\s*\n(?:(?:  .*)?\n)*", text, re.MULTILINE)
+        self.assertIsNotNone(match, "missing top-level on: block")
+        return match.group(0)
 
     def _job(self, text: str, heading: str) -> str:
         pattern = rf"^  {re.escape(heading)}\n"

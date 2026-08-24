@@ -10,11 +10,14 @@ Tracks are a comma-separated list from {Spec A, B1, B2, process}.
 
   - `updated` requires `docs/plans/ASSET_PICKER_E2E_MASTER_PLAN.md` plus each
     declared Spec A/B1/B2 owning `tasks.md` ledger (`process` has no ledger).
+  - Declared tracks must cover every Spec A/B1/B2 specification directory touched
+    by the PR; `process` cannot substitute for an inferred spec track.
   - `none` requires a non-empty same-line rationale and rejects HTML placeholders,
     checklist text, and concurrent master-plan/ledger edits (conflict).
 
-This closes path-only bypasses: feature UI, composition controllers, and CI
-workflow edits are not exempt. The PR body is inspected directly; if it is
+The live PR-body check belongs in a dedicated lightweight workflow that also runs
+on `pull_request` `edited`, so body edits are revalidated without relying on a
+stale heavy-CI event payload. The PR body is inspected directly; if it is
 unavailable, fail closed — do not degrade to a path-only approximation.
 """
 
@@ -55,6 +58,12 @@ TRACK_LEDGERS = {
     "spec-a": ".kiro/specs/supported-asset-integrity/tasks.md",
     "b1": ".kiro/specs/portfolio-composition-contract/tasks.md",
     "b2": ".kiro/specs/asset-picker-composition/tasks.md",
+}
+
+TRACK_PREFIXES = {
+    "spec-a": ".kiro/specs/supported-asset-integrity/",
+    "b1": ".kiro/specs/portfolio-composition-contract/",
+    "b2": ".kiro/specs/asset-picker-composition/",
 }
 
 TRACK_LABELS = {
@@ -179,6 +188,15 @@ def status_paths_in(files: list[str]) -> list[str]:
     return [path for path in files if path in watched]
 
 
+def inferred_spec_tracks(changed_files: list[str]) -> tuple[str, ...]:
+    """Return Spec A/B1/B2 tracks implied by touched specification directories."""
+    found: list[str] = []
+    for track, prefix in TRACK_PREFIXES.items():
+        if any(path == prefix.rstrip("/") or path.startswith(prefix) for path in changed_files):
+            found.append(track)
+    return tuple(found)
+
+
 def evaluate_status_propagation(
     *,
     changed_files: list[str] | tuple[str, ...] | None,
@@ -186,6 +204,7 @@ def evaluate_status_propagation(
 ) -> None:
     files = normalize_files(changed_files)
     declaration = parse_impact_declaration(pr_body)
+    inferred = inferred_spec_tracks(files)
 
     if declaration.kind == "none":
         conflicting = status_paths_in(files)
@@ -196,6 +215,16 @@ def evaluate_status_propagation(
                 "living master plan or an owning task ledger changes."
             )
         return
+
+    missing_declared = [track for track in inferred if track not in declaration.tracks]
+    if missing_declared:
+        labels = ", ".join(TRACK_LABELS[track] for track in missing_declared)
+        raise GuardError(
+            "Declared tracks underclassify touched specification paths. "
+            f"Inferred required track(s): {labels}. `process` cannot substitute for "
+            "Spec A/B1/B2 when those specification directories change; include them in "
+            "`Master-plan impact: updated — <tracks>`."
+        )
 
     missing: list[str] = []
     if MASTER_PLAN not in files:
