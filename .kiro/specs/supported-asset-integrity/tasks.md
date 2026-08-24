@@ -765,9 +765,22 @@ python scripts/check-spec-references.py   .kiro/specs/supported-asset-integrity/
         runner `false`, image tag `9b2cf0d…`, schedule `0 8 * * *`); gateway ingress still closed;
         all three services `Running`/`Healthy` at `minReplicas=1` on the **same** active revisions
         as before execution — no redeploy triggered.
-      - **Decision (Task 5 Step 7): GO.** Full evidence:
-        `.artifacts/spec-a-9.10/{baseline.md,template-review.md,execution-evidence.md}` (local,
-        not committed — runtime evidence per plan `Task 3`/`Task 4`/`Task 5` file scope).
+      - **Decision (Task 5 Step 7): GO.** Durable, sanitized record (commands/query boundaries,
+        results, checksums, execution-readback normalization caveats):
+        [`docs/runbooks/SPEC_A_9_10_CONTROLLED_REFRESH.md`](../../../docs/runbooks/SPEC_A_9_10_CONTROLLED_REFRESH.md).
+        Full raw runtime evidence additionally exists locally under `.artifacts/spec-a-9.10/`
+        (gitignored, not committed — no secrets, but out of scope for the repo).
+      - **Review round 2 closed three additional proof obligations** before this checkpoint was
+        considered verified: (a) the DLT negative-check window was extended from `T0+5m` through
+        post-drain (`11:30Z`, past the `11:24:08Z` drain confirmation), and the `market-prices.DLT`
+        topic was checked directly rather than inferred from consumer lag —
+        `start-offset == end-offset == 80` at `12:42:53Z` proves zero records were appended to the
+        DLT at any point through the entire execution+drain window; (b) Mongo `updatedAt` vs
+        Postgres `market_prices.observed_at` were compared at millisecond precision across all 154
+        tickers with zero mismatches, and an in-database SQL join proved `market_prices` and
+        `market_price_history` agree on ticker/price/currency/observed-at with zero mismatches and
+        zero orphans; (c) this durable runbook record was added under `docs/runbooks/` since
+        `.artifacts/` is gitignored and cannot serve as the checkpoint's durable evidence.
       - Checkpoint 9.10 does not persist refresh enablement, seed the demo portfolio, restore
         scale-to-zero, or reopen ingress — none of that occurred. 9.11–9.14 remain unchecked and
         unauthorized.
