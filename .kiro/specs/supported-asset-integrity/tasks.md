@@ -1,5 +1,12 @@
 # Implementation Plan
 
+**Current program status (verified 2026-08-24 at `main@e221662`):** implementation tasks 1–7 are
+complete; task 8 is complete except 8.8. Cutover checkpoints 9.1–9.10 are complete. Checkpoints
+9.11–9.14 are pending and unauthorized; persisted refresh remains disabled, demo activation has
+not run, the three catalog services remain at `min_replicas=1`, and gateway ingress remains closed.
+See [`docs/plans/ASSET_PICKER_E2E_MASTER_PLAN.md`](../../../docs/plans/ASSET_PICKER_E2E_MASTER_PLAN.md)
+for the living cross-program view.
+
 ## Overview
 
 Eight waves. The ordering is not stylistic — it encodes the constraint that made the design review

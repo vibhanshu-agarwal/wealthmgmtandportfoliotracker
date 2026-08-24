@@ -1,5 +1,13 @@
 # Implementation Plan
 
+**Current program status (verified 2026-08-24 at `main@e221662`):** this task plan and its owning
+requirements/design/mockup are tracked, but no B2 implementation task is complete on `main`.
+Spec A task 8.6 is now complete and the backend `assetPriceFreshness` response exists; B2 still owns
+the frontend adapter and UI wiring. Five decisions remain open: idle threshold, manual-reset
+placement, presence TTL, login self-call timeouts, and decimal-adapter deployment sequencing. See
+[`docs/plans/ASSET_PICKER_E2E_MASTER_PLAN.md`](../../../docs/plans/ASSET_PICKER_E2E_MASTER_PLAN.md)
+for the living cross-program view.
+
 **Review-accounting note (Azure-first consolidation, 2026-08-22):** the long numbered-round
 narrative below is retained as provenance only. Future reviews record findings in git/PR history and
 update the owning invariant or task; they SHALL NOT append another rolling round paragraph or try to
@@ -18,17 +26,10 @@ and Task 4.4; and `6aec5e7` — pass 28, propagating the 8.9 serving-proof gate 
 exposure condition, fixing 8.9's own dependency boundary, and making its live probe causally safe
 against the shared demo identity with unconditional cleanup, see Wave 8's intro and Task 8.9) after
 twenty-nine review passes (twenty-six Codex adversarial rounds, three internal parallel-agent
-audits). **Further in-place amendments to `design.md`, the master plan, and `requirements.md`
-(pass-29 through pass-33 labels — `requirements.md`'s first, pass-33, added by the round-44
-internal audit, which found its 7.3a still mandating the filter-local `System.getenv`
-architecture that pass-29/32 had amended out of the other two documents) are applied but not yet
-committed — their hashes and all three frozen documents' own header pass-counts get reconciled
-when the current review cycle's state is committed (noted round-30, extended round-44 to cover
-`requirements.md`, which the note's earlier "both frozen documents" wording excluded, so the
-desync between those bodies and their headers reads as pending bookkeeping, not drift).** The
-  spec is architecture-reviewed, not decision-complete: six items remain genuinely open (idle-reset
-  threshold, manual-reset control placement, presence TTL, login self-call timeouts,
-  the decimal-adapter rollout sequencing, and `assetPriceFreshness`/Spec A task 8.6) and are
+audits). Subsequent amendments are tracked in git; the rolling pass narrative is provenance, not a
+current-status mechanism. The spec is architecture-reviewed, not decision-complete: five items
+remain genuinely open (idle-reset threshold, manual-reset control placement, presence TTL, login
+self-call timeouts, and the decimal-adapter rollout sequencing) and are
 carried into the waves below as explicit blockers rather than resolved here — Codex round 1 on this
 document found the first draft's header undercounted this list, dropping exactly the two items
 (decimal sequencing, `assetPriceFreshness`) where the draft's own task coverage was itself weakest,
@@ -96,8 +97,9 @@ persistence rather than a store of its own.
    actual dependency is Waves 1-6 built and runnable, not production-deployed). Wave 8 remains
    unconditional at Wave 10 (production exposure), independent of this track.
 4. **Production exposure** — blocked on all of the above plus B1/Spec A's own activation gates and
-   the six open product/config/dependency items enumerated in this header. `updatedAt` is not one of
-   them: Task 8.1 now owns it.
+   the five open product/config/dependency items enumerated in this header. `updatedAt` and
+   `assetPriceFreshness` are not among them: Task 8.1 owns `updatedAt`, and Spec A task 8.6
+   delivered `assetPriceFreshness`.
 
 Stack: same as the rest of the monorepo — **Java 21 / Spring Boot 4.1** (api-gateway, WebFlux;
 portfolio-service, Spring MVC), **Next.js/TypeScript** frontend, Redis (presence only), JUnit 5 +
@@ -773,12 +775,10 @@ Buildable and fully testable without a live backend: mock `GET /api/assets` and
 - [ ] **1.19 Accessibility check wired into CI** (GC.12) against the built modal.
   _Requirements: 1.7, 1.8_
 
-**Live-integration blocker, tracked here so it is not lost by the time Wave 9 needs it:** 1.16's real
-data source, `assetPriceFreshness`, does not exist in `portfolio-service` or frontend source today —
-Spec A (`supported-asset-integrity`) `tasks.md` task 8.6 is unchecked. Wave 9 wires 1.16 to a real
-response only once that task lands; nothing in this wave is blocked by it, since 1.16 mocks the
-shape.
-_Requirements: 3.2, 3.4; Open items — assetPriceFreshness_
+**Live-integration dependency status:** Spec A task 8.6 is complete and
+`PortfolioSummaryDto.assetPriceFreshness` exists in `portfolio-service`. This wave still mocks the
+shape; Wave 9 owns wiring it to the real response.
+_Requirements: 3.2, 3.4_
 
 ## Wave 2 — Decimal adapter migration, display-compatible now, write-safe only once B1 ships
 
@@ -857,7 +857,7 @@ field, and one hard rule about where each may be used:
   already applies (there, uncontroversially, since B2 owns both sides) to B1 task 5.1 (Wave 4.5,
   Wave 6.3). **This document can propose the mechanism but cannot unilaterally bind B1's release
   process** — B2 does not own B1's deploy decisions. This item therefore stays counted among the
-  header's six open items until B1's owners (or the master plan, as the cross-spec release
+  header's five open items until B1's owners (or the master plan, as the cross-spec release
   authority) actually adopt this or an equivalent mechanism; adoption, not this task's existence, is
   what would close it.
   _Requirements: 8.3_
@@ -3641,11 +3641,9 @@ class, not by enumeration" through "operational signals only") deliberately keep
   _Requirements: 3.1_
 - [ ] **9.4 Wire presence** to the real `GET /api/presence/demo` (Wave 3).
   _Requirements: 6.3_
-- [ ] **9.5 Wire Task 1.16's freshness status to a real `assetPriceFreshness`.** **Blocked on Spec A
-  (`supported-asset-integrity`) `tasks.md` task 8.6** — the freshness summary contract that would
-  produce this field is unchecked, and the field appears nowhere in `portfolio-service` or frontend
-  source as of this writing. Named explicitly here, matching how the master plan already tracks it,
-  rather than left as an implicit assumption of "live integration."
+- [ ] **9.5 Wire Task 1.16's freshness status to a real `assetPriceFreshness`.** Spec A task 8.6 is
+  complete and the backend field exists. This task remains undone because B2's frontend adapter and
+  live integration have not been implemented; no additional Spec A work blocks it.
   _Requirements: 3.2, 3.4_
 - [ ] **9.6 Demo-authenticated Playwright fixture — authored first, so 9.7/9.8 don't
   forward-reference each other (round-9 restructure, breaking a real cycle: round 8's version of

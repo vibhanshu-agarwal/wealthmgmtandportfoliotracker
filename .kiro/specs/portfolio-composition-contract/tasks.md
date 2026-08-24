@@ -1,5 +1,13 @@
 # Implementation Plan
 
+**Current program status (verified 2026-08-24 at `main@e221662`):** Waves `P`, `0`, and `1` are
+complete. Wave 2 tasks 2.1 and 2.3 are implemented only in draft PR #131 and are not on `main`;
+tasks 2.2 and 2.4–2.6 remain incomplete. Waves 3–7 have not started. Spec A V17–V19 were applied
+and verified at checkpoint 9.6, so the former R3a deployment blocker is closed; B1's own Wave 2
+candidate/serving gates still precede applying V20. See
+[`docs/plans/ASSET_PICKER_E2E_MASTER_PLAN.md`](../../../docs/plans/ASSET_PICKER_E2E_MASTER_PLAN.md)
+for the living cross-program view.
+
 > **Revision 8 — 2026-08-19.** One bounded correction, tracking design Revision 11. The V20 note
 > covered a migration-number collision but not migration *ordering*: applying V20 before Spec A's
 > V17-V19 leaves them unapplied and fails startup validation under Flyway's default
@@ -201,10 +209,11 @@ Boot runs `validateOnMigrate=true` — applying V20 first leaves V17–V19 **una
 validation**, so `portfolio-service` does not start when they land. The gap is recoverable only by
 explicitly enabling `outOfOrder`, a deliberate configuration change with its own review, not a
 property of the current setup. Verified against PostgreSQL 18.6 / Flyway 11.20.3:
-`Detected resolved migration not applied to database: 17. … 18. … 19.`, exit 1. Spec A's R3a is on the
-unmerged `feat/supported-asset-postgres-repair` branch, so **Wave 3 cannot ship until R3a has been
-applied to production.** Waves 0–2 and 4 are unaffected; Requirement 9.2 still permits implementing
-and testing all of B1 meanwhile.
+`Detected resolved migration not applied to database: 17. … 18. … 19.`, exit 1. **Current status:**
+Spec A's R3a (V17–V19) was applied and verified in production at checkpoint 9.6 on 2026-08-23, so
+that deployment predecessor is now satisfied. B1 Wave 3 still cannot apply V20 until its own Wave 2
+candidate and serving gates are green. Waves 0–2 and 4 remain unaffected; Requirement 9.2 permits
+implementing and testing all of B1 meanwhile.
 
 The design was frozen at Revision 8; **Revision 11 is the current normative design**, reached through
 three bounded errata (9, 10, 11) that the freeze permits. Where a task and the design disagree,
@@ -502,6 +511,11 @@ Production-neutral. It precedes Wave 1 because Artifact 0 removes the endpoints 
   _Requirements: 8.9, 1.25_
 
 ## Wave 2 — Gateway provisioning + asset route (Artifact 1 → R-A)
+
+**Current status:** tasks 2.1 and 2.3 are implemented only in draft
+[PR #131](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/131), last updated
+2026-08-21. They remain unchecked because the PR is unmerged and needs rebasing onto current `main`,
+fresh CI/review, and the rest of Wave 2's required proof before R-A can be called complete.
 
 - [ ] **2.1 Provisioning insert in `SignupService`**, inside its existing `TransactionTemplate` after
   `insertCredential`. Bind `userId.toString()` explicitly — the gateway generates a `UUID` and
