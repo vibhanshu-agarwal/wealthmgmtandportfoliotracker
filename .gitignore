@@ -58,6 +58,7 @@ Thumbs.db
 *.secrets
 
 ### Tooling artifacts ###
+.artifacts/
 frontend/.junie/
 app-inspect.jar
 __pycache__/
