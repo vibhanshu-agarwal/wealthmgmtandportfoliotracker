@@ -1,0 +1,44 @@
+name: Master-plan status propagation
+
+# Lightweight PR-metadata check. Runs on body edits (`edited`) as well as the
+# usual PR code events so a corrected `Master-plan impact:` declaration is
+# revalidated without waiting for a new commit — and without folding `edited`
+# into the heavy CI Verification Pipeline (which would skip/cancel unrelated
+# required jobs and can satisfy required-check semantics incorrectly).
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+    branches: ["main", "architecture/**"]
+
+permissions:
+  contents: read
+
+jobs:
+  master-plan-status-propagation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Master-plan status propagation contract tests
+        run: python scripts/tests/test_master_plan_status_propagation.py -v
+
+      - name: Master-plan status propagation live PR-body check
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          # Write the body to a file so shell/env length limits cannot silently
+          # truncate the impact declaration the guard is meant to enforce.
+          # On `edited`, this event carries the current PR body — not a stale
+          # payload from an earlier synchronize run.
+          printf '%s' "$PR_BODY" > "$RUNNER_TEMP/pr-body.md"
+          python scripts/check_master_plan_status_propagation.py \
+            --base "${{ github.event.pull_request.base.sha }}" \
+            --head "${{ github.event.pull_request.head.sha }}" \
+            --pr-body-file "$RUNNER_TEMP/pr-body.md"

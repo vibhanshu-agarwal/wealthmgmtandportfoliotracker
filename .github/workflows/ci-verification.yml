@@ -24,9 +24,16 @@ jobs:
         with:
           node-version: "22"
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
       - name: Run static sanitizer wiring guard
         run: |
           cd scripts && npm ci --ignore-scripts && npm audit --omit=dev --audit-level=low && node check-sanitizer-secret-wiring.js
+
+      - name: Master-plan status propagation contract tests
+        run: python scripts/tests/test_master_plan_status_propagation.py -v
 
   deploy-workflow-contract:
     runs-on: ubuntu-latest
@@ -79,7 +86,7 @@ jobs:
         # this PR doesn't touch. Confirmed locally that disabling it does not suppress
         # the schema check itself — re-verify with a deliberately reintroduced bug before
         # changing this flag.
-        run: ./actionlint -shellcheck= .github/workflows/deploy.yml .github/workflows/deploy-azure.yml .github/workflows/deploy-aws.yml .github/workflows/ci-verification.yml .github/workflows/terraform-azure.yml
+        run: ./actionlint -shellcheck= .github/workflows/deploy.yml .github/workflows/deploy-azure.yml .github/workflows/deploy-aws.yml .github/workflows/ci-verification.yml .github/workflows/terraform-azure.yml .github/workflows/master-plan-status-propagation.yml
 
   sanitizer-canary:
     runs-on: ubuntu-latest
