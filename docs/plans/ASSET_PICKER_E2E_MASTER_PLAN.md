@@ -6,13 +6,16 @@
 documentation-only; its merge SHA becomes the document revision without changing the recorded
 runtime or implementation state.
 
+**Authoritative documentation revision:** `main@48ef468f2a679f6031d892873eb7f9b185e2958f`.
+
 **Program state:** Spec A checkpoint 9.10 is complete. Checkpoints 9.11–9.14 are pending and
 unauthorized. B1's safe composition backend is incomplete. B2's implementation has not started.
 
 **User-visible state:** there is no functional Asset Picker in the application today.
 
 **Handoff state:** this is the intentional Claude-to-Cursor cutoff. No checkpoint 9.11 action has
-started.
+started. Cursor's self-contained entry point is
+[`CURSOR_HANDOFF_ASSET_PICKER_POST_SPEC_A_9_10.md`](../agent-instructions/CURSOR_HANDOFF_ASSET_PICKER_POST_SPEC_A_9_10.md).
 
 This is the living, human-facing status document for the Asset Picker program. It is not a
 historical snapshot. Detailed requirements, designs, task mechanics, and operational evidence live
