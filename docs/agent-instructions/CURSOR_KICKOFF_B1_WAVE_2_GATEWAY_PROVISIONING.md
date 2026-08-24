@@ -1,5 +1,15 @@
 # Cursor Kickoff — Spec B1 Wave 2: gateway provisioning + asset route
 
+> **SUPERSEDED STATUS NOTICE — 2026-08-24:** This kickoff preserves the constraints and rationale
+> used to implement draft PR #131, but its branch, migration, checkpoint, line-number, and blocker
+> statements describe the 2026-08-21 baseline and are no longer current. In particular, Spec A
+> V17–V19 are merged and applied, checkpoints 9.6–9.10 are complete, and tasks 2.1/2.3 are already
+> implemented but remain unmerged in draft PR #131. **Do not execute this document as a current
+> kickoff.** Read [`docs/plans/ASSET_PICKER_E2E_MASTER_PLAN.md`](../plans/ASSET_PICKER_E2E_MASTER_PLAN.md)
+> and [B1 `tasks.md`](../../.kiro/specs/portfolio-composition-contract/tasks.md) for current status.
+> A new self-contained Cursor handoff, anchored to the master-plan PR's merge SHA, will supersede
+> this document operationally before implementation resumes.
+
 **Date:** 2026-08-21
 **Prepared for:** Cursor (implementation)
 **Baseline:** `origin/main`, currently `09f6a1f` or later — Wave 1 (legacy writer retirement, R-0) is merged, deployed, and kept (STOP/GO recorded GO)
