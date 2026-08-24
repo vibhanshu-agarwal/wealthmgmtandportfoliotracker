@@ -690,12 +690,12 @@ python scripts/check-spec-references.py   .kiro/specs/supported-asset-integrity/
         log-end 24541, lag 0
       - ACR digests: all four unchanged from pre-apply baseline
 
-  - [ ] 9.10 **CHECKPOINT — controlled refresh execution**
+  - [x] 9.10 **CHECKPOINT — controlled refresh execution**
     - Start **one** execution with a **full-template override** enabling refresh; persisted Job
       configuration stays disabled
-    - [ ] 9.10.1 Verify the override template **in full** before starting — complete template, not a
+    - [x] 9.10.1 Verify the override template **in full** before starting — complete template, not a
           patch; image digest matches expected
-    - [ ] 9.10.2 Go: execution exits 0; catalog version matches; events reached Kafka; projection drained
+    - [x] 9.10.2 Go: execution exits 0; catalog version matches; events reached Kafka; projection drained
     - **Abort: "nothing persisted" is true only of the Job configuration.** A failed execution may
       already have written Mongo price documents, published `PriceUpdatedEvent`s, and advanced the
       Postgres projection. Before deciding whether a retry is safe: capture the execution's logs and
@@ -703,11 +703,9 @@ python scripts/check-spec-references.py   .kiro/specs/supported-asset-integrity/
       `market_prices` / `market_price_history` against what it claims to have done. Retry **only**
       once that reconciliation shows a consistent partial state. A blind retry against a partially
       advanced projection is how a conflicting observation gets written at the same timestamp.
-    - **RETRY-POLICY PREREQUISITE (Tasks 1–2) EXECUTED 2026-08-24 (UTC) — 9.10 still OPEN:**
-      - This records only the checkpoint 9.10 retry-policy prerequisite (`replica_retry_limit 1 → 0`).
-        It does **not** complete 9.10: no Job execution has been started; Tasks 3–6 remain pending and
-        `job start` requires a separate production authorization.
-      - Task 1 PR: [#147](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/147)
+    - **RETRY-POLICY PREREQUISITE (Tasks 1–2) EXECUTED 2026-08-24 (UTC):**
+      - This records the checkpoint 9.10 retry-policy prerequisite (`replica_retry_limit 1 → 0`).
+        Task 1 PR: [#147](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/147)
         merged via `--squash` as `acf718d` (main SHA: `acf718d82d9f727f06f14d7ac53883f7fb240b48`);
         adds a fail-closed full-template builder/validator and disables unsafe refresh-Job retries.
       - Remote plan: run [32696139782](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/32696139782)
@@ -724,6 +722,55 @@ python scripts/check-spec-references.py   .kiro/specs/supported-asset-integrity/
         scheduled run (`market-data-refresh-job-29792640`) had already `Succeeded` (gated no-op).
       - Follow-up remote plan: run [32708809577](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/32708809577)
         — `standard`, `No changes. Your infrastructure matches the configuration.`
+    - **CONTROLLED EXECUTION (Tasks 3–5) EXECUTED 2026-08-24 (UTC) — GO:**
+      - Baseline (Task 3): catalog `catalog_loaded version=a00b32ac0267e1a9 entries=160 active=159
+        rejectUnsupportedEvents=true enforceHoldingInvariant=true` on `market-data-service--0000078`;
+        tag `9b2cf0d…` → ACR digest `sha256:ad61144b2e747a5dd1b1fc9f5b5a091916559adf7c30117beae3563123aa2256`
+        (exact match). Kafka pre-run: both `portfolio-group`/`insight-group`, `market-prices`
+        partition 0, `24541==24541`, lag `0`. Mongo `market_prices` 161 docs (161st is a legacy,
+        off-catalog `GOOG` orphan — a distinct Alphabet share class from catalog ticker `GOOGL`,
+        never fetched/modified by the refresh path; cleanup is a separate backlog item, out of
+        scope here). Postgres `market_prices` 160 / `market_price_history` 15176 rows. All 159
+        active catalog tickers independently confirmed present in both Mongo and Postgres;
+        active-set SHA-256 `09d401ea7644826da83f4d038efd6c234c20904ee60729d2765a35e6c933103e`.
+      - Template (Task 4): built via `spec_a_9_10_template.py build`/`verify` from the live template;
+        sanitized diff exactly `containers[0].image` (tag → pinned digest) and
+        `env[MARKET_DATA_JOB_RUNNER_ENABLED]` (`false → true`); checksum
+        `b4b1267e717b1ea35c3fce74d30e3671f22d3193e2dac32d6832d82fe1e4e763`; independently re-verified
+        (build + separate `verify` run, matching checksum) and manually reviewed field-by-field
+        against the full sanitized template (container name, digest, cpu/memory/ephemeral, 9 plain
+        env, 5 secret refs, runner, `SERVICE_VERSION`).
+      - Immediately-before recheck (Task 5 Step 1, fresh T0 ≈`2026-08-24T11:03–11:05Z`): outside the
+        schedule window, 0 running executions, template checksum re-verified match, Kafka lag
+        unchanged (still `24541`/lag `0`), Mongo/Postgres watermarks unchanged from Task 3,
+        `GOOG.updatedAt=2026-08-19T08:00:52.131Z` recorded specifically as the pre-run baseline.
+      - Execution: **`market-data-refresh-job-0i08hio`**, started once via
+        `az containerapp job start --yaml controlled-template.json`, digest verified exact match;
+        **Succeeded** `11:05:39Z`→`11:06:48Z` (~69s of the 600s budget). Log record (Log Analytics,
+        `wealth-prod-la`): exactly one start line, one completion summary
+        (`updated=154, skipped=5, failed=0`; `154+5=159=active`), one clean shutdown line; zero
+        error/fallback/DLT/rejection lines. Skips (5, reason "no price from provider"): `USDCAD=X`,
+        `USDCHF=X`, `USDHKD=X`, `USDJPY=X`, `USDSGD=X`.
+      - Reconciliation (Task 5 Step 5): Kafka log-end `24541→24695` (**+154**, exact match to `U`),
+        both consumer groups drained to new log-end, lag `0`. Mongo `market_prices` (`updatedAt` in
+        `[T0,T0+5m)`): 154 docs, ticker set = log-claimed set exactly (zero diff either direction).
+        Postgres `market_price_history` and `market_prices` (`observed_at` in the same window): 154
+        rows each, ticker sets match exactly. Price/currency tuple cross-check (Mongo vs Postgres):
+        27/154 tickers showed apparent differences, all independently verified as correct rounding
+        to Postgres's `current_price NUMERIC(19,4)` column — not a data-integrity issue.
+        `GOOG.updatedAt` re-checked post-run: unchanged — orphan correctly untouched. Zero
+        DLT/conflict/rejection/error signals in `portfolio-service`/`insight-service` logs during
+        the window.
+      - Control-plane reconfirm (Task 5 Step 6): persisted Job unchanged (`replicaRetryLimit=0`,
+        runner `false`, image tag `9b2cf0d…`, schedule `0 8 * * *`); gateway ingress still closed;
+        all three services `Running`/`Healthy` at `minReplicas=1` on the **same** active revisions
+        as before execution — no redeploy triggered.
+      - **Decision (Task 5 Step 7): GO.** Full evidence:
+        `.artifacts/spec-a-9.10/{baseline.md,template-review.md,execution-evidence.md}` (local,
+        not committed — runtime evidence per plan `Task 3`/`Task 4`/`Task 5` file scope).
+      - Checkpoint 9.10 does not persist refresh enablement, seed the demo portfolio, restore
+        scale-to-zero, or reopen ingress — none of that occurred. 9.11–9.14 remain unchecked and
+        unauthorized.
 
   - [ ] 9.11 **CHECKPOINT — persist refresh enablement**
     - Go: `MARKET_DATA_JOB_RUNNER_ENABLED=true` persisted through Terraform and read back
