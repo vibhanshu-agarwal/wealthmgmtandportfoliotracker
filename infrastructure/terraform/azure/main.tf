@@ -438,7 +438,11 @@ resource "azurerm_container_app_job" "market_data_refresh" {
     replica_completion_count = 1
   }
 
-  replica_retry_limit        = 1
+  # A failed refresh execution can already have written Mongo documents and published Kafka
+  # events. Automatic retry (the default of 1) would begin a second attempt before an
+  # operator sees the first attempt's partial writes, bypassing the required
+  # capture-and-reconcile decision for checkpoint 9.10.
+  replica_retry_limit        = 0
   replica_timeout_in_seconds = 600
 
   lifecycle {
