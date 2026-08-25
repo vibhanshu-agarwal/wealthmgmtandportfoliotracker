@@ -1,6 +1,6 @@
 # Asset Picker — E2E Master Plan to Production
 
-**Last verified:** 2026-08-24
+**Last verified:** 2026-08-25
 
 **Program-state code baseline (runtime):** `main@e221662b6c891639a56894289e150ee01fb537f6`.
 This is the last SHA that changed Asset Picker program runtime/application behavior (catalog,
@@ -82,7 +82,7 @@ At every meaningful merge or live checkpoint:
 | Track | Delivered | Current position | Remaining outcome |
 |---|---|---|---|
 | **A — Spec A catalog/data cutover** | Shared catalog, Postgres/Mongo repair, R4 rollout, enforcement, and one reconciled controlled refresh | **10 of 14 cutover checkpoints complete**; 9.11 is the next unauthorized checkpoint | Persist refresh, activate demo portfolio, restore scale-to-zero, reopen ingress |
-| **B — B1 portfolio composition backend** | Deployment prerequisites, fixture identity migration, legacy writer retirement | **3 of 9 waves complete** (`P`, `0`, `1`); Wave 2 is partially implemented only in draft PR #131 | V20, versioned reads, catalog endpoint, safe desired-state writer, activation |
+| **B — B1 portfolio composition backend** | Deployment prerequisites, fixture identity migration, legacy writer retirement | **3 of 9 waves complete** (`P`, `0`, `1`); Wave 2 implementation/G1 proof are complete only on unmerged branches | Serving proof, V20 release lane, versioned reads, catalog endpoint, safe desired-state writer, activation |
 | **C — B2 Asset Picker product** | Requirements, design, task plan, and five-screen visual mockup | **No implementation wave complete** | Picker UI, decimal adapter, presence/reset support, live integration, exposure |
 | **D — Demo credibility** | Canonical prices refreshed and reconciled; demo initializer exists gated off | Demo activation has not run | Spec A 9.12 must seed and verify the complete Active Asset set without touching E2E data |
 
@@ -148,8 +148,8 @@ Authority: [`.kiro/specs/portfolio-composition-contract/tasks.md`](../../.kiro/s
 | P — deployment prerequisites | ✅ Complete | Scoped service deployment and immutable portfolio digest path live |
 | 0 — fixture identity migration | ✅ Complete | E2E fixture paths moved to the correct identity |
 | 1 — legacy writer retirement | ✅ Complete | Old portfolio creator and versionless holding writer removed and kept retired |
-| 2 — gateway provisioning + asset route | 🟡 Partially implemented, unmerged | Tasks 2.1 and 2.3 exist only in draft PR #131; tasks 2.2 and 2.4–2.6 remain incomplete |
-| 3 — V20 schema | ⬜ Not started | Version/timestamps, one-portfolio invariant, quantity constraint |
+| 2 — gateway provisioning + asset route | 🟡 Candidate-complete, unmerged | Rebased draft PR #131 contains 2.1/2.3; dependent proof `e6a98c5` makes 2.2 green and records the 2.4 candidate GO. No deployment; 2.5–2.6 remain incomplete |
+| 3 — V20 schema | 🟡 Proof branch only, unmerged | Task 3.1's V20 migration exists solely on `proof/b1-wave-2-g1-v20@e6a98c5` to support G1; it is not in R-A and has not been applied to production |
 | 4 — contract implementation | ⬜ Not started, startable | Replacement orchestrator, preparers, error envelope, decimal fidelity, `GET /api/assets` controller |
 | 5 — version-bearing read | ⬜ Not started | Authenticated portfolio read returns version |
 | 6 — version-required seed | ⬜ Not started | Seeder delegates through the safe replacement service |
@@ -163,7 +163,8 @@ startable as implementation work.
 
 | Item | Current state | Required before relying on it |
 |---|---|---|
-| [PR #131](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/131) | Draft, head `1d3bd730`; tasks 2.1/2.3 implemented but not on `main`; last CI is from 2026-08-21 | Rebase onto current `main`, reconcile Spec A changes, complete Wave 2 prerequisites/proofs, fresh review and CI |
+| [PR #131](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/131) | Draft, rebased on `main@e5bb208`; tasks 2.1/2.3 are locally verified but not on `main`. G1 is green only on dependent proof branch `e6a98c5`, which is excluded from R-A | Fresh PR CI and review; keep draft/open. No merge, deployment, task 2.5, or task 2.6 is authorized |
+| [`proof/b1-wave-2-g1-v20@e6a98c5`](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/tree/proof/b1-wave-2-g1-v20) | Unmerged dependent dual-schema proof: task 3.1 V20 migration plus V19→V20 G1 tests | Remain separate from R-A; no production migration or release action |
 
 ### Active process work
 
@@ -254,7 +255,9 @@ The program is deliberately stopped after Spec A 9.10. This is a clean handoff p
 
 1. **Operational lane:** design/review and explicitly authorize Spec A 9.11, then continue through
    9.14 one checkpoint at a time.
-2. **Backend lane:** rebase and finish B1 draft PR #131, while starting B1 Wave 4 implementation.
+2. **Backend lane:** review fresh CI for B1 draft PR #131 and keep it open; do not merge or deploy
+   before a separate authorization for tasks 2.5–2.6. B1 Wave 4 remains independently startable only
+   when separately authorized.
 3. **Frontend lane:** begin the startable mock-backed subset of B2 Wave 1 against frozen contracts.
 4. **Process lane:** keep the status-propagation CI guard healthy in required `static-guard`; it is
    process-control only and does not advance the runtime baseline.
