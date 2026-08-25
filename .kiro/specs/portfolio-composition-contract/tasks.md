@@ -8,8 +8,10 @@ authorization. Wave 3 tasks **3.1–3.4 are implemented and verified but unmerge
 migration or deployment is authorized**. Wave 4a tasks **4.1–4.5 are implemented and verified but
 unmerged** on dependent branch `cursor/b1-wave4a-composition-core` (from `4fd8969`); Wave 4b tasks
 **4.6–4.11 are implemented and verified but unmerged** on the same branch (continuing from
-`92b5900`); tasks **4.12–4.21 (Wave 4c) remain incomplete**. No production `PUT` exposure, seed
-rewrite, merge, or V20 production migration is authorized. Dependent proof branch
+`92b5900`); Wave 4c tasks **4.12–4.21 are implemented and verified but unmerged** on the same branch
+(continuing from `cab2814`, with P2 assertion corrections: D24 invocation counters and stale-matrix preparer observation). Candidate packaging / R-C (task 7.5)
+is **not** complete. No production `PUT` exposure, seed rewrite, merge, or V20 production migration
+is authorized. Dependent proof branch
 [`proof/b1-wave-2-g1-v20@e6a98c5`](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/tree/proof/b1-wave-2-g1-v20)
 remains historical and unmerged. Spec A V17–V19 were applied and verified at checkpoint 9.6, so the
 former R3a deployment blocker is closed; B1's own serving and R-B gates still precede applying V20.
@@ -627,8 +629,10 @@ in Waves 5–7.
 **Current status:** tasks **4.1–4.5 are implemented and verified but unmerged** on branch
 `cursor/b1-wave4a-composition-core` (dependent on `cursor/b1-wave3-v20-schema` @ `4fd8969`). Tasks
 **4.6–4.11 (Wave 4b) are implemented and verified but unmerged** on the same branch (from
-`92b5900`). Tasks **4.12–4.21 (Wave 4c) remain incomplete**. No gateway route change, seed rewrite,
-public `PUT` exposure, merge, or production migration is authorized by this status.
+`92b5900`). Tasks **4.12–4.21 (Wave 4c) are implemented and verified but unmerged** on the same
+branch (from `cab2814`, P2 assertion corrections verified); candidate packaging / task 7.5 / R-C remain
+incomplete. No gateway route change, seed rewrite, public `PUT` exposure, merge, or production
+migration is authorized by this status.
 
 - [x] **4.1 `HoldingReplacementService`** — the single orchestrator, in D2's exact order: version
   precondition → semantic `400` (quantity, then duplicates) → catalog/lifecycle `422` aggregated →
@@ -721,35 +725,45 @@ public `PUT` exposure, merge, or production migration is authorized by this stat
 
 Named individually so the R-C manifest can enumerate them rather than gesture at a range.
 
-- [ ] **4.12 P1** — four-case matrix (version match/mismatch × desired equal/differs) on **both**
+- [x] **4.12 P1** — four-case matrix (version match/mismatch × desired equal/differs) on **both**
   writers.
+  **Evidence (implemented but unmerged):** `HoldingReplacementServiceTest.p1FourCaseMatrixOnBothWriters` (eight cells; counting delegates; stale cells assert zero materialise + no catalog/CAS/flush/refresh/save); `staleInvalidSemanticDoesNotReachRealPreparer` (both writer modes).
   _Requirements: 8.42_
-- [ ] **4.13 P2** — child-only change advances the parent version **exactly once**. Assert the numeric
+- [x] **4.13 P2** — child-only change advances the parent version **exactly once**. Assert the numeric
   delta, not "changed": a double increment moves it too.
+  **Evidence (implemented but unmerged):** `ConcurrentCompositionIT.childOnlyMutationIncrementsVersionExactlyOnce`.
   _Requirements: 5.4, 5.7_
-- [ ] **4.14 P3, P4** — concurrent composition; two concurrent creators with **empty** desired sets,
+- [x] **4.14 P3, P4** — concurrent composition; two concurrent creators with **empty** desired sets,
   the case a pre-write version comparison cannot distinguish.
+  **Evidence (implemented but unmerged):** `ConcurrentCompositionIT.concurrentPresentMutationsExactlyOneWinsParentCasRace` (complete winner tuples); `concurrentAbsentCreatorsExactlyOneWinsNamedConstraintRace` (barrier after absence observe); `symmetricArbitrationCompositionVsGoldenStateExactlyOneTransition` (per-preparer AtomicInteger no-retry + winner tuples).
   _Requirements: 6.26, 6.27, 6.28, 6.29_
-- [ ] **4.15 P5, P6** — stale-but-equal reset yields `409`; a lost reset performs no retry.
+- [x] **4.15 P5, P6** — stale-but-equal reset yields `409`; a lost reset performs no retry.
+  **Evidence (implemented but unmerged):** stale-equal P1 cells; `HoldingReplacementServiceTest.resetLossHarnessInvokesOnceWithoutRetry`.
   _Requirements: 8.35, 8.40, 8.41_
-- [ ] **4.16 P7, P11f** — round-trip `0.75000000` byte-identical; no-op equality decided on the
+- [x] **4.16 P7, P11f** — round-trip `0.75000000` byte-identical; no-op equality decided on the
   persisted `NUMERIC(19,8)` representation, since `BigDecimal.equals` reports `0.75` and `0.75000000`
   unequal.
+  **Evidence (implemented but unmerged):** `DecimalFidelityIT` requires response quantity exactly `0.75000000` on no-op; production no-op returns locked persisted tuples.
   _Requirements: 4.6, 8.17_
-- [ ] **4.17 P8, P11c, P11h** — envelope precedence; every envelope-failure code reachable and
+- [x] **4.17 P8, P11c, P11h** — envelope precedence; every envelope-failure code reachable and
   distinct; float, string, boolean and negative version tokens tested **independently**, sharing the
   one `invalid_version` code.
+  **Evidence (implemented but unmerged):** `CompositionErrorContractTest` including `quantityAsJsonNumberAgainstStaleVersionMapsToQuantityNotStringBeforeStatefulWork`.
   _Requirements: 7.12, 7.13, 7.15_
-- [ ] **4.18 P9** — a quantity `CHECK` violation surfaces as its own `400`, never as `409`.
+- [x] **4.18 P9** — a quantity `CHECK` violation surfaces as its own `400`, never as `409`.
+  **Evidence (implemented but unmerged):** `ConcurrentCompositionIT.namedQuantityCheckRejectsInvalidPreparerOutputWithoutMutatingAggregate`; named-CHECK translation in `HoldingReplacementService`.
   _Requirements: 6.31, 7.10_
-- [ ] **4.19 P11a, P11b** — creation binds both timestamps; the no-op path writes nothing and the
+- [x] **4.19 P11a, P11b** — creation binds both timestamps; the no-op path writes nothing and the
   **response** version equals the stored version.
+  **Evidence (implemented but unmerged):** creation/no-op ITs; `V20MigrationIT` +
+  `SignupProvisioningDualSchemaIT` V19/V20 `created_at`/`updated_at`.
   _Requirements: 5.13, 5.16_
-- [ ] **4.20 P11i** — aggregate rejection reports **every** offender deterministically in request
+- [x] **4.20 P11i** — aggregate rejection reports **every** offender deterministically in request
   order, with the first in singular `ticker` and the full list in `tickers`, while Spec A's
   single-write body stays byte-identical. New in Revision 2: this property had no task.
+  **Evidence (implemented but unmerged):** plural envelopes; synthetic multi-lifecycle catalog; `multipleDuplicatedTickersAggregateInFirstOffendingRequestOrder`.
   _Requirements: 7.6, 7.8, 7.20_
-- [ ] **4.20a Composition behaviours that 4.1's citation does not exercise.** Four criteria were
+- [x] **4.20a Composition behaviours that 4.1's citation does not exercise.** Four criteria were
   covered only by 4.1's catch-all and had no case stating the behaviour:
   - **request order is semantically irrelevant** — a reordered identical set is a no-op, with version
     and `updated_at` unchanged;
@@ -758,13 +772,16 @@ Named individually so the R-C manifest can enumerate them rather than gesture at
   - **Catalog_Version is not a write precondition** — a composition succeeds after an irrelevant
     catalog edit moves the version;
   - **the empty desired set is valid** — against an existing aggregate it removes every holding.
+  **Evidence (implemented but unmerged):** order/full-catalog/empty-set ITs; catalog-version not a write precondition unit cases.
   _Requirements: 6.5, 6.11, 6.12, 6.13_
-- [ ] **4.20b Aggregate every offender within a status class, not only tickers.** Extend the
+- [x] **4.20b Aggregate every offender within a status class, not only tickers.** Extend the
   aggregation rule to semantic `400`s where multiple elements can fail — several out-of-domain
   quantities in one request report all of them, not the first.
+  **Evidence (implemented but unmerged):** `multipleDistinctQuantityOffendersAggregateInRequestOrder`.
   _Requirements: 7.20_
-- [ ] **4.21 Monotonic `updated_at`** — supply an equal timestamp, then a **regressed** one, and
+- [x] **4.21 Monotonic `updated_at`** — supply an equal timestamp, then a **regressed** one, and
   assert `new.updated_at > old.updated_at` in both cases.
+  **Evidence (implemented but unmerged):** equal/regressed clock ITs in `ConcurrentCompositionIT`.
   _Requirements: 5.15_
 
 ## Wave 5 — Version-bearing read (Artifact 2a → R-B2)

@@ -14,13 +14,14 @@ import org.junit.jupiter.api.Test;
 class CompositionCatalogValidatorTest {
 
     private CompositionCatalogValidator validator;
+    private SupportedCatalog catalog;
     private String deprecatedTicker;
     private String activeTicker;
     private String catalogVersion;
 
     @BeforeEach
     void setUp() {
-        SupportedCatalog catalog = SupportedCatalog.load();
+        catalog = SupportedCatalog.load();
         catalogVersion = catalog.version();
         activeTicker = catalog.active().getFirst().ticker();
         deprecatedTicker =
@@ -107,5 +108,67 @@ class CompositionCatalogValidatorTest {
         validator.validate(
                 List.of(new RawIntent(activeTicker, new BigDecimal("9"))), List.of(held));
         validator.validate(List.of(), List.of(held));
+    }
+
+    @Test
+    void catalogVersionChangeOnUnreferencedTickerDoesNotBlockValidComposition() throws Exception {
+        String jsonA =
+                """
+                [
+                  {"ticker":"AAA","name":"A","aliases":[],"assetClass":"EQ","quoteCurrency":"USD","basePrice":10.0,"lifecycleStatus":"ACTIVE"},
+                  {"ticker":"ZZZ","name":"Z","aliases":[],"assetClass":"EQ","quoteCurrency":"USD","basePrice":1.0,"lifecycleStatus":"DEPRECATED"}
+                ]
+                """;
+        String jsonB =
+                """
+                [
+                  {"ticker":"AAA","name":"A","aliases":[],"assetClass":"EQ","quoteCurrency":"USD","basePrice":10.0,"lifecycleStatus":"ACTIVE"},
+                  {"ticker":"ZZZ","name":"Z","aliases":[],"assetClass":"EQ","quoteCurrency":"USD","basePrice":99.0,"lifecycleStatus":"DEPRECATED"}
+                ]
+                """;
+        SupportedCatalog catalogA =
+                SupportedCatalog.load(
+                        new java.io.ByteArrayInputStream(jsonA.getBytes(java.nio.charset.StandardCharsets.UTF_8)),
+                        "test-a.json");
+        SupportedCatalog catalogB =
+                SupportedCatalog.load(
+                        new java.io.ByteArrayInputStream(jsonB.getBytes(java.nio.charset.StandardCharsets.UTF_8)),
+                        "test-b.json");
+        assertThat(catalogA.version()).isNotEqualTo(catalogB.version());
+
+        CompositionCatalogValidator validatorB = new CompositionCatalogValidator(catalogB);
+        validatorB.validate(List.of(new RawIntent("AAA", new BigDecimal("1"))), List.of());
+    }
+
+    @Test
+    void multipleLifecycleOffendersAggregateInRequestOrder() {
+        String json =
+                """
+                [
+                  {"ticker":"AAA","name":"A","aliases":[],"assetClass":"EQ","quoteCurrency":"USD","basePrice":10.0,"lifecycleStatus":"ACTIVE"},
+                  {"ticker":"DEP1","name":"D1","aliases":[],"assetClass":"EQ","quoteCurrency":"USD","basePrice":1.0,"lifecycleStatus":"DEPRECATED"},
+                  {"ticker":"DEP2","name":"D2","aliases":[],"assetClass":"EQ","quoteCurrency":"USD","basePrice":2.0,"lifecycleStatus":"DEPRECATED"}
+                ]
+                """;
+        SupportedCatalog multi =
+                SupportedCatalog.load(
+                        new java.io.ByteArrayInputStream(
+                                json.getBytes(java.nio.charset.StandardCharsets.UTF_8)),
+                        "multi-deprecated.json");
+        CompositionCatalogValidator multiValidator = new CompositionCatalogValidator(multi);
+
+        assertThatThrownBy(
+                        () ->
+                                multiValidator.validate(
+                                        List.of(
+                                                new RawIntent("AAA", new BigDecimal("1")),
+                                                new RawIntent("DEP2", new BigDecimal("1")),
+                                                new RawIntent("DEP1", new BigDecimal("2"))),
+                                        List.of()))
+                .isInstanceOf(LifecycleNotPermittedException.class)
+                .satisfies(
+                        ex ->
+                                assertThat(((LifecycleNotPermittedException) ex).tickers())
+                                        .containsExactly("DEP2", "DEP1"));
     }
 }

@@ -28,7 +28,9 @@ public record ContractError(
 
     public static ContractError withTickers(
             ContractErrorCode error, String message, List<String> tickers) {
-        return new ContractError(error, message, null, null, List.copyOf(tickers), null);
+        List<String> copy = List.copyOf(tickers);
+        String first = copy.isEmpty() ? null : copy.getFirst();
+        return new ContractError(error, message, null, first, copy, null);
     }
 
     public static ContractError catalogRejection(

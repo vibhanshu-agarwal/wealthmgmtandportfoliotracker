@@ -32,6 +32,8 @@ import org.springframework.transaction.annotation.Transactional;
 public class HoldingReplacementService {
 
     static final String UQ_PORTFOLIOS_USER_ID = "uq_portfolios_user_id";
+    static final String CHK_ASSET_HOLDINGS_QUANTITY_POSITIVE =
+            "chk_asset_holdings_quantity_positive";
 
     private final PortfolioRepository portfolioRepository;
     private final CompositionCatalogValidator catalogValidator;
@@ -85,7 +87,7 @@ public class HoldingReplacementService {
         // Aggregate_Creation is never a no-op, even with an empty desired set.
         forceParentTransition(portfolio, /* expectedVersion */ 0L);
         applyChildren(portfolio, desired);
-        entityManager.flush();
+        flushChildrenOrTranslateQuantityCheck(desired);
         entityManager.refresh(portfolio);
 
         return toResult(portfolio, desired, /* created */ true, /* noOp */ false);
@@ -108,15 +110,45 @@ public class HoldingReplacementService {
         List<DesiredHoldingState> desired = preparer.materialise(intent, locked);
 
         if (tuplesEqual(desired, locked)) {
-            return toResult(portfolio, desired, /* created */ false, /* noOp */ true);
+            // No-op responses expose the locked persisted representation, not the request's
+            // uncanonicalised desired quantities (P7 / P11f).
+            return toResult(
+                    portfolio, desiredFromLocked(locked), /* created */ false, /* noOp */ true);
         }
 
         forceParentTransition(portfolio, expectedVersion);
         applyChildren(portfolio, desired);
-        entityManager.flush();
+        flushChildrenOrTranslateQuantityCheck(desired);
         entityManager.refresh(portfolio);
 
         return toResult(portfolio, desired, /* created */ false, /* noOp */ false);
+    }
+
+    /**
+     * Flush child DML and translate only the named quantity CHECK into {@link
+     * QuantityOutOfDomainException}. Unrelated integrity faults propagate unchanged so they cannot
+     * be misreported as {@code portfolio_version_conflict}.
+     */
+    private void flushChildrenOrTranslateQuantityCheck(List<DesiredHoldingState> desired) {
+        try {
+            entityManager.flush();
+        } catch (RuntimeException e) {
+            if (isNamedConstraint(e, CHK_ASSET_HOLDINGS_QUANTITY_POSITIVE)) {
+                LinkedHashSet<String> offenders = new LinkedHashSet<>();
+                for (DesiredHoldingState d : desired) {
+                    if (!QuantityDomain.isValid(d.quantity())) {
+                        offenders.add(d.ticker());
+                    }
+                }
+                if (offenders.isEmpty()) {
+                    for (DesiredHoldingState d : desired) {
+                        offenders.add(d.ticker());
+                    }
+                }
+                throw new QuantityOutOfDomainException(List.copyOf(offenders));
+            }
+            throw e;
+        }
     }
 
     private void forceParentTransition(Portfolio portfolio, long expectedVersion) {
@@ -217,6 +249,20 @@ public class HoldingReplacementService {
         return true;
     }
 
+    static List<DesiredHoldingState> desiredFromLocked(List<HoldingSnapshot> locked) {
+        return locked.stream()
+                .map(
+                        h ->
+                                new DesiredHoldingState(
+                                        h.ticker(),
+                                        h.quantity(),
+                                        h.avgCostBasis(),
+                                        h.costBasisCurrency(),
+                                        h.costBasisSource(),
+                                        h.costBasisAsOf()))
+                .toList();
+    }
+
     static List<HoldingSnapshot> snapshotOf(List<AssetHolding> holdings) {
         return holdings.stream()
                 .map(
@@ -237,6 +283,15 @@ public class HoldingReplacementService {
      * be misreported as {@code portfolio_version_conflict}.
      */
     static boolean isNamedConstraint(DataIntegrityViolationException e, String name) {
+        return isNamedConstraint((Throwable) e, name);
+    }
+
+    /**
+     * True only when a structured PostgreSQL/Hibernate constraint name matches {@code name}.
+     * Walks any throwable chain so {@code EntityManager#flush} failures are covered the same way as
+     * Spring-translated repository writes.
+     */
+    static boolean isNamedConstraint(Throwable e, String name) {
         Throwable cause = e;
         while (cause != null) {
             if (cause instanceof ConstraintViolationException cve

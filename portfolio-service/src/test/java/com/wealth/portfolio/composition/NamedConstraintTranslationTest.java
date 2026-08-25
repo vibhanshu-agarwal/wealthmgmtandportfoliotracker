@@ -77,4 +77,66 @@ class NamedConstraintTranslationTest {
                                 wrapped, HoldingReplacementService.UQ_PORTFOLIOS_USER_ID))
                 .isFalse();
     }
+
+    @Test
+    void matchesQuantityCheckConstraintIncludingQualifiedName() {
+        ServerErrorMessage serverError = mock(ServerErrorMessage.class);
+        when(serverError.getConstraint())
+                .thenReturn("public.chk_asset_holdings_quantity_positive");
+        PSQLException psql = mock(PSQLException.class);
+        when(psql.getServerErrorMessage()).thenReturn(serverError);
+
+        DataIntegrityViolationException wrapped =
+                new DataIntegrityViolationException("integrity", psql);
+
+        assertThat(
+                        HoldingReplacementService.isNamedConstraint(
+                                wrapped,
+                                HoldingReplacementService.CHK_ASSET_HOLDINGS_QUANTITY_POSITIVE))
+                .isTrue();
+        assertThat(
+                        HoldingReplacementService.isNamedConstraint(
+                                wrapped, HoldingReplacementService.UQ_PORTFOLIOS_USER_ID))
+                .isFalse();
+    }
+
+    @Test
+    void quantityCheckIsNotTranslatedAsUniquenessConflict() {
+        ConstraintViolationException hibernate =
+                new ConstraintViolationException(
+                        "check violation",
+                        null,
+                        HoldingReplacementService.CHK_ASSET_HOLDINGS_QUANTITY_POSITIVE);
+        DataIntegrityViolationException wrapped =
+                new DataIntegrityViolationException("integrity", hibernate);
+
+        assertThat(
+                        HoldingReplacementService.isNamedConstraint(
+                                wrapped, HoldingReplacementService.UQ_PORTFOLIOS_USER_ID))
+                .isFalse();
+        assertThat(
+                        HoldingReplacementService.isNamedConstraint(
+                                wrapped,
+                                HoldingReplacementService.CHK_ASSET_HOLDINGS_QUANTITY_POSITIVE))
+                .isTrue();
+    }
+
+    @Test
+    void unrelatedConstraintNameIsNotMisclassifiedAsQuantityCheck() {
+        ServerErrorMessage serverError = mock(ServerErrorMessage.class);
+        when(serverError.getConstraint()).thenReturn("some_other_constraint");
+        PSQLException psql = mock(PSQLException.class);
+        when(psql.getServerErrorMessage()).thenReturn(serverError);
+        when(psql.getMessage())
+                .thenReturn("ERROR: mentions chk_asset_holdings_quantity_positive in prose only");
+
+        DataIntegrityViolationException wrapped =
+                new DataIntegrityViolationException("integrity", psql);
+
+        assertThat(
+                        HoldingReplacementService.isNamedConstraint(
+                                wrapped,
+                                HoldingReplacementService.CHK_ASSET_HOLDINGS_QUANTITY_POSITIVE))
+                .isFalse();
+    }
 }
