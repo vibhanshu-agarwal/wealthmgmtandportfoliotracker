@@ -1,12 +1,12 @@
 # Implementation Plan
 
 **Current program status (verified 2026-08-25 at `main@e5bb208`, runtime baseline `e221662`):**
-Waves `P`, `0`, and `1` are complete. Wave 2 tasks 2.1–2.4 are implemented and verified only on
-unmerged branches: draft PR #131 contains the gateway changes, while dependent proof branch
+Waves `P`, `0`, and `1` are complete. Wave 2 tasks 2.1–2.4 are implemented and verified; source-only
+merge of PR #131's gateway artifact is authorized, while dependent proof branch
 [`proof/b1-wave-2-g1-v20@e6a98c5`](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/tree/proof/b1-wave-2-g1-v20)
-contains task 3.1's V20 solely to prove G1 against both V19 and V20. Neither branch is on `main`;
-the V20 migration is not part of R-A, and no deployment or production migration has run. Task 2.5,
-task 2.6, and Waves 3–7 beyond that proof-only V20 authoring remain incomplete. Spec A V17–V19
+contains task 3.1's V20 solely to prove G1 against both V19 and V20. The V20 proof branch remains
+unmerged; its migration is not part of R-A, and no deployment or production migration is authorized.
+Task 2.5, task 2.6, and Waves 3–7 beyond that proof-only V20 authoring remain incomplete. Spec A V17–V19
 were applied and verified at checkpoint 9.6, so the former R3a deployment blocker is closed; B1's
 own serving gates still precede applying V20. Wave-2 checkboxes record implementation evidence,
 not merged delivery. See
@@ -517,13 +517,14 @@ Production-neutral. It precedes Wave 1 because Artifact 0 removes the endpoints 
 
 ## Wave 2 — Gateway provisioning + asset route (Artifact 1 → R-A)
 
-**Current status:** tasks 2.1 and 2.3 are implemented in rebased draft
-[PR #131](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/131), and G1 is
+**Current status:** source-only merge of tasks 2.1 and 2.3 in
+[PR #131](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/131) is authorized,
+and G1 is
 green on dependent, unmerged proof branch
 [`proof/b1-wave-2-g1-v20@e6a98c5`](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/tree/proof/b1-wave-2-g1-v20).
 That proof branch alone contains task 3.1's V20 migration; it is explicitly excluded from R-A.
-Tasks 2.1–2.4 remain unmerged and unserved, so fresh PR CI/review is still required and R-A is not
-complete until the serving proof and its STOP/GO gate (2.5–2.6) are authorized and green.
+The source merge is not a deployment: Artifact 1 remains unserved, and R-A is not complete until
+the serving proof and its STOP/GO gate (2.5–2.6) receive separate production authorization and are green.
 
 - [x] **2.1 Provisioning insert in `SignupService`**, inside its existing `TransactionTemplate` after
   `insertCredential`. Bind `userId.toString()` explicitly — the gateway generates a `UUID` and
@@ -549,8 +550,8 @@ complete until the serving proof and its STOP/GO gate (2.5–2.6) are authorized
   **Abort:** switch to the signup-quiescence path, re-derive the remaining release lane, and do not
   proceed to Wave 3.
   **Decision: GO for the candidate proof only.** The V19→V20 proof is green at `e6a98c5`; this is
-  not deployment authority. Tasks 2.5 and 2.6 remain incomplete, and no V20 application or gateway
-  deployment is authorized by this decision.
+  not deployment authority. Source-only merge of PR #131 is separately authorized; tasks 2.5 and
+  2.6 remain incomplete, and no V20 application or gateway deployment is authorized by this decision.
   _Requirements: 1.21, 1.22, 1.23_
 - [ ] **2.5 G2 serving proof.** Every serving gateway digest provisions at signup: revision → digest,
   traffic, controlled probe.

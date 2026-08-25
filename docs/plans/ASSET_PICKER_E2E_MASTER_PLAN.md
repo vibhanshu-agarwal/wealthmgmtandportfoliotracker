@@ -82,7 +82,7 @@ At every meaningful merge or live checkpoint:
 | Track | Delivered | Current position | Remaining outcome |
 |---|---|---|---|
 | **A — Spec A catalog/data cutover** | Shared catalog, Postgres/Mongo repair, R4 rollout, enforcement, and one reconciled controlled refresh | **10 of 14 cutover checkpoints complete**; 9.11 is the next unauthorized checkpoint | Persist refresh, activate demo portfolio, restore scale-to-zero, reopen ingress |
-| **B — B1 portfolio composition backend** | Deployment prerequisites, fixture identity migration, legacy writer retirement | **3 of 9 waves complete** (`P`, `0`, `1`); Wave 2 implementation/G1 proof are complete only on unmerged branches | Serving proof, V20 release lane, versioned reads, catalog endpoint, safe desired-state writer, activation |
+| **B — B1 portfolio composition backend** | Deployment prerequisites, fixture identity migration, legacy writer retirement | **3 of 9 release waves complete** (`P`, `0`, `1`); Wave 2's source artifact is approved for merge, but R-A remains unserved | G2 serving proof, V20 release lane, versioned reads, catalog endpoint, safe desired-state writer, activation |
 | **C — B2 Asset Picker product** | Requirements, design, task plan, and five-screen visual mockup | **No implementation wave complete** | Picker UI, decimal adapter, presence/reset support, live integration, exposure |
 | **D — Demo credibility** | Canonical prices refreshed and reconciled; demo initializer exists gated off | Demo activation has not run | Spec A 9.12 must seed and verify the complete Active Asset set without touching E2E data |
 
@@ -93,7 +93,7 @@ At every meaningful merge or live checkpoint:
 | Canonical Active Asset catalog inside services | ✅ Shipped |
 | Repaired and reconciled price data | ✅ Shipped and verified |
 | Enforcement against unsupported holdings/events | ✅ Enabled |
-| `GET /api/assets` serving catalog data | ❌ Controller does not exist on `main` |
+| `GET /api/assets` serving catalog data | ❌ The R-A gateway route is source-approved but remains dark; the Wave 4 controller does not exist |
 | Version-bearing portfolio read | ❌ Not implemented |
 | `PUT /api/portfolio/holdings` safe composition write | ❌ Not implemented |
 | Asset Picker button/modal/browse/review/conflict UI | ❌ Not implemented |
@@ -255,9 +255,10 @@ The program is deliberately stopped after Spec A 9.10. This is a clean handoff p
 
 1. **Operational lane:** design/review and explicitly authorize Spec A 9.11, then continue through
    9.14 one checkpoint at a time.
-2. **Backend lane:** review fresh CI for B1 draft PR #131 and keep it open; do not merge or deploy
-   before a separate authorization for tasks 2.5–2.6. B1 Wave 4 remains independently startable only
-   when separately authorized.
+2. **Backend lane:** source-only merge of B1 PR #131 is authorized after fresh CI and required
+   review. It does **not** authorize a deployment: R-A remains incomplete until a separate
+   production authorization makes tasks 2.5–2.6 green. B1 Wave 4 remains independently startable
+   only when separately authorized.
 3. **Frontend lane:** begin the startable mock-backed subset of B2 Wave 1 against frozen contracts.
 4. **Process lane:** keep the status-propagation CI guard healthy in required `static-guard`; it is
    process-control only and does not advance the runtime baseline.
