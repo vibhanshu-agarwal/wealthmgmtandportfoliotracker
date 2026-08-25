@@ -3,8 +3,7 @@
 **Current program status (verified 2026-08-25 at `main@fb115898`, runtime baseline `e221662`):**
 Waves `P`, `0`, and `1` are complete. Wave 2 tasks 2.1–2.4 are **merged on `main@fb115898`** but
 **undeployed/unserved** — R-A remains incomplete until tasks 2.5–2.6 receive separate production
-authorization. Wave 3 tasks **3.1–3.4 are implemented and verified but unmerged** on branch
-`cursor/b1-wave3-v20-schema`; tasks **3.5–3.7 and R-B remain incomplete**, and **no V20 production
+authorization. Wave 3 tasks **3.1–3.4 are merged on `main@25aa730`** (PR #152; source-only). Tasks **3.5–3.7 and R-B remain incomplete**, and **no V20 production
 migration or deployment is authorized**. Wave 4a tasks **4.1–4.5 are implemented and verified but
 unmerged** on dependent branch `cursor/b1-wave4a-composition-core` (from `4fd8969`); Wave 4b tasks
 **4.6–4.11 are implemented and verified but unmerged** on the same branch (continuing from
@@ -570,8 +569,8 @@ remains unmerged and excluded from R-A.
 
 ## Wave 3 — Schema (Artifact 2 → R-B)
 
-**Current status:** tasks **3.1–3.4 are implemented and verified but unmerged** on branch
-`cursor/b1-wave3-v20-schema`. Tasks **3.5–3.7 and R-B remain incomplete**. **No V20 production
+**Current status:** tasks **3.1–3.4 are merged on `main@25aa730`** (PR #152; source-only). Tasks
+**3.5–3.7 and R-B remain incomplete**. **No V20 production
 migration or deployment is authorized.** Testcontainers is the only permitted V20 execution
 environment until separate R-B operational gates are satisfied.
 
