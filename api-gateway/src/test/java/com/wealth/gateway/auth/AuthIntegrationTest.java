@@ -132,8 +132,11 @@ class AuthIntegrationTest {
                 "SELECT count(*) FROM users WHERE id = ?::uuid", Integer.class, userId);
         Integer credCount = jdbcTemplate.queryForObject(
                 "SELECT count(*) FROM user_credentials WHERE user_id = ?::uuid", Integer.class, userId);
+        Integer portfolioCount = jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM portfolios WHERE user_id = ?", Integer.class, userId);
         assertThat(userCount).isEqualTo(1);
         assertThat(credCount).isEqualTo(1);
+        assertThat(portfolioCount).isEqualTo(1);
     }
 
     // ---- Requirement 10.3 — forced provisioning-transaction failure persists zero rows ----
@@ -156,6 +159,11 @@ class AuthIntegrationTest {
         doThrow(new JOSEException("forced failure for Req 10.3 rollback test"))
                 .when(jwtSigner).signHs256(anyString(), eq(email), anyString(), anyBoolean());
 
+        // portfolios has no email column and the generated userId is never returned on a 503,
+        // so capture the table count before the failing signup and assert it is unchanged after.
+        Integer portfoliosBefore = jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM portfolios", Integer.class);
+
         client().post().uri("/api/auth/signup")
                 .bodyValue(java.util.Map.of("email", email, "password", "a-strong-password-123", "name", "Rollback User"))
                 .exchange()
@@ -167,8 +175,13 @@ class AuthIntegrationTest {
                 "SELECT count(*) FROM users WHERE lower(email) = lower(?)", Integer.class, email);
         Integer credCount = jdbcTemplate.queryForObject(
                 "SELECT count(*) FROM user_credentials WHERE lower(email) = lower(?)", Integer.class, email);
+        Integer portfoliosAfter = jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM portfolios", Integer.class);
         assertThat(userCount).as("users row must not persist when the transaction rolls back").isZero();
         assertThat(credCount).as("user_credentials row must not persist when the transaction rolls back").isZero();
+        assertThat(portfoliosAfter)
+                .as("portfolios row must not persist when the transaction rolls back")
+                .isEqualTo(portfoliosBefore);
     }
 
     // ---- Requirement 10.7 — duplicate-email signup returns 409, row count stays 1 ----

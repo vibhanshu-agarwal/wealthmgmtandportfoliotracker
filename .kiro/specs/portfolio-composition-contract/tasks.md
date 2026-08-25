@@ -1,10 +1,15 @@
 # Implementation Plan
 
-**Current program status (verified 2026-08-24 at `main@e221662`):** Waves `P`, `0`, and `1` are
-complete. Wave 2 tasks 2.1 and 2.3 are implemented only in draft PR #131 and are not on `main`;
-tasks 2.2 and 2.4–2.6 remain incomplete. Waves 3–7 have not started. Spec A V17–V19 were applied
-and verified at checkpoint 9.6, so the former R3a deployment blocker is closed; B1's own Wave 2
-candidate/serving gates still precede applying V20. See
+**Current program status (verified 2026-08-25 at `main@e5bb208`, runtime baseline `e221662`):**
+Waves `P`, `0`, and `1` are complete. Wave 2 tasks 2.1–2.4 are implemented and verified; source-only
+merge of PR #131's gateway artifact is authorized, while dependent proof branch
+[`proof/b1-wave-2-g1-v20@e6a98c5`](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/tree/proof/b1-wave-2-g1-v20)
+contains task 3.1's V20 solely to prove G1 against both V19 and V20. The V20 proof branch remains
+unmerged; its migration is not part of R-A, and no deployment or production migration is authorized.
+Task 2.5, task 2.6, and Waves 3–7 beyond that proof-only V20 authoring remain incomplete. Spec A V17–V19
+were applied and verified at checkpoint 9.6, so the former R3a deployment blocker is closed; B1's
+own serving gates still precede applying V20. Wave-2 checkboxes record implementation evidence,
+not merged delivery. See
 [`docs/plans/ASSET_PICKER_E2E_MASTER_PLAN.md`](../../../docs/plans/ASSET_PICKER_E2E_MASTER_PLAN.md)
 for the living cross-program view.
 
@@ -512,32 +517,41 @@ Production-neutral. It precedes Wave 1 because Artifact 0 removes the endpoints 
 
 ## Wave 2 — Gateway provisioning + asset route (Artifact 1 → R-A)
 
-**Current status:** tasks 2.1 and 2.3 are implemented only in draft
-[PR #131](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/131), last updated
-2026-08-21. They remain unchecked because the PR is unmerged and needs rebasing onto current `main`,
-fresh CI/review, and the rest of Wave 2's required proof before R-A can be called complete.
+**Current status:** source-only merge of tasks 2.1 and 2.3 in
+[PR #131](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/131) is authorized,
+and G1 is
+green on dependent, unmerged proof branch
+[`proof/b1-wave-2-g1-v20@e6a98c5`](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/tree/proof/b1-wave-2-g1-v20).
+That proof branch alone contains task 3.1's V20 migration; it is explicitly excluded from R-A.
+The source merge is not a deployment: Artifact 1 remains unserved, and R-A is not complete until
+the serving proof and its STOP/GO gate (2.5–2.6) receive separate production authorization and are green.
 
-- [ ] **2.1 Provisioning insert in `SignupService`**, inside its existing `TransactionTemplate` after
+- [x] **2.1 Provisioning insert in `SignupService`**, inside its existing `TransactionTemplate` after
   `insertCredential`. Bind `userId.toString()` explicitly — the gateway generates a `UUID` and
   `portfolios.user_id` is `VARCHAR(255)`. Name only columns present in both schemas: `INSERT INTO
   portfolios (id, user_id)`, letting both timestamps and `version` default. Failure rolls back
   signup rather than producing a user without a portfolio.
   _Requirements: 1.5, 1.6, 1.7, 5.16_
-- [ ] **2.2 G1 candidate proof — dual schema, V19 → V20.** The insert runs against a database at V19
+- [x] **2.2 G1 candidate proof — dual schema, V19 → V20.** The insert runs against a database at V19
   and one at V20, exercising the `toString()` binding. A run from today's V16 or an unspecified
   baseline does not satisfy this.
   **Predecessor: task 3.1.** `V19` exists only on Spec A's repair branch and `V20` does not exist at
   all until 3.1 writes it, so both schemas must be present on this branch before the proof can run.
   Authoring `V20` is implementation work under requirement 9.2; **applying** it to production stays
   gated at 3.5.
+  **Evidence:** `SignupProvisioningDualSchemaIT` is green against both schema targets in dependent
+  proof commit `e6a98c5`; that commit is unmerged and V20 is excluded from R-A.
   _Requirements: 1.5, 1.17_
-- [ ] **2.3 Add the `/api/assets/**` gateway route.** Ships here, not with the composition endpoint,
+- [x] **2.3 Add the `/api/assets/**` gateway route.** Ships here, not with the composition endpoint,
   so R-C cannot invalidate G2.
   _Requirements: 2.8, 9.3_
-- [ ] **2.4 STOP/GO — G1 before deploy.**
+- [x] **2.4 STOP/GO — G1 before deploy.**
   **Go:** 2.2 green.
   **Abort:** switch to the signup-quiescence path, re-derive the remaining release lane, and do not
   proceed to Wave 3.
+  **Decision: GO for the candidate proof only.** The V19→V20 proof is green at `e6a98c5`; this is
+  not deployment authority. Source-only merge of PR #131 is separately authorized; tasks 2.5 and
+  2.6 remain incomplete, and no V20 application or gateway deployment is authorized by this decision.
   _Requirements: 1.21, 1.22, 1.23_
 - [ ] **2.5 G2 serving proof.** Every serving gateway digest provisions at signup: revision → digest,
   traffic, controlled probe.

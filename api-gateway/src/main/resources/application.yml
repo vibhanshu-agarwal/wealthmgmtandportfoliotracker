@@ -16,6 +16,10 @@ spring:
               uri: ${app.routes.portfolio-url}
               predicates:
                 - Path=/api/portfolio/**
+            - id: asset-discovery
+              uri: ${app.routes.portfolio-url}
+              predicates:
+                - Path=/api/assets/**
             - id: market-data-service
               uri: ${app.routes.market-data-url}
               predicates:
