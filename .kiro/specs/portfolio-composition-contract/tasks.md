@@ -4,12 +4,8 @@
 Waves `P`, `0`, and `1` are complete. Wave 2 tasks 2.1–2.4 are **merged on `main@fb115898`** but
 **undeployed/unserved** — R-A remains incomplete until tasks 2.5–2.6 receive separate production
 authorization. Wave 3 tasks **3.1–3.4 are merged on `main@25aa730`** (PR #152; source-only). Tasks **3.5–3.7 and R-B remain incomplete**, and **no V20 production
-migration or deployment is authorized**. Wave 4a tasks **4.1–4.5 are implemented and verified but
-unmerged** on dependent branch `cursor/b1-wave4a-composition-core` (from `4fd8969`); Wave 4b tasks
-**4.6–4.11 are implemented and verified but unmerged** on the same branch (continuing from
-`92b5900`); Wave 4c tasks **4.12–4.21 are implemented and verified but unmerged** on the same branch
-(continuing from `cab2814`, with P2 assertion corrections: D24 invocation counters and stale-matrix preparer observation). Candidate packaging / R-C (task 7.5)
-is **not** complete. No production `PUT` exposure, seed rewrite, merge, or V20 production migration
+migration or deployment is authorized**. Wave 4a–4c tasks **4.1–4.21 are merged on `main@2673f40`** (PR #153; source on main, undeployed/unexposed). Candidate packaging / R-C (task 7.5)
+is **not** complete. Public `PUT /api/portfolio/holdings` remains Wave 7. **No deployment or V20 production migration is authorized.** No production `PUT` exposure, seed rewrite, merge, or V20 production migration
 is authorized. Dependent proof branch
 [`proof/b1-wave-2-g1-v20@e6a98c5`](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/tree/proof/b1-wave-2-g1-v20)
 remains historical and unmerged. Spec A V17–V19 were applied and verified at checkpoint 9.6, so the
@@ -579,25 +575,25 @@ environment until separate R-B operational gates are satisfied.
   `NOT EXISTS` correlation; `ALTER TABLE portfolios ADD CONSTRAINT uq_portfolios_user_id UNIQUE
   (user_id)` as a **named table constraint**; drop the `quantity` default; add
   `chk_asset_holdings_quantity_positive`.
-  **Evidence (implemented but unmerged):** `V20__Portfolio_Composition_Contract.sql`;
+  **Evidence (on `main@25aa730`):** `V20__Portfolio_Composition_Contract.sql`;
   `V20MigrationIT` (structural defaults/constraints, `column_default IS NULL` on
   `asset_holdings.quantity`, fail-rather-than-clamp).
   _Requirements: 1.1, 1.2, 1.3, 1.8, 3.5, 3.6, 3.7, 5.1, 5.14_
 - [x] **3.2 Prove backfill idempotency** under Flyway re-execution, and prove the `NOT EXISTS`
   correlation matches. A silent type mismatch treats every user as unprovisioned and inserts
   duplicates on re-run.
-  **Evidence (implemented but unmerged):** `V20MigrationIT.v19ToV20BackfillsUserWithoutPortfolioAndIsIdempotentOnRerun`
+  **Evidence (on `main@25aa730`):** `V20MigrationIT.v19ToV20BackfillsUserWithoutPortfolioAndIsIdempotentOnRerun`
   (backfill to exactly one portfolio with `version = 0`, non-null `updated_at`, zero holdings;
   Flyway re-run leaves count unchanged); `AuthSchemaMigrationIntegrationTest.reRunningMigrateIsIdempotent`.
   _Requirements: 1.4_
 - [x] **3.3 Migration fails rather than clamps** if a violating quantity exists. The preflight found
   none across 163 holdings, but it is a point-in-time observation and the migration runs later.
-  **Evidence (implemented but unmerged):** `V20MigrationIT.v20FailsRatherThanClampingWhenNonPositiveQuantityAlreadyExists`.
+  **Evidence (on `main@25aa730`):** `V20MigrationIT.v20FailsRatherThanClampingWhenNonPositiveQuantityAlreadyExists`.
   _Requirements: 3.8_
 - [x] **3.4 Add `version` and `updatedAt` to `Portfolio`; set both timestamps from one instant in
   `@PrePersist`.** Two `Instant.now()` calls can differ, making the equal-at-creation semantics false
   at database precision.
-  **Evidence (implemented but unmerged):** `Portfolio.java`; `PortfolioVersionMappingIT`
+  **Evidence (on `main@25aa730`):** `Portfolio.java`; `PortfolioVersionMappingIT`
   (version `0`, equal `createdAt`/`updatedAt`, live holdings collection hydration).
   _Requirements: 5.1, 5.14, 5.16_
 - [ ] **3.5 STOP/GO — R-B preconditions.**
@@ -625,45 +621,40 @@ in Waves 5–7.
 
 ### 4a — Orchestrator and preparers
 
-**Current status:** tasks **4.1–4.5 are implemented and verified but unmerged** on branch
-`cursor/b1-wave4a-composition-core` (dependent on `cursor/b1-wave3-v20-schema` @ `4fd8969`). Tasks
-**4.6–4.11 (Wave 4b) are implemented and verified but unmerged** on the same branch (from
-`92b5900`). Tasks **4.12–4.21 (Wave 4c) are implemented and verified but unmerged** on the same
-branch (from `cab2814`, P2 assertion corrections verified); candidate packaging / task 7.5 / R-C remain
-incomplete. No gateway route change, seed rewrite, public `PUT` exposure, merge, or production
+**Current status:** tasks **4.1–4.21 (Wave 4a–4c) are merged on `main@2673f40`** (PR #153; undeployed/unexposed). Candidate packaging / task 7.5 / R-C remain incomplete. Public `PUT` remains Wave 7. **No deployment or V20 production migration is authorized.** No gateway route change, seed rewrite, public `PUT` exposure, merge, or production
 migration is authorized by this status.
 
 - [x] **4.1 `HoldingReplacementService`** — the single orchestrator, in D2's exact order: version
   precondition → semantic `400` (quantity, then duplicates) → catalog/lifecycle `422` aggregated →
   materialise via the injected `TuplePreparer` against the locked snapshot → compare → single parent
   CAS → refresh → child DML. Atomic: the whole desired state persists or none of it does.
-  **Evidence (implemented but unmerged):** `HoldingReplacementService`; unit tests for precedence
+  **Evidence (on `main@2673f40`):** `HoldingReplacementService`; unit tests for precedence
   and no-op CAS skip; `HoldingReplacementServiceIT` for version increment and persistence.
   _Requirements: 5.2, 5.4, 5.5, 5.7, 5.8, 5.9, 5.12, 5.13, 5.15, 5.17, 6.3, 6.4, 6.5, 6.11, 6.12, 6.13, 6.18, 7.16, 7.17, 7.18, 7.20, 7.21, 7.22, 7.23, 8.1_
 - [x] **4.2 `CompositionTuplePreparer`** — expands ticker/quantity, preserving retained cost-basis
   tuples and capturing new ones. Reads **only** the snapshot locked in step 1. No weighted-average
   inference and no transaction history: this is a snapshot editor, not a trade ledger.
-  **Evidence (implemented but unmerged):** `CompositionTuplePreparer` + `CompositionTuplePreparerTest`;
+  **Evidence (on `main@2673f40`):** `CompositionTuplePreparer` + `CompositionTuplePreparerTest`;
   retained-basis IT in `HoldingReplacementServiceIT`.
   _Requirements: 6.14, 6.15, 6.16, 6.17, 10.7_
 - [x] **4.3 `GoldenStateTuplePreparer`** — supplies its deterministic tuple and **takes the cost-basis
   anchor as an input**. Hardcoding the moving 25-hour value would silently undo Spec A's move of the
   demo path onto its fixed `app.demo.cost-basis-anchor`.
-  **Evidence (implemented but unmerged):** `GoldenStateTuplePreparer` + `GoldenStateTuplePreparerTest`
+  **Evidence (on `main@2673f40`):** `GoldenStateTuplePreparer` + `GoldenStateTuplePreparerTest`
   (caller-supplied anchor; deterministic basis matches `PortfolioSeedService`).
   _Requirements: 8.11, 8.12, 8.14, 8.18_
 - [x] **4.4 Absent-aggregate path.** Reject every non-zero expected version with `409` and virtual
   current version `0` **before** validation or insert; then validate, insert, and arbitrate on the
   named `uq_portfolios_user_id` constraint only. Provisioning and composition commit together or
   neither does.
-  **Evidence (implemented but unmerged):** absent path in `HoldingReplacementService`; IT coverage for
+  **Evidence (on `main@2673f40`):** absent path in `HoldingReplacementService`; IT coverage for
   empty creation at version `1`, non-zero expected rejection without insert, concurrent creators on
   `uq_portfolios_user_id`, and invalid set leaving no bare portfolio.
   _Requirements: 1.9, 1.10, 1.11, 6.20, 6.21, 6.22, 6.23, 6.24, 6.25, 6.26, 6.27, 6.28, 6.29, 6.30, 6.32_
 - [x] **4.5 Catalog and lifecycle validation.** Canonical tickers only, no aliases. Active assets may
   be created, changed, retained or removed; a retained deprecated position may be retained, reduced
   or removed but never introduced or increased.
-  **Evidence (implemented but unmerged):** `CompositionCatalogValidator` +
+  **Evidence (on `main@2673f40`):** `CompositionCatalogValidator` +
   `CompositionCatalogValidatorTest` (aggregation, introduce/increase rejection, retain/reduce/remove).
   _Requirements: 6.6, 6.7, 6.8, 6.9, 6.10_
 
@@ -673,13 +664,13 @@ migration is authorized by this status.
   integer digits and 8 fractional digits, maximum `99999999999.99999999`. The database `CHECK` is a
   backstop, not the specification. Rejection is a typed failure with atomic rollback at the
   Application_Operation layer, not a controller check.
-  **Evidence (implemented but unmerged):** `QuantityDomain` (Wave 4a) remains the application-layer
+  **Evidence (on `main@2673f40`):** `QuantityDomain` (Wave 4a) remains the application-layer
   authority; `StrictDecimalStringDeserializer` + `StrictDecimalFidelityTest` cover the wire boundary.
   _Requirements: 3.1, 3.2, 3.4, 3.9_
 - [x] **4.7 Error envelope.** `ContractError` with `error` as the machine-code field. Plural
   `UnsupportedAssetsException` for aggregation; Spec A's singular exception and handler untouched on
   their path. Stable identifiers so B2 can branch without string matching.
-  **Evidence (implemented but unmerged):** `ContractError` + extended `ContractErrorCode`; typed
+  **Evidence (on `main@2673f40`):** `ContractError` + extended `ContractErrorCode`; typed
   `GlobalExceptionHandler` mappings; every `409` includes `currentVersion` (known value or D5
   after-rollback re-read via lookup identity on uniqueness-race / failed-CAS paths);
   `CompositionErrorEnvelopeTest` (machine codes, Spec A singular body preservation, plural ordered
@@ -690,7 +681,7 @@ migration is authorized by this status.
   `Long` with `@NotNull`, plus a **property-scoped strict deserializer accepting only an integer
   token** — Jackson 3.1.4 defaults to `TryConvert` with `ACCEPT_FLOAT_AS_INT`, so `7.9` and `"7"`
   would otherwise decode as valid versions. Non-negative domain validated at the same boundary.
-  **Evidence (implemented but unmerged):** `CompositionHoldingsRequest` (quantity not `@NotNull` —
+  **Evidence (on `main@2673f40`):** `CompositionHoldingsRequest` (quantity not `@NotNull` —
   required quantity stays in `QuantityDomain` after the version check) +
   `StrictExpectedVersionDeserializer` (`getAbsentValue` → `missing_version`; explicit null /
   overflow → `invalid_version`); `CompositionEnvelopeBoundaryTest` via test-only probe (no
@@ -699,12 +690,12 @@ migration is authorized by this status.
 - [x] **4.9 Decimal fidelity both directions.** Strict string deserializer on write;
   `toPlainString()` serializer on `HoldingResponse.quantity`, which emits a JSON number today. No
   exponential notation; trailing fractional zeros preserved as stored.
-  **Evidence (implemented but unmerged):** `ToPlainStringSerializer` on
+  **Evidence (on `main@2673f40`):** `ToPlainStringSerializer` on
   `PortfolioResponse.HoldingResponse.quantity`; `StrictDecimalFidelityTest` round-trip of
   `0.75000000`; consumer pact updated to string quantity.
   _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 4.7_
 - [x] **4.10 Add `version` to `PortfolioResponse`.**
-  **Evidence (implemented but unmerged):** `PortfolioResponse.version` + `PortfolioService.toResponse`;
+  **Evidence (on `main@2673f40`):** `PortfolioResponse.version` + `PortfolioService.toResponse`;
   `PortfolioResponseVersionTest`; `PortfolioServiceVersionMappingTest` (nonzero persisted version
   through `getByUserId`).
   _Requirements: 5.10_
@@ -715,7 +706,7 @@ migration is authorized by this status.
   Catalog_Version, `Cache-Control: private, no-cache`, `304` on match, no second client-side
   persistent cache. Authentication required, as on every `/api` route. Served by portfolio-service,
   which already holds the Catalog_Module in memory.
-  **Evidence (implemented but unmerged):** `AssetCatalogController` + `AssetCatalogResponse`;
+  **Evidence (on `main@2673f40`):** `AssetCatalogController` + `AssetCatalogResponse`;
   `AssetCatalogControllerTest` (full catalog incl. deprecated, no prices, auth, strong/weak/list/`*`
   If-None-Match → 304 with ETag/cache headers). Gateway route unchanged (Wave 2).
   _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 2.9, 2.10, 2.11, 2.12, 2.13_
@@ -726,41 +717,41 @@ Named individually so the R-C manifest can enumerate them rather than gesture at
 
 - [x] **4.12 P1** — four-case matrix (version match/mismatch × desired equal/differs) on **both**
   writers.
-  **Evidence (implemented but unmerged):** `HoldingReplacementServiceTest.p1FourCaseMatrixOnBothWriters` (eight cells; counting delegates; stale cells assert zero materialise + no catalog/CAS/flush/refresh/save); `staleInvalidSemanticDoesNotReachRealPreparer` (both writer modes).
+  **Evidence (on `main@2673f40`):** `HoldingReplacementServiceTest.p1FourCaseMatrixOnBothWriters` (eight cells; counting delegates; stale cells assert zero materialise + no catalog/CAS/flush/refresh/save); `staleInvalidSemanticDoesNotReachRealPreparer` (both writer modes).
   _Requirements: 8.42_
 - [x] **4.13 P2** — child-only change advances the parent version **exactly once**. Assert the numeric
   delta, not "changed": a double increment moves it too.
-  **Evidence (implemented but unmerged):** `ConcurrentCompositionIT.childOnlyMutationIncrementsVersionExactlyOnce`.
+  **Evidence (on `main@2673f40`):** `ConcurrentCompositionIT.childOnlyMutationIncrementsVersionExactlyOnce`.
   _Requirements: 5.4, 5.7_
 - [x] **4.14 P3, P4** — concurrent composition; two concurrent creators with **empty** desired sets,
   the case a pre-write version comparison cannot distinguish.
-  **Evidence (implemented but unmerged):** `ConcurrentCompositionIT.concurrentPresentMutationsExactlyOneWinsParentCasRace` (complete winner tuples); `concurrentAbsentCreatorsExactlyOneWinsNamedConstraintRace` (barrier after absence observe); `symmetricArbitrationCompositionVsGoldenStateExactlyOneTransition` (per-preparer AtomicInteger no-retry + winner tuples).
+  **Evidence (on `main@2673f40`):** `ConcurrentCompositionIT.concurrentPresentMutationsExactlyOneWinsParentCasRace` (complete winner tuples); `concurrentAbsentCreatorsExactlyOneWinsNamedConstraintRace` (barrier after absence observe); `symmetricArbitrationCompositionVsGoldenStateExactlyOneTransition` (per-preparer AtomicInteger no-retry + winner tuples).
   _Requirements: 6.26, 6.27, 6.28, 6.29_
 - [x] **4.15 P5, P6** — stale-but-equal reset yields `409`; a lost reset performs no retry.
-  **Evidence (implemented but unmerged):** stale-equal P1 cells; `HoldingReplacementServiceTest.resetLossHarnessInvokesOnceWithoutRetry`.
+  **Evidence (on `main@2673f40`):** stale-equal P1 cells; `HoldingReplacementServiceTest.resetLossHarnessInvokesOnceWithoutRetry`.
   _Requirements: 8.35, 8.40, 8.41_
 - [x] **4.16 P7, P11f** — round-trip `0.75000000` byte-identical; no-op equality decided on the
   persisted `NUMERIC(19,8)` representation, since `BigDecimal.equals` reports `0.75` and `0.75000000`
   unequal.
-  **Evidence (implemented but unmerged):** `DecimalFidelityIT` requires response quantity exactly `0.75000000` on no-op; production no-op returns locked persisted tuples.
+  **Evidence (on `main@2673f40`):** `DecimalFidelityIT` requires response quantity exactly `0.75000000` on no-op; production no-op returns locked persisted tuples.
   _Requirements: 4.6, 8.17_
 - [x] **4.17 P8, P11c, P11h** — envelope precedence; every envelope-failure code reachable and
   distinct; float, string, boolean and negative version tokens tested **independently**, sharing the
   one `invalid_version` code.
-  **Evidence (implemented but unmerged):** `CompositionErrorContractTest` including `quantityAsJsonNumberAgainstStaleVersionMapsToQuantityNotStringBeforeStatefulWork`.
+  **Evidence (on `main@2673f40`):** `CompositionErrorContractTest` including `quantityAsJsonNumberAgainstStaleVersionMapsToQuantityNotStringBeforeStatefulWork`.
   _Requirements: 7.12, 7.13, 7.15_
 - [x] **4.18 P9** — a quantity `CHECK` violation surfaces as its own `400`, never as `409`.
-  **Evidence (implemented but unmerged):** `ConcurrentCompositionIT.namedQuantityCheckRejectsInvalidPreparerOutputWithoutMutatingAggregate`; named-CHECK translation in `HoldingReplacementService`.
+  **Evidence (on `main@2673f40`):** `ConcurrentCompositionIT.namedQuantityCheckRejectsInvalidPreparerOutputWithoutMutatingAggregate`; named-CHECK translation in `HoldingReplacementService`.
   _Requirements: 6.31, 7.10_
 - [x] **4.19 P11a, P11b** — creation binds both timestamps; the no-op path writes nothing and the
   **response** version equals the stored version.
-  **Evidence (implemented but unmerged):** creation/no-op ITs; `V20MigrationIT` +
+  **Evidence (on `main@2673f40`):** creation/no-op ITs; `V20MigrationIT` +
   `SignupProvisioningDualSchemaIT` V19/V20 `created_at`/`updated_at`.
   _Requirements: 5.13, 5.16_
 - [x] **4.20 P11i** — aggregate rejection reports **every** offender deterministically in request
   order, with the first in singular `ticker` and the full list in `tickers`, while Spec A's
   single-write body stays byte-identical. New in Revision 2: this property had no task.
-  **Evidence (implemented but unmerged):** plural envelopes; synthetic multi-lifecycle catalog; `multipleDuplicatedTickersAggregateInFirstOffendingRequestOrder`.
+  **Evidence (on `main@2673f40`):** plural envelopes; synthetic multi-lifecycle catalog; `multipleDuplicatedTickersAggregateInFirstOffendingRequestOrder`.
   _Requirements: 7.6, 7.8, 7.20_
 - [x] **4.20a Composition behaviours that 4.1's citation does not exercise.** Four criteria were
   covered only by 4.1's catch-all and had no case stating the behaviour:
@@ -771,16 +762,16 @@ Named individually so the R-C manifest can enumerate them rather than gesture at
   - **Catalog_Version is not a write precondition** — a composition succeeds after an irrelevant
     catalog edit moves the version;
   - **the empty desired set is valid** — against an existing aggregate it removes every holding.
-  **Evidence (implemented but unmerged):** order/full-catalog/empty-set ITs; catalog-version not a write precondition unit cases.
+  **Evidence (on `main@2673f40`):** order/full-catalog/empty-set ITs; catalog-version not a write precondition unit cases.
   _Requirements: 6.5, 6.11, 6.12, 6.13_
 - [x] **4.20b Aggregate every offender within a status class, not only tickers.** Extend the
   aggregation rule to semantic `400`s where multiple elements can fail — several out-of-domain
   quantities in one request report all of them, not the first.
-  **Evidence (implemented but unmerged):** `multipleDistinctQuantityOffendersAggregateInRequestOrder`.
+  **Evidence (on `main@2673f40`):** `multipleDistinctQuantityOffendersAggregateInRequestOrder`.
   _Requirements: 7.20_
 - [x] **4.21 Monotonic `updated_at`** — supply an equal timestamp, then a **regressed** one, and
   assert `new.updated_at > old.updated_at` in both cases.
-  **Evidence (implemented but unmerged):** equal/regressed clock ITs in `ConcurrentCompositionIT`.
+  **Evidence (on `main@2673f40`):** equal/regressed clock ITs in `ConcurrentCompositionIT`.
   _Requirements: 5.15_
 
 ## Wave 5 — Version-bearing read (Artifact 2a → R-B2)
