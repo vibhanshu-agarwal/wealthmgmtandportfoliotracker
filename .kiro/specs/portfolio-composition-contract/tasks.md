@@ -575,25 +575,25 @@ environment until separate R-B operational gates are satisfied.
   `NOT EXISTS` correlation; `ALTER TABLE portfolios ADD CONSTRAINT uq_portfolios_user_id UNIQUE
   (user_id)` as a **named table constraint**; drop the `quantity` default; add
   `chk_asset_holdings_quantity_positive`.
-  **Evidence (on `main@2673f40`):** `V20__Portfolio_Composition_Contract.sql`;
+  **Evidence (on `main@25aa730`):** `V20__Portfolio_Composition_Contract.sql`;
   `V20MigrationIT` (structural defaults/constraints, `column_default IS NULL` on
   `asset_holdings.quantity`, fail-rather-than-clamp).
   _Requirements: 1.1, 1.2, 1.3, 1.8, 3.5, 3.6, 3.7, 5.1, 5.14_
 - [x] **3.2 Prove backfill idempotency** under Flyway re-execution, and prove the `NOT EXISTS`
   correlation matches. A silent type mismatch treats every user as unprovisioned and inserts
   duplicates on re-run.
-  **Evidence (on `main@2673f40`):** `V20MigrationIT.v19ToV20BackfillsUserWithoutPortfolioAndIsIdempotentOnRerun`
+  **Evidence (on `main@25aa730`):** `V20MigrationIT.v19ToV20BackfillsUserWithoutPortfolioAndIsIdempotentOnRerun`
   (backfill to exactly one portfolio with `version = 0`, non-null `updated_at`, zero holdings;
   Flyway re-run leaves count unchanged); `AuthSchemaMigrationIntegrationTest.reRunningMigrateIsIdempotent`.
   _Requirements: 1.4_
 - [x] **3.3 Migration fails rather than clamps** if a violating quantity exists. The preflight found
   none across 163 holdings, but it is a point-in-time observation and the migration runs later.
-  **Evidence (on `main@2673f40`):** `V20MigrationIT.v20FailsRatherThanClampingWhenNonPositiveQuantityAlreadyExists`.
+  **Evidence (on `main@25aa730`):** `V20MigrationIT.v20FailsRatherThanClampingWhenNonPositiveQuantityAlreadyExists`.
   _Requirements: 3.8_
 - [x] **3.4 Add `version` and `updatedAt` to `Portfolio`; set both timestamps from one instant in
   `@PrePersist`.** Two `Instant.now()` calls can differ, making the equal-at-creation semantics false
   at database precision.
-  **Evidence (on `main@2673f40`):** `Portfolio.java`; `PortfolioVersionMappingIT`
+  **Evidence (on `main@25aa730`):** `Portfolio.java`; `PortfolioVersionMappingIT`
   (version `0`, equal `createdAt`/`updatedAt`, live holdings collection hydration).
   _Requirements: 5.1, 5.14, 5.16_
 - [ ] **3.5 STOP/GO — R-B preconditions.**
