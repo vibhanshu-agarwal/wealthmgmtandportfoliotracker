@@ -24,6 +24,13 @@ public class Portfolio {
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
 
+    @Version
+    @Column(nullable = false)
+    private long version;
+
+    @Column(nullable = false)
+    private Instant updatedAt;
+
     @OneToMany(mappedBy = "portfolio", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<AssetHolding> holdings = new ArrayList<>();
 
@@ -35,12 +42,16 @@ public class Portfolio {
 
     @PrePersist
     private void prePersist() {
-        this.createdAt = Instant.now();
+        Instant now = Instant.now();
+        this.createdAt = now;
+        this.updatedAt = now;
     }
 
     public UUID getId() { return id; }
     public String getUserId() { return userId; }
     public Instant getCreatedAt() { return createdAt; }
+    public long getVersion() { return version; }
+    public Instant getUpdatedAt() { return updatedAt; }
 
     // Returns the live mutable list — required for JPA dirty-checking and cascade hydration.
     public List<AssetHolding> getHoldings() { return holdings; }

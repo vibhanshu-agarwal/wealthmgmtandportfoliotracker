@@ -20,14 +20,16 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /**
- * Preservation property tests for the Better Auth sign-in fix.
+ * Preservation property tests for core Flyway-managed tables.
  *
- * <p>These tests verify that existing Flyway-managed tables ({@code users},
- * {@code portfolios}, {@code asset_holdings}, {@code market_prices}) are
- * completely unaffected by any new migrations. They establish a baseline on
- * UNFIXED code (V1–V7) and must continue to pass after the fix (V8+V9).
+ * <p>These tests verify that {@code users}, {@code portfolios}, {@code asset_holdings}, and
+ * {@code market_prices} retain their expected shape and seeded data across migrations. They
+ * originally guarded the Better Auth sign-in fix (V8–V9) and now also permit the explicitly
+ * scoped V20 portfolio evolution ({@code version}, {@code updated_at}) while rejecting unrelated
+ * drift such as {@code ba_*} interference.
  *
- * <p><b>Validates: Requirements 3.1, 3.2, 3.3, 3.4</b>
+ * <p><b>Validates: Requirements 3.1, 3.2, 3.3, 3.4 (Better Auth bugfix)</b> plus the post-V20
+ * column contract recorded in {@link #EXPECTED_COLUMNS}.
  *
  * @see <a href="../../.kiro/specs/better-auth-signin-fix/bugfix.md">Bugfix Spec</a>
  */
@@ -60,12 +62,13 @@ class FlywayPreservationTest {
     JdbcTemplate jdbcTemplate;
 
     /**
-     * Expected columns for each Flyway-managed table after V1–V13 migrations.
-     * Observed from the actual migration SQL files.
+     * Expected columns for each Flyway-managed table after all migrations through V20.
+     * Observed from the actual migration SQL files; V20 adds {@code portfolios.version} and
+     * {@code portfolios.updated_at} while leaving other table shapes unchanged.
      */
     private static final Map<String, Set<String>> EXPECTED_COLUMNS = Map.of(
             "users", Set.of("id", "email", "created_at", "name", "read_only"),
-            "portfolios", Set.of("id", "user_id", "created_at"),
+            "portfolios", Set.of("id", "user_id", "created_at", "version", "updated_at"),
             "asset_holdings", Set.of("id", "portfolio_id", "asset_ticker", "quantity",
                     "avg_cost_basis", "cost_basis_currency", "cost_basis_source", "cost_basis_as_of"),
             "market_prices", Set.of("ticker", "current_price", "updated_at", "quote_currency", "observed_at")
@@ -85,7 +88,9 @@ class FlywayPreservationTest {
             "portfolios", Map.of(
                     "id", "uuid",
                     "user_id", "character varying",
-                    "created_at", "timestamp without time zone"
+                    "created_at", "timestamp without time zone",
+                    "version", "bigint",
+                    "updated_at", "timestamp without time zone"
             ),
             "asset_holdings", Map.of(
                     "id", "uuid",
@@ -230,7 +235,7 @@ class FlywayPreservationTest {
     }
 
     // ── Test 3: Flyway history preservation ──────────────────────────────────
-    // Verify V1–V7 entries are present in flyway_schema_history with success.
+    // Verify baseline V1–V13 entries remain successful; later migrations may extend history.
 
     @Test
     void flywayHistoryShouldBePreserved() {
