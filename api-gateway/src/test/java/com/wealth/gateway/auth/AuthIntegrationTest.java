@@ -295,7 +295,7 @@ class AuthIntegrationTest {
     // ---- Requirement 10.12 — demo UUID owns the showcase portfolio with non-empty holdings ----
 
     @Test
-    void demoUuidOwnsShowcasePortfolioAndDevUserDoesNot() {
+    void demoUuidOwnsShowcasePortfolioAndDevUserHasOnePrimaryPortfolio() {
         Integer devOwned = jdbcTemplate.queryForObject(
                 "SELECT count(*) FROM portfolios WHERE user_id = '00000000-0000-0000-0000-000000000001'",
                 Integer.class);
@@ -303,7 +303,7 @@ class AuthIntegrationTest {
                 "SELECT count(*) FROM asset_holdings h JOIN portfolios p ON p.id = h.portfolio_id "
                         + "WHERE p.user_id = '00000000-0000-0000-0000-0000000d3110'",
                 Integer.class);
-        assertThat(devOwned).isZero();
+        assertThat(devOwned).isEqualTo(1);
         assertThat(demoHoldings).isGreaterThan(0);
     }
 }

@@ -60,12 +60,12 @@ class FlywayPreservationTest {
     JdbcTemplate jdbcTemplate;
 
     /**
-     * Expected columns for each Flyway-managed table after V1–V13 migrations.
+     * Expected columns for each Flyway-managed table after V1–V20 migrations.
      * Observed from the actual migration SQL files.
      */
     private static final Map<String, Set<String>> EXPECTED_COLUMNS = Map.of(
             "users", Set.of("id", "email", "created_at", "name", "read_only"),
-            "portfolios", Set.of("id", "user_id", "created_at"),
+            "portfolios", Set.of("id", "user_id", "created_at", "version", "updated_at"),
             "asset_holdings", Set.of("id", "portfolio_id", "asset_ticker", "quantity",
                     "avg_cost_basis", "cost_basis_currency", "cost_basis_source", "cost_basis_as_of"),
             "market_prices", Set.of("ticker", "current_price", "updated_at", "quote_currency", "observed_at")
@@ -85,7 +85,9 @@ class FlywayPreservationTest {
             "portfolios", Map.of(
                     "id", "uuid",
                     "user_id", "character varying",
-                    "created_at", "timestamp without time zone"
+                    "created_at", "timestamp without time zone",
+                    "version", "bigint",
+                    "updated_at", "timestamp without time zone"
             ),
             "asset_holdings", Map.of(
                     "id", "uuid",

@@ -43,11 +43,11 @@ class AuthSchemaMigrationIntegrationTest {
   @Autowired JdbcTemplate jdbcTemplate;
 
   @Test
-  void v19IsHighestAppliedVersionAndBetterAuthTablesAreAbsent() {
+  void v20IsHighestAppliedVersionAndBetterAuthTablesAreAbsent() {
     String maxVersion = jdbcTemplate.queryForObject(
         "SELECT version FROM flyway_schema_history WHERE success = true ORDER BY installed_rank DESC LIMIT 1",
         String.class);
-    assertThat(maxVersion).isEqualTo("19");
+    assertThat(maxVersion).isEqualTo("20");
 
     List<String> baTables = jdbcTemplate.queryForList(
         "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' "
@@ -82,7 +82,9 @@ class AuthSchemaMigrationIntegrationTest {
     Integer devOwnedCount = jdbcTemplate.queryForObject(
         "SELECT count(*) FROM portfolios WHERE user_id = '00000000-0000-0000-0000-000000000001'",
         Integer.class);
-    assertThat(devOwnedCount).as("dev user must no longer own the showcase portfolio").isZero();
+    assertThat(devOwnedCount)
+        .as("V20 backfill must provision the dev user's empty primary portfolio")
+        .isEqualTo(1);
 
     Integer demoHoldingCount = jdbcTemplate.queryForObject(
         "SELECT count(*) FROM asset_holdings h JOIN portfolios p ON p.id = h.portfolio_id "
@@ -99,7 +101,7 @@ class AuthSchemaMigrationIntegrationTest {
         .dataSource(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())
         .locations("classpath:db/migration")
         .load();
-    flyway.migrate(); // no-op: already at V19
+    flyway.migrate(); // no-op: already at V20
 
     Integer demoCount = jdbcTemplate.queryForObject(
         "SELECT count(*) FROM users WHERE id = '00000000-0000-0000-0000-0000000d3110'::uuid",

@@ -73,14 +73,19 @@ public final class PostgresRepairHarness {
 
         public void remigrateRepairVersions() {
             jdbc.update("DELETE FROM flyway_schema_history WHERE version IN ('17', '18', '19')");
-            migrateRemaining();
+            flyway(null, true).migrate();
         }
 
         private Flyway flyway(String target) {
+            return flyway(target, false);
+        }
+
+        private Flyway flyway(String target, boolean outOfOrder) {
             var config =
                     Flyway.configure()
                             .dataSource(dataSource)
-                            .locations("classpath:db/migration");
+                            .locations("classpath:db/migration")
+                            .outOfOrder(outOfOrder);
             if (target != null) {
                 config.target(target);
             }
