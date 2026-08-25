@@ -295,15 +295,20 @@ class AuthIntegrationTest {
     // ---- Requirement 10.12 — demo UUID owns the showcase portfolio with non-empty holdings ----
 
     @Test
-    void demoUuidOwnsShowcasePortfolioAndDevUserDoesNot() {
+    void demoUuidOwnsShowcasePortfolioAndDevUserHasEmptyPrimary() {
         Integer devOwned = jdbcTemplate.queryForObject(
                 "SELECT count(*) FROM portfolios WHERE user_id = '00000000-0000-0000-0000-000000000001'",
+                Integer.class);
+        Integer devHoldings = jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM asset_holdings h JOIN portfolios p ON p.id = h.portfolio_id "
+                        + "WHERE p.user_id = '00000000-0000-0000-0000-000000000001'",
                 Integer.class);
         Integer demoHoldings = jdbcTemplate.queryForObject(
                 "SELECT count(*) FROM asset_holdings h JOIN portfolios p ON p.id = h.portfolio_id "
                         + "WHERE p.user_id = '00000000-0000-0000-0000-0000000d3110'",
                 Integer.class);
-        assertThat(devOwned).isZero();
+        assertThat(devOwned).as("V20 backfill gives the dev user one primary portfolio").isEqualTo(1);
+        assertThat(devHoldings).as("dev primary portfolio must remain empty").isZero();
         assertThat(demoHoldings).isGreaterThan(0);
     }
 }

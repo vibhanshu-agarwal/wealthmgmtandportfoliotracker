@@ -1,15 +1,15 @@
 # Implementation Plan
 
-**Current program status (verified 2026-08-25 at `main@e5bb208`, runtime baseline `e221662`):**
-Waves `P`, `0`, and `1` are complete. Wave 2 tasks 2.1–2.4 are implemented and verified; source-only
-merge of PR #131's gateway artifact is authorized, while dependent proof branch
+**Current program status (verified 2026-08-25 at `main@fb115898`, runtime baseline `e221662`):**
+Waves `P`, `0`, and `1` are complete. Wave 2 tasks 2.1–2.4 are **merged on `main@fb115898`** but
+**undeployed/unserved** — R-A remains incomplete until tasks 2.5–2.6 receive separate production
+authorization. Wave 3 tasks **3.1–3.4 are implemented and verified but unmerged** on branch
+`cursor/b1-wave3-v20-schema`; tasks **3.5–3.7 and R-B remain incomplete**, and **no V20 production
+migration or deployment is authorized**. Dependent proof branch
 [`proof/b1-wave-2-g1-v20@e6a98c5`](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/tree/proof/b1-wave-2-g1-v20)
-contains task 3.1's V20 solely to prove G1 against both V19 and V20. The V20 proof branch remains
-unmerged; its migration is not part of R-A, and no deployment or production migration is authorized.
-Task 2.5, task 2.6, and Waves 3–7 beyond that proof-only V20 authoring remain incomplete. Spec A V17–V19
-were applied and verified at checkpoint 9.6, so the former R3a deployment blocker is closed; B1's
-own serving gates still precede applying V20. Wave-2 checkboxes record implementation evidence,
-not merged delivery. See
+remains historical and unmerged. Spec A V17–V19 were applied and verified at checkpoint 9.6, so the
+former R3a deployment blocker is closed; B1's own serving and R-B gates still precede applying V20.
+Wave checkboxes record implementation evidence, not merged delivery unless stated. See
 [`docs/plans/ASSET_PICKER_E2E_MASTER_PLAN.md`](../../../docs/plans/ASSET_PICKER_E2E_MASTER_PLAN.md)
 for the living cross-program view.
 
@@ -517,14 +517,12 @@ Production-neutral. It precedes Wave 1 because Artifact 0 removes the endpoints 
 
 ## Wave 2 — Gateway provisioning + asset route (Artifact 1 → R-A)
 
-**Current status:** source-only merge of tasks 2.1 and 2.3 in
-[PR #131](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/131) is authorized,
-and G1 is
-green on dependent, unmerged proof branch
-[`proof/b1-wave-2-g1-v20@e6a98c5`](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/tree/proof/b1-wave-2-g1-v20).
-That proof branch alone contains task 3.1's V20 migration; it is explicitly excluded from R-A.
-The source merge is not a deployment: Artifact 1 remains unserved, and R-A is not complete until
-the serving proof and its STOP/GO gate (2.5–2.6) receive separate production authorization and are green.
+**Current status:** PR #131 merged to `main@fb115898` — tasks 2.1–2.4 are on `main` but **undeployed
+and unserved**. R-A is incomplete until tasks 2.5–2.6 receive separate production authorization.
+G1 dual-schema proof (`SignupProvisioningDualSchemaIT`) is also green on `cursor/b1-wave3-v20-schema`
+alongside the full Wave 3 source artifact. Historical proof branch
+[`proof/b1-wave-2-g1-v20@e6a98c5`](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/tree/proof/b1-wave-2-g1-v20)
+remains unmerged and excluded from R-A.
 
 - [x] **2.1 Provisioning insert in `SignupService`**, inside its existing `TransactionTemplate` after
   `insertCredential`. Bind `userId.toString()` explicitly — the gateway generates a `UUID` and
@@ -539,8 +537,9 @@ the serving proof and its STOP/GO gate (2.5–2.6) receive separate production a
   all until 3.1 writes it, so both schemas must be present on this branch before the proof can run.
   Authoring `V20` is implementation work under requirement 9.2; **applying** it to production stays
   gated at 3.5.
-  **Evidence:** `SignupProvisioningDualSchemaIT` is green against both schema targets in dependent
-  proof commit `e6a98c5`; that commit is unmerged and V20 is excluded from R-A.
+  **Evidence:** `SignupProvisioningDualSchemaIT` is green against both schema targets on
+  `cursor/b1-wave3-v20-schema` (also historically at proof commit `e6a98c5`). V20 remains excluded
+  from R-A and unapplied in production.
   _Requirements: 1.5, 1.17_
 - [x] **2.3 Add the `/api/assets/**` gateway route.** Ships here, not with the composition endpoint,
   so R-C cannot invalidate G2.
@@ -549,9 +548,10 @@ the serving proof and its STOP/GO gate (2.5–2.6) receive separate production a
   **Go:** 2.2 green.
   **Abort:** switch to the signup-quiescence path, re-derive the remaining release lane, and do not
   proceed to Wave 3.
-  **Decision: GO for the candidate proof only.** The V19→V20 proof is green at `e6a98c5`; this is
-  not deployment authority. Source-only merge of PR #131 is separately authorized; tasks 2.5 and
-  2.6 remain incomplete, and no V20 application or gateway deployment is authorized by this decision.
+  **Decision: GO for the candidate proof only.** The V19→V20 proof is green on
+  `cursor/b1-wave3-v20-schema`; this is not deployment authority. PR #131 is merged at `fb115898`
+  but undeployed/unserved; tasks 2.5 and 2.6 remain incomplete, and no V20 application or gateway
+  deployment is authorized by this decision.
   _Requirements: 1.21, 1.22, 1.23_
 - [ ] **2.5 G2 serving proof.** Every serving gateway digest provisions at signup: revision → digest,
   traffic, controlled probe.
@@ -564,22 +564,36 @@ the serving proof and its STOP/GO gate (2.5–2.6) receive separate production a
 
 ## Wave 3 — Schema (Artifact 2 → R-B)
 
-- [ ] **3.1 Write `V20`.** In file order: add `version BIGINT NOT NULL DEFAULT 0`; add `updated_at
+**Current status:** tasks **3.1–3.4 are implemented and verified but unmerged** on branch
+`cursor/b1-wave3-v20-schema`. Tasks **3.5–3.7 and R-B remain incomplete**. **No V20 production
+migration or deployment is authorized.** Testcontainers is the only permitted V20 execution
+environment until separate R-B operational gates are satisfied.
+
+- [x] **3.1 Write `V20`.** In file order: add `version BIGINT NOT NULL DEFAULT 0`; add `updated_at
   TIMESTAMP NOT NULL DEFAULT now()`; backfill with `u.id::text` casts on **both** the `INSERT` and the
   `NOT EXISTS` correlation; `ALTER TABLE portfolios ADD CONSTRAINT uq_portfolios_user_id UNIQUE
   (user_id)` as a **named table constraint**; drop the `quantity` default; add
   `chk_asset_holdings_quantity_positive`.
+  **Evidence (implemented but unmerged):** `V20__Portfolio_Composition_Contract.sql`;
+  `V20MigrationIT` (structural defaults/constraints, `column_default IS NULL` on
+  `asset_holdings.quantity`, fail-rather-than-clamp).
   _Requirements: 1.1, 1.2, 1.3, 1.8, 3.5, 3.6, 3.7, 5.1, 5.14_
-- [ ] **3.2 Prove backfill idempotency** under Flyway re-execution, and prove the `NOT EXISTS`
+- [x] **3.2 Prove backfill idempotency** under Flyway re-execution, and prove the `NOT EXISTS`
   correlation matches. A silent type mismatch treats every user as unprovisioned and inserts
   duplicates on re-run.
+  **Evidence (implemented but unmerged):** `V20MigrationIT.v19ToV20BackfillsUserWithoutPortfolioAndIsIdempotentOnRerun`
+  (backfill to exactly one portfolio with `version = 0`, non-null `updated_at`, zero holdings;
+  Flyway re-run leaves count unchanged); `AuthSchemaMigrationIntegrationTest.reRunningMigrateIsIdempotent`.
   _Requirements: 1.4_
-- [ ] **3.3 Migration fails rather than clamps** if a violating quantity exists. The preflight found
+- [x] **3.3 Migration fails rather than clamps** if a violating quantity exists. The preflight found
   none across 163 holdings, but it is a point-in-time observation and the migration runs later.
+  **Evidence (implemented but unmerged):** `V20MigrationIT.v20FailsRatherThanClampingWhenNonPositiveQuantityAlreadyExists`.
   _Requirements: 3.8_
-- [ ] **3.4 Add `version` and `updatedAt` to `Portfolio`; set both timestamps from one instant in
+- [x] **3.4 Add `version` and `updatedAt` to `Portfolio`; set both timestamps from one instant in
   `@PrePersist`.** Two `Instant.now()` calls can differ, making the equal-at-creation semantics false
   at database precision.
+  **Evidence (implemented but unmerged):** `Portfolio.java`; `PortfolioVersionMappingIT`
+  (version `0`, equal `createdAt`/`updatedAt`, live holdings collection hydration).
   _Requirements: 5.1, 5.14, 5.16_
 - [ ] **3.5 STOP/GO — R-B preconditions.**
   **Go:** G0a, G0b and G2 green **before** the migration runs, **and Spec A's R3a applied to

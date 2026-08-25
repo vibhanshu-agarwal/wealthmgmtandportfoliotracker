@@ -17,8 +17,13 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /**
- * Migration tests for V14-V16 (.kiro/specs/new-user-signup-profile, Requirement 8.3-8.7).
- * Run via: ./gradlew :portfolio-service:integrationTest
+ * Migration regression tests for auth/signup schema evolution through V20.
+ *
+ * <p>Covers V14–V16 signup credentials and Better Auth table removal ({@code
+ * .kiro/specs/new-user-signup-profile}, Requirement 8.3–8.7), plus V20 portfolio-composition
+ * backfill and fixture expectations (B1 Wave 3 tasks 3.1–3.2).
+ *
+ * <p>Run via: {@code ./gradlew :portfolio-service:integrationTest}
  */
 @Tag("integration")
 @Testcontainers
@@ -43,11 +48,11 @@ class AuthSchemaMigrationIntegrationTest {
   @Autowired JdbcTemplate jdbcTemplate;
 
   @Test
-  void v19IsHighestAppliedVersionAndBetterAuthTablesAreAbsent() {
+  void v20IsHighestAppliedVersionAndBetterAuthTablesAreAbsent() {
     String maxVersion = jdbcTemplate.queryForObject(
         "SELECT version FROM flyway_schema_history WHERE success = true ORDER BY installed_rank DESC LIMIT 1",
         String.class);
-    assertThat(maxVersion).isEqualTo("19");
+    assertThat(maxVersion).isEqualTo("20");
 
     List<String> baTables = jdbcTemplate.queryForList(
         "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' "
@@ -82,7 +87,15 @@ class AuthSchemaMigrationIntegrationTest {
     Integer devOwnedCount = jdbcTemplate.queryForObject(
         "SELECT count(*) FROM portfolios WHERE user_id = '00000000-0000-0000-0000-000000000001'",
         Integer.class);
-    assertThat(devOwnedCount).as("dev user must no longer own the showcase portfolio").isZero();
+    assertThat(devOwnedCount)
+        .as("V20 backfill must give the dev user exactly one primary portfolio")
+        .isEqualTo(1);
+
+    Integer devHoldingCount = jdbcTemplate.queryForObject(
+        "SELECT count(*) FROM asset_holdings h JOIN portfolios p ON p.id = h.portfolio_id "
+            + "WHERE p.user_id = '00000000-0000-0000-0000-000000000001'",
+        Integer.class);
+    assertThat(devHoldingCount).as("dev primary portfolio must remain empty").isZero();
 
     Integer demoHoldingCount = jdbcTemplate.queryForObject(
         "SELECT count(*) FROM asset_holdings h JOIN portfolios p ON p.id = h.portfolio_id "
@@ -99,11 +112,18 @@ class AuthSchemaMigrationIntegrationTest {
         .dataSource(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())
         .locations("classpath:db/migration")
         .load();
-    flyway.migrate(); // no-op: already at V19
+    flyway.migrate(); // no-op: already at V20
 
     Integer demoCount = jdbcTemplate.queryForObject(
         "SELECT count(*) FROM users WHERE id = '00000000-0000-0000-0000-0000000d3110'::uuid",
         Integer.class);
     assertThat(demoCount).isEqualTo(1);
+
+    Integer devOwnedCount = jdbcTemplate.queryForObject(
+        "SELECT count(*) FROM portfolios WHERE user_id = '00000000-0000-0000-0000-000000000001'",
+        Integer.class);
+    assertThat(devOwnedCount)
+        .as("V20 re-run must leave the backfilled primary portfolio count unchanged")
+        .isEqualTo(1);
   }
 }
