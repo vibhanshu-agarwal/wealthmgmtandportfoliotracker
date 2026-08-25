@@ -6,8 +6,10 @@ Waves `P`, `0`, and `1` are complete. Wave 2 tasks 2.1–2.4 are **merged on `ma
 authorization. Wave 3 tasks **3.1–3.4 are implemented and verified but unmerged** on branch
 `cursor/b1-wave3-v20-schema`; tasks **3.5–3.7 and R-B remain incomplete**, and **no V20 production
 migration or deployment is authorized**. Wave 4a tasks **4.1–4.5 are implemented and verified but
-unmerged** on dependent branch `cursor/b1-wave4a-composition-core` (from `4fd8969`); tasks
-**4.6–4.21 remain incomplete**, with no controller/DTO/envelope exposure. Dependent proof branch
+unmerged** on dependent branch `cursor/b1-wave4a-composition-core` (from `4fd8969`); Wave 4b tasks
+**4.6–4.11 are implemented and verified but unmerged** on the same branch (continuing from
+`92b5900`); tasks **4.12–4.21 (Wave 4c) remain incomplete**. No production `PUT` exposure, seed
+rewrite, merge, or V20 production migration is authorized. Dependent proof branch
 [`proof/b1-wave-2-g1-v20@e6a98c5`](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/tree/proof/b1-wave-2-g1-v20)
 remains historical and unmerged. Spec A V17–V19 were applied and verified at checkpoint 9.6, so the
 former R3a deployment blocker is closed; B1's own serving and R-B gates still precede applying V20.
@@ -624,8 +626,9 @@ in Waves 5–7.
 
 **Current status:** tasks **4.1–4.5 are implemented and verified but unmerged** on branch
 `cursor/b1-wave4a-composition-core` (dependent on `cursor/b1-wave3-v20-schema` @ `4fd8969`). Tasks
-**4.6–4.21 remain incomplete**. No controller, gateway route, DTO/error-envelope, seed rewrite,
-public exposure, merge, or production migration is authorized by this status.
+**4.6–4.11 (Wave 4b) are implemented and verified but unmerged** on the same branch (from
+`92b5900`). Tasks **4.12–4.21 (Wave 4c) remain incomplete**. No gateway route change, seed rewrite,
+public `PUT` exposure, merge, or production migration is authorized by this status.
 
 - [x] **4.1 `HoldingReplacementService`** — the single orchestrator, in D2's exact order: version
   precondition → semantic `400` (quantity, then duplicates) → catalog/lifecycle `422` aggregated →
@@ -663,34 +666,55 @@ public exposure, merge, or production migration is authorized by this status.
 
 ### 4b — Boundary, DTOs and error envelope
 
-- [ ] **4.6 Quantity_Domain at the application boundary** — required, strictly positive, at most 11
+- [x] **4.6 Quantity_Domain at the application boundary** — required, strictly positive, at most 11
   integer digits and 8 fractional digits, maximum `99999999999.99999999`. The database `CHECK` is a
   backstop, not the specification. Rejection is a typed failure with atomic rollback at the
   Application_Operation layer, not a controller check.
+  **Evidence (implemented but unmerged):** `QuantityDomain` (Wave 4a) remains the application-layer
+  authority; `StrictDecimalStringDeserializer` + `StrictDecimalFidelityTest` cover the wire boundary.
   _Requirements: 3.1, 3.2, 3.4, 3.9_
-- [ ] **4.7 Error envelope.** `ContractError` with `error` as the machine-code field. Plural
+- [x] **4.7 Error envelope.** `ContractError` with `error` as the machine-code field. Plural
   `UnsupportedAssetsException` for aggregation; Spec A's singular exception and handler untouched on
   their path. Stable identifiers so B2 can branch without string matching.
+  **Evidence (implemented but unmerged):** `ContractError` + extended `ContractErrorCode`; typed
+  `GlobalExceptionHandler` mappings; every `409` includes `currentVersion` (known value or D5
+  after-rollback re-read via lookup identity on uniqueness-race / failed-CAS paths);
+  `CompositionErrorEnvelopeTest` (machine codes, Spec A singular body preservation, plural ordered
+  `tickers`, both unresolved re-read paths).
   _Requirements: 7.1, 7.2, 7.3, 7.6, 7.7, 7.8, 7.9, 7.10, 7.11, 7.24_
-- [ ] **4.8 Envelope boundary.** `HttpMessageNotReadableException` handler for malformed JSON and
+- [x] **4.8 Envelope boundary.** `HttpMessageNotReadableException` handler for malformed JSON and
   rejected tokens; `MethodArgumentNotValidException` handler for a missing `expectedVersion`. Boxed
   `Long` with `@NotNull`, plus a **property-scoped strict deserializer accepting only an integer
   token** — Jackson 3.1.4 defaults to `TryConvert` with `ACCEPT_FLOAT_AS_INT`, so `7.9` and `"7"`
   would otherwise decode as valid versions. Non-negative domain validated at the same boundary.
+  **Evidence (implemented but unmerged):** `CompositionHoldingsRequest` (quantity not `@NotNull` —
+  required quantity stays in `QuantityDomain` after the version check) +
+  `StrictExpectedVersionDeserializer` (`getAbsentValue` → `missing_version`; explicit null /
+  overflow → `invalid_version`); `CompositionEnvelopeBoundaryTest` via test-only probe (no
+  production `PUT`).
   _Requirements: 7.12, 7.13, 7.15_
-- [ ] **4.9 Decimal fidelity both directions.** Strict string deserializer on write;
+- [x] **4.9 Decimal fidelity both directions.** Strict string deserializer on write;
   `toPlainString()` serializer on `HoldingResponse.quantity`, which emits a JSON number today. No
   exponential notation; trailing fractional zeros preserved as stored.
+  **Evidence (implemented but unmerged):** `ToPlainStringSerializer` on
+  `PortfolioResponse.HoldingResponse.quantity`; `StrictDecimalFidelityTest` round-trip of
+  `0.75000000`; consumer pact updated to string quantity.
   _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 4.7_
-- [ ] **4.10 Add `version` to `PortfolioResponse`.**
+- [x] **4.10 Add `version` to `PortfolioResponse`.**
+  **Evidence (implemented but unmerged):** `PortfolioResponse.version` + `PortfolioService.toResponse`;
+  `PortfolioResponseVersionTest`; `PortfolioServiceVersionMappingTest` (nonzero persisted version
+  through `getByUserId`).
   _Requirements: 5.10_
-- [ ] **4.11 `GET /api/assets` controller.** Returns the Catalog_Version and the **full**
+- [x] **4.11 `GET /api/assets` controller.** Returns the Catalog_Version and the **full**
   Supported_Catalog entry set including deprecated assets — not active-only, since a retained
   deprecated position must render with its metadata. Each entry carries canonical ticker, name,
   aliases, asset class, quote currency and lifecycle status. No prices, no `basePrice`. `ETag` on
   Catalog_Version, `Cache-Control: private, no-cache`, `304` on match, no second client-side
   persistent cache. Authentication required, as on every `/api` route. Served by portfolio-service,
   which already holds the Catalog_Module in memory.
+  **Evidence (implemented but unmerged):** `AssetCatalogController` + `AssetCatalogResponse`;
+  `AssetCatalogControllerTest` (full catalog incl. deprecated, no prices, auth, strong/weak/list/`*`
+  If-None-Match → 304 with ETag/cache headers). Gateway route unchanged (Wave 2).
   _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 2.9, 2.10, 2.11, 2.12, 2.13_
 
 ### 4c — Candidate property suites

@@ -6,5 +6,9 @@ public enum ContractErrorCode {
     unsupported_asset,
     lifecycle_not_permitted,
     quantity_out_of_domain,
-    duplicate_ticker
+    duplicate_ticker,
+    malformed_request,
+    invalid_version,
+    quantity_not_string,
+    missing_version
 }

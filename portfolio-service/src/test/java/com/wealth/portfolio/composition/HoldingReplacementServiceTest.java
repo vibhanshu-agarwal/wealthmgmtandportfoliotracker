@@ -116,6 +116,29 @@ class HoldingReplacementServiceTest {
     }
 
     @Test
+    void nullQuantityRejectedByQuantityDomainAfterVersionMatch() {
+        Portfolio portfolio = new Portfolio("u1");
+        ReflectionTestUtils.setField(portfolio, "id", UUID.randomUUID());
+        ReflectionTestUtils.setField(portfolio, "version", 0L);
+        when(portfolioRepository.findByUserId("u1")).thenReturn(List.of(portfolio));
+
+        assertThatThrownBy(
+                        () ->
+                                service.replace(
+                                        "u1",
+                                        0L,
+                                        List.of(new RawIntent("AAPL", null)),
+                                        preparer))
+                .isInstanceOf(QuantityOutOfDomainException.class)
+                .satisfies(
+                        ex ->
+                                assertThat(((QuantityOutOfDomainException) ex).tickers())
+                                        .containsExactly("AAPL"));
+
+        verify(catalogValidator, never()).validate(anyList(), anyList());
+    }
+
+    @Test
     void duplicateTickersRejectedAfterQuantityPasses() {
         Portfolio portfolio = new Portfolio("u1");
         ReflectionTestUtils.setField(portfolio, "id", UUID.randomUUID());

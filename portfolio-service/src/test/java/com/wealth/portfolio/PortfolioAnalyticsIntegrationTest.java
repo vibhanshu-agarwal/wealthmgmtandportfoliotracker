@@ -6,6 +6,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.wealth.portfolio.dto.PortfolioAnalyticsDto;
 import java.math.BigDecimal;
+import static org.mockito.Mockito.mock;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -77,7 +78,7 @@ class PortfolioAnalyticsIntegrationTest {
     void setUp() {
         mockMvc = MockMvcBuilders
                 .standaloneSetup(analyticsController)
-                .setControllerAdvice(new GlobalExceptionHandler())
+                .setControllerAdvice(new GlobalExceptionHandler(mock(PortfolioRepository.class)))
                 .build();
     }
 

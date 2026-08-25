@@ -29,8 +29,9 @@ describe("Portfolio API consumer contract", () => {
             holdings: eachLike({
               id: like("holding-001"),
               assetTicker: like("AAPL"),
-              quantity: like(10),
+              quantity: like("10"),
             }),
+            version: like(0),
           })
         );
       })

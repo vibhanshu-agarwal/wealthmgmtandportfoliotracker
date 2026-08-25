@@ -202,6 +202,10 @@ public class PortfolioService {
             .toList();
 
     return new PortfolioResponse(
-        portfolio.getId(), portfolio.getUserId(), portfolio.getCreatedAt(), holdings);
+        portfolio.getId(),
+        portfolio.getUserId(),
+        portfolio.getCreatedAt(),
+        portfolio.getVersion(),
+        holdings);
   }
 }

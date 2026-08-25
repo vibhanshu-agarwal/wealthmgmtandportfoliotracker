@@ -77,7 +77,7 @@ public class HoldingReplacementService {
             portfolio = portfolioRepository.saveAndFlush(new Portfolio(userId));
         } catch (DataIntegrityViolationException e) {
             if (isNamedConstraint(e, UQ_PORTFOLIOS_USER_ID)) {
-                throw new PortfolioVersionConflictException();
+                throw PortfolioVersionConflictException.unresolvedForUser(userId);
             }
             throw e;
         }
@@ -136,7 +136,7 @@ public class HoldingReplacementService {
                         portfolio.getId(),
                         expectedVersion);
         if (updated != 1) {
-            throw new PortfolioVersionConflictException();
+            throw PortfolioVersionConflictException.unresolvedForPortfolio(portfolio.getId());
         }
         entityManager.refresh(portfolio);
     }
