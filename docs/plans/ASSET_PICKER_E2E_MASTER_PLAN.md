@@ -82,7 +82,7 @@ At every meaningful merge or live checkpoint:
 | Track | Delivered | Current position | Remaining outcome |
 |---|---|---|---|
 | **A — Spec A catalog/data cutover** | Shared catalog, Postgres/Mongo repair, R4 rollout, enforcement, and one reconciled controlled refresh | **10 of 14 cutover checkpoints complete**; 9.11 is the next unauthorized checkpoint | Persist refresh, activate demo portfolio, restore scale-to-zero, reopen ingress |
-| **B — B1 portfolio composition backend** | Deployment prerequisites, fixture identity migration, legacy writer retirement, Wave 2 gateway source on `main` | **Wave 2 merged at `fb115898` (undeployed/unserved); Wave 3 tasks 3.1–3.4 merged on `main@25aa730`** (source-only; 3.5–3.7/R-B and V20 production still gated); **Wave 4a–4c tasks 4.1–4.21 implemented but unmerged** on `cursor/b1-wave4a-composition-core` (4c review blockers corrected, including P2 assertion fixes); R-A and R-B incomplete | G2 serving proof, R-B merge cut, versioned reads, catalog endpoint, safe desired-state writer, activation |
+| **B — B1 portfolio composition backend** | Deployment prerequisites, fixture identity migration, legacy writer retirement, Wave 2 gateway source on `main` | **Wave 2 merged at `fb115898` (undeployed/unserved); Wave 3 tasks 3.1–3.4 merged on `main@25aa730`** (source-only; 3.5–3.7/R-B and V20 production still gated); **Wave 4a–4c tasks 4.1–4.21 merged on `main@2673f40`** (PR #153; undeployed/unexposed; no public `PUT`); R-A and R-B incomplete | G2 serving proof, R-B merge cut, versioned reads, catalog endpoint, safe desired-state writer, activation |
 | **C — B2 Asset Picker product** | Requirements, design, task plan, and five-screen visual mockup | **No implementation wave complete** | Picker UI, decimal adapter, presence/reset support, live integration, exposure |
 | **D — Demo credibility** | Canonical prices refreshed and reconciled; demo initializer exists gated off | Demo activation has not run | Spec A 9.12 must seed and verify the complete Active Asset set without touching E2E data |
 
@@ -93,8 +93,8 @@ At every meaningful merge or live checkpoint:
 | Canonical Active Asset catalog inside services | ✅ Shipped |
 | Repaired and reconciled price data | ✅ Shipped and verified |
 | Enforcement against unsupported holdings/events | ✅ Enabled |
-| `GET /api/assets` serving catalog data | ❌ Wave 2 gateway route is on `main@fb115898` but remains undeployed/unserved; Wave 4b controller is implemented but unmerged on `cursor/b1-wave4a-composition-core` |
-| Version-bearing portfolio read | ❌ `PortfolioResponse.version` implemented but unmerged (Wave 4b); authenticated serving proof is Wave 5 |
+| `GET /api/assets` serving catalog data | ❌ Wave 2 gateway route is on `main@fb115898` but remains undeployed/unserved; Wave 4b controller is on `main@2673f40` but remains undeployed/unserved |
+| Version-bearing portfolio read | ❌ `PortfolioResponse.version` is on `main@2673f40` but authenticated serving proof is still Wave 5; authenticated serving proof is Wave 5 |
 | `PUT /api/portfolio/holdings` safe composition write | ❌ Not implemented |
 | Asset Picker button/modal/browse/review/conflict UI | ❌ Not implemented |
 | Asset Picker full-stack E2E proof | ❌ Not implemented |
@@ -150,16 +150,15 @@ Authority: [`.kiro/specs/portfolio-composition-contract/tasks.md`](../../.kiro/s
 | 1 — legacy writer retirement | ✅ Complete | Old portfolio creator and versionless holding writer removed and kept retired |
 | 2 — gateway provisioning + asset route | 🟡 Merged on `main@fb115898`, undeployed/unserved | PR #131 tasks 2.1–2.4 are on `main`; G1 dual-schema proof also exists on `cursor/b1-wave3-v20-schema`. R-A remains incomplete: tasks 2.5–2.6 require separate production authorization and evidence |
 | 3 – V20 schema | Source merged on main, undeployed | Tasks 3.1–3.4 merged on `main@25aa730` (PR #152; V20 migration source, tests, `Portfolio` mapping). Tasks 3.5–3.7 and R-B remain incomplete; **no V20 production migration or deployment is authorized** |
-| 4 — contract implementation | 🟡 Wave 4a–4c (4.1–4.21) implemented but unmerged on `cursor/b1-wave4a-composition-core`; public `PUT` still Wave 7 | Replacement orchestrator + preparers unexposed; boundary/DTO/envelope and `GET /api/assets` controller present but unmerged; Wave 4c candidate property suites present but unmerged (review blockers corrected, including P2 assertion fixes); candidate packaging (7.5/R-C) and public `PUT` still pending |
+| 4 – contract implementation | Source merged on main, undeployed/unexposed | Wave 4a–4c (4.1–4.21) merged on `main@2673f40` (PR #153). Public `PUT` still Wave 7. Replacement orchestrator + preparers unexposed; boundary/DTO/envelope and `GET /api/assets` controller on main but undeployed/unserved; candidate packaging (7.5/R-C) still pending |
 | 5 — version-bearing read | ⬜ Not started | Authenticated portfolio read returns version |
 | 6 — version-required seed | ⬜ Not started | Seeder delegates through the safe replacement service |
 | 7 — activation | ⬜ Not started | Public `PUT /api/portfolio/holdings`, attested candidate, serving proof |
 
 Spec A V17–V19 are now applied in production, so the old “R3a is unmerged” blocker is closed. Wave
 3 source tasks 3.1–3.4 are merged on `main@25aa730`; applying V20 to production remains gated at
-tasks 3.5–3.7 and the R-B release cut. Wave 4a–4c (4.1–4.21) are implemented but unmerged on
-`cursor/b1-wave4a-composition-core` (4c review blockers corrected, including P2 assertion fixes); public exposure and candidate
-packaging (7.5/R-C) remain incomplete.
+tasks 3.5–3.7 and the R-B release cut. Wave 4a–4c (4.1–4.21) are merged on `main@2673f40` (PR #153; undeployed/unexposed); public `PUT` exposure and candidate
+packaging (7.5/R-C) remain incomplete. **No deployment or V20 production migration is authorized.**
 
 ### Active B1 work
 
@@ -167,7 +166,7 @@ packaging (7.5/R-C) remain incomplete.
 |---|---|---|
 | PR #131 / `main@fb115898` | **Merged** — Wave 2 tasks 2.1–2.4 on `main`. **Undeployed and unserved:** R-A incomplete until tasks 2.5–2.6 receive separate production authorization and evidence | Do not treat gateway signup provisioning or `/api/assets` routing as live until G2 serving proof is green |
 | `cursor/b1-wave3-v20-schema` / PR #152 | **Merged** on `main@25aa730` – Wave 3 tasks 3.1–3.4 (V20 migration source, regression tests, `Portfolio` version/`updatedAt` mapping). **No V20 production migration or deployment** | Source is on main; keep tasks 3.5–3.7 and R-B operational gates incomplete until separately authorized |
-| `cursor/b1-wave4a-composition-core` | **Implemented but unmerged** — Wave 4a–4c tasks 4.1–4.21 (candidate property suites; review blockers corrected: persisted no-op scale, deterministic absent race, envelope-over-stale, D24 invocation counters, stale preparer observation). Branched from Wave 3 @ `4fd8969`; 4c from `cab2814`. Local unit + Testcontainers IT green on the PR branch. No production `PUT`; candidate packaging / R-C incomplete | Keep #153 open, stacked on #152, unmerged, undeployed until R-B2 cut. Do not expose `PUT /api/portfolio/holdings`. Do not start Wave 5–7, merge, or candidate attestation without separate authorization |
+| `cursor/b1-wave4a-composition-core` / PR #153 | **Merged** on `main@2673f40` – Wave 4a–4c tasks 4.1–4.21 (composition core, boundary/discovery, candidate suites). **Undeployed/unexposed; no public `PUT`; no deployment or V20 production migration** | Do not start Wave 5{EN}7, candidate attestation, or production apply without separate authorization |
 | [`proof/b1-wave-2-g1-v20@e6a98c5`](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/tree/proof/b1-wave-2-g1-v20) | Historical dependent dual-schema proof branch; superseded for Wave 3 delivery by `cursor/b1-wave3-v20-schema` | Remain unmerged; no production migration or release action |
 
 ### Active process work
