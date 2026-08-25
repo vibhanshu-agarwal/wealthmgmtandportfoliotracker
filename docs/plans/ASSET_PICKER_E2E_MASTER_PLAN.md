@@ -82,7 +82,7 @@ At every meaningful merge or live checkpoint:
 | Track | Delivered | Current position | Remaining outcome |
 |---|---|---|---|
 | **A — Spec A catalog/data cutover** | Shared catalog, Postgres/Mongo repair, R4 rollout, enforcement, and one reconciled controlled refresh | **10 of 14 cutover checkpoints complete**; 9.11 is the next unauthorized checkpoint | Persist refresh, activate demo portfolio, restore scale-to-zero, reopen ingress |
-| **B — B1 portfolio composition backend** | Deployment prerequisites, fixture identity migration, legacy writer retirement, Wave 2 gateway source on `main` | **Wave 2 merged at `fb115898` (undeployed/unserved); Wave 3 tasks 3.1–3.4 implemented but unmerged** on `cursor/b1-wave3-v20-schema`; R-A and R-B incomplete | G2 serving proof, R-B merge cut, versioned reads, catalog endpoint, safe desired-state writer, activation |
+| **B — B1 portfolio composition backend** | Deployment prerequisites, fixture identity migration, legacy writer retirement, Wave 2 gateway source on `main` | **Wave 2 merged at `fb115898` (undeployed/unserved); Wave 3 tasks 3.1–3.4 implemented but unmerged** on `cursor/b1-wave3-v20-schema`; **Wave 4a tasks 4.1–4.5 implemented but unmerged** on `cursor/b1-wave4a-composition-core`; R-A and R-B incomplete | G2 serving proof, R-B merge cut, versioned reads, catalog endpoint, safe desired-state writer, activation |
 | **C — B2 Asset Picker product** | Requirements, design, task plan, and five-screen visual mockup | **No implementation wave complete** | Picker UI, decimal adapter, presence/reset support, live integration, exposure |
 | **D — Demo credibility** | Canonical prices refreshed and reconciled; demo initializer exists gated off | Demo activation has not run | Spec A 9.12 must seed and verify the complete Active Asset set without touching E2E data |
 
@@ -150,14 +150,15 @@ Authority: [`.kiro/specs/portfolio-composition-contract/tasks.md`](../../.kiro/s
 | 1 — legacy writer retirement | ✅ Complete | Old portfolio creator and versionless holding writer removed and kept retired |
 | 2 — gateway provisioning + asset route | 🟡 Merged on `main@fb115898`, undeployed/unserved | PR #131 tasks 2.1–2.4 are on `main`; G1 dual-schema proof also exists on `cursor/b1-wave3-v20-schema`. R-A remains incomplete: tasks 2.5–2.6 require separate production authorization and evidence |
 | 3 — V20 schema | 🟡 Implemented but unmerged | Tasks 3.1–3.4 verified on `cursor/b1-wave3-v20-schema` (V20 migration, tests, `Portfolio` mapping). Tasks 3.5–3.7 and R-B remain incomplete; **no V20 production migration or deployment is authorized** |
-| 4 — contract implementation | ⬜ Not started, startable | Replacement orchestrator, preparers, error envelope, decimal fidelity, `GET /api/assets` controller |
+| 4 — contract implementation | 🟡 Wave 4a (4.1–4.5) implemented but unmerged on `cursor/b1-wave4a-composition-core`; 4b–4c not started | Replacement orchestrator + preparers unexposed; error envelope, decimal fidelity, `GET /api/assets` controller still pending |
 | 5 — version-bearing read | ⬜ Not started | Authenticated portfolio read returns version |
 | 6 — version-required seed | ⬜ Not started | Seeder delegates through the safe replacement service |
 | 7 — activation | ⬜ Not started | Public `PUT /api/portfolio/holdings`, attested candidate, serving proof |
 
 Spec A V17–V19 are now applied in production, so the old “R3a is unmerged” blocker is closed. Wave
 3 source tasks 3.1–3.4 are implemented but unmerged; applying V20 to production remains gated at
-tasks 3.5–3.7 and the R-B release cut. Wave 4 remains independently startable as implementation work.
+tasks 3.5–3.7 and the R-B release cut. Wave 4a (4.1–4.5) is implemented but unmerged on
+`cursor/b1-wave4a-composition-core`; 4b–4c and public exposure remain incomplete.
 
 ### Active B1 work
 
@@ -165,6 +166,7 @@ tasks 3.5–3.7 and the R-B release cut. Wave 4 remains independently startable 
 |---|---|---|
 | PR #131 / `main@fb115898` | **Merged** — Wave 2 tasks 2.1–2.4 on `main`. **Undeployed and unserved:** R-A incomplete until tasks 2.5–2.6 receive separate production authorization and evidence | Do not treat gateway signup provisioning or `/api/assets` routing as live until G2 serving proof is green |
 | `cursor/b1-wave3-v20-schema` | **Implemented but unmerged** — Wave 3 tasks 3.1–3.4 (V20 migration, regression tests, `Portfolio` version/`updatedAt` mapping). Local verification green | Review PR CI; keep open. **No merge before R-B cut; no V20 production migration or deployment** |
+| `cursor/b1-wave4a-composition-core` | **Implemented but unmerged** — Wave 4a tasks 4.1–4.5 (`HoldingReplacementService`, preparers, absent-aggregate path, catalog/lifecycle). Branched from Wave 3 @ `4fd8969`. Local unit + Testcontainers IT green. No controller/DTO/envelope | Keep unmerged until R-B2 cut. Do not expose `PUT /api/portfolio/holdings`. Do not start 4b without separate authorization |
 | [`proof/b1-wave-2-g1-v20@e6a98c5`](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/tree/proof/b1-wave-2-g1-v20) | Historical dependent dual-schema proof branch; superseded for Wave 3 delivery by `cursor/b1-wave3-v20-schema` | Remain unmerged; no production migration or release action |
 
 ### Active process work
@@ -260,7 +262,8 @@ The program is deliberately stopped after Spec A 9.10. This is a clean handoff p
    3.1–3.4). Merge is authorized only at the R-B cut, after review and green CI. It does **not**
    authorize V20 production migration or deployment: tasks 3.5–3.7 and R-B operational gates remain
    incomplete, and R-A remains unserved until tasks 2.5–2.6 receive separate production
-   authorization. B1 Wave 4 remains independently startable only when separately authorized.
+   authorization. Wave 4a (`cursor/b1-wave4a-composition-core`, tasks 4.1–4.5) is implemented but
+   unmerged and unexposed; Wave 4b–4c and Waves 5–7 remain separately gated.
 3. **Frontend lane:** begin the startable mock-backed subset of B2 Wave 1 against frozen contracts.
 4. **Process lane:** keep the status-propagation CI guard healthy in required `static-guard`; it is
    process-control only and does not advance the runtime baseline.

@@ -5,7 +5,9 @@ Waves `P`, `0`, and `1` are complete. Wave 2 tasks 2.1–2.4 are **merged on `ma
 **undeployed/unserved** — R-A remains incomplete until tasks 2.5–2.6 receive separate production
 authorization. Wave 3 tasks **3.1–3.4 are implemented and verified but unmerged** on branch
 `cursor/b1-wave3-v20-schema`; tasks **3.5–3.7 and R-B remain incomplete**, and **no V20 production
-migration or deployment is authorized**. Dependent proof branch
+migration or deployment is authorized**. Wave 4a tasks **4.1–4.5 are implemented and verified but
+unmerged** on dependent branch `cursor/b1-wave4a-composition-core` (from `4fd8969`); tasks
+**4.6–4.21 remain incomplete**, with no controller/DTO/envelope exposure. Dependent proof branch
 [`proof/b1-wave-2-g1-v20@e6a98c5`](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/tree/proof/b1-wave-2-g1-v20)
 remains historical and unmerged. Spec A V17–V19 were applied and verified at checkpoint 9.6, so the
 former R3a deployment blocker is closed; B1's own serving and R-B gates still precede applying V20.
@@ -620,27 +622,43 @@ in Waves 5–7.
 
 ### 4a — Orchestrator and preparers
 
-- [ ] **4.1 `HoldingReplacementService`** — the single orchestrator, in D2's exact order: version
+**Current status:** tasks **4.1–4.5 are implemented and verified but unmerged** on branch
+`cursor/b1-wave4a-composition-core` (dependent on `cursor/b1-wave3-v20-schema` @ `4fd8969`). Tasks
+**4.6–4.21 remain incomplete**. No controller, gateway route, DTO/error-envelope, seed rewrite,
+public exposure, merge, or production migration is authorized by this status.
+
+- [x] **4.1 `HoldingReplacementService`** — the single orchestrator, in D2's exact order: version
   precondition → semantic `400` (quantity, then duplicates) → catalog/lifecycle `422` aggregated →
   materialise via the injected `TuplePreparer` against the locked snapshot → compare → single parent
   CAS → refresh → child DML. Atomic: the whole desired state persists or none of it does.
+  **Evidence (implemented but unmerged):** `HoldingReplacementService`; unit tests for precedence
+  and no-op CAS skip; `HoldingReplacementServiceIT` for version increment and persistence.
   _Requirements: 5.2, 5.4, 5.5, 5.7, 5.8, 5.9, 5.12, 5.13, 5.15, 5.17, 6.3, 6.4, 6.5, 6.11, 6.12, 6.13, 6.18, 7.16, 7.17, 7.18, 7.20, 7.21, 7.22, 7.23, 8.1_
-- [ ] **4.2 `CompositionTuplePreparer`** — expands ticker/quantity, preserving retained cost-basis
+- [x] **4.2 `CompositionTuplePreparer`** — expands ticker/quantity, preserving retained cost-basis
   tuples and capturing new ones. Reads **only** the snapshot locked in step 1. No weighted-average
   inference and no transaction history: this is a snapshot editor, not a trade ledger.
+  **Evidence (implemented but unmerged):** `CompositionTuplePreparer` + `CompositionTuplePreparerTest`;
+  retained-basis IT in `HoldingReplacementServiceIT`.
   _Requirements: 6.14, 6.15, 6.16, 6.17, 10.7_
-- [ ] **4.3 `GoldenStateTuplePreparer`** — supplies its deterministic tuple and **takes the cost-basis
+- [x] **4.3 `GoldenStateTuplePreparer`** — supplies its deterministic tuple and **takes the cost-basis
   anchor as an input**. Hardcoding the moving 25-hour value would silently undo Spec A's move of the
   demo path onto its fixed `app.demo.cost-basis-anchor`.
+  **Evidence (implemented but unmerged):** `GoldenStateTuplePreparer` + `GoldenStateTuplePreparerTest`
+  (caller-supplied anchor; deterministic basis matches `PortfolioSeedService`).
   _Requirements: 8.11, 8.12, 8.14, 8.18_
-- [ ] **4.4 Absent-aggregate path.** Reject every non-zero expected version with `409` and virtual
+- [x] **4.4 Absent-aggregate path.** Reject every non-zero expected version with `409` and virtual
   current version `0` **before** validation or insert; then validate, insert, and arbitrate on the
   named `uq_portfolios_user_id` constraint only. Provisioning and composition commit together or
   neither does.
+  **Evidence (implemented but unmerged):** absent path in `HoldingReplacementService`; IT coverage for
+  empty creation at version `1`, non-zero expected rejection without insert, concurrent creators on
+  `uq_portfolios_user_id`, and invalid set leaving no bare portfolio.
   _Requirements: 1.9, 1.10, 1.11, 6.20, 6.21, 6.22, 6.23, 6.24, 6.25, 6.26, 6.27, 6.28, 6.29, 6.30, 6.32_
-- [ ] **4.5 Catalog and lifecycle validation.** Canonical tickers only, no aliases. Active assets may
+- [x] **4.5 Catalog and lifecycle validation.** Canonical tickers only, no aliases. Active assets may
   be created, changed, retained or removed; a retained deprecated position may be retained, reduced
   or removed but never introduced or increased.
+  **Evidence (implemented but unmerged):** `CompositionCatalogValidator` +
+  `CompositionCatalogValidatorTest` (aggregation, introduce/increase rejection, retain/reduce/remove).
   _Requirements: 6.6, 6.7, 6.8, 6.9, 6.10_
 
 ### 4b — Boundary, DTOs and error envelope
