@@ -57,6 +57,11 @@ class SignupProvisioningDualSchemaIT {
         assertThat(jdbc.queryForObject(
                         "SELECT user_id FROM portfolios WHERE id = ?", String.class, portfolioId))
                 .isEqualTo(userId.toString());
+        assertThat(jdbc.queryForObject(
+                        "SELECT created_at IS NOT NULL FROM portfolios WHERE id = ?",
+                        Boolean.class,
+                        portfolioId))
+                .isTrue();
     }
 
     @Test
@@ -73,6 +78,11 @@ class SignupProvisioningDualSchemaIT {
         assertThat(jdbc.queryForObject(
                         "SELECT version FROM portfolios WHERE id = ?", Long.class, portfolioId))
                 .isZero();
+        assertThat(jdbc.queryForObject(
+                        "SELECT created_at IS NOT NULL FROM portfolios WHERE id = ?",
+                        Boolean.class,
+                        portfolioId))
+                .isTrue();
         assertThat(jdbc.queryForObject(
                         "SELECT updated_at IS NOT NULL FROM portfolios WHERE id = ?",
                         Boolean.class,

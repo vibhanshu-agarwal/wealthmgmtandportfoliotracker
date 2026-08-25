@@ -1,6 +1,7 @@
 package com.wealth.portfolio;
 
 import com.wealth.catalog.UnsupportedAssetException;
+import static org.mockito.Mockito.mock;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -11,7 +12,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class GlobalExceptionHandlerUnsupportedAssetTest {
 
-    private final GlobalExceptionHandler handler = new GlobalExceptionHandler();
+    private final GlobalExceptionHandler handler = new GlobalExceptionHandler(mock(PortfolioRepository.class));
 
     @Test
     void mapsUnsupportedAssetTo422Contract() {

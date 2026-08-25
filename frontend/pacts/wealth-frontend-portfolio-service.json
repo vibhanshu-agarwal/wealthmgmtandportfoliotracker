@@ -41,11 +41,12 @@
                 {
                   "assetTicker": "AAPL",
                   "id": "holding-001",
-                  "quantity": 10
+                  "quantity": "10"
                 }
               ],
               "id": "portfolio-001",
-              "userId": "user-001"
+              "userId": "user-001",
+              "version": 0
             }
           ],
           "contentType": "application/json",
@@ -117,6 +118,14 @@
               ]
             },
             "$[*].userId": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$[*].version": {
               "combine": "AND",
               "matchers": [
                 {

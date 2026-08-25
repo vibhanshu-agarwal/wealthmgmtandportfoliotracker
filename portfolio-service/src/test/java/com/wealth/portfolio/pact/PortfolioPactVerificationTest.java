@@ -1,5 +1,7 @@
 package com.wealth.portfolio.pact;
 
+import com.wealth.portfolio.PortfolioRepository;
+
 import au.com.dius.pact.provider.junit5.PactVerificationContext;
 import au.com.dius.pact.provider.junitsupport.Provider;
 import au.com.dius.pact.provider.junitsupport.State;
@@ -13,6 +15,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
+import static org.mockito.Mockito.mock;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -46,7 +49,7 @@ class PortfolioPactVerificationTest {
     void setUp(PactVerificationContext context) {
         Spring7MockMvcTestTarget testTarget = new Spring7MockMvcTestTarget();
         testTarget.setControllers(portfolioController);
-        testTarget.setControllerAdvices(new GlobalExceptionHandler());
+        testTarget.setControllerAdvices(new GlobalExceptionHandler(mock(PortfolioRepository.class)));
         context.setTarget(testTarget);
     }
 
@@ -67,6 +70,7 @@ class PortfolioPactVerificationTest {
                 UUID.randomUUID(),
                 "user-001",
                 Instant.parse("2026-04-15T10:30:00Z"),
+                0L,
                 List.of(holding)
         );
         when(portfolioService.getByUserId(anyString())).thenReturn(List.of(portfolio));

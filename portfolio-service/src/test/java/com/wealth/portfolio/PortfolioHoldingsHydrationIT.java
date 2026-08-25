@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
 import java.util.UUID;
+import static org.mockito.Mockito.mock;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
@@ -85,7 +86,7 @@ class PortfolioHoldingsHydrationIT {
     void setUp() {
         mockMvc = MockMvcBuilders
                 .standaloneSetup(portfolioController)
-                .setControllerAdvice(new GlobalExceptionHandler())
+                .setControllerAdvice(new GlobalExceptionHandler(mock(PortfolioRepository.class)))
                 .build();
 
         // Ensure the test user exists (idempotent)

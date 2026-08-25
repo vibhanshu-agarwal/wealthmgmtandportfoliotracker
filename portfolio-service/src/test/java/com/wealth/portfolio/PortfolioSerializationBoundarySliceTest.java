@@ -50,6 +50,9 @@ class PortfolioSerializationBoundarySliceTest {
     @MockitoBean
     PortfolioService portfolioService;
 
+    @MockitoBean
+    PortfolioRepository portfolioRepository;
+
     @Test
     void autoconfiguredMapper_isJackson3JsonMapper() {
         assertThat(jsonMapper.getClass().getName()).startsWith("tools.jackson.");

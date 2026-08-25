@@ -11,6 +11,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.github.tomakehurst.wiremock.WireMockServer;
 import com.wealth.portfolio.seed.PortfolioSeedService;
 import com.wealth.portfolio.seed.SeedTickerRegistry;
+import static org.mockito.Mockito.mock;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Tag;
@@ -112,7 +113,7 @@ class PortfolioSummaryAfterSeedIT {
 
         MockMvc mockMvc = MockMvcBuilders
                 .standaloneSetup(summaryController)
-                .setControllerAdvice(new GlobalExceptionHandler())
+                .setControllerAdvice(new GlobalExceptionHandler(mock(PortfolioRepository.class)))
                 .build();
 
         mockMvc.perform(get("/api/portfolio/summary")

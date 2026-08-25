@@ -55,6 +55,12 @@ class V20MigrationIT {
                 .isZero();
         assertThat(session.jdbc()
                         .queryForObject(
+                                "SELECT created_at IS NOT NULL FROM portfolios WHERE id = ?",
+                                Boolean.class,
+                                backfilledPortfolioId))
+                .isTrue();
+        assertThat(session.jdbc()
+                        .queryForObject(
                                 "SELECT updated_at IS NOT NULL FROM portfolios WHERE id = ?",
                                 Boolean.class,
                                 backfilledPortfolioId))

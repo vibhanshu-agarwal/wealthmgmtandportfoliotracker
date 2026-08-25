@@ -1,5 +1,8 @@
 package com.wealth.portfolio;
 
+import com.wealth.portfolio.composition.ToPlainStringSerializer;
+import tools.jackson.databind.annotation.JsonSerialize;
+
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
@@ -11,15 +14,17 @@ import java.util.UUID;
  * <p>This record is the only type that crosses the HTTP boundary — JPA entities are
  * never serialised directly, keeping the API contract decoupled from the persistence model.
  *
- * @param id       portfolio identifier
- * @param userId   owner identifier (plain string — no JPA association to the user module)
+ * @param id        portfolio identifier
+ * @param userId    owner identifier (plain string — no JPA association to the user module)
  * @param createdAt when the portfolio was created
+ * @param version   persisted Portfolio_Version
  * @param holdings  the asset holdings at the time of the request
  */
 public record PortfolioResponse(
         UUID id,
         String userId,
         Instant createdAt,
+        long version,
         List<HoldingResponse> holdings
 ) {
 
@@ -33,6 +38,7 @@ public record PortfolioResponse(
     public record HoldingResponse(
             UUID id,
             String assetTicker,
+            @JsonSerialize(using = ToPlainStringSerializer.class)
             BigDecimal quantity
     ) {}
 }

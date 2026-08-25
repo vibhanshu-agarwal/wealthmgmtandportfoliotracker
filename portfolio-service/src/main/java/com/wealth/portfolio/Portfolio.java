@@ -3,6 +3,7 @@ package com.wealth.portfolio;
 import jakarta.persistence.*;
 import java.time.Instant;
 import java.util.*;
+import org.hibernate.annotations.OptimisticLock;
 
 @Entity
 @Table(name = "portfolios")
@@ -32,6 +33,7 @@ public class Portfolio {
     private Instant updatedAt;
 
     @OneToMany(mappedBy = "portfolio", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OptimisticLock(excluded = true)
     private List<AssetHolding> holdings = new ArrayList<>();
 
     protected Portfolio() {}
@@ -56,9 +58,17 @@ public class Portfolio {
     // Returns the live mutable list — required for JPA dirty-checking and cascade hydration.
     public List<AssetHolding> getHoldings() { return holdings; }
 
-    /** Package-private helper so service-layer code never manipulates the collection directly. */
-    void addHolding(AssetHolding h) {
+    /** Associates a holding with this portfolio (cascade / orphanRemoval owner). */
+    public void addHolding(AssetHolding h) {
         holdings.add(h);
         h.setPortfolio(this);
+    }
+
+    /** Replaces the entire holdings set in-memory; orphanRemoval deletes omitted rows on flush. */
+    public void replaceAllHoldings(List<AssetHolding> next) {
+        holdings.clear();
+        for (AssetHolding h : next) {
+            addHolding(h);
+        }
     }
 }

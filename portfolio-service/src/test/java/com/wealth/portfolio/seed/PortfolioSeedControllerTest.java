@@ -1,11 +1,14 @@
 package com.wealth.portfolio.seed;
 
+import com.wealth.portfolio.PortfolioRepository;
+
 import com.wealth.catalog.UnsupportedAssetException;
 import com.wealth.portfolio.GlobalExceptionHandler;
 import com.wealth.portfolio.seed.PortfolioSeedService.SeedResult;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import static org.mockito.Mockito.mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.ResponseEntity;
 import org.springframework.test.web.servlet.MockMvc;
@@ -70,7 +73,7 @@ class PortfolioSeedControllerTest {
 
         MockMvc mockMvc = MockMvcBuilders
                 .standaloneSetup(new PortfolioSeedController(seedService))
-                .setControllerAdvice(new GlobalExceptionHandler())
+                .setControllerAdvice(new GlobalExceptionHandler(mock(PortfolioRepository.class)))
                 .build();
 
         mockMvc.perform(post("/api/internal/portfolio/seed"))
