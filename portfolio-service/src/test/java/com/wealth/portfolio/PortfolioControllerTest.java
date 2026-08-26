@@ -11,7 +11,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
+import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Stream;
 
 import static org.mockito.Mockito.when;
@@ -45,6 +47,23 @@ class PortfolioControllerTest {
                         .header("X-User-Id", USER_ID))
                 .andExpect(status().isOk())
                 .andExpect(content().json("[]"));
+    }
+
+    @Test
+    void authenticatedPortfolioReadReturnsPersistedVersion() throws Exception {
+        PortfolioResponse response = new PortfolioResponse(
+                UUID.fromString("00000000-0000-0000-0000-000000000123"),
+                USER_ID,
+                Instant.parse("2026-08-26T00:00:00Z"),
+                7L,
+                List.of());
+        when(portfolioService.getByUserId(USER_ID)).thenReturn(List.of(response));
+
+        mockMvc.perform(get("/api/portfolio").header("X-User-Id", USER_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value("00000000-0000-0000-0000-000000000123"))
+                .andExpect(jsonPath("$[0].userId").value(USER_ID))
+                .andExpect(jsonPath("$[0].version").value(7));
     }
 
     // 19.1: GET /api/portfolio with missing X-User-Id header → 400 with structured error body

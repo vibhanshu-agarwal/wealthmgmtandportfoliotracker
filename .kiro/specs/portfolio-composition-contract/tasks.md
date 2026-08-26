@@ -776,8 +776,14 @@ Named individually so the R-C manifest can enumerate them rather than gesture at
 
 ## Wave 5 — Version-bearing read (Artifact 2a → R-B2)
 
-- [ ] **5.1 Expose `version` on the authenticated `GET /api/portfolio`** while the old seed `POST`
+- [x] **5.1 Expose `version` on the authenticated `GET /api/portfolio`** while the old seed `POST`
   still tolerates the extra body field.
+  **Evidence (on `cursor/b1-wave5a-version-bearing-read`, unmerged):**
+  `PortfolioControllerTest.authenticatedPortfolioReadReturnsPersistedVersion`; existing
+  `PortfolioResponseVersionTest` and `PortfolioServiceVersionMappingTest`.
+  Wave 4 already supplied `PortfolioResponse.version` and controller passthrough; this task adds the
+  authenticated MVC boundary proof only. No production code change. G2a/R-B2 and caller migration
+  remain incomplete.
   _Requirements: 5.10, 5.11_
 - [ ] **5.2 G2a serving proof.** **Every** serving portfolio digest returns the version, **before**
   any caller migration begins. One caller's successful read can otherwise hit the new revision while
