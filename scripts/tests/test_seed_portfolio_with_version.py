@@ -100,6 +100,31 @@ def _to_bash_path(path: Path) -> str:
         rest = "/" + rest
     return f"/{drive[0].lower()}{rest}"
 
+def _bash_executable() -> str:
+    import shutil
+
+    if os.name == "nt":
+        git_bash = Path(r"C:\Program Files\Git\bin\bash.exe")
+        if git_bash.is_file():
+            return str(git_bash)
+    bash = shutil.which("bash")
+    if not bash:
+        raise unittest.SkipTest("bash not found on PATH")
+    return bash
+
+
+def _path_prefix_for_jq() -> str:
+    import shutil
+
+    if os.name == "nt":
+        jq_dir = REPO / "tools" / "jq"
+        if jq_dir.is_dir():
+            return f'export PATH="{_to_bash_path(jq_dir)}:$PATH"; '
+    if shutil.which("jq") is None and shutil.which("jq.exe") is None:
+        raise unittest.SkipTest("jq not found on PATH")
+    return ""
+
+
 class SeedPortfolioWithVersionTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
@@ -125,16 +150,11 @@ class SeedPortfolioWithVersionTests(unittest.TestCase):
         self.thread.join(timeout=5)
 
     def _run(self) -> subprocess.CompletedProcess[str]:
-        import shutil
-
         script = SCRIPT.relative_to(REPO).as_posix()
-        git_bash = Path(r"C:\Program Files\Git\bin\bash.exe")
-        bash = str(git_bash) if git_bash.is_file() else "bash"
-        jq_dir = REPO / "tools" / "jq"
-        drive, rest = os.path.splitdrive(str(jq_dir.resolve()))
-        jq_posix = f"/{drive[0].lower()}{rest.replace(chr(92), '/')}"
+        bash = _bash_executable()
+        path_prefix = _path_prefix_for_jq()
         command = (
-            f'export PATH="{jq_posix}:$PATH"; '
+            f"{path_prefix}"
             "export "
             f"API_BASE={self.base!r} "
             "INTERNAL_API_KEY='internal-key' "

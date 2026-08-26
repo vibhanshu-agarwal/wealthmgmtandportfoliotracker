@@ -28,6 +28,26 @@ const E2E_USER_ID = "00000000-0000-0000-0000-000000000e2e";
 const E2E_EMAIL = "e2e-test-user@vibhanshu-ai-portfolio.dev";
 const E2E_PASSWORD = "e2e-test-password-2026";
 
+function testSeedDeps(
+  baseUrl: string,
+  overrides: Partial<Parameters<
+    typeof import("../../global-setup").seedPortfolioWithFrozenVersion
+  >[0]> = {},
+) {
+  return {
+    apiBase: baseUrl,
+    internalApiKey: "test-internal-key",
+    email: E2E_EMAIL,
+    password: E2E_PASSWORD,
+    expectedUserId: E2E_USER_ID,
+    maxAttempts: 3,
+    sleepFn: async () => undefined,
+    createTimeoutSignal: () => undefined,
+    fetchFn: fetch,
+    ...overrides,
+  };
+}
+
 type Captured = {
   method: string;
   url: string;
@@ -98,7 +118,7 @@ function startFixtureServer(handlers: {
   const captures: Captured[] = [];
   let seedIdx = 0;
   const seedStatuses = handlers.seedStatuses ?? [200];
-  const seedBodies = handlers.seedBodies ?? ["{}"];
+  const seedBodies = handlers.seedBodies ?? ['{"portfolioId":"fixture-portfolio-id"}'];
 
   const server = http.createServer((req, res) => {
     const chunks: Buffer[] = [];
@@ -197,16 +217,7 @@ describe("global-setup frozen portfolio seed sequence", () => {
       logs.push(args.map(String).join(" "));
     });
 
-    await seedPortfolioWithFrozenVersion({
-      apiBase: fixture.baseUrl,
-      internalApiKey: "test-internal-key",
-      email: E2E_EMAIL,
-      password: E2E_PASSWORD,
-      expectedUserId: E2E_USER_ID,
-      maxAttempts: 3,
-      sleepFn: async () => undefined,
-      fetchFn: fetch,
-    });
+    await seedPortfolioWithFrozenVersion(testSeedDeps(fixture.baseUrl));
 
     logSpy.mockRestore();
 
@@ -228,20 +239,11 @@ describe("global-setup frozen portfolio seed sequence", () => {
     const fixture = await startFixtureServer({
       portfolioBody: [{ userId: E2E_USER_ID, version: 4 }],
       seedStatuses: [503, 200],
-      seedBodies: ["cold", "{}"],
+      seedBodies: ["cold", '{"portfolioId":"fixture-portfolio-id"}'],
     });
     closeServer = fixture.close;
 
-    await seedPortfolioWithFrozenVersion({
-      apiBase: fixture.baseUrl,
-      internalApiKey: "test-internal-key",
-      email: E2E_EMAIL,
-      password: E2E_PASSWORD,
-      expectedUserId: E2E_USER_ID,
-      maxAttempts: 3,
-      sleepFn: async () => undefined,
-      fetchFn: fetch,
-    });
+    await seedPortfolioWithFrozenVersion(testSeedDeps(fixture.baseUrl));
 
     const portfolioGets = fixture.captures.filter(
       (c) => c.method === "GET" && c.url === "/api/portfolio",
@@ -269,16 +271,9 @@ describe("global-setup frozen portfolio seed sequence", () => {
     closeServer = fixture.close;
 
     await expect(
-      seedPortfolioWithFrozenVersion({
-        apiBase: fixture.baseUrl,
-        internalApiKey: "test-internal-key",
-        email: E2E_EMAIL,
-        password: E2E_PASSWORD,
-        expectedUserId: E2E_USER_ID,
-        maxAttempts: 5,
-        sleepFn: async () => undefined,
-        fetchFn: fetch,
-      }),
+      seedPortfolioWithFrozenVersion(
+        testSeedDeps(fixture.baseUrl, { maxAttempts: 5 }),
+      ),
     ).rejects.toThrow(
       /attempt 1[\s\S]*portfolio_version_conflict[\s\S]*currentVersion|portfolio_version_conflict[\s\S]*currentVersion[\s\S]*attempt 1/i,
     );
@@ -292,5 +287,86 @@ describe("global-setup frozen portfolio seed sequence", () => {
     );
     expect(portfolioGets).toHaveLength(1);
     expect(seedPosts).toHaveLength(1);
+  });
+
+  it.each([400, 401])(
+    "does not retry non-transient HTTP %i — one portfolio read and one seed POST",
+    async (status) => {
+      const { seedPortfolioWithFrozenVersion } = await import("../../global-setup");
+      const fixture = await startFixtureServer({
+        portfolioBody: [{ userId: E2E_USER_ID, version: 2 }],
+        seedStatuses: [status, 200],
+        seedBodies: ["bad", '{"portfolioId":"fixture-portfolio-id"}'],
+      });
+      closeServer = fixture.close;
+
+      await expect(
+        seedPortfolioWithFrozenVersion(testSeedDeps(fixture.baseUrl, { maxAttempts: 5 })),
+      ).rejects.toThrow(new RegExp(`HTTP ${status}`));
+
+      const portfolioGets = fixture.captures.filter(
+        (c) => c.method === "GET" && c.url === "/api/portfolio",
+      );
+      const seedPosts = fixture.captures.filter(
+        (c) => c.method === "POST" && c.url === "/api/internal/portfolio/seed",
+      );
+      expect(portfolioGets).toHaveLength(1);
+      expect(seedPosts).toHaveLength(1);
+    },
+  );
+
+  it("rejects a successful seed response without portfolioId", async () => {
+    const { seedPortfolioWithFrozenVersion } = await import("../../global-setup");
+    const fixture = await startFixtureServer({
+      portfolioBody: [{ userId: E2E_USER_ID, version: 1 }],
+      seedStatuses: [200],
+      seedBodies: ['{"ok":true}'],
+    });
+    closeServer = fixture.close;
+
+    await expect(seedPortfolioWithFrozenVersion(testSeedDeps(fixture.baseUrl))).rejects.toThrow(
+      /omitted portfolioId/,
+    );
+  });
+
+  it("rejects a successful seed response with malformed JSON", async () => {
+    const { seedPortfolioWithFrozenVersion } = await import("../../global-setup");
+    const fixture = await startFixtureServer({
+      portfolioBody: [{ userId: E2E_USER_ID, version: 1 }],
+      seedStatuses: [200],
+      seedBodies: ["not-json"],
+    });
+    closeServer = fixture.close;
+
+    await expect(seedPortfolioWithFrozenVersion(testSeedDeps(fixture.baseUrl))).rejects.toThrow(
+      /not valid JSON/,
+    );
+  });
+
+  it("passes AbortSignal.timeout to login, read, and seed when using production defaults", async () => {
+    const { seedPortfolioWithFrozenVersion } = await import("../../global-setup");
+    const fixture = await startFixtureServer({
+      portfolioBody: [{ userId: E2E_USER_ID, version: 5 }],
+      seedStatuses: [200],
+    });
+    closeServer = fixture.close;
+
+    const signals: unknown[] = [];
+    const recordingFetch: typeof fetch = async (input, init) => {
+      signals.push(init?.signal);
+      return fetch(input, { ...init, signal: undefined });
+    };
+
+    await seedPortfolioWithFrozenVersion(
+      testSeedDeps(fixture.baseUrl, {
+        fetchFn: recordingFetch,
+        createTimeoutSignal: (ms) => AbortSignal.timeout(ms),
+      }),
+    );
+
+    expect(signals).toHaveLength(3);
+    for (const signal of signals) {
+      expect(signal).toBeInstanceOf(AbortSignal);
+    }
   });
 });

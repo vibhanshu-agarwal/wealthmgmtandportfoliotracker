@@ -68,6 +68,21 @@ class CheckB1SeedVersionCallersTest(unittest.TestCase):
         finally:
             planted.unlink(missing_ok=True)
 
+    def test_synthetic_seed_step_credentials_required_even_if_playwright_has_them(
+        self,
+    ) -> None:
+        synthetic = self.guard._read(self.guard.SYNTHETIC_WF)
+        mutated = synthetic.replace(
+            "          E2E_TEST_USER_EMAIL: ${{ secrets.E2E_TEST_USER_EMAIL }}\n"
+            "          E2E_TEST_USER_PASSWORD: ${{ secrets.E2E_TEST_USER_PASSWORD }}\n"
+            "        run: bash .github/workflows/scripts/seed-portfolio-with-version.sh",
+            "        run: bash .github/workflows/scripts/seed-portfolio-with-version.sh",
+            1,
+        )
+        with self.assertRaises(self.guard.GuardError) as ctx:
+            self.guard.check_synthetic_workflow(mutated)
+        self.assertIn("seed step: missing env E2E_TEST_USER_EMAIL", str(ctx.exception))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -41,6 +41,26 @@ SKIP_DIR_PARTS = {
 }
 
 
+SEED_STEP_NAME = "Re-seed E2E portfolio holdings"
+
+
+def _extract_workflow_step(body: str, step_name: str) -> str:
+    lines = body.splitlines()
+    start: int | None = None
+    for index, line in enumerate(lines):
+        if line.strip() == f"- name: {step_name}":
+            start = index
+            break
+    if start is None:
+        raise GuardError(f"synthetic-monitoring.yml: step {step_name!r} not found")
+    block = [lines[start]]
+    for line in lines[start + 1 :]:
+        if line.startswith("      - name:"):
+            break
+        block.append(line)
+    return "\n".join(block)
+
+
 class GuardError(Exception):
     pass
 
@@ -75,17 +95,18 @@ def check_shell_caller(text: str | None = None) -> str:
 
 def check_synthetic_workflow(text: str | None = None) -> None:
     body = text if text is not None else _read(SYNTHETIC_WF)
-    if "seed-portfolio-with-version.sh" not in body:
+    step = _extract_workflow_step(body, SEED_STEP_NAME)
+    if "seed-portfolio-with-version.sh" not in step:
         raise GuardError(
-            "synthetic-monitoring.yml: must invoke seed-portfolio-with-version.sh"
+            "synthetic-monitoring.yml seed step: must invoke seed-portfolio-with-version.sh"
         )
     for env_name in REQUIRED_SHELL_ENV:
         if env_name == "API_BASE":
-            if "API_BASE:" not in body:
-                raise GuardError("synthetic-monitoring.yml: missing API_BASE env")
+            if "API_BASE:" not in step:
+                raise GuardError("synthetic-monitoring.yml seed step: missing API_BASE env")
             continue
-        if f"{env_name}:" not in body:
-            raise GuardError(f"synthetic-monitoring.yml: missing env {env_name}")
+        if f"{env_name}:" not in step:
+            raise GuardError(f"synthetic-monitoring.yml seed step: missing env {env_name}")
 
 
 def check_global_setup(text: str | None = None) -> str:

@@ -231,7 +231,7 @@ test.describe("Azure Synthetic: API live smoke", () => {
     const portfolioSeedBody = await portfolioSeed.json();
     expect(
       portfolioSeedBody.holdingsInserted,
-      `portfolio seed must insert exactly the Active_Asset count (${activeAssetCount}())`,
+      `portfolio seed must insert exactly the Active_Asset count (${activeAssetCount()})`,
     ).toBe(activeAssetCount());
 
     expect(

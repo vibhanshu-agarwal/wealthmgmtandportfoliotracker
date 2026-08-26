@@ -177,6 +177,7 @@ substitute for an authorized Artifact cut.**
 | `cursor/b1-wave3-v20-schema` / PR #152 + R-B | **Complete** — tasks 3.1–3.7 / R-B; V20 applied; G3 green ([`B1_R_B_G3_SERVING_PROOF.md`](../runbooks/B1_R_B_G3_SERVING_PROOF.md)); portfolio traffic superseded by R-B2 | Forward-only after V20; do not roll back migration or gateway |
 | `cursor/b1-wave4a-composition-core` / PR #153 | **Merged** on `main@2673f40` – Wave 4a–4c tasks 4.1–4.21. Read-only catalog path is served via Artifact 2a; composition write mechanisms remain **unexposed**; no public `PUT` | Do not start Wave 6–7 or candidate attestation without separate authorization |
 | `cursor/b1-wave5a-version-bearing-read` / PR #155 + R-B2 | **Complete for 5.1–5.3** — Task 5.1 on `main@f22e2ff`; Artifact 2a serving on `portfolio-service--0000081` / `sha256:d544649f…` ([run 32982880866](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/32982880866); [`B1_R_B2_G2A_SERVING_PROOF.md`](../runbooks/B1_R_B2_G2A_SERVING_PROOF.md)); G2a green | Do not begin Tasks 5.4–5.7 / caller migration without separate authorization; any future portfolio rollout invalidates G2a |
+| `cursor/b1-wave5b-seed-caller-migration` / PR #161 | **Implemented unmerged** — Tasks 5.4–5.6 (three callers + deploy credential wiring + inventory guard); 5.7/G5 pending after required PR CI | Review PR only; no merge/deploy; one authorized Azure synthetic after green CI |
 | [`proof/b1-wave-2-g1-v20@e6a98c5`](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/tree/proof/b1-wave-2-g1-v20) | Historical dependent dual-schema proof branch; superseded for Wave 3 delivery by `cursor/b1-wave3-v20-schema` | Remain unmerged; no release action |
 
 ### Active process work
@@ -298,4 +299,3 @@ the resulting `main` SHA. It must include:
 
 AWS-only work remains deferred while AWS production is disabled. Azure is the current delivery
 target; shared behavior and cross-cloud contracts must not be weakened.
-| cursor/b1-wave5b-seed-caller-migration | **Implemented unmerged** — Tasks 5.4–5.6 (three callers + deploy credential wiring + inventory guard); 5.7/G5 pending after required PR CI | Review PR only; no merge/deploy; one authorized Azure synthetic after green CI |

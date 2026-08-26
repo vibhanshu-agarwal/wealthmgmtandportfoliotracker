@@ -109,9 +109,48 @@ export type SeedPortfolioWithFrozenVersionDeps = {
   password: string;
   expectedUserId: string;
   maxAttempts?: number;
+  requestTimeoutMs?: number;
+  /** Production uses AbortSignal.timeout; tests may pass () => undefined for MSW compatibility. */
+  createTimeoutSignal?: (ms: number) => AbortSignal | undefined;
   sleepFn?: (ms: number) => Promise<void>;
   fetchFn?: typeof fetch;
 };
+
+function withRequestTimeout(
+  init: RequestInit,
+  timeoutMs: number,
+  createTimeoutSignal: (ms: number) => AbortSignal | undefined,
+): RequestInit {
+  const signal = createTimeoutSignal(timeoutMs);
+  return signal ? { ...init, signal } : init;
+}
+
+export class SeedHttpResponseError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "SeedHttpResponseError";
+  }
+}
+
+async function parseSeedSuccessBody(
+  seedRes: Response,
+): Promise<{ portfolioId: string }> {
+  let seeded: unknown;
+  try {
+    seeded = await seedRes.json();
+  } catch {
+    throw new SeedHttpResponseError(
+      "Portfolio seeding succeeded but response body was not valid JSON",
+    );
+  }
+  const portfolioId = (seeded as { portfolioId?: unknown }).portfolioId;
+  if (typeof portfolioId !== "string" || portfolioId.length === 0) {
+    throw new SeedHttpResponseError(
+      "Portfolio seeding succeeded but response omitted portfolioId",
+    );
+  }
+  return { portfolioId };
+}
 
 /**
  * Login → GET /api/portfolio once → POST seed with frozen expectedVersion.
@@ -119,20 +158,29 @@ export type SeedPortfolioWithFrozenVersionDeps = {
  */
 export async function seedPortfolioWithFrozenVersion(
   deps: SeedPortfolioWithFrozenVersionDeps,
-): Promise<{ expectedVersion: number; portfolioId?: string }> {
+): Promise<{ expectedVersion: number; portfolioId: string }> {
   const fetchFn = deps.fetchFn ?? fetch;
   const sleepFn = deps.sleepFn ?? sleep;
   const maxAttempts = deps.maxAttempts ?? SEED_MAX_RETRIES;
+  const requestTimeoutMs = deps.requestTimeoutMs ?? SEED_REQUEST_TIMEOUT_MS;
+  const createTimeoutSignal =
+    deps.createTimeoutSignal ?? ((ms: number) => AbortSignal.timeout(ms));
   const apiBase = deps.apiBase.replace(/\/+$/, "");
 
-  // No AbortSignal.timeout: Vitest/MSW's patched fetch rejects cross-realm signals.
-  const loginRes = await fetchFn(`${apiBase}/api/auth/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email: deps.email, password: deps.password }),
-  });
+  const loginRes = await fetchFn(
+    `${apiBase}/api/auth/login`,
+    withRequestTimeout(
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: deps.email, password: deps.password }),
+      },
+      requestTimeoutMs,
+      createTimeoutSignal,
+    ),
+  );
   if (!loginRes.ok) {
-    throw new Error(
+    throw new SeedHttpResponseError(
       `Portfolio seed login failed: HTTP ${loginRes.status} (credentials/response omitted)`,
     );
   }
@@ -149,12 +197,19 @@ export async function seedPortfolioWithFrozenVersion(
     );
   }
 
-  const portfolioRes = await fetchFn(`${apiBase}/api/portfolio`, {
-    method: "GET",
-    headers: { Authorization: `Bearer ${loginJson.token}` },
-  });
+  const portfolioRes = await fetchFn(
+    `${apiBase}/api/portfolio`,
+    withRequestTimeout(
+      {
+        method: "GET",
+        headers: { Authorization: `Bearer ${loginJson.token}` },
+      },
+      requestTimeoutMs,
+      createTimeoutSignal,
+    ),
+  );
   if (!portfolioRes.ok) {
-    throw new Error(
+    throw new SeedHttpResponseError(
       `Portfolio seed version read failed: HTTP ${portfolioRes.status} (body omitted)`,
     );
   }
@@ -168,70 +223,71 @@ export async function seedPortfolioWithFrozenVersion(
   console.log(formatG5Marker("global-setup", expectedVersion));
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    let seedRes: Response;
     try {
-      const seedRes = await fetchFn(`${apiBase}/api/internal/portfolio/seed`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Api-Key": deps.internalApiKey,
-        },
-        body: seedBodyJson,
-      });
-      const responseBody = seedRes.ok
-        ? ""
-        : await safeResponseText(seedRes.clone());
-
-      if (isTerminalVersionConflict(seedRes.status)) {
-        throw new Error(
-          `Portfolio seeding failed on attempt ${attempt}: HTTP 409 ` +
-            bodyExcerpt(responseBody),
-        );
-      }
-
-      const transient = isTransientSeedStatus(seedRes.status, responseBody);
-      if (transient && attempt < maxAttempts) {
-        console.log(
-          `[${timestamp()}] Portfolio seeding: HTTP ${seedRes.status} on attempt ${attempt}/${maxAttempts} ` +
-            `(transient transport/cold-start; frozen expectedVersion=${expectedVersion}) — ` +
-            `retrying in ${SEED_RETRY_DELAY_MS}ms...`,
-        );
-        await sleepFn(SEED_RETRY_DELAY_MS);
-        continue;
-      }
-
-      if (!seedRes.ok) {
-        throw new Error(
-          `Portfolio seeding failed after ${attempt}/${maxAttempts} attempts: ` +
-            `HTTP ${seedRes.status}` +
-            `${transient ? " (transient status, retry budget exhausted)" : ""} ` +
-            bodyExcerpt(responseBody),
-        );
-      }
-
-      let portfolioId: string | undefined;
-      try {
-        const seeded = (await seedRes.json()) as { portfolioId?: string };
-        portfolioId = seeded.portfolioId;
-      } catch {
-        portfolioId = undefined;
-      }
-      return { expectedVersion, portfolioId };
+      seedRes = await fetchFn(
+        `${apiBase}/api/internal/portfolio/seed`,
+        withRequestTimeout(
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-Internal-Api-Key": deps.internalApiKey,
+            },
+            body: seedBodyJson,
+          },
+          requestTimeoutMs,
+          createTimeoutSignal,
+        ),
+      );
     } catch (error) {
-      if (error instanceof Error && /HTTP 409/.test(error.message)) {
-        throw error;
-      }
       if (attempt >= maxAttempts) {
         throw new Error(
-          `Portfolio seeding: request failed after ${attempt}/${maxAttempts} attempts: ` +
+          `Portfolio seeding: transport failed after ${attempt}/${maxAttempts} attempts: ` +
             `${error instanceof Error ? error.message : String(error)}`,
         );
       }
       console.log(
-        `[${timestamp()}] Portfolio seeding: request failed on attempt ${attempt}/${maxAttempts}: ` +
+        `[${timestamp()}] Portfolio seeding: transport failed on attempt ${attempt}/${maxAttempts}: ` +
           `${error instanceof Error ? error.message : String(error)} — retrying in ${SEED_RETRY_DELAY_MS}ms...`,
       );
       await sleepFn(SEED_RETRY_DELAY_MS);
+      continue;
     }
+
+    const responseBody = seedRes.ok
+      ? ""
+      : await safeResponseText(seedRes.clone());
+
+    if (isTerminalVersionConflict(seedRes.status)) {
+      throw new SeedHttpResponseError(
+        `Portfolio seeding failed on attempt ${attempt}: HTTP 409 ` +
+          bodyExcerpt(responseBody),
+      );
+    }
+
+    const transient = isTransientSeedStatus(seedRes.status, responseBody);
+    if (transient && attempt < maxAttempts) {
+      console.log(
+        `[${timestamp()}] Portfolio seeding: HTTP ${seedRes.status} on attempt ${attempt}/${maxAttempts} ` +
+          `(transient transport/cold-start; frozen expectedVersion=${expectedVersion}) — ` +
+          `retrying in ${SEED_RETRY_DELAY_MS}ms...`,
+      );
+      await sleepFn(SEED_RETRY_DELAY_MS);
+      continue;
+    }
+
+    if (!seedRes.ok) {
+      throw new SeedHttpResponseError(
+        `Portfolio seeding failed after ${attempt}/${maxAttempts} attempts: ` +
+          `HTTP ${seedRes.status}` +
+          `${transient ? " (transient status, retry budget exhausted)" : ""} ` +
+          bodyExcerpt(responseBody),
+      );
+    }
+
+    const { portfolioId } = await parseSeedSuccessBody(seedRes);
+    return { expectedVersion, portfolioId };
   }
   throw new Error(`Portfolio seeding: exhausted ${maxAttempts} retries`);
 }
@@ -363,7 +419,7 @@ async function runSeeding(): Promise<void> {
         expectedUserId: TEST_USER_ID,
       });
     console.log(
-      `[${timestamp()}] Portfolio seeded. ID: ${portfolioId ?? "<none>"} (expectedVersion=${expectedVersion})`,
+      `[${timestamp()}] Portfolio seeded. ID: ${portfolioId} (expectedVersion=${expectedVersion})`,
     );
 
     // 2. Market Data Seeding (skipped in prod/azure CI — ACA Job is the price source)
