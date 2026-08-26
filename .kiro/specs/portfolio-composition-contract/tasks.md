@@ -1,17 +1,20 @@
 # Implementation Plan
 
-**Current program status (verified 2026-08-25 at `main@fb115898`, runtime baseline `e221662`):**
-Waves `P`, `0`, and `1` are complete. Wave 2 tasks 2.1–2.4 are **merged on `main@fb115898`** but
-**undeployed/unserved** — R-A remains incomplete until tasks 2.5–2.6 receive separate production
-authorization. Wave 3 tasks **3.1–3.4 are merged on `main@25aa730`** (PR #152; source-only). Tasks **3.5–3.7 and R-B remain incomplete**, and **no V20 production
+**Current program status (verified 2026-08-26; runtime baseline `e221662`; R-A serving digest below):**
+Waves `P`, `0`, and `1` are complete. Wave 2 tasks **2.1–2.6 and R-A are complete**: G2 serving
+proof is green on gateway revision `api-gateway--0000076` /
+`sha256:2da5b303fd15772792167f2b26dc62250b2d9858270db315eab1d6d1a1554aec` (deploy run
+[32952197627](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/32952197627);
+evidence [`docs/runbooks/B1_R_A_G2_SERVING_PROOF.md`](../../../docs/runbooks/B1_R_A_G2_SERVING_PROOF.md)).
+Wave 3 tasks **3.1–3.4 are merged on `main@25aa730`** (PR #152; source-only). Tasks **3.5–3.7 and R-B remain incomplete**, and **no V20 production
 migration or deployment is authorized**. Wave 4a–4c tasks **4.1–4.21 are merged on `main@2673f40`** (PR #153; source on main, undeployed/unexposed). Wave 5 Task **5.1 is merged on `main@f22e2ff`** (PR #155; authenticated MVC boundary proof,
 no production code change). Tasks **5.2–5.7 remain incomplete**; G2a/R-B2, caller migration,
 deployment, and V20 production migration are not authorized or complete. Candidate packaging / R-C (task 7.5)
-is **not** complete. Public `PUT /api/portfolio/holdings` remains Wave 7. **No deployment or V20 production migration is authorized.** No production `PUT` exposure, seed rewrite, merge, or V20 production migration
+is **not** complete. Public `PUT /api/portfolio/holdings` remains Wave 7. **No V20 production migration is authorized.** No production `PUT` exposure, seed rewrite, or V20 production migration
 is authorized. Dependent proof branch
 [`proof/b1-wave-2-g1-v20@e6a98c5`](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/tree/proof/b1-wave-2-g1-v20)
 remains historical and unmerged. Spec A V17–V19 were applied and verified at checkpoint 9.6, so the
-former R3a deployment blocker is closed; B1's own serving and R-B gates still precede applying V20.
+former R3a deployment blocker is closed; B1's R-B gates still precede applying V20.
 Wave checkboxes record implementation evidence, not merged delivery unless stated. See
 [`docs/plans/ASSET_PICKER_E2E_MASTER_PLAN.md`](../../../docs/plans/ASSET_PICKER_E2E_MASTER_PLAN.md)
 for the living cross-program view.
@@ -520,12 +523,14 @@ Production-neutral. It precedes Wave 1 because Artifact 0 removes the endpoints 
 
 ## Wave 2 — Gateway provisioning + asset route (Artifact 1 → R-A)
 
-**Current status:** PR #131 merged to `main@fb115898` — tasks 2.1–2.4 are on `main` but **undeployed
-and unserved**. R-A is incomplete until tasks 2.5–2.6 receive separate production authorization.
-G1 dual-schema proof (`SignupProvisioningDualSchemaIT`) is also green on `cursor/b1-wave3-v20-schema`
-alongside the full Wave 3 source artifact. Historical proof branch
+**Current status:** PR #131 merged to `main@fb115898` — tasks **2.1–2.6 and R-A are complete**.
+G2 serving proof is green on the sole active gateway revision after scoped deploy
+[32952197627](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/32952197627).
+Durable evidence: [`docs/runbooks/B1_R_A_G2_SERVING_PROOF.md`](../../../docs/runbooks/B1_R_A_G2_SERVING_PROOF.md).
+G1 dual-schema proof (`SignupProvisioningDualSchemaIT`) remains green on the Wave 3 source lineage.
+Historical proof branch
 [`proof/b1-wave-2-g1-v20@e6a98c5`](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/tree/proof/b1-wave-2-g1-v20)
-remains unmerged and excluded from R-A.
+remains unmerged. **V20 production application is still unauthorized** (tasks 3.5–3.7 / R-B).
 
 - [x] **2.1 Provisioning insert in `SignupService`**, inside its existing `TransactionTemplate` after
   `insertCredential`. Bind `userId.toString()` explicitly — the gateway generates a `UUID` and
@@ -556,13 +561,31 @@ remains unmerged and excluded from R-A.
   but undeployed/unserved; tasks 2.5 and 2.6 remain incomplete, and no V20 application or gateway
   deployment is authorized by this decision.
   _Requirements: 1.21, 1.22, 1.23_
-- [ ] **2.5 G2 serving proof.** Every serving gateway digest provisions at signup: revision → digest,
+- [x] **2.5 G2 serving proof.** Every serving gateway digest provisions at signup: revision → digest,
   traffic, controlled probe.
+  **Evidence — scoped `api-gateway` deploy after owner authorization (2026-08-26):**
+  - Deploy run [32952197627](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/32952197627):
+    `deployment_mode=scoped`, `services=api-gateway`; `deploy-frontend` / `seed` / `verify` skipped;
+    `assert-scoped-non-interference` success. Dispatch SHA / image tag
+    `18693d2defa3dcc34d1a508e03ed4a3c7e0b0f17` (Wave 2 `api-gateway/src/main` unchanged since
+    `fb115898`).
+  - Serving revision `api-gateway--0000076`, digest
+    `sha256:2da5b303fd15772792167f2b26dc62250b2d9858270db315eab1d6d1a1554aec`, mode `Single`,
+    sole active revision `Running`. Ingress remains `null`; traffic weight `0` while ingress is
+    omitted. Peer services unchanged.
+  - Controlled in-revision signup (`POST http://127.0.0.1:8080/api/auth/signup`) → **201**;
+    probe user `b1-ra-g2-20260826152512@example.com` / `381e8203-1b2c-4c94-99d3-7c1fb365967a`.
+  - Exactly-one SQL: `users` by email **1**, by id **1**, `portfolios` for that `user_id` **1**.
+  - Runbook: [`docs/runbooks/B1_R_A_G2_SERVING_PROOF.md`](../../../docs/runbooks/B1_R_A_G2_SERVING_PROOF.md).
   _Requirements: 1.16, 1.19, 1.24_
-- [ ] **2.6 STOP/GO — R-A.**
+- [x] **2.6 STOP/GO — R-A.**
   **Go:** 2.5 green.
   **Abort:** redeploy the prior gateway digest and **do not start Wave 3** — the backfill must not run
   while a non-provisioning signup writer can receive traffic.
+  **Decision: GO — R-A.** Authorized and verified 2026-08-26. G2 green on the sole serving
+  revision; abort digest
+  `sha256:ff80395eecaef731a089697dda50f34064612d478ac329e872631364082b7d0a` was recorded and not
+  used. **Do not treat this as authority for Tasks 3.5–3.7 / V20 production apply.**
   _Requirements: 1.16, 1.18, 1.25_
 
 ## Wave 3 — Schema (Artifact 2 → R-B)
