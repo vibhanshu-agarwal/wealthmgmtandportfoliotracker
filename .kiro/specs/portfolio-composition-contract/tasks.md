@@ -4,7 +4,9 @@
 Waves `P`, `0`, and `1` are complete. Wave 2 tasks 2.1–2.4 are **merged on `main@fb115898`** but
 **undeployed/unserved** — R-A remains incomplete until tasks 2.5–2.6 receive separate production
 authorization. Wave 3 tasks **3.1–3.4 are merged on `main@25aa730`** (PR #152; source-only). Tasks **3.5–3.7 and R-B remain incomplete**, and **no V20 production
-migration or deployment is authorized**. Wave 4a–4c tasks **4.1–4.21 are merged on `main@2673f40`** (PR #153; source on main, undeployed/unexposed). Candidate packaging / R-C (task 7.5)
+migration or deployment is authorized**. Wave 4a–4c tasks **4.1–4.21 are merged on `main@2673f40`** (PR #153; source on main, undeployed/unexposed). Wave 5 Task **5.1 is merged on `main@f22e2ff`** (PR #155; authenticated MVC boundary proof,
+no production code change). Tasks **5.2–5.7 remain incomplete**; G2a/R-B2, caller migration,
+deployment, and V20 production migration are not authorized or complete. Candidate packaging / R-C (task 7.5)
 is **not** complete. Public `PUT /api/portfolio/holdings` remains Wave 7. **No deployment or V20 production migration is authorized.** No production `PUT` exposure, seed rewrite, merge, or V20 production migration
 is authorized. Dependent proof branch
 [`proof/b1-wave-2-g1-v20@e6a98c5`](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/tree/proof/b1-wave-2-g1-v20)
@@ -778,12 +780,12 @@ Named individually so the R-C manifest can enumerate them rather than gesture at
 
 - [x] **5.1 Expose `version` on the authenticated `GET /api/portfolio`** while the old seed `POST`
   still tolerates the extra body field.
-  **Evidence (on `cursor/b1-wave5a-version-bearing-read`, unmerged):**
+  **Evidence (on `main@f22e2ff`, PR #155):**
   `PortfolioControllerTest.authenticatedPortfolioReadReturnsPersistedVersion`; existing
   `PortfolioResponseVersionTest` and `PortfolioServiceVersionMappingTest`.
   Wave 4 already supplied `PortfolioResponse.version` and controller passthrough; this task adds the
-  authenticated MVC boundary proof only. No production code change. G2a/R-B2 and caller migration
-  remain incomplete.
+  authenticated MVC boundary proof only. No production code change. Merged source, undeployed.
+  G2a/R-B2 and caller migration remain incomplete.
   _Requirements: 5.10, 5.11_
 - [ ] **5.2 G2a serving proof.** **Every** serving portfolio digest returns the version, **before**
   any caller migration begins. One caller's successful read can otherwise hit the new revision while
