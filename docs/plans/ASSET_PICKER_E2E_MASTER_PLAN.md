@@ -6,17 +6,19 @@
 This is the last SHA that changed Asset Picker program runtime/application behavior (catalog,
 enforcement, controlled refresh). Process-control and documentation merges do not advance it.
 B1 R-A additionally serves Wave 2 gateway provisioning at revision `api-gateway--0000076` /
-digest `sha256:2da5b303…` (image tag `18693d2…`). B1 R-B additionally serves Artifact 2
-`portfolio-service` at revision `portfolio-service--0000080` /
-digest `sha256:d111132f…` (cut `25aa730`); that deploy applied V20 and does not reopen Spec A
-fences or expose Wave 4/5 runtime.
+digest `sha256:2da5b303…` (image tag `18693d2…`). B1 R-B applied Artifact 2 / V20 (cut `25aa730`).
+B1 R-B2 additionally serves Artifact 2a `portfolio-service` at revision
+`portfolio-service--0000081` / digest `sha256:d544649f…` (cut `f22e2ff`); that deploy serves the
+version-bearing read and read-only asset catalog without caller migration, public `PUT`, or Spec A
+fence changes.
 
 **Authoritative documentation revision:** advances when this file or related program docs change;
 independent of the runtime baseline above.
 
 **Program state:** Spec A checkpoint 9.10 is complete. Checkpoints 9.11–9.14 are pending and
-unauthorized. B1 Wave 2 / R-A and Wave 3 / R-B (V20 applied) are complete; G2a/R-B2 and later B1
-waves remain gated. B2's implementation has not started.
+unauthorized. B1 Wave 2 / R-A, Wave 3 / R-B (V20), and Wave 5 Tasks 5.2–5.3 / R-B2 (G2a) are
+complete; caller migration (5.4–5.7) and later B1 waves remain gated. B2's implementation has not
+started.
 
 **User-visible state:** there is no functional Asset Picker in the application today.
 
@@ -88,7 +90,7 @@ At every meaningful merge or live checkpoint:
 | Track | Delivered | Current position | Remaining outcome |
 |---|---|---|---|
 | **A — Spec A catalog/data cutover** | Shared catalog, Postgres/Mongo repair, R4 rollout, enforcement, and one reconciled controlled refresh | **10 of 14 cutover checkpoints complete**; 9.11 is the next unauthorized checkpoint | Persist refresh, activate demo portfolio, restore scale-to-zero, reopen ingress |
-| **B — B1 portfolio composition backend** | Deployment prerequisites, fixture identity migration, legacy writer retirement, Wave 2 gateway provisioning **served (R-A/G2 green)**, Wave 3 V20 **served (R-B/G3 green)** | **Wave 2 / R-A complete**; **Wave 3 / R-B complete** (Artifact 2 on `portfolio-service--0000080` / `sha256:d111132f…`; V20 applied); **Wave 4a–4c tasks 4.1–4.21 merged on `main@2673f40`** (PR #153; undeployed/unexposed; no public `PUT`); **Wave 5 Task 5.1 merged on `main@f22e2ff`** (PR #155; MVC boundary proof, undeployed); G2a/R-B2 and caller migration remain incomplete | Versioned reads serving proof, catalog endpoint serving, safe desired-state writer, activation |
+| **B — B1 portfolio composition backend** | Deployment prerequisites, fixture identity migration, legacy writer retirement, Wave 2 gateway provisioning **served (R-A/G2 green)**, Wave 3 V20 **served (R-B/G3 green)**, Wave 5 version-bearing read **served (R-B2/G2a green)** | **Wave 2 / R-A complete**; **Wave 3 / R-B complete**; **Wave 5 Tasks 5.2–5.3 / R-B2 complete** (Artifact 2a on `portfolio-service--0000081` / `sha256:d544649f…`; cut `f22e2ff`); **Wave 4a–4c tasks 4.1–4.21 merged on `main@2673f40`** (PR #153; composition mechanisms unexposed; no public `PUT`); Task 5.1 merged on `main@f22e2ff` (PR #155); caller migration (5.4–5.7) incomplete | Caller migration / G5, safe desired-state writer activation, public `PUT` |
 | **C — B2 Asset Picker product** | Requirements, design, task plan, and five-screen visual mockup | **No implementation wave complete** | Picker UI, decimal adapter, presence/reset support, live integration, exposure |
 | **D — Demo credibility** | Canonical prices refreshed and reconciled; demo initializer exists gated off | Demo activation has not run | Spec A 9.12 must seed and verify the complete Active Asset set without touching E2E data |
 
@@ -99,8 +101,8 @@ At every meaningful merge or live checkpoint:
 | Canonical Active Asset catalog inside services | ✅ Shipped |
 | Repaired and reconciled price data | ✅ Shipped and verified |
 | Enforcement against unsupported holdings/events | ✅ Enabled |
-| `GET /api/assets` serving catalog data | ❌ Wave 2 gateway `/api/assets/**` route is **served** with R-A; Wave 4b controller remains on `main@2673f40` but **undeployed/unserved** |
-| Version-bearing portfolio read | ❌ Task 5.1 source is on `main@f22e2ff`; G2a/R-B2 serving proof and caller migration remain incomplete |
+| `GET /api/assets` serving catalog data | ✅ Wave 2 gateway `/api/assets/**` route served with R-A; Wave 4b controller served with R-B2 Artifact 2a (`portfolio-service--0000081`) |
+| Version-bearing portfolio read | ✅ G2a/R-B2 green on `portfolio-service--0000081` / `sha256:d544649f…`; caller migration (5.4–5.7) incomplete |
 | `PUT /api/portfolio/holdings` safe composition write | ❌ Not implemented |
 | Asset Picker button/modal/browse/review/conflict UI | ❌ Not implemented |
 | Asset Picker full-stack E2E proof | ❌ Not implemented |
@@ -155,26 +157,26 @@ Authority: [`.kiro/specs/portfolio-composition-contract/tasks.md`](../../.kiro/s
 | 0 — fixture identity migration | ✅ Complete | E2E fixture paths moved to the correct identity |
 | 1 — legacy writer retirement | ✅ Complete | Old portfolio creator and versionless holding writer removed and kept retired |
 | 2 — gateway provisioning + asset route | ✅ R-A complete (G2 served) | PR #131 tasks 2.1–2.6 complete; serving revision `api-gateway--0000076`, digest `sha256:2da5b303…`; evidence [`B1_R_A_G2_SERVING_PROOF.md`](../runbooks/B1_R_A_G2_SERVING_PROOF.md) |
-| 3 – V20 schema | ✅ R-B complete (G3 served) | Tasks 3.1–3.7 complete; Artifact 2 cut `25aa730` serving on `portfolio-service--0000080` / `sha256:d111132f…`; V20 applied; evidence [`B1_R_B_G3_SERVING_PROOF.md`](../runbooks/B1_R_B_G3_SERVING_PROOF.md) |
-| 4 – contract implementation | Source merged on main, undeployed/unexposed | Wave 4a–4c (4.1–4.21) merged on `main@2673f40` (PR #153). Public `PUT` still Wave 7. Replacement orchestrator + preparers unexposed; boundary/DTO/envelope and `GET /api/assets` controller on main but undeployed/unserved; candidate packaging (7.5/R-C) still pending |
-| 5 — version-bearing read | 🟡 Task 5.1 merged on `main@f22e2ff`, undeployed | MVC boundary proof is on main; G2a/R-B2 and caller migration (5.2–5.7) remain incomplete |
+| 3 – V20 schema | ✅ R-B complete (G3 served) | Tasks 3.1–3.7 complete; Artifact 2 cut `25aa730` applied V20; prior serving evidence [`B1_R_B_G3_SERVING_PROOF.md`](../runbooks/B1_R_B_G3_SERVING_PROOF.md); superseded for portfolio traffic by R-B2 |
+| 4 – contract implementation | Source on Artifact 2a serving cut; mechanisms unexposed | Wave 4a–4c (4.1–4.21) merged on `main@2673f40` (PR #153) and included in Artifact 2a serving digest. Public `PUT` still Wave 7. Replacement orchestrator + preparers remain unexposed; `GET /api/assets` controller is now served with R-B2; candidate packaging (7.5/R-C) still pending |
+| 5 — version-bearing read | 🟡 Tasks 5.1–5.3 / R-B2 complete; 5.4–5.7 incomplete | Task 5.1 on `main@f22e2ff`; G2a/R-B2 green on `portfolio-service--0000081` / `sha256:d544649f…` ([`B1_R_B2_G2A_SERVING_PROOF.md`](../runbooks/B1_R_B2_G2A_SERVING_PROOF.md)); caller migration (5.4–5.7) not started |
 | 6 — version-required seed | ⬜ Not started | Seeder delegates through the safe replacement service |
 | 7 — activation | ⬜ Not started | Public `PUT /api/portfolio/holdings`, attested candidate, serving proof |
 
-Spec A V17–V19 were applied at checkpoint 9.6; **V20 is now applied under R-B**. **R-A / G2** and
-**R-B / G3** are complete. Wave 4a–4c (4.1–4.21) remain merged on `main@2673f40` but
-undeployed/unexposed; public `PUT` exposure and candidate packaging (7.5/R-C) remain incomplete.
-**Do not deploy current-`main` Wave 4/5 `portfolio-service` runtime without a separate Artifact cut
-and authorization.**
+Spec A V17–V19 were applied at checkpoint 9.6; **V20 is applied under R-B** and unchanged by R-B2.
+**R-A / G2**, **R-B / G3**, and **R-B2 / G2a** are complete. Wave 4 composition write mechanisms
+remain unexposed; public `PUT` and candidate packaging (7.5/R-C) remain incomplete. Caller migration
+(5.4–5.7) is the next gated Wave 5 work. **Do not treat a current-`main` portfolio deploy as a
+substitute for an authorized Artifact cut.**
 
 ### Active B1 work
 
 | Item | Current state | Required before relying on it |
 |---|---|---|
-| PR #131 / R-A serving | **Complete** — Wave 2 tasks 2.1–2.6; G2 green on `api-gateway--0000076` / `sha256:2da5b303…` ([run 32952197627](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/32952197627); [`B1_R_A_G2_SERVING_PROOF.md`](../runbooks/B1_R_A_G2_SERVING_PROOF.md)) | Signup provisioning is live on the serving gateway revision. Catalog `GET /api/assets` still needs the Wave 4b portfolio controller deployed |
-| `cursor/b1-wave3-v20-schema` / PR #152 + R-B | **Complete** — tasks 3.1–3.7 / R-B; Artifact 2 cut `25aa730` serving on `portfolio-service--0000080` / `sha256:d111132f…` ([run 32969683640](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/32969683640); [`B1_R_B_G3_SERVING_PROOF.md`](../runbooks/B1_R_B_G3_SERVING_PROOF.md)); V20 applied; G3 green | Forward-only after V20; do not roll back migration or gateway. Next gated backend work is G2a/R-B2 |
-| `cursor/b1-wave4a-composition-core` / PR #153 | **Merged** on `main@2673f40` – Wave 4a–4c tasks 4.1–4.21 (composition core, boundary/discovery, candidate suites). **Undeployed/unexposed; no public `PUT`; Wave 4/5 runtime not serving** | Do not start Wave 6–7 or candidate attestation without separate authorization; do not deploy current-main Wave 4/5 portfolio runtime as if it were Artifact 2 |
-| `cursor/b1-wave5a-version-bearing-read` / PR #155 | **Merged** on `main@f22e2ff` — Task 5.1 authenticated MVC boundary proof; no production code change; undeployed | Do not migrate seed callers, deploy, or claim R-B2 until every serving digest returns `version` |
+| PR #131 / R-A serving | **Complete** — Wave 2 tasks 2.1–2.6; G2 green on `api-gateway--0000076` / `sha256:2da5b303…` ([run 32952197627](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/32952197627); [`B1_R_A_G2_SERVING_PROOF.md`](../runbooks/B1_R_A_G2_SERVING_PROOF.md)) | Signup provisioning remains live on the serving gateway revision |
+| `cursor/b1-wave3-v20-schema` / PR #152 + R-B | **Complete** — tasks 3.1–3.7 / R-B; V20 applied; G3 green ([`B1_R_B_G3_SERVING_PROOF.md`](../runbooks/B1_R_B_G3_SERVING_PROOF.md)); portfolio traffic superseded by R-B2 | Forward-only after V20; do not roll back migration or gateway |
+| `cursor/b1-wave4a-composition-core` / PR #153 | **Merged** on `main@2673f40` – Wave 4a–4c tasks 4.1–4.21. Read-only catalog path is served via Artifact 2a; composition write mechanisms remain **unexposed**; no public `PUT` | Do not start Wave 6–7 or candidate attestation without separate authorization |
+| `cursor/b1-wave5a-version-bearing-read` / PR #155 + R-B2 | **Complete for 5.1–5.3** — Task 5.1 on `main@f22e2ff`; Artifact 2a serving on `portfolio-service--0000081` / `sha256:d544649f…` ([run 32982880866](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/32982880866); [`B1_R_B2_G2A_SERVING_PROOF.md`](../runbooks/B1_R_B2_G2A_SERVING_PROOF.md)); G2a green | Do not begin Tasks 5.4–5.7 / caller migration without separate authorization; any future portfolio rollout invalidates G2a |
 | [`proof/b1-wave-2-g1-v20@e6a98c5`](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/tree/proof/b1-wave-2-g1-v20) | Historical dependent dual-schema proof branch; superseded for Wave 3 delivery by `cursor/b1-wave3-v20-schema` | Remain unmerged; no release action |
 
 ### Active process work
@@ -266,12 +268,11 @@ The program is deliberately stopped after Spec A 9.10. This is a clean handoff p
 
 1. **Operational lane:** design/review and explicitly authorize Spec A 9.11, then continue through
    9.14 one checkpoint at a time.
-2. **Backend lane:** **R-A / G2** and **R-B / G3** are complete (V20 applied on Artifact 2
-   `portfolio-service--0000080` / `sha256:d111132f…`). Wave 4a–4c remain merged on `main@2673f40`
-   (undeployed/unexposed). Wave 5 Task 5.1 is merged on `main@f22e2ff` (undeployed). The next gated
-   backend production work is **G2a / R-B2** and remaining Wave 5 tasks (5.2–5.7), planned against
-   the correct Artifact 2a cut — not a current-`main` Wave 4/5 portfolio deploy. Waves 6–7 and
-   candidate packaging (7.5/R-C) remain separately gated.
+2. **Backend lane:** **R-A / G2**, **R-B / G3**, and **R-B2 / G2a** are complete (Artifact 2a
+   `portfolio-service--0000081` / `sha256:d544649f…`, cut `f22e2ff`). The next gated Wave 5 work is
+   caller migration **Tasks 5.4–5.7 / G5**, which requires its own note and authorization. Waves 6–7
+   and candidate packaging (7.5/R-C) remain separately gated. Do not claim Writer_Convergence while
+   the old seed remains version-tolerant.
 3. **Frontend lane:** begin the startable mock-backed subset of B2 Wave 1 against frozen contracts.
 4. **Process lane:** keep the status-propagation CI guard healthy in required `static-guard`; it is
    process-control only and does not advance the runtime baseline.
