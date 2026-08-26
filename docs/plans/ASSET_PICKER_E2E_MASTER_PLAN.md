@@ -1,6 +1,6 @@
 # Asset Picker — E2E Master Plan to Production
 
-**Last verified:** 2026-08-26
+**Last verified:** 2026-08-27
 
 **Program-state code baseline (runtime):** `main@e221662b6c891639a56894289e150ee01fb537f6`.
 This is the last SHA that changed Asset Picker program runtime/application behavior (catalog,
@@ -17,7 +17,7 @@ independent of the runtime baseline above.
 
 **Program state:** Spec A checkpoint 9.10 is complete. Checkpoints 9.11–9.14 are pending and
 unauthorized. B1 Wave 2 / R-A, Wave 3 / R-B (V20), and Wave 5 Tasks 5.2–5.3 / R-B2 (G2a) are
-complete; caller migration (5.4–5.7) and later B1 waves remain gated. B2's implementation has not
+complete; caller migration 5.4–5.6 is implemented on branch cursor/b1-wave5b-seed-caller-migration (unmerged; G5/5.7 after green PR CI); later B1 waves remain gated. B2's implementation has not
 started.
 
 **User-visible state:** there is no functional Asset Picker in the application today.
@@ -159,7 +159,7 @@ Authority: [`.kiro/specs/portfolio-composition-contract/tasks.md`](../../.kiro/s
 | 2 — gateway provisioning + asset route | ✅ R-A complete (G2 served) | PR #131 tasks 2.1–2.6 complete; serving revision `api-gateway--0000076`, digest `sha256:2da5b303…`; evidence [`B1_R_A_G2_SERVING_PROOF.md`](../runbooks/B1_R_A_G2_SERVING_PROOF.md) |
 | 3 – V20 schema | ✅ R-B complete (G3 served) | Tasks 3.1–3.7 complete; Artifact 2 cut `25aa730` applied V20; prior serving evidence [`B1_R_B_G3_SERVING_PROOF.md`](../runbooks/B1_R_B_G3_SERVING_PROOF.md); superseded for portfolio traffic by R-B2 |
 | 4 – contract implementation | Source on Artifact 2a serving cut; mechanisms unexposed | Wave 4a–4c (4.1–4.21) merged on `main@2673f40` (PR #153) and included in Artifact 2a serving digest. Public `PUT` still Wave 7. Replacement orchestrator + preparers remain unexposed; `GET /api/assets` controller is now served with R-B2; candidate packaging (7.5/R-C) still pending |
-| 5 — version-bearing read | 🟡 Tasks 5.1–5.3 / R-B2 complete; 5.4–5.7 incomplete | Task 5.1 on `main@f22e2ff`; G2a/R-B2 green on `portfolio-service--0000081` / `sha256:d544649f…` ([`B1_R_B2_G2A_SERVING_PROOF.md`](../runbooks/B1_R_B2_G2A_SERVING_PROOF.md)); caller migration (5.4–5.7) not started |
+| 5 — version-bearing read | 🟡 Tasks 5.1–5.3 / R-B2 complete; 5.4–5.6 implemented unmerged; 5.7/G5 pending | Task 5.1 on main@f22e2ff; G2a/R-B2 green on portfolio-service--0000081 / sha256:d544649f…; caller migration on cursor/b1-wave5b-seed-caller-migration (review PR; G5 after green CI) |
 | 6 — version-required seed | ⬜ Not started | Seeder delegates through the safe replacement service |
 | 7 — activation | ⬜ Not started | Public `PUT /api/portfolio/holdings`, attested candidate, serving proof |
 
@@ -270,7 +270,7 @@ The program is deliberately stopped after Spec A 9.10. This is a clean handoff p
    9.14 one checkpoint at a time.
 2. **Backend lane:** **R-A / G2**, **R-B / G3**, and **R-B2 / G2a** are complete (Artifact 2a
    `portfolio-service--0000081` / `sha256:d544649f…`, cut `f22e2ff`). The next gated Wave 5 work is
-   caller migration **Tasks 5.4–5.7 / G5**, which requires its own note and authorization. Waves 6–7
+   caller migration **Tasks 5.4–5.7 / G5** (5.4–5.6 on review branch; G5 after green CI). Waves 6–7
    and candidate packaging (7.5/R-C) remain separately gated. Do not claim Writer_Convergence while
    the old seed remains version-tolerant.
 3. **Frontend lane:** begin the startable mock-backed subset of B2 Wave 1 against frozen contracts.
@@ -298,3 +298,4 @@ the resulting `main` SHA. It must include:
 
 AWS-only work remains deferred while AWS production is disabled. Azure is the current delivery
 target; shared behavior and cross-cloud contracts must not be weakened.
+| cursor/b1-wave5b-seed-caller-migration | **Implemented unmerged** — Tasks 5.4–5.6 (three callers + deploy credential wiring + inventory guard); 5.7/G5 pending after required PR CI | Review PR only; no merge/deploy; one authorized Azure synthetic after green CI |

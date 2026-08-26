@@ -441,7 +441,19 @@ jobs:
           SKIP_MARKET_DATA_SEED: "true"
           INTERNAL_API_KEY: ${{ secrets.TF_VAR_INTERNAL_API_KEY }}
           E2E_TEST_USER_ID: ${{ secrets.E2E_TEST_USER_ID || '00000000-0000-0000-0000-000000000e2e' }}
+          E2E_TEST_USER_EMAIL: ${{ secrets.E2E_TEST_USER_EMAIL }}
+          E2E_TEST_USER_PASSWORD: ${{ secrets.E2E_TEST_USER_PASSWORD }}
         run: npx ts-node --project tests/e2e/tsconfig.e2e-test.json tests/e2e/global-setup.ts
+
+      - name: Sanitize Playwright artifacts
+        id: sanitize-seed
+        if: always()
+        uses: ./.github/actions/sanitize-playwright-artifacts
+        with:
+          source-dir: frontend/playwright-report
+          staging-dir: ${{ runner.temp }}/sanitized-playwright-report-seed
+          mode: live-secret
+          e2e-password: ${{ secrets.E2E_TEST_USER_PASSWORD }}
 
   # ---------------------------------------------------------------------------
   # Verify: post-seed assertion that the demo is actually queryable through the

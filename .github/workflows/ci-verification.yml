@@ -32,6 +32,11 @@ jobs:
         run: |
           cd scripts && npm ci --ignore-scripts && npm audit --omit=dev --audit-level=low && node check-sanitizer-secret-wiring.js
 
+      - name: B1 seed-version caller inventory guard
+        run: |
+          python scripts/tests/test_check_b1_seed_version_callers.py -v
+          python scripts/check-b1-seed-version-callers.py
+
       - name: Master-plan status propagation contract tests
         run: python scripts/tests/test_master_plan_status_propagation.py -v
 
@@ -86,7 +91,7 @@ jobs:
         # this PR doesn't touch. Confirmed locally that disabling it does not suppress
         # the schema check itself — re-verify with a deliberately reintroduced bug before
         # changing this flag.
-        run: ./actionlint -shellcheck= .github/workflows/deploy.yml .github/workflows/deploy-azure.yml .github/workflows/deploy-aws.yml .github/workflows/ci-verification.yml .github/workflows/terraform-azure.yml .github/workflows/master-plan-status-propagation.yml
+        run: ./actionlint -shellcheck= .github/workflows/deploy.yml .github/workflows/deploy-azure.yml .github/workflows/deploy-aws.yml .github/workflows/ci-verification.yml .github/workflows/terraform-azure.yml .github/workflows/master-plan-status-propagation.yml .github/workflows/synthetic-monitoring.yml
 
   sanitizer-canary:
     runs-on: ubuntu-latest
