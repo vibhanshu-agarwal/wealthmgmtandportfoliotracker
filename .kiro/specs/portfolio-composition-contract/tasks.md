@@ -1,21 +1,26 @@
 # Implementation Plan
 
-**Current program status (verified 2026-08-26; runtime baseline `e221662`; R-A serving digest below):**
+**Current program status (verified 2026-08-26; runtime baseline `e221662`; R-A and R-B serving digests below):**
 Waves `P`, `0`, and `1` are complete. Wave 2 tasks **2.1–2.6 and R-A are complete**: G2 serving
 proof is green on gateway revision `api-gateway--0000076` /
 `sha256:2da5b303fd15772792167f2b26dc62250b2d9858270db315eab1d6d1a1554aec` (deploy run
 [32952197627](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/32952197627);
 evidence [`docs/runbooks/B1_R_A_G2_SERVING_PROOF.md`](../../../docs/runbooks/B1_R_A_G2_SERVING_PROOF.md)).
-Wave 3 tasks **3.1–3.4 are merged on `main@25aa730`** (PR #152; source-only). Tasks **3.5–3.7 and R-B remain incomplete**, and **no V20 production
-migration or deployment is authorized**. Wave 4a–4c tasks **4.1–4.21 are merged on `main@2673f40`** (PR #153; source on main, undeployed/unexposed). Wave 5 Task **5.1 is merged on `main@f22e2ff`** (PR #155; authenticated MVC boundary proof,
+Wave 3 tasks **3.1–3.7 and R-B are complete**: Artifact 2 cut `25aa730` is serving on
+`portfolio-service--0000080` /
+`sha256:d111132f576780fa5fec67dfc26ada3324153794746d21fe84b93b6822be3535` (deploy run
+[32969683640](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/32969683640);
+V20 applied; G3 green; evidence
+[`docs/runbooks/B1_R_B_G3_SERVING_PROOF.md`](../../../docs/runbooks/B1_R_B_G3_SERVING_PROOF.md)).
+Wave 4a–4c tasks **4.1–4.21 are merged on `main@2673f40`** (PR #153; source on main, undeployed/unexposed). Wave 5 Task **5.1 is merged on `main@f22e2ff`** (PR #155; authenticated MVC boundary proof,
 no production code change). Tasks **5.2–5.7 remain incomplete**; G2a/R-B2, caller migration,
-deployment, and V20 production migration are not authorized or complete. Candidate packaging / R-C (task 7.5)
-is **not** complete. Public `PUT /api/portfolio/holdings` remains Wave 7. **No V20 production migration is authorized.** No production `PUT` exposure, seed rewrite, or V20 production migration
-is authorized. Dependent proof branch
+and deployment of Wave 4/5 runtime are not authorized or complete. Candidate packaging / R-C (task 7.5)
+is **not** complete. Public `PUT /api/portfolio/holdings` remains Wave 7. No production `PUT` exposure
+or seed rewrite is authorized. Dependent proof branch
 [`proof/b1-wave-2-g1-v20@e6a98c5`](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/tree/proof/b1-wave-2-g1-v20)
-remains historical and unmerged. Spec A V17–V19 were applied and verified at checkpoint 9.6, so the
-former R3a deployment blocker is closed; B1's R-B gates still precede applying V20.
-Wave checkboxes record implementation evidence, not merged delivery unless stated. See
+remains historical and unmerged. Spec A V17–V19 were applied and verified at checkpoint 9.6; V20 is
+now applied under R-B. Wave checkboxes record implementation evidence, not merged delivery unless
+stated. See
 [`docs/plans/ASSET_PICKER_E2E_MASTER_PLAN.md`](../../../docs/plans/ASSET_PICKER_E2E_MASTER_PLAN.md)
 for the living cross-program view.
 
@@ -530,7 +535,7 @@ Durable evidence: [`docs/runbooks/B1_R_A_G2_SERVING_PROOF.md`](../../../docs/run
 G1 dual-schema proof (`SignupProvisioningDualSchemaIT`) remains green on the Wave 3 source lineage.
 Historical proof branch
 [`proof/b1-wave-2-g1-v20@e6a98c5`](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/tree/proof/b1-wave-2-g1-v20)
-remains unmerged. **V20 production application is still unauthorized** (tasks 3.5–3.7 / R-B).
+remains unmerged. **R-B / V20 production apply is complete** on Artifact 2 (see Wave 3 / tasks 3.5–3.7).
 
 - [x] **2.1 Provisioning insert in `SignupService`**, inside its existing `TransactionTemplate` after
   `insertCredential`. Bind `userId.toString()` explicitly — the gateway generates a `UUID` and
@@ -590,10 +595,13 @@ remains unmerged. **V20 production application is still unauthorized** (tasks 3.
 
 ## Wave 3 — Schema (Artifact 2 → R-B)
 
-**Current status:** tasks **3.1–3.4 are merged on `main@25aa730`** (PR #152; source-only). Tasks
-**3.5–3.7 and R-B remain incomplete**. **No V20 production
-migration or deployment is authorized.** Testcontainers is the only permitted V20 execution
-environment until separate R-B operational gates are satisfied.
+**Current status:** tasks **3.1–3.7 and R-B are complete**. Artifact 2 cut `25aa730` is serving on
+`portfolio-service--0000080` /
+`sha256:d111132f576780fa5fec67dfc26ada3324153794746d21fe84b93b6822be3535` (deploy run
+[32969683640](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/32969683640);
+V20 applied in production; G3 green). Evidence:
+[`docs/runbooks/B1_R_B_G3_SERVING_PROOF.md`](../../../docs/runbooks/B1_R_B_G3_SERVING_PROOF.md).
+G2a/R-B2 and later waves remain separately gated.
 
 - [x] **3.1 Write `V20`.** In file order: add `version BIGINT NOT NULL DEFAULT 0`; add `updated_at
   TIMESTAMP NOT NULL DEFAULT now()`; backfill with `u.id::text` casts on **both** the `INSERT` and the
@@ -621,22 +629,37 @@ environment until separate R-B operational gates are satisfied.
   **Evidence (on `main@25aa730`):** `Portfolio.java`; `PortfolioVersionMappingIT`
   (version `0`, equal `createdAt`/`updatedAt`, live holdings collection hydration).
   _Requirements: 5.1, 5.14, 5.16_
-- [ ] **3.5 STOP/GO — R-B preconditions.**
+- [x] **3.5 STOP/GO — R-B preconditions.**
   **Go:** G0a, G0b and G2 green **before** the migration runs, **and Spec A's R3a applied to
   production** — verify by reading `flyway_schema_history` and confirming V17, V18 and V19 are
   present and successful, not by inferring it from a merge or a deploy (design Rev 11).
   **Abort:** do not run V20. No forward-repair problem exists while the migration has not executed.
+  **Decision: GO — R-B preconditions.** 2026-08-26: G0a authenticated loopback 405/`Allow: GET` and
+  404; G0b run `32399211853` / job `96530029529` success; G2 still on `api-gateway--0000076` /
+  `sha256:2da5b303…` with ingress `null`; V17–V19 successful and V20 absent; duplicate groups and
+  non-positive holdings `0`. Evidence:
+  [`docs/runbooks/B1_R_B_G3_SERVING_PROOF.md`](../../../docs/runbooks/B1_R_B_G3_SERVING_PROOF.md).
   _Requirements: 1.16, 1.25, 8.9_
-- [ ] **3.6 G3 evidence.** Relational postcondition after migration: no user has a portfolio count
+- [x] **3.6 G3 evidence.** Relational postcondition after migration: no user has a portfolio count
   other than one. Assert the invariant, never a fixed total — a legitimate signup changes the number,
   and equal totals can mask one missing user against one duplicate.
+  **Evidence:** after Artifact 2 digest deploy
+  [32969683640](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/32969683640)
+  on `portfolio-service--0000080` /
+  `sha256:d111132f576780fa5fec67dfc26ada3324153794746d21fe84b93b6822be3535`, `violating_users = 0`
+  with distribution only `portfolio_count = 1`; holdings checksum preserved
+  (`162` / `d6b344a1fca6ed11b59a146e5fb8825d`). Evidence:
+  [`docs/runbooks/B1_R_B_G3_SERVING_PROOF.md`](../../../docs/runbooks/B1_R_B_G3_SERVING_PROOF.md).
   _Requirements: 1.14, 1.24_
-- [ ] **3.7 STOP/GO — R-B post-migration.**
+- [x] **3.7 STOP/GO — R-B post-migration.**
   **Go:** 3.6 green.
   **Abort — forward repair only.** V20 has committed; Flyway migrations are not reverted. Keep
   traffic safe and repair forward **without crossing below Artifact 0 + Artifact 1**: reverting the
   gateway would resume creating portfolio-less users under a live constraint. If G3 fails, identify
   the offending users and repair in a follow-on migration before Wave 5 begins.
+  **Decision: GO — R-B.** 2026-08-26: V20 successful; schema/preservation checks green; G3 = 0;
+  serving digest exact; peers unchanged. Forward-only boundary recorded in
+  [`docs/runbooks/B1_R_B_G3_SERVING_PROOF.md`](../../../docs/runbooks/B1_R_B_G3_SERVING_PROOF.md).
   _Requirements: 1.1, 1.14, 1.16_
 
 ## Wave 4 — Contract implementation · *implementation lane, no public exposure*
@@ -646,8 +669,7 @@ in Waves 5–7.
 
 ### 4a — Orchestrator and preparers
 
-**Current status:** tasks **4.1–4.21 (Wave 4a–4c) are merged on `main@2673f40`** (PR #153; undeployed/unexposed). Candidate packaging / task 7.5 / R-C remain incomplete. Public `PUT` remains Wave 7. **No deployment or V20 production migration is authorized.** No gateway route change, seed rewrite, public `PUT` exposure, merge, or production
-migration is authorized by this status.
+**Current status:** tasks **4.1–4.21 (Wave 4a–4c) are merged on `main@2673f40`** (PR #153; undeployed/unexposed). Candidate packaging / task 7.5 / R-C remain incomplete. Public `PUT` remains Wave 7. **No Wave 4/5 runtime deployment is authorized** (V20/R-B already applied via Artifact 2 cut `25aa730`). No gateway route change, seed rewrite, or public `PUT` exposure is authorized by this status.
 
 - [x] **4.1 `HoldingReplacementService`** — the single orchestrator, in D2's exact order: version
   precondition → semantic `400` (quantity, then duplicates) → catalog/lifecycle `422` aggregated →
