@@ -1,26 +1,28 @@
 # Implementation Plan
 
-**Current program status (verified 2026-08-26; runtime baseline `e221662`; R-A and R-B serving digests below):**
+**Current program status (verified 2026-08-26; runtime baseline `e221662`; R-A / R-B / R-B2 serving digests below):**
 Waves `P`, `0`, and `1` are complete. Wave 2 tasks **2.1–2.6 and R-A are complete**: G2 serving
 proof is green on gateway revision `api-gateway--0000076` /
 `sha256:2da5b303fd15772792167f2b26dc62250b2d9858270db315eab1d6d1a1554aec` (deploy run
 [32952197627](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/32952197627);
 evidence [`docs/runbooks/B1_R_A_G2_SERVING_PROOF.md`](../../../docs/runbooks/B1_R_A_G2_SERVING_PROOF.md)).
-Wave 3 tasks **3.1–3.7 and R-B are complete**: Artifact 2 cut `25aa730` is serving on
-`portfolio-service--0000080` /
-`sha256:d111132f576780fa5fec67dfc26ada3324153794746d21fe84b93b6822be3535` (deploy run
-[32969683640](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/32969683640);
-V20 applied; G3 green; evidence
-[`docs/runbooks/B1_R_B_G3_SERVING_PROOF.md`](../../../docs/runbooks/B1_R_B_G3_SERVING_PROOF.md)).
-Wave 4a–4c tasks **4.1–4.21 are merged on `main@2673f40`** (PR #153; source on main, undeployed/unexposed). Wave 5 Task **5.1 is merged on `main@f22e2ff`** (PR #155; authenticated MVC boundary proof,
-no production code change). Tasks **5.2–5.7 remain incomplete**; G2a/R-B2, caller migration,
-and deployment of Wave 4/5 runtime are not authorized or complete. Candidate packaging / R-C (task 7.5)
-is **not** complete. Public `PUT /api/portfolio/holdings` remains Wave 7. No production `PUT` exposure
-or seed rewrite is authorized. Dependent proof branch
+Wave 3 tasks **3.1–3.7 and R-B are complete**: Artifact 2 cut `25aa730` was applied/served; V20 is
+live; G3 green; evidence
+[`docs/runbooks/B1_R_B_G3_SERVING_PROOF.md`](../../../docs/runbooks/B1_R_B_G3_SERVING_PROOF.md).
+Wave 4a–4c tasks **4.1–4.21 are merged on `main@2673f40`** (PR #153). Wave 5 Task **5.1 is merged
+on `main@f22e2ff`** (PR #155). Tasks **5.2–5.3 / R-B2 are complete**: Artifact 2a cut `f22e2ff` is
+serving on `portfolio-service--0000081` /
+`sha256:d544649f5b67baec8b563016882d239d3ecb9c5672399586e0bc656c78961d4f` (deploy run
+[32982880866](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/32982880866);
+G2a green; evidence
+[`docs/runbooks/B1_R_B2_G2A_SERVING_PROOF.md`](../../../docs/runbooks/B1_R_B2_G2A_SERVING_PROOF.md)).
+Tasks **5.4–5.7 remain incomplete** (caller migration / G5). Candidate packaging / R-C (task 7.5)
+is **not** complete. Public `PUT /api/portfolio/holdings` remains Wave 7. The old seed remains
+version-tolerant; no seed rewrite or Writer_Convergence is claimed. Dependent proof branch
 [`proof/b1-wave-2-g1-v20@e6a98c5`](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/tree/proof/b1-wave-2-g1-v20)
 remains historical and unmerged. Spec A V17–V19 were applied and verified at checkpoint 9.6; V20 is
-now applied under R-B. Wave checkboxes record implementation evidence, not merged delivery unless
-stated. See
+applied under R-B and unchanged by R-B2. Wave checkboxes record implementation evidence, not merged
+delivery unless stated. See
 [`docs/plans/ASSET_PICKER_E2E_MASTER_PLAN.md`](../../../docs/plans/ASSET_PICKER_E2E_MASTER_PLAN.md)
 for the living cross-program view.
 
@@ -829,17 +831,25 @@ Named individually so the R-C manifest can enumerate them rather than gesture at
   `PortfolioControllerTest.authenticatedPortfolioReadReturnsPersistedVersion`; existing
   `PortfolioResponseVersionTest` and `PortfolioServiceVersionMappingTest`.
   Wave 4 already supplied `PortfolioResponse.version` and controller passthrough; this task adds the
-  authenticated MVC boundary proof only. No production code change. Merged source, undeployed.
-  G2a/R-B2 and caller migration remain incomplete.
+  authenticated MVC boundary proof only. No production code change in the Task 5.1 merge itself.
+  Serving proof is Task 5.2 / R-B2.
   _Requirements: 5.10, 5.11_
-- [ ] **5.2 G2a serving proof.** **Every** serving portfolio digest returns the version, **before**
+- [x] **5.2 G2a serving proof.** **Every** serving portfolio digest returns the version, **before**
   any caller migration begins. One caller's successful read can otherwise hit the new revision while
   another still reaches an old response with no version.
+  **Evidence:** Artifact 2a cut `f22e2ff` digest
+  `sha256:d544649f5b67baec8b563016882d239d3ecb9c5672399586e0bc656c78961d4f` serving on sole active
+  revision `portfolio-service--0000081` (traffic `100`). Authenticated gateway read and direct
+  revision probe both return unquoted numeric `version` matching Postgres. Deploy run
+  [32982880866](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/32982880866).
+  Evidence [`docs/runbooks/B1_R_B2_G2A_SERVING_PROOF.md`](../../../docs/runbooks/B1_R_B2_G2A_SERVING_PROOF.md).
+  Any future portfolio rollout invalidates G2a until re-proven.
   _Requirements: 8.32_
-- [ ] **5.3 STOP/GO — R-B2.**
-  **Go:** 5.2 green.
+- [x] **5.3 STOP/GO — R-B2.**
+  **Go:** 5.2 green — **GO recorded 2026-08-26**.
   **Abort:** redeploy the prior portfolio digest and **do not begin caller migration**. Safe: no
   caller depends on the version yet. Never cross below Artifact 0 + Artifact 1.
+  Abort path not used. Tasks 5.4–5.7 remain unchecked.
   _Requirements: 8.32_
 - [ ] **5.4 Migrate all three seed call sites** to log in, read once, and send that exact version:
   `synthetic-monitoring.yml:170`, `global-setup.ts:191`, `api-live-smoke.spec.ts:194`. An Azure
