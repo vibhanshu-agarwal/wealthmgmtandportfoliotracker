@@ -12,10 +12,11 @@ Checks (all fail-closed):
 1. The dispatch must target refs/heads/main exactly.
 2. github.sha must match the caller-declared expected_main_sha.
 3. expected_main_sha and deployed_image_tag must both be full 40-hex-character SHAs.
-4. change_profile must be one of standard / spec-a-9.9-enable / spec-a-9.9-abort.
-5. For either spec-a-9.9-* profile, use_seed_image and recreate_market_data_job must both be false
-   — these recovery/bootstrap flags are unrelated to and unsafe to combine with an enforcement
-   cutover apply.
+4. change_profile must be one of standard / spec-a-9.9-enable / spec-a-9.9-abort /
+   spec-a-9.11-enable / spec-a-9.11-abort.
+5. For any scoped Spec A profile (9.9 or 9.11 enable/abort), use_seed_image and
+   recreate_market_data_job must both be false — these recovery/bootstrap flags are unrelated
+   to and unsafe to combine with a scoped Spec A production change.
 
 This script does not check whether deployed_image_tag actually exists in ACR — that requires a live
 az CLI call and is a separate workflow step, kept out of this pure/offline, unit-testable script.
@@ -28,7 +29,20 @@ import re
 import sys
 from dataclasses import dataclass
 
-VALID_PROFILES = ("standard", "spec-a-9.9-enable", "spec-a-9.9-abort")
+VALID_PROFILES = (
+    "standard",
+    "spec-a-9.9-enable",
+    "spec-a-9.9-abort",
+    "spec-a-9.11-enable",
+    "spec-a-9.11-abort",
+)
+SCOPED_SPEC_A_PROFILES = (
+    "spec-a-9.9-enable",
+    "spec-a-9.9-abort",
+    "spec-a-9.11-enable",
+    "spec-a-9.11-abort",
+)
+# Backward-compatible alias for callers/tests that still name the 9.9 pair.
 SPEC_A_9_9_PROFILES = ("spec-a-9.9-enable", "spec-a-9.9-abort")
 MAIN_REF = "refs/heads/main"
 FULL_SHA = re.compile(r"^[0-9a-f]{40}$")
@@ -95,18 +109,18 @@ def validate(inputs: DispatchInputs) -> None:
             f"change_profile must be one of {VALID_PROFILES}, got {profile!r}."
         )
 
-    if profile in SPEC_A_9_9_PROFILES:
+    if profile in SCOPED_SPEC_A_PROFILES:
         if use_seed_image != "false":
             raise DispatchValidationError(
                 f"change_profile={profile!r} requires use_seed_image=false; got "
                 f"{use_seed_image!r}. Seed-image bootstrap is unrelated to and unsafe to combine "
-                "with an enforcement cutover apply."
+                "with a scoped Spec A production change."
             )
         if recreate_job != "false":
             raise DispatchValidationError(
                 f"change_profile={profile!r} requires recreate_market_data_job=false; got "
-                f"{recreate_job!r}. Job recovery is unrelated to and unsafe to combine with an "
-                "enforcement cutover apply."
+                f"{recreate_job!r}. Job recovery is unrelated to and unsafe to combine with a "
+                "scoped Spec A production change."
             )
 
 

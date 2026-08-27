@@ -501,11 +501,10 @@ resource "azurerm_container_app_job" "market_data_refresh" {
       }
       env {
         name = "MARKET_DATA_JOB_RUNNER_ENABLED"
-        # Cutover checkpoint 9.3 (supported-asset-integrity Task 9): suspended for the
-        # duration of the Postgres/Mongo repair (9.6/9.7). Restored to "true" at
-        # checkpoint 9.11, through Terraform, after the Mongo repair reaches terminal
-        # success. See .kiro/specs/supported-asset-integrity/tasks.md Task 9.
-        value = "false"
+        # Checkpoint 9.11 persists normal scheduled refresh after the 9.10 controlled
+        # execution and reconciliation. See .kiro/specs/supported-asset-integrity/tasks.md
+        # Task 9.11.
+        value = "true"
       }
       env {
         name  = "MANAGEMENT_TRACING_EXPORT_ENABLED"

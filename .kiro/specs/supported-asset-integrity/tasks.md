@@ -1,9 +1,13 @@
 # Implementation Plan
 
-**Current program status (verified 2026-08-24 at `main@e221662`):** implementation tasks 1–7 are
-complete; task 8 is complete except 8.8. Cutover checkpoints 9.1–9.10 are complete. Checkpoints
-9.11–9.14 are pending and unauthorized; persisted refresh remains disabled, demo activation has
-not run, the three catalog services remain at `min_replicas=1`, and gateway ingress remains closed.
+**Current program status (verified 2026-08-27 at `main@bf4a8f1`):** implementation tasks 1–7 are
+complete; task 8 is complete except 8.8. Cutover checkpoints 9.1–9.10 are complete. Checkpoint 9.11
+source preparation (desired-state `MARKET_DATA_JOB_RUNNER_ENABLED=true` plus exact-scope enable/abort
+guards) is **implemented but unmerged and unapplied** on branch
+`cursor/spec-a-9.11-persist-refresh-enablement` — the checkbox stays open until live Terraform
+read-back succeeds. Checkpoints 9.12–9.14 are pending and unauthorized; production persisted refresh
+remains `false`, demo activation has not run, the three catalog services remain at `min_replicas=1`,
+and gateway ingress remains closed.
 See [`docs/plans/ASSET_PICKER_E2E_MASTER_PLAN.md`](../../../docs/plans/ASSET_PICKER_E2E_MASTER_PLAN.md)
 for the living cross-program view.
 
@@ -802,6 +806,12 @@ python scripts/check-spec-references.py   .kiro/specs/supported-asset-integrity/
 
   - [ ] 9.11 **CHECKPOINT — persist refresh enablement**
     - Go: `MARKET_DATA_JOB_RUNNER_ENABLED=true` persisted through Terraform and read back
+    - **Implemented but unmerged and unapplied** on `cursor/spec-a-9.11-persist-refresh-enablement`
+      from base `main@bf4a8f1e00675a6f4df271999560d2205c5ca3a1`: Terraform desired state flipped to
+      `true`; exact-scope profiles `spec-a-9.11-enable` / `spec-a-9.11-abort` and adversarial
+      `assert_spec_a_9_11_plan.py` guards implemented; dispatch/workflow fail-closed wiring complete.
+      Production runner remains `false` until a separately authorized remote-plan + apply + live
+      read-back. This checkbox must stay open until that live read-back succeeds.
 
   - [ ] 9.12 **CHECKPOINT — demo portfolio activation** (while `min_replicas = 1`, ingress still closed)
     - Must run **before** scale is restored to zero. With ingress closed and `min_replicas = 0`

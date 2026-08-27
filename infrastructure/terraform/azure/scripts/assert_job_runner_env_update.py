@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 """
-assert_job_runner_env_update.py — Spec A task 5.4.
+assert_job_runner_env_update.py — Spec A task 5.4 / checkpoint 9.11.
 
 When MARKET_DATA_JOB_RUNNER_ENABLED changes on azurerm_container_app_job.market_data_refresh,
-the plan must show an in-place update, never create/delete (replace).
+the plan must show an in-place update, never create/delete (replace). Direction is neutral:
+false→true (9.11 enable) and true→false (9.11 abort) are both valid transitions; replacement
+is outside checkpoint scope and can disrupt identity/template guarantees.
 
 In azurerm 4.81.0, schedule_trigger_config is ForceNew. This assertion is the evidence that
-suspension is done via a template env var (not ForceNew) and will fail loudly on a provider
-upgrade that starts replacing the Job for this change.
+runner enablement/suspension is done via a template env var (not ForceNew) and will fail
+loudly on a provider upgrade that starts replacing the Job for this change.
 
 Usage:
     python3 scripts/assert_job_runner_env_update.py tfplan.json
@@ -72,7 +74,8 @@ def evaluate_plan(plan: dict) -> list[str]:
             f"FAIL [job runner env] {JOB_ADDRESS} changes {ENV_NAME} "
             f"({before!r} → {after!r}) with actions {sorted(actions)}; "
             "expected in-place update, not create/delete. In azurerm 4.81.0 "
-            "schedule_trigger_config is ForceNew; suspension must not replace the Job."
+            "schedule_trigger_config is ForceNew; any runner-env transition must not "
+            "replace the Job."
         ]
     if "update" not in actions:
         return [

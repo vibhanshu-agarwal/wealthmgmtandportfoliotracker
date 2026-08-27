@@ -20,6 +20,9 @@ VALIDATE_SCRIPT = REPO / "infrastructure" / "terraform" / "azure" / "scripts" / 
 PROFILE_ASSERT_SCRIPT = (
     REPO / "infrastructure" / "terraform" / "azure" / "scripts" / "assert_spec_a_9_9_plan.py"
 )
+PROFILE_9_11_ASSERT_SCRIPT = (
+    REPO / "infrastructure" / "terraform" / "azure" / "scripts" / "assert_spec_a_9_11_plan.py"
+)
 
 
 class TestTerraformAzureWorkflowHardening(unittest.TestCase):
@@ -42,6 +45,11 @@ class TestTerraformAzureWorkflowHardening(unittest.TestCase):
         self.assertRegex(block, r"options:[\s\S]*?-\s*standard")
         self.assertRegex(block, r"options:[\s\S]*?-\s*spec-a-9\.9-enable")
         self.assertRegex(block, r"options:[\s\S]*?-\s*spec-a-9\.9-abort")
+
+    def test_change_profile_input_has_both_9_11_profiles(self):
+        block = self._block("change_profile:")
+        self.assertRegex(block, r"options:[\s\S]*?-\s*spec-a-9\.11-enable")
+        self.assertRegex(block, r"options:[\s\S]*?-\s*spec-a-9\.11-abort")
 
     # -- validate-dispatch job -----------------------------------------------------
 
@@ -115,6 +123,13 @@ class TestTerraformAzureWorkflowHardening(unittest.TestCase):
             job,
         )
 
+    def test_apply_job_invokes_9_11_profile_guard(self):
+        job = self._job("apply:")
+        self.assertIn(
+            'assert_spec_a_9_11_plan.py tfplan.json --profile "${{ github.event.inputs.change_profile }}" --expected-image-tag "${{ github.event.inputs.deployed_image_tag }}"',
+            job,
+        )
+
     def test_job_import_step_is_read_only_for_9_9_profiles(self):
         # `terraform import` mutates the real backend's state immediately, before any
         # plan or assertion runs — during a 9.9 apply that must never happen silently
@@ -128,6 +143,14 @@ class TestTerraformAzureWorkflowHardening(unittest.TestCase):
         self.assertIn("spec-a-9.9-abort", import_step)
         self.assertIn("exit 1", import_step)
         self.assertIn("terraform import", import_step)  # still present for standard
+
+    def test_job_import_step_is_read_only_for_9_11_profiles(self):
+        job = self._job("apply:")
+        import_step = job[job.find("Import existing market-data refresh Job") :]
+        import_step = import_step[: import_step.find("\n\n      - name:")]
+        self.assertIn("spec-a-9.11-enable", import_step)
+        self.assertIn("spec-a-9.11-abort", import_step)
+        self.assertIn("exit 1", import_step)
 
     # -- remote-plan job -----------------------------------------------------------
 
@@ -148,6 +171,13 @@ class TestTerraformAzureWorkflowHardening(unittest.TestCase):
         job = self._job("remote-plan:")
         self.assertIn(
             'assert_spec_a_9_9_plan.py tfplan.json --profile "${{ github.event.inputs.change_profile }}" --expected-image-tag',
+            job,
+        )
+
+    def test_remote_plan_invokes_9_11_profile_guard(self):
+        job = self._job("remote-plan:")
+        self.assertIn(
+            'assert_spec_a_9_11_plan.py tfplan.json --profile "${{ github.event.inputs.change_profile }}" --expected-image-tag "${{ github.event.inputs.deployed_image_tag }}"',
             job,
         )
 
@@ -198,6 +228,10 @@ class TestTerraformAzureWorkflowHardening(unittest.TestCase):
         job = self._job("pr-plan:")
         self.assertNotIn("assert_spec_a_9_9_plan.py", job)
 
+    def test_pr_plan_job_never_touches_9_11_profile_assertion(self):
+        job = self._job("pr-plan:")
+        self.assertNotIn("assert_spec_a_9_11_plan.py", job)
+
     # -- scripts exist ------------------------------------------------------------
 
     def test_validate_dispatch_script_exists(self):
@@ -205,6 +239,9 @@ class TestTerraformAzureWorkflowHardening(unittest.TestCase):
 
     def test_profile_assertion_script_exists(self):
         self.assertTrue(PROFILE_ASSERT_SCRIPT.is_file())
+
+    def test_9_11_profile_assertion_script_exists(self):
+        self.assertTrue(PROFILE_9_11_ASSERT_SCRIPT.is_file())
 
     # -- helpers ----------------------------------------------------------------
 

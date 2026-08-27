@@ -68,11 +68,16 @@ on:
           standard = ordinary apply, no extra scope assertion. spec-a-9.9-enable /
           spec-a-9.9-abort = checkpoint 9.9's cutover/rollback, asserted to touch
           exactly the three catalog-service Container Apps as in-place updates.
+          spec-a-9.11-enable / spec-a-9.11-abort = checkpoint 9.11's persist-refresh
+          enablement/abort, asserted to touch only the market-data refresh Job as an
+          in-place runner-env update.
         type: choice
         options:
           - standard
           - spec-a-9.9-enable
           - spec-a-9.9-abort
+          - spec-a-9.11-enable
+          - spec-a-9.11-abort
         default: standard
       use_seed_image:
         description: "Use public seed image for Container Apps (true for first apply before images exist in ACR)"
@@ -329,6 +334,13 @@ jobs:
       - name: Assert Plan — Spec A 9.9 profile guard / exact scope
         run: python3 scripts/assert_spec_a_9_9_plan.py tfplan.json --profile "${{ github.event.inputs.change_profile }}" --expected-image-tag "${{ github.event.inputs.deployed_image_tag }}"
 
+      # Runs for every change_profile: under standard/9.9 this forbids any runner-env
+      # transition; under 9.11 enable/abort it proves the exact one-Job in-place update.
+      # Not run in the empty-backend structural PR plan (greenfield create is not the
+      # live false->true transition).
+      - name: Assert Plan — Spec A 9.11 profile guard / exact scope
+        run: python3 scripts/assert_spec_a_9_11_plan.py tfplan.json --profile "${{ github.event.inputs.change_profile }}" --expected-image-tag "${{ github.event.inputs.deployed_image_tag }}"
+
       # Sanitized summary only — built from tfplan.json via summarize_plan.py, which
       # emits ONLY "<address> <actions>" per changed resource, never attribute paths,
       # before/after objects, or values. `terraform show`'s human-readable output was
@@ -414,13 +426,13 @@ jobs:
       - name: Terraform Validate
         run: terraform validate
 
-      # For the two 9.9 profiles this is READ-ONLY: `terraform import` mutates the real
-      # backend's state immediately, before any plan or assertion runs — during an
-      # enforcement cutover that would be a state mutation outside the declared
-      # three-resource scope, invisible to assert_spec_a_9_9_plan.py (which only ever
-      # sees the plan that comes *after* state already changed). If the Job is
-      # unexpectedly absent from state during a 9.9 apply, stop; state repair is a
-      # separate, reviewed operation, not something to fold silently into a cutover.
+      # For scoped Spec A profiles (9.9 and 9.11) this is READ-ONLY: `terraform import`
+      # mutates the real backend's state immediately, before any plan or assertion runs —
+      # during a cutover that would be a state mutation outside the declared resource
+      # scope, invisible to the profile-guard assertions (which only ever see the plan
+      # that comes *after* state already changed). If the Job is unexpectedly absent from
+      # state during a scoped Spec A apply, stop; state repair is a separate, reviewed
+      # operation, not something to fold silently into a cutover.
       # standard keeps the original auto-import recovery behavior unchanged.
       - name: Import existing market-data refresh Job (apply recovery)
         run: |
@@ -436,9 +448,10 @@ jobs:
             exit 0
           fi
 
-          if [ "$PROFILE" = "spec-a-9.9-enable" ] || [ "$PROFILE" = "spec-a-9.9-abort" ]; then
-            echo "::error::${RESOURCE_ADDRESS} is not in Terraform state, and change_profile=${PROFILE} only permits a read-only check here — auto-import is not allowed during a 9.9 cutover apply, since it would mutate the backend before any plan or assertion runs."
-            echo "::error::Repair state through a separate, reviewed operation (e.g. dispatch with change_profile=standard first) before retrying the 9.9 apply."
+          if [ "$PROFILE" = "spec-a-9.9-enable" ] || [ "$PROFILE" = "spec-a-9.9-abort" ] \
+            || [ "$PROFILE" = "spec-a-9.11-enable" ] || [ "$PROFILE" = "spec-a-9.11-abort" ]; then
+            echo "::error::${RESOURCE_ADDRESS} is not in Terraform state, and change_profile=${PROFILE} only permits a read-only check here — auto-import is not allowed during a scoped Spec A production change, since it would mutate the backend before any plan or assertion runs."
+            echo "::error::Repair state through a separate, reviewed operation (e.g. dispatch with change_profile=standard first) before retrying the scoped Spec A apply."
             exit 1
           fi
 
@@ -512,6 +525,9 @@ jobs:
       # exact-scope proof below.
       - name: Assert Plan — Spec A 9.9 profile guard / exact scope
         run: python3 scripts/assert_spec_a_9_9_plan.py tfplan.json --profile "${{ github.event.inputs.change_profile }}" --expected-image-tag "${{ github.event.inputs.deployed_image_tag }}"
+
+      - name: Assert Plan — Spec A 9.11 profile guard / exact scope
+        run: python3 scripts/assert_spec_a_9_11_plan.py tfplan.json --profile "${{ github.event.inputs.change_profile }}" --expected-image-tag "${{ github.event.inputs.deployed_image_tag }}"
 
       - name: Terraform Apply
         run: terraform apply -auto-approve tfplan

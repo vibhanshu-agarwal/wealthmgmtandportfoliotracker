@@ -119,9 +119,33 @@ class ValidateDispatchTests(unittest.TestCase):
     def test_abort_profile_clean_passes(self):
         sut.validate(self._inputs(change_profile="spec-a-9.9-abort"))
 
+    def test_9_11_enable_profile_clean_passes(self):
+        sut.validate(self._inputs(change_profile="spec-a-9.11-enable"))
+
+    def test_9_11_abort_profile_clean_passes(self):
+        sut.validate(self._inputs(change_profile="spec-a-9.11-abort"))
+
+    def test_9_11_enable_with_seed_image_fails_closed(self):
+        with self.assertRaises(sut.DispatchValidationError) as ctx:
+            sut.validate(
+                self._inputs(change_profile="spec-a-9.11-enable", use_seed_image="true")
+            )
+        self.assertIn("use_seed_image=false", str(ctx.exception))
+        self.assertIn("scoped Spec A", str(ctx.exception))
+
+    def test_9_11_abort_with_recreate_job_fails_closed(self):
+        with self.assertRaises(sut.DispatchValidationError) as ctx:
+            sut.validate(
+                self._inputs(
+                    change_profile="spec-a-9.11-abort", recreate_market_data_job="true"
+                )
+            )
+        self.assertIn("recreate_market_data_job=false", str(ctx.exception))
+        self.assertIn("scoped Spec A", str(ctx.exception))
+
     def test_standard_profile_ignores_seed_and_recovery_flags(self):
         # standard applies (e.g. an unrelated infra change) are not required to keep these
-        # flags false — only the two 9.9 profiles carry that restriction.
+        # flags false — only the scoped Spec A profiles carry that restriction.
         sut.validate(
             self._inputs(change_profile="standard", use_seed_image="true")
         )
