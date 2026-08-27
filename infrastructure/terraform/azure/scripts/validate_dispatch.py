@@ -12,11 +12,12 @@ Checks (all fail-closed):
 1. The dispatch must target refs/heads/main exactly.
 2. github.sha must match the caller-declared expected_main_sha.
 3. expected_main_sha and deployed_image_tag must both be full 40-hex-character SHAs.
-4. change_profile must be one of standard / spec-a-9.9-enable / spec-a-9.9-abort /
-   spec-a-9.11-enable / spec-a-9.11-abort.
-5. For any scoped Spec A profile (9.9 or 9.11 enable/abort), use_seed_image and
+4. change_profile must be one of standard or the scoped 9.9 / 9.11 / 9.12 profiles.
+5. For any scoped Spec A profile, use_seed_image and
    recreate_market_data_job must both be false — these recovery/bootstrap flags are unrelated
    to and unsafe to combine with a scoped Spec A production change.
+6. Both 9.12 profiles require an independently supplied portfolio image digest in
+   sha256:<64-lowercase-hex> form.
 
 This script does not check whether deployed_image_tag actually exists in ACR — that requires a live
 az CLI call and is a separate workflow step, kept out of this pure/offline, unit-testable script.
@@ -35,17 +36,23 @@ VALID_PROFILES = (
     "spec-a-9.9-abort",
     "spec-a-9.11-enable",
     "spec-a-9.11-abort",
+    "spec-a-9.12-enable",
+    "spec-a-9.12-disable",
 )
 SCOPED_SPEC_A_PROFILES = (
     "spec-a-9.9-enable",
     "spec-a-9.9-abort",
     "spec-a-9.11-enable",
     "spec-a-9.11-abort",
+    "spec-a-9.12-enable",
+    "spec-a-9.12-disable",
 )
+SPEC_A_9_12_PROFILES = ("spec-a-9.12-enable", "spec-a-9.12-disable")
 # Backward-compatible alias for callers/tests that still name the 9.9 pair.
 SPEC_A_9_9_PROFILES = ("spec-a-9.9-enable", "spec-a-9.9-abort")
 MAIN_REF = "refs/heads/main"
 FULL_SHA = re.compile(r"^[0-9a-f]{40}$")
+IMAGE_DIGEST = re.compile(r"^sha256:[0-9a-f]{64}$")
 
 
 class DispatchValidationError(ValueError):
@@ -58,6 +65,7 @@ class DispatchInputs:
     actual_sha: str
     expected_main_sha: str
     deployed_image_tag: str
+    expected_portfolio_image_digest: str
     change_profile: str
     use_seed_image: str
     recreate_market_data_job: str
@@ -68,6 +76,7 @@ def validate(inputs: DispatchInputs) -> None:
     actual_sha = inputs.actual_sha.strip().lower()
     expected_sha = inputs.expected_main_sha.strip().lower()
     deployed_tag = inputs.deployed_image_tag.strip().lower()
+    portfolio_digest = inputs.expected_portfolio_image_digest.strip()
     profile = inputs.change_profile.strip()
     use_seed_image = inputs.use_seed_image.strip().lower()
     recreate_job = inputs.recreate_market_data_job.strip().lower()
@@ -109,6 +118,13 @@ def validate(inputs: DispatchInputs) -> None:
             f"change_profile must be one of {VALID_PROFILES}, got {profile!r}."
         )
 
+    if profile in SPEC_A_9_12_PROFILES and not IMAGE_DIGEST.match(portfolio_digest):
+        raise DispatchValidationError(
+            "expected_portfolio_image_digest is required for either 9.12 profile and must "
+            "match sha256:<64 lowercase hexadecimal characters>; it is independent of "
+            "deployed_image_tag."
+        )
+
     if profile in SCOPED_SPEC_A_PROFILES:
         if use_seed_image != "false":
             raise DispatchValidationError(
@@ -134,6 +150,7 @@ def main() -> int:
         actual_sha=_env("ACTUAL_SHA"),
         expected_main_sha=_env("EXPECTED_MAIN_SHA"),
         deployed_image_tag=_env("DEPLOYED_IMAGE_TAG"),
+        expected_portfolio_image_digest=_env("EXPECTED_PORTFOLIO_IMAGE_DIGEST"),
         change_profile=_env("CHANGE_PROFILE"),
         use_seed_image=_env("USE_SEED_IMAGE"),
         recreate_market_data_job=_env("RECREATE_MARKET_DATA_JOB"),

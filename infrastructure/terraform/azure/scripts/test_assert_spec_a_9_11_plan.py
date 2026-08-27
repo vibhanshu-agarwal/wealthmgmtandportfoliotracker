@@ -172,6 +172,24 @@ class SpecA911PlanTests(unittest.TestCase):
         errors = _evaluate(_enable_plan(), "spec-a-9.9-enable")
         self.assertTrue(errors)
 
+    def test_both_9_12_profiles_allow_unchanged_runner(self):
+        plan = _plan(
+            _job_rc(
+                actions=["update"],
+                before=_side(runner_value="true"),
+                after=_side(runner_value="true", cpu=1.0),
+            )
+        )
+        for profile in ("spec-a-9.12-enable", "spec-a-9.12-disable"):
+            with self.subTest(profile=profile):
+                self.assertEqual(_evaluate(plan, profile), [])
+
+    def test_both_9_12_profiles_reject_runner_change(self):
+        for profile in ("spec-a-9.12-enable", "spec-a-9.12-disable"):
+            with self.subTest(profile=profile):
+                errors = _evaluate(_enable_plan(), profile)
+                self.assertTrue(any("runner-guard" in error for error in errors), errors)
+
     def test_enable_reversed_transition_fails(self):
         errors = _evaluate(_abort_plan(), "spec-a-9.11-enable")
         self.assertTrue(errors)

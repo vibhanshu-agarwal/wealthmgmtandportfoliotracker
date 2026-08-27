@@ -419,6 +419,29 @@ class SpecA99PlanTests(unittest.TestCase):
         errors = _evaluate(plan, "spec-a-9.11-abort")
         self.assertTrue(any("standard-guard" in e for e in errors))
 
+    # -- 9.12 profiles: accepted but routed through the standard 9.9 surface guard -----
+
+    def test_both_9_12_profiles_allow_unchanged_9_9_surface(self):
+        plan = {
+            "resource_changes": [
+                _service_rc(
+                    sut.SERVICE_ADDRESSES[0],
+                    actions=["update"],
+                    before=_side(min_replicas=1, overrides_present=False),
+                    after=_side(min_replicas=1, overrides_present=False, image=PORTFOLIO_IMAGE),
+                )
+            ]
+        }
+        for profile in ("spec-a-9.12-enable", "spec-a-9.12-disable"):
+            with self.subTest(profile=profile):
+                self.assertEqual(_evaluate(plan, profile), [])
+
+    def test_both_9_12_profiles_reject_9_9_surface_change(self):
+        for profile in ("spec-a-9.12-enable", "spec-a-9.12-disable"):
+            with self.subTest(profile=profile):
+                errors = _evaluate(_enable_plan(), profile)
+                self.assertTrue(any("standard-guard" in error for error in errors), errors)
+
 
 if __name__ == "__main__":
     unittest.main()

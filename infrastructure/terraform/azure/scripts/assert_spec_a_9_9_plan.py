@@ -8,13 +8,13 @@ restoring min_replicas 0) must be equally exact-scoped. This script proves, from
 alone, that a dispatched remote-plan/apply touches ONLY those three resources, only as in-place
 updates, and does not silently also change the running image or SERVICE_VERSION identity.
 
-Runs for EVERY remote-plan/apply, not only the two 9.9 profiles — `--profile standard` is a
-guard, not a no-op: once the 9.9 desired-state change lands in main.tf, a dispatch left on the
-default `standard` profile must not be able to apply the enforcement-flag/min_replicas change
-without ever going through the exact-scope proof below. `standard` therefore FAILS if the plan
-touches the protected surface (the two override env vars or min_replicas) on any of the three
-catalog services at all — only spec-a-9.9-enable/abort may touch it, and only as the complete,
-exact transition.
+Runs for EVERY remote-plan/apply, not only the two 9.9 profiles — `--profile standard` (and
+later non-9.9 profiles such as 9.11 / 9.12) is a guard, not a no-op: once the 9.9 desired-state
+change lands in main.tf, a dispatch left on the default `standard` profile must not be able to
+apply the enforcement-flag/min_replicas change without ever going through the exact-scope proof
+below. Non-scoped profiles therefore FAIL if the plan touches the protected surface (the two
+override env vars or min_replicas) on any of the three catalog services at all — only
+spec-a-9.9-enable/abort may touch it, and only as the complete, exact transition.
 
 --expected-image-tag pins image/SERVICE_VERSION identity to a specific value (the dispatch's own
 deployed_image_tag), not merely to itself: checking only before==after would accept a plan where
@@ -111,11 +111,12 @@ def _image(side: dict | None) -> str | None:
     return container.get("image") if container else None
 
 
-def _evaluate_standard_guard(plan: dict) -> list[str]:
-    """standard is not a no-op: it must actively forbid touching the 9.9 protected
-    surface (min_replicas, the two catalog-override env vars) on any of the three
-    services. Other, unrelated changes to these resources are not this guard's concern
-    — only the specific fields checkpoint 9.9 owns."""
+def _evaluate_standard_guard(plan: dict, profile: str) -> list[str]:
+    """Non-9.9 profiles must actively forbid touching the 9.9 protected surface
+    (min_replicas, the two catalog-override env vars) on any of the three services.
+    Other, unrelated changes to these resources are not this guard's concern — only
+    the specific fields checkpoint 9.9 owns. Used for ``standard``, 9.11, and 9.12
+    profiles (all routed here as non-scoped for the 9.9 surface)."""
     errors: list[str] = []
     resource_changes = plan.get("resource_changes", [])
     by_address = {rc.get("address"): rc for rc in resource_changes if not _is_noop(rc)}
@@ -134,7 +135,7 @@ def _evaluate_standard_guard(plan: dict) -> list[str]:
         if (before_min or 0) != (after_min or 0):
             errors.append(
                 f"FAIL [standard-guard] {address} changes min_replicas ({before_min!r} -> "
-                f"{after_min!r}) under change_profile=standard; this field belongs to "
+                f"{after_min!r}) under change_profile={profile}; this field belongs to "
                 "checkpoint 9.9 — use change_profile=spec-a-9.9-enable/abort to touch it."
             )
 
@@ -144,7 +145,7 @@ def _evaluate_standard_guard(plan: dict) -> list[str]:
                 errors.append(
                     f"FAIL [standard-guard] {address} changes {name} "
                     f"({before_env.get(name)!r} -> {after_env.get(name)!r}) under "
-                    "change_profile=standard; this field belongs to checkpoint 9.9 — use "
+                    f"change_profile={profile}; this field belongs to checkpoint 9.9 — use "
                     "change_profile=spec-a-9.9-enable/abort to touch it."
                 )
 
@@ -271,9 +272,11 @@ def evaluate_plan(plan: dict, profile: str, expected_image_tag: str) -> list[str
         "standard",
         "spec-a-9.11-enable",
         "spec-a-9.11-abort",
+        "spec-a-9.12-enable",
+        "spec-a-9.12-disable",
     ):
-        # 9.11 profiles must not touch the 9.9 protected surface; reuse the standard guard.
-        return _evaluate_standard_guard(plan)
+        # Later checkpoint profiles must not touch the 9.9 protected surface.
+        return _evaluate_standard_guard(plan, profile)
     return _evaluate_9_9_transition(plan, profile, expected_image_tag)
 
 
@@ -288,6 +291,8 @@ def main() -> int:
             "spec-a-9.9-abort",
             "spec-a-9.11-enable",
             "spec-a-9.11-abort",
+            "spec-a-9.12-enable",
+            "spec-a-9.12-disable",
         ),
         required=True,
         help="The literal change_profile dispatch input value.",
@@ -314,7 +319,13 @@ def main() -> int:
         for err in errors:
             print(f"  {err}")
         return 1
-    if args.profile in ("standard", "spec-a-9.11-enable", "spec-a-9.11-abort"):
+    if args.profile in (
+        "standard",
+        "spec-a-9.11-enable",
+        "spec-a-9.11-abort",
+        "spec-a-9.12-enable",
+        "spec-a-9.12-disable",
+    ):
         print(
             f"PASS spec-a-9.9 guard (profile={args.profile}) — the plan does not touch "
             "min_replicas or the catalog override env vars on any of the three service "

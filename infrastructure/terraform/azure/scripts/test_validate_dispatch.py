@@ -15,6 +15,7 @@ import validate_dispatch as sut  # noqa: E402
 
 SHA = "9b2cf0d655b4b7ae2ce20ff7b67e4ad750df6900"
 OTHER_SHA = "bc6492fabce7667b745ec181d30614142d4335c8"
+DIGEST = "sha256:" + "a1" * 32
 MAIN_REF = "refs/heads/main"
 
 
@@ -25,6 +26,7 @@ class ValidateDispatchTests(unittest.TestCase):
             actual_sha=SHA,
             expected_main_sha=SHA,
             deployed_image_tag=SHA,
+            expected_portfolio_image_digest="",
             change_profile="standard",
             use_seed_image="false",
             recreate_market_data_job="false",
@@ -142,6 +144,67 @@ class ValidateDispatchTests(unittest.TestCase):
             )
         self.assertIn("recreate_market_data_job=false", str(ctx.exception))
         self.assertIn("scoped Spec A", str(ctx.exception))
+
+    # -- 9.12 profile digest and recovery-flag guards -------------------------------
+
+    def test_9_12_enable_with_independent_digest_passes(self):
+        sut.validate(
+            self._inputs(
+                change_profile="spec-a-9.12-enable",
+                expected_portfolio_image_digest=DIGEST,
+            )
+        )
+
+    def test_9_12_disable_with_independent_digest_passes(self):
+        sut.validate(
+            self._inputs(
+                change_profile="spec-a-9.12-disable",
+                expected_portfolio_image_digest=DIGEST,
+            )
+        )
+
+    def test_both_9_12_profiles_require_digest(self):
+        for profile in ("spec-a-9.12-enable", "spec-a-9.12-disable"):
+            with self.subTest(profile=profile):
+                with self.assertRaises(sut.DispatchValidationError) as ctx:
+                    sut.validate(self._inputs(change_profile=profile))
+                self.assertIn("expected_portfolio_image_digest", str(ctx.exception))
+
+    def test_both_9_12_profiles_reject_malformed_digest(self):
+        for profile in ("spec-a-9.12-enable", "spec-a-9.12-disable"):
+            for digest in ("sha256:abc", "sha256:" + "A" * 64, SHA):
+                with self.subTest(profile=profile, digest=digest):
+                    with self.assertRaises(sut.DispatchValidationError):
+                        sut.validate(
+                            self._inputs(
+                                change_profile=profile,
+                                expected_portfolio_image_digest=digest,
+                            )
+                        )
+
+    def test_non_9_12_profiles_do_not_require_digest(self):
+        for profile in (
+            "standard",
+            "spec-a-9.9-enable",
+            "spec-a-9.9-abort",
+            "spec-a-9.11-enable",
+            "spec-a-9.11-abort",
+        ):
+            with self.subTest(profile=profile):
+                sut.validate(self._inputs(change_profile=profile))
+
+    def test_both_9_12_profiles_reject_seed_and_recovery_flags(self):
+        for profile in ("spec-a-9.12-enable", "spec-a-9.12-disable"):
+            for flag in ("use_seed_image", "recreate_market_data_job"):
+                with self.subTest(profile=profile, flag=flag):
+                    with self.assertRaises(sut.DispatchValidationError):
+                        sut.validate(
+                            self._inputs(
+                                change_profile=profile,
+                                expected_portfolio_image_digest=DIGEST,
+                                **{flag: "true"},
+                            )
+                        )
 
     def test_standard_profile_ignores_seed_and_recovery_flags(self):
         # standard applies (e.g. an unrelated infra change) are not required to keep these

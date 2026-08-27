@@ -63,6 +63,13 @@ on:
         required: false
         type: string
         default: ""
+      expected_portfolio_image_digest:
+        description: >
+          Required for either 9.12 profile: the independently verified sha256 digest
+          currently running in wealthprodacr/portfolio-service.
+        required: false
+        type: string
+        default: ""
       change_profile:
         description: >
           standard = ordinary apply, no extra scope assertion. spec-a-9.9-enable /
@@ -70,7 +77,8 @@ on:
           exactly the three catalog-service Container Apps as in-place updates.
           spec-a-9.11-enable / spec-a-9.11-abort = checkpoint 9.11's persist-refresh
           enablement/abort, asserted to touch only the market-data refresh Job as an
-          in-place runner-env update.
+          in-place runner-env update. spec-a-9.12-enable / spec-a-9.12-disable =
+          checkpoint 9.12's one-shot demo portfolio activation/deactivation.
         type: choice
         options:
           - standard
@@ -78,6 +86,8 @@ on:
           - spec-a-9.9-abort
           - spec-a-9.11-enable
           - spec-a-9.11-abort
+          - spec-a-9.12-enable
+          - spec-a-9.12-disable
         default: standard
       use_seed_image:
         description: "Use public seed image for Container Apps (true for first apply before images exist in ACR)"
@@ -114,6 +124,7 @@ env:
   TF_VAR_azure_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
   # Structural (pr-plan) path only — live-state jobs override this with deployed_image_tag.
   TF_VAR_image_tag: ${{ github.sha }}
+  TF_VAR_demo_seed_on_startup: ${{ github.event.inputs.change_profile == 'spec-a-9.12-enable' && 'true' || 'false' }}
   TF_VAR_use_seed_image: ${{ github.event.inputs.use_seed_image || 'false' }}
   # Job-only seed bootstrap, auto-enabled whenever a Job recreate is requested. This lets the
   # -replace create the Job on the public seed image WITHOUT setting the global use_seed_image
@@ -224,6 +235,7 @@ jobs:
           ACTUAL_SHA: ${{ github.sha }}
           EXPECTED_MAIN_SHA: ${{ github.event.inputs.expected_main_sha }}
           DEPLOYED_IMAGE_TAG: ${{ github.event.inputs.deployed_image_tag }}
+          EXPECTED_PORTFOLIO_IMAGE_DIGEST: ${{ github.event.inputs.expected_portfolio_image_digest }}
           CHANGE_PROFILE: ${{ github.event.inputs.change_profile }}
           USE_SEED_IMAGE: ${{ github.event.inputs.use_seed_image }}
           RECREATE_MARKET_DATA_JOB: ${{ github.event.inputs.recreate_market_data_job }}
@@ -235,6 +247,19 @@ jobs:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Confirm expected_portfolio_image_digest resolves in ACR
+        if: 'github.event.inputs.change_profile == ''spec-a-9.12-enable'' || github.event.inputs.change_profile == ''spec-a-9.12-disable'''
+        run: |
+          set -euo pipefail
+          DIGEST="${{ github.event.inputs.expected_portfolio_image_digest }}"
+          COUNT=$(az acr manifest list-metadata --registry wealthprodacr --name portfolio-service \
+            --query "length([?digest == '${DIGEST}'])" -o tsv)
+          if [ "$COUNT" != "1" ]; then
+            echo "::error::expected_portfolio_image_digest must resolve to exactly one manifest in wealthprodacr/portfolio-service."
+            exit 1
+          fi
+          echo "OK: expected portfolio image digest resolves to exactly one manifest."
 
       # deployed_image_tag passed the format check above; now prove it actually exists
       # in ACR for every service this workflow can touch, so a typo'd or stale tag
@@ -325,21 +350,24 @@ jobs:
       - name: Assert Plan — Mongo repair Job contract (MANDATORY)
         run: python3 scripts/assert_mongo_repair_job_plan.py tfplan.json
 
-      # Runs for every change_profile, not only the two 9.9 profiles: under standard,
-      # this is a guard forbidding any change to the 9.9 protected surface (min_replicas,
-      # the two catalog-override env vars) on the three services — not a no-op. Once the
-      # 9.9 desired-state change lands in main.tf, a dispatch left on the default
-      # standard profile must not be able to apply it without going through the
+      # Runs for every change_profile, not only the two 9.9 profiles: under standard /
+      # 9.11 / 9.12 this is a guard forbidding any change to the 9.9 protected surface
+      # (min_replicas, the two catalog-override env vars) on the three services — not a
+      # no-op. Once the 9.9 desired-state change lands in main.tf, a dispatch left on a
+      # non-9.9 profile must not be able to apply it without going through the
       # exact-scope proof below.
       - name: Assert Plan — Spec A 9.9 profile guard / exact scope
         run: python3 scripts/assert_spec_a_9_9_plan.py tfplan.json --profile "${{ github.event.inputs.change_profile }}" --expected-image-tag "${{ github.event.inputs.deployed_image_tag }}"
 
-      # Runs for every change_profile: under standard/9.9 this forbids any runner-env
+      # Runs for every change_profile: under standard/9.9/9.12 this forbids any runner-env
       # transition; under 9.11 enable/abort it proves the exact one-Job in-place update.
       # Not run in the empty-backend structural PR plan (greenfield create is not the
       # live false->true transition).
       - name: Assert Plan — Spec A 9.11 profile guard / exact scope
         run: python3 scripts/assert_spec_a_9_11_plan.py tfplan.json --profile "${{ github.event.inputs.change_profile }}" --expected-image-tag "${{ github.event.inputs.deployed_image_tag }}"
+
+      - name: Assert Plan — Spec A 9.12 profile guard / exact scope
+        run: python3 scripts/assert_spec_a_9_12_plan.py tfplan.json --profile "${{ github.event.inputs.change_profile }}" --expected-image-digest "${{ github.event.inputs.expected_portfolio_image_digest }}" --expected-service-version "${{ github.event.inputs.deployed_image_tag }}"
 
       # Sanitized summary only — built from tfplan.json via summarize_plan.py, which
       # emits ONLY "<address> <actions>" per changed resource, never attribute paths,
@@ -426,7 +454,7 @@ jobs:
       - name: Terraform Validate
         run: terraform validate
 
-      # For scoped Spec A profiles (9.9 and 9.11) this is READ-ONLY: `terraform import`
+      # For scoped Spec A profiles (9.9, 9.11, and 9.12) this is READ-ONLY: `terraform import`
       # mutates the real backend's state immediately, before any plan or assertion runs —
       # during a cutover that would be a state mutation outside the declared resource
       # scope, invisible to the profile-guard assertions (which only ever see the plan
@@ -449,7 +477,8 @@ jobs:
           fi
 
           if [ "$PROFILE" = "spec-a-9.9-enable" ] || [ "$PROFILE" = "spec-a-9.9-abort" ] \
-            || [ "$PROFILE" = "spec-a-9.11-enable" ] || [ "$PROFILE" = "spec-a-9.11-abort" ]; then
+            || [ "$PROFILE" = "spec-a-9.11-enable" ] || [ "$PROFILE" = "spec-a-9.11-abort" ] \
+            || [ "$PROFILE" = "spec-a-9.12-enable" ] || [ "$PROFILE" = "spec-a-9.12-disable" ]; then
             echo "::error::${RESOURCE_ADDRESS} is not in Terraform state, and change_profile=${PROFILE} only permits a read-only check here — auto-import is not allowed during a scoped Spec A production change, since it would mutate the backend before any plan or assertion runs."
             echo "::error::Repair state through a separate, reviewed operation (e.g. dispatch with change_profile=standard first) before retrying the scoped Spec A apply."
             exit 1
@@ -517,17 +546,20 @@ jobs:
       - name: Assert Plan — Mongo repair Job contract (MANDATORY)
         run: python3 scripts/assert_mongo_repair_job_plan.py tfplan.json
 
-      # Runs for every change_profile, not only the two 9.9 profiles: under standard,
-      # this is a guard forbidding any change to the 9.9 protected surface (min_replicas,
-      # the two catalog-override env vars) on the three services — not a no-op. Once the
-      # 9.9 desired-state change lands in main.tf, a dispatch left on the default
-      # standard profile must not be able to apply it without going through the
+      # Runs for every change_profile, not only the two 9.9 profiles: under standard /
+      # 9.11 / 9.12 this is a guard forbidding any change to the 9.9 protected surface
+      # (min_replicas, the two catalog-override env vars) on the three services — not a
+      # no-op. Once the 9.9 desired-state change lands in main.tf, a dispatch left on a
+      # non-9.9 profile must not be able to apply it without going through the
       # exact-scope proof below.
       - name: Assert Plan — Spec A 9.9 profile guard / exact scope
         run: python3 scripts/assert_spec_a_9_9_plan.py tfplan.json --profile "${{ github.event.inputs.change_profile }}" --expected-image-tag "${{ github.event.inputs.deployed_image_tag }}"
 
       - name: Assert Plan — Spec A 9.11 profile guard / exact scope
         run: python3 scripts/assert_spec_a_9_11_plan.py tfplan.json --profile "${{ github.event.inputs.change_profile }}" --expected-image-tag "${{ github.event.inputs.deployed_image_tag }}"
+
+      - name: Assert Plan — Spec A 9.12 profile guard / exact scope
+        run: python3 scripts/assert_spec_a_9_12_plan.py tfplan.json --profile "${{ github.event.inputs.change_profile }}" --expected-image-digest "${{ github.event.inputs.expected_portfolio_image_digest }}" --expected-service-version "${{ github.event.inputs.deployed_image_tag }}"
 
       - name: Terraform Apply
         run: terraform apply -auto-approve tfplan

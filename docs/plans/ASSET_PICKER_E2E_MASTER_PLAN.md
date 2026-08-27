@@ -18,7 +18,9 @@ independent of the runtime baseline above.
 **Program state:** Spec A checkpoints 9.1–9.11 are complete. Checkpoint 9.11 persisted
 `MARKET_DATA_JOB_RUNNER_ENABLED=true` through Terraform apply on `main@e7fad7cb` (source PR #164;
 evidence [`SPEC_A_9_11_PERSIST_REFRESH_ENABLEMENT.md`](../runbooks/SPEC_A_9_11_PERSIST_REFRESH_ENABLEMENT.md)).
-Checkpoints 9.12–9.14 remain pending and unauthorized. B1 Wave 2 /
+Checkpoint 9.12 source preparation is **implemented but unmerged and unapplied** on
+`cursor/spec-a-9.12-demo-portfolio-activation` (base `main@3fb400fd`); the 9.12 checkbox remains
+open and production is unchanged. Checkpoints 9.13–9.14 remain pending and unauthorized. B1 Wave 2 /
 R-A, Wave 3 / R-B (V20), and Wave 5 Tasks 5.2–5.3 / R-B2 (G2a) are complete; caller migration Tasks
 **5.4–5.6 merged on `main@0b5d60d1`** (PR #161, source-only; no deploy); **G5/5.7 remains blocked**
 by Spec A closed gateway ingress — see
@@ -28,8 +30,9 @@ B2's implementation has not started.
 **User-visible state:** there is no functional Asset Picker in the application today.
 
 **Handoff state:** Spec A 9.11 is **complete** (runner `true` live; safety tuple unchanged; follow-up
-`standard` remote-plan had no changes). Next Spec A gate is separately authorized 9.12 demo
-activation while replicas remain at `min_replicas=1` and ingress stays closed.
+`standard` remote-plan had no changes). Spec A 9.12 source preparation is **implemented but
+unmerged and unapplied** on `cursor/spec-a-9.12-demo-portfolio-activation` and awaiting
+architecture review before PR merge and any production apply. Production fences are unchanged.
 
 This is the living, human-facing status document for the Asset Picker program. It is not a
 historical snapshot. Detailed requirements, designs, task mechanics, and operational evidence live
@@ -94,7 +97,7 @@ At every meaningful merge or live checkpoint:
 
 | Track | Delivered | Current position | Remaining outcome |
 |---|---|---|---|
-| **A — Spec A catalog/data cutover** | Shared catalog, Postgres/Mongo repair, R4 rollout, enforcement, one reconciled controlled refresh, and persisted refresh enablement | **11 of 14 cutover checkpoints complete**; 9.11 applied on `main@e7fad7cb` (runner `true`) | Activate demo portfolio, restore scale-to-zero, reopen ingress |
+| **A — Spec A catalog/data cutover** | Shared catalog, Postgres/Mongo repair, R4 rollout, enforcement, one reconciled controlled refresh, and persisted refresh enablement | **11 of 14 cutover checkpoints complete**; 9.12 implemented but unmerged and unapplied (checkpoint incomplete) | Activate demo portfolio, restore scale-to-zero, reopen ingress |
 | **B — B1 portfolio composition backend** | Deployment prerequisites, fixture identity migration, legacy writer retirement, Wave 2 gateway provisioning **served (R-A/G2 green)**, Wave 3 V20 **served (R-B/G3 green)**, Wave 5 version-bearing read **served (R-B2/G2a green)** | **Wave 2 / R-A complete**; **Wave 3 / R-B complete**; **Wave 5 Tasks 5.2–5.3 / R-B2 complete** (Artifact 2a on `portfolio-service--0000081` / `sha256:d544649f…`; cut `f22e2ff`); **Wave 4a–4c tasks 4.1–4.21 merged on `main@2673f40`** (PR #153; composition mechanisms unexposed; no public `PUT`); Task 5.1 merged on `main@f22e2ff` (PR #155); Tasks **5.4–5.6 merged on `main@0b5d60d1`** (PR #161, source-only); **5.7/G5 blocked by Spec A closed ingress** | Caller migration G5 (after ingress reopen or authorized private-reachability), safe desired-state writer activation, public `PUT` |
 | **C — B2 Asset Picker product** | Requirements, design, task plan, and five-screen visual mockup | **No implementation wave complete** | Picker UI, decimal adapter, presence/reset support, live integration, exposure |
 | **D — Demo credibility** | Canonical prices refreshed and reconciled; demo initializer exists gated off | Demo activation has not run | Spec A 9.12 must seed and verify the complete Active Asset set without touching E2E data |
@@ -130,7 +133,7 @@ Authority: [`.kiro/specs/supported-asset-integrity/tasks.md`](../../.kiro/specs/
 | 9.9 | ✅ Complete | Catalog enforcement enabled; three services held at `min_replicas=1` |
 | 9.10 | ✅ Complete | One controlled refresh succeeded and was reconciled across Kafka, Mongo, and Postgres |
 | 9.11 | ✅ Complete | Persisted `MARKET_DATA_JOB_RUNNER_ENABLED=true` via Terraform; live read-back and standard no-op plan green ([`SPEC_A_9_11_PERSIST_REFRESH_ENABLEMENT.md`](../runbooks/SPEC_A_9_11_PERSIST_REFRESH_ENABLEMENT.md)) |
-| 9.12 | ⏸ Pending | Activate and verify the deterministic full demo portfolio while replicas remain running |
+| 9.12 | ⏸ Implemented but unmerged and unapplied | Activate and verify the deterministic full demo portfolio while replicas remain running; production demo activation still outstanding |
 | 9.13 | ⏸ Pending | Restore `min_replicas=0` and verify configuration-level state |
 | 9.14 | ⏸ Pending | Reopen ingress after 9.11–9.13 are green |
 
@@ -147,8 +150,11 @@ are complete.
   `min_replicas=1` for the verification window.
 - Controlled refresh: exactly one authorized one-off execution completed at 9.10; 9.11 did not start
   an additional execution.
-- Demo portfolio activation: not run.
-- Checkpoints 9.12–9.14: not complete.
+- Demo portfolio activation: not run; production gate `APP_DEMO_SEED_ON_STARTUP` remains absent/`false`
+  (Terraform source on the feature branch defaults `demo_seed_on_startup=false`; no demo or E2E data
+  was touched).
+- Checkpoints 9.12–9.14: not complete; 9.12 source-only work is implemented but unmerged and
+  unapplied.
 - B1 G5 remains blocked by closed ingress.
 
 Checkpoint 9.10 evidence:
@@ -185,8 +191,8 @@ substitute for an authorized Artifact cut.**
 
 | Item | Current state | Required before relying on it |
 |---|---|---|
-| Checkpoint 9.11 | **Complete** — apply run [33091163222](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33091163222); live runner `true`; standard no-op [33093260896](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33093260896); evidence [`SPEC_A_9_11_PERSIST_REFRESH_ENABLEMENT.md`](../runbooks/SPEC_A_9_11_PERSIST_REFRESH_ENABLEMENT.md) | Do not start 9.12 without separate authorization |
-| Checkpoint 9.12 | Pending / unauthorized | Separate authorize demo portfolio activation while `min_replicas=1` and ingress closed |
+| Checkpoint 9.11 | **Complete** — apply run [33091163222](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33091163222); live runner `true`; standard no-op [33093260896](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33093260896); evidence [`SPEC_A_9_11_PERSIST_REFRESH_ENABLEMENT.md`](../runbooks/SPEC_A_9_11_PERSIST_REFRESH_ENABLEMENT.md) | 9.12 source prep may proceed; production apply for 9.12 requires separate authorization |
+| `cursor/spec-a-9.12-demo-portfolio-activation` | **Implemented but unmerged and unapplied** — steady-state `demo_seed_on_startup=false` + exact-scope enable/disable guards; awaiting architecture review before PR merge and any production apply | Architecture review, then PR merge, then separate authorize production enable + restoring rollouts + live verification before claiming 9.12 |
 
 ### Active B1 work
 
@@ -277,16 +283,22 @@ need to be serialized. Production transitions retain their individual approval g
 
 Spec A 9.11 is the last completed production checkpoint. Production now persists
 `MARKET_DATA_JOB_RUNNER_ENABLED=true` with retry `0`, timeout `600`, and cron `0 8 * * *`.
-Checkpoints 9.12–9.14 remain unauthorized because:
+Checkpoint 9.12 source preparation is **implemented but unmerged and unapplied** on
+`cursor/spec-a-9.12-demo-portfolio-activation` and awaits architecture review because:
 
-- the demo portfolio is still untouched;
-- scale and ingress fences remain explicit (`min_replicas=1`, ingress closed); and
+- production demo activation has not run;
+- production gate remains `false`/absent;
+- no demo or E2E data was touched;
+- scale and ingress fences remain explicit (`min_replicas=1`, ingress closed);
+- 9.13–9.14 and B1 G5 remain pending; and
 - B1/B2 implementation status is cleanly separable from the remaining production cutover.
 
 ### Next choices
 
-1. **Operational lane:** separately authorize Spec A 9.12 demo portfolio activation while replicas
-   remain at `min_replicas=1` and ingress stays closed. Continue 9.13–9.14 only after that.
+1. **Operational lane:** review the 9.12 source on
+   `cursor/spec-a-9.12-demo-portfolio-activation`, authorize PR merge if accepted, then separately
+   authorize production enable + restoring rollouts and live verification before marking 9.12
+   complete. Continue 9.13–9.14 only after that.
 2. **Backend lane:** **R-A / G2**, **R-B / G3**, and **R-B2 / G2a** are complete (Artifact 2a
    `portfolio-service--0000081` / `sha256:d544649f…`, cut `f22e2ff`). Tasks **5.4–5.6 are merged
    source-only on `main@0b5d60d1`** (PR #161); **5.7/G5 is blocked** by Spec A closed gateway

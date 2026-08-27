@@ -23,6 +23,9 @@ PROFILE_ASSERT_SCRIPT = (
 PROFILE_9_11_ASSERT_SCRIPT = (
     REPO / "infrastructure" / "terraform" / "azure" / "scripts" / "assert_spec_a_9_11_plan.py"
 )
+PROFILE_9_12_ASSERT_SCRIPT = (
+    REPO / "infrastructure" / "terraform" / "azure" / "scripts" / "assert_spec_a_9_12_plan.py"
+)
 
 
 class TestTerraformAzureWorkflowHardening(unittest.TestCase):
@@ -51,6 +54,16 @@ class TestTerraformAzureWorkflowHardening(unittest.TestCase):
         self.assertRegex(block, r"options:[\s\S]*?-\s*spec-a-9\.11-enable")
         self.assertRegex(block, r"options:[\s\S]*?-\s*spec-a-9\.11-abort")
 
+    def test_change_profile_input_has_both_9_12_profiles(self):
+        block = self._block("change_profile:")
+        self.assertRegex(block, r"options:[\s\S]*?-\s*spec-a-9\.12-enable")
+        self.assertRegex(block, r"options:[\s\S]*?-\s*spec-a-9\.12-disable")
+
+    def test_expected_portfolio_image_digest_input_exists_as_optional_string(self):
+        block = self._block("expected_portfolio_image_digest:")
+        self.assertIn("required: false", block)
+        self.assertIn("type: string", block)
+
     # -- validate-dispatch job -----------------------------------------------------
 
     def test_validate_dispatch_job_exists_and_runs_for_live_state_ops(self):
@@ -66,6 +79,7 @@ class TestTerraformAzureWorkflowHardening(unittest.TestCase):
             "ACTUAL_SHA: ${{ github.sha }}",
             "EXPECTED_MAIN_SHA: ${{ github.event.inputs.expected_main_sha }}",
             "DEPLOYED_IMAGE_TAG: ${{ github.event.inputs.deployed_image_tag }}",
+            "EXPECTED_PORTFOLIO_IMAGE_DIGEST: ${{ github.event.inputs.expected_portfolio_image_digest }}",
             "CHANGE_PROFILE: ${{ github.event.inputs.change_profile }}",
             "USE_SEED_IMAGE: ${{ github.event.inputs.use_seed_image }}",
             "RECREATE_MARKET_DATA_JOB: ${{ github.event.inputs.recreate_market_data_job }}",
@@ -91,6 +105,30 @@ class TestTerraformAzureWorkflowHardening(unittest.TestCase):
         self.assertIn("'standard'", condition)
         self.assertIn("use_seed_image", condition)
         self.assertIn("'true'", condition)
+
+    def test_9_12_digest_is_resolved_exactly_once_after_azure_login(self):
+        job = self._job("validate-dispatch:")
+        login_index = job.find("Azure Login (OIDC)")
+        digest_index = job.find("Confirm expected_portfolio_image_digest resolves in ACR")
+        self.assertGreater(digest_index, login_index)
+        step = job[digest_index : digest_index + 1200]
+        self.assertIn("spec-a-9.12-enable", step)
+        self.assertIn("spec-a-9.12-disable", step)
+        self.assertIn("az acr manifest list-metadata", step)
+        self.assertIn("--registry wealthprodacr", step)
+        self.assertIn("--name portfolio-service", step)
+        self.assertIn('if [ "$COUNT" != "1" ]', step)
+        self.assertNotIn("show-password", step)
+
+    def test_demo_seed_mapping_is_profile_derived_and_fail_closed(self):
+        self.assertIn(
+            "TF_VAR_demo_seed_on_startup: ${{ github.event.inputs.change_profile == 'spec-a-9.12-enable' && 'true' || 'false' }}",
+            self.text,
+        )
+        self.assertNotRegex(
+            self.text,
+            r"(?m)^\s+demo_seed_on_startup:\s*$",
+        )
 
     # -- apply job: needs + environment gate ----------------------------------------
 
@@ -130,6 +168,19 @@ class TestTerraformAzureWorkflowHardening(unittest.TestCase):
             job,
         )
 
+    def test_apply_job_invokes_9_12_guard_after_earlier_guards(self):
+        job = self._job("apply:")
+        guard_9_9 = job.find("assert_spec_a_9_9_plan.py")
+        guard_9_11 = job.find("assert_spec_a_9_11_plan.py")
+        guard_9_12 = job.find(
+            'assert_spec_a_9_12_plan.py tfplan.json --profile "${{ github.event.inputs.change_profile }}" '
+            '--expected-image-digest "${{ github.event.inputs.expected_portfolio_image_digest }}" '
+            '--expected-service-version "${{ github.event.inputs.deployed_image_tag }}"'
+        )
+        self.assertGreater(guard_9_9, -1)
+        self.assertGreater(guard_9_11, guard_9_9)
+        self.assertGreater(guard_9_12, guard_9_11)
+
     def test_job_import_step_is_read_only_for_9_9_profiles(self):
         # `terraform import` mutates the real backend's state immediately, before any
         # plan or assertion runs — during a 9.9 apply that must never happen silently
@@ -150,6 +201,14 @@ class TestTerraformAzureWorkflowHardening(unittest.TestCase):
         import_step = import_step[: import_step.find("\n\n      - name:")]
         self.assertIn("spec-a-9.11-enable", import_step)
         self.assertIn("spec-a-9.11-abort", import_step)
+        self.assertIn("exit 1", import_step)
+
+    def test_job_import_step_is_read_only_for_9_12_profiles(self):
+        job = self._job("apply:")
+        import_step = job[job.find("Import existing market-data refresh Job") :]
+        import_step = import_step[: import_step.find("\n\n      - name:")]
+        self.assertIn("spec-a-9.12-enable", import_step)
+        self.assertIn("spec-a-9.12-disable", import_step)
         self.assertIn("exit 1", import_step)
 
     # -- remote-plan job -----------------------------------------------------------
@@ -180,6 +239,19 @@ class TestTerraformAzureWorkflowHardening(unittest.TestCase):
             'assert_spec_a_9_11_plan.py tfplan.json --profile "${{ github.event.inputs.change_profile }}" --expected-image-tag "${{ github.event.inputs.deployed_image_tag }}"',
             job,
         )
+
+    def test_remote_plan_invokes_9_12_guard_after_earlier_guards(self):
+        job = self._job("remote-plan:")
+        guard_9_9 = job.find("assert_spec_a_9_9_plan.py")
+        guard_9_11 = job.find("assert_spec_a_9_11_plan.py")
+        guard_9_12 = job.find(
+            'assert_spec_a_9_12_plan.py tfplan.json --profile "${{ github.event.inputs.change_profile }}" '
+            '--expected-image-digest "${{ github.event.inputs.expected_portfolio_image_digest }}" '
+            '--expected-service-version "${{ github.event.inputs.deployed_image_tag }}"'
+        )
+        self.assertGreater(guard_9_9, -1)
+        self.assertGreater(guard_9_11, guard_9_9)
+        self.assertGreater(guard_9_12, guard_9_11)
 
     def test_remote_plan_never_applies(self):
         job = self._job("remote-plan:")
@@ -232,6 +304,10 @@ class TestTerraformAzureWorkflowHardening(unittest.TestCase):
         job = self._job("pr-plan:")
         self.assertNotIn("assert_spec_a_9_11_plan.py", job)
 
+    def test_pr_plan_job_never_touches_9_12_profile_assertion(self):
+        job = self._job("pr-plan:")
+        self.assertNotIn("assert_spec_a_9_12_plan.py", job)
+
     # -- scripts exist ------------------------------------------------------------
 
     def test_validate_dispatch_script_exists(self):
@@ -243,12 +319,15 @@ class TestTerraformAzureWorkflowHardening(unittest.TestCase):
     def test_9_11_profile_assertion_script_exists(self):
         self.assertTrue(PROFILE_9_11_ASSERT_SCRIPT.is_file())
 
+    def test_9_12_profile_assertion_script_exists(self):
+        self.assertTrue(PROFILE_9_12_ASSERT_SCRIPT.is_file())
+
     # -- helpers ----------------------------------------------------------------
 
     def _block(self, heading: str) -> str:
         idx = self.text.find(heading)
         self.assertGreaterEqual(idx, 0, f"missing {heading}")
-        return self.text[idx : idx + 800]
+        return self.text[idx : idx + 1200]
 
     def _job(self, heading: str) -> str:
         pattern = rf"^  {re.escape(heading)}\n"
