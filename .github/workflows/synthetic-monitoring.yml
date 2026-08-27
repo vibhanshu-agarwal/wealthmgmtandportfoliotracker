@@ -150,36 +150,15 @@ jobs:
           echo "Pre-warm complete. Container Apps are ready."
 
       - name: Re-seed E2E portfolio holdings
-        # Holdings only. This endpoint used to also upsert market_prices and
-        # market_price_history for every catalogue ticker, which overwrote live refreshed
-        # prices globally on each run — against production, on the same 08:00 UTC cron as
-        # the market-data refresh ACA Job. It now writes portfolios and holdings only, and
-        # portfolio-service has no market-data write path at all. Do not reintroduce one.
-        # The market-data seed remains separately gated off in prod/azure (ACA Job).
+        # Holdings only. Login → one portfolio version read → seed with frozen
+        # expectedVersion. 409 is terminal (no retry). No market-data write path.
         env:
+          API_BASE: ${{ env.API_BASE }}
           INTERNAL_API_KEY: ${{ secrets.TF_VAR_INTERNAL_API_KEY }}
           E2E_USER_ID: "00000000-0000-0000-0000-000000000e2e"
-        run: |
-          set -euo pipefail
-          seed_endpoint() {
-            local label="$1"
-            local path="$2"
-            local body="$3"
-            echo "Seeding ${label} via ${API_BASE}${path} ..."
-            STATUS=$(curl -sS -o /tmp/seed-response.txt -w "%{http_code}" \
-              -X POST "${API_BASE}${path}" \
-              -H "Content-Type: application/json" \
-              -H "X-Internal-Api-Key: ${INTERNAL_API_KEY}" \
-              -d "${body}" \
-              --max-time 120 || echo "000")
-            echo "  ${label}: HTTP ${STATUS}"
-            if [ "${STATUS}" != "200" ]; then
-              cat /tmp/seed-response.txt || true
-              exit 1
-            fi
-          }
-          seed_endpoint "portfolio" "/api/internal/portfolio/seed" "{\"userId\":\"${E2E_USER_ID}\"}"
-
+          E2E_TEST_USER_EMAIL: ${{ secrets.E2E_TEST_USER_EMAIL }}
+          E2E_TEST_USER_PASSWORD: ${{ secrets.E2E_TEST_USER_PASSWORD }}
+        run: bash .github/workflows/scripts/seed-portfolio-with-version.sh
       - name: Run Azure Synthetic Monitoring
         working-directory: ./frontend
         env:

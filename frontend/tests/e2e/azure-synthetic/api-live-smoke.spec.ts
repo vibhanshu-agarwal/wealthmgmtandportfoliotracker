@@ -180,45 +180,65 @@ test.describe("Azure Synthetic: API live smoke", () => {
       "TF_VAR_INTERNAL_API_KEY",
     ]);
     if (!internalApiKey) {
-      // Seed tests are skipped in environments where the key is not available
-      // (e.g. local developer machines without .env.secrets). They are mandatory
-      // in CI via the INTERNAL_API_KEY job-level env.
       test.skip(true, "INTERNAL_API_KEY not set — skipping seed assertions");
     }
 
     const headers = { "X-Internal-Api-Key": internalApiKey! };
 
-    // Portfolio seed: controller hardcodes the E2E user — no body needed.
-    // Response: { userId, portfolioId, holdingsInserted }
-    // Holdings only — this endpoint must never write market_prices or market_price_history.
+    const {
+      selectPortfolioVersion,
+      buildSeedBody,
+      formatG5Marker,
+    } = await import("../helpers/portfolio-seed-version");
+
+    // Fresh observation after global-setup may have changed the aggregate.
+    const login = await request.post(`${baseUrl}/api/auth/login`, {
+      data: { email: email!, password: password! },
+      timeout: 70_000,
+    });
+    expect(login.status(), `POST /api/auth/login returned HTTP ${login.status()}`).toBe(200);
+    const session = await login.json();
+    expect(session.token).toEqual(expect.any(String));
+    expect(session.userId).toBe(expectedUserId);
+
+    const portfolioRead = await request.get(`${baseUrl}/api/portfolio`, {
+      headers: { Authorization: `Bearer ${session.token}` },
+      timeout: 70_000,
+    });
+    expect(
+      portfolioRead.status(),
+      `GET /api/portfolio returned HTTP ${portfolioRead.status()}`,
+    ).toBe(200);
+    const portfolios = await portfolioRead.json();
+    const expectedVersion = selectPortfolioVersion(portfolios, expectedUserId!);
+    console.log(formatG5Marker("azure-api-smoke", expectedVersion));
+
+    // Direct seed POST once — no Playwright retry wrapper. 409 must fail immediately.
     const portfolioSeed = await request.post(
       `${baseUrl}/api/internal/portfolio/seed`,
-      { headers, timeout: 70_000 },
+      {
+        headers,
+        data: buildSeedBody(expectedVersion),
+        timeout: 70_000,
+      },
     );
-    expect(
-      portfolioSeed.status(),
-      `POST /api/internal/portfolio/seed returned HTTP ${portfolioSeed.status()}`,
-    ).toBe(200);
+    if (portfolioSeed.status() !== 200) {
+      const seedErrorBody = await portfolioSeed.text();
+      throw new Error(
+        `POST /api/internal/portfolio/seed returned HTTP ${portfolioSeed.status()}: ${seedErrorBody}`,
+      );
+    }
     const portfolioSeedBody = await portfolioSeed.json();
-    // Spec A Requirement 8.8: assert the seeded count is EQUAL to the cardinality of
-    // the Active_Asset set, derived from the canonical manifest — not >= a literal.
-    // A literal both contradicts Requirement 3.4 (no fixed catalog size) and would pass
-    // silently if the seeder over-seeded; `>= 160` began failing outright once
-    // TATAMOTORS.NS was deprecated and both seed paths moved to active() enumeration.
     expect(
       portfolioSeedBody.holdingsInserted,
       `portfolio seed must insert exactly the Active_Asset count (${activeAssetCount()})`,
     ).toBe(activeAssetCount());
 
-    // The seed endpoint must not report — and therefore must not perform — any market-data
-    // write. This field previously carried a count of market_prices rows the seeder upserted
-    // globally, overwriting live refreshed prices on every scheduled run against production.
     expect(
       portfolioSeedBody,
       "seed response must not carry marketPricesUpserted — portfolio-service must never write market data",
     ).not.toHaveProperty("marketPricesUpserted");
 
-    // Market-data seed is gated off under prod/azure (market-data.seed.enabled=false).
     const marketDataSeed = await request.post(
       `${baseUrl}/api/internal/market-data/seed`,
       {
@@ -232,6 +252,7 @@ test.describe("Azure Synthetic: API live smoke", () => {
       "market-data seed must be unreachable under prod/azure (404 gated, 503 ACA cold start)",
     ).toContain(marketDataSeed.status());
   });
+
 
   // ── 3. Auth + protected endpoints ────────────────────────────────────────
   test("login POST issues token accepted by live protected GET endpoints", async ({
