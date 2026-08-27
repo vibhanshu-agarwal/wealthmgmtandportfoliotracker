@@ -1,12 +1,12 @@
 # Implementation Plan
 
-**Current program status (verified 2026-08-27 at `main@0b857f3c`):** implementation tasks 1–7 are
-complete; task 8 is complete except 8.8. Cutover checkpoints 9.1–9.10 are complete. Checkpoint 9.11
-source preparation (desired-state `MARKET_DATA_JOB_RUNNER_ENABLED=true` plus exact-scope enable/abort
-guards) is **merged but unapplied** on `main@0b857f3c` (PR #164, source-only) — the checkbox stays
-open until live Terraform read-back succeeds. Checkpoints 9.12–9.14 are pending and unauthorized;
-production persisted refresh remains `false`, demo activation has not run, the three catalog
-services remain at `min_replicas=1`, and gateway ingress remains closed.
+**Current program status (verified 2026-08-27):** implementation tasks 1–7 are complete; task 8 is
+complete except 8.8. Cutover checkpoints 9.1–9.11 are complete. Checkpoint 9.11 applied through
+Terraform (`spec-a-9.11-enable`) on `main@e7fad7cb` and live-read back
+`MARKET_DATA_JOB_RUNNER_ENABLED=true` with an unchanged safety tuple; evidence
+[`docs/runbooks/SPEC_A_9_11_PERSIST_REFRESH_ENABLEMENT.md`](../../../docs/runbooks/SPEC_A_9_11_PERSIST_REFRESH_ENABLEMENT.md).
+Checkpoints 9.12–9.14 remain pending and unauthorized; demo activation has not run, the three
+catalog services remain at `min_replicas=1`, and gateway ingress remains closed.
 See [`docs/plans/ASSET_PICKER_E2E_MASTER_PLAN.md`](../../../docs/plans/ASSET_PICKER_E2E_MASTER_PLAN.md)
 for the living cross-program view.
 
@@ -803,13 +803,26 @@ python scripts/check-spec-references.py   .kiro/specs/supported-asset-integrity/
         scale-to-zero, or reopen ingress — none of that occurred. 9.11–9.14 remain unchecked and
         unauthorized.
 
-  - [ ] 9.11 **CHECKPOINT — persist refresh enablement**
+  - [x] 9.11 **CHECKPOINT — persist refresh enablement**
     - Go: `MARKET_DATA_JOB_RUNNER_ENABLED=true` persisted through Terraform and read back
-    - **Merged but unapplied on `main@0b857f3c` (PR #164, source-only):** Terraform desired state
-      flipped to `true`; exact-scope profiles `spec-a-9.11-enable` / `spec-a-9.11-abort` and
-      adversarial `assert_spec_a_9_11_plan.py` guards implemented; dispatch/workflow fail-closed
-      wiring complete. Production runner remains `false` until a separately authorized remote-plan
-      + apply + live read-back. This checkbox must stay open until that live read-back succeeds.
+    - Source: PR #164 → `main@0b857f3c` (desired-state `true` + exact-scope enable/abort guards).
+    - Production enable: remote-plan
+      [33080741185](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33080741185)
+      then apply
+      [33091163222](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33091163222)
+      on `main@e7fad7cb` with `change_profile=spec-a-9.11-enable`,
+      `deployed_image_tag=9b2cf0d655b4b7ae2ce20ff7b67e4ad750df6900`; sanitized plan exactly
+      `azurerm_container_app_job.market_data_refresh ["update"]`
+      (`Plan: 0 to add, 1 to change, 0 to destroy`; `false → true` in-place).
+    - Live read-back: runner `true`; retry `0`, timeout `600`, cron `0 8 * * *`, UserAssigned
+      identity and image unchanged; no unexpected execution; gateway ingress still closed; peer
+      revisions unchanged.
+    - Follow-up standard remote-plan
+      [33093260896](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33093260896):
+      `No changes`.
+    - Durable evidence:
+      [`docs/runbooks/SPEC_A_9_11_PERSIST_REFRESH_ENABLEMENT.md`](../../../docs/runbooks/SPEC_A_9_11_PERSIST_REFRESH_ENABLEMENT.md).
+    - Does **not** authorize 9.12–9.14, refresh execution, ingress reopen, or B1 G5.
 
   - [ ] 9.12 **CHECKPOINT — demo portfolio activation** (while `min_replicas = 1`, ingress still closed)
     - Must run **before** scale is restored to zero. With ingress closed and `min_replicas = 0`
