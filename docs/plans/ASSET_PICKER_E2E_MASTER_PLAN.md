@@ -17,8 +17,9 @@ independent of the runtime baseline above.
 
 **Program state:** Spec A checkpoint 9.10 is complete. Checkpoints 9.11–9.14 are pending and
 unauthorized. B1 Wave 2 / R-A, Wave 3 / R-B (V20), and Wave 5 Tasks 5.2–5.3 / R-B2 (G2a) are
-complete; caller migration 5.4–5.6 is implemented on branch cursor/b1-wave5b-seed-caller-migration (unmerged; G5/5.7 after green PR CI); later B1 waves remain gated. B2's implementation has not
-started.
+complete; caller migration Tasks 5.4–5.6 are implemented on PR #161 (source-only; G5/5.7 blocked by
+Spec A closed gateway ingress — see [`B1_G5_INGRESS_BLOCKER.md`](../runbooks/B1_G5_INGRESS_BLOCKER.md));
+later B1 waves remain gated. B2's implementation has not started.
 
 **User-visible state:** there is no functional Asset Picker in the application today.
 
@@ -90,7 +91,7 @@ At every meaningful merge or live checkpoint:
 | Track | Delivered | Current position | Remaining outcome |
 |---|---|---|---|
 | **A — Spec A catalog/data cutover** | Shared catalog, Postgres/Mongo repair, R4 rollout, enforcement, and one reconciled controlled refresh | **10 of 14 cutover checkpoints complete**; 9.11 is the next unauthorized checkpoint | Persist refresh, activate demo portfolio, restore scale-to-zero, reopen ingress |
-| **B — B1 portfolio composition backend** | Deployment prerequisites, fixture identity migration, legacy writer retirement, Wave 2 gateway provisioning **served (R-A/G2 green)**, Wave 3 V20 **served (R-B/G3 green)**, Wave 5 version-bearing read **served (R-B2/G2a green)** | **Wave 2 / R-A complete**; **Wave 3 / R-B complete**; **Wave 5 Tasks 5.2–5.3 / R-B2 complete** (Artifact 2a on `portfolio-service--0000081` / `sha256:d544649f…`; cut `f22e2ff`); **Wave 4a–4c tasks 4.1–4.21 merged on `main@2673f40`** (PR #153; composition mechanisms unexposed; no public `PUT`); Task 5.1 merged on `main@f22e2ff` (PR #155); caller migration (5.4–5.7) incomplete | Caller migration / G5, safe desired-state writer activation, public `PUT` |
+| **B — B1 portfolio composition backend** | Deployment prerequisites, fixture identity migration, legacy writer retirement, Wave 2 gateway provisioning **served (R-A/G2 green)**, Wave 3 V20 **served (R-B/G3 green)**, Wave 5 version-bearing read **served (R-B2/G2a green)** | **Wave 2 / R-A complete**; **Wave 3 / R-B complete**; **Wave 5 Tasks 5.2–5.3 / R-B2 complete** (Artifact 2a on `portfolio-service--0000081` / `sha256:d544649f…`; cut `f22e2ff`); **Wave 4a–4c tasks 4.1–4.21 merged on `main@2673f40`** (PR #153; composition mechanisms unexposed; no public `PUT`); Task 5.1 merged on `main@f22e2ff` (PR #155); Tasks 5.4–5.6 on PR #161 (source-only); **5.7/G5 blocked by Spec A closed ingress** | Caller migration G5 (after ingress reopen or authorized private-reachability), safe desired-state writer activation, public `PUT` |
 | **C — B2 Asset Picker product** | Requirements, design, task plan, and five-screen visual mockup | **No implementation wave complete** | Picker UI, decimal adapter, presence/reset support, live integration, exposure |
 | **D — Demo credibility** | Canonical prices refreshed and reconciled; demo initializer exists gated off | Demo activation has not run | Spec A 9.12 must seed and verify the complete Active Asset set without touching E2E data |
 
@@ -102,7 +103,7 @@ At every meaningful merge or live checkpoint:
 | Repaired and reconciled price data | ✅ Shipped and verified |
 | Enforcement against unsupported holdings/events | ✅ Enabled |
 | `GET /api/assets` serving catalog data | ✅ Wave 2 gateway `/api/assets/**` route served with R-A; Wave 4b controller served with R-B2 Artifact 2a (`portfolio-service--0000081`) |
-| Version-bearing portfolio read | ✅ G2a/R-B2 green on `portfolio-service--0000081` / `sha256:d544649f…`; caller migration (5.4–5.7) incomplete |
+| Version-bearing portfolio read | ✅ G2a/R-B2 green on `portfolio-service--0000081` / `sha256:d544649f…`; caller migration 5.4–5.6 on PR #161 (source-only); **5.7/G5 blocked by Spec A closed ingress** |
 | `PUT /api/portfolio/holdings` safe composition write | ❌ Not implemented |
 | Asset Picker button/modal/browse/review/conflict UI | ❌ Not implemented |
 | Asset Picker full-stack E2E proof | ❌ Not implemented |
@@ -159,15 +160,16 @@ Authority: [`.kiro/specs/portfolio-composition-contract/tasks.md`](../../.kiro/s
 | 2 — gateway provisioning + asset route | ✅ R-A complete (G2 served) | PR #131 tasks 2.1–2.6 complete; serving revision `api-gateway--0000076`, digest `sha256:2da5b303…`; evidence [`B1_R_A_G2_SERVING_PROOF.md`](../runbooks/B1_R_A_G2_SERVING_PROOF.md) |
 | 3 – V20 schema | ✅ R-B complete (G3 served) | Tasks 3.1–3.7 complete; Artifact 2 cut `25aa730` applied V20; prior serving evidence [`B1_R_B_G3_SERVING_PROOF.md`](../runbooks/B1_R_B_G3_SERVING_PROOF.md); superseded for portfolio traffic by R-B2 |
 | 4 – contract implementation | Source on Artifact 2a serving cut; mechanisms unexposed | Wave 4a–4c (4.1–4.21) merged on `main@2673f40` (PR #153) and included in Artifact 2a serving digest. Public `PUT` still Wave 7. Replacement orchestrator + preparers remain unexposed; `GET /api/assets` controller is now served with R-B2; candidate packaging (7.5/R-C) still pending |
-| 5 — version-bearing read | 🟡 Tasks 5.1–5.3 / R-B2 complete; 5.4–5.6 implemented unmerged; 5.7/G5 pending | Task 5.1 on main@f22e2ff; G2a/R-B2 green on portfolio-service--0000081 / sha256:d544649f…; caller migration on cursor/b1-wave5b-seed-caller-migration (review PR; G5 after green CI) |
+| 5 — version-bearing read | 🟡 Tasks 5.1–5.3 / R-B2 complete; 5.4–5.6 on PR #161 (source-only); **5.7/G5 blocked** by Spec A closed ingress | Task 5.1 on main@f22e2ff; G2a/R-B2 green on portfolio-service--0000081 / sha256:d544649f…; caller migration CI-green on #161; G5 runs 33046987880 / 33047168136 failed at TLS login before seed ([`B1_G5_INGRESS_BLOCKER.md`](../runbooks/B1_G5_INGRESS_BLOCKER.md)) |
 | 6 — version-required seed | ⬜ Not started | Seeder delegates through the safe replacement service |
 | 7 — activation | ⬜ Not started | Public `PUT /api/portfolio/holdings`, attested candidate, serving proof |
 
 Spec A V17–V19 were applied at checkpoint 9.6; **V20 is applied under R-B** and unchanged by R-B2.
 **R-A / G2**, **R-B / G3**, and **R-B2 / G2a** are complete. Wave 4 composition write mechanisms
 remain unexposed; public `PUT` and candidate packaging (7.5/R-C) remain incomplete. Caller migration
-(5.4–5.7) is the next gated Wave 5 work. **Do not treat a current-`main` portfolio deploy as a
-substitute for an authorized Artifact cut.**
+source (5.4–5.6) awaits source-only merge on PR #161; **5.7/G5 remains incomplete** until Spec A
+reopens ingress or a separately authorized private-reachability test runs. Wave 6 / R-B3 stay gated.
+**Do not treat a current-`main` portfolio deploy as a substitute for an authorized Artifact cut.**
 
 ### Active B1 work
 
@@ -177,7 +179,7 @@ substitute for an authorized Artifact cut.**
 | `cursor/b1-wave3-v20-schema` / PR #152 + R-B | **Complete** — tasks 3.1–3.7 / R-B; V20 applied; G3 green ([`B1_R_B_G3_SERVING_PROOF.md`](../runbooks/B1_R_B_G3_SERVING_PROOF.md)); portfolio traffic superseded by R-B2 | Forward-only after V20; do not roll back migration or gateway |
 | `cursor/b1-wave4a-composition-core` / PR #153 | **Merged** on `main@2673f40` – Wave 4a–4c tasks 4.1–4.21. Read-only catalog path is served via Artifact 2a; composition write mechanisms remain **unexposed**; no public `PUT` | Do not start Wave 6–7 or candidate attestation without separate authorization |
 | `cursor/b1-wave5a-version-bearing-read` / PR #155 + R-B2 | **Complete for 5.1–5.3** — Task 5.1 on `main@f22e2ff`; Artifact 2a serving on `portfolio-service--0000081` / `sha256:d544649f…` ([run 32982880866](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/32982880866); [`B1_R_B2_G2A_SERVING_PROOF.md`](../runbooks/B1_R_B2_G2A_SERVING_PROOF.md)); G2a green | Do not begin Tasks 5.4–5.7 / caller migration without separate authorization; any future portfolio rollout invalidates G2a |
-| `cursor/b1-wave5b-seed-caller-migration` / PR #161 | **Implemented unmerged** — Tasks 5.4–5.6 (three callers + deploy credential wiring + inventory guard); 5.7/G5 pending after required PR CI | Review PR only; no merge/deploy; one authorized Azure synthetic after green CI |
+| `cursor/b1-wave5b-seed-caller-migration` / PR #161 | **Implemented unmerged (source-only)** — Tasks 5.4–5.6 CI-green; **5.7/G5 incomplete** — blocked by Spec A closed gateway ingress ([`B1_G5_INGRESS_BLOCKER.md`](../runbooks/B1_G5_INGRESS_BLOCKER.md); runs 33046987880 / 33047168136) | Source-only merge after docs CI; no deploy; no G5 claim; Wave 6/R-B3 still gated |
 | [`proof/b1-wave-2-g1-v20@e6a98c5`](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/tree/proof/b1-wave-2-g1-v20) | Historical dependent dual-schema proof branch; superseded for Wave 3 delivery by `cursor/b1-wave3-v20-schema` | Remain unmerged; no release action |
 
 ### Active process work
@@ -270,10 +272,12 @@ The program is deliberately stopped after Spec A 9.10. This is a clean handoff p
 1. **Operational lane:** design/review and explicitly authorize Spec A 9.11, then continue through
    9.14 one checkpoint at a time.
 2. **Backend lane:** **R-A / G2**, **R-B / G3**, and **R-B2 / G2a** are complete (Artifact 2a
-   `portfolio-service--0000081` / `sha256:d544649f…`, cut `f22e2ff`). The next gated Wave 5 work is
-   caller migration **Tasks 5.4–5.7 / G5** (5.4–5.6 on review branch; G5 after green CI). Waves 6–7
-   and candidate packaging (7.5/R-C) remain separately gated. Do not claim Writer_Convergence while
-   the old seed remains version-tolerant.
+   `portfolio-service--0000081` / `sha256:d544649f…`, cut `f22e2ff`). Tasks **5.4–5.6** are
+   source-ready on PR #161; **5.7/G5 is blocked** by Spec A closed gateway ingress (not by Wave 5b).
+   Resume G5 only after Spec A 9.11–9.14 reopen ingress, or a separately authorized
+   private-reachability test that executes all three real callers. Waves 6–7 and candidate packaging
+   (7.5/R-C) remain separately gated. Do not claim Writer_Convergence while the old seed remains
+   version-tolerant.
 3. **Frontend lane:** begin the startable mock-backed subset of B2 Wave 1 against frozen contracts.
 4. **Process lane:** keep the status-propagation CI guard healthy in required `static-guard`; it is
    process-control only and does not advance the runtime baseline.
