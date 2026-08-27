@@ -1,17 +1,16 @@
 # Implementation Plan
 
-**Current program status (verified 2026-08-27):** implementation tasks 1–7 are complete; task 8 is
+**Current program status (verified 2026-08-27 at `main@bd56ddaa`):** implementation tasks 1–7 are complete; task 8 is
 complete except 8.8. Cutover checkpoints 9.1–9.11 are complete. Checkpoint 9.11 applied through
 Terraform (`spec-a-9.11-enable`) on `main@e7fad7cb` and live-read back
 `MARKET_DATA_JOB_RUNNER_ENABLED=true` with an unchanged safety tuple; evidence
 [`docs/runbooks/SPEC_A_9_11_PERSIST_REFRESH_ENABLEMENT.md`](../../../docs/runbooks/SPEC_A_9_11_PERSIST_REFRESH_ENABLEMENT.md).
 Checkpoint 9.12 source preparation (steady-state `demo_seed_on_startup=false` plus exact-scope
-enable/disable guards) is **implemented but unmerged and unapplied** on branch
-`cursor/spec-a-9.12-demo-portfolio-activation` — the checkbox stays open until production demo
-activation and live verification succeed. Checkpoints 9.13–9.14 remain pending and unauthorized;
-production demo activation has not run, the production gate remains `false`/absent, no demo or E2E
-data was touched, the three catalog services remain at `min_replicas=1`, gateway ingress remains
-closed, and B1 G5 remains blocked.
+enable/disable guards) is **merged but unapplied** on `main@bd56ddaa` (PR #167, source-only) — the
+checkbox stays open until authorized production enable + restoring rollouts and live verification
+succeed. Checkpoints 9.13–9.14 remain pending and unauthorized; production demo activation has not
+run, the production gate remains `false`/absent, no demo or E2E data was touched, the three catalog
+services remain at `min_replicas=1`, gateway ingress remains closed, and B1 G5 remains blocked.
 See [`docs/plans/ASSET_PICKER_E2E_MASTER_PLAN.md`](../../../docs/plans/ASSET_PICKER_E2E_MASTER_PLAN.md)
 for the living cross-program view.
 
@@ -830,8 +829,7 @@ python scripts/check-spec-references.py   .kiro/specs/supported-asset-integrity/
     - Does **not** authorize 9.12–9.14, refresh execution, ingress reopen, or B1 G5.
 
   - [ ] 9.12 **CHECKPOINT — demo portfolio activation** (while `min_replicas = 1`, ingress still closed)
-    - **Implemented but unmerged and unapplied** on
-      `cursor/spec-a-9.12-demo-portfolio-activation` from base `main@3fb400fd`: Terraform variable
+    - **Merged but unapplied on `main@bd56ddaa` (PR #167, source-only):** Terraform variable
       `demo_seed_on_startup` defaults `false`; portfolio-service-only `APP_DEMO_SEED_ON_STARTUP`
       wiring; exact-scope profiles `spec-a-9.12-enable` / `spec-a-9.12-disable` and adversarial
       `assert_spec_a_9_12_plan.py` guards implemented; dispatch/workflow fail-closed wiring complete.
