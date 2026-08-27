@@ -215,6 +215,16 @@ variable "internal_api_key" {
 }
 
 # ---------------------------------------------------------------------------
+# Demo portfolio seed (Spec A checkpoint 9.12)
+# ---------------------------------------------------------------------------
+
+variable "demo_seed_on_startup" {
+  type        = bool
+  default     = false
+  description = "Temporary Spec A 9.12 gate for DemoPortfolioInitializer. Steady state is false; only dedicated 9.12 workflow profiles may override it."
+}
+
+# ---------------------------------------------------------------------------
 # CORS
 # ---------------------------------------------------------------------------
 

@@ -9,7 +9,7 @@ sole meaningful delta. Image and SERVICE_VERSION are pinned to the dispatch's
 deployed_image_tag. The safety tuple (retry=0, timeout=600, cron, parallelism, completion)
 must hold on both sides.
 
-Runs for every remote-plan/apply. Under standard / 9.9 profiles, any change to the runner
+Runs for every remote-plan/apply. Under standard / 9.9 / 9.12 profiles, any change to the runner
 env fails closed — only the two 9.11 profiles may perform that transition.
 
 Usage:
@@ -37,6 +37,8 @@ KNOWN_PROFILES = (
     "spec-a-9.9-abort",
     "spec-a-9.11-enable",
     "spec-a-9.11-abort",
+    "spec-a-9.12-enable",
+    "spec-a-9.12-disable",
 )
 
 REQUIRED_RETRY = 0

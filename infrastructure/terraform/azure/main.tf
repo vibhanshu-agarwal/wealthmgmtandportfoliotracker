@@ -312,6 +312,7 @@ module "portfolio_service" {
     MANAGEMENT_TRACING_SAMPLING_PROBABILITY                = "1.0"
     SERVICE_VERSION                                        = var.image_tag
     DEPLOYMENT_ENVIRONMENT_NAME                            = "prod"
+    APP_DEMO_SEED_ON_STARTUP                               = tostring(var.demo_seed_on_startup)
   }
 
   secret_env_vars = {
