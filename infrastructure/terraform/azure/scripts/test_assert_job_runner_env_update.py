@@ -50,7 +50,11 @@ def _plan(*rcs: dict) -> dict:
 
 
 class JobRunnerEnvUpdateTests(unittest.TestCase):
-    def test_env_change_update_passes(self):
+    def test_false_to_true_env_change_update_passes(self):
+        plan = _plan(_job(actions=["update"], before_value="false", after_value="true"))
+        self.assertEqual(aje.evaluate_plan(plan), [])
+
+    def test_true_to_false_env_change_update_passes(self):
         plan = _plan(_job(actions=["update"], before_value="true", after_value="false"))
         self.assertEqual(aje.evaluate_plan(plan), [])
 

@@ -3,11 +3,11 @@
 Structural tests for the market-data-refresh-job safety properties in main.tf.
 
 Asserts that the persisted HCL encodes the three invariants required for
-checkpoint 9.10's capture-and-reconcile safety contract:
+checkpoint 9.11's persisted scheduled-refresh contract (and retained from 9.10):
 
   - replica_retry_limit = 0  (no automatic retry after a partial write)
   - replica_timeout_in_seconds = 600
-  - persisted MARKET_DATA_JOB_RUNNER_ENABLED = "false" (refresh stays gated off)
+  - persisted MARKET_DATA_JOB_RUNNER_ENABLED = "true" (scheduled refresh enabled)
 
 These tests run against the source HCL file, not a plan fixture, so they fail
 if the file diverges from what was merged — no fixture staleness risk.
@@ -94,14 +94,14 @@ class RefreshJobSafetyTest(unittest.TestCase):
         timeout = _int_attr(self.job_block, "replica_timeout_in_seconds")
         self.assertEqual(timeout, 600, f"replica_timeout_in_seconds is {timeout}; expected 600")
 
-    def test_persisted_runner_disabled(self) -> None:
-        """MARKET_DATA_JOB_RUNNER_ENABLED must be 'false' in the persisted Job template."""
+    def test_persisted_runner_enabled(self) -> None:
+        """MARKET_DATA_JOB_RUNNER_ENABLED must be 'true' in the persisted Job template."""
         value = _runner_enabled_value(self.job_block)
         self.assertEqual(
             value,
-            "false",
-            f"MARKET_DATA_JOB_RUNNER_ENABLED persisted value is '{value}'; must be 'false' — "
-            "only the checkpoint 9.10 execution template carries 'true'.",
+            "true",
+            f"MARKET_DATA_JOB_RUNNER_ENABLED persisted value is {value!r}; "
+            "checkpoint 9.11 requires 'true'.",
         )
 
 

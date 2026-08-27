@@ -359,6 +359,66 @@ class SpecA99PlanTests(unittest.TestCase):
         # must not itself cause a failure.
         self.assertEqual(_evaluate(_enable_plan(), "standard", expected_tag=""), _evaluate(_enable_plan(), "standard"))
 
+    # -- 9.11 profiles: accepted but routed through the standard 9.9 surface guard -----
+
+    def test_9_11_enable_with_unchanged_9_9_surface_passes(self):
+        plan = {
+            "resource_changes": [
+                {
+                    "address": "azurerm_container_app_job.market_data_refresh",
+                    "change": {
+                        "actions": ["update"],
+                        "before": _side(min_replicas=1, overrides_present=False),
+                        "after": _side(min_replicas=1, overrides_present=False),
+                    },
+                }
+            ]
+        }
+        self.assertEqual(_evaluate(plan, "spec-a-9.11-enable"), [])
+
+    def test_9_11_abort_with_unchanged_9_9_surface_passes(self):
+        plan = {
+            "resource_changes": [
+                {
+                    "address": "azurerm_container_app_job.market_data_refresh",
+                    "change": {
+                        "actions": ["update"],
+                        "before": _side(min_replicas=1, overrides_present=False),
+                        "after": _side(min_replicas=1, overrides_present=False),
+                    },
+                }
+            ]
+        }
+        self.assertEqual(_evaluate(plan, "spec-a-9.11-abort"), [])
+
+    def test_9_11_enable_rejects_min_replicas_change(self):
+        plan = {
+            "resource_changes": [
+                _service_rc(
+                    sut.SERVICE_ADDRESSES[0],
+                    actions=["update"],
+                    before=_side(min_replicas=1, overrides_present=False),
+                    after=_side(min_replicas=0, overrides_present=False),
+                )
+            ]
+        }
+        errors = _evaluate(plan, "spec-a-9.11-enable")
+        self.assertTrue(any("standard-guard" in e and "min_replicas" in e for e in errors))
+
+    def test_9_11_abort_rejects_override_change(self):
+        plan = {
+            "resource_changes": [
+                _service_rc(
+                    sut.SERVICE_ADDRESSES[0],
+                    actions=["update"],
+                    before=_side(min_replicas=1, overrides_present=False),
+                    after=_side(min_replicas=1, overrides_present=True),
+                )
+            ]
+        }
+        errors = _evaluate(plan, "spec-a-9.11-abort")
+        self.assertTrue(any("standard-guard" in e for e in errors))
+
 
 if __name__ == "__main__":
     unittest.main()

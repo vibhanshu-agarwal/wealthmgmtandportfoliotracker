@@ -267,7 +267,12 @@ def _evaluate_9_9_transition(plan: dict, profile: str, expected_image_tag: str) 
 
 
 def evaluate_plan(plan: dict, profile: str, expected_image_tag: str) -> list[str]:
-    if profile == "standard":
+    if profile in (
+        "standard",
+        "spec-a-9.11-enable",
+        "spec-a-9.11-abort",
+    ):
+        # 9.11 profiles must not touch the 9.9 protected surface; reuse the standard guard.
         return _evaluate_standard_guard(plan)
     return _evaluate_9_9_transition(plan, profile, expected_image_tag)
 
@@ -277,7 +282,13 @@ def main() -> int:
     parser.add_argument("plan_json")
     parser.add_argument(
         "--profile",
-        choices=("standard", "spec-a-9.9-enable", "spec-a-9.9-abort"),
+        choices=(
+            "standard",
+            "spec-a-9.9-enable",
+            "spec-a-9.9-abort",
+            "spec-a-9.11-enable",
+            "spec-a-9.11-abort",
+        ),
         required=True,
         help="The literal change_profile dispatch input value.",
     )
@@ -303,10 +314,11 @@ def main() -> int:
         for err in errors:
             print(f"  {err}")
         return 1
-    if args.profile == "standard":
+    if args.profile in ("standard", "spec-a-9.11-enable", "spec-a-9.11-abort"):
         print(
-            "PASS spec-a-9.9 guard (profile=standard) — the plan does not touch min_replicas "
-            "or the catalog override env vars on any of the three service Container Apps."
+            f"PASS spec-a-9.9 guard (profile={args.profile}) — the plan does not touch "
+            "min_replicas or the catalog override env vars on any of the three service "
+            "Container Apps."
         )
     else:
         print(
