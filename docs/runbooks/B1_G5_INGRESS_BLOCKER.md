@@ -10,10 +10,19 @@ No secret values, JWTs, or passwords appear here.
 `api.vibhanshu-ai-portfolio.dev` resets at handshake because `api-gateway` ingress is fully
 disabled under the intentional Spec A production fence (checkpoints 9.11–9.14 still unauthorized).
 
-Tasks **5.4–5.6** remain implemented (CI-green on PR #161). Task **5.7 remains unchecked**.
-Wave 6 / R-B3 and Writer_Convergence remain gated. Gateway-revision loopback is **not** an
-adequate G5 substitute: it can prove API behavior, not that all three GitHub-hosted callers send
-version-bearing requests.
+Tasks **5.4–5.6** remain implemented (merged source-only on `main@0b5d60d1`, PR #161). Task **5.7
+remains unchecked**. Wave 6 / R-B3 and Writer_Convergence remain gated. Gateway-revision loopback is
+**not** an adequate G5 substitute: it can prove API behavior, not that all three GitHub-hosted
+callers send version-bearing requests.
+
+## Source merge record
+
+| Field | Value |
+|---|---|
+| PR | [#161](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/161) |
+| Merge SHA | `0b5d60d1ef1c0c1002be69698db4d45244843bfe` |
+| Scope | Tasks 5.4–5.6 source-only |
+| Deploy / ingress / G5 | **not** authorized by this merge |
 
 ## Serving identity at attempt time (unchanged from R-B2)
 
