@@ -16,8 +16,8 @@ serving on `portfolio-service--0000081` /
 [32982880866](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/32982880866);
 G2a green; evidence
 [`docs/runbooks/B1_R_B2_G2A_SERVING_PROOF.md`](../../../docs/runbooks/B1_R_B2_G2A_SERVING_PROOF.md)).
-Tasks **5.4–5.6** are implemented on PR #161 (source-only caller migration; CI-green); **5.7 / G5
-remains unchecked** — blocked by Spec A closed gateway ingress (runs
+Tasks **5.4–5.6 are merged on `main@0b5d60d1`** (PR #161, source-only caller migration; not
+deployed); **5.7 / G5 remains unchecked** — blocked by Spec A closed gateway ingress (runs
 [33046987880](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33046987880),
 [33047168136](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33047168136);
 evidence [`docs/runbooks/B1_G5_INGRESS_BLOCKER.md`](../../../docs/runbooks/B1_G5_INGRESS_BLOCKER.md)).
@@ -854,30 +854,28 @@ Named individually so the R-C manifest can enumerate them rather than gesture at
   **Go:** 5.2 green — **GO recorded 2026-08-26**.
   **Abort:** redeploy the prior portfolio digest and **do not begin caller migration**. Safe: no
   caller depends on the version yet. Never cross below Artifact 0 + Artifact 1.
-  Abort path not used. Tasks 5.4–5.6 implemented on PR #161; 5.7 remains incomplete (G5 blocked by
-  Spec A closed ingress).
+  Abort path not used. Tasks 5.4–5.6 merged on `main@0b5d60d1` (PR #161, source-only); 5.7 remains
+  incomplete (G5 blocked by Spec A closed ingress).
   _Requirements: 8.32_
 - [x] **5.4 Migrate all three seed call sites** to log in, read once, and send that exact version:
   `synthetic-monitoring.yml` -> `.github/workflows/scripts/seed-portfolio-with-version.sh`,
   `frontend/tests/e2e/global-setup.ts`, `frontend/tests/e2e/azure-synthetic/api-live-smoke.spec.ts`.
-  Shared helper freezes `expectedVersion`; Azure synthetic reaches all three. **Implemented on
-  branch `cursor/b1-wave5b-seed-caller-migration` (PR #161) — awaiting source-only merge; does not
-  claim G5.**
+  Shared helper freezes `expectedVersion`; Azure synthetic reaches all three. **Merged source-only
+  on `main@0b5d60d1` (PR #161); does not claim G5; not deployed.**
   _Requirements: 8.32, 8.33, 8.34_
 - [x] **5.5 Add E2E email/password to `deploy-azure.yml`'s seed step**, which carries only the user id
   and internal key.
   Seed job now supplies `E2E_TEST_USER_EMAIL` / `E2E_TEST_USER_PASSWORD` plus an `if: always()`
-  Playwright sanitizer (`mode: live-secret`). **Implemented on PR #161 — awaiting source-only
-  merge.**
+  Playwright sanitizer (`mode: live-secret`). **Merged source-only on `main@0b5d60d1` (PR #161).**
   _Requirements: 8.32_
 - [x] **5.6 `409` workflow outcome:** fail the execution once, log the body, **never retry**. Retrying
   against the newer version is the silent overwrite the contract prevents.
   Shell, global-setup, and api-live-smoke treat 409 as terminal; request-capture tests cover
-  one-attempt failure. **Implemented on PR #161 — awaiting source-only merge.**
+  one-attempt failure. **Merged source-only on `main@0b5d60d1` (PR #161).**
   _Requirements: 8.25, 8.35, 8.36, 8.37_
 - [ ] **5.7 G5 evidence.** Every call site, in every execution context, sends a version. Zero
   missing-version requests — enumerated per site, not inferred from one green run.
-  Static inventory guard + unit/request-capture tests green on PR #161. **Live public Azure
+  Static inventory guard + unit/request-capture tests green on `main@0b5d60d1`. **Live public Azure
   synthetic G5 blocked by Spec A closed gateway ingress** — authorized runs
   [33046987880](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33046987880)
   and
