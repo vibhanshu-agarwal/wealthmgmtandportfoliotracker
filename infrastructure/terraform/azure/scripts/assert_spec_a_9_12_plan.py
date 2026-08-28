@@ -117,55 +117,22 @@ def _canonical_env_entry(entry: dict) -> dict | None:
     return {"name": name, "value": value}
 
 
-def _canonicalize_value(value):
-    if isinstance(value, dict):
-        return _canonicalize_dict(value)
-    if isinstance(value, list):
-        return _canonicalize_list(value)
-    if isinstance(value, str) and value.lower() == "auto":
-        return "auto"
-    return value
-
-
-def _canonicalize_list(items: list) -> list:
-    canonical = [_canonicalize_value(item) for item in items]
-    if canonical and all(isinstance(item, dict) for item in canonical):
-        if all("name" in item for item in canonical):
-            return sorted(canonical, key=lambda item: item["name"])
-        if all("percentage" in item for item in canonical):
-            return sorted(
-                canonical,
-                key=lambda item: (
-                    item.get("percentage"),
-                    item.get("latest_revision"),
-                    item.get("revision_suffix"),
-                    item.get("label"),
-                ),
-            )
-    return canonical
-
-
-def _canonicalize_dict(mapping: dict) -> dict:
-    result: dict = {}
-    for key in sorted(mapping):
-        value = mapping[key]
-        if _inactive(value):
-            continue
-        result[key] = _canonicalize_value(value)
-    return result
-
-
-def _canonicalize_ingress(ingress) -> list | None:
+def _ingress_for_compare(ingress) -> list | None:
     if ingress is None or ingress == []:
         return []
     if not isinstance(ingress, list):
         return None
-    blocks = []
-    for block in ingress:
+    blocks = copy.deepcopy(ingress)
+    for block in blocks:
         if not isinstance(block, dict):
             return None
-        blocks.append(_canonicalize_dict(block))
-    return sorted(blocks, key=lambda block: json.dumps(block, sort_keys=True))
+        traffic = block.get("traffic_weight")
+        if isinstance(traffic, list):
+            block["traffic_weight"] = sorted(
+                traffic,
+                key=lambda item: json.dumps(item, sort_keys=True, default=str),
+            )
+    return blocks
 
 
 def _internal_ingress_ok(side: dict | None) -> bool:
@@ -183,6 +150,9 @@ def _internal_ingress_ok(side: dict | None) -> bool:
         return False
     if block.get("target_port") != EXPECTED_TARGET_PORT:
         return False
+    transport = block.get("transport")
+    if not isinstance(transport, str) or transport.lower() != "auto":
+        return False
     traffic = block.get("traffic_weight")
     if not isinstance(traffic, list) or len(traffic) != 1:
         return False
@@ -190,9 +160,6 @@ def _internal_ingress_ok(side: dict | None) -> bool:
     if not isinstance(weight, dict):
         return False
     if weight.get("percentage") != 100 or weight.get("latest_revision") is not True:
-        return False
-    transport = block.get("transport")
-    if transport is not None and str(transport).lower() != "auto":
         return False
     return True
 
@@ -273,12 +240,12 @@ def _normalize(side: dict | None, *, allow_missing_demo: bool) -> dict | None:
     canonical_env.sort(key=lambda item: item["name"])
     container["env"] = canonical_env
 
-    canon_ingress = _canonicalize_ingress(normalized.get("ingress"))
-    if canon_ingress is None:
+    ingress = _ingress_for_compare(normalized.get("ingress"))
+    if ingress is None:
         return None
-    normalized["ingress"] = canon_ingress
+    normalized["ingress"] = ingress
 
-    return _canonicalize_dict(normalized)
+    return normalized
 
 
 def _check_transition(

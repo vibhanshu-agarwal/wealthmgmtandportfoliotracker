@@ -348,6 +348,19 @@ class SpecA912PlanTests(unittest.TestCase):
         changed[0]["transport"] = "tcp"
         self.assertFails(_transition(after=_side("true", ingress=changed)))
 
+    def test_missing_transport_fails(self):
+        missing = copy.deepcopy(INTERNAL_INGRESS)
+        del missing[0]["transport"]
+        self.assertFails(_transition(after=_side("true", ingress=missing)))
+        self.assertFails(_transition(before=_side(..., ingress=missing), after=_side("true", ingress=INTERNAL_INGRESS)))
+
+    def test_unrelated_none_to_empty_string_transition_fails(self):
+        before = _production_shaped_side(...)
+        after = _production_shaped_side("true")
+        before["dapr"] = None
+        after["dapr"] = ""
+        self.assertFails(_transition(before=before, after=after))
+
     def test_demo_plain_and_secret_binding_fails(self):
         hybrid = _production_shaped_side("true")
         for entry in hybrid["template"][0]["container"][0]["env"]:
