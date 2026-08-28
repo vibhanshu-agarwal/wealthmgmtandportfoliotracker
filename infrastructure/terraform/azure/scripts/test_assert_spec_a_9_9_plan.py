@@ -432,12 +432,22 @@ class SpecA99PlanTests(unittest.TestCase):
                 )
             ]
         }
-        for profile in ("spec-a-9.12-enable", "spec-a-9.12-disable"):
+        for profile in (
+            "spec-a-9.12-enable",
+            "spec-a-9.12-disable",
+            "spec-a-9.12-tx-diag-enable",
+            "spec-a-9.12-tx-diag-disable",
+        ):
             with self.subTest(profile=profile):
                 self.assertEqual(_evaluate(plan, profile), [])
 
     def test_both_9_12_profiles_reject_9_9_surface_change(self):
-        for profile in ("spec-a-9.12-enable", "spec-a-9.12-disable"):
+        for profile in (
+            "spec-a-9.12-enable",
+            "spec-a-9.12-disable",
+            "spec-a-9.12-tx-diag-enable",
+            "spec-a-9.12-tx-diag-disable",
+        ):
             with self.subTest(profile=profile):
                 errors = _evaluate(_enable_plan(), profile)
                 self.assertTrue(any("standard-guard" in error for error in errors), errors)

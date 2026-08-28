@@ -16,7 +16,7 @@ Checks (all fail-closed):
 5. For any scoped Spec A profile, use_seed_image and
    recreate_market_data_job must both be false — these recovery/bootstrap flags are unrelated
    to and unsafe to combine with a scoped Spec A production change.
-6. Both 9.12 profiles require an independently supplied portfolio image digest in
+6. All 9.12 profiles require an independently supplied portfolio image digest in
    sha256:<64-lowercase-hex> form.
 
 This script does not check whether deployed_image_tag actually exists in ACR — that requires a live
@@ -38,6 +38,8 @@ VALID_PROFILES = (
     "spec-a-9.11-abort",
     "spec-a-9.12-enable",
     "spec-a-9.12-disable",
+    "spec-a-9.12-tx-diag-enable",
+    "spec-a-9.12-tx-diag-disable",
 )
 SCOPED_SPEC_A_PROFILES = (
     "spec-a-9.9-enable",
@@ -46,8 +48,15 @@ SCOPED_SPEC_A_PROFILES = (
     "spec-a-9.11-abort",
     "spec-a-9.12-enable",
     "spec-a-9.12-disable",
+    "spec-a-9.12-tx-diag-enable",
+    "spec-a-9.12-tx-diag-disable",
 )
-SPEC_A_9_12_PROFILES = ("spec-a-9.12-enable", "spec-a-9.12-disable")
+SPEC_A_9_12_PROFILES = (
+    "spec-a-9.12-enable",
+    "spec-a-9.12-disable",
+    "spec-a-9.12-tx-diag-enable",
+    "spec-a-9.12-tx-diag-disable",
+)
 # Backward-compatible alias for callers/tests that still name the 9.9 pair.
 SPEC_A_9_9_PROFILES = ("spec-a-9.9-enable", "spec-a-9.9-abort")
 MAIN_REF = "refs/heads/main"
@@ -120,7 +129,7 @@ def validate(inputs: DispatchInputs) -> None:
 
     if profile in SPEC_A_9_12_PROFILES and not IMAGE_DIGEST.match(portfolio_digest):
         raise DispatchValidationError(
-            "expected_portfolio_image_digest is required for either 9.12 profile and must "
+            "expected_portfolio_image_digest is required for any 9.12 profile and must "
             "match sha256:<64 lowercase hexadecimal characters>; it is independent of "
             "deployed_image_tag."
         )

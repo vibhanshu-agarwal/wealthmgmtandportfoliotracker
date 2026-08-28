@@ -11,6 +11,7 @@ import jakarta.persistence.EntityManager;
 import org.hibernate.Session;
 import org.hibernate.jdbc.Work;
 import org.junit.jupiter.api.AfterEach;
+import com.wealth.portfolio.seed.diag.SpecA912StartupTransactionDiagnostics;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -224,7 +225,12 @@ class DemoPortfolioInitializerTest {
                 portfolioRepository,
                 assetHoldingRepository,
                 seedService,
-                passthroughTransactionManager());
+                passthroughTransactionManager(),
+                noopDiagnostics());
+    }
+
+    private static SpecA912StartupTransactionDiagnostics noopDiagnostics() {
+        return org.mockito.Mockito.mock(SpecA912StartupTransactionDiagnostics.class);
     }
 
     private static PlatformTransactionManager passthroughTransactionManager() {

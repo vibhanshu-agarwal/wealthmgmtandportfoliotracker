@@ -224,6 +224,12 @@ variable "demo_seed_on_startup" {
   description = "Temporary Spec A 9.12 gate for DemoPortfolioInitializer. Steady state is false; only dedicated 9.12 workflow profiles may override it."
 }
 
+variable "demo_tx_diagnostics" {
+  type        = bool
+  default     = false
+  description = "Temporary Spec A 9.12 RCA gate for startup transaction diagnostics. Steady state is false; only dedicated tx-diag workflow profiles may override it."
+}
+
 # ---------------------------------------------------------------------------
 # CORS
 # ---------------------------------------------------------------------------

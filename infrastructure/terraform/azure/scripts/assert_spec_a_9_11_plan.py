@@ -39,6 +39,8 @@ KNOWN_PROFILES = (
     "spec-a-9.11-abort",
     "spec-a-9.12-enable",
     "spec-a-9.12-disable",
+    "spec-a-9.12-tx-diag-enable",
+    "spec-a-9.12-tx-diag-disable",
 )
 
 REQUIRED_RETRY = 0
