@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import argparse
-import copy
 import json
 import re
 import sys
@@ -14,6 +13,7 @@ DEMO_ENV = "APP_DEMO_SEED_ON_STARTUP"
 SERVICE_VERSION_ENV = "SERVICE_VERSION"
 ACR_LOGIN_SERVER = "wealthprodacr.azurecr.io"
 IMAGE_REPOSITORY = "portfolio-service"
+EXPECTED_TARGET_PORT = 8080
 
 SCOPED_PROFILES = ("spec-a-9.12-enable", "spec-a-9.12-disable")
 KNOWN_PROFILES = (
@@ -26,7 +26,6 @@ KNOWN_PROFILES = (
     "spec-a-9.12-disable",
 )
 
-_DEMO_SENTINEL = "__SPEC_A_9_12_DEMO_SENTINEL__"
 _DIGEST_PATTERN = re.compile(r"sha256:[0-9a-f]{64}\Z")
 _VERSION_PATTERN = re.compile(r"[0-9a-f]{40}\Z")
 
@@ -90,11 +89,52 @@ def _canonical_env_entry(entry: dict) -> tuple:
     return tuple(sorted((key, entry[key]) for key in entry))
 
 
+def _canonical_env_binding(entry: dict) -> tuple | None:
+    """Semantic env binding used for non-demo field comparison."""
+    name = entry.get("name")
+    if not isinstance(name, str) or name == DEMO_ENV:
+        return None
+    secret_name = entry.get("secret_name")
+    if isinstance(secret_name, str) and secret_name:
+        if entry.get("value") not in (None, ""):
+            return None
+        return ("secret", name, secret_name)
+    if "value" not in entry:
+        return None
+    value = entry.get("value")
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        return None
+    if entry.get("secret_name") not in (None, ""):
+        return None
+    return ("value", name, value)
+
+
+def _env_fingerprint(side: dict | None) -> frozenset[tuple] | None:
+    bindings: list[tuple] = []
+    for entry in _raw_env(side):
+        if not isinstance(entry, dict):
+            return None
+        binding = _canonical_env_binding(entry)
+        if binding is None:
+            if isinstance(entry.get("name"), str) and entry.get("name") == DEMO_ENV:
+                continue
+            return None
+        bindings.append(binding)
+    return frozenset(bindings)
+
+
 def _has_duplicate_or_invalid_env(side: dict | None) -> bool:
     raw = _raw_env(side)
     named = _named_env(side)
     names = [entry["name"] for entry in named]
-    return len(raw) != len(named) or len(names) != len(set(names))
+    if len(raw) != len(named) or len(names) != len(set(names)):
+        return True
+    for entry in named:
+        if _canonical_env_binding(entry) is None and entry.get("name") != DEMO_ENV:
+            return True
+    return False
 
 
 def _image(side: dict | None) -> str | None:
@@ -108,31 +148,128 @@ def _min_replicas(side: dict | None):
     return template.get("min_replicas") if template else None
 
 
-def _ingress_disabled(side: dict | None) -> bool:
+def _ingress_fingerprint(ingress) -> tuple | None:
+    if ingress is None or ingress == []:
+        return ("absent",)
+    if not isinstance(ingress, list) or len(ingress) != 1:
+        return None
+    block = ingress[0]
+    if not isinstance(block, dict):
+        return None
+    if block.get("external_enabled") is not False:
+        return None
+    if block.get("target_port") != EXPECTED_TARGET_PORT:
+        return None
+    traffic = block.get("traffic_weight")
+    if not isinstance(traffic, list) or len(traffic) != 1:
+        return None
+    weight = traffic[0]
+    if not isinstance(weight, dict):
+        return None
+    if weight.get("percentage") != 100 or weight.get("latest_revision") is not True:
+        return None
+    revision_suffix = weight.get("revision_suffix")
+    label = weight.get("label")
+    return (
+        "internal",
+        EXPECTED_TARGET_PORT,
+        100,
+        True,
+        revision_suffix,
+        label,
+    )
+
+
+def _internal_ingress_ok(side: dict | None) -> bool:
     if not isinstance(side, dict):
         return False
-    ingress = side.get("ingress")
-    return ingress is None or ingress == []
+    fingerprint = _ingress_fingerprint(side.get("ingress"))
+    return fingerprint is not None and fingerprint[0] == "internal"
 
 
-def _normalize(side: dict | None, *, allow_missing_demo: bool) -> dict | None:
-    if not isinstance(side, dict) or _has_duplicate_or_invalid_env(side):
+def _identity_fingerprint(side: dict | None) -> tuple | None:
+    if not isinstance(side, dict):
         return None
-    normalized = copy.deepcopy(side)
-    container = _container(normalized)
-    if container is None:
+    identity = side.get("identity")
+    if not isinstance(identity, list) or len(identity) != 1:
         return None
-    env = container.get("env")
-    if not isinstance(env, list):
+    block = identity[0]
+    if not isinstance(block, dict):
         return None
-    demo_entries = [entry for entry in env if entry.get("name") == DEMO_ENV]
-    if demo_entries:
-        # Replace the whole entry so value-vs-secret_name forms do not leave residue.
-        env[env.index(demo_entries[0])] = {"name": DEMO_ENV, "value": _DEMO_SENTINEL}
-    elif allow_missing_demo:
-        env.append({"name": DEMO_ENV, "value": _DEMO_SENTINEL})
-    env.sort(key=lambda entry: entry["name"])
-    return normalized
+    identity_type = block.get("type")
+    if identity_type == "UserAssigned":
+        identity_ids = block.get("identity_ids")
+        if not isinstance(identity_ids, list):
+            return None
+        return ("UserAssigned", tuple(sorted(str(item) for item in identity_ids)))
+    if identity_type == "SystemAssigned":
+        return ("SystemAssigned",)
+    return None
+
+
+def _registry_fingerprint(side: dict | None) -> tuple | None:
+    if not isinstance(side, dict):
+        return None
+    registry = side.get("registry")
+    if not isinstance(registry, list) or len(registry) != 1:
+        return None
+    block = registry[0]
+    if not isinstance(block, dict):
+        return None
+    server = block.get("server")
+    identity = block.get("identity")
+    if not isinstance(server, str) or not isinstance(identity, str):
+        return None
+    return (server, identity)
+
+
+def _secrets_fingerprint(side: dict | None) -> frozenset[tuple] | None:
+    if not isinstance(side, dict):
+        return None
+    secrets = side.get("secret")
+    if not isinstance(secrets, list):
+        return None
+    items: list[tuple] = []
+    for secret in secrets:
+        if not isinstance(secret, dict):
+            return None
+        name = secret.get("name")
+        value = secret.get("value")
+        if not isinstance(name, str) or not isinstance(value, str):
+            return None
+        items.append((name, value))
+    return frozenset(items)
+
+
+def _non_demo_fingerprint(side: dict | None) -> tuple | None:
+    if not isinstance(side, dict):
+        return None
+    template = _template(side)
+    container = _container(side)
+    if template is None or container is None:
+        return None
+    env = _env_fingerprint(side)
+    if env is None:
+        return None
+    ingress = _ingress_fingerprint(side.get("ingress"))
+    if ingress is None:
+        return None
+    identity = _identity_fingerprint(side)
+    registry = _registry_fingerprint(side)
+    secrets = _secrets_fingerprint(side)
+    if identity is None or registry is None or secrets is None:
+        return None
+    return (
+        ingress,
+        template.get("min_replicas"),
+        template.get("max_replicas"),
+        container.get("cpu"),
+        container.get("memory"),
+        identity,
+        registry,
+        secrets,
+        env,
+    )
 
 
 def _check_transition(
@@ -178,8 +315,12 @@ def _check_fixed_invariants(
     for label, side in (("before", before), ("after", after)):
         if _min_replicas(side) != 1:
             errors.append(f"FAIL [replicas] {TARGET_ADDRESS} {label} min_replicas is invalid.")
-        if not _ingress_disabled(side):
-            errors.append(f"FAIL [ingress] {TARGET_ADDRESS} {label} ingress is not disabled.")
+        if not _internal_ingress_ok(side):
+            errors.append(
+                f"FAIL [ingress] {TARGET_ADDRESS} {label} internal ingress is not the expected "
+                f"internal-only shape (external_enabled=false, target_port={EXPECTED_TARGET_PORT}, "
+                "traffic_weight percentage=100 latest_revision=true)."
+            )
         expected_image = (
             f"{ACR_LOGIN_SERVER}/{IMAGE_REPOSITORY}@{expected_image_digest}"
         )
@@ -263,16 +404,9 @@ def _evaluate_scoped(
         errors,
     )
 
-    normalized_before = _normalize(
-        before,
-        allow_missing_demo=profile == "spec-a-9.12-enable",
-    )
-    normalized_after = _normalize(after, allow_missing_demo=False)
-    if (
-        normalized_before is None
-        or normalized_after is None
-        or normalized_before != normalized_after
-    ):
+    before_fp = _non_demo_fingerprint(before)
+    after_fp = _non_demo_fingerprint(after)
+    if before_fp is None or after_fp is None or before_fp != after_fp:
         errors.append(
             f"FAIL [field] {TARGET_ADDRESS} changes a non-demo field."
         )
