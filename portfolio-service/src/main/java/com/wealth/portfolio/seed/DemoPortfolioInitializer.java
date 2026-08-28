@@ -4,6 +4,7 @@ import com.wealth.portfolio.AssetHolding;
 import com.wealth.portfolio.AssetHoldingRepository;
 import com.wealth.portfolio.Portfolio;
 import com.wealth.portfolio.PortfolioRepository;
+import com.wealth.portfolio.seed.diag.SpecA912StartupTransactionDiagnostics;
 import jakarta.persistence.EntityManager;
 import org.hibernate.Session;
 import org.slf4j.Logger;
@@ -27,10 +28,9 @@ import java.util.stream.Collectors;
  * at cutover checkpoint 9.12.
  *
  * <p>When the gate is false this runner returns immediately — no lock, no read, no compare.
- * When the gate is true it takes {@code pg_advisory_xact_lock} as the first statement of
- * the same transaction that compares and (on a difference) calls
- * {@link PortfolioSeedService#seed(String)}, so three replicas serialise to exactly one
- * mutation and N−1 no-ops.
+ * When {@code APP_DEMO_TX_DIAGNOSTICS=true} with the gate still false, an initializer-shaped
+ * rollback probe runs instead (no {@link PortfolioSeedService#seed(String)}). Both flags true
+ * fails closed before any database work.
  */
 @Component
 public class DemoPortfolioInitializer implements ApplicationRunner {
@@ -58,6 +58,7 @@ public class DemoPortfolioInitializer implements ApplicationRunner {
     private final AssetHoldingRepository assetHoldingRepository;
     private final PortfolioSeedService seedService;
     private final TransactionTemplate transactionTemplate;
+    private final SpecA912StartupTransactionDiagnostics txDiagnostics;
     private final String replicaId;
 
     public DemoPortfolioInitializer(DemoProperties demoProperties,
@@ -65,22 +66,77 @@ public class DemoPortfolioInitializer implements ApplicationRunner {
                                     PortfolioRepository portfolioRepository,
                                     AssetHoldingRepository assetHoldingRepository,
                                     PortfolioSeedService seedService,
-                                    PlatformTransactionManager transactionManager) {
+                                    PlatformTransactionManager transactionManager,
+                                    SpecA912StartupTransactionDiagnostics txDiagnostics) {
         this.demoProperties = demoProperties;
         this.entityManager = entityManager;
         this.portfolioRepository = portfolioRepository;
         this.assetHoldingRepository = assetHoldingRepository;
         this.seedService = seedService;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
+        this.txDiagnostics = txDiagnostics;
         this.replicaId = resolveReplicaId();
     }
 
     @Override
     public void run(ApplicationArguments args) {
+        if (SpecA912StartupTransactionDiagnostics.rejectBothFlags(demoProperties.seedOnStartup())) {
+            log.error(
+                    "event=spec_a912_tx_diag_rejected reason=APP_DEMO_TX_DIAGNOSTICS and seed-on-startup both enabled");
+            return;
+        }
+
+        txDiagnostics.captureSpring("run-entry", null);
+
+        if (SpecA912StartupTransactionDiagnostics.diagnosticsOnly(demoProperties.seedOnStartup())) {
+            runRollbackProbe();
+            return;
+        }
+
         if (!demoProperties.seedOnStartup()) {
             return;
         }
+
         converge();
+    }
+
+    /**
+     * Initializer-shaped, non-mutating rollback probe for Spec A 9.12 RCA. Never calls
+     * {@link PortfolioSeedService#seed(String)}; probe failures are logged and swallowed.
+     */
+    void runRollbackProbe() {
+        txDiagnostics.captureSpring("probe-before-transaction-template", null);
+        try {
+            SpecA912StartupTransactionDiagnostics.DmlProbeOutcome dmlOutcome =
+                    transactionTemplate.execute(
+                            status -> {
+                                txDiagnostics.captureSpring("probe-inside-transaction-template", status);
+                                acquireLock();
+                                txDiagnostics.captureJdbcInTransaction("probe-after-advisory-lock");
+                                List<Portfolio> portfolios = portfolioRepository.findByUserId(DEMO_USER_ID);
+                                txDiagnostics.captureJdbcInTransaction("probe-after-findByUserId");
+                                portfolios.stream()
+                                        .findFirst()
+                                        .ifPresent(assetHoldingRepository::findByPortfolio);
+                                txDiagnostics.captureJdbcInTransaction("probe-after-findByPortfolio");
+                                seedService.desiredHoldings(DEMO_USER_ID);
+                                txDiagnostics.captureJdbcInTransaction("probe-after-desiredHoldings");
+                                SpecA912StartupTransactionDiagnostics.DmlProbeOutcome outcome =
+                                        txDiagnostics.runDmlProbe("probe-before-dml-probe");
+                                status.setRollbackOnly();
+                                return outcome;
+                            });
+            log.info(
+                    "event=spec_a912_tx_probe_complete replica={} dmlProbeOutcome={} transactionRollbackOnly=true",
+                    replicaId,
+                    dmlOutcome != null ? dmlOutcome : SpecA912StartupTransactionDiagnostics.DmlProbeOutcome.SKIPPED);
+        } catch (RuntimeException ex) {
+            log.error(
+                    "event=spec_a912_tx_probe_failed replica={} cause={}: {}",
+                    replicaId,
+                    ex.getClass().getSimpleName(),
+                    ex.getMessage());
+        }
     }
 
     /**

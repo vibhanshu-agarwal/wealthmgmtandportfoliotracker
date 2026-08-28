@@ -35,6 +35,9 @@ APPLICATION_YML = (
 _WIRE_PATTERN = re.compile(
     r"APP_DEMO_SEED_ON_STARTUP\s*=\s*tostring\(var\.demo_seed_on_startup\)"
 )
+_TX_DIAG_WIRE_PATTERN = re.compile(
+    r"APP_DEMO_TX_DIAGNOSTICS\s*=\s*tostring\(var\.demo_tx_diagnostics\)"
+)
 _MODULE_HEADER = re.compile(r'module\s+"([^"]+)"\s*\{')
 
 
@@ -209,6 +212,43 @@ class DemoSeedActivationContractTest(unittest.TestCase):
             _bool_attr(self.portfolio_block, "external_ingress"),
             "portfolio-service external_ingress must remain false (internal ingress)",
         )
+
+    def test_demo_tx_diagnostics_variable_exists_with_bool_default_false(self) -> None:
+        block = _extract_block(
+            self.variables_tf,
+            re.compile(r'variable\s+"demo_tx_diagnostics"\s*\{'),
+        )
+        self.assertRegex(block, r'\btype\s*=\s*bool\b')
+        self.assertRegex(block, r'\bdefault\s*=\s*false\b')
+
+    def test_portfolio_service_wires_demo_tx_diagnostics_env(self) -> None:
+        self.assertRegex(
+            self.portfolio_block,
+            _TX_DIAG_WIRE_PATTERN,
+            msg="portfolio_service must wire APP_DEMO_TX_DIAGNOSTICS = tostring(var.demo_tx_diagnostics)",
+        )
+
+    def test_only_portfolio_service_wires_demo_tx_diagnostics_env(self) -> None:
+        occurrences = [m.start() for m in _TX_DIAG_WIRE_PATTERN.finditer(self.main_tf)]
+        self.assertEqual(len(occurrences), 1)
+        portfolio_start = self.main_tf.find('module "portfolio_service"')
+        portfolio_block = _extract_module_block(self.main_tf, "portfolio_service")
+        portfolio_end = portfolio_start + len('module "portfolio_service"') + len(portfolio_block) + 2
+        self.assertTrue(portfolio_start <= occurrences[0] < portfolio_end)
+
+    def test_demo_tx_diagnostics_not_wired_to_other_services(self) -> None:
+        for module_name in ("api_gateway", "market_data_service", "insight_service"):
+            block = _extract_module_block(self.main_tf, module_name)
+            self.assertNotIn("demo_tx_diagnostics", block)
+            self.assertNotIn("APP_DEMO_TX_DIAGNOSTICS", block)
+
+    def test_demo_tx_diagnostics_not_wired_to_jobs(self) -> None:
+        for job_name in ("market_data_refresh", "market_data_repair"):
+            block = _extract_resource_block(
+                self.main_tf, "azurerm_container_app_job", job_name
+            )
+            self.assertNotIn("demo_tx_diagnostics", block)
+            self.assertNotIn("APP_DEMO_TX_DIAGNOSTICS", block)
 
 
 if __name__ == "__main__":

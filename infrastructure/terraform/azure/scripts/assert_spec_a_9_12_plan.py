@@ -11,12 +11,15 @@ import sys
 
 TARGET_ADDRESS = "module.portfolio_service.azurerm_container_app.this"
 DEMO_ENV = "APP_DEMO_SEED_ON_STARTUP"
+TX_DIAG_ENV = "APP_DEMO_TX_DIAGNOSTICS"
 SERVICE_VERSION_ENV = "SERVICE_VERSION"
 ACR_LOGIN_SERVER = "wealthprodacr.azurecr.io"
 IMAGE_REPOSITORY = "portfolio-service"
 EXPECTED_TARGET_PORT = 8080
 
-SCOPED_PROFILES = ("spec-a-9.12-enable", "spec-a-9.12-disable")
+DEMO_SCOPED_PROFILES = ("spec-a-9.12-enable", "spec-a-9.12-disable")
+TX_DIAG_SCOPED_PROFILES = ("spec-a-9.12-tx-diag-enable", "spec-a-9.12-tx-diag-disable")
+SCOPED_PROFILES = DEMO_SCOPED_PROFILES + TX_DIAG_SCOPED_PROFILES
 KNOWN_PROFILES = (
     "standard",
     "spec-a-9.9-enable",
@@ -25,9 +28,12 @@ KNOWN_PROFILES = (
     "spec-a-9.11-abort",
     "spec-a-9.12-enable",
     "spec-a-9.12-disable",
+    "spec-a-9.12-tx-diag-enable",
+    "spec-a-9.12-tx-diag-disable",
 )
 
 _DEMO_SENTINEL = "__SPEC_A_9_12_DEMO_SENTINEL__"
+_TX_DIAG_SENTINEL = "__SPEC_A_9_12_TX_DIAG_SENTINEL__"
 _DIGEST_PATTERN = re.compile(r"sha256:[0-9a-f]{64}\Z")
 _VERSION_PATTERN = re.compile(r"[0-9a-f]{40}\Z")
 _ENV_ALLOWED_KEYS = frozenset({"name", "value", "secret_name"})
@@ -86,8 +92,8 @@ def _inactive(value) -> bool:
     return value is None or value == ""
 
 
-def _is_strict_plain_demo_entry(entry: dict) -> bool:
-    if entry.get("name") != DEMO_ENV:
+def _is_strict_plain_env_entry(entry: dict, env_name: str) -> bool:
+    if entry.get("name") != env_name:
         return False
     if not set(entry.keys()).issubset(_ENV_ALLOWED_KEYS):
         return False
@@ -98,9 +104,17 @@ def _is_strict_plain_demo_entry(entry: dict) -> bool:
     return True
 
 
+def _is_strict_plain_demo_entry(entry: dict) -> bool:
+    return _is_strict_plain_env_entry(entry, DEMO_ENV)
+
+
+def _is_strict_plain_tx_diag_entry(entry: dict) -> bool:
+    return _is_strict_plain_env_entry(entry, TX_DIAG_ENV)
+
+
 def _canonical_env_entry(entry: dict) -> dict | None:
     name = entry.get("name")
-    if not isinstance(name, str) or name == DEMO_ENV:
+    if not isinstance(name, str) or name in (DEMO_ENV, TX_DIAG_ENV):
         return None
     if not set(entry.keys()).issubset(_ENV_ALLOWED_KEYS):
         return None
@@ -171,8 +185,12 @@ def _has_duplicate_or_invalid_env(side: dict | None) -> bool:
     if len(raw) != len(named) or len(names) != len(set(names)):
         return True
     for entry in named:
-        if entry.get("name") == DEMO_ENV:
+        name = entry.get("name")
+        if name == DEMO_ENV:
             if not _is_strict_plain_demo_entry(entry):
+                return True
+        elif name == TX_DIAG_ENV:
+            if not _is_strict_plain_tx_diag_entry(entry):
                 return True
         elif _canonical_env_entry(entry) is None:
             return True
@@ -199,7 +217,26 @@ def _canonical_env_entry_tuple(entry: dict) -> tuple:
     return tuple(sorted((key, entry[key]) for key in entry))
 
 
-def _normalize(side: dict | None, *, allow_missing_demo: bool) -> dict | None:
+def _demo_false(side: dict | None) -> bool:
+    entries = _entries(side, DEMO_ENV)
+    return len(entries) == 0 or (
+        len(entries) == 1 and _literal_value(entries[0]) == "false"
+    )
+
+
+def _tx_diag_false(side: dict | None) -> bool:
+    entries = _entries(side, TX_DIAG_ENV)
+    return len(entries) == 0 or (
+        len(entries) == 1 and _literal_value(entries[0]) == "false"
+    )
+
+
+def _normalize(
+    side: dict | None,
+    *,
+    allow_missing_demo: bool,
+    allow_missing_tx_diag: bool,
+) -> dict | None:
     if not isinstance(side, dict):
         return None
     if _has_duplicate_or_invalid_env(side):
@@ -215,6 +252,7 @@ def _normalize(side: dict | None, *, allow_missing_demo: bool) -> dict | None:
 
     canonical_env: list[dict] = []
     demo_seen = False
+    tx_diag_seen = False
     for entry in env:
         if not isinstance(entry, dict):
             return None
@@ -225,6 +263,12 @@ def _normalize(side: dict | None, *, allow_missing_demo: bool) -> dict | None:
             demo_seen = True
             canonical_env.append({"name": DEMO_ENV, "value": _DEMO_SENTINEL})
             continue
+        if name == TX_DIAG_ENV:
+            if not _is_strict_plain_tx_diag_entry(entry):
+                return None
+            tx_diag_seen = True
+            canonical_env.append({"name": TX_DIAG_ENV, "value": _TX_DIAG_SENTINEL})
+            continue
         canon = _canonical_env_entry(entry)
         if canon is None:
             return None
@@ -234,6 +278,13 @@ def _normalize(side: dict | None, *, allow_missing_demo: bool) -> dict | None:
         pass
     elif allow_missing_demo:
         canonical_env.append({"name": DEMO_ENV, "value": _DEMO_SENTINEL})
+    else:
+        return None
+
+    if tx_diag_seen:
+        pass
+    elif allow_missing_tx_diag:
+        canonical_env.append({"name": TX_DIAG_ENV, "value": _TX_DIAG_SENTINEL})
     else:
         return None
 
@@ -248,7 +299,7 @@ def _normalize(side: dict | None, *, allow_missing_demo: bool) -> dict | None:
     return normalized
 
 
-def _check_transition(
+def _check_demo_transition(
     before: dict | None,
     after: dict | None,
     profile: str,
@@ -284,6 +335,75 @@ def _check_transition(
         errors.append(f"FAIL [demo-direction] {TARGET_ADDRESS} has an invalid demo transition.")
 
 
+def _check_tx_diag_transition(
+    before: dict | None,
+    after: dict | None,
+    profile: str,
+    errors: list[str],
+) -> None:
+    if not _demo_false(before) or not _demo_false(after):
+        errors.append(
+            f"FAIL [demo-invariant] {TARGET_ADDRESS} demo seed must remain false during tx-diag profile."
+        )
+
+    before_entries = _entries(before, TX_DIAG_ENV)
+    after_entries = _entries(after, TX_DIAG_ENV)
+    if any(not _is_strict_plain_tx_diag_entry(entry) for entry in before_entries + after_entries):
+        errors.append(
+            f"FAIL [tx-diag-binding] {TARGET_ADDRESS} tx-diag env must be plain-valued only."
+        )
+        return
+    if profile == "spec-a-9.12-tx-diag-enable":
+        before_ok = (
+            len(before_entries) == 0
+            or (
+                len(before_entries) == 1
+                and _literal_value(before_entries[0]) == "false"
+            )
+        )
+        after_ok = (
+            len(after_entries) == 1
+            and _literal_value(after_entries[0]) == "true"
+        )
+    else:
+        before_ok = (
+            len(before_entries) == 1
+            and _literal_value(before_entries[0]) == "true"
+        )
+        after_ok = (
+            len(after_entries) == 1
+            and _literal_value(after_entries[0]) == "false"
+        )
+    if not before_ok or not after_ok:
+        errors.append(
+            f"FAIL [tx-diag-direction] {TARGET_ADDRESS} has an invalid tx-diag transition."
+        )
+
+
+def _check_transition(
+    before: dict | None,
+    after: dict | None,
+    profile: str,
+    errors: list[str],
+) -> None:
+    if profile in TX_DIAG_SCOPED_PROFILES:
+        _check_tx_diag_transition(before, after, profile, errors)
+        return
+
+    before_tx = _entries(before, TX_DIAG_ENV)
+    after_tx = _entries(after, TX_DIAG_ENV)
+    if len(before_tx) > 1 or len(after_tx) > 1:
+        errors.append(
+            f"FAIL [tx-diag-guard] {TARGET_ADDRESS} has duplicate tx-diag env entries."
+        )
+    elif not _tx_diag_false(before) or not _tx_diag_false(after):
+        errors.append(
+            f"FAIL [tx-diag-invariant] {TARGET_ADDRESS} tx-diag must remain false during demo profile."
+        )
+
+    _check_demo_transition(before, after, profile, errors)
+
+
 def _check_fixed_invariants(
     before: dict | None,
     after: dict | None,
@@ -315,7 +435,7 @@ def _check_fixed_invariants(
             )
 
 
-def _evaluate_non_scoped(plan: dict) -> list[str]:
+def _guard_env_mutations(plan: dict, env_name: str, guard_label: str) -> list[str]:
     errors: list[str] = []
     changes = plan.get("resource_changes", [])
     if not isinstance(changes, list):
@@ -326,8 +446,8 @@ def _evaluate_non_scoped(plan: dict) -> list[str]:
         change = resource_change.get("change") or {}
         before = change.get("before")
         after = change.get("after")
-        before_entries = _entries(before, DEMO_ENV)
-        after_entries = _entries(after, DEMO_ENV)
+        before_entries = _entries(before, env_name)
+        after_entries = _entries(after, env_name)
         before_sigs = [_canonical_env_entry_tuple(entry) for entry in before_entries]
         after_sigs = [_canonical_env_entry_tuple(entry) for entry in after_entries]
         if (
@@ -336,9 +456,28 @@ def _evaluate_non_scoped(plan: dict) -> list[str]:
             or before_sigs != after_sigs
         ):
             errors.append(
-                f"FAIL [demo-guard] {TARGET_ADDRESS} changes the demo environment outside checkpoint 9.12."
+                f"FAIL [{guard_label}] {TARGET_ADDRESS} changes the {env_name} environment "
+                "outside checkpoint 9.12."
             )
     return errors
+
+
+def _evaluate_non_scoped(plan: dict) -> list[str]:
+    errors = _guard_env_mutations(plan, DEMO_ENV, "demo-guard")
+    errors.extend(_guard_env_mutations(plan, TX_DIAG_ENV, "tx-diag-guard"))
+    return errors
+
+
+def _normalize_flags(profile: str) -> tuple[bool, bool]:
+    if profile == "spec-a-9.12-enable":
+        return True, True
+    if profile == "spec-a-9.12-disable":
+        return False, True
+    if profile == "spec-a-9.12-tx-diag-enable":
+        return False, True
+    if profile == "spec-a-9.12-tx-diag-disable":
+        return False, False
+    raise ValueError(f"unsupported scoped profile: {profile}")
 
 
 def _evaluate_scoped(
@@ -383,18 +522,24 @@ def _evaluate_scoped(
         errors,
     )
 
+    allow_missing_demo, allow_missing_tx_diag = _normalize_flags(profile)
     normalized_before = _normalize(
         before,
-        allow_missing_demo=profile == "spec-a-9.12-enable",
+        allow_missing_demo=allow_missing_demo,
+        allow_missing_tx_diag=allow_missing_tx_diag,
     )
-    normalized_after = _normalize(after, allow_missing_demo=False)
+    normalized_after = _normalize(
+        after,
+        allow_missing_demo=False,
+        allow_missing_tx_diag=profile not in TX_DIAG_SCOPED_PROFILES,
+    )
     if (
         normalized_before is None
         or normalized_after is None
         or normalized_before != normalized_after
     ):
         errors.append(
-            f"FAIL [field] {TARGET_ADDRESS} changes a non-demo field."
+            f"FAIL [field] {TARGET_ADDRESS} changes a non-scoped field."
         )
     return errors
 

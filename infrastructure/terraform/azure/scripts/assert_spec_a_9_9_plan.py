@@ -274,6 +274,8 @@ def evaluate_plan(plan: dict, profile: str, expected_image_tag: str) -> list[str
         "spec-a-9.11-abort",
         "spec-a-9.12-enable",
         "spec-a-9.12-disable",
+        "spec-a-9.12-tx-diag-enable",
+        "spec-a-9.12-tx-diag-disable",
     ):
         # Later checkpoint profiles must not touch the 9.9 protected surface.
         return _evaluate_standard_guard(plan, profile)
@@ -293,6 +295,8 @@ def main() -> int:
             "spec-a-9.11-abort",
             "spec-a-9.12-enable",
             "spec-a-9.12-disable",
+            "spec-a-9.12-tx-diag-enable",
+            "spec-a-9.12-tx-diag-disable",
         ),
         required=True,
         help="The literal change_profile dispatch input value.",
@@ -325,6 +329,8 @@ def main() -> int:
         "spec-a-9.11-abort",
         "spec-a-9.12-enable",
         "spec-a-9.12-disable",
+        "spec-a-9.12-tx-diag-enable",
+        "spec-a-9.12-tx-diag-disable",
     ):
         print(
             f"PASS spec-a-9.9 guard (profile={args.profile}) — the plan does not touch "

@@ -35,7 +35,7 @@ INTERNAL_INGRESS = [{
 }]
 
 
-def _production_plain_env(demo=...):
+def _production_plain_env(demo=..., tx_diag=...):
     env = [
         {"name": "MANAGEMENT_OPENTELEMETRY_TRACING_EXPORT_OTLP_TRANSPORT", "value": "grpc"},
         {"name": "MANAGEMENT_TRACING_EXPORT_ENABLED", "value": "true"},
@@ -46,6 +46,8 @@ def _production_plain_env(demo=...):
     ]
     if demo is not ...:
         env.append({"name": "APP_DEMO_SEED_ON_STARTUP", "value": demo})
+    if tx_diag is not ...:
+        env.append({"name": "APP_DEMO_TX_DIAGNOSTICS", "value": tx_diag})
     return env
 
 
@@ -75,8 +77,8 @@ def _production_secrets():
     ]
 
 
-def _production_shaped_side(demo=..., *, ingress=INTERNAL_INGRESS):
-    env = _production_plain_env(demo) + _production_secret_env()
+def _production_shaped_side(demo=..., tx_diag=..., *, ingress=INTERNAL_INGRESS):
+    env = _production_plain_env(demo, tx_diag) + _production_secret_env()
     return _side(
         demo,
         ingress=ingress,
@@ -86,7 +88,7 @@ def _production_shaped_side(demo=..., *, ingress=INTERNAL_INGRESS):
     )
 
 
-def _env(demo=..., *, version=EXPECTED_VERSION, extra=()):
+def _env(demo=..., tx_diag=..., *, version=EXPECTED_VERSION, extra=()):
     result = [
         {"name": "SPRING_PROFILES_ACTIVE", "value": "prod,azure"},
         {"name": "SERVICE_VERSION", "value": version},
@@ -94,12 +96,15 @@ def _env(demo=..., *, version=EXPECTED_VERSION, extra=()):
     ]
     if demo is not ...:
         result.append({"name": "APP_DEMO_SEED_ON_STARTUP", "value": demo})
+    if tx_diag is not ...:
+        result.append({"name": "APP_DEMO_TX_DIAGNOSTICS", "value": tx_diag})
     result.extend(copy.deepcopy(extra))
     return result
 
 
 def _side(
     demo=...,
+    tx_diag=...,
     *,
     image=IMAGE,
     version=EXPECTED_VERSION,
@@ -123,7 +128,7 @@ def _side(
                 "image": image,
                 "cpu": cpu,
                 "memory": memory,
-                "env": _env(demo, version=version) if env is None else copy.deepcopy(env),
+                "env": _env(demo, tx_diag, version=version) if env is None else copy.deepcopy(env),
             }],
         }],
     }
@@ -147,10 +152,19 @@ def _plan(*changes):
     return {"resource_changes": list(changes)}
 
 
-def _transition(before_demo=..., after_demo="true", *, before=None, after=None, extras=()):
-    before = _side(before_demo) if before is None else before
-    after = _side(after_demo) if after is None else after
+def _transition(before_demo=..., after_demo="true", *, before_tx_diag=..., after_tx_diag=..., before=None, after=None, extras=()):
+    before = _side(before_demo, before_tx_diag) if before is None else before
+    after = _side(after_demo, after_tx_diag) if after is None else after
     return _plan(_target(before=before, after=after), *extras)
+
+
+def _tx_diag_transition(before_tx=..., after_tx="true", *, before_demo="false", after_demo="false"):
+    return _transition(
+        before_demo,
+        after_demo,
+        before_tx_diag=before_tx,
+        after_tx_diag=after_tx,
+    )
 
 
 def _evaluate(plan, profile="spec-a-9.12-enable", digest=EXPECTED_DIGEST, version=EXPECTED_VERSION):
@@ -169,6 +183,40 @@ class SpecA912PlanTests(unittest.TestCase):
 
     def test_disable_true_to_false_passes(self):
         self.assertEqual(_evaluate(_transition("true", "false"), "spec-a-9.12-disable"), [])
+
+    def test_tx_diag_enable_absent_to_true_passes(self):
+        self.assertEqual(
+            _evaluate(_tx_diag_transition(), "spec-a-9.12-tx-diag-enable"),
+            [],
+        )
+
+    def test_tx_diag_enable_false_to_true_passes(self):
+        self.assertEqual(
+            _evaluate(_tx_diag_transition("false", "true"), "spec-a-9.12-tx-diag-enable"),
+            [],
+        )
+
+    def test_tx_diag_disable_true_to_false_passes(self):
+        self.assertEqual(
+            _evaluate(_tx_diag_transition("true", "false"), "spec-a-9.12-tx-diag-disable"),
+            [],
+        )
+
+    def test_tx_diag_enable_rejects_demo_seed_change(self):
+        self.assertFails(
+            _transition("false", "true", before_tx_diag="false", after_tx_diag="true"),
+            "spec-a-9.12-tx-diag-enable",
+        )
+
+    def test_demo_enable_rejects_tx_diag_change(self):
+        self.assertFails(
+            _transition("false", "true", before_tx_diag="false", after_tx_diag="true"),
+            "spec-a-9.12-enable",
+        )
+
+    def test_non_scoped_rejects_tx_diag_change(self):
+        plan = _tx_diag_transition("false", "true")
+        self.assertFails(plan, "standard", digest="", version="")
 
     def test_known_non_scoped_profiles_allow_unchanged_demo(self):
         profiles = (

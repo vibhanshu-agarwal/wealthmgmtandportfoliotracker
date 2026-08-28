@@ -163,15 +163,31 @@ class ValidateDispatchTests(unittest.TestCase):
             )
         )
 
+    def test_9_12_tx_diag_enable_with_independent_digest_passes(self):
+        sut.validate(
+            self._inputs(
+                change_profile="spec-a-9.12-tx-diag-enable",
+                expected_portfolio_image_digest=DIGEST,
+            )
+        )
+
+    def test_9_12_tx_diag_disable_with_independent_digest_passes(self):
+        sut.validate(
+            self._inputs(
+                change_profile="spec-a-9.12-tx-diag-disable",
+                expected_portfolio_image_digest=DIGEST,
+            )
+        )
+
     def test_both_9_12_profiles_require_digest(self):
-        for profile in ("spec-a-9.12-enable", "spec-a-9.12-disable"):
+        for profile in sut.SPEC_A_9_12_PROFILES:
             with self.subTest(profile=profile):
                 with self.assertRaises(sut.DispatchValidationError) as ctx:
                     sut.validate(self._inputs(change_profile=profile))
                 self.assertIn("expected_portfolio_image_digest", str(ctx.exception))
 
     def test_both_9_12_profiles_reject_malformed_digest(self):
-        for profile in ("spec-a-9.12-enable", "spec-a-9.12-disable"):
+        for profile in sut.SPEC_A_9_12_PROFILES:
             for digest in ("sha256:abc", "sha256:" + "A" * 64, SHA):
                 with self.subTest(profile=profile, digest=digest):
                     with self.assertRaises(sut.DispatchValidationError):
@@ -194,7 +210,7 @@ class ValidateDispatchTests(unittest.TestCase):
                 sut.validate(self._inputs(change_profile=profile))
 
     def test_both_9_12_profiles_reject_seed_and_recovery_flags(self):
-        for profile in ("spec-a-9.12-enable", "spec-a-9.12-disable"):
+        for profile in sut.SPEC_A_9_12_PROFILES:
             for flag in ("use_seed_image", "recreate_market_data_job"):
                 with self.subTest(profile=profile, flag=flag):
                     with self.assertRaises(sut.DispatchValidationError):

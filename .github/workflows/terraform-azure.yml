@@ -77,8 +77,10 @@ on:
           exactly the three catalog-service Container Apps as in-place updates.
           spec-a-9.11-enable / spec-a-9.11-abort = checkpoint 9.11's persist-refresh
           enablement/abort, asserted to touch only the market-data refresh Job as an
-          in-place runner-env update. spec-a-9.12-enable / spec-a-9.12-disable =
+          in-place runner-env update.           spec-a-9.12-enable / spec-a-9.12-disable =
           checkpoint 9.12's one-shot demo portfolio activation/deactivation.
+          spec-a-9.12-tx-diag-enable / spec-a-9.12-tx-diag-disable =
+          checkpoint 9.12's startup transaction diagnostics (demo seed remains false).
         type: choice
         options:
           - standard
@@ -88,6 +90,8 @@ on:
           - spec-a-9.11-abort
           - spec-a-9.12-enable
           - spec-a-9.12-disable
+          - spec-a-9.12-tx-diag-enable
+          - spec-a-9.12-tx-diag-disable
         default: standard
       use_seed_image:
         description: "Use public seed image for Container Apps (true for first apply before images exist in ACR)"
@@ -125,6 +129,7 @@ env:
   # Structural (pr-plan) path only — live-state jobs override this with deployed_image_tag.
   TF_VAR_image_tag: ${{ github.sha }}
   TF_VAR_demo_seed_on_startup: ${{ github.event.inputs.change_profile == 'spec-a-9.12-enable' && 'true' || 'false' }}
+  TF_VAR_demo_tx_diagnostics: ${{ github.event.inputs.change_profile == 'spec-a-9.12-tx-diag-enable' && 'true' || 'false' }}
   TF_VAR_use_seed_image: ${{ github.event.inputs.use_seed_image || 'false' }}
   # Job-only seed bootstrap, auto-enabled whenever a Job recreate is requested. This lets the
   # -replace create the Job on the public seed image WITHOUT setting the global use_seed_image
@@ -249,7 +254,7 @@ jobs:
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Confirm expected_portfolio_image_digest resolves in ACR
-        if: 'github.event.inputs.change_profile == ''spec-a-9.12-enable'' || github.event.inputs.change_profile == ''spec-a-9.12-disable'''
+        if: 'github.event.inputs.change_profile == ''spec-a-9.12-enable'' || github.event.inputs.change_profile == ''spec-a-9.12-disable'' || github.event.inputs.change_profile == ''spec-a-9.12-tx-diag-enable'' || github.event.inputs.change_profile == ''spec-a-9.12-tx-diag-disable'''
         run: |
           set -euo pipefail
           DIGEST="${{ github.event.inputs.expected_portfolio_image_digest }}"
@@ -478,7 +483,8 @@ jobs:
 
           if [ "$PROFILE" = "spec-a-9.9-enable" ] || [ "$PROFILE" = "spec-a-9.9-abort" ] \
             || [ "$PROFILE" = "spec-a-9.11-enable" ] || [ "$PROFILE" = "spec-a-9.11-abort" ] \
-            || [ "$PROFILE" = "spec-a-9.12-enable" ] || [ "$PROFILE" = "spec-a-9.12-disable" ]; then
+            || [ "$PROFILE" = "spec-a-9.12-enable" ] || [ "$PROFILE" = "spec-a-9.12-disable" ] \
+            || [ "$PROFILE" = "spec-a-9.12-tx-diag-enable" ] || [ "$PROFILE" = "spec-a-9.12-tx-diag-disable" ]; then
             echo "::error::${RESOURCE_ADDRESS} is not in Terraform state, and change_profile=${PROFILE} only permits a read-only check here — auto-import is not allowed during a scoped Spec A production change, since it would mutate the backend before any plan or assertion runs."
             echo "::error::Repair state through a separate, reviewed operation (e.g. dispatch with change_profile=standard first) before retrying the scoped Spec A apply."
             exit 1

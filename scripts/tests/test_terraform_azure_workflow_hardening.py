@@ -59,6 +59,11 @@ class TestTerraformAzureWorkflowHardening(unittest.TestCase):
         self.assertRegex(block, r"options:[\s\S]*?-\s*spec-a-9\.12-enable")
         self.assertRegex(block, r"options:[\s\S]*?-\s*spec-a-9\.12-disable")
 
+    def test_change_profile_input_has_both_9_12_tx_diag_profiles(self):
+        block = self._block("change_profile:")
+        self.assertRegex(block, r"options:[\s\S]*?-\s*spec-a-9\.12-tx-diag-enable")
+        self.assertRegex(block, r"options:[\s\S]*?-\s*spec-a-9\.12-tx-diag-disable")
+
     def test_expected_portfolio_image_digest_input_exists_as_optional_string(self):
         block = self._block("expected_portfolio_image_digest:")
         self.assertIn("required: false", block)
@@ -114,6 +119,8 @@ class TestTerraformAzureWorkflowHardening(unittest.TestCase):
         step = job[digest_index : digest_index + 1200]
         self.assertIn("spec-a-9.12-enable", step)
         self.assertIn("spec-a-9.12-disable", step)
+        self.assertIn("spec-a-9.12-tx-diag-enable", step)
+        self.assertIn("spec-a-9.12-tx-diag-disable", step)
         self.assertIn("az acr manifest list-metadata", step)
         self.assertIn("--registry wealthprodacr", step)
         self.assertIn("--name portfolio-service", step)
@@ -123,6 +130,10 @@ class TestTerraformAzureWorkflowHardening(unittest.TestCase):
     def test_demo_seed_mapping_is_profile_derived_and_fail_closed(self):
         self.assertIn(
             "TF_VAR_demo_seed_on_startup: ${{ github.event.inputs.change_profile == 'spec-a-9.12-enable' && 'true' || 'false' }}",
+            self.text,
+        )
+        self.assertIn(
+            "TF_VAR_demo_tx_diagnostics: ${{ github.event.inputs.change_profile == 'spec-a-9.12-tx-diag-enable' && 'true' || 'false' }}",
             self.text,
         )
         self.assertNotRegex(
@@ -209,6 +220,8 @@ class TestTerraformAzureWorkflowHardening(unittest.TestCase):
         import_step = import_step[: import_step.find("\n\n      - name:")]
         self.assertIn("spec-a-9.12-enable", import_step)
         self.assertIn("spec-a-9.12-disable", import_step)
+        self.assertIn("spec-a-9.12-tx-diag-enable", import_step)
+        self.assertIn("spec-a-9.12-tx-diag-disable", import_step)
         self.assertIn("exit 1", import_step)
 
     # -- remote-plan job -----------------------------------------------------------

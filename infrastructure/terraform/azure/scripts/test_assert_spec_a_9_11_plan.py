@@ -180,12 +180,22 @@ class SpecA911PlanTests(unittest.TestCase):
                 after=_side(runner_value="true", cpu=1.0),
             )
         )
-        for profile in ("spec-a-9.12-enable", "spec-a-9.12-disable"):
+        for profile in (
+            "spec-a-9.12-enable",
+            "spec-a-9.12-disable",
+            "spec-a-9.12-tx-diag-enable",
+            "spec-a-9.12-tx-diag-disable",
+        ):
             with self.subTest(profile=profile):
                 self.assertEqual(_evaluate(plan, profile), [])
 
     def test_both_9_12_profiles_reject_runner_change(self):
-        for profile in ("spec-a-9.12-enable", "spec-a-9.12-disable"):
+        for profile in (
+            "spec-a-9.12-enable",
+            "spec-a-9.12-disable",
+            "spec-a-9.12-tx-diag-enable",
+            "spec-a-9.12-tx-diag-disable",
+        ):
             with self.subTest(profile=profile):
                 errors = _evaluate(_enable_plan(), profile)
                 self.assertTrue(any("runner-guard" in error for error in errors), errors)
