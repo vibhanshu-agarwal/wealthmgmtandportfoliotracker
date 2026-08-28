@@ -113,6 +113,72 @@ distinct matrix scenarios**; the normal read-only commit path is asserted twice 
 
 ---
 
+## Source instrumentation readiness (unmerged, undeployed)
+
+**Branch:** `cursor/spec-a-9.12-production-setter-provenance` from `main@3d5000c2462b7dca8bc6c7328ddd7a88ea0ac0a9` (PR #171 merge).
+
+**Verdict (local source only):** `PROVENANCE_INSTRUMENTATION_READY_SETTER_UNPROVEN`. Top-level RCA verdict remains **`MECHANISM_REPRODUCED_SETTER_UNPROVEN`**.
+
+### Source files
+
+| File | Role |
+|---|---|
+| `SpecA912PooledSessionProvenance.java` | SQL classifier, PID transition tracker, sanitized event model |
+| `SpecA912ProvenanceDataSource.java` | Delegating DataSource + JDBC proxies |
+| `SpecA912ProvenanceDataSourcePostProcessor.java` | `dataSource` bean gate on existing `APP_DEMO_TX_DIAGNOSTICS` |
+| `SpecA912PooledSessionProvenanceTest.java` | Classifier, transition, sanitization unit tests |
+| `SpecA912ProvenanceDataSourceTest.java` | Gate matrix, proxy transparency, Spring context proofs |
+| `SpecA912PooledSessionSetterProvenanceIT.java` | Testcontainers one-connection attribution matrix |
+
+### Activation gate (reuses existing flag; no Terraform/workflow expansion)
+
+| `APP_DEMO_TX_DIAGNOSTICS` | `app.demo.seed-on-startup` | Behavior |
+|---|---|---|
+| `false` | any | Original `dataSource` identity; zero observer SQL |
+| `true` | `true` | Fail-closed; original bean; fixed rejection warning; no observer SQL |
+| `true` | `false` | Wrap `dataSource` once; observe by `pg_backend_pid()` |
+
+### Testcontainers outcomes (Hikari `maximumPoolSize=1`)
+
+| Scenario | Same backend PID | Expected transition | Setter event |
+|---|---|---|---|
+| Wrapper executes `SET SESSION … READ ONLY` | yes | `ATTRIBUTED_OFF_TO_ON` | `SESSION_DEFAULT_READ_ONLY` |
+| Raw Hikari delegate poisons below wrapper | yes | `UNATTRIBUTED_OFF_TO_ON` | none |
+| Poison before first wrapper borrow | n/a | `FIRST_OBSERVED_ON` | none |
+
+### Event fields and sanitization
+
+Structured log prefix: `event=spec_a912_pool_session_provenance`. Allowed fields: fixed phase name,
+checkout id, backend PID, transition enum, setter kind enum, JDBC/GUC booleans and `on/off` strings,
+bounded `class#method` call path (max eight entries), SQLSTATE. Observation failures log
+`event=spec_a912_pool_session_provenance_failed` with phase, exception class, and SQLSTATE only — no
+exception messages, raw SQL, URLs, credentials, bind values, or application data.
+
+Exclusions from call path: `java.lang.reflect`, `jdk.proxy`, and internal diag wrapper classes.
+
+Explicit vendor `Connection.unwrap(...)` to the delegate remains an acknowledged
+below-wrapper blind spot: JDBC issued through an unwrapped vendor handle is not instrumented.
+
+### Setter attribution model
+
+Setter-shaped calls emit a `setter-attempt` event before delegation using **no observer
+SQL** (null snapshot). After successful direct or batch execution, exactly one guarded
+`captureAndResolveSetter` call checks `autoCommit`, captures once when safe,
+confirms attribution, resolves the transition, and clears pending state in `finally`.
+Batch `addBatch` queues intent only after successful delegate `addBatch`;
+`clearBatch` clears the queue only after successful delegate `clearBatch`;
+prepared no-argument `addBatch` uses the prepare-time SQL hint; batch attribution uses
+the **last session-state-affecting** queued setter, not merely the last setter of any kind.
+
+### Explicit non-claims
+
+Local instrumentation readiness does **not** identify the production setter. No artifact was built,
+no revision deployed, and production remains on `portfolio-service--0000086` with both flags
+`false`. Next step: architecture review, then — only if separately authorized — source commit/PR
+and a gated diagnostic revision deploy.
+
+---
+
 ## Explicit non-claims
 
 - Checkpoint 9.12 is **not** complete.

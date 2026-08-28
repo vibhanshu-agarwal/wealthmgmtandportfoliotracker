@@ -844,6 +844,10 @@ python scripts/check-spec-references.py   .kiro/specs/supported-asset-integrity/
       `false`; demo still 3 holdings). Local/source RCA verdict
       `MECHANISM_REPRODUCED_SETTER_UNPROVEN` — evidence
       [`docs/runbooks/SPEC_A_9_12_POOLED_READONLY_RCA.md`](../../../docs/runbooks/SPEC_A_9_12_POOLED_READONLY_RCA.md).
+      **Pooled-session setter provenance instrumentation** is implemented on branch
+      `cursor/spec-a-9.12-production-setter-provenance` (`main@3d5000c2462b7dca8bc6c7328ddd7a88ea0ac0a9`)
+      with local verdict `PROVENANCE_INSTRUMENTATION_READY_SETTER_UNPROVEN`; source is **unmerged and
+      undeployed** pending architecture review — does not identify the production setter.
       This checkbox must stay open until a reviewed fix is applied and authorized enable +
       restoring rollouts and live verification succeed. Does not authorize 9.13–9.14, ingress
       reopen, or B1 G5.
