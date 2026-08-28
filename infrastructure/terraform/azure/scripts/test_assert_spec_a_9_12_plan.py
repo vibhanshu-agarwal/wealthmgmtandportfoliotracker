@@ -343,6 +343,23 @@ class SpecA912PlanTests(unittest.TestCase):
         )
         self.assertFails(_transition(after=duplicate))
 
+    def test_transport_change_fails(self):
+        changed = copy.deepcopy(INTERNAL_INGRESS)
+        changed[0]["transport"] = "tcp"
+        self.assertFails(_transition(after=_side("true", ingress=changed)))
+
+    def test_demo_plain_and_secret_binding_fails(self):
+        hybrid = _production_shaped_side("true")
+        for entry in hybrid["template"][0]["container"][0]["env"]:
+            if entry.get("name") == "APP_DEMO_SEED_ON_STARTUP":
+                entry["secret_name"] = "demo-secret"
+        self.assertFails(_transition(before=_production_shaped_side(...), after=hybrid))
+
+    def test_unlisted_container_field_change_fails(self):
+        mutated = _production_shaped_side("true")
+        mutated["template"][0]["container"][0]["command"] = ["/bin/sh"]
+        self.assertFails(_transition(before=_production_shaped_side(...), after=mutated))
+
     def test_genuine_non_demo_plain_env_mutation_fails(self):
         mutated = _production_shaped_side("true")
         for entry in mutated["template"][0]["container"][0]["env"]:

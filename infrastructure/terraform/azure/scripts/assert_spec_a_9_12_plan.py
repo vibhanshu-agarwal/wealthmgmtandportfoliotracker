@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import re
 import sys
@@ -26,8 +27,10 @@ KNOWN_PROFILES = (
     "spec-a-9.12-disable",
 )
 
+_DEMO_SENTINEL = "__SPEC_A_9_12_DEMO_SENTINEL__"
 _DIGEST_PATTERN = re.compile(r"sha256:[0-9a-f]{64}\Z")
 _VERSION_PATTERN = re.compile(r"[0-9a-f]{40}\Z")
+_ENV_ALLOWED_KEYS = frozenset({"name", "value", "secret_name"})
 
 
 def load_plan(path: str) -> dict:
@@ -79,50 +82,119 @@ def _entries(side: dict | None, name: str) -> list[dict]:
     return [entry for entry in _named_env(side) if entry.get("name") == name]
 
 
-def _literal_value(entry: dict) -> str | None:
-    value = entry.get("value")
-    return value if isinstance(value, str) else None
+def _inactive(value) -> bool:
+    return value is None or value == ""
 
 
-def _canonical_env_entry(entry: dict) -> tuple:
-    """Comparable form of a full env entry, including value vs secret_name shape."""
-    return tuple(sorted((key, entry[key]) for key in entry))
+def _is_strict_plain_demo_entry(entry: dict) -> bool:
+    if entry.get("name") != DEMO_ENV:
+        return False
+    if not set(entry.keys()).issubset(_ENV_ALLOWED_KEYS):
+        return False
+    if not _inactive(entry.get("secret_name")):
+        return False
+    if "value" not in entry or not isinstance(entry.get("value"), str):
+        return False
+    return True
 
 
-def _canonical_env_binding(entry: dict) -> tuple | None:
-    """Semantic env binding used for non-demo field comparison."""
+def _canonical_env_entry(entry: dict) -> dict | None:
     name = entry.get("name")
     if not isinstance(name, str) or name == DEMO_ENV:
         return None
+    if not set(entry.keys()).issubset(_ENV_ALLOWED_KEYS):
+        return None
     secret_name = entry.get("secret_name")
-    if isinstance(secret_name, str) and secret_name:
-        if entry.get("value") not in (None, ""):
-            return None
-        return ("secret", name, secret_name)
-    if "value" not in entry:
-        return None
     value = entry.get("value")
-    if value is None:
+    if not _inactive(secret_name):
+        if not _inactive(value):
+            return None
+        if not isinstance(secret_name, str):
+            return None
+        return {"name": name, "secret_name": secret_name}
+    if value is None or not isinstance(value, str):
         return None
-    if not isinstance(value, str):
-        return None
-    if entry.get("secret_name") not in (None, ""):
-        return None
-    return ("value", name, value)
+    return {"name": name, "value": value}
 
 
-def _env_fingerprint(side: dict | None) -> frozenset[tuple] | None:
-    bindings: list[tuple] = []
-    for entry in _raw_env(side):
-        if not isinstance(entry, dict):
+def _canonicalize_value(value):
+    if isinstance(value, dict):
+        return _canonicalize_dict(value)
+    if isinstance(value, list):
+        return _canonicalize_list(value)
+    if isinstance(value, str) and value.lower() == "auto":
+        return "auto"
+    return value
+
+
+def _canonicalize_list(items: list) -> list:
+    canonical = [_canonicalize_value(item) for item in items]
+    if canonical and all(isinstance(item, dict) for item in canonical):
+        if all("name" in item for item in canonical):
+            return sorted(canonical, key=lambda item: item["name"])
+        if all("percentage" in item for item in canonical):
+            return sorted(
+                canonical,
+                key=lambda item: (
+                    item.get("percentage"),
+                    item.get("latest_revision"),
+                    item.get("revision_suffix"),
+                    item.get("label"),
+                ),
+            )
+    return canonical
+
+
+def _canonicalize_dict(mapping: dict) -> dict:
+    result: dict = {}
+    for key in sorted(mapping):
+        value = mapping[key]
+        if _inactive(value):
+            continue
+        result[key] = _canonicalize_value(value)
+    return result
+
+
+def _canonicalize_ingress(ingress) -> list | None:
+    if ingress is None or ingress == []:
+        return []
+    if not isinstance(ingress, list):
+        return None
+    blocks = []
+    for block in ingress:
+        if not isinstance(block, dict):
             return None
-        binding = _canonical_env_binding(entry)
-        if binding is None:
-            if isinstance(entry.get("name"), str) and entry.get("name") == DEMO_ENV:
-                continue
-            return None
-        bindings.append(binding)
-    return frozenset(bindings)
+        blocks.append(_canonicalize_dict(block))
+    return sorted(blocks, key=lambda block: json.dumps(block, sort_keys=True))
+
+
+def _internal_ingress_ok(side: dict | None) -> bool:
+    if not isinstance(side, dict):
+        return False
+    ingress = side.get("ingress")
+    if ingress is None or ingress == []:
+        return False
+    if not isinstance(ingress, list) or len(ingress) != 1:
+        return False
+    block = ingress[0]
+    if not isinstance(block, dict):
+        return False
+    if block.get("external_enabled") is not False:
+        return False
+    if block.get("target_port") != EXPECTED_TARGET_PORT:
+        return False
+    traffic = block.get("traffic_weight")
+    if not isinstance(traffic, list) or len(traffic) != 1:
+        return False
+    weight = traffic[0]
+    if not isinstance(weight, dict):
+        return False
+    if weight.get("percentage") != 100 or weight.get("latest_revision") is not True:
+        return False
+    transport = block.get("transport")
+    if transport is not None and str(transport).lower() != "auto":
+        return False
+    return True
 
 
 def _has_duplicate_or_invalid_env(side: dict | None) -> bool:
@@ -132,7 +204,10 @@ def _has_duplicate_or_invalid_env(side: dict | None) -> bool:
     if len(raw) != len(named) or len(names) != len(set(names)):
         return True
     for entry in named:
-        if _canonical_env_binding(entry) is None and entry.get("name") != DEMO_ENV:
+        if entry.get("name") == DEMO_ENV:
+            if not _is_strict_plain_demo_entry(entry):
+                return True
+        elif _canonical_env_entry(entry) is None:
             return True
     return False
 
@@ -148,128 +223,62 @@ def _min_replicas(side: dict | None):
     return template.get("min_replicas") if template else None
 
 
-def _ingress_fingerprint(ingress) -> tuple | None:
-    if ingress is None or ingress == []:
-        return ("absent",)
-    if not isinstance(ingress, list) or len(ingress) != 1:
-        return None
-    block = ingress[0]
-    if not isinstance(block, dict):
-        return None
-    if block.get("external_enabled") is not False:
-        return None
-    if block.get("target_port") != EXPECTED_TARGET_PORT:
-        return None
-    traffic = block.get("traffic_weight")
-    if not isinstance(traffic, list) or len(traffic) != 1:
-        return None
-    weight = traffic[0]
-    if not isinstance(weight, dict):
-        return None
-    if weight.get("percentage") != 100 or weight.get("latest_revision") is not True:
-        return None
-    revision_suffix = weight.get("revision_suffix")
-    label = weight.get("label")
-    return (
-        "internal",
-        EXPECTED_TARGET_PORT,
-        100,
-        True,
-        revision_suffix,
-        label,
-    )
+def _literal_value(entry: dict) -> str | None:
+    value = entry.get("value")
+    return value if isinstance(value, str) else None
 
 
-def _internal_ingress_ok(side: dict | None) -> bool:
-    if not isinstance(side, dict):
-        return False
-    fingerprint = _ingress_fingerprint(side.get("ingress"))
-    return fingerprint is not None and fingerprint[0] == "internal"
+def _canonical_env_entry_tuple(entry: dict) -> tuple:
+    return tuple(sorted((key, entry[key]) for key in entry))
 
 
-def _identity_fingerprint(side: dict | None) -> tuple | None:
+def _normalize(side: dict | None, *, allow_missing_demo: bool) -> dict | None:
     if not isinstance(side, dict):
         return None
-    identity = side.get("identity")
-    if not isinstance(identity, list) or len(identity) != 1:
+    if _has_duplicate_or_invalid_env(side):
         return None
-    block = identity[0]
-    if not isinstance(block, dict):
+
+    normalized = copy.deepcopy(side)
+    container = _container(normalized)
+    if container is None:
         return None
-    identity_type = block.get("type")
-    if identity_type == "UserAssigned":
-        identity_ids = block.get("identity_ids")
-        if not isinstance(identity_ids, list):
+    env = container.get("env")
+    if not isinstance(env, list):
+        return None
+
+    canonical_env: list[dict] = []
+    demo_seen = False
+    for entry in env:
+        if not isinstance(entry, dict):
             return None
-        return ("UserAssigned", tuple(sorted(str(item) for item in identity_ids)))
-    if identity_type == "SystemAssigned":
-        return ("SystemAssigned",)
-    return None
-
-
-def _registry_fingerprint(side: dict | None) -> tuple | None:
-    if not isinstance(side, dict):
-        return None
-    registry = side.get("registry")
-    if not isinstance(registry, list) or len(registry) != 1:
-        return None
-    block = registry[0]
-    if not isinstance(block, dict):
-        return None
-    server = block.get("server")
-    identity = block.get("identity")
-    if not isinstance(server, str) or not isinstance(identity, str):
-        return None
-    return (server, identity)
-
-
-def _secrets_fingerprint(side: dict | None) -> frozenset[tuple] | None:
-    if not isinstance(side, dict):
-        return None
-    secrets = side.get("secret")
-    if not isinstance(secrets, list):
-        return None
-    items: list[tuple] = []
-    for secret in secrets:
-        if not isinstance(secret, dict):
+        name = entry.get("name")
+        if name == DEMO_ENV:
+            if not _is_strict_plain_demo_entry(entry):
+                return None
+            demo_seen = True
+            canonical_env.append({"name": DEMO_ENV, "value": _DEMO_SENTINEL})
+            continue
+        canon = _canonical_env_entry(entry)
+        if canon is None:
             return None
-        name = secret.get("name")
-        value = secret.get("value")
-        if not isinstance(name, str) or not isinstance(value, str):
-            return None
-        items.append((name, value))
-    return frozenset(items)
+        canonical_env.append(canon)
 
+    if demo_seen:
+        pass
+    elif allow_missing_demo:
+        canonical_env.append({"name": DEMO_ENV, "value": _DEMO_SENTINEL})
+    else:
+        return None
 
-def _non_demo_fingerprint(side: dict | None) -> tuple | None:
-    if not isinstance(side, dict):
+    canonical_env.sort(key=lambda item: item["name"])
+    container["env"] = canonical_env
+
+    canon_ingress = _canonicalize_ingress(normalized.get("ingress"))
+    if canon_ingress is None:
         return None
-    template = _template(side)
-    container = _container(side)
-    if template is None or container is None:
-        return None
-    env = _env_fingerprint(side)
-    if env is None:
-        return None
-    ingress = _ingress_fingerprint(side.get("ingress"))
-    if ingress is None:
-        return None
-    identity = _identity_fingerprint(side)
-    registry = _registry_fingerprint(side)
-    secrets = _secrets_fingerprint(side)
-    if identity is None or registry is None or secrets is None:
-        return None
-    return (
-        ingress,
-        template.get("min_replicas"),
-        template.get("max_replicas"),
-        container.get("cpu"),
-        container.get("memory"),
-        identity,
-        registry,
-        secrets,
-        env,
-    )
+    normalized["ingress"] = canon_ingress
+
+    return _canonicalize_dict(normalized)
 
 
 def _check_transition(
@@ -280,6 +289,9 @@ def _check_transition(
 ) -> None:
     before_entries = _entries(before, DEMO_ENV)
     after_entries = _entries(after, DEMO_ENV)
+    if any(not _is_strict_plain_demo_entry(entry) for entry in before_entries + after_entries):
+        errors.append(f"FAIL [demo-binding] {TARGET_ADDRESS} demo env must be plain-valued only.")
+        return
     if profile == "spec-a-9.12-enable":
         before_ok = (
             len(before_entries) == 0
@@ -319,7 +331,7 @@ def _check_fixed_invariants(
             errors.append(
                 f"FAIL [ingress] {TARGET_ADDRESS} {label} internal ingress is not the expected "
                 f"internal-only shape (external_enabled=false, target_port={EXPECTED_TARGET_PORT}, "
-                "traffic_weight percentage=100 latest_revision=true)."
+                "transport=auto, traffic_weight percentage=100 latest_revision=true)."
             )
         expected_image = (
             f"{ACR_LOGIN_SERVER}/{IMAGE_REPOSITORY}@{expected_image_digest}"
@@ -349,8 +361,8 @@ def _evaluate_non_scoped(plan: dict) -> list[str]:
         after = change.get("after")
         before_entries = _entries(before, DEMO_ENV)
         after_entries = _entries(after, DEMO_ENV)
-        before_sigs = [_canonical_env_entry(entry) for entry in before_entries]
-        after_sigs = [_canonical_env_entry(entry) for entry in after_entries]
+        before_sigs = [_canonical_env_entry_tuple(entry) for entry in before_entries]
+        after_sigs = [_canonical_env_entry_tuple(entry) for entry in after_entries]
         if (
             len(before_entries) > 1
             or len(after_entries) > 1
@@ -404,9 +416,16 @@ def _evaluate_scoped(
         errors,
     )
 
-    before_fp = _non_demo_fingerprint(before)
-    after_fp = _non_demo_fingerprint(after)
-    if before_fp is None or after_fp is None or before_fp != after_fp:
+    normalized_before = _normalize(
+        before,
+        allow_missing_demo=profile == "spec-a-9.12-enable",
+    )
+    normalized_after = _normalize(after, allow_missing_demo=False)
+    if (
+        normalized_before is None
+        or normalized_after is None
+        or normalized_before != normalized_after
+    ):
         errors.append(
             f"FAIL [field] {TARGET_ADDRESS} changes a non-demo field."
         )
