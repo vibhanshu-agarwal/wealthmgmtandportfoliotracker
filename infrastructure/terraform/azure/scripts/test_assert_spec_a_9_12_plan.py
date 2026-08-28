@@ -27,6 +27,63 @@ OTHER_VERSION = "1" * 40
 IMAGE = f"wealthprodacr.azurecr.io/portfolio-service@{EXPECTED_DIGEST}"
 TARGET = "module.portfolio_service.azurerm_container_app.this"
 SECRET = "never-print-this-secret-value"
+INTERNAL_INGRESS = [{
+    "external_enabled": False,
+    "target_port": 8080,
+    "transport": "auto",
+    "traffic_weight": [{"percentage": 100, "latest_revision": True}],
+}]
+
+
+def _production_plain_env(demo=...):
+    env = [
+        {"name": "MANAGEMENT_OPENTELEMETRY_TRACING_EXPORT_OTLP_TRANSPORT", "value": "grpc"},
+        {"name": "MANAGEMENT_TRACING_EXPORT_ENABLED", "value": "true"},
+        {"name": "MANAGEMENT_TRACING_SAMPLING_PROBABILITY", "value": "1.0"},
+        {"name": "SERVICE_VERSION", "value": EXPECTED_VERSION},
+        {"name": "SPRING_PROFILES_ACTIVE", "value": "prod,azure"},
+        {"name": "DEPLOYMENT_ENVIRONMENT_NAME", "value": "prod"},
+    ]
+    if demo is not ...:
+        env.append({"name": "APP_DEMO_SEED_ON_STARTUP", "value": demo})
+    return env
+
+
+def _production_secret_env():
+    return [
+        {"name": "INTERNAL_API_KEY", "secret_name": "internal-api-key"},
+        {"name": "KAFKA_BOOTSTRAP_SERVERS", "secret_name": "kafka-bootstrap-servers"},
+        {"name": "KAFKA_SASL_PASSWORD", "secret_name": "kafka-sasl-password"},
+        {"name": "KAFKA_SASL_USERNAME", "secret_name": "kafka-sasl-username"},
+        {"name": "REDIS_URL", "secret_name": "redis-url"},
+        {"name": "SPRING_DATASOURCE_PASSWORD", "secret_name": "spring-datasource-password"},
+        {"name": "SPRING_DATASOURCE_URL", "secret_name": "spring-datasource-url"},
+        {"name": "SPRING_DATASOURCE_USERNAME", "secret_name": "spring-datasource-username"},
+    ]
+
+
+def _production_secrets():
+    return [
+        {"name": "internal-api-key", "value": SECRET},
+        {"name": "kafka-bootstrap-servers", "value": SECRET},
+        {"name": "kafka-sasl-password", "value": SECRET},
+        {"name": "kafka-sasl-username", "value": SECRET},
+        {"name": "redis-url", "value": SECRET},
+        {"name": "spring-datasource-password", "value": SECRET},
+        {"name": "spring-datasource-url", "value": SECRET},
+        {"name": "spring-datasource-username", "value": SECRET},
+    ]
+
+
+def _production_shaped_side(demo=..., *, ingress=INTERNAL_INGRESS):
+    env = _production_plain_env(demo) + _production_secret_env()
+    return _side(
+        demo,
+        ingress=ingress,
+        env=env,
+        max_replicas=3,
+        secret=_production_secrets(),
+    )
 
 
 def _env(demo=..., *, version=EXPECTED_VERSION, extra=()):
@@ -52,11 +109,12 @@ def _side(
     cpu=0.5,
     memory="1Gi",
     env=None,
+    secret=None,
 ):
     side = {
         "identity": [{"type": "UserAssigned", "identity_ids": ["/identities/portfolio"]}],
         "registry": [{"server": "wealthprodacr.azurecr.io", "identity": "/identities/acr"}],
-        "secret": [{"name": "mongodb-uri", "value": SECRET}],
+        "secret": copy.deepcopy(secret if secret is not None else [{"name": "mongodb-uri", "value": SECRET}]),
         "template": [{
             "min_replicas": min_replicas,
             "max_replicas": max_replicas,
@@ -69,7 +127,9 @@ def _side(
             }],
         }],
     }
-    if ingress is not None:
+    if ingress is None:
+        side["ingress"] = copy.deepcopy(INTERNAL_INGRESS)
+    elif ingress is not ...:
         side["ingress"] = copy.deepcopy(ingress)
     return side
 
@@ -231,14 +291,94 @@ class SpecA912PlanTests(unittest.TestCase):
         self.assertFails(_transition(before=_side(..., min_replicas=0)))
         self.assertFails(_transition(after=_side("true", min_replicas=2)))
 
-    def test_ingress_added_or_enabled_fails(self):
-        added = [{"external_enabled": False, "target_port": 8080}]
-        disabled = [{"external_enabled": False, "target_port": 8080, "traffic_weight": []}]
-        enabled = [{"external_enabled": True, "target_port": 8080}]
-        self.assertFails(_transition(after=_side("true", ingress=added)))
-        self.assertFails(_transition(before=_side(..., ingress=disabled), after=_side("true", ingress=disabled)))
-        self.assertFails(_transition(after=_side("true", ingress=enabled)))
-        self.assertFails(_transition(before=_side(..., ingress=enabled), after=_side("true", ingress=enabled)))
+    def test_ingress_internal_shape_must_remain_unchanged(self):
+        stable = copy.deepcopy(INTERNAL_INGRESS)
+        self.assertEqual(
+            _evaluate(_transition(before=_side(..., ingress=stable), after=_side("true", ingress=stable))),
+            [],
+        )
+
+    def test_external_ingress_fails(self):
+        external = [{"external_enabled": True, "target_port": 8080, "traffic_weight": [{"percentage": 100, "latest_revision": True}]}]
+        self.assertFails(_transition(after=_side("true", ingress=external)))
+        self.assertFails(_transition(before=_side(..., ingress=external), after=_side("true", ingress=INTERNAL_INGRESS)))
+
+    def test_ingress_removal_fails(self):
+        removed = _side("true")
+        removed.pop("ingress", None)
+        self.assertFails(_transition(before=_side(..., ingress=INTERNAL_INGRESS), after=removed))
+        self.assertFails(_transition(before=_side(..., ingress=INTERNAL_INGRESS), after=_side("true", ingress=[])))
+
+    def test_target_port_change_fails(self):
+        changed = copy.deepcopy(INTERNAL_INGRESS)
+        changed[0]["target_port"] = 80
+        self.assertFails(_transition(after=_side("true", ingress=changed)))
+
+    def test_traffic_weight_change_fails(self):
+        changed = copy.deepcopy(INTERNAL_INGRESS)
+        changed[0]["traffic_weight"] = [{"percentage": 50, "latest_revision": True}]
+        self.assertFails(_transition(after=_side("true", ingress=changed)))
+
+    def test_realistic_enable_fixture_tolerates_env_reindexing(self):
+        before = _production_shaped_side(...)
+        after = _production_shaped_side("true")
+        # Terraform provider diffs often reindex env across plain and secret entries.
+        after["template"][0]["container"][0]["env"] = list(reversed(after["template"][0]["container"][0]["env"]))
+        for entry in after["template"][0]["container"][0]["env"]:
+            if "secret_name" in entry:
+                entry["value"] = None
+        self.assertEqual(_evaluate(_plan(_target(before=before, after=after))), [])
+
+    def test_secret_reference_substitution_fails(self):
+        after = _production_shaped_side("true")
+        for entry in after["template"][0]["container"][0]["env"]:
+            if entry.get("name") == "SPRING_DATASOURCE_URL":
+                entry["secret_name"] = "other-secret"
+        self.assertFails(_transition(before=_production_shaped_side(...), after=after))
+
+    def test_duplicate_env_names_fail(self):
+        duplicate = _production_shaped_side("true")
+        duplicate["template"][0]["container"][0]["env"].append(
+            {"name": "SERVICE_VERSION", "value": EXPECTED_VERSION}
+        )
+        self.assertFails(_transition(after=duplicate))
+
+    def test_transport_change_fails(self):
+        changed = copy.deepcopy(INTERNAL_INGRESS)
+        changed[0]["transport"] = "tcp"
+        self.assertFails(_transition(after=_side("true", ingress=changed)))
+
+    def test_missing_transport_fails(self):
+        missing = copy.deepcopy(INTERNAL_INGRESS)
+        del missing[0]["transport"]
+        self.assertFails(_transition(after=_side("true", ingress=missing)))
+        self.assertFails(_transition(before=_side(..., ingress=missing), after=_side("true", ingress=INTERNAL_INGRESS)))
+
+    def test_unrelated_none_to_empty_string_transition_fails(self):
+        before = _production_shaped_side(...)
+        after = _production_shaped_side("true")
+        before["dapr"] = None
+        after["dapr"] = ""
+        self.assertFails(_transition(before=before, after=after))
+
+    def test_demo_plain_and_secret_binding_fails(self):
+        hybrid = _production_shaped_side("true")
+        for entry in hybrid["template"][0]["container"][0]["env"]:
+            if entry.get("name") == "APP_DEMO_SEED_ON_STARTUP":
+                entry["secret_name"] = "demo-secret"
+        self.assertFails(_transition(before=_production_shaped_side(...), after=hybrid))
+
+    def test_unlisted_container_field_change_fails(self):
+        mutated = _production_shaped_side("true")
+        mutated["template"][0]["container"][0]["command"] = ["/bin/sh"]
+        self.assertFails(_transition(before=_production_shaped_side(...), after=mutated))
+
+    def test_genuine_non_demo_plain_env_mutation_fails(self):
+        mutated = _production_shaped_side("true")
+        for entry in mutated["template"][0]["container"][0]["env"]:
+            if entry.get("name") == "DEPLOYMENT_ENVIRONMENT_NAME":
+                entry["value"] = "staging"
+        self.assertFails(_transition(before=_production_shaped_side(...), after=mutated))
 
     def test_other_resource_fields_cannot_change(self):
         mutations = {

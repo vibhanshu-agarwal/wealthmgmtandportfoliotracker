@@ -14,6 +14,7 @@ DEMO_ENV = "APP_DEMO_SEED_ON_STARTUP"
 SERVICE_VERSION_ENV = "SERVICE_VERSION"
 ACR_LOGIN_SERVER = "wealthprodacr.azurecr.io"
 IMAGE_REPOSITORY = "portfolio-service"
+EXPECTED_TARGET_PORT = 8080
 
 SCOPED_PROFILES = ("spec-a-9.12-enable", "spec-a-9.12-disable")
 KNOWN_PROFILES = (
@@ -29,6 +30,7 @@ KNOWN_PROFILES = (
 _DEMO_SENTINEL = "__SPEC_A_9_12_DEMO_SENTINEL__"
 _DIGEST_PATTERN = re.compile(r"sha256:[0-9a-f]{64}\Z")
 _VERSION_PATTERN = re.compile(r"[0-9a-f]{40}\Z")
+_ENV_ALLOWED_KEYS = frozenset({"name", "value", "secret_name"})
 
 
 def load_plan(path: str) -> dict:
@@ -80,21 +82,101 @@ def _entries(side: dict | None, name: str) -> list[dict]:
     return [entry for entry in _named_env(side) if entry.get("name") == name]
 
 
-def _literal_value(entry: dict) -> str | None:
+def _inactive(value) -> bool:
+    return value is None or value == ""
+
+
+def _is_strict_plain_demo_entry(entry: dict) -> bool:
+    if entry.get("name") != DEMO_ENV:
+        return False
+    if not set(entry.keys()).issubset(_ENV_ALLOWED_KEYS):
+        return False
+    if not _inactive(entry.get("secret_name")):
+        return False
+    if "value" not in entry or not isinstance(entry.get("value"), str):
+        return False
+    return True
+
+
+def _canonical_env_entry(entry: dict) -> dict | None:
+    name = entry.get("name")
+    if not isinstance(name, str) or name == DEMO_ENV:
+        return None
+    if not set(entry.keys()).issubset(_ENV_ALLOWED_KEYS):
+        return None
+    secret_name = entry.get("secret_name")
     value = entry.get("value")
-    return value if isinstance(value, str) else None
+    if not _inactive(secret_name):
+        if not _inactive(value):
+            return None
+        if not isinstance(secret_name, str):
+            return None
+        return {"name": name, "secret_name": secret_name}
+    if value is None or not isinstance(value, str):
+        return None
+    return {"name": name, "value": value}
 
 
-def _canonical_env_entry(entry: dict) -> tuple:
-    """Comparable form of a full env entry, including value vs secret_name shape."""
-    return tuple(sorted((key, entry[key]) for key in entry))
+def _ingress_for_compare(ingress) -> list | None:
+    if ingress is None or ingress == []:
+        return []
+    if not isinstance(ingress, list):
+        return None
+    blocks = copy.deepcopy(ingress)
+    for block in blocks:
+        if not isinstance(block, dict):
+            return None
+        traffic = block.get("traffic_weight")
+        if isinstance(traffic, list):
+            block["traffic_weight"] = sorted(
+                traffic,
+                key=lambda item: json.dumps(item, sort_keys=True, default=str),
+            )
+    return blocks
+
+
+def _internal_ingress_ok(side: dict | None) -> bool:
+    if not isinstance(side, dict):
+        return False
+    ingress = side.get("ingress")
+    if ingress is None or ingress == []:
+        return False
+    if not isinstance(ingress, list) or len(ingress) != 1:
+        return False
+    block = ingress[0]
+    if not isinstance(block, dict):
+        return False
+    if block.get("external_enabled") is not False:
+        return False
+    if block.get("target_port") != EXPECTED_TARGET_PORT:
+        return False
+    transport = block.get("transport")
+    if not isinstance(transport, str) or transport.lower() != "auto":
+        return False
+    traffic = block.get("traffic_weight")
+    if not isinstance(traffic, list) or len(traffic) != 1:
+        return False
+    weight = traffic[0]
+    if not isinstance(weight, dict):
+        return False
+    if weight.get("percentage") != 100 or weight.get("latest_revision") is not True:
+        return False
+    return True
 
 
 def _has_duplicate_or_invalid_env(side: dict | None) -> bool:
     raw = _raw_env(side)
     named = _named_env(side)
     names = [entry["name"] for entry in named]
-    return len(raw) != len(named) or len(names) != len(set(names))
+    if len(raw) != len(named) or len(names) != len(set(names)):
+        return True
+    for entry in named:
+        if entry.get("name") == DEMO_ENV:
+            if not _is_strict_plain_demo_entry(entry):
+                return True
+        elif _canonical_env_entry(entry) is None:
+            return True
+    return False
 
 
 def _image(side: dict | None) -> str | None:
@@ -108,16 +190,21 @@ def _min_replicas(side: dict | None):
     return template.get("min_replicas") if template else None
 
 
-def _ingress_disabled(side: dict | None) -> bool:
-    if not isinstance(side, dict):
-        return False
-    ingress = side.get("ingress")
-    return ingress is None or ingress == []
+def _literal_value(entry: dict) -> str | None:
+    value = entry.get("value")
+    return value if isinstance(value, str) else None
+
+
+def _canonical_env_entry_tuple(entry: dict) -> tuple:
+    return tuple(sorted((key, entry[key]) for key in entry))
 
 
 def _normalize(side: dict | None, *, allow_missing_demo: bool) -> dict | None:
-    if not isinstance(side, dict) or _has_duplicate_or_invalid_env(side):
+    if not isinstance(side, dict):
         return None
+    if _has_duplicate_or_invalid_env(side):
+        return None
+
     normalized = copy.deepcopy(side)
     container = _container(normalized)
     if container is None:
@@ -125,13 +212,39 @@ def _normalize(side: dict | None, *, allow_missing_demo: bool) -> dict | None:
     env = container.get("env")
     if not isinstance(env, list):
         return None
-    demo_entries = [entry for entry in env if entry.get("name") == DEMO_ENV]
-    if demo_entries:
-        # Replace the whole entry so value-vs-secret_name forms do not leave residue.
-        env[env.index(demo_entries[0])] = {"name": DEMO_ENV, "value": _DEMO_SENTINEL}
+
+    canonical_env: list[dict] = []
+    demo_seen = False
+    for entry in env:
+        if not isinstance(entry, dict):
+            return None
+        name = entry.get("name")
+        if name == DEMO_ENV:
+            if not _is_strict_plain_demo_entry(entry):
+                return None
+            demo_seen = True
+            canonical_env.append({"name": DEMO_ENV, "value": _DEMO_SENTINEL})
+            continue
+        canon = _canonical_env_entry(entry)
+        if canon is None:
+            return None
+        canonical_env.append(canon)
+
+    if demo_seen:
+        pass
     elif allow_missing_demo:
-        env.append({"name": DEMO_ENV, "value": _DEMO_SENTINEL})
-    env.sort(key=lambda entry: entry["name"])
+        canonical_env.append({"name": DEMO_ENV, "value": _DEMO_SENTINEL})
+    else:
+        return None
+
+    canonical_env.sort(key=lambda item: item["name"])
+    container["env"] = canonical_env
+
+    ingress = _ingress_for_compare(normalized.get("ingress"))
+    if ingress is None:
+        return None
+    normalized["ingress"] = ingress
+
     return normalized
 
 
@@ -143,6 +256,9 @@ def _check_transition(
 ) -> None:
     before_entries = _entries(before, DEMO_ENV)
     after_entries = _entries(after, DEMO_ENV)
+    if any(not _is_strict_plain_demo_entry(entry) for entry in before_entries + after_entries):
+        errors.append(f"FAIL [demo-binding] {TARGET_ADDRESS} demo env must be plain-valued only.")
+        return
     if profile == "spec-a-9.12-enable":
         before_ok = (
             len(before_entries) == 0
@@ -178,8 +294,12 @@ def _check_fixed_invariants(
     for label, side in (("before", before), ("after", after)):
         if _min_replicas(side) != 1:
             errors.append(f"FAIL [replicas] {TARGET_ADDRESS} {label} min_replicas is invalid.")
-        if not _ingress_disabled(side):
-            errors.append(f"FAIL [ingress] {TARGET_ADDRESS} {label} ingress is not disabled.")
+        if not _internal_ingress_ok(side):
+            errors.append(
+                f"FAIL [ingress] {TARGET_ADDRESS} {label} internal ingress is not the expected "
+                f"internal-only shape (external_enabled=false, target_port={EXPECTED_TARGET_PORT}, "
+                "transport=auto, traffic_weight percentage=100 latest_revision=true)."
+            )
         expected_image = (
             f"{ACR_LOGIN_SERVER}/{IMAGE_REPOSITORY}@{expected_image_digest}"
         )
@@ -208,8 +328,8 @@ def _evaluate_non_scoped(plan: dict) -> list[str]:
         after = change.get("after")
         before_entries = _entries(before, DEMO_ENV)
         after_entries = _entries(after, DEMO_ENV)
-        before_sigs = [_canonical_env_entry(entry) for entry in before_entries]
-        after_sigs = [_canonical_env_entry(entry) for entry in after_entries]
+        before_sigs = [_canonical_env_entry_tuple(entry) for entry in before_entries]
+        after_sigs = [_canonical_env_entry_tuple(entry) for entry in after_entries]
         if (
             len(before_entries) > 1
             or len(after_entries) > 1
