@@ -27,7 +27,7 @@ Source merged via PRs #167, #169, and #170 (`main@cb5af200`). Diagnostic artifac
 
 ### Production setter-provenance cycle (`0000087`–`0000089`)
 
-Current `main`: `0887a309fe12f49ca37585e5a594661727cf4936` (includes PR #172 at
+Setter-provenance cycle source baseline: `0887a309fe12f49ca37585e5a594661727cf4936` (includes PR #172 at
 `9fbac4d2ada2240a980d5d7c9c2bd9dedc91de01` and implementation commit
 `b51bb49a4c22a82c8ce557750b1f03ecd2cc0212`).
 
@@ -225,9 +225,9 @@ the **last session-state-affecting** queued setter, not merely the last setter o
 ### Explicit non-claims
 
 Production setter-provenance observation does **not** identify who established the read-only default.
-Both application flags are again `false` on `portfolio-service--0000089`. The bounded source-only
-connection-origin probe is locally ready (`CONNECTION_ORIGIN_PROBE_READY_LIVE_EXECUTION_UNAUTHORIZED`).
-Live probe execution remains separately gated and is **not** authorized by this record.
+Both application flags are again `false` on `portfolio-service--0000089`. The later connection-origin
+live matrix did not reproduce the read-only state; that result does not retroactively attribute the
+historical `FIRST_OBSERVED_ON` session or prove that the startup failure is fixed.
 
 ---
 
@@ -243,32 +243,42 @@ Live probe execution remains separately gated and is **not** authorized by this 
 
 ## Recommended next architecture question
 
-Complete architecture review/merge of the connection-origin probe source package, then — only with
-separate explicit approval and operator-supplied exact pooled and direct URLs — run the fail-closed
-read-only live probe. Only after an upstream source is evidenced should architects design and review a
-narrow remedy with explicit blast-radius analysis among candidate classes (transaction-local
-correction, pool checkout sanitation, configuration correction). Do not apply Hikari
-`connection-init-sql`, URL `options=-c`, or global session resets as an unreviewed workaround.
+The fresh manual connection matrix is clean while the historical startup capture was not. The next
+bounded question is therefore historical: did PostgreSQL statement statistics retain any known
+read-only setter shape in statistics whose reset boundary covers the incident? Architecture review
+should first define a
+source-only, fixed-output collector over `pg_stat_statements`, `pg_stat_statements_info`, and the
+relevant tracking settings. The aggregate has no per-execution timestamp, so a retained count cannot
+be bound to the incident. Current tracking settings are capability observations, not proof of their
+historical values. Absence is meaningful only when the statistics reset predates the incident, current
+statement tracking is `top`/`all`, utility tracking is `on`, query-ID calculation is `auto`/`on`, no
+entry eviction occurred, and statement-text visibility is immediately usable and explicitly scoped;
+without usable `pg_read_all_stats`/superuser visibility, a negative can cover only the current database
+role. Raw query text, actor identity, and arbitrary statement search are forbidden.
+Source implementation and any later live execution are separate gates. Do not design or apply a remedy
+from the clean manual matrix alone.
 
 ---
 
-## Connection-origin probe source readiness
+## Connection-origin live probe result
 
-**`CONNECTION_ORIGIN_PROBE_READY_LIVE_EXECUTION_UNAUTHORIZED`**
+**`CONNECTION_ORIGIN_LIVE_NOT_REPRODUCED`**
 
 | Item | Value |
 |---|---|
+| Source merge | PR [#174](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/174); source `e63fa5bb70982734dfcc7eada5e592970e5bed67`; merge `4ac264054f872132e88706ef535c80db17885754` |
 | Executable | `portfolio-service/src/test/java/com/wealth/portfolio/seed/rca/SpecA912ConnectionOriginProbe.java` |
-| Unit tests | `SpecA912ConnectionOriginProbeTest.java` |
-| Integration tests | `SpecA912ConnectionOriginProbeIT.java` |
 | Manual entry point | Gradle task `specA912ConnectionOriginProbe` (group `diagnostics`; not on `check`/`build`/`bootJar`) |
-| Matrix | endpoints `POOLED` then `DIRECT`; exactly five fresh `DriverManager` attempts each |
+| Authorized live matrix | 2026-08-29; endpoints `POOLED` then `DIRECT`; exactly five fresh `DriverManager` attempts each; process exit `0`; `BUILD SUCCESSFUL` |
 | Allow-list | exactly one composite read-only `SELECT` per attempt (PID, recovery, both GUCs, `pg_settings` source/reset, catalog scopes); no `SET`/`RESET`/`DISCARD`/DML/DDL in the collector |
-| Sanitization | attempt output is fixed-key; failures emit exception simple class name and five-character SQLSTATE only |
-| Local Testcontainers | role/`user`, database, database-role, client-startup, pooled-path divergence, and non-interference proofs green |
-| Live contact | **none** — no live endpoint was contacted during this source package |
-| Production | revision `portfolio-service--0000089` remains active; both flags `false` |
-| Next gate | architecture review/merge, then separate explicit approval plus operator-supplied exact pooled and direct URLs for a read-only live run |
+| Pooled result | five of five: JDBC writable, auto-commit on, both transaction read-only GUCs `off`, `pg_settings.setting=off`, `reset_val=off`, source `DEFAULT`, no current catalog defaults, not in recovery; the pooler reused one backend PID |
+| Direct result | five of five: same writable/default evidence; five distinct backend PIDs |
+| Verdict | `NOT_REPRODUCED_IN_MANUAL_MATRIX` |
+| Non-interference | before/after counts and MD5 snapshots were identical: demo `1/3`, E2E `1/159`, portfolios `10` / `1b78e7b91ec736f6c5bce8c2a67a1b6f`, holdings `162` / `9dceb19f517f9aaf81ceeee4280375a1`, prices `160` / `d9a2fe2cb7b35ae0cc4d12ffd86c2476`, history `15648` / `fcf2f26a926e17d14c1a5b41e758d43d` |
+| Production after-check | `portfolio-service--0000089` Healthy/Running on digest `sha256:d5693e29c68fd3665366fbd83586b9e8b8a266b993cdd66a761ea17d9312092a`; demo seed `false`; diagnostics `false`; no refresh execution running |
+| Architectural meaning | no current persistent role/database default, client-startup default, or manual pooled/direct divergence was evidenced; the historical production startup session remains unexplained |
+| Next gate | architecture review and source-only implementation of the bounded statement-history-window collector; live execution remains separately unauthorized |
 
-Checkpoint 9.12 remains incomplete. Top-level RCA verdict remains `MECHANISM_REPRODUCED_SETTER_UNPROVEN`
-until live connection-origin evidence exists.
+Checkpoint 9.12 remains incomplete. Top-level RCA verdict remains
+`MECHANISM_REPRODUCED_SETTER_UNPROVEN`; the clean manual matrix narrows the search but neither proves a
+setter nor authorizes a remedy.

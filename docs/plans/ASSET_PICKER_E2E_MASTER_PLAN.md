@@ -14,7 +14,7 @@ fence changes.
 
 **Authoritative documentation revision:** advances when this file or related program docs change;
 independent of the runtime baseline above. Current Spec A 9.12 evidence baseline:
-`main@0887a309fe12f49ca37585e5a594661727cf4936`.
+`main@4ac264054f872132e88706ef535c80db17885754`.
 
 **Program state:** Spec A checkpoints 9.1–9.11 are complete. Checkpoint 9.11 persisted
 `MARKET_DATA_JOB_RUNNER_ENABLED=true` through Terraform apply on `main@e7fad7cb` (source PR #164;
@@ -24,11 +24,14 @@ to converge (startup transaction PostgreSQL read-only) and was rolled back. The 
 setter-provenance cycle completed on revisions `0000087`–`0000089` and observed `FIRST_OBSERVED_ON`
 on `0000088` (session already on/on before first wrapper checkout). Production is on
 `portfolio-service--0000089` with both demo and diagnostics flags `false`; demo remains at 3 holdings.
-RCA verdict remains `MECHANISM_REPRODUCED_SETTER_UNPROVEN` — evidence
+Connection-origin probe source merged through PR #174 at `main@4ac26405`. Its separately authorized
+live matrix returned `NOT_REPRODUCED_IN_MANUAL_MATRIX`: pooled and direct paths both observed writable
+off/off defaults with source `DEFAULT` and no catalog overrides; before/after data hashes, revision,
+and flags were unchanged. The top-level RCA verdict remains `MECHANISM_REPRODUCED_SETTER_UNPROVEN` — evidence
 [`SPEC_A_9_12_POOLED_READONLY_RCA.md`](../runbooks/SPEC_A_9_12_POOLED_READONLY_RCA.md). The 9.12
-checkbox remains open. Connection-origin probe source package passed architecture review and awaits
-separately authorized commit/PR/merge (`CONNECTION_ORIGIN_PROBE_READY_LIVE_EXECUTION_UNAUTHORIZED`);
-live execution remains a distinct explicit gate. Checkpoints 9.13–9.14 remain pending and unauthorized. B1 Wave 2 /
+checkbox remains open. The next bounded diagnostic is a source-only, sanitized historical
+reset-window statement-history collector; implementation/merge and any live execution remain distinct gates.
+Checkpoints 9.13–9.14 remain pending and unauthorized. B1 Wave 2 /
 R-A, Wave 3 / R-B (V20), and Wave 5 Tasks 5.2–5.3 / R-B2 (G2a) are complete; caller migration Tasks
 **5.4–5.6 merged on `main@0b5d60d1`** (PR #161, source-only; no deploy); **G5/5.7 remains blocked**
 by Spec A closed gateway ingress — see
@@ -40,9 +43,9 @@ B2's implementation has not started.
 **Handoff state:** Spec A 9.11 is **complete** (runner `true` live; safety tuple unchanged; follow-up
 `standard` remote-plan had no changes). Spec A 9.12 enable apply **ran and was rolled back**;
 production setter-provenance observed `FIRST_OBSERVED_ON` and returned to
-`portfolio-service--0000089` with demo seed `false`. Connection-origin probe source passed architecture
-review and awaits separately authorized commit/PR/merge; live endpoint execution and any remedy remain
-separately gated — not "apply existing 9.12 source." Production fences are unchanged.
+`portfolio-service--0000089` with demo seed `false`. The later authorized connection-origin matrix did
+not reproduce the state on pooled or direct sessions. Historical reset-window statement source work, live
+execution, and any remedy remain separately gated. Production fences are unchanged.
 
 This is the living, human-facing status document for the Asset Picker program. It is not a
 historical snapshot. Detailed requirements, designs, task mechanics, and operational evidence live
@@ -107,10 +110,10 @@ At every meaningful merge or live checkpoint:
 
 | Track | Delivered | Current position | Remaining outcome |
 |---|---|---|---|
-| **A — Spec A catalog/data cutover** | Shared catalog, Postgres/Mongo repair, R4 rollout, enforcement, one reconciled controlled refresh, and persisted refresh enablement | **11 of 14 cutover checkpoints complete**; 9.12 enable failed and was rolled back; production provenance observed `FIRST_OBSERVED_ON` on `0000088`; production on `portfolio-service--0000089` with both flags `false`; RCA `MECHANISM_REPRODUCED_SETTER_UNPROVEN` at `main@0887a309`; connection-origin probe source passed architecture review | Separately authorized commit/PR/merge of the probe package; live probe execution and any remedy remain separately gated before repeating 9.12 gates |
+| **A — Spec A catalog/data cutover** | Shared catalog, Postgres/Mongo repair, R4 rollout, enforcement, one reconciled controlled refresh, and persisted refresh enablement | **11 of 14 cutover checkpoints complete**; 9.12 enable failed and was rolled back; provenance observed `FIRST_OBSERVED_ON`; connection-origin live matrix returned `NOT_REPRODUCED_IN_MANUAL_MATRIX`; production remains on `portfolio-service--0000089` with both flags `false`; RCA `MECHANISM_REPRODUCED_SETTER_UNPROVEN` at `main@4ac26405` | Architecture review and source-only statement-history-window collector; live execution and any remedy remain separately gated before repeating 9.12 gates |
 | **B — B1 portfolio composition backend** | Deployment prerequisites, fixture identity migration, legacy writer retirement, Wave 2 gateway provisioning **served (R-A/G2 green)**, Wave 3 V20 **served (R-B/G3 green)**, Wave 5 version-bearing read **served (R-B2/G2a green)** | **Wave 2 / R-A complete**; **Wave 3 / R-B complete**; **Wave 5 Tasks 5.2–5.3 / R-B2 complete** (Artifact 2a on `portfolio-service--0000081` / `sha256:d544649f…`; cut `f22e2ff`); **Wave 4a–4c tasks 4.1–4.21 merged on `main@2673f40`** (PR #153; composition mechanisms unexposed; no public `PUT`); Task 5.1 merged on `main@f22e2ff` (PR #155); Tasks **5.4–5.6 merged on `main@0b5d60d1`** (PR #161, source-only); **5.7/G5 blocked by Spec A closed ingress** | Caller migration G5 (after ingress reopen or authorized private-reachability), safe desired-state writer activation, public `PUT` |
 | **C — B2 Asset Picker product** | Requirements, design, task plan, and five-screen visual mockup | **No implementation wave complete** | Picker UI, decimal adapter, presence/reset support, live integration, exposure |
-| **D — Demo credibility** | Canonical prices refreshed and reconciled; demo initializer exists gated off | Demo activation failed and was rolled back; demo still 3 holdings; provenance moved next question upstream to connection origin | Spec A 9.12 requires upstream connection-origin evidence before remedy design and re-attempting activation without touching E2E data |
+| **D — Demo credibility** | Canonical prices refreshed and reconciled; demo initializer exists gated off | Demo activation failed and was rolled back; demo still 3 holdings; current manual connection paths are clean while the historical startup session remains unexplained | Spec A 9.12 requires stronger historical/startup-path evidence before remedy design and re-attempting activation without touching E2E data |
 
 ### What is actually usable today
 
@@ -143,7 +146,7 @@ Authority: [`.kiro/specs/supported-asset-integrity/tasks.md`](../../.kiro/specs/
 | 9.9 | ✅ Complete | Catalog enforcement enabled; three services held at `min_replicas=1` |
 | 9.10 | ✅ Complete | One controlled refresh succeeded and was reconciled across Kafka, Mongo, and Postgres |
 | 9.11 | ✅ Complete | Persisted `MARKET_DATA_JOB_RUNNER_ENABLED=true` via Terraform; live read-back and standard no-op plan green ([`SPEC_A_9_11_PERSIST_REFRESH_ENABLEMENT.md`](../runbooks/SPEC_A_9_11_PERSIST_REFRESH_ENABLEMENT.md)) |
-| 9.12 | ⏸ Enable failed; rolled back; provenance complete (`portfolio-service--0000089`) | Source merged; enable apply hit PostgreSQL read-only startup transaction; production provenance observed `FIRST_OBSERVED_ON` on `0000088`; RCA `MECHANISM_REPRODUCED_SETTER_UNPROVEN` at `main@0887a309` | Separately authorized connection-origin probe (live execution gated); remedy design deferred until upstream source is evidenced |
+| 9.12 | ⏸ Enable failed; rolled back; provenance and connection-origin live matrix complete (`portfolio-service--0000089`) | Production provenance observed `FIRST_OBSERVED_ON`; later pooled/direct matrix returned `NOT_REPRODUCED_IN_MANUAL_MATRIX`; RCA remains `MECHANISM_REPRODUCED_SETTER_UNPROVEN` at `main@4ac26405` | Source-only historical reset-window statement collector; its merge/live run and any remedy remain separately gated |
 | 9.13 | ⏸ Pending | Restore `min_replicas=0` and verify configuration-level state |
 | 9.14 | ⏸ Pending | Reopen ingress after 9.11–9.13 are green |
 
@@ -163,8 +166,8 @@ are complete.
 - Demo portfolio activation: enable apply ran and was rolled back; production gate
   `APP_DEMO_SEED_ON_STARTUP` is `false` on `portfolio-service--0000089`; demo remains at 3 holdings;
   diagnostics flag also `false`.
-- Checkpoints 9.12–9.14: not complete; 9.12 awaits upstream connection-origin evidence before remedy
-  design and re-attempting authorized enable
+- Checkpoints 9.12–9.14: not complete; the current connection-origin matrix is clean, while 9.12
+  awaits stronger historical/startup-path evidence before remedy design and re-attempting authorized enable
   ([`SPEC_A_9_12_POOLED_READONLY_RCA.md`](../runbooks/SPEC_A_9_12_POOLED_READONLY_RCA.md)).
 - B1 G5 remains blocked by closed ingress.
 
@@ -205,8 +208,8 @@ substitute for an authorized Artifact cut.**
 
 | Item | Current state | Required before relying on it |
 |---|---|---|
-| Checkpoint 9.11 | **Complete** — apply run [33091163222](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33091163222); live runner `true`; standard no-op [33093260896](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33093260896); evidence [`SPEC_A_9_11_PERSIST_REFRESH_ENABLEMENT.md`](../runbooks/SPEC_A_9_11_PERSIST_REFRESH_ENABLEMENT.md) | 9.12 provenance cycle complete; connection-origin probe and any later remedy remain separately gated |
-| 9.12 enable / rollback / provenance | **Enable failed and rolled back; provenance completed** — enable [33150399420](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33150399420); rollback [33151372186](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33151372186); provenance disable on `portfolio-service--0000089` [33242076369](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33242076369); observed `FIRST_OBSERVED_ON`; RCA [`SPEC_A_9_12_POOLED_READONLY_RCA.md`](../runbooks/SPEC_A_9_12_POOLED_READONLY_RCA.md); source readiness `CONNECTION_ORIGIN_PROBE_READY_LIVE_EXECUTION_UNAUTHORIZED` | Architecture review of connection-origin probe; live execution and remedy design remain separate |
+| Checkpoint 9.11 | **Complete** — apply run [33091163222](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33091163222); live runner `true`; standard no-op [33093260896](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33093260896); evidence [`SPEC_A_9_11_PERSIST_REFRESH_ENABLEMENT.md`](../runbooks/SPEC_A_9_11_PERSIST_REFRESH_ENABLEMENT.md) | 9.12 provenance and connection-origin live matrix complete; historical collector and any later remedy remain separately gated |
+| 9.12 enable / rollback / diagnostics | **Enable failed and rolled back; provenance plus connection-origin matrix completed** — enable [33150399420](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33150399420); rollback [33151372186](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33151372186); provenance disable on `portfolio-service--0000089` [33242076369](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33242076369); observed `FIRST_OBSERVED_ON`; later live matrix `NOT_REPRODUCED_IN_MANUAL_MATRIX`; RCA [`SPEC_A_9_12_POOLED_READONLY_RCA.md`](../runbooks/SPEC_A_9_12_POOLED_READONLY_RCA.md) | Architecture review/source implementation of the statement-history collector; live execution and remedy design remain separate |
 
 ### Active B1 work
 
@@ -298,11 +301,12 @@ need to be serialized. Production transitions retain their individual approval g
 Spec A 9.11 is the last completed production checkpoint. Checkpoint 9.12 enable apply **ran and was
 rolled back** after a PostgreSQL read-only startup transaction. Production setter-provenance observed
 `FIRST_OBSERVED_ON` on `0000088` and returned production to `portfolio-service--0000089` with both
-demo and diagnostics flags `false` (`main@0887a309`). RCA verdict
+demo and diagnostics flags `false`. The later authorized pooled/direct matrix returned
+`NOT_REPRODUCED_IN_MANUAL_MATRIX` (`main@4ac26405`). RCA verdict
 `MECHANISM_REPRODUCED_SETTER_UNPROVEN` remains. Before re-attempting 9.12:
 
-- the upstream connection origin remains unidentified; a bounded source-only connection-origin probe
-  is the next diagnostic step (live execution separately gated);
+- the historical source remains unidentified; a bounded source-only statement-history-window
+  collector is the next diagnostic step (implementation/merge and live execution separately gated);
 - production gate remains `false`;
 - demo portfolio remains at 3 holdings; E2E data unchanged;
 - scale and ingress fences remain explicit (`min_replicas=1`, ingress closed);
@@ -311,10 +315,10 @@ demo and diagnostics flags `false` (`main@0887a309`). RCA verdict
 
 ### Next choices
 
-1. **Operational lane:** if separately authorized after architecture review, run the fail-closed
-   connection-origin probe against operator-supplied exact pooled and direct URLs to classify
-   role/database defaults, client startup options, or pooled-path divergence; only then design and
-   review a narrow remedy with explicit blast-radius analysis, and separately authorize a repeat of
+1. **Operational lane:** architecture-review and implement a fail-closed statement-history-window
+   collector that emits fixed setter-shape counts and statistics-window metadata without raw SQL.
+   Its live run requires separate authorization. Only after stronger evidence exists should architects
+   review a narrow remedy with explicit blast-radius analysis and separately authorize a repeat of
    the 9.12 enable + restoring rollouts and live verification gates. Continue 9.13–9.14 only after
    9.12 succeeds.
 2. **Backend lane:** **R-A / G2**, **R-B / G3**, and **R-B2 / G2a** are complete (Artifact 2a
