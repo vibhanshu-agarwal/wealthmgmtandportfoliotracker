@@ -132,6 +132,8 @@ export const handlers = [
       {
         id: "portfolio-001",
         userId: "user-001",
+        // B1's frozen PortfolioResponse carries the optimistic-concurrency version.
+        version: 1,
         createdAt: new Date().toISOString(),
         holdings: [],
       },
@@ -150,6 +152,14 @@ export const handlers = [
       portfolioCount: 1,
       totalHoldings: 4,
       totalValue: 284531.42,
+      // B2 Task 1.16 — mocked full assetPriceFreshness contract (Spec A design.md §8).
+      assetPriceFreshness: {
+        state: "FRESH",
+        oldestKnownAssetPriceObservationTimestamp: new Date(Date.now() - 3600_000).toISOString(),
+        staleHoldings: 0,
+        unknownPriceHoldings: 0,
+        missingPriceHoldings: 0,
+      },
     });
   }),
 

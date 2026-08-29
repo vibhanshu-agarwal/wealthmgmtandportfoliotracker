@@ -9,6 +9,11 @@ import { AllocationChart } from "@/components/charts/AllocationChart";
 import { HoldingsTable } from "@/components/portfolio/HoldingsTable";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { EditHoldingsButton } from "@/components/asset-picker/EditHoldingsButton";
+import { FreshnessStatus } from "@/components/freshness/FreshnessStatus";
+import { isAssetPickerEnabled } from "@/lib/config/assetPickerFeatures";
+import { useAuthenticatedUserId } from "@/lib/hooks/useAuthenticatedUserId";
+import { usePortfolio, usePortfolioSummary } from "@/lib/hooks/usePortfolio";
 
 // ── Loading skeleton that mirrors the portfolio page layout ───────────────────
 
@@ -85,6 +90,9 @@ function PortfolioPageSkeleton() {
 export function PortfolioPageContent() {
   const { data: session, isPending } = useAuthSession();
   const router = useRouter();
+  const { userId, token } = useAuthenticatedUserId();
+  const { data: portfolio } = usePortfolio();
+  const { data: summary } = usePortfolioSummary();
 
   useEffect(() => {
     if (!isPending && !session) {
@@ -102,6 +110,21 @@ export function PortfolioPageContent() {
 
   return (
     <>
+      {/* Task 1.16/1.18: sourced from usePortfolioSummary, re-read (not inferred)
+          after a successful save via that query's own invalidation. */}
+      <FreshnessStatus freshness={summary?.assetPriceFreshness} />
+
+      {isAssetPickerEnabled() && portfolio && (
+        <div className="flex justify-end">
+          <EditHoldingsButton
+            holdings={portfolio.holdings}
+            version={portfolio.version}
+            userId={userId}
+            token={token}
+          />
+        </div>
+      )}
+
       {/* ── Row 1: Summary cards ── */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <SummaryCards />

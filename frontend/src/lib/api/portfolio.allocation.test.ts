@@ -209,7 +209,7 @@ describe("buildAllocationDtoFromPortfolio", () => {
           ticker: "AAPL",
           name: "Apple",
           assetClass: "STOCK",
-          quantity: 10,
+          quantity: "10",
           currentPrice: 212.5,
           totalValue: 2125.0,
           avgCostBasis: null,
@@ -225,7 +225,7 @@ describe("buildAllocationDtoFromPortfolio", () => {
           ticker: "ETF1",
           name: "VTSAX",
           assetClass: "ETF",
-          quantity: 5,
+          quantity: "5",
           currentPrice: 200.0,
           totalValue: 1000.0,
           avgCostBasis: null,
@@ -237,6 +237,7 @@ describe("buildAllocationDtoFromPortfolio", () => {
           lastUpdatedAt: new Date(0).toISOString(),
         },
       ],
+      version: 4,
       asOfDate: new Date().toISOString(),
     };
 
