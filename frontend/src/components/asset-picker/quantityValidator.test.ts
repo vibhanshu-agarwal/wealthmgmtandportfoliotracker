@@ -100,3 +100,30 @@ describe("validateRetainedDeprecatedQuantity — reduce or remove only", () => {
     expect(validateRetainedDeprecatedQuantity("abc", "10").valid).toBe(false);
   });
 });
+
+describe("validateRetainedDeprecatedQuantity — precision at the domain's own boundary (review-fix)", () => {
+  it("rejects an increase that Number()-based comparison would round away", () => {
+    // At 11 integer + 8 fractional digits, IEEE-754 double precision (~15-17
+    // significant digits) can no longer distinguish these two 20-digit values —
+    // Number("99999999999.00000000") === Number("99999999999.00000001") is true.
+    // The reduce-or-remove-only check must not go through that lossy conversion.
+    const result = validateRetainedDeprecatedQuantity(
+      "99999999999.00000001",
+      "99999999999.00000000",
+    );
+    expect(result.valid).toBe(false);
+    expect(result.valid === false && result.message).toMatch(/no longer offered/i);
+  });
+
+  it("still accepts an exact-equal resubmission at that same boundary", () => {
+    expect(
+      validateRetainedDeprecatedQuantity("99999999999.00000000", "99999999999.00000000").valid,
+    ).toBe(true);
+  });
+
+  it("still accepts a genuine reduction at that same boundary", () => {
+    expect(
+      validateRetainedDeprecatedQuantity("99999999998.99999999", "99999999999.00000000").valid,
+    ).toBe(true);
+  });
+});

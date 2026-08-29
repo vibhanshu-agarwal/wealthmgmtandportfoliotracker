@@ -54,8 +54,9 @@ export function BrowseStep({
       onDraftChange(removeDraftTicker(draft, ticker));
       setErrorsByTicker((prev) => {
         if (!(ticker in prev)) return prev;
-        const { [ticker]: _removed, ...rest } = prev;
-        return rest;
+        const next = { ...prev };
+        delete next[ticker];
+        return next;
       });
       return;
     }
@@ -85,8 +86,9 @@ export function BrowseStep({
     setErrorsByTicker((prev) => {
       if (result.valid) {
         if (!(ticker in prev)) return prev;
-        const { [ticker]: _removed, ...rest } = prev;
-        return rest;
+        const next = { ...prev };
+        delete next[ticker];
+        return next;
       }
       return { ...prev, [ticker]: result.message };
     });

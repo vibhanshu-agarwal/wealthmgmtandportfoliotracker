@@ -16,6 +16,7 @@ import { PresenceBanner } from "./PresenceBanner";
 import { StepIndicator, type PickerStep } from "./StepIndicator";
 import { Button } from "@/components/ui/button";
 import { seedDraftFromHoldings } from "./draftState";
+import { isDraftValid } from "./draftValidity";
 import { buildSavePayload } from "./savePayload";
 
 export interface AssetPickerProps {
@@ -37,9 +38,25 @@ export interface AssetPickerProps {
 interface DraftSeed {
   draft: DraftHoldings;
   initialQuantities: Map<string, string>;
+  /**
+   * `initialHoldings`/`initialVersion` frozen at the moment the draft was seeded —
+   * never the live prop afterward. `EditHoldingsButton` passes whatever
+   * `usePortfolio()` currently holds, which refetches every 60s (Task 1.13's own
+   * review-fix note); without this snapshot, a background refresh landing while the
+   * modal is open would silently swap in a newer `expectedVersion` and a newer
+   * review baseline mid-session — defeating GC.6's "captured at open time, never
+   * re-read" rule and corrupting the Review step's diff.
+   */
+  initialHoldingsAtOpen: AssetHoldingDTO[];
+  initialVersionAtOpen: number;
 }
 
-const EMPTY_SEED: DraftSeed = { draft: new Map(), initialQuantities: new Map() };
+const EMPTY_SEED: DraftSeed = {
+  draft: new Map(),
+  initialQuantities: new Map(),
+  initialHoldingsAtOpen: [],
+  initialVersionAtOpen: 0,
+};
 
 /**
  * B2's orchestrating component: owns draft state (Task 1.6) and the
@@ -56,18 +73,24 @@ export function AssetPicker({
   onSaveSuccess,
 }: AssetPickerProps) {
   const catalogQuery = useCatalog(token, open);
-  const presence = usePresence(token, open);
   const queryClient = useQueryClient();
 
   const [seed, setSeed] = useState<DraftSeed>(EMPTY_SEED);
   const [seededForOpen, setSeededForOpen] = useState(false);
+  // Task 1.15 (review-fix): identifies this open session for usePresence, so a
+  // second open queries presence again rather than serving the first open's
+  // staleTime:Infinity result forever — AssetPicker itself never unmounts between
+  // opens (EditHoldingsButton only toggles its `open` prop).
+  const [openGeneration, setOpenGeneration] = useState(0);
+  const presence = usePresence(token, open, openGeneration);
   const [step, setStep] = useState<PickerStep>("browse");
   const [conflict, setConflict] = useState<{ currentVersion: number; message: string } | null>(
     null,
   );
 
   const saveMutation = useMutation({
-    mutationFn: () => saveComposition(token, buildSavePayload(seed.draft, initialVersion)),
+    mutationFn: () =>
+      saveComposition(token, buildSavePayload(seed.draft, seed.initialVersionAtOpen)),
   });
 
   // GC.1: seed the draft fully, once per open, from whatever the catalog resolved to
@@ -78,10 +101,13 @@ export function AssetPicker({
     setStep("browse");
     setConflict(null);
   } else if (open && !seededForOpen && !catalogQuery.isLoading) {
+    setOpenGeneration((prev) => prev + 1);
     const catalogAssets = catalogQuery.data?.assets ?? [];
     setSeed({
       draft: seedDraftFromHoldings(initialHoldings, catalogAssets),
       initialQuantities: new Map(initialHoldings.map((h) => [h.ticker, h.quantity])),
+      initialHoldingsAtOpen: initialHoldings,
+      initialVersionAtOpen: initialVersion,
     });
     setSeededForOpen(true);
   }
@@ -89,9 +115,9 @@ export function AssetPicker({
   function handleSave() {
     // GC.6: the mutation is a pure PUT, never preceded by its own version-observing
     // read — `initialVersion` was already captured at modal-open time (AssetPicker's
-    // own prop), not re-read here.
+    // own `seed` snapshot), not re-read here.
     saveMutation.mutate(undefined, {
-      onSuccess: (result) => {
+      onSuccess: async (result) => {
         if (result.status === "conflict") {
           // GC.4: the draft stays visible, frozen, until the user's explicit action —
           // never an automatic reapply, merge, resubmit, or discard.
@@ -102,9 +128,29 @@ export function AssetPicker({
         // Task 1.13 success transition: reconcile the query caches — a post-success
         // read, a separate concern from GC.6's zero-GET-during-the-mutation rule —
         // then close via the same path Escape already uses, restoring focus.
-        queryClient.invalidateQueries({ queryKey: portfolioKeys.all(userId) });
-        queryClient.invalidateQueries({ queryKey: portfolioKeys.summary(userId) });
-        queryClient.invalidateQueries({ queryKey: portfolioKeys.analytics(userId) });
+        //
+        // Awaited, not fire-and-forget: `invalidateQueries` triggers a refetch for
+        // any actively-observed query and its returned promise resolves once that
+        // refetch settles. Closing the modal (and announcing success) before that
+        // promise resolves would let the Portfolio page keep showing pre-save data
+        // for however long the background refetch takes — or, if it fails, the
+        // stale query error path (TanStack Query preserves the last-good `data` on
+        // a failed refetch) would leave it showing pre-save data indefinitely with
+        // no visible signal that anything is wrong. The PUT already succeeded, so a
+        // reconciliation failure here still closes — we don't hold the user's
+        // already-confirmed save hostage to a read-side hiccup — but we no longer
+        // race ahead of a healthy refetch that's still in flight.
+        try {
+          await Promise.all([
+            queryClient.invalidateQueries({ queryKey: portfolioKeys.all(userId) }),
+            queryClient.invalidateQueries({ queryKey: portfolioKeys.summary(userId) }),
+            queryClient.invalidateQueries({ queryKey: portfolioKeys.analytics(userId) }),
+          ]);
+        } catch {
+          // The write already succeeded; a reconciliation-read failure doesn't
+          // undo that. staleTime/refetchInterval on the affected queries will
+          // self-heal on their own next cycle.
+        }
         onClose();
         onSaveSuccess?.();
       },
@@ -117,6 +163,9 @@ export function AssetPicker({
   }
 
   const isConflict = step === ("conflict" as PickerStep);
+  // Task 1.8 (review-fix): Review changes never opens onto an invalid draft — an
+  // invalid quantity blocks progression here, not just at submit time.
+  const draftValid = isDraftValid(seed.draft, seed.initialQuantities);
 
   return (
     <AssetPickerModal
@@ -137,7 +186,7 @@ export function AssetPicker({
         <p className="py-8 text-center text-sm text-muted-foreground">Loading catalog…</p>
       ) : step === "review" ? (
         <ReviewStep
-          initialHoldings={initialHoldings}
+          initialHoldings={seed.initialHoldingsAtOpen}
           draft={seed.draft}
           onBack={() => setStep("browse")}
           onSave={handleSave}
@@ -153,7 +202,7 @@ export function AssetPicker({
             token={token}
           />
           <div className="flex justify-end border-t border-border pt-4">
-            <Button type="button" onClick={() => setStep("review")}>
+            <Button type="button" onClick={() => setStep("review")} disabled={!draftValid}>
               Review changes
             </Button>
           </div>

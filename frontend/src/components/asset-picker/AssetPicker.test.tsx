@@ -6,7 +6,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { http, HttpResponse } from "msw";
-import { createRef, type ReactNode } from "react";
+import { createRef } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { server } from "@/test/msw/server";
 import type { AssetHoldingDTO } from "@/types/portfolio";
@@ -238,5 +238,142 @@ describe("AssetPicker — review, save, conflict (Checkpoint 3)", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /save changes/i }));
     await waitFor(() => expect(getPortfolioCalls).toBe(0));
+  });
+});
+
+describe("AssetPicker — frozen open-time baseline (review-fix)", () => {
+  function stubCatalogAndPrices() {
+    server.use(
+      http.get("/api/assets", () => HttpResponse.json({ catalogVersion: "v1", assets: [] })),
+      http.get("/api/market/prices", () => HttpResponse.json([])),
+      http.get("/api/presence/demo", () => HttpResponse.json({ anotherSessionActive: false })),
+    );
+  }
+
+  it("a live prop refresh while the modal is open does not change the submitted expectedVersion or the review baseline", async () => {
+    stubCatalogAndPrices();
+    let receivedBody: unknown = null;
+    server.use(
+      http.put("/api/portfolio/holdings", async ({ request }) => {
+        receivedBody = await request.json();
+        return HttpResponse.json({
+          id: "p1",
+          userId: "user-001",
+          createdAt: "2026-01-01T00:00:00Z",
+          version: 8,
+          holdings: [],
+        });
+      }),
+    );
+
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const triggerRef = createRef<HTMLButtonElement>();
+
+    // Simulate usePortfolio's 60s refetchInterval delivering fresher props to a
+    // still-open picker — the parent re-renders AssetPicker with a NEW version and a
+    // NEW holdings array reference, exactly as EditHoldingsButton would when
+    // PortfolioPageContent's own usePortfolio() resolves a background refetch.
+    const { rerender } = render(
+      <QueryClientProvider client={client}>
+        <AssetPicker
+          open
+          onClose={vi.fn()}
+          initialHoldings={[holding({ ticker: "AAPL", quantity: "10" })]}
+          initialVersion={7}
+          userId="user-001"
+          token="test-token"
+          triggerRef={triggerRef}
+        />
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByRole("checkbox", { name: "Select AAPL" })).toBeInTheDocument(),
+    );
+
+    // A background refetch landed: version bumped to 9, and AAPL's own quantity
+    // changed server-side too (someone else already saved a change).
+    rerender(
+      <QueryClientProvider client={client}>
+        <AssetPicker
+          open
+          onClose={vi.fn()}
+          initialHoldings={[holding({ ticker: "AAPL", quantity: "999" })]}
+          initialVersion={9}
+          userId="user-001"
+          token="test-token"
+          triggerRef={triggerRef}
+        />
+      </QueryClientProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /review changes/i }));
+
+    // The review diff must still be computed against the ORIGINAL open-time
+    // baseline (quantity "10"), not the value that arrived after a background
+    // refetch — otherwise a real edit could be silently masked as "unchanged".
+    await waitFor(() => expect(screen.getByText(/1 in draft/i)).toBeInTheDocument());
+    expect(screen.queryByText(/999/)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /save changes/i }));
+
+    await waitFor(() => expect(receivedBody).not.toBeNull());
+    // GC.6: expectedVersion is the value captured when the modal opened (7), never
+    // a later value that arrived from a background refetch while it was open.
+    expect(receivedBody).toEqual({
+      expectedVersion: 7,
+      holdings: [{ ticker: "AAPL", quantity: "10" }],
+    });
+  });
+});
+
+describe("AssetPicker — Review changes is blocked while the draft is invalid (review-fix)", () => {
+  function stubCatalogAndPrices() {
+    server.use(
+      http.get("/api/assets", () =>
+        HttpResponse.json({
+          catalogVersion: "v1",
+          assets: [
+            { ticker: "AAPL", name: "Apple Inc.", aliases: [], assetClass: "STOCK", quoteCurrency: "USD", lifecycleStatus: "ACTIVE" },
+          ],
+        }),
+      ),
+      http.get("/api/market/prices", () => HttpResponse.json([])),
+      http.get("/api/presence/demo", () => HttpResponse.json({ anotherSessionActive: false })),
+    );
+  }
+
+  it("disables Review changes while a drafted quantity is malformed", async () => {
+    stubCatalogAndPrices();
+    renderPicker({ initialHoldings: [holding({ ticker: "AAPL", quantity: "10" })] });
+
+    await waitFor(() =>
+      expect(screen.getByRole("textbox", { name: "AAPL quantity" })).toBeInTheDocument(),
+    );
+    expect(screen.getByRole("button", { name: /review changes/i })).toBeEnabled();
+
+    fireEvent.change(screen.getByRole("textbox", { name: "AAPL quantity" }), {
+      target: { value: "abc" },
+    });
+
+    await waitFor(() => expect(screen.getByRole("button", { name: /review changes/i })).toBeDisabled());
+  });
+
+  it("re-enables Review changes once the value is corrected", async () => {
+    stubCatalogAndPrices();
+    renderPicker({ initialHoldings: [holding({ ticker: "AAPL", quantity: "10" })] });
+
+    await waitFor(() =>
+      expect(screen.getByRole("textbox", { name: "AAPL quantity" })).toBeInTheDocument(),
+    );
+    fireEvent.change(screen.getByRole("textbox", { name: "AAPL quantity" }), {
+      target: { value: "0" },
+    });
+    await waitFor(() => expect(screen.getByRole("button", { name: /review changes/i })).toBeDisabled());
+
+    fireEvent.change(screen.getByRole("textbox", { name: "AAPL quantity" }), {
+      target: { value: "5" },
+    });
+    await waitFor(() => expect(screen.getByRole("button", { name: /review changes/i })).toBeEnabled());
   });
 });

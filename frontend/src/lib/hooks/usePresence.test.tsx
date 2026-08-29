@@ -22,7 +22,7 @@ describe("usePresence", () => {
       http.get("/api/presence/demo", () => HttpResponse.json({ anotherSessionActive: true })),
     );
 
-    const { result } = renderHook(() => usePresence("token", true), { wrapper });
+    const { result } = renderHook(() => usePresence("token", true, 1), { wrapper });
 
     await waitFor(() => expect(result.current.anotherSessionActive).toBe(true));
   });
@@ -30,7 +30,7 @@ describe("usePresence", () => {
   it("fails open (false, no error surfaced) when the endpoint errors", async () => {
     server.use(http.get("/api/presence/demo", () => new HttpResponse(null, { status: 500 })));
 
-    const { result } = renderHook(() => usePresence("token", true), { wrapper });
+    const { result } = renderHook(() => usePresence("token", true, 1), { wrapper });
 
     await waitFor(() => expect(result.current.anotherSessionActive).toBe(false));
   });
@@ -44,7 +44,40 @@ describe("usePresence", () => {
       }),
     );
 
-    renderHook(() => usePresence("token", false), { wrapper });
+    renderHook(() => usePresence("token", false, 1), { wrapper });
     expect(called).toBe(false);
+  });
+});
+
+describe("usePresence — per-open, not per-mount (review-fix)", () => {
+  it("refetches when the caller's openKey changes, even though the component never unmounts", async () => {
+    let callCount = 0;
+    server.use(
+      http.get("/api/presence/demo", () => {
+        callCount += 1;
+        return HttpResponse.json({ anotherSessionActive: false });
+      }),
+    );
+
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const wrap = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+
+    const { rerender } = renderHook(({ openKey }) => usePresence("token", true, openKey), {
+      wrapper: wrap,
+      initialProps: { openKey: 1 },
+    });
+
+    await waitFor(() => expect(callCount).toBe(1));
+
+    // Same open session (openKey unchanged) — re-rendering must NOT refetch.
+    rerender({ openKey: 1 });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(callCount).toBe(1);
+
+    // A new open session (modal closed and reopened) — must query again.
+    rerender({ openKey: 2 });
+    await waitFor(() => expect(callCount).toBe(2));
   });
 });
