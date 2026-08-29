@@ -566,9 +566,10 @@ sensible portfolio most of the time, even if a previous visitor left it edited o
    the same observation, or a user's commit between the two gets silently overwritten; no retry on
    conflict, for the same reason Requirement 4.3 forbids the picker from retrying its own
    conflicts.)* **That observation SHALL come from B1's existing `GET /api/portfolio` response**
-   (which is *specified* to carry `version` — B1 Requirement 5.10 — but does not yet: B1 tasks 4.10
-   and 5.1 are both unchecked and `PortfolioResponse` carries no version field in source today,
-   verified directly. `updatedAt` is a separate B2 Task 8.1 dependency after B1's V20 and
+   (which is *specified* to carry `version` — B1 Requirement 5.10 — and is **on `main`**: B1 tasks
+   4.10 and 5.1 merged; the version-bearing read is served under R-B2 Artifact 2a, though B2 Wave 4
+   demo-reset remains unmerged/undeployed).
+   `updatedAt` is a separate B2 Task 8.1 dependency after B1's V20 and
    version-bearing read — see 3d below, not a Wave-3 given. *(Pass 5 cross-audit finding: this criterion had reverted to
    the pre-pass-5 "already carries" framing design.md's D5 was corrected out of; both now agree.)*),
    never from a dedicated version-read endpoint, which B1 permanently prohibits (`requirements.md`
@@ -741,11 +742,11 @@ must agree, and now do)*: current B1 Requirement 4.1-4.7 requires decimal string
 (4.1 is the write-direction mandate; 4.2 the read-direction one; 4.3-4.7 supporting/enforcement
 criteria — pass 7 correction: an earlier citation of "4.2-4.7" omitted 4.1, the one criterion that
 actually states the write-side requirement)
-and B1's own `design.md` D6 specifies a `ToPlainStringSerializer` on `HoldingResponse.quantity`, but
-B1 task 4.9 is unchecked and `PortfolioResponse.HoldingResponse` still declares an unannotated
-`BigDecimal quantity` in source today, verified directly
-(`portfolio-service/.../PortfolioResponse.java:33-36`). There is no B1 *design* gap for B2 to flag
-— there is real B1 *implementation* work still pending before B2 can build against this live.
+and B1's own `design.md` D6 specifies a `ToPlainStringSerializer` on `HoldingResponse.quantity`; B1
+task 4.9 is **merged on `main`** and `PortfolioResponse.HoldingResponse.quantity` is serialized as
+an exact decimal string on the wire. B2 Task 8.1 (`updatedAt`) and frontend migration Task 2.7
+remain later and open. The B1 backend decimal-string contract is on `main`; the remaining gap is
+B2's frontend migration (Requirement 8.3 / Task 2.7).
 
 **The actual, still-open gap is different: B1's backend contract change and the existing frontend
 are on a collision course.** `frontend/src/lib/api/portfolio.ts` declares `interface

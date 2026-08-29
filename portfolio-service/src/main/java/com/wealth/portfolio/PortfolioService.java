@@ -188,6 +188,16 @@ public class PortfolioService {
     }
   }
 
+  /**
+   * Maps a loaded portfolio entity to the wire DTO. Caller must keep the persistence session open
+   * through holdings hydration; typically invoked from the same read-write transaction that wrote
+   * the portfolio (e.g. {@code DemoResetService}).
+   */
+  public PortfolioResponse toPortfolioResponse(Portfolio portfolio) {
+    portfolio.getHoldings().size();
+    return toResponse(portfolio);
+  }
+
   // Task 1.3 verified: streams the live holdings collection (returned by Portfolio.getHoldings()
   // after task 1.2 fix) and maps each AssetHolding to a HoldingResponse DTO. The mapping is
   // correct — no empty-array regression is possible as long as the session is open (guaranteed by
