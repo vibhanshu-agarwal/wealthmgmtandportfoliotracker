@@ -1,18 +1,22 @@
 # Implementation Plan
 
-**Current program status (verified 2026-08-29 at `main@9fbac4d2`):** implementation tasks 1–7 are complete; task 8 is
+**Current program status (verified 2026-08-29 at `main@0887a309`):** implementation tasks 1–7 are complete; task 8 is
 complete except 8.8. Cutover checkpoints 9.1–9.11 are complete. Checkpoint 9.11 applied through
 Terraform (`spec-a-9.11-enable`) on `main@e7fad7cb` and live-read back
 `MARKET_DATA_JOB_RUNNER_ENABLED=true` with an unchanged safety tuple; evidence
 [`docs/runbooks/SPEC_A_9_11_PERSIST_REFRESH_ENABLEMENT.md`](../../../docs/runbooks/SPEC_A_9_11_PERSIST_REFRESH_ENABLEMENT.md).
 Checkpoint 9.12 source merged via PRs #167, #169, #170, and #172; authorized enable apply ran but failed
 to converge because the startup transaction was PostgreSQL read-only; enablement was rolled back;
-guarded diagnostics ran non-mutating on revision `portfolio-service--0000085` and were disabled on
-`portfolio-service--0000086` (both flags `false`). Demo portfolio remains at 3 holdings. Local/source
-RCA verdict remains `MECHANISM_REPRODUCED_SETTER_UNPROVEN`; pooled-session setter provenance
-instrumentation is merged on `main@9fbac4d2` via PR #172 but remains undeployed; evidence
+the first diagnostics cycle completed on `portfolio-service--0000086`. The production setter-provenance
+cycle then deployed artifact `spec-a-912-provenance-0887a309fe12-20260829` through revisions
+`0000087`–`0000089` and observed `FIRST_OBSERVED_ON` on `0000088` (session already on/on before first
+wrapper checkout; no attributed/unattributed off-to-on). Production is now on
+`portfolio-service--0000089` with both flags `false`. Demo portfolio remains at 3 holdings.
+Local/source RCA verdict remains `MECHANISM_REPRODUCED_SETTER_UNPROVEN`; evidence
 [`docs/runbooks/SPEC_A_9_12_POOLED_READONLY_RCA.md`](../../../docs/runbooks/SPEC_A_9_12_POOLED_READONLY_RCA.md).
-The 9.12 checkbox stays open. Checkpoints 9.13–9.14 remain pending and unauthorized; the three
+The 9.12 checkbox stays open. Connection-origin probe source readiness is
+`CONNECTION_ORIGIN_PROBE_READY_LIVE_EXECUTION_UNAUTHORIZED`; live probe execution remains separately
+gated. Checkpoints 9.13–9.14 remain pending and unauthorized; the three
 catalog services remain at `min_replicas=1`, gateway ingress remains closed, and B1 G5 remains blocked.
 See [`docs/plans/ASSET_PICKER_E2E_MASTER_PLAN.md`](../../../docs/plans/ASSET_PICKER_E2E_MASTER_PLAN.md)
 for the living cross-program view.
@@ -832,7 +836,7 @@ python scripts/check-spec-references.py   .kiro/specs/supported-asset-integrity/
     - Does **not** authorize 9.12–9.14, refresh execution, ingress reopen, or B1 G5.
 
   - [ ] 9.12 **CHECKPOINT — demo portfolio activation** (while `min_replicas = 1`, ingress still closed)
-    - **Source merged (PRs #167, #169, #170, #172 on `main@9fbac4d2`); enable apply attempted and rolled back:**
+    - **Source merged (PRs #167, #169, #170, #172 on `main@0887a309`); enable apply attempted and rolled back; provenance cycle completed:**
       Terraform variable `demo_seed_on_startup` defaults `false`; portfolio-service-only
       `APP_DEMO_SEED_ON_STARTUP` wiring; exact-scope profiles `spec-a-9.12-enable` /
       `spec-a-9.12-disable` and adversarial `assert_spec_a_9_12_plan.py` guards implemented;
@@ -840,15 +844,19 @@ python scripts/check-spec-references.py   .kiro/specs/supported-asset-integrity/
       [33150399420](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33150399420)
       failed because the startup transaction was PostgreSQL read-only; disable/rollback run
       [33151372186](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33151372186)
-      restored the gate to `false`. Guarded diagnostics ran non-mutating on
-      `portfolio-service--0000085` and were disabled on `portfolio-service--0000086` (both flags
-      `false`; demo still 3 holdings). Local/source RCA verdict
-      `MECHANISM_REPRODUCED_SETTER_UNPROVEN` — evidence
+      restored the gate to `false`. First diagnostics cycle completed on
+      `portfolio-service--0000086`. Production setter-provenance cycle (artifact
+      `spec-a-912-provenance-0887a309fe12-20260829`, digest
+      `sha256:d5693e29c68fd3665366fbd83586b9e8b8a266b993cdd66a761ea17d9312092a`) ran through
+      revisions `0000087`–`0000089` and observed `FIRST_OBSERVED_ON` on `0000088` (session already
+      on/on before first wrapper checkout; `ATTRIBUTED_OFF_TO_ON=0`, `UNATTRIBUTED_OFF_TO_ON=0`).
+      Production is on `portfolio-service--0000089` with both flags `false`; demo still 3 holdings.
+      Local/source RCA verdict `MECHANISM_REPRODUCED_SETTER_UNPROVEN` — evidence
       [`docs/runbooks/SPEC_A_9_12_POOLED_READONLY_RCA.md`](../../../docs/runbooks/SPEC_A_9_12_POOLED_READONLY_RCA.md).
-      **Pooled-session setter provenance instrumentation** is merged on `main@9fbac4d2` via PR #172
-      with source verdict `PROVENANCE_INSTRUMENTATION_READY_SETTER_UNPROVEN`; source remains
-      **undeployed** and does not identify the production setter. Artifact construction and a gated
-      diagnostic revision deploy require separate authorization.
+      Source readiness recorded as `CONNECTION_ORIGIN_PROBE_READY_LIVE_EXECUTION_UNAUTHORIZED` in
+      [`docs/runbooks/SPEC_A_9_12_POOLED_READONLY_RCA.md`](../../../docs/runbooks/SPEC_A_9_12_POOLED_READONLY_RCA.md).
+      Next gate: architecture review/merge, then separately authorized live probe execution.
+      Remedy design remains deferred until an upstream source is evidenced.
       This checkbox must stay open until a reviewed fix is applied and authorized enable +
       restoring rollouts and live verification succeed. Does not authorize 9.13–9.14, ingress
       reopen, or B1 G5.

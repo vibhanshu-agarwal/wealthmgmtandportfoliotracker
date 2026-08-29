@@ -25,28 +25,53 @@ re-enable, scale-to-zero restore, or ingress reopen.
 Source merged via PRs #167, #169, and #170 (`main@cb5af200`). Diagnostic artifact digest:
 `sha256:6026e906587e1df710f6301314335c11b9d44b7f91c9bdc920708f310952113f`.
 
+### Production setter-provenance cycle (`0000087`–`0000089`)
+
+Current `main`: `0887a309fe12f49ca37585e5a594661727cf4936` (includes PR #172 at
+`9fbac4d2ada2240a980d5d7c9c2bd9dedc91de01` and implementation commit
+`b51bb49a4c22a82c8ce557750b1f03ecd2cc0212`).
+
+| Phase | Run | Outcome |
+|---|---|---|
+| Flags-false baseline deploy | [33240756821](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33240756821) | Revision `portfolio-service--0000087`; both flags `false` |
+| Diagnostics enable plan | [33241128381](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33241128381) | Authorized plan only; one-change Terraform scope |
+| Diagnostics enable apply | [33241578205](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33241578205) | Revision `portfolio-service--0000088`; diagnostics `true`, demo seed `false` |
+| Diagnostics disable plan | [33241980847](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33241980847) | Authorized plan only |
+| Diagnostics disable apply | [33242076369](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33242076369) | Revision `portfolio-service--0000089`; both flags `false` |
+
+| Boundary | Authoritative value |
+|---|---|
+| Diagnostic artifact tag | `spec-a-912-provenance-0887a309fe12-20260829` |
+| Diagnostic artifact digest | `sha256:d5693e29c68fd3665366fbd83586b9e8b8a266b993cdd66a761ea17d9312092a` |
+| `SERVICE_VERSION` | `9b2cf0d655b4b7ae2ce20ff7b67e4ad750df6900` |
+
 ---
 
 ## Current safe production state
 
 | Boundary | Value |
 |---|---|
-| Active revision | `portfolio-service--0000086` |
-| Traffic | 100% on revision `0000086` |
+| Active revision | `portfolio-service--0000089` |
+| Traffic | 100% on revision `0000089`; Healthy/Running |
 | `APP_DEMO_SEED_ON_STARTUP` | `false` |
 | `APP_DEMO_TX_DIAGNOSTICS` | `false` |
+| Peers | market-data `0000078`, insight `0000078`, gateway `0000076`; gateway ingress closed |
 | Demo portfolio | 1 portfolio, 3 holdings (unchanged from pre-enable baseline) |
 | Checkpoint 9.12 | Incomplete — 11 of 14 cutover checkpoints complete |
 
-### Data/non-interference baseline (after diagnostics disable)
+### Data/non-interference baseline (after provenance disable on `0000089`)
 
 | Data set | Verified state |
 |---|---|
 | Demo user `00000000-0000-0000-0000-0000000d3110` | 1 portfolio, 3 holdings, checksum `c976c71beb4f14d54d641fc5551b682123239a27b05c7f24c821331f71265d7d` |
 | E2E user `00000000-0000-0000-0000-000000000e2e` | 1 portfolio, 159 holdings, checksum `544c1ffa057918bf65760f96fb1e241cffb9d8a96ce5cfbd291b7ad6381c480f` |
-| `market_prices` | 160 rows, aggregate checksum `171085644570` |
-| `market_price_history` | 15489 rows, aggregate checksum `16521852172235` |
-| Kafka | `portfolio-group` and `insight-group` lag 0 at offset 24854 |
+| `market_prices` | 160 rows, aggregate checksum `169246513197` |
+| `market_price_history` | 15648 rows, aggregate checksum `16689931365895` |
+| Kafka | `portfolio-group` and `insight-group` current/log-end `25013`, lag `0` |
+
+Market-data row and checksum movement relative to the earlier diagnostics-disable baseline is explained
+by the independently scheduled refresh execution `market-data-refresh-job-29799840`
+(08:00:00Z–08:01:07Z; updated 159, skipped 0, failed 0), not by the read-only rollback probe.
 
 ---
 
@@ -113,12 +138,19 @@ distinct matrix scenarios**; the normal read-only commit path is asserted twice 
 
 ---
 
-## Source instrumentation readiness (merged, undeployed)
+## Production setter-provenance result
 
 **Merged source:** PR #172 at `main@9fbac4d2ada2240a980d5d7c9c2bd9dedc91de01`
-(implementation commit `b51bb49a4c22a82c8ce557750b1f03ecd2cc0212`).
+(implementation commit `b51bb49a4c22a82c8ce557750b1f03ecd2cc0212`), now on
+`main@0887a309fe12f49ca37585e5a594661727cf4936`.
 
-**Verdict (source only):** `PROVENANCE_INSTRUMENTATION_READY_SETTER_UNPROVEN`. Top-level RCA verdict remains **`MECHANISM_REPRODUCED_SETTER_UNPROVEN`**.
+**Deployed diagnostic cycle:** artifact tag `spec-a-912-provenance-0887a309fe12-20260829`, digest
+`sha256:d5693e29c68fd3665366fbd83586b9e8b8a266b993cdd66a761ea17d9312092a`,
+`SERVICE_VERSION=9b2cf0d655b4b7ae2ce20ff7b67e4ad750df6900`. Provenance observed on revision
+`portfolio-service--0000088`; production returned to `portfolio-service--0000089` with both flags
+`false`.
+
+**Top-level RCA verdict remains `MECHANISM_REPRODUCED_SETTER_UNPROVEN`.**
 
 ### Source files
 
@@ -147,6 +179,25 @@ distinct matrix scenarios**; the normal read-only commit path is asserted twice 
 | Raw Hikari delegate poisons below wrapper | yes | `UNATTRIBUTED_OFF_TO_ON` | none |
 | Poison before first wrapper borrow | n/a | `FIRST_OBSERVED_ON` | none |
 
+### Production observation (revision `0000088`)
+
+- Exactly one `event=spec_a912_pool_session_provenance` transition.
+- First wrapped checkout, `checkoutId=1`, backend PID `19916`.
+- `jdbcReadOnly=false`, `autoCommit=true`, `defaultTransactionReadOnly=on`, `transactionReadOnly=on`.
+- `setterKind=NONE`, `transition=FIRST_OBSERVED_ON`.
+- Bounded call path:
+  `JdbcUtils#openConnection <- JdbcConnectionFactory#<init> <- FlywayExecutor#init <- FlywayExecutor#execute <- Flyway#migrate <- FlywayMigrationInitializer#afterPropertiesSet <- AbstractAutowireCapableBeanFactory#invokeInitMethods <- AbstractAutowireCapableBeanFactory#initializeBean`.
+- `ATTRIBUTED_OFF_TO_ON=0`, `UNATTRIBUTED_OFF_TO_ON=0`, provenance failures/skips `0`.
+- Eight `event=spec_a912_tx_diag` events and one successful `event=spec_a912_tx_probe_complete`; every
+  JDBC observation used PID `19916`.
+- The no-op delete failed with the expected read-only condition and the transaction rolled back;
+  production application data was unchanged.
+
+`FIRST_OBSERVED_ON` proves the session was already read-only before the first application wrapper
+checkout. The repository wrapper did not observe an attributed or unattributed off-to-on transition.
+This moves the next question upstream to connection origin/defaults. It does **not** prove Neon, the
+pooler, a role default, a database default, a client startup option, or any named operator.
+
 ### Event fields and sanitization
 
 Structured log prefix: `event=spec_a912_pool_session_provenance`. Allowed fields: fixed phase name,
@@ -173,10 +224,10 @@ the **last session-state-affecting** queued setter, not merely the last setter o
 
 ### Explicit non-claims
 
-Source instrumentation readiness does **not** identify the production setter. No artifact was built,
-no revision deployed, and production remains on `portfolio-service--0000086` with both flags
-`false`. Architecture review and source merge are complete. Next step — only if separately
-authorized — is diagnostic artifact construction followed by a gated diagnostic revision deploy.
+Production setter-provenance observation does **not** identify who established the read-only default.
+Both application flags are again `false` on `portfolio-service--0000089`. The bounded source-only
+connection-origin probe is locally ready (`CONNECTION_ORIGIN_PROBE_READY_LIVE_EXECUTION_UNAUTHORIZED`).
+Live probe execution remains separately gated and is **not** authorized by this record.
 
 ---
 
@@ -186,14 +237,38 @@ authorized — is diagnostic artifact construction followed by a gated diagnosti
 - No production fix has been applied or validated.
 - Native session poisoning is the **mechanism** reproduced locally; it is **not** claimed as the
   production root cause unless a repository-owned path that performs it is proven.
+- `FIRST_OBSERVED_ON` is **not** a named-actor attribution.
 
 ---
 
 ## Recommended next architecture question
 
-Continue **production-shaped provenance investigation** to identify **who sets
-`default_transaction_read_only=on` on the pooled Neon session** checked out by `portfolio-service`
-at startup. Only after that setter is proven should architects design and review a narrow remedy with
-explicit blast-radius analysis among candidate classes (transaction-local correction, pool checkout
-sanitation, configuration correction). Do not apply Hikari `connection-init-sql`, URL `options=-c`,
-or global session resets as an unreviewed workaround.
+Complete architecture review/merge of the connection-origin probe source package, then — only with
+separate explicit approval and operator-supplied exact pooled and direct URLs — run the fail-closed
+read-only live probe. Only after an upstream source is evidenced should architects design and review a
+narrow remedy with explicit blast-radius analysis among candidate classes (transaction-local
+correction, pool checkout sanitation, configuration correction). Do not apply Hikari
+`connection-init-sql`, URL `options=-c`, or global session resets as an unreviewed workaround.
+
+---
+
+## Connection-origin probe source readiness
+
+**`CONNECTION_ORIGIN_PROBE_READY_LIVE_EXECUTION_UNAUTHORIZED`**
+
+| Item | Value |
+|---|---|
+| Executable | `portfolio-service/src/test/java/com/wealth/portfolio/seed/rca/SpecA912ConnectionOriginProbe.java` |
+| Unit tests | `SpecA912ConnectionOriginProbeTest.java` |
+| Integration tests | `SpecA912ConnectionOriginProbeIT.java` |
+| Manual entry point | Gradle task `specA912ConnectionOriginProbe` (group `diagnostics`; not on `check`/`build`/`bootJar`) |
+| Matrix | endpoints `POOLED` then `DIRECT`; exactly five fresh `DriverManager` attempts each |
+| Allow-list | exactly one composite read-only `SELECT` per attempt (PID, recovery, both GUCs, `pg_settings` source/reset, catalog scopes); no `SET`/`RESET`/`DISCARD`/DML/DDL in the collector |
+| Sanitization | attempt output is fixed-key; failures emit exception simple class name and five-character SQLSTATE only |
+| Local Testcontainers | role/`user`, database, database-role, client-startup, pooled-path divergence, and non-interference proofs green |
+| Live contact | **none** — no live endpoint was contacted during this source package |
+| Production | revision `portfolio-service--0000089` remains active; both flags `false` |
+| Next gate | architecture review/merge, then separate explicit approval plus operator-supplied exact pooled and direct URLs for a read-only live run |
+
+Checkpoint 9.12 remains incomplete. Top-level RCA verdict remains `MECHANISM_REPRODUCED_SETTER_UNPROVEN`
+until live connection-origin evidence exists.
