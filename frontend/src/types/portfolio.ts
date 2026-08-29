@@ -19,8 +19,22 @@ export interface AssetHoldingDTO {
   name: string;
   /** Asset classification */
   assetClass: AssetClass;
-  /** Number of units held */
-  quantity: number;
+  /**
+   * Number of units held, as a plain-decimal string (B2 Requirement 8.1/8.2).
+   *
+   * Never a parsed JavaScript number: a `number` has already lost the wire's exact
+   * digit count by the time JSON.parse runs, so arithmetic on this field is only
+   * permitted after an explicit conversion at a display boundary — see
+   * `@/lib/utils/quantityDisplay`.
+   */
+  quantity: string;
+  /**
+   * Present and `true` only when this holding's quantity was ingested from a legacy
+   * JSON *number* and is therefore display-compatible but not byte-faithful to what
+   * portfolio-service stored (B2 Task 2.1). Absent means the value came through as a
+   * string and is byte-faithful.
+   */
+  quantityFidelityUnverified?: boolean;
   /** Current market price per unit (USD) */
   currentPrice: number;
   /** quantity × currentPrice */
@@ -65,6 +79,14 @@ export interface PortfolioResponseDTO {
   ownerId: string;
   name: string;
   currency: string;
+  /**
+   * Optimistic-concurrency version observed on this read (B2 Task 1.2).
+   *
+   * `0` is the valid no-portfolio state (B2 requirements.md 4.5) — B1 auto-provisions
+   * on expected version 0. A composition save carries the version observed when the
+   * picker opened, never one re-read inside the save itself (GC.6).
+   */
+  version: number;
   summary: PortfolioSummaryDTO;
   holdings: AssetHoldingDTO[];
   /** ISO-8601 timestamp */

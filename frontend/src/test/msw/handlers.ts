@@ -132,6 +132,8 @@ export const handlers = [
       {
         id: "portfolio-001",
         userId: "user-001",
+        // B1's frozen PortfolioResponse carries the optimistic-concurrency version.
+        version: 1,
         createdAt: new Date().toISOString(),
         holdings: [],
       },

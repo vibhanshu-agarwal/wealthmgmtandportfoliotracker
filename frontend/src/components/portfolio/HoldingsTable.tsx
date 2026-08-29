@@ -35,8 +35,11 @@ import {
   formatSignedCurrency,
   formatSignedCurrencyOrDash,
   formatPercentOrDash,
-  formatQuantity,
 } from "@/lib/utils/format";
+import {
+  compareQuantityStrings,
+  formatQuantityForDisplay,
+} from "@/lib/utils/quantityDisplay";
 import { cn } from "@/lib/utils/cn";
 import type { AssetClass, AssetHoldingDTO } from "@/types/portfolio";
 import { DemoDataBadge } from "@/components/ui/DemoDataBadge";
@@ -319,6 +322,13 @@ export function HoldingsTable() {
 
     // Sort
     return [...filtered].sort((a, b) => {
+      // Quantity is a decimal string (B2 Requirement 8.1). A plain `<`/`>` comparison
+      // would order it lexicographically — "10" before "9" — so it goes through the
+      // GC.2 display boundary's numeric comparator instead.
+      if (sortKey === "quantity") {
+        const cmp = compareQuantityStrings(a.quantity, b.quantity);
+        return sortDir === "asc" ? cmp : -cmp;
+      }
       const aVal = a[sortKey as keyof AssetHoldingDTO] as number | string;
       const bVal = b[sortKey as keyof AssetHoldingDTO] as number | string;
       const cmp = aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
@@ -525,7 +535,7 @@ export function HoldingsTable() {
 
                       {/* ── Quantity ── */}
                       <TableCell className="text-right tabular-nums text-sm">
-                        {formatQuantity(holding.quantity)}
+                        {formatQuantityForDisplay(holding.quantity)}
                       </TableCell>
 
                       {/* ── Price ── */}

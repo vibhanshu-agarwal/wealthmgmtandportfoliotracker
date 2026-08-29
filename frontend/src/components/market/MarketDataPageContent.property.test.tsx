@@ -42,7 +42,10 @@ const arbHolding = fc.record({
   ticker: fc.stringMatching(/^[A-Z]{1,5}$/),
   name: fc.string({ minLength: 1, maxLength: 30 }),
   assetClass: arbAssetClass,
-  quantity: fc.double({ min: 0.001, max: 100000, noNaN: true }),
+  // B2 Requirement 8.1: quantity is a plain-decimal string on the domain type.
+  quantity: fc
+    .double({ min: 0.001, max: 100000, noNaN: true })
+    .map((value: number) => String(value)),
   currentPrice: fc.double({ min: 0.01, max: 999999, noNaN: true }),
   totalValue: fc.double({ min: 0, max: 999999999, noNaN: true }),
   // avgCostBasis, unrealizedPnL, change24h* are nullable per Task 5 contract
