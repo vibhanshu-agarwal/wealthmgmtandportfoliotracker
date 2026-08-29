@@ -502,10 +502,9 @@ or lock anything on my behalf.
    two independent logins SHALL count as two. *(Settled, entry [5]: a client-supplied identity is
    unnecessary and spoofable.)*
 2. THE gateway SHALL refresh a demo session's presence entry best-effort on authenticated demo
-   traffic, with a TTL set against the existing 60-second polling cadence. **The 150-second value
-   is OPEN** — entry [5] proposed it explicitly as provisional ("a provisional 150-second TTL"),
-   and this revision had incorrectly promoted it to a flat commitment. Treat it as a starting
-   configuration value pending confirmation, not a frozen requirement.
+   traffic, with a TTL set against the existing 60-second polling cadence. The default is
+   **150 seconds**, supplied as application configuration (`APP_DEMO_PRESENCE_TTL`, default
+   `150s`) rather than a hardcoded literal; non-positive values fail at startup.
 3. THE picker SHALL query presence **once**, on open, via an authenticated `GET` request to a
    gateway-owned endpoint (`design.md` D4 names it explicitly) — never by querying Redis or any
    other store directly from the browser. No polling, no acquire/release semantics, no write
@@ -790,11 +789,9 @@ Portfolio page (which B1 does not touch) breaks.
 
 - **Q9's idle threshold** (Requirement 7.6) — needs a product decision on the exact minute value.
 - **Manual reset control's location in the UI** (Requirement 7.6) — needs a product decision.
-- **Presence TTL's exact value** (Requirement 6.2) — 150 seconds is entry [5]'s own provisional
-  figure, not a commitment.
 - **Login-orchestrated self-call timeouts** (`design.md` D5) — 2 seconds per leg (eligibility read,
   reset call) and 4 seconds overall are starting values, not commitments, same provisional-value
-  treatment as the presence TTL and idle threshold above. *(Added pass 8: previously marked "OPEN"
+  treatment as the idle threshold above. *(Added pass 8: previously marked "OPEN"
   only inline in D5, with no entry in this list — the same gap already caught for `updatedAt` and
   `assetPriceFreshness`.)*
 - **The frontend decimal-adapter migration's rollout sequencing** (Requirement 8.3) — needs

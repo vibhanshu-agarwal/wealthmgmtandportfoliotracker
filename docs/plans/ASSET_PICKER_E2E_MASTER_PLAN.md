@@ -252,7 +252,7 @@ All four artifacts are tracked. No B2 implementation task is complete on `main`.
 |---|---|---|
 | 1 — mock-backed picker shell | ⬜ Not started; partially startable now | Feature flags, modal, browse/draft/review/conflict UX, mocked save/freshness/presence |
 | 2 — decimal adapter | ⬜ Not started | Rollout sequencing with B1 Wave 4/5 remains an explicit open coordination decision |
-| 3 — Redis-backed presence | ⬜ Not started | Independent B2 backend branch; exact TTL remains open |
+| 3 — Redis-backed presence | 🟡 Source ready for architecture review (not merged/deployed/live) | Independent B2 backend branch on `cursor/b2-wave3-demo-presence`; default TTL **150s** via `APP_DEMO_PRESENCE_TTL`; Task 3.7 deploy/live probe remains owner-gated |
 | 4 — portfolio-service demo reset | ⬜ Blocked | Requires B1 Wave 4 tasks 4.1, 4.3, 4.7, 4.9, and 4.10 |
 | 5 — manual-reset gateway bundle | ⬜ Blocked on Wave 4 | Route, authorization filter, read-only allowlist, identity providers |
 | 6 — manual reset frontend | ⬜ Blocked on Wave 5 and B1 5.1 | Hidden control and versioned reset call |
@@ -269,9 +269,8 @@ adapter and UI wiring in Waves 1 and 9.
 
 1. Demo reset idle threshold; 30 minutes is provisional.
 2. Manual reset control placement in the UI.
-3. Presence TTL; 150 seconds is provisional.
-4. Login self-call timeouts; 2 seconds per leg and 4 seconds overall are provisional.
-5. Decimal-adapter deployment sequencing relative to B1 Wave 4/5.
+3. Login self-call timeouts; 2 seconds per leg and 4 seconds overall are provisional.
+4. Decimal-adapter deployment sequencing relative to B1 Wave 4/5.
 
 These do not block starting the mock-backed picker shell. They do block the affected reset/presence
 behavior and final production exposure.
@@ -358,7 +357,7 @@ the resulting `main` SHA. It must include:
 - active/draft PRs and whether their code is on `main`;
 - commands and tests required to verify the chosen task;
 - known stale-branch/rebase hazards;
-- the five unresolved B2 decisions without silently choosing values;
+- the four unresolved B2 decisions without silently choosing values;
 - the status-governance rule from §0; and
 - an instruction to update this plan and the owning task ledger in every status-changing PR.
 

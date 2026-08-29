@@ -1,6 +1,9 @@
 package com.wealth.gateway;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import com.wealth.gateway.presence.DemoPresenceService;
+import org.mockito.Mockito;
+import reactor.core.publisher.Mono;
+import reactor.test.StepVerifier;
 
 import java.security.Principal;
 import java.time.Instant;
@@ -16,8 +19,8 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.web.server.ServerWebExchange;
 import org.springframework.web.server.ServerWebExchangeDecorator;
-import reactor.core.publisher.Mono;
-import reactor.test.StepVerifier;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Guards the number of times {@link JwtAuthenticationFilter} subscribes the downstream {@link
@@ -32,7 +35,12 @@ import reactor.test.StepVerifier;
  */
 class JwtAuthenticationFilterChainTest {
 
-  private final JwtAuthenticationFilter filter = new JwtAuthenticationFilter();
+  private final DemoPresenceService demoPresenceService = Mockito.mock(DemoPresenceService.class);
+  private final JwtAuthenticationFilter filter = new JwtAuthenticationFilter(demoPresenceService);
+
+  JwtAuthenticationFilterChainTest() {
+    // Background presence dispatch is off the request critical path; chain tests ignore it.
+  }
 
   @Test
   void validJwtSubscribesDownstreamChainExactlyOnceAndInjectsUserId() {

@@ -862,7 +862,7 @@ field, and one hard rule about where each may be used:
   what would close it.
   _Requirements: 8.3_
 
-## Wave 3 — Presence (Redis-backed) · *B2-owned backend*
+## Wave 3 — Presence (Redis-backed) · *B2-owned backend* · **source ready for architecture review (not merged, deployed, or live-verified)**
 
 - [ ] **3.1 Add a random `jti` claim to issued JWTs**, hashed one-way (`sha256`) as the session key
   at the gateway.
@@ -924,9 +924,10 @@ field, and one hard rule about where each may be used:
   **Abort:** do not let Wave 10 describe Wave 3 as deployed/live-verified without this evidence.
   _Requirements: 6.1, 6.2, 6.3, 6.5_
 
-**TTL value is OPEN** (provisionally 150 seconds) — ship as a configuration value, not a hardcoded
-literal, so the pending product decision is a config change, not a redeploy of logic.
-_Requirements: Open items — Presence TTL_
+**TTL decision settled (2026-08-29):** default **150 seconds** via `APP_DEMO_PRESENCE_TTL` /
+`app.demo-presence.ttl`; whole-set key expiry adds **30 seconds** for orphan cleanup only (design.md
+D4). Wave 3 backend source is ready for one senior architecture review — **not** merged, deployed,
+live-probed, or flagged complete. Task 3.7 STOP/GO deploy/live evidence remains a later owner action.
 
 ## Wave 4 — Demo-reset, portfolio-service side · *design.md D5 Stage 1*
 

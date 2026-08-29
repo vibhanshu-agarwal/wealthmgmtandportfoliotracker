@@ -98,6 +98,8 @@ auth:
   jwk-uri: ${AUTH_JWK_URI:}       # reserved for a future external-IdP profile; not active in current aws auth path
 
 app:
+  demo-presence:
+    ttl: ${APP_DEMO_PRESENCE_TTL:150s}
   routes:
     # Single source of truth for downstream service URL defaults.
     # Each route above references ${app.routes.*-url} so a default-port change

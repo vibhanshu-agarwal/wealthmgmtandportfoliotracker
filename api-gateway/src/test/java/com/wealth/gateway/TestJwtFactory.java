@@ -20,6 +20,15 @@ public final class TestJwtFactory {
     /** Canonical local dev / integration test sub claim — matches the Flyway seed user UUID. */
     public static final String SEED_USER_ID = "00000000-0000-0000-0000-000000000001";
 
+    /** Showcase demo user from {@code V15__Reconcile_Auth_Seed_Users.sql}. */
+    public static final String DEMO_USER_ID = "00000000-0000-0000-0000-0000000d3110";
+
+    /** Fixed jti for deterministic integration tests — not for production tokens. */
+    public static final String TEST_JTI_A = "11111111-1111-4111-8111-111111111111";
+
+    /** Second fixed jti for two-session integration tests. */
+    public static final String TEST_JTI_B = "22222222-2222-4222-8222-222222222222";
+
     /** Signing secret used in test application-local.yml — must be ≥ 32 chars for HS256. */
     public static final String TEST_SECRET = "test-secret-for-integration-tests-min-32-chars";
 
@@ -42,6 +51,34 @@ public final class TestJwtFactory {
                 .signWith(Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8)),
                         Jwts.SIG.HS256)
                 .compact();
+    }
+
+    /**
+     * Mints a compact JWT string with an explicit {@code jti} claim.
+     */
+    public static String mintWithJti(String sub, Duration expiry, String jti) {
+        return mint(sub, expiry, TEST_SECRET, java.util.Map.of("jti", jti));
+    }
+
+    /**
+     * Mints a valid demo-user token with an explicit {@code jti} and one-hour expiry.
+     */
+    public static String demoUserToken(String jti) {
+        return mintWithJti(DEMO_USER_ID, Duration.ofHours(1), jti);
+    }
+
+    /**
+     * Deliberate legacy fixture: valid JWT with no {@code jti} claim for rollout fail-open tests.
+     */
+    public static String legacyNoJtiToken(String sub) {
+        return mint(sub, Duration.ofHours(1));
+    }
+
+    /**
+     * Deliberate legacy fixture: valid JWT with a blank {@code jti} claim for rollout fail-open tests.
+     */
+    public static String legacyBlankJtiToken(String sub) {
+        return mint(sub, Duration.ofHours(1), TEST_SECRET, java.util.Map.of("jti", ""));
     }
 
     /**

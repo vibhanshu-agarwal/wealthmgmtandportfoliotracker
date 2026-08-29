@@ -459,8 +459,10 @@ One sorted set per demo user (there is exactly one demo account, so `presence:de
 a multi-tenant future would key it `presence:demo:<userId>`), score = last-seen epoch seconds,
 membership implicitly expires by the read-time `ZREMRANGEBYSCORE` sweep rather than per-key TTLs
 (simpler than tracking N independent key TTLs, and self-cleaning on every read regardless of
-traffic pattern). **TTL value is OPEN** (requirements.md 6.2) — entry [5]'s 150 seconds was
-proposed as provisional, not committed.
+traffic pattern). **TTL default is 150 seconds** (`APP_DEMO_PRESENCE_TTL`, application configuration
+with startup validation for non-positive values). The whole-set `EXPIRE` uses **TTL + 30 seconds**
+as orphan cleanup only; liveness decisions use score age against the configured TTL, so the slack
+cannot extend reported presence.
 
 The handler-side `ZADD` is mandatory even though routed demo traffic also refreshes presence: this
 endpoint is a gateway-local controller and therefore does not traverse Gateway `GlobalFilter`s. A
