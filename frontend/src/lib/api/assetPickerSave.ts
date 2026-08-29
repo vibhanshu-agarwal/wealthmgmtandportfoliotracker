@@ -1,10 +1,21 @@
 import { apiPath } from "@/lib/config/api";
 import type { SavePayload } from "@/components/asset-picker/savePayload";
+import type { WireHolding } from "@/lib/api/portfolio";
 
 export interface SaveSuccess {
   status: "success";
+  /** requirements.md 4.2 — carried through so visible state can be replaced from the
+   *  response body directly, not from stale cache or the submitted draft. */
+  portfolioId: string;
+  ownerId: string;
   version: number;
-  holdings: Array<{ assetTicker: string; quantity: string }>;
+  /**
+   * The raw wire shape, `number | string` per holding — same honesty about fidelity
+   * as `GET /api/portfolio` (Task 2.1): the caller runs this through the same
+   * `enrichWireHoldings` a read would, so a legacy numeric quantity here is flagged
+   * `quantityFidelityUnverified` exactly as it would be from a GET.
+   */
+  holdings: WireHolding[];
 }
 
 export interface SaveConflict {
@@ -26,7 +37,7 @@ interface PortfolioResponseBody {
   userId: string;
   createdAt: string;
   version: number;
-  holdings: Array<{ id: string; assetTicker: string; quantity: string }>;
+  holdings: WireHolding[];
 }
 
 /**
@@ -61,7 +72,9 @@ export async function saveComposition(token: string, payload: SavePayload): Prom
   const body = (await response.json()) as PortfolioResponseBody;
   return {
     status: "success",
+    portfolioId: body.id,
+    ownerId: body.userId,
     version: body.version,
-    holdings: body.holdings.map((h) => ({ assetTicker: h.assetTicker, quantity: h.quantity })),
+    holdings: body.holdings,
   };
 }

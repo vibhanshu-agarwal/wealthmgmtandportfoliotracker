@@ -260,35 +260,31 @@ function buildPerformanceSeries(days: number, totalValue: number): PerformanceDa
   return points;
 }
 
-export async function fetchPortfolio(userId: string, token: string): Promise<PortfolioResponseDTO> {
-  const backendPortfolio = await loadBackendPortfolio(userId, token);
-  if (!backendPortfolio) {
-    return {
-      portfolioId: "n/a",
-      ownerId: userId,
-      name: "My Portfolio",
-      currency: "USD",
-      summary: {
-        totalValue: 0,
-        totalCostBasis: 0,
-        totalUnrealizedPnL: 0,
-        totalUnrealizedPnLPercent: 0,
-        change24hAbsolute: 0,
-        change24hPercent: 0,
-        bestPerformer: { ticker: "N/A", name: "No assets", change24hPercent: 0 },
-        worstPerformer: { ticker: "N/A", name: "No assets", change24hPercent: 0 },
-      },
-      holdings: [],
-      // Valid no-portfolio state: B1 auto-provisions on expected version 0.
-      version: 0,
-      asOfDate: new Date().toISOString(),
-    };
+export interface EnrichedHoldings {
+  holdings: AssetHoldingDTO[];
+  totalValue: number;
+}
+
+/**
+ * B2 Task 1.13 (requirements.md 4.2) — the holding-enrichment logic shared between an
+ * ordinary `GET /api/portfolio` read (`fetchPortfolio`, below) and a successful
+ * composition save (`applySaveResultToPortfolio`). Given the same wire holding shape
+ * either endpoint returns, produces the identical `AssetHoldingDTO[]` + `totalValue`
+ * a `GET` would — so a successful `PUT`'s response body can replace visible state
+ * directly, without depending on a subsequent read to populate the UI.
+ */
+export async function enrichWireHoldings(
+  wireHoldings: WireHolding[],
+  token: string,
+): Promise<EnrichedHoldings> {
+  if (wireHoldings.length === 0) {
+    return { holdings: [], totalValue: 0 };
   }
 
-  const tickers = [...new Set(backendPortfolio.holdings.map((h) => h.assetTicker))];
+  const tickers = [...new Set(wireHoldings.map((h) => h.assetTicker))];
   const pricesByTicker = await loadMarketPrices(tickers, token);
 
-  const holdings: AssetHoldingDTO[] = backendPortfolio.holdings.map((h) => {
+  const holdings: AssetHoldingDTO[] = wireHoldings.map((h) => {
     const meta = getTickerMeta(h.assetTicker);
     const price = pricesByTicker.get(h.assetTicker);
 
@@ -333,7 +329,23 @@ export async function fetchPortfolio(userId: string, token: string): Promise<Por
     portfolioWeight: totalValue > 0 ? (h.totalValue / totalValue) * 100 : 0,
   }));
 
-  const firstHolding = holdingsWithWeight[0];
+  return { holdings: holdingsWithWeight, totalValue };
+}
+
+/**
+ * B2 Task 1.13 (requirements.md 4.2) — assembles a full `PortfolioResponseDTO` from a
+ * portfolio identity (id/owner/version) plus its wire holdings, via
+ * `enrichWireHoldings` above. Used by both `fetchPortfolio` (identity from a `GET`)
+ * and the composition-save success path in `assetPickerSave.ts`/`AssetPicker.tsx`
+ * (identity from a `PUT` response) — one place building this shape, not two.
+ */
+export async function buildPortfolioResponseFromWireHoldings(
+  identity: { portfolioId: string; ownerId: string; version: number },
+  wireHoldings: WireHolding[],
+  token: string,
+): Promise<PortfolioResponseDTO> {
+  const { holdings, totalValue } = await enrichWireHoldings(wireHoldings, token);
+  const firstHolding = holdings[0];
   const summary = {
     totalValue,
     totalCostBasis: totalValue,
@@ -350,17 +362,54 @@ export async function fetchPortfolio(userId: string, token: string): Promise<Por
   };
 
   return {
-    portfolioId: backendPortfolio.id,
-    ownerId: backendPortfolio.userId,
-    // Use backend portfolio name when present; fall back to a neutral generic label
-    name: backendPortfolio.name ?? "My Portfolio",
+    portfolioId: identity.portfolioId,
+    ownerId: identity.ownerId,
+    name: "My Portfolio",
     currency: "USD",
     summary,
-    holdings: holdingsWithWeight,
-    // Task 1.2: the version the picker submits as `expectedVersion` at modal-open time.
-    version: backendPortfolio.version ?? 0,
+    holdings,
+    version: identity.version,
     asOfDate: new Date().toISOString(),
   };
+}
+
+export async function fetchPortfolio(userId: string, token: string): Promise<PortfolioResponseDTO> {
+  const backendPortfolio = await loadBackendPortfolio(userId, token);
+  if (!backendPortfolio) {
+    return {
+      portfolioId: "n/a",
+      ownerId: userId,
+      name: "My Portfolio",
+      currency: "USD",
+      summary: {
+        totalValue: 0,
+        totalCostBasis: 0,
+        totalUnrealizedPnL: 0,
+        totalUnrealizedPnLPercent: 0,
+        change24hAbsolute: 0,
+        change24hPercent: 0,
+        bestPerformer: { ticker: "N/A", name: "No assets", change24hPercent: 0 },
+        worstPerformer: { ticker: "N/A", name: "No assets", change24hPercent: 0 },
+      },
+      holdings: [],
+      // Valid no-portfolio state: B1 auto-provisions on expected version 0.
+      version: 0,
+      asOfDate: new Date().toISOString(),
+    };
+  }
+
+  // Task 1.13 (requirements.md 4.2): this enrichment (defined above) is shared with
+  // the composition-save success path in assetPickerSave.ts, so a PUT response can be
+  // turned into the same shape a GET would produce, directly, without a network read.
+  // Task 1.2: the version the picker submits as `expectedVersion` at modal-open time.
+  const portfolio = await buildPortfolioResponseFromWireHoldings(
+    { portfolioId: backendPortfolio.id, ownerId: backendPortfolio.userId, version: backendPortfolio.version ?? 0 },
+    backendPortfolio.holdings,
+    token,
+  );
+  // Use backend portfolio name when present; fall back to the neutral generic label
+  // buildPortfolioResponseFromWireHoldings already uses.
+  return backendPortfolio.name ? { ...portfolio, name: backendPortfolio.name } : portfolio;
 }
 
 /**

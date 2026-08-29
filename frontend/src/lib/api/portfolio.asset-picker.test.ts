@@ -13,6 +13,8 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { server } from "@/test/msw/server";
 import {
   PortfolioContractError,
+  buildPortfolioResponseFromWireHoldings,
+  enrichWireHoldings,
   fetchPortfolio,
   parseWireQuantity,
   selectPortfolioForUser,
@@ -204,5 +206,109 @@ describe("fetchPortfolio list-identity selection (Task 1.2)", () => {
     await expect(fetchPortfolio("user-001", TOKEN)).rejects.toBeInstanceOf(
       PortfolioContractError,
     );
+  });
+});
+
+// ── Task 1.13 (requirements.md 4.2): shared holding enrichment ─────────────
+
+describe("enrichWireHoldings", () => {
+  it("enriches wire holdings with price and computes totalValue/portfolioWeight", async () => {
+    server.use(
+      http.get("/api/market/prices", () =>
+        HttpResponse.json([
+          { ticker: "AAPL", currentPrice: 100, observedAt: "2026-08-01T00:00:00Z", priceUnavailable: false },
+        ]),
+      ),
+    );
+
+    const { holdings, totalValue } = await enrichWireHoldings(
+      [{ id: "h1", assetTicker: "AAPL", quantity: "10" }],
+      TOKEN,
+    );
+
+    expect(totalValue).toBe(1000);
+    expect(holdings[0]).toMatchObject({
+      id: "h1",
+      ticker: "AAPL",
+      quantity: "10",
+      currentPrice: 100,
+      totalValue: 1000,
+      portfolioWeight: 100,
+    });
+  });
+
+  it("flags a numeric wire quantity as fidelity-unverified, same as fetchPortfolio", async () => {
+    server.use(http.get("/api/market/prices", () => HttpResponse.json([])));
+
+    const { holdings } = await enrichWireHoldings(
+      [{ id: "h1", assetTicker: "AAPL", quantity: 10 }],
+      TOKEN,
+    );
+    expect(holdings[0].quantityFidelityUnverified).toBe(true);
+  });
+
+  it("never coerces an unavailable price to 0", async () => {
+    server.use(
+      http.get("/api/market/prices", () =>
+        HttpResponse.json([{ ticker: "ZZZZ", currentPrice: null, priceUnavailable: true }]),
+      ),
+    );
+
+    const { holdings } = await enrichWireHoldings(
+      [{ id: "h2", assetTicker: "ZZZZ", quantity: "5" }],
+      TOKEN,
+    );
+    expect(holdings[0].currentPrice).toBe(0);
+    expect(holdings[0].totalValue).toBe(0);
+  });
+
+  it("returns zero holdings and zero totalValue for an empty list, without a price fetch", async () => {
+    let called = false;
+    server.use(
+      http.get("/api/market/prices", () => {
+        called = true;
+        return HttpResponse.json([]);
+      }),
+    );
+    const { holdings, totalValue } = await enrichWireHoldings([], TOKEN);
+    expect(holdings).toEqual([]);
+    expect(totalValue).toBe(0);
+    expect(called).toBe(false);
+  });
+});
+
+describe("buildPortfolioResponseFromWireHoldings (requirements.md 4.2)", () => {
+  it("assembles a full PortfolioResponseDTO from the given identity and wire holdings", async () => {
+    server.use(
+      http.get("/api/market/prices", () =>
+        HttpResponse.json([
+          { ticker: "AAPL", currentPrice: 100, observedAt: "2026-08-01T00:00:00Z", priceUnavailable: false },
+        ]),
+      ),
+    );
+
+    const portfolio = await buildPortfolioResponseFromWireHoldings(
+      { portfolioId: "p1", ownerId: "user-001", version: 8 },
+      [{ id: "h1", assetTicker: "AAPL", quantity: "10" }],
+      TOKEN,
+    );
+
+    expect(portfolio.portfolioId).toBe("p1");
+    expect(portfolio.ownerId).toBe("user-001");
+    expect(portfolio.version).toBe(8);
+    expect(portfolio.holdings[0]).toMatchObject({ ticker: "AAPL", quantity: "10", totalValue: 1000 });
+    expect(portfolio.summary.totalValue).toBe(1000);
+  });
+
+  it("handles the empty-holdings case (a save that removed everything)", async () => {
+    const portfolio = await buildPortfolioResponseFromWireHoldings(
+      { portfolioId: "p1", ownerId: "user-001", version: 9 },
+      [],
+      TOKEN,
+    );
+
+    expect(portfolio.holdings).toEqual([]);
+    expect(portfolio.summary.totalValue).toBe(0);
+    expect(portfolio.summary.bestPerformer.ticker).toBe("N/A");
   });
 });

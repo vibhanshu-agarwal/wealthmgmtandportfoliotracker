@@ -7,6 +7,7 @@ import type { DraftHoldings } from "@/types/assetPicker";
 import { useCatalog } from "@/lib/hooks/useCatalog";
 import { usePresence } from "@/lib/hooks/usePresence";
 import { portfolioKeys } from "@/lib/hooks/usePortfolio";
+import { buildPortfolioResponseFromWireHoldings } from "@/lib/api/portfolio";
 import { saveComposition } from "@/lib/api/assetPickerSave";
 import { AssetPickerModal } from "./AssetPickerModal";
 import { BrowseStep } from "./BrowseStep";
@@ -125,31 +126,38 @@ export function AssetPicker({
           setStep("conflict" as PickerStep);
           return;
         }
-        // Task 1.13 success transition: reconcile the query caches — a post-success
-        // read, a separate concern from GC.6's zero-GET-during-the-mutation rule —
-        // then close via the same path Escape already uses, restoring focus.
-        //
-        // Awaited, not fire-and-forget: `invalidateQueries` triggers a refetch for
-        // any actively-observed query and its returned promise resolves once that
-        // refetch settles. Closing the modal (and announcing success) before that
-        // promise resolves would let the Portfolio page keep showing pre-save data
-        // for however long the background refetch takes — or, if it fails, the
-        // stale query error path (TanStack Query preserves the last-good `data` on
-        // a failed refetch) would leave it showing pre-save data indefinitely with
-        // no visible signal that anything is wrong. The PUT already succeeded, so a
-        // reconciliation failure here still closes — we don't hold the user's
-        // already-confirmed save hostage to a read-side hiccup — but we no longer
-        // race ahead of a healthy refetch that's still in flight.
+        // requirements.md 4.2 / Task 1.13: replace the visible portfolio state with
+        // the PUT response body's actual holdings and version — never the client's
+        // own draft, and never dependent on a subsequent GET succeeding. This uses
+        // the exact same enrichment fetchPortfolio's own GET path uses, so the
+        // cached shape is indistinguishable from what a GET would have produced.
+        try {
+          const portfolioFromResponse = await buildPortfolioResponseFromWireHoldings(
+            { portfolioId: result.portfolioId, ownerId: result.ownerId, version: result.version },
+            result.holdings,
+            token,
+          );
+          queryClient.setQueryData(portfolioKeys.all(userId), portfolioFromResponse);
+        } catch {
+          // Enrichment (a market-price read) failed — fall back to invalidation
+          // below rather than leaving the cache holding pre-save data with no
+          // path to recover it.
+          await queryClient.invalidateQueries({ queryKey: portfolioKeys.all(userId) });
+        }
+
+        // summary/analytics carry backend-computed figures (unrealized P&L, freshness)
+        // the PUT response has no way to provide — these genuinely need a read, which
+        // Task 1.18 already covers. Awaited, not fire-and-forget, so the modal doesn't
+        // close and announce success before that read has been given a chance to land;
+        // a reconciliation failure here still closes (the PUT already succeeded) but
+        // no longer races ahead of a healthy one.
         try {
           await Promise.all([
-            queryClient.invalidateQueries({ queryKey: portfolioKeys.all(userId) }),
             queryClient.invalidateQueries({ queryKey: portfolioKeys.summary(userId) }),
             queryClient.invalidateQueries({ queryKey: portfolioKeys.analytics(userId) }),
           ]);
         } catch {
-          // The write already succeeded; a reconciliation-read failure doesn't
-          // undo that. staleTime/refetchInterval on the affected queries will
-          // self-heal on their own next cycle.
+          // staleTime/refetchInterval on the affected queries will self-heal.
         }
         onClose();
         onSaveSuccess?.();

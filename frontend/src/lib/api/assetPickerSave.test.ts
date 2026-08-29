@@ -50,8 +50,10 @@ describe("saveComposition", () => {
 
     expect(result).toEqual({
       status: "success",
+      portfolioId: "p1",
+      ownerId: "user-001",
       version: 8,
-      holdings: [{ assetTicker: "AAPL", quantity: "10" }],
+      holdings: [{ id: "h1", assetTicker: "AAPL", quantity: "10" }],
     });
   });
 
@@ -86,5 +88,50 @@ describe("saveComposition", () => {
     await expect(
       saveComposition(TOKEN, { expectedVersion: 7, holdings: [] }),
     ).rejects.toThrow();
+  });
+});
+
+describe("saveComposition — full response body preserved (requirements.md 4.2)", () => {
+  it("carries portfolioId, ownerId, and each holding's id through to the result", async () => {
+    server.use(
+      http.put("/api/portfolio/holdings", () =>
+        HttpResponse.json({
+          id: "p1",
+          userId: "user-001",
+          createdAt: "2026-01-01T00:00:00Z",
+          version: 8,
+          holdings: [{ id: "h1", assetTicker: "AAPL", quantity: "10" }],
+        }),
+      ),
+    );
+
+    const result = await saveComposition(TOKEN, { expectedVersion: 7, holdings: [] });
+
+    expect(result).toMatchObject({
+      status: "success",
+      portfolioId: "p1",
+      ownerId: "user-001",
+      version: 8,
+      holdings: [{ id: "h1", assetTicker: "AAPL", quantity: "10" }],
+    });
+  });
+
+  it("preserves a legacy numeric wire quantity verbatim, honest about its own fidelity (Task 2.1)", async () => {
+    server.use(
+      http.put("/api/portfolio/holdings", () =>
+        HttpResponse.json({
+          id: "p1",
+          userId: "user-001",
+          createdAt: "2026-01-01T00:00:00Z",
+          version: 8,
+          holdings: [{ id: "h1", assetTicker: "AAPL", quantity: 10 }],
+        }),
+      ),
+    );
+
+    const result = await saveComposition(TOKEN, { expectedVersion: 7, holdings: [] });
+
+    expect(result.status).toBe("success");
+    expect(result.status === "success" && result.holdings[0].quantity).toBe(10);
   });
 });

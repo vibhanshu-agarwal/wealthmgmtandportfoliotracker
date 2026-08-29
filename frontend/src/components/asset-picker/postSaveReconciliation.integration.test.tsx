@@ -12,7 +12,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
 import { server } from "@/test/msw/server";
-import { usePortfolioSummary } from "@/lib/hooks/usePortfolio";
+import { usePortfolio, usePortfolioSummary } from "@/lib/hooks/usePortfolio";
 import { EditHoldingsButton } from "./EditHoldingsButton";
 
 vi.mock("@/lib/hooks/useAuthenticatedUserId", () => ({
@@ -171,5 +171,96 @@ describe("post-save close sequencing (review-fix)", () => {
 
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(screen.getByRole("status")).toHaveTextContent(/saved/i);
+  });
+});
+
+describe("save success replaces visible state from the response body (requirements.md 4.2)", () => {
+  it("updates the portfolio query cache directly from the PUT response, never from a subsequent GET", async () => {
+    let portfolioGetCount = 0;
+
+    server.use(
+      http.get("/api/assets", () => HttpResponse.json({ catalogVersion: "v1", assets: [] })),
+      http.get("/api/market/prices", ({ request }) => {
+        const tickers =
+          new URL(request.url).searchParams.get("tickers")?.split(",").filter(Boolean) ?? [];
+        return HttpResponse.json(
+          tickers.map((ticker) => ({
+            ticker,
+            currentPrice: 50,
+            observedAt: "2026-08-01T00:00:00Z",
+            priceUnavailable: false,
+          })),
+        );
+      }),
+      http.get("/api/presence/demo", () => HttpResponse.json({ anotherSessionActive: false })),
+      http.get("/api/portfolio", () => {
+        portfolioGetCount += 1;
+        // The pre-save GET this test's Harness would use to populate usePortfolio,
+        // deliberately distinct from what the PUT will later return.
+        return HttpResponse.json([
+          {
+            id: "p1",
+            userId: "user-001",
+            createdAt: "2026-01-01T00:00:00Z",
+            version: 7,
+            holdings: [{ id: "h1", assetTicker: "AAPL", quantity: "10" }],
+          },
+        ]);
+      }),
+      // The PUT response is the SOLE source of truth this test checks against — a
+      // different ticker/quantity/version than either the pre-save GET or the draft.
+      http.put("/api/portfolio/holdings", () =>
+        HttpResponse.json({
+          id: "p1",
+          userId: "user-001",
+          createdAt: "2026-01-01T00:00:00Z",
+          version: 42,
+          holdings: [{ id: "h9", assetTicker: "GOOGL", quantity: "3" }],
+        }),
+      ),
+    );
+
+    function PortfolioHarness() {
+      usePortfolioSummary();
+      const { data } = usePortfolio();
+      return (
+        <>
+          <EditHoldingsButton holdings={data?.holdings ?? []} version={data?.version ?? 0} userId="user-001" token="test-token" />
+          <div data-testid="visible-holdings">
+            {(data?.holdings ?? []).map((h) => `${h.ticker}:${h.quantity}`).join(",")}
+          </div>
+          <div data-testid="visible-version">{data?.version}</div>
+        </>
+      );
+    }
+
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <PortfolioHarness />
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() => expect(screen.getByTestId("visible-holdings")).toHaveTextContent("AAPL:10"));
+    const getCallsBeforeSave = portfolioGetCount;
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit Holdings" }));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /review changes/i })).toBeInTheDocument(),
+    );
+    fireEvent.click(screen.getByRole("button", { name: /review changes/i }));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /save changes/i })).toBeInTheDocument(),
+    );
+    fireEvent.click(screen.getByRole("button", { name: /save changes/i }));
+
+    // The visible state must reflect the PUT response's own GOOGL/3/42 — not the
+    // stale AAPL/10/7 the draft was built from — and it must do so without any
+    // additional GET /api/portfolio having fired.
+    await waitFor(() =>
+      expect(screen.getByTestId("visible-holdings")).toHaveTextContent("GOOGL:3"),
+    );
+    expect(screen.getByTestId("visible-version")).toHaveTextContent("42");
+    expect(portfolioGetCount).toBe(getCallsBeforeSave);
   });
 });
