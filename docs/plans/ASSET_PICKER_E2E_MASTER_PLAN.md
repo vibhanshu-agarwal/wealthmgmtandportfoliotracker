@@ -14,7 +14,7 @@ fence changes.
 
 **Authoritative documentation revision:** advances when this file or related program docs change;
 independent of the runtime baseline above. Current Spec A 9.12 evidence baseline:
-`main@4ac264054f872132e88706ef535c80db17885754`.
+`main@cdf2373776ad98457f07caf63d0e426c0e2fe988`.
 
 **Program state:** Spec A checkpoints 9.1–9.11 are complete. Checkpoint 9.11 persisted
 `MARKET_DATA_JOB_RUNNER_ENABLED=true` through Terraform apply on `main@e7fad7cb` (source PR #164;
@@ -29,9 +29,11 @@ live matrix returned `NOT_REPRODUCED_IN_MANUAL_MATRIX`: pooled and direct paths 
 off/off defaults with source `DEFAULT` and no catalog overrides; before/after data hashes, revision,
 and flags were unchanged. The top-level RCA verdict remains `MECHANISM_REPRODUCED_SETTER_UNPROVEN` — evidence
 [`SPEC_A_9_12_POOLED_READONLY_RCA.md`](../runbooks/SPEC_A_9_12_POOLED_READONLY_RCA.md). The 9.12
-checkbox remains open. Statement-history probe source is locally ready
-(`STATEMENT_HISTORY_PROBE_READY_LIVE_EXECUTION_UNAUTHORIZED`); architecture review/merge and any live
-execution remain distinct gates.
+checkbox remains open. Statement-history probe executed once on 2026-08-29 at `main@cdf23737` (PR #176
+merge); one authorized live run reached JDBC; `pg_stat_statements` was absent so history was unavailable
+(`STATEMENT_HISTORY_PROBE_EXECUTED_HISTORY_UNAVAILABLE` / `STATEMENT_HISTORY_UNAVAILABLE`); canonical
+zero output is not absence evidence. Next gate: evidence-reconciliation review/merge, followed only if
+separately authorized by a future-observability decision.
 Checkpoints 9.13–9.14 remain pending and unauthorized. B1 Wave 2 /
 R-A, Wave 3 / R-B (V20), and Wave 5 Tasks 5.2–5.3 / R-B2 (G2a) are complete; caller migration Tasks
 **5.4–5.6 merged on `main@0b5d60d1`** (PR #161, source-only; no deploy); **G5/5.7 remains blocked**
@@ -45,9 +47,10 @@ B2's implementation has not started.
 `standard` remote-plan had no changes). Spec A 9.12 enable apply **ran and was rolled back**;
 production setter-provenance observed `FIRST_OBSERVED_ON` and returned to
 `portfolio-service--0000089` with demo seed `false`. The later authorized connection-origin matrix did
-not reproduce the state on pooled or direct sessions. Statement-history probe source is locally ready
-(`STATEMENT_HISTORY_PROBE_READY_LIVE_EXECUTION_UNAUTHORIZED`); live
-execution and any remedy remain separately gated. Production fences are unchanged.
+not reproduce the state on pooled or direct sessions. Statement-history probe executed once on
+2026-08-29 at `main@cdf23737`; verdict `STATEMENT_HISTORY_PROBE_EXECUTED_HISTORY_UNAVAILABLE`
+(`pg_stat_statements` absent; canonical zeroes are not absence evidence). Any remedy, extension
+installation, repeat probe, or 9.12 retry remains separately gated. Production fences are unchanged.
 
 This is the living, human-facing status document for the Asset Picker program. It is not a
 historical snapshot. Detailed requirements, designs, task mechanics, and operational evidence live
@@ -112,7 +115,7 @@ At every meaningful merge or live checkpoint:
 
 | Track | Delivered | Current position | Remaining outcome |
 |---|---|---|---|
-| **A — Spec A catalog/data cutover** | Shared catalog, Postgres/Mongo repair, R4 rollout, enforcement, one reconciled controlled refresh, and persisted refresh enablement | **11 of 14 cutover checkpoints complete**; 9.12 enable failed and was rolled back; provenance observed `FIRST_OBSERVED_ON`; connection-origin live matrix returned `NOT_REPRODUCED_IN_MANUAL_MATRIX`; production remains on `portfolio-service--0000089` with both flags `false`; RCA `MECHANISM_REPRODUCED_SETTER_UNPROVEN` at `main@4ac26405`; statement-history source `STATEMENT_HISTORY_PROBE_READY_LIVE_EXECUTION_UNAUTHORIZED` | Senior architecture review and merge of the statement-history collector; live execution and any remedy remain separately gated before repeating 9.12 gates |
+| **A — Spec A catalog/data cutover** | Shared catalog, Postgres/Mongo repair, R4 rollout, enforcement, one reconciled controlled refresh, and persisted refresh enablement | **11 of 14 cutover checkpoints complete**; 9.12 enable failed and was rolled back; provenance observed `FIRST_OBSERVED_ON`; connection-origin live matrix returned `NOT_REPRODUCED_IN_MANUAL_MATRIX`; statement-history live run returned `STATEMENT_HISTORY_PROBE_EXECUTED_HISTORY_UNAVAILABLE`; production remains on `portfolio-service--0000089` with both flags `false`; RCA `MECHANISM_REPRODUCED_SETTER_UNPROVEN` at `main@cdf23737` | Senior architecture review and merge of this evidence-only reconciliation; any future `pg_stat_statements` installation, repeat probe, remedy, or 9.12 retry remains separately gated |
 | **B — B1 portfolio composition backend** | Deployment prerequisites, fixture identity migration, legacy writer retirement, Wave 2 gateway provisioning **served (R-A/G2 green)**, Wave 3 V20 **served (R-B/G3 green)**, Wave 5 version-bearing read **served (R-B2/G2a green)** | **Wave 2 / R-A complete**; **Wave 3 / R-B complete**; **Wave 5 Tasks 5.2–5.3 / R-B2 complete** (Artifact 2a on `portfolio-service--0000081` / `sha256:d544649f…`; cut `f22e2ff`); **Wave 4a–4c tasks 4.1–4.21 merged on `main@2673f40`** (PR #153; composition mechanisms unexposed; no public `PUT`); Task 5.1 merged on `main@f22e2ff` (PR #155); Tasks **5.4–5.6 merged on `main@0b5d60d1`** (PR #161, source-only); **5.7/G5 blocked by Spec A closed ingress** | Caller migration G5 (after ingress reopen or authorized private-reachability), safe desired-state writer activation, public `PUT` |
 | **C — B2 Asset Picker product** | Requirements, design, task plan, and five-screen visual mockup | **No implementation wave complete** | Picker UI, decimal adapter, presence/reset support, live integration, exposure |
 | **D — Demo credibility** | Canonical prices refreshed and reconciled; demo initializer exists gated off | Demo activation failed and was rolled back; demo still 3 holdings; current manual connection paths are clean while the historical startup session remains unexplained | Spec A 9.12 requires stronger historical/startup-path evidence before remedy design and re-attempting activation without touching E2E data |
@@ -148,7 +151,7 @@ Authority: [`.kiro/specs/supported-asset-integrity/tasks.md`](../../.kiro/specs/
 | 9.9 | ✅ Complete | Catalog enforcement enabled; three services held at `min_replicas=1` |
 | 9.10 | ✅ Complete | One controlled refresh succeeded and was reconciled across Kafka, Mongo, and Postgres |
 | 9.11 | ✅ Complete | Persisted `MARKET_DATA_JOB_RUNNER_ENABLED=true` via Terraform; live read-back and standard no-op plan green ([`SPEC_A_9_11_PERSIST_REFRESH_ENABLEMENT.md`](../runbooks/SPEC_A_9_11_PERSIST_REFRESH_ENABLEMENT.md)) |
-| 9.12 | ⏸ Enable failed; rolled back; provenance and connection-origin live matrix complete (`portfolio-service--0000089`) | Production provenance observed `FIRST_OBSERVED_ON`; later pooled/direct matrix returned `NOT_REPRODUCED_IN_MANUAL_MATRIX`; RCA remains `MECHANISM_REPRODUCED_SETTER_UNPROVEN` at `main@4ac26405`; source readiness `STATEMENT_HISTORY_PROBE_READY_LIVE_EXECUTION_UNAUTHORIZED` | Architecture review/merge of the historical reset-window statement collector; live run and any remedy remain separately gated |
+| 9.12 | ⏸ Enable failed; rolled back; provenance, connection-origin, and statement-history live probes complete (`portfolio-service--0000089`) | Production provenance observed `FIRST_OBSERVED_ON`; pooled/direct matrix returned `NOT_REPRODUCED_IN_MANUAL_MATRIX`; statement-history live run returned `STATEMENT_HISTORY_PROBE_EXECUTED_HISTORY_UNAVAILABLE` (`pg_stat_statements` absent; canonical zeroes not absence evidence); RCA remains `MECHANISM_REPRODUCED_SETTER_UNPROVEN` at `main@cdf23737` | Evidence-reconciliation review/merge; any future extension installation, repeat probe, remedy, or 9.12 retry remains separately gated |
 | 9.13 | ⏸ Pending | Restore `min_replicas=0` and verify configuration-level state |
 | 9.14 | ⏸ Pending | Reopen ingress after 9.11–9.13 are green |
 
@@ -210,8 +213,8 @@ substitute for an authorized Artifact cut.**
 
 | Item | Current state | Required before relying on it |
 |---|---|---|
-| Checkpoint 9.11 | **Complete** — apply run [33091163222](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33091163222); live runner `true`; standard no-op [33093260896](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33093260896); evidence [`SPEC_A_9_11_PERSIST_REFRESH_ENABLEMENT.md`](../runbooks/SPEC_A_9_11_PERSIST_REFRESH_ENABLEMENT.md) | 9.12 provenance and connection-origin live matrix complete; historical collector and any later remedy remain separately gated |
-| 9.12 enable / rollback / diagnostics | **Enable failed and rolled back; provenance plus connection-origin matrix completed** — enable [33150399420](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33150399420); rollback [33151372186](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33151372186); provenance disable on `portfolio-service--0000089` [33242076369](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33242076369); observed `FIRST_OBSERVED_ON`; later live matrix `NOT_REPRODUCED_IN_MANUAL_MATRIX`; RCA [`SPEC_A_9_12_POOLED_READONLY_RCA.md`](../runbooks/SPEC_A_9_12_POOLED_READONLY_RCA.md); source readiness `STATEMENT_HISTORY_PROBE_READY_LIVE_EXECUTION_UNAUTHORIZED` | Architecture review/merge of the statement-history collector; live execution and remedy design remain separate |
+| Checkpoint 9.11 | **Complete** — apply run [33091163222](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33091163222); live runner `true`; standard no-op [33093260896](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33093260896); evidence [`SPEC_A_9_11_PERSIST_REFRESH_ENABLEMENT.md`](../runbooks/SPEC_A_9_11_PERSIST_REFRESH_ENABLEMENT.md) | 9.12 provenance, connection-origin, and statement-history live probes complete; any later remedy or extension installation remains separately gated |
+| 9.12 enable / rollback / diagnostics | **Enable failed and rolled back; provenance, connection-origin, and statement-history live probes completed** — enable [33150399420](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33150399420); rollback [33151372186](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33151372186); provenance disable on `portfolio-service--0000089` [33242076369](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33242076369); observed `FIRST_OBSERVED_ON`; live matrix `NOT_REPRODUCED_IN_MANUAL_MATRIX`; statement-history live run `STATEMENT_HISTORY_PROBE_EXECUTED_HISTORY_UNAVAILABLE` at `main@cdf23737`; RCA [`SPEC_A_9_12_POOLED_READONLY_RCA.md`](../runbooks/SPEC_A_9_12_POOLED_READONLY_RCA.md) | Evidence-reconciliation review/merge; any future extension installation, repeat probe, remedy, or 9.12 retry remains separately gated |
 
 ### Active B1 work
 
@@ -307,9 +310,9 @@ demo and diagnostics flags `false`. The later authorized pooled/direct matrix re
 `NOT_REPRODUCED_IN_MANUAL_MATRIX` (`main@4ac26405`). RCA verdict
 `MECHANISM_REPRODUCED_SETTER_UNPROVEN` remains. Before re-attempting 9.12:
 
-- the historical source remains unidentified; statement-history probe source is
-  `STATEMENT_HISTORY_PROBE_READY_LIVE_EXECUTION_UNAUTHORIZED` (architecture review/merge and live
-  execution remain separately gated);
+- the historical source remains unidentified; statement-history probe executed once on 2026-08-29 at
+  `main@cdf23737` and returned `STATEMENT_HISTORY_PROBE_EXECUTED_HISTORY_UNAVAILABLE`
+  (`pg_stat_statements` absent; canonical zeroes are not absence evidence);
 - production gate remains `false`;
 - demo portfolio remains at 3 holdings; E2E data unchanged;
 - scale and ingress fences remain explicit (`min_replicas=1`, ingress closed);
@@ -318,13 +321,17 @@ demo and diagnostics flags `false`. The later authorized pooled/direct matrix re
 
 ### Next choices
 
-1. **Operational lane:** senior architecture review and merge of the fail-closed statement-history
-   collector, then a separately authorized single read-only live run. The collector emits fixed
-   setter-shape counts and statistics-window metadata without raw SQL.
-   Its live run requires separate authorization. Only after stronger evidence exists should architects
-   review a narrow remedy with explicit blast-radius analysis and separately authorize a repeat of
-   the 9.12 enable + restoring rollouts and live verification gates. Continue 9.13–9.14 only after
-   9.12 succeeds.
+1. **Operational lane:** senior architecture review and merge of this evidence-only
+   reconciliation. The single authorized live run returned `STATEMENT_HISTORY_UNAVAILABLE` because
+   `pg_stat_statements` was not installed; canonical zero formatter output is not absence evidence.
+   Neon supports `pg_stat_statements` as a future observation mechanism, but installation is
+   production DDL and is not authorized by this documentation task; it begins a future statistics
+   window and cannot recover pre-install history. Extension installation alone does not authorize a
+   reset, repeat probe, 9.12 retry, remedy, deployment, or flag change. Each production action
+   requires explicit authorization from Vibhanshu/the repository owner, plus any separately named
+   platform approval. Only after stronger evidence exists should architects review a narrow remedy
+   with explicit blast-radius analysis and separately authorize a repeat of the 9.12 enable +
+   restoring rollouts and live verification gates. Continue 9.13–9.14 only after 9.12 succeeds.
 2. **Backend lane:** **R-A / G2**, **R-B / G3**, and **R-B2 / G2a** are complete (Artifact 2a
    `portfolio-service--0000081` / `sha256:d544649f…`, cut `f22e2ff`). Tasks **5.4–5.6 are merged
    source-only on `main@0b5d60d1`** (PR #161); **5.7/G5 is blocked** by Spec A closed gateway
