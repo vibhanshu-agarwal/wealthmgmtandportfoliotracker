@@ -13,7 +13,12 @@ const ciChannel = process.env.CI === "true" ? { channel: "chrome" as const } : {
 
 export default defineConfig({
   testDir: path.resolve(__dirname, "tests/e2e"),
-  testMatch: /portfolio-deep-link\.spec\.ts$/,
+  // Also matches asset-picker-disabled-by-default.spec.ts (B2 Checkpoint 4): that
+  // spec's whole point is verifying the DEFAULT build (no flags set — same build this
+  // config already produces) has no reachable picker entry point, so it belongs on
+  // this config's own webServer, not the picker-enabled one in
+  // playwright.asset-picker.mocked.config.ts.
+  testMatch: /(portfolio-deep-link|asset-picker-disabled-by-default)\.spec\.ts$/,
   timeout: 60_000,
   retries: 0,
   workers: 1,
