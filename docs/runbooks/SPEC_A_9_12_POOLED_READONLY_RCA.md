@@ -244,18 +244,15 @@ historical `FIRST_OBSERVED_ON` session or prove that the startup failure is fixe
 ## Recommended next architecture question
 
 The fresh manual connection matrix is clean while the historical startup capture was not. The
-bounded historical question is whether PostgreSQL statement statistics retained any known
-read-only setter shape in statistics whose reset boundary covers the incident. Source for that
-collector is locally ready (`STATEMENT_HISTORY_PROBE_READY_LIVE_EXECUTION_UNAUTHORIZED`); senior
-architecture review and merge remain the next gate, followed by separate explicit approval for a
-single read-only live run. The aggregate has no per-execution timestamp, so a retained count cannot
-be bound to the incident. Current tracking settings are capability observations, not proof of their
-historical values. Absence is meaningful only when the statistics reset predates the incident, current
-statement tracking is `top`/`all`, utility tracking is `on`, query-ID calculation is `auto`/`on`, no
-entry eviction occurred, and statement-text visibility is immediately usable and explicitly scoped;
-without usable `pg_read_all_stats`/superuser visibility, a negative can cover only the current database
-role. Raw query text, actor identity, and arbitrary statement search are forbidden.
-Do not design or apply a remedy from the clean manual matrix or from a retained count alone.
+bounded historical question was whether PostgreSQL statement statistics retained any known
+read-only setter shape in statistics whose reset boundary covers the incident. The collector source
+merged at PR #176 (`main@cdf23737`); one authorized live execution reached JDBC on 2026-08-29 and
+returned `STATEMENT_HISTORY_UNAVAILABLE` because `pg_stat_statements` was not installed. The seven
+canonical formatter zeroes are sanitized output for unavailable history and must not be described as
+observed zero counts, a negative result, or proof of setter absence. Installing the extension later
+cannot reconstruct statements executed before installation. Raw query text, actor identity, and
+arbitrary statement search are forbidden. Do not design or apply a remedy from the clean manual
+matrix or from unavailable-history output alone.
 
 ---
 
@@ -276,7 +273,7 @@ Do not design or apply a remedy from the clean manual matrix or from a retained 
 | Non-interference | before/after counts and MD5 snapshots were identical: demo `1/3`, E2E `1/159`, portfolios `10` / `1b78e7b91ec736f6c5bce8c2a67a1b6f`, holdings `162` / `9dceb19f517f9aaf81ceeee4280375a1`, prices `160` / `d9a2fe2cb7b35ae0cc4d12ffd86c2476`, history `15648` / `fcf2f26a926e17d14c1a5b41e758d43d` |
 | Production after-check | `portfolio-service--0000089` Healthy/Running on digest `sha256:d5693e29c68fd3665366fbd83586b9e8b8a266b993cdd66a761ea17d9312092a`; demo seed `false`; diagnostics `false`; no refresh execution running |
 | Architectural meaning | no current persistent role/database default, client-startup default, or manual pooled/direct divergence was evidenced; the historical production startup session remains unexplained |
-| Next gate | senior architecture review and merge of the statement-history collector; live execution remains separately unauthorized |
+| Next gate | senior architecture review and merge of this evidence-only reconciliation; any production DDL to install `pg_stat_statements` is a separately authorized future-observability change |
 
 Checkpoint 9.12 remains incomplete. Top-level RCA verdict remains
 `MECHANISM_REPRODUCED_SETTER_UNPROVEN`; the clean manual matrix narrows the search but neither proves a
@@ -284,24 +281,120 @@ setter nor authorizes a remedy.
 
 ---
 
-## Statement-history probe source readiness
+## Statement-history probe live result
 
-**`STATEMENT_HISTORY_PROBE_READY_LIVE_EXECUTION_UNAUTHORIZED`**
+**`STATEMENT_HISTORY_PROBE_EXECUTED_HISTORY_UNAVAILABLE`**
+
+### Source and verification history (superseded readiness)
+
+| Phase | Status |
+|---|---|
+| Source readiness | PR [#176](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/176) merged at `main@cdf2373776ad98457f07caf63d0e426c0e2fe988`; source commit `c81d78e8` |
+| Prior status (superseded) | `STATEMENT_HISTORY_PROBE_READY_LIVE_EXECUTION_UNAUTHORIZED` — collector source merged and locally verified; live execution was separately unauthorized |
+| Current status | `STATEMENT_HISTORY_PROBE_EXECUTED_HISTORY_UNAVAILABLE` — one authorized live execution reached JDBC; fail-closed verdict `STATEMENT_HISTORY_UNAVAILABLE` |
+| Top-level RCA | unchanged — `MECHANISM_REPRODUCED_SETTER_UNPROVEN` |
+| Checkpoint 9.12 | unchanged — incomplete |
+
+### Executable and entry point
 
 | Item | Value |
 |---|---|
 | Executable | `portfolio-service/src/test/java/com/wealth/portfolio/seed/rca/SpecA912StatementHistoryProbe.java` |
 | Unit tests | `SpecA912StatementHistoryProbeTest.java` |
 | Integration tests | `SpecA912StatementHistoryProbeIT.java` (`@Tag("integration")`, disposable PostgreSQL 18.4) |
-| Manual entry point | Gradle task `specA912StatementHistoryProbe` (group `diagnostics`; not on `test`/`integrationTest`/`check`/`build`/`bootRun`/`bootJar`/image/deployment) |
-| Incident instant | `2026-08-28T07:08:59Z` (enable run `33150399420` creation time; source constant, not environment input) |
-| Allow-list | exactly two fixed read-only `SELECT`s: capability (`pg_extension` + current tracking GUCs + immediately usable all-statement visibility) then, only when available, aggregate `pg_stat_statements` / `pg_stat_statements_info` shape counts |
-| Output boundary | fixed keys, timestamps, booleans, non-negative counts, and enums only; no `pg_stat_statements.query` text, user/role identifiers, URLs, credentials, exception messages, or stack traces |
-| Local verification | focused unit tests `BUILD SUCCESSFUL`; Testcontainers PostgreSQL 18.4 proved exact disposable setter-shape counts, non-matching `READ WRITE`/isolation/deferrable/`SNAPSHOT` statements, full vs current-role vs non-inherited `pg_read_all_stats` visibility, non-interference (role/database defaults and control table byte-equivalent; independent `SELECT 1`); RCA quartet including existing provenance/origin ITs `BUILD SUCCESSFUL` |
-| Manual fail-closed | task listed once under diagnostics; run without the four environment variables exits non-zero before JDBC and prints only fixed variable names plus `MISSING_REQUIRED` |
-| Live contact | none — no live endpoint, Azure, GitHub Actions, Terraform, Neon setting, flag, or production data was contacted |
-| Blind spots | normalized `set_config($1,$2,$3)` cannot safely reveal target/value; statistics cannot bind a retained statement to backend PID `19916` or an actor; aggregate rows have no per-execution timestamp and cannot bind a retained call to the incident; current tracking GUCs do not prove historical values; without immediately usable all-statement visibility, a zero count covers only the current database role |
-| Next gate | senior architecture review and merge; then separate explicit approval for a single read-only live run. A positive retained shape count does not authorize a remedy and cannot be temporally bound to the incident. A global negative is not permitted unless coverage, current statement-track, current utility, current query-ID, eviction, and immediately usable visibility guards pass; those current GUCs do not prove historical configuration. Without full visibility, the only permitted negative is current-role-scoped. |
+| Manual entry point | Gradle task `:portfolio-service:specA912StatementHistoryProbe` (group `diagnostics`; not on `test`/`integrationTest`/`check`/`build`/`bootRun`/`bootJar`/image/deployment) |
+| Execution source | `main@cdf2373776ad98457f07caf63d0e426c0e2fe988` |
+| Execution date | 2026-08-29 |
+| Authorized live executions reaching JDBC | exactly one |
+| Process result | exit 1 / Gradle task failed by the collector's intentional fail-closed contract |
+| Fail-closed live verdict | `STATEMENT_HISTORY_UNAVAILABLE` |
+
+### Sanitized execution and interpretation
+
+| Field | Value | Interpretation |
+|---|---|---|
+| `incidentStart` | `2026-08-28T07:08:59Z` | enable run `33150399420` creation time; source constant, not environment input |
+| `statsReset` | `null` | not evaluated — canonicalized because `HistoryEvidence` was absent; history unavailable |
+| `coveringIncident` | `false` | not evaluated — canonicalized because `HistoryEvidence` was absent; history unavailable |
+| `dealloc` | `0` | not evaluated — canonicalized because `HistoryEvidence` was absent; history unavailable |
+| `extensionInstalled` | `false` | `pg_stat_statements` absent — statement history unavailable |
+| `extensionAccessible` | `true` | capability path itself was readable; does not mean history exists |
+| `statementTrack` | `TOP` | current tracking GUC observation only |
+| `trackUtility` | `ON` | current tracking GUC observation only |
+| `computeQueryId` | `AUTO` | current tracking GUC observation only |
+| `canReadAllStatementText` | `true` | immediately usable all-statement visibility confirmed |
+
+Because `extensionInstalled=false`, only the fixed capability catalog `SELECT` ran; the aggregate
+statement-history `SELECT` did not run. With `HistoryEvidence` absent, the collector synthesized
+`statsReset=null`, `coveringIncident=false`, and `dealloc=0`; coverage and eviction were not
+evaluated and those values are not database observations. The formatter also emitted canonical
+zeroes for all seven setter shapes. Those zeroes are sanitized output for unavailable history and
+must not be described as observed zero counts, a negative result, or proof of setter absence.
+
+| Setter shape (canonical formatter output) | Count |
+|---|---|
+| `SET_DEFAULT_TRANSACTION_READ_ONLY` | 0 |
+| `SET_SESSION_CHARACTERISTICS_READ_ONLY` | 0 |
+| `SET_TRANSACTION_READ_ONLY` | 0 |
+| `RESET_DEFAULT_TRANSACTION_READ_ONLY` | 0 |
+| `ALTER_ROLE_DEFAULT_TRANSACTION_READ_ONLY` | 0 |
+| `ALTER_DATABASE_DEFAULT_TRANSACTION_READ_ONLY` | 0 |
+| `DISCARD_ALL` | 0 |
+
+These seven zeroes are **not** database observations and cannot support any absence verdict.
+
+### Explicit non-claims (retained verbatim)
+
+```text
+RETAINED_SHAPE_NOT_TEMPORALLY_BOUND_TO_INCIDENT
+HISTORICAL_TRACKING_CONFIGURATION_NOT_PROVEN
+NORMALIZED_SET_CONFIG_TARGET_UNOBSERVABLE
+BACKEND_PID_AND_ACTOR_UNBOUND
+```
+
+No actor, PID, historical time, or setter is identified. Installing `pg_stat_statements` later
+begins a future statistics window and cannot recover statements executed before installation.
+
+### Credential resolution and preflight
+
+One credential-resolution preparation attempt stopped before the JVM/JDBC because Azure's list
+response withheld required values. It was not a live probe execution and executed zero database
+statements. The subsequent supported secret-detail path supplied the existing pooled credentials
+without printing them, and the credentials were cleared immediately after the one actual run.
+
+### Production preflight and after-check (unchanged safe state)
+
+Combined control-plane evidence. Values marked **preflight-only** were captured before the run and
+were not re-read after. Values marked **after-check** were re-verified after the run.
+
+| Item | Value | Capture |
+|---|---|---|
+| `portfolio-service` revision | `portfolio-service--0000089` | after-check |
+| Revision health | `Healthy` | preflight-only |
+| Application running status | `Running` | after-check |
+| Traffic | 100% | preflight-only |
+| Image | `sha256:d5693e29c68fd3665366fbd83586b9e8b8a266b993cdd66a761ea17d9312092a` | after-check |
+| `SERVICE_VERSION` | `9b2cf0d655b4b7ae2ce20ff7b67e4ad750df6900` | after-check |
+| `APP_DEMO_SEED_ON_STARTUP` | `false` | after-check |
+| `APP_DEMO_TX_DIAGNOSTICS` | `false` | after-check |
+| Peers | `market-data-service--0000078`, `insight-service--0000078`, `api-gateway--0000076` | preflight-only |
+| Refresh job running count | 0 | after-check |
+| Latest refresh execution | `market-data-refresh-job-29799840`, Succeeded, ended 2026-08-29T08:01:07Z | after-check |
+
+Non-interference: the executed collector path contained one fixed catalog/capability `SELECT` and
+no DML/DDL or application-table query. The after-check reconfirmed portfolio revision, image,
+`SERVICE_VERSION`, both application flags, Running state, and refresh-job state. Peer identities,
+traffic, and revision health were preflight-only and were not re-read after the run. This run did
+not collect a new production data checksum.
+
+### Next gate
+
+Senior architecture review and merge of this evidence-only reconciliation. Any production DDL to
+install `pg_stat_statements` is a separately authorized future-observability change; it cannot
+recover the 2026-08-28 incident history. Any repeat probe, diagnostic deployment, flag change,
+remedy, or controlled 9.12 retry remains separately gated. Explicit authorization must come from
+Vibhanshu/the repository owner. A GitHub Production Environment approval or Neon owner interaction,
+if required by the chosen operation, is a platform execution gate and must be named separately.
 
 Checkpoint 9.12 remains incomplete. Top-level RCA verdict remains
 `MECHANISM_REPRODUCED_SETTER_UNPROVEN`. Demo seed and diagnostics remain `false` on

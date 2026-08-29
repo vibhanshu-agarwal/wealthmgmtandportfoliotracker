@@ -17,9 +17,12 @@ live pooled/direct matrix completed with verdict `NOT_REPRODUCED_IN_MANUAL_MATRI
 writable/off/off with `source=DEFAULT` and no catalog defaults; production data, revision, and flags
 were unchanged. The top-level RCA verdict remains `MECHANISM_REPRODUCED_SETTER_UNPROVEN`; evidence
 [`docs/runbooks/SPEC_A_9_12_POOLED_READONLY_RCA.md`](../../../docs/runbooks/SPEC_A_9_12_POOLED_READONLY_RCA.md).
-The 9.12 checkbox stays open. Statement-history probe source is locally ready
-(`STATEMENT_HISTORY_PROBE_READY_LIVE_EXECUTION_UNAUTHORIZED`); live execution remains
-separately unauthorized. Checkpoints 9.13–9.14 remain pending and unauthorized; the three
+The 9.12 checkbox stays open. Statement-history probe executed once on 2026-08-29 at
+`main@cdf23737` (PR #176 merge); one authorized live run reached JDBC; `pg_stat_statements` was
+absent so history was unavailable (`STATEMENT_HISTORY_PROBE_EXECUTED_HISTORY_UNAVAILABLE` /
+`STATEMENT_HISTORY_UNAVAILABLE`); canonical zero output is not absence evidence. Next gate:
+evidence-reconciliation review/merge, followed only if separately authorized by a future-observability
+decision. Checkpoints 9.13–9.14 remain pending and unauthorized; the three
 catalog services remain at `min_replicas=1`, gateway ingress remains closed, and B1 G5 remains blocked.
 See [`docs/plans/ASSET_PICKER_E2E_MASTER_PLAN.md`](../../../docs/plans/ASSET_PICKER_E2E_MASTER_PLAN.md)
 for the living cross-program view.
@@ -861,16 +864,16 @@ python scripts/check-spec-references.py   .kiro/specs/supported-asset-integrity/
       production counts and hashes were identical; revision `0000089` and both flags remained unchanged.
       Top-level RCA verdict `MECHANISM_REPRODUCED_SETTER_UNPROVEN` — evidence
       [`docs/runbooks/SPEC_A_9_12_POOLED_READONLY_RCA.md`](../../../docs/runbooks/SPEC_A_9_12_POOLED_READONLY_RCA.md).
-      Statement-history probe source is locally ready
-      (`STATEMENT_HISTORY_PROBE_READY_LIVE_EXECUTION_UNAUTHORIZED`):
-      `SpecA912StatementHistoryProbe.java` plus unit/IT classes; Gradle task
-      `specA912StatementHistoryProbe`; two fixed read-only statements; no live endpoint contacted.
-      Next gate: senior architecture review and merge, then separate explicit approval for a single
-      read-only live run. A positive retained shape count does not authorize a remedy and cannot be
-      temporally bound to the incident. A global negative is not permitted unless coverage, current
-      statement-track, current utility, current query-ID, eviction, and immediately usable visibility
-      guards pass; those current GUCs do not prove historical configuration. Without full visibility,
-      the only permitted negative is current-role-scoped.
+      Statement-history probe source merged at PR #176 (`main@cdf23737`); one authorized live run
+      reached JDBC on 2026-08-29; `pg_stat_statements` was absent so history was unavailable
+      (`STATEMENT_HISTORY_PROBE_EXECUTED_HISTORY_UNAVAILABLE` / `STATEMENT_HISTORY_UNAVAILABLE`).
+      Canonical zero formatter output is not absence evidence. Both flags remain `false` on
+      `portfolio-service--0000089`. Next gate: senior architecture review and merge of this
+      evidence-only reconciliation, followed only if separately authorized by a future-observability
+      decision (production DDL to install `pg_stat_statements` begins a future statistics window and
+      cannot recover pre-install history; extension installation alone does not authorize a reset,
+      repeat probe, 9.12 retry, remedy, deployment, or flag change). Explicit authorization must
+      come from Vibhanshu/the repository owner, plus any separately named platform approval.
       Remedy design remains deferred until stronger historical or startup-path evidence exists.
       This checkbox must stay open until a reviewed fix is applied and authorized enable +
       restoring rollouts and live verification succeed. Does not authorize 9.13–9.14, ingress
