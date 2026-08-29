@@ -107,7 +107,10 @@ export function BrowseStep({
   return (
     <div className="flex flex-col gap-3">
       <AssetSearchBar value={search} onChange={setSearch} />
-      <div className="flex flex-col gap-2" role="list" aria-label="Assets">
+      {/* role="group", not "list" — each row is a compound control (checkbox +
+          quantity input), not a role="listitem"; "list" requires only listitem
+          children (axe aria-required-children). */}
+      <div className="flex flex-col gap-2" role="group" aria-label="Assets">
         {rows.map((row) => (
           <DraftRow
             key={row.ticker}

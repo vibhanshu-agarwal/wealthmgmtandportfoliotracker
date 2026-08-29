@@ -4,6 +4,7 @@
  */
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
+import type { PortfolioSummaryDTO } from "../../../types/portfolio";
 import { http, HttpResponse } from "msw";
 import { server } from "@/test/msw/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -21,9 +22,12 @@ vi.mock("@/lib/hooks/useAuthenticatedUserId", () => ({
 }));
 
 const mockUsePortfolio = vi.fn();
+const mockUsePortfolioSummary = vi.fn<
+  () => { data: PortfolioSummaryDTO | undefined; isLoading: boolean }
+>(() => ({ data: undefined, isLoading: false }));
 vi.mock("@/lib/hooks/usePortfolio", () => ({
   usePortfolio: () => mockUsePortfolio(),
-  usePortfolioSummary: () => ({ data: undefined, isLoading: false }),
+  usePortfolioSummary: () => mockUsePortfolioSummary(),
   usePortfolioAnalytics: () => ({ data: undefined, isLoading: false }),
 }));
 
@@ -106,5 +110,47 @@ describe("PortfolioPageContent — Asset Picker entry point", () => {
       </QueryClientProvider>,
     );
     expect(screen.getByRole("button", { name: "Edit Holdings" })).toBeInTheDocument();
+  });
+});
+
+describe("PortfolioPageContent — freshness status (Task 1.16/1.18)", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.clearAllMocks();
+  });
+
+  it("renders the freshness status from usePortfolioSummary's assetPriceFreshness", () => {
+    mockUseAuthSession.mockReturnValue(authenticatedSession);
+    mockUseAuthenticatedUserId.mockReturnValue({
+      userId: "u1",
+      token: "jwt-token",
+      status: "authenticated",
+      error: null,
+    });
+    stubPortfolio();
+    mockUsePortfolioSummary.mockReturnValue({
+      data: {
+        userId: "u1",
+        portfolioCount: 1,
+        totalHoldings: 1,
+        totalValue: 1000,
+        assetPriceFreshness: {
+          state: "STALE",
+          staleHoldings: 1,
+          unknownPriceHoldings: 0,
+          missingPriceHoldings: 0,
+        },
+      },
+      isLoading: false,
+    });
+
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <PortfolioPageContent />
+      </QueryClientProvider>,
+    );
+
+    expect(screen.getByText(/1 holding stale/i)).toBeInTheDocument();
   });
 });

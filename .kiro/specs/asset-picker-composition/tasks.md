@@ -8,6 +8,25 @@ placement, presence TTL, login self-call timeouts, and decimal-adapter deploymen
 [`docs/plans/ASSET_PICKER_E2E_MASTER_PLAN.md`](../../../docs/plans/ASSET_PICKER_E2E_MASTER_PLAN.md)
 for the living cross-program view.
 
+**Wave 1 (Tasks 1.1-1.19) and Wave 2 Tasks 2.1-2.5 — implemented but unmerged (2026-08-29).**
+Source-complete on branch `claude/b2-wave1-frontend-foundation`, base `origin/main@ed933632` (fetched
+2026-08-29), in four checkpoint commits (`fd42df7a` contract/decimal/query foundation, `dc7b6db7`
+guarded modal/draft/browse, `800af697` mocked review/save/conflict/presence, plus this checkpoint's
+freshness/accessibility/E2E/governance commit). Entirely mock-backed: no live `/api/assets`,
+`PUT /api/portfolio/holdings`, `/api/presence/demo`, or `/api/portfolio/summary` call — MSW in unit
+tests, `page.route` in the two new mocked Playwright specs
+(`tests/e2e/asset-picker.spec.ts` happy/conflict paths,
+`tests/e2e/asset-picker-disabled-by-default.spec.ts` verifying the default build). Both
+`NEXT_PUBLIC_ENABLE_ASSET_PICKER` and `NEXT_PUBLIC_ENABLE_DEMO_RESET_CONTROL` default to disabled;
+the only build that ever sets the former to `"true"` is
+`playwright.asset-picker.mocked.config.ts`'s own local `webServer`, never a workflow or deployment
+environment. **This is not a `main`-completion claim** — nothing here has been pushed, reviewed, or
+merged; the checkboxes below record source-level completion on the branch, matching the convention
+`portfolio-composition-contract/tasks.md` already uses for pre-merge branch work. Tasks 2.6-2.7 and
+Waves 3-10 remain open, per their own entries below. Next step: one senior architecture review of the
+four-commit batch (see the branch's own final handoff for evidence detail); that review may authorize
+push/PR/merge separately — source completion here does not.
+
 **Review-accounting note (Azure-first consolidation, 2026-08-22):** the long numbered-round
 narrative below is retained as provenance only. Future reviews record findings in git/PR history and
 update the owning invariant or task; they SHALL NOT append another rolling round paragraph or try to
@@ -582,7 +601,7 @@ _Requirements: Non-goals 1-4_
 Buildable and fully testable without a live backend: mock `GET /api/assets` and
 `PUT /api/portfolio/holdings` against B1's frozen response/request shapes (`design.md` D2).
 
-- [ ] **1.1 Build-time feature flags for B2's user-facing entry points — round-3 correction: these
+- [x] **1.1 Build-time feature flags for B2's user-facing entry points — round-3 correction: these
   are NOT runtime configuration, and one flag doesn't cover every B2 control.** Verified directly:
   `frontend/next.config.ts` sets `output: "export"` (a static export, no server), and
   `deploy-azure.yml`'s own `Build Next.js static export` step documents that `NEXT_PUBLIC_*` values
@@ -607,7 +626,7 @@ Buildable and fully testable without a live backend: mock `GET /api/assets` and
   `undefined`, `""`, `"false"`, `"0"`, and `"true"` explicitly for each flag, independently of the
   other flag.
   _Requirements: 1.1_
-- [ ] **1.2 Frontend portfolio-adapter prerequisite — depends on Wave 2 Task 2.1 (round-5 addition:
+- [x] **1.2 Frontend portfolio-adapter prerequisite — depends on Wave 2 Task 2.1 (round-5 addition:
   stated explicitly rather than left implicit, since round 4 attributed `quantityFidelityUnverified`
   to this task while Task 2.1 actually defines it — Wave 1 is not independently completable without
   this dependency being named).** Verified directly against current source
@@ -631,14 +650,14 @@ Buildable and fully testable without a live backend: mock `GET /api/assets` and
   gate (unlike Wave 2.7 below): a developer picking up this document implements 2.1 first, or
   alongside 1.2, before 1.5's preflight has anything to check.
   _Requirements: 4.1, 4.5; design.md D2, D5_
-- [ ] **1.3 `AssetPickerModal` shell** — WAI-ARIA Dialog pattern (role, `aria-modal`,
+- [x] **1.3 `AssetPickerModal` shell** — WAI-ARIA Dialog pattern (role, `aria-modal`,
   `aria-labelledby`, focus trap, focus return, `Escape` discard). No existing Dialog primitive to
   reuse; new component.
   _Requirements: 1.1, 1.7; design.md D1_
-- [ ] **1.4 `EditHoldingsButton`** on the Portfolio page, behind 1.1's flag, opening the modal with
+- [x] **1.4 `EditHoldingsButton`** on the Portfolio page, behind 1.1's flag, opening the modal with
   the current portfolio and version (now correctly sourced per 1.2) as initial state.
   _Requirements: 1.1_
-- [ ] **1.5 Data-integrity preflight for `quantityFidelityUnverified` — one policy, chosen
+- [x] **1.5 Data-integrity preflight for `quantityFidelityUnverified` — one policy, chosen
   explicitly: strict preflight with immutable provenance, not editable in-modal remediation
   (round-5 correction: round 4 specified both policies at once — 1.5 refused to open the modal
   whenever ANY holding was unverified, while 1.6 required a test that opens an unverified draft,
@@ -671,7 +690,7 @@ Buildable and fully testable without a live backend: mock `GET /api/assets` and
   **This is the sole enforcement point** — see 1.13 for why no separate submit-time recheck is
   needed under this policy.
   _Requirements: 8.1, 8.3; design.md D3_
-- [ ] **1.6 Draft state** — `Map<ticker, {quantity: string, meta}>`, seeded per GC.1 at open time.
+- [x] **1.6 Draft state** — `Map<ticker, {quantity: string, meta}>`, seeded per GC.1 at open time.
   **No per-row fidelity tracking is carried into the draft (round-5 simplification, reverting round
   4's addition):** under 1.5's strict-preflight policy, the modal only ever opens once every seeded
   holding has already passed the all-verified check — so every row present in an opened draft is
@@ -682,7 +701,7 @@ Buildable and fully testable without a live backend: mock `GET /api/assets` and
   all-verified source read — attempting to seed it from a read containing any unverified holding is
   1.5's own responsibility to have already refused, before this state is ever reached.
   _Requirements: 1.2, 1.2a; design.md D1_
-- [ ] **1.7 `BrowseStep`** — `AssetSearchBar` (client-side filter by ticker/name), `AssetList`
+- [x] **1.7 `BrowseStep`** — `AssetSearchBar` (client-side filter by ticker/name), `AssetList`
   (active-only for new selection; a held `Deprecated_Asset` rendered distinctly, per 2.2-2.3),
   `DraftRow` with full control semantics: native checkbox or `role="checkbox"` + live
   `aria-checked` + `aria-label`, quantity `<input>` with its own `aria-label`, and a
@@ -690,23 +709,23 @@ Buildable and fully testable without a live backend: mock `GET /api/assets` and
   reduce-or-remove-only (client-side rejection on an increase attempt, `aria-describedby`-linked
   explanation, `max` as a supplementary hint only).
   _Requirements: 2.1, 2.2, 2.3, 2.4, 1.8; design.md D1_
-- [ ] **1.8 Quantity-domain validator.** A dedicated string-domain validator wired into 1.7's
+- [x] **1.8 Quantity-domain validator.** A dedicated string-domain validator wired into 1.7's
   quantity input, enforcing B1's Quantity_Domain client-side before a value can enter the draft:
   required, strictly positive, at most 11 integer digits and 8 fractional digits, malformed decimal
   text rejected. Blocks progression/submission on failure; failure text is associated via
   `aria-describedby` on the offending input, not color alone. Table-driven component tests (valid
   boundary values at exactly 11/8 digits, one-over on each, non-numeric text, empty, zero, negative).
   _Requirements: 2.5, 1.8_
-- [ ] **1.9 Duplicate-ticker prevention in the browse UI** — selecting an already-drafted ticker
+- [x] **1.9 Duplicate-ticker prevention in the browse UI** — selecting an already-drafted ticker
   edits its existing row rather than adding a second one.
   _Requirements: 2.6_
-- [ ] **1.10 Selected-asset pricing and estimated value (mocked).** Fetches prices only for tickers
+- [x] **1.10 Selected-asset pricing and estimated value (mocked).** Fetches prices only for tickers
   currently in the draft, against a mocked `/api/market/prices?tickers=` at this stage — never the
   full browse list. Computes a display-only estimated value from price × the draft's string
   quantity, converting to a number only at this display boundary (GC.2); the underlying draft state
   and submit payload are never touched by this conversion.
   _Requirements: 3.1; design.md D3_
-- [ ] **1.11 Catalog conditional-revalidation (mocked) — no task previously owned this (round-3
+- [x] **1.11 Catalog conditional-revalidation (mocked) — no task previously owned this (round-3
   addition).** `design.md` D2 requires `GET /api/assets` to carry an `ETag` on `catalogVersion`,
   conditionally revalidated (`If-None-Match` → `304`), with **no second, persistent client-side
   cache** on top of it. Mock coverage: an initial `200` with an `ETag` header; a subsequent request
@@ -714,11 +733,11 @@ Buildable and fully testable without a live backend: mock `GET /api/assets` and
   already-held catalog on `304` rather than re-fetching or persisting a separate copy (no
   `localStorage`/`IndexedDB` involved at any point).
   _Requirements: 2.1; design.md D2_
-- [ ] **1.12 `ReviewStep`** — pure derivation `diff(initialHoldings, draftHoldings)` →
+- [x] **1.12 `ReviewStep`** — pure derivation `diff(initialHoldings, draftHoldings)` →
   added/changed/removed/unchanged, with `aria-current="step"` on the step indicator and an
   `aria-live="polite"` draft-count summary.
   _Requirements: 1.8; design.md D1_
-- [ ] **1.13 Composition-save mutation (mocked), including the full success transition, not just the
+- [x] **1.13 Composition-save mutation (mocked), including the full success transition, not just the
   data response.** The save state machine Wave 9 later rewires to a real endpoint, built and fully
   tested here first: **no submit-time fidelity recheck is needed (round-5 simplification, replacing
   round 4's per-row recheck)** — under 1.5's strict-preflight policy, the draft is populated once,
@@ -738,16 +757,16 @@ Buildable and fully testable without a live backend: mock `GET /api/assets` and
   `ConflictPanel` renders (GC.4) — this task owns producing that state, not merely reacting to a
   panel that already has it.
   _Requirements: 1.6, 1.7, 1.8, 4.1, 4.2, 4.3, 4.5, 8.3; design.md D2_
-- [ ] **1.14 `ConflictPanel`** — rendered alongside a read-only, keyboard-scrollable draft summary
+- [x] **1.14 `ConflictPanel`** — rendered alongside a read-only, keyboard-scrollable draft summary
   (`role="region"`, `aria-label`, `tabindex="0"` on the region; rows carry no individual
   `tabindex`/`role="checkbox"`/`aria-disabled`), with the two explicit exits (reload-and-start-over,
   close) per GC.4, consuming the frozen state 1.13 produces on `409`.
   _Requirements: 4.3, 4.4; design.md D1_
-- [ ] **1.15 `PresenceBanner`** — queried once on mount against a mocked presence endpoint at this
+- [x] **1.15 `PresenceBanner`** — queried once on mount against a mocked presence endpoint at this
   stage; renders the persistent advisory on `anotherSessionActive: true`, renders nothing on
   error/absence (GC.5).
   _Requirements: 6.3, 6.4, 6.5; design.md D4_
-- [ ] **1.16 Compact portfolio-level freshness status (mocked), full contract — not a
+- [x] **1.16 Compact portfolio-level freshness status (mocked), full contract — not a
   trimmed shape.** Round 1's mock (`{ state, staleHoldings }`) understated Spec A's actual response
   contract (Spec A `design.md`, the Summary response shape): `state`,
   `oldestKnownAssetPriceObservationTimestamp`, `staleHoldings`, `unknownPriceHoldings`, and
@@ -761,18 +780,18 @@ Buildable and fully testable without a live backend: mock `GET /api/assets` and
   or its absent-timestamp behavior against a narrower or differently-typed shape. This is the compact
   status itself, distinct from 1.17's drill-down popover.
   _Requirements: 3.2_
-- [ ] **1.17 `FreshnessDetailsPopover`** — anchored popover on 1.16's "Details" control (both
+- [x] **1.17 `FreshnessDetailsPopover`** — anchored popover on 1.16's "Details" control (both
   pre- and post-save), full content/keyboard contract per requirements.md 3a: per-state counts
   omitting zero rows, all-`FRESH` single line, the absent-timestamp case per 1.16's optional
   `oldestKnownAssetPriceObservationTimestamp` (property omitted, not tested as `null`),
   `aria-haspopup="dialog"` + `aria-expanded` + `aria-controls`, focus moves into the popover on open
   and returns to the button on close.
   _Requirements: 3.3, 3a; design.md D1_
-- [ ] **1.18 Post-save freshness is re-read, never assumed.** The Portfolio page re-reads
+- [x] **1.18 Post-save freshness is re-read, never assumed.** The Portfolio page re-reads
   `assetPriceFreshness` after a successful save rather than inferring a fresh state the write path
   cannot produce.
   _Requirements: 3.4_
-- [ ] **1.19 Accessibility check wired into CI** (GC.12) against the built modal.
+- [x] **1.19 Accessibility check wired into CI** (GC.12) against the built modal.
   _Requirements: 1.7, 1.8_
 
 **Live-integration dependency status:** Spec A task 8.6 is complete and
@@ -798,7 +817,7 @@ field, and one hard rule about where each may be used:
   `GET /api/portfolio`'s JSON, used nowhere outside Task 2.1's own parsing function.
 - **`AssetHoldingDTO.quantity: string`** — the domain type every other consumer sees, unchanged
   from Round 1's plan.
-- [ ] **2.1 Ingestion boundary, honest about which values are trustworthy.** Parse `WireHolding` and
+- [x] **2.1 Ingestion boundary, honest about which values are trustworthy.** Parse `WireHolding` and
   produce `AssetHoldingDTO`: a **string** wire value is preserved **verbatim**, byte-for-byte — this
   is the only case with any fidelity guarantee. A **number** wire value (today's shape, until B1
   task 4.9 ships) is converted via `String(value)` for **display compatibility only** and is never
@@ -806,7 +825,7 @@ field, and one hard rule about where each may be used:
   `quantityFidelityUnverified: true` on the domain type, so downstream code can tell the two cases
   apart without re-deriving it.
   _Requirements: 8.1_
-- [ ] **2.2 The picker's write path SHALL refuse any holding carrying
+- [x] **2.2 The picker's write path SHALL refuse any holding carrying
   `quantityFidelityUnverified: true`.** Concretely: `EditHoldingsButton` (Wave 1) stays behind its
   feature flag (Wave 1's new flag task) until B1 task 4.9 is confirmed live — the existing, read-only
   Portfolio page may keep displaying legacy-numeric-sourced values indefinitely via 2.1's
@@ -818,14 +837,14 @@ field, and one hard rule about where each may be used:
   nothing for that unrelated, always-on read path. Task 2.7 below is the actual mechanism.
   _Requirements: 8.1 (round-10 correction — this task's own body disclaims 8.3; the footer citation
   had never been updated to match, contradicting it); design.md D3_
-- [ ] **2.3 Migrate the domain type surface** (`AssetHoldingDTO`, `PortfolioResponseDTO`, and every
+- [x] **2.3 Migrate the domain type surface** (`AssetHoldingDTO`, `PortfolioResponseDTO`, and every
   other type deriving from `WireHolding`/`AssetHoldingDTO`) to carry `quantity: string`, per 2.1's
   boundary — this only ever touches the domain type, never `WireHolding` itself.
   _Requirements: 8.2_
-- [ ] **2.4 Audit every consumer of `quantity`** for direct arithmetic; convert any found to an
+- [x] **2.4 Audit every consumer of `quantity`** for direct arithmetic; convert any found to an
   explicit string→number conversion at a display boundary only (GC.2).
   _Requirements: 8.2_
-- [ ] **2.5 Draft quantity edits operate on the string representation** (append/replace digits); a
+- [x] **2.5 Draft quantity edits operate on the string representation** (append/replace digits); a
   derived numeric value is computed only for estimated-value display, never fed back into the draft
   or the submit payload.
   _Requirements: 8.4_
