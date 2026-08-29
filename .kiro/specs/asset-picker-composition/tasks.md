@@ -11,8 +11,11 @@ for the living cross-program view.
 **Wave 1 (Tasks 1.1-1.19) and Wave 2 Tasks 2.1-2.5 — implemented but unmerged (2026-08-29).**
 Source-complete on branch `claude/b2-wave1-frontend-foundation`, base `origin/main@ed933632` (fetched
 2026-08-29), in four checkpoint commits (`fd42df7a` contract/decimal/query foundation, `dc7b6db7`
-guarded modal/draft/browse, `800af697` mocked review/save/conflict/presence, plus this checkpoint's
-freshness/accessibility/E2E/governance commit). Entirely mock-backed: no live `/api/assets`,
+guarded modal/draft/browse, `800af697` mocked review/save/conflict/presence, `52478dc0`
+freshness/accessibility/E2E/governance) plus one review-fix commit (`58b8ef32`) addressing six
+defects an external review found in the batch — frozen open-time save/review baseline, blocked
+invalid-quantity submission, a decimal-precision enforcement gap at the domain's own boundary, an
+async cache-invalidation race on save success, and a presence per-open regression. Entirely mock-backed: no live `/api/assets`,
 `PUT /api/portfolio/holdings`, `/api/presence/demo`, or `/api/portfolio/summary` call — MSW in unit
 tests, `page.route` in the two new mocked Playwright specs
 (`tests/e2e/asset-picker.spec.ts` happy/conflict paths,
@@ -24,7 +27,7 @@ environment. **This is not a `main`-completion claim** — nothing here has been
 merged; the checkboxes below record source-level completion on the branch, matching the convention
 `portfolio-composition-contract/tasks.md` already uses for pre-merge branch work. Tasks 2.6-2.7 and
 Waves 3-10 remain open, per their own entries below. Next step: one senior architecture review of the
-four-commit batch (see the branch's own final handoff for evidence detail); that review may authorize
+batch (four checkpoints plus one review-fix commit; see the branch's own final handoff for evidence detail); that review may authorize
 push/PR/merge separately — source completion here does not.
 
 **Review-accounting note (Azure-first consolidation, 2026-08-22):** the long numbered-round

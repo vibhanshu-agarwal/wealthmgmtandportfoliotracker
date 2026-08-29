@@ -39,7 +39,7 @@ R-A, Wave 3 / R-B (V20), and Wave 5 Tasks 5.2–5.3 / R-B2 (G2a) are complete; c
 **5.4–5.6 merged on `main@0b5d60d1`** (PR #161, source-only; no deploy); **G5/5.7 remains blocked**
 by Spec A closed gateway ingress — see
 [`B1_G5_INGRESS_BLOCKER.md`](../runbooks/B1_G5_INGRESS_BLOCKER.md); later B1 waves remain gated.
-B2 Wave 1 (Tasks 1.1-1.19) and Wave 2 Tasks 2.1-2.5 are source-complete, entirely mock-backed, on unmerged branch `claude/b2-wave1-frontend-foundation` (base `origin/main@ed933632`, four checkpoint commits); nothing from it has reached `main`. Waves 3-10 and Wave 2 Tasks 2.6-2.7 have not started.
+B2 Wave 1 (Tasks 1.1-1.19) and Wave 2 Tasks 2.1-2.5 are source-complete, entirely mock-backed, on unmerged branch `claude/b2-wave1-frontend-foundation` (base `origin/main@ed933632`, four checkpoint commits plus one review-fix commit after an external review found six real defects, all fixed); nothing from it has reached `main`. Waves 3-10 and Wave 2 Tasks 2.6-2.7 have not started.
 
 **User-visible state:** there is no functional Asset Picker in the application today.
 
@@ -246,7 +246,7 @@ Authorities:
 - [implementation tasks](../../.kiro/specs/asset-picker-composition/tasks.md)
 - [visual mockup](../../.kiro/specs/asset-picker-composition/mockup/asset-picker-design.html)
 
-All four artifacts are tracked. No B2 implementation task is complete on `main`. Wave 1 (1.1-1.19) and Wave 2 Tasks 2.1-2.5 are source-complete, entirely mock-backed, on unmerged branch `claude/b2-wave1-frontend-foundation` (four checkpoint commits, base `origin/main@ed933632`) — see that branch's own tasks.md checkbox state and final handoff for evidence. The next gate is one senior architecture review of the four-commit batch; that review may authorize push/PR/merge separately. Source completion does not itself authorize Wave 3+, live integration, deployment, or production exposure.
+All four artifacts are tracked. No B2 implementation task is complete on `main`. Wave 1 (1.1-1.19) and Wave 2 Tasks 2.1-2.5 are source-complete, entirely mock-backed, on unmerged branch `claude/b2-wave1-frontend-foundation` (four checkpoint commits plus one review-fix commit, base `origin/main@ed933632`) — see that branch's own tasks.md checkbox state and final handoff for evidence. An external review already found and the branch fixed six real defects (frozen open-time save/review baseline, blocked invalid-quantity submission, a decimal-precision enforcement gap, an async cache-invalidation race, and a presence per-open regression); the next gate is confirming that review is satisfied, then a senior architecture review of the full batch; that review may authorize push/PR/merge separately. Source completion does not itself authorize Wave 3+, live integration, deployment, or production exposure.
 
 | Wave | Status | Dependency note |
 |---|---|---|
@@ -341,7 +341,8 @@ demo and diagnostics flags `false`. The later authorized pooled/direct matrix re
    old seed remains version-tolerant.
 3. **Frontend lane:** B2 Wave 1 (1.1-1.19) and Wave 2 Tasks 2.1-2.5 are now source-complete,
    mock-backed, on unmerged branch `claude/b2-wave1-frontend-foundation`. The next step is a
-   senior architecture review of that four-commit batch, not further Wave 1 implementation;
+   senior architecture review of that batch (four checkpoints plus one review-fix commit),
+   not further Wave 1 implementation;
    only that review may authorize push/PR/merge.
 4. **Process lane:** keep the status-propagation CI guard healthy in required `static-guard`; it is
    process-control only and does not advance the runtime baseline.
