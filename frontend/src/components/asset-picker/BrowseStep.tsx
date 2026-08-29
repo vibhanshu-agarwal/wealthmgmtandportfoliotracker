@@ -1,6 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useDraftPrices } from "@/lib/hooks/useDraftPrices";
+import { computeEstimatedValue } from "@/lib/utils/quantityDisplay";
 import type { CatalogAsset, DraftHoldings } from "@/types/assetPicker";
 import { AssetSearchBar } from "./AssetSearchBar";
 import { DraftRow } from "./DraftRow";
@@ -22,6 +24,8 @@ export interface BrowseStepProps {
    * ratchet a value back up by reducing then increasing within the same session.
    */
   initialQuantities: Map<string, string>;
+  /** For Task 1.10's selected-asset pricing — prices are fetched only for these tickers. */
+  token: string;
 }
 
 /**
@@ -33,11 +37,17 @@ export function BrowseStep({
   draft,
   onDraftChange,
   initialQuantities,
+  token,
 }: BrowseStepProps) {
   const [search, setSearch] = useState("");
   const [errorsByTicker, setErrorsByTicker] = useState<Record<string, string>>({});
 
   const rows = useMemo(() => buildBrowseRows(catalog, draft, search), [catalog, draft, search]);
+
+  // Task 1.10: prices fetched only for the draft's current tickers, never the full
+  // browse list.
+  const draftTickers = useMemo(() => Array.from(draft.keys()), [draft]);
+  const pricesQuery = useDraftPrices(draftTickers, token);
 
   function handleToggle(ticker: string) {
     if (draft.has(ticker)) {
@@ -109,6 +119,14 @@ export function BrowseStep({
             onToggle={handleToggle}
             onQuantityChange={handleQuantityChange}
             errorMessage={errorsByTicker[row.ticker]}
+            estimatedValue={
+              row.checked
+                ? computeEstimatedValue(
+                    row.quantity,
+                    pricesQuery.data?.get(row.ticker)?.currentPrice ?? null,
+                  )
+                : null
+            }
           />
         ))}
       </div>

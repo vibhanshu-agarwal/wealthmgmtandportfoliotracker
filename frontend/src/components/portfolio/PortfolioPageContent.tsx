@@ -89,7 +89,7 @@ function PortfolioPageSkeleton() {
 export function PortfolioPageContent() {
   const { data: session, isPending } = useAuthSession();
   const router = useRouter();
-  const { token } = useAuthenticatedUserId();
+  const { userId, token } = useAuthenticatedUserId();
   const { data: portfolio } = usePortfolio();
 
   useEffect(() => {
@@ -113,6 +113,7 @@ export function PortfolioPageContent() {
           <EditHoldingsButton
             holdings={portfolio.holdings}
             version={portfolio.version}
+            userId={userId}
             token={token}
           />
         </div>

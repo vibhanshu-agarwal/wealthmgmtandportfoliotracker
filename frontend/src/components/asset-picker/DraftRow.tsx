@@ -2,6 +2,7 @@
 
 import { useId } from "react";
 import { cn } from "@/lib/utils/cn";
+import { formatCurrency } from "@/lib/utils/format";
 import type { AssetLifecycleStatus } from "@/types/assetPicker";
 
 export interface DraftRowProps {
@@ -14,6 +15,11 @@ export interface DraftRowProps {
   onQuantityChange: (ticker: string, value: string) => void;
   /** Validation message to associate via `aria-describedby` — never color alone. */
   errorMessage?: string;
+  /**
+   * Display-only estimated value (Task 1.10), already computed at the GC.2 display
+   * boundary. `null` or omitted renders nothing rather than a fabricated `$0.00`.
+   */
+  estimatedValue?: number | null;
 }
 
 /**
@@ -42,6 +48,7 @@ export function DraftRow({
   onToggle,
   onQuantityChange,
   errorMessage,
+  estimatedValue,
 }: DraftRowProps) {
   const errorId = useId();
   const deprecatedHintId = useId();
@@ -95,6 +102,12 @@ export function DraftRow({
         </div>
         <p className="truncate text-xs text-muted-foreground">{name}</p>
       </div>
+
+      {estimatedValue != null && (
+        <span className="w-24 shrink-0 text-right text-sm tabular-nums text-muted-foreground">
+          {formatCurrency(estimatedValue)}
+        </span>
+      )}
 
       <input
         type="text"

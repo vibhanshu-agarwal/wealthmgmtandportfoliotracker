@@ -38,10 +38,12 @@ function renderButton(holdings: AssetHoldingDTO[]) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   server.use(
     http.get("/api/assets", () => HttpResponse.json({ catalogVersion: "v1", assets: [] })),
+    http.get("/api/market/prices", () => HttpResponse.json([])),
+    http.get("/api/presence/demo", () => HttpResponse.json({ anotherSessionActive: false })),
   );
   return render(
     <QueryClientProvider client={client}>
-      <EditHoldingsButton holdings={holdings} version={7} token="test-token" />
+      <EditHoldingsButton holdings={holdings} version={7} userId="user-001" token="test-token" />
     </QueryClientProvider>,
   );
 }
@@ -85,5 +87,42 @@ describe("EditHoldingsButton — fidelity preflight (Task 1.5)", () => {
     expect(screen.getByRole("button", { name: "Edit Holdings" })).not.toHaveAttribute(
       "aria-describedby",
     );
+  });
+});
+
+describe("EditHoldingsButton — post-save confirmation (Task 1.13)", () => {
+  it("announces success as a role=status live region after a successful save", async () => {
+    server.use(
+      http.get("/api/assets", () => HttpResponse.json({ catalogVersion: "v1", assets: [] })),
+      http.get("/api/market/prices", () => HttpResponse.json([])),
+      http.get("/api/presence/demo", () => HttpResponse.json({ anotherSessionActive: false })),
+      http.put("/api/portfolio/holdings", () =>
+        HttpResponse.json({
+          id: "p1",
+          userId: "user-001",
+          createdAt: "2026-01-01T00:00:00Z",
+          version: 8,
+          holdings: [],
+        }),
+      ),
+    );
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <EditHoldingsButton holdings={[]} version={7} userId="user-001" token="test-token" />
+      </QueryClientProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit Holdings" }));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /review changes/i })).toBeInTheDocument(),
+    );
+    fireEvent.click(screen.getByRole("button", { name: /review changes/i }));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /save changes/i })).toBeInTheDocument(),
+    );
+    fireEvent.click(screen.getByRole("button", { name: /save changes/i }));
+
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent(/saved/i));
   });
 });

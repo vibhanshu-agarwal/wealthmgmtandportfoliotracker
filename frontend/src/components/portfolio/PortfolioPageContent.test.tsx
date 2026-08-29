@@ -4,6 +4,8 @@
  */
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
+import { http, HttpResponse } from "msw";
+import { server } from "@/test/msw/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { PortfolioPageContent } from "./PortfolioPageContent";
 
@@ -51,6 +53,14 @@ function stubPortfolio() {
   });
 }
 
+function stubNetwork() {
+  server.use(
+    http.get("/api/assets", () => HttpResponse.json({ catalogVersion: "v1", assets: [] })),
+    http.get("/api/market/prices", () => HttpResponse.json([])),
+    http.get("/api/presence/demo", () => HttpResponse.json({ anotherSessionActive: false })),
+  );
+}
+
 describe("PortfolioPageContent — Asset Picker entry point", () => {
   afterEach(() => {
     vi.unstubAllEnvs();
@@ -87,6 +97,7 @@ describe("PortfolioPageContent — Asset Picker entry point", () => {
       error: null,
     });
     stubPortfolio();
+    stubNetwork();
 
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(

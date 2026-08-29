@@ -51,3 +51,18 @@ export function compareQuantityStrings(a: string, b: string): number {
   if (right === null) return -1;
   return left < right ? -1 : left > right ? 1 : 0;
 }
+
+/**
+ * B2 Task 1.10 — computes a display-only estimated value (`quantity × price`) at the
+ * GC.2 display boundary. Never fed back into draft state or a submit payload.
+ *
+ * Returns `null` — never a fabricated `0` — when the price is unavailable or the
+ * quantity is not a finite decimal, matching how the rest of the app treats an
+ * unavailable price (`@/lib/api/portfolio`'s `BackendMarketPrice.currentPrice`).
+ */
+export function computeEstimatedValue(quantity: string, price: number | null): number | null {
+  if (price === null) return null;
+  const quantityValue = quantityToDisplayNumber(quantity);
+  if (quantityValue === null) return null;
+  return quantityValue * price;
+}

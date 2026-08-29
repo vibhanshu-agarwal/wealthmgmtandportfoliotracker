@@ -9,6 +9,7 @@ import { hasUnverifiedFidelity } from "./fidelityPreflight";
 export interface EditHoldingsButtonProps {
   holdings: AssetHoldingDTO[];
   version: number;
+  userId: string;
   token: string;
 }
 
@@ -23,22 +24,28 @@ export interface EditHoldingsButtonProps {
  * `aria-describedby` so assistive technology announces it, and never relies on color
  * alone. This preflight is independent of the feature flag — a backend rollback or
  * stale environment can reintroduce unverified data regardless of flag state.
+ *
+ * Task 1.13 — after the modal closes on a successful save, this button renders the
+ * `role="status"`/`aria-live="polite"` post-save confirmation itself, since the modal
+ * that produced it has already unmounted by then.
  */
-export function EditHoldingsButton({ holdings, version, token }: EditHoldingsButtonProps) {
+export function EditHoldingsButton({ holdings, version, userId, token }: EditHoldingsButtonProps) {
   const [open, setOpen] = useState(false);
+  const [savedAnnouncement, setSavedAnnouncement] = useState<string | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const noticeId = useId();
 
   const blocked = hasUnverifiedFidelity(holdings);
 
   return (
-    <div className="flex flex-col items-start gap-1.5">
+    <div className="flex flex-col items-end gap-1.5">
       <Button
         ref={triggerRef}
         type="button"
         aria-describedby={blocked ? noticeId : undefined}
         onClick={() => {
           if (blocked) return;
+          setSavedAnnouncement(null);
           setOpen(true);
         }}
       >
@@ -50,13 +57,20 @@ export function EditHoldingsButton({ holdings, version, token }: EditHoldingsBut
           upgrade.
         </p>
       )}
+      {savedAnnouncement && (
+        <p role="status" aria-live="polite" className="text-xs text-emerald-600 dark:text-emerald-400">
+          {savedAnnouncement}
+        </p>
+      )}
       <AssetPicker
         open={open}
         onClose={() => setOpen(false)}
         initialHoldings={holdings}
         initialVersion={version}
+        userId={userId}
         token={token}
         triggerRef={triggerRef}
+        onSaveSuccess={() => setSavedAnnouncement("Holdings saved.")}
       />
     </div>
   );

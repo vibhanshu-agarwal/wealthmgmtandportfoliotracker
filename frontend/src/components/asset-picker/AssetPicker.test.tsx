@@ -3,7 +3,7 @@
  * and composes `AssetPickerModal` + `BrowseStep`. Review/Save/Conflict/Presence land in
  * Checkpoint 3.
  */
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { http, HttpResponse } from "msw";
 import { createRef, type ReactNode } from "react";
@@ -35,6 +35,10 @@ function holding(overrides: Partial<AssetHoldingDTO> = {}): AssetHoldingDTO {
 function renderPicker(props: Partial<React.ComponentProps<typeof AssetPicker>> = {}) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const triggerRef = createRef<HTMLButtonElement>();
+  server.use(
+    http.get("/api/market/prices", () => HttpResponse.json([])),
+    http.get("/api/presence/demo", () => HttpResponse.json({ anotherSessionActive: false })),
+  );
   const utils = render(
     <QueryClientProvider client={client}>
       <AssetPicker
@@ -42,6 +46,7 @@ function renderPicker(props: Partial<React.ComponentProps<typeof AssetPicker>> =
         onClose={vi.fn()}
         initialHoldings={[holding()]}
         initialVersion={7}
+        userId="user-001"
         token="test-token"
         triggerRef={triggerRef}
         {...props}
@@ -94,5 +99,144 @@ describe("AssetPicker — modal shell", () => {
     );
     renderPicker();
     await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
+  });
+});
+
+describe("AssetPicker — review, save, conflict (Checkpoint 3)", () => {
+  function stubCatalogAndPrices() {
+    server.use(
+      http.get("/api/assets", () => HttpResponse.json({ catalogVersion: "v1", assets: [] })),
+    );
+  }
+
+  it("moves from Browse to Review, then submits the full draft as one PUT with expectedVersion", async () => {
+    stubCatalogAndPrices();
+    let receivedBody: unknown = null;
+    server.use(
+      http.put("/api/portfolio/holdings", async ({ request }) => {
+        receivedBody = await request.json();
+        return HttpResponse.json({
+          id: "p1",
+          userId: "user-001",
+          createdAt: "2026-01-01T00:00:00Z",
+          version: 8,
+          holdings: [{ id: "h1", assetTicker: "AAPL", quantity: "10" }],
+        });
+      }),
+    );
+
+    const onClose = vi.fn();
+    renderPicker({ initialVersion: 7, onClose, userId: "user-001" });
+
+    await waitFor(() =>
+      expect(screen.getByRole("checkbox", { name: "Select AAPL" })).toBeInTheDocument(),
+    );
+    fireEvent.click(screen.getByRole("button", { name: /review changes/i }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /save changes/i })).toBeInTheDocument(),
+    );
+    fireEvent.click(screen.getByRole("button", { name: /save changes/i }));
+
+    await waitFor(() => expect(receivedBody).toEqual({
+      expectedVersion: 7,
+      holdings: [{ ticker: "AAPL", quantity: "10" }],
+    }));
+  });
+
+  it("on 200: closes the modal (GC.3/1.13 success transition)", async () => {
+    stubCatalogAndPrices();
+    server.use(
+      http.put("/api/portfolio/holdings", () =>
+        HttpResponse.json({
+          id: "p1",
+          userId: "user-001",
+          createdAt: "2026-01-01T00:00:00Z",
+          version: 8,
+          holdings: [],
+        }),
+      ),
+    );
+
+    const onClose = vi.fn();
+    renderPicker({ initialHoldings: [], onClose, userId: "user-001" });
+
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /review changes/i })).toBeInTheDocument(),
+    );
+    fireEvent.click(screen.getByRole("button", { name: /review changes/i }));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /save changes/i })).toBeInTheDocument(),
+    );
+    fireEvent.click(screen.getByRole("button", { name: /save changes/i }));
+
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+  });
+
+  it("on 409: enters the frozen ConflictPanel state — draft stays visible, no automatic resubmit", async () => {
+    stubCatalogAndPrices();
+    let putCount = 0;
+    server.use(
+      http.put("/api/portfolio/holdings", () => {
+        putCount += 1;
+        return HttpResponse.json(
+          { error: "portfolio_version_conflict", message: "Someone else saved a different version.", currentVersion: 9 },
+          { status: 409 },
+        );
+      }),
+    );
+
+    renderPicker({ userId: "user-001" });
+
+    await waitFor(() =>
+      expect(screen.getByRole("checkbox", { name: "Select AAPL" })).toBeInTheDocument(),
+    );
+    fireEvent.click(screen.getByRole("button", { name: /review changes/i }));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /save changes/i })).toBeInTheDocument(),
+    );
+    fireEvent.click(screen.getByRole("button", { name: /save changes/i }));
+
+    await waitFor(() =>
+      expect(screen.getByText(/someone else saved a different version/i)).toBeInTheDocument(),
+    );
+    // The draft is still visible in the conflict panel's read-only region.
+    expect(screen.getByRole("region", { name: /draft/i })).toHaveTextContent("AAPL");
+    expect(putCount).toBe(1);
+
+    // Waiting past the conflict does not trigger a second, automatic PUT.
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(putCount).toBe(1);
+  });
+
+  it("GC.6: zero GET /api/portfolio calls occur between the modal opening and the save PUT firing", async () => {
+    stubCatalogAndPrices();
+    let getPortfolioCalls = 0;
+    server.use(
+      http.get("/api/portfolio", () => {
+        getPortfolioCalls += 1;
+        return HttpResponse.json([]);
+      }),
+      http.put("/api/portfolio/holdings", () =>
+        HttpResponse.json({ id: "p1", userId: "user-001", createdAt: "2026-01-01T00:00:00Z", version: 8, holdings: [] }),
+      ),
+    );
+
+    renderPicker({ userId: "user-001" });
+
+    await waitFor(() =>
+      expect(screen.getByRole("checkbox", { name: "Select AAPL" })).toBeInTheDocument(),
+    );
+    fireEvent.click(screen.getByRole("button", { name: /review changes/i }));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /save changes/i })).toBeInTheDocument(),
+    );
+
+    // Nothing in this whole flow — catalog load, seeding, browse, review — should have
+    // triggered a GET /api/portfolio; the version came from the props passed at open.
+    expect(getPortfolioCalls).toBe(0);
+
+    fireEvent.click(screen.getByRole("button", { name: /save changes/i }));
+    await waitFor(() => expect(getPortfolioCalls).toBe(0));
   });
 });

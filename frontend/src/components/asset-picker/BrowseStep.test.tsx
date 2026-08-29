@@ -3,8 +3,11 @@
  * prevention) / requirements.md 2.4 (reduce-or-remove-only for a retained deprecated
  * position).
  */
-import { fireEvent, render, screen } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { http, HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
+import { server } from "@/test/msw/server";
 import type { CatalogAsset, DraftHoldings } from "@/types/assetPicker";
 import { BrowseStep } from "./BrowseStep";
 import { seedDraftFromHoldings } from "./draftState";
@@ -39,13 +42,20 @@ function renderBrowseStep(draft: DraftHoldings, onDraftChange = vi.fn()) {
   const initialQuantities = new Map(
     Array.from(draft.values(), (h) => [h.ticker, h.quantity] as const),
   );
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  server.use(
+    http.get("/api/market/prices", () => HttpResponse.json([])),
+  );
   render(
-    <BrowseStep
-      catalog={catalog}
-      draft={draft}
-      onDraftChange={onDraftChange}
-      initialQuantities={initialQuantities}
-    />,
+    <QueryClientProvider client={client}>
+      <BrowseStep
+        catalog={catalog}
+        draft={draft}
+        onDraftChange={onDraftChange}
+        initialQuantities={initialQuantities}
+        token="test-token"
+      />
+    </QueryClientProvider>,
   );
   return onDraftChange;
 }
@@ -135,5 +145,58 @@ describe("BrowseStep — validation", () => {
     expect(document.getElementById(describedBy!.split(" ")[0])).toHaveTextContent(
       /no longer offered/i,
     );
+  });
+});
+
+describe("BrowseStep — selected-asset pricing (Task 1.10)", () => {
+  it("shows the estimated value for a checked row when a price is available", async () => {
+    server.use(
+      http.get("/api/market/prices", () =>
+        HttpResponse.json([
+          { ticker: "AAPL", currentPrice: 100, observedAt: "2026-01-01T00:00:00Z", priceUnavailable: false },
+        ]),
+      ),
+    );
+
+    const draft = seedDraftFromHoldings([holding({ ticker: "AAPL", quantity: "10" })], catalog);
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <BrowseStep
+          catalog={catalog}
+          draft={draft}
+          onDraftChange={vi.fn()}
+          initialQuantities={new Map([["AAPL", "10"]])}
+          token="test-token"
+        />
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() => expect(screen.getByText("$1,000.00")).toBeInTheDocument());
+  });
+
+  it("does not fetch a price for an unchecked, undrafted asset", () => {
+    let requestedTickers: string | null = null;
+    server.use(
+      http.get("/api/market/prices", ({ request }) => {
+        requestedTickers = new URL(request.url).searchParams.get("tickers");
+        return HttpResponse.json([]);
+      }),
+    );
+
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <BrowseStep
+          catalog={catalog}
+          draft={new Map()}
+          onDraftChange={vi.fn()}
+          initialQuantities={new Map()}
+          token="test-token"
+        />
+      </QueryClientProvider>,
+    );
+
+    expect(requestedTickers).toBeNull();
   });
 });

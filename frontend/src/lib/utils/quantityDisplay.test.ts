@@ -4,6 +4,7 @@
 import { describe, expect, it } from "vitest";
 import {
   compareQuantityStrings,
+  computeEstimatedValue,
   formatQuantityForDisplay,
   quantityToDisplayNumber,
 } from "./quantityDisplay";
@@ -52,5 +53,20 @@ describe("compareQuantityStrings", () => {
     expect(compareQuantityStrings("abc", "1")).toBe(1);
     expect(compareQuantityStrings("1", "abc")).toBe(-1);
     expect(compareQuantityStrings("abc", "xyz")).toBe(0);
+  });
+});
+
+describe("computeEstimatedValue", () => {
+  it("multiplies a quantity string by a price at the display boundary", () => {
+    expect(computeEstimatedValue("10", 100)).toBe(1000);
+  });
+
+  it("returns null when the price is unavailable, never a fabricated 0", () => {
+    expect(computeEstimatedValue("10", null)).toBeNull();
+  });
+
+  it("returns null when the quantity is not a finite decimal", () => {
+    expect(computeEstimatedValue("", 100)).toBeNull();
+    expect(computeEstimatedValue("abc", 100)).toBeNull();
   });
 });

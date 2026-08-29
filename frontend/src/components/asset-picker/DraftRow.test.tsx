@@ -179,3 +179,37 @@ describe("DraftRow — RetainedDeprecatedRow variant", () => {
     expect(onQuantityChange).toHaveBeenCalledWith("TATAMOTORS.NS", "6");
   });
 });
+
+describe("DraftRow — estimated value (Task 1.10)", () => {
+  it("shows the estimated value when a price is available", () => {
+    render(
+      <DraftRow
+        ticker="AAPL"
+        name="Apple Inc."
+        quantity="10"
+        checked
+        lifecycleStatus="ACTIVE"
+        onToggle={vi.fn()}
+        onQuantityChange={vi.fn()}
+        estimatedValue={1000}
+      />,
+    );
+    expect(screen.getByText("$1,000.00")).toBeInTheDocument();
+  });
+
+  it("shows nothing for estimated value when the price is unavailable", () => {
+    render(
+      <DraftRow
+        ticker="AAPL"
+        name="Apple Inc."
+        quantity="10"
+        checked
+        lifecycleStatus="ACTIVE"
+        onToggle={vi.fn()}
+        onQuantityChange={vi.fn()}
+        estimatedValue={null}
+      />,
+    );
+    expect(screen.queryByText(/^\$/)).not.toBeInTheDocument();
+  });
+});
