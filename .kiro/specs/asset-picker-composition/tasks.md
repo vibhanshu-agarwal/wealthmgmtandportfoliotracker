@@ -10,12 +10,26 @@ for the living cross-program view.
 
 **Wave 1 (Tasks 1.1-1.19) and Wave 2 Tasks 2.1-2.5 — implemented but unmerged (2026-08-29).**
 Source-complete on branch `claude/b2-wave1-frontend-foundation`, base `origin/main@ed933632` (fetched
-2026-08-29), in four checkpoint commits (`fd42df7a` contract/decimal/query foundation, `dc7b6db7`
-guarded modal/draft/browse, `800af697` mocked review/save/conflict/presence, `52478dc0`
-freshness/accessibility/E2E/governance) plus one review-fix commit (`58b8ef32`) addressing six
-defects an external review found in the batch — frozen open-time save/review baseline, blocked
-invalid-quantity submission, a decimal-precision enforcement gap at the domain's own boundary, an
-async cache-invalidation race on save success, and a presence per-open regression. Entirely mock-backed: no live `/api/assets`,
+2026-08-29). Commit history:
+- `fd42df7a` contract/decimal/query foundation
+- `dc7b6db7` guarded modal/draft/browse
+- `800af697` mocked review/save/conflict/presence
+- `52478dc0` freshness/accessibility/E2E/governance
+- `58b8ef32` first review-fix round: frozen open-time save/review baseline (Critical),
+  blocked invalid-quantity submission, a decimal-precision enforcement gap at the domain's own
+  boundary, an async cache-invalidation race on save success, and a presence per-open regression
+- `1f1c5f5` merge of `origin/main` (which had advanced during review) into the branch
+- `3889e4d` status-doc reconciliation after that merge
+- `0a44d0d` second review-fix round: the first round's cache-invalidation race fix removed the
+  timing hazard but a second review pass correctly found it still didn't satisfy requirements.md
+  4.2/Task 1.13's literal requirement — replace visible state with the successful save's own
+  response body, not a subsequent read of any kind. Now uses `queryClient.setQueryData` built
+  directly from the PUT response via `buildPortfolioResponseFromWireHoldings`, proven by a
+  regression test whose PUT response deliberately differs from both the pre-save GET and the
+  submitted draft.
+- plus this status-update commit
+
+Entirely mock-backed: no live `/api/assets`,
 `PUT /api/portfolio/holdings`, `/api/presence/demo`, or `/api/portfolio/summary` call — MSW in unit
 tests, `page.route` in the two new mocked Playwright specs
 (`tests/e2e/asset-picker.spec.ts` happy/conflict paths,
@@ -27,7 +41,7 @@ environment. **This is not a `main`-completion claim** — nothing here has been
 merged; the checkboxes below record source-level completion on the branch, matching the convention
 `portfolio-composition-contract/tasks.md` already uses for pre-merge branch work. Tasks 2.6-2.7 and
 Waves 3-10 remain open, per their own entries below. Next step: one senior architecture review of the
-batch (four checkpoints plus one review-fix commit; see the branch's own final handoff for evidence detail); that review may authorize
+batch; see the branch's own final handoff and commit history above for evidence detail; that review may authorize
 push/PR/merge separately — source completion here does not.
 
 **Review-accounting note (Azure-first consolidation, 2026-08-22):** the long numbered-round
