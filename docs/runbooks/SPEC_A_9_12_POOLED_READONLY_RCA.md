@@ -113,11 +113,12 @@ distinct matrix scenarios**; the normal read-only commit path is asserted twice 
 
 ---
 
-## Source instrumentation readiness (unmerged, undeployed)
+## Source instrumentation readiness (merged, undeployed)
 
-**Branch:** `cursor/spec-a-9.12-production-setter-provenance` from `main@3d5000c2462b7dca8bc6c7328ddd7a88ea0ac0a9` (PR #171 merge).
+**Merged source:** PR #172 at `main@9fbac4d2ada2240a980d5d7c9c2bd9dedc91de01`
+(implementation commit `b51bb49a4c22a82c8ce557750b1f03ecd2cc0212`).
 
-**Verdict (local source only):** `PROVENANCE_INSTRUMENTATION_READY_SETTER_UNPROVEN`. Top-level RCA verdict remains **`MECHANISM_REPRODUCED_SETTER_UNPROVEN`**.
+**Verdict (source only):** `PROVENANCE_INSTRUMENTATION_READY_SETTER_UNPROVEN`. Top-level RCA verdict remains **`MECHANISM_REPRODUCED_SETTER_UNPROVEN`**.
 
 ### Source files
 
@@ -172,10 +173,10 @@ the **last session-state-affecting** queued setter, not merely the last setter o
 
 ### Explicit non-claims
 
-Local instrumentation readiness does **not** identify the production setter. No artifact was built,
+Source instrumentation readiness does **not** identify the production setter. No artifact was built,
 no revision deployed, and production remains on `portfolio-service--0000086` with both flags
-`false`. Next step: architecture review, then — only if separately authorized — source commit/PR
-and a gated diagnostic revision deploy.
+`false`. Architecture review and source merge are complete. Next step — only if separately
+authorized — is diagnostic artifact construction followed by a gated diagnostic revision deploy.
 
 ---
 
