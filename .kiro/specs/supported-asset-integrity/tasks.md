@@ -1,6 +1,6 @@
 # Implementation Plan
 
-**Current program status (verified 2026-08-29 at `main@0887a309`):** implementation tasks 1–7 are complete; task 8 is
+**Current program status (verified 2026-08-29 at `main@4ac26405`):** implementation tasks 1–7 are complete; task 8 is
 complete except 8.8. Cutover checkpoints 9.1–9.11 are complete. Checkpoint 9.11 applied through
 Terraform (`spec-a-9.11-enable`) on `main@e7fad7cb` and live-read back
 `MARKET_DATA_JOB_RUNNER_ENABLED=true` with an unchanged safety tuple; evidence
@@ -12,11 +12,14 @@ cycle then deployed artifact `spec-a-912-provenance-0887a309fe12-20260829` throu
 `0000087`–`0000089` and observed `FIRST_OBSERVED_ON` on `0000088` (session already on/on before first
 wrapper checkout; no attributed/unattributed off-to-on). Production is now on
 `portfolio-service--0000089` with both flags `false`. Demo portfolio remains at 3 holdings.
-Local/source RCA verdict remains `MECHANISM_REPRODUCED_SETTER_UNPROVEN`; evidence
+Connection-origin probe source merged through PR #174 (`main@4ac26405`). Its separately authorized
+live pooled/direct matrix completed with verdict `NOT_REPRODUCED_IN_MANUAL_MATRIX`: both paths were
+writable/off/off with `source=DEFAULT` and no catalog defaults; production data, revision, and flags
+were unchanged. The top-level RCA verdict remains `MECHANISM_REPRODUCED_SETTER_UNPROVEN`; evidence
 [`docs/runbooks/SPEC_A_9_12_POOLED_READONLY_RCA.md`](../../../docs/runbooks/SPEC_A_9_12_POOLED_READONLY_RCA.md).
-The 9.12 checkbox stays open. Connection-origin probe source readiness is
-`CONNECTION_ORIGIN_PROBE_READY_LIVE_EXECUTION_UNAUTHORIZED`; live probe execution remains separately
-gated. Checkpoints 9.13–9.14 remain pending and unauthorized; the three
+The 9.12 checkbox stays open. The next bounded gate is architecture review and source-only
+implementation of a fixed-output statement-history-window collector; its live execution remains
+separately unauthorized. Checkpoints 9.13–9.14 remain pending and unauthorized; the three
 catalog services remain at `min_replicas=1`, gateway ingress remains closed, and B1 G5 remains blocked.
 See [`docs/plans/ASSET_PICKER_E2E_MASTER_PLAN.md`](../../../docs/plans/ASSET_PICKER_E2E_MASTER_PLAN.md)
 for the living cross-program view.
@@ -851,12 +854,18 @@ python scripts/check-spec-references.py   .kiro/specs/supported-asset-integrity/
       revisions `0000087`–`0000089` and observed `FIRST_OBSERVED_ON` on `0000088` (session already
       on/on before first wrapper checkout; `ATTRIBUTED_OFF_TO_ON=0`, `UNATTRIBUTED_OFF_TO_ON=0`).
       Production is on `portfolio-service--0000089` with both flags `false`; demo still 3 holdings.
-      Local/source RCA verdict `MECHANISM_REPRODUCED_SETTER_UNPROVEN` — evidence
+      Connection-origin probe PR #174 merged at `main@4ac26405`; a separately authorized live run
+      completed `POOLED` then `DIRECT`, five fresh attempts each. Both paths observed JDBC writable,
+      auto-commit on, both transaction read-only GUCs off, `pg_settings` source `DEFAULT`, no current
+      catalog defaults, and no recovery. Verdict: `NOT_REPRODUCED_IN_MANUAL_MATRIX`. Before/after
+      production counts and hashes were identical; revision `0000089` and both flags remained unchanged.
+      Top-level RCA verdict `MECHANISM_REPRODUCED_SETTER_UNPROVEN` — evidence
       [`docs/runbooks/SPEC_A_9_12_POOLED_READONLY_RCA.md`](../../../docs/runbooks/SPEC_A_9_12_POOLED_READONLY_RCA.md).
-      Source readiness recorded as `CONNECTION_ORIGIN_PROBE_READY_LIVE_EXECUTION_UNAUTHORIZED` in
-      [`docs/runbooks/SPEC_A_9_12_POOLED_READONLY_RCA.md`](../../../docs/runbooks/SPEC_A_9_12_POOLED_READONLY_RCA.md).
-      Next gate: architecture review/merge, then separately authorized live probe execution.
-      Remedy design remains deferred until an upstream source is evidenced.
+      Next gate: architecture review and source-only implementation of a sanitized
+      `pg_stat_statements` reset-window statement-history collector. It must emit
+      classifications/counts only, never raw SQL or actor identity; source merge and live execution
+      are separate authorization gates.
+      Remedy design remains deferred until stronger historical or startup-path evidence exists.
       This checkbox must stay open until a reviewed fix is applied and authorized enable +
       restoring rollouts and live verification succeed. Does not authorize 9.13–9.14, ingress
       reopen, or B1 G5.
