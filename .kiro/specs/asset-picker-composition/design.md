@@ -392,14 +392,11 @@ B1 already specifies decimal-string quantities both directions (B1 Requirement 4
 write-direction mandate, 4.2 the read-direction one; pass 7 correction: previously cited as
 "4.2-4.7," omitting 4.1) and already
 designs the fix (B1 `design.md` D6, a `ToPlainStringSerializer` on `HoldingResponse.quantity`).
-**Ownership is settled; implementation is not** — verified directly against current source, not
-assumed from the task list alone: B1 task 4.9 is unchecked, and `PortfolioResponse.HoldingResponse`
-still declares `BigDecimal quantity` today (`portfolio-service/.../PortfolioResponse.java:33-36`),
-not the decimal-string wire type B1's design commits to. *(Pass 5 correction: an earlier draft said
-B1 "already implements it," which is a rollout-status claim this codebase does not yet support —
-distinct from the "B1 owns this, B2 doesn't need to ask" ownership claim, which does hold.)* There
-is nothing for B2 to ask B1 to *design* here; there is real B1 implementation work still pending
-before B2 can build against it live.
+**B1 task 4.9 is merged on `main`** — verified directly against current source, not assumed from
+the task list alone: `PortfolioResponse.HoldingResponse.quantity` is serialized as an exact decimal
+string on the wire. *(Pass 5 correction retained: an earlier draft said B1 "already implements it"
+before merge — distinct from the ownership claim, which does hold.)* The still-open B2 item is the
+frontend migration and rollout sequencing (Requirement 8.3 / Task 2.7), not B1 design work.
 
 **The real, still-open item is a frontend migration B1 has no obligation to perform**, since B1
 Requirement 10.1 forbids B1 from touching the frontend at all: `frontend/src/lib/api/portfolio.ts`
@@ -1196,20 +1193,19 @@ deploy-azure.yml --ref main -f services=api-gateway`).
 
 **Stage 1 is not a mapping widening — pass 20 correction, and a more consequential one than it looks.**
 An earlier draft of this note said Stage 1 "widens" portfolio-service's demo-reset mapping from `POST`
-to `POST`+`PUT`, describing it as if a `POST`-only endpoint already exists there. **None of it exists.**
-Verified directly: `portfolio-service` has no `DemoResetService` class and no
-`/api/internal/portfolio/demo-reset` mapping anywhere in source today — grep for both returns zero
-matches. The only existing controller under `/api/internal/portfolio` is `PortfolioSeedController`,
+to `POST`+`PUT`, describing it as if a `POST`-only endpoint already exists there. **As of
+`main@cc97a209`, Wave 4 Tasks 4.1–4.4a are implemented locally/uncommitted** on branch
+`cursor/b2-wave4-demo-reset-source` (awaiting senior architecture review — not merged, deployed, or
+routed). Before that local batch, verified directly: `portfolio-service` had no `DemoResetService`
+class and no `/api/internal/portfolio/demo-reset` mapping anywhere in source — grep for both returned
+zero matches. The only existing controller under `/api/internal/portfolio` is `PortfolioSeedController`,
 mapped solely to `POST /seed` (a different path entirely, for the E2E seeder). This document has
-actually said so consistently everywhere else, since pass 5 ("`GoldenStateTuplePreparer`,
-`HoldingReplacementService`, `TuplePreparer`, `CompositionResult`, and `RawIntent` exist nowhere in
-`portfolio-service` source today") — the rollout note alone drifted into describing an "old, `POST`-only
-portfolio-service" that was never real. **Stage 1 is therefore the full portfolio-service-side build,
-not an incremental widening:**
-1. **Prerequisite, owned by B1, not B2:** B1 Wave 4 task 4.1, `HoldingReplacementService` — the
-   `replace(userId, expectedVersion, intent, preparer)` primitive `DemoResetService` depends on.
-   Verified directly: unchecked in B1's `tasks.md` (line 581), no matching class exists. This spec
-   cannot build `DemoResetService` before this lands, regardless of anything else here.
+actually said so consistently everywhere else, since pass 5 — the rollout note alone drifted into
+describing an "old, `POST`-only portfolio-service" that was never real. **Stage 1 is therefore the
+full portfolio-service-side build, not an incremental widening:**
+1. **Prerequisite, owned by B1, not B2:** B1 Wave 4 tasks 4.1, 4.3, 4.7, 4.9, and 4.10 — all
+   **verified on `main@cc97a209`** before Wave 4 implementation (focused unit/integration tests
+   green). B2 cannot build `DemoResetService` before these land; they have.
 2. Build and deploy `DemoResetService` itself (this document, above) and a **new** internal controller
    mapping `/api/internal/portfolio/demo-reset` to **both** `POST` and `PUT` from the start — there is
    no "old" mapping to widen, so both verbs ship together, not `POST` first with `PUT` added later.

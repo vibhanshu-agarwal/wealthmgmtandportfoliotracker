@@ -1,10 +1,13 @@
 # Implementation Plan
 
-**Current program status (verified 2026-08-29 at `main@38e3d95`):** this task plan and its owning
+**Current program status (verified 2026-08-30 at `main@cc97a209`):** this task plan and its owning
 requirements/design/mockup are tracked. Wave 1 (Tasks 1.1-1.19) and Wave 2 Tasks 2.1-2.5 are merged
 source-only through PR #178, entirely mock-backed and disabled by default. Wave 3 presence source
-is architecture-approved in PR #179 but is not yet merged, deployed, or live-verified; Task 3.7
-remains open. Spec A task 8.6 is complete and the backend `assetPriceFreshness` response exists.
+Tasks 3.1–3.6 merged source-only through PR #179 at `main@cc97a209`; Task 3.7 deployment/live proof
+remains open (not deployed, not activated, not live-probed). Wave 4 Tasks 4.1–4.4a are
+**implemented locally/uncommitted** on branch `cursor/b2-wave4-demo-reset-source`, awaiting senior
+architecture review — not on `main`, not deployed, not routed, not user-visible. Spec A task 8.6 is
+complete and the backend `assetPriceFreshness` response exists.
 Four decisions remain open: idle threshold, manual-reset placement, login self-call timeouts, and
 decimal-adapter deployment sequencing. See
 [`docs/plans/ASSET_PICKER_E2E_MASTER_PLAN.md`](../../../docs/plans/ASSET_PICKER_E2E_MASTER_PLAN.md)
@@ -40,9 +43,10 @@ tests, `page.route` in the two new mocked Playwright specs
 the only build that ever sets the former to `"true"` is
 `playwright.asset-picker.mocked.config.ts`'s own local `webServer`, never a workflow or deployment
 environment. **This is a source-on-`main` claim only, not a deployment, live-integration, or
-production-exposure claim.** Tasks 2.6-2.7 remain open. Wave 3 source is separately
-architecture-approved in PR #179, while its Task 3.7 deployment/live proof and Waves 4-10 remain
-open per their own gates below.
+production-exposure claim.** Tasks 2.6-2.7 remain open. Wave 3 source merged via PR #179 at
+`main@cc97a209` (Tasks 3.1–3.6 source-only; Task 3.7 deploy/live proof open). Wave 4 Tasks
+4.1–4.4a are implemented locally/uncommitted, awaiting senior architecture review; Task 4.5 and
+Waves 5–10 remain open per their own gates below.
 
 **Review-accounting note (Azure-first consolidation, 2026-08-22):** the long numbered-round
 narrative below is retained as provenance only. Future reviews record findings in git/PR history and
@@ -143,10 +147,10 @@ Testcontainers, Playwright.
 
 **Hard external dependency, tracked but not owned here:** B2's `DemoResetService` (Wave 4) consumes
 a five-task B1 Wave 4 cluster — `HoldingReplacementService` (4.1), `GoldenStateTuplePreparer` (4.3),
-the error envelope (4.7), decimal fidelity (4.9), and `version` on `PortfolioResponse` (4.10) — all
-unchecked in `portfolio-composition-contract/tasks.md` as of this writing (Wave 4.1 below has the
-full list and why each is needed). B2 cannot build against any of them before they land, and no task
-below reopens or duplicates them.
+the error envelope (4.7), decimal fidelity (4.9), and `version` on `PortfolioResponse` (4.10). All
+five are **verified on `main@cc97a209`** (focused unit/integration tests green on the Wave 4 base);
+Wave 4.1 below records the evidence paths. B2 cannot build against any of them before they land, and
+no task below reopens or duplicates them.
 
 ## Global Constraints
 
@@ -898,12 +902,13 @@ field, and one hard rule about where each may be used:
   what would close it.
   _Requirements: 8.3_
 
-## Wave 3 — Presence (Redis-backed) · *B2-owned backend* · **architecture-approved source in PR #179 (not merged, deployed, or live-verified)**
+## Wave 3 — Presence (Redis-backed) · *B2-owned backend* · **source merged via PR #179 at `main@cc97a209`; Task 3.7 deploy/live proof open**
 
-- [ ] **3.1 Add a random `jti` claim to issued JWTs**, hashed one-way (`sha256`) as the session key
-  at the gateway.
+- [x] **3.1 Add a random `jti` claim to issued JWTs**, hashed one-way (`sha256`) as the session key
+  at the gateway. *(Merged source-only via PR #179 at `main@cc97a209`; not deployed/live-verified.)*
   _Requirements: 6.1; design.md D4_
-- [ ] **3.1a Legacy no-`jti` tokens during rollout — explicit, not left to hashing behavior.**
+- [x] **3.1a Legacy no-`jti` tokens during rollout — explicit, not left to hashing behavior.**
+  *(Merged source-only via PR #179.)*
   Verified directly: `JwtSigner.java:43` sets a one-hour expiry
   (`.expirationTime(Date.from(now.plusSeconds(3600)))`), so a rolling deploy of 3.1 leaves tokens
   issued *before* it live and authenticating demo traffic for up to an hour afterward, and none of
@@ -912,7 +917,8 @@ field, and one hard rule about where each may be used:
   `anotherSessionActive: false` — never hash a missing claim into a shared/placeholder key, which
   would either error or silently conflate every pre-rollout session into one entry.
   _Requirements: 6.1_
-- [ ] **3.2 Presence write on authenticated demo traffic, with one owned execution point.** Add a
+- [x] **3.2 Presence write on authenticated demo traffic, with one owned execution point.**
+  *(Merged source-only via PR #179.)* Add a
   `DemoPresenceService` and invoke it from `JwtAuthenticationFilter` only after Spring Security has
   supplied a validated `JwtAuthenticationToken` and the filter has extracted usable `sub` and
   `jti` claims. Do not add an independently ordered `GlobalFilter`: that would create a new
@@ -922,7 +928,8 @@ field, and one hard rule about where each may be used:
   in `design.md` D4 (not independent per-key `SETEX` entries). It is skipped per 3.1a when `jti` is
   absent/blank and for non-demo subjects.
   _Requirements: 6.2; design.md D4_
-- [ ] **3.3 `GET /api/presence/demo`** — a gateway-local `PresenceController`, authenticated by the
+- [x] **3.3 `GET /api/presence/demo`** — a gateway-local `PresenceController`, authenticated by the
+  *(Merged source-only via PR #179.)*
   existing Spring Security resource-server chain and reading its `JwtAuthenticationToken`
   directly (local controllers do not traverse Gateway `GlobalFilter`s). It is open to any
   authenticated caller (no JWT-subject restriction — unlike D5's reset endpoints). Sweeps stale members
@@ -933,13 +940,15 @@ field, and one hard rule about where each may be used:
   both remain absent. It short-circuits to
   `false` for a non-demo caller without doing Redis work, and per 3.1a for a legacy no-`jti` caller.
   _Requirements: 6.3; design.md D4_
-- [ ] **3.4 Fail-open on Redis error/unavailability** (GC.5).
+- [x] **3.4 Fail-open on Redis error/unavailability** (GC.5). *(Merged source-only via PR #179.)*
   _Requirements: 6.5_
-- [ ] **3.5 Presence is never read by, or given any effect on, the demo-reset mechanism.**
+- [x] **3.5 Presence is never read by, or given any effect on, the demo-reset mechanism.**
+  *(Merged source-only via PR #179.)*
   **Assertion:** a source check confirms no import/call from Wave 4/Wave 8's demo-reset code into
   the presence module.
   _Requirements: 6.6_
-- [ ] **3.6 Requirement 6.1's core presence tests, made explicit.** In addition to service-level
+- [x] **3.6 Requirement 6.1's core presence tests, made explicit.** *(Merged source-only via PR #179.)*
+  In addition to service-level
   Redis tests, run a real gateway-chain integration test with signed JWTs and Testcontainers Redis;
   do not inject a principal directly into the presence component and thereby bypass the ordering
   contract in 3.2. Two tabs authenticating with the
@@ -962,32 +971,33 @@ field, and one hard rule about where each may be used:
 
 **TTL decision settled (2026-08-29):** default **150 seconds** via `APP_DEMO_PRESENCE_TTL` /
 `app.demo-presence.ttl`; whole-set key expiry adds **30 seconds** for orphan cleanup only (design.md
-D4). Wave 3 backend source is architecture-approved in PR #179 — **not** merged, deployed,
-live-probed, or flagged complete. Task 3.7 STOP/GO deploy/live evidence remains a later owner action.
+D4). Wave 3 backend source merged via PR #179 at `main@cc97a209` — **not** deployed, live-probed, or
+flagged complete. Task 3.7 STOP/GO deploy/live evidence remains a later owner action.
 
-## Wave 4 — Demo-reset, portfolio-service side · *design.md D5 Stage 1*
+## Wave 4 — Demo-reset, portfolio-service side · *design.md D5 Stage 1* · **Tasks 4.1–4.4a implemented locally/uncommitted; Task 4.5 open**
 
 Purely additive and safe to verify at length: nothing yet routes real user traffic to this endpoint
 until Wave 5 ships.
 
-- [ ] **4.1 Track the full B1 Wave 4 cluster this wave consumes — not one task, five (round-2
+- [x] **4.1 Track the full B1 Wave 4 cluster this wave consumes — not one task, five (round-2
   correction: naming only 4.1 under-scoped what Task 4.4 below actually asserts; round-3 fixed this
-  heading's own count against the five items actually listed).** All unchecked in
-  `portfolio-composition-contract/tasks.md` as of this writing, verified directly — none built here,
-  all hard predecessors:
-  - **B1 4.1 `HoldingReplacementService`** — the orchestrator `DemoResetService.reset` (4.2 below)
-    calls into.
-  - **B1 4.3 `GoldenStateTuplePreparer`** — the exact preparer 4.2 below constructs with the demo's
-    fixed cost-basis anchor; without it there is no preparer type to construct.
-  - **B1 4.7 error envelope** — Task 4.4's `409 portfolio_version_conflict` assertion needs B1's
-    actual `ContractError` shape to exist, not a re-described one.
-  - **B1 4.9 decimal fidelity** — Task 4.4's "fresh `PortfolioResponse`" assertion needs
-    `HoldingResponse.quantity` actually serialized via `ToPlainStringSerializer`; today it's
-    unannotated `BigDecimal`.
-  - **B1 4.10 `version` on `PortfolioResponse`** — Task 4.4's "fresh, version-bearing response"
-    assertion has nothing to assert against without it.
+  heading's own count against the five items actually listed).** All five **verified on
+  `main@cc97a209`** before Wave 4 implementation (focused unit/integration tests green); none
+  built here, all hard predecessors:
+  - **B1 4.1 `HoldingReplacementService`** — `portfolio-service/.../HoldingReplacementService.java`;
+    `HoldingReplacementServiceTest`, `HoldingReplacementServiceIT`.
+  - **B1 4.3 `GoldenStateTuplePreparer`** — `GoldenStateTuplePreparer.java`; `GoldenStateTuplePreparerTest`.
+  - **B1 4.7 error envelope** — `ContractError.java`, `ContractErrorCode.java`,
+    `GlobalExceptionHandler.handlePortfolioVersionConflict`; `CompositionErrorContractTest`,
+    `CompositionErrorEnvelopeTest`.
+  - **B1 4.9 decimal fidelity** — `ToPlainStringSerializer` on `PortfolioResponse.HoldingResponse.quantity`;
+    `StrictDecimalFidelityTest`, `DecimalFidelityIT`, `PortfolioResponseVersionTest`.
+  - **B1 4.10 `version` on `PortfolioResponse`** — `PortfolioResponse.version` plus
+    `PortfolioService.toResponse` mapping; `PortfolioResponseVersionTest`,
+    `PortfolioServiceVersionMappingTest`.
   _Requirements: 7.2, 7.3_
-- [ ] **4.2 `DemoResetService.reset(expectedVersion)`** — calls B1's `replace(DEMO_USER_ID,
+- [x] **4.2 `DemoResetService.reset(expectedVersion)`** — *(Implemented locally/uncommitted, awaiting
+  senior architecture review.)* calls B1's `replace(DEMO_USER_ID,
   expectedVersion, intent: [], preparer: GoldenStateTuplePreparer(app.demo.cost-basis-anchor))`.
   Target is a compiled-in constant, mirroring B1's `E2E_USER_ID` pattern — never a caller-supplied
   id (GC.6-adjacent: this is the "no re-read, server-fixed target" half of D5's design).
@@ -1013,15 +1023,17 @@ until Wave 5 ships.
   every attempt regardless of outcome would make the trace-id correlation Task 8.9 depends on
   ambiguous instead of proof.
   _Requirements: 7.2, 7.3; design.md D5 (pass 22)_
-- [ ] **4.3 New internal controller** — `/api/internal/portfolio/demo-reset`, one method mapped to
+- [x] **4.3 New internal controller** — *(Implemented locally/uncommitted, awaiting senior
+  architecture review.)* `/api/internal/portfolio/demo-reset`, one method mapped to
   **both** `POST` and `PUT` from the start (there is no `POST`-only predecessor to widen), protected
   by the existing `InternalApiKeyFilter`.
   _Requirements: 7.3; design.md D5_
-- [ ] **4.4 Test 2 — a real Testcontainers integration test through the actual chain, not an MVC
+- [x] **4.4 Test 2 — a real Testcontainers integration test through the actual chain, not an MVC
   slice that can fabricate the proof (round-8 correction: an MVC-slice test can mock
   `DemoResetService` itself, return a hand-built golden-looking response, and never touch
   `HoldingReplacementService`, `GoldenStateTuplePreparer`, the catalog, or persistence at all — every
-  assertion below would still pass against a controller that does nothing real).** Spring +
+  assertion below would still pass against a controller that does nothing real).** *(Implemented
+  locally/uncommitted, awaiting senior architecture review; `DemoResetIntegrationTest` green.)* Spring +
   Testcontainers (Postgres), exercising the genuine
   `DemoResetService → HoldingReplacementService → GoldenStateTuplePreparer → Catalog_Module →
   persistence` chain end to end — **no mocking of any component in that chain; a spy on
@@ -1100,7 +1112,10 @@ until Wave 5 ships.
   issued as a real HTTP call against the random port (`TestRestTemplate`/`WebTestClient`), not via
   `MockMvc` or a direct method call on the controller/service.**
   _Requirements: 7.1, 7.3b; design.md D5 (Test 2)_
-- [ ] **4.4a One shared, independent golden-state verification oracle for every later probe.** Add
+- [x] **4.4a One shared, independent golden-state verification oracle for every later probe.**
+  *(Implemented locally/uncommitted, awaiting senior architecture review;
+  `scripts/derive_demo_golden_state.py` + `scripts/tests/test_derive_demo_golden_state.py` green.)*
+  Add
   `scripts/derive_demo_golden_state.py`, a stdlib-only test/operations tool that reads the raw active
   catalog, fixed demo UUID, and configured cost-basis anchor and independently reproduces B1's
   frozen deterministic formulas. It SHALL NOT import or invoke production Java helpers. Its

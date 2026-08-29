@@ -32,6 +32,8 @@ dependencies {
     implementation 'org.postgresql:postgresql'
 
     testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
+    testImplementation 'org.springframework.boot:spring-boot-restclient'
+    testImplementation 'org.springframework.boot:spring-boot-micrometer-tracing-test'
     testImplementation 'org.testcontainers:testcontainers-postgresql'
     testImplementation "org.wiremock.integrations:wiremock-spring-boot:${rootProject.ext.wiremockSpringBootVersion}"
     testImplementation 'org.testcontainers:testcontainers-kafka'

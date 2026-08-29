@@ -1,6 +1,6 @@
 # Asset Picker — E2E Master Plan to Production
 
-**Last verified:** 2026-08-29
+**Last verified:** 2026-08-30
 
 **Program-state code baseline (runtime):** `main@e221662b6c891639a56894289e150ee01fb537f6`.
 This is the last SHA that changed Asset Picker program runtime/application behavior (catalog,
@@ -39,7 +39,7 @@ R-A, Wave 3 / R-B (V20), and Wave 5 Tasks 5.2–5.3 / R-B2 (G2a) are complete; c
 **5.4–5.6 merged on `main@0b5d60d1`** (PR #161, source-only; no deploy); **G5/5.7 remains blocked**
 by Spec A closed gateway ingress — see
 [`B1_G5_INGRESS_BLOCKER.md`](../runbooks/B1_G5_INGRESS_BLOCKER.md); later B1 waves remain gated.
-B2 Wave 1 (Tasks 1.1-1.19) and Wave 2 Tasks 2.1-2.5 are merged source-only through PR #178 at `main@38e3d95`; they remain entirely mock-backed and disabled by default. Wave 3 presence source is architecture-approved in PR #179 but is not yet merged, deployed, or live-verified. Waves 4-10 and Wave 2 Tasks 2.6-2.7 have not started; Wave 3 Task 3.7 remains a separate owner-gated production step.
+B2 Wave 1 (Tasks 1.1-1.19) and Wave 2 Tasks 2.1-2.5 are merged source-only through PR #178 at `main@38e3d95`; they remain entirely mock-backed and disabled by default. Wave 3 presence source Tasks 3.1–3.6 merged source-only via PR #179 at `main@cc97a209`; Task 3.7 deploy/live proof remains open (not deployed, not activated, not live-probed). Wave 4 Tasks 4.1–4.4a are **implemented locally/uncommitted** on branch `cursor/b2-wave4-demo-reset-source`, awaiting senior architecture review — not on `main`, not deployed, not routed, not user-visible. Task 4.5 and Waves 5–10 remain gated; Wave 2 Tasks 2.6–2.7 remain open.
 
 **User-visible state:** there is no functional Asset Picker in the application today.
 
@@ -117,7 +117,7 @@ At every meaningful merge or live checkpoint:
 |---|---|---|---|
 | **A — Spec A catalog/data cutover** | Shared catalog, Postgres/Mongo repair, R4 rollout, enforcement, one reconciled controlled refresh, and persisted refresh enablement | **11 of 14 cutover checkpoints complete**; 9.12 enable failed and was rolled back; provenance observed `FIRST_OBSERVED_ON`; connection-origin live matrix returned `NOT_REPRODUCED_IN_MANUAL_MATRIX`; statement-history live run returned `STATEMENT_HISTORY_PROBE_EXECUTED_HISTORY_UNAVAILABLE`; production remains on `portfolio-service--0000089` with both flags `false`; RCA `MECHANISM_REPRODUCED_SETTER_UNPROVEN` at `main@cdf23737` | Senior architecture review and merge of this evidence-only reconciliation; any future `pg_stat_statements` installation, repeat probe, remedy, or 9.12 retry remains separately gated |
 | **B — B1 portfolio composition backend** | Deployment prerequisites, fixture identity migration, legacy writer retirement, Wave 2 gateway provisioning **served (R-A/G2 green)**, Wave 3 V20 **served (R-B/G3 green)**, Wave 5 version-bearing read **served (R-B2/G2a green)** | **Wave 2 / R-A complete**; **Wave 3 / R-B complete**; **Wave 5 Tasks 5.2–5.3 / R-B2 complete** (Artifact 2a on `portfolio-service--0000081` / `sha256:d544649f…`; cut `f22e2ff`); **Wave 4a–4c tasks 4.1–4.21 merged on `main@2673f40`** (PR #153; composition mechanisms unexposed; no public `PUT`); Task 5.1 merged on `main@f22e2ff` (PR #155); Tasks **5.4–5.6 merged on `main@0b5d60d1`** (PR #161, source-only); **5.7/G5 blocked by Spec A closed ingress** | Caller migration G5 (after ingress reopen or authorized private-reachability), safe desired-state writer activation, public `PUT` |
-| **C — B2 Asset Picker product** | Requirements, design, task plan, five-screen visual mockup, and Wave 1 / partial Wave 2 frontend source | Wave 1 (1.1-1.19) + Wave 2 Tasks 2.1-2.5 merged source-only on `main@38e3d95` via PR #178; entirely mock-backed and disabled by default. Wave 3 presence source is architecture-approved in PR #179, not yet merged, deployed, or live-verified | Merge Wave 3 source after required CI; Task 3.7 deployment/live proof, reset backend, live integration, and exposure remain separately gated |
+| **C — B2 Asset Picker product** | Requirements, design, task plan, five-screen visual mockup, Wave 1 / partial Wave 2 frontend source, Wave 3 presence source, Wave 4 demo-reset source (local/uncommitted) | Wave 1 (1.1-1.19) + Wave 2 Tasks 2.1-2.5 merged source-only on `main@38e3d95` via PR #178; Wave 3 Tasks 3.1–3.6 merged source-only on `main@cc97a209` via PR #179 (Task 3.7 deploy/live proof open); Wave 4 Tasks 4.1–4.4a implemented locally/uncommitted, awaiting senior review | Task 3.7 deploy/live proof; Task 4.5+ and authorized merge/deploy of Wave 4; reset gateway bundle, live integration, exposure remain separately gated |
 | **D — Demo credibility** | Canonical prices refreshed and reconciled; demo initializer exists gated off | Demo activation failed and was rolled back; demo still 3 holdings; current manual connection paths are clean while the historical startup session remains unexplained | Spec A 9.12 requires stronger historical/startup-path evidence before remedy design and re-attempting activation without touching E2E data |
 
 ### What is actually usable today
@@ -246,15 +246,15 @@ Authorities:
 - [implementation tasks](../../.kiro/specs/asset-picker-composition/tasks.md)
 - [visual mockup](../../.kiro/specs/asset-picker-composition/mockup/asset-picker-design.html)
 
-All four artifacts are tracked. Wave 1 (1.1-1.19) and Wave 2 Tasks 2.1-2.5 merged source-only on `main@38e3d95` through PR #178 after two external review rounds and regression fixes. That frontend remains entirely mock-backed and disabled by default; the merge did not authorize live endpoint wiring, deployment, or production exposure. Wave 3 presence source is architecture-approved in PR #179 with a configurable 150-second default TTL; it is not yet merged, deployed, or live-verified, and Task 3.7 remains a separate owner-gated production step.
+All four artifacts are tracked. Wave 1 (1.1-1.19) and Wave 2 Tasks 2.1-2.5 merged source-only on `main@38e3d95` through PR #178 after two external review rounds and regression fixes. That frontend remains entirely mock-backed and disabled by default; the merge did not authorize live endpoint wiring, deployment, or production exposure. Wave 3 presence source Tasks 3.1–3.6 merged source-only via PR #179 at `main@cc97a209` with a configurable 150-second default TTL; Task 3.7 deploy/live probe remains a separate owner-gated production step (not deployed, not activated, not live-probed). Wave 4 Tasks 4.1–4.4a are implemented locally/uncommitted, awaiting senior architecture review — not on `main`, not deployed, not routed.
 
 | Wave | Status | Dependency note |
 |---|---|---|
 | 1 — mock-backed picker shell | ✅ Source merged (1.1-1.19), mock-backed only; not deployed/live | Feature flags, modal, browse/draft/review/conflict UX, mocked save/freshness/presence; PR #178 / `main@38e3d95` |
 | 2 — decimal adapter | 🟡 Tasks 2.1-2.5 source merged; 2.6-2.7 not started | PR #178 / `main@38e3d95`; rollout sequencing with B1 Wave 4/5 remains an explicit open coordination decision |
-| 3 — Redis-backed presence | 🟡 Architecture-approved source in PR #179 (not merged/deployed/live) | Branch `cursor/b2-wave3-demo-presence`; default TTL **150s** via `APP_DEMO_PRESENCE_TTL`; Task 3.7 deploy/live probe remains owner-gated |
-| 4 — portfolio-service demo reset | ⬜ Blocked | Requires B1 Wave 4 tasks 4.1, 4.3, 4.7, 4.9, and 4.10 |
-| 5 — manual-reset gateway bundle | ⬜ Blocked on Wave 4 | Route, authorization filter, read-only allowlist, identity providers |
+| 3 — Redis-backed presence | 🟡 Tasks 3.1–3.6 source merged via PR #179 / `main@cc97a209`; Task 3.7 open | Default TTL **150s** via `APP_DEMO_PRESENCE_TTL`; not deployed/live-verified |
+| 4 — portfolio-service demo reset | 🟡 Tasks 4.1–4.4a implemented locally/uncommitted; Task 4.5 open | Branch `cursor/b2-wave4-demo-reset-source`; B1 prerequisites verified on `main@cc97a209`; not merged/deployed/routed |
+| 5 — manual-reset gateway bundle | ⬜ Blocked on Wave 4 merge/deploy | Route, authorization filter, read-only allowlist, identity providers |
 | 6 — manual reset frontend | ⬜ Blocked on Wave 5 and B1 5.1 | Hidden control and versioned reset call |
 | 7 — decimal rollout note | ℹ Informational | No independent release gate |
 | 8 — login-orchestrated reset | ⬜ Not started/partly blocked | Requires B1/V20/version read, open idle/timeouts, and its own deployment evidence |

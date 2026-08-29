@@ -43,6 +43,9 @@ jobs:
       - name: Master-plan status propagation contract tests
         run: python scripts/tests/test_master_plan_status_propagation.py -v
 
+      - name: B2 demo golden-state oracle contract tests
+        run: python scripts/tests/test_derive_demo_golden_state.py -v
+
   deploy-workflow-contract:
     runs-on: ubuntu-latest
     steps:
