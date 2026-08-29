@@ -18,11 +18,12 @@ independent of the runtime baseline above.
 **Program state:** Spec A checkpoints 9.1–9.11 are complete. Checkpoint 9.11 persisted
 `MARKET_DATA_JOB_RUNNER_ENABLED=true` through Terraform apply on `main@e7fad7cb` (source PR #164;
 evidence [`SPEC_A_9_11_PERSIST_REFRESH_ENABLEMENT.md`](../runbooks/SPEC_A_9_11_PERSIST_REFRESH_ENABLEMENT.md)).
-Checkpoint 9.12 source merged via PRs #167, #169, and #170; authorized enable apply ran but failed
+Checkpoint 9.12 source merged via PRs #167, #169, #170, and #172; authorized enable apply ran but failed
 to converge (startup transaction PostgreSQL read-only) and was rolled back; guarded diagnostics ran
 non-mutating and were disabled. Production is on `portfolio-service--0000086` with both demo and
-diagnostics flags `false`; demo remains at 3 holdings. Local/source RCA verdict
-`MECHANISM_REPRODUCED_SETTER_UNPROVEN` is implemented but unmerged — evidence
+diagnostics flags `false`; demo remains at 3 holdings. RCA verdict remains
+`MECHANISM_REPRODUCED_SETTER_UNPROVEN`; pooled-session setter provenance instrumentation is merged
+on `main@9fbac4d2` via PR #172 but remains undeployed — evidence
 [`SPEC_A_9_12_POOLED_READONLY_RCA.md`](../runbooks/SPEC_A_9_12_POOLED_READONLY_RCA.md). The 9.12
 checkbox remains open. Checkpoints 9.13–9.14 remain pending and unauthorized. B1 Wave 2 /
 R-A, Wave 3 / R-B (V20), and Wave 5 Tasks 5.2–5.3 / R-B2 (G2a) are complete; caller migration Tasks
@@ -104,7 +105,7 @@ At every meaningful merge or live checkpoint:
 
 | Track | Delivered | Current position | Remaining outcome |
 |---|---|---|---|
-| **A — Spec A catalog/data cutover** | Shared catalog, Postgres/Mongo repair, R4 rollout, enforcement, one reconciled controlled refresh, and persisted refresh enablement | **11 of 14 cutover checkpoints complete**; 9.12 enable failed and was rolled back; source RCA `MECHANISM_REPRODUCED_SETTER_UNPROVEN`; pooled-session provenance instrumentation `PROVENANCE_INSTRUMENTATION_READY_SETTER_UNPROVEN` on branch `cursor/spec-a-9.12-production-setter-provenance` (unmerged, undeployed) | Architecture review of diagnostic source, then — if authorized — commit/PR and gated diagnostic revision deploy to identify the live session setter; only then design/review a narrow remedy and repeat 9.12 gates |
+| **A — Spec A catalog/data cutover** | Shared catalog, Postgres/Mongo repair, R4 rollout, enforcement, one reconciled controlled refresh, and persisted refresh enablement | **11 of 14 cutover checkpoints complete**; 9.12 enable failed and was rolled back; source RCA `MECHANISM_REPRODUCED_SETTER_UNPROVEN`; pooled-session provenance instrumentation `PROVENANCE_INSTRUMENTATION_READY_SETTER_UNPROVEN` merged on `main@9fbac4d2` via PR #172 (undeployed) | If authorized, build and deploy a gated diagnostic revision to identify the live session setter; only then design/review a narrow remedy and repeat 9.12 gates |
 | **B — B1 portfolio composition backend** | Deployment prerequisites, fixture identity migration, legacy writer retirement, Wave 2 gateway provisioning **served (R-A/G2 green)**, Wave 3 V20 **served (R-B/G3 green)**, Wave 5 version-bearing read **served (R-B2/G2a green)** | **Wave 2 / R-A complete**; **Wave 3 / R-B complete**; **Wave 5 Tasks 5.2–5.3 / R-B2 complete** (Artifact 2a on `portfolio-service--0000081` / `sha256:d544649f…`; cut `f22e2ff`); **Wave 4a–4c tasks 4.1–4.21 merged on `main@2673f40`** (PR #153; composition mechanisms unexposed; no public `PUT`); Task 5.1 merged on `main@f22e2ff` (PR #155); Tasks **5.4–5.6 merged on `main@0b5d60d1`** (PR #161, source-only); **5.7/G5 blocked by Spec A closed ingress** | Caller migration G5 (after ingress reopen or authorized private-reachability), safe desired-state writer activation, public `PUT` |
 | **C — B2 Asset Picker product** | Requirements, design, task plan, and five-screen visual mockup | **No implementation wave complete** | Picker UI, decimal adapter, presence/reset support, live integration, exposure |
 | **D — Demo credibility** | Canonical prices refreshed and reconciled; demo initializer exists gated off | Demo activation failed and was rolled back; demo still 3 holdings | Spec A 9.12 requires setter identification via continued provenance investigation before remedy design and re-attempting activation without touching E2E data |
@@ -140,7 +141,7 @@ Authority: [`.kiro/specs/supported-asset-integrity/tasks.md`](../../.kiro/specs/
 | 9.9 | ✅ Complete | Catalog enforcement enabled; three services held at `min_replicas=1` |
 | 9.10 | ✅ Complete | One controlled refresh succeeded and was reconciled across Kafka, Mongo, and Postgres |
 | 9.11 | ✅ Complete | Persisted `MARKET_DATA_JOB_RUNNER_ENABLED=true` via Terraform; live read-back and standard no-op plan green ([`SPEC_A_9_11_PERSIST_REFRESH_ENABLEMENT.md`](../runbooks/SPEC_A_9_11_PERSIST_REFRESH_ENABLEMENT.md)) |
-| 9.12 | ⏸ Enable failed; rolled back (`portfolio-service--0000086`) | Source merged; enable apply hit PostgreSQL read-only startup transaction; diagnostics cycle complete; RCA `MECHANISM_REPRODUCED_SETTER_UNPROVEN`; setter provenance instrumentation ready on branch `cursor/spec-a-9.12-production-setter-provenance` (unmerged, undeployed; `PROVENANCE_INSTRUMENTATION_READY_SETTER_UNPROVEN`) | Architecture review, then authorized source PR + gated diagnostic deploy to identify live setter before remedy design |
+| 9.12 | ⏸ Enable failed; rolled back (`portfolio-service--0000086`) | Source merged; enable apply hit PostgreSQL read-only startup transaction; diagnostics cycle complete; RCA `MECHANISM_REPRODUCED_SETTER_UNPROVEN`; setter provenance instrumentation merged on `main@9fbac4d2` via PR #172 (undeployed; `PROVENANCE_INSTRUMENTATION_READY_SETTER_UNPROVEN`) | Separately authorized diagnostic artifact and gated deploy to identify the live setter before remedy design |
 | 9.13 | ⏸ Pending | Restore `min_replicas=0` and verify configuration-level state |
 | 9.14 | ⏸ Pending | Reopen ingress after 9.11–9.13 are green |
 
@@ -202,8 +203,8 @@ substitute for an authorized Artifact cut.**
 
 | Item | Current state | Required before relying on it |
 |---|---|---|
-| Checkpoint 9.11 | **Complete** — apply run [33091163222](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33091163222); live runner `true`; standard no-op [33093260896](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33093260896); evidence [`SPEC_A_9_11_PERSIST_REFRESH_ENABLEMENT.md`](../runbooks/SPEC_A_9_11_PERSIST_REFRESH_ENABLEMENT.md) | 9.12 source merged; production fix requires separate architecture review |
-| 9.12 enable / rollback | **Failed and rolled back** — enable [33150399420](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33150399420); rollback [33151372186](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33151372186); diagnostics cycle complete on `portfolio-service--0000086`; RCA [`SPEC_A_9_12_POOLED_READONLY_RCA.md`](../runbooks/SPEC_A_9_12_POOLED_READONLY_RCA.md); setter provenance source on branch `cursor/spec-a-9.12-production-setter-provenance` (`PROVENANCE_INSTRUMENTATION_READY_SETTER_UNPROVEN`, unmerged) | Architecture review of diagnostic source; then — if authorized — commit/PR and gated diagnostic revision deploy to identify live setter; remedy design remains separate |
+| Checkpoint 9.11 | **Complete** — apply run [33091163222](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33091163222); live runner `true`; standard no-op [33093260896](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33093260896); evidence [`SPEC_A_9_11_PERSIST_REFRESH_ENABLEMENT.md`](../runbooks/SPEC_A_9_11_PERSIST_REFRESH_ENABLEMENT.md) | 9.12 provenance source is merged; diagnostic deployment and any later remedy remain separately gated |
+| 9.12 enable / rollback | **Failed and rolled back** — enable [33150399420](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33150399420); rollback [33151372186](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33151372186); diagnostics cycle complete on `portfolio-service--0000086`; RCA [`SPEC_A_9_12_POOLED_READONLY_RCA.md`](../runbooks/SPEC_A_9_12_POOLED_READONLY_RCA.md); setter provenance source merged on `main@9fbac4d2` via PR #172 (`PROVENANCE_INSTRUMENTATION_READY_SETTER_UNPROVEN`, undeployed) | If authorized, build the diagnostic artifact and perform a gated diagnostic revision deploy to identify the live setter; remedy design remains separate |
 
 ### Active B1 work
 
@@ -294,8 +295,9 @@ need to be serialized. Production transitions retain their individual approval g
 
 Spec A 9.11 is the last completed production checkpoint. Checkpoint 9.12 enable apply **ran and was
 rolled back** after a PostgreSQL read-only startup transaction. Production is safe on
-`portfolio-service--0000086` with both demo and diagnostics flags `false`. Local/source RCA verdict
-`MECHANISM_REPRODUCED_SETTER_UNPROVEN` is implemented but unmerged. Before re-attempting 9.12:
+`portfolio-service--0000086` with both demo and diagnostics flags `false`. RCA verdict
+`MECHANISM_REPRODUCED_SETTER_UNPROVEN` remains; pooled-session provenance source is merged on
+`main@9fbac4d2` via PR #172 but undeployed. Before re-attempting 9.12:
 
 - the production session setter remains unidentified; continued production-shaped provenance
   investigation is required before any remedy design;
@@ -307,7 +309,8 @@ rolled back** after a PostgreSQL read-only startup transaction. Production is sa
 
 ### Next choices
 
-1. **Operational lane:** continue production-shaped provenance investigation to identify who sets
+1. **Operational lane:** if separately authorized, build the diagnostic-capable artifact from
+   `main@9fbac4d2` and perform the gated provenance deployment to identify who sets
    `default_transaction_read_only=on` on the pooled Neon session at startup; only then design and
    review a narrow remedy with explicit blast-radius analysis, and separately authorize a repeat of
    the 9.12 enable + restoring rollouts and live verification gates. Continue 9.13–9.14 only after
