@@ -48,3 +48,11 @@ tasks.register('specA912ConnectionOriginProbe', JavaExec) {
     classpath = sourceSets.test.runtimeClasspath
     mainClass = 'com.wealth.portfolio.seed.rca.SpecA912ConnectionOriginProbe'
 }
+
+tasks.register('specA912StatementHistoryProbe', JavaExec) {
+    description = 'Manual, separately authorized, read-only Spec A 9.12 statement-history probe'
+    group = 'diagnostics'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.wealth.portfolio.seed.rca.SpecA912StatementHistoryProbe'
+}

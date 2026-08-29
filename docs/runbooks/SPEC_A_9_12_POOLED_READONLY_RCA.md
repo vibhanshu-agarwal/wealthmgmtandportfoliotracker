@@ -243,20 +243,19 @@ historical `FIRST_OBSERVED_ON` session or prove that the startup failure is fixe
 
 ## Recommended next architecture question
 
-The fresh manual connection matrix is clean while the historical startup capture was not. The next
-bounded question is therefore historical: did PostgreSQL statement statistics retain any known
-read-only setter shape in statistics whose reset boundary covers the incident? Architecture review
-should first define a
-source-only, fixed-output collector over `pg_stat_statements`, `pg_stat_statements_info`, and the
-relevant tracking settings. The aggregate has no per-execution timestamp, so a retained count cannot
+The fresh manual connection matrix is clean while the historical startup capture was not. The
+bounded historical question is whether PostgreSQL statement statistics retained any known
+read-only setter shape in statistics whose reset boundary covers the incident. Source for that
+collector is locally ready (`STATEMENT_HISTORY_PROBE_READY_LIVE_EXECUTION_UNAUTHORIZED`); senior
+architecture review and merge remain the next gate, followed by separate explicit approval for a
+single read-only live run. The aggregate has no per-execution timestamp, so a retained count cannot
 be bound to the incident. Current tracking settings are capability observations, not proof of their
 historical values. Absence is meaningful only when the statistics reset predates the incident, current
 statement tracking is `top`/`all`, utility tracking is `on`, query-ID calculation is `auto`/`on`, no
 entry eviction occurred, and statement-text visibility is immediately usable and explicitly scoped;
 without usable `pg_read_all_stats`/superuser visibility, a negative can cover only the current database
 role. Raw query text, actor identity, and arbitrary statement search are forbidden.
-Source implementation and any later live execution are separate gates. Do not design or apply a remedy
-from the clean manual matrix alone.
+Do not design or apply a remedy from the clean manual matrix or from a retained count alone.
 
 ---
 
@@ -277,8 +276,34 @@ from the clean manual matrix alone.
 | Non-interference | before/after counts and MD5 snapshots were identical: demo `1/3`, E2E `1/159`, portfolios `10` / `1b78e7b91ec736f6c5bce8c2a67a1b6f`, holdings `162` / `9dceb19f517f9aaf81ceeee4280375a1`, prices `160` / `d9a2fe2cb7b35ae0cc4d12ffd86c2476`, history `15648` / `fcf2f26a926e17d14c1a5b41e758d43d` |
 | Production after-check | `portfolio-service--0000089` Healthy/Running on digest `sha256:d5693e29c68fd3665366fbd83586b9e8b8a266b993cdd66a761ea17d9312092a`; demo seed `false`; diagnostics `false`; no refresh execution running |
 | Architectural meaning | no current persistent role/database default, client-startup default, or manual pooled/direct divergence was evidenced; the historical production startup session remains unexplained |
-| Next gate | architecture review and source-only implementation of the bounded statement-history-window collector; live execution remains separately unauthorized |
+| Next gate | senior architecture review and merge of the statement-history collector; live execution remains separately unauthorized |
 
 Checkpoint 9.12 remains incomplete. Top-level RCA verdict remains
 `MECHANISM_REPRODUCED_SETTER_UNPROVEN`; the clean manual matrix narrows the search but neither proves a
 setter nor authorizes a remedy.
+
+---
+
+## Statement-history probe source readiness
+
+**`STATEMENT_HISTORY_PROBE_READY_LIVE_EXECUTION_UNAUTHORIZED`**
+
+| Item | Value |
+|---|---|
+| Executable | `portfolio-service/src/test/java/com/wealth/portfolio/seed/rca/SpecA912StatementHistoryProbe.java` |
+| Unit tests | `SpecA912StatementHistoryProbeTest.java` |
+| Integration tests | `SpecA912StatementHistoryProbeIT.java` (`@Tag("integration")`, disposable PostgreSQL 18.4) |
+| Manual entry point | Gradle task `specA912StatementHistoryProbe` (group `diagnostics`; not on `test`/`integrationTest`/`check`/`build`/`bootRun`/`bootJar`/image/deployment) |
+| Incident instant | `2026-08-28T07:08:59Z` (enable run `33150399420` creation time; source constant, not environment input) |
+| Allow-list | exactly two fixed read-only `SELECT`s: capability (`pg_extension` + current tracking GUCs + immediately usable all-statement visibility) then, only when available, aggregate `pg_stat_statements` / `pg_stat_statements_info` shape counts |
+| Output boundary | fixed keys, timestamps, booleans, non-negative counts, and enums only; no `pg_stat_statements.query` text, user/role identifiers, URLs, credentials, exception messages, or stack traces |
+| Local verification | focused unit tests `BUILD SUCCESSFUL`; Testcontainers PostgreSQL 18.4 proved exact disposable setter-shape counts, non-matching `READ WRITE`/isolation/deferrable/`SNAPSHOT` statements, full vs current-role vs non-inherited `pg_read_all_stats` visibility, non-interference (role/database defaults and control table byte-equivalent; independent `SELECT 1`); RCA quartet including existing provenance/origin ITs `BUILD SUCCESSFUL` |
+| Manual fail-closed | task listed once under diagnostics; run without the four environment variables exits non-zero before JDBC and prints only fixed variable names plus `MISSING_REQUIRED` |
+| Live contact | none — no live endpoint, Azure, GitHub Actions, Terraform, Neon setting, flag, or production data was contacted |
+| Blind spots | normalized `set_config($1,$2,$3)` cannot safely reveal target/value; statistics cannot bind a retained statement to backend PID `19916` or an actor; aggregate rows have no per-execution timestamp and cannot bind a retained call to the incident; current tracking GUCs do not prove historical values; without immediately usable all-statement visibility, a zero count covers only the current database role |
+| Next gate | senior architecture review and merge; then separate explicit approval for a single read-only live run. A positive retained shape count does not authorize a remedy and cannot be temporally bound to the incident. A global negative is not permitted unless coverage, current statement-track, current utility, current query-ID, eviction, and immediately usable visibility guards pass; those current GUCs do not prove historical configuration. Without full visibility, the only permitted negative is current-role-scoped. |
+
+Checkpoint 9.12 remains incomplete. Top-level RCA verdict remains
+`MECHANISM_REPRODUCED_SETTER_UNPROVEN`. Demo seed and diagnostics remain `false` on
+`portfolio-service--0000089`. Live connection-origin verdict remains
+`NOT_REPRODUCED_IN_MANUAL_MATRIX`.

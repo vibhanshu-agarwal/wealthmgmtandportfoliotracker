@@ -17,8 +17,8 @@ live pooled/direct matrix completed with verdict `NOT_REPRODUCED_IN_MANUAL_MATRI
 writable/off/off with `source=DEFAULT` and no catalog defaults; production data, revision, and flags
 were unchanged. The top-level RCA verdict remains `MECHANISM_REPRODUCED_SETTER_UNPROVEN`; evidence
 [`docs/runbooks/SPEC_A_9_12_POOLED_READONLY_RCA.md`](../../../docs/runbooks/SPEC_A_9_12_POOLED_READONLY_RCA.md).
-The 9.12 checkbox stays open. The next bounded gate is architecture review and source-only
-implementation of a fixed-output statement-history-window collector; its live execution remains
+The 9.12 checkbox stays open. Statement-history probe source is locally ready
+(`STATEMENT_HISTORY_PROBE_READY_LIVE_EXECUTION_UNAUTHORIZED`); live execution remains
 separately unauthorized. Checkpoints 9.13–9.14 remain pending and unauthorized; the three
 catalog services remain at `min_replicas=1`, gateway ingress remains closed, and B1 G5 remains blocked.
 See [`docs/plans/ASSET_PICKER_E2E_MASTER_PLAN.md`](../../../docs/plans/ASSET_PICKER_E2E_MASTER_PLAN.md)
@@ -861,10 +861,16 @@ python scripts/check-spec-references.py   .kiro/specs/supported-asset-integrity/
       production counts and hashes were identical; revision `0000089` and both flags remained unchanged.
       Top-level RCA verdict `MECHANISM_REPRODUCED_SETTER_UNPROVEN` — evidence
       [`docs/runbooks/SPEC_A_9_12_POOLED_READONLY_RCA.md`](../../../docs/runbooks/SPEC_A_9_12_POOLED_READONLY_RCA.md).
-      Next gate: architecture review and source-only implementation of a sanitized
-      `pg_stat_statements` reset-window statement-history collector. It must emit
-      classifications/counts only, never raw SQL or actor identity; source merge and live execution
-      are separate authorization gates.
+      Statement-history probe source is locally ready
+      (`STATEMENT_HISTORY_PROBE_READY_LIVE_EXECUTION_UNAUTHORIZED`):
+      `SpecA912StatementHistoryProbe.java` plus unit/IT classes; Gradle task
+      `specA912StatementHistoryProbe`; two fixed read-only statements; no live endpoint contacted.
+      Next gate: senior architecture review and merge, then separate explicit approval for a single
+      read-only live run. A positive retained shape count does not authorize a remedy and cannot be
+      temporally bound to the incident. A global negative is not permitted unless coverage, current
+      statement-track, current utility, current query-ID, eviction, and immediately usable visibility
+      guards pass; those current GUCs do not prove historical configuration. Without full visibility,
+      the only permitted negative is current-role-scoped.
       Remedy design remains deferred until stronger historical or startup-path evidence exists.
       This checkbox must stay open until a reviewed fix is applied and authorized enable +
       restoring rollouts and live verification succeed. Does not authorize 9.13–9.14, ingress
