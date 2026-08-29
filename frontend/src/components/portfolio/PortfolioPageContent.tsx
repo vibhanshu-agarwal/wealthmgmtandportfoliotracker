@@ -9,6 +9,10 @@ import { AllocationChart } from "@/components/charts/AllocationChart";
 import { HoldingsTable } from "@/components/portfolio/HoldingsTable";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { EditHoldingsButton } from "@/components/asset-picker/EditHoldingsButton";
+import { isAssetPickerEnabled } from "@/lib/config/assetPickerFeatures";
+import { useAuthenticatedUserId } from "@/lib/hooks/useAuthenticatedUserId";
+import { usePortfolio } from "@/lib/hooks/usePortfolio";
 
 // ── Loading skeleton that mirrors the portfolio page layout ───────────────────
 
@@ -85,6 +89,8 @@ function PortfolioPageSkeleton() {
 export function PortfolioPageContent() {
   const { data: session, isPending } = useAuthSession();
   const router = useRouter();
+  const { token } = useAuthenticatedUserId();
+  const { data: portfolio } = usePortfolio();
 
   useEffect(() => {
     if (!isPending && !session) {
@@ -102,6 +108,16 @@ export function PortfolioPageContent() {
 
   return (
     <>
+      {isAssetPickerEnabled() && portfolio && (
+        <div className="flex justify-end">
+          <EditHoldingsButton
+            holdings={portfolio.holdings}
+            version={portfolio.version}
+            token={token}
+          />
+        </div>
+      )}
+
       {/* ── Row 1: Summary cards ── */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <SummaryCards />
