@@ -81,9 +81,17 @@ def load_catalog(path: Path) -> list[dict[str, Any]]:
     return catalog
 
 
+def canonical_catalog_bytes(data: bytes) -> bytes:
+    """Normalize catalog bytes to LF so digest is stable across checkout line endings."""
+    return data.replace(b"\r\n", b"\n").replace(b"\r", b"\n")
+
+
+def catalog_digest_from_bytes(data: bytes) -> str:
+    return hashlib.sha256(canonical_catalog_bytes(data)).hexdigest().upper()
+
+
 def catalog_digest(path: Path) -> str:
-    data = path.read_bytes()
-    return hashlib.sha256(data).hexdigest().upper()
+    return catalog_digest_from_bytes(path.read_bytes())
 
 
 def derive_golden_state(

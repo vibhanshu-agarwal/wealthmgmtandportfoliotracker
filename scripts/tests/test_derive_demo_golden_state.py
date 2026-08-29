@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 import subprocess
 import sys
@@ -16,13 +15,15 @@ SCRIPT = REPO / "scripts" / "derive_demo_golden_state.py"
 CATALOG = REPO / "config" / "seed-tickers.json"
 sys.path.insert(0, str(REPO / "scripts"))
 
-EXPECTED_CATALOG_SHA256 = "3F2EC8598DFF138E979A7EC500A1D04F7A7988002DCE8DDE79D4498C9828A306"
+EXPECTED_CATALOG_SHA256 = (
+    "CFA5E6B7317E922C07452359B851E55EE0A2A5AE9014224665244F9C2264DE8B"
+)
 EXPECTED_TOTAL_ENTRIES = 160
 EXPECTED_ACTIVE_ENTRIES = 159
 DEMO_USER_ID = "00000000-0000-0000-0000-0000000d3110"
 ANCHOR = "2020-01-01T00:00:00Z"
 
-# Independently reviewed fixed vectors for catalog digest 3F2EC859… at anchor 2020-01-01T00:00:00Z.
+# Independently reviewed fixed vectors for catalog digest CFA5E6B7… at anchor 2020-01-01T00:00:00Z.
 # Must not be derived from run_oracle() in the test body.
 REVIEWED_REPRESENTATIVE_VECTORS = {
     "AAPL": {
@@ -110,8 +111,9 @@ class DeriveDemoGoldenStateTest(unittest.TestCase):
             derive_golden_state(CATALOG, demo_user_id="00000000-0000-0000-0000-000000000001")
 
     def test_catalog_digest_and_counts_pinned(self) -> None:
-        digest = hashlib.sha256(CATALOG.read_bytes()).hexdigest().upper()
-        self.assertEqual(digest, EXPECTED_CATALOG_SHA256)
+        from derive_demo_golden_state import catalog_digest
+
+        self.assertEqual(catalog_digest(CATALOG), EXPECTED_CATALOG_SHA256)
         catalog = json.loads(CATALOG.read_text(encoding="utf-8"))
         self.assertEqual(len(catalog), EXPECTED_TOTAL_ENTRIES)
 
@@ -119,6 +121,17 @@ class DeriveDemoGoldenStateTest(unittest.TestCase):
         self.assertEqual(document["metadata"]["catalogSha256"], EXPECTED_CATALOG_SHA256)
         self.assertEqual(document["metadata"]["catalogTotalEntries"], EXPECTED_TOTAL_ENTRIES)
         self.assertEqual(document["metadata"]["activeEntryCount"], EXPECTED_ACTIVE_ENTRIES)
+
+    def test_catalog_digest_normalizes_lf_and_crlf_equivalently(self) -> None:
+        from derive_demo_golden_state import catalog_digest_from_bytes
+
+        raw = CATALOG.read_bytes()
+        lf_bytes = raw.replace(b"\r\n", b"\n").replace(b"\r", b"\n")
+        crlf_bytes = lf_bytes.replace(b"\n", b"\r\n")
+        self.assertEqual(
+            catalog_digest_from_bytes(lf_bytes), catalog_digest_from_bytes(crlf_bytes)
+        )
+        self.assertEqual(catalog_digest_from_bytes(lf_bytes), EXPECTED_CATALOG_SHA256)
 
     def test_stable_canonical_output(self) -> None:
         first = subprocess.run(
