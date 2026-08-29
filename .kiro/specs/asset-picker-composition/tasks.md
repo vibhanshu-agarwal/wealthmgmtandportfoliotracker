@@ -1,16 +1,18 @@
 # Implementation Plan
 
-**Current program status (verified 2026-08-24 at `main@e221662`):** this task plan and its owning
-requirements/design/mockup are tracked, but no B2 implementation task is complete on `main`.
-Spec A task 8.6 is now complete and the backend `assetPriceFreshness` response exists; B2 still owns
-the frontend adapter and UI wiring. Five decisions remain open: idle threshold, manual-reset
-placement, presence TTL, login self-call timeouts, and decimal-adapter deployment sequencing. See
+**Current program status (verified 2026-08-29 at `main@38e3d95`):** this task plan and its owning
+requirements/design/mockup are tracked. Wave 1 (Tasks 1.1-1.19) and Wave 2 Tasks 2.1-2.5 are merged
+source-only through PR #178, entirely mock-backed and disabled by default. Wave 3 presence source
+is architecture-approved in PR #179 but is not yet merged, deployed, or live-verified; Task 3.7
+remains open. Spec A task 8.6 is complete and the backend `assetPriceFreshness` response exists.
+Four decisions remain open: idle threshold, manual-reset placement, login self-call timeouts, and
+decimal-adapter deployment sequencing. See
 [`docs/plans/ASSET_PICKER_E2E_MASTER_PLAN.md`](../../../docs/plans/ASSET_PICKER_E2E_MASTER_PLAN.md)
 for the living cross-program view.
 
-**Wave 1 (Tasks 1.1-1.19) and Wave 2 Tasks 2.1-2.5 — implemented but unmerged (2026-08-29).**
-Source-complete on branch `claude/b2-wave1-frontend-foundation`, base `origin/main@ed933632` (fetched
-2026-08-29). Commit history:
+**Wave 1 (Tasks 1.1-1.19) and Wave 2 Tasks 2.1-2.5 — merged source-only (2026-08-29).**
+Merged through PR #178 at `main@38e3d95`; the implementation branch was
+`claude/b2-wave1-frontend-foundation`, originally based on `origin/main@ed933632`. Commit history:
 - `fd42df7a` contract/decimal/query foundation
 - `dc7b6db7` guarded modal/draft/browse
 - `800af697` mocked review/save/conflict/presence
@@ -27,7 +29,7 @@ Source-complete on branch `claude/b2-wave1-frontend-foundation`, base `origin/ma
   directly from the PUT response via `buildPortfolioResponseFromWireHoldings`, proven by a
   regression test whose PUT response deliberately differs from both the pre-save GET and the
   submitted draft.
-- plus this status-update commit
+- `fad5c96` final governance reconciliation; merged through PR #178 at `main@38e3d95`
 
 Entirely mock-backed: no live `/api/assets`,
 `PUT /api/portfolio/holdings`, `/api/presence/demo`, or `/api/portfolio/summary` call — MSW in unit
@@ -37,12 +39,10 @@ tests, `page.route` in the two new mocked Playwright specs
 `NEXT_PUBLIC_ENABLE_ASSET_PICKER` and `NEXT_PUBLIC_ENABLE_DEMO_RESET_CONTROL` default to disabled;
 the only build that ever sets the former to `"true"` is
 `playwright.asset-picker.mocked.config.ts`'s own local `webServer`, never a workflow or deployment
-environment. **This is not a `main`-completion claim** — nothing here has been pushed, reviewed, or
-merged; the checkboxes below record source-level completion on the branch, matching the convention
-`portfolio-composition-contract/tasks.md` already uses for pre-merge branch work. Tasks 2.6-2.7 and
-Waves 3-10 remain open, per their own entries below. Next step: one senior architecture review of the
-batch; see the branch's own final handoff and commit history above for evidence detail; that review may authorize
-push/PR/merge separately — source completion here does not.
+environment. **This is a source-on-`main` claim only, not a deployment, live-integration, or
+production-exposure claim.** Tasks 2.6-2.7 remain open. Wave 3 source is separately
+architecture-approved in PR #179, while its Task 3.7 deployment/live proof and Waves 4-10 remain
+open per their own gates below.
 
 **Review-accounting note (Azure-first consolidation, 2026-08-22):** the long numbered-round
 narrative below is retained as provenance only. Future reviews record findings in git/PR history and
@@ -63,9 +63,9 @@ exposure condition, fixing 8.9's own dependency boundary, and making its live pr
 against the shared demo identity with unconditional cleanup, see Wave 8's intro and Task 8.9) after
 twenty-nine review passes (twenty-six Codex adversarial rounds, three internal parallel-agent
 audits). Subsequent amendments are tracked in git; the rolling pass narrative is provenance, not a
-current-status mechanism. The spec is architecture-reviewed, not decision-complete: five items
-remain genuinely open (idle-reset threshold, manual-reset control placement, presence TTL, login
-self-call timeouts, and the decimal-adapter rollout sequencing) and are
+current-status mechanism. The spec is architecture-reviewed, not decision-complete: four items
+remain genuinely open (idle-reset threshold, manual-reset control placement, login self-call
+timeouts, and the decimal-adapter rollout sequencing) and are
 carried into the waves below as explicit blockers rather than resolved here — Codex round 1 on this
 document found the first draft's header undercounted this list, dropping exactly the two items
 (decimal sequencing, `assetPriceFreshness`) where the draft's own task coverage was itself weakest,
@@ -898,7 +898,7 @@ field, and one hard rule about where each may be used:
   what would close it.
   _Requirements: 8.3_
 
-## Wave 3 — Presence (Redis-backed) · *B2-owned backend*
+## Wave 3 — Presence (Redis-backed) · *B2-owned backend* · **architecture-approved source in PR #179 (not merged, deployed, or live-verified)**
 
 - [ ] **3.1 Add a random `jti` claim to issued JWTs**, hashed one-way (`sha256`) as the session key
   at the gateway.
@@ -960,9 +960,10 @@ field, and one hard rule about where each may be used:
   **Abort:** do not let Wave 10 describe Wave 3 as deployed/live-verified without this evidence.
   _Requirements: 6.1, 6.2, 6.3, 6.5_
 
-**TTL value is OPEN** (provisionally 150 seconds) — ship as a configuration value, not a hardcoded
-literal, so the pending product decision is a config change, not a redeploy of logic.
-_Requirements: Open items — Presence TTL_
+**TTL decision settled (2026-08-29):** default **150 seconds** via `APP_DEMO_PRESENCE_TTL` /
+`app.demo-presence.ttl`; whole-set key expiry adds **30 seconds** for orphan cleanup only (design.md
+D4). Wave 3 backend source is architecture-approved in PR #179 — **not** merged, deployed,
+live-probed, or flagged complete. Task 3.7 STOP/GO deploy/live evidence remains a later owner action.
 
 ## Wave 4 — Demo-reset, portfolio-service side · *design.md D5 Stage 1*
 
@@ -3898,9 +3899,9 @@ class, not by enumeration" through "operational signals only") deliberately keep
      8.9 SHALL be rerun (under the real threshold, no override) against the currently-serving
      deployment before this item is satisfied again.
   5. Wave 9 (Live integration) actually completed, not merely unblocked.
-  6. The two still-open UI/config product decisions resolved: manual-reset control placement,
-     presence TTL (the idle threshold and self-call timeouts are covered by item 4 above, since
-     Wave 8 cannot deploy without them).
+  6. The still-open UI product decision resolved: manual-reset control placement. The presence TTL
+     is settled at 150 seconds; the idle threshold and self-call timeouts are covered by item 4
+     above, since Wave 8 cannot deploy without them.
   **Go action — a real deployment, not a configuration flip, and both flags together, not one
   independently of the other (round-4 correction: round 3's "independently" framing permitted
   launching the picker while requirements.md 7.5's manual control stayed hidden indefinitely — the

@@ -12,6 +12,7 @@ import org.springframework.stereotype.Component;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Date;
+import java.util.UUID;
 
 @Component
 public class JwtSigner {
@@ -36,6 +37,7 @@ public class JwtSigner {
                 new JWSHeader(JWSAlgorithm.HS256),
                 new JWTClaimsSet.Builder()
                         .subject(userId)
+                        .jwtID(UUID.randomUUID().toString())
                         .claim("email", email)
                         .claim("name", name)
                         .claim("ro", readOnly)

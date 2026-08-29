@@ -39,7 +39,7 @@ R-A, Wave 3 / R-B (V20), and Wave 5 Tasks 5.2–5.3 / R-B2 (G2a) are complete; c
 **5.4–5.6 merged on `main@0b5d60d1`** (PR #161, source-only; no deploy); **G5/5.7 remains blocked**
 by Spec A closed gateway ingress — see
 [`B1_G5_INGRESS_BLOCKER.md`](../runbooks/B1_G5_INGRESS_BLOCKER.md); later B1 waves remain gated.
-B2 Wave 1 (Tasks 1.1-1.19) and Wave 2 Tasks 2.1-2.5 are source-complete, entirely mock-backed, on unmerged branch `claude/b2-wave1-frontend-foundation` (base `origin/main@ed933632`, four checkpoint commits plus follow-up commits from two rounds of external review — see that branch's own `git log` and tasks.md for the exact commit list); nothing from it has reached `main`. Waves 3-10 and Wave 2 Tasks 2.6-2.7 have not started.
+B2 Wave 1 (Tasks 1.1-1.19) and Wave 2 Tasks 2.1-2.5 are merged source-only through PR #178 at `main@38e3d95`; they remain entirely mock-backed and disabled by default. Wave 3 presence source is architecture-approved in PR #179 but is not yet merged, deployed, or live-verified. Waves 4-10 and Wave 2 Tasks 2.6-2.7 have not started; Wave 3 Task 3.7 remains a separate owner-gated production step.
 
 **User-visible state:** there is no functional Asset Picker in the application today.
 
@@ -117,7 +117,7 @@ At every meaningful merge or live checkpoint:
 |---|---|---|---|
 | **A — Spec A catalog/data cutover** | Shared catalog, Postgres/Mongo repair, R4 rollout, enforcement, one reconciled controlled refresh, and persisted refresh enablement | **11 of 14 cutover checkpoints complete**; 9.12 enable failed and was rolled back; provenance observed `FIRST_OBSERVED_ON`; connection-origin live matrix returned `NOT_REPRODUCED_IN_MANUAL_MATRIX`; statement-history live run returned `STATEMENT_HISTORY_PROBE_EXECUTED_HISTORY_UNAVAILABLE`; production remains on `portfolio-service--0000089` with both flags `false`; RCA `MECHANISM_REPRODUCED_SETTER_UNPROVEN` at `main@cdf23737` | Senior architecture review and merge of this evidence-only reconciliation; any future `pg_stat_statements` installation, repeat probe, remedy, or 9.12 retry remains separately gated |
 | **B — B1 portfolio composition backend** | Deployment prerequisites, fixture identity migration, legacy writer retirement, Wave 2 gateway provisioning **served (R-A/G2 green)**, Wave 3 V20 **served (R-B/G3 green)**, Wave 5 version-bearing read **served (R-B2/G2a green)** | **Wave 2 / R-A complete**; **Wave 3 / R-B complete**; **Wave 5 Tasks 5.2–5.3 / R-B2 complete** (Artifact 2a on `portfolio-service--0000081` / `sha256:d544649f…`; cut `f22e2ff`); **Wave 4a–4c tasks 4.1–4.21 merged on `main@2673f40`** (PR #153; composition mechanisms unexposed; no public `PUT`); Task 5.1 merged on `main@f22e2ff` (PR #155); Tasks **5.4–5.6 merged on `main@0b5d60d1`** (PR #161, source-only); **5.7/G5 blocked by Spec A closed ingress** | Caller migration G5 (after ingress reopen or authorized private-reachability), safe desired-state writer activation, public `PUT` |
-| **C — B2 Asset Picker product** | Requirements, design, task plan, and five-screen visual mockup | **No implementation wave complete on `main`**; Wave 1 (1.1-1.19) + Wave 2 Tasks 2.1-2.5 source-complete, mock-backed, on unmerged branch `claude/b2-wave1-frontend-foundation` | Senior architecture review of the branch; presence/reset backend, live integration, exposure |
+| **C — B2 Asset Picker product** | Requirements, design, task plan, five-screen visual mockup, and Wave 1 / partial Wave 2 frontend source | Wave 1 (1.1-1.19) + Wave 2 Tasks 2.1-2.5 merged source-only on `main@38e3d95` via PR #178; entirely mock-backed and disabled by default. Wave 3 presence source is architecture-approved in PR #179, not yet merged, deployed, or live-verified | Merge Wave 3 source after required CI; Task 3.7 deployment/live proof, reset backend, live integration, and exposure remain separately gated |
 | **D — Demo credibility** | Canonical prices refreshed and reconciled; demo initializer exists gated off | Demo activation failed and was rolled back; demo still 3 holdings; current manual connection paths are clean while the historical startup session remains unexplained | Spec A 9.12 requires stronger historical/startup-path evidence before remedy design and re-attempting activation without touching E2E data |
 
 ### What is actually usable today
@@ -246,13 +246,13 @@ Authorities:
 - [implementation tasks](../../.kiro/specs/asset-picker-composition/tasks.md)
 - [visual mockup](../../.kiro/specs/asset-picker-composition/mockup/asset-picker-design.html)
 
-All four artifacts are tracked. No B2 implementation task is complete on `main`. Wave 1 (1.1-1.19) and Wave 2 Tasks 2.1-2.5 are source-complete, entirely mock-backed, on unmerged branch `claude/b2-wave1-frontend-foundation` (base `origin/main@ed933632`) — see that branch's own tasks.md checkbox state and final handoff for the exact commit list and evidence. Two rounds of external review found real defects — frozen open-time save/review baseline, blocked invalid-quantity submission, a decimal-precision enforcement gap, an async cache-invalidation race, a presence per-open regression, and (caught only on the second pass, after the first fix addressed the race but not the underlying rule) the save-success handler not using the PUT response body to replace visible state per requirements.md 4.2 — all now fixed with regression tests. The next gate is one senior architecture review of the full batch; that review may authorize push/PR/merge separately. Source completion does not itself authorize Wave 3+, live integration, deployment, or production exposure.
+All four artifacts are tracked. Wave 1 (1.1-1.19) and Wave 2 Tasks 2.1-2.5 merged source-only on `main@38e3d95` through PR #178 after two external review rounds and regression fixes. That frontend remains entirely mock-backed and disabled by default; the merge did not authorize live endpoint wiring, deployment, or production exposure. Wave 3 presence source is architecture-approved in PR #179 with a configurable 150-second default TTL; it is not yet merged, deployed, or live-verified, and Task 3.7 remains a separate owner-gated production step.
 
 | Wave | Status | Dependency note |
 |---|---|---|
-| 1 — mock-backed picker shell | 🟡 Source-complete (1.1-1.19), unmerged, mock-backed only | Feature flags, modal, browse/draft/review/conflict UX, mocked save/freshness/presence; branch `claude/b2-wave1-frontend-foundation` |
-| 2 — decimal adapter | 🟡 Tasks 2.1-2.5 source-complete, unmerged; 2.6-2.7 not started | Rollout sequencing with B1 Wave 4/5 remains an explicit open coordination decision |
-| 3 — Redis-backed presence | ⬜ Not started | Independent B2 backend branch; exact TTL remains open |
+| 1 — mock-backed picker shell | ✅ Source merged (1.1-1.19), mock-backed only; not deployed/live | Feature flags, modal, browse/draft/review/conflict UX, mocked save/freshness/presence; PR #178 / `main@38e3d95` |
+| 2 — decimal adapter | 🟡 Tasks 2.1-2.5 source merged; 2.6-2.7 not started | PR #178 / `main@38e3d95`; rollout sequencing with B1 Wave 4/5 remains an explicit open coordination decision |
+| 3 — Redis-backed presence | 🟡 Architecture-approved source in PR #179 (not merged/deployed/live) | Branch `cursor/b2-wave3-demo-presence`; default TTL **150s** via `APP_DEMO_PRESENCE_TTL`; Task 3.7 deploy/live probe remains owner-gated |
 | 4 — portfolio-service demo reset | ⬜ Blocked | Requires B1 Wave 4 tasks 4.1, 4.3, 4.7, 4.9, and 4.10 |
 | 5 — manual-reset gateway bundle | ⬜ Blocked on Wave 4 | Route, authorization filter, read-only allowlist, identity providers |
 | 6 — manual reset frontend | ⬜ Blocked on Wave 5 and B1 5.1 | Hidden control and versioned reset call |
@@ -269,9 +269,8 @@ adapter and UI wiring in Waves 1 and 9.
 
 1. Demo reset idle threshold; 30 minutes is provisional.
 2. Manual reset control placement in the UI.
-3. Presence TTL; 150 seconds is provisional.
-4. Login self-call timeouts; 2 seconds per leg and 4 seconds overall are provisional.
-5. Decimal-adapter deployment sequencing relative to B1 Wave 4/5.
+3. Login self-call timeouts; 2 seconds per leg and 4 seconds overall are provisional.
+4. Decimal-adapter deployment sequencing relative to B1 Wave 4/5.
 
 These do not block starting the mock-backed picker shell. They do block the affected reset/presence
 behavior and final production exposure.
@@ -339,10 +338,10 @@ demo and diagnostics flags `false`. The later authorized pooled/direct matrix re
    authorized private-reachability test that executes all three real callers. Waves 6–7 and
    candidate packaging (7.5/R-C) remain separately gated. Do not claim Writer_Convergence while the
    old seed remains version-tolerant.
-3. **Frontend lane:** B2 Wave 1 (1.1-1.19) and Wave 2 Tasks 2.1-2.5 are now source-complete,
-   mock-backed, on unmerged branch `claude/b2-wave1-frontend-foundation`, with two rounds of
-   external review findings fixed. The next step is a senior architecture review of that
-   batch, not further Wave 1 implementation; only that review may authorize push/PR/merge.
+3. **Frontend lane:** B2 Wave 1 (1.1-1.19) and Wave 2 Tasks 2.1-2.5 are merged source-only through
+   PR #178 on `main@38e3d95`, with two rounds of external review findings fixed. The implementation
+   remains mock-backed and disabled by default; Tasks 2.6-2.7, live wiring, deployment, and exposure
+   remain separate work and gates.
 4. **Process lane:** keep the status-propagation CI guard healthy in required `static-guard`; it is
    process-control only and does not advance the runtime baseline.
 
@@ -361,7 +360,7 @@ the resulting `main` SHA. It must include:
 - active/draft PRs and whether their code is on `main`;
 - commands and tests required to verify the chosen task;
 - known stale-branch/rebase hazards;
-- the five unresolved B2 decisions without silently choosing values;
+- the four unresolved B2 decisions without silently choosing values;
 - the status-governance rule from §0; and
 - an instruction to update this plan and the owning task ledger in every status-changing PR.
 

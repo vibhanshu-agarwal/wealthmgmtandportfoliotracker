@@ -1,5 +1,7 @@
 package com.wealth.gateway;
 
+import com.wealth.gateway.presence.DemoPresenceService;
+import com.wealth.gateway.presence.JwtSessionIdentity;
 import java.security.Principal;
 import java.util.Optional;
 import org.slf4j.Logger;
@@ -18,6 +20,12 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
 
     private static final Logger log = LoggerFactory.getLogger(JwtAuthenticationFilter.class);
     private static final String X_USER_ID = "X-User-Id";
+
+    private final DemoPresenceService demoPresenceService;
+
+    public JwtAuthenticationFilter(DemoPresenceService demoPresenceService) {
+        this.demoPresenceService = demoPresenceService;
+    }
 
     /**
      * Runs after CloudFront origin verification and Spring Security (which validates the JWT)
@@ -70,42 +78,45 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
         // because chain.filter() returns Mono<Void>, which always completes empty regardless of
         // outcome.
         return sanitised.getPrincipal()
-                .map(JwtAuthenticationFilter::extractSub)
+                .map(JwtAuthenticationFilter::extractIdentity)
                 .switchIfEmpty(Mono.fromSupplier(() -> {
                     // No principal at all — Spring Security should have rejected this
                     // already, but guard against misconfiguration.
                     log.debug("No principal found on exchange — rejecting request");
-                    return Optional.<String>empty();
+                    return Optional.<JwtSessionIdentity>empty();
                 }))
-                .flatMap(sub -> {
-                    if (sub.isEmpty()) {
+                .flatMap(identity -> {
+                    if (identity.isEmpty()) {
                         sanitised.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
                         return sanitised.getResponse().setComplete();
                     }
-                    // Step 4: Inject X-User-Id header and forward.
+                    // Step 4: best-effort demo presence touch, then inject X-User-Id and forward once.
+                    JwtSessionIdentity session = identity.get();
                     ServerWebExchange mutated = sanitised.mutate()
-                            .request(r -> r.headers(h -> h.set(X_USER_ID, sub.get())))
+                            .request(r -> r.headers(h -> h.set(X_USER_ID, session.sub())))
                             .build();
+                    if (session.hasPresenceSession()) {
+                        demoPresenceService.scheduleBackgroundTouch(session);
+                    }
                     return chain.filter(mutated);
                 });
     }
 
     /**
      * Step 3: validate the principal is a JWT with a usable sub claim, logging why it wasn't when
-     * it isn't. Never logs the raw token value.
+     * it isn't. Never logs the raw token value, jti, or session hash.
      */
-    private static Optional<String> extractSub(Principal principal) {
-        if (!(principal instanceof JwtAuthenticationToken jwtToken)) {
-            // Non-JWT authentication type — treat as unauthenticated.
-            log.debug("Principal is not a JwtAuthenticationToken — rejecting");
+    private static Optional<JwtSessionIdentity> extractIdentity(Principal principal) {
+        Optional<JwtSessionIdentity> identity = JwtSessionIdentity.fromPrincipal(principal);
+        if (identity.isEmpty()) {
+            if (!(principal instanceof JwtAuthenticationToken)) {
+                log.debug("Principal is not a JwtAuthenticationToken — rejecting");
+            } else {
+                log.debug("JWT accepted but sub claim is missing or blank");
+            }
             return Optional.empty();
         }
-        String sub = jwtToken.getToken().getClaimAsString("sub");
-        if (sub == null || sub.isBlank()) {
-            log.debug("JWT accepted but sub claim is missing or blank");
-            return Optional.empty();
-        }
-        log.debug("JWT validated for sub={}", sub);
-        return Optional.of(sub);
+        log.debug("JWT validated for sub={}", identity.get().sub());
+        return identity;
     }
 }

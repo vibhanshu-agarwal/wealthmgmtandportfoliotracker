@@ -10,6 +10,21 @@ class JwtSignerTest {
     private static final String SECRET = "test-secret-for-jwt-signer-min-32-chars-long";
 
     @Test
+    void issuedTokensCarryDistinctNonBlankJtiClaims() throws Exception {
+        JwtSigner signer = new JwtSigner(SECRET);
+
+        String first = signer.signHs256("user-a", "a@b.com", "Alice");
+        String second = signer.signHs256("user-b", "b@c.com", "Bob");
+
+        String firstJti = SignedJWT.parse(first).getJWTClaimsSet().getJWTID();
+        String secondJti = SignedJWT.parse(second).getJWTClaimsSet().getJWTID();
+
+        assertThat(firstJti).isNotBlank();
+        assertThat(secondJti).isNotBlank();
+        assertThat(firstJti).isNotEqualTo(secondJti);
+    }
+
+    @Test
     void fourArgOverloadSetsRoClaimAndLeavesOtherClaimsUnchanged() throws Exception {
         JwtSigner signer = new JwtSigner(SECRET);
 
