@@ -40,3 +40,11 @@ dependencies {
     // jqwik powers preservation property tests for price-update-stale-jackson3-regression spec.
     testImplementation "net.jqwik:jqwik:${rootProject.ext.jqwikVersion}"
 }
+
+tasks.register('specA912ConnectionOriginProbe', JavaExec) {
+    description = 'Manual, separately authorized, read-only Spec A 9.12 connection-origin probe'
+    group = 'diagnostics'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.wealth.portfolio.seed.rca.SpecA912ConnectionOriginProbe'
+}
