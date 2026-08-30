@@ -26,8 +26,11 @@ non-interference. Operational checkpoint verdict: PASS. Historical RCA verdict r
 `portfolio-service--0000092`, `market-data-service--0000079`, and `insight-service--0000079`.
 Checkpoint 9.14 source merged via PR #184 at `main@66bbee0`; its authorized read-only remote-plan
 [33313072724](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33313072724)
-passed the exact-scope guard and skipped apply. Gateway ingress remains closed; senior plan review,
-apply authorization, GitHub `production` Environment approval, and live verification remain pending.
+passed the exact-scope guard and skipped apply, and senior plan review returned **ACCEPT** on
+2026-08-31 against ids A1-A4, B1-B7, and C1-C3 with no apply blocker. Acceptance authorizes no
+write: 9.14 remains unchecked. Gateway ingress remains closed; explicit apply authorization pinned
+to the then-current `main` SHA, GitHub `production` Environment approval, and live verification
+remain pending.
 See [`docs/plans/ASSET_PICKER_E2E_MASTER_PLAN.md`](../../../docs/plans/ASSET_PICKER_E2E_MASTER_PLAN.md)
 for the living cross-program view.
 
@@ -925,9 +928,27 @@ python scripts/check-spec-references.py   .kiro/specs/supported-asset-integrity/
       [33313072724](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33313072724)
       passed at the pinned `main@66bbee0`; the Spec A 9.14 exact-scope assertion was green and the
       apply job was skipped. Gateway ingress remains closed on `api-gateway--0000077`.
-    - Go prerequisite satisfied: 9.9 through 9.13 are all green. Remaining pre-apply gates are
-      senior acceptance of the plan, explicit owner apply authorization, and GitHub `production`
-      Environment approval; post-apply live read-back is still required before this checkbox closes.
+    - Go prerequisite satisfied: 9.9 through 9.13 are all green.
+    - Plan review outcome (2026-08-31): **ACCEPT** against ids A1-A4, B1-B7, and C1-C3, with no
+      apply blocker. The guard was read at the pinned SHA rather than taken on trust, and its own
+      suite `test_assert_spec_a_9_14_plan.py` passed 50/50 there. C2/C3 were corroborated
+      independently: run 33313072724 is the last `Terraform Azure Infrastructure` run in the
+      repository, and Synthetic Monitoring
+      [33314693132](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33314693132)
+      failed 35 minutes later with `curl: (35) Recv failure: Connection reset by peer`, showing the
+      gateway still publicly unreachable. Full verdict and evidence:
+      [`docs/superpowers/plans/2026-08-30-spec-a-9.14-reopen-ingress-review-orientation.md`](../../../docs/superpowers/plans/2026-08-30-spec-a-9.14-reopen-ingress-review-orientation.md).
+    - Acceptance authorizes no production write. Remaining pre-apply gates are explicit owner apply
+      authorization **pinned to the then-current `main` SHA** and GitHub `production` Environment
+      approval; post-apply live read-back is still required before this checkbox closes.
+    - Pre-apply single-tracking (recorded, non-blocking): PR #184 flipped
+      `api_gateway_ingress_enabled` to default `true` and forces it `true` for every profile except
+      `spec-a-9.14-close-ingress`. While live ingress is closed, `spec-a-9.14-reopen-ingress` is
+      therefore the only profile whose plan can pass the guards — every other profile fails closed
+      on `FAIL [ingress-guard]`, and `spec-a-9.14-close-ingress` fails its own precondition because
+      `before` has no external ingress to close. This blocks rather than silently mutating, and the
+      9.14 apply clears it; until then, unrelated Terraform work is blocked too, and the escape
+      hatches are to apply 9.14 or revert the variable default and workflow line.
     - Rollback rule from here on: disabling the holding validator, **or rolling back to an R3
       artifact whose defaults are permissive**, requires quiescing writes first and keeping them
       closed until the forward fix deploys
