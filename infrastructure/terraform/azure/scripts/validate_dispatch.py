@@ -15,7 +15,7 @@ Checks (all fail-closed):
 4. deployed_image_tags_json must be a JSON object with exactly the four required service keys,
    no duplicate keys, and each value a canonical lowercase 40-hex-character SHA (no trim/case
    normalization — noncanonical input is rejected).
-5. change_profile must be one of standard or the scoped 9.9 / 9.11 / 9.12 / 9.13 profiles.
+5. change_profile must be one of standard or the scoped 9.9 / 9.11 / 9.12 / 9.13 / 9.14 profiles.
 6. For any scoped Spec A profile, use_seed_image and
    recreate_market_data_job must both be false — these recovery/bootstrap flags are unrelated
    to and unsafe to combine with a scoped Spec A production change.
@@ -48,6 +48,8 @@ VALID_PROFILES = (
     "spec-a-9.12-tx-diag-enable",
     "spec-a-9.12-tx-diag-disable",
     "spec-a-9.13-restore-scale",
+    "spec-a-9.14-reopen-ingress",
+    "spec-a-9.14-close-ingress",
 )
 SCOPED_SPEC_A_PROFILES = (
     "spec-a-9.9-enable",
@@ -59,6 +61,8 @@ SCOPED_SPEC_A_PROFILES = (
     "spec-a-9.12-tx-diag-enable",
     "spec-a-9.12-tx-diag-disable",
     "spec-a-9.13-restore-scale",
+    "spec-a-9.14-reopen-ingress",
+    "spec-a-9.14-close-ingress",
 )
 SPEC_A_9_12_PROFILES = (
     "spec-a-9.12-enable",

@@ -47,6 +47,8 @@ KNOWN_PROFILES = (
     "spec-a-9.12-tx-diag-enable",
     "spec-a-9.12-tx-diag-disable",
     PROFILE,
+    "spec-a-9.14-reopen-ingress",
+    "spec-a-9.14-close-ingress",
 )
 _DIGEST_PATTERN = re.compile(r"sha256:[0-9a-f]{64}\Z")
 _VERSION_PATTERN = re.compile(r"[0-9a-f]{40}\Z")

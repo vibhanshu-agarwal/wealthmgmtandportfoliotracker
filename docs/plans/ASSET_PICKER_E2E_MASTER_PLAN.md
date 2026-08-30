@@ -27,8 +27,9 @@ and statement-history probes remain on the record. The authorized 2026-08-30 ret
 `portfolio-service--0000091` with both flags `false`. Operational checkpoint verdict: PASS.
 Historical RCA remains `MECHANISM_REPRODUCED_SETTER_UNPROVEN` — evidence
 [`SPEC_A_9_12_POOLED_READONLY_RCA.md`](../runbooks/SPEC_A_9_12_POOLED_READONLY_RCA.md).
-Checkpoint 9.13 source may be prepared in this batch; live remote-plan/apply and configuration
-read-back remain pending and unauthorized. Checkpoint 9.14 remains pending. B1 Wave 2 /
+Checkpoint 9.13 is live-green on `portfolio-service--0000092`, `market-data-service--0000079`,
+and `insight-service--0000079` ([`SPEC_A_9_13_SCALE_RESTORE.md`](../runbooks/SPEC_A_9_13_SCALE_RESTORE.md)).
+Checkpoint 9.14 source may be prepared in this batch; live remote-plan/apply remains pending. B1 Wave 2 /
 R-A, Wave 3 / R-B (V20), and Wave 5 Tasks 5.2–5.3 / R-B2 (G2a) are complete; caller migration Tasks
 **5.4–5.6 merged on `main@0b5d60d1`** (PR #161, source-only; no deploy); **G5/5.7 remains blocked**
 by Spec A closed gateway ingress — see
@@ -144,8 +145,8 @@ Authority: [`.kiro/specs/supported-asset-integrity/tasks.md`](../../.kiro/specs/
 | 9.10 | ✅ Complete | One controlled refresh succeeded and was reconciled across Kafka, Mongo, and Postgres |
 | 9.11 | ✅ Complete | Persisted `MARKET_DATA_JOB_RUNNER_ENABLED=true` via Terraform; live read-back and standard no-op plan green ([`SPEC_A_9_11_PERSIST_REFRESH_ENABLEMENT.md`](../runbooks/SPEC_A_9_11_PERSIST_REFRESH_ENABLEMENT.md)) |
 | 9.12 | ✅ Operationally complete on `portfolio-service--0000091` | Authorized retry at `main@d29f670`: enable [33295859015](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33295859015) (`0000090`, 159 holdings, one seed event); restoring [33296204759](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33296204759) (`0000091`, both flags `false`); Neon tuple MD5 `6e436f24fa2b31d14aff77fe5d1a05c9`; historical RCA remains `MECHANISM_REPRODUCED_SETTER_UNPROVEN` ([`SPEC_A_9_12_POOLED_READONLY_RCA.md`](../runbooks/SPEC_A_9_12_POOLED_READONLY_RCA.md)) |
-| 9.13 | ⏸ Source may be prepared; live checkpoint pending | Guarded `spec-a-9.13-restore-scale` restores `min_replicas=0` on the three catalog consumers. Next: senior source review/merge, then separately authorized remote-plan/apply and configuration-level read-back |
-| 9.14 | ⏸ Pending | Reopen ingress after live 9.13 is green |
+| 9.13 | ✅ Complete | Guarded `spec-a-9.13-restore-scale` restored `min_replicas=0` on the three catalog consumers; live revisions `portfolio-service--0000092`, `market-data-service--0000079`, `insight-service--0000079`; evidence [`SPEC_A_9_13_SCALE_RESTORE.md`](../runbooks/SPEC_A_9_13_SCALE_RESTORE.md) |
+| 9.14 | ⏸ Source may be prepared; live checkpoint pending | Reopen ingress via `spec-a-9.14-reopen-ingress` after senior source review/merge; `spec-a-9.14-close-ingress` provides rollback |
 
 Additional unfinished Spec A implementation task: **8.8**, replacing remaining hard-coded
 catalog-size assertions. Tasks 8.1–8.7, including the aggregate `assetPriceFreshness` contract,
@@ -155,17 +156,17 @@ are complete.
 
 - Persisted refresh runner: `true` (checkpoint 9.11 complete; scheduled Job may run at `0 8 * * *`).
 - Refresh retry limit: `0`.
-- Gateway ingress: closed.
+- Gateway ingress: closed on live `api-gateway--0000077`; Terraform steady-state intent is open at 9.14 source.
 - `portfolio-service`, `market-data-service`, and `insight-service`: enforcement enabled,
-  `min_replicas=1` for the verification window.
+  `min_replicas=0` after checkpoint 9.13.
 - Controlled refresh: exactly one authorized one-off execution completed at 9.10; 9.11 did not start
   an additional execution.
 - Demo portfolio activation: operationally complete on `portfolio-service--0000091`; production
   gate `APP_DEMO_SEED_ON_STARTUP` is `false`; demo holds 159 Active_Asset holdings; diagnostics
   flag also `false`.
 - Checkpoint 9.12 is operationally complete; historical RCA remains
-  `MECHANISM_REPRODUCED_SETTER_UNPROVEN`. Checkpoints 9.13–9.14 are not live-complete
-  ([`SPEC_A_9_12_POOLED_READONLY_RCA.md`](../runbooks/SPEC_A_9_12_POOLED_READONLY_RCA.md)).
+  `MECHANISM_REPRODUCED_SETTER_UNPROVEN`. Checkpoint 9.13 is live-green; checkpoint 9.14 is
+  not live-complete ([`SPEC_A_9_12_POOLED_READONLY_RCA.md`](../runbooks/SPEC_A_9_12_POOLED_READONLY_RCA.md)).
 - B1 G5 remains blocked by closed ingress.
 
 Checkpoint 9.10 evidence:
@@ -205,9 +206,10 @@ substitute for an authorized Artifact cut.**
 
 | Item | Current state | Required before relying on it |
 |---|---|---|
-| Checkpoint 9.11 | **Complete** — apply run [33091163222](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33091163222); live runner `true`; standard no-op [33093260896](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33093260896); evidence [`SPEC_A_9_11_PERSIST_REFRESH_ENABLEMENT.md`](../runbooks/SPEC_A_9_11_PERSIST_REFRESH_ENABLEMENT.md) | 9.12 operationally complete; 9.13 live remote-plan/apply remains separately gated |
+| Checkpoint 9.11 | **Complete** — apply run [33091163222](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33091163222); live runner `true`; standard no-op [33093260896](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33093260896); evidence [`SPEC_A_9_11_PERSIST_REFRESH_ENABLEMENT.md`](../runbooks/SPEC_A_9_11_PERSIST_REFRESH_ENABLEMENT.md) | 9.12 operationally complete; 9.13 live-green |
 | 9.12 enable / rollback / retry | **Operationally complete** — first enable failed and rolled back; authorized 2026-08-30 retry succeeded on `portfolio-service--0000090`/`0000091`; historical RCA remains `MECHANISM_REPRODUCED_SETTER_UNPROVEN` ([`SPEC_A_9_12_POOLED_READONLY_RCA.md`](../runbooks/SPEC_A_9_12_POOLED_READONLY_RCA.md)) | Do not treat retry success as named-setter attribution; keep `pg_stat_statements` installation separately gated |
-| 9.13 restore scale | **Source may be prepared; live checkpoint pending** — `spec-a-9.13-restore-scale` is the only profile that can authorize the complete `1 -> 0` transition while overrides stay absent | Senior source review/merge, then separately authorized remote-plan; only after plan review, apply plus Production Environment approval; then configuration-level read-back |
+| 9.13 restore scale | **Complete** — remote-plan [33306477527](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33306477527); apply [33306874697](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33306874697); live `portfolio-service--0000092`, `market-data-service--0000079`, `insight-service--0000079` ([`SPEC_A_9_13_SCALE_RESTORE.md`](../runbooks/SPEC_A_9_13_SCALE_RESTORE.md)) | Gateway ingress still closed; 9.14 remains separately gated |
+| 9.14 reopen ingress | **Source may be prepared; live checkpoint pending** — `spec-a-9.14-reopen-ingress` / `spec-a-9.14-close-ingress` guarded exact-scope batch | Senior source review/merge, then separately authorized remote-plan/apply after live 9.13 read-back |
 
 ### Active B1 work
 
