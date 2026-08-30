@@ -84,6 +84,8 @@ on:
           checkpoint 9.12's startup transaction diagnostics (demo seed remains false).
           spec-a-9.13-restore-scale = checkpoint 9.13's restore of catalog-consumer
           min_replicas 1 -> 0 with enforcement overrides remaining absent.
+          spec-a-9.14-reopen-ingress / spec-a-9.14-close-ingress = checkpoint 9.14's
+          reopen or rollback of api-gateway ingress only (in-place update, image unchanged).
         type: choice
         options:
           - standard
@@ -96,6 +98,8 @@ on:
           - spec-a-9.12-tx-diag-enable
           - spec-a-9.12-tx-diag-disable
           - spec-a-9.13-restore-scale
+          - spec-a-9.14-reopen-ingress
+          - spec-a-9.14-close-ingress
         default: standard
       use_seed_image:
         description: "Use public seed image for Container Apps (true for first apply before images exist in ACR)"
@@ -134,6 +138,7 @@ env:
   # Live-state remote-plan/apply override TF_VAR_image_tags from deployed_image_tags_json.
   TF_VAR_demo_seed_on_startup: ${{ github.event.inputs.change_profile == 'spec-a-9.12-enable' && 'true' || 'false' }}
   TF_VAR_demo_tx_diagnostics: ${{ github.event.inputs.change_profile == 'spec-a-9.12-tx-diag-enable' && 'true' || 'false' }}
+  TF_VAR_api_gateway_ingress_enabled: ${{ github.event.inputs.change_profile == 'spec-a-9.14-close-ingress' && 'false' || 'true' }}
   TF_VAR_use_seed_image: ${{ github.event.inputs.use_seed_image || 'false' }}
   # Job-only seed bootstrap, auto-enabled whenever a Job recreate is requested. This lets the
   # -replace create the Job on the public seed image WITHOUT setting the global use_seed_image
@@ -450,6 +455,9 @@ jobs:
           EXPECTED_PORTFOLIO_IMAGE_DIGEST: ${{ github.event.inputs.expected_portfolio_image_digest }}
         run: python3 scripts/assert_spec_a_9_13_plan.py tfplan.json --profile "${{ github.event.inputs.change_profile }}" --expected-image-digest "$EXPECTED_PORTFOLIO_IMAGE_DIGEST" --expected-image-tags-json "$EXPECTED_IMAGE_TAGS_JSON" --expected-image-digests-json "$EXPECTED_IMAGE_DIGESTS_JSON"
 
+      - name: Assert Plan — Spec A 9.14 profile guard / exact scope
+        run: python3 scripts/assert_spec_a_9_14_plan.py tfplan.json --profile "${{ github.event.inputs.change_profile }}"
+
       # Sanitized summary only — built from tfplan.json via summarize_plan.py, which
       # emits ONLY "<address> <actions>" per changed resource, never attribute paths,
       # before/after objects, or values. `terraform show`'s human-readable output was
@@ -561,7 +569,9 @@ jobs:
             || [ "$PROFILE" = "spec-a-9.11-enable" ] || [ "$PROFILE" = "spec-a-9.11-abort" ] \
             || [ "$PROFILE" = "spec-a-9.12-enable" ] || [ "$PROFILE" = "spec-a-9.12-disable" ] \
             || [ "$PROFILE" = "spec-a-9.12-tx-diag-enable" ] || [ "$PROFILE" = "spec-a-9.12-tx-diag-disable" ] \
-            || [ "$PROFILE" = "spec-a-9.13-restore-scale" ]; then
+            || [ "$PROFILE" = "spec-a-9.13-restore-scale" ] \
+            || [ "$PROFILE" = "spec-a-9.14-reopen-ingress" ] \
+            || [ "$PROFILE" = "spec-a-9.14-close-ingress" ]; then
             echo "::error::${RESOURCE_ADDRESS} is not in Terraform state, and change_profile=${PROFILE} only permits a read-only check here — auto-import is not allowed during a scoped Spec A production change, since it would mutate the backend before any plan or assertion runs."
             echo "::error::Repair state through a separate, reviewed operation (e.g. dispatch with change_profile=standard first) before retrying the scoped Spec A apply."
             exit 1
@@ -659,6 +669,9 @@ jobs:
           EXPECTED_IMAGE_DIGESTS_JSON: ${{ needs.validate-dispatch.outputs.canonical_image_digests_json }}
           EXPECTED_PORTFOLIO_IMAGE_DIGEST: ${{ github.event.inputs.expected_portfolio_image_digest }}
         run: python3 scripts/assert_spec_a_9_13_plan.py tfplan.json --profile "${{ github.event.inputs.change_profile }}" --expected-image-digest "$EXPECTED_PORTFOLIO_IMAGE_DIGEST" --expected-image-tags-json "$EXPECTED_IMAGE_TAGS_JSON" --expected-image-digests-json "$EXPECTED_IMAGE_DIGESTS_JSON"
+
+      - name: Assert Plan — Spec A 9.14 profile guard / exact scope
+        run: python3 scripts/assert_spec_a_9_14_plan.py tfplan.json --profile "${{ github.event.inputs.change_profile }}"
 
       - name: Terraform Apply
         run: terraform apply -auto-approve tfplan

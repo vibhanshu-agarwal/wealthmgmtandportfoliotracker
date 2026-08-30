@@ -906,13 +906,17 @@ python scripts/check-spec-references.py   .kiro/specs/supported-asset-integrity/
       deterministic expectation from `(active catalog, userId, anchor)`, and the E2E portfolio is untouched
     - _Requirements: 8.1, 8.2, 8.3, 8.5, 8.6_
 
-  - [ ] 9.13 **CHECKPOINT — restore scale, verify at configuration level**
-    - Source may be prepared (guarded `spec-a-9.13-restore-scale` profile restoring `min_replicas=0`
-      on the three catalog consumers). Live checkpoint remains pending until a separately authorized
-      remote-plan, apply, Production Environment approval, and configuration-level read-back all
-      succeed. Do not wait for a startup log from the future scale-to-zero revision.
+  - [x] 9.13 **CHECKPOINT — restore scale, verify at configuration level**
+    - Live green on `portfolio-service--0000092`, `market-data-service--0000079`,
+      `insight-service--0000079`; gateway ingress remains closed on `api-gateway--0000077`.
+      Evidence: [`docs/runbooks/SPEC_A_9_13_SCALE_RESTORE.md`](../../docs/runbooks/SPEC_A_9_13_SCALE_RESTORE.md);
+      remote-plan [33306477527](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33306477527);
+      apply [33306874697](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33306874697).
 
   - [ ] 9.14 **CHECKPOINT — reopen ingress**
+    - Source may be prepared (`spec-a-9.14-reopen-ingress` / `spec-a-9.14-close-ingress`,
+      guarded exact-scope assertion, Terraform steady-state `api_gateway_ingress_enabled=true`).
+      Live checkpoint remains pending until separately authorized remote-plan/apply.
     - Go: 9.9 through 9.13 all green
     - Rollback rule from here on: disabling the holding validator, **or rolling back to an R3
       artifact whose defaults are permissive**, requires quiescing writes first and keeping them

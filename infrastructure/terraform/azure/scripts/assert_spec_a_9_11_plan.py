@@ -44,6 +44,8 @@ KNOWN_PROFILES = (
     "spec-a-9.12-tx-diag-enable",
     "spec-a-9.12-tx-diag-disable",
     "spec-a-9.13-restore-scale",
+    "spec-a-9.14-reopen-ingress",
+    "spec-a-9.14-close-ingress",
 )
 
 REQUIRED_RETRY = 0

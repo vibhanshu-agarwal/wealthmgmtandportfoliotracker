@@ -432,6 +432,44 @@ class ValidateDispatchTests(unittest.TestCase):
                         )
                     )
 
+    # -- 9.14 ingress profiles -----------------------------------------------------
+
+    def test_9_14_reopen_passes_without_portfolio_digest(self):
+        sut.validate(self._inputs(change_profile="spec-a-9.14-reopen-ingress"))
+
+    def test_9_14_close_passes_without_portfolio_digest(self):
+        sut.validate(self._inputs(change_profile="spec-a-9.14-close-ingress"))
+
+    def test_9_14_reopen_rejects_seed_image(self):
+        with self.assertRaises(sut.DispatchValidationError) as ctx:
+            sut.validate(
+                self._inputs(
+                    change_profile="spec-a-9.14-reopen-ingress",
+                    use_seed_image="true",
+                )
+            )
+        self.assertIn("use_seed_image=false", str(ctx.exception))
+
+    def test_9_14_close_rejects_job_recreate(self):
+        with self.assertRaises(sut.DispatchValidationError) as ctx:
+            sut.validate(
+                self._inputs(
+                    change_profile="spec-a-9.14-close-ingress",
+                    recreate_market_data_job="true",
+                )
+            )
+        self.assertIn("recreate_market_data_job=false", str(ctx.exception))
+
+    def test_unknown_9_14_like_spelling_fails_closed(self):
+        for profile in (
+            "spec-a-9.14",
+            "spec-a-9.14-reopen",
+            "spec-a-914-reopen-ingress",
+        ):
+            with self.subTest(profile=profile):
+                with self.assertRaises(sut.DispatchValidationError):
+                    sut.validate(self._inputs(change_profile=profile))
+
 
 if __name__ == "__main__":
     unittest.main()
