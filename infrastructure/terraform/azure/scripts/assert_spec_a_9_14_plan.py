@@ -23,10 +23,15 @@ _ENV_ALLOWED_KEYS = frozenset({"name", "value", "secret_name"})
 _INGRESS_COMPUTED_KEYS = frozenset({"fqdn"})
 # Provider/API defaults omitted from module HCL but commonly present in plan JSON.
 _INGRESS_PROVIDER_DEFAULTS = {"allow_insecure_connections": False}
+# Neutral azurerm 4.81 plan/state fields equivalent to omission (strip before key compare).
+_INGRESS_NEUTRAL_ARRAY_KEYS = frozenset(
+    {"custom_domain", "cors", "ip_security_restriction"}
+)
 _INGRESS_OPERATOR_KEYS = frozenset(
     {"external_enabled", "target_port", "transport", "traffic_weight"}
 )
 _TRAFFIC_WEIGHT_OPERATOR_KEYS = frozenset({"percentage", "latest_revision"})
+_TRAFFIC_WEIGHT_NEUTRAL_KEYS = frozenset({"label", "revision_suffix"})
 KNOWN_PROFILES = (
     "standard",
     "spec-a-9.9-enable",
@@ -154,6 +159,31 @@ def _ingress_absent(side: dict | None) -> bool:
     return ingress is None or ingress == []
 
 
+def _is_neutral_ingress_value(key: str, value) -> bool:
+    if key in _INGRESS_NEUTRAL_ARRAY_KEYS:
+        return value == [] or value is None
+    if key == "exposed_port":
+        return value == 0 or value is None
+    if key == "client_certificate_mode":
+        return value is None
+    return False
+
+
+def _canonical_traffic_weight(weight) -> dict | None:
+    if not isinstance(weight, dict):
+        return None
+    canonical: dict = {}
+    for key, value in weight.items():
+        if key in _TRAFFIC_WEIGHT_NEUTRAL_KEYS and _inactive(value):
+            continue
+        canonical[key] = value
+    if set(canonical.keys()) != _TRAFFIC_WEIGHT_OPERATOR_KEYS:
+        return None
+    if canonical.get("percentage") != 100 or canonical.get("latest_revision") is not True:
+        return None
+    return canonical
+
+
 def _ingress_for_compare(ingress) -> list | None:
     if ingress is None or ingress == []:
         return []
@@ -185,29 +215,29 @@ def _canonical_external_ingress(side: dict | None) -> dict | None:
     if not isinstance(block, dict):
         return None
 
-    operator_keys = set(block.keys()) - _INGRESS_COMPUTED_KEYS
-    for key, expected in _INGRESS_PROVIDER_DEFAULTS.items():
-        if key in operator_keys and block.get(key) == expected:
-            operator_keys.discard(key)
-    if operator_keys != _INGRESS_OPERATOR_KEYS:
+    effective: dict = {}
+    for key, value in block.items():
+        if key in _INGRESS_COMPUTED_KEYS:
+            continue
+        if key in _INGRESS_PROVIDER_DEFAULTS and value == _INGRESS_PROVIDER_DEFAULTS[key]:
+            continue
+        if _is_neutral_ingress_value(key, value):
+            continue
+        effective[key] = value
+    if set(effective.keys()) != _INGRESS_OPERATOR_KEYS:
         return None
-    if block.get("external_enabled") is not True:
+    if effective.get("external_enabled") is not True:
         return None
-    if block.get("target_port") != EXPECTED_TARGET_PORT:
+    if effective.get("target_port") != EXPECTED_TARGET_PORT:
         return None
-    transport = block.get("transport")
+    transport = effective.get("transport")
     if not isinstance(transport, str) or transport.lower() != "auto":
         return None
 
-    traffic = block.get("traffic_weight")
+    traffic = effective.get("traffic_weight")
     if not isinstance(traffic, list) or len(traffic) != 1:
         return None
-    weight = traffic[0]
-    if not isinstance(weight, dict):
-        return None
-    if set(weight.keys()) != _TRAFFIC_WEIGHT_OPERATOR_KEYS:
-        return None
-    if weight.get("percentage") != 100 or weight.get("latest_revision") is not True:
+    if _canonical_traffic_weight(traffic[0]) is None:
         return None
 
     return {
