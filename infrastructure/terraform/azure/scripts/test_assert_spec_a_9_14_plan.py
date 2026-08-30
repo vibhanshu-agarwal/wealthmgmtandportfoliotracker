@@ -245,6 +245,77 @@ class SpecA914PlanTests(unittest.TestCase):
         errors = _evaluate(plan)
         self.assertTrue(any("ingress" in e for e in errors), errors)
 
+    def test_allow_insecure_connections_after_reopen_fails(self):
+        plan = _reopen_plan()
+        changed = copy.deepcopy(EXTERNAL_INGRESS)
+        changed[0]["allow_insecure_connections"] = True
+        plan["resource_changes"][0]["change"]["after"]["ingress"] = changed
+        errors = _evaluate(plan)
+        self.assertTrue(any("ingress" in e for e in errors), errors)
+
+    def test_allow_insecure_connections_before_close_fails(self):
+        plan = _close_plan()
+        changed = copy.deepcopy(EXTERNAL_INGRESS)
+        changed[0]["allow_insecure_connections"] = True
+        plan["resource_changes"][0]["change"]["before"]["ingress"] = changed
+        errors = _evaluate(plan, CLOSE)
+        self.assertTrue(any("ingress" in e for e in errors), errors)
+
+    def test_client_certificate_mode_after_reopen_fails(self):
+        plan = _reopen_plan()
+        changed = copy.deepcopy(EXTERNAL_INGRESS)
+        changed[0]["client_certificate_mode"] = "require"
+        plan["resource_changes"][0]["change"]["after"]["ingress"] = changed
+        errors = _evaluate(plan)
+        self.assertTrue(any("ingress" in e for e in errors), errors)
+
+    def test_ip_security_restriction_after_reopen_fails(self):
+        plan = _reopen_plan()
+        changed = copy.deepcopy(EXTERNAL_INGRESS)
+        changed[0]["ip_security_restriction"] = [{
+            "action": "Allow",
+            "name": "office",
+            "ip_address_range": "203.0.113.0/24",
+        }]
+        plan["resource_changes"][0]["change"]["after"]["ingress"] = changed
+        errors = _evaluate(plan)
+        self.assertTrue(any("ingress" in e for e in errors), errors)
+
+    def test_cors_after_reopen_fails(self):
+        plan = _reopen_plan()
+        changed = copy.deepcopy(EXTERNAL_INGRESS)
+        changed[0]["cors"] = [{"allowed_origins": ["https://evil.example"]}]
+        plan["resource_changes"][0]["change"]["after"]["ingress"] = changed
+        errors = _evaluate(plan)
+        self.assertTrue(any("ingress" in e for e in errors), errors)
+
+    def test_exposed_port_after_reopen_fails(self):
+        plan = _reopen_plan()
+        changed = copy.deepcopy(EXTERNAL_INGRESS)
+        changed[0]["exposed_port"] = 8443
+        plan["resource_changes"][0]["change"]["after"]["ingress"] = changed
+        errors = _evaluate(plan)
+        self.assertTrue(any("ingress" in e for e in errors), errors)
+
+    def test_provider_computed_fqdn_after_reopen_passes(self):
+        plan = _reopen_plan()
+        changed = copy.deepcopy(EXTERNAL_INGRESS)
+        changed[0]["fqdn"] = "api-gateway.example.azurecontainerapps.io"
+        plan["resource_changes"][0]["change"]["after"]["ingress"] = changed
+        self.assertEqual(_evaluate(plan), [])
+
+    def test_extra_traffic_weight_fields_after_reopen_fails(self):
+        plan = _reopen_plan()
+        changed = copy.deepcopy(EXTERNAL_INGRESS)
+        changed[0]["traffic_weight"] = [{
+            "percentage": 100,
+            "latest_revision": True,
+            "revision_suffix": "canary",
+        }]
+        plan["resource_changes"][0]["change"]["after"]["ingress"] = changed
+        errors = _evaluate(plan)
+        self.assertTrue(any("ingress" in e for e in errors), errors)
+
     def test_traffic_split_mutation_fails(self):
         plan = _reopen_plan()
         changed = copy.deepcopy(EXTERNAL_INGRESS)

@@ -19,6 +19,12 @@ EXPECTED_TARGET_PORT = 8080
 _SCALE_SENTINEL = "__SPEC_A_9_14_MIN_REPLICAS_SENTINEL__"
 _INGRESS_SENTINEL = "__SPEC_A_9_14_INGRESS_SENTINEL__"
 _ENV_ALLOWED_KEYS = frozenset({"name", "value", "secret_name"})
+# Provider-computed ingress fields (azurerm_container_app.ingress); all other keys are operator-controlled.
+_INGRESS_COMPUTED_KEYS = frozenset({"fqdn"})
+_INGRESS_OPERATOR_KEYS = frozenset(
+    {"external_enabled", "target_port", "transport", "traffic_weight"}
+)
+_TRAFFIC_WEIGHT_OPERATOR_KEYS = frozenset({"percentage", "latest_revision"})
 KNOWN_PROFILES = (
     "standard",
     "spec-a-9.9-enable",
@@ -164,33 +170,51 @@ def _ingress_for_compare(ingress) -> list | None:
     return blocks
 
 
-def _external_ingress_ok(side: dict | None) -> bool:
+def _canonical_external_ingress(side: dict | None) -> dict | None:
+    """Return the expected operator-controlled ingress block, or None if unsafe/invalid."""
     if not isinstance(side, dict):
-        return False
+        return None
     ingress = side.get("ingress")
     if ingress is None or ingress == []:
-        return False
+        return None
     if not isinstance(ingress, list) or len(ingress) != 1:
-        return False
+        return None
     block = ingress[0]
     if not isinstance(block, dict):
-        return False
+        return None
+
+    operator_keys = set(block.keys()) - _INGRESS_COMPUTED_KEYS
+    if operator_keys != _INGRESS_OPERATOR_KEYS:
+        return None
     if block.get("external_enabled") is not True:
-        return False
+        return None
     if block.get("target_port") != EXPECTED_TARGET_PORT:
-        return False
+        return None
     transport = block.get("transport")
     if not isinstance(transport, str) or transport.lower() != "auto":
-        return False
+        return None
+
     traffic = block.get("traffic_weight")
     if not isinstance(traffic, list) or len(traffic) != 1:
-        return False
+        return None
     weight = traffic[0]
     if not isinstance(weight, dict):
-        return False
+        return None
+    if set(weight.keys()) != _TRAFFIC_WEIGHT_OPERATOR_KEYS:
+        return None
     if weight.get("percentage") != 100 or weight.get("latest_revision") is not True:
-        return False
-    return True
+        return None
+
+    return {
+        "external_enabled": True,
+        "target_port": EXPECTED_TARGET_PORT,
+        "transport": "auto",
+        "traffic_weight": [{"percentage": 100, "latest_revision": True}],
+    }
+
+
+def _external_ingress_ok(side: dict | None) -> bool:
+    return _canonical_external_ingress(side) is not None
 
 
 def _after_min_ok(value) -> bool:
