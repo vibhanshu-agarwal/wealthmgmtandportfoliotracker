@@ -30,6 +30,7 @@ class PortfolioResponseVersionTest {
                 UUID.randomUUID(),
                 "user-1",
                 Instant.parse("2026-08-25T00:00:00Z"),
+                Instant.parse("2026-08-26T00:00:00Z"),
                 3L,
                 List.of(holding));
 

@@ -215,6 +215,7 @@ public class PortfolioService {
         portfolio.getId(),
         portfolio.getUserId(),
         portfolio.getCreatedAt(),
+        portfolio.getUpdatedAt(),
         portfolio.getVersion(),
         holdings);
   }

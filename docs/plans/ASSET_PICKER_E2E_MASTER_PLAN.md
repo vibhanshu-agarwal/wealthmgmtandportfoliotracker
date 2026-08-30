@@ -250,7 +250,7 @@ All four artifacts are tracked. Wave 1 (1.1-1.19) and Wave 2 Tasks 2.1-2.5 merge
 | 5 — manual-reset gateway bundle | ⬜ Blocked on Wave 4 Task 4.5 / deployment proof | Route, authorization filter, read-only allowlist, identity providers |
 | 6 — manual reset frontend | ⬜ Blocked on Wave 5 and B1 5.1 | Hidden control and versioned reset call |
 | 7 — decimal rollout note | ℹ Informational | No independent release gate |
-| 8 — login-orchestrated reset | ⬜ Not started/partly blocked | Requires B1/V20/version read, open idle/timeouts, and its own deployment evidence |
+| 8 — login-orchestrated reset | ⬜ Not started/partly blocked; **Task 8.1 (`updatedAt` read contract) implemented but uncommitted/unmerged in an isolated worktree (`worktree-b2-wave8-task-8.1-updated-at-r2` off `origin/main@458813f`), senior review passed — not complete on `main`, not deployed. 8 implementation/test files plus 2 status documents changed** | Requires B1/V20/version read (met), open idle/timeouts, Tasks 8.2 and later, the separate 5.1a/5.1b/8.2a prerequisites, and its own deployment evidence |
 | 9 — live integration | ⬜ Blocked | Requires B1 catalog/read/write endpoints and relevant B2 Waves 1–6 |
 | 10 — production exposure | ⬜ Blocked | Convergence gate after all required live evidence and open decisions close |
 

@@ -17,6 +17,8 @@ import java.util.UUID;
  * @param id        portfolio identifier
  * @param userId    owner identifier (plain string — no JPA association to the user module)
  * @param createdAt when the portfolio was created
+ * @param updatedAt when the portfolio was last updated, serialized as the same ISO-8601
+ *                  representation as {@code createdAt}
  * @param version   persisted Portfolio_Version
  * @param holdings  the asset holdings at the time of the request
  */
@@ -24,6 +26,7 @@ public record PortfolioResponse(
         UUID id,
         String userId,
         Instant createdAt,
+        Instant updatedAt,
         long version,
         List<HoldingResponse> holdings
 ) {

@@ -58,6 +58,7 @@ class DemoResetControllerTest {
                         portfolioId,
                         DemoResetService.DEMO_USER_ID,
                         Instant.parse("2020-01-01T00:00:00Z"),
+                        Instant.parse("2020-01-02T00:00:00Z"),
                         8L,
                         List.of());
         when(demoResetService.reset(8L)).thenReturn(response);

@@ -54,6 +54,25 @@ class PortfolioServiceVersionMappingTest {
         assertThat(responses.getFirst().version()).isEqualTo(5L);
     }
 
+    @Test
+    void getByUserIdMapsPersistedUpdatedAtThroughToResponseUnchanged() {
+        when(userRepository.existsById(UUID.fromString(USER_ID))).thenReturn(true);
+
+        java.time.Instant entityUpdatedAt = java.time.Instant.parse("2026-08-27T18:42:09Z");
+        Portfolio portfolio = new Portfolio(USER_ID);
+        setField(portfolio, "id", UUID.fromString("11111111-2222-3333-4444-555555555555"));
+        setField(portfolio, "version", 5L);
+        setField(portfolio, "createdAt", java.time.Instant.parse("2026-08-25T00:00:00Z"));
+        setField(portfolio, "updatedAt", entityUpdatedAt);
+        when(portfolioRepository.findByUserId(USER_ID)).thenReturn(List.of(portfolio));
+
+        List<PortfolioResponse> responses = service.getByUserId(USER_ID);
+
+        assertThat(responses).hasSize(1);
+        assertThat(responses.getFirst().updatedAt()).isEqualTo(entityUpdatedAt);
+        assertThat(responses.getFirst().updatedAt()).isNotEqualTo(responses.getFirst().createdAt());
+    }
+
     private static void setField(Object target, String name, Object value) {
         try {
             var field = target.getClass().getDeclaredField(name);

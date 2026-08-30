@@ -233,6 +233,7 @@ class DemoResetServiceTest {
                 portfolioId,
                 DemoResetService.DEMO_USER_ID,
                 Instant.parse("2020-01-01T00:00:00Z"),
+                Instant.parse("2020-01-02T00:00:00Z"),
                 version,
                 List.of());
     }
