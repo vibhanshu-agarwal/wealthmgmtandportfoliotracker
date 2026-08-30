@@ -21,6 +21,8 @@ _INGRESS_SENTINEL = "__SPEC_A_9_14_INGRESS_SENTINEL__"
 _ENV_ALLOWED_KEYS = frozenset({"name", "value", "secret_name"})
 # Provider-computed ingress fields (azurerm_container_app.ingress); all other keys are operator-controlled.
 _INGRESS_COMPUTED_KEYS = frozenset({"fqdn"})
+# Provider/API defaults omitted from module HCL but commonly present in plan JSON.
+_INGRESS_PROVIDER_DEFAULTS = {"allow_insecure_connections": False}
 _INGRESS_OPERATOR_KEYS = frozenset(
     {"external_enabled", "target_port", "transport", "traffic_weight"}
 )
@@ -184,6 +186,9 @@ def _canonical_external_ingress(side: dict | None) -> dict | None:
         return None
 
     operator_keys = set(block.keys()) - _INGRESS_COMPUTED_KEYS
+    for key, expected in _INGRESS_PROVIDER_DEFAULTS.items():
+        if key in operator_keys and block.get(key) == expected:
+            operator_keys.discard(key)
     if operator_keys != _INGRESS_OPERATOR_KEYS:
         return None
     if block.get("external_enabled") is not True:

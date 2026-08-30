@@ -245,6 +245,20 @@ class SpecA914PlanTests(unittest.TestCase):
         errors = _evaluate(plan)
         self.assertTrue(any("ingress" in e for e in errors), errors)
 
+    def test_allow_insecure_connections_false_after_reopen_passes(self):
+        plan = _reopen_plan()
+        changed = copy.deepcopy(EXTERNAL_INGRESS)
+        changed[0]["allow_insecure_connections"] = False
+        plan["resource_changes"][0]["change"]["after"]["ingress"] = changed
+        self.assertEqual(_evaluate(plan), [])
+
+    def test_allow_insecure_connections_false_before_close_passes(self):
+        plan = _close_plan()
+        changed = copy.deepcopy(EXTERNAL_INGRESS)
+        changed[0]["allow_insecure_connections"] = False
+        plan["resource_changes"][0]["change"]["before"]["ingress"] = changed
+        self.assertEqual(_evaluate(plan, CLOSE), [])
+
     def test_allow_insecure_connections_after_reopen_fails(self):
         plan = _reopen_plan()
         changed = copy.deepcopy(EXTERNAL_INGRESS)
