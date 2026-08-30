@@ -15,7 +15,19 @@ import assert_spec_a_9_9_plan as sut  # noqa: E402
 
 EXPECTED_TAG = "9b2cf0d655b4b7ae2ce20ff7b67e4ad750df6900"
 WRONG_TAG = "deadbeef" * 5
+OTHER_GATEWAY_TAG = "18693d2defa3dcc34d1a508e03ed4a3c7e0b0f17"
 ACR = sut.ACR_LOGIN_SERVER
+
+
+def _tags_map(**overrides) -> dict[str, str]:
+    tags = {
+        "api-gateway": OTHER_GATEWAY_TAG,
+        "portfolio-service": EXPECTED_TAG,
+        "market-data-service": EXPECTED_TAG,
+        "insight-service": EXPECTED_TAG,
+    }
+    tags.update(overrides)
+    return tags
 
 
 def _expected_image(address: str, tag: str = EXPECTED_TAG) -> str:
@@ -76,8 +88,8 @@ def _abort_plan():
     }
 
 
-def _evaluate(plan, profile, expected_tag=EXPECTED_TAG):
-    return sut.evaluate_plan(plan, profile, expected_tag)
+def _evaluate(plan, profile, tags=None):
+    return sut.evaluate_plan(plan, profile, tags if tags is not None else _tags_map())
 
 
 class SpecA99PlanTests(unittest.TestCase):
@@ -220,7 +232,13 @@ class SpecA99PlanTests(unittest.TestCase):
                 for addr in sut.SERVICE_ADDRESSES
             ]
         }
-        self.assertEqual(_evaluate(plan, "spec-a-9.9-enable", expected_tag=other_tag), [])
+        self.assertEqual(_evaluate(plan, "spec-a-9.9-enable", tags=_tags_map(
+            **{
+                "portfolio-service": other_tag,
+                "market-data-service": other_tag,
+                "insight-service": other_tag,
+            }
+        )), [])
 
     # -- adversarial registry/repository checks ----------------------------------------
 
@@ -354,10 +372,25 @@ class SpecA99PlanTests(unittest.TestCase):
         }
         self.assertEqual(_evaluate(plan, "standard"), [])
 
-    def test_standard_does_not_require_expected_image_tag(self):
+    def test_mismatched_portfolio_tag_in_map_fails_even_when_gateway_tag_matches(self):
+        """A correct gateway tag plus an incorrect portfolio tag in the map must fail
+        for the portfolio address when the plan carries the wrong portfolio identity."""
+        addr = sut.SERVICE_ADDRESSES[0]
+        wrong_portfolio = _expected_image(addr, WRONG_TAG)
+        plan = _enable_plan()
+        plan["resource_changes"][0]["change"]["before"] = _side(
+            min_replicas=0, overrides_present=True, image=wrong_portfolio, service_version=WRONG_TAG
+        )
+        plan["resource_changes"][0]["change"]["after"] = _side(
+            min_replicas=1, overrides_present=False, image=wrong_portfolio, service_version=WRONG_TAG
+        )
+        errors = _evaluate(plan, "spec-a-9.9-enable")
+        self.assertTrue(any("[image]" in e and addr in e for e in errors))
+
+    def test_standard_does_not_require_expected_image_tags(self):
         # standard's guard doesn't check identity at all; an empty/irrelevant value
         # must not itself cause a failure.
-        self.assertEqual(_evaluate(_enable_plan(), "standard", expected_tag=""), _evaluate(_enable_plan(), "standard"))
+        self.assertEqual(_evaluate(_enable_plan(), "standard"), _evaluate(_enable_plan(), "standard"))
 
     # -- 9.11 profiles: accepted but routed through the standard 9.9 surface guard -----
 

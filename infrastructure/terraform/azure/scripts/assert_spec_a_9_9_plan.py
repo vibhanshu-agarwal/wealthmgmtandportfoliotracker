@@ -16,15 +16,16 @@ below. Non-scoped profiles therefore FAIL if the plan touches the protected surf
 override env vars or min_replicas) on any of the three catalog services at all — only
 spec-a-9.9-enable/abort may touch it, and only as the complete, exact transition.
 
---expected-image-tag pins image/SERVICE_VERSION identity to a specific value (the dispatch's own
-deployed_image_tag), not merely to itself: checking only before==after would accept a plan where
-both sides already carry the same WRONG tag (e.g. stale state, or a resource that was never on the
-expected image to begin with) — a real gap, since "unchanged" and "correct" are different claims.
+--expected-image-tags-json pins image/SERVICE_VERSION identity to per-service values from the
+dispatch's deployed_image_tags_json map, not merely to itself: checking only before==after would
+accept a plan where both sides already carry the same WRONG tag (e.g. stale state, or a resource
+that was never on the expected image to begin with) — a real gap, since "unchanged" and "correct"
+are different claims.
 
 Usage:
-    python3 scripts/assert_spec_a_9_9_plan.py tfplan.json --profile standard --expected-image-tag <sha>
-    python3 scripts/assert_spec_a_9_9_plan.py tfplan.json --profile spec-a-9.9-enable --expected-image-tag <sha>
-    python3 scripts/assert_spec_a_9_9_plan.py tfplan.json --profile spec-a-9.9-abort --expected-image-tag <sha>
+    python3 scripts/assert_spec_a_9_9_plan.py tfplan.json --profile standard --expected-image-tags-json '<json>'
+    python3 scripts/assert_spec_a_9_9_plan.py tfplan.json --profile spec-a-9.9-enable --expected-image-tags-json '<json>'
+    python3 scripts/assert_spec_a_9_9_plan.py tfplan.json --profile spec-a-9.9-abort --expected-image-tags-json '<json>'
 """
 
 from __future__ import annotations
@@ -32,6 +33,8 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+
+from validate_dispatch import DispatchValidationError, parse_deployed_image_tags
 
 SERVICE_ADDRESSES = (
     "module.portfolio_service.azurerm_container_app.this",
@@ -47,12 +50,26 @@ OVERRIDE_ENV_NAMES = (
 ACR_LOGIN_SERVER = "wealthprodacr.azurecr.io"
 
 # Maps each service address to its expected image repository on the production ACR.
-# The full expected image is f"{ACR_LOGIN_SERVER}/{repo}:{deployed_image_tag}".
+# The full expected image is f"{ACR_LOGIN_SERVER}/{repo}:{expected_tag_for_service}".
 SERVICE_IMAGE_REPOSITORIES: dict[str, str] = {
     "module.portfolio_service.azurerm_container_app.this": "portfolio-service",
     "module.market_data_service.azurerm_container_app.this": "market-data-service",
     "module.insight_service.azurerm_container_app.this": "insight-service",
 }
+
+REQUIRED_IMAGE_TAG_SERVICES = (
+    "api-gateway",
+    "portfolio-service",
+    "market-data-service",
+    "insight-service",
+)
+
+
+def parse_expected_image_tags(raw: str) -> dict[str, str]:
+    try:
+        return parse_deployed_image_tags(raw)
+    except DispatchValidationError as exc:
+        raise ValueError(str(exc)) from exc
 
 
 def load_plan(path: str) -> dict:
@@ -152,7 +169,7 @@ def _evaluate_standard_guard(plan: dict, profile: str) -> list[str]:
     return errors
 
 
-def _evaluate_9_9_transition(plan: dict, profile: str, expected_image_tag: str) -> list[str]:
+def _evaluate_9_9_transition(plan: dict, profile: str, expected_image_tags: dict[str, str]) -> list[str]:
     # profile is the literal change_profile input value here (spec-a-9.9-enable /
     # spec-a-9.9-abort), not a bare "enable"/"abort" — normalize once at the top so the
     # rest of this function reads as intent, not string comparison.
@@ -245,6 +262,7 @@ def _evaluate_9_9_transition(plan: dict, profile: str, expected_image_tag: str) 
         # Require exact registry/repository/tag equality — endswith(":{tag}") would accept
         # a wrong registry or wrong repository carrying the correct tag.
         expected_repo = SERVICE_IMAGE_REPOSITORIES[address]
+        expected_image_tag = expected_image_tags[expected_repo]
         expected_image = f"{ACR_LOGIN_SERVER}/{expected_repo}:{expected_image_tag}"
         before_image, after_image = _image(before), _image(after)
         for label, image in (("before", before_image), ("after", after_image)):
@@ -260,14 +278,14 @@ def _evaluate_9_9_transition(plan: dict, profile: str, expected_image_tag: str) 
             if version != expected_image_tag:
                 errors.append(
                     f"FAIL [service_version] {address} {label} SERVICE_VERSION is {version!r}; "
-                    f"expected {expected_image_tag!r} (deployed_image_tag), not merely to match "
+                    f"expected {expected_image_tag!r} (deployed_image_tags_json[{expected_repo!r}]), not merely to match "
                     "its counterpart on the other side of the diff."
                 )
 
     return errors
 
 
-def evaluate_plan(plan: dict, profile: str, expected_image_tag: str) -> list[str]:
+def evaluate_plan(plan: dict, profile: str, expected_image_tags: dict[str, str]) -> list[str]:
     if profile in (
         "standard",
         "spec-a-9.11-enable",
@@ -279,7 +297,7 @@ def evaluate_plan(plan: dict, profile: str, expected_image_tag: str) -> list[str
     ):
         # Later checkpoint profiles must not touch the 9.9 protected surface.
         return _evaluate_standard_guard(plan, profile)
-    return _evaluate_9_9_transition(plan, profile, expected_image_tag)
+    return _evaluate_9_9_transition(plan, profile, expected_image_tags)
 
 
 def main() -> int:
@@ -302,11 +320,17 @@ def main() -> int:
         help="The literal change_profile dispatch input value.",
     )
     parser.add_argument(
-        "--expected-image-tag",
+        "--expected-image-tags-json",
         required=True,
-        help="The deployed_image_tag this plan must show before AND after on all three services.",
+        help="JSON object with api-gateway, portfolio-service, market-data-service, and insight-service tags.",
     )
     args = parser.parse_args()
+
+    try:
+        expected_image_tags = parse_expected_image_tags(args.expected_image_tags_json)
+    except ValueError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 1
 
     try:
         plan = load_plan(args.plan_json)
@@ -317,7 +341,7 @@ def main() -> int:
         print(f"ERROR: Failed to parse plan JSON from '{args.plan_json}': {e}", file=sys.stderr)
         return 1
 
-    errors = evaluate_plan(plan, args.profile, args.expected_image_tag)
+    errors = evaluate_plan(plan, args.profile, expected_image_tags)
     if errors:
         print(f"SPEC A 9.9 PLAN ASSERTION FAILED (profile={args.profile}):")
         for err in errors:
@@ -340,7 +364,7 @@ def main() -> int:
     else:
         print(
             f"PASS spec-a-9.9 plan (profile={args.profile}) — exactly the three service Container "
-            "Apps change, in-place only, image/SERVICE_VERSION pinned to the deployed_image_tag."
+            "Apps change, in-place only, image/SERVICE_VERSION pinned to deployed_image_tags_json."
         )
     return 0
 

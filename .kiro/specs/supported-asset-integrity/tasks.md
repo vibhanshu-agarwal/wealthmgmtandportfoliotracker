@@ -831,6 +831,9 @@ python scripts/check-spec-references.py   .kiro/specs/supported-asset-integrity/
       `deployed_image_tag=9b2cf0d655b4b7ae2ce20ff7b67e4ad750df6900`; sanitized plan exactly
       `azurerm_container_app_job.market_data_refresh ["update"]`
       (`Plan: 0 to add, 1 to change, 0 to destroy`; `false → true` in-place).
+    - Forward-looking (post per-service identity repair): future live-state remote-plan/apply
+      will require `deployed_image_tags_json`, a four-key JSON map with one canonical lowercase
+      SHA per service, instead of the scalar `deployed_image_tag` used above.
     - Live read-back: runner `true`; retry `0`, timeout `600`, cron `0 8 * * *`, UserAssigned
       identity and image unchanged; no unexpected execution; gateway ingress still closed; peer
       revisions unchanged.

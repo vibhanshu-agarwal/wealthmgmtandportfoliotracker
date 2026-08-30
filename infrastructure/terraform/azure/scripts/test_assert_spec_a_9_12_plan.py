@@ -24,6 +24,7 @@ EXPECTED_DIGEST = "sha256:" + "a1" * 32
 OTHER_DIGEST = "sha256:" + "b2" * 32
 EXPECTED_VERSION = "9b2cf0d655b4b7ae2ce20ff7b67e4ad750df6900"
 OTHER_VERSION = "1" * 40
+GATEWAY_VERSION = "18693d2defa3dcc34d1a508e03ed4a3c7e0b0f17"
 IMAGE = f"wealthprodacr.azurecr.io/portfolio-service@{EXPECTED_DIGEST}"
 TARGET = "module.portfolio_service.azurerm_container_app.this"
 SECRET = "never-print-this-secret-value"
@@ -33,6 +34,17 @@ INTERNAL_INGRESS = [{
     "transport": "auto",
     "traffic_weight": [{"percentage": 100, "latest_revision": True}],
 }]
+
+
+def _tags_map(**overrides) -> dict[str, str]:
+    tags = {
+        "api-gateway": GATEWAY_VERSION,
+        "portfolio-service": EXPECTED_VERSION,
+        "market-data-service": EXPECTED_VERSION,
+        "insight-service": EXPECTED_VERSION,
+    }
+    tags.update(overrides)
+    return tags
 
 
 def _production_plain_env(demo=..., tx_diag=...):
@@ -167,8 +179,8 @@ def _tx_diag_transition(before_tx=..., after_tx="true", *, before_demo="false", 
     )
 
 
-def _evaluate(plan, profile="spec-a-9.12-enable", digest=EXPECTED_DIGEST, version=EXPECTED_VERSION):
-    return sut.evaluate_plan(plan, profile, digest, version)
+def _evaluate(plan, profile="spec-a-9.12-enable", digest=EXPECTED_DIGEST, tags=None):
+    return sut.evaluate_plan(plan, profile, digest, tags if tags is not None else _tags_map())
 
 
 class SpecA912PlanTests(unittest.TestCase):
@@ -216,7 +228,7 @@ class SpecA912PlanTests(unittest.TestCase):
 
     def test_non_scoped_rejects_tx_diag_change(self):
         plan = _tx_diag_transition("false", "true")
-        self.assertFails(plan, "standard", digest="", version="")
+        self.assertFails(plan, "standard", digest="")
 
     def test_known_non_scoped_profiles_allow_unchanged_demo(self):
         profiles = (
@@ -229,7 +241,7 @@ class SpecA912PlanTests(unittest.TestCase):
         plan = _transition("false", "false", after=_side("false", cpu=1.0))
         for profile in profiles:
             with self.subTest(profile=profile):
-                self.assertEqual(_evaluate(plan, profile, digest="", version=""), [])
+                self.assertEqual(_evaluate(plan, profile, digest=""), [])
 
     def test_non_scoped_profiles_reject_demo_add_remove_duplicate_or_change(self):
         plans = (
@@ -242,7 +254,7 @@ class SpecA912PlanTests(unittest.TestCase):
         )
         for plan in plans:
             with self.subTest(plan=plan):
-                self.assertFails(plan, "standard", digest="", version="")
+                self.assertFails(plan, "standard", digest="")
 
     def test_non_scoped_rejects_demo_secret_reference_change(self):
         """Non-9.12 profiles must catch secret_name-only demo entry mutations.
@@ -262,7 +274,6 @@ class SpecA912PlanTests(unittest.TestCase):
             _plan(_target(before=before, after=after)),
             "standard",
             digest="",
-            version="",
         )
         self.assertTrue(errors, "secret_name-only demo change must fail under standard")
         self.assertTrue(
@@ -277,10 +288,13 @@ class SpecA912PlanTests(unittest.TestCase):
                 _plan(_target(before=before, after=unchanged)),
                 "standard",
                 digest="",
-                version="",
             ),
             [],
         )
+
+    def test_service_version_pin_is_checked_independently_on_both_sides(self):
+        self.assertFails(_transition(before=_side(..., version=OTHER_VERSION)))
+        self.assertFails(_transition(after=_side("true", version=OTHER_VERSION)))
     def test_enable_rejects_bad_directions_values_and_counts(self):
         plans = (
             _transition("true", "false"),
@@ -455,9 +469,15 @@ class SpecA912PlanTests(unittest.TestCase):
         tag_image = f"wealthprodacr.azurecr.io/portfolio-service:{EXPECTED_VERSION}"
         self.assertFails(_transition(before=_side(..., image=tag_image), after=_side("true", image=tag_image)))
 
-    def test_service_version_pin_is_checked_independently_on_both_sides(self):
-        self.assertFails(_transition(before=_side(..., version=OTHER_VERSION)))
-        self.assertFails(_transition(after=_side("true", version=OTHER_VERSION)))
+    def test_service_version_pin_uses_portfolio_service_map_entry(self):
+        self.assertFails(
+            _transition(),
+            tags=_tags_map(**{"portfolio-service": OTHER_VERSION}),
+        )
+
+    def test_correct_gateway_tag_with_wrong_portfolio_plan_identity_fails(self):
+        wrong_side = _side("true", version=GATEWAY_VERSION)
+        self.assertFails(_transition(after=wrong_side))
 
     def test_cross_guard_adversarial_changes_fail_scope_or_sole_delta(self):
         runner = {
@@ -482,7 +502,7 @@ class SpecA912PlanTests(unittest.TestCase):
                 self.assertFails(_transition(), digest=digest)
         for version in bad_versions:
             with self.subTest(version=version):
-                self.assertFails(_transition(), version=version)
+                self.assertFails(_transition(), tags=_tags_map(**{"portfolio-service": version}))
 
     def test_errors_do_not_leak_secrets_or_plan_fragments(self):
         after = _side("true", cpu=1.0)
@@ -505,8 +525,8 @@ class SpecA912PlanTests(unittest.TestCase):
                 "spec-a-9.12-enable",
                 "--expected-image-digest",
                 EXPECTED_DIGEST,
-                "--expected-service-version",
-                EXPECTED_VERSION,
+                "--expected-image-tags-json",
+                json.dumps(_tags_map()),
             ]
             stdout_buf = io.StringIO()
             stderr_buf = io.StringIO()

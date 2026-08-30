@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import json
 import sys
 import unittest
 from pathlib import Path
@@ -15,8 +16,23 @@ import validate_dispatch as sut  # noqa: E402
 
 SHA = "9b2cf0d655b4b7ae2ce20ff7b67e4ad750df6900"
 OTHER_SHA = "bc6492fabce7667b745ec181d30614142d4335c8"
+GATEWAY_SHA = "18693d2defa3dcc34d1a508e03ed4a3c7e0b0f17"
+PORTFOLIO_SHA = "9b2cf0d655b4b7ae2ce20ff7b67e4ad750df6900"
+MARKET_SHA = "1111111111111111111111111111111111111111"
+INSIGHT_SHA = "2222222222222222222222222222222222222222"
 DIGEST = "sha256:" + "a1" * 32
 MAIN_REF = "refs/heads/main"
+
+
+def _valid_tags_json(**overrides) -> str:
+    tags = {
+        "api-gateway": GATEWAY_SHA,
+        "portfolio-service": PORTFOLIO_SHA,
+        "market-data-service": MARKET_SHA,
+        "insight-service": INSIGHT_SHA,
+    }
+    tags.update(overrides)
+    return json.dumps(tags)
 
 
 class ValidateDispatchTests(unittest.TestCase):
@@ -25,7 +41,7 @@ class ValidateDispatchTests(unittest.TestCase):
             actual_ref=MAIN_REF,
             actual_sha=SHA,
             expected_main_sha=SHA,
-            deployed_image_tag=SHA,
+            deployed_image_tags_json=_valid_tags_json(),
             expected_portfolio_image_digest="",
             change_profile="standard",
             use_seed_image="false",
@@ -70,19 +86,92 @@ class ValidateDispatchTests(unittest.TestCase):
         with self.assertRaises(sut.DispatchValidationError):
             sut.validate(self._inputs(expected_main_sha="9b2cf0d", actual_sha="9b2cf0d"))
 
-    # -- deployed_image_tag guards -----------------------------------------------
+    # -- deployed_image_tags_json guards ---------------------------------------
 
-    def test_empty_deployed_image_tag_fails_closed(self):
+    def test_empty_deployed_image_tags_json_fails_closed(self):
         with self.assertRaises(sut.DispatchValidationError):
-            sut.validate(self._inputs(deployed_image_tag=""))
+            sut.validate(self._inputs(deployed_image_tags_json=""))
 
-    def test_non_hex_deployed_image_tag_fails_closed(self):
-        with self.assertRaises(sut.DispatchValidationError):
-            sut.validate(self._inputs(deployed_image_tag="not-a-sha-at-all"))
+    def test_malformed_json_fails_closed(self):
+        with self.assertRaises(sut.DispatchValidationError) as ctx:
+            sut.validate(self._inputs(deployed_image_tags_json="{not-json"))
+        self.assertIn("valid JSON", str(ctx.exception))
 
-    def test_short_deployed_image_tag_fails_closed(self):
+    def test_non_object_json_fails_closed(self):
+        with self.assertRaises(sut.DispatchValidationError) as ctx:
+            sut.validate(self._inputs(deployed_image_tags_json=json.dumps([SHA])))
+        self.assertIn("JSON object", str(ctx.exception))
+
+    def test_missing_required_service_fails_closed(self):
+        tags = json.loads(_valid_tags_json())
+        del tags["portfolio-service"]
+        with self.assertRaises(sut.DispatchValidationError) as ctx:
+            sut.validate(self._inputs(deployed_image_tags_json=json.dumps(tags)))
+        self.assertIn("missing required service", str(ctx.exception))
+
+    def test_extra_service_fails_closed(self):
+        tags = json.loads(_valid_tags_json())
+        tags["other-service"] = SHA
+        with self.assertRaises(sut.DispatchValidationError) as ctx:
+            sut.validate(self._inputs(deployed_image_tags_json=json.dumps(tags)))
+        self.assertIn("unexpected service", str(ctx.exception))
+
+    def test_short_tag_value_fails_closed(self):
         with self.assertRaises(sut.DispatchValidationError):
-            sut.validate(self._inputs(deployed_image_tag="9b2cf0d"))
+            sut.validate(
+                self._inputs(deployed_image_tags_json=_valid_tags_json(**{"api-gateway": "9b2cf0d"}))
+            )
+
+    def test_non_hex_tag_value_fails_closed(self):
+        with self.assertRaises(sut.DispatchValidationError):
+            sut.validate(
+                self._inputs(
+                    deployed_image_tags_json=_valid_tags_json(
+                        **{"market-data-service": "not-a-sha-at-all-zzzzzzzzzzzzzzzzzzzz"}
+                    )
+                )
+            )
+
+    def test_uppercase_tag_fails_closed(self):
+        with self.assertRaises(sut.DispatchValidationError):
+            sut.validate(
+                self._inputs(deployed_image_tags_json=_valid_tags_json(**{"api-gateway": GATEWAY_SHA.upper()}))
+            )
+
+    def test_duplicate_json_key_fails_closed(self):
+        payload = (
+            '{"api-gateway":"'
+            + ("a" * 40)
+            + '","api-gateway":"'
+            + GATEWAY_SHA
+            + '","portfolio-service":"'
+            + PORTFOLIO_SHA
+            + '","market-data-service":"'
+            + MARKET_SHA
+            + '","insight-service":"'
+            + INSIGHT_SHA
+            + '"}'
+        )
+        with self.assertRaises(sut.DispatchValidationError) as ctx:
+            sut.validate(self._inputs(deployed_image_tags_json=payload))
+        self.assertIn("duplicate keys", str(ctx.exception))
+
+    def test_padded_tag_value_fails_closed(self):
+        with self.assertRaises(sut.DispatchValidationError):
+            sut.validate(
+                self._inputs(
+                    deployed_image_tags_json=_valid_tags_json(
+                        **{"portfolio-service": " " + PORTFOLIO_SHA + " "}
+                    )
+                )
+            )
+
+    def test_distinct_per_service_tags_pass(self):
+        result = sut.validate(self._inputs())
+        self.assertEqual(result["api-gateway"], GATEWAY_SHA)
+        self.assertEqual(result["portfolio-service"], PORTFOLIO_SHA)
+        self.assertEqual(result["market-data-service"], MARKET_SHA)
+        self.assertEqual(result["insight-service"], INSIGHT_SHA)
 
     # -- change_profile guard --------------------------------------------------
 

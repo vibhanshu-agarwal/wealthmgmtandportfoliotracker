@@ -21,8 +21,8 @@
 #
 # Live-state hardening (Spec A checkpoint-9.9 prerequisite, 2026-08-23): remote-plan
 # and apply now require expected_main_sha (dispatch must target the exact commit
-# intended, not whatever main has drifted to) and deployed_image_tag (explicit —
-# TF_VAR_image_tag no longer silently defaults to the dispatch commit's own SHA for
+# intended, not whatever main has drifted to) and deployed_image_tags_json (explicit four-key
+# JSON map — TF_VAR_image_tags no longer silently defaults to the dispatch commit's own SHA for
 # these operations, which would otherwise change SERVICE_VERSION on every app/Job to
 # an unrelated IaC commit while the actual, lifecycle-ignored image stayed on
 # whatever was last deployed). validate_dispatch.py enforces both, plus that the
@@ -54,12 +54,13 @@ on:
         required: false
         type: string
         default: ""
-      deployed_image_tag:
+      deployed_image_tags_json:
         description: >
-          Required for remote-plan/apply: the full 40-character image tag currently
-          deployed to the four Container Apps (e.g. the R4 tag during checkpoint 9.9).
-          Sets TF_VAR_image_tag explicitly for live-state operations so SERVICE_VERSION
-          cannot silently drift to this workflow's own dispatch commit.
+          Required for remote-plan/apply: JSON object with exactly api-gateway,
+          portfolio-service, market-data-service, and insight-service keys, each mapped to
+          the full 40-character SERVICE_VERSION tag currently deployed for that service.
+          Records live image identity for truthful planning — it does not select an image
+          to roll out. Sets TF_VAR_image_tags explicitly for live-state operations.
         required: false
         type: string
         default: ""
@@ -126,8 +127,8 @@ env:
   TF_VAR_azure_client_id: ${{ secrets.AZURE_CLIENT_ID }}
   TF_VAR_azure_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
   TF_VAR_azure_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-  # Structural (pr-plan) path only — live-state jobs override this with deployed_image_tag.
-  TF_VAR_image_tag: ${{ github.sha }}
+  # Structural (pr-plan) path uses variables.tf image_tags defaults ("latest" placeholders).
+  # Live-state remote-plan/apply override TF_VAR_image_tags from deployed_image_tags_json.
   TF_VAR_demo_seed_on_startup: ${{ github.event.inputs.change_profile == 'spec-a-9.12-enable' && 'true' || 'false' }}
   TF_VAR_demo_tx_diagnostics: ${{ github.event.inputs.change_profile == 'spec-a-9.12-tx-diag-enable' && 'true' || 'false' }}
   TF_VAR_use_seed_image: ${{ github.event.inputs.use_seed_image || 'false' }}
@@ -225,6 +226,8 @@ jobs:
     name: Validate live-state dispatch
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    outputs:
+      canonical_image_tags_json: ${{ steps.validate-dispatch.outputs.canonical_image_tags_json }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -235,11 +238,12 @@ jobs:
           python-version: "3.12"
 
       - name: Validate dispatch inputs
+        id: validate-dispatch
         env:
           ACTUAL_REF: ${{ github.ref }}
           ACTUAL_SHA: ${{ github.sha }}
           EXPECTED_MAIN_SHA: ${{ github.event.inputs.expected_main_sha }}
-          DEPLOYED_IMAGE_TAG: ${{ github.event.inputs.deployed_image_tag }}
+          DEPLOYED_IMAGE_TAGS_JSON: ${{ github.event.inputs.deployed_image_tags_json }}
           EXPECTED_PORTFOLIO_IMAGE_DIGEST: ${{ github.event.inputs.expected_portfolio_image_digest }}
           CHANGE_PROFILE: ${{ github.event.inputs.change_profile }}
           USE_SEED_IMAGE: ${{ github.event.inputs.use_seed_image }}
@@ -266,27 +270,55 @@ jobs:
           fi
           echo "OK: expected portfolio image digest resolves to exactly one manifest."
 
-      # deployed_image_tag passed the format check above; now prove it actually exists
-      # in ACR for every service this workflow can touch, so a typo'd or stale tag
-      # cannot silently apply as SERVICE_VERSION against a manifest that isn't real.
+      # deployed_image_tags_json passed the format check above; now prove each supplied tag
+      # exists in its own ACR repository, so a typo'd or stale tag cannot silently apply as
+      # SERVICE_VERSION against a manifest that isn't real.
       # Skipped ONLY for standard + use_seed_image=true: that's the first-provisioning
       # bootstrap path, before any real service image (or possibly the registry itself)
-      # exists — deployed_image_tag is meaningless there. Every other combination,
+      # exists — deployed_image_tags_json is meaningless there. Every other combination,
       # including both 9.9 profiles and ordinary non-seed applies, still requires it.
-      - name: Confirm deployed_image_tag resolves in ACR
+      - name: Confirm deployed_image_tags_json resolves in ACR
         if: '! (github.event.inputs.change_profile == ''standard'' && github.event.inputs.use_seed_image == ''true'')'
+        env:
+          CANONICAL_IMAGE_TAGS_JSON: ${{ steps.validate-dispatch.outputs.canonical_image_tags_json }}
         run: |
           set -euo pipefail
-          TAG="${{ github.event.inputs.deployed_image_tag }}"
-          for REPO in portfolio-service market-data-service insight-service api-gateway; do
-            COUNT=$(az acr manifest list-metadata --registry wealthprodacr --name "$REPO" \
-              --query "length([?tags != null && contains(tags, '${TAG}')])" -o tsv)
-            if [ "$COUNT" != "1" ]; then
-              echo "::error::deployed_image_tag '${TAG}' resolves to ${COUNT} manifest(s) in wealthprodacr/${REPO} (expected exactly 1)."
-              exit 1
-            fi
-            echo "OK: ${REPO}:${TAG} resolves to exactly one manifest."
-          done
+          python3 - <<'PY'
+          import json
+          import os
+          import subprocess
+          import sys
+
+          tags = json.loads(os.environ["CANONICAL_IMAGE_TAGS_JSON"])
+          for repo in (
+              "api-gateway",
+              "portfolio-service",
+              "market-data-service",
+              "insight-service",
+          ):
+              tag = tags[repo]
+              result = subprocess.run(
+                  [
+                      "az", "acr", "manifest", "list-metadata",
+                      "--registry", "wealthprodacr",
+                      "--name", repo,
+                      "--query", f"length([?tags != null && contains(tags, '{tag}')])",
+                      "-o", "tsv",
+                  ],
+                  check=True,
+                  capture_output=True,
+                  text=True,
+              )
+              count = result.stdout.strip()
+              if count != "1":
+                  print(
+                      f"::error::deployed_image_tags_json[{repo!r}]={tag!r} resolves to "
+                      f"{count} manifest(s) in wealthprodacr/{repo} (expected exactly 1).",
+                      file=sys.stderr,
+                  )
+                  sys.exit(1)
+              print(f"OK: {repo}:{tag} resolves to exactly one manifest.")
+          PY
 
   # ===========================================================================
   # remote-plan: real backend, read-only. The only way to preview the actual
@@ -299,7 +331,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      TF_VAR_image_tag: ${{ github.event.inputs.deployed_image_tag }}
+      TF_VAR_image_tags: ${{ needs.validate-dispatch.outputs.canonical_image_tags_json }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -362,17 +394,23 @@ jobs:
       # non-9.9 profile must not be able to apply it without going through the
       # exact-scope proof below.
       - name: Assert Plan — Spec A 9.9 profile guard / exact scope
-        run: python3 scripts/assert_spec_a_9_9_plan.py tfplan.json --profile "${{ github.event.inputs.change_profile }}" --expected-image-tag "${{ github.event.inputs.deployed_image_tag }}"
+        env:
+          EXPECTED_IMAGE_TAGS_JSON: ${{ needs.validate-dispatch.outputs.canonical_image_tags_json }}
+        run: python3 scripts/assert_spec_a_9_9_plan.py tfplan.json --profile "${{ github.event.inputs.change_profile }}" --expected-image-tags-json "$EXPECTED_IMAGE_TAGS_JSON"
 
       # Runs for every change_profile: under standard/9.9/9.12 this forbids any runner-env
       # transition; under 9.11 enable/abort it proves the exact one-Job in-place update.
       # Not run in the empty-backend structural PR plan (greenfield create is not the
       # live false->true transition).
       - name: Assert Plan — Spec A 9.11 profile guard / exact scope
-        run: python3 scripts/assert_spec_a_9_11_plan.py tfplan.json --profile "${{ github.event.inputs.change_profile }}" --expected-image-tag "${{ github.event.inputs.deployed_image_tag }}"
+        env:
+          EXPECTED_IMAGE_TAGS_JSON: ${{ needs.validate-dispatch.outputs.canonical_image_tags_json }}
+        run: python3 scripts/assert_spec_a_9_11_plan.py tfplan.json --profile "${{ github.event.inputs.change_profile }}" --expected-image-tags-json "$EXPECTED_IMAGE_TAGS_JSON"
 
       - name: Assert Plan — Spec A 9.12 profile guard / exact scope
-        run: python3 scripts/assert_spec_a_9_12_plan.py tfplan.json --profile "${{ github.event.inputs.change_profile }}" --expected-image-digest "${{ github.event.inputs.expected_portfolio_image_digest }}" --expected-service-version "${{ github.event.inputs.deployed_image_tag }}"
+        env:
+          EXPECTED_IMAGE_TAGS_JSON: ${{ needs.validate-dispatch.outputs.canonical_image_tags_json }}
+        run: python3 scripts/assert_spec_a_9_12_plan.py tfplan.json --profile "${{ github.event.inputs.change_profile }}" --expected-image-digest "${{ github.event.inputs.expected_portfolio_image_digest }}" --expected-image-tags-json "$EXPECTED_IMAGE_TAGS_JSON"
 
       # Sanitized summary only — built from tfplan.json via summarize_plan.py, which
       # emits ONLY "<address> <actions>" per changed resource, never attribute paths,
@@ -412,7 +450,7 @@ jobs:
     timeout-minutes: 90
     environment: production
     env:
-      TF_VAR_image_tag: ${{ github.event.inputs.deployed_image_tag }}
+      TF_VAR_image_tags: ${{ needs.validate-dispatch.outputs.canonical_image_tags_json }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -559,13 +597,19 @@ jobs:
       # non-9.9 profile must not be able to apply it without going through the
       # exact-scope proof below.
       - name: Assert Plan — Spec A 9.9 profile guard / exact scope
-        run: python3 scripts/assert_spec_a_9_9_plan.py tfplan.json --profile "${{ github.event.inputs.change_profile }}" --expected-image-tag "${{ github.event.inputs.deployed_image_tag }}"
+        env:
+          EXPECTED_IMAGE_TAGS_JSON: ${{ needs.validate-dispatch.outputs.canonical_image_tags_json }}
+        run: python3 scripts/assert_spec_a_9_9_plan.py tfplan.json --profile "${{ github.event.inputs.change_profile }}" --expected-image-tags-json "$EXPECTED_IMAGE_TAGS_JSON"
 
       - name: Assert Plan — Spec A 9.11 profile guard / exact scope
-        run: python3 scripts/assert_spec_a_9_11_plan.py tfplan.json --profile "${{ github.event.inputs.change_profile }}" --expected-image-tag "${{ github.event.inputs.deployed_image_tag }}"
+        env:
+          EXPECTED_IMAGE_TAGS_JSON: ${{ needs.validate-dispatch.outputs.canonical_image_tags_json }}
+        run: python3 scripts/assert_spec_a_9_11_plan.py tfplan.json --profile "${{ github.event.inputs.change_profile }}" --expected-image-tags-json "$EXPECTED_IMAGE_TAGS_JSON"
 
       - name: Assert Plan — Spec A 9.12 profile guard / exact scope
-        run: python3 scripts/assert_spec_a_9_12_plan.py tfplan.json --profile "${{ github.event.inputs.change_profile }}" --expected-image-digest "${{ github.event.inputs.expected_portfolio_image_digest }}" --expected-service-version "${{ github.event.inputs.deployed_image_tag }}"
+        env:
+          EXPECTED_IMAGE_TAGS_JSON: ${{ needs.validate-dispatch.outputs.canonical_image_tags_json }}
+        run: python3 scripts/assert_spec_a_9_12_plan.py tfplan.json --profile "${{ github.event.inputs.change_profile }}" --expected-image-digest "${{ github.event.inputs.expected_portfolio_image_digest }}" --expected-image-tags-json "$EXPECTED_IMAGE_TAGS_JSON"
 
       - name: Terraform Apply
         run: terraform apply -auto-approve tfplan

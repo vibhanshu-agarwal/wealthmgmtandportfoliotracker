@@ -9,6 +9,8 @@ import json
 import re
 import sys
 
+from assert_spec_a_9_9_plan import parse_expected_image_tags
+
 TARGET_ADDRESS = "module.portfolio_service.azurerm_container_app.this"
 DEMO_ENV = "APP_DEMO_SEED_ON_STARTUP"
 TX_DIAG_ENV = "APP_DEMO_TX_DIAGNOSTICS"
@@ -548,10 +550,11 @@ def evaluate_plan(
     plan: dict,
     profile: str,
     expected_image_digest: str,
-    expected_service_version: str,
+    expected_image_tags: dict[str, str],
 ) -> list[str]:
     if profile not in KNOWN_PROFILES:
         return ["FAIL [profile] unknown change profile; fail closed."]
+    expected_service_version = expected_image_tags["portfolio-service"]
     if profile in SCOPED_PROFILES:
         return _evaluate_scoped(
             plan,
@@ -567,8 +570,14 @@ def main() -> int:
     parser.add_argument("plan_json")
     parser.add_argument("--profile", required=True)
     parser.add_argument("--expected-image-digest", required=True)
-    parser.add_argument("--expected-service-version", required=True)
+    parser.add_argument("--expected-image-tags-json", required=True)
     args = parser.parse_args()
+
+    try:
+        expected_image_tags = parse_expected_image_tags(args.expected_image_tags_json)
+    except ValueError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 1
 
     try:
         plan = load_plan(args.plan_json)
@@ -580,7 +589,7 @@ def main() -> int:
         plan,
         args.profile,
         args.expected_image_digest,
-        args.expected_service_version,
+        expected_image_tags,
     )
     if errors:
         print(f"SPEC A 9.12 PLAN ASSERTION FAILED (profile={args.profile}):")

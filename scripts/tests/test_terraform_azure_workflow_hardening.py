@@ -3,8 +3,8 @@
 prerequisite).
 
 Mirrors test_deploy_pipeline_hardening.py's discipline for the Terraform pipeline: remote-plan
-and apply must be dispatch-validated, must require explicit deployed_image_tag (never silently
-default TF_VAR_image_tag to the dispatch commit's own SHA), and apply must sit behind the
+and apply must be dispatch-validated, must require explicit deployed_image_tags_json (never silently
+default TF_VAR_image_tags to the dispatch commit's own SHA), and apply must sit behind the
 `production` Environment. Stdlib only — no PyYAML.
 """
 
@@ -39,9 +39,10 @@ class TestTerraformAzureWorkflowHardening(unittest.TestCase):
         block = self._block("action:")
         self.assertRegex(block, r"options:[\s\S]*?-\s*remote-plan")
 
-    def test_expected_main_sha_and_deployed_image_tag_inputs_exist(self):
+    def test_expected_main_sha_and_deployed_image_tags_json_inputs_exist(self):
         self.assertIn("expected_main_sha:", self.text)
-        self.assertIn("deployed_image_tag:", self.text)
+        self.assertIn("deployed_image_tags_json:", self.text)
+        self.assertNotIn("deployed_image_tag:", self.text)
 
     def test_change_profile_input_has_both_9_9_profiles(self):
         block = self._block("change_profile:")
@@ -77,13 +78,22 @@ class TestTerraformAzureWorkflowHardening(unittest.TestCase):
         self.assertIn("apply", job)
         self.assertIn("validate_dispatch.py", job)
 
+    def test_validate_dispatch_job_exports_canonical_image_tags_json(self):
+        job = self._job("validate-dispatch:")
+        self.assertIn("outputs:", job)
+        self.assertIn(
+            "canonical_image_tags_json: ${{ steps.validate-dispatch.outputs.canonical_image_tags_json }}",
+            job,
+        )
+        self.assertIn("id: validate-dispatch", job)
+
     def test_validate_dispatch_passes_ref_sha_profile_and_seed_flags(self):
         job = self._job("validate-dispatch:")
         for var in (
             "ACTUAL_REF: ${{ github.ref }}",
             "ACTUAL_SHA: ${{ github.sha }}",
             "EXPECTED_MAIN_SHA: ${{ github.event.inputs.expected_main_sha }}",
-            "DEPLOYED_IMAGE_TAG: ${{ github.event.inputs.deployed_image_tag }}",
+            "DEPLOYED_IMAGE_TAGS_JSON: ${{ github.event.inputs.deployed_image_tags_json }}",
             "EXPECTED_PORTFOLIO_IMAGE_DIGEST: ${{ github.event.inputs.expected_portfolio_image_digest }}",
             "CHANGE_PROFILE: ${{ github.event.inputs.change_profile }}",
             "USE_SEED_IMAGE: ${{ github.event.inputs.use_seed_image }}",
@@ -91,18 +101,30 @@ class TestTerraformAzureWorkflowHardening(unittest.TestCase):
         ):
             self.assertIn(var, job)
 
-    def test_validate_dispatch_confirms_image_tag_in_acr(self):
+    def test_validate_dispatch_acr_check_uses_canonical_output_not_raw_input(self):
+        job = self._job("validate-dispatch:")
+        self.assertIn("CANONICAL_IMAGE_TAGS_JSON: ${{ steps.validate-dispatch.outputs.canonical_image_tags_json }}", job)
+        acr_step = job[job.find("Confirm deployed_image_tags_json resolves in ACR") :]
+        self.assertNotIn("github.event.inputs.deployed_image_tags_json", acr_step[acr_step.find("CANONICAL_IMAGE_TAGS_JSON") :])
+
+    def test_validate_dispatch_confirms_image_tags_in_acr_per_service(self):
         job = self._job("validate-dispatch:")
         self.assertIn("az acr manifest list-metadata", job)
+        for repo in (
+            "api-gateway",
+            "portfolio-service",
+            "market-data-service",
+            "insight-service",
+        ):
+            self.assertIn(repo, job)
 
     def test_acr_check_skipped_only_for_standard_seed_bootstrap(self):
         # standard + use_seed_image=true is the first-provisioning path where
-        # deployed_image_tag is meaningless — every other combination (both 9.9
+        # deployed_image_tags_json is meaningless — every other combination (both 9.9
         # profiles, ordinary non-seed applies, Job-only recovery) must still require it.
         job = self._job("validate-dispatch:")
-        idx = job.find("Confirm deployed_image_tag resolves in ACR")
+        idx = job.find("Confirm deployed_image_tags_json resolves in ACR")
         self.assertGreaterEqual(idx, 0)
-        preceding = job[:idx]
         if_line = re.search(r"if:\s*'([^\n]*)'\n", job[idx:])
         self.assertIsNotNone(if_line, "expected a quoted if: condition on this step")
         condition = if_line.group(1)
@@ -141,6 +163,11 @@ class TestTerraformAzureWorkflowHardening(unittest.TestCase):
             r"(?m)^\s+demo_seed_on_startup:\s*$",
         )
 
+    def test_structural_plan_does_not_set_live_state_image_tags(self):
+        self.assertNotIn("TF_VAR_image_tag:", self.text)
+        pr_plan = self._job("pr-plan:")
+        self.assertNotIn("TF_VAR_image_tags:", pr_plan)
+
     # -- apply job: needs + environment gate ----------------------------------------
 
     def test_apply_job_needs_validate_dispatch(self):
@@ -152,30 +179,29 @@ class TestTerraformAzureWorkflowHardening(unittest.TestCase):
         self.assertIn("environment: production", job)
 
     def test_apply_job_is_not_a_reusable_workflow_call(self):
-        # environment: is only valid directly on a job like this because it has real
-        # steps, not a job-level `uses:` (a reusable-workflow call). Step-level `uses:`
-        # (actions/checkout@v4 etc., at deeper indentation) is fine and expected — only
-        # a job-level `uses:` would make `environment:` here invalid.
         job = self._job("apply:")
         self.assertNotRegex(job, r"(?m)^    uses:")
 
-    def test_apply_job_overrides_image_tag_from_input(self):
-        job = self._job("apply:")
-        self.assertIn("TF_VAR_image_tag: ${{ github.event.inputs.deployed_image_tag }}", job)
-
-    def test_apply_job_invokes_profile_guard_unconditionally_for_every_profile(self):
-        # Not gated by if: change_profile == ... — must run for standard too, or a
-        # dispatch left on the default profile could apply the 9.9 change unguarded.
+    def test_apply_job_overrides_image_tags_from_canonical_output(self):
         job = self._job("apply:")
         self.assertIn(
-            'assert_spec_a_9_9_plan.py tfplan.json --profile "${{ github.event.inputs.change_profile }}" --expected-image-tag',
+            "TF_VAR_image_tags: ${{ needs.validate-dispatch.outputs.canonical_image_tags_json }}",
             job,
         )
+        self.assertNotIn("github.event.inputs.deployed_image_tags_json", job.split("TF_VAR_image_tags")[1][:120])
+
+    def test_apply_job_invokes_profile_guard_unconditionally_for_every_profile(self):
+        job = self._job("apply:")
+        self.assertIn(
+            'assert_spec_a_9_9_plan.py tfplan.json --profile "${{ github.event.inputs.change_profile }}" --expected-image-tags-json "$EXPECTED_IMAGE_TAGS_JSON"',
+            job,
+        )
+        self.assertIn("EXPECTED_IMAGE_TAGS_JSON: ${{ needs.validate-dispatch.outputs.canonical_image_tags_json }}", job)
 
     def test_apply_job_invokes_9_11_profile_guard(self):
         job = self._job("apply:")
         self.assertIn(
-            'assert_spec_a_9_11_plan.py tfplan.json --profile "${{ github.event.inputs.change_profile }}" --expected-image-tag "${{ github.event.inputs.deployed_image_tag }}"',
+            'assert_spec_a_9_11_plan.py tfplan.json --profile "${{ github.event.inputs.change_profile }}" --expected-image-tags-json "$EXPECTED_IMAGE_TAGS_JSON"',
             job,
         )
 
@@ -186,25 +212,21 @@ class TestTerraformAzureWorkflowHardening(unittest.TestCase):
         guard_9_12 = job.find(
             'assert_spec_a_9_12_plan.py tfplan.json --profile "${{ github.event.inputs.change_profile }}" '
             '--expected-image-digest "${{ github.event.inputs.expected_portfolio_image_digest }}" '
-            '--expected-service-version "${{ github.event.inputs.deployed_image_tag }}"'
+            '--expected-image-tags-json "$EXPECTED_IMAGE_TAGS_JSON"'
         )
         self.assertGreater(guard_9_9, -1)
         self.assertGreater(guard_9_11, guard_9_9)
         self.assertGreater(guard_9_12, guard_9_11)
+        self.assertNotIn("deployed_image_tags_json }}'", job)
 
     def test_job_import_step_is_read_only_for_9_9_profiles(self):
-        # `terraform import` mutates the real backend's state immediately, before any
-        # plan or assertion runs — during a 9.9 apply that must never happen silently
-        # (it would be a state mutation outside the declared three-resource scope,
-        # invisible to the profile-guard assertion which only ever sees the plan that
-        # comes after). standard keeps the original auto-import recovery behavior.
         job = self._job("apply:")
         import_step = job[job.find("Import existing market-data refresh Job") :]
         import_step = import_step[: import_step.find("\n\n      - name:")]
         self.assertIn("spec-a-9.9-enable", import_step)
         self.assertIn("spec-a-9.9-abort", import_step)
         self.assertIn("exit 1", import_step)
-        self.assertIn("terraform import", import_step)  # still present for standard
+        self.assertIn("terraform import", import_step)
 
     def test_job_import_step_is_read_only_for_9_11_profiles(self):
         job = self._job("apply:")
@@ -235,21 +257,25 @@ class TestTerraformAzureWorkflowHardening(unittest.TestCase):
         self.assertIn("backend-azure.hcl", job)
         self.assertNotIn('backend "local"', job)
 
-    def test_remote_plan_overrides_image_tag_from_input(self):
+    def test_remote_plan_overrides_image_tags_from_canonical_output(self):
         job = self._job("remote-plan:")
-        self.assertIn("TF_VAR_image_tag: ${{ github.event.inputs.deployed_image_tag }}", job)
+        self.assertIn(
+            "TF_VAR_image_tags: ${{ needs.validate-dispatch.outputs.canonical_image_tags_json }}",
+            job,
+        )
 
     def test_remote_plan_invokes_profile_guard_unconditionally_for_every_profile(self):
         job = self._job("remote-plan:")
         self.assertIn(
-            'assert_spec_a_9_9_plan.py tfplan.json --profile "${{ github.event.inputs.change_profile }}" --expected-image-tag',
+            'assert_spec_a_9_9_plan.py tfplan.json --profile "${{ github.event.inputs.change_profile }}" --expected-image-tags-json "$EXPECTED_IMAGE_TAGS_JSON"',
             job,
         )
+        self.assertIn("EXPECTED_IMAGE_TAGS_JSON: ${{ needs.validate-dispatch.outputs.canonical_image_tags_json }}", job)
 
     def test_remote_plan_invokes_9_11_profile_guard(self):
         job = self._job("remote-plan:")
         self.assertIn(
-            'assert_spec_a_9_11_plan.py tfplan.json --profile "${{ github.event.inputs.change_profile }}" --expected-image-tag "${{ github.event.inputs.deployed_image_tag }}"',
+            'assert_spec_a_9_11_plan.py tfplan.json --profile "${{ github.event.inputs.change_profile }}" --expected-image-tags-json "$EXPECTED_IMAGE_TAGS_JSON"',
             job,
         )
 
@@ -260,29 +286,23 @@ class TestTerraformAzureWorkflowHardening(unittest.TestCase):
         guard_9_12 = job.find(
             'assert_spec_a_9_12_plan.py tfplan.json --profile "${{ github.event.inputs.change_profile }}" '
             '--expected-image-digest "${{ github.event.inputs.expected_portfolio_image_digest }}" '
-            '--expected-service-version "${{ github.event.inputs.deployed_image_tag }}"'
+            '--expected-image-tags-json "$EXPECTED_IMAGE_TAGS_JSON"'
         )
         self.assertGreater(guard_9_9, -1)
         self.assertGreater(guard_9_11, guard_9_9)
         self.assertGreater(guard_9_12, guard_9_11)
+        self.assertNotIn("deployed_image_tags_json }}'", job)
 
     def test_remote_plan_never_applies(self):
         job = self._job("remote-plan:")
         self.assertNotIn("terraform apply", job)
 
     def test_remote_plan_does_not_upload_raw_plan_files(self):
-        # tfplan/tfplan.json can contain sensitive values (TF_VAR_* secrets); only a
-        # sanitized address/action summary may leave the job, via $GITHUB_STEP_SUMMARY.
         job = self._job("remote-plan:")
         self.assertNotIn("upload-artifact", job)
         self.assertIn("GITHUB_STEP_SUMMARY", job)
 
     def test_remote_plan_summary_uses_summarize_plan_not_raw_terraform_show(self):
-        # `terraform show -no-color tfplan | grep ...` was rejected: its changed-
-        # attribute lines (e.g. `~ value = "..."`) match the same prefix characters as
-        # resource-header lines, so a text filter over it can't be trusted not to leak a
-        # TF_VAR_*-sourced value. Only the structured, tested summarize_plan.py may feed
-        # the step summary.
         job = self._job("remote-plan:")
         self.assertIn("summarize_plan.py", job)
         self.assertNotIn("terraform show -no-color tfplan | grep", job)
