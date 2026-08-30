@@ -1606,17 +1606,18 @@ on whichever run targets AWS it instead also needs 8.8a (round-15
 addition — a CloudFront transport fix 8.9's causal-correlation proof depends on, but the reset
 mechanism's actual runtime behavior does not).**
 
-- [ ] **8.1 B2-owned additive `updatedAt` read contract.** After B1 Wave 3/V20 has added
+- [x] **8.1 B2-owned additive `updatedAt` read contract.** After B1 Wave 3/V20 has added
   `portfolios.updated_at` and B1 Task 5.1 has landed its `PortfolioResponse` changes, add
   `updatedAt` to `PortfolioResponse`, map it from the portfolio entity, and serialize it as the same
   ISO-8601 timestamp shape used by `createdAt`, one value on every element of the existing
   `List<PortfolioResponse>`. Add a real controller/serialization contract test covering a known
   timestamp and list cardinality. This closes the former cross-spec ownership gap; it is an
   implementation dependency now, not an owner-selection blocker.
-  **Implemented but uncommitted/unmerged, senior review passed — not complete on `main`, not
-  deployed.** Built TDD-first in an isolated worktree (branch `worktree-b2-wave8-task-8.1-updated-at-r2`)
-  off `origin/main@458813f` (replayed from an initial submission on `origin/main@dc3e2c6` after PR
-  #183 merged; that PR's Spec A/9.13 content is unaffected by this task and is preserved as-is):
+  **Complete on `main`; not deployed.** Merged via
+  [PR #185](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/185), merge
+  commit `main@198c878d` (source commit `412733c8`, senior-review-passed). Built TDD-first in an
+  isolated worktree off `origin/main@458813f` (replayed from an initial submission on
+  `origin/main@dc3e2c6` after PR #183 merged; that PR's Spec A/9.13 content was preserved as-is):
   `PortfolioResponse` gained the additive `updatedAt` component (after `createdAt`),
   `PortfolioService.toResponse(...)` maps it from `Portfolio.getUpdatedAt()`, and
   `PortfolioControllerTest.getPortfoliosReturnsCreatedAtAndUpdatedAtForEveryElement` proves the exact
@@ -1624,9 +1625,11 @@ mechanism's actual runtime behavior does not).**
   `PortfolioServiceVersionMappingTest.getByUserIdMapsPersistedUpdatedAtThroughToResponseUnchanged`
   proves the entity-to-DTO mapping. Every direct `new PortfolioResponse(...)` call site (5 test
   fixtures plus the production mapping) was updated with deterministic fixture timestamps. Full
-  `:portfolio-service:test` and `:portfolio-service:integrationTest` are green; `git diff --check`
-  clean. **8 implementation/test files plus 2 status documents (this file and the master plan)
-  changed; no excluded surface touched.**
+  `:portfolio-service:test` and `:portfolio-service:integrationTest` were green in PR #185's CI,
+  including a transient Maven Central 429 that a job re-run cleared (unrelated to this change).
+  **8 implementation/test files plus 2 status documents changed; no excluded surface touched.**
+  Deployment (an Artifact cut, revision serving, live verification) remains separately gated and
+  has not happened.
   _Requirements: 7.3d; design.md D7_
 - [ ] **8.2 Blocker tracking, not resolved here: idle-reset threshold** (requirements.md 7.6, OPEN)
   and **login self-call timeouts** (2s/leg, 4s overall, design.md D5, OPEN) — product/operational

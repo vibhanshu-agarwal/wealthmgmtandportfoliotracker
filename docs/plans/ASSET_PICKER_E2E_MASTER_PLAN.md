@@ -239,7 +239,7 @@ Authorities:
 - [implementation tasks](../../.kiro/specs/asset-picker-composition/tasks.md)
 - [visual mockup](../../.kiro/specs/asset-picker-composition/mockup/asset-picker-design.html)
 
-All four artifacts are tracked. Wave 1 (1.1-1.19) and Wave 2 Tasks 2.1-2.5 merged source-only on `main@38e3d95` through PR #178 after two external review rounds and regression fixes. That frontend remains entirely mock-backed and disabled by default; the merge did not authorize live endpoint wiring, deployment, or production exposure. Wave 3 presence source Tasks 3.1–3.6 merged source-only via PR #179 at `main@cc97a209` with a configurable 150-second default TTL; Task 3.7 deploy/live probe remains a separate owner-gated production step (not deployed, not activated, not live-probed). Wave 4 Tasks 4.1–4.4a merged source-only via PR #180 at `main@63fc058`; they are not deployed or routed.
+All four artifacts are tracked. Wave 1 (1.1-1.19) and Wave 2 Tasks 2.1-2.5 merged source-only on `main@38e3d95` through PR #178 after two external review rounds and regression fixes. That frontend remains entirely mock-backed and disabled by default; the merge did not authorize live endpoint wiring, deployment, or production exposure. Wave 3 presence source Tasks 3.1–3.6 merged source-only via PR #179 at `main@cc97a209` with a configurable 150-second default TTL; Task 3.7 deploy/live probe remains a separate owner-gated production step (not deployed, not activated, not live-probed). Wave 4 Tasks 4.1–4.4a merged source-only via PR #180 at `main@63fc058`; they are not deployed or routed. Wave 8 Task 8.1 (the additive `updatedAt` read contract) merged source-only via PR #185 at `main@198c878d`; not deployed.
 
 | Wave | Status | Dependency note |
 |---|---|---|
@@ -250,7 +250,7 @@ All four artifacts are tracked. Wave 1 (1.1-1.19) and Wave 2 Tasks 2.1-2.5 merge
 | 5 — manual-reset gateway bundle | ⬜ Blocked on Wave 4 Task 4.5 / deployment proof | Route, authorization filter, read-only allowlist, identity providers |
 | 6 — manual reset frontend | ⬜ Blocked on Wave 5 and B1 5.1 | Hidden control and versioned reset call |
 | 7 — decimal rollout note | ℹ Informational | No independent release gate |
-| 8 — login-orchestrated reset | ⬜ Not started/partly blocked; **Task 8.1 (`updatedAt` read contract) implemented but uncommitted/unmerged in an isolated worktree (`worktree-b2-wave8-task-8.1-updated-at-r2` off `origin/main@458813f`), senior review passed — not complete on `main`, not deployed. 8 implementation/test files plus 2 status documents changed** | Requires B1/V20/version read (met), open idle/timeouts, Tasks 8.2 and later, the separate 5.1a/5.1b/8.2a prerequisites, and its own deployment evidence |
+| 8 — login-orchestrated reset | 🟡 Task 8.1 (`updatedAt` read contract) source merged via [PR #185](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/185) / `main@198c878d`; not deployed. Tasks 8.2 and later not started | Requires B1/V20/version read (met, satisfied by 8.1); open idle/timeouts, Tasks 8.2 and later, the separate 5.1a/5.1b/8.2a prerequisites, and its own deployment evidence |
 | 9 — live integration | ⬜ Blocked | Requires B1 catalog/read/write endpoints and relevant B2 Waves 1–6 |
 | 10 — production exposure | ⬜ Blocked | Convergence gate after all required live evidence and open decisions close |
 
