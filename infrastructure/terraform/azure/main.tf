@@ -222,7 +222,7 @@ module "api_gateway" {
   acr_id              = azurerm_container_registry.main.id
   acr_login_server    = azurerm_container_registry.main.login_server
   image_repository    = "api-gateway"
-  image_tag           = var.image_tag
+  image_tag           = var.image_tags["api-gateway"]
   seed_image          = var.use_seed_image ? "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest" : ""
   target_port         = var.use_seed_image ? 80 : 8080
   external_ingress    = true
@@ -242,7 +242,7 @@ module "api_gateway" {
     MANAGEMENT_TRACING_EXPORT_ENABLED                      = "true"
     MANAGEMENT_OPENTELEMETRY_TRACING_EXPORT_OTLP_TRANSPORT = "grpc"
     MANAGEMENT_TRACING_SAMPLING_PROBABILITY                = "1.0"
-    SERVICE_VERSION                                        = var.image_tag
+    SERVICE_VERSION                                        = var.image_tags["api-gateway"]
     DEPLOYMENT_ENVIRONMENT_NAME                            = "prod"
   }
 
@@ -292,7 +292,7 @@ module "portfolio_service" {
   acr_id              = azurerm_container_registry.main.id
   acr_login_server    = azurerm_container_registry.main.login_server
   image_repository    = "portfolio-service"
-  image_tag           = var.image_tag
+  image_tag           = var.image_tags["portfolio-service"]
   seed_image          = var.use_seed_image ? "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest" : ""
   # target_port 8080 — all services listen on 8080 on Azure (application-prod.yml).
   # The 8081/8082/8083 scheme is only relevant to local dev (Docker Compose) where
@@ -310,7 +310,7 @@ module "portfolio_service" {
     MANAGEMENT_TRACING_EXPORT_ENABLED                      = "true"
     MANAGEMENT_OPENTELEMETRY_TRACING_EXPORT_OTLP_TRANSPORT = "grpc"
     MANAGEMENT_TRACING_SAMPLING_PROBABILITY                = "1.0"
-    SERVICE_VERSION                                        = var.image_tag
+    SERVICE_VERSION                                        = var.image_tags["portfolio-service"]
     DEPLOYMENT_ENVIRONMENT_NAME                            = "prod"
     APP_DEMO_SEED_ON_STARTUP                               = tostring(var.demo_seed_on_startup)
     APP_DEMO_TX_DIAGNOSTICS                                = tostring(var.demo_tx_diagnostics)
@@ -351,7 +351,7 @@ module "market_data_service" {
   acr_id              = azurerm_container_registry.main.id
   acr_login_server    = azurerm_container_registry.main.login_server
   image_repository    = "market-data-service"
-  image_tag           = var.image_tag
+  image_tag           = var.image_tags["market-data-service"]
   seed_image          = var.use_seed_image ? "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest" : ""
   # target_port 8080 — see comment in module.portfolio_service for rationale.
   target_port      = var.use_seed_image ? 80 : 8080
@@ -366,7 +366,7 @@ module "market_data_service" {
     MANAGEMENT_TRACING_EXPORT_ENABLED                      = "true"
     MANAGEMENT_OPENTELEMETRY_TRACING_EXPORT_OTLP_TRANSPORT = "grpc"
     MANAGEMENT_TRACING_SAMPLING_PROBABILITY                = "1.0"
-    SERVICE_VERSION                                        = var.image_tag
+    SERVICE_VERSION                                        = var.image_tags["market-data-service"]
     DEPLOYMENT_ENVIRONMENT_NAME                            = "prod"
   }
 
@@ -488,7 +488,7 @@ resource "azurerm_container_app_job" "market_data_refresh" {
       # Seed bootstrap for the Job is driven by EITHER the global flag (first full
       # bootstrap) OR the Job-only flag (Job recovery without touching the apps).
       image = (var.use_seed_image || var.market_data_refresh_job_use_seed_image) ? "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest" : (
-        "${azurerm_container_registry.main.login_server}/market-data-service:${var.image_tag}"
+        "${azurerm_container_registry.main.login_server}/market-data-service:${var.image_tags["market-data-service"]}"
       )
       cpu    = 0.5
       memory = "1Gi"
@@ -522,7 +522,7 @@ resource "azurerm_container_app_job" "market_data_refresh" {
       }
       env {
         name  = "SERVICE_VERSION"
-        value = var.image_tag
+        value = var.image_tags["market-data-service"]
       }
       env {
         name  = "DEPLOYMENT_ENVIRONMENT_NAME"
@@ -646,7 +646,7 @@ resource "azurerm_container_app_job" "market_data_repair" {
     container {
       name = "market-data-repair"
       image = (var.use_seed_image || var.market_data_repair_job_use_seed_image) ? "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest" : (
-        "${azurerm_container_registry.main.login_server}/market-data-service:${var.image_tag}"
+        "${azurerm_container_registry.main.login_server}/market-data-service:${var.image_tags["market-data-service"]}"
       )
       cpu    = 0.5
       memory = "1Gi"
@@ -677,7 +677,7 @@ resource "azurerm_container_app_job" "market_data_repair" {
       }
       env {
         name  = "SERVICE_VERSION"
-        value = var.image_tag
+        value = var.image_tags["market-data-service"]
       }
       env {
         name  = "DEPLOYMENT_ENVIRONMENT_NAME"
@@ -735,7 +735,7 @@ module "insight_service" {
   acr_id              = azurerm_container_registry.main.id
   acr_login_server    = azurerm_container_registry.main.login_server
   image_repository    = "insight-service"
-  image_tag           = var.image_tag
+  image_tag           = var.image_tags["insight-service"]
   seed_image          = var.use_seed_image ? "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest" : ""
   # target_port 8080 — see comment in module.portfolio_service for rationale.
   target_port      = var.use_seed_image ? 80 : 8080
@@ -755,7 +755,7 @@ module "insight_service" {
     MANAGEMENT_TRACING_EXPORT_ENABLED                      = "true"
     MANAGEMENT_OPENTELEMETRY_TRACING_EXPORT_OTLP_TRANSPORT = "grpc"
     MANAGEMENT_TRACING_SAMPLING_PROBABILITY                = "1.0"
-    SERVICE_VERSION                                        = var.image_tag
+    SERVICE_VERSION                                        = var.image_tags["insight-service"]
     DEPLOYMENT_ENVIRONMENT_NAME                            = "prod"
   }
 

@@ -315,6 +315,9 @@ demo and diagnostics flags `false`. The later authorized pooled/direct matrix re
 - production gate remains `false`;
 - demo portfolio remains at 3 holdings; E2E data unchanged;
 - scale and ingress fences remain explicit (`min_replicas=1`, ingress closed);
+- Terraform live-state remote-plan now requires a four-key `deployed_image_tags_json` map so
+  independently deployed service identities can be represented truthfully (source repair only —
+  does not authorize retry, apply, or ingress reopen);
 - 9.13–9.14 and B1 G5 remain pending; and
 - B1/B2 implementation status is cleanly separable from the remaining production cutover.
 

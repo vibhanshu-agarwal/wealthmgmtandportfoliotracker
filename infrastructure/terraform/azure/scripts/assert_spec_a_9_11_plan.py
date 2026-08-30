@@ -6,16 +6,16 @@ Checkpoint 9.11 persists MARKET_DATA_JOB_RUNNER_ENABLED=true on the refresh Job 
 or reverts it to false (abort). The plan must touch ONLY
 azurerm_container_app_job.market_data_refresh as an in-place update, with that env as the
 sole meaningful delta. Image and SERVICE_VERSION are pinned to the dispatch's
-deployed_image_tag. The safety tuple (retry=0, timeout=600, cron, parallelism, completion)
+deployed_image_tags_json map entry for market-data-service. The safety tuple (retry=0, timeout=600, cron, parallelism, completion)
 must hold on both sides.
 
 Runs for every remote-plan/apply. Under standard / 9.9 / 9.12 profiles, any change to the runner
 env fails closed — only the two 9.11 profiles may perform that transition.
 
 Usage:
-    python3 scripts/assert_spec_a_9_11_plan.py tfplan.json --profile standard --expected-image-tag <sha>
-    python3 scripts/assert_spec_a_9_11_plan.py tfplan.json --profile spec-a-9.11-enable --expected-image-tag <sha>
-    python3 scripts/assert_spec_a_9_11_plan.py tfplan.json --profile spec-a-9.11-abort --expected-image-tag <sha>
+    python3 scripts/assert_spec_a_9_11_plan.py tfplan.json --profile standard --expected-image-tags-json '<json>'
+    python3 scripts/assert_spec_a_9_11_plan.py tfplan.json --profile spec-a-9.11-enable --expected-image-tags-json '<json>'
+    python3 scripts/assert_spec_a_9_11_plan.py tfplan.json --profile spec-a-9.11-abort --expected-image-tags-json '<json>'
 """
 
 from __future__ import annotations
@@ -24,6 +24,8 @@ import argparse
 import copy
 import json
 import sys
+
+from assert_spec_a_9_9_plan import parse_expected_image_tags
 
 JOB_ADDRESS = "azurerm_container_app_job.market_data_refresh"
 RUNNER_ENV = "MARKET_DATA_JOB_RUNNER_ENABLED"
@@ -204,7 +206,7 @@ def _check_identity(side: dict | None, label: str, expected_image_tag: str, erro
     if version != expected_image_tag:
         errors.append(
             f"FAIL [service_version] {JOB_ADDRESS} {label} SERVICE_VERSION does not "
-            "match the expected deployed_image_tag."
+            "match the expected deployed_image_tags_json market-data-service tag."
         )
 
 
@@ -300,9 +302,10 @@ def _evaluate_scoped(plan: dict, profile: str, expected_image_tag: str) -> list[
     return errors
 
 
-def evaluate_plan(plan: dict, profile: str, expected_image_tag: str) -> list[str]:
+def evaluate_plan(plan: dict, profile: str, expected_image_tags: dict[str, str]) -> list[str]:
     if profile not in KNOWN_PROFILES:
         return [f"FAIL [profile] unknown change_profile={profile!r}; fail closed."]
+    expected_image_tag = expected_image_tags["market-data-service"]
     if profile in SCOPED_PROFILES:
         return _evaluate_scoped(plan, profile, expected_image_tag)
     return _evaluate_non_scoped(plan)
@@ -318,11 +321,17 @@ def main() -> int:
         help="The literal change_profile dispatch input value.",
     )
     parser.add_argument(
-        "--expected-image-tag",
+        "--expected-image-tags-json",
         required=True,
-        help="The deployed_image_tag this plan must show before AND after on the Job.",
+        help="JSON object with the four required service tags; market-data-service is checked on the Job.",
     )
     args = parser.parse_args()
+
+    try:
+        expected_image_tags = parse_expected_image_tags(args.expected_image_tags_json)
+    except ValueError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 1
 
     try:
         plan = load_plan(args.plan_json)
@@ -333,7 +342,7 @@ def main() -> int:
         print(f"ERROR: Failed to parse plan JSON from '{args.plan_json}': {e}", file=sys.stderr)
         return 1
 
-    errors = evaluate_plan(plan, args.profile, args.expected_image_tag)
+    errors = evaluate_plan(plan, args.profile, expected_image_tags)
     if errors:
         print(f"SPEC A 9.11 PLAN ASSERTION FAILED (profile={args.profile}):")
         for err in errors:

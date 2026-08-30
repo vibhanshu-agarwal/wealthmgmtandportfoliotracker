@@ -31,7 +31,12 @@ environment                = "prod"
 location                   = "centralindia"
 openai_location            = "eastus"
 openai_deployment_capacity = 10
-image_tag                  = "latest"
+image_tags = {
+  "api-gateway"         = "latest"
+  "portfolio-service"   = "latest"
+  "market-data-service" = "latest"
+  "insight-service"     = "latest"
+}
 api_gateway_min_replicas   = 0
 
 # ---------------------------------------------------------------------------

@@ -387,6 +387,16 @@ no DML/DDL or application-table query. The after-check reconfirmed portfolio rev
 traffic, and revision health were preflight-only and were not re-read after the run. This run did
 not collect a new production data checksum.
 
+### Terraform live-state image identity (source-only repair)
+
+Production no longer shares one common image tag across all Container Apps: gateway, market-data,
+insight, and portfolio can carry distinct `SERVICE_VERSION` values, and portfolio is digest-pinned
+in live assertions. The Terraform Azure workflow therefore requires `deployed_image_tags_json`, a
+four-key JSON map (`api-gateway`, `portfolio-service`, `market-data-service`, `insight-service`),
+each verified in its own ACR repository before remote-plan/apply. This restores truthful planning
+only; it does **not** authorize a 9.12 retry, a 9.13 apply, ingress reopening, or a gateway live
+probe. Checkpoint 9.12 remains incomplete (`MECHANISM_REPRODUCED_SETTER_UNPROVEN`).
+
 ### Next gate
 
 Senior architecture review and merge of this evidence-only reconciliation. Any production DDL to

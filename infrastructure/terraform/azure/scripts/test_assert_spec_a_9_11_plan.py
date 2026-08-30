@@ -122,8 +122,19 @@ def _abort_plan(*, extra_changes=()):
     return _plan(rc, *extra_changes)
 
 
-def _evaluate(plan, profile, expected_tag=EXPECTED_TAG):
-    return sut.evaluate_plan(plan, profile, expected_tag)
+def _tags_map(**overrides) -> dict[str, str]:
+    tags = {
+        "api-gateway": "18693d2defa3dcc34d1a508e03ed4a3c7e0b0f17",
+        "portfolio-service": EXPECTED_TAG,
+        "market-data-service": EXPECTED_TAG,
+        "insight-service": EXPECTED_TAG,
+    }
+    tags.update(overrides)
+    return tags
+
+
+def _evaluate(plan, profile, tags=None):
+    return sut.evaluate_plan(plan, profile, tags if tags is not None else _tags_map())
 
 
 class SpecA911PlanTests(unittest.TestCase):
@@ -411,7 +422,27 @@ class SpecA911PlanTests(unittest.TestCase):
                 after=_side(runner_value="true", image=image, service_version=other),
             )
         )
-        self.assertEqual(_evaluate(plan, "spec-a-9.11-enable", expected_tag=other), [])
+        self.assertEqual(
+            _evaluate(plan, "spec-a-9.11-enable", tags=_tags_map(**{"market-data-service": other})),
+            [],
+        )
+
+    def test_wrong_market_data_tag_in_map_fails_when_plan_matches_gateway_only_tag(self):
+        gateway_only = "18693d2defa3dcc34d1a508e03ed4a3c7e0b0f17"
+        wrong_job_image = f"{ACR}/market-data-service:{gateway_only}"
+        plan = _plan(
+            _job_rc(
+                actions=["update"],
+                before=_side(runner_value="false", image=wrong_job_image, service_version=gateway_only),
+                after=_side(runner_value="true", image=wrong_job_image, service_version=gateway_only),
+            )
+        )
+        errors = _evaluate(
+            plan,
+            "spec-a-9.11-enable",
+            tags=_tags_map(**{"market-data-service": EXPECTED_TAG}),
+        )
+        self.assertTrue(any("[image]" in e or "service_version" in e for e in errors))
 
     def test_wrong_registry_fails(self):
         evil = f"evil.example/market-data-service:{EXPECTED_TAG}"

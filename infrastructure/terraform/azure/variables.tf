@@ -61,10 +61,33 @@ variable "openai_deployment_capacity" {
   description = "Provisioned throughput capacity (thousands of tokens per minute) for the GPT-4o-mini deployment. Dial up/down without editing main.tf."
 }
 
-variable "image_tag" {
-  type        = string
-  default     = "latest"
-  description = "Container image tag to deploy (typically the git SHA from the CI pipeline, e.g. github.sha). Defaults to 'latest' for initial Terraform provisioning — deploy-azure.yml updates this after images are pushed to ACR."
+variable "image_tags" {
+  type = map(string)
+  default = {
+    "api-gateway"         = "latest"
+    "portfolio-service"   = "latest"
+    "market-data-service" = "latest"
+    "insight-service"     = "latest"
+  }
+  description = <<-EOT
+    Per-service container image tags (typically git SHAs from the CI pipeline). Each Container
+    App and market-data Job uses its own key so live-state remote-plan/apply can represent
+    independently deployed identities without proposing a fleet-wide version mutation. The
+    structural PR/local plan path may use the placeholder value "latest"; live-state operations
+    must supply a full 40-character hex SHA for every key via deployed_image_tags_json.
+  EOT
+
+  validation {
+    condition = (
+      length(setsubtract(keys(var.image_tags), ["api-gateway", "portfolio-service", "market-data-service", "insight-service"])) == 0 &&
+      length(setsubtract(["api-gateway", "portfolio-service", "market-data-service", "insight-service"], keys(var.image_tags))) == 0 &&
+      (
+        alltrue([for tag in values(var.image_tags) : tag == "latest"]) ||
+        alltrue([for tag in values(var.image_tags) : can(regex("^[0-9a-f]{40}$", tag))])
+      )
+    )
+    error_message = "image_tags must contain exactly api-gateway, portfolio-service, market-data-service, and insight-service; all four values must be either the structural-plan placeholder 'latest' or canonical lowercase 40-character hex SHAs — never a mix."
+  }
 }
 
 variable "api_gateway_min_replicas" {
