@@ -1,12 +1,11 @@
 # Implementation Plan
 
-**Current program status (verified 2026-08-30 at `main@cc97a209`):** this task plan and its owning
+**Current program status (verified 2026-08-30 at `main@63fc058`):** this task plan and its owning
 requirements/design/mockup are tracked. Wave 1 (Tasks 1.1-1.19) and Wave 2 Tasks 2.1-2.5 are merged
 source-only through PR #178, entirely mock-backed and disabled by default. Wave 3 presence source
 Tasks 3.1–3.6 merged source-only through PR #179 at `main@cc97a209`; Task 3.7 deployment/live proof
-remains open (not deployed, not activated, not live-probed). Wave 4 Tasks 4.1–4.4a are
-**implemented locally/uncommitted** on branch `cursor/b2-wave4-demo-reset-source`, awaiting senior
-architecture review — not on `main`, not deployed, not routed, not user-visible. Spec A task 8.6 is
+remains open (not deployed, not activated, not live-probed). Wave 4 Tasks 4.1–4.4a merged source-only
+through PR #180 at `main@63fc058`; they are not deployed, not routed, and not user-visible. Spec A task 8.6 is
 complete and the backend `assetPriceFreshness` response exists.
 Four decisions remain open: idle threshold, manual-reset placement, login self-call timeouts, and
 decimal-adapter deployment sequencing. See
@@ -45,7 +44,7 @@ the only build that ever sets the former to `"true"` is
 environment. **This is a source-on-`main` claim only, not a deployment, live-integration, or
 production-exposure claim.** Tasks 2.6-2.7 remain open. Wave 3 source merged via PR #179 at
 `main@cc97a209` (Tasks 3.1–3.6 source-only; Task 3.7 deploy/live proof open). Wave 4 Tasks
-4.1–4.4a are implemented locally/uncommitted, awaiting senior architecture review; Task 4.5 and
+4.1–4.4a merged source-only through PR #180 at `main@63fc058`; Task 4.5 and
 Waves 5–10 remain open per their own gates below.
 
 **Review-accounting note (Azure-first consolidation, 2026-08-22):** the long numbered-round
@@ -974,7 +973,7 @@ field, and one hard rule about where each may be used:
 D4). Wave 3 backend source merged via PR #179 at `main@cc97a209` — **not** deployed, live-probed, or
 flagged complete. Task 3.7 STOP/GO deploy/live evidence remains a later owner action.
 
-## Wave 4 — Demo-reset, portfolio-service side · *design.md D5 Stage 1* · **Tasks 4.1–4.4a implemented locally/uncommitted; Task 4.5 open**
+## Wave 4 — Demo-reset, portfolio-service side · *design.md D5 Stage 1* · **Tasks 4.1–4.4a merged source-only via PR #180 at `main@63fc058`; Task 4.5 open**
 
 Purely additive and safe to verify at length: nothing yet routes real user traffic to this endpoint
 until Wave 5 ships.
@@ -996,8 +995,8 @@ until Wave 5 ships.
     `PortfolioService.toResponse` mapping; `PortfolioResponseVersionTest`,
     `PortfolioServiceVersionMappingTest`.
   _Requirements: 7.2, 7.3_
-- [x] **4.2 `DemoResetService.reset(expectedVersion)`** — *(Implemented locally/uncommitted, awaiting
-  senior architecture review.)* calls B1's `replace(DEMO_USER_ID,
+- [x] **4.2 `DemoResetService.reset(expectedVersion)`** — *(Merged source-only via PR #180 at
+  `main@63fc058`; not deployed or routed.)* calls B1's `replace(DEMO_USER_ID,
   expectedVersion, intent: [], preparer: GoldenStateTuplePreparer(app.demo.cost-basis-anchor))`.
   Target is a compiled-in constant, mirroring B1's `E2E_USER_ID` pattern — never a caller-supplied
   id (GC.6-adjacent: this is the "no re-read, server-fixed target" half of D5's design).
@@ -1023,8 +1022,8 @@ until Wave 5 ships.
   every attempt regardless of outcome would make the trace-id correlation Task 8.9 depends on
   ambiguous instead of proof.
   _Requirements: 7.2, 7.3; design.md D5 (pass 22)_
-- [x] **4.3 New internal controller** — *(Implemented locally/uncommitted, awaiting senior
-  architecture review.)* `/api/internal/portfolio/demo-reset`, one method mapped to
+- [x] **4.3 New internal controller** — *(Merged source-only via PR #180 at `main@63fc058`; not
+  deployed or routed.)* `/api/internal/portfolio/demo-reset`, one method mapped to
   **both** `POST` and `PUT` from the start (there is no `POST`-only predecessor to widen), protected
   by the existing `InternalApiKeyFilter`.
   _Requirements: 7.3; design.md D5_
@@ -1032,8 +1031,8 @@ until Wave 5 ships.
   slice that can fabricate the proof (round-8 correction: an MVC-slice test can mock
   `DemoResetService` itself, return a hand-built golden-looking response, and never touch
   `HoldingReplacementService`, `GoldenStateTuplePreparer`, the catalog, or persistence at all — every
-  assertion below would still pass against a controller that does nothing real).** *(Implemented
-  locally/uncommitted, awaiting senior architecture review; `DemoResetIntegrationTest` green.)* Spring +
+  assertion below would still pass against a controller that does nothing real).** *(Merged source-only
+  via PR #180 at `main@63fc058`; `DemoResetIntegrationTest` green; not deployed or routed.)* Spring +
   Testcontainers (Postgres), exercising the genuine
   `DemoResetService → HoldingReplacementService → GoldenStateTuplePreparer → Catalog_Module →
   persistence` chain end to end — **no mocking of any component in that chain; a spy on
@@ -1113,8 +1112,8 @@ until Wave 5 ships.
   `MockMvc` or a direct method call on the controller/service.**
   _Requirements: 7.1, 7.3b; design.md D5 (Test 2)_
 - [x] **4.4a One shared, independent golden-state verification oracle for every later probe.**
-  *(Implemented locally/uncommitted, awaiting senior architecture review;
-  `scripts/derive_demo_golden_state.py` + `scripts/tests/test_derive_demo_golden_state.py` green.)*
+  *(Merged source-only via PR #180 at `main@63fc058`; `scripts/derive_demo_golden_state.py` +
+  `scripts/tests/test_derive_demo_golden_state.py` green; not deployed or live-probed.)*
   Add
   `scripts/derive_demo_golden_state.py`, a stdlib-only test/operations tool that reads the raw active
   catalog, fixed demo UUID, and configured cost-basis anchor and independently reproduces B1's
