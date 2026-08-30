@@ -13,7 +13,7 @@ version-bearing read and read-only asset catalog without caller migration, publi
 fence changes.
 
 **Authoritative documentation revision:** advances when this file or related program docs change;
-independent of the runtime baseline above. This status is grounded on `main@8b4832446a96b5367a4aaf99fbf9286066521571`;
+independent of the runtime baseline above. This status is grounded on `main@08d769c8f732991aba8914bcdf6af8690c9f1aba`;
 the pinned Spec A 9.14 plan-evidence baseline is
 `main@66bbee0bf438706146ac9975bf5f0c923b3d43cb`.
 
@@ -32,8 +32,10 @@ Checkpoint 9.13 is live-green on `portfolio-service--0000092`, `market-data-serv
 and `insight-service--0000079` ([`SPEC_A_9_13_SCALE_RESTORE.md`](../runbooks/SPEC_A_9_13_SCALE_RESTORE.md)).
 Checkpoint 9.14 source merged via PR #184 at `main@66bbee0`; the authorized read-only remote-plan
 [33313072724](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33313072724)
-passed the exact-scope 9.14 guard, while the apply job was skipped. The live checkpoint remains
-pending and gateway ingress remains closed. B1 Wave 2 /
+passed the exact-scope 9.14 guard, while the apply job was skipped. Senior plan review returned
+**ACCEPT** on 2026-08-31 against acceptance ids A1-A4, B1-B7, and C1-C3, with no apply blocker;
+acceptance authorizes no write. The live checkpoint remains pending and gateway ingress remains
+closed. B1 Wave 2 /
 R-A, Wave 3 / R-B (V20), and Wave 5 Tasks 5.2–5.3 / R-B2 (G2a) are complete; caller migration Tasks
 **5.4–5.6 merged on `main@0b5d60d1`** (PR #161, source-only; no deploy); **G5/5.7 remains blocked**
 by Spec A closed gateway ingress — see
@@ -46,9 +48,10 @@ B2 Wave 1 (Tasks 1.1-1.19) and Wave 2 Tasks 2.1-2.5 are merged source-only throu
 `portfolio-service--0000092`, `market-data-service--0000079`, and `insight-service--0000079`;
 the demo still holds 159 holdings with both demo/diagnostic flags `false`, and historical setter
 attribution remains `MECHANISM_REPRODUCED_SETTER_UNPROVEN`. The guarded 9.14 source and its pinned
-read-only remote-plan are green. Next gate is senior review of that plan; only after acceptance may
-the owner separately authorize apply plus GitHub `production` Environment approval and live
-read-back. Production fences otherwise remain explicit: gateway ingress is closed and the three
+read-only remote-plan are green, and senior plan review returned **ACCEPT** on 2026-08-31 with no
+apply blocker. Checkpoint 9.14 stays unchecked: the next gate is explicit owner apply authorization
+pinned to the then-current `main` SHA, plus GitHub `production` Environment approval and post-apply
+live read-back. Production fences otherwise remain explicit: gateway ingress is closed and the three
 catalog consumers are at `min_replicas=0`.
 
 This is the living, human-facing status document for the Asset Picker program. It is not a
@@ -152,7 +155,7 @@ Authority: [`.kiro/specs/supported-asset-integrity/tasks.md`](../../.kiro/specs/
 | 9.11 | ✅ Complete | Persisted `MARKET_DATA_JOB_RUNNER_ENABLED=true` via Terraform; live read-back and standard no-op plan green ([`SPEC_A_9_11_PERSIST_REFRESH_ENABLEMENT.md`](../runbooks/SPEC_A_9_11_PERSIST_REFRESH_ENABLEMENT.md)) |
 | 9.12 | ✅ Operationally complete on `portfolio-service--0000091` | Authorized retry at `main@d29f670`: enable [33295859015](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33295859015) (`0000090`, 159 holdings, one seed event); restoring [33296204759](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33296204759) (`0000091`, both flags `false`); Neon tuple MD5 `6e436f24fa2b31d14aff77fe5d1a05c9`; historical RCA remains `MECHANISM_REPRODUCED_SETTER_UNPROVEN` ([`SPEC_A_9_12_POOLED_READONLY_RCA.md`](../runbooks/SPEC_A_9_12_POOLED_READONLY_RCA.md)) |
 | 9.13 | ✅ Complete | Guarded `spec-a-9.13-restore-scale` restored `min_replicas=0` on the three catalog consumers; live revisions `portfolio-service--0000092`, `market-data-service--0000079`, `insight-service--0000079`; evidence [`SPEC_A_9_13_SCALE_RESTORE.md`](../runbooks/SPEC_A_9_13_SCALE_RESTORE.md) |
-| 9.14 | ⏸ Source merged; remote-plan green; apply pending | PR #184 merged the guarded `spec-a-9.14-reopen-ingress` / `spec-a-9.14-close-ingress` profiles at `main@66bbee0`; read-only remote-plan [33313072724](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33313072724) passed the exact-scope guard and skipped apply; senior plan review and separate apply authorization remain |
+| 9.14 | ⏸ Source merged; remote-plan green and **plan review ACCEPTed**; apply pending | PR #184 merged the guarded `spec-a-9.14-reopen-ingress` / `spec-a-9.14-close-ingress` profiles at `main@66bbee0`; read-only remote-plan [33313072724](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33313072724) passed the exact-scope guard and skipped apply; senior review returned **ACCEPT** on 2026-08-31 (A1-A4, B1-B7, C1-C3; no apply blocker); explicit apply authorization pinned to the then-current `main` SHA still remains |
 
 Additional unfinished Spec A implementation task: **8.8**, replacing remaining hard-coded
 catalog-size assertions. Tasks 8.1–8.7, including the aggregate `assetPriceFreshness` contract,
@@ -163,7 +166,14 @@ are complete.
 - Persisted refresh runner: `true` (checkpoint 9.11 complete; scheduled Job may run at `0 8 * * *`).
 - Refresh retry limit: `0`.
 - Gateway ingress: closed on live `api-gateway--0000077`; merged Terraform steady-state intent is
-  open, and the 9.14 remote-plan proved the guarded change without applying it.
+  open, and the 9.14 remote-plan proved the guarded change without applying it. That plan is
+  senior-reviewed and **ACCEPTed** (2026-08-31); no apply has been authorized.
+- Terraform profile single-tracking (pre-apply): because PR #184 flipped
+  `api_gateway_ingress_enabled` to default `true` and forces it `true` for every profile except
+  `spec-a-9.14-close-ingress`, `spec-a-9.14-reopen-ingress` is currently the only profile whose
+  plan can pass the guards while live ingress is closed. Every other profile fails closed on
+  `FAIL [ingress-guard]`, and `spec-a-9.14-close-ingress` fails its own precondition. This blocks,
+  never silently mutates; the 9.14 apply clears it.
 - `portfolio-service`, `market-data-service`, and `insight-service`: enforcement enabled,
   `min_replicas=0` after checkpoint 9.13.
 - Controlled refresh: exactly one authorized one-off execution completed at 9.10; 9.11 did not start
@@ -173,7 +183,7 @@ are complete.
   flag also `false`.
 - Checkpoint 9.12 is operationally complete; historical RCA remains
   `MECHANISM_REPRODUCED_SETTER_UNPROVEN`. Checkpoint 9.13 is live-green. Checkpoint 9.14 has a green
-  guarded remote-plan but is not live-complete
+  guarded remote-plan and an ACCEPTed plan review, but is not live-complete
   ([`SPEC_A_9_12_POOLED_READONLY_RCA.md`](../runbooks/SPEC_A_9_12_POOLED_READONLY_RCA.md)).
 - B1 G5 remains blocked by closed ingress.
 
@@ -217,7 +227,7 @@ substitute for an authorized Artifact cut.**
 | Checkpoint 9.11 | **Complete** — apply run [33091163222](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33091163222); live runner `true`; standard no-op [33093260896](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33093260896); evidence [`SPEC_A_9_11_PERSIST_REFRESH_ENABLEMENT.md`](../runbooks/SPEC_A_9_11_PERSIST_REFRESH_ENABLEMENT.md) | 9.12 operationally complete; 9.13 live-green |
 | 9.12 enable / rollback / retry | **Operationally complete** — first enable failed and rolled back; authorized 2026-08-30 retry succeeded on `portfolio-service--0000090`/`0000091`; historical RCA remains `MECHANISM_REPRODUCED_SETTER_UNPROVEN` ([`SPEC_A_9_12_POOLED_READONLY_RCA.md`](../runbooks/SPEC_A_9_12_POOLED_READONLY_RCA.md)) | Do not treat retry success as named-setter attribution; keep `pg_stat_statements` installation separately gated |
 | 9.13 restore scale | **Complete** — remote-plan [33306477527](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33306477527); apply [33306874697](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33306874697); live `portfolio-service--0000092`, `market-data-service--0000079`, `insight-service--0000079` ([`SPEC_A_9_13_SCALE_RESTORE.md`](../runbooks/SPEC_A_9_13_SCALE_RESTORE.md)) | Gateway ingress still closed; 9.14 remains separately gated |
-| 9.14 reopen ingress | **Source merged; remote-plan green; live checkpoint pending** — PR #184 / `main@66bbee0`; guarded read-only plan [33313072724](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33313072724) passed; apply skipped; reviewer orientation merged via [PR #187](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/187) | Senior plan review; if accepted, separately authorized apply plus GitHub `production` Environment approval and post-apply live read-back |
+| 9.14 reopen ingress | **Source merged; remote-plan green; plan review ACCEPTed; live checkpoint pending** — PR #184 / `main@66bbee0`; guarded read-only plan [33313072724](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33313072724) passed; apply skipped; reviewer orientation merged via [PR #187](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/187) | Plan review **ACCEPTed** 2026-08-31 (A1-A4, B1-B7, C1-C3; no apply blocker). Still required: explicit owner apply authorization pinned to the then-current `main` SHA, GitHub `production` Environment approval, and post-apply live read-back |
 
 ### Active B1 work
 
@@ -281,7 +291,7 @@ behavior and final production exposure.
 ## 5. Dependency path to a production Asset Picker
 
 ```text
-Track A: 9.12 complete -> 9.13 complete -> 9.14 plan green / apply pending
+Track A: 9.12 complete -> 9.13 complete -> 9.14 plan green + review ACCEPTed / apply pending
                                        (final Spec A production checkpoint remaining)
 
 Track B: Wave 2 -> Wave 3 -> Wave 5 -> Wave 6 -> Wave 7
@@ -309,23 +319,30 @@ Spec A 9.13 is the last completed production checkpoint. Historical setter attri
 `MECHANISM_REPRODUCED_SETTER_UNPROVEN`. Production is on `portfolio-service--0000092`,
 `market-data-service--0000079`, and `insight-service--0000079`; the demo still has 159 holdings and
 both demo/diagnostic flags remain `false`. The three catalog consumers are restored to
-`min_replicas=0`; gateway ingress remains closed pending 9.14 apply.
+`min_replicas=0`; gateway ingress remains closed pending 9.14 apply, whose plan is reviewed and
+ACCEPTed but not authorized.
 
 - historical setter remains unidentified; statement-history probe executed once on 2026-08-29 at
   `main@cdf23737` and returned `STATEMENT_HISTORY_PROBE_EXECUTED_HISTORY_UNAVAILABLE`;
 - production demo and diagnostics gates remain `false` after the restoring apply;
 - scale has been restored to `min_replicas=0`; ingress remains explicitly closed;
-- 9.14 apply/live verification and B1 G5 remain pending; and
+- the 9.14 plan review returned ACCEPT; 9.14 apply/live verification and B1 G5 remain pending; and
 - B1/B2 implementation status is cleanly separable from the remaining production cutover.
 
 ### Next choices
 
-1. **Operational lane:** senior review of the successful, read-only 9.14 remote-plan
-   [33313072724](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33313072724),
-   using the merged [review orientation](../superpowers/plans/2026-08-30-spec-a-9.14-reopen-ingress-review-orientation.md).
-   Plan acceptance does not authorize a write. Only after acceptance may Vibhanshu/the repository
-   owner separately authorize `spec-a-9.14-reopen-ingress` apply plus GitHub `production`
-   Environment reviewer approval, followed by live read-back and rollback readiness. Installing
+1. **Operational lane:** senior review of the read-only 9.14 remote-plan
+   [33313072724](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33313072724)
+   is **complete and ACCEPTed** (2026-08-31) against ids A1-A4, B1-B7, and C1-C3, with no apply
+   blocker; the verdict and its evidence are recorded in the
+   [review orientation](../superpowers/plans/2026-08-30-spec-a-9.14-reopen-ingress-review-orientation.md).
+   Acceptance authorizes no write. Once this documentation merges, Vibhanshu/the repository owner
+   may separately authorize `spec-a-9.14-reopen-ingress` apply **pinned to the resulting `main`
+   SHA**, plus GitHub `production` Environment reviewer approval, followed by live read-back and
+   rollback readiness. A fresh remote plan is not technically required — the Terraform, guard, and
+   workflow sources are byte-identical to the reviewed `main@66bbee0`, and the apply job replans
+   under the same exact-scope guard — but repeat the read-only plan after the docs merge if
+   governance requires the reviewed and applied full Git SHA to match exactly. Installing
    `pg_stat_statements`, claiming a named historical setter, B1 G5, or any other production action
    remains separately gated.
 2. **Backend lane:** **R-A / G2**, **R-B / G3**, and **R-B2 / G2a** are complete (Artifact 2a
