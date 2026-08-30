@@ -9,7 +9,8 @@ Asserts that the persisted HCL encodes the five invariants required before the
   - only module "portfolio_service" wires APP_DEMO_SEED_ON_STARTUP
   - no wiring to other services, jobs, or secret maps
   - application.yml still defaults app.demo.seed-on-startup to false
-  - portfolio-service replica and ingress settings remain unchanged
+  - portfolio-service max_replicas=3 and internal ingress remain unchanged;
+    min_replicas is 0 after the 9.13 scale restore
 
 These tests run against the source HCL files, not a plan fixture.
 """
@@ -205,8 +206,8 @@ class DemoSeedActivationContractTest(unittest.TestCase):
         )
 
     def test_portfolio_replica_and_ingress_unchanged(self) -> None:
-        """portfolio-service must keep min_replicas=1, max_replicas=3, external_ingress=false."""
-        self.assertEqual(_int_attr(self.portfolio_block, "min_replicas"), 1)
+        """portfolio-service must keep min_replicas=0, max_replicas=3, external_ingress=false."""
+        self.assertEqual(_int_attr(self.portfolio_block, "min_replicas"), 0)
         self.assertEqual(_int_attr(self.portfolio_block, "max_replicas"), 3)
         self.assertFalse(
             _bool_attr(self.portfolio_block, "external_ingress"),
