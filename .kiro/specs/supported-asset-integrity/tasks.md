@@ -1,7 +1,7 @@
 # Implementation Plan
 
-**Current program status (verified 2026-08-30 at `main@dc3e2c6b040213db5e1f8767c803b15579f7f342`):** implementation tasks 1–7 are complete; task 8 is
-complete except 8.8. Cutover checkpoints 9.1–9.12 are operationally complete. Checkpoint 9.11 applied through
+**Current program status (verified 2026-08-30 at `main@8b4832446a96b5367a4aaf99fbf9286066521571`):** implementation tasks 1–7 are complete; task 8 is
+complete except 8.8. Cutover checkpoints 9.1–9.13 are operationally complete. Checkpoint 9.11 applied through
 Terraform (`spec-a-9.11-enable`) on `main@e7fad7cb` and live-read back
 `MARKET_DATA_JOB_RUNNER_ENABLED=true` with an unchanged safety tuple; evidence
 [`docs/runbooks/SPEC_A_9_11_PERSIST_REFRESH_ENABLEMENT.md`](../../../docs/runbooks/SPEC_A_9_11_PERSIST_REFRESH_ENABLEMENT.md).
@@ -22,8 +22,12 @@ restoring apply [33296204759](https://github.com/vibhanshu-agarwal/wealthmgmtand
 (`portfolio-service--0000091`, both flags `false`, `min_replicas=1`). Direct Neon read-only
 verification matched independent-oracle tuple MD5 `6e436f24fa2b31d14aff77fe5d1a05c9` with E2E
 non-interference. Operational checkpoint verdict: PASS. Historical RCA verdict remains
-`MECHANISM_REPRODUCED_SETTER_UNPROVEN`. Checkpoint 9.13 source may be prepared in this batch but
-the live scale-to-zero remote-plan/apply remains pending and unauthorized; 9.14 remains pending.
+`MECHANISM_REPRODUCED_SETTER_UNPROVEN`. Checkpoint 9.13 is live-green at `min_replicas=0` on
+`portfolio-service--0000092`, `market-data-service--0000079`, and `insight-service--0000079`.
+Checkpoint 9.14 source merged via PR #184 at `main@66bbee0`; its authorized read-only remote-plan
+[33313072724](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33313072724)
+passed the exact-scope guard and skipped apply. Gateway ingress remains closed; senior plan review,
+apply authorization, GitHub `production` Environment approval, and live verification remain pending.
 See [`docs/plans/ASSET_PICKER_E2E_MASTER_PLAN.md`](../../../docs/plans/ASSET_PICKER_E2E_MASTER_PLAN.md)
 for the living cross-program view.
 
@@ -59,7 +63,7 @@ checkpoints (tasks 5.6, 7.x), not built.
 - **6.17** — the invariant is uniform across writers; only the enforcement mechanism differs.
 - **9.48** — no FX timestamp persistence and no FX freshness state.
 
-**Coverage note.** `--coverage` reports **153/174** criteria cited by a task. The residual 21 are the
+**Coverage note.** `--coverage` reports **158/174** criteria cited by a task. The residual 16 are the
 prohibitions and rationale clauses listed above — reviewed at the checkpoints, not built.
 
 That list is not commentary: `--coverage` parses it as the allowlist and **exits non-zero** if any
@@ -816,9 +820,9 @@ python scripts/check-spec-references.py   .kiro/specs/supported-asset-integrity/
         ticker/price/currency/observed-at with zero mismatches and zero orphans; (c) this durable
         runbook record was added under `docs/runbooks/` since `.artifacts/` is gitignored and
         cannot serve as the checkpoint's durable evidence.
-      - Checkpoint 9.10 does not persist refresh enablement, seed the demo portfolio, restore
-        scale-to-zero, or reopen ingress — none of that occurred. 9.11–9.14 remain unchecked and
-        unauthorized.
+      - At the time checkpoint 9.10 closed, it had not persisted refresh enablement, seeded the
+        demo portfolio, restored scale-to-zero, or reopened ingress; 9.11–9.14 were then unchecked
+        and unauthorized. The current status of those later checkpoints is recorded below.
 
   - [x] 9.11 **CHECKPOINT — persist refresh enablement**
     - Go: `MARKET_DATA_JOB_RUNNER_ENABLED=true` persisted through Terraform and read back
@@ -909,15 +913,21 @@ python scripts/check-spec-references.py   .kiro/specs/supported-asset-integrity/
   - [x] 9.13 **CHECKPOINT — restore scale, verify at configuration level**
     - Live green on `portfolio-service--0000092`, `market-data-service--0000079`,
       `insight-service--0000079`; gateway ingress remains closed on `api-gateway--0000077`.
-      Evidence: [`docs/runbooks/SPEC_A_9_13_SCALE_RESTORE.md`](../../docs/runbooks/SPEC_A_9_13_SCALE_RESTORE.md);
+      Evidence: [`docs/runbooks/SPEC_A_9_13_SCALE_RESTORE.md`](../../../docs/runbooks/SPEC_A_9_13_SCALE_RESTORE.md);
       remote-plan [33306477527](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33306477527);
       apply [33306874697](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33306874697).
 
   - [ ] 9.14 **CHECKPOINT — reopen ingress**
-    - Source may be prepared (`spec-a-9.14-reopen-ingress` / `spec-a-9.14-close-ingress`,
-      guarded exact-scope assertion, Terraform steady-state `api_gateway_ingress_enabled=true`).
-      Live checkpoint remains pending until separately authorized remote-plan/apply.
-    - Go: 9.9 through 9.13 all green
+    - Source merged via PR #184 at `main@66bbee0` (`spec-a-9.14-reopen-ingress` /
+      `spec-a-9.14-close-ingress`, guarded exact-scope assertion, Terraform steady-state
+      `api_gateway_ingress_enabled=true`).
+    - Authorized read-only remote-plan
+      [33313072724](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33313072724)
+      passed at the pinned `main@66bbee0`; the Spec A 9.14 exact-scope assertion was green and the
+      apply job was skipped. Gateway ingress remains closed on `api-gateway--0000077`.
+    - Go prerequisite satisfied: 9.9 through 9.13 are all green. Remaining pre-apply gates are
+      senior acceptance of the plan, explicit owner apply authorization, and GitHub `production`
+      Environment approval; post-apply live read-back is still required before this checkbox closes.
     - Rollback rule from here on: disabling the holding validator, **or rolling back to an R3
       artifact whose defaults are permissive**, requires quiescing writes first and keeping them
       closed until the forward fix deploys
