@@ -23,13 +23,18 @@ CNAME alias onto the gateway's ACA hostname — but the Container App reports:
 properties.configuration.ingress.customDomains = null
 ```
 
-so there is no hostname binding and no managed certificate. TLS therefore fails at handshake:
+so no hostname — and therefore no certificate — is bound to the app. TLS therefore fails at
+handshake:
 
 ```
 schannel: failed to receive handshake, SSL/TLS connection failed
 ```
 
 DNS is fine; the binding is missing.
+
+**Scope of that evidence.** `customDomains: null` proves nothing is *bound* to the app. It does
+**not** prove that no managed-certificate resource exists in the Container Apps environment — that
+inventory was not checked. A certificate may already exist and simply be unbound.
 
 ## Why it matters
 
@@ -49,7 +54,9 @@ incomplete. There were two independent causes; 9.14 cleared one.
    be absent from the plan, so Terraform does **not** currently manage it.
 2. Decide the owner: bind via Terraform (`azurerm_container_app_custom_domain` or the module's
    ingress block) so it is reproducible, or document it as an explicitly out-of-band resource.
-3. Restore the binding **and** the managed certificate, then verify:
+3. Check the environment's certificate inventory first
+   (`az containerapp env certificate list`) — a usable certificate may already exist and only need
+   binding. Then restore the binding **and** a valid certificate, and verify:
    - `az containerapp show … --query properties.configuration.ingress.customDomains` is non-null
    - `curl https://api.vibhanshu-ai-portfolio.dev/actuator/health` returns `200`
    - certificate subject covers the host and TLS verifies
@@ -59,3 +66,5 @@ incomplete. There were two independent causes; 9.14 cleared one.
 
 - Does **not** authorize a custom-domain change, deployment, Terraform apply, or G5 dispatch.
 - Does **not** assert the binding was ever present; that is question 1 above.
+- Does **not** assert that no managed-certificate resource exists. `customDomains: null` shows only
+  that nothing is bound; certificate inventory was not verified.

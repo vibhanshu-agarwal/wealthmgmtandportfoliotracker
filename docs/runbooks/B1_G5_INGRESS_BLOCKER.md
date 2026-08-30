@@ -62,8 +62,10 @@ Spec A checkpoints 9.11–9.14 are complete. Checkpoint 9.14 reopened ACA extern
 
 DNS is not the problem: `api.vibhanshu-ai-portfolio.dev` resolves as a CNAME alias onto the
 gateway's ACA hostname. The Container App reports `properties.configuration.ingress.customDomains
-= null` — there is **no custom-domain binding and no managed certificate**, so the gateway does not
-serve that hostname.
+= null` — **no custom domain, and therefore no certificate, is bound to the app**, so the gateway
+does not serve that hostname. This proves nothing is bound; it does **not** establish whether a
+managed-certificate resource exists in the Container Apps environment. Certificate inventory was
+not separately verified.
 
 `NEXT_PUBLIC_API_BASE_URL` for the frontend and synthetic workflows points at that host, so the
 G5 callers still cannot reach the API. Tracked as backlog item
@@ -75,7 +77,7 @@ G5 callers still cannot reach the API. Tracked as backlog item
 
 Resume G5 only after **one** of:
 
-1. The `api.vibhanshu-ai-portfolio.dev` custom-domain binding and its managed certificate are
+1. The `api.vibhanshu-ai-portfolio.dev` custom-domain binding and a bound certificate are
    restored and verified — `customDomains` non-null, and
    `curl https://api.vibhanshu-ai-portfolio.dev/actuator/health` returning `200` with a verifying
    certificate — **in addition to** the now-satisfied condition that Spec A 9.11–9.14 are complete
