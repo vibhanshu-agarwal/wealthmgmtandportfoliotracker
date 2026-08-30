@@ -1194,9 +1194,8 @@ deploy-azure.yml --ref main -f services=api-gateway`).
 **Stage 1 is not a mapping widening — pass 20 correction, and a more consequential one than it looks.**
 An earlier draft of this note said Stage 1 "widens" portfolio-service's demo-reset mapping from `POST`
 to `POST`+`PUT`, describing it as if a `POST`-only endpoint already exists there. **As of
-`main@cc97a209`, Wave 4 Tasks 4.1–4.4a are implemented locally/uncommitted** on branch
-`cursor/b2-wave4-demo-reset-source` (awaiting senior architecture review — not merged, deployed, or
-routed). Before that local batch, verified directly: `portfolio-service` had no `DemoResetService`
+`main@63fc058`, Wave 4 Tasks 4.1–4.4a are merged source-only via PR #180** — not deployed or routed.
+Before that batch, verified directly: `portfolio-service` had no `DemoResetService`
 class and no `/api/internal/portfolio/demo-reset` mapping anywhere in source — grep for both returned
 zero matches. The only existing controller under `/api/internal/portfolio` is `PortfolioSeedController`,
 mapped solely to `POST /seed` (a different path entirely, for the E2E seeder). This document has
