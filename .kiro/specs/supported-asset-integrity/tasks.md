@@ -27,10 +27,14 @@ non-interference. Operational checkpoint verdict: PASS. Historical RCA verdict r
 Checkpoint 9.14 source merged via PR #184 at `main@66bbee0`; its authorized read-only remote-plan
 [33313072724](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33313072724)
 passed the exact-scope guard and skipped apply, and senior plan review returned **ACCEPT** on
-2026-08-31 against ids A1-A4, B1-B7, and C1-C3 with no apply blocker. Acceptance authorizes no
-write: 9.14 remains unchecked. Gateway ingress remains closed; explicit apply authorization pinned
-to the then-current `main` SHA, GitHub `production` Environment approval, and live verification
-remain pending.
+2026-08-31 against ids A1-A4, B1-B7, and C1-C3 with no apply blocker. Checkpoint 9.14 is now
+**complete**: owner-authorized apply
+[33331130603](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33331130603)
+at `main@743c9b97` enabled ACA external ingress on the existing `api-gateway--0000077` revision
+with insecure connections still disabled, and the default ACA endpoint returns healthy responses
+([`SPEC_A_9_14_REOPEN_INGRESS.md`](../../../docs/runbooks/SPEC_A_9_14_REOPEN_INGRESS.md)).
+This does **not** unblock B1 G5: `api.vibhanshu-ai-portfolio.dev` has no Container Apps
+custom-domain binding, so the frontend/synthetic endpoint still fails TLS.
 See [`docs/plans/ASSET_PICKER_E2E_MASTER_PLAN.md`](../../../docs/plans/ASSET_PICKER_E2E_MASTER_PLAN.md)
 for the living cross-program view.
 
@@ -920,14 +924,16 @@ python scripts/check-spec-references.py   .kiro/specs/supported-asset-integrity/
       remote-plan [33306477527](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33306477527);
       apply [33306874697](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33306874697).
 
-  - [ ] 9.14 **CHECKPOINT — reopen ingress**
+  - [x] 9.14 **CHECKPOINT — reopen ingress**
     - Source merged via PR #184 at `main@66bbee0` (`spec-a-9.14-reopen-ingress` /
       `spec-a-9.14-close-ingress`, guarded exact-scope assertion, Terraform steady-state
       `api_gateway_ingress_enabled=true`).
     - Authorized read-only remote-plan
       [33313072724](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33313072724)
       passed at the pinned `main@66bbee0`; the Spec A 9.14 exact-scope assertion was green and the
-      apply job was skipped. Gateway ingress remains closed on `api-gateway--0000077`.
+      apply job was skipped. A SHA-matched read-only re-plan
+      [33330906012](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33330906012)
+      at the dispatch pin `main@743c9b97` produced a byte-identical plan body.
     - Go prerequisite satisfied: 9.9 through 9.13 are all green.
     - Plan review outcome (2026-08-31): **ACCEPT** against ids A1-A4, B1-B7, and C1-C3, with no
       apply blocker. The guard was read at the pinned SHA rather than taken on trust, and its own
@@ -938,17 +944,37 @@ python scripts/check-spec-references.py   .kiro/specs/supported-asset-integrity/
       failed 35 minutes later with `curl: (35) Recv failure: Connection reset by peer`, showing the
       gateway still publicly unreachable. Full verdict and evidence:
       [`docs/superpowers/plans/2026-08-30-spec-a-9.14-reopen-ingress-review-orientation.md`](../../../docs/superpowers/plans/2026-08-30-spec-a-9.14-reopen-ingress-review-orientation.md).
-    - Acceptance authorizes no production write. Remaining pre-apply gates are explicit owner apply
-      authorization **pinned to the then-current `main` SHA** and GitHub `production` Environment
-      approval; post-apply live read-back is still required before this checkbox closes.
-    - Pre-apply single-tracking (recorded, non-blocking): PR #184 flipped
-      `api_gateway_ingress_enabled` to default `true` and forces it `true` for every profile except
-      `spec-a-9.14-close-ingress`. While live ingress is closed, `spec-a-9.14-reopen-ingress` is
-      therefore the only profile whose plan can pass the guards — every other profile fails closed
-      on `FAIL [ingress-guard]`, and `spec-a-9.14-close-ingress` fails its own precondition because
-      `before` has no external ingress to close. This blocks rather than silently mutating, and the
-      9.14 apply clears it; until then, unrelated Terraform work is blocked too, and the escape
-      hatches are to apply 9.14 or revert the variable default and workflow line.
+    - **Complete.** Owner-authorized apply
+      [33331130603](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33331130603)
+      at `main@743c9b971e857d76c659e0e2c40e339c6c2bf4a3` passed the GitHub `production`
+      Environment gate and all twelve mandatory plan assertions, applying a plan byte-identical to
+      the reviewed one: `Apply complete! Resources: 0 added, 1 changed, 0 destroyed`. A prior apply
+      dispatch [33330577030](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33330577030)
+      was cancelled at the gate having run **0 steps**, so it performed no write.
+    - Live read-back (narrow record): ACA **external ingress is enabled** on the existing
+      `api-gateway--0000077` revision — no new revision was cut; **insecure connections remain
+      disabled** (`allowInsecure=false`, HTTP returns `301` to HTTPS); the canonical ingress
+      configuration is live (`targetPort=8080`, `transport=Auto`, single `latestRevision` weight at
+      100%); and the **default ACA endpoint returns healthy responses** (`200`,
+      `{"groups":["liveness","readiness"],"status":"UP"}`). Evidence:
+      [`docs/runbooks/SPEC_A_9_14_REOPEN_INGRESS.md`](../../../docs/runbooks/SPEC_A_9_14_REOPEN_INGRESS.md).
+    - **This checkpoint does not unblock B1 G5.** `api.vibhanshu-ai-portfolio.dev` — the endpoint
+      configured for the frontend and the synthetic workflows — has no Container Apps
+      custom-domain binding (`customDomains: null`), so TLS to that host still fails at handshake.
+      Only the default ACA endpoint serves. G5 remains blocked; see
+      [`docs/runbooks/B1_G5_INGRESS_BLOCKER.md`](../../../docs/runbooks/B1_G5_INGRESS_BLOCKER.md)
+      and backlog item
+      [`api-gateway-custom-domain-binding`](../../../docs/todos/backlog/api-gateway-custom-domain-binding/README.md).
+    - Process follow-ups raised by this checkpoint, none affecting its outcome:
+      [`api-gateway-custom-domain-binding`](../../../docs/todos/backlog/api-gateway-custom-domain-binding/README.md),
+      [`service-version-image-drift`](../../../docs/todos/backlog/service-version-image-drift/README.md),
+      [`deployed-image-tags-json-validation`](../../../docs/todos/backlog/deployed-image-tags-json-validation/README.md),
+      [`b5-image-equality-assurance-claim`](../../../docs/todos/backlog/b5-image-equality-assurance-claim/README.md).
+    - Pre-apply single-tracking (historical, now cleared): between the PR #184 merge and this
+      apply, `spec-a-9.14-reopen-ingress` was the only profile whose plan could pass the guards,
+      because the merged steady-state intent (`api_gateway_ingress_enabled=true`) diverged from
+      closed live ingress and every other profile failed closed on `FAIL [ingress-guard]`. The
+      apply reconciled intent with live state, so other profiles plan cleanly again.
     - Rollback rule from here on: disabling the holding validator, **or rolling back to an R3
       artifact whose defaults are permissive**, requires quiescing writes first and keeping them
       closed until the forward fix deploys
