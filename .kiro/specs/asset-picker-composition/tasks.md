@@ -1613,6 +1613,20 @@ mechanism's actual runtime behavior does not).**
   `List<PortfolioResponse>`. Add a real controller/serialization contract test covering a known
   timestamp and list cardinality. This closes the former cross-spec ownership gap; it is an
   implementation dependency now, not an owner-selection blocker.
+  **Implemented but uncommitted/unmerged, senior review passed — not complete on `main`, not
+  deployed.** Built TDD-first in an isolated worktree (branch `worktree-b2-wave8-task-8.1-updated-at-r2`)
+  off `origin/main@458813f` (replayed from an initial submission on `origin/main@dc3e2c6` after PR
+  #183 merged; that PR's Spec A/9.13 content is unaffected by this task and is preserved as-is):
+  `PortfolioResponse` gained the additive `updatedAt` component (after `createdAt`),
+  `PortfolioService.toResponse(...)` maps it from `Portfolio.getUpdatedAt()`, and
+  `PortfolioControllerTest.getPortfoliosReturnsCreatedAtAndUpdatedAtForEveryElement` proves the exact
+  ISO-8601 `updatedAt`/`createdAt` strings on both elements of a real two-element MockMvc response;
+  `PortfolioServiceVersionMappingTest.getByUserIdMapsPersistedUpdatedAtThroughToResponseUnchanged`
+  proves the entity-to-DTO mapping. Every direct `new PortfolioResponse(...)` call site (5 test
+  fixtures plus the production mapping) was updated with deterministic fixture timestamps. Full
+  `:portfolio-service:test` and `:portfolio-service:integrationTest` are green; `git diff --check`
+  clean. **8 implementation/test files plus 2 status documents (this file and the master plan)
+  changed; no excluded surface touched.**
   _Requirements: 7.3d; design.md D7_
 - [ ] **8.2 Blocker tracking, not resolved here: idle-reset threshold** (requirements.md 7.6, OPEN)
   and **login self-call timeouts** (2s/leg, 4s overall, design.md D5, OPEN) — product/operational

@@ -70,6 +70,7 @@ class PortfolioPactVerificationTest {
                 UUID.randomUUID(),
                 "user-001",
                 Instant.parse("2026-04-15T10:30:00Z"),
+                Instant.parse("2026-04-16T10:30:00Z"),
                 0L,
                 List.of(holding)
         );
