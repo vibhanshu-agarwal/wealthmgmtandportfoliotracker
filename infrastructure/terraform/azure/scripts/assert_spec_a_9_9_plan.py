@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 
 from validate_dispatch import DispatchValidationError, parse_deployed_image_tags
@@ -63,6 +64,7 @@ REQUIRED_IMAGE_TAG_SERVICES = (
     "market-data-service",
     "insight-service",
 )
+_IMAGE_DIGEST = re.compile(r"^sha256:[0-9a-f]{64}$")
 
 
 def parse_expected_image_tags(raw: str) -> dict[str, str]:
@@ -72,14 +74,108 @@ def parse_expected_image_tags(raw: str) -> dict[str, str]:
         raise ValueError(str(exc)) from exc
 
 
+def canonical_image_digests(mapping: object) -> dict[str, str]:
+    """Require the four-service sha256 digest map produced from ACR tag resolution."""
+    if not isinstance(mapping, dict):
+        raise ValueError(
+            "expected image digests must be an object mapping service names to digests."
+        )
+    required = list(REQUIRED_IMAGE_TAG_SERVICES)
+    keys = set(mapping.keys())
+    missing = [service for service in required if service not in keys]
+    extra = sorted(keys - set(required))
+    if missing or extra:
+        raise ValueError(
+            "expected image digests must map exactly "
+            f"{required}; missing={missing} extra={extra}."
+        )
+    canonical: dict[str, str] = {}
+    for service in required:
+        value = mapping[service]
+        if not isinstance(value, str) or not _IMAGE_DIGEST.fullmatch(value):
+            raise ValueError(
+                f"expected image digests[{service!r}] must be a canonical "
+                "sha256:<64 lowercase hex> digest."
+            )
+        canonical[service] = value
+    return canonical
+
+
+def parse_expected_image_digests(raw: str) -> dict[str, str]:
+    text = raw.strip() if isinstance(raw, str) else ""
+    if not text:
+        raise ValueError("expected image digests JSON is required.")
+
+    def _reject_duplicate_keys(pairs: list[tuple[str, object]]) -> dict:
+        keys = [key for key, _ in pairs]
+        if len(keys) != len(set(keys)):
+            duplicated = sorted({key for key in keys if keys.count(key) > 1})
+            raise ValueError(
+                "expected image digests must not contain duplicate keys; found duplicates among "
+                f"{duplicated}."
+            )
+        return dict(pairs)
+
+    try:
+        parsed = json.loads(text, object_pairs_hook=_reject_duplicate_keys)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"expected image digests must be valid JSON: {exc}") from exc
+    return canonical_image_digests(parsed)
+
+
+def change_payload_errors(resource_change: dict, *, index: int) -> list[str]:
+    """Reject malformed change/actions/before/after before no-op classification."""
+    loc = f"resource_changes[{index}]"
+    address = resource_change.get("address")
+    if isinstance(address, str) and address:
+        loc = f"{loc} ({address})"
+    if "change" not in resource_change:
+        return [f"FAIL [plan] {loc} is missing a change payload."]
+    change = resource_change["change"]
+    if not isinstance(change, dict):
+        return [f"FAIL [plan] {loc} change payload is not an object."]
+    errors: list[str] = []
+    actions = None
+    if "actions" not in change:
+        errors.append(f"FAIL [plan] {loc} is missing change.actions.")
+    else:
+        actions = change["actions"]
+        if not isinstance(actions, list) or not all(isinstance(item, str) for item in actions):
+            errors.append(f"FAIL [plan] {loc} change.actions is not a list of strings.")
+            actions = None
+        elif list(actions) == []:
+            errors.append(
+                f"FAIL [plan] {loc} change.actions is empty; ignored no-ops must be exactly ['no-op']."
+            )
+    noop = actions is not None and list(actions) == ["no-op"]
+    for side in ("before", "after"):
+        if side not in change:
+            errors.append(f"FAIL [plan] {loc} is missing change.{side}.")
+            continue
+        value = change[side]
+        if value is None:
+            if noop:
+                errors.append(
+                    f"FAIL [plan] {loc} change.{side} must be an object for a no-op record."
+                )
+            continue
+        if not isinstance(value, dict):
+            errors.append(f"FAIL [plan] {loc} change.{side} is not an object.")
+    return errors
+
+
 def load_plan(path: str) -> dict:
     with open(path) as f:
         return json.load(f)
 
 
 def _is_noop(rc: dict) -> bool:
-    actions = rc.get("change", {}).get("actions") or []
-    return list(actions) in ([], ["no-op"])
+    change = rc.get("change")
+    if not isinstance(change, dict):
+        return False
+    if list(change.get("actions") or []) != ["no-op"]:
+        return False
+    return isinstance(change.get("before"), dict) and isinstance(change.get("after"), dict)
 
 
 def _template(side: dict | None) -> dict | None:
@@ -285,7 +381,153 @@ def _evaluate_9_9_transition(plan: dict, profile: str, expected_image_tags: dict
     return errors
 
 
-def evaluate_plan(plan: dict, profile: str, expected_image_tags: dict[str, str]) -> list[str]:
+def _9_13_image_ok(
+    address: str,
+    image: str | None,
+    expected_image_tags: dict[str, str],
+    expected_image_digests: dict[str, str],
+    expected_portfolio_digest: str,
+) -> bool:
+    expected_repo = SERVICE_IMAGE_REPOSITORIES[address]
+    if address == SERVICE_ADDRESSES[0]:
+        return image == f"{ACR_LOGIN_SERVER}/{expected_repo}@{expected_portfolio_digest}"
+    expected_tag = expected_image_tags[expected_repo]
+    expected_digest = expected_image_digests[expected_repo]
+    if image == f"{ACR_LOGIN_SERVER}/{expected_repo}:{expected_tag}":
+        return True
+    return image == f"{ACR_LOGIN_SERVER}/{expected_repo}@{expected_digest}"
+
+
+def _evaluate_9_13_scale_restore(
+    plan: dict,
+    expected_image_tags: dict[str, str],
+    expected_image_digests: dict[str, str],
+    expected_portfolio_digest: str,
+) -> list[str]:
+    """Permit only 1 -> 0 on all three catalog apps while both overrides stay absent."""
+    errors: list[str] = []
+    resource_changes = plan.get("resource_changes", [])
+    if not isinstance(resource_changes, list):
+        return ["FAIL [plan] resource changes are invalid."]
+
+    for index, rc in enumerate(resource_changes):
+        if not isinstance(rc, dict):
+            errors.append(f"FAIL [plan] resource_changes[{index}] is not a resource-change object.")
+            continue
+        address = rc.get("address")
+        if not isinstance(address, str) or not address:
+            errors.append(f"FAIL [plan] resource_changes[{index}] is missing a resource address.")
+            continue
+        errors.extend(change_payload_errors(rc, index=index))
+    if errors:
+        return errors
+
+    non_noop = [rc for rc in resource_changes if not _is_noop(rc)]
+    non_noop_addresses = {rc.get("address") for rc in non_noop}
+    expected_addresses = set(SERVICE_ADDRESSES)
+
+    unexpected = non_noop_addresses - expected_addresses
+    if unexpected:
+        errors.append(
+            f"FAIL [scope] unexpected non-no-op resource change(s) outside the 9.13 "
+            f"scale-restore scope: {sorted(unexpected)}"
+        )
+    missing = expected_addresses - non_noop_addresses
+    if missing:
+        errors.append(
+            f"FAIL [scope] expected a change on {sorted(missing)} but none is present "
+            "(or it is a no-op) — plan does not complete the 9.13 scale restore."
+        )
+
+    by_address = {
+        rc.get("address"): rc for rc in non_noop if rc.get("address") in expected_addresses
+    }
+    for address in SERVICE_ADDRESSES:
+        rc = by_address.get(address)
+        if rc is None:
+            continue
+        actions = list(rc.get("change", {}).get("actions") or [])
+        if actions != ["update"]:
+            errors.append(
+                f"FAIL [action] {address} has actions={actions}; expected exactly ['update']."
+            )
+            continue
+        change = rc.get("change") or {}
+        before, after = change.get("before"), change.get("after")
+        before_min, after_min = _min_replicas(before), _min_replicas(after)
+        if before_min != 1:
+            errors.append(
+                f"FAIL [min_replicas] {address} before={before_min}, expected 1 for "
+                "profile=spec-a-9.13-restore-scale."
+            )
+        if after_min not in (0, None):
+            errors.append(
+                f"FAIL [min_replicas] {address} after={after_min}, expected 0 (or unset/null) "
+                "for profile=spec-a-9.13-restore-scale."
+            )
+        before_env, after_env = _env_map(before), _env_map(after)
+        for name in OVERRIDE_ENV_NAMES:
+            if name in before_env:
+                errors.append(
+                    f"FAIL [override-before] {address} declares {name}={before_env.get(name)!r}; "
+                    "9.13 restore-scale requires both overrides to remain absent."
+                )
+            if name in after_env:
+                errors.append(
+                    f"FAIL [override-after] {address} declares {name}={after_env.get(name)!r}; "
+                    "9.13 restore-scale requires both overrides to remain absent."
+                )
+        expected_repo = SERVICE_IMAGE_REPOSITORIES[address]
+        expected_image_tag = expected_image_tags[expected_repo]
+        for label, image in (("before", _image(before)), ("after", _image(after))):
+            if not _9_13_image_ok(
+                address,
+                image,
+                expected_image_tags,
+                expected_image_digests,
+                expected_portfolio_digest,
+            ):
+                errors.append(
+                    f"FAIL [image] {address} {label} image is {image!r}; expected the "
+                    f"{ACR_LOGIN_SERVER}/{expected_repo} identity pinned to "
+                    "expected_portfolio_image_digest for portfolio, or deployed_image_tags_json "
+                    "/ its resolved manifest digest for peer services."
+                )
+        for label, version in (
+            ("before", before_env.get("SERVICE_VERSION")),
+            ("after", after_env.get("SERVICE_VERSION")),
+        ):
+            if version != expected_image_tag:
+                errors.append(
+                    f"FAIL [service_version] {address} {label} SERVICE_VERSION is {version!r}; "
+                    f"expected {expected_image_tag!r}."
+                )
+    return errors
+
+
+def evaluate_plan(
+    plan: dict,
+    profile: str,
+    expected_image_tags: dict[str, str],
+    expected_image_digests: dict[str, str] | None = None,
+    expected_portfolio_image_digest: str | None = None,
+) -> list[str]:
+    if profile == "spec-a-9.13-restore-scale":
+        try:
+            expected_image_digests = canonical_image_digests(expected_image_digests)
+        except ValueError:
+            return ["FAIL [input] expected image digests are invalid."]
+        if (
+            not isinstance(expected_portfolio_image_digest, str)
+            or not _IMAGE_DIGEST.fullmatch(expected_portfolio_image_digest)
+        ):
+            return ["FAIL [input] expected portfolio image digest is invalid."]
+        return _evaluate_9_13_scale_restore(
+            plan,
+            expected_image_tags,
+            expected_image_digests,
+            expected_portfolio_image_digest,
+        )
     if profile in (
         "standard",
         "spec-a-9.11-enable",
@@ -315,6 +557,7 @@ def main() -> int:
             "spec-a-9.12-disable",
             "spec-a-9.12-tx-diag-enable",
             "spec-a-9.12-tx-diag-disable",
+            "spec-a-9.13-restore-scale",
         ),
         required=True,
         help="The literal change_profile dispatch input value.",
@@ -324,12 +567,37 @@ def main() -> int:
         required=True,
         help="JSON object with api-gateway, portfolio-service, market-data-service, and insight-service tags.",
     )
+    parser.add_argument(
+        "--expected-image-digests-json",
+        default="",
+        help="JSON object mapping each service to the ACR manifest digest resolved from its declared tag. "
+        "Required for spec-a-9.13-restore-scale.",
+    )
+    parser.add_argument(
+        "--expected-image-digest",
+        default="",
+        help="Independently supplied portfolio image digest. Required for spec-a-9.13-restore-scale; "
+        "must not be substituted by the tag-resolved digest map.",
+    )
     args = parser.parse_args()
 
     try:
         expected_image_tags = parse_expected_image_tags(args.expected_image_tags_json)
     except ValueError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
+        return 1
+
+    expected_image_digests = None
+    if args.profile == "spec-a-9.13-restore-scale" or args.expected_image_digests_json.strip():
+        try:
+            expected_image_digests = parse_expected_image_digests(args.expected_image_digests_json)
+        except ValueError as exc:
+            print(f"ERROR: {exc}", file=sys.stderr)
+            return 1
+
+    expected_portfolio_image_digest = args.expected_image_digest.strip() or None
+    if args.profile == "spec-a-9.13-restore-scale" and not expected_portfolio_image_digest:
+        print("ERROR: --expected-image-digest is required for spec-a-9.13-restore-scale.", file=sys.stderr)
         return 1
 
     try:
@@ -341,13 +609,24 @@ def main() -> int:
         print(f"ERROR: Failed to parse plan JSON from '{args.plan_json}': {e}", file=sys.stderr)
         return 1
 
-    errors = evaluate_plan(plan, args.profile, expected_image_tags)
+    errors = evaluate_plan(
+        plan,
+        args.profile,
+        expected_image_tags,
+        expected_image_digests,
+        expected_portfolio_image_digest,
+    )
     if errors:
         print(f"SPEC A 9.9 PLAN ASSERTION FAILED (profile={args.profile}):")
         for err in errors:
             print(f"  {err}")
         return 1
-    if args.profile in (
+    if args.profile == "spec-a-9.13-restore-scale":
+        print(
+            f"PASS spec-a-9.9 guard (profile={args.profile}) — all three catalog apps "
+            "restore min_replicas 1 -> 0 with both enforcement overrides remaining absent."
+        )
+    elif args.profile in (
         "standard",
         "spec-a-9.11-enable",
         "spec-a-9.11-abort",

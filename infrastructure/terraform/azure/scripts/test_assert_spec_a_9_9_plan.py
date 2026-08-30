@@ -17,6 +17,11 @@ EXPECTED_TAG = "9b2cf0d655b4b7ae2ce20ff7b67e4ad750df6900"
 WRONG_TAG = "deadbeef" * 5
 OTHER_GATEWAY_TAG = "18693d2defa3dcc34d1a508e03ed4a3c7e0b0f17"
 ACR = sut.ACR_LOGIN_SERVER
+PORTFOLIO_DIGEST = "sha256:" + "a1" * 32
+MAP_PORTFOLIO_DIGEST = "sha256:" + "b8" * 32
+MARKET_DIGEST = "sha256:" + "c3" * 32
+INSIGHT_DIGEST = "sha256:" + "d4" * 32
+GATEWAY_DIGEST = "sha256:" + "e5" * 32
 
 
 def _tags_map(**overrides) -> dict[str, str]:
@@ -30,12 +35,30 @@ def _tags_map(**overrides) -> dict[str, str]:
     return tags
 
 
+def _digests_map(**overrides) -> dict[str, str]:
+    digests = {
+        "api-gateway": GATEWAY_DIGEST,
+        "portfolio-service": MAP_PORTFOLIO_DIGEST,
+        "market-data-service": MARKET_DIGEST,
+        "insight-service": INSIGHT_DIGEST,
+    }
+    digests.update(overrides)
+    return digests
+
+
 def _expected_image(address: str, tag: str = EXPECTED_TAG) -> str:
     return f"{ACR}/{sut.SERVICE_IMAGE_REPOSITORIES[address]}:{tag}"
 
 
 # Convenience alias — tests that only need one service can use this directly.
 PORTFOLIO_IMAGE = _expected_image(sut.SERVICE_ADDRESSES[0])
+PORTFOLIO_DIGEST_IMAGE = f"{ACR}/portfolio-service@{PORTFOLIO_DIGEST}"
+
+
+def _restore_image(address: str) -> str:
+    if address == sut.SERVICE_ADDRESSES[0]:
+        return PORTFOLIO_DIGEST_IMAGE
+    return _expected_image(address)
 
 
 def _side(*, min_replicas, overrides_present, image=PORTFOLIO_IMAGE, service_version=EXPECTED_TAG):
@@ -88,8 +111,14 @@ def _abort_plan():
     }
 
 
-def _evaluate(plan, profile, tags=None):
-    return sut.evaluate_plan(plan, profile, tags if tags is not None else _tags_map())
+def _evaluate(plan, profile, tags=None, digests=None, portfolio_digest=None):
+    return sut.evaluate_plan(
+        plan,
+        profile,
+        tags if tags is not None else _tags_map(),
+        digests if digests is not None else _digests_map(),
+        portfolio_digest if portfolio_digest is not None else PORTFOLIO_DIGEST,
+    )
 
 
 class SpecA99PlanTests(unittest.TestCase):
@@ -484,6 +513,177 @@ class SpecA99PlanTests(unittest.TestCase):
             with self.subTest(profile=profile):
                 errors = _evaluate(_enable_plan(), profile)
                 self.assertTrue(any("standard-guard" in error for error in errors), errors)
+
+    # -- 9.13 restore-scale: dedicated 1 -> 0 path with overrides remaining absent -----
+
+    def _restore_scale_plan(self, *, extra_changes=()):
+        rcs = [
+            _service_rc(
+                addr,
+                actions=["update"],
+                before=_side(
+                    min_replicas=1,
+                    overrides_present=False,
+                    image=_restore_image(addr),
+                ),
+                after=_side(
+                    min_replicas=0,
+                    overrides_present=False,
+                    image=_restore_image(addr),
+                ),
+            )
+            for addr in sut.SERVICE_ADDRESSES
+        ]
+        rcs.extend(extra_changes)
+        return {"resource_changes": rcs}
+
+    def test_9_13_restore_scale_plan_passes(self):
+        self.assertEqual(_evaluate(self._restore_scale_plan(), "spec-a-9.13-restore-scale"), [])
+
+    def test_9_13_accepts_independent_portfolio_digest(self):
+        plan = self._restore_scale_plan()
+        pinned = f"{ACR}/portfolio-service@{PORTFOLIO_DIGEST}"
+        plan["resource_changes"][0]["change"]["before"]["template"][0]["container"][0]["image"] = pinned
+        plan["resource_changes"][0]["change"]["after"]["template"][0]["container"][0]["image"] = pinned
+        self.assertEqual(_evaluate(plan, "spec-a-9.13-restore-scale"), [])
+
+    def test_9_13_rejects_tag_resolved_portfolio_digest(self):
+        plan = self._restore_scale_plan()
+        mapped = f"{ACR}/portfolio-service@{MAP_PORTFOLIO_DIGEST}"
+        plan["resource_changes"][0]["change"]["before"]["template"][0]["container"][0]["image"] = mapped
+        plan["resource_changes"][0]["change"]["after"]["template"][0]["container"][0]["image"] = mapped
+        errors = _evaluate(plan, "spec-a-9.13-restore-scale")
+        self.assertTrue(any("image" in e for e in errors), errors)
+
+    def test_9_13_string_change_payload_fails_closed(self):
+        plan = self._restore_scale_plan()
+        plan["resource_changes"].append(
+            {"address": "module.api_gateway.azurerm_container_app.this", "change": "nope"}
+        )
+        errors = _evaluate(plan, "spec-a-9.13-restore-scale")
+        self.assertTrue(any("change" in e or "plan" in e for e in errors), errors)
+
+    def test_9_13_empty_actions_extra_record_fails(self):
+        plan = self._restore_scale_plan()
+        plan["resource_changes"].append(
+            {
+                "address": "module.api_gateway.azurerm_container_app.this",
+                "change": {"actions": [], "before": {}, "after": {}},
+            }
+        )
+        errors = _evaluate(plan, "spec-a-9.13-restore-scale")
+        self.assertTrue(any("no-op" in e or "actions" in e or "plan" in e for e in errors), errors)
+
+    def test_9_13_noop_with_null_before_fails(self):
+        plan = self._restore_scale_plan()
+        plan["resource_changes"].append(
+            {
+                "address": "module.api_gateway.azurerm_container_app.this",
+                "change": {"actions": ["no-op"], "before": None, "after": {}},
+            }
+        )
+        errors = _evaluate(plan, "spec-a-9.13-restore-scale")
+        self.assertTrue(any("no-op" in e or "before" in e or "plan" in e for e in errors), errors)
+
+    def test_9_13_noop_with_null_after_fails(self):
+        plan = self._restore_scale_plan()
+        plan["resource_changes"].append(
+            {
+                "address": "module.api_gateway.azurerm_container_app.this",
+                "change": {"actions": ["no-op"], "before": {}, "after": None},
+            }
+        )
+        errors = _evaluate(plan, "spec-a-9.13-restore-scale")
+        self.assertTrue(any("no-op" in e or "after" in e or "plan" in e for e in errors), errors)
+
+    def test_9_13_rejects_unrelated_market_data_digest(self):
+        plan = self._restore_scale_plan()
+        wrong = f"{ACR}/market-data-service@sha256:{'f6' * 32}"
+        plan["resource_changes"][1]["change"]["before"]["template"][0]["container"][0]["image"] = wrong
+        plan["resource_changes"][1]["change"]["after"]["template"][0]["container"][0]["image"] = wrong
+        errors = _evaluate(plan, "spec-a-9.13-restore-scale")
+        self.assertTrue(any("image" in e for e in errors), errors)
+
+    def test_9_13_rejects_unrelated_insight_digest(self):
+        plan = self._restore_scale_plan()
+        wrong = f"{ACR}/insight-service@sha256:{'a7' * 32}"
+        plan["resource_changes"][2]["change"]["before"]["template"][0]["container"][0]["image"] = wrong
+        plan["resource_changes"][2]["change"]["after"]["template"][0]["container"][0]["image"] = wrong
+        errors = _evaluate(plan, "spec-a-9.13-restore-scale")
+        self.assertTrue(any("image" in e for e in errors), errors)
+
+    def test_9_13_accepts_resolved_market_data_digest(self):
+        plan = self._restore_scale_plan()
+        pinned = f"{ACR}/market-data-service@{MARKET_DIGEST}"
+        plan["resource_changes"][1]["change"]["before"]["template"][0]["container"][0]["image"] = pinned
+        plan["resource_changes"][1]["change"]["after"]["template"][0]["container"][0]["image"] = pinned
+        self.assertEqual(_evaluate(plan, "spec-a-9.13-restore-scale"), [])
+
+    def test_9_13_unset_after_min_replicas_is_accepted_as_zero(self):
+        plan = self._restore_scale_plan()
+        plan["resource_changes"][0]["change"]["after"] = _side(
+            min_replicas=None, overrides_present=False, image=PORTFOLIO_DIGEST_IMAGE
+        )
+        self.assertEqual(_evaluate(plan, "spec-a-9.13-restore-scale"), [])
+
+    def test_9_13_rejects_override_reintroduction(self):
+        plan = self._restore_scale_plan()
+        plan["resource_changes"][0]["change"]["after"] = _side(
+            min_replicas=0, overrides_present=True, image=PORTFOLIO_DIGEST_IMAGE
+        )
+        errors = _evaluate(plan, "spec-a-9.13-restore-scale")
+        self.assertTrue(errors)
+        self.assertTrue(any("override" in e for e in errors), errors)
+
+    def test_9_13_rejects_override_set_true(self):
+        plan = self._restore_scale_plan()
+        after = _side(min_replicas=0, overrides_present=False, image=PORTFOLIO_DIGEST_IMAGE)
+        after["template"][0]["container"][0]["env"].append(
+            {"name": "APP_CATALOG_ENFORCE_HOLDING_INVARIANT", "value": "true"}
+        )
+        plan["resource_changes"][0]["change"]["after"] = after
+        errors = _evaluate(plan, "spec-a-9.13-restore-scale")
+        self.assertTrue(any("override" in e for e in errors), errors)
+
+    def test_9_13_rejects_partial_scale(self):
+        plan = self._restore_scale_plan()
+        plan["resource_changes"].pop()
+        errors = _evaluate(plan, "spec-a-9.13-restore-scale")
+        self.assertTrue(errors)
+
+    def test_9_13_rejects_wrong_direction_scale(self):
+        plan = {
+            "resource_changes": [
+                _service_rc(
+                    addr,
+                    actions=["update"],
+                    before=_side(min_replicas=0, overrides_present=False, image=_expected_image(addr)),
+                    after=_side(min_replicas=1, overrides_present=False, image=_expected_image(addr)),
+                )
+                for addr in sut.SERVICE_ADDRESSES
+            ]
+        }
+        errors = _evaluate(plan, "spec-a-9.13-restore-scale")
+        self.assertTrue(any("min_replicas" in e for e in errors), errors)
+
+    def test_standard_rejects_9_13_scale_transition(self):
+        errors = _evaluate(self._restore_scale_plan(), "standard")
+        self.assertTrue(any("standard-guard" in e and "min_replicas" in e for e in errors), errors)
+
+    def test_9_12_profiles_cannot_borrow_9_13_scale_exception(self):
+        for profile in (
+            "spec-a-9.12-enable",
+            "spec-a-9.12-disable",
+            "spec-a-9.12-tx-diag-enable",
+            "spec-a-9.12-tx-diag-disable",
+        ):
+            with self.subTest(profile=profile):
+                errors = _evaluate(self._restore_scale_plan(), profile)
+                self.assertTrue(any("standard-guard" in e for e in errors), errors)
+
+    def test_9_9_abort_still_requires_override_restore(self):
+        errors = _evaluate(self._restore_scale_plan(), "spec-a-9.9-abort")
+        self.assertTrue(any("override" in e for e in errors), errors)
 
 
 if __name__ == "__main__":

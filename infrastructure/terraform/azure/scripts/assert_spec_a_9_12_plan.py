@@ -32,6 +32,7 @@ KNOWN_PROFILES = (
     "spec-a-9.12-disable",
     "spec-a-9.12-tx-diag-enable",
     "spec-a-9.12-tx-diag-disable",
+    "spec-a-9.13-restore-scale",
 )
 
 _DEMO_SENTINEL = "__SPEC_A_9_12_DEMO_SENTINEL__"
@@ -546,6 +547,103 @@ def _evaluate_scoped(
     return errors
 
 
+def _evaluate_9_13_portfolio_scale(
+    plan: dict,
+    expected_image_digest: str,
+    expected_service_version: str,
+) -> list[str]:
+    errors: list[str] = []
+    if not _DIGEST_PATTERN.fullmatch(expected_image_digest):
+        errors.append(f"FAIL [input] {TARGET_ADDRESS} expected image digest is invalid.")
+    if not _VERSION_PATTERN.fullmatch(expected_service_version):
+        errors.append(f"FAIL [input] {TARGET_ADDRESS} expected service version is invalid.")
+    if errors:
+        return errors
+
+    changes = plan.get("resource_changes", [])
+    if not isinstance(changes, list):
+        return [f"FAIL [plan] {TARGET_ADDRESS} resource changes are invalid."]
+    portfolio_changes = [
+        change
+        for change in changes
+        if isinstance(change, dict)
+        and change.get("address") == TARGET_ADDRESS
+        and not _is_noop(change)
+    ]
+    if len(portfolio_changes) != 1:
+        return [f"FAIL [replicas] {TARGET_ADDRESS} is not an in-place 9.13 scale restore."]
+
+    target = portfolio_changes[0]
+    change = target.get("change") or {}
+    if list(change.get("actions") or []) != ["update"]:
+        return [f"FAIL [action] {TARGET_ADDRESS} is not an in-place update."]
+
+    before = change.get("before")
+    after = change.get("after")
+    if _min_replicas(before) != 1 or _min_replicas(after) not in (0, None):
+        errors.append(f"FAIL [replicas] {TARGET_ADDRESS} min_replicas must move 1 -> 0.")
+
+    for label, side in (("before", before), ("after", after)):
+        demo_entries = _entries(side, DEMO_ENV)
+        if (
+            len(demo_entries) != 1
+            or not _is_strict_plain_demo_entry(demo_entries[0])
+            or _literal_value(demo_entries[0]) != "false"
+        ):
+            errors.append(
+                f"FAIL [demo] {TARGET_ADDRESS} {label} demo seed must remain literal false."
+            )
+        diag_entries = _entries(side, TX_DIAG_ENV)
+        if (
+            len(diag_entries) != 1
+            or not _is_strict_plain_tx_diag_entry(diag_entries[0])
+            or _literal_value(diag_entries[0]) != "false"
+        ):
+            errors.append(
+                f"FAIL [tx-diag] {TARGET_ADDRESS} {label} diagnostics must remain literal false."
+            )
+        if not _internal_ingress_ok(side):
+            errors.append(
+                f"FAIL [ingress] {TARGET_ADDRESS} {label} internal ingress is not the expected "
+                f"internal-only shape (external_enabled=false, target_port={EXPECTED_TARGET_PORT}, "
+                "transport=auto, traffic_weight percentage=100 latest_revision=true)."
+            )
+        expected_image = f"{ACR_LOGIN_SERVER}/{IMAGE_REPOSITORY}@{expected_image_digest}"
+        if _image(side) != expected_image:
+            errors.append(f"FAIL [image] {TARGET_ADDRESS} {label} image digest pin is invalid.")
+        versions = _entries(side, SERVICE_VERSION_ENV)
+        if len(versions) != 1 or _literal_value(versions[0]) != expected_service_version:
+            errors.append(
+                f"FAIL [service_version] {TARGET_ADDRESS} {label} SERVICE_VERSION pin is invalid."
+            )
+        if _has_duplicate_or_invalid_env(side):
+            errors.append(
+                f"FAIL [environment] {TARGET_ADDRESS} {label} has invalid or duplicate environment entries."
+            )
+
+    normalized_before = _normalize(
+        before, allow_missing_demo=False, allow_missing_tx_diag=False
+    )
+    normalized_after = _normalize(
+        after, allow_missing_demo=False, allow_missing_tx_diag=False
+    )
+    if normalized_before is not None:
+        template = _template(normalized_before)
+        if template is not None:
+            template["min_replicas"] = "__SPEC_A_9_13_MIN_REPLICAS_SENTINEL__"
+    if normalized_after is not None:
+        template = _template(normalized_after)
+        if template is not None:
+            template["min_replicas"] = "__SPEC_A_9_13_MIN_REPLICAS_SENTINEL__"
+    if (
+        normalized_before is None
+        or normalized_after is None
+        or normalized_before != normalized_after
+    ):
+        errors.append(f"FAIL [field] {TARGET_ADDRESS} changes a non-scoped field.")
+    return errors
+
+
 def evaluate_plan(
     plan: dict,
     profile: str,
@@ -555,6 +653,12 @@ def evaluate_plan(
     if profile not in KNOWN_PROFILES:
         return ["FAIL [profile] unknown change profile; fail closed."]
     expected_service_version = expected_image_tags["portfolio-service"]
+    if profile == "spec-a-9.13-restore-scale":
+        return _evaluate_9_13_portfolio_scale(
+            plan,
+            expected_image_digest,
+            expected_service_version,
+        )
     if profile in SCOPED_PROFILES:
         return _evaluate_scoped(
             plan,

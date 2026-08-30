@@ -26,6 +26,9 @@ PROFILE_9_11_ASSERT_SCRIPT = (
 PROFILE_9_12_ASSERT_SCRIPT = (
     REPO / "infrastructure" / "terraform" / "azure" / "scripts" / "assert_spec_a_9_12_plan.py"
 )
+PROFILE_9_13_ASSERT_SCRIPT = (
+    REPO / "infrastructure" / "terraform" / "azure" / "scripts" / "assert_spec_a_9_13_plan.py"
+)
 
 
 class TestTerraformAzureWorkflowHardening(unittest.TestCase):
@@ -65,6 +68,11 @@ class TestTerraformAzureWorkflowHardening(unittest.TestCase):
         self.assertRegex(block, r"options:[\s\S]*?-\s*spec-a-9\.12-tx-diag-enable")
         self.assertRegex(block, r"options:[\s\S]*?-\s*spec-a-9\.12-tx-diag-disable")
 
+    def test_change_profile_input_has_9_13_restore_scale_profile(self):
+        block = self._block("change_profile:")
+        self.assertRegex(block, r"options:[\s\S]*?-\s*spec-a-9\.13-restore-scale")
+        self.assertIn("spec-a-9.13-restore-scale", block)
+
     def test_expected_portfolio_image_digest_input_exists_as_optional_string(self):
         block = self._block("expected_portfolio_image_digest:")
         self.assertIn("required: false", block)
@@ -86,6 +94,14 @@ class TestTerraformAzureWorkflowHardening(unittest.TestCase):
             job,
         )
         self.assertIn("id: validate-dispatch", job)
+
+    def test_validate_dispatch_job_exports_canonical_image_digests_json(self):
+        job = self._job("validate-dispatch:")
+        self.assertIn(
+            "canonical_image_digests_json: ${{ steps.confirm-image-tags.outputs.canonical_image_digests_json }}",
+            job,
+        )
+        self.assertIn("id: confirm-image-tags", job)
 
     def test_validate_dispatch_passes_ref_sha_profile_and_seed_flags(self):
         job = self._job("validate-dispatch:")
@@ -118,6 +134,14 @@ class TestTerraformAzureWorkflowHardening(unittest.TestCase):
         ):
             self.assertIn(repo, job)
 
+    def test_acr_tag_check_exports_resolved_manifest_digest_map(self):
+        job = self._job("validate-dispatch:")
+        acr_step = job[job.find("Confirm deployed_image_tags_json resolves in ACR") :]
+        self.assertIn("[?tags != null && contains(tags, '{tag}')].digest", acr_step)
+        self.assertIn("canonical_image_digests_json<<EOF", acr_step)
+        self.assertIn("GITHUB_OUTPUT", acr_step)
+        self.assertNotIn("length([?tags != null && contains(tags, '{tag}')])", acr_step)
+
     def test_acr_check_skipped_only_for_standard_seed_bootstrap(self):
         # standard + use_seed_image=true is the first-provisioning path where
         # deployed_image_tags_json is meaningless — every other combination (both 9.9
@@ -143,6 +167,7 @@ class TestTerraformAzureWorkflowHardening(unittest.TestCase):
         self.assertIn("spec-a-9.12-disable", step)
         self.assertIn("spec-a-9.12-tx-diag-enable", step)
         self.assertIn("spec-a-9.12-tx-diag-disable", step)
+        self.assertIn("spec-a-9.13-restore-scale", step)
         self.assertIn("az acr manifest list-metadata", step)
         self.assertIn("--registry wealthprodacr", step)
         self.assertIn("--name portfolio-service", step)
@@ -197,6 +222,11 @@ class TestTerraformAzureWorkflowHardening(unittest.TestCase):
             job,
         )
         self.assertIn("EXPECTED_IMAGE_TAGS_JSON: ${{ needs.validate-dispatch.outputs.canonical_image_tags_json }}", job)
+        self.assertIn('--expected-image-digest "$EXPECTED_PORTFOLIO_IMAGE_DIGEST"', job)
+        self.assertIn(
+            "EXPECTED_PORTFOLIO_IMAGE_DIGEST: ${{ github.event.inputs.expected_portfolio_image_digest }}",
+            job,
+        )
 
     def test_apply_job_invokes_9_11_profile_guard(self):
         job = self._job("apply:")
@@ -211,13 +241,27 @@ class TestTerraformAzureWorkflowHardening(unittest.TestCase):
         guard_9_11 = job.find("assert_spec_a_9_11_plan.py")
         guard_9_12 = job.find(
             'assert_spec_a_9_12_plan.py tfplan.json --profile "${{ github.event.inputs.change_profile }}" '
-            '--expected-image-digest "${{ github.event.inputs.expected_portfolio_image_digest }}" '
+            '--expected-image-digest "$EXPECTED_PORTFOLIO_IMAGE_DIGEST" '
             '--expected-image-tags-json "$EXPECTED_IMAGE_TAGS_JSON"'
         )
         self.assertGreater(guard_9_9, -1)
         self.assertGreater(guard_9_11, guard_9_9)
         self.assertGreater(guard_9_12, guard_9_11)
         self.assertNotIn("deployed_image_tags_json }}'", job)
+
+    def test_apply_job_invokes_9_13_guard_after_earlier_guards(self):
+        job = self._job("apply:")
+        guard_9_12 = job.find("assert_spec_a_9_12_plan.py")
+        guard_9_13 = job.find(
+            'assert_spec_a_9_13_plan.py tfplan.json --profile "${{ github.event.inputs.change_profile }}" '
+            '--expected-image-digest "$EXPECTED_PORTFOLIO_IMAGE_DIGEST" '
+            '--expected-image-tags-json "$EXPECTED_IMAGE_TAGS_JSON"'
+        )
+        self.assertGreater(guard_9_12, -1)
+        self.assertGreater(guard_9_13, guard_9_12)
+        self.assertIn("EXPECTED_IMAGE_TAGS_JSON: ${{ needs.validate-dispatch.outputs.canonical_image_tags_json }}", job)
+        self.assertIn("EXPECTED_IMAGE_DIGESTS_JSON: ${{ needs.validate-dispatch.outputs.canonical_image_digests_json }}", job)
+        self.assertIn('--expected-image-digests-json "$EXPECTED_IMAGE_DIGESTS_JSON"', job)
 
     def test_job_import_step_is_read_only_for_9_9_profiles(self):
         job = self._job("apply:")
@@ -246,6 +290,13 @@ class TestTerraformAzureWorkflowHardening(unittest.TestCase):
         self.assertIn("spec-a-9.12-tx-diag-disable", import_step)
         self.assertIn("exit 1", import_step)
 
+    def test_job_import_step_is_read_only_for_9_13_profile(self):
+        job = self._job("apply:")
+        import_step = job[job.find("Import existing market-data refresh Job") :]
+        import_step = import_step[: import_step.find("\n\n      - name:")]
+        self.assertIn("spec-a-9.13-restore-scale", import_step)
+        self.assertIn("exit 1", import_step)
+
     # -- remote-plan job -----------------------------------------------------------
 
     def test_remote_plan_job_needs_validate_dispatch(self):
@@ -271,6 +322,11 @@ class TestTerraformAzureWorkflowHardening(unittest.TestCase):
             job,
         )
         self.assertIn("EXPECTED_IMAGE_TAGS_JSON: ${{ needs.validate-dispatch.outputs.canonical_image_tags_json }}", job)
+        self.assertIn('--expected-image-digest "$EXPECTED_PORTFOLIO_IMAGE_DIGEST"', job)
+        self.assertIn(
+            "EXPECTED_PORTFOLIO_IMAGE_DIGEST: ${{ github.event.inputs.expected_portfolio_image_digest }}",
+            job,
+        )
 
     def test_remote_plan_invokes_9_11_profile_guard(self):
         job = self._job("remote-plan:")
@@ -285,13 +341,26 @@ class TestTerraformAzureWorkflowHardening(unittest.TestCase):
         guard_9_11 = job.find("assert_spec_a_9_11_plan.py")
         guard_9_12 = job.find(
             'assert_spec_a_9_12_plan.py tfplan.json --profile "${{ github.event.inputs.change_profile }}" '
-            '--expected-image-digest "${{ github.event.inputs.expected_portfolio_image_digest }}" '
+            '--expected-image-digest "$EXPECTED_PORTFOLIO_IMAGE_DIGEST" '
             '--expected-image-tags-json "$EXPECTED_IMAGE_TAGS_JSON"'
         )
         self.assertGreater(guard_9_9, -1)
         self.assertGreater(guard_9_11, guard_9_9)
         self.assertGreater(guard_9_12, guard_9_11)
         self.assertNotIn("deployed_image_tags_json }}'", job)
+
+    def test_remote_plan_invokes_9_13_guard_after_earlier_guards(self):
+        job = self._job("remote-plan:")
+        guard_9_12 = job.find("assert_spec_a_9_12_plan.py")
+        guard_9_13 = job.find(
+            'assert_spec_a_9_13_plan.py tfplan.json --profile "${{ github.event.inputs.change_profile }}" '
+            '--expected-image-digest "$EXPECTED_PORTFOLIO_IMAGE_DIGEST" '
+            '--expected-image-tags-json "$EXPECTED_IMAGE_TAGS_JSON"'
+        )
+        self.assertGreater(guard_9_12, -1)
+        self.assertGreater(guard_9_13, guard_9_12)
+        self.assertIn("EXPECTED_IMAGE_DIGESTS_JSON: ${{ needs.validate-dispatch.outputs.canonical_image_digests_json }}", job)
+        self.assertIn('--expected-image-digests-json "$EXPECTED_IMAGE_DIGESTS_JSON"', job)
 
     def test_remote_plan_never_applies(self):
         job = self._job("remote-plan:")
@@ -341,6 +410,10 @@ class TestTerraformAzureWorkflowHardening(unittest.TestCase):
         job = self._job("pr-plan:")
         self.assertNotIn("assert_spec_a_9_12_plan.py", job)
 
+    def test_pr_plan_job_never_touches_9_13_profile_assertion(self):
+        job = self._job("pr-plan:")
+        self.assertNotIn("assert_spec_a_9_13_plan.py", job)
+
     # -- scripts exist ------------------------------------------------------------
 
     def test_validate_dispatch_script_exists(self):
@@ -355,12 +428,22 @@ class TestTerraformAzureWorkflowHardening(unittest.TestCase):
     def test_9_12_profile_assertion_script_exists(self):
         self.assertTrue(PROFILE_9_12_ASSERT_SCRIPT.is_file())
 
+    def test_9_13_profile_assertion_script_exists(self):
+        self.assertTrue(PROFILE_9_13_ASSERT_SCRIPT.is_file())
+
+    def test_run_blocks_do_not_interpolate_raw_portfolio_digest(self):
+        raw = "${{ github.event.inputs.expected_portfolio_image_digest }}"
+        scripts = self._run_scripts()
+        self.assertTrue(scripts, "expected at least one run: script")
+        for script in scripts:
+            self.assertNotIn(raw, script)
+
     # -- helpers ----------------------------------------------------------------
 
     def _block(self, heading: str) -> str:
         idx = self.text.find(heading)
         self.assertGreaterEqual(idx, 0, f"missing {heading}")
-        return self.text[idx : idx + 1200]
+        return self.text[idx : idx + 2000]
 
     def _job(self, heading: str) -> str:
         pattern = rf"^  {re.escape(heading)}\n"
@@ -370,6 +453,23 @@ class TestTerraformAzureWorkflowHardening(unittest.TestCase):
         nxt = re.search(r"^  [a-zA-Z0-9_-]+:\s*$", self.text[start + 1 :], re.MULTILINE)
         end = start + 1 + nxt.start() if nxt else len(self.text)
         return self.text[start:end]
+
+    def _run_scripts(self) -> list[str]:
+        scripts: list[str] = []
+        for match in re.finditer(r"(?m)^        run: (.+)$", self.text):
+            value = match.group(1)
+            if value == "|":
+                start = match.end()
+                block_lines: list[str] = []
+                for line in self.text[start:].splitlines(keepends=True):
+                    if line.startswith("          ") or line.strip() == "":
+                        block_lines.append(line)
+                        continue
+                    break
+                scripts.append("".join(block_lines))
+            else:
+                scripts.append(value)
+        return scripts
 
 
 if __name__ == "__main__":

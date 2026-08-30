@@ -5,8 +5,9 @@ cycle, current safe production state, and deterministic source RCA for the poole
 that entered the startup transaction with `default_transaction_read_only=on` while Spring and JDBC
 reported writable. No secret values, connection strings, or credentials appear here.
 
-Checkpoint 9.12 remains **incomplete**. This record does **not** authorize a production fix, demo
-re-enable, scale-to-zero restore, or ingress reopen.
+Checkpoint 9.12 is **operationally complete**. Historical setter attribution remains
+`MECHANISM_REPRODUCED_SETTER_UNPROVEN`. This record does **not** authorize a 9.13 remote-plan, apply,
+scale-to-zero live verification, or ingress reopen.
 
 ---
 
@@ -51,13 +52,15 @@ Setter-provenance cycle source baseline: `0887a309fe12f49ca37585e5a594661727cf49
 
 | Boundary | Value |
 |---|---|
-| Active revision | `portfolio-service--0000089` |
-| Traffic | 100% on revision `0000089`; Healthy/Running |
+| Active revision | `portfolio-service--0000091` |
+| Traffic | 100% on revision `0000091`; Healthy/Running |
+| Image digest | `sha256:d5693e29c68fd3665366fbd83586b9e8b8a266b993cdd66a761ea17d9312092a` |
 | `APP_DEMO_SEED_ON_STARTUP` | `false` |
 | `APP_DEMO_TX_DIAGNOSTICS` | `false` |
-| Peers | market-data `0000078`, insight `0000078`, gateway `0000076`; gateway ingress closed |
-| Demo portfolio | 1 portfolio, 3 holdings (unchanged from pre-enable baseline) |
-| Checkpoint 9.12 | Incomplete — 11 of 14 cutover checkpoints complete |
+| `min_replicas` / `max_replicas` | `1` / `3` (scale-to-zero remains a later 9.13 live gate) |
+| Peers | remained on prior revisions through the 9.12 retry cycle; gateway ingress closed |
+| Demo portfolio | 1 portfolio, 159 holdings (Active_Asset set) |
+| Checkpoint 9.12 | Operationally complete — 12 of 14 cutover checkpoints complete; historical RCA remains `MECHANISM_REPRODUCED_SETTER_UNPROVEN` |
 
 ### Data/non-interference baseline (after provenance disable on `0000089`)
 
@@ -72,6 +75,58 @@ Setter-provenance cycle source baseline: `0887a309fe12f49ca37585e5a594661727cf49
 Market-data row and checksum movement relative to the earlier diagnostics-disable baseline is explained
 by the independently scheduled refresh execution `market-data-refresh-job-29799840`
 (08:00:00Z–08:01:07Z; updated 159, skipped 0, failed 0), not by the read-only rollback probe.
+
+---
+
+## Authorized successful retry (2026-08-30)
+
+Source baseline: `main@d29f67083109086de4ed00d38589267609e24265`.
+
+| Phase | Run | Outcome |
+|---|---|---|
+| Enable remote-plan | [33295372571](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33295372571) | Successful; exact portfolio-only in-place change; apply skipped |
+| Enable apply | [33295859015](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33295859015) | Successful after Production Environment approval; created `portfolio-service--0000090`; 100% traffic; digest `sha256:d5693e29c68fd3665366fbd83586b9e8b8a266b993cdd66a761ea17d9312092a`; `APP_DEMO_SEED_ON_STARTUP=true`; diagnostics `false`; one running replica |
+| Disable remote-plan | [33296129216](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33296129216) | Successful; apply skipped |
+| Restoring apply | [33296204759](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33296204759) | Successful after Production Environment approval; created `portfolio-service--0000091`; latest and latest-ready; Healthy/Running; 100% traffic; same reviewed digest; demo and diagnostics both `false`; `min_replicas=1`, `max_replicas=3` |
+
+### Activation evidence on `0000090`
+
+- Application started.
+- `Golden-state seed complete (holdings only)` for compiled demo UUID `00000000-0000-0000-0000-0000000d3110`, portfolio `759cf4f6-04d2-4c04-ad36-d0ea09bc843d`, holdings `159`.
+- Exactly one `event=demo_portfolio_seeded`.
+- With one replica, the required `N-1` serialized no-op count is zero.
+
+### Direct production Neon verification
+
+Executed in an explicit `REPEATABLE READ READ ONLY` transaction with `ON_ERROR_STOP` and `ROLLBACK`.
+Credentials were not printed or persisted.
+
+| Check | Result |
+|---|---|
+| Demo portfolios | `1` |
+| Demo holdings | `159` |
+| Independent-oracle tuple MD5 | `6e436f24fa2b31d14aff77fe5d1a05c9` |
+| Invalid demo tuple rows | `0` |
+| Minimum/maximum cost-basis anchor | `2020-01-01 00:00:00` |
+| E2E portfolios | `1` |
+| E2E holdings | `159` |
+| E2E row transaction IDs | all predated the demo seed transaction |
+
+Independent oracle catalog digest:
+`CFA5E6B7317E922C07452359B851E55EE0A2A5AE9014224665244F9C2264DE8B`; active asset count `159`.
+
+Peer services remained on their prior revisions during the 9.12 cycle; gateway ingress remained
+closed; no unexpected market-data refresh execution was observed.
+
+### Dual verdict
+
+```text
+Operational checkpoint verdict: PASS — authorized enable and restoring rollouts plus live
+data/configuration verification succeeded.
+
+Historical RCA verdict: MECHANISM_REPRODUCED_SETTER_UNPROVEN — the successful retry did not
+identify the actor that established the old read-only session default.
+```
 
 ---
 
@@ -233,11 +288,14 @@ historical `FIRST_OBSERVED_ON` session or prove that the startup failure is fixe
 
 ## Explicit non-claims
 
-- Checkpoint 9.12 is **not** complete.
-- No production fix has been applied or validated.
+- Operational checkpoint 9.12 is complete; historical setter attribution is **not**.
+- The successful retry did **not** identify the actor that established the old read-only session
+  default. Top-level RCA remains `MECHANISM_REPRODUCED_SETTER_UNPROVEN`.
 - Native session poisoning is the **mechanism** reproduced locally; it is **not** claimed as the
   production root cause unless a repository-owned path that performs it is proven.
 - `FIRST_OBSERVED_ON` is **not** a named-actor attribution.
+- Checkpoint 9.13 is **not** live-complete. Source readiness for scale-to-zero is a later, separately
+  authorized remote-plan/apply plus configuration read-back.
 
 ---
 
@@ -275,9 +333,9 @@ matrix or from unavailable-history output alone.
 | Architectural meaning | no current persistent role/database default, client-startup default, or manual pooled/direct divergence was evidenced; the historical production startup session remains unexplained |
 | Next gate | senior architecture review and merge of this evidence-only reconciliation; any production DDL to install `pg_stat_statements` is a separately authorized future-observability change |
 
-Checkpoint 9.12 remains incomplete. Top-level RCA verdict remains
+Checkpoint 9.12 is operationally complete. Top-level RCA verdict remains
 `MECHANISM_REPRODUCED_SETTER_UNPROVEN`; the clean manual matrix narrows the search but neither proves a
-setter nor authorizes a remedy.
+setter nor is closed by the successful retry.
 
 ---
 
@@ -293,7 +351,7 @@ setter nor authorizes a remedy.
 | Prior status (superseded) | `STATEMENT_HISTORY_PROBE_READY_LIVE_EXECUTION_UNAUTHORIZED` — collector source merged and locally verified; live execution was separately unauthorized |
 | Current status | `STATEMENT_HISTORY_PROBE_EXECUTED_HISTORY_UNAVAILABLE` — one authorized live execution reached JDBC; fail-closed verdict `STATEMENT_HISTORY_UNAVAILABLE` |
 | Top-level RCA | unchanged — `MECHANISM_REPRODUCED_SETTER_UNPROVEN` |
-| Checkpoint 9.12 | unchanged — incomplete |
+| Checkpoint 9.12 | operationally complete after the later authorized retry; this probe did not close historical attribution |
 
 ### Executable and entry point
 
@@ -394,19 +452,21 @@ insight, and portfolio can carry distinct `SERVICE_VERSION` values, and portfoli
 in live assertions. The Terraform Azure workflow therefore requires `deployed_image_tags_json`, a
 four-key JSON map (`api-gateway`, `portfolio-service`, `market-data-service`, `insight-service`),
 each verified in its own ACR repository before remote-plan/apply. This restores truthful planning
-only; it does **not** authorize a 9.12 retry, a 9.13 apply, ingress reopening, or a gateway live
-probe. Checkpoint 9.12 remains incomplete (`MECHANISM_REPRODUCED_SETTER_UNPROVEN`).
+only; it does **not** authorize a 9.13 apply, ingress reopening, or a gateway live
+probe. Historical RCA remains `MECHANISM_REPRODUCED_SETTER_UNPROVEN`.
 
 ### Next gate
 
-Senior architecture review and merge of this evidence-only reconciliation. Any production DDL to
-install `pg_stat_statements` is a separately authorized future-observability change; it cannot
-recover the 2026-08-28 incident history. Any repeat probe, diagnostic deployment, flag change,
-remedy, or controlled 9.12 retry remains separately gated. Explicit authorization must come from
+Senior architecture review and merge of the 9.13 guarded source batch. After merge, a separately
+authorized 9.13 remote-plan; only after that plan review, a separately authorized apply plus GitHub
+Production Environment reviewer approval; then configuration-level live verification. Do not wait
+for a startup log from the future scale-to-zero revision. Checkpoint 9.14, ingress reopen, B1 G5,
+and installing `pg_stat_statements` remain separately gated. Explicit authorization must come from
 Vibhanshu/the repository owner. A GitHub Production Environment approval or Neon owner interaction,
 if required by the chosen operation, is a platform execution gate and must be named separately.
 
-Checkpoint 9.12 remains incomplete. Top-level RCA verdict remains
+Operational checkpoint 9.12 is complete. Top-level RCA verdict remains
 `MECHANISM_REPRODUCED_SETTER_UNPROVEN`. Demo seed and diagnostics remain `false` on
-`portfolio-service--0000089`. Live connection-origin verdict remains
-`NOT_REPRODUCED_IN_MANUAL_MATRIX`.
+`portfolio-service--0000091`. Live connection-origin verdict remains
+`NOT_REPRODUCED_IN_MANUAL_MATRIX`. Statement-history live verdict remains
+`STATEMENT_HISTORY_PROBE_EXECUTED_HISTORY_UNAVAILABLE`.

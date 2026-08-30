@@ -211,6 +211,39 @@ class SpecA911PlanTests(unittest.TestCase):
                 errors = _evaluate(_enable_plan(), profile)
                 self.assertTrue(any("runner-guard" in error for error in errors), errors)
 
+    def test_9_13_with_untouched_runner_passes(self):
+        plan = _plan(
+            {
+                "address": "module.portfolio_service.azurerm_container_app.this",
+                "change": {
+                    "actions": ["update"],
+                    "before": {"template": [{"min_replicas": 1}]},
+                    "after": {"template": [{"min_replicas": 0}]},
+                },
+            },
+            {
+                "address": "module.market_data_service.azurerm_container_app.this",
+                "change": {
+                    "actions": ["update"],
+                    "before": {"template": [{"min_replicas": 1}]},
+                    "after": {"template": [{"min_replicas": 0}]},
+                },
+            },
+            {
+                "address": "module.insight_service.azurerm_container_app.this",
+                "change": {
+                    "actions": ["update"],
+                    "before": {"template": [{"min_replicas": 1}]},
+                    "after": {"template": [{"min_replicas": 0}]},
+                },
+            },
+        )
+        self.assertEqual(_evaluate(plan, "spec-a-9.13-restore-scale"), [])
+
+    def test_9_13_rejects_runner_change(self):
+        errors = _evaluate(_enable_plan(), "spec-a-9.13-restore-scale")
+        self.assertTrue(any("runner-guard" in error for error in errors), errors)
+
     def test_enable_reversed_transition_fails(self):
         errors = _evaluate(_abort_plan(), "spec-a-9.11-enable")
         self.assertTrue(errors)
