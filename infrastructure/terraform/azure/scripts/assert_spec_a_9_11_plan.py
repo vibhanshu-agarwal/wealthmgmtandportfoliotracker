@@ -43,6 +43,7 @@ KNOWN_PROFILES = (
     "spec-a-9.12-disable",
     "spec-a-9.12-tx-diag-enable",
     "spec-a-9.12-tx-diag-disable",
+    "spec-a-9.13-restore-scale",
 )
 
 REQUIRED_RETRY = 0

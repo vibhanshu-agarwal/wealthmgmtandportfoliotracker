@@ -1,29 +1,29 @@
 # Implementation Plan
 
-**Current program status (verified 2026-08-29 at `main@4ac26405`):** implementation tasks 1–7 are complete; task 8 is
-complete except 8.8. Cutover checkpoints 9.1–9.11 are complete. Checkpoint 9.11 applied through
+**Current program status (verified 2026-08-30 at `main@dc3e2c6b040213db5e1f8767c803b15579f7f342`):** implementation tasks 1–7 are complete; task 8 is
+complete except 8.8. Cutover checkpoints 9.1–9.12 are operationally complete. Checkpoint 9.11 applied through
 Terraform (`spec-a-9.11-enable`) on `main@e7fad7cb` and live-read back
 `MARKET_DATA_JOB_RUNNER_ENABLED=true` with an unchanged safety tuple; evidence
 [`docs/runbooks/SPEC_A_9_11_PERSIST_REFRESH_ENABLEMENT.md`](../../../docs/runbooks/SPEC_A_9_11_PERSIST_REFRESH_ENABLEMENT.md).
-Checkpoint 9.12 source merged via PRs #167, #169, #170, and #172; authorized enable apply ran but failed
+Checkpoint 9.12 source merged via PRs #167, #169, #170, and #172; the first authorized enable apply ran but failed
 to converge because the startup transaction was PostgreSQL read-only; enablement was rolled back;
 the first diagnostics cycle completed on `portfolio-service--0000086`. The production setter-provenance
 cycle then deployed artifact `spec-a-912-provenance-0887a309fe12-20260829` through revisions
 `0000087`–`0000089` and observed `FIRST_OBSERVED_ON` on `0000088` (session already on/on before first
-wrapper checkout; no attributed/unattributed off-to-on). Production is now on
-`portfolio-service--0000089` with both flags `false`. Demo portfolio remains at 3 holdings.
-Connection-origin probe source merged through PR #174 (`main@4ac26405`). Its separately authorized
-live pooled/direct matrix completed with verdict `NOT_REPRODUCED_IN_MANUAL_MATRIX`: both paths were
-writable/off/off with `source=DEFAULT` and no catalog defaults; production data, revision, and flags
-were unchanged. The top-level RCA verdict remains `MECHANISM_REPRODUCED_SETTER_UNPROVEN`; evidence
+wrapper checkout; no attributed/unattributed off-to-on). Connection-origin and statement-history
+probes completed as recorded in
 [`docs/runbooks/SPEC_A_9_12_POOLED_READONLY_RCA.md`](../../../docs/runbooks/SPEC_A_9_12_POOLED_READONLY_RCA.md).
-The 9.12 checkbox stays open. Statement-history probe executed once on 2026-08-29 at
-`main@cdf23737` (PR #176 merge); one authorized live run reached JDBC; `pg_stat_statements` was
-absent so history was unavailable (`STATEMENT_HISTORY_PROBE_EXECUTED_HISTORY_UNAVAILABLE` /
-`STATEMENT_HISTORY_UNAVAILABLE`); canonical zero output is not absence evidence. Next gate:
-evidence-reconciliation review/merge, followed only if separately authorized by a future-observability
-decision. Checkpoints 9.13–9.14 remain pending and unauthorized; the three
-catalog services remain at `min_replicas=1`, gateway ingress remains closed, and B1 G5 remains blocked.
+The authorized 2026-08-30 retry at `main@d29f67083109086de4ed00d38589267609e24265` succeeded:
+enable remote-plan [33295372571](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33295372571),
+enable apply [33295859015](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33295859015)
+(`portfolio-service--0000090`, one `event=demo_portfolio_seeded`, 159 holdings),
+disable remote-plan [33296129216](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33296129216),
+restoring apply [33296204759](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33296204759)
+(`portfolio-service--0000091`, both flags `false`, `min_replicas=1`). Direct Neon read-only
+verification matched independent-oracle tuple MD5 `6e436f24fa2b31d14aff77fe5d1a05c9` with E2E
+non-interference. Operational checkpoint verdict: PASS. Historical RCA verdict remains
+`MECHANISM_REPRODUCED_SETTER_UNPROVEN`. Checkpoint 9.13 source may be prepared in this batch but
+the live scale-to-zero remote-plan/apply remains pending and unauthorized; 9.14 remains pending.
 See [`docs/plans/ASSET_PICKER_E2E_MASTER_PLAN.md`](../../../docs/plans/ASSET_PICKER_E2E_MASTER_PLAN.md)
 for the living cross-program view.
 
@@ -844,7 +844,7 @@ python scripts/check-spec-references.py   .kiro/specs/supported-asset-integrity/
       [`docs/runbooks/SPEC_A_9_11_PERSIST_REFRESH_ENABLEMENT.md`](../../../docs/runbooks/SPEC_A_9_11_PERSIST_REFRESH_ENABLEMENT.md).
     - Does **not** authorize 9.12–9.14, refresh execution, ingress reopen, or B1 G5.
 
-  - [ ] 9.12 **CHECKPOINT — demo portfolio activation** (while `min_replicas = 1`, ingress still closed)
+  - [x] 9.12 **CHECKPOINT — demo portfolio activation** (while `min_replicas = 1`, ingress still closed)
     - **Source merged (PRs #167, #169, #170, #172 on `main@0887a309`); enable apply attempted and rolled back; provenance cycle completed:**
       Terraform variable `demo_seed_on_startup` defaults `false`; portfolio-service-only
       `APP_DEMO_SEED_ON_STARTUP` wiring; exact-scope profiles `spec-a-9.12-enable` /
@@ -859,7 +859,8 @@ python scripts/check-spec-references.py   .kiro/specs/supported-asset-integrity/
       `sha256:d5693e29c68fd3665366fbd83586b9e8b8a266b993cdd66a761ea17d9312092a`) ran through
       revisions `0000087`–`0000089` and observed `FIRST_OBSERVED_ON` on `0000088` (session already
       on/on before first wrapper checkout; `ATTRIBUTED_OFF_TO_ON=0`, `UNATTRIBUTED_OFF_TO_ON=0`).
-      Production is on `portfolio-service--0000089` with both flags `false`; demo still 3 holdings.
+      After provenance disable, production was on `portfolio-service--0000089` with both flags
+      `false` and demo still at 3 holdings.
       Connection-origin probe PR #174 merged at `main@4ac26405`; a separately authorized live run
       completed `POOLED` then `DIRECT`, five fresh attempts each. Both paths observed JDBC writable,
       auto-commit on, both transaction read-only GUCs off, `pg_settings` source `DEFAULT`, no current
@@ -870,17 +871,29 @@ python scripts/check-spec-references.py   .kiro/specs/supported-asset-integrity/
       Statement-history probe source merged at PR #176 (`main@cdf23737`); one authorized live run
       reached JDBC on 2026-08-29; `pg_stat_statements` was absent so history was unavailable
       (`STATEMENT_HISTORY_PROBE_EXECUTED_HISTORY_UNAVAILABLE` / `STATEMENT_HISTORY_UNAVAILABLE`).
-      Canonical zero formatter output is not absence evidence. Both flags remain `false` on
-      `portfolio-service--0000089`. Next gate: senior architecture review and merge of this
-      evidence-only reconciliation, followed only if separately authorized by a future-observability
-      decision (production DDL to install `pg_stat_statements` begins a future statistics window and
-      cannot recover pre-install history; extension installation alone does not authorize a reset,
-      repeat probe, 9.12 retry, remedy, deployment, or flag change). Explicit authorization must
-      come from Vibhanshu/the repository owner, plus any separately named platform approval.
-      Remedy design remains deferred until stronger historical or startup-path evidence exists.
-      This checkbox must stay open until a reviewed fix is applied and authorized enable +
-      restoring rollouts and live verification succeed. Does not authorize 9.13–9.14, ingress
-      reopen, or B1 G5.
+      Canonical zero formatter output is not absence evidence. After the statement-history probe,
+      both flags remained `false` on `portfolio-service--0000089`. Historical setter attribution
+      remains `MECHANISM_REPRODUCED_SETTER_UNPROVEN`. Installing `pg_stat_statements` remains a
+      separately authorized future-observability change and cannot recover pre-install history.
+      This checkbox closed after the authorized 2026-08-30 retry at
+      `main@d29f67083109086de4ed00d38589267609e24265`: enable remote-plan
+      [33295372571](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33295372571);
+      enable apply
+      [33295859015](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33295859015)
+      created `portfolio-service--0000090` (digest
+      `sha256:d5693e29c68fd3665366fbd83586b9e8b8a266b993cdd66a761ea17d9312092a`, demo seed `true`,
+      one replica, `Golden-state seed complete (holdings only)` for UUID
+      `00000000-0000-0000-0000-0000000d3110` / portfolio `759cf4f6-04d2-4c04-ad36-d0ea09bc843d` /
+      holdings `159`, exactly one `event=demo_portfolio_seeded`); disable remote-plan
+      [33296129216](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33296129216);
+      restoring apply
+      [33296204759](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33296204759)
+      created `portfolio-service--0000091` (same digest, both flags `false`, `min_replicas=1`,
+      `max_replicas=3`). Direct Neon `REPEATABLE READ READ ONLY` verification: demo `1/159`,
+      independent-oracle tuple MD5 `6e436f24fa2b31d14aff77fe5d1a05c9`, invalid rows `0`, E2E `1/159`
+      with all E2E row transaction IDs predating the demo seed. Operational checkpoint verdict:
+      PASS. Historical RCA verdict: `MECHANISM_REPRODUCED_SETTER_UNPROVEN`. Does not authorize
+      9.13 live remote-plan/apply, ingress reopen, or B1 G5.
     - Must run **before** scale is restored to zero. With ingress closed and `min_replicas = 0`
       there is no traffic to wake a replica, so an initializer rollout could deploy and never
       execute — the same dormant-startup problem the Mongo repair Job already solved.
@@ -894,9 +907,10 @@ python scripts/check-spec-references.py   .kiro/specs/supported-asset-integrity/
     - _Requirements: 8.1, 8.2, 8.3, 8.5, 8.6_
 
   - [ ] 9.13 **CHECKPOINT — restore scale, verify at configuration level**
-    - Terraform restores `min_replicas` → 0, creating another revision
-    - Go: `az containerapp revision show` confirms it is active, image digest expected, no enforcement
-      override present. **Not** verified by startup log — it may legitimately never start.
+    - Source may be prepared (guarded `spec-a-9.13-restore-scale` profile restoring `min_replicas=0`
+      on the three catalog consumers). Live checkpoint remains pending until a separately authorized
+      remote-plan, apply, Production Environment approval, and configuration-level read-back all
+      succeed. Do not wait for a startup log from the future scale-to-zero revision.
 
   - [ ] 9.14 **CHECKPOINT — reopen ingress**
     - Go: 9.9 through 9.13 all green

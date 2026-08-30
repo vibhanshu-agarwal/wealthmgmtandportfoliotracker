@@ -66,8 +66,8 @@ on:
         default: ""
       expected_portfolio_image_digest:
         description: >
-          Required for either 9.12 profile: the independently verified sha256 digest
-          currently running in wealthprodacr/portfolio-service.
+          Required for any 9.12 profile and for spec-a-9.13-restore-scale: the independently
+          verified sha256 digest currently running in wealthprodacr/portfolio-service.
         required: false
         type: string
         default: ""
@@ -82,6 +82,8 @@ on:
           checkpoint 9.12's one-shot demo portfolio activation/deactivation.
           spec-a-9.12-tx-diag-enable / spec-a-9.12-tx-diag-disable =
           checkpoint 9.12's startup transaction diagnostics (demo seed remains false).
+          spec-a-9.13-restore-scale = checkpoint 9.13's restore of catalog-consumer
+          min_replicas 1 -> 0 with enforcement overrides remaining absent.
         type: choice
         options:
           - standard
@@ -93,6 +95,7 @@ on:
           - spec-a-9.12-disable
           - spec-a-9.12-tx-diag-enable
           - spec-a-9.12-tx-diag-disable
+          - spec-a-9.13-restore-scale
         default: standard
       use_seed_image:
         description: "Use public seed image for Container Apps (true for first apply before images exist in ACR)"
@@ -228,6 +231,7 @@ jobs:
     timeout-minutes: 10
     outputs:
       canonical_image_tags_json: ${{ steps.validate-dispatch.outputs.canonical_image_tags_json }}
+      canonical_image_digests_json: ${{ steps.confirm-image-tags.outputs.canonical_image_digests_json }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -258,10 +262,12 @@ jobs:
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Confirm expected_portfolio_image_digest resolves in ACR
-        if: 'github.event.inputs.change_profile == ''spec-a-9.12-enable'' || github.event.inputs.change_profile == ''spec-a-9.12-disable'' || github.event.inputs.change_profile == ''spec-a-9.12-tx-diag-enable'' || github.event.inputs.change_profile == ''spec-a-9.12-tx-diag-disable'''
+        if: 'github.event.inputs.change_profile == ''spec-a-9.12-enable'' || github.event.inputs.change_profile == ''spec-a-9.12-disable'' || github.event.inputs.change_profile == ''spec-a-9.12-tx-diag-enable'' || github.event.inputs.change_profile == ''spec-a-9.12-tx-diag-disable'' || github.event.inputs.change_profile == ''spec-a-9.13-restore-scale'''
+        env:
+          EXPECTED_PORTFOLIO_IMAGE_DIGEST: ${{ github.event.inputs.expected_portfolio_image_digest }}
         run: |
           set -euo pipefail
-          DIGEST="${{ github.event.inputs.expected_portfolio_image_digest }}"
+          DIGEST="$EXPECTED_PORTFOLIO_IMAGE_DIGEST"
           COUNT=$(az acr manifest list-metadata --registry wealthprodacr --name portfolio-service \
             --query "length([?digest == '${DIGEST}'])" -o tsv)
           if [ "$COUNT" != "1" ]; then
@@ -271,13 +277,15 @@ jobs:
           echo "OK: expected portfolio image digest resolves to exactly one manifest."
 
       # deployed_image_tags_json passed the format check above; now prove each supplied tag
-      # exists in its own ACR repository, so a typo'd or stale tag cannot silently apply as
-      # SERVICE_VERSION against a manifest that isn't real.
+      # exists in its own ACR repository AND capture that tag's exact manifest digest, so a
+      # later plan cannot pin SERVICE_VERSION to the declared tag while swapping in an
+      # unrelated historical digest from the same repository.
       # Skipped ONLY for standard + use_seed_image=true: that's the first-provisioning
       # bootstrap path, before any real service image (or possibly the registry itself)
       # exists — deployed_image_tags_json is meaningless there. Every other combination,
       # including both 9.9 profiles and ordinary non-seed applies, still requires it.
       - name: Confirm deployed_image_tags_json resolves in ACR
+        id: confirm-image-tags
         if: '! (github.event.inputs.change_profile == ''standard'' && github.event.inputs.use_seed_image == ''true'')'
         env:
           CANONICAL_IMAGE_TAGS_JSON: ${{ steps.validate-dispatch.outputs.canonical_image_tags_json }}
@@ -286,38 +294,58 @@ jobs:
           python3 - <<'PY'
           import json
           import os
+          import re
           import subprocess
           import sys
 
-          tags = json.loads(os.environ["CANONICAL_IMAGE_TAGS_JSON"])
-          for repo in (
+          DIGEST = re.compile(r"^sha256:[0-9a-f]{64}$")
+          SERVICES = (
               "api-gateway",
               "portfolio-service",
               "market-data-service",
               "insight-service",
-          ):
+          )
+          tags = json.loads(os.environ["CANONICAL_IMAGE_TAGS_JSON"])
+          digests = {}
+          for repo in SERVICES:
               tag = tags[repo]
               result = subprocess.run(
                   [
                       "az", "acr", "manifest", "list-metadata",
                       "--registry", "wealthprodacr",
                       "--name", repo,
-                      "--query", f"length([?tags != null && contains(tags, '{tag}')])",
+                      "--query", f"[?tags != null && contains(tags, '{tag}')].digest",
                       "-o", "tsv",
                   ],
                   check=True,
                   capture_output=True,
                   text=True,
               )
-              count = result.stdout.strip()
-              if count != "1":
+              resolved = [line.strip() for line in result.stdout.splitlines() if line.strip()]
+              if len(resolved) != 1:
                   print(
                       f"::error::deployed_image_tags_json[{repo!r}]={tag!r} resolves to "
-                      f"{count} manifest(s) in wealthprodacr/{repo} (expected exactly 1).",
+                      f"{len(resolved)} manifest(s) in wealthprodacr/{repo} (expected exactly 1).",
                       file=sys.stderr,
                   )
                   sys.exit(1)
-              print(f"OK: {repo}:{tag} resolves to exactly one manifest.")
+              digest = resolved[0]
+              if not DIGEST.fullmatch(digest):
+                  print(
+                      f"::error::ACR digest for {repo}:{tag} is not a canonical sha256 digest: {digest!r}.",
+                      file=sys.stderr,
+                  )
+                  sys.exit(1)
+              digests[repo] = digest
+              print(f"OK: {repo}:{tag} resolves to exactly one manifest {digest}.")
+
+          payload = json.dumps({service: digests[service] for service in SERVICES}, separators=(",", ":"))
+          output_path = os.environ.get("GITHUB_OUTPUT")
+          if not output_path:
+              print("::error::GITHUB_OUTPUT is not set; cannot export canonical image digests.", file=sys.stderr)
+              sys.exit(1)
+          with open(output_path, "a", encoding="utf-8") as handle:
+              handle.write(f"canonical_image_digests_json<<EOF\n{payload}\nEOF\n")
           PY
 
   # ===========================================================================
@@ -396,7 +424,9 @@ jobs:
       - name: Assert Plan — Spec A 9.9 profile guard / exact scope
         env:
           EXPECTED_IMAGE_TAGS_JSON: ${{ needs.validate-dispatch.outputs.canonical_image_tags_json }}
-        run: python3 scripts/assert_spec_a_9_9_plan.py tfplan.json --profile "${{ github.event.inputs.change_profile }}" --expected-image-tags-json "$EXPECTED_IMAGE_TAGS_JSON"
+          EXPECTED_IMAGE_DIGESTS_JSON: ${{ needs.validate-dispatch.outputs.canonical_image_digests_json }}
+          EXPECTED_PORTFOLIO_IMAGE_DIGEST: ${{ github.event.inputs.expected_portfolio_image_digest }}
+        run: python3 scripts/assert_spec_a_9_9_plan.py tfplan.json --profile "${{ github.event.inputs.change_profile }}" --expected-image-tags-json "$EXPECTED_IMAGE_TAGS_JSON" --expected-image-digests-json "$EXPECTED_IMAGE_DIGESTS_JSON" --expected-image-digest "$EXPECTED_PORTFOLIO_IMAGE_DIGEST"
 
       # Runs for every change_profile: under standard/9.9/9.12 this forbids any runner-env
       # transition; under 9.11 enable/abort it proves the exact one-Job in-place update.
@@ -410,7 +440,15 @@ jobs:
       - name: Assert Plan — Spec A 9.12 profile guard / exact scope
         env:
           EXPECTED_IMAGE_TAGS_JSON: ${{ needs.validate-dispatch.outputs.canonical_image_tags_json }}
-        run: python3 scripts/assert_spec_a_9_12_plan.py tfplan.json --profile "${{ github.event.inputs.change_profile }}" --expected-image-digest "${{ github.event.inputs.expected_portfolio_image_digest }}" --expected-image-tags-json "$EXPECTED_IMAGE_TAGS_JSON"
+          EXPECTED_PORTFOLIO_IMAGE_DIGEST: ${{ github.event.inputs.expected_portfolio_image_digest }}
+        run: python3 scripts/assert_spec_a_9_12_plan.py tfplan.json --profile "${{ github.event.inputs.change_profile }}" --expected-image-digest "$EXPECTED_PORTFOLIO_IMAGE_DIGEST" --expected-image-tags-json "$EXPECTED_IMAGE_TAGS_JSON"
+
+      - name: Assert Plan — Spec A 9.13 profile guard / exact scope
+        env:
+          EXPECTED_IMAGE_TAGS_JSON: ${{ needs.validate-dispatch.outputs.canonical_image_tags_json }}
+          EXPECTED_IMAGE_DIGESTS_JSON: ${{ needs.validate-dispatch.outputs.canonical_image_digests_json }}
+          EXPECTED_PORTFOLIO_IMAGE_DIGEST: ${{ github.event.inputs.expected_portfolio_image_digest }}
+        run: python3 scripts/assert_spec_a_9_13_plan.py tfplan.json --profile "${{ github.event.inputs.change_profile }}" --expected-image-digest "$EXPECTED_PORTFOLIO_IMAGE_DIGEST" --expected-image-tags-json "$EXPECTED_IMAGE_TAGS_JSON" --expected-image-digests-json "$EXPECTED_IMAGE_DIGESTS_JSON"
 
       # Sanitized summary only — built from tfplan.json via summarize_plan.py, which
       # emits ONLY "<address> <actions>" per changed resource, never attribute paths,
@@ -522,7 +560,8 @@ jobs:
           if [ "$PROFILE" = "spec-a-9.9-enable" ] || [ "$PROFILE" = "spec-a-9.9-abort" ] \
             || [ "$PROFILE" = "spec-a-9.11-enable" ] || [ "$PROFILE" = "spec-a-9.11-abort" ] \
             || [ "$PROFILE" = "spec-a-9.12-enable" ] || [ "$PROFILE" = "spec-a-9.12-disable" ] \
-            || [ "$PROFILE" = "spec-a-9.12-tx-diag-enable" ] || [ "$PROFILE" = "spec-a-9.12-tx-diag-disable" ]; then
+            || [ "$PROFILE" = "spec-a-9.12-tx-diag-enable" ] || [ "$PROFILE" = "spec-a-9.12-tx-diag-disable" ] \
+            || [ "$PROFILE" = "spec-a-9.13-restore-scale" ]; then
             echo "::error::${RESOURCE_ADDRESS} is not in Terraform state, and change_profile=${PROFILE} only permits a read-only check here — auto-import is not allowed during a scoped Spec A production change, since it would mutate the backend before any plan or assertion runs."
             echo "::error::Repair state through a separate, reviewed operation (e.g. dispatch with change_profile=standard first) before retrying the scoped Spec A apply."
             exit 1
@@ -599,7 +638,9 @@ jobs:
       - name: Assert Plan — Spec A 9.9 profile guard / exact scope
         env:
           EXPECTED_IMAGE_TAGS_JSON: ${{ needs.validate-dispatch.outputs.canonical_image_tags_json }}
-        run: python3 scripts/assert_spec_a_9_9_plan.py tfplan.json --profile "${{ github.event.inputs.change_profile }}" --expected-image-tags-json "$EXPECTED_IMAGE_TAGS_JSON"
+          EXPECTED_IMAGE_DIGESTS_JSON: ${{ needs.validate-dispatch.outputs.canonical_image_digests_json }}
+          EXPECTED_PORTFOLIO_IMAGE_DIGEST: ${{ github.event.inputs.expected_portfolio_image_digest }}
+        run: python3 scripts/assert_spec_a_9_9_plan.py tfplan.json --profile "${{ github.event.inputs.change_profile }}" --expected-image-tags-json "$EXPECTED_IMAGE_TAGS_JSON" --expected-image-digests-json "$EXPECTED_IMAGE_DIGESTS_JSON" --expected-image-digest "$EXPECTED_PORTFOLIO_IMAGE_DIGEST"
 
       - name: Assert Plan — Spec A 9.11 profile guard / exact scope
         env:
@@ -609,7 +650,15 @@ jobs:
       - name: Assert Plan — Spec A 9.12 profile guard / exact scope
         env:
           EXPECTED_IMAGE_TAGS_JSON: ${{ needs.validate-dispatch.outputs.canonical_image_tags_json }}
-        run: python3 scripts/assert_spec_a_9_12_plan.py tfplan.json --profile "${{ github.event.inputs.change_profile }}" --expected-image-digest "${{ github.event.inputs.expected_portfolio_image_digest }}" --expected-image-tags-json "$EXPECTED_IMAGE_TAGS_JSON"
+          EXPECTED_PORTFOLIO_IMAGE_DIGEST: ${{ github.event.inputs.expected_portfolio_image_digest }}
+        run: python3 scripts/assert_spec_a_9_12_plan.py tfplan.json --profile "${{ github.event.inputs.change_profile }}" --expected-image-digest "$EXPECTED_PORTFOLIO_IMAGE_DIGEST" --expected-image-tags-json "$EXPECTED_IMAGE_TAGS_JSON"
+
+      - name: Assert Plan — Spec A 9.13 profile guard / exact scope
+        env:
+          EXPECTED_IMAGE_TAGS_JSON: ${{ needs.validate-dispatch.outputs.canonical_image_tags_json }}
+          EXPECTED_IMAGE_DIGESTS_JSON: ${{ needs.validate-dispatch.outputs.canonical_image_digests_json }}
+          EXPECTED_PORTFOLIO_IMAGE_DIGEST: ${{ github.event.inputs.expected_portfolio_image_digest }}
+        run: python3 scripts/assert_spec_a_9_13_plan.py tfplan.json --profile "${{ github.event.inputs.change_profile }}" --expected-image-digest "$EXPECTED_PORTFOLIO_IMAGE_DIGEST" --expected-image-tags-json "$EXPECTED_IMAGE_TAGS_JSON" --expected-image-digests-json "$EXPECTED_IMAGE_DIGESTS_JSON"
 
       - name: Terraform Apply
         run: terraform apply -auto-approve tfplan

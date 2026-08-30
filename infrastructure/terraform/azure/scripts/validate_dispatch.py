@@ -15,12 +15,14 @@ Checks (all fail-closed):
 4. deployed_image_tags_json must be a JSON object with exactly the four required service keys,
    no duplicate keys, and each value a canonical lowercase 40-hex-character SHA (no trim/case
    normalization — noncanonical input is rejected).
-5. change_profile must be one of standard or the scoped 9.9 / 9.11 / 9.12 profiles.
+5. change_profile must be one of standard or the scoped 9.9 / 9.11 / 9.12 / 9.13 profiles.
 6. For any scoped Spec A profile, use_seed_image and
    recreate_market_data_job must both be false — these recovery/bootstrap flags are unrelated
    to and unsafe to combine with a scoped Spec A production change.
-7. All 9.12 profiles require an independently supplied portfolio image digest in
-   sha256:<64-lowercase-hex> form.
+7. expected_portfolio_image_digest, when nonempty, must be a canonical
+   sha256:<64-lowercase-hex> digest on every profile. All 9.12 profiles and
+   spec-a-9.13-restore-scale require it (empty is rejected there). On other
+   profiles it may be omitted, but a nonempty malformed value is never accepted.
 
 This script does not check whether each supplied tag actually exists in its own ACR repository —
 that requires a live az CLI call and is a separate workflow step, kept out of this pure/offline,
@@ -45,6 +47,7 @@ VALID_PROFILES = (
     "spec-a-9.12-disable",
     "spec-a-9.12-tx-diag-enable",
     "spec-a-9.12-tx-diag-disable",
+    "spec-a-9.13-restore-scale",
 )
 SCOPED_SPEC_A_PROFILES = (
     "spec-a-9.9-enable",
@@ -55,6 +58,7 @@ SCOPED_SPEC_A_PROFILES = (
     "spec-a-9.12-disable",
     "spec-a-9.12-tx-diag-enable",
     "spec-a-9.12-tx-diag-disable",
+    "spec-a-9.13-restore-scale",
 )
 SPEC_A_9_12_PROFILES = (
     "spec-a-9.12-enable",
@@ -62,6 +66,8 @@ SPEC_A_9_12_PROFILES = (
     "spec-a-9.12-tx-diag-enable",
     "spec-a-9.12-tx-diag-disable",
 )
+SPEC_A_9_13_PROFILE = "spec-a-9.13-restore-scale"
+DIGEST_REQUIRED_PROFILES = SPEC_A_9_12_PROFILES + (SPEC_A_9_13_PROFILE,)
 # Backward-compatible alias for callers/tests that still name the 9.9 pair.
 SPEC_A_9_9_PROFILES = ("spec-a-9.9-enable", "spec-a-9.9-abort")
 REQUIRED_IMAGE_TAG_SERVICES = (
@@ -205,11 +211,17 @@ def validate(inputs: DispatchInputs) -> dict[str, str]:
             f"change_profile must be one of {VALID_PROFILES}, got {profile!r}."
         )
 
-    if profile in SPEC_A_9_12_PROFILES and not IMAGE_DIGEST.match(portfolio_digest):
+    if portfolio_digest:
+        if not IMAGE_DIGEST.match(portfolio_digest):
+            raise DispatchValidationError(
+                "expected_portfolio_image_digest must be empty or a canonical "
+                "sha256:<64 lowercase hexadecimal characters>."
+            )
+    elif profile in DIGEST_REQUIRED_PROFILES:
         raise DispatchValidationError(
-            "expected_portfolio_image_digest is required for any 9.12 profile and must "
-            "match sha256:<64 lowercase hexadecimal characters>; it is independent of "
-            "deployed_image_tags_json."
+            "expected_portfolio_image_digest is required for any 9.12 profile and for "
+            "spec-a-9.13-restore-scale and must match sha256:<64 lowercase hexadecimal "
+            "characters>; it is independent of deployed_image_tags_json."
         )
 
     if profile in SCOPED_SPEC_A_PROFILES:

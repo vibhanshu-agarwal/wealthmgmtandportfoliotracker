@@ -549,6 +549,68 @@ class SpecA912PlanTests(unittest.TestCase):
         )
         self.assertFails(_transition(after=duplicate))
 
+    # -- 9.13 restore-scale: portfolio 1 -> 0 with both demo flags remaining false -----
+
+    def _9_13_portfolio_plan(self, *, before=None, after=None, extras=()):
+        before = _side("false", "false", min_replicas=1) if before is None else before
+        after = _side("false", "false", min_replicas=0) if after is None else after
+        return _plan(_target(before=before, after=after), *extras)
+
+    def test_9_13_portfolio_scale_restore_passes(self):
+        self.assertEqual(
+            _evaluate(self._9_13_portfolio_plan(), "spec-a-9.13-restore-scale"),
+            [],
+        )
+
+    def test_9_13_allows_peer_catalog_app_updates(self):
+        extras = (
+            {
+                "address": "module.market_data_service.azurerm_container_app.this",
+                "change": {"actions": ["update"], "before": {}, "after": {}},
+            },
+            {
+                "address": "module.insight_service.azurerm_container_app.this",
+                "change": {"actions": ["update"], "before": {}, "after": {}},
+            },
+        )
+        self.assertEqual(
+            _evaluate(self._9_13_portfolio_plan(extras=extras), "spec-a-9.13-restore-scale"),
+            [],
+        )
+
+    def test_9_13_rejects_demo_flag_not_literal_false(self):
+        errors = _evaluate(
+            self._9_13_portfolio_plan(after=_side("true", "false", min_replicas=0)),
+            "spec-a-9.13-restore-scale",
+        )
+        self.assertTrue(any("demo" in e for e in errors), errors)
+
+    def test_9_13_rejects_diagnostics_flag_not_literal_false(self):
+        errors = _evaluate(
+            self._9_13_portfolio_plan(after=_side("false", "true", min_replicas=0)),
+            "spec-a-9.13-restore-scale",
+        )
+        self.assertTrue(any("tx-diag" in e or "diag" in e for e in errors), errors)
+
+    def test_9_13_rejects_min_replicas_staying_one(self):
+        errors = _evaluate(
+            self._9_13_portfolio_plan(after=_side("false", "false", min_replicas=1)),
+            "spec-a-9.13-restore-scale",
+        )
+        self.assertTrue(any("replicas" in e for e in errors), errors)
+
+    def test_9_13_rejects_non_scale_portfolio_field_change(self):
+        errors = _evaluate(
+            self._9_13_portfolio_plan(after=_side("false", "false", min_replicas=0, cpu=1.0)),
+            "spec-a-9.13-restore-scale",
+        )
+        self.assertTrue(any("field" in e or "cpu" in e for e in errors), errors)
+
+    def test_9_12_enable_cannot_borrow_9_13_scale_exception(self):
+        errors = _evaluate(self._9_13_portfolio_plan(), "spec-a-9.12-enable")
+        self.assertTrue(errors)
+        self.assertTrue(any("replicas" in e or "demo" in e or "scope" in e for e in errors), errors)
+
 
 if __name__ == "__main__":
     unittest.main()

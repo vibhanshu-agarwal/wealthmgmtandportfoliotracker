@@ -298,6 +298,33 @@ class ValidateDispatchTests(unittest.TestCase):
             with self.subTest(profile=profile):
                 sut.validate(self._inputs(change_profile=profile))
 
+    def test_nonempty_malformed_digest_rejected_regardless_of_profile(self):
+        for profile in (
+            "standard",
+            "spec-a-9.9-enable",
+            "spec-a-9.9-abort",
+            "spec-a-9.11-enable",
+            "spec-a-9.11-abort",
+        ):
+            for digest in ("$(whoami)", "`id`", "sha256:abc", "sha256:" + "A" * 64):
+                with self.subTest(profile=profile, digest=digest):
+                    with self.assertRaises(sut.DispatchValidationError) as ctx:
+                        sut.validate(
+                            self._inputs(
+                                change_profile=profile,
+                                expected_portfolio_image_digest=digest,
+                            )
+                        )
+                    self.assertIn("expected_portfolio_image_digest", str(ctx.exception))
+
+    def test_optional_profiles_accept_canonical_digest_when_supplied(self):
+        sut.validate(
+            self._inputs(
+                change_profile="standard",
+                expected_portfolio_image_digest=DIGEST,
+            )
+        )
+
     def test_both_9_12_profiles_reject_seed_and_recovery_flags(self):
         for profile in sut.SPEC_A_9_12_PROFILES:
             for flag in ("use_seed_image", "recreate_market_data_job"):
@@ -317,6 +344,93 @@ class ValidateDispatchTests(unittest.TestCase):
         sut.validate(
             self._inputs(change_profile="standard", use_seed_image="true")
         )
+
+    # -- 9.13 restore-scale profile -----------------------------------------------------
+
+    def test_9_13_restore_scale_with_independent_digest_passes(self):
+        sut.validate(
+            self._inputs(
+                change_profile="spec-a-9.13-restore-scale",
+                expected_portfolio_image_digest=DIGEST,
+            )
+        )
+
+    def test_9_13_requires_independent_digest(self):
+        with self.assertRaises(sut.DispatchValidationError) as ctx:
+            sut.validate(self._inputs(change_profile="spec-a-9.13-restore-scale"))
+        self.assertIn("expected_portfolio_image_digest", str(ctx.exception))
+
+    def test_9_13_rejects_malformed_digest(self):
+        for digest in ("sha256:abc", "sha256:" + "A" * 64, SHA, ""):
+            with self.subTest(digest=digest):
+                with self.assertRaises(sut.DispatchValidationError):
+                    sut.validate(
+                        self._inputs(
+                            change_profile="spec-a-9.13-restore-scale",
+                            expected_portfolio_image_digest=digest,
+                        )
+                    )
+
+    def test_9_13_rejects_seed_image(self):
+        with self.assertRaises(sut.DispatchValidationError) as ctx:
+            sut.validate(
+                self._inputs(
+                    change_profile="spec-a-9.13-restore-scale",
+                    expected_portfolio_image_digest=DIGEST,
+                    use_seed_image="true",
+                )
+            )
+        self.assertIn("use_seed_image=false", str(ctx.exception))
+
+    def test_9_13_rejects_job_recreate(self):
+        with self.assertRaises(sut.DispatchValidationError) as ctx:
+            sut.validate(
+                self._inputs(
+                    change_profile="spec-a-9.13-restore-scale",
+                    expected_portfolio_image_digest=DIGEST,
+                    recreate_market_data_job="true",
+                )
+            )
+        self.assertIn("recreate_market_data_job=false", str(ctx.exception))
+
+    def test_9_13_rejects_malformed_image_tag_map_through_shared_parser(self):
+        with self.assertRaises(sut.DispatchValidationError) as ctx:
+            sut.validate(
+                self._inputs(
+                    change_profile="spec-a-9.13-restore-scale",
+                    expected_portfolio_image_digest=DIGEST,
+                    deployed_image_tags_json="{not-json",
+                )
+            )
+        self.assertIn("valid JSON", str(ctx.exception))
+
+    def test_9_13_rejects_noncanonical_image_tag_map(self):
+        with self.assertRaises(sut.DispatchValidationError):
+            sut.validate(
+                self._inputs(
+                    change_profile="spec-a-9.13-restore-scale",
+                    expected_portfolio_image_digest=DIGEST,
+                    deployed_image_tags_json=_valid_tags_json(
+                        **{"portfolio-service": PORTFOLIO_SHA.upper()}
+                    ),
+                )
+            )
+
+    def test_unknown_9_13_like_spelling_fails_closed(self):
+        for profile in (
+            "spec-a-9.13",
+            "spec-a-9.13-restore",
+            "spec-a-9.13-restore-scale-zero",
+            "spec-a-913-restore-scale",
+        ):
+            with self.subTest(profile=profile):
+                with self.assertRaises(sut.DispatchValidationError):
+                    sut.validate(
+                        self._inputs(
+                            change_profile=profile,
+                            expected_portfolio_image_digest=DIGEST,
+                        )
+                    )
 
 
 if __name__ == "__main__":
