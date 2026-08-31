@@ -91,11 +91,12 @@ Caller mapping:
 
 #### Cold-start observations (not treated as run failure)
 
-Pre-warm against `https://api.vibhanshu-ai-portfolio.dev` recorded transport timeouts on all four
-health paths (`/actuator/health`, `/api/portfolio/health`, `/api/market/health`,
-`/api/insights/health`) as HTTP `000` / `000000`. Those observations are recorded separately from
-failures. After pre-warm, login, version read, seed, and the Playwright suite completed successfully
-on the same public host. No market-data writer was enabled or claimed.
+Independent verification: all four pre-warm probes against
+`https://api.vibhanshu-ai-portfolio.dev` (`/actuator/health`, `/api/portfolio/health`,
+`/api/market/health`, `/api/insights/health`) printed `HTTP 000000`. That `000000` value is the
+workflow’s timeout/transport output form (not an HTTP status code). Those observations are recorded
+separately from failures and remain distinct from the later successful holdings-only seed and
+Playwright suite on the same public host. No market-data writer was enabled or claimed.
 
 #### Explicit scope of this evidence
 

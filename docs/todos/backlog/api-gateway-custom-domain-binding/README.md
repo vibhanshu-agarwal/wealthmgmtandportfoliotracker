@@ -79,8 +79,9 @@ Owner-authorized B1 Task 5.7 / G5 evidence dispatch (exactly one; no retry):
 | Re-seed | succeeded (holdings only; no market-data write path) |
 | Markers | `[b1-g5][synthetic-shell] expectedVersion=0`; `[b1-g5][global-setup] expectedVersion=0`; `[b1-g5][azure-api-smoke] expectedVersion=0` |
 
-Cold-start note (separate from failure): pre-warm recorded HTTP `000` / `000000` on all four health
-paths; subsequent seed and Playwright suite still succeeded. Full sanitized record:
+Cold-start note (separate from failure): independent verification showed all four pre-warm probes
+printed `HTTP 000000` (`000000` is the workflow’s timeout/transport output form). That remains
+distinct from the later successful holdings-only seed and Playwright suite. Full sanitized record:
 [`B1_G5_INGRESS_BLOCKER.md`](../../../runbooks/B1_G5_INGRESS_BLOCKER.md).
 
 **Executed live evidence** is the workflow run above. Documentation PRs that record it are
