@@ -1,14 +1,10 @@
 name: Synthetic Monitoring
 
 on:
+  # Live synthetics are manual-only while B1 G5 remains blocked. Any run still
+  # requires separately recorded owner authorization and must not be treated as
+  # G5 evidence from source alone.
   workflow_dispatch:
-  schedule:
-    # Once daily at 08:00 UTC (13:30 IST). Hourly was the previous cadence but it
-    # forced all four Azure Container Apps to scale from 0→1 every hour, which
-    # was the dominant driver of the May-2026 cost spike (3-4× budget). Daily is
-    # sufficient as a liveness signal for a personal demo; on-demand verification
-    # is still available via workflow_dispatch.
-    - cron: '0 8 * * *'
 
 jobs:
   run-synthetic-tests:

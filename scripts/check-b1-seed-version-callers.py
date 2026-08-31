@@ -43,6 +43,9 @@ SKIP_DIR_PARTS = {
 
 SEED_STEP_NAME = "Re-seed E2E portfolio holdings"
 
+SCHEDULE_TRIGGER_RE = re.compile(r"(?m)^  schedule:\s*$")
+MANUAL_TRIGGER_RE = re.compile(r"(?m)^  workflow_dispatch:\s*$")
+
 
 def _extract_workflow_step(body: str, step_name: str) -> str:
     lines = body.splitlines()
@@ -93,8 +96,20 @@ def check_shell_caller(text: str | None = None) -> str:
     return "synthetic-shell (.github/workflows/scripts/seed-portfolio-with-version.sh)"
 
 
+def check_synthetic_dispatch_policy(body: str) -> None:
+    if SCHEDULE_TRIGGER_RE.search(body):
+        raise GuardError(
+            "synthetic-monitoring.yml: unattended schedule is forbidden while B1 G5 is blocked"
+        )
+    if not MANUAL_TRIGGER_RE.search(body):
+        raise GuardError(
+            "synthetic-monitoring.yml: workflow_dispatch must remain available for separately authorized runs"
+        )
+
+
 def check_synthetic_workflow(text: str | None = None) -> None:
     body = text if text is not None else _read(SYNTHETIC_WF)
+    check_synthetic_dispatch_policy(body)
     step = _extract_workflow_step(body, SEED_STEP_NAME)
     if "seed-portfolio-with-version.sh" not in step:
         raise GuardError(
