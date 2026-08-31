@@ -487,6 +487,69 @@ class TestTerraformAzureWorkflowHardening(unittest.TestCase):
         for script in scripts:
             self.assertNotIn(raw, script)
 
+    # -- post-bind custom-domain verification (restore only) --------------------
+
+    def test_post_bind_step_exists_and_is_restore_gated(self):
+        step = self._post_bind_step()
+        self.assertIn("api-gateway-custom-domain-restore", step)
+
+    def test_post_bind_uses_bounded_curl_max_time_for_custom_and_default_probes(self):
+        step = self._post_bind_step()
+        self.assertIn("--max-time 30", step)
+        self.assertIn('probe_health_url "$CUSTOM_HEALTH_URL"', step)
+        self.assertIn('probe_health_url "$DEFAULT_HEALTH_URL"', step)
+        self.assertNotIn("--max-time 60", step)
+        self.assertNotIn("--connect-timeout", step)
+
+    def test_post_bind_custom_host_warm_up_precedes_default_fqdn_probe(self):
+        step = self._post_bind_step()
+        warm_up = step.find("custom-host warm-up")
+        default_probe = step.find("DEFAULT_STATUS")
+        self.assertGreater(warm_up, -1, "expected labelled custom-host warm-up")
+        self.assertGreater(default_probe, warm_up, "default FQDN probe must follow custom-host warm-up")
+
+    def test_post_bind_requires_three_consecutive_custom_host_200_responses(self):
+        step = self._post_bind_step()
+        self.assertIn("REQUIRED_CONSECUTIVE_CUSTOM_200=3", step)
+        self.assertRegex(step, r"consecutive.*REQUIRED_CONSECUTIVE_CUSTOM_200|REQUIRED_CONSECUTIVE_CUSTOM_200.*consecutive")
+
+    def test_post_bind_resets_consecutive_count_on_non_200(self):
+        step = self._post_bind_step()
+        self.assertRegex(step, r"consecutive=0")
+
+    def test_post_bind_logs_timeout_status_and_duration(self):
+        step = self._post_bind_step()
+        for token in ("http_status=", "curl_exit=", "duration_s="):
+            self.assertIn(token, step)
+
+    def test_post_bind_probe_health_url_captures_curl_exit_without_true_guard(self):
+        step = self._post_bind_step()
+        self.assertNotRegex(step, r"status=\$\(curl[\s\S]*?\)\s*\|\|\s*true")
+        self.assertRegex(step, r"if status=\$\(curl[\s\S]*?\); then")
+        self.assertIn("curl_exit=0", step)
+        self.assertRegex(step, r"else[\s\S]*?curl_exit=\$\?")
+
+    def test_post_bind_does_not_disable_tls_or_use_curl_retry(self):
+        step = self._post_bind_step()
+        self.assertNotIn("-k", step)
+        self.assertNotIn("--insecure", step)
+        self.assertNotRegex(step, r"--retry\b")
+
+    def test_post_bind_retains_openssl_tls_evidence_and_python_validator(self):
+        step = self._post_bind_step()
+        self.assertIn("openssl s_client -connect api.vibhanshu-ai-portfolio.dev:443", step)
+        self.assertIn("validate_api_gateway_custom_domain.py post-bind", step)
+        self.assertIn("--custom-health-status", step)
+        self.assertIn("--default-health-status", step)
+        self.assertIn("--tls-evidence", step)
+
+    def test_post_bind_sets_custom_status_only_after_three_successes(self):
+        step = self._post_bind_step()
+        custom_status_idx = step.find('CUSTOM_STATUS="200"')
+        required_idx = step.find("REQUIRED_CONSECUTIVE_CUSTOM_200=3")
+        self.assertGreater(custom_status_idx, required_idx)
+        self.assertGreater(custom_status_idx, step.find("consecutive"))
+
     # -- helpers ----------------------------------------------------------------
 
     def _block(self, heading: str) -> str:
@@ -519,6 +582,25 @@ class TestTerraformAzureWorkflowHardening(unittest.TestCase):
             else:
                 scripts.append(value)
         return scripts
+
+    def _post_bind_step(self) -> str:
+        marker = "Post-bind custom-domain verification (restore only)"
+        idx = self.text.find(marker)
+        self.assertGreaterEqual(idx, 0, f"missing step {marker!r}")
+        start = idx
+        block_lines: list[str] = []
+        in_run = False
+        for line in self.text[start:].splitlines(keepends=True):
+            if not in_run:
+                block_lines.append(line)
+                if line.strip() == "run: |":
+                    in_run = True
+                continue
+            if line.startswith("          ") or (line.strip() == "" and block_lines):
+                block_lines.append(line)
+                continue
+            break
+        return "".join(block_lines)
 
 
 if __name__ == "__main__":

@@ -869,6 +869,24 @@ jobs:
           PREFLIGHT_OUTPUTS: ${{ toJSON(steps.custom-domain-preflight.outputs) }}
         run: |
           set -euo pipefail
+          probe_health_url() {
+            local url="$1"
+            local label="$2"
+            local start end elapsed status curl_exit
+            start=$(date +%s.%N)
+            if status=$(curl --max-time 30 -s -o /dev/null -w '%{http_code}' "$url"); then
+              curl_exit=0
+            else
+              curl_exit=$?
+            fi
+            end=$(date +%s.%N)
+            elapsed=$(python3 -c "print(f'{float(\"$end\") - float(\"$start\"):.3f}')")
+            if [ "$curl_exit" -ne 0 ]; then
+              status="000"
+            fi
+            echo "${label}: url=${url} http_status=${status} curl_exit=${curl_exit} duration_s=${elapsed}"
+            PROBE_LAST_STATUS="$status"
+          }
           APP_JSON="$(az containerapp show \
             --name api-gateway \
             --resource-group wealth-azure-prod-rg \
@@ -890,8 +908,36 @@ jobs:
             --resource-group wealth-azure-prod-rg \
             --query '[].{name:name,id:id,subjectName:properties.subjectName,provisioningState:properties.provisioningState,validationMethod:properties.validationMethod}' -o json)"
           DEFAULT_FQDN="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["fqdn"])' <<<"$APP_JSON")"
-          DEFAULT_STATUS="$(curl -s -o /dev/null -w '%{http_code}' "https://${DEFAULT_FQDN}/actuator/health")"
-          CUSTOM_STATUS="$(curl -s -o /dev/null -w '%{http_code}' "https://api.vibhanshu-ai-portfolio.dev/actuator/health")"
+          CUSTOM_HEALTH_URL="https://api.vibhanshu-ai-portfolio.dev/actuator/health"
+          DEFAULT_HEALTH_URL="https://${DEFAULT_FQDN}/actuator/health"
+          echo "=== custom-host warm-up (informational; timeout/503 are not binding failures) ==="
+          probe_health_url "$CUSTOM_HEALTH_URL" "custom-host warm-up"
+          REQUIRED_CONSECUTIVE_CUSTOM_200=3
+          MAX_CUSTOM_HEALTH_ATTEMPTS=15
+          CUSTOM_HEALTH_RETRY_DELAY_S=5
+          consecutive=0
+          attempt=0
+          while [ "$consecutive" -lt "$REQUIRED_CONSECUTIVE_CUSTOM_200" ] && [ "$attempt" -lt "$MAX_CUSTOM_HEALTH_ATTEMPTS" ]; do
+            attempt=$((attempt + 1))
+            probe_health_url "$CUSTOM_HEALTH_URL" "custom-host stability attempt ${attempt}"
+            if [ "$PROBE_LAST_STATUS" = "200" ]; then
+              consecutive=$((consecutive + 1))
+              echo "custom-host consecutive 200 count: ${consecutive}/${REQUIRED_CONSECUTIVE_CUSTOM_200}"
+            else
+              consecutive=0
+              echo "custom-host non-200 (${PROBE_LAST_STATUS}); resetting consecutive count"
+              if [ "$attempt" -lt "$MAX_CUSTOM_HEALTH_ATTEMPTS" ]; then
+                sleep "$CUSTOM_HEALTH_RETRY_DELAY_S"
+              fi
+            fi
+          done
+          if [ "$consecutive" -lt "$REQUIRED_CONSECUTIVE_CUSTOM_200" ]; then
+            echo "::error::custom-host health did not reach ${REQUIRED_CONSECUTIVE_CUSTOM_200} consecutive HTTP 200 responses within ${MAX_CUSTOM_HEALTH_ATTEMPTS} attempts (last status=${PROBE_LAST_STATUS}). Retry after cold-start warm-up or investigate api-gateway scale/revision health."
+            exit 1
+          fi
+          CUSTOM_STATUS="200"
+          probe_health_url "$DEFAULT_HEALTH_URL" "default ACA FQDN health"
+          DEFAULT_STATUS="$PROBE_LAST_STATUS"
           TLS_EVIDENCE="$(echo | openssl s_client -connect api.vibhanshu-ai-portfolio.dev:443 -servername api.vibhanshu-ai-portfolio.dev 2>/dev/null | openssl x509 -noout -subject -dates -ext subjectAltName)"
           EXPECTED_JSON="$(python3 - <<'PY'
           import json, os
