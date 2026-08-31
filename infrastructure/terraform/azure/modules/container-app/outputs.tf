@@ -14,6 +14,11 @@ output "app_fqdn" {
   description = "Fully-qualified domain name of the Container App ingress. For external apps this is the public FQDN; for internal apps it is the internal FQDN within the ACA environment. Null while ingress_enabled is false."
 }
 
+output "app_id" {
+  value       = azurerm_container_app.this.id
+  description = "Resource ID of the Container App."
+}
+
 output "identity_principal_id" {
   value       = azurerm_container_app.this.identity[0].principal_id
   description = "Object ID of the Container App's system-assigned managed identity. Used to assign Azure RBAC roles (e.g. Cognitive Services OpenAI User for insight-service)."

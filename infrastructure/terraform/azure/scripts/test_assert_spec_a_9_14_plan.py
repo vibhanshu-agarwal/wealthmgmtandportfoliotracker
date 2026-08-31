@@ -475,6 +475,8 @@ class SpecA914PlanTests(unittest.TestCase):
         # Covered in test_validate_dispatch.py; keep a local reminder that 9.14 is scoped.
         self.assertIn(REOPEN, sut.KNOWN_PROFILES)
         self.assertIn(CLOSE, sut.KNOWN_PROFILES)
+        self.assertIn("api-gateway-custom-domain-restore", sut.KNOWN_PROFILES)
+        self.assertIn("api-gateway-custom-domain-remove", sut.KNOWN_PROFILES)
 
     def test_errors_do_not_leak_secrets(self):
         plan = _reopen_plan()

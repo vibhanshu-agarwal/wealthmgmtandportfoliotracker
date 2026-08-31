@@ -494,6 +494,10 @@ class SpecA912PlanTests(unittest.TestCase):
     def test_unknown_profile_fails_closed(self):
         self.assertFails(_transition(), "spec-a-unknown")
 
+    def test_custom_domain_profiles_are_known(self):
+        self.assertIn("api-gateway-custom-domain-restore", sut.KNOWN_PROFILES)
+        self.assertIn("api-gateway-custom-domain-remove", sut.KNOWN_PROFILES)
+
     def test_scoped_profiles_reject_invalid_digest_or_version_inputs(self):
         bad_digests = ("", "a" * 64, "sha256:abc", "sha256:" + "g" * 64)
         bad_versions = ("", "abc", "g" * 40, "a" * 39, "a" * 41)

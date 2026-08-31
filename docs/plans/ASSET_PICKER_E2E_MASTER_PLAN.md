@@ -157,6 +157,7 @@ are complete.
 - Persisted refresh runner: `true` (checkpoint 9.11 complete; scheduled Job may run at `0 8 * * *`).
 - Refresh retry limit: `0`.
 - Gateway ingress: closed on live `api-gateway--0000077`; Terraform steady-state intent is open at 9.14 source.
+- Custom domain `api.vibhanshu-ai-portfolio.dev`: binding absent (`customDomains: null`); source-only recovery PR prepared ([`API_GATEWAY_CUSTOM_DOMAIN_RECOVERY.md`](../runbooks/API_GATEWAY_CUSTOM_DOMAIN_RECOVERY.md)), not executed.
 - `portfolio-service`, `market-data-service`, and `insight-service`: enforcement enabled,
   `min_replicas=0` after checkpoint 9.13.
 - Controlled refresh: exactly one authorized one-off execution completed at 9.10; 9.11 did not start
@@ -321,7 +322,8 @@ Live `min_replicas` remains `1` and ingress remains closed until 9.13/9.14.
 2. **Backend lane:** **R-A / G2**, **R-B / G3**, and **R-B2 / G2a** are complete (Artifact 2a
    `portfolio-service--0000081` / `sha256:d544649f…`, cut `f22e2ff`). Tasks **5.4–5.6 are merged
    source-only on `main@0b5d60d1`** (PR #161); **5.7/G5 is blocked** by Spec A closed gateway
-   ingress (not by Wave 5b). Resume G5 only after Spec A 9.12–9.14 reopen ingress, or a separately
+   ingress (not by Wave 5b). Resume G5 only after Spec A 9.12–9.14 reopen ingress **and** a
+   separately authorized `api-gateway-custom-domain-restore` apply/bind with live read-back, or a
    authorized private-reachability test that executes all three real callers. Waves 6–7 and
    candidate packaging (7.5/R-C) remain separately gated. Do not claim Writer_Convergence while the
    old seed remains version-tolerant.

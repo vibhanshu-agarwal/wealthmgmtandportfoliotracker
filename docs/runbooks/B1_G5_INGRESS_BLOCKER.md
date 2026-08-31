@@ -48,10 +48,16 @@ the public API host reproduced the same TLS handshake reset.
 
 Resume G5 only after **one** of:
 
-1. Spec A checkpoints **9.11–9.14** complete in order and gateway ingress is reopened; then one
-   authorized public Azure synthetic that exercises all three callers; or
+1. Spec A checkpoints **9.11–9.14** complete in order, gateway ingress is reopened, **and**
+   `api-gateway-custom-domain-restore` is separately authorized, applied, bound, and read back so
+   `https://api.vibhanshu-ai-portfolio.dev` serves with valid TLS; then one authorized public Azure
+   synthetic that exercises all three callers; or
 2. A separately designed and authorized private-reachability test that genuinely executes all three
    real GitHub-hosted callers (shell, global-setup, azure-api-smoke).
+
+Source-only preparation of the custom-domain recovery runbook
+([`API_GATEWAY_CUSTOM_DOMAIN_RECOVERY.md`](API_GATEWAY_CUSTOM_DOMAIN_RECOVERY.md)) does **not**
+satisfy either resume condition.
 
 ## Explicit non-claims
 
