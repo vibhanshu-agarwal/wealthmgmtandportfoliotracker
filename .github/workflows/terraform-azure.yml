@@ -874,8 +874,11 @@ jobs:
             local label="$2"
             local start end elapsed status curl_exit
             start=$(date +%s.%N)
-            status=$(curl --max-time 30 -s -o /dev/null -w '%{http_code}' "$url") || true
-            curl_exit=$?
+            if status=$(curl --max-time 30 -s -o /dev/null -w '%{http_code}' "$url"); then
+              curl_exit=0
+            else
+              curl_exit=$?
+            fi
             end=$(date +%s.%N)
             elapsed=$(python3 -c "print(f'{float(\"$end\") - float(\"$start\"):.3f}')")
             if [ "$curl_exit" -ne 0 ]; then

@@ -522,12 +522,18 @@ class TestTerraformAzureWorkflowHardening(unittest.TestCase):
         for token in ("http_status=", "curl_exit=", "duration_s="):
             self.assertIn(token, step)
 
+    def test_post_bind_probe_health_url_captures_curl_exit_without_true_guard(self):
+        step = self._post_bind_step()
+        self.assertNotRegex(step, r"status=\$\(curl[\s\S]*?\)\s*\|\|\s*true")
+        self.assertRegex(step, r"if status=\$\(curl[\s\S]*?\); then")
+        self.assertIn("curl_exit=0", step)
+        self.assertRegex(step, r"else[\s\S]*?curl_exit=\$\?")
+
     def test_post_bind_does_not_disable_tls_or_use_curl_retry(self):
         step = self._post_bind_step()
         self.assertNotIn("-k", step)
         self.assertNotIn("--insecure", step)
-        self.assertNotIn("curl --retry", step)
-        self.assertNotIn("curl -s --retry", step)
+        self.assertNotRegex(step, r"--retry\b")
 
     def test_post_bind_retains_openssl_tls_evidence_and_python_validator(self):
         step = self._post_bind_step()
