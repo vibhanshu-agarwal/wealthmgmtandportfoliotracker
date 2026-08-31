@@ -1,15 +1,20 @@
-# B1 Task 5.7 / G5 — public synthetic evidence pending
+# B1 Task 5.7 / G5 — public synthetic evidence recorded; completion gated on owner decision
 
 This is the durable, sanitized record of the authorized G5 attempts for Wave 5b Task **5.7**.
 No secret values, JWTs, or passwords appear here.
 
 ## Decision
 
-**G5 remains blocked — but not by current public reachability.** Two historical authorized Azure
-synthetic dispatches from `cursor/b1-wave5b-seed-caller-migration` failed **before any seed
-request** when public TLS to `api.vibhanshu-ai-portfolio.dev` reset at handshake. The custom-domain
-binding has since been restored under separately authorized, guarded operations; no post-restore G5
-synthetic has been authorized or run.
+**G5 / Task 5.7 remain open** — Task 5.7 remains unchecked pending a separately recorded
+owner-controlled G5 completion decision. The executed three-caller public Azure synthetic evidence
+below is subject to independent review and merge of its documentation PR, but neither that review
+nor that PR checks Task 5.7 or unlocks Wave 6 / R-B3, public `PUT`, or backlog closure. The
+custom-domain binding was restored earlier under separately authorized, guarded operations (PR #194
+reviewed that restoration evidence). A separately authorized public Azure synthetic has now run from
+`main@f66d7ab6a4db1a327fd030ba9897bfc431104945` and produced the three required version-bearing
+caller markers. That live run is **executed evidence**; this document update is **source-only**.
+Neither automatically closes Task 5.7, unblocks Wave 6 / R-B3, public `PUT`, or the custom-domain
+backlog.
 
 > **Historical correction (2026-08-31).** The original TLS reset was first attributed solely to the
 > Spec A ingress fence. That attribution was incomplete: Spec A 9.14 reopened ingress, while the
@@ -40,15 +45,69 @@ callers send version-bearing requests.
 | Gateway ingress | disabled (`external` / `fqdn` / `targetPort` all null) |
 | V20 / G3 | unchanged; no portfolio rollout since R-B2 |
 
-## Authorized attempts (exactly two; no further dispatch)
+## Authorized attempts
+
+Exactly **two historical failures** plus **one authorized post-restore three-caller success** (no
+automatic retry). Further dispatches still require separately recorded owner authorization.
+
+### Historical failures (pre-restore)
 
 | Run | Branch | Outcome | Failure point |
 |---|---|---|---|
 | [33046987880](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33046987880) | `cursor/b1-wave5b-seed-caller-migration` | failure | `Re-seed E2E portfolio holdings` — `curl: (35) Recv failure: Connection reset by peer`; `login failed HTTP 000000` |
 | [33047168136](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33047168136) | `cursor/b1-wave5b-seed-caller-migration` | failure | identical TLS reset / HTTP `000000` on login |
 
-Neither run reached `POST /api/internal/portfolio/seed`. Neither produced a `409`. Local curl to
-the public API host reproduced the same TLS handshake reset.
+Neither historical run reached `POST /api/internal/portfolio/seed`. Neither produced a `409`. Local
+curl to the public API host reproduced the same TLS handshake reset.
+
+### Post-restore three-caller evidence run (2026-08-31)
+
+| Field | Value |
+|---|---|
+| Workflow | `Synthetic Monitoring` (`.github/workflows/synthetic-monitoring.yml`) |
+| Event | `workflow_dispatch` (exactly one dispatch; no retry) |
+| Ref / SHA | `main` @ `f66d7ab6a4db1a327fd030ba9897bfc431104945` |
+| Run ID | `33411410271` |
+| Run URL | https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33411410271 |
+| Overall conclusion | **success** |
+| Azure job | `Run Azure Synthetic Suite` — **success** (not skipped) |
+| AWS job | `Run AWS Synthetic Suite` — skipped (`CLOUD_PROVIDER=azure`) |
+| Re-seed step | **success** — holdings only; log: `seed succeeded (holdings only; no market-data write path)` |
+| Playwright | **9 passed** |
+| Market-data writer | **not** enabled; `SKIP_MARKET_DATA_SEED=true`; seed path claims holdings-only |
+
+Required caller markers observed in sanitized logs (all three real GitHub-hosted callers):
+
+```
+[b1-g5][synthetic-shell] expectedVersion=0
+[b1-g5][global-setup] expectedVersion=0
+[b1-g5][azure-api-smoke] expectedVersion=0
+```
+
+Caller mapping:
+
+| Marker | Caller source |
+|---|---|
+| `synthetic-shell` | `.github/workflows/scripts/seed-portfolio-with-version.sh` |
+| `global-setup` | `frontend/tests/e2e/global-setup.ts` |
+| `azure-api-smoke` | `frontend/tests/e2e/azure-synthetic/api-live-smoke.spec.ts` |
+
+#### Cold-start observations (not treated as run failure)
+
+Independent verification: all four pre-warm probes against
+`https://api.vibhanshu-ai-portfolio.dev` (`/actuator/health`, `/api/portfolio/health`,
+`/api/market/health`, `/api/insights/health`) printed `HTTP 000000`. That `000000` value is the
+workflow’s timeout/transport output form (not an HTTP status code). Those observations are recorded
+separately from failures and remain distinct from the later successful holdings-only seed and
+Playwright suite on the same public host. No market-data writer was enabled or claimed.
+
+#### Explicit scope of this evidence
+
+- **Executed live evidence:** one authorized public Azure synthetic from the SHA above.
+- **This doc / evidence PR:** source-only documentation of that run (subject to independent review
+  and merge of the documentation PR; neither checks Task 5.7).
+- Does **not** check `- [ ] **5.7 G5 evidence.**`, close G5, unblock Wave 6 / R-B3, public `PUT`,
+  or close the custom-domain backlog.
 
 ## Historical failure and post-restore state (2026-08-31)
 
@@ -74,43 +133,39 @@ read-back reports the exact custom hostname with `SniEnabled` binding and existi
 and remains CNAME-validated. The guarded post-bind verifier completed its binding, certificate, ingress,
 and TLS assertions before the final default-host health observation made run 33380356530 red.
 
-`NEXT_PUBLIC_API_BASE_URL` for the frontend and synthetic workflows points at that host. The restored
-endpoint is healthy in the independent read-back, but reachability alone cannot prove the three callers
-sent version-bearing requests. The restoration evidence remains open for independent review in backlog
-item [`api-gateway-custom-domain-binding`](../todos/backlog/api-gateway-custom-domain-binding/README.md).
+`NEXT_PUBLIC_API_BASE_URL` for the frontend and synthetic workflows points at that host.
 
-**Do not read Spec A 9.14 as unblocking G5.**
+**Do not read Spec A 9.14, the three-caller run, or documentation-PR review/merge alone as closing
+Task 5.7.** A separately recorded owner-controlled G5 completion decision is required before
+checking the task or advancing Wave 6 / R-B3.
 
 ## Synthetic dispatch gate (2026-08-31)
 
 PR [#194](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/194) independently
 reviewed and merged the custom-domain restoration live read-back evidence at `main@98371587`. That
-review does **not** satisfy Task 5.7 and does **not** authorize G5.
+review does **not** satisfy Task 5.7 and does **not** authorize G5 by itself.
 
-While G5 remains blocked, `synthetic-monitoring.yml` has **no unattended schedule** — only
-`workflow_dispatch` remains. Any manual dispatch still requires separately recorded owner
-authorization and must not be treated as G5 evidence from source alone. A CI guard rejects
-reintroduction of a top-level schedule trigger.
+While G5 / Task 5.7 remain open pending a separately recorded owner-controlled G5 completion
+decision, `synthetic-monitoring.yml` has **no unattended schedule** — only `workflow_dispatch`
+remains. Any further manual dispatch still requires separately recorded owner authorization. A CI
+guard rejects reintroduction of a top-level schedule trigger.
 
-## Resume conditions for Task 5.7
+## Resume / close conditions for Task 5.7
 
-Resume G5 only after **one** of:
-
-1. The independent review of the executed custom-domain recovery evidence is complete, **then** one
-   separately authorized public Azure synthetic exercises all three callers. The binding, certificate,
-   ingress, and independent `200` read-back are recorded above; neither that restoration nor the
-   review alone satisfies Task 5.7; or
-2. A separately designed and authorized private-reachability test that genuinely executes all three
-   real GitHub-hosted callers (shell, global-setup, azure-api-smoke).
+Task **5.7 remains unchecked** pending a separately recorded owner-controlled G5 completion
+decision. The executed three-caller evidence (run `33411410271`) is subject to independent review
+and merge of its documentation PR, but neither that review nor that PR checks Task 5.7. Closure
+alternatively requires a separately designed and authorized private-reachability test that
+genuinely executes all three real GitHub-hosted callers (shell, global-setup, azure-api-smoke).
 
 The recovery evidence in [`API_GATEWAY_CUSTOM_DOMAIN_RECOVERY.md`](API_GATEWAY_CUSTOM_DOMAIN_RECOVERY.md)
-does **not** satisfy either resume condition by itself. The independent review and a separately
-authorized caller exercise remain mandatory.
+and PR #194 do **not** close Task 5.7 by themselves.
 
 ## Explicit non-claims
 
-- Does **not** claim G5 green or Writer_Convergence.
-- Does **not** close Task 5.7, authorize Wave 6 / R-B3, public `PUT`, a retry, or any further
-  custom-domain or deployment change.
-- Does **not** authorize further synthetic dispatches until a resume condition above is met.
-- Does **not** claim the custom-domain restore or a healthy steady-state host satisfies Task 5.7.
+- Does **not** claim Task 5.7 complete, G5 closed, or Writer_Convergence.
+- Does **not** authorize Wave 6 / R-B3, public `PUT`, a retry, or any further custom-domain or
+  deployment change.
+- Does **not** claim this source-only evidence PR or its independent review checks or closes the
+  task; a separately recorded owner-controlled G5 completion decision remains required.
+- Does **not** enable or claim any market-data writer path.

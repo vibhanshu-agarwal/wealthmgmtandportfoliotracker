@@ -40,11 +40,14 @@ enabled ACA external ingress on the existing `api-gateway--0000077` revision, in
 remain disabled, and the default ACA endpoint is healthy
 ([`SPEC_A_9_14_REOPEN_INGRESS.md`](../runbooks/SPEC_A_9_14_REOPEN_INGRESS.md)). B1 Wave 2 /
 R-A, Wave 3 / R-B (V20), and Wave 5 Tasks 5.2–5.3 / R-B2 (G2a) are complete; caller migration Tasks
-**5.4–5.6 merged on `main@0b5d60d1`** (PR #161, source-only; no deploy); **G5/5.7 remains blocked**
-after the separately authorized custom-domain restore — not by current host reachability, but because
-PR #194 reviewed and merged the restoration evidence without satisfying Task 5.7. A separately
-authorized synthetic that exercises all three callers is still required. Unattended synthetics are
-suspended in `synthetic-monitoring.yml` while G5 remains blocked. See
+**5.4–5.6 merged on `main@0b5d60d1`** (PR #161, source-only; no deploy); **G5/5.7 remains open** —
+Task **5.7 stays unchecked** pending a separately recorded owner-controlled G5 completion decision.
+The authorized three-caller public Azure synthetic
+([run 33411410271](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33411410271)
+from `main@f66d7ab6a4db1a327fd030ba9897bfc431104945`) succeeded with all three `[b1-g5]` markers;
+that executed evidence is subject to independent review and merge of its documentation PR, but
+neither that review nor that PR checks Task 5.7. Unattended synthetics remain suspended in
+`synthetic-monitoring.yml`. See
 [`B1_G5_INGRESS_BLOCKER.md`](../runbooks/B1_G5_INGRESS_BLOCKER.md);
 later B1 waves remain gated.
 B2 Wave 1 (Tasks 1.1-1.19) and Wave 2 Tasks 2.1-2.5 are merged source-only through PR #178 at `main@38e3d95`; they remain entirely mock-backed and disabled by default. Wave 3 presence source Tasks 3.1–3.6 merged source-only via PR #179 at `main@cc97a209`; Task 3.7 deploy/live proof remains open (not deployed, not activated, not live-probed). Wave 4 Tasks 4.1–4.4a merged source-only via PR #180 at `main@63fc058`; they are not deployed, routed, or user-visible. Task 4.5 and Waves 5–10 remain gated; Wave 2 Tasks 2.6–2.7 remain open.
@@ -125,9 +128,9 @@ At every meaningful merge or live checkpoint:
 | Track | Delivered | Current position | Remaining outcome |
 |---|---|---|---|
 | **A — Spec A catalog/data cutover** | Shared catalog, Postgres/Mongo repair, R4 rollout, enforcement, one reconciled controlled refresh, persisted refresh enablement, demo portfolio activation, and scale-to-zero restoration | **All 14 cutover checkpoints complete.** 9.13 is live-green on `portfolio-service--0000092`, `market-data-service--0000079`, and `insight-service--0000079`; 9.14 completed via apply [33331130603](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33331130603), reopening ACA external ingress on `api-gateway--0000077` with `allowInsecure=false` ([`SPEC_A_9_14_REOPEN_INGRESS.md`](../runbooks/SPEC_A_9_14_REOPEN_INGRESS.md)); the later custom-domain restore has independent `200` read-back, and PR #194 independently reviewed and merged that evidence ([`API_GATEWAY_CUSTOM_DOMAIN_RECOVERY.md`](../runbooks/API_GATEWAY_CUSTOM_DOMAIN_RECOVERY.md)); historical RCA remains `MECHANISM_REPRODUCED_SETTER_UNPROVEN` | Spec A's production cutover is done. Remaining work is a separately authorized B1 G5 synthetic (unattended synthetics suspended), plus the four filed process follow-ups |
-| **B — B1 portfolio composition backend** | Deployment prerequisites, fixture identity migration, legacy writer retirement, Wave 2 gateway provisioning **served (R-A/G2 green)**, Wave 3 V20 **served (R-B/G3 green)**, Wave 5 version-bearing read **served (R-B2/G2a green)** | **Wave 2 / R-A complete**; **Wave 3 / R-B complete**; **Wave 5 Tasks 5.2–5.3 / R-B2 complete** (Artifact 2a on `portfolio-service--0000081` / `sha256:d544649f…`; cut `f22e2ff`); **Wave 4a–4c tasks 4.1–4.21 merged on `main@2673f40`** (PR #153; composition mechanisms unexposed; no public `PUT`); Task 5.1 merged on `main@f22e2ff` (PR #155); Tasks **5.4–5.6 merged on `main@0b5d60d1`** (PR #161, source-only); **5.7/G5 blocked — restoration evidence reviewed and merged (PR #194); separately authorized three-caller synthetic still required** | Authorize and run G5 (or an authorized private-reachability test), safe desired-state writer activation, public `PUT` |
+| **B — B1 portfolio composition backend** | Deployment prerequisites, fixture identity migration, legacy writer retirement, Wave 2 gateway provisioning **served (R-A/G2 green)**, Wave 3 V20 **served (R-B/G3 green)**, Wave 5 version-bearing read **served (R-B2/G2a green)** | **Wave 2 / R-A complete**; **Wave 3 / R-B complete**; **Wave 5 Tasks 5.2–5.3 / R-B2 complete** (Artifact 2a on `portfolio-service--0000081` / `sha256:d544649f…`; cut `f22e2ff`); **Wave 4a–4c tasks 4.1–4.21 merged on `main@2673f40`** (PR #153; composition mechanisms unexposed; no public `PUT`); Task 5.1 merged on `main@f22e2ff` (PR #155); Tasks **5.4–5.6 merged on `main@0b5d60d1`** (PR #161, source-only); **5.7/G5 open** — authorized three-caller run [33411410271](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33411410271) (`main@f66d7ab6`; Task 5.7 unchecked pending a separately recorded owner-controlled G5 completion decision; documentation-PR review/merge does not check 5.7) | Separately recorded owner-controlled G5 completion decision; then Wave 6 / R-B3, safe desired-state writer activation, public `PUT` |
 | **C — B2 Asset Picker product** | Requirements, design, task plan, five-screen visual mockup, Wave 1 / partial Wave 2 frontend source, Wave 3 presence source, Wave 4 demo-reset source | Wave 1 (1.1-1.19) + Wave 2 Tasks 2.1-2.5 merged source-only on `main@38e3d95` via PR #178; Wave 3 Tasks 3.1–3.6 merged source-only on `main@cc97a209` via PR #179 (Task 3.7 deploy/live proof open); Wave 4 Tasks 4.1–4.4a merged source-only via PR #180 at `main@63fc058` (not deployed/routed) | Task 3.7 deploy/live proof; Task 4.5+ and authorized deployment of Wave 4; reset gateway bundle, live integration, exposure remain separately gated |
-| **D — Demo credibility** | Canonical prices refreshed and reconciled; demo initializer exists; authorized 9.12 retry activated the Active_Asset set | Demo portfolio still holds 159 holdings after the 9.13 scale restore on `portfolio-service--0000092`, with both flags `false`; historical pooled-session setter remains unidentified | 9.14 and the custom-domain restore are complete; keep B1 G5 gated pending a separately authorized caller proof, and do not treat operational 9.12 success as historical RCA closure |
+| **D — Demo credibility** | Canonical prices refreshed and reconciled; demo initializer exists; authorized 9.12 retry activated the Active_Asset set | Demo portfolio still holds 159 holdings after the 9.13 scale restore on `portfolio-service--0000092`, with both flags `false`; historical pooled-session setter remains unidentified | 9.14 and the custom-domain restore are complete; keep B1 G5 / Task 5.7 open pending a separately recorded owner-controlled G5 completion decision for run 33411410271, and do not treat operational 9.12 success as historical RCA closure |
 
 ### What is actually usable today
 
@@ -137,7 +140,7 @@ At every meaningful merge or live checkpoint:
 | Repaired and reconciled price data | ✅ Shipped and verified |
 | Enforcement against unsupported holdings/events | ✅ Enabled |
 | `GET /api/assets` serving catalog data | ✅ Wave 2 gateway `/api/assets/**` route served with R-A; Wave 4b controller served with R-B2 Artifact 2a (`portfolio-service--0000081`) |
-| Version-bearing portfolio read | ✅ G2a/R-B2 green on `portfolio-service--0000081` / `sha256:d544649f…`; caller migration 5.4–5.6 on `main@0b5d60d1` (source-only, not deployed); **5.7/G5 blocked — restoration evidence reviewed and merged (PR #194); separately authorized caller proof still required** |
+| Version-bearing portfolio read | ✅ G2a/R-B2 green on `portfolio-service--0000081` / `sha256:d544649f…`; caller migration 5.4–5.6 on `main@0b5d60d1` (source-only, not deployed); **5.7/G5 open** — run [33411410271](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33411410271) recorded; Task 5.7 unchecked pending a separately recorded owner-controlled G5 completion decision |
 | `PUT /api/portfolio/holdings` safe composition write | ❌ Not implemented |
 | Asset Picker button/modal/browse/review/conflict UI | ❌ Not implemented |
 | Asset Picker full-stack E2E proof | ❌ Not implemented |
@@ -180,9 +183,12 @@ are complete.
   to the existing succeeded managed certificate. The guarded apply/bind workflow's immediate default
   health observation was non-`200`, but independent read-back then found both default and custom health
   endpoints at `200`. See [`API_GATEWAY_CUSTOM_DOMAIN_RECOVERY.md`](../runbooks/API_GATEWAY_CUSTOM_DOMAIN_RECOVERY.md).
-  This does not unblock B1 G5: PR #194 reviewed and merged the restoration evidence, but a
-  separately authorized three-caller synthetic is still required; unattended synthetics are
-  suspended in `synthetic-monitoring.yml`; backlog item
+  This does not close B1 Task 5.7: PR #194 reviewed and merged the restoration evidence; the
+  authorized three-caller synthetic
+  [33411410271](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33411410271)
+  has now run successfully, and Task 5.7 stays unchecked pending a separately recorded
+  owner-controlled G5 completion decision (documentation-PR review/merge does not check 5.7);
+  unattended synthetics remain suspended in `synthetic-monitoring.yml`; backlog item
   [`api-gateway-custom-domain-binding`](../todos/backlog/api-gateway-custom-domain-binding/README.md).
 - `SERVICE_VERSION` drift: `api-gateway` and `portfolio-service` advertise a `SERVICE_VERSION`
   that is not the image they run. Pre-existing, untouched by 9.14 — backlog item
@@ -197,9 +203,11 @@ are complete.
 - Checkpoint 9.12 is operationally complete; historical RCA remains
   `MECHANISM_REPRODUCED_SETTER_UNPROVEN`. Checkpoints 9.13 and 9.14 are live-green
   ([`SPEC_A_9_12_POOLED_READONLY_RCA.md`](../runbooks/SPEC_A_9_12_POOLED_READONLY_RCA.md)).
-- B1 G5 remains blocked — PR #194 reviewed and merged the custom-domain recovery evidence, but a
-  separately authorized three-caller synthetic is still required. Unattended synthetics are
-  suspended in `synthetic-monitoring.yml`. Not blocked by current ingress or hostname reachability.
+- B1 G5 / Task 5.7 remain open — PR #194 reviewed restoration evidence; authorized three-caller
+  run [33411410271](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33411410271)
+  succeeded from `main@f66d7ab6` with all three markers; Task 5.7 stays unchecked pending a
+  separately recorded owner-controlled G5 completion decision (documentation-PR review/merge does
+  not check 5.7). Unattended synthetics remain suspended in `synthetic-monitoring.yml`.
 
 Checkpoint 9.10 evidence:
 [`docs/runbooks/SPEC_A_9_10_CONTROLLED_REFRESH.md`](../runbooks/SPEC_A_9_10_CONTROLLED_REFRESH.md).
@@ -222,7 +230,7 @@ Authority: [`.kiro/specs/portfolio-composition-contract/tasks.md`](../../.kiro/s
 | 2 — gateway provisioning + asset route | ✅ R-A complete (G2 served) | PR #131 tasks 2.1–2.6 complete; serving revision `api-gateway--0000076`, digest `sha256:2da5b303…`; evidence [`B1_R_A_G2_SERVING_PROOF.md`](../runbooks/B1_R_A_G2_SERVING_PROOF.md) |
 | 3 – V20 schema | ✅ R-B complete (G3 served) | Tasks 3.1–3.7 complete; Artifact 2 cut `25aa730` applied V20; prior serving evidence [`B1_R_B_G3_SERVING_PROOF.md`](../runbooks/B1_R_B_G3_SERVING_PROOF.md); superseded for portfolio traffic by R-B2 |
 | 4 – contract implementation | Source on Artifact 2a serving cut; mechanisms unexposed | Wave 4a–4c (4.1–4.21) merged on `main@2673f40` (PR #153) and included in Artifact 2a serving digest. Public `PUT` still Wave 7. Replacement orchestrator + preparers remain unexposed; `GET /api/assets` controller is now served with R-B2; candidate packaging (7.5/R-C) still pending |
-| 5 — version-bearing read | 🟡 Tasks 5.1–5.3 / R-B2 complete; **5.4–5.6 merged on `main@0b5d60d1`** (PR #161, source-only); **5.7/G5 blocked — restoration evidence reviewed and merged (PR #194); separately authorized caller proof still required** | Task 5.1 on main@f22e2ff; G2a/R-B2 green on portfolio-service--0000081 / sha256:d544649f…; caller migration merged source-only; historical G5 runs 33046987880 / 33047168136 failed at TLS login before seed; the endpoint has since been restored with independent `200` read-back ([`B1_G5_INGRESS_BLOCKER.md`](../runbooks/B1_G5_INGRESS_BLOCKER.md)) |
+| 5 — version-bearing read | 🟡 Tasks 5.1–5.3 / R-B2 complete; **5.4–5.6 merged on `main@0b5d60d1`** (PR #161, source-only); **5.7/G5 open** — authorized three-caller run [33411410271](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33411410271) (`main@f66d7ab6`; Task 5.7 unchecked pending a separately recorded owner-controlled G5 completion decision) | Task 5.1 on main@f22e2ff; G2a/R-B2 green on portfolio-service--0000081 / sha256:d544649f…; caller migration merged source-only; historical G5 runs 33046987880 / 33047168136 failed at TLS login before seed; post-restore three-caller markers recorded in [`B1_G5_INGRESS_BLOCKER.md`](../runbooks/B1_G5_INGRESS_BLOCKER.md) |
 | 6 — version-required seed | ⬜ Not started | Seeder delegates through the safe replacement service |
 | 7 — activation | ⬜ Not started | Public `PUT /api/portfolio/holdings`, attested candidate, serving proof |
 
@@ -230,9 +238,13 @@ Spec A V17–V19 were applied at checkpoint 9.6; **V20 is applied under R-B** an
 **R-A / G2**, **R-B / G3**, and **R-B2 / G2a** are complete. Wave 4 composition write mechanisms
 remain unexposed; public `PUT` and candidate packaging (7.5/R-C) remain incomplete. Caller migration
 source **Tasks 5.4–5.6 are on `main@0b5d60d1`** (PR #161; source-only, not deployed); **5.7/G5
-remains incomplete** until a separately authorized public synthetic (or private-reachability test)
-exercises all three callers. PR #194 reviewed and merged the restoration evidence; unattended
-synthetics are suspended in `synthetic-monitoring.yml`. Wave 6 / R-B3
+remains incomplete (checkbox unchecked)** pending a separately recorded owner-controlled G5
+completion decision. Authorized public Azure synthetic
+[33411410271](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33411410271)
+from `main@f66d7ab6a4db1a327fd030ba9897bfc431104945` observed all three `[b1-g5]` markers; that
+executed evidence is subject to independent review and merge of its documentation PR, but neither
+that review nor that PR checks Task 5.7.
+Unattended synthetics remain suspended in `synthetic-monitoring.yml`. Wave 6 / R-B3
 stay gated. **Do not treat a current-`main` portfolio deploy as a
 substitute for an authorized Artifact cut.**
 
@@ -253,7 +265,7 @@ substitute for an authorized Artifact cut.**
 | `cursor/b1-wave3-v20-schema` / PR #152 + R-B | **Complete** — tasks 3.1–3.7 / R-B; V20 applied; G3 green ([`B1_R_B_G3_SERVING_PROOF.md`](../runbooks/B1_R_B_G3_SERVING_PROOF.md)); portfolio traffic superseded by R-B2 | Forward-only after V20; do not roll back migration or gateway |
 | `cursor/b1-wave4a-composition-core` / PR #153 | **Merged** on `main@2673f40` – Wave 4a–4c tasks 4.1–4.21. Read-only catalog path is served via Artifact 2a; composition write mechanisms remain **unexposed**; no public `PUT` | Do not start Wave 6–7 or candidate attestation without separate authorization |
 | `cursor/b1-wave5a-version-bearing-read` / PR #155 + R-B2 | **Complete for 5.1–5.3** — Task 5.1 on `main@f22e2ff`; Artifact 2a serving on `portfolio-service--0000081` / `sha256:d544649f…` ([run 32982880866](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/32982880866); [`B1_R_B2_G2A_SERVING_PROOF.md`](../runbooks/B1_R_B2_G2A_SERVING_PROOF.md)); G2a green | Do not begin Tasks 5.4–5.7 / caller migration without separate authorization; any future portfolio rollout invalidates G2a |
-| `cursor/b1-wave5b-seed-caller-migration` / PR #161 | **Merged source-only on `main@0b5d60d1`** — Tasks 5.4–5.6; **5.7/G5 incomplete** — historical runs 33046987880 / 33047168136 failed before the later custom-domain restore; restoration evidence reviewed and merged in PR #194 ([`B1_G5_INGRESS_BLOCKER.md`](../runbooks/B1_G5_INGRESS_BLOCKER.md)) | No deploy; no G5 claim; Wave 6/R-B3 still gated; resume G5 only after separately authorized caller proof |
+| `cursor/b1-wave5b-seed-caller-migration` / PR #161 | **Merged source-only on `main@0b5d60d1`** — Tasks 5.4–5.6; **5.7/G5 incomplete (unchecked)** — historical runs 33046987880 / 33047168136 failed pre-restore; authorized post-restore three-caller run [33411410271](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33411410271) succeeded from `main@f66d7ab6` with all three markers; Task 5.7 remains unchecked pending a separately recorded owner-controlled G5 completion decision ([`B1_G5_INGRESS_BLOCKER.md`](../runbooks/B1_G5_INGRESS_BLOCKER.md)) | No deploy by this evidence PR; Task 5.7 unchecked; Wave 6/R-B3 still gated pending owner G5 completion decision |
 | [`proof/b1-wave-2-g1-v20@e6a98c5`](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/tree/proof/b1-wave-2-g1-v20) | Historical dependent dual-schema proof branch; superseded for Wave 3 delivery by `cursor/b1-wave3-v20-schema` | Remain unmerged; no release action |
 
 ### Active process work
@@ -343,9 +355,10 @@ public `200` read-back.
   `main@cdf23737` and returned `STATEMENT_HISTORY_PROBE_EXECUTED_HISTORY_UNAVAILABLE`;
 - production demo and diagnostics gates remain `false` after the restoring apply;
 - scale has been restored to `min_replicas=0`; ingress is reopened on the default ACA endpoint;
-- 9.14 is complete and live-verified; **B1 G5 remains blocked** pending a separately authorized
-  caller proof (restoration evidence reviewed and merged in PR #194; unattended synthetics
-  suspended), and four process follow-ups are filed in
+- 9.14 is complete and live-verified; **B1 G5 / Task 5.7 remain open** pending a separately
+  recorded owner-controlled G5 completion decision for authorized three-caller run
+  [33411410271](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33411410271)
+  (unattended synthetics suspended), and four process follow-ups are filed in
   `docs/todos/backlog/`; and
 - B1/B2 implementation status is cleanly separable from the remaining production cutover.
 
@@ -360,8 +373,11 @@ public `200` read-back.
     authorized custom-domain plan and apply/bind have restored and independently read back
     `api.vibhanshu-ai-portfolio.dev`; PR #194 independently reviewed and merged that evidence
     ([`api-gateway-custom-domain-binding`](../todos/backlog/api-gateway-custom-domain-binding/README.md)).
-    G5 still requires a separately authorized three-caller synthetic; unattended synthetics are
-    suspended in `synthetic-monitoring.yml`. Three further process follow-ups are filed alongside it:
+    Authorized three-caller synthetic
+    [33411410271](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33411410271)
+    succeeded from `main@f66d7ab6`; Task 5.7 remains unchecked pending a separately recorded
+    owner-controlled G5 completion decision (documentation-PR review/merge does not check 5.7);
+    unattended synthetics remain suspended in `synthetic-monitoring.yml`. Three further process follow-ups are filed alongside it:
    [`service-version-image-drift`](../todos/backlog/service-version-image-drift/README.md),
    [`deployed-image-tags-json-validation`](../todos/backlog/deployed-image-tags-json-validation/README.md),
    and [`b5-image-equality-assurance-claim`](../todos/backlog/b5-image-equality-assurance-claim/README.md).
@@ -370,11 +386,13 @@ public `200` read-back.
    remains separately gated.
 2. **Backend lane:** **R-A / G2**, **R-B / G3**, and **R-B2 / G2a** are complete (Artifact 2a
    `portfolio-service--0000081` / `sha256:d544649f…`, cut `f22e2ff`). Tasks **5.4–5.6 are merged
-   source-only on `main@0b5d60d1`** (PR #161); **5.7/G5 is blocked** — PR #194 reviewed and merged
-   the recovery evidence; a separately authorized synthetic that exercises all three real callers
-   (or a separately authorized private-reachability test) is still required. Waves 6–7 and
-   candidate packaging (7.5/R-C) remain separately gated. Do not claim Writer_Convergence while the
-   old seed remains version-tolerant.
+source-only on `main@0b5d60d1`** (PR #161); **5.7/G5 remains unchecked** pending a separately
+  recorded owner-controlled G5 completion decision. Authorized three-caller public Azure synthetic
+  [33411410271](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33411410271)
+  from `main@f66d7ab6` observed all three `[b1-g5]` markers (holdings-only seed; no market-data
+  writer); documentation-PR review/merge does not check Task 5.7. Waves 6–7 and candidate packaging
+  (7.5/R-C) remain separately gated. Do not claim
+  Writer_Convergence while the old seed remains version-tolerant.
 3. **Frontend lane:** B2 Wave 1 (1.1-1.19) and Wave 2 Tasks 2.1-2.5 are merged source-only through
    PR #178 on `main@38e3d95`, with two rounds of external review findings fixed. The implementation
    remains mock-backed and disabled by default; Tasks 2.6-2.7, live wiring, deployment, and exposure

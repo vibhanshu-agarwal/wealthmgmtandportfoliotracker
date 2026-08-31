@@ -1,8 +1,8 @@
 # Backlog: API Gateway custom-domain binding recovery
 
-**Status:** Open — hostname restored 2026-08-31; live-read-back evidence independently reviewed and merged (PR #194 at `main@98371587`)
+**Status:** Open — hostname restored 2026-08-31; live-read-back evidence independently reviewed and merged (PR #194 at `main@98371587`); authorized three-caller synthetic executed (run [33411410271](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33411410271)); Task 5.7 remains unchecked pending a separately recorded owner-controlled G5 completion decision (documentation-PR review/merge does not check 5.7)
 **Owner:** unassigned
-**Blocks:** B1 Task 5.7 / G5
+**Blocks:** B1 Task 5.7 / G5 (Task 5.7 remains unchecked)
 **Tracked in:** Surfaced by the Spec A 9.14 live read-back
 ([`SPEC_A_9_14_REOPEN_INGRESS.md`](../../../runbooks/SPEC_A_9_14_REOPEN_INGRESS.md), apply run
 [33331130603](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33331130603)).
@@ -13,8 +13,9 @@ Pre-existing; not caused by 9.14.
 ## What is wrong
 
 > **Historical incident; resolved in live state.** This section records the condition found before
-> the guarded restore. The backlog remains open because the restore and its reviewed evidence do not
-> satisfy G5 or B1 Task 5.7 completion.
+> the guarded restore. The backlog remains open because neither the restore, its reviewed evidence,
+> the subsequent three-caller synthetic, nor documentation-PR review/merge alone closes G5 or B1
+> Task 5.7 — a separately recorded owner-controlled G5 completion decision is required.
 
 At discovery, checkpoint 9.14 had reopened external ingress on `api-gateway`, and the **default
 ACA endpoint** `api-gateway.lemonmoss-ecef29d7.centralindia.azurecontainerapps.io` served healthy
@@ -62,37 +63,62 @@ the bind, but an independent read-back immediately afterward confirmed both defa
 health endpoints at HTTP `200`, unchanged gateway revision/ingress, the exact `SniEnabled` hostname,
 and the expected managed certificate. The execution record and scope are retained in the runbook.
 
-**This backlog item stays open** because the completed restore and PR #194's reviewed evidence do
-not themselves unblock G5 or complete B1 Task 5.7.
+**This backlog item stays open** because Task 5.7 remains unchecked pending a separately recorded
+owner-controlled G5 completion decision (and backlog closure is not automatic from a synthetic
+success or documentation-PR review/merge alone).
+
+## Authorized three-caller synthetic (executed live; docs source-only)
+
+Owner-authorized B1 Task 5.7 / G5 evidence dispatch (exactly one; no retry):
+
+| Field | Value |
+|---|---|
+| Workflow | `Synthetic Monitoring` |
+| SHA | `main@f66d7ab6a4db1a327fd030ba9897bfc431104945` |
+| Run | [33411410271](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33411410271) |
+| Outcome | Azure suite **success** (AWS skipped); overall **success** |
+| Re-seed | succeeded (holdings only; no market-data write path) |
+| Markers | `[b1-g5][synthetic-shell] expectedVersion=0`; `[b1-g5][global-setup] expectedVersion=0`; `[b1-g5][azure-api-smoke] expectedVersion=0` |
+
+Cold-start note (separate from failure): independent verification showed all four pre-warm probes
+printed `HTTP 000000` (`000000` is the workflow’s timeout/transport output form). That remains
+distinct from the later successful holdings-only seed and Playwright suite. Full sanitized record:
+[`B1_G5_INGRESS_BLOCKER.md`](../../../runbooks/B1_G5_INGRESS_BLOCKER.md).
+
+**Executed live evidence** is the workflow run above. Documentation PRs that record it are
+**source-only** and do not check Task 5.7, close this backlog, or unblock Wave 6 / R-B3 / public
+`PUT`.
 
 ## Why it matters
 
 `api.vibhanshu-ai-portfolio.dev` is the configured endpoint for the frontend and the synthetic
 workflows (`NEXT_PUBLIC_API_BASE_URL` in `.github/workflows/synthetic-monitoring.yml`). The restored
-endpoint now returns healthy traffic, but synthetic/G5 evidence has not been re-run or authorized.
+endpoint serves traffic, and an authorized three-caller synthetic has now been executed. Task 5.7
+and this backlog remain open pending a separately recorded owner-controlled G5 completion decision.
+Documentation-PR review/merge of the three-caller evidence does not check Task 5.7 or close this
+backlog.
 
-The completed restore still does **not** unblock G5. The original G5 diagnosis in
-[`B1_G5_INGRESS_BLOCKER.md`](../../../runbooks/B1_G5_INGRESS_BLOCKER.md) attributed the TLS reset to
-disabled ingress. That was incomplete: hostname-binding loss was a second independent cause. Both
-ingress and the hostname binding are now healthy; G5 remains blocked pending a separately
-authorized three-caller synthetic (or private-reachability equivalent), not by an assertion that
-the host still fails. Unattended synthetics are suspended in `synthetic-monitoring.yml`.
+Unattended synthetics remain suspended in `synthetic-monitoring.yml`.
 
 ## What remains
 
-1. Authorize and run a separately authorized G5 synthetic that exercises all three real callers
-   (or a separately authorized private-reachability equivalent). PR #194 reviewed and merged the
-   restoration evidence; that review does not satisfy Task 5.7.
-2. Do not infer G5 authorization from a source merge, remote plan, apply, certificate bind, HTTP
-   health result, or manual `workflow_dispatch` without separately recorded owner authorization.
+1. Leave `- [ ] **5.7 G5 evidence.**` unchecked until a separately recorded owner-controlled G5
+   completion decision. The executed three-caller evidence in
+   [`B1_G5_INGRESS_BLOCKER.md`](../../../runbooks/B1_G5_INGRESS_BLOCKER.md) / run
+   [33411410271](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33411410271)
+   is subject to independent review and merge of its documentation PR, but neither that review nor
+   that PR checks Task 5.7.
+2. Do not infer Task 5.7 completion, backlog closure, Wave 6 / R-B3, or public `PUT` from a source
+   merge, remote plan, apply, certificate bind, HTTP health result, or documentation PR alone.
 
 Before any future ingress close (`spec-a-9.14-close-ingress`), run
 `api-gateway-custom-domain-remove` first so ingress close remains a one-resource operation.
 
 ## Non-claims
 
-- Does **not** authorize G5 dispatch, backlog closure, B1 Task 5.7 completion, an ingress close,
-  a hostname remove, or another Terraform operation.
-- Does **not** claim G5 is unblocked or Writer_Convergence is achieved.
+- Does **not** authorize backlog closure, B1 Task 5.7 completion, Wave 6 / R-B3, public `PUT`, an
+  ingress close, a hostname remove, or another Terraform operation.
+- Does **not** claim Task 5.7 is checked or Writer_Convergence is achieved.
 - Does **not** assert the binding was ever present before checkpoint 9.5; the Resource Graph record
   documents the binding loss at that checkpoint.
+- Does **not** enable or claim any market-data writer path.
