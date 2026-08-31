@@ -14,6 +14,13 @@ stopped during the read-only custom-domain preflight because the hosted Azure CL
 `az containerapp env certificate list --name`; the workflow supplied `--environment`.
 Terraform produced no plan. No apply, bind, state/certificate/DNS mutation, or G5 action occurred.
 
+**2026-08-31 remote-plan retry:** Run 33372272363 used the corrected certificate-list command,
+passed the read-only custom-domain preflight, generated a Terraform plan, and passed the preceding
+generic plan guards. It stopped at the final custom-domain exact-scope guard because Azure CLI and
+AzureRM serialized the same gateway resource ID with different casing (`containerapps` versus
+`containerApps`) and the source guard compared them case-sensitively. No plan was accepted for
+review; no apply, bind, state/certificate/DNS mutation, or G5 action occurred.
+
 ---
 
 ## Verified root cause

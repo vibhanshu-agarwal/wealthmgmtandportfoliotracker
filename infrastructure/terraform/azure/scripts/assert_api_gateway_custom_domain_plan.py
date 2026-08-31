@@ -59,6 +59,10 @@ def _inactive(value) -> bool:
     return value is None or value == "" or value == "(known after apply)"
 
 
+def _same_azure_resource_id(actual: object, expected: str) -> bool:
+    return isinstance(actual, str) and actual.casefold() == expected.casefold()
+
+
 def _collect_changes(plan: dict) -> tuple[list[str], list[dict]]:
     errors: list[str] = []
     changes = plan.get("resource_changes")
@@ -120,7 +124,7 @@ def _evaluate_restore(plan: dict, expected_gateway_id: str) -> list[str]:
         return errors
     if after.get("name") != EXPECTED_HOSTNAME:
         errors.append(f"FAIL [hostname] expected {EXPECTED_HOSTNAME!r}.")
-    if after.get("container_app_id") != expected_gateway_id:
+    if not _same_azure_resource_id(after.get("container_app_id"), expected_gateway_id):
         errors.append("FAIL [gateway] container_app_id does not match preflight gateway id.")
     if not _inactive(after.get("certificate_binding_type")):
         errors.append("FAIL [certificate] certificate_binding_type must be absent on create.")
@@ -166,7 +170,7 @@ def _evaluate_remove(plan: dict, expected_gateway_id: str) -> list[str]:
         return errors
     if before.get("name") != EXPECTED_HOSTNAME:
         errors.append(f"FAIL [hostname] expected {EXPECTED_HOSTNAME!r}.")
-    if before.get("container_app_id") != expected_gateway_id:
+    if not _same_azure_resource_id(before.get("container_app_id"), expected_gateway_id):
         errors.append("FAIL [gateway] container_app_id does not match expected gateway id.")
     return errors
 

@@ -235,6 +235,39 @@ class AssertApiGatewayCustomDomainPlanTests(unittest.TestCase):
         errors = sut.evaluate_plan(plan, CLOSE)
         self.assertTrue(any("certificate" in e for e in errors))
 
+    def test_restore_and_remove_accept_case_only_gateway_id_difference(self):
+        case_variant = GATEWAY_ID.replace("/containerApps/", "/containerapps/")
+        cases = (
+            (RESTORE, _restore_create(), "after"),
+            (REMOVE, _remove_delete(), "before"),
+        )
+        for profile, plan, side in cases:
+            with self.subTest(profile=profile):
+                plan["resource_changes"][0]["change"][side]["container_app_id"] = case_variant
+                self.assertEqual(sut.evaluate_plan(plan, profile, GATEWAY_ID), [])
+
+    def test_restore_and_remove_reject_material_gateway_id_differences(self):
+        mismatches = {
+            "subscription": GATEWAY_ID.replace("/subscriptions/sub/", "/subscriptions/other/"),
+            "resource_group": GATEWAY_ID.replace(
+                "/resourceGroups/wealth-azure-prod-rg/",
+                "/resourceGroups/other-rg/",
+            ),
+            "provider_type": GATEWAY_ID.replace("/containerApps/", "/managedEnvironments/"),
+            "app_name": GATEWAY_ID.replace("/api-gateway", "/other-gateway"),
+        }
+        cases = (
+            (RESTORE, _restore_create(), "after"),
+            (REMOVE, _remove_delete(), "before"),
+        )
+        for profile, plan, side in cases:
+            for label, mismatched_id in mismatches.items():
+                with self.subTest(profile=profile, mismatch=label):
+                    plan_copy = copy.deepcopy(plan)
+                    plan_copy["resource_changes"][0]["change"][side]["container_app_id"] = mismatched_id
+                    errors = sut.evaluate_plan(plan_copy, profile, GATEWAY_ID)
+                    self.assertTrue(any("gateway" in error for error in errors))
+
 
 if __name__ == "__main__":
     unittest.main()
