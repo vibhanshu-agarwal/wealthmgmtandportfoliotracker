@@ -78,6 +78,16 @@ class CheckB1SeedVersionCallersTest(unittest.TestCase):
             self.guard.check_synthetic_workflow(synthetic)
         self.assertIn("schedule", str(ctx.exception))
 
+    def test_inline_scheduled_synthetic_trigger_fails(self) -> None:
+        synthetic = self.guard._read(self.guard.SYNTHETIC_WF).replace(
+            "  workflow_dispatch:\n",
+            "  workflow_dispatch:\n  schedule: [{ cron: '0 8 * * *' }]\n",
+            1,
+        )
+        with self.assertRaises(self.guard.GuardError) as ctx:
+            self.guard.check_synthetic_workflow(synthetic)
+        self.assertIn("schedule", str(ctx.exception))
+
     def test_missing_manual_synthetic_trigger_fails(self) -> None:
         synthetic = self.guard._read(self.guard.SYNTHETIC_WF).replace(
             "  workflow_dispatch:\n", "", 1

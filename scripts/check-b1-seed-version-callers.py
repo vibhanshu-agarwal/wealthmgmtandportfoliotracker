@@ -43,7 +43,7 @@ SKIP_DIR_PARTS = {
 
 SEED_STEP_NAME = "Re-seed E2E portfolio holdings"
 
-SCHEDULE_TRIGGER_RE = re.compile(r"(?m)^  schedule:\s*$")
+SCHEDULE_TRIGGER_RE = re.compile(r"(?m)^  schedule\s*:")
 MANUAL_TRIGGER_RE = re.compile(r"(?m)^  workflow_dispatch:\s*$")
 
 
