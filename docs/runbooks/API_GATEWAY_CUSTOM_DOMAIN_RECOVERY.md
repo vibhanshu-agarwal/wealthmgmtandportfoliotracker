@@ -1,6 +1,6 @@
 # API Gateway custom-domain recovery
 
-**Status:** RESTORE EXECUTED — LIVE READ-BACK EVIDENCE PENDING REVIEW / G5 BLOCKED
+**Status:** RESTORE EXECUTED — LIVE READ-BACK EVIDENCE REVIEWED AND MERGED (PR #194) / G5 BLOCKED
 **Prepared:** 2026-08-31
 **Hostname:** `api.vibhanshu-ai-portfolio.dev`
 **Gateway:** `api-gateway` in `wealth-azure-prod-rg`
@@ -312,11 +312,10 @@ If Terraform created the hostname resource but bind failed:
 - Does **not** unblock G5, close the backlog item, or complete B1 Task 5.7.
 - Does **not** authorize a retry, a remove operation, ingress closure, a state import, or any
   certificate mutation beyond the already recorded explicit bind.
-- The live restoration evidence requires independent evidence-PR review before any separately
-  authorized G5 decision.
+- PR #194 independently reviewed and merged the live read-back evidence at `main@98371587`. That
+  review does not unblock G5, close the backlog item, or complete B1 Task 5.7.
 
 ## Required future approvals
 
-1. Independent review and merge of the live read-back evidence PR
-2. A separate G5 resume decision only after that evidence review; source merge, remote-plan success,
-   Terraform apply, and hostname bind do not themselves authorize it
+1. A separately authorized G5 resume decision; source merge, remote-plan success, Terraform apply,
+   hostname bind, and the PR #194 evidence review do not themselves authorize it

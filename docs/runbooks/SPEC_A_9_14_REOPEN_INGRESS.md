@@ -93,10 +93,11 @@ The default ACA endpoint is
   [`API_GATEWAY_CUSTOM_DOMAIN_RECOVERY.md`](API_GATEWAY_CUSTOM_DOMAIN_RECOVERY.md) and does not
   retroactively alter 9.14 evidence.
 - Does **not** unblock **B1 G5**. The restored host and its independent `200` read-back do not
-  demonstrate the required three caller paths. G5 now requires independent review of the recovery
-  evidence and a separately authorized caller synthetic — see
-  [`B1_G5_INGRESS_BLOCKER.md`](B1_G5_INGRESS_BLOCKER.md) and backlog item
+  demonstrate the required three caller paths. G5 now requires a separately authorized caller
+  synthetic — see [`B1_G5_INGRESS_BLOCKER.md`](B1_G5_INGRESS_BLOCKER.md) and backlog item
   [`api-gateway-custom-domain-binding`](../todos/backlog/api-gateway-custom-domain-binding/README.md).
+  PR #194 independently reviewed and merged the restoration evidence; that review does not satisfy
+  Task 5.7. Unattended synthetics are suspended in `synthetic-monitoring.yml` while G5 remains blocked.
 - Does **not** assert that `SERVICE_VERSION` matches the running image. It does not, on
   `api-gateway` or `portfolio-service` — pre-existing drift, untouched by this checkpoint. See
   backlog item [`service-version-image-drift`](../todos/backlog/service-version-image-drift/README.md).
@@ -121,10 +122,10 @@ Source adds separate custom-domain profiles so ingress close remains a **one-res
 | 1 (before close) | `api-gateway-custom-domain-remove` | Delete `azurerm_container_app_custom_domain.api_gateway[0]` from desired state while ingress is still open |
 | 2 | `spec-a-9.14-close-ingress` | Close ingress only — a plan that also deletes the domain resource must fail the universal custom-domain guard |
 | 3 (after reopen) | `spec-a-9.14-reopen-ingress` | Restore ingress only — no custom-domain preflight or bind |
-| 4 | `api-gateway-custom-domain-restore` | Executed through separately authorized plan/apply/bind; evidence is pending independent review |
+| 4 | `api-gateway-custom-domain-restore` | Executed through separately authorized plan/apply/bind; evidence independently reviewed and merged (PR #194) |
 
 See [`API_GATEWAY_CUSTOM_DOMAIN_RECOVERY.md`](API_GATEWAY_CUSTOM_DOMAIN_RECOVERY.md) for the executed
-recovery record and its pending independent evidence review.
+recovery record and its reviewed live read-back evidence.
 
 The standing 9.14 rollback rule applies from this checkpoint onward: disabling the holding
 validator, **or** rolling back to an R3 artifact whose defaults are permissive, requires quiescing

@@ -1,6 +1,6 @@
 # Backlog: API Gateway custom-domain binding recovery
 
-**Status:** Open — hostname restored 2026-08-31; live-read-back evidence PR pending independent review
+**Status:** Open — hostname restored 2026-08-31; live-read-back evidence independently reviewed and merged (PR #194 at `main@98371587`)
 **Owner:** unassigned
 **Blocks:** B1 Task 5.7 / G5
 **Tracked in:** Surfaced by the Spec A 9.14 live read-back
@@ -13,8 +13,8 @@ Pre-existing; not caused by 9.14.
 ## What is wrong
 
 > **Historical incident; resolved in live state.** This section records the condition found before
-> the guarded restore. The backlog remains open until the live-read-back evidence PR is reviewed;
-> it does not permit G5 or B1 Task 5.7 completion.
+> the guarded restore. The backlog remains open because the restore and its reviewed evidence do not
+> satisfy G5 or B1 Task 5.7 completion.
 
 At discovery, checkpoint 9.14 had reopened external ingress on `api-gateway`, and the **default
 ACA endpoint** `api-gateway.lemonmoss-ecef29d7.centralindia.azurecontainerapps.io` served healthy
@@ -62,8 +62,8 @@ the bind, but an independent read-back immediately afterward confirmed both defa
 health endpoints at HTTP `200`, unchanged gateway revision/ingress, the exact `SniEnabled` hostname,
 and the expected managed certificate. The execution record and scope are retained in the runbook.
 
-**This backlog item stays open** until the live-read-back evidence PR is independently reviewed.
-The completed restore does not itself unblock G5 or complete B1 Task 5.7.
+**This backlog item stays open** because the completed restore and PR #194's reviewed evidence do
+not themselves unblock G5 or complete B1 Task 5.7.
 
 ## Why it matters
 
@@ -74,15 +74,17 @@ endpoint now returns healthy traffic, but synthetic/G5 evidence has not been re-
 The completed restore still does **not** unblock G5. The original G5 diagnosis in
 [`B1_G5_INGRESS_BLOCKER.md`](../../../runbooks/B1_G5_INGRESS_BLOCKER.md) attributed the TLS reset to
 disabled ingress. That was incomplete: hostname-binding loss was a second independent cause. Both
-ingress and the hostname binding are now healthy; G5 remains blocked by the evidence-review and
-separate-authorization boundary, not by an assertion that the host still fails.
+ingress and the hostname binding are now healthy; G5 remains blocked pending a separately
+authorized three-caller synthetic (or private-reachability equivalent), not by an assertion that
+the host still fails. Unattended synthetics are suspended in `synthetic-monitoring.yml`.
 
 ## What remains
 
-1. Independently review this live-read-back evidence PR, including the red immediate default-host
-   health observation in run `33380356530` and the subsequent healthy read-back.
-2. Decide G5 resumption separately after the evidence review. Do not infer authorization from a
-   source merge, remote plan, apply, certificate bind, or HTTP health result.
+1. Authorize and run a separately authorized G5 synthetic that exercises all three real callers
+   (or a separately authorized private-reachability equivalent). PR #194 reviewed and merged the
+   restoration evidence; that review does not satisfy Task 5.7.
+2. Do not infer G5 authorization from a source merge, remote plan, apply, certificate bind, HTTP
+   health result, or manual `workflow_dispatch` without separately recorded owner authorization.
 
 Before any future ingress close (`spec-a-9.14-close-ingress`), run
 `api-gateway-custom-domain-remove` first so ingress close remains a one-resource operation.
