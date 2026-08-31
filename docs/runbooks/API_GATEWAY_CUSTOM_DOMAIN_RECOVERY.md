@@ -235,6 +235,7 @@ Require all of:
 4. Ingress contract unchanged
 5. Default ACA `/actuator/health` returns `200`
 6. `https://api.vibhanshu-ai-portfolio.dev/actuator/health` returns `200` with normal TLS verification
+7. Live TLS proof via `openssl s_client` (no `-k` / `--insecure`): certificate subject matches the custom hostname, SAN covers the hostname, and `notBefore`/`notAfter` bracket the current time
 
 Remove profile verifies domain absence and surviving managed certificate. Remove does not dispatch G5.
 

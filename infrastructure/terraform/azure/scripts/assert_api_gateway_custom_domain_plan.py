@@ -10,6 +10,10 @@ import sys
 RESTORE_PROFILE = "api-gateway-custom-domain-restore"
 REMOVE_PROFILE = "api-gateway-custom-domain-remove"
 SCOPED_PROFILES = (RESTORE_PROFILE, REMOVE_PROFILE)
+SPEC_A_9_14_PROFILES = (
+    "spec-a-9.14-reopen-ingress",
+    "spec-a-9.14-close-ingress",
+)
 CUSTOM_DOMAIN_ADDR = "azurerm_container_app_custom_domain.api_gateway[0]"
 GATEWAY_ADDR = "module.api_gateway.azurerm_container_app.this"
 EXPECTED_HOSTNAME = "api.vibhanshu-ai-portfolio.dev"
@@ -167,11 +171,8 @@ def _evaluate_remove(plan: dict, expected_gateway_id: str) -> list[str]:
     return errors
 
 
-def _evaluate_non_scoped(plan: dict, profile: str) -> list[str]:
-    errors, changes = _collect_changes(plan)
-    if errors:
-        return errors
-    errors.extend(_reject_certificate_resources(changes))
+def _reject_custom_domain_resources(changes: list[dict], profile: str) -> list[str]:
+    errors: list[str] = []
     for change in changes:
         if not isinstance(change, dict) or _is_noop(change):
             continue
@@ -182,6 +183,15 @@ def _evaluate_non_scoped(plan: dict, profile: str) -> list[str]:
                 f"FAIL [domain-guard] {CUSTOM_DOMAIN_ADDR} has actions={actions} under "
                 f"change_profile={profile}; use {RESTORE_PROFILE} or {REMOVE_PROFILE}."
             )
+    return errors
+
+
+def _reject_gateway_resources(changes: list[dict], profile: str) -> list[str]:
+    errors: list[str] = []
+    for change in changes:
+        if not isinstance(change, dict) or _is_noop(change):
+            continue
+        address = change.get("address")
         if address == GATEWAY_ADDR:
             change_body = change.get("change") or {}
             actions = list(change_body.get("actions") or [])
@@ -190,6 +200,22 @@ def _evaluate_non_scoped(plan: dict, profile: str) -> list[str]:
                     f"FAIL [gateway-guard] {GATEWAY_ADDR} changes under "
                     f"change_profile={profile}."
                 )
+    return errors
+
+
+def _evaluate_non_scoped(plan: dict, profile: str) -> list[str]:
+    errors, changes = _collect_changes(plan)
+    if errors:
+        return errors
+    errors.extend(_reject_certificate_resources(changes))
+    errors.extend(_reject_custom_domain_resources(changes, profile))
+    if profile in SPEC_A_9_14_PROFILES:
+        if errors:
+            return errors
+        import assert_spec_a_9_14_plan as spec_a_9_14
+
+        return spec_a_9_14.evaluate_plan(plan, profile)
+    errors.extend(_reject_gateway_resources(changes, profile))
     return errors
 
 

@@ -892,6 +892,7 @@ jobs:
           DEFAULT_FQDN="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["fqdn"])' <<<"$APP_JSON")"
           DEFAULT_STATUS="$(curl -s -o /dev/null -w '%{http_code}' "https://${DEFAULT_FQDN}/actuator/health")"
           CUSTOM_STATUS="$(curl -s -o /dev/null -w '%{http_code}' "https://api.vibhanshu-ai-portfolio.dev/actuator/health")"
+          TLS_EVIDENCE="$(echo | openssl s_client -connect api.vibhanshu-ai-portfolio.dev:443 -servername api.vibhanshu-ai-portfolio.dev 2>/dev/null | openssl x509 -noout -subject -dates -ext subjectAltName)"
           EXPECTED_JSON="$(python3 - <<'PY'
           import json, os
           outputs = json.loads(os.environ["PREFLIGHT_OUTPUTS"])
@@ -906,7 +907,8 @@ jobs:
             --certificates-json "$CERT_JSON" \
             --expected-json "$EXPECTED_JSON" \
             --default-health-status "$DEFAULT_STATUS" \
-            --custom-health-status "$CUSTOM_STATUS"
+            --custom-health-status "$CUSTOM_STATUS" \
+            --tls-evidence "$TLS_EVIDENCE"
 
       - name: Post-remove custom-domain verification (remove only)
         if: github.event.inputs.change_profile == 'api-gateway-custom-domain-remove'

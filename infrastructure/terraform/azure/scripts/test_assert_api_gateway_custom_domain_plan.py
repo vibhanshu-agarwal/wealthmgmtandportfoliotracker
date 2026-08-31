@@ -16,6 +16,8 @@ import assert_api_gateway_custom_domain_plan as sut  # noqa: E402
 
 RESTORE = sut.RESTORE_PROFILE
 REMOVE = sut.REMOVE_PROFILE
+REOPEN = "spec-a-9.14-reopen-ingress"
+CLOSE = "spec-a-9.14-close-ingress"
 DOMAIN_ADDR = sut.CUSTOM_DOMAIN_ADDR
 GATEWAY_ADDR = sut.GATEWAY_ADDR
 HOSTNAME = sut.EXPECTED_HOSTNAME
@@ -24,6 +26,12 @@ GATEWAY_ID = (
     "Microsoft.App/containerApps/api-gateway"
 )
 SECRET = "never-print-this-secret-value"
+EXTERNAL_INGRESS = [{
+    "external_enabled": True,
+    "target_port": 8080,
+    "transport": "auto",
+    "traffic_weight": [{"percentage": 100, "latest_revision": True}],
+}]
 
 
 def _domain_rc(*, actions, before=None, after=None):
@@ -50,6 +58,50 @@ def _remove_delete(**overrides):
         **overrides,
     }
     return {"resource_changes": [_domain_rc(actions=["delete"], before=before)]}
+
+
+def _gateway_side(*, ingress):
+    return {
+        "identity": [{"type": "SystemAssigned"}],
+        "registry": [{"server": "wealthprodacr.azurecr.io", "identity": "system"}],
+        "secret": [{"name": "internal-api-key", "value": SECRET}],
+        "ingress": copy.deepcopy(ingress),
+        "template": [{
+            "min_replicas": 0,
+            "max_replicas": 3,
+            "container": [{
+                "name": "api-gateway",
+                "image": "wealthprodacr.azurecr.io/api-gateway@sha256:" + "e5" * 32,
+                "cpu": 0.5,
+                "memory": "1Gi",
+                "env": [{"name": "SERVICE_VERSION", "value": "18693d2defa3dcc34d1a508e03ed4a3c7e0b0f17"}],
+            }],
+        }],
+    }
+
+
+def _gateway_rc(*, before, after):
+    return {
+        "address": GATEWAY_ADDR,
+        "type": "azurerm_container_app",
+        "change": {"actions": ["update"], "before": before, "after": after},
+    }
+
+
+def _reopen_plan():
+    return {
+        "resource_changes": [
+            _gateway_rc(before=_gateway_side(ingress=[]), after=_gateway_side(ingress=EXTERNAL_INGRESS))
+        ]
+    }
+
+
+def _close_plan():
+    return {
+        "resource_changes": [
+            _gateway_rc(before=_gateway_side(ingress=EXTERNAL_INGRESS), after=_gateway_side(ingress=[]))
+        ]
+    }
 
 
 class AssertApiGatewayCustomDomainPlanTests(unittest.TestCase):
@@ -146,6 +198,42 @@ class AssertApiGatewayCustomDomainPlanTests(unittest.TestCase):
     def test_known_profiles_include_restore_and_remove(self):
         self.assertIn(RESTORE, sut.KNOWN_PROFILES)
         self.assertIn(REMOVE, sut.KNOWN_PROFILES)
+
+    def test_valid_9_14_reopen_passes_universal_guard(self):
+        self.assertEqual(sut.evaluate_plan(_reopen_plan(), REOPEN), [])
+
+    def test_valid_9_14_close_passes_universal_guard(self):
+        self.assertEqual(sut.evaluate_plan(_close_plan(), CLOSE), [])
+
+    def test_9_14_reopen_with_custom_domain_create_fails(self):
+        plan = _reopen_plan()
+        plan["resource_changes"].append(_domain_rc(actions=["create"], after={"name": HOSTNAME}))
+        errors = sut.evaluate_plan(plan, REOPEN)
+        self.assertTrue(any("domain-guard" in e for e in errors))
+
+    def test_9_14_close_with_custom_domain_delete_fails(self):
+        plan = _close_plan()
+        plan["resource_changes"].append(_domain_rc(actions=["delete"], before={"name": HOSTNAME}))
+        errors = sut.evaluate_plan(plan, CLOSE)
+        self.assertTrue(any("domain-guard" in e for e in errors))
+
+    def test_9_14_reopen_with_certificate_resource_change_fails(self):
+        plan = _reopen_plan()
+        plan["resource_changes"].append({
+            "address": "azurerm_container_app_environment_managed_certificate.api_gateway",
+            "change": {"actions": ["update"], "before": {}, "after": {}},
+        })
+        errors = sut.evaluate_plan(plan, REOPEN)
+        self.assertTrue(any("certificate" in e for e in errors))
+
+    def test_9_14_close_with_certificate_resource_change_fails(self):
+        plan = _close_plan()
+        plan["resource_changes"].append({
+            "address": "azurerm_container_app_environment_certificate.api_gateway",
+            "change": {"actions": ["delete"], "before": {}, "after": {}},
+        })
+        errors = sut.evaluate_plan(plan, CLOSE)
+        self.assertTrue(any("certificate" in e for e in errors))
 
 
 if __name__ == "__main__":

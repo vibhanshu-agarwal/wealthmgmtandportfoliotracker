@@ -9,7 +9,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
+from datetime import datetime, timezone
 from typing import Any
 
 EXPECTED_HOSTNAME = "api.vibhanshu-ai-portfolio.dev"
@@ -229,6 +231,8 @@ def validate_post_bind(
     app: dict,
     certificates: list[dict],
     expected: dict[str, str],
+    *,
+    tls_evidence: str,
 ) -> None:
     app = _require_dict(app, "app")
     certificates = _require_list(certificates, "certificates")
@@ -274,6 +278,91 @@ def validate_post_bind(
             "gateway revision changed during restore; no new revision was authorized."
         )
 
+    validate_tls_certificate_evidence(tls_evidence)
+
+
+def _parse_openssl_asn1_time(value: str) -> datetime:
+    cleaned = value.strip()
+    if not cleaned:
+        raise CustomDomainValidationError("TLS certificate date is missing.")
+    try:
+        return datetime.strptime(cleaned, "%b %d %H:%M:%S %Y %Z").replace(tzinfo=timezone.utc)
+    except ValueError as exc:
+        raise CustomDomainValidationError("TLS certificate date is malformed.") from exc
+
+
+def _extract_subject_cn(subject_line: str) -> str:
+    match = re.search(r"(?:^subject=\s*|/)\s*CN\s*=\s*([^,/]+)", subject_line.strip())
+    if not match:
+        raise CustomDomainValidationError("TLS certificate subject CN is missing.")
+    return match.group(1).strip()
+
+
+def _extract_san_dns_names(evidence: str) -> list[str]:
+    names: list[str] = []
+    for line in evidence.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if stripped.startswith("DNS:"):
+            names.append(stripped.removeprefix("DNS:").strip())
+            continue
+        for token in stripped.split(","):
+            token = token.strip()
+            if token.startswith("DNS:"):
+                names.append(token.removeprefix("DNS:").strip())
+    return names
+
+
+def parse_openssl_x509_evidence(evidence: str) -> dict[str, Any]:
+    if not isinstance(evidence, str) or not evidence.strip():
+        raise CustomDomainValidationError("TLS certificate evidence is missing.")
+
+    subject_line = ""
+    not_before_line = ""
+    not_after_line = ""
+    for line in evidence.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("subject="):
+            subject_line = stripped
+        elif stripped.startswith("notBefore="):
+            not_before_line = stripped
+        elif stripped.startswith("notAfter="):
+            not_after_line = stripped
+
+    if not subject_line or not not_before_line or not not_after_line:
+        raise CustomDomainValidationError("TLS certificate evidence is malformed.")
+
+    return {
+        "subject_cn": _extract_subject_cn(subject_line),
+        "san_dns_names": _extract_san_dns_names(evidence),
+        "not_before": _parse_openssl_asn1_time(not_before_line.removeprefix("notBefore=").strip()),
+        "not_after": _parse_openssl_asn1_time(not_after_line.removeprefix("notAfter=").strip()),
+    }
+
+
+def validate_tls_certificate_evidence(
+    evidence: str,
+    *,
+    expected_hostname: str = EXPECTED_HOSTNAME,
+    reference_time: datetime | None = None,
+) -> None:
+    parsed = parse_openssl_x509_evidence(evidence)
+    if parsed["subject_cn"] != expected_hostname:
+        raise CustomDomainValidationError(
+            f"TLS certificate subject must be {expected_hostname!r}."
+        )
+    san_names = parsed["san_dns_names"]
+    if expected_hostname not in san_names:
+        raise CustomDomainValidationError(
+            f"TLS certificate SAN must include {expected_hostname!r}."
+        )
+    now = reference_time or datetime.now(timezone.utc)
+    if now < parsed["not_before"]:
+        raise CustomDomainValidationError("TLS certificate is not yet valid.")
+    if now > parsed["not_after"]:
+        raise CustomDomainValidationError("TLS certificate is expired.")
+
 
 def validate_remove_post(app: dict, certificates: list[dict]) -> None:
     app = _require_dict(app, "app")
@@ -301,6 +390,7 @@ def main() -> int:
     parser.add_argument("--expected-json", default="{}")
     parser.add_argument("--default-health-status", default="")
     parser.add_argument("--custom-health-status", default="")
+    parser.add_argument("--tls-evidence", default="")
     args = parser.parse_args()
 
     try:
@@ -324,7 +414,16 @@ def main() -> int:
                 print(f"{key}={value}")
                 _write_github_output(key, value)
         elif args.mode == "post-bind":
-            validate_post_bind(app, certificates, expected)
+            if not args.tls_evidence.strip():
+                raise CustomDomainValidationError(
+                    "TLS certificate evidence is required for post-bind."
+                )
+            validate_post_bind(
+                app,
+                certificates,
+                expected,
+                tls_evidence=args.tls_evidence,
+            )
             if args.default_health_status != "200":
                 raise CustomDomainValidationError(
                     "default ACA /actuator/health must return HTTP 200."

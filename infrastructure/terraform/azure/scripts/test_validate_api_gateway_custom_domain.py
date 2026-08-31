@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import sys
 import unittest
+from datetime import datetime, timezone
 from pathlib import Path
 
 SCRIPTS_DIR = Path(__file__).resolve().parent
@@ -27,6 +28,23 @@ FQDN = "api-gateway.lemonmoss-ecef29d7.centralindia.azurecontainerapps.io"
 VERIFICATION_ID = "public-verification-id-1234"
 REVISION = "api-gateway--0000077"
 SECRET = "never-print-this-secret-value"
+REFERENCE_TIME = datetime(2026, 6, 15, 12, 0, 0, tzinfo=timezone.utc)
+
+
+def _valid_tls_evidence(
+    *,
+    subject_cn: str = HOSTNAME,
+    san: str = HOSTNAME,
+    not_before: str = "Jun  1 00:00:00 2026 GMT",
+    not_after: str = "Dec 31 23:59:59 2026 GMT",
+) -> str:
+    return (
+        f"subject=CN = {subject_cn}\n"
+        f"notBefore={not_before}\n"
+        f"notAfter={not_after}\n"
+        "X509v3 Subject Alternative Name:\n"
+        f"    DNS:{san}\n"
+    )
 
 
 def _ingress(**overrides):
@@ -143,6 +161,7 @@ class ValidateApiGatewayCustomDomainTests(unittest.TestCase):
             _app(customDomains=_bound_domain()),
             [_certificate()],
             expected,
+            tls_evidence=_valid_tls_evidence(),
         )
 
     def test_post_bind_rejects_revision_drift(self):
@@ -155,6 +174,7 @@ class ValidateApiGatewayCustomDomainTests(unittest.TestCase):
                 ),
                 [_certificate()],
                 {"certificate_id": CERT_ID, "revision_name": REVISION},
+                tls_evidence=_valid_tls_evidence(),
             )
 
     def test_remove_post_passes(self):
@@ -177,6 +197,52 @@ class ValidateApiGatewayCustomDomainTests(unittest.TestCase):
                 [VERIFICATION_ID],
             )
         self.assertNotIn(SECRET, str(ctx.exception))
+
+
+class ValidateTlsCertificateEvidenceTests(unittest.TestCase):
+    def test_valid_certificate_passes(self):
+        sut.validate_tls_certificate_evidence(
+            _valid_tls_evidence(),
+            reference_time=REFERENCE_TIME,
+        )
+
+    def test_wrong_subject_fails(self):
+        with self.assertRaises(sut.CustomDomainValidationError):
+            sut.validate_tls_certificate_evidence(
+                _valid_tls_evidence(subject_cn="evil.example.com"),
+                reference_time=REFERENCE_TIME,
+            )
+
+    def test_missing_san_fails(self):
+        with self.assertRaises(sut.CustomDomainValidationError):
+            sut.validate_tls_certificate_evidence(
+                _valid_tls_evidence(san="other.example.com"),
+                reference_time=REFERENCE_TIME,
+            )
+
+    def test_expired_certificate_fails(self):
+        with self.assertRaises(sut.CustomDomainValidationError):
+            sut.validate_tls_certificate_evidence(
+                _valid_tls_evidence(
+                    not_before="Jan  1 00:00:00 2025 GMT",
+                    not_after="Jan 31 23:59:59 2025 GMT",
+                ),
+                reference_time=REFERENCE_TIME,
+            )
+
+    def test_not_yet_valid_certificate_fails(self):
+        with self.assertRaises(sut.CustomDomainValidationError):
+            sut.validate_tls_certificate_evidence(
+                _valid_tls_evidence(
+                    not_before="Jul  1 00:00:00 2026 GMT",
+                    not_after="Dec 31 23:59:59 2026 GMT",
+                ),
+                reference_time=REFERENCE_TIME,
+            )
+
+    def test_malformed_evidence_fails(self):
+        with self.assertRaises(sut.CustomDomainValidationError):
+            sut.validate_tls_certificate_evidence("subject=CN = broken\n", reference_time=REFERENCE_TIME)
 
 
 if __name__ == "__main__":
