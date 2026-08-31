@@ -1,13 +1,13 @@
 # API Gateway custom-domain recovery
 
-**Status:** NOT EXECUTED / SOURCE ONLY
+**Status:** RESTORE EXECUTED — LIVE READ-BACK EVIDENCE PENDING REVIEW / G5 BLOCKED
 **Prepared:** 2026-08-31
 **Hostname:** `api.vibhanshu-ai-portfolio.dev`
 **Gateway:** `api-gateway` in `wealth-azure-prod-rg`
 **Environment:** `wealth-prod-aca-env`
 
-This runbook documents the guarded hybrid recovery model prepared in source. It does **not**
-authorize production plan, apply, bind, or G5 dispatch.
+This runbook records the guarded hybrid recovery and its live read-back. It does **not** authorize
+G5 dispatch, closing the backlog item, or checking B1 Task 5.7.
 
 **2026-08-31 remote-plan attempt:** Run 33365567672 passed dispatch validation and
 stopped during the read-only custom-domain preflight because the hosted Azure CLI requires
@@ -21,14 +21,51 @@ AzureRM serialized the same gateway resource ID with different casing (`containe
 `containerApps`) and the source guard compared them case-sensitively. No plan was accepted for
 review; no apply, bind, state/certificate/DNS mutation, or G5 action occurred.
 
+**2026-08-31 accepted remote plan:** Run
+[33379974571](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33379974571)
+passed fresh restore preflight, Terraform plan generation, every mandatory generic guard, the
+9.9–9.14 guards, and the API Gateway custom-domain exact-scope guard. Its apply job was skipped.
+
+**2026-08-31 guarded apply and bind:** Run
+[33380356530](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33380356530)
+passed fresh restore preflight, apply-time plan assertions, Terraform apply, and the explicit bind
+of `mc-wealth-prod-ac-api-vibhanshu-ai-5159`. The run is red only because its immediate
+post-bind default-host health observation was not `200`; it did not retry, roll back, dispatch G5,
+or change the backlog/B1 status.
+
+**Independent live read-back:** At `2026-08-31T10:09:24.5519025Z`, both
+`https://api-gateway.lemonmoss-ecef29d7.centralindia.azurecontainerapps.io/actuator/health` and
+`https://api.vibhanshu-ai-portfolio.dev/actuator/health` returned HTTP `200`. Control-plane
+read-back immediately after the failed workflow showed provisioning `Succeeded`, unchanged latest
+and latest-ready revision `api-gateway--0000077`, external HTTPS-only ingress on port `8080` with
+transport `Auto`, one exact custom hostname using `SniEnabled`, and the expected existing managed
+certificate. The certificate inventory still returned the exact hostname in `Succeeded` state with
+CNAME validation. The workflow reached the default-health assertion only after its TLS
+subject/SAN/validity validator had completed; no TLS validation error was reported.
+
+**Independent follow-up sampling:** A later first contact with the custom hostname timed out after
+25 seconds, then three consecutive probes returned `503`. The next successful probe returned `200`
+after 17 seconds, followed by 10 consecutive `200` responses. This is consistent with a
+scale-from-zero cold start, not evidence that the restored binding is absent or invalid; steady-state
+health and TLS verification were healthy.
+
+**Future read-back rule:** A single health probe is not sufficient evidence for this scale-to-zero
+service. Warm `https://api.vibhanshu-ai-portfolio.dev/actuator/health` first, then record at least
+three consecutive HTTPS `200` responses with normal certificate verification. Record any timeout,
+`503`, and observed duration during warm-up separately; do not misclassify a cold-start sample as a
+custom-domain binding failure.
+
 ---
 
-## Verified root cause
+## Verified root cause (historical discovery state)
+
+The table below records the state found before the guarded restore. Current live state is the
+post-restore read-back recorded above.
 
 | Fact | Value |
 |---|---|
-| Default ACA FQDN | `api-gateway.lemonmoss-ecef29d7.centralindia.azurecontainerapps.io` (healthy `200`) |
-| Custom domain | CNAME correct; `customDomains: null` on the app |
+| Default ACA FQDN | `api-gateway.lemonmoss-ecef29d7.centralindia.azurecontainerapps.io` (healthy `200` at discovery) |
+| Custom domain | CNAME correct; `customDomains: null` on the app at discovery |
 | Existing managed certificate | `mc-wealth-prod-ac-api-vibhanshu-ai-5159` |
 | Certificate subject/state | `api.vibhanshu-ai-portfolio.dev` / `Succeeded` / CNAME validation |
 | Loss event | Terraform correlation `cf0fc22a-595b-9bba-143a-6749888b1998` at checkpoint 9.5 cleared binding fields |
@@ -270,15 +307,16 @@ If Terraform created the hostname resource but bind failed:
 
 ## Explicit non-claims
 
-- Does **not** claim this runbook was executed.
-- Does **not** claim TLS is restored, G5 is unblocked, or B1 Task 5.7 is complete.
-- Does **not** authorize remote production plan, apply, bind, state import, or certificate mutation
-  from source merge alone.
-- Structural Terraform green proves syntax and graph shape only, not production delta.
+- Does **not** claim the failed workflow is a fully green execution record; the immediate default-host
+  health observation failed even though the subsequent independent read-back was healthy.
+- Does **not** unblock G5, close the backlog item, or complete B1 Task 5.7.
+- Does **not** authorize a retry, a remove operation, ingress closure, a state import, or any
+  certificate mutation beyond the already recorded explicit bind.
+- The live restoration evidence requires independent evidence-PR review before any separately
+  authorized G5 decision.
 
 ## Required future approvals
 
-1. Senior review of source PR
-2. Authorized `api-gateway-custom-domain-restore` remote-plan on `main`
-3. Authorized apply through `production` Environment (Terraform + bind)
-4. Evidence PR with live read-back before closing the backlog item or resuming G5
+1. Independent review and merge of the live read-back evidence PR
+2. A separate G5 resume decision only after that evidence review; source merge, remote-plan success,
+   Terraform apply, and hostname bind do not themselves authorize it

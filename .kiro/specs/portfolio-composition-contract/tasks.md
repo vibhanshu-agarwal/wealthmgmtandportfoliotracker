@@ -17,16 +17,16 @@ serving on `portfolio-service--0000081` /
 G2a green; evidence
 [`docs/runbooks/B1_R_B2_G2A_SERVING_PROOF.md`](../../../docs/runbooks/B1_R_B2_G2A_SERVING_PROOF.md)).
 Tasks **5.4–5.6 are merged on `main@0b5d60d1`** (PR #161, source-only caller migration; not
-deployed); **5.7 / G5 remains unchecked** — blocked by the absent `api.vibhanshu-ai-portfolio.dev` custom-domain binding, **not** by Spec A ingress,
-which checkpoint 9.14 reopened on 2026-08-31 (runs
-[33046987880](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33046987880),
-[33047168136](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33047168136);
-evidence [`docs/runbooks/B1_G5_INGRESS_BLOCKER.md`](../../../docs/runbooks/B1_G5_INGRESS_BLOCKER.md)).
-A guarded source-only recovery PR ([#191](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/191);
-runbook [`API_GATEWAY_CUSTOM_DOMAIN_RECOVERY.md`](../../../docs/runbooks/API_GATEWAY_CUSTOM_DOMAIN_RECOVERY.md))
-prepares `api-gateway-custom-domain-restore` / `api-gateway-custom-domain-remove` profiles — **not
-executed, not merged, not applied**; TLS and G5 remain blocked until a separately authorized
-apply/bind with live read-back.
+deployed); **5.7 / G5 remains unchecked**. The historical public-host failures in runs
+[33046987880](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33046987880)
+and [33047168136](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33047168136)
+preceded the separately authorized custom-domain recovery. Its guarded plan and apply/bind restored
+the hostname and an independent read-back returned `200` for both public health endpoints; its evidence
+is pending independent review. No authorized post-restore G5 synthetic has run — see
+[`docs/runbooks/B1_G5_INGRESS_BLOCKER.md`](../../../docs/runbooks/B1_G5_INGRESS_BLOCKER.md) and
+[`API_GATEWAY_CUSTOM_DOMAIN_RECOVERY.md`](../../../docs/runbooks/API_GATEWAY_CUSTOM_DOMAIN_RECOVERY.md).
+The recovery does **not** satisfy 5.7 or authorize G5; resume requires evidence review and a separately
+authorized three-caller test (or separately authorized private-reachability test).
 Wave 6 / R-B3 remain gated. Candidate packaging / R-C (task 7.5)
 is **not** complete. Public `PUT /api/portfolio/holdings` remains Wave 7. The old seed remains
 version-tolerant; no seed rewrite or Writer_Convergence is claimed. Dependent proof branch
@@ -861,7 +861,9 @@ Named individually so the R-C manifest can enumerate them rather than gesture at
   **Abort:** redeploy the prior portfolio digest and **do not begin caller migration**. Safe: no
   caller depends on the version yet. Never cross below Artifact 0 + Artifact 1.
   Abort path not used. Tasks 5.4–5.6 merged on `main@0b5d60d1` (PR #161, source-only); 5.7 remains
-  incomplete (G5 blocked by the absent `api.vibhanshu-ai-portfolio.dev` custom-domain binding; Spec A ingress was reopened at 9.14).
+  incomplete pending independent review of the executed custom-domain recovery evidence and a separately
+  authorized three-caller proof. Spec A ingress was reopened at 9.14; the custom-domain binding has since
+  been restored, but neither fact is G5 evidence.
   _Requirements: 8.32_
 - [x] **5.4 Migrate all three seed call sites** to log in, read once, and send that exact version:
   `synthetic-monitoring.yml` -> `.github/workflows/scripts/seed-portfolio-with-version.sh`,
@@ -889,20 +891,17 @@ Named individually so the R-C manifest can enumerate them rather than gesture at
   failed at login with TLS reset / HTTP `000000` before any seed POST (not a 409). Evidence
   [`docs/runbooks/B1_G5_INGRESS_BLOCKER.md`](../../../docs/runbooks/B1_G5_INGRESS_BLOCKER.md).
   **Corrected 2026-08-31:** that failure was originally attributed solely to the Spec A ingress
-  fence. Spec A 9.11–9.14 are now all complete and gateway ingress is reopened, yet TLS to
-  `api.vibhanshu-ai-portfolio.dev` still fails — no custom domain is bound to the Container App
-  (`customDomains: null`), so only the default ACA endpoint serves. There were two independent
-  causes; 9.14 cleared one.
-  Resume only after **either** the `api.vibhanshu-ai-portfolio.dev` custom-domain binding and its
-  certificate are restored and verified — `customDomains` non-null and
-  `https://api.vibhanshu-ai-portfolio.dev/actuator/health` returning `200` with a verifying
-  certificate ([`api-gateway-custom-domain-binding`](../../../docs/todos/backlog/api-gateway-custom-domain-binding/README.md))
-  — **or** a separately authorized private-reachability test that executes all three real callers.
-  Completing Spec A 9.11–9.14 is **not** on its own a resume condition. Gateway loopback alone is
-  not sufficient for G5. Source-only recovery preparation is open in PR
-  [#191](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/191) with runbook
-  [`API_GATEWAY_CUSTOM_DOMAIN_RECOVERY.md`](../../../docs/runbooks/API_GATEWAY_CUSTOM_DOMAIN_RECOVERY.md)
-  (**NOT EXECUTED**); that PR does not satisfy this checkbox or unblock G5.
+  fence. There were two causes: 9.14 reopened ingress, and the later separately authorized recovery
+  restored the previously absent custom-domain binding. The guarded apply/bind workflow's final
+  immediate default-host health observation was non-`200`, but independent subsequent read-back
+  observed `200` from both the default and custom public health endpoints. The binding uses the
+  expected succeeded managed certificate; see
+  [`api-gateway-custom-domain-binding`](../../../docs/todos/backlog/api-gateway-custom-domain-binding/README.md)
+  and [`API_GATEWAY_CUSTOM_DOMAIN_RECOVERY.md`](../../../docs/runbooks/API_GATEWAY_CUSTOM_DOMAIN_RECOVERY.md).
+  This is restoration evidence, **not** G5 evidence. Resume only after that evidence is independently
+  reviewed **and** a separately authorized public synthetic executes all three real callers — **or** a
+  separately authorized private-reachability test does so. Gateway loopback alone is not sufficient;
+  this checkbox remains unchecked until that caller evidence exists.
   _Requirements: 8.32, 8.39_
 
 ## Wave 6 — Version-required seed (Artifact 2b → R-B3)
