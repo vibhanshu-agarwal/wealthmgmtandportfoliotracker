@@ -43,6 +43,18 @@ certificate. The certificate inventory still returned the exact hostname in `Suc
 CNAME validation. The workflow reached the default-health assertion only after its TLS
 subject/SAN/validity validator had completed; no TLS validation error was reported.
 
+**Independent follow-up sampling:** A later first contact with the custom hostname timed out after
+25 seconds, then three consecutive probes returned `503`. The next successful probe returned `200`
+after 17 seconds, followed by 10 consecutive `200` responses. This is consistent with a
+scale-from-zero cold start, not evidence that the restored binding is absent or invalid; steady-state
+health and TLS verification were healthy.
+
+**Future read-back rule:** A single health probe is not sufficient evidence for this scale-to-zero
+service. Warm `https://api.vibhanshu-ai-portfolio.dev/actuator/health` first, then record at least
+three consecutive HTTPS `200` responses with normal certificate verification. Record any timeout,
+`503`, and observed duration during warm-up separately; do not misclassify a cold-start sample as a
+custom-domain binding failure.
+
 ---
 
 ## Verified root cause (historical discovery state)
