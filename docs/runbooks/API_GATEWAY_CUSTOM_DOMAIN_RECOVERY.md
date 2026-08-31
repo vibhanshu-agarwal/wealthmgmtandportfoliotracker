@@ -9,6 +9,11 @@
 This runbook documents the guarded hybrid recovery model prepared in source. It does **not**
 authorize production plan, apply, bind, or G5 dispatch.
 
+**2026-08-31 remote-plan attempt:** Run 33365567672 passed dispatch validation and
+stopped during the read-only custom-domain preflight because the hosted Azure CLI requires
+`az containerapp env certificate list --name`; the workflow supplied `--environment`.
+Terraform produced no plan. No apply, bind, state/certificate/DNS mutation, or G5 action occurred.
+
 ---
 
 ## Verified root cause

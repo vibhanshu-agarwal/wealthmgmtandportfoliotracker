@@ -422,7 +422,7 @@ jobs:
               customDomains:properties.configuration.ingress.customDomains
             }' -o json)"
           CERT_JSON="$(az containerapp env certificate list \
-            --environment wealth-prod-aca-env \
+            --name wealth-prod-aca-env \
             --resource-group wealth-azure-prod-rg \
             --query '[].{name:name,id:id,subjectName:properties.subjectName,provisioningState:properties.provisioningState,validationMethod:properties.validationMethod}' -o json)"
           CNAME_TARGET="$(dig +short CNAME api.vibhanshu-ai-portfolio.dev | tr -d '\r' | sed 's/\.$//' | head -n1)"
@@ -461,7 +461,7 @@ jobs:
               customDomains:properties.configuration.ingress.customDomains
             }' -o json)"
           CERT_JSON="$(az containerapp env certificate list \
-            --environment wealth-prod-aca-env \
+            --name wealth-prod-aca-env \
             --resource-group wealth-azure-prod-rg \
             --query '[].{name:name,id:id,subjectName:properties.subjectName,provisioningState:properties.provisioningState,validationMethod:properties.validationMethod}' -o json)"
           python3 scripts/validate_api_gateway_custom_domain.py remove-preflight \
@@ -653,7 +653,7 @@ jobs:
               customDomains:properties.configuration.ingress.customDomains
             }' -o json)"
           CERT_JSON="$(az containerapp env certificate list \
-            --environment wealth-prod-aca-env \
+            --name wealth-prod-aca-env \
             --resource-group wealth-azure-prod-rg \
             --query '[].{name:name,id:id,subjectName:properties.subjectName,provisioningState:properties.provisioningState,validationMethod:properties.validationMethod}' -o json)"
           CNAME_TARGET="$(dig +short CNAME api.vibhanshu-ai-portfolio.dev | tr -d '\r' | sed 's/\.$//' | head -n1)"
@@ -692,7 +692,7 @@ jobs:
               customDomains:properties.configuration.ingress.customDomains
             }' -o json)"
           CERT_JSON="$(az containerapp env certificate list \
-            --environment wealth-prod-aca-env \
+            --name wealth-prod-aca-env \
             --resource-group wealth-azure-prod-rg \
             --query '[].{name:name,id:id,subjectName:properties.subjectName,provisioningState:properties.provisioningState,validationMethod:properties.validationMethod}' -o json)"
           python3 scripts/validate_api_gateway_custom_domain.py remove-preflight \
@@ -886,7 +886,7 @@ jobs:
               customDomains:properties.configuration.ingress.customDomains
             }' -o json)"
           CERT_JSON="$(az containerapp env certificate list \
-            --environment wealth-prod-aca-env \
+            --name wealth-prod-aca-env \
             --resource-group wealth-azure-prod-rg \
             --query '[].{name:name,id:id,subjectName:properties.subjectName,provisioningState:properties.provisioningState,validationMethod:properties.validationMethod}' -o json)"
           DEFAULT_FQDN="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["fqdn"])' <<<"$APP_JSON")"
@@ -919,7 +919,7 @@ jobs:
             --resource-group wealth-azure-prod-rg \
             --query '{customDomains:properties.configuration.ingress.customDomains}' -o json)"
           CERT_JSON="$(az containerapp env certificate list \
-            --environment wealth-prod-aca-env \
+            --name wealth-prod-aca-env \
             --resource-group wealth-azure-prod-rg \
             --query '[].{name:name,id:id,subjectName:properties.subjectName,provisioningState:properties.provisioningState,validationMethod:properties.validationMethod}' -o json)"
           python3 scripts/validate_api_gateway_custom_domain.py remove-post \
