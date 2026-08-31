@@ -591,20 +591,23 @@ jobs:
           echo "Observed dependency results:"
           echo "$NEEDS_JSON" | jq -r 'to_entries[] | "  \(.key): \(.value.result)"'
 
+          # Stage A: every dependency is unconditional, so any result other than
+          # `success` is anomalous and must fail — `skipped` included. Rejecting
+          # only failure/cancelled would let an unexpected skip reach "all green",
+          # which is exactly the silent-green condition this gate exists to catch:
+          # GitHub reports a skipped required job as Success to branch protection.
+          # Testing `!= "success"` also fails closed on any conclusion outside the
+          # known enum (neutral, action_required, or anything added later), and
+          # subsumes the classifier check — `changes` is a dependency, so a
+          # classifier malfunction is caught and named here like any other.
+          # Stage B replaces this rule with the declared-vs-observed skip contract.
           bad=$(echo "$NEEDS_JSON" | jq -r '
             to_entries
-            | map(select(.value.result == "failure" or .value.result == "cancelled"))
+            | map(select(.value.result != "success"))
             | map("\(.key)=\(.value.result)")
             | join(", ")')
           if [ -n "$bad" ]; then
-            echo "::error::required dependencies not green: $bad"
-            exit 1
-          fi
-
-          # A classifier malfunction must never read as "nothing to do".
-          classifier=$(echo "$NEEDS_JSON" | jq -r '.changes.result')
-          if [ "$classifier" != "success" ]; then
-            echo "::error::classifier job did not succeed (result=$classifier)"
+            echo "::error::Stage A requires every dependency to succeed; not green: $bad"
             exit 1
           fi
 

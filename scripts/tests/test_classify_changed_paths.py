@@ -16,6 +16,16 @@ Contract:
     (docker-compose.yml, frontend/package-lock.json, config/seed-tickers.json,
     Gradle config, .github/**) must never classify as docs-only.
 
+Aggregate gate (`ci-required`) contract, verified by executing the real jq
+predicate extracted from the workflow rather than a Python re-implementation:
+
+  - In Stage A every dependency is unconditional, so any result other than
+    `success` must be reported as not green -- `skipped` included. Rejecting only
+    `failure`/`cancelled` would let an unexpected skip reach "all green", which is
+    the silent-green condition the gate exists to prevent, because GitHub reports
+    a skipped required job as Success to branch protection.
+  - The same rule fails closed on conclusions outside the known enum.
+
 Stage A boundary (deliberately pinned here so Stage B is a visible change):
 
   - `unit-tests` must NOT yet carry the docs-only skip condition.
@@ -27,13 +37,18 @@ exist so that enabling skipping cannot happen silently or by accident.
 
 from __future__ import annotations
 
+import json
 import os
 import re
+import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
+
+JQ = shutil.which("jq")
 
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO / "scripts"))
@@ -297,6 +312,99 @@ class WorkflowWiringTests(unittest.TestCase):
     def test_stage_a_aggregate_does_not_enforce_skip_equality_yet(self):
         job = self._job(self.text, "ci-required:")
         self.assertIn("SHADOW MODE", job)
+
+
+@unittest.skipUnless(JQ, "jq not installed locally; it is present on ubuntu-latest")
+class AggregateGatePredicateTests(unittest.TestCase):
+    """Execute the REAL jq predicate from ci-verification.yml, not a copy of it.
+
+    Re-implementing the rule in Python here would measure the copy rather than the
+    gate that actually runs -- the evidence-oracle mismatch this repo has already
+    been bitten by repeatedly. The expression is extracted from the workflow and
+    fed to jq, so if the gate changes shape this test fails loudly.
+
+    Stage A contract: every dependency is unconditional, so anything other than
+    `success` -- `skipped` included -- must be reported as not green. Rejecting
+    only failure/cancelled would let an unexpected skip reach "all green", which
+    is the silent-green condition the gate exists to prevent.
+    """
+
+    JOBS = (
+        "changes",
+        "static-guard",
+        "sanitizer-canary",
+        "unit-tests",
+        "integration-tests",
+        "pact-consumer",
+        "docker-build-verify",
+    )
+
+    @classmethod
+    def setUpClass(cls):
+        text = CI_VERIFICATION.read_text(encoding="utf-8")
+        match = re.search(
+            r"bad=\$\(echo \"\$NEEDS_JSON\" \| jq -r '(.*?)'\)", text, re.S
+        )
+        if match is None:
+            raise AssertionError(
+                "could not extract the ci-required jq predicate from "
+                "ci-verification.yml -- the aggregate gate changed shape"
+            )
+        cls.program = match.group(1)
+
+    def not_green(self, overrides: dict[str, str]) -> str:
+        """Return the gate's `bad` string for a synthetic `needs` context."""
+        needs = {
+            job: {"result": overrides.get(job, "success")} for job in self.JOBS
+        }
+        proc = subprocess.run(
+            [JQ, "-r", self.program],
+            input=json.dumps(needs),
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        return proc.stdout.strip()
+
+    def test_all_dependencies_successful_passes(self):
+        self.assertEqual("", self.not_green({}))
+
+    def test_any_skipped_dependency_fails(self):
+        for job in self.JOBS:
+            with self.subTest(job=job):
+                self.assertEqual(f"{job}=skipped", self.not_green({job: "skipped"}))
+
+    def test_failure_fails(self):
+        for job in ("changes", "unit-tests", "docker-build-verify"):
+            with self.subTest(job=job):
+                self.assertEqual(f"{job}=failure", self.not_green({job: "failure"}))
+
+    def test_cancelled_fails(self):
+        for job in ("changes", "integration-tests"):
+            with self.subTest(job=job):
+                self.assertEqual(f"{job}=cancelled", self.not_green({job: "cancelled"}))
+
+    def test_conclusions_outside_the_known_enum_fail_closed(self):
+        # neutral / action_required / timed_out, and anything GitHub adds later.
+        for result in ("neutral", "action_required", "timed_out", "invented_later"):
+            with self.subTest(result=result):
+                self.assertEqual(
+                    f"pact-consumer={result}",
+                    self.not_green({"pact-consumer": result}),
+                )
+
+    def test_multiple_bad_results_are_all_reported(self):
+        out = self.not_green({"unit-tests": "skipped", "pact-consumer": "failure"})
+        self.assertIn("unit-tests=skipped", out)
+        self.assertIn("pact-consumer=failure", out)
+
+
+class ToolingAvailabilityTests(unittest.TestCase):
+    def test_jq_is_present_when_running_on_a_runner(self):
+        # AggregateGatePredicateTests skips without jq. That must never happen in
+        # CI, or the gate's contract would go unverified and silently green.
+        if os.environ.get("GITHUB_ACTIONS") == "true":
+            self.assertIsNotNone(JQ, "jq must be available to verify the aggregate gate")
 
 
 if __name__ == "__main__":
