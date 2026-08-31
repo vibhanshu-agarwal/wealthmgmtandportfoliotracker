@@ -49,11 +49,16 @@ after 17 seconds, followed by 10 consecutive `200` responses. This is consistent
 scale-from-zero cold start, not evidence that the restored binding is absent or invalid; steady-state
 health and TLS verification were healthy.
 
-**Future read-back rule:** A single health probe is not sufficient evidence for this scale-to-zero
-service. Warm `https://api.vibhanshu-ai-portfolio.dev/actuator/health` first, then record at least
-three consecutive HTTPS `200` responses with normal certificate verification. Record any timeout,
-`503`, and observed duration during warm-up separately; do not misclassify a cold-start sample as a
-custom-domain binding failure.
+**Future read-back rule:** Post-bind verification must not rely on a single health probe or on
+incidental default-FQDN warming. The restore workflow performs, in order: (1) an informational
+**custom-host warm-up** probe to `https://api.vibhanshu-ai-portfolio.dev/actuator/health` — timeout
+or `503` during warm-up is logged but is not a binding failure; (2) a stability loop requiring
+**three consecutive TLS-verified HTTP `200`** responses on that same custom hostname, with each
+probe bounded by `curl --max-time 30` (no `-k`, `--insecure`, or `curl --retry`); non-`200`
+results, including timeout (`000`), reset the consecutive count; (3) only after custom-host
+stability, a bounded default ACA FQDN health probe. Each probe logs `http_status`, `curl_exit`, and
+`duration_s`. Exhausting the retry budget without three consecutive custom-host `200`s fails the
+step with an actionable error.
 
 ---
 
@@ -282,9 +287,10 @@ Require all of:
 2. Certificate ID equals preflight capture; certificate still `Succeeded`
 3. Latest and latest-ready revision unchanged from pre-apply
 4. Ingress contract unchanged
-5. Default ACA `/actuator/health` returns `200`
-6. `https://api.vibhanshu-ai-portfolio.dev/actuator/health` returns `200` with normal TLS verification
-7. Live TLS proof via `openssl s_client` (no `-k` / `--insecure`): certificate subject matches the custom hostname, SAN covers the hostname, and `notBefore`/`notAfter` bracket the current time
+5. Informational custom-host warm-up probe logged (timeout/`503`/`000` during warm-up alone is not a binding failure)
+6. Three consecutive TLS-verified HTTP `200` responses on `https://api.vibhanshu-ai-portfolio.dev/actuator/health`, each probe bounded by `curl --max-time 30`; non-`200` resets the consecutive count; each attempt logs `http_status`, `curl_exit`, and `duration_s`
+7. Default ACA `/actuator/health` probed only after custom-host warm-up/stability, also with `--max-time 30`
+8. Live TLS proof via `openssl s_client` (no `-k` / `--insecure`): certificate subject matches the custom hostname, SAN covers the hostname, and `notBefore`/`notAfter` bracket the current time
 
 Remove profile verifies domain absence and surviving managed certificate. Remove does not dispatch G5.
 
