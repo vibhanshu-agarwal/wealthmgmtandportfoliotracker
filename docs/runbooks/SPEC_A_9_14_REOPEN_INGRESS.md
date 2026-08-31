@@ -105,10 +105,14 @@ The default ACA endpoint is
 
 ---
 
-## Reversal path (updated future mechanics)
+## Reversal path
 
-The guarded reverse profile `spec-a-9.14-close-ingress` remains a **one-resource ingress close** on
-`module.api_gateway.azurerm_container_app.this`. Source now adds separate custom-domain profiles:
+The guarded reverse profile `spec-a-9.14-close-ingress` is asserted by the same script in the
+opposite ingress direction and is now usable, since `before` carries an external ingress block to
+close. Closing ingress re-blocks all public routes including `/api/internal/**`.
+
+Source adds separate custom-domain profiles so ingress close remains a **one-resource** operation on
+`module.api_gateway.azurerm_container_app.this`:
 
 | Step | Profile | Purpose |
 |---|---|---|

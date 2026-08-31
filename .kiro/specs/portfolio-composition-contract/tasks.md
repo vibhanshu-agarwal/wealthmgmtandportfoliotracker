@@ -17,7 +17,8 @@ serving on `portfolio-service--0000081` /
 G2a green; evidence
 [`docs/runbooks/B1_R_B2_G2A_SERVING_PROOF.md`](../../../docs/runbooks/B1_R_B2_G2A_SERVING_PROOF.md)).
 Tasks **5.4–5.6 are merged on `main@0b5d60d1`** (PR #161, source-only caller migration; not
-deployed); **5.7 / G5 remains unchecked** — blocked by Spec A closed gateway ingress (runs
+deployed); **5.7 / G5 remains unchecked** — blocked by the absent `api.vibhanshu-ai-portfolio.dev` custom-domain binding, **not** by Spec A ingress,
+which checkpoint 9.14 reopened on 2026-08-31 (runs
 [33046987880](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33046987880),
 [33047168136](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33047168136);
 evidence [`docs/runbooks/B1_G5_INGRESS_BLOCKER.md`](../../../docs/runbooks/B1_G5_INGRESS_BLOCKER.md)).
@@ -855,7 +856,7 @@ Named individually so the R-C manifest can enumerate them rather than gesture at
   **Abort:** redeploy the prior portfolio digest and **do not begin caller migration**. Safe: no
   caller depends on the version yet. Never cross below Artifact 0 + Artifact 1.
   Abort path not used. Tasks 5.4–5.6 merged on `main@0b5d60d1` (PR #161, source-only); 5.7 remains
-  incomplete (G5 blocked by Spec A closed ingress).
+  incomplete (G5 blocked by the absent `api.vibhanshu-ai-portfolio.dev` custom-domain binding; Spec A ingress was reopened at 9.14).
   _Requirements: 8.32_
 - [x] **5.4 Migrate all three seed call sites** to log in, read once, and send that exact version:
   `synthetic-monitoring.yml` -> `.github/workflows/scripts/seed-portfolio-with-version.sh`,
@@ -876,14 +877,24 @@ Named individually so the R-C manifest can enumerate them rather than gesture at
 - [ ] **5.7 G5 evidence.** Every call site, in every execution context, sends a version. Zero
   missing-version requests — enumerated per site, not inferred from one green run.
   Static inventory guard + unit/request-capture tests green on `main@0b5d60d1`. **Live public Azure
-  synthetic G5 blocked by Spec A closed gateway ingress** — authorized runs
+  synthetic G5 blocked at the public API host** — authorized runs
   [33046987880](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33046987880)
   and
   [33047168136](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33047168136)
   failed at login with TLS reset / HTTP `000000` before any seed POST (not a 409). Evidence
   [`docs/runbooks/B1_G5_INGRESS_BLOCKER.md`](../../../docs/runbooks/B1_G5_INGRESS_BLOCKER.md).
-  Resume only after Spec A 9.11–9.14 reopen ingress, or a separately authorized private-reachability
-  test that executes all three real callers. Gateway loopback alone is not sufficient for G5.
+  **Corrected 2026-08-31:** that failure was originally attributed solely to the Spec A ingress
+  fence. Spec A 9.11–9.14 are now all complete and gateway ingress is reopened, yet TLS to
+  `api.vibhanshu-ai-portfolio.dev` still fails — no custom domain is bound to the Container App
+  (`customDomains: null`), so only the default ACA endpoint serves. There were two independent
+  causes; 9.14 cleared one.
+  Resume only after **either** the `api.vibhanshu-ai-portfolio.dev` custom-domain binding and its
+  certificate are restored and verified — `customDomains` non-null and
+  `https://api.vibhanshu-ai-portfolio.dev/actuator/health` returning `200` with a verifying
+  certificate ([`api-gateway-custom-domain-binding`](../../../docs/todos/backlog/api-gateway-custom-domain-binding/README.md))
+  — **or** a separately authorized private-reachability test that executes all three real callers.
+  Completing Spec A 9.11–9.14 is **not** on its own a resume condition. Gateway loopback alone is
+  not sufficient for G5.
   _Requirements: 8.32, 8.39_
 
 ## Wave 6 — Version-required seed (Artifact 2b → R-B3)

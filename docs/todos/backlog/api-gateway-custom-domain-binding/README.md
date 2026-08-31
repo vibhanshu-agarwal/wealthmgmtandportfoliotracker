@@ -1,6 +1,6 @@
 # Backlog: `api.vibhanshu-ai-portfolio.dev` has no Container Apps custom-domain binding
 
-**Status:** Open — source-only recovery PR prepared, not executed
+**Status:** Open — found 2026-08-31; source-only recovery PR prepared, not executed
 **Owner:** unassigned
 **Blocks:** B1 Task 5.7 / G5
 **Tracked in:** Surfaced by the Spec A 9.14 live read-back
@@ -36,6 +36,11 @@ DNS is fine; the binding is missing.
 correlation `cf0fc22a-595b-9bba-143a-6749888b1998` at checkpoint 9.5 cleared the hostname binding,
 binding type, and certificate ID while the managed certificate
 `mc-wealth-prod-ac-api-vibhanshu-ai-5159` survived.
+
+**Scope of that evidence.** `customDomains: null` proves nothing is *bound* to the app. It does
+**not** by itself prove that no managed-certificate resource exists in the Container Apps
+environment — inventory may still show an unbound certificate. Here the managed certificate above
+survived the binding loss.
 
 ## Source-only recovery prepared
 
