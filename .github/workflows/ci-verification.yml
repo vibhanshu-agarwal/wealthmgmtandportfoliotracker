@@ -443,9 +443,10 @@ jobs:
       # Live-stack synthetic monitoring against AWS / Azure used to run here on
       # every push to main. It was removed (2026-05-17) because it forced the
       # backend stack to wake from scale-to-zero on every commit and was a
-      # secondary contributor to the May-2026 Azure cost spike. The hourly cron
-      # in synthetic-monitoring.yml — now daily — is the single source of truth
-      # for live liveness checks. Use workflow_dispatch for ad-hoc verification.
+      # secondary contributor to the May-2026 Azure cost spike. Live synthetic
+      # monitoring is temporarily manual-only in synthetic-monitoring.yml to
+      # prevent an unattended G5-like run while B1 G5 remains blocked; use
+      # workflow_dispatch only after separately recorded owner authorization.
 
       # ── Failure handling ──
       # With --reporter=list no HTML report is generated; the actionable

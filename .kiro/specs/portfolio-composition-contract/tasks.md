@@ -21,12 +21,14 @@ deployed); **5.7 / G5 remains unchecked**. The historical public-host failures i
 [33046987880](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33046987880)
 and [33047168136](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33047168136)
 preceded the separately authorized custom-domain recovery. Its guarded plan and apply/bind restored
-the hostname and an independent read-back returned `200` for both public health endpoints; its evidence
-is pending independent review. No authorized post-restore G5 synthetic has run — see
+the hostname and an independent read-back returned `200` for both public health endpoints; PR #194
+independently reviewed and merged that evidence at `main@98371587`. No authorized post-restore G5
+synthetic has run — see
 [`docs/runbooks/B1_G5_INGRESS_BLOCKER.md`](../../../docs/runbooks/B1_G5_INGRESS_BLOCKER.md) and
 [`API_GATEWAY_CUSTOM_DOMAIN_RECOVERY.md`](../../../docs/runbooks/API_GATEWAY_CUSTOM_DOMAIN_RECOVERY.md).
-The recovery does **not** satisfy 5.7 or authorize G5; resume requires evidence review and a separately
-authorized three-caller test (or separately authorized private-reachability test).
+The recovery and its evidence review do **not** satisfy 5.7 or authorize G5; resume requires a
+separately authorized three-caller test (or separately authorized private-reachability test).
+Unattended synthetics are suspended in `synthetic-monitoring.yml` while G5 remains blocked.
 Wave 6 / R-B3 remain gated. Candidate packaging / R-C (task 7.5)
 is **not** complete. Public `PUT /api/portfolio/holdings` remains Wave 7. The old seed remains
 version-tolerant; no seed rewrite or Writer_Convergence is claimed. Dependent proof branch
@@ -861,9 +863,9 @@ Named individually so the R-C manifest can enumerate them rather than gesture at
   **Abort:** redeploy the prior portfolio digest and **do not begin caller migration**. Safe: no
   caller depends on the version yet. Never cross below Artifact 0 + Artifact 1.
   Abort path not used. Tasks 5.4–5.6 merged on `main@0b5d60d1` (PR #161, source-only); 5.7 remains
-  incomplete pending independent review of the executed custom-domain recovery evidence and a separately
-  authorized three-caller proof. Spec A ingress was reopened at 9.14; the custom-domain binding has since
-  been restored, but neither fact is G5 evidence.
+  incomplete — PR #194 reviewed and merged the custom-domain recovery evidence, but a separately
+  authorized three-caller proof is still required. Spec A ingress was reopened at 9.14; the
+  custom-domain binding has since been restored, but neither fact is G5 evidence.
   _Requirements: 8.32_
 - [x] **5.4 Migrate all three seed call sites** to log in, read once, and send that exact version:
   `synthetic-monitoring.yml` -> `.github/workflows/scripts/seed-portfolio-with-version.sh`,
@@ -898,10 +900,11 @@ Named individually so the R-C manifest can enumerate them rather than gesture at
   expected succeeded managed certificate; see
   [`api-gateway-custom-domain-binding`](../../../docs/todos/backlog/api-gateway-custom-domain-binding/README.md)
   and [`API_GATEWAY_CUSTOM_DOMAIN_RECOVERY.md`](../../../docs/runbooks/API_GATEWAY_CUSTOM_DOMAIN_RECOVERY.md).
-  This is restoration evidence, **not** G5 evidence. Resume only after that evidence is independently
-  reviewed **and** a separately authorized public synthetic executes all three real callers — **or** a
-  separately authorized private-reachability test does so. Gateway loopback alone is not sufficient;
-  this checkbox remains unchecked until that caller evidence exists.
+  This is restoration evidence, **not** G5 evidence. PR #194 independently reviewed and merged that
+  evidence at `main@98371587`. Resume only after a separately authorized public synthetic executes
+  all three real callers — **or** a separately authorized private-reachability test does so. Gateway
+  loopback alone is not sufficient; this checkbox remains unchecked until that caller evidence exists.
+  Unattended synthetics are suspended in `synthetic-monitoring.yml` while G5 remains blocked.
   _Requirements: 8.32, 8.39_
 
 ## Wave 6 — Version-required seed (Artifact 2b → R-B3)

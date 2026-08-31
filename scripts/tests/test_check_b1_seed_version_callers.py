@@ -68,6 +68,34 @@ class CheckB1SeedVersionCallersTest(unittest.TestCase):
         finally:
             planted.unlink(missing_ok=True)
 
+    def test_scheduled_synthetic_trigger_fails(self) -> None:
+        synthetic = self.guard._read(self.guard.SYNTHETIC_WF).replace(
+            "  workflow_dispatch:\n",
+            "  workflow_dispatch:\n  schedule:\n    - cron: '0 8 * * *'\n",
+            1,
+        )
+        with self.assertRaises(self.guard.GuardError) as ctx:
+            self.guard.check_synthetic_workflow(synthetic)
+        self.assertIn("schedule", str(ctx.exception))
+
+    def test_inline_scheduled_synthetic_trigger_fails(self) -> None:
+        synthetic = self.guard._read(self.guard.SYNTHETIC_WF).replace(
+            "  workflow_dispatch:\n",
+            "  workflow_dispatch:\n  schedule: [{ cron: '0 8 * * *' }]\n",
+            1,
+        )
+        with self.assertRaises(self.guard.GuardError) as ctx:
+            self.guard.check_synthetic_workflow(synthetic)
+        self.assertIn("schedule", str(ctx.exception))
+
+    def test_missing_manual_synthetic_trigger_fails(self) -> None:
+        synthetic = self.guard._read(self.guard.SYNTHETIC_WF).replace(
+            "  workflow_dispatch:\n", "", 1
+        )
+        with self.assertRaises(self.guard.GuardError) as ctx:
+            self.guard.check_synthetic_workflow(synthetic)
+        self.assertIn("workflow_dispatch", str(ctx.exception))
+
     def test_synthetic_seed_step_credentials_required_even_if_playwright_has_them(
         self,
     ) -> None:

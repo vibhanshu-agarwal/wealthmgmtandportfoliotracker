@@ -81,6 +81,17 @@ item [`api-gateway-custom-domain-binding`](../todos/backlog/api-gateway-custom-d
 
 **Do not read Spec A 9.14 as unblocking G5.**
 
+## Synthetic dispatch gate (2026-08-31)
+
+PR [#194](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/194) independently
+reviewed and merged the custom-domain restoration live read-back evidence at `main@98371587`. That
+review does **not** satisfy Task 5.7 and does **not** authorize G5.
+
+While G5 remains blocked, `synthetic-monitoring.yml` has **no unattended schedule** — only
+`workflow_dispatch` remains. Any manual dispatch still requires separately recorded owner
+authorization and must not be treated as G5 evidence from source alone. A CI guard rejects
+reintroduction of a top-level schedule trigger.
+
 ## Resume conditions for Task 5.7
 
 Resume G5 only after **one** of:
@@ -102,3 +113,4 @@ authorized caller exercise remain mandatory.
 - Does **not** close Task 5.7, authorize Wave 6 / R-B3, public `PUT`, a retry, or any further
   custom-domain or deployment change.
 - Does **not** authorize further synthetic dispatches until a resume condition above is met.
+- Does **not** claim the custom-domain restore or a healthy steady-state host satisfies Task 5.7.
