@@ -21,7 +21,129 @@ authorize production plan, apply, bind, or G5 dispatch.
 | Certificate subject/state | `api.vibhanshu-ai-portfolio.dev` / `Succeeded` / CNAME validation |
 | Loss event | Terraform correlation `cf0fc22a-595b-9bba-143a-6749888b1998` at checkpoint 9.5 cleared binding fields |
 
-Do not create a replacement certificate. Reuse the existing managed certificate by explicit ID.
+### Resource Graph evidence
+
+This evidence was collected read-only on `2026-08-31T02:54:48Z` from subscription
+`Azure subscription 1`, scoped to resource group `wealth-azure-prod-rg`. The subscription identifier
+is intentionally represented as `$SUBSCRIPTION_ID` in the commands and `<subscription-id>` in the
+sanitized output. These historical observations establish the loss event and the certificate's
+survival at evidence-collection time; they do not replace the mandatory fresh preflight before a
+future remote plan or apply.
+
+The exact query below returns only the three custom-domain fields changed on `api-gateway` under the
+Terraform correlation. One row per property avoids treating an absent property as a null transition.
+
+```bash
+SUBSCRIPTION_ID="$(az account show --query id -o tsv)"
+
+az graph query \
+  --subscriptions "$SUBSCRIPTION_ID" \
+  --first 10 \
+  -q "resourcechanges
+| extend correlationId=tostring(properties.changeAttributes.correlationId),
+         changeTime=todatetime(properties.changeAttributes.timestamp),
+         targetResourceId=tostring(properties.targetResourceId),
+         clientType=tostring(properties.changeAttributes.clientType),
+         changes=todynamic(properties.changes)
+| where correlationId =~ 'cf0fc22a-595b-9bba-143a-6749888b1998'
+| where targetResourceId endswith '/resourceGroups/wealth-azure-prod-rg/providers/Microsoft.App/containerApps/api-gateway'
+| mv-expand propertyName=bag_keys(changes)
+| extend propertyName=tostring(propertyName)
+| where propertyName in (
+    'properties.configuration.ingress.customDomains[0].certificateId',
+    'properties.configuration.ingress.customDomains[0].bindingType',
+    'properties.configuration.ingress.customDomains[0].name')
+| extend delta=changes[propertyName]
+| project changeTime,
+          targetResource='wealth-azure-prod-rg/Microsoft.App/containerApps/api-gateway',
+          clientType,
+          correlationId,
+          propertyName,
+          previousValue=delta.previousValue,
+          newValue=delta.newValue
+| order by changeTime asc, propertyName asc" \
+  -o json
+```
+
+Sanitized result:
+
+```json
+{
+  "count": 3,
+  "data": [
+    {
+      "changeTime": "2026-08-22T19:26:41.587Z",
+      "clientType": "Terraform",
+      "correlationId": "cf0fc22a-595b-9bba-143a-6749888b1998",
+      "newValue": null,
+      "previousValue": "/subscriptions/<subscription-id>/resourceGroups/wealth-azure-prod-rg/providers/Microsoft.App/managedEnvironments/wealth-prod-aca-env/managedCertificates/mc-wealth-prod-ac-api-vibhanshu-ai-5159",
+      "propertyName": "properties.configuration.ingress.customDomains[0].certificateId",
+      "targetResource": "wealth-azure-prod-rg/Microsoft.App/containerApps/api-gateway"
+    },
+    {
+      "changeTime": "2026-08-22T19:37:00.225Z",
+      "clientType": "Terraform",
+      "correlationId": "cf0fc22a-595b-9bba-143a-6749888b1998",
+      "newValue": null,
+      "previousValue": "SniEnabled",
+      "propertyName": "properties.configuration.ingress.customDomains[0].bindingType",
+      "targetResource": "wealth-azure-prod-rg/Microsoft.App/containerApps/api-gateway"
+    },
+    {
+      "changeTime": "2026-08-22T19:37:00.225Z",
+      "clientType": "Terraform",
+      "correlationId": "cf0fc22a-595b-9bba-143a-6749888b1998",
+      "newValue": null,
+      "previousValue": "api.vibhanshu-ai-portfolio.dev",
+      "propertyName": "properties.configuration.ingress.customDomains[0].name",
+      "targetResource": "wealth-azure-prod-rg/Microsoft.App/containerApps/api-gateway"
+    }
+  ],
+  "total_records": 3
+}
+```
+
+The separate current-resource query below proves that exactly one matching Azure-managed certificate
+remained present when the evidence was collected.
+
+```bash
+az graph query \
+  --subscriptions "$SUBSCRIPTION_ID" \
+  --first 10 \
+  -q "resources
+| where type =~ 'microsoft.app/managedenvironments/managedcertificates'
+| where resourceGroup =~ 'wealth-azure-prod-rg'
+| where name =~ 'mc-wealth-prod-ac-api-vibhanshu-ai-5159'
+| project targetResource='wealth-azure-prod-rg/Microsoft.App/managedEnvironments/wealth-prod-aca-env/managedCertificates/mc-wealth-prod-ac-api-vibhanshu-ai-5159',
+          location,
+          name,
+          subjectName=tostring(properties.subjectName),
+          provisioningState=tostring(properties.provisioningState),
+          validationMethod=tostring(coalesce(properties.domainControlValidation, properties.validationMethod))" \
+  -o json
+```
+
+Sanitized result:
+
+```json
+{
+  "count": 1,
+  "data": [
+    {
+      "location": "centralindia",
+      "name": "mc-wealth-prod-ac-api-vibhanshu-ai-5159",
+      "provisioningState": "Succeeded",
+      "subjectName": "api.vibhanshu-ai-portfolio.dev",
+      "targetResource": "wealth-azure-prod-rg/Microsoft.App/managedEnvironments/wealth-prod-aca-env/managedCertificates/mc-wealth-prod-ac-api-vibhanshu-ai-5159",
+      "validationMethod": "CNAME"
+    }
+  ],
+  "total_records": 1
+}
+```
+
+Do not create a replacement certificate. Reuse the existing managed certificate by explicit ID only
+after the future workflow independently revalidates it.
 
 ## Hybrid ownership
 
