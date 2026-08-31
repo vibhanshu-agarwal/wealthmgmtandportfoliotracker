@@ -22,6 +22,11 @@ which checkpoint 9.14 reopened on 2026-08-31 (runs
 [33046987880](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33046987880),
 [33047168136](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33047168136);
 evidence [`docs/runbooks/B1_G5_INGRESS_BLOCKER.md`](../../../docs/runbooks/B1_G5_INGRESS_BLOCKER.md)).
+A guarded source-only recovery PR ([#191](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/191);
+runbook [`API_GATEWAY_CUSTOM_DOMAIN_RECOVERY.md`](../../../docs/runbooks/API_GATEWAY_CUSTOM_DOMAIN_RECOVERY.md))
+prepares `api-gateway-custom-domain-restore` / `api-gateway-custom-domain-remove` profiles — **not
+executed, not merged, not applied**; TLS and G5 remain blocked until a separately authorized
+apply/bind with live read-back.
 Wave 6 / R-B3 remain gated. Candidate packaging / R-C (task 7.5)
 is **not** complete. Public `PUT /api/portfolio/holdings` remains Wave 7. The old seed remains
 version-tolerant; no seed rewrite or Writer_Convergence is claimed. Dependent proof branch
@@ -894,7 +899,10 @@ Named individually so the R-C manifest can enumerate them rather than gesture at
   certificate ([`api-gateway-custom-domain-binding`](../../../docs/todos/backlog/api-gateway-custom-domain-binding/README.md))
   — **or** a separately authorized private-reachability test that executes all three real callers.
   Completing Spec A 9.11–9.14 is **not** on its own a resume condition. Gateway loopback alone is
-  not sufficient for G5.
+  not sufficient for G5. Source-only recovery preparation is open in PR
+  [#191](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/191) with runbook
+  [`API_GATEWAY_CUSTOM_DOMAIN_RECOVERY.md`](../../../docs/runbooks/API_GATEWAY_CUSTOM_DOMAIN_RECOVERY.md)
+  (**NOT EXECUTED**); that PR does not satisfy this checkbox or unblock G5.
   _Requirements: 8.32, 8.39_
 
 ## Wave 6 — Version-required seed (Artifact 2b → R-B3)
