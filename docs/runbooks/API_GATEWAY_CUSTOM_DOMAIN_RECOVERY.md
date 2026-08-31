@@ -103,6 +103,12 @@ Sanitized result:
 }
 ```
 
+All three null transitions share the single Terraform correlation from checkpoint 9.5's ingress-close
+apply; Azure Container Apps reconciled the binding teardown in two phases (`certificateId` at
+`2026-08-22T19:26:41.587Z`, then `bindingType` and `name` together at
+`2026-08-22T19:37:00.225Z`), so the loss was not a single atomic property flip and must not be
+read as separate operator actions.
+
 The separate current-resource query below proves that exactly one matching Azure-managed certificate
 remained present when the evidence was collected.
 
