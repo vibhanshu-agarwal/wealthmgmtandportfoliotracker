@@ -1,17 +1,20 @@
-# B1 Task 5.7 / G5 — public synthetic evidence pending independent review
+# B1 Task 5.7 / G5 — public synthetic evidence recorded; completion gated on owner decision
 
 This is the durable, sanitized record of the authorized G5 attempts for Wave 5b Task **5.7**.
 No secret values, JWTs, or passwords appear here.
 
 ## Decision
 
-**G5 / Task 5.7 remain open pending independent review** of the executed three-caller public Azure
-synthetic evidence below. The custom-domain binding was restored earlier under separately authorized,
-guarded operations (PR #194 reviewed that restoration evidence). A separately authorized public
-Azure synthetic has now run from `main@f66d7ab6a4db1a327fd030ba9897bfc431104945` and produced the
-three required version-bearing caller markers. That live run is **executed evidence**; this document
-update is **source-only**. Neither automatically closes Task 5.7, unblocks Wave 6 / R-B3, public
-`PUT`, or the custom-domain backlog.
+**G5 / Task 5.7 remain open** — Task 5.7 remains unchecked pending a separately recorded
+owner-controlled G5 completion decision. The executed three-caller public Azure synthetic evidence
+below is subject to independent review and merge of its documentation PR, but neither that review
+nor that PR checks Task 5.7 or unlocks Wave 6 / R-B3, public `PUT`, or backlog closure. The
+custom-domain binding was restored earlier under separately authorized, guarded operations (PR #194
+reviewed that restoration evidence). A separately authorized public Azure synthetic has now run from
+`main@f66d7ab6a4db1a327fd030ba9897bfc431104945` and produced the three required version-bearing
+caller markers. That live run is **executed evidence**; this document update is **source-only**.
+Neither automatically closes Task 5.7, unblocks Wave 6 / R-B3, public `PUT`, or the custom-domain
+backlog.
 
 > **Historical correction (2026-08-31).** The original TLS reset was first attributed solely to the
 > Spec A ingress fence. That attribution was incomplete: Spec A 9.14 reopened ingress, while the
@@ -101,7 +104,8 @@ Playwright suite on the same public host. No market-data writer was enabled or c
 #### Explicit scope of this evidence
 
 - **Executed live evidence:** one authorized public Azure synthetic from the SHA above.
-- **This doc / evidence PR:** source-only documentation of that run for independent review.
+- **This doc / evidence PR:** source-only documentation of that run (subject to independent review
+  and merge of the documentation PR; neither checks Task 5.7).
 - Does **not** check `- [ ] **5.7 G5 evidence.**`, close G5, unblock Wave 6 / R-B3, public `PUT`,
   or close the custom-domain backlog.
 
@@ -131,8 +135,9 @@ and TLS assertions before the final default-host health observation made run 333
 
 `NEXT_PUBLIC_API_BASE_URL` for the frontend and synthetic workflows points at that host.
 
-**Do not read Spec A 9.14 or the three-caller run alone as closing Task 5.7.** Independent review of
-the executed evidence remains required before checking the task or advancing Wave 6 / R-B3.
+**Do not read Spec A 9.14, the three-caller run, or documentation-PR review/merge alone as closing
+Task 5.7.** A separately recorded owner-controlled G5 completion decision is required before
+checking the task or advancing Wave 6 / R-B3.
 
 ## Synthetic dispatch gate (2026-08-31)
 
@@ -140,15 +145,17 @@ PR [#194](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pul
 reviewed and merged the custom-domain restoration live read-back evidence at `main@98371587`. That
 review does **not** satisfy Task 5.7 and does **not** authorize G5 by itself.
 
-While G5 / Task 5.7 remain open for independent review, `synthetic-monitoring.yml` has **no
-unattended schedule** — only `workflow_dispatch` remains. Any further manual dispatch still requires
-separately recorded owner authorization. A CI guard rejects reintroduction of a top-level schedule
-trigger.
+While G5 / Task 5.7 remain open pending a separately recorded owner-controlled G5 completion
+decision, `synthetic-monitoring.yml` has **no unattended schedule** — only `workflow_dispatch`
+remains. Any further manual dispatch still requires separately recorded owner authorization. A CI
+guard rejects reintroduction of a top-level schedule trigger.
 
 ## Resume / close conditions for Task 5.7
 
-Task **5.7 remains unchecked** until independent review accepts the executed three-caller evidence
-(run `33411410271`) — or a separately designed and authorized private-reachability test that
+Task **5.7 remains unchecked** pending a separately recorded owner-controlled G5 completion
+decision. The executed three-caller evidence (run `33411410271`) is subject to independent review
+and merge of its documentation PR, but neither that review nor that PR checks Task 5.7. Closure
+alternatively requires a separately designed and authorized private-reachability test that
 genuinely executes all three real GitHub-hosted callers (shell, global-setup, azure-api-smoke).
 
 The recovery evidence in [`API_GATEWAY_CUSTOM_DOMAIN_RECOVERY.md`](API_GATEWAY_CUSTOM_DOMAIN_RECOVERY.md)
@@ -159,5 +166,6 @@ and PR #194 do **not** close Task 5.7 by themselves.
 - Does **not** claim Task 5.7 complete, G5 closed, or Writer_Convergence.
 - Does **not** authorize Wave 6 / R-B3, public `PUT`, a retry, or any further custom-domain or
   deployment change.
-- Does **not** claim this source-only evidence PR merges or closes the task; review is mandatory.
+- Does **not** claim this source-only evidence PR or its independent review checks or closes the
+  task; a separately recorded owner-controlled G5 completion decision remains required.
 - Does **not** enable or claim any market-data writer path.

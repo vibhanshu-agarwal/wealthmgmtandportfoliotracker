@@ -1,6 +1,6 @@
 # Backlog: API Gateway custom-domain binding recovery
 
-**Status:** Open — hostname restored 2026-08-31; live-read-back evidence independently reviewed and merged (PR #194 at `main@98371587`); authorized three-caller synthetic executed (run [33411410271](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33411410271)) with evidence pending independent review
+**Status:** Open — hostname restored 2026-08-31; live-read-back evidence independently reviewed and merged (PR #194 at `main@98371587`); authorized three-caller synthetic executed (run [33411410271](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33411410271)); Task 5.7 remains unchecked pending a separately recorded owner-controlled G5 completion decision (documentation-PR review/merge does not check 5.7)
 **Owner:** unassigned
 **Blocks:** B1 Task 5.7 / G5 (Task 5.7 remains unchecked)
 **Tracked in:** Surfaced by the Spec A 9.14 live read-back
@@ -14,8 +14,8 @@ Pre-existing; not caused by 9.14.
 
 > **Historical incident; resolved in live state.** This section records the condition found before
 > the guarded restore. The backlog remains open because neither the restore, its reviewed evidence,
-> nor the subsequent three-caller synthetic documentation alone closes G5 or B1 Task 5.7 without
-> independent review acceptance.
+> the subsequent three-caller synthetic, nor documentation-PR review/merge alone closes G5 or B1
+> Task 5.7 — a separately recorded owner-controlled G5 completion decision is required.
 
 At discovery, checkpoint 9.14 had reopened external ingress on `api-gateway`, and the **default
 ACA endpoint** `api-gateway.lemonmoss-ecef29d7.centralindia.azurecontainerapps.io` served healthy
@@ -63,8 +63,9 @@ the bind, but an independent read-back immediately afterward confirmed both defa
 health endpoints at HTTP `200`, unchanged gateway revision/ingress, the exact `SniEnabled` hostname,
 and the expected managed certificate. The execution record and scope are retained in the runbook.
 
-**This backlog item stays open** because Task 5.7 remains unchecked pending independent review of
-the three-caller evidence (and backlog closure is not automatic from a synthetic success alone).
+**This backlog item stays open** because Task 5.7 remains unchecked pending a separately recorded
+owner-controlled G5 completion decision (and backlog closure is not automatic from a synthetic
+success or documentation-PR review/merge alone).
 
 ## Authorized three-caller synthetic (executed live; docs source-only)
 
@@ -93,16 +94,20 @@ distinct from the later successful holdings-only seed and Playwright suite. Full
 `api.vibhanshu-ai-portfolio.dev` is the configured endpoint for the frontend and the synthetic
 workflows (`NEXT_PUBLIC_API_BASE_URL` in `.github/workflows/synthetic-monitoring.yml`). The restored
 endpoint serves traffic, and an authorized three-caller synthetic has now been executed. Task 5.7
-and this backlog remain open until independent review accepts that evidence.
+and this backlog remain open pending a separately recorded owner-controlled G5 completion decision.
+Documentation-PR review/merge of the three-caller evidence does not check Task 5.7 or close this
+backlog.
 
 Unattended synthetics remain suspended in `synthetic-monitoring.yml`.
 
 ## What remains
 
-1. Independent review of the executed three-caller evidence in
+1. Leave `- [ ] **5.7 G5 evidence.**` unchecked until a separately recorded owner-controlled G5
+   completion decision. The executed three-caller evidence in
    [`B1_G5_INGRESS_BLOCKER.md`](../../../runbooks/B1_G5_INGRESS_BLOCKER.md) / run
-   [33411410271](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33411410271).
-   Leave `- [ ] **5.7 G5 evidence.**` unchecked until that review accepts the evidence.
+   [33411410271](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33411410271)
+   is subject to independent review and merge of its documentation PR, but neither that review nor
+   that PR checks Task 5.7.
 2. Do not infer Task 5.7 completion, backlog closure, Wave 6 / R-B3, or public `PUT` from a source
    merge, remote plan, apply, certificate bind, HTTP health result, or documentation PR alone.
 

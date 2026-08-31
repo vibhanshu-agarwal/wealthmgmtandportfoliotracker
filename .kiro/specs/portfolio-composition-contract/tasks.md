@@ -33,7 +33,10 @@ source-only) — see
 [`docs/runbooks/B1_G5_INGRESS_BLOCKER.md`](../../../docs/runbooks/B1_G5_INGRESS_BLOCKER.md) and
 [`API_GATEWAY_CUSTOM_DOMAIN_RECOVERY.md`](../../../docs/runbooks/API_GATEWAY_CUSTOM_DOMAIN_RECOVERY.md).
 That executed run and this record do **not** check 5.7, authorize Wave 6 / R-B3, public `PUT`,
-backlog closure, or further dispatch; independent evidence review is still required.
+backlog closure, or further dispatch. The executed evidence is subject to independent review and
+merge of its documentation PR, but neither that review nor that PR checks Task 5.7. A separately
+recorded owner-controlled G5 completion decision is required before checking 5.7 or unlocking
+Wave 6 / R-B3, public `PUT`, or backlog closure.
 Unattended synthetics remain suspended in `synthetic-monitoring.yml` while G5 remains open.
 Wave 6 / R-B3 remain gated. Candidate packaging / R-C (task 7.5)
 is **not** complete. Public `PUT /api/portfolio/holdings` remains Wave 7. The old seed remains
@@ -870,9 +873,10 @@ Named individually so the R-C manifest can enumerate them rather than gesture at
   caller depends on the version yet. Never cross below Artifact 0 + Artifact 1.
   Abort path not used. Tasks 5.4–5.6 merged on `main@0b5d60d1` (PR #161, source-only); 5.7 remains
   incomplete — PR #194 reviewed and merged the custom-domain recovery evidence; executed three-caller
-  run `33411410271` is recorded under 5.7 pending independent review. Spec A ingress was reopened at
-  9.14; the custom-domain binding has since been restored; neither recovery alone nor this ledger
-  note checks 5.7 or authorizes Wave 6 / R-B3.
+  run `33411410271` is recorded under 5.7. Task 5.7 remains unchecked pending a separately recorded
+  owner-controlled G5 completion decision (documentation-PR review/merge does not check 5.7). Spec A
+  ingress was reopened at 9.14; the custom-domain binding has since been restored; neither recovery
+  alone nor this ledger note checks 5.7 or authorizes Wave 6 / R-B3.
   _Requirements: 8.32_
 - [x] **5.4 Migrate all three seed call sites** to log in, read once, and send that exact version:
   `synthetic-monitoring.yml` -> `.github/workflows/scripts/seed-portfolio-with-version.sh`,
@@ -919,10 +923,12 @@ Named individually so the R-C manifest can enumerate them rather than gesture at
   That live run is holdings-only executed evidence; documenting PRs remain source-only. Durable
   sanitized record:
   [`docs/runbooks/B1_G5_INGRESS_BLOCKER.md`](../../../docs/runbooks/B1_G5_INGRESS_BLOCKER.md).
-  This checkbox remains **unchecked** pending independent evidence review. Recording the run does
-  **not** authorize Wave 6 / R-B3, public `PUT`, backlog closure, or further dispatch. Gateway
-  loopback alone remains insufficient. Unattended synthetics stay suspended in
-  `synthetic-monitoring.yml` while G5 remains open.
+  This checkbox remains **unchecked** pending a separately recorded owner-controlled G5 completion
+  decision. The executed evidence is subject to independent review and merge of its documentation
+  PR, but neither that review nor that PR checks Task 5.7. Recording the run does **not** authorize
+  Wave 6 / R-B3, public `PUT`, backlog closure, or further dispatch. Gateway loopback alone remains
+  insufficient. Unattended synthetics stay suspended in `synthetic-monitoring.yml` while G5 remains
+  open.
   _Requirements: 8.32, 8.39_
 
 ## Wave 6 — Version-required seed (Artifact 2b → R-B3)
