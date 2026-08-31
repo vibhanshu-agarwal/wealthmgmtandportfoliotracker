@@ -111,6 +111,19 @@ The guarded reverse profile `spec-a-9.14-close-ingress` is asserted by the same 
 opposite ingress direction and is now usable, since `before` carries an external ingress block to
 close. Closing ingress re-blocks all public routes including `/api/internal/**`.
 
+Source adds separate custom-domain profiles so ingress close remains a **one-resource** operation on
+`module.api_gateway.azurerm_container_app.this`:
+
+| Step | Profile | Purpose |
+|---|---|---|
+| 1 (before close) | `api-gateway-custom-domain-remove` | Delete `azurerm_container_app_custom_domain.api_gateway[0]` from desired state while ingress is still open |
+| 2 | `spec-a-9.14-close-ingress` | Close ingress only — a plan that also deletes the domain resource must fail the universal custom-domain guard |
+| 3 (after reopen) | `spec-a-9.14-reopen-ingress` | Restore ingress only — no custom-domain preflight or bind |
+| 4 | `api-gateway-custom-domain-restore` | Separate reviewed plan/apply/bind for TLS on `api.vibhanshu-ai-portfolio.dev` |
+
+See [`API_GATEWAY_CUSTOM_DOMAIN_RECOVERY.md`](API_GATEWAY_CUSTOM_DOMAIN_RECOVERY.md) for the full
+recovery runbook (source-only until separately authorized).
+
 The standing 9.14 rollback rule applies from this checkpoint onward: disabling the holding
 validator, **or** rolling back to an R3 artifact whose defaults are permissive, requires quiescing
 writes first and keeping them closed until the forward fix deploys.

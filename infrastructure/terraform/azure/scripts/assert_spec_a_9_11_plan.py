@@ -46,6 +46,8 @@ KNOWN_PROFILES = (
     "spec-a-9.13-restore-scale",
     "spec-a-9.14-reopen-ingress",
     "spec-a-9.14-close-ingress",
+    "api-gateway-custom-domain-restore",
+    "api-gateway-custom-domain-remove",
 )
 
 REQUIRED_RETRY = 0

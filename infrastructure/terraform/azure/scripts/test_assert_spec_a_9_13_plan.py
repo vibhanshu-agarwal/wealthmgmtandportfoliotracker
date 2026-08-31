@@ -555,6 +555,10 @@ class SpecA913PlanTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             sut.parse_expected_image_digests("{not-json")
 
+    def test_custom_domain_profiles_are_known(self):
+        self.assertIn("api-gateway-custom-domain-restore", sut.KNOWN_PROFILES)
+        self.assertIn("api-gateway-custom-domain-remove", sut.KNOWN_PROFILES)
+
 
 if __name__ == "__main__":
     unittest.main()

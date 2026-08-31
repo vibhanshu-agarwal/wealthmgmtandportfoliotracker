@@ -102,6 +102,12 @@ variable "api_gateway_ingress_enabled" {
   description = "When false, omits the api-gateway ingress block so the maintenance window closes all routes including /api/internal/**. Steady state is true (ingress open). Changing this must update the existing app, not replace it. (Cutover checkpoint 9.5 closed ingress for Postgres/Mongo repair, 9.6/9.7. Checkpoint 9.14 restores open ingress; spec-a-9.14-close-ingress provides an explicit rollback path.)"
 }
 
+variable "api_gateway_custom_domain_enabled" {
+  type        = bool
+  default     = true
+  description = "When true, Terraform declares the api-gateway custom-domain hostname resource while ingress is open (production steady state). When false, the hostname resource is omitted — allowed only for api-gateway-custom-domain-remove or while ingress is deliberately closed. Changing this variable does not authorize an apply."
+}
+
 variable "use_seed_image" {
   type        = bool
   default     = false

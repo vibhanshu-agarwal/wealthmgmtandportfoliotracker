@@ -470,6 +470,32 @@ class ValidateDispatchTests(unittest.TestCase):
                 with self.assertRaises(sut.DispatchValidationError):
                     sut.validate(self._inputs(change_profile=profile))
 
+    def test_custom_domain_restore_profile_passes(self):
+        sut.validate(self._inputs(change_profile="api-gateway-custom-domain-restore"))
+
+    def test_custom_domain_remove_profile_passes(self):
+        sut.validate(self._inputs(change_profile="api-gateway-custom-domain-remove"))
+
+    def test_custom_domain_restore_rejects_seed_image(self):
+        with self.assertRaises(sut.DispatchValidationError) as ctx:
+            sut.validate(
+                self._inputs(
+                    change_profile="api-gateway-custom-domain-restore",
+                    use_seed_image="true",
+                )
+            )
+        self.assertIn("use_seed_image=false", str(ctx.exception))
+
+    def test_custom_domain_remove_rejects_job_recreate(self):
+        with self.assertRaises(sut.DispatchValidationError) as ctx:
+            sut.validate(
+                self._inputs(
+                    change_profile="api-gateway-custom-domain-remove",
+                    recreate_market_data_job="true",
+                )
+            )
+        self.assertIn("recreate_market_data_job=false", str(ctx.exception))
+
 
 if __name__ == "__main__":
     unittest.main()

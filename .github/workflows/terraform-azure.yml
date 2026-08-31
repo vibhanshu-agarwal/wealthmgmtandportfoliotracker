@@ -86,6 +86,8 @@ on:
           min_replicas 1 -> 0 with enforcement overrides remaining absent.
           spec-a-9.14-reopen-ingress / spec-a-9.14-close-ingress = checkpoint 9.14's
           reopen or rollback of api-gateway ingress only (in-place update, image unchanged).
+          api-gateway-custom-domain-restore / api-gateway-custom-domain-remove = guarded
+          restore or removal of api.vibhanshu-ai-portfolio.dev hostname presence.
         type: choice
         options:
           - standard
@@ -100,6 +102,8 @@ on:
           - spec-a-9.13-restore-scale
           - spec-a-9.14-reopen-ingress
           - spec-a-9.14-close-ingress
+          - api-gateway-custom-domain-restore
+          - api-gateway-custom-domain-remove
         default: standard
       use_seed_image:
         description: "Use public seed image for Container Apps (true for first apply before images exist in ACR)"
@@ -139,6 +143,7 @@ env:
   TF_VAR_demo_seed_on_startup: ${{ github.event.inputs.change_profile == 'spec-a-9.12-enable' && 'true' || 'false' }}
   TF_VAR_demo_tx_diagnostics: ${{ github.event.inputs.change_profile == 'spec-a-9.12-tx-diag-enable' && 'true' || 'false' }}
   TF_VAR_api_gateway_ingress_enabled: ${{ github.event.inputs.change_profile == 'spec-a-9.14-close-ingress' && 'false' || 'true' }}
+  TF_VAR_api_gateway_custom_domain_enabled: ${{ contains(fromJSON('["api-gateway-custom-domain-remove","spec-a-9.14-close-ingress","spec-a-9.14-reopen-ingress"]'), github.event.inputs.change_profile) && 'false' || 'true' }}
   TF_VAR_use_seed_image: ${{ github.event.inputs.use_seed_image || 'false' }}
   # Job-only seed bootstrap, auto-enabled whenever a Job recreate is requested. This lets the
   # -replace create the Job on the public seed image WITHOUT setting the global use_seed_image
@@ -393,6 +398,76 @@ jobs:
       - name: Terraform Validate
         run: terraform validate
 
+      - name: Custom-domain restore preflight (read-only)
+        id: custom-domain-preflight
+        if: github.event.inputs.change_profile == 'api-gateway-custom-domain-restore'
+        run: |
+          set -euo pipefail
+          APP_JSON="$(az containerapp show \
+            --name api-gateway \
+            --resource-group wealth-azure-prod-rg \
+            --query '{
+              id:id,
+              fqdn:properties.configuration.ingress.fqdn,
+              customDomainVerificationId:properties.customDomainVerificationId,
+              latestRevisionName:properties.latestRevisionName,
+              latestReadyRevisionName:properties.latestReadyRevisionName,
+              ingress:{
+                external:properties.configuration.ingress.external,
+                allowInsecure:properties.configuration.ingress.allowInsecure,
+                targetPort:properties.configuration.ingress.targetPort,
+                transport:properties.configuration.ingress.transport,
+                traffic:properties.configuration.ingress.traffic
+              },
+              customDomains:properties.configuration.ingress.customDomains
+            }' -o json)"
+          CERT_JSON="$(az containerapp env certificate list \
+            --environment wealth-prod-aca-env \
+            --resource-group wealth-azure-prod-rg \
+            --query '[].{name:name,id:id,subjectName:properties.subjectName,provisioningState:properties.provisioningState,validationMethod:properties.validationMethod}' -o json)"
+          CNAME_TARGET="$(dig +short CNAME api.vibhanshu-ai-portfolio.dev | tr -d '\r' | sed 's/\.$//' | head -n1)"
+          TXT_VALUES="$(python3 - <<'PY'
+          import json, subprocess
+          result = subprocess.run(
+              ["dig", "+short", "TXT", "asuid.api.vibhanshu-ai-portfolio.dev"],
+              capture_output=True,
+              text=True,
+              check=True,
+          )
+          values = []
+          for line in result.stdout.splitlines():
+              line = line.strip().strip('"')
+              if line:
+                  values.append(line)
+          print(json.dumps(values))
+          PY
+          )"
+          python3 scripts/validate_api_gateway_custom_domain.py restore-preflight \
+            --app-json "$APP_JSON" \
+            --certificates-json "$CERT_JSON" \
+            --cname-target "$CNAME_TARGET" \
+            --txt-values-json "$TXT_VALUES"
+
+      - name: Custom-domain remove preflight (read-only)
+        id: custom-domain-remove-preflight
+        if: github.event.inputs.change_profile == 'api-gateway-custom-domain-remove'
+        run: |
+          set -euo pipefail
+          APP_JSON="$(az containerapp show \
+            --name api-gateway \
+            --resource-group wealth-azure-prod-rg \
+            --query '{
+              id:id,
+              customDomains:properties.configuration.ingress.customDomains
+            }' -o json)"
+          CERT_JSON="$(az containerapp env certificate list \
+            --environment wealth-prod-aca-env \
+            --resource-group wealth-azure-prod-rg \
+            --query '[].{name:name,id:id,subjectName:properties.subjectName,provisioningState:properties.provisioningState,validationMethod:properties.validationMethod}' -o json)"
+          python3 scripts/validate_api_gateway_custom_domain.py remove-preflight \
+            --app-json "$APP_JSON" \
+            --certificates-json "$CERT_JSON"
+
       - name: Terraform Plan (read-only)
         run: terraform plan -out=tfplan
 
@@ -457,6 +532,17 @@ jobs:
 
       - name: Assert Plan — Spec A 9.14 profile guard / exact scope
         run: python3 scripts/assert_spec_a_9_14_plan.py tfplan.json --profile "${{ github.event.inputs.change_profile }}"
+
+      - name: Assert Plan — api-gateway custom-domain guard / exact scope
+        env:
+          EXPECTED_GATEWAY_ID: ${{ steps.custom-domain-preflight.outputs.gateway_id || steps.custom-domain-remove-preflight.outputs.gateway_id }}
+        run: |
+          set -euo pipefail
+          ARGS=(tfplan.json --profile "${{ github.event.inputs.change_profile }}")
+          if [ -n "${EXPECTED_GATEWAY_ID:-}" ]; then
+            ARGS+=(--expected-gateway-id "$EXPECTED_GATEWAY_ID")
+          fi
+          python3 scripts/assert_api_gateway_custom_domain_plan.py "${ARGS[@]}"
 
       # Sanitized summary only — built from tfplan.json via summarize_plan.py, which
       # emits ONLY "<address> <actions>" per changed resource, never attribute paths,
@@ -543,6 +629,76 @@ jobs:
       - name: Terraform Validate
         run: terraform validate
 
+      - name: Custom-domain restore preflight (read-only)
+        id: custom-domain-preflight
+        if: github.event.inputs.change_profile == 'api-gateway-custom-domain-restore'
+        run: |
+          set -euo pipefail
+          APP_JSON="$(az containerapp show \
+            --name api-gateway \
+            --resource-group wealth-azure-prod-rg \
+            --query '{
+              id:id,
+              fqdn:properties.configuration.ingress.fqdn,
+              customDomainVerificationId:properties.customDomainVerificationId,
+              latestRevisionName:properties.latestRevisionName,
+              latestReadyRevisionName:properties.latestReadyRevisionName,
+              ingress:{
+                external:properties.configuration.ingress.external,
+                allowInsecure:properties.configuration.ingress.allowInsecure,
+                targetPort:properties.configuration.ingress.targetPort,
+                transport:properties.configuration.ingress.transport,
+                traffic:properties.configuration.ingress.traffic
+              },
+              customDomains:properties.configuration.ingress.customDomains
+            }' -o json)"
+          CERT_JSON="$(az containerapp env certificate list \
+            --environment wealth-prod-aca-env \
+            --resource-group wealth-azure-prod-rg \
+            --query '[].{name:name,id:id,subjectName:properties.subjectName,provisioningState:properties.provisioningState,validationMethod:properties.validationMethod}' -o json)"
+          CNAME_TARGET="$(dig +short CNAME api.vibhanshu-ai-portfolio.dev | tr -d '\r' | sed 's/\.$//' | head -n1)"
+          TXT_VALUES="$(python3 - <<'PY'
+          import json, subprocess
+          result = subprocess.run(
+              ["dig", "+short", "TXT", "asuid.api.vibhanshu-ai-portfolio.dev"],
+              capture_output=True,
+              text=True,
+              check=True,
+          )
+          values = []
+          for line in result.stdout.splitlines():
+              line = line.strip().strip('"')
+              if line:
+                  values.append(line)
+          print(json.dumps(values))
+          PY
+          )"
+          python3 scripts/validate_api_gateway_custom_domain.py restore-preflight \
+            --app-json "$APP_JSON" \
+            --certificates-json "$CERT_JSON" \
+            --cname-target "$CNAME_TARGET" \
+            --txt-values-json "$TXT_VALUES"
+
+      - name: Custom-domain remove preflight (read-only)
+        id: custom-domain-remove-preflight
+        if: github.event.inputs.change_profile == 'api-gateway-custom-domain-remove'
+        run: |
+          set -euo pipefail
+          APP_JSON="$(az containerapp show \
+            --name api-gateway \
+            --resource-group wealth-azure-prod-rg \
+            --query '{
+              id:id,
+              customDomains:properties.configuration.ingress.customDomains
+            }' -o json)"
+          CERT_JSON="$(az containerapp env certificate list \
+            --environment wealth-prod-aca-env \
+            --resource-group wealth-azure-prod-rg \
+            --query '[].{name:name,id:id,subjectName:properties.subjectName,provisioningState:properties.provisioningState,validationMethod:properties.validationMethod}' -o json)"
+          python3 scripts/validate_api_gateway_custom_domain.py remove-preflight \
+            --app-json "$APP_JSON" \
+            --certificates-json "$CERT_JSON"
+
       # For scoped Spec A profiles (9.9, 9.11, and 9.12) this is READ-ONLY: `terraform import`
       # mutates the real backend's state immediately, before any plan or assertion runs —
       # during a cutover that would be a state mutation outside the declared resource
@@ -571,7 +727,9 @@ jobs:
             || [ "$PROFILE" = "spec-a-9.12-tx-diag-enable" ] || [ "$PROFILE" = "spec-a-9.12-tx-diag-disable" ] \
             || [ "$PROFILE" = "spec-a-9.13-restore-scale" ] \
             || [ "$PROFILE" = "spec-a-9.14-reopen-ingress" ] \
-            || [ "$PROFILE" = "spec-a-9.14-close-ingress" ]; then
+            || [ "$PROFILE" = "spec-a-9.14-close-ingress" ] \
+            || [ "$PROFILE" = "api-gateway-custom-domain-restore" ] \
+            || [ "$PROFILE" = "api-gateway-custom-domain-remove" ]; then
             echo "::error::${RESOURCE_ADDRESS} is not in Terraform state, and change_profile=${PROFILE} only permits a read-only check here — auto-import is not allowed during a scoped Spec A production change, since it would mutate the backend before any plan or assertion runs."
             echo "::error::Repair state through a separate, reviewed operation (e.g. dispatch with change_profile=standard first) before retrying the scoped Spec A apply."
             exit 1
@@ -673,5 +831,97 @@ jobs:
       - name: Assert Plan — Spec A 9.14 profile guard / exact scope
         run: python3 scripts/assert_spec_a_9_14_plan.py tfplan.json --profile "${{ github.event.inputs.change_profile }}"
 
+      - name: Assert Plan — api-gateway custom-domain guard / exact scope
+        env:
+          EXPECTED_GATEWAY_ID: ${{ steps.custom-domain-preflight.outputs.gateway_id || steps.custom-domain-remove-preflight.outputs.gateway_id }}
+        run: |
+          set -euo pipefail
+          ARGS=(tfplan.json --profile "${{ github.event.inputs.change_profile }}")
+          if [ -n "${EXPECTED_GATEWAY_ID:-}" ]; then
+            ARGS+=(--expected-gateway-id "$EXPECTED_GATEWAY_ID")
+          fi
+          python3 scripts/assert_api_gateway_custom_domain_plan.py "${ARGS[@]}"
+
       - name: Terraform Apply
         run: terraform apply -auto-approve tfplan
+
+      - name: Bind existing managed certificate to custom domain (restore only)
+        if: github.event.inputs.change_profile == 'api-gateway-custom-domain-restore'
+        env:
+          EXPECTED_CERTIFICATE_ID: ${{ steps.custom-domain-preflight.outputs.certificate_id }}
+        run: |
+          set -euo pipefail
+          if [ -z "${EXPECTED_CERTIFICATE_ID:-}" ]; then
+            echo "::error::restore bind requires the preflight-resolved certificate id."
+            exit 1
+          fi
+          az containerapp hostname bind \
+            --name api-gateway \
+            --resource-group wealth-azure-prod-rg \
+            --environment wealth-prod-aca-env \
+            --hostname api.vibhanshu-ai-portfolio.dev \
+            --certificate "$EXPECTED_CERTIFICATE_ID" \
+            --validation-method CNAME
+
+      - name: Post-bind custom-domain verification (restore only)
+        if: github.event.inputs.change_profile == 'api-gateway-custom-domain-restore'
+        env:
+          PREFLIGHT_OUTPUTS: ${{ toJSON(steps.custom-domain-preflight.outputs) }}
+        run: |
+          set -euo pipefail
+          APP_JSON="$(az containerapp show \
+            --name api-gateway \
+            --resource-group wealth-azure-prod-rg \
+            --query '{
+              fqdn:properties.configuration.ingress.fqdn,
+              latestRevisionName:properties.latestRevisionName,
+              latestReadyRevisionName:properties.latestReadyRevisionName,
+              ingress:{
+                external:properties.configuration.ingress.external,
+                allowInsecure:properties.configuration.ingress.allowInsecure,
+                targetPort:properties.configuration.ingress.targetPort,
+                transport:properties.configuration.ingress.transport,
+                traffic:properties.configuration.ingress.traffic
+              },
+              customDomains:properties.configuration.ingress.customDomains
+            }' -o json)"
+          CERT_JSON="$(az containerapp env certificate list \
+            --environment wealth-prod-aca-env \
+            --resource-group wealth-azure-prod-rg \
+            --query '[].{name:name,id:id,subjectName:properties.subjectName,provisioningState:properties.provisioningState,validationMethod:properties.validationMethod}' -o json)"
+          DEFAULT_FQDN="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["fqdn"])' <<<"$APP_JSON")"
+          DEFAULT_STATUS="$(curl -s -o /dev/null -w '%{http_code}' "https://${DEFAULT_FQDN}/actuator/health")"
+          CUSTOM_STATUS="$(curl -s -o /dev/null -w '%{http_code}' "https://api.vibhanshu-ai-portfolio.dev/actuator/health")"
+          TLS_EVIDENCE="$(echo | openssl s_client -connect api.vibhanshu-ai-portfolio.dev:443 -servername api.vibhanshu-ai-portfolio.dev 2>/dev/null | openssl x509 -noout -subject -dates -ext subjectAltName)"
+          EXPECTED_JSON="$(python3 - <<'PY'
+          import json, os
+          outputs = json.loads(os.environ["PREFLIGHT_OUTPUTS"])
+          print(json.dumps({
+              "certificate_id": outputs.get("certificate_id", ""),
+              "revision_name": outputs.get("revision_name", ""),
+          }))
+          PY
+          )"
+          python3 scripts/validate_api_gateway_custom_domain.py post-bind \
+            --app-json "$APP_JSON" \
+            --certificates-json "$CERT_JSON" \
+            --expected-json "$EXPECTED_JSON" \
+            --default-health-status "$DEFAULT_STATUS" \
+            --custom-health-status "$CUSTOM_STATUS" \
+            --tls-evidence "$TLS_EVIDENCE"
+
+      - name: Post-remove custom-domain verification (remove only)
+        if: github.event.inputs.change_profile == 'api-gateway-custom-domain-remove'
+        run: |
+          set -euo pipefail
+          APP_JSON="$(az containerapp show \
+            --name api-gateway \
+            --resource-group wealth-azure-prod-rg \
+            --query '{customDomains:properties.configuration.ingress.customDomains}' -o json)"
+          CERT_JSON="$(az containerapp env certificate list \
+            --environment wealth-prod-aca-env \
+            --resource-group wealth-azure-prod-rg \
+            --query '[].{name:name,id:id,subjectName:properties.subjectName,provisioningState:properties.provisioningState,validationMethod:properties.validationMethod}' -o json)"
+          python3 scripts/validate_api_gateway_custom_domain.py remove-post \
+            --app-json "$APP_JSON" \
+            --certificates-json "$CERT_JSON"

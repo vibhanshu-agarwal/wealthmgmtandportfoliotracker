@@ -431,6 +431,10 @@ class SpecA911PlanTests(unittest.TestCase):
         self.assertTrue(errors)
         self.assertTrue(any("profile" in e.lower() for e in errors))
 
+    def test_custom_domain_profiles_are_known(self):
+        self.assertIn("api-gateway-custom-domain-restore", sut.KNOWN_PROFILES)
+        self.assertIn("api-gateway-custom-domain-remove", sut.KNOWN_PROFILES)
+
     def test_errors_do_not_include_secret_values(self):
         plan = _plan(
             _job_rc(

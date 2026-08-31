@@ -1,3 +1,7 @@
+locals {
+  api_gateway_custom_domain_name = "api.vibhanshu-ai-portfolio.dev"
+}
+
 # =============================================================================
 # main.tf — Azure Container Apps Deployment
 # Wealth Management & Portfolio Tracker
@@ -278,6 +282,20 @@ module "api_gateway" {
     KAFKA_BOOTSTRAP_SERVERS    = var.kafka_bootstrap_servers
     KAFKA_SASL_USERNAME        = var.kafka_sasl_username
     KAFKA_SASL_PASSWORD        = var.kafka_sasl_password
+  }
+}
+
+resource "azurerm_container_app_custom_domain" "api_gateway" {
+  count = var.api_gateway_ingress_enabled && var.api_gateway_custom_domain_enabled ? 1 : 0
+
+  name             = local.api_gateway_custom_domain_name
+  container_app_id = module.api_gateway.app_id
+
+  lifecycle {
+    ignore_changes = [
+      certificate_binding_type,
+      container_app_environment_certificate_id,
+    ]
   }
 }
 

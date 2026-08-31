@@ -81,10 +81,15 @@ Resume G5 only after **one** of:
    restored and verified — `customDomains` non-null, and
    `curl https://api.vibhanshu-ai-portfolio.dev/actuator/health` returning `200` with a verifying
    certificate — **in addition to** the now-satisfied condition that Spec A 9.11–9.14 are complete
-   and gateway ingress is reopened; then one authorized public Azure synthetic that exercises all
-   three callers; or
+   and gateway ingress is reopened. Execute that restore through a separately authorized
+   `api-gateway-custom-domain-restore` apply/bind with live read-back; then one authorized public
+   Azure synthetic that exercises all three callers; or
 2. A separately designed and authorized private-reachability test that genuinely executes all three
    real GitHub-hosted callers (shell, global-setup, azure-api-smoke).
+
+Source-only preparation of the custom-domain recovery runbook
+([`API_GATEWAY_CUSTOM_DOMAIN_RECOVERY.md`](API_GATEWAY_CUSTOM_DOMAIN_RECOVERY.md)) does **not**
+satisfy either resume condition.
 
 Condition 1's Spec A clause alone is **not** sufficient and never was — that is the correction
 recorded above.

@@ -176,7 +176,9 @@ are complete.
   usable.
 - Custom domain: **not bound.** `api.vibhanshu-ai-portfolio.dev` CNAMEs to the gateway but the
   Container App reports `customDomains: null`, so TLS to that host fails at handshake. Only the
-  default ACA endpoint serves. This is why 9.14 does not unblock B1 G5 — backlog item
+  default ACA endpoint serves. Source-only recovery PR prepared
+  ([`API_GATEWAY_CUSTOM_DOMAIN_RECOVERY.md`](../runbooks/API_GATEWAY_CUSTOM_DOMAIN_RECOVERY.md)),
+  not executed. This is why 9.14 does not unblock B1 G5 — backlog item
   [`api-gateway-custom-domain-binding`](../todos/backlog/api-gateway-custom-domain-binding/README.md).
 - `SERVICE_VERSION` drift: `api-gateway` and `portfolio-service` advertise a `SERVICE_VERSION`
   that is not the image they run. Pre-existing, untouched by 9.14 — backlog item
@@ -358,8 +360,8 @@ the `api.vibhanshu-ai-portfolio.dev` custom-domain binding remains absent.
    `portfolio-service--0000081` / `sha256:d544649f…`, cut `f22e2ff`). Tasks **5.4–5.6 are merged
    source-only on `main@0b5d60d1`** (PR #161); **5.7/G5 is blocked** — no longer by Spec A gateway
    ingress, which 9.14 reopened, but by the absent `api.vibhanshu-ai-portfolio.dev` custom-domain
-   binding (and not by Wave 5b). Resume G5 only after that binding and its managed TLS are restored
-   and verified, or after a separately
+   binding (and not by Wave 5b). Resume G5 only after a separately authorized
+   `api-gateway-custom-domain-restore` apply/bind with live read-back, or after a separately
    authorized private-reachability test that executes all three real callers. Waves 6–7 and
    candidate packaging (7.5/R-C) remain separately gated. Do not claim Writer_Convergence while the
    old seed remains version-tolerant.

@@ -50,6 +50,8 @@ VALID_PROFILES = (
     "spec-a-9.13-restore-scale",
     "spec-a-9.14-reopen-ingress",
     "spec-a-9.14-close-ingress",
+    "api-gateway-custom-domain-restore",
+    "api-gateway-custom-domain-remove",
 )
 SCOPED_SPEC_A_PROFILES = (
     "spec-a-9.9-enable",
@@ -63,6 +65,8 @@ SCOPED_SPEC_A_PROFILES = (
     "spec-a-9.13-restore-scale",
     "spec-a-9.14-reopen-ingress",
     "spec-a-9.14-close-ingress",
+    "api-gateway-custom-domain-restore",
+    "api-gateway-custom-domain-remove",
 )
 SPEC_A_9_12_PROFILES = (
     "spec-a-9.12-enable",

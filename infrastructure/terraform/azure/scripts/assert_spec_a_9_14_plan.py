@@ -45,6 +45,8 @@ KNOWN_PROFILES = (
     "spec-a-9.13-restore-scale",
     REOPEN_PROFILE,
     CLOSE_PROFILE,
+    "api-gateway-custom-domain-restore",
+    "api-gateway-custom-domain-remove",
 )
 
 

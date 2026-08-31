@@ -538,6 +538,8 @@ def evaluate_plan(
         "spec-a-9.12-tx-diag-disable",
         "spec-a-9.14-reopen-ingress",
         "spec-a-9.14-close-ingress",
+        "api-gateway-custom-domain-restore",
+        "api-gateway-custom-domain-remove",
     ):
         # Later checkpoint profiles must not touch the 9.9 protected surface.
         return _evaluate_standard_guard(plan, profile)
@@ -562,6 +564,8 @@ def main() -> int:
             "spec-a-9.13-restore-scale",
         "spec-a-9.14-reopen-ingress",
         "spec-a-9.14-close-ingress",
+        "api-gateway-custom-domain-restore",
+        "api-gateway-custom-domain-remove",
         ),
         required=True,
         help="The literal change_profile dispatch input value.",
@@ -640,6 +644,8 @@ def main() -> int:
         "spec-a-9.12-tx-diag-disable",
         "spec-a-9.14-reopen-ingress",
         "spec-a-9.14-close-ingress",
+        "api-gateway-custom-domain-restore",
+        "api-gateway-custom-domain-remove",
     ):
         print(
             f"PASS spec-a-9.9 guard (profile={args.profile}) — the plan does not touch "
