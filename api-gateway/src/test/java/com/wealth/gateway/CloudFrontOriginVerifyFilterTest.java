@@ -43,7 +43,10 @@ class CloudFrontOriginVerifyFilterTest {
     ServerWebExchange exchange =
         MockServerWebExchange.from(
             MockServerHttpRequest.method(HttpMethod.GET, "/api/portfolio")
-                .header(HEADER, SECRET)
+                // Two values under the one header name: the filter only compares the first
+                // (getFirst) against the secret, but the frozen contract requires stripping ALL
+                // values before forwarding, not just the one that was checked.
+                .header(HEADER, SECRET, "second-value-must-also-be-stripped")
                 .header("X-Unrelated", "keep-me")
                 .build());
 
@@ -85,6 +88,7 @@ class CloudFrontOriginVerifyFilterTest {
 
     assertThat(subscriptions).hasValue(0);
     assertThat(exchange.getResponse().getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    assertThat(exchange.getResponse().isCommitted()).isTrue();
   }
 
   @Test
@@ -153,31 +157,46 @@ class CloudFrontOriginVerifyFilterTest {
   @MethodSource("blankSecrets")
   void unconfiguredProviderSubscribesChainOnceWithoutInspectingHeader(String blankSecret) {
     AtomicInteger subscriptions = new AtomicInteger();
+    AtomicReference<ServerWebExchange> delivered = new AtomicReference<>();
     CloudFrontOriginVerifyFilter filter = filterWith(blankSecret);
-    MockServerWebExchange exchange =
-        MockServerWebExchange.from(MockServerHttpRequest.method(HttpMethod.GET, "/api/portfolio"));
+    ServerWebExchange exchange =
+        MockServerWebExchange.from(
+            MockServerHttpRequest.method(HttpMethod.GET, "/api/portfolio")
+                .header("X-Unrelated", "keep-me")
+                .build());
 
-    StepVerifier.create(filter.filter(exchange, countingChain(subscriptions))).verifyComplete();
+    StepVerifier.create(filter.filter(exchange, capturingChain(subscriptions, delivered)))
+        .verifyComplete();
 
     assertThat(subscriptions).hasValue(1);
     assertThat(exchange.getResponse().getStatusCode()).isNull();
+    ServerWebExchange forwarded = delivered.get();
+    assertThat(forwarded.getRequest().getHeaders().get(HEADER)).isNull();
+    assertThat(forwarded.getRequest().getHeaders().getFirst("X-Unrelated")).isEqualTo("keep-me");
+    assertThat(forwarded.getRequest().getURI().getPath()).isEqualTo("/api/portfolio");
   }
 
   @ParameterizedTest
   @MethodSource("blankSecrets")
   void unconfiguredProviderPassesRequestEvenWithWrongHeaderPresent(String blankSecret) {
     AtomicInteger subscriptions = new AtomicInteger();
+    AtomicReference<ServerWebExchange> delivered = new AtomicReference<>();
     CloudFrontOriginVerifyFilter filter = filterWith(blankSecret);
-    MockServerWebExchange exchange =
+    ServerWebExchange exchange =
         MockServerWebExchange.from(
             MockServerHttpRequest.method(HttpMethod.GET, "/api/portfolio")
                 .header(HEADER, "anything")
                 .build());
 
-    StepVerifier.create(filter.filter(exchange, countingChain(subscriptions))).verifyComplete();
+    StepVerifier.create(filter.filter(exchange, capturingChain(subscriptions, delivered)))
+        .verifyComplete();
 
     assertThat(subscriptions).hasValue(1);
     assertThat(exchange.getResponse().getStatusCode()).isNull();
+    ServerWebExchange forwarded = delivered.get();
+    // Unconfigured is a no-op: the header must pass through untouched, never stripped or rejected.
+    assertThat(forwarded.getRequest().getHeaders().getFirst(HEADER)).isEqualTo("anything");
+    assertThat(forwarded.getRequest().getURI().getPath()).isEqualTo("/api/portfolio");
   }
 
   @Test
