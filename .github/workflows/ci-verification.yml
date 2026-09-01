@@ -310,9 +310,9 @@ jobs:
               echo "stderr:"; cat "$stderr_file"
               exit 1
             fi
-            if [ "$(wc -c <"$stdout_file" | tr -d ' ')" -ne "${#expected}" ] || [ "$(cat "$stdout_file")" != "$expected" ]; then
+            if ! cmp -s "$stdout_file" <(printf '%s' "$expected"); then
               echo "::error::${label}: unexpected stdout (expected exact ${#expected} bytes)"
-              echo "stdout:"; cat "$stdout_file"
+              echo "stdout:"; cat -A "$stdout_file"
               exit 1
             fi
             if [ -s "$stderr_file" ]; then
