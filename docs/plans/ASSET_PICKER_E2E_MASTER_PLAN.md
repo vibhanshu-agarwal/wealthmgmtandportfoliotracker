@@ -390,8 +390,15 @@ pending its separately recorded owner completion decision, so B1 Waves 6–7 rem
 via PRs #202 and #203 at `main@64761dc2` and `main@addd8049`; neither is deployed. Task 5.1b
 (`ReplicaTokenProvider`) merged source-only via
 [PR #208](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/208) at
-`main@f954b5a7`; it is not deployed. The Wave 5 Tasks 5.1–5.6 deployable bundle remains gated on
-Wave 4 Task 4.5; the next B2 implementation priority is owner-selected.
+`main@f954b5a7`; it is not deployed. **Wave 4 Task 4.5 is the selected next B2 gate.** Execution is
+governed by the Codex-authored
+[`CLAUDE_KICKOFF_B2_TASK_4_5_DEMO_RESET_STOP_GO.md`](../agent-instructions/CLAUDE_KICKOFF_B2_TASK_4_5_DEMO_RESET_STOP_GO.md):
+Claude performs a prescribed read-only/local preflight, returns an owner-authorization packet,
+then acts only on explicit authorization for the immutable candidate build, digest deployment, and
+single live reset probe. Claude does not author the durable evidence; Codex reviews the structured
+execution record and owns the later governed documentation/status reconciliation. Merging the
+kickoff note authorizes no production write. The Wave 5 Tasks 5.1–5.6 deployable bundle remains
+gated on a reviewed Task 4.5 GO.
 
 1. **Operational lane:** Spec A's production cutover is **complete through 9.14**. The plan was
    reviewed and ACCEPTed (2026-08-31), and the authorized apply
@@ -425,7 +432,12 @@ source-only on `main@0b5d60d1`** (PR #161); **5.7/G5 remains unchecked** pending
 3. **B2 product lane:** Wave 1 (1.1-1.19) and Wave 2 Tasks 2.1-2.5 are merged source-only through
    PR #178 on `main@38e3d95`, with two rounds of external review findings fixed. Wave 3 Tasks
    3.1–3.6, Wave 4 Tasks 4.1–4.4a, and standalone Tasks 5.1a, 5.1b, 8.1, and 8.2a are also merged
-   source-only; none is deployed. Task 5.1b merged via [PR #208](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/208) at `main@f954b5a7`. The Wave 5 Tasks 5.1–5.6 deployable bundle remains gated on Wave 4 Task 4.5; further B2 implementation priority is owner-selected.
+   source-only; none is deployed. Task 5.1b merged via
+   [PR #208](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/208) at
+   `main@f954b5a7`. Task 4.5 is selected next under the prescriptive Claude operator kickoff linked
+   above; the kickoff merge permits only local/read-only preflight, and production execution still
+   requires separate owner authorization. The Wave 5 Tasks 5.1–5.6 deployable bundle remains gated
+   on a reviewed Task 4.5 GO.
    Tasks 2.6–2.7, live proofs, remaining bundles, deployment, and exposure retain their own gates.
 4. **Process lane:** keep the status-propagation CI guard healthy in required `static-guard`; it is
    process-control only and does not advance the runtime baseline.

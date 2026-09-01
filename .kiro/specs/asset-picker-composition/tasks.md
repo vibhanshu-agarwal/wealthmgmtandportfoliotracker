@@ -24,8 +24,15 @@ B1 Task 5.7/G5 remains a separate owner gate and still blocks B1 Waves 6–7. Ta
 #202 and #203 at `main@64761dc2` and `main@addd8049`; neither is deployed. Task 5.1b
 (`ReplicaTokenProvider`) merged source-only via
 [PR #208](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/208) at
-`main@f954b5a7`; it is not deployed. The Wave 5 Tasks 5.1–5.6 deployable bundle remains gated on
-Wave 4 Task 4.5; the next B2 implementation priority is owner-selected. Task 5.1b's ledger defined its provider, token formula, operator tool, packaging,
+`main@f954b5a7`; it is not deployed. **Wave 4 Task 4.5 is now the selected next B2 gate.** Its
+Codex-authored, prescriptive Claude operator note is
+[`docs/agent-instructions/CLAUDE_KICKOFF_B2_TASK_4_5_DEMO_RESET_STOP_GO.md`](../../../docs/agent-instructions/CLAUDE_KICKOFF_B2_TASK_4_5_DEMO_RESET_STOP_GO.md).
+Merging that note authorizes local verification and read-only preflight only; the immutable ACR
+candidate build, production digest deployment, and single demo-reset probe require a separate,
+explicit owner authorization after Claude returns the prescribed preflight packet. Claude owns
+execution and structured evidence only; Codex owns senior review and the later governed evidence
+documentation. The Wave 5 Tasks 5.1–5.6 deployable bundle remains gated on a reviewed Task 4.5 GO.
+Task 5.1b's ledger defined its provider, token formula, operator tool, packaging,
 and Azure image-smoke extension as one bounded deliverable shared by Tasks 5.1 and 8.7. Its
 implementation preserves the fail-closed docs-only CI contract already live on `main`.
 
