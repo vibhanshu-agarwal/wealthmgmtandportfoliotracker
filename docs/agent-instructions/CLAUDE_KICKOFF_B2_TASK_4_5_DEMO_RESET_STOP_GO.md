@@ -7,6 +7,12 @@
   demo-reset probe
 - **Durable documentation owner:** Codex after evidence review
 
+**Post-execution status (2026-09-01): GO — successful B1-conformant no-op.** This document is now a
+historical execution record. Its original unconditional `version + 1` assertion was corrected below:
+B1 requires an unchanged version when the expected version matches and the persisted state is
+already golden. See the sanitized evidence record
+[`B2_TASK_4_5_DEMO_RESET_STOP_GO.md`](../runbooks/B2_TASK_4_5_DEMO_RESET_STOP_GO.md).
+
 ## 1. Role boundary
 
 Claude is the operator for this task, not the author of the lasting program documentation.
@@ -39,9 +45,10 @@ side**. The required live sequence is fixed:
 3. select the demo user's own portfolio and capture its numeric `version`;
 4. call `PUT /api/internal/portfolio/demo-reset` with `X-Internal-Api-Key` and that exact observed
    version; and
-5. assert the `200` response preserves the portfolio identity, returns `version + 1`, and carries
-   exactly the wire-visible golden holdings derived by
-   `scripts/derive_demo_golden_state.py`.
+5. assert the `200` response preserves the portfolio identity, carries exactly the wire-visible
+   golden holdings derived by `scripts/derive_demo_golden_state.py`, and follows B1's conditional
+   version rule: `version + 1` when the persisted tuple changes, or the version unchanged when the
+   expected version matches and the persisted tuple is already golden.
 
 The live call must never obtain `expectedVersion` from a dedicated endpoint, database query,
 cached value, previous run, or a second pre-reset portfolio read. A `409` is terminal. Do not read a
@@ -344,7 +351,10 @@ Run this only after B3 is fully green and live read-back proves the candidate di
    - response `id` equals the pre-reset portfolio id;
    - response `userId` equals the compiled-in demo id;
    - response `createdAt` equals the pre-reset value;
-   - response `version` equals `expectedVersion + 1`;
+   - response `version` equals `expectedVersion + 1` when replacement changes the persisted tuple,
+     or equals `expectedVersion` for B1's matching-version, same-state no-op; an unchanged result is
+     acceptable in this live probe only when the pre-reset wire holdings already match the
+     independent golden oracle exactly;
    - every response holding quantity is a JSON string; and
    - sorted `{assetTicker, quantity}` pairs equal the independent oracle's `wireHoldings` exactly,
      with no missing or extra holding.
@@ -424,3 +434,8 @@ Claude stops after returning the evidence. Codex will independently verify:
 Only after that review may Codex propose a docs-only PR containing the sanitized operational
 record, Task 4.5 checkbox/status reconciliation, and master-plan propagation. Merge of that future
 PR remains owner-controlled.
+
+**Closeout:** Codex independently confirmed the candidate digest, deployment run, sole active
+revision, scoped non-interference, B1 no-op contract, and sanitized probe evidence. The reviewed GO
+and the revision-cutover read-readiness observation are recorded in
+[`B2_TASK_4_5_DEMO_RESET_STOP_GO.md`](../runbooks/B2_TASK_4_5_DEMO_RESET_STOP_GO.md).
