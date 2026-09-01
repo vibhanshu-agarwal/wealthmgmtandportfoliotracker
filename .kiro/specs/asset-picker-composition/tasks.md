@@ -1,14 +1,15 @@
 # Implementation Plan
 
-**Current program status (verified 2026-09-01 at `main@0d0a3006`):** this task plan and its owning
+**Current program status (verified 2026-09-01 at `main@addd8049`):** this task plan and its owning
 requirements/design/mockup are tracked. Wave 1 (Tasks 1.1-1.19) and Wave 2 Tasks 2.1-2.5 are merged
 source-only through PR #178, entirely mock-backed and disabled by default. Wave 3 presence source
 Tasks 3.1–3.6 merged source-only through PR #179 at `main@cc97a209`; Task 3.7 deployment/live proof
 remains open (not deployed, not activated, not live-probed). Wave 4 Tasks 4.1–4.4a merged source-only
 through PR #180 at `main@63fc058`; they are not deployed, not routed, and not user-visible. Wave 8
-Task 8.1 merged source-only through PR #185 at `main@198c878d`; it is not deployed. Task 8.2a
-(`CloudFrontOriginSecretProvider`) is implemented and unit/integration-tested but unmerged, on branch
-`feat/b2-task-8-2a-cloudfront-origin-secret-provider`; Task 8.2's open idle-threshold/self-call-timeout
+Task 8.1 merged source-only through PR #185 at `main@198c878d`; it is not deployed. Task 5.1a
+(`InternalApiKeyProvider`) merged source-only through PR #202 at `main@64761dc2`; it is not deployed.
+Task 8.2a (`CloudFrontOriginSecretProvider`) merged source-only through PR #203 at `main@addd8049`;
+it is not deployed. Task 8.2's open idle-threshold/self-call-timeout
 decisions and Tasks 8.3 and later remain not started. Spec A task 8.6
 is complete and the backend `assetPriceFreshness` response exists.
 Four decisions remain open: idle threshold, manual-reset placement, login self-call timeouts, and
@@ -25,8 +26,9 @@ and still blocks B1 Waves 6–7. The first independently implementable B2 candid
 the new job cannot bypass `ci-required` or run as an unaccounted expensive job on docs-only PRs.
 Implementation handoff:
 [`docs/agent-instructions/CURSOR_KICKOFF_B2_TASK_5_1A_INTERNAL_API_KEY_PROVIDER.md`](../../../docs/agent-instructions/CURSOR_KICKOFF_B2_TASK_5_1A_INTERNAL_API_KEY_PROVIDER.md).
-**Task 5.1a is implemented but unmerged** on `feat/b2-task-5-1a-internal-api-key-provider`
-(source-only PR pending senior review; checkbox stays open until post-merge CI evidence).
+**Task 5.1a merged source-only via PR #202 at `main@64761dc2`** (not deployed; checkbox now
+closed). Task 8.2a (`CloudFrontOriginSecretProvider`) subsequently merged source-only via PR #203
+at `main@addd8049` (not deployed; checkbox now closed).
 
 **Wave 1 (Tasks 1.1-1.19) and Wave 2 Tasks 2.1-2.5 — merged source-only (2026-08-29).**
 Merged through PR #178 at `main@38e3d95`; the implementation branch was
@@ -1228,8 +1230,8 @@ demo user's own click 403s before the new filter ever runs.
   from" as an alternative to a comparison entirely; this three-way check is the more conservative
   fix, closer to what was already specified, rather than a larger restructuring.
   _Requirements: 7.3a; design.md D5; GC.6, GC.7_
-- [ ] **5.1a `InternalApiKeyProvider`** — **implemented but unmerged** on
-  `feat/b2-task-5-1a-internal-api-key-provider` (source-only PR pending review; not deployed). A
+- [x] **5.1a `InternalApiKeyProvider`** — **merged source-only via PR #202 at `main@64761dc2`**
+  (not deployed). A
   standalone api-gateway `@Component` that resolves
   `System.getenv("INTERNAL_API_KEY")` exactly once and exposes the resolved value (plus a
   `isConfigured()` non-blank check) to every consumer via constructor injection, package-visible for
@@ -1655,7 +1657,8 @@ mechanism's actual runtime behavior does not).**
   and **login self-call timeouts** (2s/leg, 4s overall, design.md D5, OPEN) — product/operational
   decisions, not implementation unknowns; do not pick a default in code without raising them.
   _Requirements: Open items — idle threshold, self-call timeouts_
-- [ ] **8.2a `CloudFrontOriginSecretProvider` — extracting the origin secret's single read, so 8.3
+- [x] **8.2a `CloudFrontOriginSecretProvider`** — **merged source-only via PR #203 at
+  `main@addd8049`** (not deployed). Extracting the origin secret's single read, so 8.3
   and the existing filter provably share one value (round-24 addition — a real ownership gap: round
   23 asserted 8.3 and `CloudFrontOriginVerifyFilter` share "the same resolve-once source" and built
   a `structurally impossible` mismatch claim on it, but no task actually created that provider,
