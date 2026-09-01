@@ -1,6 +1,6 @@
 # Implementation Plan
 
-**Current program status (verified 2026-09-01 at `main@3396ec45`):** this task plan and its owning
+**Current program status (verified 2026-09-01 at `main@0d0a3006`):** this task plan and its owning
 requirements/design/mockup are tracked. Wave 1 (Tasks 1.1-1.19) and Wave 2 Tasks 2.1-2.5 are merged
 source-only through PR #178, entirely mock-backed and disabled by default. Wave 3 presence source
 Tasks 3.1–3.6 merged source-only through PR #179 at `main@cc97a209`; Task 3.7 deployment/live proof
@@ -25,6 +25,8 @@ and still blocks B1 Waves 6–7. The first independently implementable B2 candid
 the new job cannot bypass `ci-required` or run as an unaccounted expensive job on docs-only PRs.
 Implementation handoff:
 [`docs/agent-instructions/CURSOR_KICKOFF_B2_TASK_5_1A_INTERNAL_API_KEY_PROVIDER.md`](../../../docs/agent-instructions/CURSOR_KICKOFF_B2_TASK_5_1A_INTERNAL_API_KEY_PROVIDER.md).
+**Task 5.1a is implemented but unmerged** on `feat/b2-task-5-1a-internal-api-key-provider`
+(source-only PR pending senior review; checkbox stays open until post-merge CI evidence).
 
 **Wave 1 (Tasks 1.1-1.19) and Wave 2 Tasks 2.1-2.5 — merged source-only (2026-08-29).**
 Merged through PR #178 at `main@38e3d95`; the implementation branch was
@@ -1226,7 +1228,9 @@ demo user's own click 403s before the new filter ever runs.
   from" as an alternative to a comparison entirely; this three-way check is the more conservative
   fix, closer to what was already specified, rather than a larger restructuring.
   _Requirements: 7.3a; design.md D5; GC.6, GC.7_
-- [ ] **5.1a `InternalApiKeyProvider`** — a standalone api-gateway `@Component` that resolves
+- [ ] **5.1a `InternalApiKeyProvider`** — **implemented but unmerged** on
+  `feat/b2-task-5-1a-internal-api-key-provider` (source-only PR pending review; not deployed). A
+  standalone api-gateway `@Component` that resolves
   `System.getenv("INTERNAL_API_KEY")` exactly once and exposes the resolved value (plus a
   `isConfigured()` non-blank check) to every consumer via constructor injection, package-visible for
   test doubles — mirroring `CloudFrontOriginVerifyFilter`'s own resolve-once pattern. **Owned here as

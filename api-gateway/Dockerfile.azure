@@ -48,8 +48,9 @@ RUN sed -i '/^    java {/,/^    }/d' build.gradle
 # Mariner Linux uses tdnf — not yum or apt.
 RUN tdnf install -y findutils && tdnf clean all
 
-# Build the fat JAR.
-RUN chmod +x gradlew && ./gradlew :api-gateway:bootJar --no-daemon
+# Build the fat JAR and the independent presence probe jar.
+RUN chmod +x gradlew \
+    && ./gradlew :api-gateway:bootJar :api-gateway:probeJar --no-daemon
 
 # ---------------------------------------------------------------------------
 # Stage 2: Runtime — Microsoft OpenJDK 21 on Mariner
@@ -62,7 +63,8 @@ RUN chmod +x gradlew && ./gradlew :api-gateway:bootJar --no-daemon
 ARG RUNTIME_BASE
 FROM ${RUNTIME_BASE} AS runtime
 
-COPY --from=builder /workspace/api-gateway/build/libs/*.jar app.jar
+COPY --from=builder /workspace/api-gateway/build/libs/app.jar /app.jar
+COPY --from=builder /workspace/api-gateway/build/libs/probe.jar /probe.jar
 
 EXPOSE 8080
 

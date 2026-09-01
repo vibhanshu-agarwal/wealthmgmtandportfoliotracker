@@ -13,8 +13,9 @@ version-bearing read and read-only asset catalog without caller migration, publi
 fence changes.
 
 **Authoritative documentation revision:** advances when this file or related program docs change;
-independent of the runtime baseline above. This status is grounded on `main@3396ec454d9d5baa5d0a802490e71b1e330fe441`;
-the pinned Spec A 9.14 plan-evidence baseline is
+independent of the runtime baseline above. This status is grounded on `main@0d0a300634aee70d662589c737df6429f008d53c`
+(handoff PR #201); Task 5.1a source is **implemented but unmerged** on
+`feat/b2-task-5-1a-internal-api-key-provider`; the pinned Spec A 9.14 plan-evidence baseline is
 `main@66bbee0bf438706146ac9975bf5f0c923b3d43cb`.
 
 **Program state:** Spec A checkpoints 9.1–9.13 are operationally complete. Checkpoint 9.11 persisted
@@ -278,7 +279,7 @@ substitute for an authorized Artifact cut.**
 | Item | Current state | Required before relying on it |
 |---|---|---|
 | Status-propagation CI guard | Contract tests in `static-guard`; live PR-body check in dedicated `master-plan-status-propagation` workflow (`opened`/`synchronize`/`reopened`/`edited`) | Process-control only; does not advance the runtime baseline or create user-facing Asset Picker capability |
-| Docs-only CI fast path | **Complete** via PRs #198–#199 on `main@3396ec45`; `ci-required` is the eighth required context, while all seven previous contexts remain required. Probe PR #200 proved the declared docs-only skip shape in 67 seconds; PR #199 proved the full-suite shape | Keep the classifier fail-closed and preserve declared-versus-observed equality. DAG de-serialization and broader path selection stay deferred unless CI latency begins blocking delivery |
+| Docs-only CI fast path | **Complete** via PRs #198–#199 on `main@3396ec45`; `ci-required` is the eighth required context, while all seven previous contexts remain required. Task 5.1a adds `azure-image-smoke-test` as an eighth `ci-required` dependency (transitive, not branch-protection); probe PR #200 proved the declared docs-only skip shape in 67 seconds; PR #199 proved the full-suite shape | Keep the classifier fail-closed and preserve declared-versus-observed equality. DAG de-serialization and broader path selection stay deferred unless CI latency begins blocking delivery |
 
 The temporary product state is intentional but incomplete: the unsafe legacy writer is gone, while
 the safe versioned replacement has not yet been built. A frontend picker cannot save holdings until
@@ -301,7 +302,7 @@ All four artifacts are tracked. Wave 1 (1.1-1.19) and Wave 2 Tasks 2.1-2.5 merge
 | 2 — decimal adapter | 🟡 Tasks 2.1-2.5 source merged; 2.6-2.7 not started | PR #178 / `main@38e3d95`; rollout sequencing with B1 Wave 4/5 remains an explicit open coordination decision |
 | 3 — Redis-backed presence | 🟡 Tasks 3.1–3.6 source merged via PR #179 / `main@cc97a209`; Task 3.7 open | Default TTL **150s** via `APP_DEMO_PRESENCE_TTL`; not deployed/live-verified |
 | 4 — portfolio-service demo reset | 🟡 Tasks 4.1–4.4a source merged via PR #180 / `main@63fc058`; Task 4.5 open | B1 prerequisites verified on `main@cc97a209`; not deployed/routed |
-| 5 — manual-reset gateway bundle | ⬜ Blocked on Wave 4 Task 4.5 / deployment proof | Route, authorization filter, read-only allowlist, identity providers |
+| 5 — manual-reset gateway bundle | 🟡 Task 5.1a **implemented but unmerged** on `feat/b2-task-5-1a-internal-api-key-provider`; remainder blocked on Wave 4 Task 4.5 / deployment proof | Provider, probe jar, Azure image smoke, and aggregate integration; filter/routes not started |
 | 6 — manual reset frontend | ⬜ Blocked on Wave 5 and B1 5.1 | Hidden control and versioned reset call |
 | 7 — decimal rollout note | ℹ Informational | No independent release gate |
 | 8 — login-orchestrated reset | 🟡 Task 8.1 (`updatedAt` read contract) source merged via [PR #185](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/185) / `main@198c878d`; not deployed. Task 8.2a (`CloudFrontOriginSecretProvider`) implemented but unmerged on branch `feat/b2-task-8-2a-cloudfront-origin-secret-provider`. Task 8.2's open decisions and Tasks 8.3 and later not started | Requires B1/V20/version read (met, satisfied by 8.1); open idle/timeouts, Tasks 8.3 and later, the separate 5.1a/5.1b prerequisites (8.2a implemented but unmerged, tracked in this row), and its own deployment evidence |
@@ -385,6 +386,8 @@ handoff must still pin exact scope, tests, and stop conditions. Because Task 5.1
 fast path and integrate the new job into the fail-closed aggregate contract rather than creating an
 unobserved or docs-only-running side path. Cursor assignment:
 [`CURSOR_KICKOFF_B2_TASK_5_1A_INTERNAL_API_KEY_PROVIDER.md`](../agent-instructions/CURSOR_KICKOFF_B2_TASK_5_1A_INTERNAL_API_KEY_PROVIDER.md).
+**Task 5.1a is implemented but unmerged** on `feat/b2-task-5-1a-internal-api-key-provider`
+(source-only PR pending senior review; not deployed; checkbox stays open until post-merge evidence).
 
 1. **Operational lane:** Spec A's production cutover is **complete through 9.14**. The plan was
    reviewed and ACCEPTed (2026-08-31), and the authorized apply
