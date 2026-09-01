@@ -281,6 +281,51 @@ jobs:
           path: "**/build/reports/tests/"
 
   # ──────────────────────────────────────────────
+  # Job 1b: Azure image probe smoke (packaging only)
+  # ──────────────────────────────────────────────
+  azure-image-smoke-test:
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Azure image and run probe smoke cases
+        run: |
+          set -euo pipefail
+          docker build -f api-gateway/Dockerfile.azure -t probe-smoke-test .
+
+          run_case() {
+            local label="$1"
+            local env_value="$2"
+            local expected="$3"
+            local stdout_file stderr_file
+            stdout_file="$(mktemp)"
+            stderr_file="$(mktemp)"
+            if docker run --rm --entrypoint java -e "INTERNAL_API_KEY=${env_value}" probe-smoke-test -jar /probe.jar \
+              >"$stdout_file" 2>"$stderr_file"; then
+              :
+            else
+              echo "::error::${label}: probe exited non-zero"
+              echo "stdout:"; cat "$stdout_file"
+              echo "stderr:"; cat "$stderr_file"
+              exit 1
+            fi
+            if [ "$(wc -c <"$stdout_file" | tr -d ' ')" -ne "${#expected}" ] || [ "$(cat "$stdout_file")" != "$expected" ]; then
+              echo "::error::${label}: unexpected stdout (expected exact ${#expected} bytes)"
+              echo "stdout:"; cat "$stdout_file"
+              exit 1
+            fi
+            if [ -s "$stderr_file" ]; then
+              echo "::error::${label}: stderr must be empty on success"
+              echo "stderr:"; cat "$stderr_file"
+              exit 1
+            fi
+          }
+
+          run_case "blank case" "" $'blank\n'
+          run_case "nonblank case" "smoke-test-value" $'nonblank\n'
+
+  # ──────────────────────────────────────────────
   # Job 2: Integration tests (Testcontainers)
   # ──────────────────────────────────────────────
   integration-tests:
@@ -587,6 +632,7 @@ jobs:
       - static-guard
       - sanitizer-canary
       - unit-tests
+      - azure-image-smoke-test
       - integration-tests
       - pact-consumer
       - docker-build-verify
@@ -629,6 +675,7 @@ jobs:
                 "static-guard": "success",
                 "sanitizer-canary": "success",
                 "unit-tests": $chain,
+                "azure-image-smoke-test": $chain,
                 "integration-tests": $chain,
                 "pact-consumer": $chain,
                 "docker-build-verify": $chain
@@ -672,8 +719,8 @@ jobs:
             echo
             echo "- classifier declared \`docs_only\`: **${DOCS_ONLY:-unset}**"
             if [ "${DOCS_ONLY:-}" = "true" ]; then
-              echo "- expected skipped: unit-tests, integration-tests,"
-              echo "  pact-consumer, docker-build-verify"
+              echo "- expected skipped: unit-tests, azure-image-smoke-test,"
+              echo "  integration-tests, pact-consumer, docker-build-verify"
             else
               echo "- expected the full suite to run"
             fi

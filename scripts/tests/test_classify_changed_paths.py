@@ -310,7 +310,7 @@ class WorkflowWiringTests(unittest.TestCase):
         job = self._job(self.text, "static-guard:")
         self.assertIn("test_classify_changed_paths.py", job)
 
-    def test_aggregate_gate_uses_always_and_needs_exactly_the_seven(self):
+    def test_aggregate_gate_uses_always_and_needs_exactly_the_eight(self):
         job = self._job(self.text, "ci-required:")
         self.assertIn("if: always()", job)
         for dependency in (
@@ -318,6 +318,7 @@ class WorkflowWiringTests(unittest.TestCase):
             "static-guard",
             "sanitizer-canary",
             "unit-tests",
+            "azure-image-smoke-test",
             "integration-tests",
             "pact-consumer",
             "docker-build-verify",
@@ -335,6 +336,7 @@ class WorkflowWiringTests(unittest.TestCase):
             "static-guard:",
             "sanitizer-canary:",
             "unit-tests:",
+            "azure-image-smoke-test:",
             "integration-tests:",
             "pact-consumer:",
             "docker-build-verify:",
@@ -386,6 +388,11 @@ class WorkflowWiringTests(unittest.TestCase):
                     "downstream jobs must skip by propagation, not their own condition",
                 )
 
+    def test_azure_image_smoke_test_needs_only_unit_tests_without_condition(self):
+        job = self._job(self.text, "azure-image-smoke-test:")
+        self.assertRegex(job, r"(?m)^    needs: unit-tests$")
+        self.assertNotRegex(job, r"(?m)^    if: ")
+
     def test_aggregate_enforces_declared_versus_observed(self):
         job = self._job(self.text, "ci-required:")
         self.assertNotIn(
@@ -400,13 +407,20 @@ ALL_JOBS = (
     "static-guard",
     "sanitizer-canary",
     "unit-tests",
+    "azure-image-smoke-test",
     "integration-tests",
     "pact-consumer",
     "docker-build-verify",
 )
-# The four that skip together on a docs-only PR, by needs-propagation from the
+# The five that skip together on a docs-only PR, by needs-propagation from the
 # single condition on unit-tests. Nothing outside this set may ever skip.
-CHAIN_JOBS = ("unit-tests", "integration-tests", "pact-consumer", "docker-build-verify")
+CHAIN_JOBS = (
+    "unit-tests",
+    "azure-image-smoke-test",
+    "integration-tests",
+    "pact-consumer",
+    "docker-build-verify",
+)
 GUARD_JOBS = ("changes", "static-guard", "sanitizer-canary")
 
 
