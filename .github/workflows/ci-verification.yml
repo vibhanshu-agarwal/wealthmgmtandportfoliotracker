@@ -15,6 +15,46 @@ env:
   IMAGE_PREFIX: ghcr.io/${{ github.repository }}
 
 jobs:
+  # ──────────────────────────────────────────────
+  # Changed-path classification (Stage A: observe only)
+  #
+  # Publishes `docs_only` for the rest of the graph. NOTHING consumes it yet --
+  # Stage A runs the full suite unconditionally and only records what the
+  # classifier would have decided. The `unit-tests` skip condition is Stage B.
+  #
+  # No top-level `paths:` filter is used on this workflow, and none may be added:
+  # a workflow skipped by path filtering leaves its required checks Pending
+  # forever, which blocks the PR instead of passing it.
+  # ──────────────────────────────────────────────
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      docs_only: ${{ steps.classify.outputs.docs_only }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # `base...head` is a three-dot diff against the merge base; a shallow
+          # clone cannot resolve it.
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Classify changed paths
+        id: classify
+        # Inputs go through env rather than direct ${{ }} interpolation into the
+        # shell, so nothing from the event payload is ever expanded as script.
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          python scripts/classify_changed_paths.py \
+            --event-name "$EVENT_NAME" \
+            --base "$BASE_SHA" \
+            --head "$HEAD_SHA"
+
   static-guard:
     runs-on: ubuntu-latest
     steps:
@@ -45,6 +85,12 @@ jobs:
 
       - name: B2 demo golden-state oracle contract tests
         run: python scripts/tests/test_derive_demo_golden_state.py -v
+
+      - name: Changed-path classifier contract tests
+        # Deliberately here rather than in deploy-workflow-contract: static-guard
+        # is a required check and never skips, so a broken classifier cannot
+        # merge. deploy-workflow-contract is advisory and would not enforce this.
+        run: python scripts/tests/test_classify_changed_paths.py -v
 
   deploy-workflow-contract:
     runs-on: ubuntu-latest
@@ -516,3 +562,99 @@ jobs:
       - name: Stop Docker Compose
         if: always()
         run: docker compose down -v
+
+  # ──────────────────────────────────────────────
+  # Aggregate required gate
+  #
+  # `always()` is correct on this job and on no other. It must still run when a
+  # dependency was skipped or the run was cancelled, because GitHub reports a
+  # skipped job as Success to branch protection: a chain that silently skipped
+  # would otherwise merge green with no signal anywhere. `!cancelled()` would be
+  # wrong here — it lets this gate itself skip, which reports Success.
+  # ──────────────────────────────────────────────
+  ci-required:
+    if: always()
+    runs-on: ubuntu-latest
+    needs:
+      - changes
+      - static-guard
+      - sanitizer-canary
+      - unit-tests
+      - integration-tests
+      - pact-consumer
+      - docker-build-verify
+    steps:
+      - name: Enforce dependency results (fail closed)
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+        run: |
+          set -euo pipefail
+          echo "Observed dependency results:"
+          echo "$NEEDS_JSON" | jq -r 'to_entries[] | "  \(.key): \(.value.result)"'
+
+          # Stage A: every dependency is unconditional, so any result other than
+          # `success` is anomalous and must fail — `skipped` included. Rejecting
+          # only failure/cancelled would let an unexpected skip reach "all green",
+          # which is exactly the silent-green condition this gate exists to catch:
+          # GitHub reports a skipped required job as Success to branch protection.
+          # Testing `!= "success"` also fails closed on any conclusion outside the
+          # known enum (neutral, action_required, or anything added later), and
+          # subsumes the classifier check — `changes` is a dependency, so a
+          # classifier malfunction is caught and named here like any other.
+          # Stage B replaces this rule with the declared-vs-observed skip contract.
+          bad=$(echo "$NEEDS_JSON" | jq -r '
+            to_entries
+            | map(select(.value.result != "success"))
+            | map("\(.key)=\(.value.result)")
+            | join(", ")')
+          if [ -n "$bad" ]; then
+            echo "::error::Stage A requires every dependency to succeed; not green: $bad"
+            exit 1
+          fi
+
+          echo "All required dependencies green."
+
+      - name: Declared vs observed — SHADOW MODE, logged not enforced
+        # Step-level always(): without it this step is skipped whenever the
+        # enforce step above fails, so Stage A's evidence went missing on exactly
+        # the runs where it is most diagnostic (observed on run 33457730873).
+        # This does not mask anything — a failed step fails the job regardless of
+        # later always() steps, so the gate still reports red. It is also not a
+        # breach of the job-level rule that only ci-required may use always():
+        # that rule is about job conditions, and docker-build-verify already uses
+        # a step-level always() for its cleanup.
+        if: always()
+        # Stage A deliberately does not enforce this. The classifier declares
+        # docs_only for some PRs while nothing actually skips yet, so enforcing
+        # equality here would fail every docs-only PR and block its own rollout.
+        # Enforcement lands with Stage B, together with the unit-tests condition.
+        #
+        # The block below ends in `| tee -a`, not `>>`. The step summary is
+        # UI-only — exposed by no REST endpoint and absent from the job log — so
+        # redirecting there alone made Stage A's own evidence unreadable to the
+        # log- and API-based review this stage exists to serve. tee puts it in
+        # both, matching what the classifier script already does. This rationale
+        # lives here rather than inside the run block because that block is
+        # extracted and executed verbatim by the contract tests.
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+          DOCS_ONLY: ${{ needs.changes.outputs.docs_only }}
+        run: |
+          set -euo pipefail
+          {
+            echo "### Aggregate gate — shadow mode"
+            echo
+            echo "- classifier declared \`docs_only\`: **${DOCS_ONLY:-unset}**"
+            if [ "${DOCS_ONLY:-}" = "true" ]; then
+              echo "- Stage B *would* have skipped: unit-tests, integration-tests,"
+              echo "  pact-consumer, docker-build-verify"
+            else
+              echo "- Stage B would have run the full suite"
+            fi
+            echo
+            echo "| job | observed |"
+            echo "| --- | --- |"
+            echo "$NEEDS_JSON" | jq -r 'to_entries[] | "| \(.key) | \(.value.result) |"'
+            echo
+            echo "_Equality between declared and observed is not enforced in Stage A._"
+          } | tee -a "$GITHUB_STEP_SUMMARY"
