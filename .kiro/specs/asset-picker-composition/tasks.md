@@ -1,16 +1,27 @@
 # Implementation Plan
 
-**Current program status (verified 2026-08-30 at `main@63fc058`):** this task plan and its owning
+**Current program status (verified 2026-09-01 at `main@3396ec45`):** this task plan and its owning
 requirements/design/mockup are tracked. Wave 1 (Tasks 1.1-1.19) and Wave 2 Tasks 2.1-2.5 are merged
 source-only through PR #178, entirely mock-backed and disabled by default. Wave 3 presence source
 Tasks 3.1–3.6 merged source-only through PR #179 at `main@cc97a209`; Task 3.7 deployment/live proof
 remains open (not deployed, not activated, not live-probed). Wave 4 Tasks 4.1–4.4a merged source-only
-through PR #180 at `main@63fc058`; they are not deployed, not routed, and not user-visible. Spec A task 8.6 is
-complete and the backend `assetPriceFreshness` response exists.
+through PR #180 at `main@63fc058`; they are not deployed, not routed, and not user-visible. Wave 8
+Task 8.1 merged source-only through PR #185 at `main@198c878d`; it is not deployed. Spec A task 8.6
+is complete and the backend `assetPriceFreshness` response exists.
 Four decisions remain open: idle threshold, manual-reset placement, login self-call timeouts, and
 decimal-adapter deployment sequencing. See
 [`docs/plans/ASSET_PICKER_E2E_MASTER_PLAN.md`](../../../docs/plans/ASSET_PICKER_E2E_MASTER_PLAN.md)
 for the living cross-program view.
+
+**Selected priority (2026-09-01):** resume Asset Picker delivery before further CI optimization.
+No checkbox changes through this priority decision. B1 Task 5.7/G5 remains a separate owner gate
+and still blocks B1 Waves 6–7. The first independently implementable B2 candidate is Task 5.1a,
+`InternalApiKeyProvider`, which this ledger already defines as dependency-free and shared by Waves
+5 and 8. Its implementation remains separately authorized. Task 5.1a's planned
+`azure-image-smoke-test` must preserve the fail-closed docs-only CI contract now live on `main`:
+the new job cannot bypass `ci-required` or run as an unaccounted expensive job on docs-only PRs.
+Implementation handoff:
+[`docs/agent-instructions/CURSOR_KICKOFF_B2_TASK_5_1A_INTERNAL_API_KEY_PROVIDER.md`](../../../docs/agent-instructions/CURSOR_KICKOFF_B2_TASK_5_1A_INTERNAL_API_KEY_PROVIDER.md).
 
 **Wave 1 (Tasks 1.1-1.19) and Wave 2 Tasks 2.1-2.5 — merged source-only (2026-08-29).**
 Merged through PR #178 at `main@38e3d95`; the implementation branch was
@@ -1311,9 +1322,11 @@ demo user's own click 403s before the new filter ever runs.
   corrected for this test's *invocation*, now closed by construction rather than by a two-step
   run/exec sequence), and `--rm` removes the container unconditionally on exit, on either case,
   with no separate cleanup step.** Assert stdout equals exactly `blank`/`nonblank` and exit code
-  `0`, for the blank and non-blank cases respectively. **A third invocation in the same job proves
-  `ReplicaTokenTool` (5.1b) actually exists in the built image and computes correctly, not merely
-  that its own unit tests pass in isolation (round-37 correction — a real gap: 5.1b claimed this
+  `0`, for the blank and non-blank cases respectively. **Task 5.1b later adds a third invocation to
+  this same job; that invocation is not part of Task 5.1a's initial PR.** Once 5.1b is implemented,
+  the third case proves `ReplicaTokenTool` actually exists in the built image and computes
+  correctly, not merely that its own unit tests pass in isolation (round-37 correction — a real
+  gap: 5.1b claimed this
   tool was "covered by the same `azure-image-smoke-test` job," but nothing in this job's own
   description ever invoked or asserted anything about it; the job as written proved only the
   original presence probe's packaging, leaving a missing jar, a missing `ReplicaTokenFormula`
