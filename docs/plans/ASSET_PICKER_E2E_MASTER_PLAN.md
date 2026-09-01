@@ -1,6 +1,6 @@
 # Asset Picker — E2E Master Plan to Production
 
-**Last verified:** 2026-08-30
+**Last verified:** 2026-09-01
 
 **Program-state code baseline (runtime):** `main@e221662b6c891639a56894289e150ee01fb537f6`.
 This is the last SHA that changed Asset Picker program runtime/application behavior (catalog,
@@ -13,7 +13,7 @@ version-bearing read and read-only asset catalog without caller migration, publi
 fence changes.
 
 **Authoritative documentation revision:** advances when this file or related program docs change;
-independent of the runtime baseline above. This status is grounded on `main@743c9b971e857d76c659e0e2c40e339c6c2bf4a3`;
+independent of the runtime baseline above. This status is grounded on `main@3396ec454d9d5baa5d0a802490e71b1e330fe441`;
 the pinned Spec A 9.14 plan-evidence baseline is
 `main@66bbee0bf438706146ac9975bf5f0c923b3d43cb`.
 
@@ -110,6 +110,11 @@ an unmerged branch is described as **implemented but unmerged**, never as comple
   chain. Script: `scripts/check_master_plan_status_propagation.py`.
 - When those paths exist in the revision being read, the guard is part of that revision's process
   controls. Runtime/application Asset Picker capability is unaffected.
+- PRs #198 and #199 added the fail-closed docs-only CI fast path. The `changes` classifier uses a
+  skip allowlist, and the required `ci-required` aggregate accepts only the exact job-result shape
+  declared by that classifier. Probe PR #200 completed the docs-only path in 67 seconds with the
+  four expensive jobs skipped; PR #199 separately proved the full-suite path. This is process
+  control only and does not advance any Asset Picker task or runtime baseline.
 
 ### 0.3 Update checklist
 
@@ -273,6 +278,7 @@ substitute for an authorized Artifact cut.**
 | Item | Current state | Required before relying on it |
 |---|---|---|
 | Status-propagation CI guard | Contract tests in `static-guard`; live PR-body check in dedicated `master-plan-status-propagation` workflow (`opened`/`synchronize`/`reopened`/`edited`) | Process-control only; does not advance the runtime baseline or create user-facing Asset Picker capability |
+| Docs-only CI fast path | **Complete** via PRs #198–#199 on `main@3396ec45`; `ci-required` is the eighth required context, while all seven previous contexts remain required. Probe PR #200 proved the declared docs-only skip shape in 67 seconds; PR #199 proved the full-suite shape | Keep the classifier fail-closed and preserve declared-versus-observed equality. DAG de-serialization and broader path selection stay deferred unless CI latency begins blocking delivery |
 
 The temporary product state is intentional but incomplete: the unsafe legacy writer is gone, while
 the safe versioned replacement has not yet been built. A frontend picker cannot save holdings until
@@ -362,7 +368,23 @@ public `200` read-back.
   `docs/todos/backlog/`; and
 - B1/B2 implementation status is cleanly separable from the remaining production cutover.
 
-### Next choices
+### Selected priority and remaining lanes
+
+**Owner priority decision (2026-09-01): resume Asset Picker delivery before further CI
+optimization.** The docs-only fast path is sufficient for now. DAG de-serialization, broader
+frontend/backend job selection, and direct `integration-tests` runtime optimization remain deferred;
+DAG work may be promoted if CI latency begins blocking delivery.
+
+This priority does not waive any release or production gate. B1 Task 5.7/G5 remains unchecked
+pending its separately recorded owner completion decision, so B1 Waves 6–7 remain blocked. The
+first independently implementable B2 candidate is **Task 5.1a, `InternalApiKeyProvider`**: its
+owning ledger explicitly gives it no predecessor and makes it a shared prerequisite of the manual
+reset and login-orchestrated reset paths. Selecting it here does not authorize implementation; the
+handoff must still pin exact scope, tests, and stop conditions. Because Task 5.1a adds
+`azure-image-smoke-test` to `ci-verification.yml`, that handoff must preserve the shipped docs-only
+fast path and integrate the new job into the fail-closed aggregate contract rather than creating an
+unobserved or docs-only-running side path. Cursor assignment:
+[`CURSOR_KICKOFF_B2_TASK_5_1A_INTERNAL_API_KEY_PROVIDER.md`](../agent-instructions/CURSOR_KICKOFF_B2_TASK_5_1A_INTERNAL_API_KEY_PROVIDER.md).
 
 1. **Operational lane:** Spec A's production cutover is **complete through 9.14**. The plan was
    reviewed and ACCEPTed (2026-08-31), and the authorized apply
