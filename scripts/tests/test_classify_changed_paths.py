@@ -310,7 +310,7 @@ class WorkflowWiringTests(unittest.TestCase):
         job = self._job(self.text, "static-guard:")
         self.assertIn("test_classify_changed_paths.py", job)
 
-    def test_aggregate_gate_uses_always_and_needs_exactly_the_seven(self):
+    def test_aggregate_gate_uses_always_and_needs_exactly_the_eight(self):
         job = self._job(self.text, "ci-required:")
         self.assertIn("if: always()", job)
         for dependency in (
@@ -318,6 +318,7 @@ class WorkflowWiringTests(unittest.TestCase):
             "static-guard",
             "sanitizer-canary",
             "unit-tests",
+            "azure-image-smoke-test",
             "integration-tests",
             "pact-consumer",
             "docker-build-verify",
@@ -335,6 +336,7 @@ class WorkflowWiringTests(unittest.TestCase):
             "static-guard:",
             "sanitizer-canary:",
             "unit-tests:",
+            "azure-image-smoke-test:",
             "integration-tests:",
             "pact-consumer:",
             "docker-build-verify:",
@@ -386,6 +388,11 @@ class WorkflowWiringTests(unittest.TestCase):
                     "downstream jobs must skip by propagation, not their own condition",
                 )
 
+    def test_azure_image_smoke_test_needs_only_unit_tests_without_condition(self):
+        job = self._job(self.text, "azure-image-smoke-test:")
+        self.assertRegex(job, r"(?m)^    needs: unit-tests$")
+        self.assertNotRegex(job, r"(?m)^    if: ")
+
     def test_aggregate_enforces_declared_versus_observed(self):
         job = self._job(self.text, "ci-required:")
         self.assertNotIn(
@@ -400,13 +407,20 @@ ALL_JOBS = (
     "static-guard",
     "sanitizer-canary",
     "unit-tests",
+    "azure-image-smoke-test",
     "integration-tests",
     "pact-consumer",
     "docker-build-verify",
 )
-# The four that skip together on a docs-only PR, by needs-propagation from the
+# The five that skip together on a docs-only PR, by needs-propagation from the
 # single condition on unit-tests. Nothing outside this set may ever skip.
-CHAIN_JOBS = ("unit-tests", "integration-tests", "pact-consumer", "docker-build-verify")
+CHAIN_JOBS = (
+    "unit-tests",
+    "azure-image-smoke-test",
+    "integration-tests",
+    "pact-consumer",
+    "docker-build-verify",
+)
 GUARD_JOBS = ("changes", "static-guard", "sanitizer-canary")
 
 
@@ -644,6 +658,86 @@ class EvidenceStepTests(unittest.TestCase):
         self.assertIsNotNone(job)
         self.assertNotIn('} >> "$GITHUB_STEP_SUMMARY"', job.group(0))
         self.assertIn('| tee -a "$GITHUB_STEP_SUMMARY"', job.group(0))
+
+
+@unittest.skipUnless(BASH, "needs bash; both present on ubuntu-latest")
+class AzureImageSmokeProbeOutputTests(unittest.TestCase):
+    """Regression for the probe stdout oracle in azure-image-smoke-test.
+
+    `$(cat file)` strips trailing newlines, so comparing cat output to a
+    newline-bearing expected value rejects valid probe output. The job must
+    compare bytes with cmp instead.
+    """
+
+    @staticmethod
+    def _write(path: Path, content: str) -> None:
+        path.write_bytes(content.encode("utf-8"))
+
+    def _cmp(self, observed: str, expected: str) -> int:
+        with tempfile.TemporaryDirectory() as tmp:
+            observed_path = Path(tmp) / "observed"
+            expected_path = Path(tmp) / "expected"
+            self._write(observed_path, observed)
+            self._write(expected_path, expected)
+            proc = subprocess.run(
+                [BASH, "-c", 'cmp -s "$1" "$2"', "cmp", observed_path.as_posix(), expected_path.as_posix()],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+            )
+            return proc.returncode
+
+    def test_exact_probe_output_passes_cmp(self):
+        for expected in ("blank\n", "nonblank\n"):
+            with self.subTest(expected=expected):
+                self.assertEqual(0, self._cmp(expected, expected))
+
+    def test_missing_trailing_newline_fails_cmp(self):
+        self.assertNotEqual(0, self._cmp("blank", "blank\n"))
+
+    def test_extra_trailing_newline_fails_cmp(self):
+        self.assertNotEqual(0, self._cmp("blank\n\n", "blank\n"))
+
+    def test_broken_cat_oracle_rejects_valid_newline_output(self):
+        with tempfile.NamedTemporaryFile(delete=False) as tmp:
+            stdout_file = Path(tmp.name)
+        try:
+            proc = subprocess.run(
+                [
+                    BASH,
+                    "-c",
+                    r"""
+                    set -euo pipefail
+                    stdout_file="$1"
+                    expected=$'blank\n'
+                    printf '%s' "$expected" >"$stdout_file"
+                    if [ "$(cat "$stdout_file")" = "$expected" ]; then
+                      exit 0
+                    fi
+                    exit 1
+                    """,
+                    "cat-oracle-regression",
+                    stdout_file.as_posix(),
+                ],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+            )
+        finally:
+            stdout_file.unlink(missing_ok=True)
+        # The cat-based oracle must not accept newline-bearing probe output.
+        self.assertNotEqual(
+            0,
+            proc.returncode,
+            "cat oracle incorrectly treated blank\\n as matching",
+        )
+
+    def test_workflow_uses_cmp_not_cat_equality(self):
+        job = WorkflowWiringTests()._job(
+            CI_VERIFICATION.read_text(encoding="utf-8"), "azure-image-smoke-test:"
+        )
+        self.assertRegex(job, r"cmp -s \"\$stdout_file\"")
+        self.assertNotRegex(job, r'\$\(cat "\$stdout_file"\)" != "\$expected"')
 
 
 class ToolingAvailabilityTests(unittest.TestCase):
