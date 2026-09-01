@@ -33,11 +33,10 @@ public class CloudFrontOriginVerifyFilter implements GlobalFilter, Ordered {
     private static final Logger log = LoggerFactory.getLogger(CloudFrontOriginVerifyFilter.class);
     private static final String ORIGIN_VERIFY_HEADER = "X-Origin-Verify";
 
-    private final String expectedSecret;
+    private final CloudFrontOriginSecretProvider secretProvider;
 
-    public CloudFrontOriginVerifyFilter() {
-        String secret = System.getenv("CLOUDFRONT_ORIGIN_SECRET");
-        this.expectedSecret = (secret != null && !secret.isBlank()) ? secret : null;
+    public CloudFrontOriginVerifyFilter(CloudFrontOriginSecretProvider secretProvider) {
+        this.secretProvider = secretProvider;
     }
 
     /**
@@ -51,7 +50,7 @@ public class CloudFrontOriginVerifyFilter implements GlobalFilter, Ordered {
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
         // No-op in local development (secret not configured)
-        if (expectedSecret == null) {
+        if (!secretProvider.isRequired()) {
             return chain.filter(exchange);
         }
 
@@ -65,7 +64,7 @@ public class CloudFrontOriginVerifyFilter implements GlobalFilter, Ordered {
 
         String headerValue = exchange.getRequest().getHeaders().getFirst(ORIGIN_VERIFY_HEADER);
 
-        if (!expectedSecret.equals(headerValue)) {
+        if (!secretProvider.value().equals(headerValue)) {
             log.debug("CloudFront origin verification failed — rejecting request");
             exchange.getResponse().setStatusCode(HttpStatus.FORBIDDEN);
             return exchange.getResponse().setComplete();

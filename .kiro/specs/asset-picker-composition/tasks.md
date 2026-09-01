@@ -6,7 +6,10 @@ source-only through PR #178, entirely mock-backed and disabled by default. Wave 
 Tasks 3.1–3.6 merged source-only through PR #179 at `main@cc97a209`; Task 3.7 deployment/live proof
 remains open (not deployed, not activated, not live-probed). Wave 4 Tasks 4.1–4.4a merged source-only
 through PR #180 at `main@63fc058`; they are not deployed, not routed, and not user-visible. Wave 8
-Task 8.1 merged source-only through PR #185 at `main@198c878d`; it is not deployed. Spec A task 8.6
+Task 8.1 merged source-only through PR #185 at `main@198c878d`; it is not deployed. Task 8.2a
+(`CloudFrontOriginSecretProvider`) is implemented and unit/integration-tested but unmerged, on branch
+`feat/b2-task-8-2a-cloudfront-origin-secret-provider`; Task 8.2's open idle-threshold/self-call-timeout
+decisions and Tasks 8.3 and later remain not started. Spec A task 8.6
 is complete and the backend `assetPriceFreshness` response exists.
 Four decisions remain open: idle threshold, manual-reset placement, login self-call timeouts, and
 decimal-adapter deployment sequencing. See

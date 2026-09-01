@@ -304,7 +304,7 @@ All four artifacts are tracked. Wave 1 (1.1-1.19) and Wave 2 Tasks 2.1-2.5 merge
 | 5 — manual-reset gateway bundle | ⬜ Blocked on Wave 4 Task 4.5 / deployment proof | Route, authorization filter, read-only allowlist, identity providers |
 | 6 — manual reset frontend | ⬜ Blocked on Wave 5 and B1 5.1 | Hidden control and versioned reset call |
 | 7 — decimal rollout note | ℹ Informational | No independent release gate |
-| 8 — login-orchestrated reset | 🟡 Task 8.1 (`updatedAt` read contract) source merged via [PR #185](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/185) / `main@198c878d`; not deployed. Tasks 8.2 and later not started | Requires B1/V20/version read (met, satisfied by 8.1); open idle/timeouts, Tasks 8.2 and later, the separate 5.1a/5.1b/8.2a prerequisites, and its own deployment evidence |
+| 8 — login-orchestrated reset | 🟡 Task 8.1 (`updatedAt` read contract) source merged via [PR #185](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/185) / `main@198c878d`; not deployed. Task 8.2a (`CloudFrontOriginSecretProvider`) implemented but unmerged on branch `feat/b2-task-8-2a-cloudfront-origin-secret-provider`. Task 8.2's open decisions and Tasks 8.3 and later not started | Requires B1/V20/version read (met, satisfied by 8.1); open idle/timeouts, Tasks 8.3 and later, the separate 5.1a/5.1b prerequisites (8.2a implemented but unmerged, tracked in this row), and its own deployment evidence |
 | 9 — live integration | ⬜ Blocked | Requires B1 catalog/read/write endpoints and relevant B2 Waves 1–6 |
 | 10 — production exposure | ⬜ Blocked | Convergence gate after all required live evidence and open decisions close |
 
