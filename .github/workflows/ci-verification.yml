@@ -614,6 +614,15 @@ jobs:
           echo "All required dependencies green."
 
       - name: Declared vs observed — SHADOW MODE, logged not enforced
+        # Step-level always(): without it this step is skipped whenever the
+        # enforce step above fails, so Stage A's evidence went missing on exactly
+        # the runs where it is most diagnostic (observed on run 33457730873).
+        # This does not mask anything — a failed step fails the job regardless of
+        # later always() steps, so the gate still reports red. It is also not a
+        # breach of the job-level rule that only ci-required may use always():
+        # that rule is about job conditions, and docker-build-verify already uses
+        # a step-level always() for its cleanup.
+        if: always()
         # Stage A deliberately does not enforce this. The classifier declares
         # docs_only for some PRs while nothing actually skips yet, so enforcing
         # equality here would fail every docs-only PR and block its own rollout.

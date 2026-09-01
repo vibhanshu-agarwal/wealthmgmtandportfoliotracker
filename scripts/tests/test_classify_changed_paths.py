@@ -25,6 +25,10 @@ predicate extracted from the workflow rather than a Python re-implementation:
     the silent-green condition the gate exists to prevent, because GitHub reports
     a skipped required job as Success to branch protection.
   - The same rule fails closed on conclusions outside the known enum.
+  - The shadow step must carry step-level `if: always()`, or it is skipped
+    whenever enforcement fails -- losing Stage A's evidence on precisely the runs
+    that need it. It cannot mask a failure: a failed step fails the job whatever
+    later always() steps do.
   - Stage A's shadow evidence must reach BOTH the job log and the step summary.
     The step summary is exposed by no REST endpoint and appears in no log, so
     redirecting it there alone made the evidence readable only in the web UI --
@@ -339,6 +343,26 @@ class WorkflowWiringTests(unittest.TestCase):
                 job_level = re.search(r"(?m)^    if: .*$", job)
                 if job_level:
                     self.assertNotIn("always()", job_level.group(0))
+
+    def test_shadow_step_still_runs_when_enforcement_fails(self):
+        # Without step-level always() the shadow step is skipped whenever the
+        # enforce step above it fails -- so Stage A's evidence went missing on
+        # exactly the runs where it is most diagnostic (observed on run
+        # 33457730873, where steps were: enforce=failure, shadow=skipped).
+        #
+        # This cannot mask a failure: a failed step fails the job regardless of
+        # later always() steps, so ci-required still reports red. Nor does it
+        # breach the rule that only ci-required may use always() -- that rule
+        # governs *job* conditions, and docker-build-verify already carries a
+        # step-level always() for its Docker Compose cleanup.
+        job = self._job(self.text, "ci-required:")
+        parts = job.split("- name: Declared vs observed", 1)
+        self.assertEqual(2, len(parts), "shadow step missing from ci-required")
+        self.assertRegex(
+            parts[1],
+            r"(?m)^        if: always\(\)$",
+            "shadow step must carry step-level `if: always()`",
+        )
 
     # ── Stage A boundary: these invert when Stage B is authorised ────────────
     def test_stage_a_unit_tests_has_no_skip_condition_yet(self):
