@@ -325,6 +325,29 @@ jobs:
           run_case "blank case" "" $'blank\n'
           run_case "nonblank case" "smoke-test-value" $'nonblank\n'
 
+          replica_stdout_file="$(mktemp)"
+          replica_stderr_file="$(mktemp)"
+          if docker run --rm --entrypoint java probe-smoke-test \
+            -jar /replica-token.jar api-gateway--0000000-abcdefg \
+            >"$replica_stdout_file" 2>"$replica_stderr_file"; then
+            :
+          else
+            echo "::error::replica-token case: tool exited non-zero"
+            echo "stdout:"; cat "$replica_stdout_file"
+            echo "stderr:"; cat "$replica_stderr_file"
+            exit 1
+          fi
+          if ! cmp -s "$replica_stdout_file" <(printf '%s' $'95ca17821ade\n'); then
+            echo "::error::replica-token case: unexpected stdout (expected exact 13 bytes)"
+            echo "stdout:"; cat -A "$replica_stdout_file"
+            exit 1
+          fi
+          if [ -s "$replica_stderr_file" ]; then
+            echo "::error::replica-token case: stderr must be empty on success"
+            echo "stderr:"; cat "$replica_stderr_file"
+            exit 1
+          fi
+
   # ──────────────────────────────────────────────
   # Job 2: Integration tests (Testcontainers)
   # ──────────────────────────────────────────────
