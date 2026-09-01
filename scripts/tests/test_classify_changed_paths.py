@@ -16,31 +16,32 @@ Contract:
     (docker-compose.yml, frontend/package-lock.json, config/seed-tickers.json,
     Gradle config, .github/**) must never classify as docs-only.
 
-Aggregate gate (`ci-required`) contract, verified by executing the real jq
-predicate extracted from the workflow rather than a Python re-implementation:
+Aggregate gate (`ci-required`) contract, verified by executing the real `run:`
+blocks extracted from the workflow rather than Python re-implementations:
 
-  - In Stage A every dependency is unconditional, so any result other than
-    `success` must be reported as not green -- `skipped` included. Rejecting only
-    `failure`/`cancelled` would let an unexpected skip reach "all green", which is
-    the silent-green condition the gate exists to prevent, because GitHub reports
-    a skipped required job as Success to branch protection.
-  - The same rule fails closed on conclusions outside the known enum.
-  - The shadow step must carry step-level `if: always()`, or it is skipped
-    whenever enforcement fails -- losing Stage A's evidence on precisely the runs
-    that need it. It cannot mask a failure: a failed step fails the job whatever
-    later always() steps do.
-  - Stage A's shadow evidence must reach BOTH the job log and the step summary.
-    The step summary is exposed by no REST endpoint and appears in no log, so
-    redirecting it there alone made the evidence readable only in the web UI --
-    useless for the log- and API-based review Stage A exists to serve.
+  - The classifier's declaration determines the exact result every dependency
+    must have. A skip is acceptable only where it was declared; a run only where
+    it was not. Any disagreement fails the gate.
+  - That equality is the only thing preventing a silent merge, because GitHub
+    reports a skipped required job as Success to branch protection. Comparing
+    against an exact expected value also fails closed on failure, cancellation,
+    a missing dependency, and conclusions outside the known enum.
+  - A `docs_only` value that is neither `true` nor `false` means the classifier
+    malfunctioned and fails the gate rather than being inferred.
+  - The evidence step must carry step-level `if: always()`, or it is skipped
+    whenever enforcement fails -- losing the evidence on precisely the runs that
+    need it. It cannot mask a failure: a failed step fails the job whatever later
+    always() steps do.
+  - Evidence must reach BOTH the job log and the step summary. The step summary
+    is exposed by no REST endpoint and appears in no log, so redirecting there
+    alone made it readable only in the web UI.
 
-Stage A boundary (deliberately pinned here so Stage B is a visible change):
+Stage B skip topology:
 
-  - `unit-tests` must NOT yet carry the docs-only skip condition.
-  - `ci-required` must NOT yet enforce declared-versus-observed skip equality.
-
-These two assertions are expected to be *inverted* by the Stage B change. They
-exist so that enabling skipping cannot happen silently or by accident.
+  - `unit-tests` carries the only skip condition in the graph. integration-tests,
+    pact-consumer and docker-build-verify stay unconditional and skip by
+    needs-propagation, which keeps the skip set downward-closed over the DAG by
+    construction -- no job can be skipped while something downstream still runs.
 """
 
 from __future__ import annotations
@@ -344,11 +345,11 @@ class WorkflowWiringTests(unittest.TestCase):
                 if job_level:
                     self.assertNotIn("always()", job_level.group(0))
 
-    def test_shadow_step_still_runs_when_enforcement_fails(self):
-        # Without step-level always() the shadow step is skipped whenever the
-        # enforce step above it fails -- so Stage A's evidence went missing on
-        # exactly the runs where it is most diagnostic (observed on run
-        # 33457730873, where steps were: enforce=failure, shadow=skipped).
+    def test_evidence_step_still_runs_when_enforcement_fails(self):
+        # Without step-level always() the evidence step is skipped whenever the
+        # enforce step above it fails -- so the evidence went missing on exactly
+        # the runs where it is most diagnostic (observed on run 33457730873,
+        # where steps were: enforce=failure, evidence=skipped).
         #
         # This cannot mask a failure: a failed step fails the job regardless of
         # later always() steps, so ci-required still reports red. Nor does it
@@ -356,111 +357,178 @@ class WorkflowWiringTests(unittest.TestCase):
         # governs *job* conditions, and docker-build-verify already carries a
         # step-level always() for its Docker Compose cleanup.
         job = self._job(self.text, "ci-required:")
-        parts = job.split("- name: Declared vs observed", 1)
-        self.assertEqual(2, len(parts), "shadow step missing from ci-required")
+        parts = job.split("- name: Evidence", 1)
+        self.assertEqual(2, len(parts), "evidence step missing from ci-required")
         self.assertRegex(
             parts[1],
             r"(?m)^        if: always\(\)$",
-            "shadow step must carry step-level `if: always()`",
+            "evidence step must carry step-level `if: always()`",
         )
 
-    # ── Stage A boundary: these invert when Stage B is authorised ────────────
-    def test_stage_a_unit_tests_has_no_skip_condition_yet(self):
-        job = self._job(self.text, "unit-tests:")
-        self.assertNotRegex(
-            job,
-            r"(?m)^    if: ",
-            "Stage B (the unit-tests skip condition) is not yet authorised",
+    # ── Stage B: the skip is live ────────────────────────────────────────────
+    def test_unit_tests_is_the_only_job_carrying_the_skip_condition(self):
+        # The whole safety argument rests on this: one condition, at the top of
+        # the chain. integration-tests, pact-consumer and docker-build-verify
+        # must stay unconditional so they skip by needs-propagation, which keeps
+        # the skip set downward-closed over the DAG by construction. A condition
+        # on any of them could skip a job while something downstream still ran.
+        unit = self._job(self.text, "unit-tests:")
+        self.assertRegex(
+            unit, r"(?m)^    if: needs\.changes\.outputs\.docs_only != 'true'$"
         )
+        self.assertRegex(unit, r"(?m)^    needs: \[static-guard, changes\]$")
 
-    def test_stage_a_aggregate_does_not_enforce_skip_equality_yet(self):
-        job = self._job(self.text, "ci-required:")
-        self.assertIn("SHADOW MODE", job)
-
-
-@unittest.skipUnless(JQ, "jq not installed locally; it is present on ubuntu-latest")
-class AggregateGatePredicateTests(unittest.TestCase):
-    """Execute the REAL jq predicate from ci-verification.yml, not a copy of it.
-
-    Re-implementing the rule in Python here would measure the copy rather than the
-    gate that actually runs -- the evidence-oracle mismatch this repo has already
-    been bitten by repeatedly. The expression is extracted from the workflow and
-    fed to jq, so if the gate changes shape this test fails loudly.
-
-    Stage A contract: every dependency is unconditional, so anything other than
-    `success` -- `skipped` included -- must be reported as not green. Rejecting
-    only failure/cancelled would let an unexpected skip reach "all green", which
-    is the silent-green condition the gate exists to prevent.
-    """
-
-    JOBS = (
-        "changes",
-        "static-guard",
-        "sanitizer-canary",
-        "unit-tests",
-        "integration-tests",
-        "pact-consumer",
-        "docker-build-verify",
-    )
-
-    @classmethod
-    def setUpClass(cls):
-        text = CI_VERIFICATION.read_text(encoding="utf-8")
-        match = re.search(
-            r"bad=\$\(echo \"\$NEEDS_JSON\" \| jq -r '(.*?)'\)", text, re.S
-        )
-        if match is None:
-            raise AssertionError(
-                "could not extract the ci-required jq predicate from "
-                "ci-verification.yml -- the aggregate gate changed shape"
-            )
-        cls.program = match.group(1)
-
-    def not_green(self, overrides: dict[str, str]) -> str:
-        """Return the gate's `bad` string for a synthetic `needs` context."""
-        needs = {
-            job: {"result": overrides.get(job, "success")} for job in self.JOBS
-        }
-        proc = subprocess.run(
-            [JQ, "-r", self.program],
-            input=json.dumps(needs),
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        return proc.stdout.strip()
-
-    def test_all_dependencies_successful_passes(self):
-        self.assertEqual("", self.not_green({}))
-
-    def test_any_skipped_dependency_fails(self):
-        for job in self.JOBS:
-            with self.subTest(job=job):
-                self.assertEqual(f"{job}=skipped", self.not_green({job: "skipped"}))
-
-    def test_failure_fails(self):
-        for job in ("changes", "unit-tests", "docker-build-verify"):
-            with self.subTest(job=job):
-                self.assertEqual(f"{job}=failure", self.not_green({job: "failure"}))
-
-    def test_cancelled_fails(self):
-        for job in ("changes", "integration-tests"):
-            with self.subTest(job=job):
-                self.assertEqual(f"{job}=cancelled", self.not_green({job: "cancelled"}))
-
-    def test_conclusions_outside_the_known_enum_fail_closed(self):
-        # neutral / action_required / timed_out, and anything GitHub adds later.
-        for result in ("neutral", "action_required", "timed_out", "invented_later"):
-            with self.subTest(result=result):
-                self.assertEqual(
-                    f"pact-consumer={result}",
-                    self.not_green({"pact-consumer": result}),
+        for heading in ("integration-tests:", "pact-consumer:", "docker-build-verify:"):
+            with self.subTest(job=heading):
+                self.assertNotRegex(
+                    self._job(self.text, heading),
+                    r"(?m)^    if: ",
+                    "downstream jobs must skip by propagation, not their own condition",
                 )
 
-    def test_multiple_bad_results_are_all_reported(self):
-        out = self.not_green({"unit-tests": "skipped", "pact-consumer": "failure"})
-        self.assertIn("unit-tests=skipped", out)
-        self.assertIn("pact-consumer=failure", out)
+    def test_aggregate_enforces_declared_versus_observed(self):
+        job = self._job(self.text, "ci-required:")
+        self.assertNotIn(
+            "SHADOW MODE", job, "Stage B replaces shadow logging with enforcement"
+        )
+        self.assertIn("Enforce declared vs observed", job)
+        self.assertIn("mismatches", job)
+
+
+ALL_JOBS = (
+    "changes",
+    "static-guard",
+    "sanitizer-canary",
+    "unit-tests",
+    "integration-tests",
+    "pact-consumer",
+    "docker-build-verify",
+)
+# The four that skip together on a docs-only PR, by needs-propagation from the
+# single condition on unit-tests. Nothing outside this set may ever skip.
+CHAIN_JOBS = ("unit-tests", "integration-tests", "pact-consumer", "docker-build-verify")
+GUARD_JOBS = ("changes", "static-guard", "sanitizer-canary")
+
+
+@unittest.skipUnless(JQ and BASH, "needs bash and jq; both present on ubuntu-latest")
+class AggregateEnforcementTests(unittest.TestCase):
+    """Execute the shipped enforce block from ci-verification.yml, not a copy.
+
+    Re-implementing the rule in Python would measure the copy rather than the
+    gate that actually blocks merges -- the evidence-oracle mismatch this repo
+    has been bitten by repeatedly. The `run:` body is extracted from the
+    workflow and executed, so if the gate changes shape these fail loudly.
+
+    Stage B contract: the classifier's declaration determines the exact result
+    every dependency must have. A skip is acceptable only where it was declared;
+    a run is acceptable only where it was not. Anything else fails closed.
+    """
+
+    def enforce(
+        self,
+        docs_only: str,
+        overrides: dict[str, str] | None = None,
+        omit: tuple[str, ...] = (),
+    ) -> subprocess.CompletedProcess:
+        block = extract_run_block(
+            CI_VERIFICATION.read_text(encoding="utf-8"), "Enforce declared vs observed"
+        )
+        chain_default = "skipped" if docs_only == "true" else "success"
+        needs = {}
+        for job in ALL_JOBS:
+            if job in omit:
+                continue
+            expected = chain_default if job in CHAIN_JOBS else "success"
+            needs[job] = {"result": (overrides or {}).get(job, expected)}
+        env = {**os.environ, "NEEDS_JSON": json.dumps(needs), "DOCS_ONLY": docs_only}
+        return subprocess.run(
+            [BASH, "-c", block],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            env=env,
+        )
+
+    # ── the two legitimate shapes ────────────────────────────────────────────
+    def test_full_suite_with_docs_only_false_passes(self):
+        proc = self.enforce("false")
+        self.assertEqual(0, proc.returncode, proc.stdout + proc.stderr)
+        self.assertIn("Declared and observed job results agree", proc.stdout)
+
+    def test_docs_only_true_with_the_chain_skipped_passes(self):
+        proc = self.enforce("true")
+        self.assertEqual(0, proc.returncode, proc.stdout + proc.stderr)
+        self.assertIn("Declared and observed job results agree", proc.stdout)
+
+    # ── disagreement, in both directions ─────────────────────────────────────
+    def test_declared_skip_but_the_job_actually_ran_fails(self):
+        for job in CHAIN_JOBS:
+            with self.subTest(job=job):
+                proc = self.enforce("true", {job: "success"})
+                self.assertEqual(1, proc.returncode)
+                self.assertIn(f"{job}: expected skipped, observed success", proc.stdout)
+
+    def test_declared_full_suite_but_a_job_skipped_fails(self):
+        # The silent-green case this gate exists for: GitHub reports a skipped
+        # required job as Success to branch protection, so without equality an
+        # unexpected skip merges green with no signal anywhere.
+        for job in ALL_JOBS:
+            with self.subTest(job=job):
+                proc = self.enforce("false", {job: "skipped"})
+                self.assertEqual(1, proc.returncode)
+                self.assertIn(f"{job}: expected success, observed skipped", proc.stdout)
+
+    def test_guard_jobs_may_not_skip_even_on_a_docs_only_pr(self):
+        for job in GUARD_JOBS:
+            with self.subTest(job=job):
+                proc = self.enforce("true", {job: "skipped"})
+                self.assertEqual(1, proc.returncode)
+                self.assertIn(f"{job}: expected success, observed skipped", proc.stdout)
+
+    # ── failure, cancellation, unknown conclusions ───────────────────────────
+    def test_failure_and_cancellation_fail_in_both_modes(self):
+        for docs_only in ("true", "false"):
+            for result in ("failure", "cancelled"):
+                with self.subTest(docs_only=docs_only, result=result):
+                    proc = self.enforce(docs_only, {"changes": result})
+                    self.assertEqual(1, proc.returncode)
+                    self.assertIn(
+                        f"changes: expected success, observed {result}", proc.stdout
+                    )
+
+    def test_conclusions_outside_the_known_enum_fail_closed(self):
+        for result in ("neutral", "action_required", "timed_out", "invented_later"):
+            with self.subTest(result=result):
+                proc = self.enforce("false", {"pact-consumer": result})
+                self.assertEqual(1, proc.returncode)
+                self.assertIn(
+                    f"pact-consumer: expected success, observed {result}", proc.stdout
+                )
+
+    def test_a_missing_dependency_fails_rather_than_passing_silently(self):
+        proc = self.enforce("false", omit=("docker-build-verify",))
+        self.assertEqual(1, proc.returncode)
+        self.assertIn(
+            "docker-build-verify: expected success, observed missing", proc.stdout
+        )
+
+    # ── classifier malfunction ───────────────────────────────────────────────
+    def test_unusable_docs_only_value_fails_closed(self):
+        # Anything but the two known values means the changes job malfunctioned.
+        # A malfunction must never read as "nothing left to verify".
+        for value in ("", "TRUE", "True", "yes", "1", "unset", "maybe"):
+            with self.subTest(value=value):
+                proc = self.enforce(value)
+                self.assertEqual(1, proc.returncode)
+                self.assertIn("no usable docs_only value", proc.stdout)
+
+    def test_every_mismatch_is_reported_not_only_the_first(self):
+        proc = self.enforce(
+            "false", {"unit-tests": "skipped", "pact-consumer": "failure"}
+        )
+        self.assertEqual(1, proc.returncode)
+        self.assertIn("unit-tests: expected success, observed skipped", proc.stdout)
+        self.assertIn("pact-consumer: expected success, observed failure", proc.stdout)
 
 
 def extract_run_block(text: str, step_name_prefix: str) -> str:
@@ -495,22 +563,21 @@ def extract_run_block(text: str, step_name_prefix: str) -> str:
 
 
 @unittest.skipUnless(JQ and BASH, "needs bash and jq; both present on ubuntu-latest")
-class ShadowEvidenceTests(unittest.TestCase):
-    """Stage A's evidence must be readable without opening the web UI.
+class EvidenceStepTests(unittest.TestCase):
+    """The gate's evidence must be readable without opening the web UI.
 
     The step summary is exposed by no REST endpoint and appears in no job log, so
-    redirecting the shadow block there with `>>` made Stage A's own output
-    unreadable to log- and API-based review -- the exact artefact this stage
-    exists to produce. These tests execute the real block and prove it reaches
-    BOTH sinks.
+    redirecting the block there with `>>` made the gate's own output unreadable
+    to log- and API-based review -- the exact artefact it exists to produce.
+    These tests execute the real block and prove it reaches BOTH sinks.
     """
 
-    JOBS = AggregateGatePredicateTests.JOBS
+    JOBS = ALL_JOBS
 
-    def run_shadow_block(self, docs_only: str) -> tuple[str, str]:
-        """Execute the shipped shadow step; return (stdout, step-summary content)."""
+    def run_evidence_block(self, docs_only: str) -> tuple[str, str]:
+        """Execute the shipped evidence step; return (stdout, step-summary)."""
         block = extract_run_block(
-            CI_VERIFICATION.read_text(encoding="utf-8"), "Declared vs observed"
+            CI_VERIFICATION.read_text(encoding="utf-8"), "Evidence"
         )
         needs = {job: {"result": "success"} for job in self.JOBS}
         with tempfile.TemporaryDirectory() as tmp:
@@ -532,35 +599,35 @@ class ShadowEvidenceTests(unittest.TestCase):
                 encoding="utf-8",
                 env=env,
             )
-            self.assertEqual(0, proc.returncode, f"shadow block failed: {proc.stderr}")
+            self.assertEqual(0, proc.returncode, f"evidence block failed: {proc.stderr}")
             return proc.stdout, summary.read_text(encoding="utf-8")
 
-    def test_shadow_evidence_reaches_both_stdout_and_step_summary(self):
-        stdout, summary = self.run_shadow_block("false")
+    def test_evidence_reaches_both_stdout_and_step_summary(self):
+        stdout, summary = self.run_evidence_block("false")
         for marker in (
             "Aggregate gate",
             "classifier declared",
-            "Stage B would have run the full suite",
-            "not enforced in Stage A",
+            "expected the full suite to run",
+            "any disagreement",
         ):
             with self.subTest(marker=marker):
                 self.assertIn(marker, stdout, "evidence must reach the job log")
                 self.assertIn(marker, summary, "evidence must reach the step summary")
 
     def test_both_sinks_receive_identical_content(self):
-        stdout, summary = self.run_shadow_block("false")
+        stdout, summary = self.run_evidence_block("false")
         self.assertEqual(stdout, summary)
 
-    def test_declared_value_and_skip_set_are_reported(self):
-        stdout, _ = self.run_shadow_block("true")
+    def test_declared_value_and_expected_skip_set_are_reported(self):
+        stdout, _ = self.run_evidence_block("true")
         self.assertIn("**true**", stdout)
-        for job in ("unit-tests", "integration-tests", "pact-consumer",
-                    "docker-build-verify"):
+        self.assertIn("expected skipped", stdout)
+        for job in CHAIN_JOBS:
             with self.subTest(job=job):
                 self.assertIn(job, stdout)
 
     def test_observed_results_table_is_present(self):
-        stdout, _ = self.run_shadow_block("false")
+        stdout, _ = self.run_evidence_block("false")
         for job in self.JOBS:
             with self.subTest(job=job):
                 self.assertIn(f"| {job} | success |", stdout)
