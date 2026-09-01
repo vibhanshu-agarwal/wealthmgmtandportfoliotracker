@@ -1,6 +1,6 @@
 # Implementation Plan
 
-**Current program status (verified 2026-08-30 at `main@8b4832446a96b5367a4aaf99fbf9286066521571`):** implementation tasks 1–7 are complete; task 8 is
+**Current program status (verified 2026-09-01 against `main@ce6ee32c6a561e11362ef6453f8ebbac5bb37fdc`):** implementation tasks 1–7 are complete; task 8 is
 complete except 8.8. Cutover checkpoints 9.1–9.13 are operationally complete. Checkpoint 9.11 applied through
 Terraform (`spec-a-9.11-enable`) on `main@e7fad7cb` and live-read back
 `MARKET_DATA_JOB_RUNNER_ENABLED=true` with an unchanged safety tuple; evidence
@@ -33,8 +33,12 @@ passed the exact-scope guard and skipped apply, and senior plan review returned 
 at `main@743c9b97` enabled ACA external ingress on the existing `api-gateway--0000077` revision
 with insecure connections still disabled, and the default ACA endpoint returns healthy responses
 ([`SPEC_A_9_14_REOPEN_INGRESS.md`](../../../docs/runbooks/SPEC_A_9_14_REOPEN_INGRESS.md)).
-This does **not** unblock B1 G5: `api.vibhanshu-ai-portfolio.dev` has no Container Apps
-custom-domain binding, so the frontend/synthetic endpoint still fails TLS.
+Checkpoint 9.14 alone did **not** unblock B1 G5. The later separately authorized recovery restored
+the `api.vibhanshu-ai-portfolio.dev` custom-domain binding, PR #194 merged its evidence at
+`main@98371587`, and the authorized three-caller synthetic subsequently succeeded as run
+[33411410271](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33411410271).
+B1 Task 5.7 nevertheless remains unchecked pending its separately recorded owner-controlled G5
+completion decision; PR #197 merged the durable run evidence at `main@b6c0da3` without checking 5.7.
 See [`docs/plans/ASSET_PICKER_E2E_MASTER_PLAN.md`](../../../docs/plans/ASSET_PICKER_E2E_MASTER_PLAN.md)
 for the living cross-program view.
 
@@ -958,10 +962,15 @@ python scripts/check-spec-references.py   .kiro/specs/supported-asset-integrity/
       100%); and the **default ACA endpoint returns healthy responses** (`200`,
       `{"groups":["liveness","readiness"],"status":"UP"}`). Evidence:
       [`docs/runbooks/SPEC_A_9_14_REOPEN_INGRESS.md`](../../../docs/runbooks/SPEC_A_9_14_REOPEN_INGRESS.md).
-    - **This checkpoint does not unblock B1 G5.** `api.vibhanshu-ai-portfolio.dev` — the endpoint
-      configured for the frontend and the synthetic workflows — has no Container Apps
-      custom-domain binding (`customDomains: null`), so TLS to that host still fails at handshake.
-      Only the default ACA endpoint serves. G5 remains blocked; see
+    - **This checkpoint alone did not unblock B1 G5.** At checkpoint completion,
+      `api.vibhanshu-ai-portfolio.dev` had no Container Apps custom-domain binding
+      (`customDomains: null`), so only the default ACA endpoint served. The later separately
+      authorized recovery restored the binding; PR #194 merged that evidence at `main@98371587`,
+      and authorized three-caller run
+      [33411410271](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33411410271)
+      subsequently succeeded. Task 5.7 remains unchecked pending a separately recorded
+      owner-controlled G5 completion decision; PR #197 merged the durable run evidence at
+      `main@b6c0da3` without checking 5.7. See
       [`docs/runbooks/B1_G5_INGRESS_BLOCKER.md`](../../../docs/runbooks/B1_G5_INGRESS_BLOCKER.md)
       and backlog item
       [`api-gateway-custom-domain-binding`](../../../docs/todos/backlog/api-gateway-custom-domain-binding/README.md).
