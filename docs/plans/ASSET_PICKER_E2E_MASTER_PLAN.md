@@ -388,8 +388,9 @@ pending its separately recorded owner completion decision, so B1 Waves 6–7 rem
 5.1a (`InternalApiKeyProvider`) and 8.2a (`CloudFrontOriginSecretProvider`) have merged source-only
 via PRs #202 and #203 at `main@64761dc2` and `main@addd8049`; neither is deployed. Task 5.1b
 (`ReplicaTokenProvider`) is **implemented but unmerged** on `feat/b2-task-5-1b-replica-token-provider`
-(not deployed). The next independently implementable B2 candidate after 5.1b merges is Task 5.1
-(`DemoResetAuthorizationFilter`). No Asset Picker implementation PR is open at this audit baseline.
+via [PR #208](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/208) (not
+deployed). The Wave 5 Tasks 5.1–5.6 deployable bundle remains gated on Wave 4 Task 4.5; the next
+B2 implementation priority after 5.1b merges is owner-selected.
 
 1. **Operational lane:** Spec A's production cutover is **complete through 9.14**. The plan was
    reviewed and ACCEPTed (2026-08-31), and the authorized apply
@@ -423,8 +424,7 @@ source-only on `main@0b5d60d1`** (PR #161); **5.7/G5 remains unchecked** pending
 3. **B2 product lane:** Wave 1 (1.1-1.19) and Wave 2 Tasks 2.1-2.5 are merged source-only through
    PR #178 on `main@38e3d95`, with two rounds of external review findings fixed. Wave 3 Tasks
    3.1–3.6, Wave 4 Tasks 4.1–4.4a, and standalone Tasks 5.1a, 5.1b, 8.1, and 8.2a are also merged
-   source-only or **implemented but unmerged** (5.1b); none is deployed. Task 5.1 is the next
-   independently implementable candidate after 5.1b merges.
+   source-only or **implemented but unmerged** (5.1b via [PR #208](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/208)); none is deployed. The Wave 5 Tasks 5.1–5.6 deployable bundle remains gated on Wave 4 Task 4.5; further B2 implementation priority is owner-selected.
    Tasks 2.6–2.7, live proofs, remaining bundles, deployment, and exposure retain their own gates.
 4. **Process lane:** keep the status-propagation CI guard healthy in required `static-guard`; it is
    process-control only and does not advance the runtime baseline.

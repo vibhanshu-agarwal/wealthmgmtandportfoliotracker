@@ -23,8 +23,9 @@ B1 Task 5.7/G5 remains a separate owner gate and still blocks B1 Waves 6–7. Ta
 (`InternalApiKeyProvider`) and 8.2a (`CloudFrontOriginSecretProvider`) merged source-only via PRs
 #202 and #203 at `main@64761dc2` and `main@addd8049`; neither is deployed. Task 5.1b
 (`ReplicaTokenProvider`) is **implemented but unmerged** on `feat/b2-task-5-1b-replica-token-provider`
-(not deployed). The next independently implementable B2 candidate after 5.1b merges is Task 5.1
-(`DemoResetAuthorizationFilter`). Task 5.1b's ledger defined its provider, token formula, operator tool, packaging,
+via [PR #208](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/208) (not
+deployed). The Wave 5 Tasks 5.1–5.6 deployable bundle remains gated on Wave 4 Task 4.5; the next
+B2 implementation priority after 5.1b merges is owner-selected. Task 5.1b's ledger defined its provider, token formula, operator tool, packaging,
 and Azure image-smoke extension as one bounded deliverable shared by Tasks 5.1 and 8.7. Its
 implementation preserves the fail-closed docs-only CI contract already live on `main`.
 
