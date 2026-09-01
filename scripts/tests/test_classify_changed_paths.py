@@ -25,6 +25,10 @@ predicate extracted from the workflow rather than a Python re-implementation:
     the silent-green condition the gate exists to prevent, because GitHub reports
     a skipped required job as Success to branch protection.
   - The same rule fails closed on conclusions outside the known enum.
+  - Stage A's shadow evidence must reach BOTH the job log and the step summary.
+    The step summary is exposed by no REST endpoint and appears in no log, so
+    redirecting it there alone made the evidence readable only in the web UI --
+    useless for the log- and API-based review Stage A exists to serve.
 
 Stage A boundary (deliberately pinned here so Stage B is a visible change):
 
@@ -49,6 +53,42 @@ from pathlib import Path
 from unittest import mock
 
 JQ = shutil.which("jq")
+
+
+def _usable_bash() -> str | None:
+    """A bash that actually inherits the environment we hand it.
+
+    On Windows `shutil.which("bash")` commonly resolves to WSL's bash, which does
+    not inherit Windows environment variables and mangles the script through
+    interop -- it appears to work while silently executing something different.
+    Probe for the behaviour we depend on rather than trusting the path.
+    On a runner this matches /usr/bin/bash on the first try.
+    """
+    candidates = [
+        shutil.which("bash"),
+        r"C:\Program Files\Git\bin\bash.exe",
+        r"C:\Program Files (x86)\Git\bin\bash.exe",
+    ]
+    for candidate in candidates:
+        if not candidate or not Path(candidate).exists():
+            continue
+        try:
+            probe = subprocess.run(
+                [candidate, "-c", 'printf %s "$CLASSIFIER_BASH_PROBE"'],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                env={**os.environ, "CLASSIFIER_BASH_PROBE": "ok"},
+                timeout=60,
+            )
+        except (OSError, subprocess.SubprocessError):
+            continue
+        if probe.returncode == 0 and probe.stdout.strip() == "ok":
+            return candidate
+    return None
+
+
+BASH = _usable_bash()
 
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO / "scripts"))
@@ -399,12 +439,130 @@ class AggregateGatePredicateTests(unittest.TestCase):
         self.assertIn("pact-consumer=failure", out)
 
 
+def extract_run_block(text: str, step_name_prefix: str) -> str:
+    """Return the dedented `run: |` body of the named step, as it will execute."""
+    lines = text.splitlines()
+    start = next(
+        (
+            i
+            for i, line in enumerate(lines)
+            if line.strip().startswith(f"- name: {step_name_prefix}")
+        ),
+        None,
+    )
+    if start is None:
+        raise AssertionError(f"step {step_name_prefix!r} not found in the workflow")
+    body_start = next(
+        (j + 1 for j in range(start, len(lines)) if lines[j].strip() == "run: |"), None
+    )
+    if body_start is None:
+        raise AssertionError(f"step {step_name_prefix!r} has no `run: |` block")
+
+    indent = " " * 10
+    body: list[str] = []
+    for line in lines[body_start:]:
+        if not line.strip():
+            body.append("")
+            continue
+        if not line.startswith(indent):
+            break
+        body.append(line[len(indent) :])
+    return "\n".join(body)
+
+
+@unittest.skipUnless(JQ and BASH, "needs bash and jq; both present on ubuntu-latest")
+class ShadowEvidenceTests(unittest.TestCase):
+    """Stage A's evidence must be readable without opening the web UI.
+
+    The step summary is exposed by no REST endpoint and appears in no job log, so
+    redirecting the shadow block there with `>>` made Stage A's own output
+    unreadable to log- and API-based review -- the exact artefact this stage
+    exists to produce. These tests execute the real block and prove it reaches
+    BOTH sinks.
+    """
+
+    JOBS = AggregateGatePredicateTests.JOBS
+
+    def run_shadow_block(self, docs_only: str) -> tuple[str, str]:
+        """Execute the shipped shadow step; return (stdout, step-summary content)."""
+        block = extract_run_block(
+            CI_VERIFICATION.read_text(encoding="utf-8"), "Declared vs observed"
+        )
+        needs = {job: {"result": "success"} for job in self.JOBS}
+        with tempfile.TemporaryDirectory() as tmp:
+            summary = Path(tmp) / "summary.md"
+            summary.touch()
+            env = {
+                **os.environ,
+                "GITHUB_STEP_SUMMARY": summary.as_posix(),
+                "NEEDS_JSON": json.dumps(needs),
+                "DOCS_ONLY": docs_only,
+            }
+            proc = subprocess.run(
+                [BASH, "-c", block],
+                capture_output=True,
+                text=True,
+                # Explicit utf-8: the block emits an em-dash, and decoding stdout
+                # with the Windows locale codec would corrupt it and break the
+                # stdout-equals-summary comparison for the wrong reason.
+                encoding="utf-8",
+                env=env,
+            )
+            self.assertEqual(0, proc.returncode, f"shadow block failed: {proc.stderr}")
+            return proc.stdout, summary.read_text(encoding="utf-8")
+
+    def test_shadow_evidence_reaches_both_stdout_and_step_summary(self):
+        stdout, summary = self.run_shadow_block("false")
+        for marker in (
+            "Aggregate gate",
+            "classifier declared",
+            "Stage B would have run the full suite",
+            "not enforced in Stage A",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, stdout, "evidence must reach the job log")
+                self.assertIn(marker, summary, "evidence must reach the step summary")
+
+    def test_both_sinks_receive_identical_content(self):
+        stdout, summary = self.run_shadow_block("false")
+        self.assertEqual(stdout, summary)
+
+    def test_declared_value_and_skip_set_are_reported(self):
+        stdout, _ = self.run_shadow_block("true")
+        self.assertIn("**true**", stdout)
+        for job in ("unit-tests", "integration-tests", "pact-consumer",
+                    "docker-build-verify"):
+            with self.subTest(job=job):
+                self.assertIn(job, stdout)
+
+    def test_observed_results_table_is_present(self):
+        stdout, _ = self.run_shadow_block("false")
+        for job in self.JOBS:
+            with self.subTest(job=job):
+                self.assertIn(f"| {job} | success |", stdout)
+
+    def test_summary_is_not_redirected_away_from_stdout(self):
+        # Regression guard: reverting tee to `>>` would silently restore the
+        # UI-only defect, and every assertion above would still be reachable
+        # only by someone opening the browser.
+        job = re.search(
+            r"^  ci-required:\n(?:(?!^  [a-zA-Z0-9_-]+:\s*$).*\n)*",
+            CI_VERIFICATION.read_text(encoding="utf-8"),
+            re.M,
+        )
+        self.assertIsNotNone(job)
+        self.assertNotIn('} >> "$GITHUB_STEP_SUMMARY"', job.group(0))
+        self.assertIn('| tee -a "$GITHUB_STEP_SUMMARY"', job.group(0))
+
+
 class ToolingAvailabilityTests(unittest.TestCase):
-    def test_jq_is_present_when_running_on_a_runner(self):
-        # AggregateGatePredicateTests skips without jq. That must never happen in
-        # CI, or the gate's contract would go unverified and silently green.
+    def test_jq_and_bash_are_present_when_running_on_a_runner(self):
+        # AggregateGatePredicateTests and ShadowEvidenceTests skip without these.
+        # That must never happen in CI, or the gate's contract would go
+        # unverified and silently green.
         if os.environ.get("GITHUB_ACTIONS") == "true":
             self.assertIsNotNone(JQ, "jq must be available to verify the aggregate gate")
+            self.assertIsNotNone(BASH, "bash must be available to verify shadow output")
 
 
 if __name__ == "__main__":

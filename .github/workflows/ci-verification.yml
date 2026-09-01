@@ -618,6 +618,14 @@ jobs:
         # docs_only for some PRs while nothing actually skips yet, so enforcing
         # equality here would fail every docs-only PR and block its own rollout.
         # Enforcement lands with Stage B, together with the unit-tests condition.
+        #
+        # The block below ends in `| tee -a`, not `>>`. The step summary is
+        # UI-only — exposed by no REST endpoint and absent from the job log — so
+        # redirecting there alone made Stage A's own evidence unreadable to the
+        # log- and API-based review this stage exists to serve. tee puts it in
+        # both, matching what the classifier script already does. This rationale
+        # lives here rather than inside the run block because that block is
+        # extracted and executed verbatim by the contract tests.
         env:
           NEEDS_JSON: ${{ toJSON(needs) }}
           DOCS_ONLY: ${{ needs.changes.outputs.docs_only }}
@@ -639,4 +647,4 @@ jobs:
             echo "$NEEDS_JSON" | jq -r 'to_entries[] | "| \(.key) | \(.value.result) |"'
             echo
             echo "_Equality between declared and observed is not enforced in Stage A._"
-          } >> "$GITHUB_STEP_SUMMARY"
+          } | tee -a "$GITHUB_STEP_SUMMARY"
