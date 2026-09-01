@@ -1,6 +1,6 @@
 # Implementation Plan
 
-**Current program status (verified 2026-08-31; runtime baseline `e221662`; R-A / R-B / R-B2 serving digests below):**
+**Current program status (verified 2026-09-01 against `main@ce6ee32c`; runtime baseline `e221662`; R-A / R-B / R-B2 serving digests below):**
 Waves `P`, `0`, and `1` are complete. Wave 2 tasks **2.1–2.6 and R-A are complete**: G2 serving
 proof is green on gateway revision `api-gateway--0000076` /
 `sha256:2da5b303fd15772792167f2b26dc62250b2d9858270db315eab1d6d1a1554aec` (deploy run
@@ -33,10 +33,10 @@ source-only) — see
 [`docs/runbooks/B1_G5_INGRESS_BLOCKER.md`](../../../docs/runbooks/B1_G5_INGRESS_BLOCKER.md) and
 [`API_GATEWAY_CUSTOM_DOMAIN_RECOVERY.md`](../../../docs/runbooks/API_GATEWAY_CUSTOM_DOMAIN_RECOVERY.md).
 That executed run and this record do **not** check 5.7, authorize Wave 6 / R-B3, public `PUT`,
-backlog closure, or further dispatch. The executed evidence is subject to independent review and
-merge of its documentation PR, but neither that review nor that PR checks Task 5.7. A separately
-recorded owner-controlled G5 completion decision is required before checking 5.7 or unlocking
-Wave 6 / R-B3, public `PUT`, or backlog closure.
+backlog closure, or further dispatch. PR #197 independently reviewed and merged the durable
+evidence record at `main@b6c0da3`, but that documentation merge did not check Task 5.7. A
+separately recorded owner-controlled G5 completion decision is required before checking 5.7 or
+unlocking Wave 6 / R-B3, public `PUT`, or backlog closure.
 Unattended synthetics remain suspended in `synthetic-monitoring.yml` while G5 remains open.
 Wave 6 / R-B3 remain gated. Candidate packaging / R-C (task 7.5)
 is **not** complete. Public `PUT /api/portfolio/holdings` remains Wave 7. The old seed remains
@@ -924,11 +924,11 @@ Named individually so the R-C manifest can enumerate them rather than gesture at
   sanitized record:
   [`docs/runbooks/B1_G5_INGRESS_BLOCKER.md`](../../../docs/runbooks/B1_G5_INGRESS_BLOCKER.md).
   This checkbox remains **unchecked** pending a separately recorded owner-controlled G5 completion
-  decision. The executed evidence is subject to independent review and merge of its documentation
-  PR, but neither that review nor that PR checks Task 5.7. Recording the run does **not** authorize
-  Wave 6 / R-B3, public `PUT`, backlog closure, or further dispatch. Gateway loopback alone remains
-  insufficient. Unattended synthetics stay suspended in `synthetic-monitoring.yml` while G5 remains
-  open.
+  decision. PR #197 independently reviewed and merged the durable evidence record at
+  `main@b6c0da3`, but that documentation merge did not check Task 5.7. Recording the run does
+  **not** authorize Wave 6 / R-B3, public `PUT`, backlog closure, or further dispatch. Gateway
+  loopback alone remains insufficient. Unattended synthetics stay suspended in
+  `synthetic-monitoring.yml` while G5 remains open.
   _Requirements: 8.32, 8.39_
 
 ## Wave 6 — Version-required seed (Artifact 2b → R-B3)

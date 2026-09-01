@@ -1,6 +1,6 @@
 # Implementation Plan
 
-**Current program status (verified 2026-09-01 at `main@addd8049`):** this task plan and its owning
+**Current program status (verified 2026-09-01 against `main@ce6ee32c`):** this task plan and its owning
 requirements/design/mockup are tracked. Wave 1 (Tasks 1.1-1.19) and Wave 2 Tasks 2.1-2.5 are merged
 source-only through PR #178, entirely mock-backed and disabled by default. Wave 3 presence source
 Tasks 3.1–3.6 merged source-only through PR #179 at `main@cc97a209`; Task 3.7 deployment/live proof
@@ -18,17 +18,14 @@ decimal-adapter deployment sequencing. See
 for the living cross-program view.
 
 **Selected priority (2026-09-01):** resume Asset Picker delivery before further CI optimization.
-No checkbox changes through this priority decision. B1 Task 5.7/G5 remains a separate owner gate
-and still blocks B1 Waves 6–7. The first independently implementable B2 candidate is Task 5.1a,
-`InternalApiKeyProvider`, which this ledger already defines as dependency-free and shared by Waves
-5 and 8. Its implementation remains separately authorized. Task 5.1a's planned
-`azure-image-smoke-test` must preserve the fail-closed docs-only CI contract now live on `main`:
-the new job cannot bypass `ci-required` or run as an unaccounted expensive job on docs-only PRs.
-Implementation handoff:
-[`docs/agent-instructions/CURSOR_KICKOFF_B2_TASK_5_1A_INTERNAL_API_KEY_PROVIDER.md`](../../../docs/agent-instructions/CURSOR_KICKOFF_B2_TASK_5_1A_INTERNAL_API_KEY_PROVIDER.md).
-**Task 5.1a merged source-only via PR #202 at `main@64761dc2`** (not deployed; checkbox now
-closed). Task 8.2a (`CloudFrontOriginSecretProvider`) subsequently merged source-only via PR #203
-at `main@addd8049` (not deployed; checkbox now closed).
+B1 Task 5.7/G5 remains a separate owner gate and still blocks B1 Waves 6–7. Tasks 5.1a
+(`InternalApiKeyProvider`) and 8.2a (`CloudFrontOriginSecretProvider`) merged source-only via PRs
+#202 and #203 at `main@64761dc2` and `main@addd8049`; neither is deployed. With 5.1a's build
+prerequisite satisfied, the first independently implementable B2 candidate is Task 5.1b,
+`ReplicaTokenProvider`. This ledger defines its provider, token formula, operator tool, packaging,
+and Azure image-smoke extension as one bounded deliverable shared by Tasks 5.1 and 8.7. Its
+implementation remains separately authorized and must preserve the fail-closed docs-only CI
+contract already live on `main`; no Asset Picker implementation PR is open at this audit baseline.
 
 **Wave 1 (Tasks 1.1-1.19) and Wave 2 Tasks 2.1-2.5 — merged source-only (2026-08-29).**
 Merged through PR #178 at `main@38e3d95`; the implementation branch was
