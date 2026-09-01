@@ -13,10 +13,11 @@ version-bearing read and read-only asset catalog without caller migration, publi
 fence changes.
 
 **Authoritative documentation revision:** advances when this file or related program docs change;
-independent of the runtime baseline above. This status is grounded on `main@0d0a300634aee70d662589c737df6429f008d53c`
-(handoff PR #201); Task 5.1a source is **implemented but unmerged** on
-`feat/b2-task-5-1a-internal-api-key-provider`; the pinned Spec A 9.14 plan-evidence baseline is
-`main@66bbee0bf438706146ac9975bf5f0c923b3d43cb`.
+independent of the runtime baseline above. This status is grounded on
+`main@addd8049aa082bdfbd7e5bf19c6840e531a9cfb4` (Task 8.2a merge, PR #203); Task 5.1a source
+merged via PR #202 at `main@64761dc2e58bb2249089f2af5b1dee3e06a3dc4a`; Task 8.2a source merged via
+PR #203 at `main@addd8049aa082bdfbd7e5bf19c6840e531a9cfb4` — neither is deployed; the pinned Spec A
+9.14 plan-evidence baseline is `main@66bbee0bf438706146ac9975bf5f0c923b3d43cb`.
 
 **Program state:** Spec A checkpoints 9.1–9.13 are operationally complete. Checkpoint 9.11 persisted
 `MARKET_DATA_JOB_RUNNER_ENABLED=true` through Terraform apply on `main@e7fad7cb` (source PR #164;
@@ -302,10 +303,10 @@ All four artifacts are tracked. Wave 1 (1.1-1.19) and Wave 2 Tasks 2.1-2.5 merge
 | 2 — decimal adapter | 🟡 Tasks 2.1-2.5 source merged; 2.6-2.7 not started | PR #178 / `main@38e3d95`; rollout sequencing with B1 Wave 4/5 remains an explicit open coordination decision |
 | 3 — Redis-backed presence | 🟡 Tasks 3.1–3.6 source merged via PR #179 / `main@cc97a209`; Task 3.7 open | Default TTL **150s** via `APP_DEMO_PRESENCE_TTL`; not deployed/live-verified |
 | 4 — portfolio-service demo reset | 🟡 Tasks 4.1–4.4a source merged via PR #180 / `main@63fc058`; Task 4.5 open | B1 prerequisites verified on `main@cc97a209`; not deployed/routed |
-| 5 — manual-reset gateway bundle | 🟡 Task 5.1a **implemented but unmerged** on `feat/b2-task-5-1a-internal-api-key-provider`; remainder blocked on Wave 4 Task 4.5 / deployment proof | Provider, probe jar, Azure image smoke, and aggregate integration; filter/routes not started |
+| 5 — manual-reset gateway bundle | 🟡 Task 5.1a source merged via [PR #202](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/202) / `main@64761dc2`; not deployed. Remainder blocked on Wave 4 Task 4.5 / deployment proof | Provider, probe jar, Azure image smoke, and aggregate integration; filter/routes not started |
 | 6 — manual reset frontend | ⬜ Blocked on Wave 5 and B1 5.1 | Hidden control and versioned reset call |
 | 7 — decimal rollout note | ℹ Informational | No independent release gate |
-| 8 — login-orchestrated reset | 🟡 Task 8.1 (`updatedAt` read contract) source merged via [PR #185](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/185) / `main@198c878d`; not deployed. Task 8.2a (`CloudFrontOriginSecretProvider`) implemented but unmerged on branch `feat/b2-task-8-2a-cloudfront-origin-secret-provider`. Task 8.2's open decisions and Tasks 8.3 and later not started | Requires B1/V20/version read (met, satisfied by 8.1); open idle/timeouts, Tasks 8.3 and later, the separate 5.1a/5.1b prerequisites (8.2a implemented but unmerged, tracked in this row), and its own deployment evidence |
+| 8 — login-orchestrated reset | 🟡 Task 8.1 (`updatedAt` read contract) source merged via [PR #185](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/185) / `main@198c878d`; not deployed. Task 8.2a (`CloudFrontOriginSecretProvider`) source merged via [PR #203](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/203) / `main@addd8049`; not deployed. Task 8.2's open decisions and Tasks 8.3 and later not started | Requires B1/V20/version read (met, satisfied by 8.1); open idle/timeouts, Tasks 8.3 and later, 5.1b (not started), and its own deployment evidence |
 | 9 — live integration | ⬜ Blocked | Requires B1 catalog/read/write endpoints and relevant B2 Waves 1–6 |
 | 10 — production exposure | ⬜ Blocked | Convergence gate after all required live evidence and open decisions close |
 
@@ -386,8 +387,10 @@ handoff must still pin exact scope, tests, and stop conditions. Because Task 5.1
 fast path and integrate the new job into the fail-closed aggregate contract rather than creating an
 unobserved or docs-only-running side path. Cursor assignment:
 [`CURSOR_KICKOFF_B2_TASK_5_1A_INTERNAL_API_KEY_PROVIDER.md`](../agent-instructions/CURSOR_KICKOFF_B2_TASK_5_1A_INTERNAL_API_KEY_PROVIDER.md).
-**Task 5.1a is implemented but unmerged** on `feat/b2-task-5-1a-internal-api-key-provider`
-(source-only PR pending senior review; not deployed; checkbox stays open until post-merge evidence).
+**Task 5.1a merged source-only via [PR #202](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/202) at `main@64761dc2`** (not deployed; checkbox now closed). Task 8.2a
+(`CloudFrontOriginSecretProvider`) subsequently merged source-only via
+[PR #203](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/203) at
+`main@addd8049` (not deployed; checkbox now closed).
 
 1. **Operational lane:** Spec A's production cutover is **complete through 9.14**. The plan was
    reviewed and ACCEPTed (2026-08-31), and the authorized apply
