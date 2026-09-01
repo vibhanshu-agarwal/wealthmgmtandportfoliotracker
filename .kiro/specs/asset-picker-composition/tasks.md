@@ -9,7 +9,8 @@ through PR #180 at `main@63fc058`; they are not deployed, not routed, and not us
 Task 8.1 merged source-only through PR #185 at `main@198c878d`; it is not deployed. Task 5.1a
 (`InternalApiKeyProvider`) merged source-only through PR #202 at `main@64761dc2`; it is not deployed.
 Task 8.2a (`CloudFrontOriginSecretProvider`) merged source-only through PR #203 at `main@addd8049`;
-it is not deployed. Task 8.2's open idle-threshold/self-call-timeout
+it is not deployed. Task 5.1b (`ReplicaTokenProvider`) is **implemented but unmerged** on
+`feat/b2-task-5-1b-replica-token-provider` (not deployed). Task 8.2's open idle-threshold/self-call-timeout
 decisions and Tasks 8.3 and later remain not started. Spec A task 8.6
 is complete and the backend `assetPriceFreshness` response exists.
 Four decisions remain open: idle threshold, manual-reset placement, login self-call timeouts, and
@@ -20,12 +21,13 @@ for the living cross-program view.
 **Selected priority (2026-09-01):** resume Asset Picker delivery before further CI optimization.
 B1 Task 5.7/G5 remains a separate owner gate and still blocks B1 Waves 6–7. Tasks 5.1a
 (`InternalApiKeyProvider`) and 8.2a (`CloudFrontOriginSecretProvider`) merged source-only via PRs
-#202 and #203 at `main@64761dc2` and `main@addd8049`; neither is deployed. With 5.1a's build
-prerequisite satisfied, the first independently implementable B2 candidate is Task 5.1b,
-`ReplicaTokenProvider`. This ledger defines its provider, token formula, operator tool, packaging,
+#202 and #203 at `main@64761dc2` and `main@addd8049`; neither is deployed. Task 5.1b
+(`ReplicaTokenProvider`) is **implemented but unmerged** on `feat/b2-task-5-1b-replica-token-provider`
+via [PR #208](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/208) (not
+deployed). The Wave 5 Tasks 5.1–5.6 deployable bundle remains gated on Wave 4 Task 4.5; the next
+B2 implementation priority after 5.1b merges is owner-selected. Task 5.1b's ledger defined its provider, token formula, operator tool, packaging,
 and Azure image-smoke extension as one bounded deliverable shared by Tasks 5.1 and 8.7. Its
-implementation remains separately authorized and must preserve the fail-closed docs-only CI
-contract already live on `main`; no Asset Picker implementation PR is open at this audit baseline.
+implementation preserves the fail-closed docs-only CI contract already live on `main`.
 
 **Wave 1 (Tasks 1.1-1.19) and Wave 2 Tasks 2.1-2.5 — merged source-only (2026-08-29).**
 Merged through PR #178 at `main@38e3d95`; the implementation branch was
@@ -1368,7 +1370,8 @@ demo user's own click 403s before the new filter ever runs.
   image smoke test above proves the same wiring survives packaging into the actual deployed
   artifact — deliberately redundant with different failure modes, not the same check twice.**
   _Requirements: 7.3, 7.3a; design.md D5 (round-23 amendment)_
-- [ ] **5.1b `ReplicaTokenProvider` — the single owned source of the replica identity both emitters
+- [ ] **5.1b `ReplicaTokenProvider` — implemented but unmerged on `feat/b2-task-5-1b-replica-token-provider`
+  (not deployed). The single owned source of the replica identity both emitters
   publish** (round-33 addition — a real gap, and precisely the defect class Tasks 5.1a and 8.2a
   were created to fix, reintroduced by round-31's own header work: 5.1's `X-Gateway-Replica-Token`
   response header and 8.7's `replicaToken` event field were each described as reading

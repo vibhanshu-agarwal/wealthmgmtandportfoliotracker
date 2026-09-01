@@ -739,6 +739,18 @@ class AzureImageSmokeProbeOutputTests(unittest.TestCase):
         self.assertRegex(job, r"cmp -s \"\$stdout_file\"")
         self.assertNotRegex(job, r'\$\(cat "\$stdout_file"\)" != "\$expected"')
 
+    def test_workflow_replica_token_case_uses_cmp_and_fixed_vector(self):
+        job = WorkflowWiringTests()._job(
+            CI_VERIFICATION.read_text(encoding="utf-8"), "azure-image-smoke-test:"
+        )
+        self.assertIn("/replica-token.jar", job)
+        self.assertIn("api-gateway--0000000-abcdefg", job)
+        self.assertIn("95ca17821ade", job)
+        self.assertRegex(job, r"cmp -s \"\$replica_stdout_file\"")
+        self.assertRegex(job, r"replica-token case: tool exited non-zero")
+        self.assertRegex(job, r"replica_stderr_file")
+        self.assertRegex(job, r"if \[ -s \"\$replica_stderr_file\" \]")
+
 
 class ToolingAvailabilityTests(unittest.TestCase):
     def test_jq_and_bash_are_present_when_running_on_a_runner(self):

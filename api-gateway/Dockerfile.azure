@@ -48,9 +48,10 @@ RUN sed -i '/^    java {/,/^    }/d' build.gradle
 # Mariner Linux uses tdnf — not yum or apt.
 RUN tdnf install -y findutils && tdnf clean all
 
-# Build the fat JAR and the independent presence probe jar.
+# Build the fat JAR, presence probe jar, and replica-token operator tool jar.
 RUN chmod +x gradlew \
-    && ./gradlew :api-gateway:bootJar :api-gateway:probeJar --no-daemon
+    && ./gradlew :api-gateway:bootJar :api-gateway:probeJar \
+        :api-gateway:replicaTokenJar --no-daemon
 
 # ---------------------------------------------------------------------------
 # Stage 2: Runtime — Microsoft OpenJDK 21 on Mariner
@@ -65,6 +66,7 @@ FROM ${RUNTIME_BASE} AS runtime
 
 COPY --from=builder /workspace/api-gateway/build/libs/app.jar /app.jar
 COPY --from=builder /workspace/api-gateway/build/libs/probe.jar /probe.jar
+COPY --from=builder /workspace/api-gateway/build/libs/replica-token.jar /replica-token.jar
 
 EXPOSE 8080
 
