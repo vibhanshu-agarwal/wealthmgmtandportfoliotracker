@@ -2,22 +2,27 @@
 
 **Last verified:** 2026-09-01
 
-**Program-state code baseline (runtime):** `main@e221662b6c891639a56894289e150ee01fb537f6`.
-This is the last SHA that changed Asset Picker program runtime/application behavior (catalog,
-enforcement, controlled refresh). Process-control and documentation merges do not advance it.
+**Program-state code baselines (runtime):** the cross-program baseline remains
+`main@e221662b6c891639a56894289e150ee01fb537f6`; B2 Wave 4 now serves the deliberately pinned
+historical portfolio-service cut `63fc0584ad307af7f50e9500f4911ac5999d6b76`, deployed by the
+current workflow at `main@67e55cf2c3b90d60149a79b084686d348ab9ba5e`. Process-control and
+documentation merges do not themselves advance runtime behavior.
 B1 R-A additionally serves Wave 2 gateway provisioning at revision `api-gateway--0000076` /
 digest `sha256:2da5b303…` (image tag `18693d2…`). B1 R-B applied Artifact 2 / V20 (cut `25aa730`).
 B1 R-B2 additionally serves Artifact 2a `portfolio-service` at revision
 `portfolio-service--0000081` / digest `sha256:d544649f…` (cut `f22e2ff`); that deploy serves the
 version-bearing read and read-only asset catalog without caller migration, public `PUT`, or Spec A
-fence changes.
+fence changes. It has now been superseded for portfolio-service traffic by B2 Task 4.5 revision
+`portfolio-service--0000093` / digest `sha256:9a1d5533…`, which retains that B1 contract and adds
+only the pinned B2 Wave 4 internal demo-reset cut.
 
 **Repository evidence baseline for this audit:**
-`main@f954b5a7aa7b490e32b8a2e8a99a1e9397888c2a` (PR #208 Task 5.1b source merge), independent of
-the runtime baseline above. Task 5.1a source merged via PR #202 at
+`main@67e55cf2c3b90d60149a79b084686d348ab9ba5e` (merged Task 4.5 operator kickoff), independent of
+the mixed runtime cuts above. Task 5.1a source merged via PR #202 at
 `main@64761dc2e58bb2249089f2af5b1dee3e06a3dc4a`; Task 5.1b source merged via PR #208 at the
-repository evidence baseline above; Task 8.2a source merged via PR #203 at
-`main@addd8049aa082bdfbd7e5bf19c6840e531a9cfb4` — none is deployed; the pinned Spec A
+`main@f954b5a7aa7b490e32b8a2e8a99a1e9397888c2a`; Task 8.2a source merged via PR #203 at
+`main@addd8049aa082bdfbd7e5bf19c6840e531a9cfb4` — none of those later standalone tasks is deployed;
+the pinned Spec A
 9.14 plan-evidence baseline is `main@66bbee0bf438706146ac9975bf5f0c923b3d43cb`. A docs-only
 audit changes the living record, not the runtime baseline.
 
@@ -32,8 +37,10 @@ and statement-history probes remain on the record. The authorized 2026-08-30 ret
 `portfolio-service--0000091` with both flags `false`. Operational checkpoint verdict: PASS.
 Historical RCA remains `MECHANISM_REPRODUCED_SETTER_UNPROVEN` — evidence
 [`SPEC_A_9_12_POOLED_READONLY_RCA.md`](../runbooks/SPEC_A_9_12_POOLED_READONLY_RCA.md).
-Checkpoint 9.13 is live-green on `portfolio-service--0000092`, `market-data-service--0000079`,
-and `insight-service--0000079` ([`SPEC_A_9_13_SCALE_RESTORE.md`](../runbooks/SPEC_A_9_13_SCALE_RESTORE.md)).
+Checkpoint 9.13 completed on `portfolio-service--0000092`, `market-data-service--0000079`, and
+`insight-service--0000079` ([`SPEC_A_9_13_SCALE_RESTORE.md`](../runbooks/SPEC_A_9_13_SCALE_RESTORE.md)).
+The portfolio-service revision was later superseded by the scoped B2 Task 4.5 digest deployment;
+the other two revisions remain unchanged.
 Checkpoint 9.14 source merged via PR #184 at `main@66bbee0`; the authorized read-only remote-plan
 [33313072724](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33313072724)
 passed the exact-scope 9.14 guard, while the apply job was skipped. Senior plan review returned
@@ -54,20 +61,23 @@ not check Task 5.7. Unattended synthetics remain suspended in
 `synthetic-monitoring.yml`. See
 [`B1_G5_INGRESS_BLOCKER.md`](../runbooks/B1_G5_INGRESS_BLOCKER.md);
 later B1 waves remain gated.
-B2 Wave 1 (Tasks 1.1-1.19) and Wave 2 Tasks 2.1-2.5 are merged source-only through PR #178 at `main@38e3d95`; they remain entirely mock-backed and disabled by default. Wave 3 presence source Tasks 3.1–3.6 merged source-only via PR #179 at `main@cc97a209`; Task 3.7 deploy/live proof remains open (not deployed, not activated, not live-probed). Wave 4 Tasks 4.1–4.4a merged source-only via PR #180 at `main@63fc058`; they are not deployed, routed, or user-visible. Tasks 5.1a and 5.1b merged source-only via PRs #202 and #208 at `main@64761dc2` and `main@f954b5a7`; Wave 8 Tasks 8.1 and 8.2a merged source-only via PRs #185 and #203 at `main@198c878d` and `main@addd8049`. None is deployed. Tasks 2.6–2.7, 3.7, 4.5, the remaining Wave 5 and Wave 8 work, and Waves 6, 9, and 10 remain open; Wave 7 is informational.
+B2 Wave 1 (Tasks 1.1-1.19) and Wave 2 Tasks 2.1-2.5 are merged source-only through PR #178 at `main@38e3d95`; they remain entirely mock-backed and disabled by default. Wave 3 presence source Tasks 3.1–3.6 merged source-only via PR #179 at `main@cc97a209`; Task 3.7 deploy/live proof remains open (not deployed, not activated, not live-probed). Wave 4 Tasks 4.1–4.4a merged via PR #180 at `main@63fc058`; that exact cut is now deployed only to the internal portfolio-service endpoint, and Task 4.5 completed with a reviewed live GO on `portfolio-service--0000093` / `sha256:9a1d5533…` ([evidence](../runbooks/B2_TASK_4_5_DEMO_RESET_STOP_GO.md)). Tasks 5.1a and 5.1b merged source-only via PRs #202 and #208 at `main@64761dc2` and `main@f954b5a7`; Wave 8 Tasks 8.1 and 8.2a merged source-only via PRs #185 and #203 at `main@198c878d` and `main@addd8049`. Those later standalone tasks are not deployed. Tasks 2.6–2.7, 3.7, the remaining Wave 5 and Wave 8 work, and Waves 6, 9, and 10 remain open; Wave 7 is informational.
 
 **User-visible state:** there is no functional Asset Picker in the application today.
 
-**Handoff state:** Spec A 9.12 is **operationally complete** and Spec A 9.13 is **complete** on
-`portfolio-service--0000092`, `market-data-service--0000079`, and `insight-service--0000079`;
-the demo still holds 159 holdings with both demo/diagnostic flags `false`, and historical setter
+**Handoff state:** Spec A 9.12 is **operationally complete**, and Spec A 9.13's scale restoration
+remains effective. B2 Task 4.5 is now **GO** on `portfolio-service--0000093` /
+`sha256:9a1d5533…`; the owner-authorized one-call probe returned a correct already-golden no-op with
+159 holdings and version `0`. `market-data-service--0000079` and `insight-service--0000079` are
+unchanged. Both demo/diagnostic flags remain `false`, and historical setter
 attribution remains `MECHANISM_REPRODUCED_SETTER_UNPROVEN`. The guarded 9.14 source and its pinned
 read-only remote-plan are green, senior plan review returned **ACCEPT** on 2026-08-31 with no apply
 blocker, and the authorized apply completed. Spec A's production cutover checkpoints 9.1–9.14 are
 now all complete. Gateway ingress is open on both the default ACA endpoint and the restored
 `api.vibhanshu-ai-portfolio.dev` custom domain; the three catalog consumers remain at
 `min_replicas=0`. B1 G5 remains open solely pending its separately recorded owner-controlled
-completion decision, not because of an unresolved ingress or custom-domain gap.
+completion decision, not because of an unresolved ingress or custom-domain gap. Wave 5's Wave 4
+prerequisite is satisfied, but its implementation and deployment remain separately owner-gated.
 
 This is the living, human-facing status document for the Asset Picker program. It is not a
 historical snapshot. Detailed requirements, designs, task mechanics, and operational evidence live
@@ -140,10 +150,10 @@ At every meaningful merge or live checkpoint:
 
 | Track | Delivered | Current position | Remaining outcome |
 |---|---|---|---|
-| **A — Spec A catalog/data cutover** | Shared catalog, Postgres/Mongo repair, R4 rollout, enforcement, one reconciled controlled refresh, persisted refresh enablement, demo portfolio activation, and scale-to-zero restoration | **All 14 cutover checkpoints complete.** 9.13 is live-green on `portfolio-service--0000092`, `market-data-service--0000079`, and `insight-service--0000079`; 9.14 completed via apply [33331130603](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33331130603), reopening ACA external ingress on `api-gateway--0000077` with `allowInsecure=false` ([`SPEC_A_9_14_REOPEN_INGRESS.md`](../runbooks/SPEC_A_9_14_REOPEN_INGRESS.md)); the later custom-domain restore has independent `200` read-back, and PR #194 independently reviewed and merged that evidence ([`API_GATEWAY_CUSTOM_DOMAIN_RECOVERY.md`](../runbooks/API_GATEWAY_CUSTOM_DOMAIN_RECOVERY.md)); historical RCA remains `MECHANISM_REPRODUCED_SETTER_UNPROVEN` | Spec A's production cutover is done. The B1 G5 synthetic already succeeded; B1 now needs its separately recorded owner-controlled G5 completion decision. The four filed process follow-ups remain open |
+| **A — Spec A catalog/data cutover** | Shared catalog, Postgres/Mongo repair, R4 rollout, enforcement, one reconciled controlled refresh, persisted refresh enablement, demo portfolio activation, and scale-to-zero restoration | **All 14 cutover checkpoints complete.** 9.13 completed on `portfolio-service--0000092`, `market-data-service--0000079`, and `insight-service--0000079`; B2 Task 4.5 later superseded only the portfolio revision with `portfolio-service--0000093`. 9.14 completed via apply [33331130603](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33331130603), reopening ACA external ingress on `api-gateway--0000077` with `allowInsecure=false` ([`SPEC_A_9_14_REOPEN_INGRESS.md`](../runbooks/SPEC_A_9_14_REOPEN_INGRESS.md)); the later custom-domain restore has independent `200` read-back, and PR #194 independently reviewed and merged that evidence ([`API_GATEWAY_CUSTOM_DOMAIN_RECOVERY.md`](../runbooks/API_GATEWAY_CUSTOM_DOMAIN_RECOVERY.md)); historical RCA remains `MECHANISM_REPRODUCED_SETTER_UNPROVEN` | Spec A's production cutover is done. The B1 G5 synthetic already succeeded; B1 now needs its separately recorded owner-controlled G5 completion decision. The four filed process follow-ups remain open |
 | **B — B1 portfolio composition backend** | Deployment prerequisites, fixture identity migration, legacy writer retirement, Wave 2 gateway provisioning **served (R-A/G2 green)**, Wave 3 V20 **served (R-B/G3 green)**, Wave 5 version-bearing read **served (R-B2/G2a green)** | **Wave 2 / R-A complete**; **Wave 3 / R-B complete**; **Wave 5 Tasks 5.2–5.3 / R-B2 complete** (Artifact 2a on `portfolio-service--0000081` / `sha256:d544649f…`; cut `f22e2ff`); **Wave 4a–4c tasks 4.1–4.21 merged on `main@2673f40`** (PR #153; composition mechanisms unexposed; no public `PUT`); Task 5.1 merged on `main@f22e2ff` (PR #155); Tasks **5.4–5.6 merged on `main@0b5d60d1`** (PR #161, source-only); **5.7/G5 open** — authorized three-caller run [33411410271](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33411410271) (`main@f66d7ab6`; Task 5.7 unchecked pending a separately recorded owner-controlled G5 completion decision; documentation-PR review/merge does not check 5.7) | Separately recorded owner-controlled G5 completion decision; then Wave 6 / R-B3, safe desired-state writer activation, public `PUT` |
-| **C — B2 Asset Picker product** | Requirements, design, task plan, five-screen visual mockup, Wave 1 / partial Wave 2 frontend source, Wave 3 presence source, Wave 4 demo-reset source, and additional source Tasks 5.1a, 5.1b, 8.1, and 8.2a | Wave 1 (1.1-1.19) + Wave 2 Tasks 2.1-2.5 merged source-only on `main@38e3d95` via PR #178; Wave 3 Tasks 3.1–3.6 merged source-only on `main@cc97a209` via PR #179; Wave 4 Tasks 4.1–4.4a merged source-only via PR #180 at `main@63fc058`; Tasks 5.1a and 5.1b merged via PRs #202 and #208 at `main@64761dc2` and `main@f954b5a7`; Tasks 8.1 and 8.2a merged via PRs #185 and #203 at `main@198c878d` and `main@addd8049`. All remain undeployed | Task 3.7 deploy/live proof; Task 4.5; Task 5.1 and remaining Wave 5 and Wave 8 bundles; live integration and exposure remain separately gated |
-| **D — Demo credibility** | Canonical prices refreshed and reconciled; demo initializer exists; authorized 9.12 retry activated the Active_Asset set | Demo portfolio still holds 159 holdings after the 9.13 scale restore on `portfolio-service--0000092`, with both flags `false`; historical pooled-session setter remains unidentified | 9.14 and the custom-domain restore are complete; keep B1 G5 / Task 5.7 open pending a separately recorded owner-controlled G5 completion decision for run 33411410271, and do not treat operational 9.12 success as historical RCA closure |
+| **C — B2 Asset Picker product** | Requirements, design, task plan, five-screen visual mockup, Wave 1 / partial Wave 2 frontend source, Wave 3 presence source, Wave 4 demo-reset source and live internal proof, and additional source Tasks 5.1a, 5.1b, 8.1, and 8.2a | Wave 1 (1.1-1.19) + Wave 2 Tasks 2.1-2.5 merged source-only on `main@38e3d95` via PR #178; Wave 3 Tasks 3.1–3.6 merged source-only on `main@cc97a209` via PR #179; Wave 4 Tasks 4.1–4.4a merged via PR #180 at `main@63fc058`, and Task 4.5 is live-GO on `portfolio-service--0000093` / `sha256:9a1d5533…`; Tasks 5.1a and 5.1b merged via PRs #202 and #208 at `main@64761dc2` and `main@f954b5a7`; Tasks 8.1 and 8.2a merged via PRs #185 and #203 at `main@198c878d` and `main@addd8049`. The later standalone tasks remain undeployed | Task 3.7 deploy/live proof; owner-selected next Wave 5 or Wave 8 work; live integration and exposure remain separately gated |
+| **D — Demo credibility** | Canonical prices refreshed and reconciled; demo initializer exists; authorized 9.12 retry activated the Active_Asset set | Demo portfolio holds the exact 159-holding golden set after Task 4.5's one-call live proof on `portfolio-service--0000093`; version remained `0` under the valid same-state no-op; both flags remain `false`; historical pooled-session setter remains unidentified | 9.14 and the custom-domain restore are complete; keep B1 G5 / Task 5.7 open pending a separately recorded owner-controlled G5 completion decision for run 33411410271, and do not treat operational 9.12 success as historical RCA closure |
 
 ### What is actually usable today
 
@@ -153,7 +163,7 @@ At every meaningful merge or live checkpoint:
 | Repaired and reconciled price data | ✅ Shipped and verified |
 | Enforcement against unsupported holdings/events | ✅ Enabled |
 | `GET /api/assets` serving catalog data | ✅ Wave 2 gateway `/api/assets/**` route served with R-A; Wave 4b controller served with R-B2 Artifact 2a (`portfolio-service--0000081`) |
-| Version-bearing portfolio read | ✅ G2a/R-B2 green on `portfolio-service--0000081` / `sha256:d544649f…`; caller migration 5.4–5.6 on `main@0b5d60d1` (source-only, not deployed); **5.7/G5 open** — run [33411410271](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33411410271) recorded; Task 5.7 unchecked pending a separately recorded owner-controlled G5 completion decision |
+| Version-bearing portfolio read | ✅ G2a/R-B2 originally green on `portfolio-service--0000081` / `sha256:d544649f…`; the same contract is retained on current `portfolio-service--0000093`; caller migration 5.4–5.6 on `main@0b5d60d1` (source-only, not deployed); **5.7/G5 open** — run [33411410271](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33411410271) recorded; Task 5.7 unchecked pending a separately recorded owner-controlled G5 completion decision |
 | `PUT /api/portfolio/holdings` safe composition write | ❌ Not implemented |
 | Asset Picker button/modal/browse/review/conflict UI | 🟡 Source merged behind a disabled-by-default flag; mock-backed only, not deployed/live |
 | Asset Picker full-stack E2E proof | ❌ Not implemented |
@@ -177,7 +187,7 @@ Authority: [`.kiro/specs/supported-asset-integrity/tasks.md`](../../.kiro/specs/
 | 9.10 | ✅ Complete | One controlled refresh succeeded and was reconciled across Kafka, Mongo, and Postgres |
 | 9.11 | ✅ Complete | Persisted `MARKET_DATA_JOB_RUNNER_ENABLED=true` via Terraform; live read-back and standard no-op plan green ([`SPEC_A_9_11_PERSIST_REFRESH_ENABLEMENT.md`](../runbooks/SPEC_A_9_11_PERSIST_REFRESH_ENABLEMENT.md)) |
 | 9.12 | ✅ Operationally complete on `portfolio-service--0000091` | Authorized retry at `main@d29f670`: enable [33295859015](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33295859015) (`0000090`, 159 holdings, one seed event); restoring [33296204759](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33296204759) (`0000091`, both flags `false`); Neon tuple MD5 `6e436f24fa2b31d14aff77fe5d1a05c9`; historical RCA remains `MECHANISM_REPRODUCED_SETTER_UNPROVEN` ([`SPEC_A_9_12_POOLED_READONLY_RCA.md`](../runbooks/SPEC_A_9_12_POOLED_READONLY_RCA.md)) |
-| 9.13 | ✅ Complete | Guarded `spec-a-9.13-restore-scale` restored `min_replicas=0` on the three catalog consumers; live revisions `portfolio-service--0000092`, `market-data-service--0000079`, `insight-service--0000079`; evidence [`SPEC_A_9_13_SCALE_RESTORE.md`](../runbooks/SPEC_A_9_13_SCALE_RESTORE.md) |
+| 9.13 | ✅ Complete | Guarded `spec-a-9.13-restore-scale` restored `min_replicas=0` on the three catalog consumers; completion-time revisions `portfolio-service--0000092`, `market-data-service--0000079`, `insight-service--0000079`; B2 Task 4.5 later superseded only the portfolio revision; evidence [`SPEC_A_9_13_SCALE_RESTORE.md`](../runbooks/SPEC_A_9_13_SCALE_RESTORE.md) |
 | 9.14 | ✅ Complete | PR #184 merged the guarded `spec-a-9.14-reopen-ingress` / `spec-a-9.14-close-ingress` profiles at `main@66bbee0`; read-only remote-plan [33313072724](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33313072724) passed the exact-scope guard and skipped apply; senior review returned **ACCEPT** on 2026-08-31 (A1-A4, B1-B7, C1-C3; no apply blocker); authorized apply [33331130603](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33331130603) at `main@743c9b97` enabled external ingress on the existing `api-gateway--0000077` revision with `allowInsecure=false` and a healthy default ACA endpoint ([`SPEC_A_9_14_REOPEN_INGRESS.md`](../runbooks/SPEC_A_9_14_REOPEN_INGRESS.md)). That checkpoint alone did not unblock B1 G5; the later custom-domain recovery and successful synthetic removed the network blocker, while Task 5.7 still awaits its owner completion decision |
 
 Additional unfinished Spec A implementation task: **8.8**, replacing remaining hard-coded
@@ -267,7 +277,7 @@ substitute for an authorized Artifact cut.**
 |---|---|---|
 | Checkpoint 9.11 | **Complete** — apply run [33091163222](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33091163222); live runner `true`; standard no-op [33093260896](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33093260896); evidence [`SPEC_A_9_11_PERSIST_REFRESH_ENABLEMENT.md`](../runbooks/SPEC_A_9_11_PERSIST_REFRESH_ENABLEMENT.md) | 9.12 operationally complete; 9.13 live-green |
 | 9.12 enable / rollback / retry | **Operationally complete** — first enable failed and rolled back; authorized 2026-08-30 retry succeeded on `portfolio-service--0000090`/`0000091`; historical RCA remains `MECHANISM_REPRODUCED_SETTER_UNPROVEN` ([`SPEC_A_9_12_POOLED_READONLY_RCA.md`](../runbooks/SPEC_A_9_12_POOLED_READONLY_RCA.md)) | Do not treat retry success as named-setter attribution; keep `pg_stat_statements` installation separately gated |
-| 9.13 restore scale | **Complete** — remote-plan [33306477527](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33306477527); apply [33306874697](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33306874697); live `portfolio-service--0000092`, `market-data-service--0000079`, `insight-service--0000079` ([`SPEC_A_9_13_SCALE_RESTORE.md`](../runbooks/SPEC_A_9_13_SCALE_RESTORE.md)) | Superseded by 9.14, which reopened gateway ingress |
+| 9.13 restore scale | **Complete** — remote-plan [33306477527](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33306477527); apply [33306874697](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33306874697); completion-time revisions `portfolio-service--0000092`, `market-data-service--0000079`, `insight-service--0000079` ([`SPEC_A_9_13_SCALE_RESTORE.md`](../runbooks/SPEC_A_9_13_SCALE_RESTORE.md)); B2 Task 4.5 later superseded only the portfolio revision | Superseded by 9.14 for gateway ingress; scale policy remains in effect |
 | 9.14 reopen ingress | **Complete** — PR #184 / `main@66bbee0`; guarded read-only plan [33313072724](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33313072724) passed; apply skipped; reviewer orientation merged via [PR #187](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/187) | Plan review **ACCEPTed** 2026-08-31; apply [33331130603](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33331130603) passed the `production` gate and all twelve assertions. Live: external ingress on `api-gateway--0000077`, `allowInsecure=false`, default ACA endpoint healthy. The later custom-domain recovery and synthetic succeeded; Task 5.7 still awaits its owner completion decision. Four process follow-ups remain in `docs/todos/backlog/` |
 
 ### B1 delivery record
@@ -301,15 +311,15 @@ Authorities:
 - [implementation tasks](../../.kiro/specs/asset-picker-composition/tasks.md)
 - [visual mockup](../../.kiro/specs/asset-picker-composition/mockup/asset-picker-design.html)
 
-All four artifacts are tracked. Wave 1 (1.1-1.19) and Wave 2 Tasks 2.1-2.5 merged source-only on `main@38e3d95` through PR #178 after two external review rounds and regression fixes. That frontend remains entirely mock-backed and disabled by default; the merge did not authorize live endpoint wiring, deployment, or production exposure. Wave 3 presence source Tasks 3.1–3.6 merged source-only via PR #179 at `main@cc97a209` with a configurable 150-second default TTL; Task 3.7 deploy/live probe remains a separate owner-gated production step (not deployed, not activated, not live-probed). Wave 4 Tasks 4.1–4.4a merged source-only via PR #180 at `main@63fc058`; they are not deployed or routed. Standalone Task 5.1a (`InternalApiKeyProvider`) merged source-only via PR #202 at `main@64761dc2`, and standalone Task 5.1b (`ReplicaTokenProvider`) merged source-only via PR #208 at `main@f954b5a7`. Wave 8 Task 8.1 (the additive `updatedAt` read contract) merged source-only via PR #185 at `main@198c878d`, and standalone Task 8.2a (`CloudFrontOriginSecretProvider`) merged source-only via PR #203 at `main@addd8049`; none is deployed.
+All four artifacts are tracked. Wave 1 (1.1-1.19) and Wave 2 Tasks 2.1-2.5 merged source-only on `main@38e3d95` through PR #178 after two external review rounds and regression fixes. That frontend remains entirely mock-backed and disabled by default; the merge did not authorize live endpoint wiring, deployment, or production exposure. Wave 3 presence source Tasks 3.1–3.6 merged source-only via PR #179 at `main@cc97a209` with a configurable 150-second default TTL; Task 3.7 deploy/live probe remains a separate owner-gated production step (not deployed, not activated, not live-probed). Wave 4 Tasks 4.1–4.4a merged via PR #180 at `main@63fc058`; that exact historical cut was built immutably and digest-deployed to internal-only `portfolio-service--0000093`, and Task 4.5's controlled live proof is GO ([evidence](../runbooks/B2_TASK_4_5_DEMO_RESET_STOP_GO.md)). Standalone Task 5.1a (`InternalApiKeyProvider`) merged source-only via PR #202 at `main@64761dc2`, and standalone Task 5.1b (`ReplicaTokenProvider`) merged source-only via PR #208 at `main@f954b5a7`. Wave 8 Task 8.1 (the additive `updatedAt` read contract) merged source-only via PR #185 at `main@198c878d`, and standalone Task 8.2a (`CloudFrontOriginSecretProvider`) merged source-only via PR #203 at `main@addd8049`; these later standalone tasks are not deployed.
 
 | Wave | Status | Dependency note |
 |---|---|---|
 | 1 — mock-backed picker shell | ✅ Source merged (1.1-1.19), mock-backed only; not deployed/live | Feature flags, modal, browse/draft/review/conflict UX, mocked save/freshness/presence; PR #178 / `main@38e3d95` |
 | 2 — decimal adapter | 🟡 Tasks 2.1-2.5 source merged; 2.6-2.7 not started | PR #178 / `main@38e3d95`; rollout sequencing with B1 Wave 4/5 remains an explicit open coordination decision |
 | 3 — Redis-backed presence | 🟡 Tasks 3.1–3.6 source merged via PR #179 / `main@cc97a209`; Task 3.7 open | Default TTL **150s** via `APP_DEMO_PRESENCE_TTL`; not deployed/live-verified |
-| 4 — portfolio-service demo reset | 🟡 Tasks 4.1–4.4a source merged via PR #180 / `main@63fc058`; Task 4.5 open | B1 prerequisites verified on `main@cc97a209`; not deployed/routed |
-| 5 — manual-reset gateway bundle | 🟡 Tasks 5.1a and 5.1b source merged via [PR #202](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/202) / `main@64761dc2` and [PR #208](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/208) / `main@f954b5a7`; neither is deployed. The 5.1–5.6 deployable bundle remains gated on Wave 4 Task 4.5 | Internal-key provider, probe jar, replica-token provider/tool, Azure image smoke, and aggregate integration merged; filter/routes not started |
+| 4 — portfolio-service demo reset | ✅ Complete — Tasks 4.1–4.4a merged via PR #180 / `main@63fc058`; Task 4.5 live GO | Exact cut serves internally on `portfolio-service--0000093` / `sha256:9a1d5533…`; one authorized same-state reset returned `200`, exact golden 159/159, unchanged version `0` per B1; [evidence](../runbooks/B2_TASK_4_5_DEMO_RESET_STOP_GO.md) |
+| 5 — manual-reset gateway bundle | 🟡 Tasks 5.1a and 5.1b source merged via [PR #202](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/202) / `main@64761dc2` and [PR #208](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/208) / `main@f954b5a7`; neither is deployed. Wave 4's prerequisite is satisfied, but Wave 5 implementation/deployment remains owner-gated | Internal-key provider, probe jar, replica-token provider/tool, Azure image smoke, and aggregate integration merged; filter/routes not started |
 | 6 — manual reset frontend | ⬜ Blocked on Wave 5 and B1 5.1 | Hidden control and versioned reset call |
 | 7 — decimal rollout note | ℹ Informational | No independent release gate |
 | 8 — login-orchestrated reset | 🟡 Task 8.1 (`updatedAt` read contract) source merged via [PR #185](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/185) / `main@198c878d`; not deployed. Task 8.2a (`CloudFrontOriginSecretProvider`) source merged via [PR #203](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/203) / `main@addd8049`; not deployed. Task 8.2's open decisions and Tasks 8.3 and later not started | Requires B1/V20/version read (met, satisfied by 8.1); open idle/timeouts, Tasks 8.3 and later, 5.1b (merged source-only via PR #208; not deployed), and its own deployment evidence |
@@ -358,10 +368,12 @@ individual approval gates.
 
 ### Current cutoff
 
-Spec A 9.14 is the last completed production checkpoint. Historical setter attribution remains
-`MECHANISM_REPRODUCED_SETTER_UNPROVEN`. Production is on `portfolio-service--0000092`,
-`market-data-service--0000079`, and `insight-service--0000079`; the demo still has 159 holdings and
-both demo/diagnostic flags remain `false`. The three catalog consumers are restored to
+Spec A 9.14 remains the last completed Spec A checkpoint. Historical setter attribution remains
+`MECHANISM_REPRODUCED_SETTER_UNPROVEN`. B2 Task 4.5 subsequently completed on
+`portfolio-service--0000093` / `sha256:9a1d5533…`; production remains on
+`market-data-service--0000079` and `insight-service--0000079`. The demo has the exact 159-holding
+golden state after the valid no-op reset proof, and both demo/diagnostic flags remain `false`. The
+three catalog consumers are restored to
 `min_replicas=0`; gateway ingress is open after the 9.14 apply, and the
 `api.vibhanshu-ai-portfolio.dev` custom-domain binding has since been restored with independent
 public `200` read-back.
@@ -370,6 +382,8 @@ public `200` read-back.
   `main@cdf23737` and returned `STATEMENT_HISTORY_PROBE_EXECUTED_HISTORY_UNAVAILABLE`;
 - production demo and diagnostics gates remain `false` after the restoring apply;
 - scale has been restored to `min_replicas=0`; ingress is reopened on the default ACA endpoint;
+- B2 Task 4.5 is GO after the owner-authorized immutable digest deployment and one same-state reset
+  probe; Wave 5's Wave 4 prerequisite is satisfied, without authorizing Wave 5 work;
 - 9.14 is complete and live-verified; **B1 G5 / Task 5.7 remain open** pending a separately
   recorded owner-controlled G5 completion decision for authorized three-caller run
   [33411410271](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33411410271)
@@ -390,15 +404,12 @@ pending its separately recorded owner completion decision, so B1 Waves 6–7 rem
 via PRs #202 and #203 at `main@64761dc2` and `main@addd8049`; neither is deployed. Task 5.1b
 (`ReplicaTokenProvider`) merged source-only via
 [PR #208](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/208) at
-`main@f954b5a7`; it is not deployed. **Wave 4 Task 4.5 is the selected next B2 gate.** Execution is
-governed by the Codex-authored
-[`CLAUDE_KICKOFF_B2_TASK_4_5_DEMO_RESET_STOP_GO.md`](../agent-instructions/CLAUDE_KICKOFF_B2_TASK_4_5_DEMO_RESET_STOP_GO.md):
-Claude performs a prescribed read-only/local preflight, returns an owner-authorization packet,
-then acts only on explicit authorization for the immutable candidate build, digest deployment, and
-single live reset probe. Claude does not author the durable evidence; Codex reviews the structured
-execution record and owns the later governed documentation/status reconciliation. Merging the
-kickoff note authorizes no production write. The Wave 5 Tasks 5.1–5.6 deployable bundle remains
-gated on a reviewed Task 4.5 GO.
+`main@f954b5a7`; it is not deployed. **Wave 4 Task 4.5 completed with a reviewed GO on 2026-09-01.**
+The owner-authorized immutable build, scoped digest deployment, one valid same-state reset, corrected
+B1 version interpretation, and cutover read-readiness observation are recorded in
+[`B2_TASK_4_5_DEMO_RESET_STOP_GO.md`](../runbooks/B2_TASK_4_5_DEMO_RESET_STOP_GO.md). Wave 5's Wave 4
+prerequisite is satisfied, but no Wave 5 implementation or deployment is authorized by that GO.
+The next B2 priority remains owner-selected.
 
 1. **Operational lane:** Spec A's production cutover is **complete through 9.14**. The plan was
    reviewed and ACCEPTed (2026-08-31), and the authorized apply
@@ -431,13 +442,12 @@ source-only on `main@0b5d60d1`** (PR #161); **5.7/G5 remains unchecked** pending
   Writer_Convergence while the old seed remains version-tolerant.
 3. **B2 product lane:** Wave 1 (1.1-1.19) and Wave 2 Tasks 2.1-2.5 are merged source-only through
    PR #178 on `main@38e3d95`, with two rounds of external review findings fixed. Wave 3 Tasks
-   3.1–3.6, Wave 4 Tasks 4.1–4.4a, and standalone Tasks 5.1a, 5.1b, 8.1, and 8.2a are also merged
-   source-only; none is deployed. Task 5.1b merged via
+   3.1–3.6, Wave 4 Tasks 4.1–4.4a, and standalone Tasks 5.1a, 5.1b, 8.1, and 8.2a are also merged.
+   The exact Wave 4 cut is deployed internally on `portfolio-service--0000093`, and Task 4.5 is GO;
+   the other listed B2 source remains undeployed. Task 5.1b merged via
    [PR #208](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/208) at
-   `main@f954b5a7`. Task 4.5 is selected next under the prescriptive Claude operator kickoff linked
-   above; the kickoff merge permits only local/read-only preflight, and production execution still
-   requires separate owner authorization. The Wave 5 Tasks 5.1–5.6 deployable bundle remains gated
-   on a reviewed Task 4.5 GO.
+   `main@f954b5a7`. Wave 5's Task 4.5 prerequisite is satisfied; the next B2 task remains
+   owner-selected, and its implementation/deployment retain their own authorization boundaries.
    Tasks 2.6–2.7, live proofs, remaining bundles, deployment, and exposure retain their own gates.
 4. **Process lane:** keep the status-propagation CI guard healthy in required `static-guard`; it is
    process-control only and does not advance the runtime baseline.

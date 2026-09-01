@@ -1,11 +1,13 @@
 # Implementation Plan
 
-**Current program status (verified 2026-09-01 against `main@f954b5a7`):** this task plan and its owning
+**Current program status (verified 2026-09-01 against `main@67e55cf2`):** this task plan and its owning
 requirements/design/mockup are tracked. Wave 1 (Tasks 1.1-1.19) and Wave 2 Tasks 2.1-2.5 are merged
 source-only through PR #178, entirely mock-backed and disabled by default. Wave 3 presence source
 Tasks 3.1–3.6 merged source-only through PR #179 at `main@cc97a209`; Task 3.7 deployment/live proof
-remains open (not deployed, not activated, not live-probed). Wave 4 Tasks 4.1–4.4a merged source-only
-through PR #180 at `main@63fc058`; they are not deployed, not routed, and not user-visible. Wave 8
+remains open (not deployed, not activated, not live-probed). Wave 4 Tasks 4.1–4.4a merged through
+PR #180 at `main@63fc058` and their exact historical cut is now serving internally on
+`portfolio-service--0000093` at digest `sha256:9a1d5533…`; Task 4.5 is GO after the one controlled
+live call returned a valid already-golden no-op. The endpoint is not routed to users. Wave 8
 Task 8.1 merged source-only through PR #185 at `main@198c878d`; it is not deployed. Task 5.1a
 (`InternalApiKeyProvider`) merged source-only through PR #202 at `main@64761dc2`; it is not deployed.
 Task 8.2a (`CloudFrontOriginSecretProvider`) merged source-only through PR #203 at `main@addd8049`;
@@ -24,14 +26,14 @@ B1 Task 5.7/G5 remains a separate owner gate and still blocks B1 Waves 6–7. Ta
 #202 and #203 at `main@64761dc2` and `main@addd8049`; neither is deployed. Task 5.1b
 (`ReplicaTokenProvider`) merged source-only via
 [PR #208](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/208) at
-`main@f954b5a7`; it is not deployed. **Wave 4 Task 4.5 is now the selected next B2 gate.** Its
-Codex-authored, prescriptive Claude operator note is
+`main@f954b5a7`; it is not deployed. **Wave 4 Task 4.5 completed with a reviewed GO on
+2026-09-01.** Its Codex-authored Claude operator note is
 [`docs/agent-instructions/CLAUDE_KICKOFF_B2_TASK_4_5_DEMO_RESET_STOP_GO.md`](../../../docs/agent-instructions/CLAUDE_KICKOFF_B2_TASK_4_5_DEMO_RESET_STOP_GO.md).
-Merging that note authorizes local verification and read-only preflight only; the immutable ACR
-candidate build, production digest deployment, and single demo-reset probe require a separate,
-explicit owner authorization after Claude returns the prescribed preflight packet. Claude owns
-execution and structured evidence only; Codex owns senior review and the later governed evidence
-documentation. The Wave 5 Tasks 5.1–5.6 deployable bundle remains gated on a reviewed Task 4.5 GO.
+The reviewed execution record is
+[`docs/runbooks/B2_TASK_4_5_DEMO_RESET_STOP_GO.md`](../../../docs/runbooks/B2_TASK_4_5_DEMO_RESET_STOP_GO.md).
+It records the owner-authorized immutable build, digest deployment, one successful no-op probe, and
+the corrected B1 version rule. Wave 5's Wave 4 prerequisite is satisfied, but this GO does not
+authorize Wave 5 implementation or deployment; the next B2 priority remains owner-selected.
 Task 5.1b's ledger defined its provider, token formula, operator tool, packaging,
 and Azure image-smoke extension as one bounded deliverable shared by Tasks 5.1 and 8.7. Its
 implementation preserves the fail-closed docs-only CI contract already live on `main`.
@@ -68,8 +70,8 @@ the only build that ever sets the former to `"true"` is
 environment. **This is a source-on-`main` claim only, not a deployment, live-integration, or
 production-exposure claim.** Tasks 2.6-2.7 remain open. Wave 3 source merged via PR #179 at
 `main@cc97a209` (Tasks 3.1–3.6 source-only; Task 3.7 deploy/live proof open). Wave 4 Tasks
-4.1–4.4a merged source-only through PR #180 at `main@63fc058`; Task 4.5 and
-Waves 5–10 remain open per their own gates below.
+4.1–4.4a merged through PR #180 at `main@63fc058`; Task 4.5 completed with a reviewed live GO on
+2026-09-01. Waves 5–10 remain open per their own gates below.
 
 **Review-accounting note (Azure-first consolidation, 2026-08-22):** the long numbered-round
 narrative below is retained as provenance only. Future reviews record findings in git/PR history and
@@ -997,7 +999,7 @@ field, and one hard rule about where each may be used:
 D4). Wave 3 backend source merged via PR #179 at `main@cc97a209` — **not** deployed, live-probed, or
 flagged complete. Task 3.7 STOP/GO deploy/live evidence remains a later owner action.
 
-## Wave 4 — Demo-reset, portfolio-service side · *design.md D5 Stage 1* · **Tasks 4.1–4.4a merged source-only via PR #180 at `main@63fc058`; Task 4.5 open**
+## Wave 4 — Demo-reset, portfolio-service side · *design.md D5 Stage 1* · **Complete — Tasks 4.1–4.4a merged via PR #180 at `main@63fc058`; Task 4.5 live GO on `portfolio-service--0000093`**
 
 Purely additive and safe to verify at length: nothing yet routes real user traffic to this endpoint
 until Wave 5 ships.
@@ -1019,8 +1021,9 @@ until Wave 5 ships.
     `PortfolioService.toResponse` mapping; `PortfolioResponseVersionTest`,
     `PortfolioServiceVersionMappingTest`.
   _Requirements: 7.2, 7.3_
-- [x] **4.2 `DemoResetService.reset(expectedVersion)`** — *(Merged source-only via PR #180 at
-  `main@63fc058`; not deployed or routed.)* calls B1's `replace(DEMO_USER_ID,
+- [x] **4.2 `DemoResetService.reset(expectedVersion)`** — *(Merged via PR #180 at
+  `main@63fc058`; deployed from that exact cut to internal-only revision
+  `portfolio-service--0000093`.)* calls B1's `replace(DEMO_USER_ID,
   expectedVersion, intent: [], preparer: GoldenStateTuplePreparer(app.demo.cost-basis-anchor))`.
   Target is a compiled-in constant, mirroring B1's `E2E_USER_ID` pattern — never a caller-supplied
   id (GC.6-adjacent: this is the "no re-read, server-fixed target" half of D5's design).
@@ -1046,8 +1049,9 @@ until Wave 5 ships.
   every attempt regardless of outcome would make the trace-id correlation Task 8.9 depends on
   ambiguous instead of proof.
   _Requirements: 7.2, 7.3; design.md D5 (pass 22)_
-- [x] **4.3 New internal controller** — *(Merged source-only via PR #180 at `main@63fc058`; not
-  deployed or routed.)* `/api/internal/portfolio/demo-reset`, one method mapped to
+- [x] **4.3 New internal controller** — *(Merged via PR #180 at `main@63fc058`; deployed only on
+  the internal portfolio-service ingress and not routed to users.)*
+  `/api/internal/portfolio/demo-reset`, one method mapped to
   **both** `POST` and `PUT` from the start (there is no `POST`-only predecessor to widen), protected
   by the existing `InternalApiKeyFilter`.
   _Requirements: 7.3; design.md D5_
@@ -1055,8 +1059,9 @@ until Wave 5 ships.
   slice that can fabricate the proof (round-8 correction: an MVC-slice test can mock
   `DemoResetService` itself, return a hand-built golden-looking response, and never touch
   `HoldingReplacementService`, `GoldenStateTuplePreparer`, the catalog, or persistence at all — every
-  assertion below would still pass against a controller that does nothing real).** *(Merged source-only
-  via PR #180 at `main@63fc058`; `DemoResetIntegrationTest` green; not deployed or routed.)* Spring +
+  assertion below would still pass against a controller that does nothing real).** *(Merged via
+  PR #180 at `main@63fc058`; `DemoResetIntegrationTest` green; the tested production mechanism is
+  deployed internally on `portfolio-service--0000093`.)* Spring +
   Testcontainers (Postgres), exercising the genuine
   `DemoResetService → HoldingReplacementService → GoldenStateTuplePreparer → Catalog_Module →
   persistence` chain end to end — **no mocking of any component in that chain; a spy on
@@ -1149,7 +1154,7 @@ until Wave 5 ships.
   state through `GoldenStateTuplePreparer`. CI fails if catalog evolution changes the expected set
   without the independent oracle and its fixed-vector tests being updated together.
   _Requirements: 7.1, 7.3b; design.md D5_
-- [ ] **4.5 STOP/GO — verify directly against the deployed environment, with an explicit probe
+- [x] **4.5 STOP/GO — verify directly against the deployed environment, with an explicit probe
   sequence (round-3 addition — the previous draft didn't specify where `expectedVersion` for the
   probe itself would come from).** Requirements.md 7.3 prohibits observing the version any way other
   than a real `GET /api/portfolio` call — never a dedicated version endpoint, never a re-read inside
@@ -1160,13 +1165,27 @@ until Wave 5 ships.
   4.1 cluster. **Probe sequence:** (1) authenticate as the demo user; (2) call the real, deployed
   `GET /api/portfolio`; (3) extract `version` from the response for the demo user's own portfolio;
   (4) call the deployed internal endpoint with `X-Internal-Api-Key` and that exact observed version;
-  (5) assert the response matches Task 4.4's contract. **Go:** 4.4 green, B1 task 5.1 confirmed live,
-  plus this exact probe sequence executed successfully against the deployed environment. **Abort:**
+  (5) assert the response matches Task 4.4 and B1's complete contract: a changed persisted tuple
+  returns `version + 1`, while a matching-version, already-golden tuple returns `200` with the
+  version unchanged. **Go:** 4.4 green, B1 task 5.1 confirmed live, plus this exact probe sequence
+  executed successfully against the deployed environment. **Completed 2026-09-01:** candidate cut
+  `63fc0584` was built once as ACR run `cu3` and digest-deployed by
+  [run 33524223884](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33524223884)
+  to sole revision `portfolio-service--0000093` at `sha256:9a1d5533…`. The one authorized PUT
+  (`traceId=d43c8c380acb3f0006e918ac040d0203`) returned `200`; identity and `createdAt` were preserved,
+  quantities were JSON strings, the 159 holdings matched the independent oracle, the post-read
+  matched, and version `0` correctly remained unchanged because production was already golden.
+  No data mutation, retry, rollback, control-plane secret read, secret exposure, or peer-resource
+  change occurred. The first B4 entry had stopped before any PUT when control-plane health preceded
+  authenticated read readiness; the evidence runbook records this settle/read-readiness lesson.
+  See
+  [`docs/runbooks/B2_TASK_4_5_DEMO_RESET_STOP_GO.md`](../../../docs/runbooks/B2_TASK_4_5_DEMO_RESET_STOP_GO.md).
+  **Abort:**
   do not proceed to Wave 5; nothing yet forwards user traffic here, so no rollback is needed beyond
   not deploying Wave 5.
   _Requirements: 7.3; design.md D5 (rollout stage 1-3)_
 
-## Wave 5 — Demo-reset, manual-reset gateway bundle · *design.md D5 Stage 4, gated on Wave 4*
+## Wave 5 — Demo-reset, manual-reset gateway bundle · *design.md D5 Stage 4; Wave 4 prerequisite satisfied*
 
 One deployable unit (GC.10): the filter, the route, and the allowlist entry ship together, or the
 demo user's own click 403s before the new filter ever runs.
