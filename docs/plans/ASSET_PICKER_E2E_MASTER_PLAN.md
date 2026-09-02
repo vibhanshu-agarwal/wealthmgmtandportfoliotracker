@@ -11,6 +11,7 @@ This reconciliation does not advance a runtime baseline or claim a new productio
 
 **Current source review:** [draft PR #214](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/214), `ded1a0e1` on
 base `main@06b35250`, implements B2 Wave 6 Tasks 6.1/6.2 but remains unmerged.
+Published PR head `9fbe3158` adds documentation only; its source matches the reviewed `ded1a0e1`.
 All three code findings are closed. Visual acceptance remains pending delivery of the new
 mock screenshots. The owner deferred the existing narrow-screen sidebar issue to the
 [sidebar backlog](../todos/backlog/responsive-dashboard-sidebar/README.md); its fix is separate from this source review. See the B2 ledger.
@@ -435,16 +436,22 @@ submitted as invented observed zero. The valid empty-list zero sentinel remains 
 Task 1.2/B1. The B2 ledger records the reviewed fixes and regression evidence.
 
 [Frontend CI](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33636041342) passed **526 tests**, lint, typecheck, build,
-and one static login-HTML smoke. Status propagation, gateway unit tests, and Azure image smoke
-passed on this source head; the backend integration job was still running at the review checkpoint.
-Claude reports new local mock captures, but those image files/links have not been supplied to Codex.
+and one static login-HTML smoke. The [source-head backend pipeline](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33636041409)
+also completed successfully. On published head `9fbe3158`, frontend build/tests, static smoke,
+and status propagation passed; the [new backend pipeline](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33639746603)
+was still running at this checkpoint.
+Claude now reports a genuine delayed-response `Resetting…` capture and a 375×812 view.
+Those images remain in Claude's tool transcript: neither the pasted report nor the PR body/comments
+contains image attachments or links available to Codex. Export and attach the captures for review.
 The previously supplied images establish only the dark-theme failure view. Attach the actual
 idle/submitting/success/conflict/failure views and narrow/wide light/dark evidence; a success
 capture does not establish the pending state. On 2026-09-02 the owner deferred the existing
 375px sidebar clipping to the [sidebar backlog](../todos/backlog/responsive-dashboard-sidebar/README.md). That shared-shell fix does not block Wave 6
 source review; the limitation remains documented rather than counted as a passed responsive
-check. The control's actual visual evidence is still required. Correct the stale PR evidence and recheck
-final-head CI. Tasks 6.1/6.2 stay unchecked, the feature flag stays off, and 5.6/6.3 remain separate gates.
+check. The PR description now includes the fix rounds, 526 tests, local static smoke, local-stack
+and mock work, and the sidebar deferral. One factual correction remains: replace its claim that
+reset never changes version with the changed-tuple increment / same-state no-op distinction.
+Attach the control's actual visual evidence and recheck final-head CI. Tasks 6.1/6.2 stay unchecked, the feature flag stays off, and 5.6/6.3 remain separate gates.
 
 **Wave 5 source completion:** [PR #212](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/212) merged at
 `main@d8fa499de05fa1370a0271c4822230a6ea113695`, with reviewed base `a2c402db` and final head

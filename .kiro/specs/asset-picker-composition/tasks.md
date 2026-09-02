@@ -1652,7 +1652,8 @@ their own gates.
 `claude/b2-wave-6-manual-reset-frontend`, is reviewed at source head
 `ded1a0e10ba03bbe35b07a5dff5d80652535cc82`, based on
 `main@06b352502c14f6d34662b30ff6f0b0a3047c80e7`. The latest source fix follows
-Codex review documentation `107f550e`; the PR remains draft.
+Codex review documentation `107f550e`; the PR remains draft. Published head `9fbe3158`
+adds only documentation/backlog changes after `ded1a0e1`; source is unchanged.
 The owner selected Claude for UI work; its kickoff was supplied from Codex's sibling worktree
 at `9651f083` and is not yet on main. Flags remain disabled in committed configuration,
 and final UI placement stays OPEN.
@@ -1662,14 +1663,17 @@ and final UI placement stays OPEN.
 | R1 — conflict refresh | **Fixed.** `handleReobserve` awaits a direct `fetchPortfolio` call and replaces the user-scoped cache before clearing conflict. A failed/offline read stays blocked instead of relying on a Query Core paused-refetch promise. The regression explicitly sets `onlineManager` offline, rejects the network request, preserves conflict, and verifies reconnect does not submit another PUT. A successful read need not return a larger version |
 | R2 — response reconciliation | **Fixed.** Cache reconciliation uses awaited hook-level mutation callbacks. Delayed-enrichment and unmount regressions establish the busy-state and shared-cache behavior; the round-2 patch preserves that fix |
 | R3 — observed version | **Fixed.** `version != null` marks both omitted and explicit null wire fields unobserved, consistently with the existing `?? 0` value fallback. The actual-adapter regression supplies wire null and expects `versionObserved: false`. **Correction retained:** a successful empty GET may legitimately map to zero under Task 1.2 and B1's absent-portfolio contract; the earlier objection to that sentinel is withdrawn |
-| R4 — visual acceptance | **Evidence pending.** Claude reports new local mock captures in dark/light themes and wide/375px viewports, but no new image files/links accompanied the report. The seven previously supplied images establish only a dark-theme reset failure view. Supply the new captures, including an actual pending `Resetting…` state; “submitting-adjacent success” is not evidence of that state. The owner deferred the existing narrow-screen sidebar clipping to the [sidebar backlog](../../../docs/todos/backlog/responsive-dashboard-sidebar/README.md); its fix is separate from Wave 6, and the limitation is not counted as a passing responsive check |
+| R4 — visual acceptance | **Delivery pending.** Claude now reports a genuine disabled `Resetting…` capture with a held-open mock PUT, a 375×812 view, and dark/light control states. The images are described as visible in Claude's tool transcript, but no image attachments or links appear in the pasted report or PR body/comments. Codex cannot visually review an inaccessible transcript; export and attach the PNGs or provide saved paths. Previously supplied images establish only the dark-theme failure view. The owner deferred the existing narrow-screen sidebar clipping to the [sidebar backlog](../../../docs/todos/backlog/responsive-dashboard-sidebar/README.md); its fix is separate from Wave 6, and the limitation is not counted as a passing responsive check |
 
 **Verified current evidence:** [Frontend CI](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33636041342) passed 62 files / **526 tests**,
 lint, typecheck, and the build on `ded1a0e1`. Its `e2e-smoke` job ran **one passing
 static login-HTML check**, using `SKIP_BACKEND_HEALTH_CHECK=true`; no backend is required for
 that smoke, and it is not Wave 9's assembled-stack reset proof. Status propagation, gateway
-unit tests, and Azure image smoke passed. The [backend pipeline](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33636041409)
-still had integration tests running at this checkpoint; recheck final-head CI before acceptance.
+unit tests, and Azure image smoke passed. The [source-head backend pipeline](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33636041409)
+is now confirmed completed successfully. Published head `9fbe3158` also passed frontend
+build/tests, its one static login smoke, and status propagation; the
+[new backend pipeline](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33639746603)
+was still running at this checkpoint. Recheck final-head CI before acceptance.
 Codex inspected the implementation and new regressions with an independent review; R1–R3
 are closed, with no remaining code finding from these review rounds. Independent execution of
 the two focused test files passed **45 tests**.
@@ -1682,14 +1686,16 @@ assigned to Claude for later UI work. Its fix does not block Wave 6 source revie
 control screenshots remain required, and the reported clipping stays documented as a known
 limitation rather than a passed narrow-screen check.
 
-Claude reports removing the temporary mock bootstrap and preview configuration. The latest
-commit changes exactly four intended frontend source/test files, and the worktree was clean
-before this documentation update. The PR description still reports 515 tests, an incomplete
-static smoke, and the original failed preview; Claude must update it to this head's evidence
-and distinguish earlier local-stack work from the new mocked visual checks. These observations
+Claude reports removing the temporary mock bootstrap and preview configuration; the review
+worktree was clean at `9fbe3158`. The PR description has been rewritten to include both fix
+rounds, 526 tests, completed local static smoke, earlier local-stack work, new mocked visual
+checks, and the deferred sidebar item. Screenshot descriptions are present, but the captures
+themselves are not attached or linked. Claude's backlog addendum records visual confirmation
+by Claude; it does not establish that Codex has inspected that image.
+One factual correction remains in the PR's local-stack paragraph: demo reset can increment
+version when the persisted tuple changes; only an already-golden same-state reset leaves it
+unchanged. Replace the broader claim that reset never changes version. These observations
 do not establish production deployment or Task 6.3/9/10 acceptance.
-The version rule remains: a changed persisted tuple increments version; an already-golden
-same-state reset leaves it unchanged.
 
 Codex updates only the two governed documents under the existing documentation permission.
 Tasks 6.1/6.2 stay unchecked while unmerged. Task 5.6's owner GO, Task 6.3, B1 G5, deployment,
