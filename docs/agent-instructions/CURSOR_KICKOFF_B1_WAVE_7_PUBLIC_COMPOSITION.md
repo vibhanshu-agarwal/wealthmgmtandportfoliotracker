@@ -246,4 +246,3 @@ in Tasks 7.3 onward. Current merged response-shape and gateway-identity conventi
 explicitly above, rather than relying on the illustrative design signature.
 
 No implementation code has been changed by this kickoff. No process is running in Cursor yet.
-

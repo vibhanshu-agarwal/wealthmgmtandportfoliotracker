@@ -2,6 +2,8 @@
 
 **Last verified:** 2026-09-03
 
+**Runtime baseline:** unchanged by this source assignment and release preparation; no new serving-state claim.
+
 
 **Parallel source assignment (2026-09-03):** the owner requested implementation work be assigned
 before Codex starts Task 6.5. **Cursor is assigned B1 Tasks 7.1–7.2**, the public composition
@@ -13,6 +15,14 @@ the Wave 7 controller must not enter R-B3's source/image, and no merge or exposu
 New GitHub publication remains separately approval-gated under AGENTS.md. All task checkboxes
 retain their existing completion state.
 
+
+**Task 6.5 preparation started after assignment:** Codex recorded the Cursor handoff in local
+commit 01e0664, then reverified G5 and the frozen source at main@6a171558. The
+[6.5 readiness record](../runbooks/B1_TASK_6_5_PRE_DEPLOY_READINESS.md) recommends technical GO
+on the stated caller-readiness criterion: unchanged caller paths, exactly three callers, 9 caller
+guard tests and 90 deployment-safeguard tests pass. The owner GO decision remains open; no task
+checkbox changed. The candidate source is fixed, but no candidate registry digest was built and
+no fresh Azure serving/rollback snapshot was taken. Deployment and Tasks 6.6/6.7 remain separate.
 
 **B1 Wave 6 source completion (verified 2026-09-03):** Tasks **6.1–6.4 are source-complete**
 after owner-approved [PR #217](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/217)
@@ -317,7 +327,7 @@ Authority: [`.kiro/specs/portfolio-composition-contract/tasks.md`](../../.kiro/s
 | 4 – contract implementation | Source on Artifact 2a serving cut; mechanisms unexposed | Wave 4a–4c (4.1–4.21) merged on `main@2673f40` (PR #153) and included in Artifact 2a serving digest. Public `PUT` still Wave 7. Replacement orchestrator + preparers remain unexposed; `GET /api/assets` controller is now served with R-B2; candidate packaging (7.5/R-C) still pending |
 | 5 — version-bearing read | ✅ Tasks 5.1–5.3 / R-B2 complete; 5.4–5.6 merged via PR #161 at `main@0b5d60d1`; **5.7/G5 complete by owner decision on 2026-09-02** | [33411410271](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33411410271) from `main@f66d7ab6` executed all three callers with version markers, holdings-only seed, and 9 passing tests; evidence reviewed/merged via PR #197. Historical failures and close-out: [G5 record](../runbooks/B1_G5_INGRESS_BLOCKER.md) |
 | 6 — version-required seed | 🟡 Tasks 6.1–6.4 source-complete via PR #217 / `main@d66bb23d`; Codex ACCEPT, R1/R2 closed | Strict version boundary and identity-preserving replacement are on main. Tasks 6.5–6.7 (pre-deploy decision, G2b serving proof, R-B3 gate) remain open; no deployment |
-| 7 — activation | ⬜ Not started | Public `PUT /api/portfolio/holdings`, attested candidate, serving proof |
+| 7 — activation | 🟡 Tasks 7.1–7.2 assigned to Cursor, handoff ready; implementation not yet reported | Isolated controller + HTTP tests may proceed alongside 6.5; excluded from R-B3 source. Candidate packaging, merge and activation remain gated |
 
 Spec A V17–V19 were applied at checkpoint 9.6; **V20 is applied under R-B** and unchanged by R-B2.
 **R-A / G2**, **R-B / G3**, and **R-B2 / G2a** are complete. Wave 4 composition write mechanisms
@@ -489,7 +499,7 @@ passed **526 tests / 62 files**, lint, typecheck, build, and static login-HTML s
 
 Tasks 6.1/6.2 are checked for source completion. Committed flags stay off; final placement,
 Task 5.6's owner GO, Task 6.3, and exposure remain separate. No new runtime attestation is made.
-**Current B1 priority (2026-09-03): Task 6.5 pre-deployment STOP/GO preparation.** Tasks 6.1–6.4
+**Current B1 priority (2026-09-03): Task 6.5 preparation started; Cursor 7.1–7.2 assigned in parallel.** Tasks 6.1–6.4
 merged through PR #217 after source ACCEPT and final-head CI. The historical Claude kickoff
 is complete as a source assignment. Any release handoff must separately specify the authorized
 artifact, serving-proof scope, and rollback conditions; this record authorizes no production operation.
