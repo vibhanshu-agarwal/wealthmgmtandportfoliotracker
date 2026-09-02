@@ -1,6 +1,6 @@
 # Implementation Plan
 
-**Current program status (source review 2026-09-02; main `06b35250`, PR #214 `57b0f406` unmerged; runtime evidence unchanged):** this task plan and its owning
+**Current program status (source review 2026-09-02; main `06b35250`, PR #214 `eb4cfac7` unmerged; runtime evidence unchanged):** this task plan and its owning
 requirements/design/mockup are tracked. Wave 1 (Tasks 1.1-1.19) and Wave 2 Tasks 2.1-2.5 are merged
 source-only through PR #178, entirely mock-backed and disabled by default. Wave 3 presence source
 Tasks 3.1–3.6 merged source-only through PR #179 at `main@cc97a209`; Task 3.7 deployment/live proof
@@ -35,12 +35,13 @@ It records the owner-authorized immutable build, digest deployment, one successf
 the corrected B1 version rule. Wave 5's Wave 4 prerequisite is satisfied, but this GO does not
 authorize Wave 5 implementation or deployment.
 
-**Current priority (2026-09-02):** Claude addresses the Wave 6 review. Tasks 6.1/6.2 are
-implemented but unmerged in [draft PR #214](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/214) at `57b0f406`;
-Codex requests changes for failed-refresh gating, asynchronous response reconciliation, and
-observed-version provenance, plus the outstanding browser visual proof. The Wave 6 review table
-below records the exact follow-ups and verified CI. Keep 6.1/6.2 unchecked, flags disabled,
-and final placement open. Task 5.6's separate owner GO decision remains pending. The remaining Wave 5
+**Current priority (2026-09-02):** Claude finishes the Wave 6 review. Tasks 6.1/6.2 are
+implemented but unmerged in [draft PR #214](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/214) at `eb4cfac7`.
+The mutation lifecycle is fixed; offline conflict recovery and null-version handling remain P2
+findings. The valid empty-list zero sentinel is accepted under Task 1.2/B1. Owner-supplied
+screenshots establish only one dark-theme failure view; the remaining visual acceptance is open.
+The Wave 6 review table records the current findings and 524-test CI evidence. Keep 6.1/6.2
+unchecked, flags disabled, final placement open, and Task 5.6's owner GO separate. The remaining Wave 5
 source bundle merged via [PR #212](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/212) at
 `main@d8fa499de05fa1370a0271c4822230a6ea113695`; its tree is identical to reviewed head `01917e16`.
 Tasks 5.1, 5.2, 5.3, 5.3a, 5.4, and 5.5 are source-complete and checked below.
@@ -1646,42 +1647,47 @@ their own gates.
 
 ## Wave 6 — Manual-reset control (frontend) · *design.md D5 Stage 5, gated on Wave 5 AND B1 task 5.1*
 
-**Wave 6 source review (2026-09-02): implemented but unmerged; CHANGES REQUESTED.**
-Claude implemented Tasks 6.1/6.2 in [draft PR #214](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/214), branch
-`claude/b2-wave-6-manual-reset-frontend`, source head
-`57b0f406ea0cef49f0fe3b0bb00d66bcd0de808e`, base
-`06b352502c14f6d34662b30ff6f0b0a3047c80e7`. The owner selected Claude for the UI work;
-the kickoff was supplied from Codex's sibling worktree at `9651f083` and is not yet on main.
-Six frontend files add the reset adapter/control, temporary page host, and tests. Flags remain
-disabled in committed configuration; final UI placement stays OPEN.
+**Wave 6 follow-up review (2026-09-02): implemented but unmerged; CHANGES REQUESTED.**
+[Draft PR #214](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/214), Claude branch
+`claude/b2-wave-6-manual-reset-frontend`, is reviewed at source head
+`eb4cfac717bc6d84317bfbe3b6b971940eb2815f`, based on
+`main@06b352502c14f6d34662b30ff6f0b0a3047c80e7`. Initial implementation `57b0f406`,
+Codex review documentation `399862be`, and Claude's fix `eb4cfac7` remain unmerged.
+The owner selected Claude for UI work; its kickoff was supplied from Codex's sibling worktree
+at `9651f083` and is not yet on main. Flags remain disabled in committed configuration,
+and final UI placement stays OPEN.
 
-| Review item | Required follow-up |
+| Review item | Current assessment and required evidence |
 |---|---|
-| R1 — conflict refresh (`ManualResetControl.tsx:107-117`) | Keep the conflict blocked unless a real portfolio refresh succeeds. `invalidateQueries` swallows refetch errors by default, and the current `finally` clears the conflict even when the GET fails or no active query refetches. Test failed refresh followed by successful explicit re-observation; refresh alone sends no PUT |
-| R2 — response reconciliation (`ManualResetControl.tsx:60-103`) | Keep submission locked while the successful response is being applied. Per-call mutation callbacks are not awaited: `onSettled` releases the ref and `isPending` becomes false before asynchronous price enrichment/cache replacement finishes. These per-call callbacks are also skipped after unmount, so navigation during the PUT can leave the shared cache stale. Use the durable awaited mutation lifecycle; test delayed enrichment/unmount and distinguish committed reset from later display-refresh failure |
-| R3 — observed version (`PortfolioPageContent.tsx:123-125`) | Require evidence of an actual observed version before enabling reset. The existing read adapter maps an absent raw version to zero and also synthesizes zero for no portfolio; the new call site accepts both. Preserve genuine observed zero while blocking missing/unobserved versions, without weakening existing composition behavior or adding a preflight GET |
-| R4 — visual acceptance | Complete local/mock browser checks of the actual control at narrow/wide sizes and supported light/dark themes, with screenshots of idle/submitting/success/conflict/failure states. RTL assertions establish DOM behavior, not layout or look and feel |
+| R1 — conflict refresh | **Partially fixed; P2 remains** at `ManualResetControl.tsx:135-142`. Failed HTTP refreshes now preserve conflict. Offline refresh still resolves while the query is paused, even with `throwOnError: true`, and clears conflict before any GET succeeds. Read-only Query Core probes reproduced zero GETs, cached version 3, then a queued reset carrying 3 on reconnect. Await an actually successful fresh observation, keep conflict blocked otherwise, and add an offline/reconnect regression. A successful read need not return a larger version |
+| R2 — response reconciliation | **Fixed.** Cache reconciliation moved into awaited hook-level mutation callbacks. New tests hold price enrichment open and unmount before the PUT resolves, proving the busy state and shared-cache update survive those cases |
+| R3 — observed version | **Partially fixed; P2 remains** at `portfolio.ts:421-425`. An omitted wire field is now marked unobserved. However, `version: null` still coalesces to zero while `null !== undefined` marks it observed; the page enables reset with that invented zero. Actual-adapter read-only execution confirmed this result. Treat null as unobserved and test it. **Correction to the first review:** a successful empty GET may legitimately map to zero under Task 1.2 and B1's absent-portfolio write contract; that sentinel is accepted, and the earlier objection to it is withdrawn |
+| R4 — visual acceptance | **Partially evidenced; still open.** The owner supplied seven screenshots across two batches. Only the first batch's image 1 shows the control, in a dark-theme failure state; four images show sign-in pages (three cropped), one a connection refusal, and one a 404. These do not establish idle/submitting/success/conflict states, narrow/wide responsiveness, or light-theme appearance. Supply those views using controlled local mocks; no real competing portfolio write is needed for conflict presentation |
 
-**Verified evidence:** Codex read the source, tests, surrounding read/session adapters and installed
-Query Core implementation, with an independent behavioral review. Read-only in-memory probes
-confirmed R1/R2 library behavior. [Frontend CI](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33624869316)
-passed 62 files / 515 tests, lint, typecheck, and build on `57b0f406`.
-Its `e2e-smoke` job executed `static-smoke`: **one passing login-route HTML check**, with
-`SKIP_BACKEND_HEALTH_CHECK=true`. That smoke needs no backend and is not Wave 9's deployed-path
-test; the PR's claim that a backend is required for this smoke needs correction.
-The source-head aggregate [CI run 33624869338](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33624869338)
-also passed, including `ci-required`. The separate status-propagation check was missing these
-two governed updates. Green existing CI does not cover R1–R3 or replace R4.
+**Verified current evidence:** [Frontend CI](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33633439272) passed 62 files / **524 tests**,
+lint, typecheck, and the build on `eb4cfac7`. Its `e2e-smoke` job ran **one passing
+static login-HTML check**. This smoke uses `SKIP_BACKEND_HEALTH_CHECK=true`, requires no backend,
+and is not Wave 9's assembled-stack reset proof. The status-propagation check also passed at this
+source head; the full backend pipeline was still running at the follow-up review checkpoint.
+Final-head CI must be checked again before acceptance.
 
-Claude reported a local dev-route discovery problem and removed the temporary preview. No
-successful browser visual proof or screenshots were supplied; that requirement remains unmet.
-Claude's import-failure RED reports are historical implementation evidence, not independently
-replayed behavioral regressions. Add focused regression tests for the review scenarios and
-recheck the final source head before requesting acceptance.
+Codex inspected the fix and new regression tests with an independent review. R2 closes both
+original lifecycle defects. R1's ordinary HTTP-failure path and R3's omitted-field path are fixed,
+but the remaining offline/null cases are not covered by the current green tests.
 
-Codex records this review under Claude's explicit permission to edit only the master plan and
-this ledger in the implementation worktree. Tasks 6.1/6.2 remain unchecked while unmerged.
-Task 5.6's owner GO, Task 6.3, deployment, B1 G5, and exposure remain unchanged.
+**Local-stack report and limits:** Claude reports starting a local Docker stack, observing
+reset success/failure, running local static smoke, and cleaning up temporary settings and source
+edits. The commit changes seven intended frontend files; the review worktree was clean.
+These are local observations, not production deployment or Task 6.3/9/10 acceptance.
+The report's general claim that demo-reset never changes version is incorrect: Task 4.4's
+real-chain persistence tests assert a version increment for a changed tuple; an already-golden
+same-state reset legitimately leaves it unchanged. A local same-state attempt therefore does
+not establish that conflicts are impossible. The PR description still reports the earlier 515-test
+head, missing local smoke, and failed preview; Claude must reconcile it with the final evidence.
+
+Codex updates only the two governed documents under the existing documentation permission.
+Tasks 6.1/6.2 stay unchecked while unmerged. Task 5.6's owner GO, Task 6.3, B1 G5, deployment,
+and exposure remain unchanged.
 
 - [ ] **6.1 Manual reset control**, behind 1.1's `NEXT_PUBLIC_ENABLE_DEMO_RESET_CONTROL` flag —
   location per requirements.md 7.6, **OPEN**; build against a placeholder location and relocate
