@@ -1,39 +1,44 @@
 # Asset Picker — E2E Master Plan to Production
 
-**Last verified:** 2026-09-02
+**Last verified:** 2026-09-03
 
-**B1 Wave 6 source review — 2026-09-02: changes requested.** [Draft PR #217](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/217)
+**B1 Wave 6 source review — 2026-09-03: R1/R2 closed; final acceptance pending CI.**
+[Draft PR #217](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/217)
 implements Tasks 6.1–6.4 on base `48d0aba8468325b91e1bf9b84bd43cbeaacdf74a`, reviewed source
-head `610be089076f73e64b08e2e0850e0766540d586f`. It is unmerged. `70067f4d` contains the boundary,
-delegation, initializer adaptation, and Task 6.4 matrix; `610be089` adds the Task 6.3 collision
-suite and sentinel idempotency fix. All four source-task checkboxes remain unchecked.
-This source review does not advance the program-state code baseline or any runtime serving proof.
+head `b1d331715b5acadb16983819e20ed165319d5fff`. It is unmerged; all four source-task checkboxes
+remain unchecked. This source review does not advance the program-state code baseline or any
+runtime serving proof.
 
-The final source uses the strict version-only request, fixed E2E target, one replacement
-delegation, and the initializer's own observed version. The absent-creation review finding is
-resolved: both creators park inside materialisation, and the loser must carry an unresolved
-user lookup before the real advice reports the winner's committed version. Two bounded
-Task 6.3 proof corrections remain before Codex ACCEPT:
+`70067f4d` contains the strict version boundary, one replacement delegation, initializer
+observation forwarding, and Task 6.4 matrix; `610be089` adds the collision suite and sentinel
+fix. `cfcfc7ee` records the first governed review. The one-file correction `b1d33171` is exactly
+the reviewed +46/−4 diff in `PortfolioSeedCollisionIT`, with no other changes.
 
-- **R1 — complete winner-state assertions:** `assertGoldenTuplePersisted` currently checks only
-  cardinality and source; `assertUserEditTuplePersisted` checks ticker, quantity, and source.
-  Compare the exact ticker set and every desired holding field (quantity, average cost basis,
-  currency, source, and anchor) for both forced outcomes. Reuse the complete-tuple comparison
-  pattern already present in `PortfolioSeedServiceIT`; do not infer the full tuple from its source.
-- **R2 — attempts in both forced outcomes:** the counter is installed, but neither the seed-first
-  nor edit-first race asserts it. After both operations finish, require exactly two replacement
-  attempts (fixture attempts are already reset). The existing absent-creation count and separate
-  stale-golden count do not establish no retry in these two cases.
+- **R1 closed:** both forced outcomes now compare every desired holding field: ticker, quantity,
+  average cost basis, currency, source, and anchor. The golden comparison checks cardinality
+  and expected ticker membership against `desiredHoldings(userId)`; the winning edit checks
+  its single complete tuple. The prior count/source-only assertions are gone.
+- **R2 closed:** both forced seed-versus-edit races now assert exactly two replacement attempts,
+  after the fixture resets its setup count and after both contenders finish. The absent-creation
+  case retains its two-attempt assertion, and the separate stale-golden case retains its one-attempt
+  assertion. Counting remains independent of the barriers.
+- The earlier absent-creation finding stays closed: both creators park inside materialisation,
+  after observing absence and before insertion. The uniqueness loser must carry an unresolved
+  user lookup before the real advice reports the winner's committed version following rollback.
 
-Evidence inspected at the reviewed source head: saved portfolio reports contain **516 unit tests
-in 51 classes and 189 integration tests in 34 classes**, zero failures/errors/skips; collision
-suite 5/5. The built jar is 97,882,843 bytes. Codex independently ran the unchanged inventory
-(exactly three callers) and the **9 caller-guard + 33 governance self-tests**, all passing.
-[CI run 33664130635](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33664130635) has successful unit/static/frontend checks and an actually executed
-Azure image smoke (job `100363702641`, 1m38s); integration CI was still running at this review.
-The expected documentation-propagation failure is addressed by this two-document status commit.
-Every subsequent head still needs its own required PR-event CI, `docs_only=false`, successful
-`ci-required`, and an executed successful image smoke; this record is not a final-CI claim.
+Fresh saved reports inspected for the `b1d33171` source tree contain **516 unit tests in 51
+classes and 189 integration tests in 34 classes**, zero failures/errors/skips; collision suite
+5/5. The integration run includes collision results timestamped `2026-09-02T18:38:07.469Z`.
+The built jar remains 97,882,843 bytes; production source is unchanged by the test-only fix.
+The independently verified unchanged caller inventory remains exactly three callers; the prior
+9 caller-guard and 33 governance self-tests passed. These are local/source evidence, not final CI.
+
+**Required next step:** publish this governed close-out and evaluate the PR-event CI for the
+resulting head, including both `b1d33171` and this documentation commit. Require all required
+checks successful, `docs_only=false`, `ci-required=success`, and an actually executed successful
+Azure image smoke. CI on earlier heads does not satisfy that final-head requirement. No source
+review findings remain; final ACCEPT is reserved until those checks pass. Source completion
+is reconciled only after an owner-authorized merge; Tasks 6.5–6.7 remain separate.
 
 **Status precedence and parallel documentation:** [PR #215](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/215) remains draft/unmerged and
 contains the owner's G5 close-out, B2 PR #214 post-merge reconciliation, and the Claude kickoff.
@@ -314,7 +319,7 @@ Authority: [`.kiro/specs/portfolio-composition-contract/tasks.md`](../../.kiro/s
 | 3 – V20 schema | ✅ R-B complete (G3 served) | Tasks 3.1–3.7 complete; Artifact 2 cut `25aa730` applied V20; prior serving evidence [`B1_R_B_G3_SERVING_PROOF.md`](../runbooks/B1_R_B_G3_SERVING_PROOF.md); superseded for portfolio traffic by R-B2 |
 | 4 – contract implementation | Source on Artifact 2a serving cut; mechanisms unexposed | Wave 4a–4c (4.1–4.21) merged on `main@2673f40` (PR #153) and included in Artifact 2a serving digest. Public `PUT` still Wave 7. Replacement orchestrator + preparers remain unexposed; `GET /api/assets` controller is now served with R-B2; candidate packaging (7.5/R-C) still pending |
 | 5 — version-bearing read | 🟡 Tasks 5.1–5.3 / R-B2 complete; **5.4–5.6 merged on `main@0b5d60d1`** (PR #161, source-only); **5.7/G5 open** — authorized three-caller run [33411410271](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33411410271) (`main@f66d7ab6`; Task 5.7 unchecked pending a separately recorded owner-controlled G5 completion decision) | Task 5.1 on main@f22e2ff; G2a/R-B2 green on portfolio-service--0000081 / sha256:d544649f…; caller migration merged source-only; historical G5 runs 33046987880 / 33047168136 failed at TLS login before seed; post-restore three-caller markers recorded in [`B1_G5_INGRESS_BLOCKER.md`](../runbooks/B1_G5_INGRESS_BLOCKER.md) |
-| 6 — version-required seed | 🟡 Tasks 6.1–6.4 implemented, unmerged in [PR #217](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/217); Task 6.3 R1/R2 open | Strict version boundary and shared replacement delegation; full winner-tuple and forced-race attempt assertions required before ACCEPT; 6.5–6.7 remain separate |
+| 6 — version-required seed | 🟡 Tasks 6.1–6.4 implemented, unmerged in [PR #217](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/217); R1/R2 closed at `b1d33171` | Source review satisfied; final ACCEPT awaits CI on the head including the governed close-out; 6.5–6.7 remain separate |
 | 7 — activation | ⬜ Not started | Public `PUT /api/portfolio/holdings`, attested candidate, serving proof |
 
 Spec A V17–V19 were applied at checkpoint 9.6; **V20 is applied under R-B** and unchanged by R-B2.
@@ -454,9 +459,9 @@ public `200` read-back.
 
 ### Selected priority and remaining lanes
 
-**Current B1 source priority:** close PR #217 review findings R1/R2 in the existing collision
-assertions, then return the committed head and fresh test/CI evidence. The broader G5/B2 status
-reconciliation remains in parallel PR #215.
+**Current B1 source priority:** verify PR #217 final-head CI after this governed close-out,
+then return for final acceptance and a separate owner merge decision. R1/R2 are closed against
+`b1d33171`; the broader G5/B2 status reconciliation remains in parallel PR #215.
 
 **Owner priority decision (2026-09-01): resume Asset Picker delivery before further CI
 optimization.** The docs-only fast path is sufficient for now. DAG de-serialization, broader

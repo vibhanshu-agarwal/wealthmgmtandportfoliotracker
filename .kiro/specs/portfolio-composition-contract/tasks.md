@@ -1,36 +1,42 @@
 # Implementation Plan
 
-**B1 Wave 6 source review — 2026-09-02: changes requested.** [Draft PR #217](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/217)
+**B1 Wave 6 source review — 2026-09-03: R1/R2 closed; final acceptance pending CI.**
+[Draft PR #217](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/217)
 implements Tasks 6.1–6.4 on base `48d0aba8468325b91e1bf9b84bd43cbeaacdf74a`, reviewed source
-head `610be089076f73e64b08e2e0850e0766540d586f`. It is unmerged. `70067f4d` contains the boundary,
-delegation, initializer adaptation, and Task 6.4 matrix; `610be089` adds the Task 6.3 collision
-suite and sentinel idempotency fix. All four source-task checkboxes remain unchecked.
+head `b1d331715b5acadb16983819e20ed165319d5fff`. It is unmerged; all four source-task checkboxes
+remain unchecked. This source review does not advance the program-state code baseline or any
+runtime serving proof.
 
-The final source uses the strict version-only request, fixed E2E target, one replacement
-delegation, and the initializer's own observed version. The absent-creation review finding is
-resolved: both creators park inside materialisation, and the loser must carry an unresolved
-user lookup before the real advice reports the winner's committed version. Two bounded
-Task 6.3 proof corrections remain before Codex ACCEPT:
+`70067f4d` contains the strict version boundary, one replacement delegation, initializer
+observation forwarding, and Task 6.4 matrix; `610be089` adds the collision suite and sentinel
+fix. `cfcfc7ee` records the first governed review. The one-file correction `b1d33171` is exactly
+the reviewed +46/−4 diff in `PortfolioSeedCollisionIT`, with no other changes.
 
-- **R1 — complete winner-state assertions:** `assertGoldenTuplePersisted` currently checks only
-  cardinality and source; `assertUserEditTuplePersisted` checks ticker, quantity, and source.
-  Compare the exact ticker set and every desired holding field (quantity, average cost basis,
-  currency, source, and anchor) for both forced outcomes. Reuse the complete-tuple comparison
-  pattern already present in `PortfolioSeedServiceIT`; do not infer the full tuple from its source.
-- **R2 — attempts in both forced outcomes:** the counter is installed, but neither the seed-first
-  nor edit-first race asserts it. After both operations finish, require exactly two replacement
-  attempts (fixture attempts are already reset). The existing absent-creation count and separate
-  stale-golden count do not establish no retry in these two cases.
+- **R1 closed:** both forced outcomes now compare every desired holding field: ticker, quantity,
+  average cost basis, currency, source, and anchor. The golden comparison checks cardinality
+  and expected ticker membership against `desiredHoldings(userId)`; the winning edit checks
+  its single complete tuple. The prior count/source-only assertions are gone.
+- **R2 closed:** both forced seed-versus-edit races now assert exactly two replacement attempts,
+  after the fixture resets its setup count and after both contenders finish. The absent-creation
+  case retains its two-attempt assertion, and the separate stale-golden case retains its one-attempt
+  assertion. Counting remains independent of the barriers.
+- The earlier absent-creation finding stays closed: both creators park inside materialisation,
+  after observing absence and before insertion. The uniqueness loser must carry an unresolved
+  user lookup before the real advice reports the winner's committed version following rollback.
 
-Evidence inspected at the reviewed source head: saved portfolio reports contain **516 unit tests
-in 51 classes and 189 integration tests in 34 classes**, zero failures/errors/skips; collision
-suite 5/5. The built jar is 97,882,843 bytes. Codex independently ran the unchanged inventory
-(exactly three callers) and the **9 caller-guard + 33 governance self-tests**, all passing.
-[CI run 33664130635](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33664130635) has successful unit/static/frontend checks and an actually executed
-Azure image smoke (job `100363702641`, 1m38s); integration CI was still running at this review.
-The expected documentation-propagation failure is addressed by this two-document status commit.
-Every subsequent head still needs its own required PR-event CI, `docs_only=false`, successful
-`ci-required`, and an executed successful image smoke; this record is not a final-CI claim.
+Fresh saved reports inspected for the `b1d33171` source tree contain **516 unit tests in 51
+classes and 189 integration tests in 34 classes**, zero failures/errors/skips; collision suite
+5/5. The integration run includes collision results timestamped `2026-09-02T18:38:07.469Z`.
+The built jar remains 97,882,843 bytes; production source is unchanged by the test-only fix.
+The independently verified unchanged caller inventory remains exactly three callers; the prior
+9 caller-guard and 33 governance self-tests passed. These are local/source evidence, not final CI.
+
+**Required next step:** publish this governed close-out and evaluate the PR-event CI for the
+resulting head, including both `b1d33171` and this documentation commit. Require all required
+checks successful, `docs_only=false`, `ci-required=success`, and an actually executed successful
+Azure image smoke. CI on earlier heads does not satisfy that final-head requirement. No source
+review findings remain; final ACCEPT is reserved until those checks pass. Source completion
+is reconciled only after an owner-authorized merge; Tasks 6.5–6.7 remain separate.
 
 **Status precedence and parallel documentation:** [PR #215](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/215) remains draft/unmerged and
 contains the owner's G5 close-out, B2 PR #214 post-merge reconciliation, and the Claude kickoff.
@@ -974,10 +980,10 @@ Named individually so the R-C manifest can enumerate them rather than gesture at
 
 ## Wave 6 — Version-required seed (Artifact 2b → R-B3)
 
-**Implemented but unmerged in PR #217 / `610be089`; Codex review remains open for R1/R2
-above.** Tasks 6.1–6.4 stay unchecked until merge and source reconciliation. The accepted
-absent-creation correction does not close the remaining full-tuple / attempt-count proof gaps.
-Tasks 6.5–6.7 are separate decisions and are not assessed as met here.
+**Implemented but unmerged in PR #217 / `b1d33171`; R1/R2 closed, final acceptance pending
+CI on the head including this governed close-out.** Tasks 6.1–6.4 stay unchecked until merge
+and source reconciliation. Full winner-tuple and attempt-count assertions now satisfy the
+source review. Tasks 6.5–6.7 are separate decisions and are not assessed as met here.
 
 - [ ] **6.1 Seed `POST` requires `expectedVersion`** and delegates to `HoldingReplacementService`.
   Target stays compiled-in. Failure returns Requirement 7's `409` envelope with
