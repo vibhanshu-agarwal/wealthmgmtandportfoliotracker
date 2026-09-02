@@ -12,6 +12,23 @@ spring:
       server:
         webflux:
           routes:
+            # B2 Task 5.2 — manual demo reset. Ordered ahead of portfolio-service (default order
+            # 0) because /api/portfolio/** would otherwise win and proxy the public path straight
+            # through. It ONLY rewrites the path: the method stays PUT and the request body
+            # (including expectedVersion) is forwarded byte-for-byte. Authorization and the
+            # internal-key swap belong to DemoResetAuthorizationFilter, which requires this exact
+            # route id to have won.
+            - id: demo-reset-manual
+              uri: ${app.routes.portfolio-url}
+              order: -1
+              predicates:
+                - Path=/api/portfolio/demo-reset
+                - Method=PUT
+              filters:
+                - name: RewritePath
+                  args:
+                    regexp: /api/portfolio/demo-reset
+                    replacement: /api/internal/portfolio/demo-reset
             - id: portfolio-service
               uri: ${app.routes.portfolio-url}
               predicates:

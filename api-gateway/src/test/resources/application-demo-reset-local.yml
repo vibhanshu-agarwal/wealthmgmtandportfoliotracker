@@ -1,0 +1,15 @@
+# Test-only profile layered on top of "local" by the demo-reset routing suite.
+#
+# The local TEST profile attaches a global RequestRateLimiter with burstCapacity 3 purely so
+# RateLimitingIntegrationTest can exhaust a bucket quickly. Every authorized demo reset keys off
+# the same JWT sub (the demo account is the only subject allowed to reset), so that shared
+# 3-token bucket would throttle this suite's matrix rather than exercise it. Clearing the global
+# default-filters here keeps the routes and every filter under test exactly as production
+# defines them; rate limiting for this route is proven under the prod profile instead, by
+# DemoResetProductionRoutingIntegrationTest, against the real standardRateLimiter.
+spring:
+  cloud:
+    gateway:
+      server:
+        webflux:
+          default-filters: []

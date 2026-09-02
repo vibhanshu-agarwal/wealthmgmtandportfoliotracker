@@ -1,6 +1,12 @@
 # Asset Picker — E2E Master Plan to Production
 
-**Last verified:** 2026-09-01
+**Last verified:** 2026-09-02
+
+**Source-review verification:** current `main@a2c402db1779e515ccc56c16a900ec172864a670` and
+[PR #212](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/212) source
+`d4e984597efcc05d1a91e989908cb3f3dbce6fd1` were inspected. The remaining B2 Wave 5 gateway
+bundle is implemented but unmerged. This review does not advance a runtime baseline or claim a
+new production read-back.
 
 **Program-state code baselines (runtime):** the cross-program baseline remains
 `main@e221662b6c891639a56894289e150ee01fb537f6`; B2 Wave 4 now serves the deliberately pinned
@@ -61,7 +67,7 @@ not check Task 5.7. Unattended synthetics remain suspended in
 `synthetic-monitoring.yml`. See
 [`B1_G5_INGRESS_BLOCKER.md`](../runbooks/B1_G5_INGRESS_BLOCKER.md);
 later B1 waves remain gated.
-B2 Wave 1 (Tasks 1.1-1.19) and Wave 2 Tasks 2.1-2.5 are merged source-only through PR #178 at `main@38e3d95`; they remain entirely mock-backed and disabled by default. Wave 3 presence source Tasks 3.1–3.6 merged source-only via PR #179 at `main@cc97a209`; Task 3.7 deploy/live proof remains open (not deployed, not activated, not live-probed). Wave 4 Tasks 4.1–4.4a merged via PR #180 at `main@63fc058`; that exact cut is now deployed only to the internal portfolio-service endpoint, and Task 4.5 completed with a reviewed live GO on `portfolio-service--0000093` / `sha256:9a1d5533…` ([evidence](../runbooks/B2_TASK_4_5_DEMO_RESET_STOP_GO.md)). Tasks 5.1a and 5.1b merged source-only via PRs #202 and #208 at `main@64761dc2` and `main@f954b5a7`; Wave 8 Tasks 8.1 and 8.2a merged source-only via PRs #185 and #203 at `main@198c878d` and `main@addd8049`. Those later standalone tasks are not deployed. Tasks 2.6–2.7, 3.7, the remaining Wave 5 and Wave 8 work, and Waves 6, 9, and 10 remain open; Wave 7 is informational.
+B2 Wave 1 (Tasks 1.1-1.19) and Wave 2 Tasks 2.1-2.5 are merged source-only through PR #178 at `main@38e3d95`; they remain entirely mock-backed and disabled by default. Wave 3 presence source Tasks 3.1–3.6 merged source-only via PR #179 at `main@cc97a209`; Task 3.7 deploy/live proof remains open (not deployed, not activated, not live-probed). Wave 4 Tasks 4.1–4.4a merged via PR #180 at `main@63fc058`; that exact cut is now deployed only to the internal portfolio-service endpoint, and Task 4.5 completed with a reviewed live GO on `portfolio-service--0000093` / `sha256:9a1d5533…` ([evidence](../runbooks/B2_TASK_4_5_DEMO_RESET_STOP_GO.md)). Tasks 5.1a and 5.1b merged source-only via PRs #202 and #208 at `main@64761dc2` and `main@f954b5a7`; Wave 8 Tasks 8.1 and 8.2a merged source-only via PRs #185 and #203 at `main@198c878d` and `main@addd8049`. Those later standalone tasks are not deployed. Tasks 2.6–2.7, 3.7, the remaining Wave 5 and Wave 8 work, and Waves 6, 9, and 10 remain open; Wave 7 is informational. Wave 5 Tasks 5.1–5.5 are implemented but unmerged in draft PR #212 (`d4e98459`); Task 5.6 remains open.
 
 **User-visible state:** there is no functional Asset Picker in the application today.
 
@@ -77,7 +83,9 @@ now all complete. Gateway ingress is open on both the default ACA endpoint and t
 `api.vibhanshu-ai-portfolio.dev` custom domain; the three catalog consumers remain at
 `min_replicas=0`. B1 G5 remains open solely pending its separately recorded owner-controlled
 completion decision, not because of an unresolved ingress or custom-domain gap. Wave 5's Wave 4
-prerequisite is satisfied, but its implementation and deployment remain separately owner-gated.
+prerequisite is satisfied. Claude implemented the remaining Wave 5 source bundle in draft PR #212;
+Codex source review found no blocking issue. Final PR-head CI, owner merge approval, Task 5.6, and
+deployment remain separate gates.
 
 This is the living, human-facing status document for the Asset Picker program. It is not a
 historical snapshot. Detailed requirements, designs, task mechanics, and operational evidence live
@@ -152,7 +160,7 @@ At every meaningful merge or live checkpoint:
 |---|---|---|---|
 | **A — Spec A catalog/data cutover** | Shared catalog, Postgres/Mongo repair, R4 rollout, enforcement, one reconciled controlled refresh, persisted refresh enablement, demo portfolio activation, and scale-to-zero restoration | **All 14 cutover checkpoints complete.** 9.13 completed on `portfolio-service--0000092`, `market-data-service--0000079`, and `insight-service--0000079`; B2 Task 4.5 later superseded only the portfolio revision with `portfolio-service--0000093`. 9.14 completed via apply [33331130603](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33331130603), reopening ACA external ingress on `api-gateway--0000077` with `allowInsecure=false` ([`SPEC_A_9_14_REOPEN_INGRESS.md`](../runbooks/SPEC_A_9_14_REOPEN_INGRESS.md)); the later custom-domain restore has independent `200` read-back, and PR #194 independently reviewed and merged that evidence ([`API_GATEWAY_CUSTOM_DOMAIN_RECOVERY.md`](../runbooks/API_GATEWAY_CUSTOM_DOMAIN_RECOVERY.md)); historical RCA remains `MECHANISM_REPRODUCED_SETTER_UNPROVEN` | Spec A's production cutover is done. The B1 G5 synthetic already succeeded; B1 now needs its separately recorded owner-controlled G5 completion decision. The four filed process follow-ups remain open |
 | **B — B1 portfolio composition backend** | Deployment prerequisites, fixture identity migration, legacy writer retirement, Wave 2 gateway provisioning **served (R-A/G2 green)**, Wave 3 V20 **served (R-B/G3 green)**, Wave 5 version-bearing read **served (R-B2/G2a green)** | **Wave 2 / R-A complete**; **Wave 3 / R-B complete**; **Wave 5 Tasks 5.2–5.3 / R-B2 complete** (Artifact 2a on `portfolio-service--0000081` / `sha256:d544649f…`; cut `f22e2ff`); **Wave 4a–4c tasks 4.1–4.21 merged on `main@2673f40`** (PR #153; composition mechanisms unexposed; no public `PUT`); Task 5.1 merged on `main@f22e2ff` (PR #155); Tasks **5.4–5.6 merged on `main@0b5d60d1`** (PR #161, source-only); **5.7/G5 open** — authorized three-caller run [33411410271](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33411410271) (`main@f66d7ab6`; Task 5.7 unchecked pending a separately recorded owner-controlled G5 completion decision; documentation-PR review/merge does not check 5.7) | Separately recorded owner-controlled G5 completion decision; then Wave 6 / R-B3, safe desired-state writer activation, public `PUT` |
-| **C — B2 Asset Picker product** | Requirements, design, task plan, five-screen visual mockup, Wave 1 / partial Wave 2 frontend source, Wave 3 presence source, Wave 4 demo-reset source and live internal proof, and additional source Tasks 5.1a, 5.1b, 8.1, and 8.2a | Wave 1 (1.1-1.19) + Wave 2 Tasks 2.1-2.5 merged source-only on `main@38e3d95` via PR #178; Wave 3 Tasks 3.1–3.6 merged source-only on `main@cc97a209` via PR #179; Wave 4 Tasks 4.1–4.4a merged via PR #180 at `main@63fc058`, and Task 4.5 is live-GO on `portfolio-service--0000093` / `sha256:9a1d5533…`; Tasks 5.1a and 5.1b merged via PRs #202 and #208 at `main@64761dc2` and `main@f954b5a7`; Tasks 8.1 and 8.2a merged via PRs #185 and #203 at `main@198c878d` and `main@addd8049`. The later standalone tasks remain undeployed | Task 3.7 deploy/live proof; owner-selected next Wave 5 or Wave 8 work; live integration and exposure remain separately gated |
+| **C — B2 Asset Picker product** | Requirements, design, task plan, five-screen visual mockup, Wave 1 / partial Wave 2 frontend source, Wave 3 presence source, Wave 4 demo-reset source and live internal proof, and additional source Tasks 5.1a, 5.1b, 8.1, and 8.2a | Wave 1 (1.1-1.19) + Wave 2 Tasks 2.1-2.5 merged source-only on `main@38e3d95` via PR #178; Wave 3 Tasks 3.1–3.6 merged source-only on `main@cc97a209` via PR #179; Wave 4 Tasks 4.1–4.4a merged via PR #180 at `main@63fc058`, and Task 4.5 is live-GO on `portfolio-service--0000093` / `sha256:9a1d5533…`; Tasks 5.1a and 5.1b merged via PRs #202 and #208 at `main@64761dc2` and `main@f954b5a7`; Tasks 8.1 and 8.2a merged via PRs #185 and #203 at `main@198c878d` and `main@addd8049`. The later standalone tasks remain undeployed | Wave 5 Tasks 5.1–5.5 implemented but unmerged in draft PR #212; final-head CI and owner review next; Task 3.7, Wave 8, live integration, and exposure remain open |
 | **D — Demo credibility** | Canonical prices refreshed and reconciled; demo initializer exists; authorized 9.12 retry activated the Active_Asset set | Demo portfolio holds the exact 159-holding golden set after Task 4.5's one-call live proof on `portfolio-service--0000093`; version remained `0` under the valid same-state no-op; both flags remain `false`; historical pooled-session setter remains unidentified | 9.14 and the custom-domain restore are complete; keep B1 G5 / Task 5.7 open pending a separately recorded owner-controlled G5 completion decision for run 33411410271, and do not treat operational 9.12 success as historical RCA closure |
 
 ### What is actually usable today
@@ -319,7 +327,7 @@ All four artifacts are tracked. Wave 1 (1.1-1.19) and Wave 2 Tasks 2.1-2.5 merge
 | 2 — decimal adapter | 🟡 Tasks 2.1-2.5 source merged; 2.6-2.7 not started | PR #178 / `main@38e3d95`; rollout sequencing with B1 Wave 4/5 remains an explicit open coordination decision |
 | 3 — Redis-backed presence | 🟡 Tasks 3.1–3.6 source merged via PR #179 / `main@cc97a209`; Task 3.7 open | Default TTL **150s** via `APP_DEMO_PRESENCE_TTL`; not deployed/live-verified |
 | 4 — portfolio-service demo reset | ✅ Complete — Tasks 4.1–4.4a merged via PR #180 / `main@63fc058`; Task 4.5 live GO | Exact cut serves internally on `portfolio-service--0000093` / `sha256:9a1d5533…`; one authorized same-state reset returned `200`, exact golden 159/159, unchanged version `0` per B1; [evidence](../runbooks/B2_TASK_4_5_DEMO_RESET_STOP_GO.md) |
-| 5 — manual-reset gateway bundle | 🟡 Tasks 5.1a and 5.1b source merged via [PR #202](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/202) / `main@64761dc2` and [PR #208](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/208) / `main@f954b5a7`; neither is deployed. Wave 4's prerequisite is satisfied, but Wave 5 implementation/deployment remains owner-gated | Internal-key provider, probe jar, replica-token provider/tool, Azure image smoke, and aggregate integration merged; filter/routes not started |
+| 5 — manual-reset gateway bundle | 🟡 Tasks 5.1a and 5.1b source merged via [PR #202](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/202) / `main@64761dc2` and [PR #208](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/208) / `main@f954b5a7`; neither is deployed. Wave 4's prerequisite is satisfied. Remaining Tasks 5.1–5.5 are implemented but unmerged in [draft PR #212](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/212) / `d4e98459`; Task 5.6 open | Filter, both routes, exact read-only exceptions, tests, and required identity guard reviewed; final-head CI and owner merge decision pending; no deployment |
 | 6 — manual reset frontend | ⬜ Blocked on Wave 5 and B1 5.1 | Hidden control and versioned reset call |
 | 7 — decimal rollout note | ℹ Informational | No independent release gate |
 | 8 — login-orchestrated reset | 🟡 Task 8.1 (`updatedAt` read contract) source merged via [PR #185](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/185) / `main@198c878d`; not deployed. Task 8.2a (`CloudFrontOriginSecretProvider`) source merged via [PR #203](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/203) / `main@addd8049`; not deployed. Task 8.2's open decisions and Tasks 8.3 and later not started | Requires B1/V20/version read (met, satisfied by 8.1); open idle/timeouts, Tasks 8.3 and later, 5.1b (merged source-only via PR #208; not deployed), and its own deployment evidence |
@@ -383,7 +391,8 @@ public `200` read-back.
 - production demo and diagnostics gates remain `false` after the restoring apply;
 - scale has been restored to `min_replicas=0`; ingress is reopened on the default ACA endpoint;
 - B2 Task 4.5 is GO after the owner-authorized immutable digest deployment and one same-state reset
-  probe; Wave 5's Wave 4 prerequisite is satisfied, without authorizing Wave 5 work;
+  probe; Wave 5's Wave 4 prerequisite is satisfied. A later owner-selected source task produced
+  draft PR #212; the Task 4.5 GO itself authorized no further operation;
 - 9.14 is complete and live-verified; **B1 G5 / Task 5.7 remain open** pending a separately
   recorded owner-controlled G5 completion decision for authorized three-caller run
   [33411410271](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33411410271)
@@ -409,7 +418,21 @@ The owner-authorized immutable build, scoped digest deployment, one valid same-s
 B1 version interpretation, and cutover read-readiness observation are recorded in
 [`B2_TASK_4_5_DEMO_RESET_STOP_GO.md`](../runbooks/B2_TASK_4_5_DEMO_RESET_STOP_GO.md). Wave 5's Wave 4
 prerequisite is satisfied, but no Wave 5 implementation or deployment is authorized by that GO.
-The next B2 priority remains owner-selected.
+**Current B2 priority (2026-09-02): finish review of Claude's Wave 5 source bundle in
+[PR #212](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/212).** The owner
+requested the implementation kickoff and complexity-based assignment; Claude implemented Tasks 5.1,
+5.2, 5.3, 5.3a, 5.4, and 5.5 together at `d4e98459`. Codex source review found no blocking
+issue, including an independent review of the three-source identity checker and CI wiring.
+The production limiter-before-rewrite ordering preserves the principal-based resolver and existing
+guardrail; the local test-only limiter override leaves the production proof on real Redis intact.
+Claude's local reports were inspected: 276 unit and 190 integration gateway tests, no failures or
+skips. The 24 identity-checker tests and real-source check were independently rerun successfully.
+Source-head [CI run 33611371697](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33611371697)
+passed unit tests and Azure image smoke; final aggregate success must be established for the final
+PR head. Codex adds the two missing governed status documents on Claude's branch with its owner's
+explicit permission. The source is **implemented but unmerged**, so task checkboxes remain open;
+Task 5.6 is not closed. Next: final-head CI and the owner's merge decision. No deployment, live
+reset, frontend exposure, B1 G5 closure, or Wave 8 work is authorized.
 
 1. **Operational lane:** Spec A's production cutover is **complete through 9.14**. The plan was
    reviewed and ACCEPTed (2026-08-31), and the authorized apply
@@ -446,8 +469,9 @@ source-only on `main@0b5d60d1`** (PR #161); **5.7/G5 remains unchecked** pending
    The exact Wave 4 cut is deployed internally on `portfolio-service--0000093`, and Task 4.5 is GO;
    the other listed B2 source remains undeployed. Task 5.1b merged via
    [PR #208](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/208) at
-   `main@f954b5a7`. Wave 5's Task 4.5 prerequisite is satisfied; the next B2 task remains
-   owner-selected, and its implementation/deployment retain their own authorization boundaries.
+   `main@f954b5a7`. Wave 5's Task 4.5 prerequisite is satisfied; the remaining Tasks 5.1–5.5
+   are implemented but unmerged in draft PR #212, reviewed at `d4e98459`. Final-head CI and
+   owner merge review are next; Task 5.6 and deployment remain open.
    Tasks 2.6–2.7, live proofs, remaining bundles, deployment, and exposure retain their own gates.
 4. **Process lane:** keep the status-propagation CI guard healthy in required `static-guard`; it is
    process-control only and does not advance the runtime baseline.

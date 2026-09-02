@@ -1,6 +1,6 @@
 # Implementation Plan
 
-**Current program status (verified 2026-09-01 against `main@67e55cf2`):** this task plan and its owning
+**Current program status (source review 2026-09-02; main `a2c402db`, PR #212 `d4e98459`; runtime evidence unchanged):** this task plan and its owning
 requirements/design/mockup are tracked. Wave 1 (Tasks 1.1-1.19) and Wave 2 Tasks 2.1-2.5 are merged
 source-only through PR #178, entirely mock-backed and disabled by default. Wave 3 presence source
 Tasks 3.1–3.6 merged source-only through PR #179 at `main@cc97a209`; Task 3.7 deployment/live proof
@@ -33,7 +33,16 @@ The reviewed execution record is
 [`docs/runbooks/B2_TASK_4_5_DEMO_RESET_STOP_GO.md`](../../../docs/runbooks/B2_TASK_4_5_DEMO_RESET_STOP_GO.md).
 It records the owner-authorized immutable build, digest deployment, one successful no-op probe, and
 the corrected B1 version rule. Wave 5's Wave 4 prerequisite is satisfied, but this GO does not
-authorize Wave 5 implementation or deployment; the next B2 priority remains owner-selected.
+authorize Wave 5 implementation or deployment.
+
+**Current priority (2026-09-02):** the remaining Wave 5 manual-reset gateway bundle is
+**implemented but unmerged** in [draft PR #212](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/212),
+source commit `d4e984597efcc05d1a91e989908cb3f3dbce6fd1`, based on `main@a2c402db`.
+Claude implemented Tasks 5.1, 5.2, 5.3, 5.3a, 5.4, and 5.5 together under the owner-selected kickoff.
+Codex source review found no blocking issue; final PR-head CI and owner merge review remain next.
+All outstanding checkboxes stay open while unmerged. Task 5.6, deployment, B1 G5, and unrelated B2
+gates remain separate. The detailed review record is at the Wave 5 heading below.
+
 Task 5.1b's ledger defined its provider, token formula, operator tool, packaging,
 and Azure image-smoke extension as one bounded deliverable shared by Tasks 5.1 and 8.7. Its
 implementation preserves the fail-closed docs-only CI contract already live on `main`.
@@ -1189,6 +1198,38 @@ until Wave 5 ships.
 
 One deployable unit (GC.10): the filter, the route, and the allowlist entry ship together, or the
 demo user's own click 403s before the new filter ever runs.
+
+**Implementation/review status (2026-09-02): implemented but unmerged.**
+[Draft PR #212](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/212),
+Claude branch `claude/b2-wave-5-manual-reset-gateway`, source commit
+`d4e984597efcc05d1a91e989908cb3f3dbce6fd1`, base `a2c402db1779e515ccc56c16a900ec172864a670`.
+One source commit contains the filter, both route definitions, exact read-only exceptions, tests,
+and identity CI guard. Existing Tasks 5.1a/5.1b remain merged source-only predecessors.
+
+| Task | Reviewed implementation / evidence |
+|---|---|
+| 5.1 / 5.3a / 5.5 | Exact PUT/path scope; matched `GATEWAY_ROUTE_ATTR`; demo JWT subject; injected shared providers; pinned two-field 403/503; credentials replaced; replica token authoritative at response commit. 36 isolated filter tests |
+| 5.2 / 5.4 | Real gateway/security/filter chains and recording downstream stub under local and prod/azure profiles. Dedicated route, internal PUT, unchanged request bytes, header removal/replacement, downstream error passthrough, and token ownership. 19 local routed cases plus 5 production cases |
+| 5.3 | Exactly two B2 PUT exceptions; custom AI-pattern behavior retained for every previously allowed mutating method; near-miss paths remain protected. 39 property/example cases plus 6 chain cases |
+| 5.1 identity guard | Three independent source extractions compared against V15's demo `users` row. Checker and 24 tests independently rerun successfully; required static-guard wiring preserved |
+| Regression evidence | Claude's local reports independently inspected: 276 unit tests / 43 classes and 190 integration tests / 19 classes; zero failures, errors, or skips. Claude reports all three jars built with AOT |
+| CI / 5.6 boundary | Source-head [run 33611371697](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33611371697) passed unit tests and Azure image smoke. Final-head CI and owner merge review still required; 5.6 remains unchecked |
+
+**Review decisions:** Codex found no blocking source issue. Putting RequestRateLimiter before
+RewritePath in the production route preserves the principal-based key resolver and existing
+rate-limit guardrail. The `demo-reset-local` test-only profile clears the local fixture's global
+three-token bucket; the actual production route/limiter is tested separately with real Redis.
+The exact read-only exceptions can coexist with the unchanged configurable AI path matcher without
+changing that matcher's external contract. Claude reports behavioral RED/GREEN and route, limiter,
+and identity mutation checks; Codex inspected their resulting tests and final local reports, without
+claiming to have replayed those historical mutations.
+
+This is gateway transport/authorization evidence against a stub, not a new persistence or live-reset
+proof. Task 4.4 retains ownership of mutating persistence tests; Task 4.5 remains the historical
+live same-state no-op. Codex supplies the master-plan/ledger edits in this implementation PR with
+Claude's explicit documentation-only worktree permission. No task is checked complete while the
+source remains unmerged. No merge, deployment, feature exposure, B1 G5 closure, or other B2 wave is
+authorized by this review.
 
 - [ ] **5.1 `DemoResetAuthorizationFilter`** (`GlobalFilter`, `Ordered.HIGHEST_PRECEDENCE + 4`) —
   reads the JWT principal directly (not via `JwtAuthenticationFilter`'s injection); confirms the
