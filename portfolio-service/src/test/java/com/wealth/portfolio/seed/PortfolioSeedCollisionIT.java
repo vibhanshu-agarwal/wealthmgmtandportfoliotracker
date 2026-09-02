@@ -208,6 +208,9 @@ class PortfolioSeedCollisionIT {
         assertExactlyOneTransition(fixture);
         assertGoldenTuplePersisted(fixture);
         assertNoHoldingFromTheLosingEdit(fixture);
+        assertThat(replaceAttempts.get())
+                .as("two contenders, two real attempts: the loser must not retry")
+                .isEqualTo(2);
     }
 
     @Test
@@ -276,6 +279,9 @@ class PortfolioSeedCollisionIT {
 
         assertExactlyOneTransition(fixture);
         assertUserEditTuplePersisted(fixture);
+        assertThat(replaceAttempts.get())
+                .as("two contenders, two real attempts: the loser must not retry")
+                .isEqualTo(2);
     }
 
     /**
@@ -553,6 +559,7 @@ class PortfolioSeedCollisionIT {
     }
 
     private static final BigDecimal USER_EDIT_TICKER_QUANTITY = new BigDecimal("3.00000000");
+    private static final BigDecimal USER_EDIT_COST_BASIS = new BigDecimal("1.0000");
 
     /** A user edit that is neither the starting tuple nor the golden tuple. */
     private List<RawIntent> userEditIntent(Fixture fixture) {
@@ -567,7 +574,7 @@ class PortfolioSeedCollisionIT {
                                         new com.wealth.portfolio.composition.DesiredHoldingState(
                                                 item.ticker(),
                                                 item.quantity(),
-                                                new BigDecimal("1.0000"),
+                                                USER_EDIT_COST_BASIS,
                                                 "USD",
                                                 "USER",
                                                 demoProperties.costBasisAnchor()))
@@ -586,14 +593,44 @@ class PortfolioSeedCollisionIT {
                 .isEqualTo(fixture.portfolioId());
     }
 
+    /**
+     * Every field of every holding, against the deterministic desired tuple. A count plus a
+     * source check would pass even if the winner had persisted the wrong quantity or a stale
+     * cost-basis anchor.
+     */
     private void assertGoldenTuplePersisted(Fixture fixture) {
         assertThat(holdingCount(fixture.portfolioId())).isEqualTo(registry.active().size());
+
+        Map<String, PortfolioSeedService.DesiredHolding> desired =
+                seedService.desiredHoldings(fixture.userId()).stream()
+                        .collect(
+                                java.util.stream.Collectors.toUnmodifiableMap(
+                                        PortfolioSeedService.DesiredHolding::ticker, d -> d));
         List<AssetHolding> holdings = holdings(fixture.portfolioId());
-        assertThat(holdings)
-                .as("the winning seed's complete tuple must be persisted")
-                .allSatisfy(h -> assertThat(h.getCostBasisSource()).isEqualTo("SEED"));
+
+        assertThat(holdings).hasSize(desired.size());
+        for (AssetHolding holding : holdings) {
+            PortfolioSeedService.DesiredHolding want = desired.get(holding.getAssetTicker());
+            assertThat(want).as("unexpected ticker %s", holding.getAssetTicker()).isNotNull();
+            assertThat(holding.getQuantity())
+                    .as("quantity for %s", holding.getAssetTicker())
+                    .isEqualByComparingTo(want.quantity());
+            assertThat(holding.getAvgCostBasis())
+                    .as("avgCostBasis for %s", holding.getAssetTicker())
+                    .isEqualByComparingTo(want.avgCostBasis());
+            assertThat(holding.getCostBasisCurrency())
+                    .as("costBasisCurrency for %s", holding.getAssetTicker())
+                    .isEqualTo(want.costBasisCurrency());
+            assertThat(holding.getCostBasisSource())
+                    .as("costBasisSource for %s", holding.getAssetTicker())
+                    .isEqualTo(want.costBasisSource());
+            assertThat(holding.getCostBasisAsOf())
+                    .as("costBasisAsOf for %s", holding.getAssetTicker())
+                    .isEqualTo(want.costBasisAsOf());
+        }
     }
 
+    /** Every field of the winning edit's holding, matching {@link #userEditPreparer}. */
     private void assertUserEditTuplePersisted(Fixture fixture) {
         List<AssetHolding> holdings = holdings(fixture.portfolioId());
         assertThat(holdings)
@@ -604,7 +641,12 @@ class PortfolioSeedCollisionIT {
                             assertThat(h.getAssetTicker()).isEqualTo(fixture.ticker());
                             assertThat(h.getQuantity())
                                     .isEqualByComparingTo(USER_EDIT_TICKER_QUANTITY);
+                            assertThat(h.getAvgCostBasis())
+                                    .isEqualByComparingTo(USER_EDIT_COST_BASIS);
+                            assertThat(h.getCostBasisCurrency()).isEqualTo("USD");
                             assertThat(h.getCostBasisSource()).isEqualTo("USER");
+                            assertThat(h.getCostBasisAsOf())
+                                    .isEqualTo(demoProperties.costBasisAnchor());
                         });
     }
 
