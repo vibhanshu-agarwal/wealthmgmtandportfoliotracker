@@ -1036,10 +1036,11 @@ user never supplied.
 
 ### 3. `GoldenStateSeedService` — replaces the delete-and-recreate body
 
-`PortfolioSeedServiceIT` declares `EXPECTED_HOLDINGS = 160` and asserts it twice. When that test is
-rewritten for identity preservation, the literal is replaced with **active-catalog cardinality**
-read from the Catalog_Module. Spec A removed fixed catalog counts as an invariant deliberately;
-carrying a literal `160` into a new test would reintroduce the defect it removed.
+The earlier `PortfolioSeedServiceIT` declared `EXPECTED_HOLDINGS = 160`. The source baseline
+`48d0aba8` already derives **active-catalog cardinality** from `registry.active().size()` and
+asserts the exact active ticker set. The Wave 6 identity-preservation rewrite retains those
+assertions; it must not reintroduce a fixed count. Spec A removed fixed catalog counts as an
+invariant deliberately.
 
 
 Builds the desired set from the Catalog_Module's active entries with the existing deterministic
@@ -1053,9 +1054,12 @@ reproducible.
 deliberately moved the independent `Demo_Portfolio` path off `Instant.now().minus(25h)` and onto the
 fixed `app.demo.cost-basis-anchor`, precisely so its desired holding set is a pure function of
 configuration; its own task list makes that timestamp part of the comparison tuple. Because B1
-replaces the shared seed machinery, a `GoldenStateTuplePreparer` that hardcoded the moving anchor
-would silently undo that. The preparer therefore takes the anchor as an input: the scheduled E2E seed
-passes its moving 25-hour value, and the demo initializer passes the fixed configured instant.
+replaces the shared seed machinery, a `GoldenStateTuplePreparer` that hardcoded a moving anchor
+would silently undo that. The preparer therefore takes the anchor as an input. At the Wave 6
+source baseline `48d0aba8`, `PortfolioSeedService.desiredHoldings` supplies the fixed configured
+`DemoProperties.costBasisAnchor()` for both E2E seed and demo initialization. Preserve that
+existing behaviour when delegating to the preparer; the earlier moving-25-hour E2E example is
+superseded. This 2026-09-02 source reconciliation changes no timestamp policy or runtime value.
 
 The no-op comparison deliberately does **not** depend on which anchor was chosen: it compares the complete persisted tuple, so if the anchor were ever
 pinned, the concurrency contract would not silently change meaning.
