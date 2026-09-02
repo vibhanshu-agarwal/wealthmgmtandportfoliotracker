@@ -12,8 +12,9 @@ Status is **assigned / ready for handoff**, not running or implemented. Baseline
 main@6a171558a0f802eadd5d7ed5bf28545ca5c91905. The dependency graph explicitly allows this
 source work alongside Wave 6 release preparation. The implementation stays on Cursor's branch:
 the Wave 7 controller must not enter R-B3's source/image, and no merge or exposure is authorized.
-New GitHub publication remains separately approval-gated under AGENTS.md. All task checkboxes
-retain their existing completion state.
+The owner authorized publication and CI-green merge of this documentation package on 2026-09-03.
+Cursor's implementation publication/merge and production operations remain separately gated under
+AGENTS.md. All task checkboxes retain their existing completion state.
 
 
 **Task 6.5 preparation started after assignment:** Codex recorded the Cursor handoff in local

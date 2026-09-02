@@ -2,9 +2,11 @@
 
 **OWNER APPROVAL — publication and release:** The owner requested parallel implementation assignment
 before Codex begins Task 6.5. Local implementation and tests in Cursor's assigned worktree are in scope.
-Publishing this new branch or opening a draft PR requires explicit owner approval under AGENTS.md;
-continue the local implementation and return the concrete diff/evidence before requesting it.
-Merge, deployment, workflow dispatch, production access, and feature exposure are not authorized.
+The owner authorized publication and CI-green merge of this kickoff's documentation package on
+2026-09-03. Publishing Cursor's implementation branch or opening its draft PR still requires explicit
+owner approval under AGENTS.md; continue local implementation and return the concrete diff/evidence
+before requesting it. Implementation merge, deployment, workflow dispatch, production access,
+and feature exposure are not authorized.
 The controller must remain outside the R-B3 source cut even after a draft PR is approved.
 
 > **For agentic workers:** Use superpowers:executing-plans if available. Cursor owns source and tests;

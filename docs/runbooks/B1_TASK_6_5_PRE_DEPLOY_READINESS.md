@@ -2,10 +2,11 @@
 
 **OWNER APPROVAL — remaining boundaries:** The owner authorized assigning parallel implementation
 first, then kicking off 6.5. Cursor's local assignment was recorded in commit 01e0664 before this
-preparation began. This record covers repository evidence and release planning. Publishing this
-new documentation branch/PR needs approval under AGENTS.md. Azure access, registry builds, production
-workflow dispatch, live seed and rollback execution require their own concrete authorization;
-none was performed here.
+preparation began. This record covers repository evidence and release planning. On 2026-09-03,
+the owner authorized publication of these documentation changes and merge if CI is green.
+That approval does not record Task 6.5's release GO or authorize Cursor's implementation merge.
+Azure access, registry builds, production workflow dispatch, live seed and rollback execution
+retain their own concrete authorization; none was performed here.
 
 **Prepared:** 2026-09-03 by Codex, architecture/review owner.
 **State:** preparation started; the stated G5 prerequisite is reverified and supports a technical GO
