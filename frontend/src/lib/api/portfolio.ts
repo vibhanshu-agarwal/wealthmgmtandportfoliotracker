@@ -421,8 +421,12 @@ export async function fetchPortfolio(userId: string, token: string): Promise<Por
       version: backendPortfolio.version ?? 0,
       // Distinguish a genuinely-versioned backend response from this client's
       // own `?? 0` default for a currently-deployed backend that predates
-      // versioning (B2 Task 6.2 — never send a fabricated version).
-      versionObserved: backendPortfolio.version !== undefined,
+      // versioning (B2 Task 6.2 — never send a fabricated version). Loose
+      // inequality deliberately: an explicit wire `null` is exactly as
+      // unobserved as an absent field — `?? 0` already treats them the same
+      // for the value itself, so the observed flag must too, or a `null`
+      // response would default to 0 yet still be reported as observed.
+      versionObserved: backendPortfolio.version != null,
     },
     backendPortfolio.holdings,
     token,

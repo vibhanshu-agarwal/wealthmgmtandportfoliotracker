@@ -6,8 +6,8 @@
  * not `ConflictPanel`. GC.6: the request carries the version captured at click time,
  * never re-read inside the call and never affected by a later prop update.
  */
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider, onlineManager } from "@tanstack/react-query";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
 import { server } from "@/test/msw/server";
@@ -512,6 +512,87 @@ describe("ManualResetControl — conflict (409)", () => {
       expect(screen.getByRole("button", { name: /reset demo portfolio/i })).toBeEnabled(),
     );
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("does not clear the conflict state — or queue a stale-version request for reconnection — when the browser is offline", async () => {
+    let getAttempts = 0;
+    let putCount = 0;
+    server.use(
+      http.get("/api/portfolio", () => {
+        getAttempts += 1;
+        // Genuinely offline: the request would not reach a server at all.
+        return HttpResponse.error();
+      }),
+      http.put("/api/portfolio/demo-reset", () => {
+        putCount += 1;
+        return HttpResponse.json(
+          {
+            error: "portfolio_version_conflict",
+            message: "Someone else changed the demo portfolio.",
+            currentVersion: 9,
+          },
+          { status: 409 },
+        );
+      }),
+    );
+
+    function Harness() {
+      const { data } = usePortfolio();
+      return (
+        <ManualResetControl
+          userId={USER_ID}
+          token={TOKEN}
+          version={data?.version ?? 3}
+          versionObserved
+        />
+      );
+    }
+
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData(portfolioKeys.all(USER_ID), {
+      portfolioId: "p1",
+      ownerId: USER_ID,
+      version: 3,
+      holdings: [],
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <Harness />
+      </QueryClientProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /reset demo portfolio/i }));
+    await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
+    expect(putCount).toBe(1);
+
+    // TanStack Query's default networkMode ("online") marks a refetch
+    // "paused" while offline and — verified against @tanstack/query-core's
+    // refetchQueries source — resolves its own returned promise immediately
+    // in that case, without waiting for reconnection or even attempting the
+    // request. A fix built on that promise (however it inspects its outcome)
+    // cannot tell "genuinely refreshed" apart from "silently queued" this way.
+    onlineManager.setOnline(false);
+    try {
+      fireEvent.click(screen.getByRole("button", { name: /refresh/i }));
+      await waitFor(() => expect(getAttempts).toBeGreaterThan(0));
+      await waitFor(() => expect(screen.queryByText("Refreshing…")).not.toBeInTheDocument());
+
+      // The conflict must still be frozen, and doing so must have come from an
+      // actual attempted (and failed) request, not a silently-paused one that
+      // would otherwise fire a stale-version PUT the moment connectivity
+      // returns.
+      expect(screen.getByRole("alert")).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /^reset demo portfolio$/i })).not.toBeInTheDocument();
+      expect(putCount).toBe(1);
+    } finally {
+      onlineManager.setOnline(true);
+    }
+
+    // Coming back online on its own must not fire anything either — only the
+    // user's own next explicit refresh click does.
+    await act(() => new Promise((resolve) => setTimeout(resolve, 20)));
+    expect(putCount).toBe(1);
+    expect(putCount).toBe(1);
   });
 });
 

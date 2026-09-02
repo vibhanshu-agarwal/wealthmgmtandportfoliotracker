@@ -4,7 +4,7 @@ import { useId, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { portfolioKeys } from "@/lib/hooks/usePortfolio";
-import { buildPortfolioResponseFromWireHoldings } from "@/lib/api/portfolio";
+import { buildPortfolioResponseFromWireHoldings, fetchPortfolio } from "@/lib/api/portfolio";
 import { demoReset } from "@/lib/api/demoReset";
 
 export interface ManualResetControlProps {
@@ -127,18 +127,24 @@ export function ManualResetControl({
   async function handleReobserve() {
     setIsReobserving(true);
     try {
-      // Re-observation alone — never a reset. This only refreshes the portfolio
-      // query so a fresh `version` reaches this control via its own prop.
-      // `throwOnError` is required: `invalidateQueries` otherwise swallows the
-      // underlying fetch's own failure and resolves successfully regardless, so
-      // without it a failed refresh would look identical to a successful one.
-      await queryClient.invalidateQueries(
-        { queryKey: portfolioKeys.all(userId) },
-        { throwOnError: true },
-      );
-      // Clear the conflict only after a genuinely successful re-observation — a
-      // failed refresh leaves the browser holding the same already-known-stale
-      // version, and clearing here would let the next click resubmit it.
+      // Re-observation alone — never a reset. Deliberately a raw fetchPortfolio
+      // call (the same one usePortfolio's own queryFn uses), not
+      // invalidateQueries/fetchQuery: TanStack Query's default
+      // networkMode: "online" marks a refetch "paused" while the browser is
+      // offline and — verified against @tanstack/query-core's refetchQueries
+      // source — resolves ITS OWN returned promise immediately in that case,
+      // without ever attempting the request or waiting for reconnection.
+      // `throwOnError` only affects a request that was actually attempted; it
+      // cannot fix a request that TanStack Query itself declined to send. A
+      // plain fetch has no such pause state — it always attempts the request,
+      // so a genuinely offline browser correctly rejects here.
+      const freshPortfolio = await fetchPortfolio(userId, token);
+      queryClient.setQueryData(portfolioKeys.all(userId), freshPortfolio);
+      // Clear the conflict only after a genuinely completed re-observation — a
+      // failed (or never-attempted) refresh leaves the browser holding the
+      // same already-known-stale version, and clearing here would let the
+      // next click resubmit it, or silently queue that resubmission for the
+      // moment connectivity returns.
       setPhase("idle");
       setConflictMessage(null);
     } catch {

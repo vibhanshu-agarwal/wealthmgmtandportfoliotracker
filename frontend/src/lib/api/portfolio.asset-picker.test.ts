@@ -181,6 +181,31 @@ describe("fetchPortfolio version (Task 1.2)", () => {
     expect(portfolio.version).toBe(0);
     expect(portfolio.versionObserved).toBe(false);
   });
+
+  it("does not report an explicit wire `null` version as observed either, even though it is defaulted to 0", async () => {
+    // `BackendPortfolio.version?: number` only documents "absent or a number"
+    // — it cannot stop a real backend from serializing an explicit JSON
+    // `null` for the same field (e.g. a nullable database column mapped
+    // straight through). `?? 0` already treats `null` exactly like absent for
+    // the value itself; the observed flag must use the same test, or a
+    // strict `!== undefined` check would let a `null` response through as
+    // "observed" while still defaulting its own value to a fabricated 0.
+    servePortfolios([
+      {
+        id: "portfolio-001",
+        userId: "user-001",
+        name: "My Portfolio",
+        version: null,
+        createdAt: "2026-01-01T00:00:00Z",
+        holdings: [],
+      } as unknown as BackendPortfolio,
+    ]);
+
+    const portfolio = await fetchPortfolio("user-001", TOKEN);
+
+    expect(portfolio.version).toBe(0);
+    expect(portfolio.versionObserved).toBe(false);
+  });
 });
 
 // ── Task 1.2: list-identity selection ───────────────────────────────────────
