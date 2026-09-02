@@ -113,6 +113,101 @@ describe("PortfolioPageContent — Asset Picker entry point", () => {
   });
 });
 
+describe("PortfolioPageContent — manual reset control (Tasks 6.1/6.2, independent flag)", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.clearAllMocks();
+  });
+
+  it("does not render the reset control when its flag is unset (default disabled)", () => {
+    vi.stubEnv("NEXT_PUBLIC_ENABLE_DEMO_RESET_CONTROL", undefined);
+    mockUseAuthSession.mockReturnValue(authenticatedSession);
+    mockUseAuthenticatedUserId.mockReturnValue({
+      userId: "u1",
+      token: "jwt-token",
+      status: "authenticated",
+      error: null,
+    });
+    stubPortfolio();
+
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <PortfolioPageContent />
+      </QueryClientProvider>,
+    );
+    expect(screen.queryByRole("button", { name: /reset demo portfolio/i })).not.toBeInTheDocument();
+  });
+
+  it("renders the reset control when its flag is exactly \"true\", independently of the picker flag", () => {
+    vi.stubEnv("NEXT_PUBLIC_ENABLE_DEMO_RESET_CONTROL", "true");
+    vi.stubEnv("NEXT_PUBLIC_ENABLE_ASSET_PICKER", undefined);
+    mockUseAuthSession.mockReturnValue(authenticatedSession);
+    mockUseAuthenticatedUserId.mockReturnValue({
+      userId: "u1",
+      token: "jwt-token",
+      status: "authenticated",
+      error: null,
+    });
+    stubPortfolio();
+
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <PortfolioPageContent />
+      </QueryClientProvider>,
+    );
+    expect(screen.getByRole("button", { name: /reset demo portfolio/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Edit Holdings" })).not.toBeInTheDocument();
+  });
+
+  it("renders Edit Holdings without the reset control when only the picker flag is set", () => {
+    vi.stubEnv("NEXT_PUBLIC_ENABLE_ASSET_PICKER", "true");
+    vi.stubEnv("NEXT_PUBLIC_ENABLE_DEMO_RESET_CONTROL", undefined);
+    mockUseAuthSession.mockReturnValue(authenticatedSession);
+    mockUseAuthenticatedUserId.mockReturnValue({
+      userId: "u1",
+      token: "jwt-token",
+      status: "authenticated",
+      error: null,
+    });
+    stubPortfolio();
+    stubNetwork();
+
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <PortfolioPageContent />
+      </QueryClientProvider>,
+    );
+    expect(screen.getByRole("button", { name: "Edit Holdings" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /reset demo portfolio/i })).not.toBeInTheDocument();
+  });
+
+  it("renders both controls independently when both flags are set", () => {
+    vi.stubEnv("NEXT_PUBLIC_ENABLE_ASSET_PICKER", "true");
+    vi.stubEnv("NEXT_PUBLIC_ENABLE_DEMO_RESET_CONTROL", "true");
+    mockUseAuthSession.mockReturnValue(authenticatedSession);
+    mockUseAuthenticatedUserId.mockReturnValue({
+      userId: "u1",
+      token: "jwt-token",
+      status: "authenticated",
+      error: null,
+    });
+    stubPortfolio();
+    stubNetwork();
+
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <PortfolioPageContent />
+      </QueryClientProvider>,
+    );
+    expect(screen.getByRole("button", { name: "Edit Holdings" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /reset demo portfolio/i })).toBeInTheDocument();
+  });
+});
+
 describe("PortfolioPageContent — freshness status (Task 1.16/1.18)", () => {
   afterEach(() => {
     vi.unstubAllEnvs();

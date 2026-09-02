@@ -10,8 +10,9 @@ import { HoldingsTable } from "@/components/portfolio/HoldingsTable";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EditHoldingsButton } from "@/components/asset-picker/EditHoldingsButton";
+import { ManualResetControl } from "@/components/asset-picker/ManualResetControl";
 import { FreshnessStatus } from "@/components/freshness/FreshnessStatus";
-import { isAssetPickerEnabled } from "@/lib/config/assetPickerFeatures";
+import { isAssetPickerEnabled, isDemoResetControlEnabled } from "@/lib/config/assetPickerFeatures";
 import { useAuthenticatedUserId } from "@/lib/hooks/useAuthenticatedUserId";
 import { usePortfolio, usePortfolioSummary } from "@/lib/hooks/usePortfolio";
 
@@ -113,6 +114,17 @@ export function PortfolioPageContent() {
       {/* Task 1.16/1.18: sourced from usePortfolioSummary, re-read (not inferred)
           after a successful save via that query's own invalidation. */}
       <FreshnessStatus freshness={summary?.assetPriceFreshness} />
+
+      {/* B2 Tasks 6.1/6.2: temporary page-level host for the hidden manual-reset
+          control, independently flagged from the picker (requirements.md 7.6's
+          final placement is still OPEN — see ManualResetControl's own doc comment).
+          Proving these two flags independently is an explicit acceptance point:
+          neither block below depends on the other's condition. */}
+      {isDemoResetControlEnabled() && portfolio && (
+        <div className="flex justify-end">
+          <ManualResetControl userId={userId} token={token} version={portfolio.version} />
+        </div>
+      )}
 
       {isAssetPickerEnabled() && portfolio && (
         <div className="flex justify-end">
