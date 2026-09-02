@@ -1,10 +1,8 @@
 package com.wealth.portfolio.seed;
 
-import com.wealth.portfolio.AssetHolding;
-import com.wealth.portfolio.AssetHoldingRepository;
-import com.wealth.portfolio.Portfolio;
-import com.wealth.portfolio.PortfolioRepository;
-import com.wealth.portfolio.catalog.SupportedAssetValidator;
+import com.wealth.portfolio.composition.CompositionResult;
+import com.wealth.portfolio.composition.GoldenStateTuplePreparer;
+import com.wealth.portfolio.composition.HoldingReplacementService;
 import com.wealth.portfolio.seed.SeedTickerRegistry.SeedTicker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -64,21 +62,15 @@ public class PortfolioSeedService {
     private static final int COST_BASIS_JITTER_RANGE = 400;
     private static final int COST_BASIS_CENTRE       = 200; // midpoint → zero jitter
 
-    private final PortfolioRepository portfolioRepository;
-    private final AssetHoldingRepository assetHoldingRepository;
+    private final HoldingReplacementService replacementService;
     private final SeedTickerRegistry registry;
-    private final SupportedAssetValidator supportedAssetValidator;
     private final DemoProperties demoProperties;
 
-    public PortfolioSeedService(PortfolioRepository portfolioRepository,
-                                AssetHoldingRepository assetHoldingRepository,
+    public PortfolioSeedService(HoldingReplacementService replacementService,
                                 SeedTickerRegistry registry,
-                                SupportedAssetValidator supportedAssetValidator,
                                 DemoProperties demoProperties) {
-        this.portfolioRepository = portfolioRepository;
-        this.assetHoldingRepository = assetHoldingRepository;
+        this.replacementService = replacementService;
         this.registry = registry;
-        this.supportedAssetValidator = supportedAssetValidator;
         this.demoProperties = demoProperties;
     }
 
@@ -97,7 +89,8 @@ public class PortfolioSeedService {
             Instant costBasisAsOf) {}
 
     /**
-     * Computes the holdings {@link #seed(String)} would persist, without writing.
+     * Computes the holdings {@link #seed(String, long)} would persist, without writing. Pure:
+     * the demo initializer and the diagnostics probe both rely on it being read-only.
      */
     public List<DesiredHolding> desiredHoldings(String userId) {
         Instant costBasisAsOf = demoProperties.costBasisAnchor();
@@ -106,46 +99,42 @@ public class PortfolioSeedService {
                 .toList();
     }
 
+    /**
+     * Converges {@code userId} to the golden state through the shared versioned replacement
+     * transaction, preserving portfolio identity.
+     *
+     * <p>{@code expectedVersion} is the caller's own observation and is passed through
+     * untouched. This method never reads a version of its own, never retries, and never
+     * swallows a conflict into a success: a stale observation raises
+     * {@code PortfolioVersionConflictException} for Requirement 7's HTTP envelope.
+     *
+     * <p>Delegation — not deletion. The former implementation deleted the user's portfolio and
+     * recreated it, which changed {@code id} and {@code created_at} on every seed and left the
+     * child rows outside any version arbitration. {@link HoldingReplacementService} owns
+     * comparison, the parent CAS, and child DML; an identical golden tuple is a genuine no-op
+     * with no DML and no version change.
+     *
+     * <p>The catalog is not pre-validated here. The full active set is materialised inside
+     * {@code replace} by {@link GoldenStateTuplePreparer} <em>after</em> the version check, per
+     * the D2 ordering; {@link SeedTickerRegistry#active()} is itself derived from the catalog's
+     * active entries, so a separate pre-pass could only repeat what the registry guarantees.
+     */
     @Transactional
-    public SeedResult seed(String userId) {
-        // 1. Delete every existing portfolio for this user. orphanRemoval = true on
-        //    Portfolio.holdings cascades the delete down to asset_holdings in the same
-        //    transaction; the explicit flush() guarantees the DELETE runs before the
-        //    subsequent INSERT so we don't hit any transient unique-constraint edges.
-        List<SeedTicker> seeds = registry.active();
-        for (SeedTicker ticker : seeds) {
-            supportedAssetValidator.requireActive(ticker.ticker());
-        }
+    public SeedResult seed(String userId, long expectedVersion) {
+        GoldenStateTuplePreparer preparer =
+                new GoldenStateTuplePreparer(registry, userId, demoProperties.costBasisAnchor());
 
-        List<Portfolio> existing = portfolioRepository.findByUserId(userId);
-        if (!existing.isEmpty()) {
-            portfolioRepository.deleteAll(existing);
-            portfolioRepository.flush();
-        }
+        CompositionResult result =
+                replacementService.replace(userId, expectedVersion, List.of(), preparer);
 
-        // 2. Persist one fresh portfolio, then one holding per active catalogue ticker.
-        //    Going through AssetHoldingRepository avoids touching the
-        //    package-private Portfolio.addHolding() helper from this sub-package.
-        Portfolio saved = portfolioRepository.save(new Portfolio(userId));
-
-        List<DesiredHolding> desired = desiredHoldings(userId);
-        List<AssetHolding> holdings = desired.stream()
-                .map(d -> {
-                    AssetHolding holding = new AssetHolding(saved, d.ticker(), d.quantity());
-                    holding.setAvgCostBasis(d.avgCostBasis());
-                    holding.setCostBasisCurrency(d.costBasisCurrency());
-                    holding.setCostBasisSource(d.costBasisSource());
-                    holding.setCostBasisAsOf(d.costBasisAsOf());
-                    return holding;
-                })
-                .toList();
-        assetHoldingRepository.saveAll(holdings);
-
-        // No step 3. `market_prices` and `market_price_history` are global, owned by
-        // market-data-service, and are deliberately not written here — see the class javadoc.
-        log.info("Golden-state seed complete (holdings only): userId={} portfolioId={} holdings={}",
-                userId, saved.getId(), seeds.size());
-        return new SeedResult(saved.getId(), seeds.size());
+        // `market_prices` and `market_price_history` are global, owned by market-data-service,
+        // and are deliberately not written here — see the class javadoc.
+        log.info(
+                "Golden-state seed complete (holdings only): userId={} portfolioId={} holdings={} "
+                        + "version={} created={} noOp={}",
+                userId, result.portfolioId(), result.holdings().size(),
+                result.version(), result.created(), result.noOp());
+        return new SeedResult(result.portfolioId(), result.holdings().size());
     }
 
     private DesiredHolding toDesiredHolding(SeedTicker t, String userId, Instant costBasisAsOf) {

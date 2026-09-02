@@ -136,9 +136,29 @@ class DemoPortfolioInitializerIT {
                 """,
                 before.toString(), before.toString());
 
+        Portfolio beforeEntity = portfolioRepository.findById(before).orElseThrow();
+        long versionBefore = beforeEntity.getVersion();
+        java.time.Instant createdAtBefore = beforeEntity.getCreatedAt();
+
         Outcome outcome = initializer.converge();
         assertThat(outcome).isEqualTo(Outcome.SEEDED);
-        assertThat(portfolioRepository.findById(before)).isEmpty();
+
+        // The corrective reseed replaces holdings in place. The former implementation deleted
+        // the parent and recreated it, so this assertion was previously `isEmpty()` — the exact
+        // identity churn Task 6.2 removes.
+        Portfolio afterEntity = portfolioRepository.findById(before).orElseThrow();
+        assertThat(afterEntity.getId()).isEqualTo(before);
+        assertThat(afterEntity.getCreatedAt())
+                .as("createdAt must survive a corrective reseed")
+                .isEqualTo(createdAtBefore);
+        assertThat(afterEntity.getVersion())
+                .as("exactly one version transition for one corrective reseed")
+                .isEqualTo(versionBefore + 1);
+        assertThat(portfolioRepository.findByUserId(DemoPortfolioInitializer.DEMO_USER_ID))
+                .as("no second aggregate is created")
+                .singleElement()
+                .extracting(Portfolio::getId)
+                .isEqualTo(before);
         assertDemoMatchesDesired();
     }
 
@@ -148,7 +168,11 @@ class DemoPortfolioInitializerIT {
         initializer.converge();
         List<Map<String, Object>> demoBefore = snapshotHoldings(DemoPortfolioInitializer.DEMO_USER_ID);
 
-        seedService.seed(E2E_USER_ID);
+        long e2eObservedVersion = portfolioRepository.findByUserId(E2E_USER_ID).stream()
+                .findFirst()
+                .map(Portfolio::getVersion)
+                .orElse(0L);
+        seedService.seed(E2E_USER_ID, e2eObservedVersion);
         assertThat(snapshotHoldings(DemoPortfolioInitializer.DEMO_USER_ID))
                 .as("E2E seed must not touch the demo portfolio")
                 .isEqualTo(demoBefore);
