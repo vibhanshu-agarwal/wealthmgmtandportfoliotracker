@@ -1,8 +1,8 @@
 # Backlog: API Gateway custom-domain binding recovery
 
-**Status:** Open — hostname restored 2026-08-31; live-read-back evidence independently reviewed and merged (PR #194 at `main@98371587`); authorized three-caller synthetic executed (run [33411410271](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33411410271)); Task 5.7 remains unchecked pending a separately recorded owner-controlled G5 completion decision (documentation-PR review/merge does not check 5.7)
+**Status:** Open for separate backlog disposition — hostname restored 2026-08-31; evidence reviewed/merged via PR #194 (`main@98371587`); three-caller run [33411410271](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33411410271) succeeded and its evidence merged via PR #197; B1 Task 5.7 / G5 closed by owner decision on 2026-09-02. No unresolved G5 blocker is claimed here.
 **Owner:** unassigned
-**Blocks:** B1 Task 5.7 / G5 (Task 5.7 remains unchecked)
+**Blocks:** None for B1 Task 5.7 / G5; that gate is closed
 **Tracked in:** Surfaced by the Spec A 9.14 live read-back
 ([`SPEC_A_9_14_REOPEN_INGRESS.md`](../../../runbooks/SPEC_A_9_14_REOPEN_INGRESS.md), apply run
 [33331130603](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33331130603)).
@@ -13,9 +13,9 @@ Pre-existing; not caused by 9.14.
 ## What is wrong
 
 > **Historical incident; resolved in live state.** This section records the condition found before
-> the guarded restore. The backlog remains open because neither the restore, its reviewed evidence,
-> the subsequent three-caller synthetic, nor documentation-PR review/merge alone closes G5 or B1
-> Task 5.7 — a separately recorded owner-controlled G5 completion decision is required.
+> the guarded restore. The owner closed B1 Task 5.7 / G5 on 2026-09-02 using the reviewed
+> three-caller evidence. This backlog's separately reserved closure has not been recorded;
+> its open status no longer represents a G5 blocker.
 
 At discovery, checkpoint 9.14 had reopened external ingress on `api-gateway`, and the **default
 ACA endpoint** `api-gateway.lemonmoss-ecef29d7.centralindia.azurecontainerapps.io` served healthy
@@ -63,9 +63,8 @@ the bind, but an independent read-back immediately afterward confirmed both defa
 health endpoints at HTTP `200`, unchanged gateway revision/ingress, the exact `SniEnabled` hostname,
 and the expected managed certificate. The execution record and scope are retained in the runbook.
 
-**This backlog item stays open** because Task 5.7 remains unchecked pending a separately recorded
-owner-controlled G5 completion decision (and backlog closure is not automatic from a synthetic
-success or documentation-PR review/merge alone).
+**G5 is now closed** by the owner's 2026-09-02 decision. This item retains its existing separate
+backlog-closure decision; its open status does not invalidate G5 or claim a current binding fault.
 
 ## Authorized three-caller synthetic (executed live; docs source-only)
 
@@ -86,39 +85,35 @@ distinct from the later successful holdings-only seed and Playwright suite. Full
 [`B1_G5_INGRESS_BLOCKER.md`](../../../runbooks/B1_G5_INGRESS_BLOCKER.md).
 
 **Executed live evidence** is the workflow run above. Documentation PRs that record it are
-**source-only** and do not check Task 5.7, close this backlog, or unblock Wave 6 / R-B3 / public
-`PUT`.
+**source-only**. PR #197 did not itself check Task 5.7; the owner's later G5 close-out did.
+That decision satisfies Wave 6's G5 prerequisite and does not close this backlog, authorize an
+R-B3 deployment, or activate public `PUT`.
 
 ## Why it matters
 
 `api.vibhanshu-ai-portfolio.dev` is the configured endpoint for the frontend and the synthetic
 workflows (`NEXT_PUBLIC_API_BASE_URL` in `.github/workflows/synthetic-monitoring.yml`). The restored
-endpoint serves traffic, and an authorized three-caller synthetic has now been executed. Task 5.7
-and this backlog remain open pending a separately recorded owner-controlled G5 completion decision.
-Documentation-PR review/merge of the three-caller evidence does not check Task 5.7 or close this
-backlog.
+endpoint served the authorized three-caller synthetic. Its evidence was reviewed and merged,
+and Task 5.7 / G5 closed under the owner's 2026-09-02 decision. This backlog remains separately
+open for disposition; no new live reachability observation is made here.
 
 Unattended synthetics remain suspended in `synthetic-monitoring.yml`.
 
 ## What remains
 
-1. Leave `- [ ] **5.7 G5 evidence.**` unchecked until a separately recorded owner-controlled G5
-   completion decision. The executed three-caller evidence in
-   [`B1_G5_INGRESS_BLOCKER.md`](../../../runbooks/B1_G5_INGRESS_BLOCKER.md) / run
-   [33411410271](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33411410271)
-   is subject to independent review and merge of its documentation PR, but neither that review nor
-   that PR checks Task 5.7.
-2. Do not infer Task 5.7 completion, backlog closure, Wave 6 / R-B3, or public `PUT` from a source
-   merge, remote plan, apply, certificate bind, HTTP health result, or documentation PR alone.
+1. Record the separately reserved disposition of this backlog using the recovery and G5 evidence.
+   The G5 prerequisite itself is complete; no additional synthetic is required by this item.
+2. Preserve the historical failed apply-time health observation and later independent `200`
+   read-back. G5 closure does not authorize R-B3 deployment, public `PUT`, or further cloud work.
 
 Before any future ingress close (`spec-a-9.14-close-ingress`), run
 `api-gateway-custom-domain-remove` first so ingress close remains a one-resource operation.
 
 ## Non-claims
 
-- Does **not** authorize backlog closure, B1 Task 5.7 completion, Wave 6 / R-B3, public `PUT`, an
-  ingress close, a hostname remove, or another Terraform operation.
-- Does **not** claim Task 5.7 is checked or Writer_Convergence is achieved.
+- This cross-reference update does **not** close the backlog or authorize Wave 6 implementation,
+  R-B3 deployment, public `PUT`, ingress closure, hostname removal, or another Terraform operation.
+- B1 Task 5.7 is checked under its own owner decision; Writer_Convergence is not achieved.
 - Does **not** assert the binding was ever present before checkpoint 9.5; the Resource Graph record
   documents the binding loss at that checkpoint.
 - Does **not** enable or claim any market-data writer path.

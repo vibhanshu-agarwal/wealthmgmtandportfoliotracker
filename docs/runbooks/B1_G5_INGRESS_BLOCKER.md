@@ -1,30 +1,37 @@
-# B1 Task 5.7 / G5 — public synthetic evidence recorded; completion gated on owner decision
+# B1 Task 5.7 / G5 — owner close-out complete
 
 This is the durable, sanitized record of the authorized G5 attempts for Wave 5b Task **5.7**.
 No secret values, JWTs, or passwords appear here.
 
-## Decision
+## Decision — GO / complete (2026-09-02)
 
-**G5 / Task 5.7 remain open** — Task 5.7 remains unchecked pending a separately recorded
-owner-controlled G5 completion decision. The executed three-caller public Azure synthetic evidence
-below is subject to independent review and merge of its documentation PR, but neither that review
-nor that PR checks Task 5.7 or unlocks Wave 6 / R-B3, public `PUT`, or backlog closure. The
-custom-domain binding was restored earlier under separately authorized, guarded operations (PR #194
-reviewed that restoration evidence). A separately authorized public Azure synthetic has now run from
-`main@f66d7ab6a4db1a327fd030ba9897bfc431104945` and produced the three required version-bearing
-caller markers. That live run is **executed evidence**; this document update is **source-only**.
-Neither automatically closes Task 5.7, unblocks Wave 6 / R-B3, public `PUT`, or the custom-domain
-backlog.
+**B1 G5 / Task 5.7 is complete.** The owner explicitly requested, “Please do the G5 close out.”
+This records the separately reserved owner decision and checks Task 5.7 in the owning ledger.
+The decision uses the successful three-caller run below and its independently reviewed evidence
+merged via [PR #197](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/197)
+at `b6c0da3f98a4a59bd810dbb77f273a1751946220` on `2026-08-31T18:26:34Z`.
+That earlier evidence merge deliberately left the owner gate open; today's decision closes it.
+
+Codex reverified run `33411410271` and actual Azure job `99551610739` as successful, read the
+three caller markers, holdings-only success, and 9 passing tests from the run logs, and compared
+the evidence source `f66d7ab6` with current `main@48d0aba8`. The three callers, shared version
+helper, synthetic/deploy workflow wiring, and focused tests have no source drift. The current
+inventory guard passes with exactly three callers. No new live dispatch or cloud operation was
+needed for this close-out.
+
+G5's prerequisite for B1 Wave 6 is satisfied. The next source kickoff is Tasks 6.1–6.4; their
+implementation and R-B3 deployment/serving proof remain separate work. Wave 7 public `PUT`,
+Writer_Convergence, B2 Tasks 5.6/6.3, and unrelated backlogs are not closed by this decision.
 
 > **Historical correction (2026-08-31).** The original TLS reset was first attributed solely to the
 > Spec A ingress fence. That attribution was incomplete: Spec A 9.14 reopened ingress, while the
 > custom-domain binding was still absent. The later authorized recovery restored that binding. See
 > [historical failure and post-restore state](#historical-failure-and-post-restore-state-2026-08-31).
 
-Tasks **5.4–5.6** remain implemented (merged source-only on `main@0b5d60d1`, PR #161). Task **5.7
-remains unchecked**. Wave 6 / R-B3 and Writer_Convergence remain gated. Gateway-revision loopback is
-**not** an adequate G5 substitute: it can prove API behavior, not that all three GitHub-hosted
-callers send version-bearing requests.
+Tasks **5.4–5.6** merged via PR #161 on `main@0b5d60d1`; Task **5.7 is now checked**.
+Gateway-revision loopback alone remains insufficient for G5: this decision relies on the actual
+GitHub-hosted execution of all three callers. The seed remains version-tolerant until B1 Wave 6;
+this close-out makes no Writer_Convergence claim.
 
 ## Source merge record
 
@@ -35,7 +42,7 @@ callers send version-bearing requests.
 | Scope | Tasks 5.4–5.6 source-only |
 | Deploy / ingress / G5 | **not** authorized by this merge |
 
-## Serving identity at attempt time (unchanged from R-B2)
+## Historical serving identity at the pre-restore attempts (R-B2)
 
 | Field | Value |
 |---|---|
@@ -68,6 +75,8 @@ curl to the public API host reproduced the same TLS handshake reset.
 | Event | `workflow_dispatch` (exactly one dispatch; no retry) |
 | Ref / SHA | `main` @ `f66d7ab6a4db1a327fd030ba9897bfc431104945` |
 | Run ID | `33411410271` |
+| Azure job ID | `99551610739` |
+| Azure job execution | `2026-08-31T15:57:48Z`–`2026-08-31T16:02:58Z` |
 | Run URL | https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33411410271 |
 | Overall conclusion | **success** |
 | Azure job | `Run Azure Synthetic Suite` — **success** (not skipped) |
@@ -101,13 +110,12 @@ workflow’s timeout/transport output form (not an HTTP status code). Those obse
 separately from failures and remain distinct from the later successful holdings-only seed and
 Playwright suite on the same public host. No market-data writer was enabled or claimed.
 
-#### Explicit scope of this evidence
+#### Evidence scope and later decision
 
 - **Executed live evidence:** one authorized public Azure synthetic from the SHA above.
-- **This doc / evidence PR:** source-only documentation of that run (subject to independent review
-  and merge of the documentation PR; neither checks Task 5.7).
-- Does **not** check `- [ ] **5.7 G5 evidence.**`, close G5, unblock Wave 6 / R-B3, public `PUT`,
-  or close the custom-domain backlog.
+- **PR #197:** independently reviewed documentation of that run; merged without checking Task 5.7.
+- **2026-09-02 owner decision:** closes Task 5.7 using that reviewed evidence and the unchanged
+  caller inventory. No further live execution or production change is included.
 
 ## Historical failure and post-restore state (2026-08-31)
 
@@ -120,52 +128,49 @@ preceded the separately authorized custom-domain recovery:
 - guarded apply/bind [33380356530](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33380356530) restored the existing managed certificate binding, but its final immediate default-host health observation was non-`200` and left the workflow red;
 - independent read-back at `2026-08-31T10:09:24.5519025Z` then observed both public health endpoints at `200`.
 
-Current read-back:
+Historical read-back at `2026-08-31T10:09:24.5519025Z`:
 
 | Endpoint | Result |
 |---|---|
 | `api-gateway.lemonmoss-ecef29d7.centralindia.azurecontainerapps.io` (default ACA) | `200` — independent read-back after the guarded apply/bind |
 | `api.vibhanshu-ai-portfolio.dev` (configured frontend / synthetic host) | `200` — independent read-back after the guarded apply/bind |
 
-DNS remains a CNAME alias onto the gateway's ACA hostname. Current Container Apps control-plane
-read-back reports the exact custom hostname with `SniEnabled` binding and existing managed certificate
-`mc-wealth-prod-ac-api-vibhanshu-ai-5159`; that certificate is `Succeeded`, has the expected subject,
-and remains CNAME-validated. The guarded post-bind verifier completed its binding, certificate, ingress,
+The restoration read-back found a CNAME alias onto the gateway's ACA hostname. Container Apps
+reported the exact custom hostname with `SniEnabled` binding and existing managed certificate
+`mc-wealth-prod-ac-api-vibhanshu-ai-5159`; that certificate was `Succeeded`, had the expected
+subject, and was CNAME-validated. The guarded post-bind verifier completed its binding, certificate, ingress,
 and TLS assertions before the final default-host health observation made run 33380356530 red.
 
 `NEXT_PUBLIC_API_BASE_URL` for the frontend and synthetic workflows points at that host.
 
-**Do not read Spec A 9.14, the three-caller run, or documentation-PR review/merge alone as closing
-Task 5.7.** A separately recorded owner-controlled G5 completion decision is required before
-checking the task or advancing Wave 6 / R-B3.
+Spec A 9.14 and PR #194 restored reachability; they did not themselves satisfy G5. PR #197
+merged the later three-caller evidence without taking the owner decision. The separately recorded
+2026-09-02 owner decision above now closes Task 5.7. Historical recovery and RCA records retain
+their own scope and acceptance criteria.
 
-## Synthetic dispatch gate (2026-08-31)
+## Synthetic dispatch and schedule state at close-out
 
-PR [#194](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/194) independently
-reviewed and merged the custom-domain restoration live read-back evidence at `main@98371587`. That
-review does **not** satisfy Task 5.7 and does **not** authorize G5 by itself.
+`synthetic-monitoring.yml` still has **no unattended schedule**; only `workflow_dispatch`
+remains. Further manual dispatch or schedule restoration requires separate owner authorization.
+The existing CI guard rejects reintroduction of a top-level schedule trigger. Closing G5 changes
+neither the workflow nor those permissions.
 
-While G5 / Task 5.7 remain open pending a separately recorded owner-controlled G5 completion
-decision, `synthetic-monitoring.yml` has **no unattended schedule** — only `workflow_dispatch`
-remains. Any further manual dispatch still requires separately recorded owner authorization. A CI
-guard rejects reintroduction of a top-level schedule trigger.
+## Close-out checklist
 
-## Resume / close conditions for Task 5.7
-
-Task **5.7 remains unchecked** pending a separately recorded owner-controlled G5 completion
-decision. The executed three-caller evidence (run `33411410271`) is subject to independent review
-and merge of its documentation PR, but neither that review nor that PR checks Task 5.7. Closure
-alternatively requires a separately designed and authorized private-reachability test that
-genuinely executes all three real GitHub-hosted callers (shell, global-setup, azure-api-smoke).
-
-The recovery evidence in [`API_GATEWAY_CUSTOM_DOMAIN_RECOVERY.md`](API_GATEWAY_CUSTOM_DOMAIN_RECOVERY.md)
-and PR #194 do **not** close Task 5.7 by themselves.
+| Condition | Evidence / decision |
+|---|---|
+| Caller migration merged | PR #161, `0b5d60d1ef1c0c1002be69698db4d45244843bfe` |
+| Every real caller observed sending a version | Run `33411410271`, all three `expectedVersion=0` markers above |
+| Actual Azure execution succeeded | Job `99551610739`, holdings-only seed, 9 passed; AWS intentionally skipped |
+| Durable evidence independently reviewed and merged | PR #197, `b6c0da3f98a4a59bd810dbb77f273a1751946220` |
+| Evidence still applicable at close-out | No caller/helper/workflow/focused-test drift from `f66d7ab6` to `48d0aba8`; inventory guard passes |
+| Separately reserved owner decision recorded | 2026-09-02: “Please do the G5 close out” — **GO / complete** |
 
 ## Explicit non-claims
 
-- Does **not** claim Task 5.7 complete, G5 closed, or Writer_Convergence.
-- Does **not** authorize Wave 6 / R-B3, public `PUT`, a retry, or any further custom-domain or
-  deployment change.
-- Does **not** claim this source-only evidence PR or its independent review checks or closes the
-  task; a separately recorded owner-controlled G5 completion decision remains required.
-- Does **not** enable or claim any market-data writer path.
+- B1 Wave 6 Tasks 6.1–6.7 and Wave 7 remain unchecked; no source implementation, R-B3
+  deployment/serving proof, public `PUT` activation, or Writer_Convergence is claimed.
+- B2 Tasks 5.6 and 6.3, UI exposure, and final placement retain their separate decisions.
+- No synthetic retry, further manual dispatch, unattended schedule restoration, custom-domain
+  operation, or deployment is authorized or performed by this close-out.
+- No market-data writer path, historical RCA closure, or unrelated backlog completion is claimed.

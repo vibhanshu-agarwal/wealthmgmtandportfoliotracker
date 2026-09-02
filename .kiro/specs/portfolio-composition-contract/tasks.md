@@ -1,6 +1,6 @@
 # Implementation Plan
 
-**Current program status (verified 2026-09-01 against `main@ce6ee32c`; runtime baseline `e221662`; R-A / R-B / R-B2 serving digests below):**
+**Current program status (verified 2026-09-02 against `main@48d0aba8`; historical runtime baseline `e221662`; R-A / R-B / R-B2 serving digests below):**
 Waves `P`, `0`, and `1` are complete. Wave 2 tasks **2.1–2.6 and R-A are complete**: G2 serving
 proof is green on gateway revision `api-gateway--0000076` /
 `sha256:2da5b303fd15772792167f2b26dc62250b2d9858270db315eab1d6d1a1554aec` (deploy run
@@ -16,29 +16,22 @@ serving on `portfolio-service--0000081` /
 [32982880866](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/32982880866);
 G2a green; evidence
 [`docs/runbooks/B1_R_B2_G2A_SERVING_PROOF.md`](../../../docs/runbooks/B1_R_B2_G2A_SERVING_PROOF.md)).
-Tasks **5.4–5.6 are merged on `main@0b5d60d1`** (PR #161, source-only caller migration; not
-deployed); **5.7 / G5 remains unchecked**. The historical public-host failures in runs
-[33046987880](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33046987880)
-and [33047168136](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33047168136)
-preceded the separately authorized custom-domain recovery. Its guarded plan and apply/bind restored
-the hostname and an independent read-back returned `200` for both public health endpoints; PR #194
-independently reviewed and merged that evidence at `main@98371587`. An authorized post-restore
-public Azure synthetic then succeeded as run
+Tasks **5.4–5.6 are merged on `main@0b5d60d1`** (PR #161, caller migration).
+**Task 5.7 / G5 is complete — owner close-out recorded 2026-09-02.** The owner requested,
+“Please do the G5 close out,” after the successful three-caller evidence had been independently
+reviewed and merged via PR #197 at `main@b6c0da3`. Authorized public Azure synthetic
 [33411410271](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33411410271)
-from `main@f66d7ab6a4db1a327fd030ba9897bfc431104945`, emitting
-`[b1-g5][synthetic-shell] expectedVersion=0`,
-`[b1-g5][global-setup] expectedVersion=0`, and
-`[b1-g5][azure-api-smoke] expectedVersion=0` (holdings-only live seed; ledger/doc update is
-source-only) — see
-[`docs/runbooks/B1_G5_INGRESS_BLOCKER.md`](../../../docs/runbooks/B1_G5_INGRESS_BLOCKER.md) and
-[`API_GATEWAY_CUSTOM_DOMAIN_RECOVERY.md`](../../../docs/runbooks/API_GATEWAY_CUSTOM_DOMAIN_RECOVERY.md).
-That executed run and this record do **not** check 5.7, authorize Wave 6 / R-B3, public `PUT`,
-backlog closure, or further dispatch. PR #197 independently reviewed and merged the durable
-evidence record at `main@b6c0da3`, but that documentation merge did not check Task 5.7. A
-separately recorded owner-controlled G5 completion decision is required before checking 5.7 or
-unlocking Wave 6 / R-B3, public `PUT`, or backlog closure.
-Unattended synthetics remain suspended in `synthetic-monitoring.yml` while G5 remains open.
-Wave 6 / R-B3 remain gated. Candidate packaging / R-C (task 7.5)
+ran from `main@f66d7ab6a4db1a327fd030ba9897bfc431104945`: actual Azure suite success,
+holdings-only seed, 9 passing tests, and `expectedVersion=0` for each of `synthetic-shell`,
+`global-setup`, and `azure-api-smoke`. At close-out, the three callers, shared helper, workflow
+wiring, and focused tests have no source drift through `main@48d0aba8`; the inventory guard
+still finds exactly three callers. The historical ingress/custom-domain failures and recovery
+remain in the [G5 record](../../../docs/runbooks/B1_G5_INGRESS_BLOCKER.md).
+G5's prerequisite for B1 Wave 6 is satisfied; a bounded source kickoff for Tasks 6.1–6.4 is
+next. No Wave 6 implementation, R-B3 deployment/serving proof, Wave 7 activation, or new live
+operation is performed or authorized by this close-out. Unattended synthetics remain suspended;
+further dispatch or schedule restoration requires separate authorization.
+Candidate packaging / R-C (task 7.5)
 is **not** complete. Public `PUT /api/portfolio/holdings` remains Wave 7. The old seed remains
 version-tolerant; no seed rewrite or Writer_Convergence is claimed. Dependent proof branch
 [`proof/b1-wave-2-g1-v20@e6a98c5`](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/tree/proof/b1-wave-2-g1-v20)
@@ -871,18 +864,17 @@ Named individually so the R-C manifest can enumerate them rather than gesture at
   **Go:** 5.2 green — **GO recorded 2026-08-26**.
   **Abort:** redeploy the prior portfolio digest and **do not begin caller migration**. Safe: no
   caller depends on the version yet. Never cross below Artifact 0 + Artifact 1.
-  Abort path not used. Tasks 5.4–5.6 merged on `main@0b5d60d1` (PR #161, source-only); 5.7 remains
-  incomplete — PR #194 reviewed and merged the custom-domain recovery evidence; executed three-caller
-  run `33411410271` is recorded under 5.7. Task 5.7 remains unchecked pending a separately recorded
-  owner-controlled G5 completion decision (documentation-PR review/merge does not check 5.7). Spec A
-  ingress was reopened at 9.14; the custom-domain binding has since been restored; neither recovery
-  alone nor this ledger note checks 5.7 or authorizes Wave 6 / R-B3.
+  Abort path not used. Tasks 5.4–5.6 merged on `main@0b5d60d1` (PR #161).
+  Task 5.7 / G5 closed by the owner's separate decision on 2026-09-02, using run `33411410271`
+  and the reviewed evidence merged via PR #197. Restoration alone did not close G5; the owner
+  decision below now does. Wave 6 implementation and R-B3 deployment remain separate work.
   _Requirements: 8.32_
 - [x] **5.4 Migrate all three seed call sites** to log in, read once, and send that exact version:
   `synthetic-monitoring.yml` -> `.github/workflows/scripts/seed-portfolio-with-version.sh`,
   `frontend/tests/e2e/global-setup.ts`, `frontend/tests/e2e/azure-synthetic/api-live-smoke.spec.ts`.
   Shared helper freezes `expectedVersion`; Azure synthetic reaches all three. **Merged source-only
-  on `main@0b5d60d1` (PR #161); does not claim G5; not deployed.**
+  on `main@0b5d60d1` (PR #161); that source merge itself did not close G5. See 5.7 for the
+  later live evidence and owner close-out.**
   _Requirements: 8.32, 8.33, 8.34_
 - [x] **5.5 Add E2E email/password to `deploy-azure.yml`'s seed step**, which carries only the user id
   and internal key.
@@ -894,7 +886,7 @@ Named individually so the R-C manifest can enumerate them rather than gesture at
   Shell, global-setup, and api-live-smoke treat 409 as terminal; request-capture tests cover
   one-attempt failure. **Merged source-only on `main@0b5d60d1` (PR #161).**
   _Requirements: 8.25, 8.35, 8.36, 8.37_
-- [ ] **5.7 G5 evidence.** Every call site, in every execution context, sends a version. Zero
+- [x] **5.7 G5 evidence.** Every call site, in every execution context, sends a version. Zero
   missing-version requests — enumerated per site, not inferred from one green run.
   Static inventory guard + unit/request-capture tests green on `main@0b5d60d1`. **Historical live
   public Azure synthetic failures** — authorized runs
@@ -923,12 +915,16 @@ Named individually so the R-C manifest can enumerate them rather than gesture at
   That live run is holdings-only executed evidence; documenting PRs remain source-only. Durable
   sanitized record:
   [`docs/runbooks/B1_G5_INGRESS_BLOCKER.md`](../../../docs/runbooks/B1_G5_INGRESS_BLOCKER.md).
-  This checkbox remains **unchecked** pending a separately recorded owner-controlled G5 completion
-  decision. PR #197 independently reviewed and merged the durable evidence record at
-  `main@b6c0da3`, but that documentation merge did not check Task 5.7. Recording the run does
-  **not** authorize Wave 6 / R-B3, public `PUT`, backlog closure, or further dispatch. Gateway
-  loopback alone remains insufficient. Unattended synthetics stay suspended in
-  `synthetic-monitoring.yml` while G5 remains open.
+  **Owner decision — GO / complete (2026-09-02):** “Please do the G5 close out.”
+  PR #197 independently reviewed and merged the durable evidence at
+  `main@b6c0da3f98a4a59bd810dbb77f273a1751946220`; that earlier documentation merge did not
+  itself check this task. Today's explicit decision closes the remaining gate and checks 5.7.
+  Codex reverified successful run/job conclusions and all three per-caller markers; source
+  comparison from `f66d7ab6` through `48d0aba8` found no caller/helper/workflow/test drift,
+  and the current inventory guard passes with exactly three callers. No live replay was needed.
+  G5's Wave 6 prerequisite is satisfied. Tasks 6.1–6.7 and Wave 7 remain unchecked; no R-B3
+  deploy, public `PUT`, Writer_Convergence, backlog closure, further dispatch, or schedule
+  restoration is authorized. Unattended synthetics remain suspended in `synthetic-monitoring.yml`.
   _Requirements: 8.32, 8.39_
 
 ## Wave 6 — Version-required seed (Artifact 2b → R-B3)
