@@ -1,53 +1,34 @@
 # Implementation Plan
 
-**B1 Wave 6 source review — 2026-09-03: R1/R2 closed; final acceptance pending CI.**
-[Draft PR #217](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/217)
-implements Tasks 6.1–6.4 on base `48d0aba8468325b91e1bf9b84bd43cbeaacdf74a`, reviewed source
-head `b1d331715b5acadb16983819e20ed165319d5fff`. It is unmerged; all four source-task checkboxes
-remain unchecked. This source review does not advance the program-state code baseline or any
-runtime serving proof.
+**B1 Wave 6 source completion (verified 2026-09-03):** Tasks **6.1–6.4 are source-complete**
+after owner-approved [PR #217](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/217)
+merged at `main@d66bb23d5ef3606373c15d9ee02fda27c62df5c2` on `2026-09-02T19:28:09Z`.
+Codex ACCEPT applies to reviewed head `1bdb1d31c5f775983a78b892ea8fec4871ec1f41`; R1/R2 were
+closed by test fix `b1d33171` and governed close-out `1bdb1d31`. The merge parents are
+`1f3eaf5834cb1a5e0c065d9c4d316100bdea837d` and that reviewed head. The only tree difference
+from the accepted head is the 17-line `AGENTS.md` update already merged through PR #216;
+application source and tests are identical. This reconciliation changes no runtime baseline.
 
-`70067f4d` contains the strict version boundary, one replacement delegation, initializer
-observation forwarding, and Task 6.4 matrix; `610be089` adds the collision suite and sentinel
-fix. `cfcfc7ee` records the first governed review. The one-file correction `b1d33171` is exactly
-the reviewed +46/−4 diff in `PortfolioSeedCollisionIT`, with no other changes.
+The [accepted-head PR-event run](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33669373190)
+completed successfully: 15 successful checks, one neutral Qodana alias, `ci-required=success`,
+and explicit `docs_only=false` (12 of 14 paths outside the documentation allowlist).
+Azure image smoke actually executed the blank/nonblank key and replica-token cases. Inspected
+local reports contained 516 unit and 189 integration tests, zero failures/errors/skips, including
+5 collision tests; the boot jar was 97,882,843 bytes. The caller inventory remains exactly three;
+9 caller-guard and 33 governance self-tests passed.
 
-- **R1 closed:** both forced outcomes now compare every desired holding field: ticker, quantity,
-  average cost basis, currency, source, and anchor. The golden comparison checks cardinality
-  and expected ticker membership against `desiredHoldings(userId)`; the winning edit checks
-  its single complete tuple. The prior count/source-only assertions are gone.
-- **R2 closed:** both forced seed-versus-edit races now assert exactly two replacement attempts,
-  after the fixture resets its setup count and after both contenders finish. The absent-creation
-  case retains its two-attempt assertion, and the separate stale-golden case retains its one-attempt
-  assertion. Counting remains independent of the barriers.
-- The earlier absent-creation finding stays closed: both creators park inside materialisation,
-  after observing absence and before insertion. The uniqueness loser must carry an unresolved
-  user lookup before the real advice reports the winner's committed version following rollback.
+The seed requires the caller's strict version and fixed E2E target, delegates once to the shared
+replacement transaction, and preserves identity and complete no-op semantics. Both forced races
+compare the full winning tuple and require exactly two attempts. The absent-creation loser is
+asserted unresolved by user before real post-rollback advice reports the committed version.
+The initializer forwards its own observation; global-price snapshot/sentinel coverage is retained.
 
-Fresh saved reports inspected for the `b1d33171` source tree contain **516 unit tests in 51
-classes and 189 integration tests in 34 classes**, zero failures/errors/skips; collision suite
-5/5. The integration run includes collision results timestamped `2026-09-02T18:38:07.469Z`.
-The built jar remains 97,882,843 bytes; production source is unchanged by the test-only fix.
-The independently verified unchanged caller inventory remains exactly three callers; the prior
-9 caller-guard and 33 governance self-tests passed. These are local/source evidence, not final CI.
+Tasks 6.1–6.4 are checked for merged source completion. **Tasks 6.5–6.7 remain unchecked**:
+the next decision is Task 6.5's pre-deployment STOP/GO; G2b/R-B3 serving proof, Wave 7 activation,
+and Writer_Convergence remain open. No deployment, live seed, schedule restoration, B2 gate
+decision, or feature exposure follows from this source merge or documentation reconciliation.
 
-**Required next step:** publish this governed close-out and evaluate the PR-event CI for the
-resulting head, including both `b1d33171` and this documentation commit. Require all required
-checks successful, `docs_only=false`, `ci-required=success`, and an actually executed successful
-Azure image smoke. CI on earlier heads does not satisfy that final-head requirement. No source
-review findings remain; final ACCEPT is reserved until those checks pass. Source completion
-is reconciled only after an owner-authorized merge; Tasks 6.5–6.7 remain separate.
-
-**Status precedence and parallel documentation:** [PR #215](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/215) remains draft/unmerged and
-contains the owner's G5 close-out, B2 PR #214 post-merge reconciliation, and the Claude kickoff.
-Inherited G5-awaiting-owner / Wave-6-not-started text below describes the older merged baseline;
-it is superseded for this bounded source handoff by that approved close-out and this review.
-This PR does not duplicate PR #215's checkbox changes. Reconcile the overlapping documentation
-when integrating those PRs; neither publication closes Tasks 6.5–6.7, G2b/R-B3, Wave 7, or
-Writer_Convergence. No merge, deployment, live seed, schedule restoration, or public-write
-exposure is authorized by this review.
-
-**Merged/runtime baseline snapshot (verified 2026-09-01 against `main@ce6ee32c`; runtime baseline `e221662`; R-A / R-B / R-B2 serving digests below):**
+**Current program status (verified 2026-09-03 against `main@d66bb23d`; historical runtime baseline `e221662`; R-A / R-B / R-B2 serving digests below):**
 Waves `P`, `0`, and `1` are complete. Wave 2 tasks **2.1–2.6 and R-A are complete**: G2 serving
 proof is green on gateway revision `api-gateway--0000076` /
 `sha256:2da5b303fd15772792167f2b26dc62250b2d9858270db315eab1d6d1a1554aec` (deploy run
@@ -63,31 +44,25 @@ serving on `portfolio-service--0000081` /
 [32982880866](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/32982880866);
 G2a green; evidence
 [`docs/runbooks/B1_R_B2_G2A_SERVING_PROOF.md`](../../../docs/runbooks/B1_R_B2_G2A_SERVING_PROOF.md)).
-Tasks **5.4–5.6 are merged on `main@0b5d60d1`** (PR #161, source-only caller migration; not
-deployed); **5.7 / G5 remains unchecked**. The historical public-host failures in runs
-[33046987880](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33046987880)
-and [33047168136](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33047168136)
-preceded the separately authorized custom-domain recovery. Its guarded plan and apply/bind restored
-the hostname and an independent read-back returned `200` for both public health endpoints; PR #194
-independently reviewed and merged that evidence at `main@98371587`. An authorized post-restore
-public Azure synthetic then succeeded as run
+Tasks **5.4–5.6 are merged on `main@0b5d60d1`** (PR #161, caller migration).
+**Task 5.7 / G5 is complete — owner close-out recorded 2026-09-02.** The owner requested,
+“Please do the G5 close out,” after the successful three-caller evidence had been independently
+reviewed and merged via PR #197 at `main@b6c0da3`. Authorized public Azure synthetic
 [33411410271](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33411410271)
-from `main@f66d7ab6a4db1a327fd030ba9897bfc431104945`, emitting
-`[b1-g5][synthetic-shell] expectedVersion=0`,
-`[b1-g5][global-setup] expectedVersion=0`, and
-`[b1-g5][azure-api-smoke] expectedVersion=0` (holdings-only live seed; ledger/doc update is
-source-only) — see
-[`docs/runbooks/B1_G5_INGRESS_BLOCKER.md`](../../../docs/runbooks/B1_G5_INGRESS_BLOCKER.md) and
-[`API_GATEWAY_CUSTOM_DOMAIN_RECOVERY.md`](../../../docs/runbooks/API_GATEWAY_CUSTOM_DOMAIN_RECOVERY.md).
-That executed run and this record do **not** check 5.7, authorize Wave 6 / R-B3, public `PUT`,
-backlog closure, or further dispatch. PR #197 independently reviewed and merged the durable
-evidence record at `main@b6c0da3`, but that documentation merge did not check Task 5.7. A
-separately recorded owner-controlled G5 completion decision is required before checking 5.7 or
-unlocking Wave 6 / R-B3, public `PUT`, or backlog closure.
-Unattended synthetics remain suspended in `synthetic-monitoring.yml` while G5 remains open.
-Wave 6 / R-B3 remain gated. Candidate packaging / R-C (task 7.5)
-is **not** complete. Public `PUT /api/portfolio/holdings` remains Wave 7. The old seed remains
-version-tolerant; no seed rewrite or Writer_Convergence is claimed. Dependent proof branch
+ran from `main@f66d7ab6a4db1a327fd030ba9897bfc431104945`: actual Azure suite success,
+holdings-only seed, 9 passing tests, and `expectedVersion=0` for each of `synthetic-shell`,
+`global-setup`, and `azure-api-smoke`. At close-out, the three callers, shared helper, workflow
+wiring, and focused tests have no source drift through `main@48d0aba8`; the inventory guard
+still finds exactly three callers. The historical ingress/custom-domain failures and recovery
+remain in the [G5 record](../../../docs/runbooks/B1_G5_INGRESS_BLOCKER.md).
+G5's prerequisite for B1 Wave 6 is satisfied; Tasks 6.1–6.4 subsequently merged through PR #217
+and are source-complete. Task 6.5 remains the next release decision; R-B3 deployment/serving
+proof, Wave 7 activation, and new live operations are not performed or authorized by this close-out. Unattended synthetics remain suspended;
+further dispatch or schedule restoration requires separate authorization.
+Candidate packaging / R-C (task 7.5)
+is **not** complete. Public `PUT /api/portfolio/holdings` remains Wave 7. The deployed seed remains
+on its prior version-tolerant serving cut; the version-required rewrite is merged source only,
+and Writer_Convergence remains unproven. Dependent proof branch
 [`proof/b1-wave-2-g1-v20@e6a98c5`](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/tree/proof/b1-wave-2-g1-v20)
 remains historical and unmerged. Spec A V17–V19 were applied and verified at checkpoint 9.6; V20 is
 applied under R-B and unchanged by R-B2. Wave checkboxes record implementation evidence, not merged
@@ -918,18 +893,17 @@ Named individually so the R-C manifest can enumerate them rather than gesture at
   **Go:** 5.2 green — **GO recorded 2026-08-26**.
   **Abort:** redeploy the prior portfolio digest and **do not begin caller migration**. Safe: no
   caller depends on the version yet. Never cross below Artifact 0 + Artifact 1.
-  Abort path not used. Tasks 5.4–5.6 merged on `main@0b5d60d1` (PR #161, source-only); 5.7 remains
-  incomplete — PR #194 reviewed and merged the custom-domain recovery evidence; executed three-caller
-  run `33411410271` is recorded under 5.7. Task 5.7 remains unchecked pending a separately recorded
-  owner-controlled G5 completion decision (documentation-PR review/merge does not check 5.7). Spec A
-  ingress was reopened at 9.14; the custom-domain binding has since been restored; neither recovery
-  alone nor this ledger note checks 5.7 or authorizes Wave 6 / R-B3.
+  Abort path not used. Tasks 5.4–5.6 merged on `main@0b5d60d1` (PR #161).
+  Task 5.7 / G5 closed by the owner's separate decision on 2026-09-02, using run `33411410271`
+  and the reviewed evidence merged via PR #197. Restoration alone did not close G5; the owner
+  decision below now does. Wave 6 implementation and R-B3 deployment remain separate work.
   _Requirements: 8.32_
 - [x] **5.4 Migrate all three seed call sites** to log in, read once, and send that exact version:
   `synthetic-monitoring.yml` -> `.github/workflows/scripts/seed-portfolio-with-version.sh`,
   `frontend/tests/e2e/global-setup.ts`, `frontend/tests/e2e/azure-synthetic/api-live-smoke.spec.ts`.
   Shared helper freezes `expectedVersion`; Azure synthetic reaches all three. **Merged source-only
-  on `main@0b5d60d1` (PR #161); does not claim G5; not deployed.**
+  on `main@0b5d60d1` (PR #161); that source merge itself did not close G5. See 5.7 for the
+  later live evidence and owner close-out.**
   _Requirements: 8.32, 8.33, 8.34_
 - [x] **5.5 Add E2E email/password to `deploy-azure.yml`'s seed step**, which carries only the user id
   and internal key.
@@ -941,7 +915,7 @@ Named individually so the R-C manifest can enumerate them rather than gesture at
   Shell, global-setup, and api-live-smoke treat 409 as terminal; request-capture tests cover
   one-attempt failure. **Merged source-only on `main@0b5d60d1` (PR #161).**
   _Requirements: 8.25, 8.35, 8.36, 8.37_
-- [ ] **5.7 G5 evidence.** Every call site, in every execution context, sends a version. Zero
+- [x] **5.7 G5 evidence.** Every call site, in every execution context, sends a version. Zero
   missing-version requests — enumerated per site, not inferred from one green run.
   Static inventory guard + unit/request-capture tests green on `main@0b5d60d1`. **Historical live
   public Azure synthetic failures** — authorized runs
@@ -970,34 +944,39 @@ Named individually so the R-C manifest can enumerate them rather than gesture at
   That live run is holdings-only executed evidence; documenting PRs remain source-only. Durable
   sanitized record:
   [`docs/runbooks/B1_G5_INGRESS_BLOCKER.md`](../../../docs/runbooks/B1_G5_INGRESS_BLOCKER.md).
-  This checkbox remains **unchecked** pending a separately recorded owner-controlled G5 completion
-  decision. PR #197 independently reviewed and merged the durable evidence record at
-  `main@b6c0da3`, but that documentation merge did not check Task 5.7. Recording the run does
-  **not** authorize Wave 6 / R-B3, public `PUT`, backlog closure, or further dispatch. Gateway
-  loopback alone remains insufficient. Unattended synthetics stay suspended in
-  `synthetic-monitoring.yml` while G5 remains open.
+  **Owner decision — GO / complete (2026-09-02):** “Please do the G5 close out.”
+  PR #197 independently reviewed and merged the durable evidence at
+  `main@b6c0da3f98a4a59bd810dbb77f273a1751946220`; that earlier documentation merge did not
+  itself check this task. Today's explicit decision closes the remaining gate and checks 5.7.
+  Codex reverified successful run/job conclusions and all three per-caller markers; source
+  comparison from `f66d7ab6` through `48d0aba8` found no caller/helper/workflow/test drift,
+  and the current inventory guard passes with exactly three callers. No live replay was needed.
+  G5's Wave 6 prerequisite is satisfied. Tasks 6.1–6.7 and Wave 7 remain unchecked; no R-B3
+  deploy, public `PUT`, Writer_Convergence, backlog closure, further dispatch, or schedule
+  restoration is authorized. Unattended synthetics remain suspended in `synthetic-monitoring.yml`.
   _Requirements: 8.32, 8.39_
 
 ## Wave 6 — Version-required seed (Artifact 2b → R-B3)
 
-**Implemented but unmerged in PR #217 / `b1d33171`; R1/R2 closed, final acceptance pending
-CI on the head including this governed close-out.** Tasks 6.1–6.4 stay unchecked until merge
-and source reconciliation. Full winner-tuple and attempt-count assertions now satisfy the
-source review. Tasks 6.5–6.7 are separate decisions and are not assessed as met here.
+**Tasks 6.1–6.4 source-complete:** merged PR #217 / `main@d66bb23d`; Codex ACCEPT at
+`1bdb1d31`, R1/R2 closed, and final PR-event CI successful. The completion record above pins
+the evidence. The [Claude kickoff](../../../docs/agent-instructions/CLAUDE_KICKOFF_B1_WAVE_6_VERSION_REQUIRED_SEED.md)
+is retained as historical execution scope. Tasks 6.5–6.7 remain unchecked; G5 completion
+does not itself record the separate pre-deploy STOP/GO decision or any serving proof.
 
-- [ ] **6.1 Seed `POST` requires `expectedVersion`** and delegates to `HoldingReplacementService`.
+- [x] **6.1 Seed `POST` requires `expectedVersion`** and delegates to `HoldingReplacementService`.
   Target stays compiled-in. Failure returns Requirement 7's `409` envelope with
   `portfolio_version_conflict` and the current Portfolio_Version.
   _Requirements: 8.14, 8.16, 8.20, 8.21, 8.22, 8.25, 8.37, 8.38, 8.39_
-- [ ] **6.2 Remove `PortfolioSeedService.seed()`'s `deleteAll` + `flush` opening.**
+- [x] **6.2 Remove `PortfolioSeedService.seed()`'s `deleteAll` + `flush` opening.**
   _Requirements: 8.29_
-- [ ] **6.3 Collision arbitration** — symmetric compare-and-set: exactly one transition commits; a
+- [x] **6.3 Collision arbitration** — symmetric compare-and-set: exactly one transition commits; a
   losing user edit gets `409` rather than `404`; a losing reset returns **Requirement 7's exact
   envelope — `409` with `portfolio_version_conflict` and the current Portfolio_Version** — and does
   not retry. No write-maintenance gate. Only the Requirement 7 envelope names this outcome; no
   alternate internal contract is introduced.
   _Requirements: 8.23, 8.24, 8.26, 8.27, 8.28, 8.33, 8.40_
-- [ ] **6.4 Rewrite `PortfolioSeedServiceIT`** for identity preservation. Replace
+- [x] **6.4 Rewrite `PortfolioSeedServiceIT`** for identity preservation. Replace
   `EXPECTED_HOLDINGS = 160` with **active-catalog cardinality** — a literal would reintroduce the
   fixed-count defect Spec A removed. **Retain Spec A's full-table byte-identity price regression,
   sentinel rows included** (`P10`): this edits the exact writer from the PR #97 incident.

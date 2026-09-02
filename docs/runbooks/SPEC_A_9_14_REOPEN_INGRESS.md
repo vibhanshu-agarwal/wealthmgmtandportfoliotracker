@@ -92,12 +92,13 @@ The default ACA endpoint is
   so TLS failed. A later separately authorized recovery restored the binding; it is recorded in
   [`API_GATEWAY_CUSTOM_DOMAIN_RECOVERY.md`](API_GATEWAY_CUSTOM_DOMAIN_RECOVERY.md) and does not
   retroactively alter 9.14 evidence.
-- Does **not** unblock **B1 G5**. The restored host and its independent `200` read-back do not
-  demonstrate the required three caller paths. G5 now requires a separately authorized caller
-  synthetic — see [`B1_G5_INGRESS_BLOCKER.md`](B1_G5_INGRESS_BLOCKER.md) and backlog item
-  [`api-gateway-custom-domain-binding`](../todos/backlog/api-gateway-custom-domain-binding/README.md).
-  PR #194 independently reviewed and merged the restoration evidence; that review does not satisfy
-  Task 5.7. Unattended synthetics are suspended in `synthetic-monitoring.yml` while G5 remains blocked.
+- The 9.14 checkpoint and restoration health read-back did **not** themselves satisfy **B1 G5**.
+  The separately authorized three-caller synthetic later succeeded as run `33411410271`, its
+  evidence merged via PR #197, and the owner closed Task 5.7 on 2026-09-02. See the
+  [G5 close-out](B1_G5_INGRESS_BLOCKER.md). This later decision preserves the historical 9.14
+  scope; the [custom-domain backlog](../todos/backlog/api-gateway-custom-domain-binding/README.md)
+  retains its separate disposition. Unattended synthetics remain suspended; further dispatch or
+  schedule restoration still requires separate authorization.
 - Does **not** assert that `SERVICE_VERSION` matches the running image. It does not, on
   `api-gateway` or `portfolio-service` — pre-existing drift, untouched by this checkpoint. See
   backlog item [`service-version-image-drift`](../todos/backlog/service-version-image-drift/README.md).

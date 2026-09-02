@@ -37,8 +37,10 @@ Checkpoint 9.14 alone did **not** unblock B1 G5. The later separately authorized
 the `api.vibhanshu-ai-portfolio.dev` custom-domain binding, PR #194 merged its evidence at
 `main@98371587`, and the authorized three-caller synthetic subsequently succeeded as run
 [33411410271](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33411410271).
-B1 Task 5.7 nevertheless remains unchecked pending its separately recorded owner-controlled G5
-completion decision; PR #197 merged the durable run evidence at `main@b6c0da3` without checking 5.7.
+PR #197 merged the reviewed run evidence at `main@b6c0da3` without checking Task 5.7.
+The owner subsequently closed B1 Task 5.7 / G5 on 2026-09-02: “Please do the G5 close out.”
+The [G5 close-out record](../../../docs/runbooks/B1_G5_INGRESS_BLOCKER.md) records that separate
+decision; no Spec A checkbox or historical runtime evidence changes.
 See [`docs/plans/ASSET_PICKER_E2E_MASTER_PLAN.md`](../../../docs/plans/ASSET_PICKER_E2E_MASTER_PLAN.md)
 for the living cross-program view.
 
@@ -968,9 +970,9 @@ python scripts/check-spec-references.py   .kiro/specs/supported-asset-integrity/
       authorized recovery restored the binding; PR #194 merged that evidence at `main@98371587`,
       and authorized three-caller run
       [33411410271](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33411410271)
-      subsequently succeeded. Task 5.7 remains unchecked pending a separately recorded
-      owner-controlled G5 completion decision; PR #197 merged the durable run evidence at
-      `main@b6c0da3` without checking 5.7. See
+      subsequently succeeded. PR #197 merged the reviewed run evidence at `main@b6c0da3`;
+      the owner closed Task 5.7 / G5 separately on 2026-09-02. This later decision does not
+      change the scope of 9.14 or close the separately tracked process backlogs. See
       [`docs/runbooks/B1_G5_INGRESS_BLOCKER.md`](../../../docs/runbooks/B1_G5_INGRESS_BLOCKER.md)
       and backlog item
       [`api-gateway-custom-domain-binding`](../../../docs/todos/backlog/api-gateway-custom-domain-binding/README.md).
