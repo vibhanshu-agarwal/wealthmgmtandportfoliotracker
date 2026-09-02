@@ -29,6 +29,19 @@ public class ReadOnlyEnforcementFilter implements GlobalFilter, Ordered {
     private static final Set<HttpMethod> MUTATING_METHODS =
             Set.of(HttpMethod.POST, HttpMethod.PUT, HttpMethod.PATCH, HttpMethod.DELETE);
     private static final List<String> PROTECTED_PATTERNS = List.of("/api/portfolio/**", "/api/market/**");
+
+    /**
+     * B2 exemptions (Tasks 5.2, 5.3): the two protected writes the demo account is deliberately
+     * allowed to make — the Asset Picker composition write and the manual demo reset.
+     *
+     * <p>Exact method/path pairs, deliberately not Ant patterns: a prefix here would also open
+     * every child path (e.g. {@code /api/portfolio/holdings/123}), which is a wider hole than the
+     * feature needs. Separate from {@link #aiAllowlistPatterns} because these are a fixed part of
+     * the B2 contract, not operator-tunable configuration — narrowing
+     * {@code app.read-only.ai-allowlist} must not be able to close them.
+     */
+    private static final Set<String> B2_EXEMPT_WRITES =
+            Set.of("PUT /api/portfolio/holdings", "PUT /api/portfolio/demo-reset");
     private static final byte[] FORBIDDEN_BODY = ("{\"error\":\"read_only_account\","
             + "\"message\":\"The demo account is read-only.\"}").getBytes(StandardCharsets.UTF_8);
 
@@ -65,10 +78,13 @@ public class ReadOnlyEnforcementFilter implements GlobalFilter, Ordered {
 
     /**
      * Pure decision function (Property 6): block iff ro AND mutating method AND protected path
-     * AND not AI-allowlisted. Package-visible for property testing.
+     * AND not AI-allowlisted AND not a B2 exempt write. Package-visible for property testing.
      */
     boolean decide(boolean ro, HttpMethod method, String path) {
         if (!ro || method == null || !MUTATING_METHODS.contains(method)) {
+            return false;
+        }
+        if (B2_EXEMPT_WRITES.contains(method.name() + " " + path)) {
             return false;
         }
         boolean protectedPath = PROTECTED_PATTERNS.stream().anyMatch(p -> matcher.match(p, path));

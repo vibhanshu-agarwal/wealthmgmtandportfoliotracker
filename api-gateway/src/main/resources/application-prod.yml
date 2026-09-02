@@ -66,6 +66,35 @@ spring:
           # to emit the Retry-After header/body on a 429 denial (Req 5.5) — it must match
           # ceil(requestedTokens / replenishRate) for the limiter attached to that route.
           routes:
+            # B2 Task 5.2 — manual demo reset. Redeclared here rather than inherited: this list
+            # REPLACES application.yml's wholesale (see the note above), so a base-only route
+            # would simply not exist under any prod profile. `order: -1` puts it ahead of
+            # portfolio-service (default order 0), which would otherwise win on
+            # /api/portfolio/**. It carries the standard limiter like every other user-facing
+            # route — the rate-limit exemption is for /api/internal/** callers arriving directly
+            # with an API key (Req 3.8), not for a public path that merely rewrites onto one.
+            - id: demo-reset-manual
+              uri: ${app.routes.portfolio-url}
+              order: -1
+              predicates:
+                - Path=/api/portfolio/demo-reset
+                - Method=PUT
+              metadata:
+                retry-after-seconds: 1
+              # RequestRateLimiter stays FIRST, as on every other route here: the request is
+              # charged against its bucket before any rewriting work is done, and
+              # RateLimitConfigurationGuardrailTest reads filters[0] to check this route's
+              # retry-after-seconds against its limiter's math. RewritePath is order-independent
+              # of the limiter (the key resolver reads the principal, never the path).
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    key-resolver: "#{@userOrIpKeyResolver}"
+                    rate-limiter: "#{@standardRateLimiter}"
+                - name: RewritePath
+                  args:
+                    regexp: /api/portfolio/demo-reset
+                    replacement: /api/internal/portfolio/demo-reset
             - id: portfolio-service
               uri: ${app.routes.portfolio-url}
               predicates:

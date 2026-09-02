@@ -81,6 +81,15 @@ jobs:
       - name: B1 seed shell request-capture tests
         run: python scripts/tests/test_seed_portfolio_with_version.py -v
 
+      - name: B2 demo identity three-source alignment guard
+        # The demo account UUID is restated in api-gateway, portfolio-service and V15, and
+        # api-gateway must not depend on portfolio-service — so nothing but this guard keeps
+        # the three aligned. It lives in static-guard because that job is required and never
+        # skips: drift must not be mergeable.
+        run: |
+          python scripts/tests/test_check_b2_demo_identity.py -v
+          python scripts/check_b2_demo_identity.py
+
       - name: Master-plan status propagation contract tests
         run: python scripts/tests/test_master_plan_status_propagation.py -v
 

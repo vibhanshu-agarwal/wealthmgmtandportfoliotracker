@@ -7,6 +7,8 @@ import java.time.Instant;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
@@ -66,6 +68,25 @@ class ReadOnlyEnforcementFilterChainTest {
         MockServerWebExchange.from(MockServerHttpRequest.method(HttpMethod.GET, "/api/portfolio"));
 
     StepVerifier.create(filter.filter(exchange, countingChain(subscriptions))).verifyComplete();
+
+    assertThat(subscriptions).hasValue(1);
+  }
+
+  /**
+   * The B2 exemptions ({@code PUT /api/portfolio/holdings}, {@code PUT
+   * /api/portfolio/demo-reset}) are a new "allowed" branch through {@code decide()}. They must
+   * reach the downstream chain exactly once, like every other allowed request — an exemption
+   * implemented as an extra composed continuation rather than a decision value would double-
+   * subscribe here.
+   */
+  @ParameterizedTest(name = "exempt PUT {0} subscribes downstream exactly once")
+  @ValueSource(strings = {"/api/portfolio/holdings", "/api/portfolio/demo-reset"})
+  void b2ExemptWriteSubscribesDownstreamChainExactlyOnce(String path) {
+    AtomicInteger subscriptions = new AtomicInteger();
+
+    StepVerifier.create(
+            filter.filter(exchangeWithJwt(true, HttpMethod.PUT, path), countingChain(subscriptions)))
+        .verifyComplete();
 
     assertThat(subscriptions).hasValue(1);
   }
