@@ -276,7 +276,7 @@ Authority: [`.kiro/specs/portfolio-composition-contract/tasks.md`](../../.kiro/s
 | 3 – V20 schema | ✅ R-B complete (G3 served) | Tasks 3.1–3.7 complete; Artifact 2 cut `25aa730` applied V20; prior serving evidence [`B1_R_B_G3_SERVING_PROOF.md`](../runbooks/B1_R_B_G3_SERVING_PROOF.md); superseded for portfolio traffic by R-B2 |
 | 4 – contract implementation | Source on Artifact 2a serving cut; mechanisms unexposed | Wave 4a–4c (4.1–4.21) merged on `main@2673f40` (PR #153) and included in Artifact 2a serving digest. Public `PUT` still Wave 7. Replacement orchestrator + preparers remain unexposed; `GET /api/assets` controller is now served with R-B2; candidate packaging (7.5/R-C) still pending |
 | 5 — version-bearing read | ✅ Tasks 5.1–5.3 / R-B2 complete; 5.4–5.6 merged via PR #161 at `main@0b5d60d1`; **5.7/G5 complete by owner decision on 2026-09-02** | [33411410271](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33411410271) from `main@f66d7ab6` executed all three callers with version markers, holdings-only seed, and 9 passing tests; evidence reviewed/merged via PR #197. Historical failures and close-out: [G5 record](../runbooks/B1_G5_INGRESS_BLOCKER.md) |
-| 6 — version-required seed | ⬜ Not started; G5 owner decision recorded; Claude kickoff prepared | [Tasks 6.1–6.4 kickoff](../agent-instructions/CLAUDE_KICKOFF_B1_WAVE_6_VERSION_REQUIRED_SEED.md); conditional handoff pending G5 close-out publication. R-B3 deployment/serving proof remains separate |
+| 6 — version-required seed | ⬜ Not started; G5 owner decision recorded; Claude kickoff prepared | [Tasks 6.1–6.4 kickoff](../agent-instructions/CLAUDE_KICKOFF_B1_WAVE_6_VERSION_REQUIRED_SEED.md); owner authorized G5 close-out/kickoff publication on 2026-09-02; verify published PR state at handoff. R-B3 deployment/serving proof remains separate |
 | 7 — activation | ⬜ Not started | Public `PUT /api/portfolio/holdings`, attested candidate, serving proof |
 
 Spec A V17–V19 were applied at checkpoint 9.6; **V20 is applied under R-B** and unchanged by R-B2.
@@ -527,8 +527,9 @@ implementation, or a production operation.
 Complexity is medium-high; this is backend transaction/API work with no UI changes. The kickoff
 covers strict versions, identity-preserving seed delegation, the existing startup caller,
 symmetric collisions, and full-table price protection. Implementation has not started. The owner's
-G5 decision is recorded in local commit `d3c8b111`; publishing that close-out remains blocked by
-the approval flow, and the conditional handoff does not bypass it. Tasks 6.5–6.7, deployment,
+G5 decision is recorded in commit `d3c8b111`; the owner explicitly authorized publishing the
+close-out and kickoff on 2026-09-02. Verify the published PR state at handoff; publication does
+not imply merge to main. Tasks 6.5–6.7, deployment,
 Wave 7 activation, and B2 gates remain separate.
 
 ## 7. Handoff requirements

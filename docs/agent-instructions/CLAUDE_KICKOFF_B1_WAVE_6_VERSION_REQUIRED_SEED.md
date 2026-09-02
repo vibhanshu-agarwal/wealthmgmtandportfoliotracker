@@ -36,11 +36,11 @@ holdings-only/global-price boundary.
   The [close-out record](../runbooks/B1_G5_INGRESS_BLOCKER.md) pins successful public Azure run
   [33411410271](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33411410271),
   all three caller markers, holdings-only seed, 9 passing tests, and reviewed evidence PR #197.
-- **Publication status when prepared:** G5 close-out is committed locally; its push/draft-PR
-  creation was denied by automatic approval review because GitHub publication was not explicitly
-  authorized. This kickoff is prepared for the requested next handoff. Resolve that publication
-  block through the owner-approved flow before treating the G5 close-out as available on main.
-  Do not use Claude's environment to route around the denial or copy/push Codex's branch.
+- **Publication authorized (2026-09-02):** after the initial approval-review block, the owner
+  explicitly requested “Please publish.” Codex may publish the G5 close-out and this kickoff
+  together as a draft documentation PR. The publication permission is resolved; verify the
+  published branch/PR state at handoff. A published PR is not a merge to main, and publication
+  alone does not authorize deployment or other production operations.
 - The user requested this Claude kickoff after G5 close-out. Read the supplied note and close-out
   record now; start the bounded implementation when that conditional handoff is effective.
   Preparing this document does not mean implementation or deployment has happened.

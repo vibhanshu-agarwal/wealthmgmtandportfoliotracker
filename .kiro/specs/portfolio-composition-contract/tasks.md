@@ -933,8 +933,8 @@ Named individually so the R-C manifest can enumerate them rather than gesture at
 [Tasks 6.1–6.4 kickoff](../../../docs/agent-instructions/CLAUDE_KICKOFF_B1_WAVE_6_VERSION_REQUIRED_SEED.md)
 covers the version-required seed, identity preservation, symmetric arbitration, and retained price
 regression, including the existing startup caller's signature adaptation. G5's owner close-out is
-recorded in local commit `d3c8b111`; its publication remains pending the approval flow. The kickoff
-records that conditional handoff without treating the local commit as published on main. Tasks
+recorded in commit `d3c8b111`; the owner authorized publication of the close-out and kickoff on
+2026-09-02. Verify the published PR state at handoff; publication is separate from merge to main. Tasks
 6.1–6.7 remain unchecked. Codex prepares/reviews; Claude implements after the handoff is effective.
 
 - [ ] **6.1 Seed `POST` requires `expectedVersion`** and delegates to `HoldingReplacementService`.
