@@ -1,6 +1,6 @@
 # Implementation Plan
 
-**Current program status (source review 2026-09-02; main `a2c402db`, PR #212 `d4e98459`; runtime evidence unchanged):** this task plan and its owning
+**Current program status (post-merge verification 2026-09-02; main `d8fa499d`, PR #212 merged; runtime evidence unchanged):** this task plan and its owning
 requirements/design/mockup are tracked. Wave 1 (Tasks 1.1-1.19) and Wave 2 Tasks 2.1-2.5 are merged
 source-only through PR #178, entirely mock-backed and disabled by default. Wave 3 presence source
 Tasks 3.1–3.6 merged source-only through PR #179 at `main@cc97a209`; Task 3.7 deployment/live proof
@@ -35,13 +35,14 @@ It records the owner-authorized immutable build, digest deployment, one successf
 the corrected B1 version rule. Wave 5's Wave 4 prerequisite is satisfied, but this GO does not
 authorize Wave 5 implementation or deployment.
 
-**Current priority (2026-09-02):** the remaining Wave 5 manual-reset gateway bundle is
-**implemented but unmerged** in [draft PR #212](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/212),
-source commit `d4e984597efcc05d1a91e989908cb3f3dbce6fd1`, based on `main@a2c402db`.
-Claude implemented Tasks 5.1, 5.2, 5.3, 5.3a, 5.4, and 5.5 together under the owner-selected kickoff.
-Codex source review found no blocking issue; final PR-head CI and owner merge review remain next.
-All outstanding checkboxes stay open while unmerged. Task 5.6, deployment, B1 G5, and unrelated B2
-gates remain separate. The detailed review record is at the Wave 5 heading below.
+**Current priority (2026-09-02):** record the owner's Task 5.6 GO decision. The remaining Wave 5
+source bundle merged via [PR #212](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/212) at
+`main@d8fa499de05fa1370a0271c4822230a6ea113695`; its tree is identical to reviewed head `01917e16`.
+Tasks 5.1, 5.2, 5.3, 5.3a, 5.4, and 5.5 are source-complete and checked below.
+Final-head CI passed, including the executed Azure image smoke and required aggregate.
+Codex assesses all seven technical conditions for 5.6 as met and recommends GO; 5.6 stays unchecked
+pending the separate owner decision. Deployment, B1 G5, and unrelated B2 gates remain separate.
+The detailed merge, CI, and gate evidence is at the Wave 5 heading below.
 
 Task 5.1b's ledger defined its provider, token formula, operator tool, packaging,
 and Azure image-smoke extension as one bounded deliverable shared by Tasks 5.1 and 8.7. Its
@@ -1199,10 +1200,15 @@ until Wave 5 ships.
 One deployable unit (GC.10): the filter, the route, and the allowlist entry ship together, or the
 demo user's own click 403s before the new filter ever runs.
 
-**Implementation/review status (2026-09-02): implemented but unmerged.**
-[Draft PR #212](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/212),
-Claude branch `claude/b2-wave-5-manual-reset-gateway`, source commit
-`d4e984597efcc05d1a91e989908cb3f3dbce6fd1`, base `a2c402db1779e515ccc56c16a900ec172864a670`.
+**Implementation/review status (2026-09-02): source-complete, merged, not deployed.**
+[PR #212](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/212) merged at
+`main@d8fa499de05fa1370a0271c4822230a6ea113695` on 2026-09-02 at 10:03:53Z. Its two parents
+are reviewed base `a2c402db1779e515ccc56c16a900ec172864a670` and final head
+`01917e160069e7c065ddfe7b643ca49fb772ec02`; the merged tree is identical to the reviewed head.
+Claude branch `claude/b2-wave-5-manual-reset-gateway` supplied source commit
+`d4e984597efcc05d1a91e989908cb3f3dbce6fd1`; Codex added the two governed documents at `01917e16`.
+The [original kickoff](../../../docs/agent-instructions/CLAUDE_KICKOFF_B2_WAVE_5_MANUAL_RESET_GATEWAY.md)
+is retained as historical scope, not a new execution instruction.
 One source commit contains the filter, both route definitions, exact read-only exceptions, tests,
 and identity CI guard. Existing Tasks 5.1a/5.1b remain merged source-only predecessors.
 
@@ -1213,7 +1219,7 @@ and identity CI guard. Existing Tasks 5.1a/5.1b remain merged source-only predec
 | 5.3 | Exactly two B2 PUT exceptions; custom AI-pattern behavior retained for every previously allowed mutating method; near-miss paths remain protected. 39 property/example cases plus 6 chain cases |
 | 5.1 identity guard | Three independent source extractions compared against V15's demo `users` row. Checker and 24 tests independently rerun successfully; required static-guard wiring preserved |
 | Regression evidence | Claude's local reports independently inspected: 276 unit tests / 43 classes and 190 integration tests / 19 classes; zero failures, errors, or skips. Claude reports all three jars built with AOT |
-| CI / 5.6 boundary | Source-head [run 33611371697](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33611371697) passed unit tests and Azure image smoke. Final-head CI and owner merge review still required; 5.6 remains unchecked |
+| CI / 5.6 boundary | Final-head [run 33613233150, attempt 2](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33613233150) passed on `01917e16`: `docs_only=false`, `ci-required=success`, `static-guard=success`, and `azure-image-smoke-test=success` (executed). Seven technical conditions met; owner GO pending, so 5.6 remains unchecked |
 
 **Review decisions:** Codex found no blocking source issue. Putting RequestRateLimiter before
 RewritePath in the production route preserves the principal-based key resolver and existing
@@ -1226,12 +1232,17 @@ claiming to have replayed those historical mutations.
 
 This is gateway transport/authorization evidence against a stub, not a new persistence or live-reset
 proof. Task 4.4 retains ownership of mutating persistence tests; Task 4.5 remains the historical
-live same-state no-op. Codex supplies the master-plan/ledger edits in this implementation PR with
-Claude's explicit documentation-only worktree permission. No task is checked complete while the
-source remains unmerged. No merge, deployment, feature exposure, B1 G5 closure, or other B2 wave is
-authorized by this review.
+live same-state no-op. Source completion is now recorded for exactly Tasks 5.1, 5.2, 5.3, 5.3a,
+5.4, and 5.5. Codex reran the 24 identity-checker tests and real-source alignment check against
+the merged tree successfully. The final CI retry followed a Maven Central HTTP 429 during root
+project configuration, before compilation; no source change was needed. The image smoke executed
+all three cases with exact stdout and empty stderr: `blank\n`, `nonblank\n`, and `95ca17821ade\n`
+for synthetic replica name `api-gateway--0000000-abcdefg`. This does not identify a deployed image.
 
-- [ ] **5.1 `DemoResetAuthorizationFilter`** (`GlobalFilter`, `Ordered.HIGHEST_PRECEDENCE + 4`) —
+Task 5.6's technical assessment is recorded below; its separate owner GO decision remains open.
+No deployment, feature exposure, B1 G5 closure, or other B2 wave is authorized by this reconciliation.
+
+- [x] **5.1 `DemoResetAuthorizationFilter`** (`GlobalFilter`, `Ordered.HIGHEST_PRECEDENCE + 4`) —
   reads the JWT principal directly (not via `JwtAuthenticationFilter`'s injection); confirms the
   matched route id is exactly `demo-reset-manual` via `GATEWAY_ROUTE_ATTR` (never
   `GATEWAY_PREDICATE_ROUTE_ATTR`, always null by dispatch time); on a JWT-subject match, strips any
@@ -1516,13 +1527,13 @@ authorized by this review.
   inject this provider or a double
   of it, never their own `System.getenv` call.
   _Requirements: 7.3a, 7.3c; design.md D5 (round-33)_
-- [ ] **5.2 `demo-reset-manual` route** — `Path=/api/portfolio/demo-reset` + `Method=PUT`, explicit
+- [x] **5.2 `demo-reset-manual` route** — `Path=/api/portfolio/demo-reset` + `Method=PUT`, explicit
   `order: -1` (never relying on list position), `RewritePath` to
   `/api/internal/portfolio/demo-reset`, in both `application.yml` and `application-prod.yml` (the
   prod file redefines the whole route list, not merges it — the prod entry needs its own
   `RequestRateLimiter` block, not just the dev shape).
   _Requirements: design.md D5 (route definitions)_
-- [ ] **5.3 D6 — `ReadOnlyEnforcementFilter` allowlist becomes method-plus-path, preserving the
+- [x] **5.3 D6 — `ReadOnlyEnforcementFilter` allowlist becomes method-plus-path, preserving the
   existing configurable entries.** Current source (`ReadOnlyEnforcementFilter.java:36-41`) already
   has a live, configurable allowlist — `aiAllowlistPatterns`, bound from
   `app.read-only.ai-allowlist` (default `/api/chat/**,/api/insights/generate/**`) — matched on path
@@ -1534,7 +1545,7 @@ authorized by this review.
   representation. The existing overlapping-path preservation test SHALL stay green, unmodified in
   intent, against the migrated representation.
   _Requirements: 5.1, 5.2_
-- [ ] **5.3a Filter-behavior tests, made explicit and auditable — not left implicit inside 5.1's
+- [x] **5.3a Filter-behavior tests, made explicit and auditable — not left implicit inside 5.1's
   description.** `DemoResetAuthorizationFilterTest` (or equivalent) SHALL separately assert: a
   request with no `GATEWAY_ROUTE_ATTR` present, and one with a route id other than
   `demo-reset-manual`, are both rejected (the fail-safe named in 5.1, exercised here rather than
@@ -1570,13 +1581,13 @@ authorized by this review.
   *different* value from downstream and asserts the gateway's own value wins, singularly, actually
   tests the authoritative-write requirement 5.1 now states).**
   _Requirements: 7.3a; design.md D5_
-- [ ] **5.4 Test 1 — gateway routed integration test** (stubbed portfolio-service, full filter
+- [x] **5.4 Test 1 — gateway routed integration test** (stubbed portfolio-service, full filter
   chain). Asserts: route is `demo-reset-manual` not the generic route; downstream path is
   `/api/internal/portfolio/demo-reset`; downstream method is still `PUT`; `Authorization` absent;
   `X-User-Id` absent; exactly one `X-Internal-Api-Key` value, even when the original request carried
   a caller-supplied duplicate.
   _Requirements: design.md D5 (Test 1)_
-- [ ] **5.5 Filter-level unit test for the fail-closed branch** — construct
+- [x] **5.5 Filter-level unit test for the fail-closed branch** — construct
   `DemoResetAuthorizationFilter` with an injected `InternalApiKeyProvider` test double (5.1a)
   resolving to `null` and to `""`, asserting `503` with the pinned two-field 7.3a body (round-44,
   same discriminator rationale as 5.3a) and zero downstream calls for each **(round-23
@@ -1609,6 +1620,24 @@ authorized by this review.
   this gate exists to catch before it reaches a deployed replica, where Task 8.9 would only
   discover it mid-incident.**
   _Requirements: 5.1; design.md D5, D6_
+
+**Task 5.6 assessment (Codex, 2026-09-02): all seven technical conditions met; recommend GO.**
+The checkbox remains unchecked pending the separately reserved owner GO decision. Source-merge
+approval and this documentation reconciliation do not stand in for that decision.
+
+| Condition | Assessment and evidence |
+|---|---|
+| 1 — complete bundle and providers merged | Met: PR #212 / `main@d8fa499d` contains all six source tasks together; Tasks 5.1a/5.1b previously merged via PRs #202/#208. Merge parents and empty diff against reviewed head verified |
+| 2 — identity alignment | Met: required `static-guard` passed on `01917e16`; the 24 checker tests and actual three-source alignment also passed on merged `d8fa499d` |
+| 3 — existing allowlist intent preserved | Met: accepted source review plus 39 read-only property/example cases and 6 chain cases; final CI green |
+| 4 — route, subject, and order contract | Met: isolated filter tests and real local/prod gateway chains passed, including matched-route, non-demo rejection, and order assertions |
+| 5 — Tasks 5.4/5.5 green | Met: 36 isolated filter cases and 19 local / 5 production routed cases; full gateway reports show 276 unit / 190 integration tests with zero failures, errors, or skips; final CI green |
+| 6 — actual image smoke green | Met: [final-head CI, attempt 2](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33613233150), `docs_only=false`, `azure-image-smoke-test=success`; blank/nonblank probes and replica-token vector all executed and matched strict stdout/stderr expectations; `ci-required=success` |
+| 7 — Task 4.5 live prerequisite complete | Met: existing [Task 4.5 evidence](../../../docs/runbooks/B2_TASK_4_5_DEMO_RESET_STOP_GO.md), reviewed live GO on `portfolio-service--0000093`; no new live call made |
+
+**Decision still required:** owner records Task 5.6 GO or a specific blocker. Even a GO is not
+deployment authorization; the Wave 5 gateway bundle remains undeployed, and frontend exposure and B1 G5 retain
+their own gates.
 
 ## Wave 6 — Manual-reset control (frontend) · *design.md D5 Stage 5, gated on Wave 5 AND B1 task 5.1*
 
