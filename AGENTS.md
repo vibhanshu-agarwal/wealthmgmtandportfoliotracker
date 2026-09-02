@@ -4,6 +4,23 @@
 
 These rules apply to every agent working in this repository, including Claude, Codex, and Cursor.
 
+## Owner Approval Callouts
+
+Some actions are the owner's to authorize, not an agent's to assume. These include: any push, pull
+request creation, merge, or other GitHub publication; deployment or production operations; cloud or
+secret access; workflow dispatch or schedule changes; anything a previous approval review denied;
+and any expansion of scope beyond the agreed bundle.
+
+When work reaches one of these points, state it explicitly and up front - a labelled callout at the
+top of the report, handoff, or kickoff document, before the narrative. Name the blocked action in
+concrete terms, the decision being requested, and the consequence of each answer. Do not bury the
+need inside a status section, do not leave it implied by a gate the reader must infer, and do not
+surface it only when asked.
+
+Continue every part of the work that does not depend on the answer, and say plainly what was left
+undone pending approval. When reviewing another agent's handoff, a missing or buried approval
+callout is a review finding.
+
 ## Assigned Worktrees
 
 Each agent has a persistent sibling worktree for normal work:
