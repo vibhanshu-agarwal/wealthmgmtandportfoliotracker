@@ -1,6 +1,53 @@
 # Implementation Plan
 
-**Current program status (verified 2026-09-01 against `main@ce6ee32c`; runtime baseline `e221662`; R-A / R-B / R-B2 serving digests below):**
+**B1 Wave 6 source review — 2026-09-03: R1/R2 closed; final acceptance pending CI.**
+[Draft PR #217](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/217)
+implements Tasks 6.1–6.4 on base `48d0aba8468325b91e1bf9b84bd43cbeaacdf74a`, reviewed source
+head `b1d331715b5acadb16983819e20ed165319d5fff`. It is unmerged; all four source-task checkboxes
+remain unchecked. This source review does not advance the program-state code baseline or any
+runtime serving proof.
+
+`70067f4d` contains the strict version boundary, one replacement delegation, initializer
+observation forwarding, and Task 6.4 matrix; `610be089` adds the collision suite and sentinel
+fix. `cfcfc7ee` records the first governed review. The one-file correction `b1d33171` is exactly
+the reviewed +46/−4 diff in `PortfolioSeedCollisionIT`, with no other changes.
+
+- **R1 closed:** both forced outcomes now compare every desired holding field: ticker, quantity,
+  average cost basis, currency, source, and anchor. The golden comparison checks cardinality
+  and expected ticker membership against `desiredHoldings(userId)`; the winning edit checks
+  its single complete tuple. The prior count/source-only assertions are gone.
+- **R2 closed:** both forced seed-versus-edit races now assert exactly two replacement attempts,
+  after the fixture resets its setup count and after both contenders finish. The absent-creation
+  case retains its two-attempt assertion, and the separate stale-golden case retains its one-attempt
+  assertion. Counting remains independent of the barriers.
+- The earlier absent-creation finding stays closed: both creators park inside materialisation,
+  after observing absence and before insertion. The uniqueness loser must carry an unresolved
+  user lookup before the real advice reports the winner's committed version following rollback.
+
+Fresh saved reports inspected for the `b1d33171` source tree contain **516 unit tests in 51
+classes and 189 integration tests in 34 classes**, zero failures/errors/skips; collision suite
+5/5. The integration run includes collision results timestamped `2026-09-02T18:38:07.469Z`.
+The built jar remains 97,882,843 bytes; production source is unchanged by the test-only fix.
+The independently verified unchanged caller inventory remains exactly three callers; the prior
+9 caller-guard and 33 governance self-tests passed. These are local/source evidence, not final CI.
+
+**Required next step:** publish this governed close-out and evaluate the PR-event CI for the
+resulting head, including both `b1d33171` and this documentation commit. Require all required
+checks successful, `docs_only=false`, `ci-required=success`, and an actually executed successful
+Azure image smoke. CI on earlier heads does not satisfy that final-head requirement. No source
+review findings remain; final ACCEPT is reserved until those checks pass. Source completion
+is reconciled only after an owner-authorized merge; Tasks 6.5–6.7 remain separate.
+
+**Status precedence and parallel documentation:** [PR #215](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/215) remains draft/unmerged and
+contains the owner's G5 close-out, B2 PR #214 post-merge reconciliation, and the Claude kickoff.
+Inherited G5-awaiting-owner / Wave-6-not-started text below describes the older merged baseline;
+it is superseded for this bounded source handoff by that approved close-out and this review.
+This PR does not duplicate PR #215's checkbox changes. Reconcile the overlapping documentation
+when integrating those PRs; neither publication closes Tasks 6.5–6.7, G2b/R-B3, Wave 7, or
+Writer_Convergence. No merge, deployment, live seed, schedule restoration, or public-write
+exposure is authorized by this review.
+
+**Merged/runtime baseline snapshot (verified 2026-09-01 against `main@ce6ee32c`; runtime baseline `e221662`; R-A / R-B / R-B2 serving digests below):**
 Waves `P`, `0`, and `1` are complete. Wave 2 tasks **2.1–2.6 and R-A are complete**: G2 serving
 proof is green on gateway revision `api-gateway--0000076` /
 `sha256:2da5b303fd15772792167f2b26dc62250b2d9858270db315eab1d6d1a1554aec` (deploy run
@@ -932,6 +979,11 @@ Named individually so the R-C manifest can enumerate them rather than gesture at
   _Requirements: 8.32, 8.39_
 
 ## Wave 6 — Version-required seed (Artifact 2b → R-B3)
+
+**Implemented but unmerged in PR #217 / `b1d33171`; R1/R2 closed, final acceptance pending
+CI on the head including this governed close-out.** Tasks 6.1–6.4 stay unchecked until merge
+and source reconciliation. Full winner-tuple and attempt-count assertions now satisfy the
+source review. Tasks 6.5–6.7 are separate decisions and are not assessed as met here.
 
 - [ ] **6.1 Seed `POST` requires `expectedVersion`** and delegates to `HoldingReplacementService`.
   Target stays compiled-in. Failure returns Requirement 7's `409` envelope with
