@@ -235,9 +235,13 @@ class PortfolioSeedServiceIT {
                 VALUES ('__SENTINEL__', 4242.4242, timestamp '2020-01-01 00:00:00')
                 ON CONFLICT (ticker) DO NOTHING
                 """);
+        // Idempotent like the market_prices insert above: more than one case in this class now
+        // plants the sentinel, and the (ticker, observed_at) unique index would otherwise fail
+        // the second caller on insert rather than on the guard it is actually testing.
         jdbc.update("""
                 INSERT INTO market_price_history (ticker, quote_currency, price, observed_at)
                 VALUES ('__SENTINEL__', 'USD', 4242.4242, timestamp '2020-01-01 00:00:00')
+                ON CONFLICT DO NOTHING
                 """);
     }
 
