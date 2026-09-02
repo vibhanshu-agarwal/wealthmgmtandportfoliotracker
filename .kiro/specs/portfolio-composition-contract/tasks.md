@@ -982,6 +982,12 @@ does not itself record the separate pre-deploy STOP/GO decision or any serving p
   sentinel rows included** (`P10`): this edits the exact writer from the PR #97 incident.
   _Requirements: 8.13, 8.19, 8.30, 8.31, 3.4_
 - [ ] **6.5 STOP/GO — G5 before deploy.**
+  **Preparation started 2026-09-03, after Cursor 7.1–7.2 assignment in local commit 01e0664.**
+  [Readiness record](../../../docs/runbooks/B1_TASK_6_5_PRE_DEPLOY_READINESS.md): Codex recommends
+  technical GO on G5; its successful run and unchanged caller paths were reverified at main@6a171558.
+  Fresh caller inventory/9 self-tests and 90 deployment-safeguard tests pass. Owner GO remains
+  unrecorded, so this checkbox stays open. Candidate source is pinned and controller-free; candidate
+  registry digest and fresh serving/rollback evidence are not yet collected. No deployment authorized.
   **Go:** 5.7 green.
   **Abort:** do not deploy the version-required endpoint; unmigrated callers would fail on the first
   run.
@@ -999,6 +1005,16 @@ does not itself record the separate pre-deploy STOP/GO decision or any serving p
 ## Wave 7 — Activation (Artifact 3 → R-C)
 
 Portfolio-service only; the asset route shipped in Wave 2.
+
+
+**Parallel source assignment — 2026-09-03:** Tasks 7.1–7.2 are assigned to Cursor under the
+[public-composition kickoff](../../../docs/agent-instructions/CURSOR_KICKOFF_B1_WAVE_7_PUBLIC_COMPOSITION.md),
+based on main@6a171558. This is a handoff-ready source assignment, not execution or completion;
+both boxes remain unchecked. Requirement 9.2 and the implementation-lane graph allow development
+while Codex prepares 6.5. The controller remains isolated on Cursor's branch and excluded from
+R-B3. Tasks 7.3 onward, merge, deployment, and exposure remain separate. Publication of the new
+implementation branch/PR needs owner approval under AGENTS.md.
+
 
 - [ ] **7.1 Introduce `CompositionController`** — `PUT /api/portfolio/holdings`, taking the expected
   version and the desired set, resolving the target from the authenticated principal with **no
