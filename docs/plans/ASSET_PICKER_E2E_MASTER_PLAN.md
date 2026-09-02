@@ -9,11 +9,11 @@ identical to that head. B2 Tasks 5.1, 5.2, 5.3, 5.3a, 5.4, and 5.5 are source-co
 Task 5.6's seven technical conditions are met; its separate owner GO decision remains pending.
 This reconciliation does not advance a runtime baseline or claim a new production read-back.
 
-**Current source review:** [draft PR #214](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/214)
-at published head `d0f86f5b`, source `ded1a0e1`, on base `main@06b35250`.
-B2 Wave 6 Tasks 6.1/6.2 remain unmerged. Behavior findings R1–R3 are closed; all 11 screenshots
-are delivered and inspected, and the version explanation is corrected. **R4 requires a scoped
-text-contrast fix** in the new control. The owner-deferred
+**Current source review: ACCEPT.** [Draft PR #214](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/214)
+at reviewed head `970b637b`, on base `main@06b35250`, implements B2 Wave 6 Tasks 6.1/6.2.
+R1–R4 are closed: behavior fixes, delivered visual evidence, corrected version explanation,
+and scoped feedback/hover contrast all pass review. Final-head CI and owner merge approval
+remain pending; source tasks stay unchecked while unmerged. The owner-deferred
 [sidebar backlog](../todos/backlog/responsive-dashboard-sidebar/README.md) remains separate.
 
 **Program-state code baselines (runtime):** the cross-program baseline remains
@@ -94,8 +94,8 @@ completion decision, not because of an unresolved ingress or custom-domain gap. 
 prerequisite is satisfied. The remaining Wave 5 source bundle merged via PR #212 at
 `main@d8fa499d` after Codex ACCEPT and final-head CI success. Task 5.6's seven technical
 conditions are met; its owner GO decision remains pending. Claude's Wave 6 frontend source is
-implemented but unmerged in draft PR #214; behavior findings are closed and delivered visuals
-identify one remaining text-contrast fix. Deployment requires separate authorization.
+implemented but unmerged in draft PR #214; source and visual review are ACCEPTed at `970b637b`.
+Final-head CI and owner merge approval remain pending. Deployment requires separate authorization.
 
 This is the living, human-facing status document for the Asset Picker program. It is not a
 historical snapshot. Detailed requirements, designs, task mechanics, and operational evidence live
@@ -338,7 +338,7 @@ All four artifacts are tracked. Wave 1 (1.1-1.19) and Wave 2 Tasks 2.1-2.5 merge
 | 3 — Redis-backed presence | 🟡 Tasks 3.1–3.6 source merged via PR #179 / `main@cc97a209`; Task 3.7 open | Default TTL **150s** via `APP_DEMO_PRESENCE_TTL`; not deployed/live-verified |
 | 4 — portfolio-service demo reset | ✅ Complete — Tasks 4.1–4.4a merged via PR #180 / `main@63fc058`; Task 4.5 live GO | Exact cut serves internally on `portfolio-service--0000093` / `sha256:9a1d5533…`; one authorized same-state reset returned `200`, exact golden 159/159, unchanged version `0` per B1; [evidence](../runbooks/B2_TASK_4_5_DEMO_RESET_STOP_GO.md) |
 | 5 — manual-reset gateway bundle | 🟡 Tasks 5.1a and 5.1b source merged via [PR #202](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/202) / `main@64761dc2` and [PR #208](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/208) / `main@f954b5a7`; neither is deployed. Wave 4's prerequisite is satisfied. Remaining source Tasks 5.1, 5.2, 5.3, 5.3a, 5.4, and 5.5 merged via [PR #212](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/212) / `main@d8fa499d` | Filter, both routes, exact read-only exceptions, tests, and identity guard accepted; final CI passed on the identical reviewed tree. Task 5.6: 7/7 technical conditions met, owner GO pending; no deployment |
-| 6 — manual reset frontend | 🟡 Tasks 6.1/6.2 implemented but unmerged in [draft PR #214](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/214) / `d0f86f5b`; R1–R3 closed, R4 contrast changes requested | All 11 screenshots reviewed; scoped feedback/hover contrast fix required; the existing 375px sidebar clipping is deferred to the [sidebar backlog](../todos/backlog/responsive-dashboard-sidebar/README.md). Flag off, placement open; 6.3 still gated |
+| 6 — manual reset frontend | 🟡 Tasks 6.1/6.2 implemented but unmerged in [draft PR #214](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/214) / `970b637b`; ACCEPT, R1–R4 closed | Contrast fix and refreshed visuals verified; final-head CI and owner merge approval pending; the existing 375px sidebar clipping is deferred to the [sidebar backlog](../todos/backlog/responsive-dashboard-sidebar/README.md). Flag off, placement open; 6.3 still gated |
 | 7 — decimal rollout note | ℹ Informational | No independent release gate |
 | 8 — login-orchestrated reset | 🟡 Task 8.1 (`updatedAt` read contract) source merged via [PR #185](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/185) / `main@198c878d`; not deployed. Task 8.2a (`CloudFrontOriginSecretProvider`) source merged via [PR #203](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/203) / `main@addd8049`; not deployed. Task 8.2's open decisions and Tasks 8.3 and later not started | Requires B1/V20/version read (met, satisfied by 8.1); open idle/timeouts, Tasks 8.3 and later, 5.1b (merged source-only via PR #208; not deployed), and its own deployment evidence |
 | 9 — live integration | ⬜ Blocked | Requires B1 catalog/read/write endpoints and relevant B2 Waves 1–6 |
@@ -428,29 +428,29 @@ The owner-authorized immutable build, scoped digest deployment, one valid same-s
 B1 version interpretation, and cutover read-readiness observation are recorded in
 [`B2_TASK_4_5_DEMO_RESET_STOP_GO.md`](../runbooks/B2_TASK_4_5_DEMO_RESET_STOP_GO.md). Wave 5's Wave 4
 prerequisite is satisfied, but no Wave 5 implementation or deployment is authorized by that GO.
-**Current B2 priority (2026-09-02): Claude fixes the reset control's text contrast.**
-[Draft PR #214](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/214) remains unmerged at `d0f86f5b`;
-its source is unchanged from reviewed `ded1a0e1`. Behavior findings R1–R3 remain closed.
+**Current B2 priority (2026-09-02): final-head CI and owner review for Wave 6 merge.**
+Codex **ACCEPTs** Tasks 6.1/6.2 at [PR #214](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/214)
+head `970b637b`. All four review findings are closed. Claude's final source change consists
+only of local color classes and comments in `ManualResetControl`; behavior, shared Button,
+global tokens, sidebar and feature flags are unchanged.
 
-Codex inspected all 11 committed [screenshots](../evidence/b2-wave-6-manual-reset/README.md):
-dark idle/success/conflict/recovery/failure/submitting, light idle/success/conflict, and both
-375×812 narrow views. Screenshot delivery and the PR's version wording are resolved.
-The owner-deferred [sidebar backlog](../todos/backlog/responsive-dashboard-sidebar/README.md)
-remains separate from Wave 6; the narrow images confirm its known clipping.
+The [12-image evidence set](../evidence/b2-wave-6-manual-reset/README.md) is reviewed across the
+two visual rounds, including the four refreshed feedback states and the new hover capture.
+Independent contrast calculations pass: light success 5.11:1, light alerts 6.03:1,
+dark alerts 6.95:1, and enabled hover 5.48:1; dark success remains about 10:1.
+The version explanation is corrected. The [sidebar issue](../todos/backlog/responsive-dashboard-sidebar/README.md)
+remains owner-deferred and is not a Wave 6 merge blocker.
 
-**R4 — P2, changes requested:** actual visual review exposed insufficient text contrast.
-Source-derived ratios are 3.51:1 for light success, 3.52:1 for light alerts, 4.32:1 for dark
-alerts, and 2.59:1 for enabled button hover text, below the 4.5:1 small-text minimum.
-Claude should select feedback and hover colors locally in `ManualResetControl`, verify
-contrast in both themes, and refresh the affected screenshots. Shared-theme/sidebar redesign
-is outside this fix. The B2 ledger contains the exact colors and acceptance check.
+[Frontend CI on the reviewed head](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33646074169)
+passed **526 tests / 62 files**, lint, typecheck, build and one static login-HTML smoke.
+Status propagation and static guards passed; the
+[backend pipeline](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33646074004)
+was still running at the acceptance checkpoint. Full CI on previous evidence head `d0f86f5b`
+passed, but does not replace checking the final published head after the new CSS change.
 
-The source head passed **526 frontend tests**, lint, typecheck, build, static smoke and the
-[full backend pipeline](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33636041409).
-At `d0f86f5b`, frontend checks, status propagation, gateway unit tests and Azure image smoke
-passed; [integration/downstream CI](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33641767467)
-was still running. Recheck the eventual final head after the scoped contrast fix.
-Tasks 6.1/6.2 stay unchecked, flags stay off, and 5.6/6.3 remain separate gates.
+Include the governed acceptance documentation in this same PR, confirm final-head CI, and
+obtain owner merge approval. Reconcile source completion only after merge. Tasks 6.1/6.2
+stay unchecked, flags stay off, and 5.6/6.3, deployment and exposure remain separate gates.
 
 **Wave 5 source completion:** [PR #212](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/212) merged at
 `main@d8fa499de05fa1370a0271c4822230a6ea113695`, with reviewed base `a2c402db` and final head
@@ -512,8 +512,8 @@ source-only on `main@0b5d60d1`** (PR #161); **5.7/G5 remains unchecked** pending
    `main@f954b5a7`. Wave 5's Task 4.5 prerequisite is satisfied; Tasks 5.1, 5.2, 5.3, 5.3a,
    5.4, and 5.5 merged via PR #212 at `main@d8fa499d`. Final-head CI passed and the merged tree
    matches the reviewed head. Task 5.6's seven technical conditions are met; its owner GO decision
-   remains open. Wave 6 Tasks 6.1/6.2 are implemented but unmerged in draft PR #214; Claude must
-   fix the control's feedback/hover text contrast; behavior findings and evidence delivery are closed.
+   remains open. Wave 6 Tasks 6.1/6.2 are ACCEPTed at `970b637b` but unmerged in draft PR #214;
+   confirm final-head CI and obtain owner merge approval before source-completion reconciliation.
    Deployment still requires separate authorization.
    Tasks 2.6–2.7, live proofs, remaining bundles, deployment, and exposure retain their own gates.
 4. **Process lane:** keep the status-propagation CI guard healthy in required `static-guard`; it is
