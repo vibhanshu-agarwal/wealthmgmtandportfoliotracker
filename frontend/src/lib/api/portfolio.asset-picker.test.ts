@@ -145,6 +145,66 @@ describe("fetchPortfolio version (Task 1.2)", () => {
 
     expect(portfolio.version).toBe(0);
     expect(portfolio.holdings).toEqual([]);
+    // The auto-provision sentinel is a genuine, meaningful backend contract
+    // value (B1 auto-provisions on expectedVersion 0), not a data gap.
+    expect(portfolio.versionObserved).toBe(true);
+  });
+
+  it("marks a genuinely observed version as observed, including zero", async () => {
+    servePortfolios([wirePortfolio({ version: 0 })]);
+
+    const portfolio = await fetchPortfolio("user-001", TOKEN);
+
+    expect(portfolio.version).toBe(0);
+    expect(portfolio.versionObserved).toBe(true);
+  });
+
+  it("does not report a missing wire version as observed, even though it is defaulted to 0", async () => {
+    // A portfolio genuinely exists (unlike the no-portfolio case above), but this
+    // response omits `version` entirely — the currently-deployed backend predates
+    // it. `fetchPortfolio`'s own `?? 0` keeps existing callers (composition save)
+    // working, but that 0 is a client-side invention, not something the server
+    // confirmed — callers that must never send a fabricated version (B2 Task 6.2)
+    // need a way to tell the two apart.
+    servePortfolios([
+      {
+        id: "portfolio-001",
+        userId: "user-001",
+        name: "My Portfolio",
+        createdAt: "2026-01-01T00:00:00Z",
+        holdings: [],
+      },
+    ]);
+
+    const portfolio = await fetchPortfolio("user-001", TOKEN);
+
+    expect(portfolio.version).toBe(0);
+    expect(portfolio.versionObserved).toBe(false);
+  });
+
+  it("does not report an explicit wire `null` version as observed either, even though it is defaulted to 0", async () => {
+    // `BackendPortfolio.version?: number` only documents "absent or a number"
+    // — it cannot stop a real backend from serializing an explicit JSON
+    // `null` for the same field (e.g. a nullable database column mapped
+    // straight through). `?? 0` already treats `null` exactly like absent for
+    // the value itself; the observed flag must use the same test, or a
+    // strict `!== undefined` check would let a `null` response through as
+    // "observed" while still defaulting its own value to a fabricated 0.
+    servePortfolios([
+      {
+        id: "portfolio-001",
+        userId: "user-001",
+        name: "My Portfolio",
+        version: null,
+        createdAt: "2026-01-01T00:00:00Z",
+        holdings: [],
+      } as unknown as BackendPortfolio,
+    ]);
+
+    const portfolio = await fetchPortfolio("user-001", TOKEN);
+
+    expect(portfolio.version).toBe(0);
+    expect(portfolio.versionObserved).toBe(false);
   });
 });
 
