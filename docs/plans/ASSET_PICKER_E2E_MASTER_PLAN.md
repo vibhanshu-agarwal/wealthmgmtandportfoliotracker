@@ -2,6 +2,48 @@
 
 **Last verified:** 2026-09-02
 
+**B1 Wave 6 source review — 2026-09-02: changes requested.** [Draft PR #217](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/217)
+implements Tasks 6.1–6.4 on base `48d0aba8468325b91e1bf9b84bd43cbeaacdf74a`, reviewed source
+head `610be089076f73e64b08e2e0850e0766540d586f`. It is unmerged. `70067f4d` contains the boundary,
+delegation, initializer adaptation, and Task 6.4 matrix; `610be089` adds the Task 6.3 collision
+suite and sentinel idempotency fix. All four source-task checkboxes remain unchecked.
+This source review does not advance the program-state code baseline or any runtime serving proof.
+
+The final source uses the strict version-only request, fixed E2E target, one replacement
+delegation, and the initializer's own observed version. The absent-creation review finding is
+resolved: both creators park inside materialisation, and the loser must carry an unresolved
+user lookup before the real advice reports the winner's committed version. Two bounded
+Task 6.3 proof corrections remain before Codex ACCEPT:
+
+- **R1 — complete winner-state assertions:** `assertGoldenTuplePersisted` currently checks only
+  cardinality and source; `assertUserEditTuplePersisted` checks ticker, quantity, and source.
+  Compare the exact ticker set and every desired holding field (quantity, average cost basis,
+  currency, source, and anchor) for both forced outcomes. Reuse the complete-tuple comparison
+  pattern already present in `PortfolioSeedServiceIT`; do not infer the full tuple from its source.
+- **R2 — attempts in both forced outcomes:** the counter is installed, but neither the seed-first
+  nor edit-first race asserts it. After both operations finish, require exactly two replacement
+  attempts (fixture attempts are already reset). The existing absent-creation count and separate
+  stale-golden count do not establish no retry in these two cases.
+
+Evidence inspected at the reviewed source head: saved portfolio reports contain **516 unit tests
+in 51 classes and 189 integration tests in 34 classes**, zero failures/errors/skips; collision
+suite 5/5. The built jar is 97,882,843 bytes. Codex independently ran the unchanged inventory
+(exactly three callers) and the **9 caller-guard + 33 governance self-tests**, all passing.
+[CI run 33664130635](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33664130635) has successful unit/static/frontend checks and an actually executed
+Azure image smoke (job `100363702641`, 1m38s); integration CI was still running at this review.
+The expected documentation-propagation failure is addressed by this two-document status commit.
+Every subsequent head still needs its own required PR-event CI, `docs_only=false`, successful
+`ci-required`, and an executed successful image smoke; this record is not a final-CI claim.
+
+**Status precedence and parallel documentation:** [PR #215](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/215) remains draft/unmerged and
+contains the owner's G5 close-out, B2 PR #214 post-merge reconciliation, and the Claude kickoff.
+Inherited G5-awaiting-owner / Wave-6-not-started text below describes the older merged baseline;
+it is superseded for this bounded source handoff by that approved close-out and this review.
+This PR does not duplicate PR #215's checkbox changes. Reconcile the overlapping documentation
+when integrating those PRs; neither publication closes Tasks 6.5–6.7, G2b/R-B3, Wave 7, or
+Writer_Convergence. No merge, deployment, live seed, schedule restoration, or public-write
+exposure is authorized by this review.
+
 **Post-merge verification:** [PR #212](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/212) merged at
 `main@d8fa499de05fa1370a0271c4822230a6ea113695` on 2026-09-02 at 10:03:53Z.
 Its parents are the reviewed base `a2c402db` and final head `01917e16`; the merged tree is
@@ -272,7 +314,7 @@ Authority: [`.kiro/specs/portfolio-composition-contract/tasks.md`](../../.kiro/s
 | 3 – V20 schema | ✅ R-B complete (G3 served) | Tasks 3.1–3.7 complete; Artifact 2 cut `25aa730` applied V20; prior serving evidence [`B1_R_B_G3_SERVING_PROOF.md`](../runbooks/B1_R_B_G3_SERVING_PROOF.md); superseded for portfolio traffic by R-B2 |
 | 4 – contract implementation | Source on Artifact 2a serving cut; mechanisms unexposed | Wave 4a–4c (4.1–4.21) merged on `main@2673f40` (PR #153) and included in Artifact 2a serving digest. Public `PUT` still Wave 7. Replacement orchestrator + preparers remain unexposed; `GET /api/assets` controller is now served with R-B2; candidate packaging (7.5/R-C) still pending |
 | 5 — version-bearing read | 🟡 Tasks 5.1–5.3 / R-B2 complete; **5.4–5.6 merged on `main@0b5d60d1`** (PR #161, source-only); **5.7/G5 open** — authorized three-caller run [33411410271](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33411410271) (`main@f66d7ab6`; Task 5.7 unchecked pending a separately recorded owner-controlled G5 completion decision) | Task 5.1 on main@f22e2ff; G2a/R-B2 green on portfolio-service--0000081 / sha256:d544649f…; caller migration merged source-only; historical G5 runs 33046987880 / 33047168136 failed at TLS login before seed; post-restore three-caller markers recorded in [`B1_G5_INGRESS_BLOCKER.md`](../runbooks/B1_G5_INGRESS_BLOCKER.md) |
-| 6 — version-required seed | ⬜ Not started | Seeder delegates through the safe replacement service |
+| 6 — version-required seed | 🟡 Tasks 6.1–6.4 implemented, unmerged in [PR #217](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/217); Task 6.3 R1/R2 open | Strict version boundary and shared replacement delegation; full winner-tuple and forced-race attempt assertions required before ACCEPT; 6.5–6.7 remain separate |
 | 7 — activation | ⬜ Not started | Public `PUT /api/portfolio/holdings`, attested candidate, serving proof |
 
 Spec A V17–V19 were applied at checkpoint 9.6; **V20 is applied under R-B** and unchanged by R-B2.
@@ -411,6 +453,10 @@ public `200` read-back.
 - B1/B2 implementation status is cleanly separable from the remaining production cutover.
 
 ### Selected priority and remaining lanes
+
+**Current B1 source priority:** close PR #217 review findings R1/R2 in the existing collision
+assertions, then return the committed head and fresh test/CI evidence. The broader G5/B2 status
+reconciliation remains in parallel PR #215.
 
 **Owner priority decision (2026-09-01): resume Asset Picker delivery before further CI
 optimization.** The docs-only fast path is sufficient for now. DAG de-serialization, broader

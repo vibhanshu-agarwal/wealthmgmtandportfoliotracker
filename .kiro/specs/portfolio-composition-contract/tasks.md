@@ -1,6 +1,47 @@
 # Implementation Plan
 
-**Current program status (verified 2026-09-01 against `main@ce6ee32c`; runtime baseline `e221662`; R-A / R-B / R-B2 serving digests below):**
+**B1 Wave 6 source review — 2026-09-02: changes requested.** [Draft PR #217](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/217)
+implements Tasks 6.1–6.4 on base `48d0aba8468325b91e1bf9b84bd43cbeaacdf74a`, reviewed source
+head `610be089076f73e64b08e2e0850e0766540d586f`. It is unmerged. `70067f4d` contains the boundary,
+delegation, initializer adaptation, and Task 6.4 matrix; `610be089` adds the Task 6.3 collision
+suite and sentinel idempotency fix. All four source-task checkboxes remain unchecked.
+
+The final source uses the strict version-only request, fixed E2E target, one replacement
+delegation, and the initializer's own observed version. The absent-creation review finding is
+resolved: both creators park inside materialisation, and the loser must carry an unresolved
+user lookup before the real advice reports the winner's committed version. Two bounded
+Task 6.3 proof corrections remain before Codex ACCEPT:
+
+- **R1 — complete winner-state assertions:** `assertGoldenTuplePersisted` currently checks only
+  cardinality and source; `assertUserEditTuplePersisted` checks ticker, quantity, and source.
+  Compare the exact ticker set and every desired holding field (quantity, average cost basis,
+  currency, source, and anchor) for both forced outcomes. Reuse the complete-tuple comparison
+  pattern already present in `PortfolioSeedServiceIT`; do not infer the full tuple from its source.
+- **R2 — attempts in both forced outcomes:** the counter is installed, but neither the seed-first
+  nor edit-first race asserts it. After both operations finish, require exactly two replacement
+  attempts (fixture attempts are already reset). The existing absent-creation count and separate
+  stale-golden count do not establish no retry in these two cases.
+
+Evidence inspected at the reviewed source head: saved portfolio reports contain **516 unit tests
+in 51 classes and 189 integration tests in 34 classes**, zero failures/errors/skips; collision
+suite 5/5. The built jar is 97,882,843 bytes. Codex independently ran the unchanged inventory
+(exactly three callers) and the **9 caller-guard + 33 governance self-tests**, all passing.
+[CI run 33664130635](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33664130635) has successful unit/static/frontend checks and an actually executed
+Azure image smoke (job `100363702641`, 1m38s); integration CI was still running at this review.
+The expected documentation-propagation failure is addressed by this two-document status commit.
+Every subsequent head still needs its own required PR-event CI, `docs_only=false`, successful
+`ci-required`, and an executed successful image smoke; this record is not a final-CI claim.
+
+**Status precedence and parallel documentation:** [PR #215](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/215) remains draft/unmerged and
+contains the owner's G5 close-out, B2 PR #214 post-merge reconciliation, and the Claude kickoff.
+Inherited G5-awaiting-owner / Wave-6-not-started text below describes the older merged baseline;
+it is superseded for this bounded source handoff by that approved close-out and this review.
+This PR does not duplicate PR #215's checkbox changes. Reconcile the overlapping documentation
+when integrating those PRs; neither publication closes Tasks 6.5–6.7, G2b/R-B3, Wave 7, or
+Writer_Convergence. No merge, deployment, live seed, schedule restoration, or public-write
+exposure is authorized by this review.
+
+**Merged/runtime baseline snapshot (verified 2026-09-01 against `main@ce6ee32c`; runtime baseline `e221662`; R-A / R-B / R-B2 serving digests below):**
 Waves `P`, `0`, and `1` are complete. Wave 2 tasks **2.1–2.6 and R-A are complete**: G2 serving
 proof is green on gateway revision `api-gateway--0000076` /
 `sha256:2da5b303fd15772792167f2b26dc62250b2d9858270db315eab1d6d1a1554aec` (deploy run
@@ -932,6 +973,11 @@ Named individually so the R-C manifest can enumerate them rather than gesture at
   _Requirements: 8.32, 8.39_
 
 ## Wave 6 — Version-required seed (Artifact 2b → R-B3)
+
+**Implemented but unmerged in PR #217 / `610be089`; Codex review remains open for R1/R2
+above.** Tasks 6.1–6.4 stay unchecked until merge and source reconciliation. The accepted
+absent-creation correction does not close the remaining full-tuple / attempt-count proof gaps.
+Tasks 6.5–6.7 are separate decisions and are not assessed as met here.
 
 - [ ] **6.1 Seed `POST` requires `expectedVersion`** and delegates to `HoldingReplacementService`.
   Target stays compiled-in. Failure returns Requirement 7's `409` envelope with
