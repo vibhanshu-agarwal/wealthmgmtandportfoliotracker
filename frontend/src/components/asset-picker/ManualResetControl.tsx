@@ -161,6 +161,15 @@ export function ManualResetControl({
           type="button"
           variant="outline"
           size="sm"
+          // Local override, not a button.tsx/global-token change (scope
+          // discipline — this repo's own outline-button hover treatment,
+          // hover:bg-accent hover:text-accent-foreground, resolves to white
+          // on the accent green at 2.59:1, verified against the actual
+          // --accent/--accent-foreground values and independently confirmed
+          // by external review; below WCAG 2.2 1.4.3's 4.5:1 minimum for
+          // small text/labels. emerald-700 keeps the existing white hover
+          // text at 5.49:1 in both themes.
+          className="hover:bg-emerald-700"
           onClick={handleReobserve}
           disabled={isReobserving}
           aria-describedby={alertId}
@@ -172,6 +181,7 @@ export function ManualResetControl({
           type="button"
           variant="outline"
           size="sm"
+          className="hover:bg-emerald-700"
           onClick={handleReset}
           disabled={isBusy || !versionObserved}
           aria-describedby={versionObserved ? undefined : blockedId}
@@ -187,21 +197,31 @@ export function ManualResetControl({
         </p>
       )}
 
+      {/* text-emerald-700/text-red-700/text-red-400 below are chosen, not the
+          design system's own text-emerald-600 / text-destructive tokens —
+          those measured 3.51-4.32:1 at this 12px/text-xs size against this
+          control's actual backgrounds (verified via getComputedStyle + the
+          WCAG relative-luminance formula, external review independently
+          measured the same), under the 4.5:1 minimum WCAG 2.2 1.4.3 requires
+          for text this size. These pass ≥5:1 in both themes without touching
+          the shared tokens (used elsewhere for buttons/borders, a different
+          contrast situation). dark:text-emerald-400 is unchanged — it
+          already measured ~10:1. */}
       {phase === "success" && (
-        <p id={statusId} role="status" aria-live="polite" className="text-xs text-emerald-600 dark:text-emerald-400">
+        <p id={statusId} role="status" aria-live="polite" className="text-xs text-emerald-700 dark:text-emerald-400">
           Demo portfolio reset.
         </p>
       )}
 
       {phase === "conflict" && (
-        <p id={alertId} role="alert" className="max-w-[16rem] text-right text-xs text-destructive">
+        <p id={alertId} role="alert" className="max-w-[16rem] text-right text-xs text-red-700 dark:text-red-400">
           Your portfolio changed elsewhere. {conflictMessage} Refresh to see the latest
           version before trying again.
         </p>
       )}
 
       {phase === "failure" && (
-        <p role="alert" className="text-xs text-destructive">
+        <p role="alert" className="text-xs text-red-700 dark:text-red-400">
           Reset failed. You can try again.
         </p>
       )}
