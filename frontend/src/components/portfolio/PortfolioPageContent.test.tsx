@@ -161,6 +161,39 @@ describe("PortfolioPageContent — manual reset control (Tasks 6.1/6.2, independ
     expect(screen.queryByRole("button", { name: "Edit Holdings" })).not.toBeInTheDocument();
   });
 
+  it("disables the reset control when the portfolio's version was not genuinely observed", () => {
+    vi.stubEnv("NEXT_PUBLIC_ENABLE_DEMO_RESET_CONTROL", "true");
+    mockUseAuthSession.mockReturnValue(authenticatedSession);
+    mockUseAuthenticatedUserId.mockReturnValue({
+      userId: "u1",
+      token: "jwt-token",
+      status: "authenticated",
+      error: null,
+    });
+    mockUsePortfolio.mockReturnValue({
+      data: {
+        portfolioId: "p1",
+        ownerId: "u1",
+        name: "My Portfolio",
+        currency: "USD",
+        version: 0,
+        versionObserved: false,
+        summary: {},
+        holdings: [],
+        asOfDate: new Date().toISOString(),
+      },
+      isLoading: false,
+    });
+
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <PortfolioPageContent />
+      </QueryClientProvider>,
+    );
+    expect(screen.getByRole("button", { name: /reset demo portfolio/i })).toBeDisabled();
+  });
+
   it("renders Edit Holdings without the reset control when only the picker flag is set", () => {
     vi.stubEnv("NEXT_PUBLIC_ENABLE_ASSET_PICKER", "true");
     vi.stubEnv("NEXT_PUBLIC_ENABLE_DEMO_RESET_CONTROL", undefined);

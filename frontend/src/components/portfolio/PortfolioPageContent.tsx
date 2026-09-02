@@ -122,7 +122,12 @@ export function PortfolioPageContent() {
           neither block below depends on the other's condition. */}
       {isDemoResetControlEnabled() && portfolio && (
         <div className="flex justify-end">
-          <ManualResetControl userId={userId} token={token} version={portfolio.version} />
+          <ManualResetControl
+            userId={userId}
+            token={token}
+            version={portfolio.version}
+            versionObserved={portfolio.versionObserved !== false}
+          />
         </div>
       )}
 

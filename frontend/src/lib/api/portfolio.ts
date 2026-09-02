@@ -340,7 +340,15 @@ export async function enrichWireHoldings(
  * (identity from a `PUT` response) — one place building this shape, not two.
  */
 export async function buildPortfolioResponseFromWireHoldings(
-  identity: { portfolioId: string; ownerId: string; version: number },
+  identity: {
+    portfolioId: string;
+    ownerId: string;
+    version: number;
+    /** Defaults to `true`: every existing caller passes a genuine PUT-response
+     *  version here. Only `fetchPortfolio`'s own GET path, which can inherit a
+     *  client-defaulted version, overrides this explicitly. */
+    versionObserved?: boolean;
+  },
   wireHoldings: WireHolding[],
   token: string,
 ): Promise<PortfolioResponseDTO> {
@@ -369,6 +377,7 @@ export async function buildPortfolioResponseFromWireHoldings(
     summary,
     holdings,
     version: identity.version,
+    versionObserved: identity.versionObserved ?? true,
     asOfDate: new Date().toISOString(),
   };
 }
@@ -392,8 +401,11 @@ export async function fetchPortfolio(userId: string, token: string): Promise<Por
         worstPerformer: { ticker: "N/A", name: "No assets", change24hPercent: 0 },
       },
       holdings: [],
-      // Valid no-portfolio state: B1 auto-provisions on expected version 0.
+      // Valid no-portfolio state: B1 auto-provisions on expected version 0. A
+      // genuine, meaningful contract value — not a data gap — so it counts as
+      // observed.
       version: 0,
+      versionObserved: true,
       asOfDate: new Date().toISOString(),
     };
   }
@@ -403,7 +415,15 @@ export async function fetchPortfolio(userId: string, token: string): Promise<Por
   // turned into the same shape a GET would produce, directly, without a network read.
   // Task 1.2: the version the picker submits as `expectedVersion` at modal-open time.
   const portfolio = await buildPortfolioResponseFromWireHoldings(
-    { portfolioId: backendPortfolio.id, ownerId: backendPortfolio.userId, version: backendPortfolio.version ?? 0 },
+    {
+      portfolioId: backendPortfolio.id,
+      ownerId: backendPortfolio.userId,
+      version: backendPortfolio.version ?? 0,
+      // Distinguish a genuinely-versioned backend response from this client's
+      // own `?? 0` default for a currently-deployed backend that predates
+      // versioning (B2 Task 6.2 — never send a fabricated version).
+      versionObserved: backendPortfolio.version !== undefined,
+    },
     backendPortfolio.holdings,
     token,
   );

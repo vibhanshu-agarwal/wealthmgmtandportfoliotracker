@@ -87,6 +87,15 @@ export interface PortfolioResponseDTO {
    * picker opened, never one re-read inside the save itself (GC.6).
    */
   version: number;
+  /**
+   * Whether `version` above was genuinely read from the backend's own `version`
+   * field, as opposed to a client-side default applied because the field was
+   * absent (`fetchPortfolio`'s `?? 0`, currently-deployed backends that predate
+   * versioning). Absent/`undefined` is treated as observed by any caller that
+   * doesn't check it — every existing caller only ever supplies a genuine
+   * PUT-response version here, never a defaulted one.
+   */
+  versionObserved?: boolean;
   summary: PortfolioSummaryDTO;
   holdings: AssetHoldingDTO[];
   /** ISO-8601 timestamp */
