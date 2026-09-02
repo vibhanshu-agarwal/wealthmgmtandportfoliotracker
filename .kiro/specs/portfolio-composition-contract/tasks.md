@@ -1,6 +1,34 @@
 # Implementation Plan
 
-**Current program status (verified 2026-09-02 against `main@48d0aba8`; historical runtime baseline `e221662`; R-A / R-B / R-B2 serving digests below):**
+**B1 Wave 6 source completion (verified 2026-09-03):** Tasks **6.1–6.4 are source-complete**
+after owner-approved [PR #217](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/217)
+merged at `main@d66bb23d5ef3606373c15d9ee02fda27c62df5c2` on `2026-09-02T19:28:09Z`.
+Codex ACCEPT applies to reviewed head `1bdb1d31c5f775983a78b892ea8fec4871ec1f41`; R1/R2 were
+closed by test fix `b1d33171` and governed close-out `1bdb1d31`. The merge parents are
+`1f3eaf5834cb1a5e0c065d9c4d316100bdea837d` and that reviewed head. The only tree difference
+from the accepted head is the 17-line `AGENTS.md` update already merged through PR #216;
+application source and tests are identical. This reconciliation changes no runtime baseline.
+
+The [accepted-head PR-event run](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33669373190)
+completed successfully: 15 successful checks, one neutral Qodana alias, `ci-required=success`,
+and explicit `docs_only=false` (12 of 14 paths outside the documentation allowlist).
+Azure image smoke actually executed the blank/nonblank key and replica-token cases. Inspected
+local reports contained 516 unit and 189 integration tests, zero failures/errors/skips, including
+5 collision tests; the boot jar was 97,882,843 bytes. The caller inventory remains exactly three;
+9 caller-guard and 33 governance self-tests passed.
+
+The seed requires the caller's strict version and fixed E2E target, delegates once to the shared
+replacement transaction, and preserves identity and complete no-op semantics. Both forced races
+compare the full winning tuple and require exactly two attempts. The absent-creation loser is
+asserted unresolved by user before real post-rollback advice reports the committed version.
+The initializer forwards its own observation; global-price snapshot/sentinel coverage is retained.
+
+Tasks 6.1–6.4 are checked for merged source completion. **Tasks 6.5–6.7 remain unchecked**:
+the next decision is Task 6.5's pre-deployment STOP/GO; G2b/R-B3 serving proof, Wave 7 activation,
+and Writer_Convergence remain open. No deployment, live seed, schedule restoration, B2 gate
+decision, or feature exposure follows from this source merge or documentation reconciliation.
+
+**Current program status (verified 2026-09-03 against `main@d66bb23d`; historical runtime baseline `e221662`; R-A / R-B / R-B2 serving digests below):**
 Waves `P`, `0`, and `1` are complete. Wave 2 tasks **2.1–2.6 and R-A are complete**: G2 serving
 proof is green on gateway revision `api-gateway--0000076` /
 `sha256:2da5b303fd15772792167f2b26dc62250b2d9858270db315eab1d6d1a1554aec` (deploy run
@@ -27,13 +55,14 @@ holdings-only seed, 9 passing tests, and `expectedVersion=0` for each of `synthe
 wiring, and focused tests have no source drift through `main@48d0aba8`; the inventory guard
 still finds exactly three callers. The historical ingress/custom-domain failures and recovery
 remain in the [G5 record](../../../docs/runbooks/B1_G5_INGRESS_BLOCKER.md).
-G5's prerequisite for B1 Wave 6 is satisfied; a bounded source kickoff for Tasks 6.1–6.4 is
-next. No Wave 6 implementation, R-B3 deployment/serving proof, Wave 7 activation, or new live
-operation is performed or authorized by this close-out. Unattended synthetics remain suspended;
+G5's prerequisite for B1 Wave 6 is satisfied; Tasks 6.1–6.4 subsequently merged through PR #217
+and are source-complete. Task 6.5 remains the next release decision; R-B3 deployment/serving
+proof, Wave 7 activation, and new live operations are not performed or authorized by this close-out. Unattended synthetics remain suspended;
 further dispatch or schedule restoration requires separate authorization.
 Candidate packaging / R-C (task 7.5)
-is **not** complete. Public `PUT /api/portfolio/holdings` remains Wave 7. The old seed remains
-version-tolerant; no seed rewrite or Writer_Convergence is claimed. Dependent proof branch
+is **not** complete. Public `PUT /api/portfolio/holdings` remains Wave 7. The deployed seed remains
+on its prior version-tolerant serving cut; the version-required rewrite is merged source only,
+and Writer_Convergence remains unproven. Dependent proof branch
 [`proof/b1-wave-2-g1-v20@e6a98c5`](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/tree/proof/b1-wave-2-g1-v20)
 remains historical and unmerged. Spec A V17–V19 were applied and verified at checkpoint 9.6; V20 is
 applied under R-B and unchanged by R-B2. Wave checkboxes record implementation evidence, not merged
@@ -929,27 +958,25 @@ Named individually so the R-C manifest can enumerate them rather than gesture at
 
 ## Wave 6 — Version-required seed (Artifact 2b → R-B3)
 
-**Claude kickoff prepared (2026-09-02); implementation not started.**
-[Tasks 6.1–6.4 kickoff](../../../docs/agent-instructions/CLAUDE_KICKOFF_B1_WAVE_6_VERSION_REQUIRED_SEED.md)
-covers the version-required seed, identity preservation, symmetric arbitration, and retained price
-regression, including the existing startup caller's signature adaptation. G5's owner close-out is
-recorded in commit `d3c8b111`; the owner authorized publication of the close-out and kickoff on
-2026-09-02. Verify the published PR state at handoff; publication is separate from merge to main. Tasks
-6.1–6.7 remain unchecked. Codex prepares/reviews; Claude implements after the handoff is effective.
+**Tasks 6.1–6.4 source-complete:** merged PR #217 / `main@d66bb23d`; Codex ACCEPT at
+`1bdb1d31`, R1/R2 closed, and final PR-event CI successful. The completion record above pins
+the evidence. The [Claude kickoff](../../../docs/agent-instructions/CLAUDE_KICKOFF_B1_WAVE_6_VERSION_REQUIRED_SEED.md)
+is retained as historical execution scope. Tasks 6.5–6.7 remain unchecked; G5 completion
+does not itself record the separate pre-deploy STOP/GO decision or any serving proof.
 
-- [ ] **6.1 Seed `POST` requires `expectedVersion`** and delegates to `HoldingReplacementService`.
+- [x] **6.1 Seed `POST` requires `expectedVersion`** and delegates to `HoldingReplacementService`.
   Target stays compiled-in. Failure returns Requirement 7's `409` envelope with
   `portfolio_version_conflict` and the current Portfolio_Version.
   _Requirements: 8.14, 8.16, 8.20, 8.21, 8.22, 8.25, 8.37, 8.38, 8.39_
-- [ ] **6.2 Remove `PortfolioSeedService.seed()`'s `deleteAll` + `flush` opening.**
+- [x] **6.2 Remove `PortfolioSeedService.seed()`'s `deleteAll` + `flush` opening.**
   _Requirements: 8.29_
-- [ ] **6.3 Collision arbitration** — symmetric compare-and-set: exactly one transition commits; a
+- [x] **6.3 Collision arbitration** — symmetric compare-and-set: exactly one transition commits; a
   losing user edit gets `409` rather than `404`; a losing reset returns **Requirement 7's exact
   envelope — `409` with `portfolio_version_conflict` and the current Portfolio_Version** — and does
   not retry. No write-maintenance gate. Only the Requirement 7 envelope names this outcome; no
   alternate internal contract is introduced.
   _Requirements: 8.23, 8.24, 8.26, 8.27, 8.28, 8.33, 8.40_
-- [ ] **6.4 Rewrite `PortfolioSeedServiceIT`** for identity preservation. Replace
+- [x] **6.4 Rewrite `PortfolioSeedServiceIT`** for identity preservation. Replace
   `EXPECTED_HOLDINGS = 160` with **active-catalog cardinality** — a literal would reintroduce the
   fixed-count defect Spec A removed. **Retain Spec A's full-table byte-identity price regression,
   sentinel rows included** (`P10`): this edits the exact writer from the PR #97 incident.

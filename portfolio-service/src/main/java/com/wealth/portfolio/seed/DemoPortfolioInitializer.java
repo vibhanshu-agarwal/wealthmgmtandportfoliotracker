@@ -29,7 +29,7 @@ import java.util.stream.Collectors;
  *
  * <p>When the gate is false this runner returns immediately — no lock, no read, no compare.
  * When {@code APP_DEMO_TX_DIAGNOSTICS=true} with the gate still false, an initializer-shaped
- * rollback probe runs instead (no {@link PortfolioSeedService#seed(String)}). Both flags true
+ * rollback probe runs instead (no {@link PortfolioSeedService#seed(String, long)}). Both flags true
  * fails closed before any database work.
  */
 @Component
@@ -102,7 +102,7 @@ public class DemoPortfolioInitializer implements ApplicationRunner {
 
     /**
      * Initializer-shaped, non-mutating rollback probe for Spec A 9.12 RCA. Never calls
-     * {@link PortfolioSeedService#seed(String)}; probe failures are logged and swallowed.
+     * {@link PortfolioSeedService#seed(String, long)}; probe failures are logged and swallowed.
      */
     void runRollbackProbe() {
         txDiagnostics.captureSpring("probe-before-transaction-template", null);
@@ -156,8 +156,14 @@ public class DemoPortfolioInitializer implements ApplicationRunner {
             log.info("event=demo_portfolio_converged replica={} userId={}", replicaId, DEMO_USER_ID);
             return Outcome.CONVERGED;
         }
-        seedService.seed(DEMO_USER_ID);
-        log.info("event=demo_portfolio_seeded replica={} userId={}", replicaId, DEMO_USER_ID);
+        // Freeze the version from the portfolio this eligibility decision already observed.
+        // Zero means observed absence, never "unknown": re-reading here would let an edit that
+        // committed between the decision and the write be silently overwritten, so the seed
+        // must carry the stale observation and lose that race rather than win it.
+        long observedVersion = portfolios.isEmpty() ? 0L : portfolios.get(0).getVersion();
+        seedService.seed(DEMO_USER_ID, observedVersion);
+        log.info("event=demo_portfolio_seeded replica={} userId={} expectedVersion={}",
+                replicaId, DEMO_USER_ID, observedVersion);
         return Outcome.SEEDED;
     }
 

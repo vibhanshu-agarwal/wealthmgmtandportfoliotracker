@@ -19,9 +19,10 @@ helper, synthetic/deploy workflow wiring, and focused tests have no source drift
 inventory guard passes with exactly three callers. No new live dispatch or cloud operation was
 needed for this close-out.
 
-G5's prerequisite for B1 Wave 6 is satisfied. The next source kickoff is Tasks 6.1–6.4; their
-implementation and R-B3 deployment/serving proof remain separate work. Wave 7 public `PUT`,
-Writer_Convergence, B2 Tasks 5.6/6.3, and unrelated backlogs are not closed by this decision.
+G5's prerequisite for B1 Wave 6 is satisfied. In a later, separately approved source assignment,
+Tasks 6.1–6.4 merged through PR #217 at `main@d66bb23d` (reconciled 2026-09-03). Task 6.5,
+R-B3 deployment/serving proof, Wave 7 public `PUT`, Writer_Convergence, B2 Tasks 5.6/6.3,
+and unrelated backlogs are not closed by the G5 decision or that source merge.
 
 > **Historical correction (2026-08-31).** The original TLS reset was first attributed solely to the
 > Spec A ingress fence. That attribution was incomplete: Spec A 9.14 reopened ingress, while the
@@ -168,8 +169,9 @@ neither the workflow nor those permissions.
 
 ## Explicit non-claims
 
-- B1 Wave 6 Tasks 6.1–6.7 and Wave 7 remain unchecked; no source implementation, R-B3
-  deployment/serving proof, public `PUT` activation, or Writer_Convergence is claimed.
+- The G5 close-out itself implemented no source change. B1 Tasks 6.1–6.4 subsequently merged
+  through PR #217 and are checked in the owning ledger. Tasks 6.5–6.7 and Wave 7 remain unchecked;
+  R-B3 deployment/serving proof, public `PUT` activation, and Writer_Convergence remain open.
 - B2 Tasks 5.6 and 6.3, UI exposure, and final placement retain their separate decisions.
 - No synthetic retry, further manual dispatch, unattended schedule restoration, custom-domain
   operation, or deployment is authorized or performed by this close-out.

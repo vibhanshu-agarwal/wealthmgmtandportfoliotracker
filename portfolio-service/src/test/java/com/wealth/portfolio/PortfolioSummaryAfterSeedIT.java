@@ -97,13 +97,20 @@ class PortfolioSummaryAfterSeedIT {
     }
 
     @Autowired PortfolioSeedService seedService;
+    @Autowired PortfolioRepository portfolioRepository;
     @Autowired PortfolioService portfolioService;
     @Autowired PortfolioSummaryController summaryController;
     @Autowired SeedTickerRegistry registry;
 
     @Test
     void seededE2eUser_summaryReturns200WithPositiveTotal() throws Exception {
-        seedService.seed(E2E_USER_ID);
+        // The seed requires the caller's observed version; this fixture observes its own
+        // isolated state rather than letting production invent one.
+        long observedVersion = portfolioRepository.findByUserId(E2E_USER_ID).stream()
+                .findFirst()
+                .map(Portfolio::getVersion)
+                .orElse(0L);
+        seedService.seed(E2E_USER_ID, observedVersion);
 
         var summary = portfolioService.getSummary(E2E_USER_ID);
         assertThat(summary.totalValue())

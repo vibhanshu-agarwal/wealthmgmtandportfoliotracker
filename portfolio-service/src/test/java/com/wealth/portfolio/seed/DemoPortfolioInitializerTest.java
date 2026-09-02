@@ -34,7 +34,9 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.inOrder;
@@ -46,6 +48,7 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class DemoPortfolioInitializerTest {
 
+    private static final long OBSERVED_VERSION = 7L;
     private static final Instant ANCHOR = Instant.parse("2019-06-15T12:30:00Z");
     private static final PortfolioSeedService.DesiredHolding AAPL_DESIRED =
             new PortfolioSeedService.DesiredHolding(
@@ -97,7 +100,7 @@ class DemoPortfolioInitializerTest {
         verify(entityManager, never()).unwrap(any());
         verify(portfolioRepository, never()).findByUserId(any());
         verify(assetHoldingRepository, never()).findByPortfolio(any());
-        verify(seedService, never()).seed(any());
+        verify(seedService, never()).seed(any(), anyLong());
         verify(seedService, never()).desiredHoldings(any());
     }
 
@@ -112,9 +115,11 @@ class DemoPortfolioInitializerTest {
         DemoPortfolioInitializer.Outcome outcome = initializer.converge();
 
         assertThat(outcome).isEqualTo(DemoPortfolioInitializer.Outcome.SEEDED);
-        verify(seedService).seed(DemoPortfolioInitializer.DEMO_USER_ID);
-        verify(seedService, never()).seed(org.mockito.ArgumentMatchers.argThat(
-                id -> !DemoPortfolioInitializer.DEMO_USER_ID.equals(id)));
+        verify(seedService).seed(DemoPortfolioInitializer.DEMO_USER_ID, 0L);
+        verify(seedService, never()).seed(
+                org.mockito.ArgumentMatchers.argThat(
+                        id -> !DemoPortfolioInitializer.DEMO_USER_ID.equals(id)),
+                anyLong());
         assertThat(logAppender.list)
                 .extracting(ILoggingEvent::getFormattedMessage)
                 .anyMatch(msg -> msg.contains("event=demo_portfolio_seeded")
@@ -136,7 +141,7 @@ class DemoPortfolioInitializerTest {
         DemoPortfolioInitializer.Outcome outcome = initializer.converge();
 
         assertThat(outcome).isEqualTo(DemoPortfolioInitializer.Outcome.CONVERGED);
-        verify(seedService, never()).seed(anyString());
+        verify(seedService, never()).seed(anyString(), anyLong());
         assertThat(logAppender.list)
                 .extracting(ILoggingEvent::getFormattedMessage)
                 .anyMatch(msg -> msg.contains("event=demo_portfolio_converged")
@@ -170,7 +175,7 @@ class DemoPortfolioInitializerTest {
                 .thenReturn(List.of(AAPL_DESIRED));
 
         assertThat(initializer.converge()).isEqualTo(DemoPortfolioInitializer.Outcome.SEEDED);
-        verify(seedService).seed(DemoPortfolioInitializer.DEMO_USER_ID);
+        verify(seedService).seed(DemoPortfolioInitializer.DEMO_USER_ID, OBSERVED_VERSION);
     }
 
     @Test
@@ -184,7 +189,7 @@ class DemoPortfolioInitializerTest {
                 .thenReturn(List.of(AAPL_DESIRED));
 
         assertThat(initializer.converge()).isEqualTo(DemoPortfolioInitializer.Outcome.SEEDED);
-        verify(seedService).seed(DemoPortfolioInitializer.DEMO_USER_ID);
+        verify(seedService).seed(DemoPortfolioInitializer.DEMO_USER_ID, OBSERVED_VERSION);
     }
 
     @Test
@@ -200,7 +205,57 @@ class DemoPortfolioInitializerTest {
         InOrder order = inOrder(session, portfolioRepository, seedService);
         order.verify(session).doWork(any());
         order.verify(portfolioRepository).findByUserId(DemoPortfolioInitializer.DEMO_USER_ID);
-        order.verify(seedService).seed(DemoPortfolioInitializer.DEMO_USER_ID);
+        order.verify(seedService).seed(DemoPortfolioInitializer.DEMO_USER_ID, 0L);
+    }
+
+    /**
+     * The version handed to the seed is the one the eligibility decision already observed. A
+     * second read here would re-acquire a version that a concurrent edit may have advanced,
+     * turning a race the seed must lose into one it silently wins.
+     */
+    @Test
+    void converge_freezesTheObservedVersionWithoutASecondRead() {
+        DemoPortfolioInitializer initializer = initializer(true);
+        Portfolio portfolio = portfolioWithId();
+        when(portfolioRepository.findByUserId(DemoPortfolioInitializer.DEMO_USER_ID))
+                .thenReturn(List.of(portfolio));
+        when(assetHoldingRepository.findByPortfolio(portfolio)).thenReturn(List.of());
+        when(seedService.desiredHoldings(DemoPortfolioInitializer.DEMO_USER_ID))
+                .thenReturn(List.of(AAPL_DESIRED));
+
+        initializer.converge();
+
+        verify(seedService).seed(DemoPortfolioInitializer.DEMO_USER_ID, OBSERVED_VERSION);
+        verify(portfolioRepository, org.mockito.Mockito.times(1))
+                .findByUserId(DemoPortfolioInitializer.DEMO_USER_ID);
+    }
+
+    /**
+     * Losing the race is the correct outcome, so the conflict must escape the initializer. A
+     * catch-and-log here would report a successful startup convergence that never happened.
+     */
+    @Test
+    void converge_versionConflictPropagatesWithoutRetryOrSilentSuccess() {
+        DemoPortfolioInitializer initializer = initializer(true);
+        Portfolio portfolio = portfolioWithId();
+        when(portfolioRepository.findByUserId(DemoPortfolioInitializer.DEMO_USER_ID))
+                .thenReturn(List.of(portfolio));
+        when(assetHoldingRepository.findByPortfolio(portfolio)).thenReturn(List.of());
+        when(seedService.desiredHoldings(DemoPortfolioInitializer.DEMO_USER_ID))
+                .thenReturn(List.of(AAPL_DESIRED));
+        when(seedService.seed(DemoPortfolioInitializer.DEMO_USER_ID, OBSERVED_VERSION))
+                .thenThrow(new com.wealth.portfolio.composition.PortfolioVersionConflictException(
+                        OBSERVED_VERSION + 1));
+
+        assertThatThrownBy(initializer::converge)
+                .isInstanceOf(
+                        com.wealth.portfolio.composition.PortfolioVersionConflictException.class);
+
+        verify(seedService, org.mockito.Mockito.times(1))
+                .seed(DemoPortfolioInitializer.DEMO_USER_ID, OBSERVED_VERSION);
+        assertThat(logAppender.list)
+                .extracting(ILoggingEvent::getFormattedMessage)
+                .noneMatch(msg -> msg.contains("event=demo_portfolio_seeded"));
     }
 
     private void assertReseedsWhen(java.util.function.Consumer<AssetHolding> mutator) {
@@ -215,7 +270,7 @@ class DemoPortfolioInitializerTest {
                 .thenReturn(List.of(AAPL_DESIRED));
 
         assertThat(initializer.converge()).isEqualTo(DemoPortfolioInitializer.Outcome.SEEDED);
-        verify(seedService).seed(DemoPortfolioInitializer.DEMO_USER_ID);
+        verify(seedService).seed(DemoPortfolioInitializer.DEMO_USER_ID, OBSERVED_VERSION);
     }
 
     private DemoPortfolioInitializer initializer(boolean seedOnStartup) {
@@ -250,9 +305,14 @@ class DemoPortfolioInitializerTest {
         };
     }
 
+    /**
+     * A distinctive non-zero version, so a frozen-version assertion cannot pass by coincidence
+     * against the Absent_Aggregate zero.
+     */
     private static Portfolio portfolioWithId() {
         Portfolio portfolio = new Portfolio(DemoPortfolioInitializer.DEMO_USER_ID);
         ReflectionTestUtils.setField(portfolio, "id", UUID.randomUUID());
+        ReflectionTestUtils.setField(portfolio, "version", OBSERVED_VERSION);
         return portfolio;
     }
 

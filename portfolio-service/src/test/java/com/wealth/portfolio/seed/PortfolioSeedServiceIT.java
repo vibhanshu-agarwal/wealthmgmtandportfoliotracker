@@ -1,8 +1,10 @@
 package com.wealth.portfolio.seed;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.wealth.portfolio.AssetHolding;
+import com.wealth.portfolio.composition.PortfolioVersionConflictException;
 import com.wealth.portfolio.AssetHoldingRepository;
 import com.wealth.portfolio.Portfolio;
 import com.wealth.portfolio.PortfolioRepository;
@@ -99,7 +101,7 @@ class PortfolioSeedServiceIT {
         List<Map<String, Object>> historyBefore = snapshotMarketPriceHistory();
 
         // ── First invocation: must create 1 portfolio + one holding per active ticker ──
-        SeedResult first = seedService.seed(E2E_USER_ID);
+        SeedResult first = seedService.seed(E2E_USER_ID, observedVersion(E2E_USER_ID));
         int expectedHoldings = registry.active().size();
 
         assertThat(first.portfolioId()).as("portfolioId must be returned to the caller").isNotNull();
@@ -129,15 +131,43 @@ class PortfolioSeedServiceIT {
                 .collect(Collectors.toUnmodifiableMap(
                         AssetHolding::getAssetTicker, AssetHolding::getCostBasisAsOf));
 
-        // ── Second invocation: counts unchanged, prior portfolio row gone, new one present ──
-        SeedResult second = seedService.seed(E2E_USER_ID);
+        // ── Second invocation: same aggregate, no transition, no child churn ──
+        //
+        // This assertion set replaces the old delete-and-replace expectation, which asserted
+        // the first portfolio was *gone*. Identity now survives, and an already-golden state
+        // is a genuine no-op: same id, same version, same updated_at, byte-identical rows.
+        //
+        // It is also the scale regression: the desired quantity is a scale-0 BigDecimal from
+        // the catalog while the persisted column is NUMERIC(19,8), so a comparison using
+        // equals() rather than compareTo() would see a difference here and force a spurious
+        // transition. A version bump below therefore also means the tuple comparison broke.
+        Portfolio before = portfolioRepository.findById(first.portfolioId()).orElseThrow();
+        UUID observedId = before.getId();
+        long observedVersion = before.getVersion();
+        Instant observedUpdatedAt = before.getUpdatedAt();
+        Instant observedCreatedAt = before.getCreatedAt();
+        List<Map<String, Object>> holdingRowsBefore = snapshotHoldingRows(observedId);
+
+        SeedResult second = seedService.seed(E2E_USER_ID, observedVersion);
 
         List<Portfolio> portfoliosAfterSecond = portfolioRepository.findByUserId(E2E_USER_ID);
         assertThat(portfoliosAfterSecond).hasSize(1);
-        UUID secondPortfolioId = portfoliosAfterSecond.get(0).getId();
-        assertThat(secondPortfolioId).isEqualTo(second.portfolioId());
-        // Delete-and-replace semantics: the first portfolio must be gone.
-        assertThat(portfolioRepository.findById(first.portfolioId())).isEmpty();
+        Portfolio after = portfolioRepository.findById(observedId).orElseThrow();
+
+        assertThat(second.portfolioId())
+                .as("the seed must converge the existing aggregate, not create a new one")
+                .isEqualTo(observedId);
+        assertThat(after.getCreatedAt()).isEqualTo(observedCreatedAt);
+        assertThat(after.getVersion())
+                .as("an identical golden tuple is a no-op: no version transition")
+                .isEqualTo(observedVersion);
+        assertThat(after.getUpdatedAt())
+                .as("a no-op must not advance updated_at")
+                .isEqualTo(observedUpdatedAt);
+        assertThat(second.holdingsInserted()).isEqualTo(registry.active().size());
+        assertThat(snapshotHoldingRows(observedId))
+                .as("a no-op must not delete and reinsert child rows")
+                .isEqualTo(holdingRowsBefore);
 
         List<AssetHolding> holdingsSecond = assetHoldingRepository.findByPortfolio(portfoliosAfterSecond.get(0));
         assertThat(holdingsSecond).hasSize(expectedHoldings);
@@ -205,9 +235,13 @@ class PortfolioSeedServiceIT {
                 VALUES ('__SENTINEL__', 4242.4242, timestamp '2020-01-01 00:00:00')
                 ON CONFLICT (ticker) DO NOTHING
                 """);
+        // Idempotent like the market_prices insert above: more than one case in this class now
+        // plants the sentinel, and the (ticker, observed_at) unique index would otherwise fail
+        // the second caller on insert rather than on the guard it is actually testing.
         jdbc.update("""
                 INSERT INTO market_price_history (ticker, quote_currency, price, observed_at)
                 VALUES ('__SENTINEL__', 'USD', 4242.4242, timestamp '2020-01-01 00:00:00')
+                ON CONFLICT DO NOTHING
                 """);
     }
 
@@ -216,7 +250,7 @@ class PortfolioSeedServiceIT {
     @Test
     void seeder_writesNonTrivialCostBasis() {
         String cbUserId = E2E_USER_ID + "-cb";
-        SeedResult result = seedService.seed(cbUserId);
+        SeedResult result = seedService.seed(cbUserId, observedVersion(cbUserId));
 
         // Verify via raw JDBC (bypasses JPA cache) — every active holding must have cost basis
         List<Map<String, Object>> rows = jdbc.queryForList(
@@ -291,11 +325,218 @@ class PortfolioSeedServiceIT {
     /** Mirrors deploy-azure verify assertion (c) against the golden-state seed. */
     @Test
     void seededE2eUser_summaryHasPositiveTotalValue() {
-        seedService.seed(E2E_USER_ID);
+        seedService.seed(E2E_USER_ID, observedVersion(E2E_USER_ID));
         var summary = portfolioService.getSummary(E2E_USER_ID);
         assertThat(summary.totalValue())
                 .as("GET /api/portfolio/summary totalValue must be > 0 after seed")
                 .isGreaterThan(BigDecimal.ZERO);
         assertThat(summary.totalHoldings()).isEqualTo(registry.active().size());
+    }
+
+    // ────────────────────────── Task 6.4: state/request matrix ──────────────────────────
+
+    @Test
+    void absentAggregate_withExpectedZero_createsOneAggregateAtVersionOne() {
+        String user = freshUser();
+
+        SeedResult result = seedService.seed(user, 0L);
+
+        Portfolio created = portfolioRepository.findById(result.portfolioId()).orElseThrow();
+        assertThat(portfolioRepository.findByUserId(user)).hasSize(1);
+        assertThat(created.getVersion())
+                .as("Aggregate_Creation is never a no-op: externally visible at version 1")
+                .isEqualTo(1L);
+        assertThat(created.getCreatedAt()).isNotNull();
+        assertThat(created.getUpdatedAt()).isNotNull();
+        assertThat(snapshotHoldingRows(created.getId())).hasSize(registry.active().size());
+    }
+
+    @Test
+    void absentAggregate_withNonZeroExpected_conflictsAndCreatesNothing() {
+        String user = freshUser();
+
+        assertThatThrownBy(() -> seedService.seed(user, 3L))
+                .isInstanceOf(PortfolioVersionConflictException.class)
+                .satisfies(e -> assertThat(
+                                ((PortfolioVersionConflictException) e).currentVersion().getAsLong())
+                        .as("current version of an absent aggregate is the virtual zero")
+                        .isEqualTo(0L));
+
+        assertThat(portfolioRepository.findByUserId(user))
+                .as("a rejected creation must leave no aggregate behind")
+                .isEmpty();
+    }
+
+    @Test
+    void existingNonGolden_withMatchingVersion_convergesInPlaceWithExactlyOneTransition() {
+        String user = freshUser();
+        SeedResult created = seedService.seed(user, 0L);
+        UUID portfolioId = created.portfolioId();
+        Portfolio before = portfolioRepository.findById(portfolioId).orElseThrow();
+        Instant createdAt = before.getCreatedAt();
+        Instant updatedAtBefore = before.getUpdatedAt();
+        long versionBefore = before.getVersion();
+
+        // Drive the stored tuple away from golden without touching the parent.
+        jdbc.update("UPDATE asset_holdings SET quantity = quantity + 1 WHERE portfolio_id = ?::uuid",
+                portfolioId.toString());
+
+        SeedResult reconverged = seedService.seed(user, versionBefore);
+
+        Portfolio after = portfolioRepository.findById(portfolioId).orElseThrow();
+        assertThat(reconverged.portfolioId()).isEqualTo(portfolioId);
+        assertThat(after.getCreatedAt()).as("identity survives convergence").isEqualTo(createdAt);
+        assertThat(after.getVersion())
+                .as("exactly one transition for one converging write")
+                .isEqualTo(versionBefore + 1);
+        assertThat(after.getUpdatedAt()).isAfter(updatedAtBefore);
+        assertGoldenTupleFor(user, portfolioId);
+    }
+
+    @Test
+    void existingGolden_withStaleVersion_conflictsBeforeEqualityCanProduceSuccess() {
+        String user = freshUser();
+        SeedResult created = seedService.seed(user, 0L);
+        UUID portfolioId = created.portfolioId();
+        Portfolio before = portfolioRepository.findById(portfolioId).orElseThrow();
+        long currentVersion = before.getVersion();
+        Instant updatedAtBefore = before.getUpdatedAt();
+        List<Map<String, Object>> holdingRowsBefore = snapshotHoldingRows(portfolioId);
+
+        insertSentinelPriceRows();
+        List<Map<String, Object>> pricesBefore = snapshotMarketPrices();
+        List<Map<String, Object>> historyBefore = snapshotMarketPriceHistory();
+
+        // The stored tuple already equals golden, so only version arbitration can reject this.
+        assertThatThrownBy(() -> seedService.seed(user, currentVersion - 1))
+                .isInstanceOf(PortfolioVersionConflictException.class);
+
+        Portfolio after = portfolioRepository.findById(portfolioId).orElseThrow();
+        assertThat(after.getVersion())
+                .as("a stale seed must not transition an already-golden aggregate")
+                .isEqualTo(currentVersion);
+        assertThat(after.getUpdatedAt()).isEqualTo(updatedAtBefore);
+        assertThat(snapshotHoldingRows(portfolioId)).isEqualTo(holdingRowsBefore);
+        assertPriceTablesUnchanged(pricesBefore, historyBefore, "after rejected stale seed");
+    }
+
+    @Test
+    void differingAverageCostBasis_forcesExactlyOneTransition() {
+        assertSingleTransitionAfter("avg_cost_basis = avg_cost_basis + 1");
+    }
+
+    @Test
+    void differingCostBasisCurrency_forcesExactlyOneTransition() {
+        assertSingleTransitionAfter("cost_basis_currency = 'ZWL'");
+    }
+
+    @Test
+    void differingCostBasisSource_forcesExactlyOneTransition() {
+        assertSingleTransitionAfter("cost_basis_source = 'MANUAL'");
+    }
+
+    @Test
+    void differingCostBasisAnchor_forcesExactlyOneTransition() {
+        assertSingleTransitionAfter("cost_basis_as_of = timestamp '1999-12-31 23:59:59'");
+    }
+
+    @Test
+    void seedOfOneAccountLeavesAnotherAccountByteIdentical() {
+        String other = freshUser();
+        seedService.seed(other, 0L);
+        UUID otherId = portfolioRepository.findByUserId(other).get(0).getId();
+        Map<String, Object> otherPortfolioBefore = portfolioRow(otherId);
+        List<Map<String, Object>> otherHoldingsBefore = snapshotHoldingRows(otherId);
+
+        String target = freshUser();
+        seedService.seed(target, 0L);
+
+        assertThat(portfolioRow(otherId))
+                .as("only the selected target may change")
+                .isEqualTo(otherPortfolioBefore);
+        assertThat(snapshotHoldingRows(otherId)).isEqualTo(otherHoldingsBefore);
+    }
+
+    // ────────────────────────────────── helpers ──────────────────────────────────
+
+    /**
+     * Mutates one column away from golden, then proves the corrective seed produces exactly one
+     * version transition and restores the full tuple. Proves the comparison is full-tuple: a
+     * comparison over ticker and quantity alone would treat these states as already converged.
+     */
+    private void assertSingleTransitionAfter(String setClause) {
+        String user = freshUser();
+        SeedResult created = seedService.seed(user, 0L);
+        UUID portfolioId = created.portfolioId();
+        long versionBefore = portfolioRepository.findById(portfolioId).orElseThrow().getVersion();
+
+        int mutated = jdbc.update(
+                "UPDATE asset_holdings SET " + setClause + " WHERE portfolio_id = ?::uuid",
+                portfolioId.toString());
+        assertThat(mutated).as("the fixture must actually diverge from golden").isPositive();
+
+        seedService.seed(user, versionBefore);
+
+        Portfolio after = portfolioRepository.findById(portfolioId).orElseThrow();
+        assertThat(after.getId()).isEqualTo(portfolioId);
+        assertThat(after.getVersion())
+                .as("one differing column is one transition, not zero and not two")
+                .isEqualTo(versionBefore + 1);
+        assertGoldenTupleFor(user, portfolioId);
+
+        // A second seed at the restored version must now be a true no-op.
+        long restored = after.getVersion();
+        List<Map<String, Object>> rows = snapshotHoldingRows(portfolioId);
+        seedService.seed(user, restored);
+        assertThat(portfolioRepository.findById(portfolioId).orElseThrow().getVersion())
+                .as("the restored tuple must compare equal on the next seed")
+                .isEqualTo(restored);
+        assertThat(snapshotHoldingRows(portfolioId)).isEqualTo(rows);
+    }
+
+    /** Asserts the persisted holdings equal the deterministic desired tuple for {@code userId}. */
+    private void assertGoldenTupleFor(String userId, UUID portfolioId) {
+        Map<String, PortfolioSeedService.DesiredHolding> desired =
+                seedService.desiredHoldings(userId).stream()
+                        .collect(Collectors.toUnmodifiableMap(
+                                PortfolioSeedService.DesiredHolding::ticker, d -> d));
+        List<AssetHolding> actual = assetHoldingRepository.findByPortfolio(
+                portfolioRepository.findById(portfolioId).orElseThrow());
+
+        assertThat(actual).hasSize(desired.size());
+        for (AssetHolding holding : actual) {
+            PortfolioSeedService.DesiredHolding want = desired.get(holding.getAssetTicker());
+            assertThat(want).as("unexpected ticker %s", holding.getAssetTicker()).isNotNull();
+            assertThat(holding.getQuantity()).isEqualByComparingTo(want.quantity());
+            assertThat(holding.getAvgCostBasis()).isEqualByComparingTo(want.avgCostBasis());
+            assertThat(holding.getCostBasisCurrency()).isEqualTo(want.costBasisCurrency());
+            assertThat(holding.getCostBasisSource()).isEqualTo(want.costBasisSource());
+            assertThat(holding.getCostBasisAsOf()).isEqualTo(want.costBasisAsOf());
+        }
+    }
+
+    /** The caller's own observation, exactly as a production caller must supply it. */
+    private long observedVersion(String userId) {
+        return portfolioRepository.findByUserId(userId).stream()
+                .findFirst()
+                .map(Portfolio::getVersion)
+                .orElse(0L);
+    }
+
+    /** Every column of every child row, ordered deterministically. */
+    private List<Map<String, Object>> snapshotHoldingRows(UUID portfolioId) {
+        return jdbc.queryForList(
+                "SELECT * FROM asset_holdings WHERE portfolio_id = ?::uuid ORDER BY asset_ticker",
+                portfolioId.toString());
+    }
+
+    private Map<String, Object> portfolioRow(UUID portfolioId) {
+        return jdbc.queryForMap(
+                "SELECT * FROM portfolios WHERE id = ?::uuid", portfolioId.toString());
+    }
+
+    /** An independently established fixture per case, so no test inherits another state. */
+    private static String freshUser() {
+        return UUID.randomUUID().toString();
     }
 }

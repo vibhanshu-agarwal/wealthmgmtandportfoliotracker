@@ -1,8 +1,10 @@
 package com.wealth.portfolio.seed;
 
 import com.wealth.portfolio.seed.PortfolioSeedService.SeedResult;
+import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -29,10 +31,18 @@ public class PortfolioSeedController {
     }
 
     /**
-     * Wipes and re-seeds the E2E user's portfolio: 1 portfolio with one holding per
-     * catalogue ticker. The response body carries {@code portfolioId} so the Playwright
-     * caller can chain it into subsequent seeder calls (market-data-service,
-     * insight-service) per the design doc.
+     * Converges the E2E user's portfolio to the golden state: one portfolio with one holding per
+     * active catalogue ticker. The response body carries {@code portfolioId} so the Playwright
+     * caller can chain it into subsequent seeder calls (market-data-service, insight-service)
+     * per the design doc.
+     *
+     * <p>The caller must supply the version it observed. The identity is not negotiable: the
+     * compiled-in E2E target is used regardless of any body, header, or query identity, and a
+     * legacy body {@code userId} is ignored. Only {@code expectedVersion} is an effective input.
+     *
+     * <p>A stale version yields Requirement 7's {@code portfolio_version_conflict} envelope from
+     * {@link com.wealth.portfolio.GlobalExceptionHandler}; this endpoint neither retries nor
+     * reads a version of its own.
      *
      * <p>This endpoint is reachable in production and is invoked there on a schedule. It
      * writes portfolios and holdings only — never {@code market_prices} or
@@ -40,8 +50,9 @@ public class PortfolioSeedController {
      * is deliberately not replaced; there is no price write to report.
      */
     @PostMapping("/seed")
-    public ResponseEntity<Map<String, Object>> seed() {
-        SeedResult result = seedService.seed(E2E_USER_ID);
+    public ResponseEntity<Map<String, Object>> seed(
+            @Valid @RequestBody PortfolioSeedRequest request) {
+        SeedResult result = seedService.seed(E2E_USER_ID, request.expectedVersion());
         UUID portfolioId = result.portfolioId();
         return ResponseEntity.ok(Map.of(
                 "userId", E2E_USER_ID,

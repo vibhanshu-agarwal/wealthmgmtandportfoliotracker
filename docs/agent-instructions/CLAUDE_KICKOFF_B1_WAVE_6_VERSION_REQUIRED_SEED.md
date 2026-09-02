@@ -1,5 +1,13 @@
 # B1 Wave 6 Version-Required Seed Implementation Plan
 
+**Historical kickoff — source assignment completed (2026-09-03).** Tasks 6.1–6.4 merged via
+[PR #217](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/217) at
+`main@d66bb23d5ef3606373c15d9ee02fda27c62df5c2`, following Codex ACCEPT and successful final
+CI on `1bdb1d31`. The instructions and execution checklist below preserve the original handoff;
+they are not a new assignment or the current completion ledger. See the
+[B1 owning ledger](../../.kiro/specs/portfolio-composition-contract/tasks.md) for checked source
+Tasks 6.1–6.4 and the separate open Tasks 6.5–6.7. No deployment or live operation is authorized here.
+
 > **For agentic workers:** Use `superpowers:executing-plans`, if available, to execute this
 > kickoff task by task. Claude owns implementation; Codex owns architecture review and the
 > governed documentation. Checklist items below track execution, not owning-ledger completion.

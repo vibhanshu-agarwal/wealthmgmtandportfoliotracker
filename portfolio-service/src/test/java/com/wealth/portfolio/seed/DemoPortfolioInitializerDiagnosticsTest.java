@@ -3,6 +3,7 @@ package com.wealth.portfolio.seed;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mockStatic;
@@ -99,7 +100,7 @@ class DemoPortfolioInitializerDiagnosticsTest {
 
             verify(txDiagnostics, never()).captureSpring(anyString(), any());
             verify(entityManager, never()).unwrap(any());
-            verify(seedService, never()).seed(anyString());
+            verify(seedService, never()).seed(anyString(), anyLong());
         }
     }
 
@@ -133,7 +134,7 @@ class DemoPortfolioInitializerDiagnosticsTest {
             verify(txDiagnostics).captureSpring(eq("probe-before-transaction-template"), any());
             verify(txDiagnostics).captureSpring(eq("probe-inside-transaction-template"), any());
             verify(txDiagnostics).runDmlProbe("probe-before-dml-probe");
-            verify(seedService, never()).seed(anyString());
+            verify(seedService, never()).seed(anyString(), anyLong());
             verify(seedService).desiredHoldings(DemoPortfolioInitializer.DEMO_USER_ID);
 
             TransactionStatus status = capturedStatus.get();
@@ -162,7 +163,7 @@ class DemoPortfolioInitializerDiagnosticsTest {
         assertThat(logAppender.list)
                 .extracting(ILoggingEvent::getFormattedMessage)
                 .anyMatch(msg -> msg.contains("event=spec_a912_tx_probe_failed"));
-        verify(seedService, never()).seed(anyString());
+        verify(seedService, never()).seed(anyString(), anyLong());
     }
 
     private DemoPortfolioInitializer initializer(boolean seedOnStartup) {
