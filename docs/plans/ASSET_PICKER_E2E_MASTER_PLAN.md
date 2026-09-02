@@ -9,6 +9,11 @@ identical to that head. B2 Tasks 5.1, 5.2, 5.3, 5.3a, 5.4, and 5.5 are source-co
 Task 5.6's seven technical conditions are met; its separate owner GO decision remains pending.
 This reconciliation does not advance a runtime baseline or claim a new production read-back.
 
+**Current source review:** [draft PR #214](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/214), `57b0f406` on
+base `main@06b35250`, implements B2 Wave 6 Tasks 6.1/6.2 but remains unmerged.
+Codex requests changes for refresh/version/reconciliation behavior and missing visual proof;
+the detailed findings are in the B2 ledger. No task-completion or runtime baseline advances.
+
 **Program-state code baselines (runtime):** the cross-program baseline remains
 `main@e221662b6c891639a56894289e150ee01fb537f6`; B2 Wave 4 now serves the deliberately pinned
 historical portfolio-service cut `63fc0584ad307af7f50e9500f4911ac5999d6b76`, deployed by the
@@ -86,7 +91,9 @@ now all complete. Gateway ingress is open on both the default ACA endpoint and t
 completion decision, not because of an unresolved ingress or custom-domain gap. Wave 5's Wave 4
 prerequisite is satisfied. The remaining Wave 5 source bundle merged via PR #212 at
 `main@d8fa499d` after Codex ACCEPT and final-head CI success. Task 5.6's seven technical
-conditions are met; its owner GO decision remains pending. Deployment requires separate authorization.
+conditions are met; its owner GO decision remains pending. Claude's Wave 6 frontend source is
+implemented but unmerged in draft PR #214; review fixes and visual verification are next.
+Deployment requires separate authorization.
 
 This is the living, human-facing status document for the Asset Picker program. It is not a
 historical snapshot. Detailed requirements, designs, task mechanics, and operational evidence live
@@ -329,7 +336,7 @@ All four artifacts are tracked. Wave 1 (1.1-1.19) and Wave 2 Tasks 2.1-2.5 merge
 | 3 — Redis-backed presence | 🟡 Tasks 3.1–3.6 source merged via PR #179 / `main@cc97a209`; Task 3.7 open | Default TTL **150s** via `APP_DEMO_PRESENCE_TTL`; not deployed/live-verified |
 | 4 — portfolio-service demo reset | ✅ Complete — Tasks 4.1–4.4a merged via PR #180 / `main@63fc058`; Task 4.5 live GO | Exact cut serves internally on `portfolio-service--0000093` / `sha256:9a1d5533…`; one authorized same-state reset returned `200`, exact golden 159/159, unchanged version `0` per B1; [evidence](../runbooks/B2_TASK_4_5_DEMO_RESET_STOP_GO.md) |
 | 5 — manual-reset gateway bundle | 🟡 Tasks 5.1a and 5.1b source merged via [PR #202](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/202) / `main@64761dc2` and [PR #208](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/208) / `main@f954b5a7`; neither is deployed. Wave 4's prerequisite is satisfied. Remaining source Tasks 5.1, 5.2, 5.3, 5.3a, 5.4, and 5.5 merged via [PR #212](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/212) / `main@d8fa499d` | Filter, both routes, exact read-only exceptions, tests, and identity guard accepted; final CI passed on the identical reviewed tree. Task 5.6: 7/7 technical conditions met, owner GO pending; no deployment |
-| 6 — manual reset frontend | ⬜ Not started; 6.1/6.2 buildable against mocks with the flag off | Task 6.3 backend readiness requires 5.6 GO and B1 5.1 confirmed live; placement remains open; no new implementation selected |
+| 6 — manual reset frontend | 🟡 Tasks 6.1/6.2 implemented but unmerged in [draft PR #214](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/214) / `57b0f406`; CHANGES REQUESTED | Fix failed-refresh gating, asynchronous response reconciliation and observed-version provenance; complete browser visual checks. Flag off, placement open; 6.3 still gated |
 | 7 — decimal rollout note | ℹ Informational | No independent release gate |
 | 8 — login-orchestrated reset | 🟡 Task 8.1 (`updatedAt` read contract) source merged via [PR #185](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/185) / `main@198c878d`; not deployed. Task 8.2a (`CloudFrontOriginSecretProvider`) source merged via [PR #203](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/203) / `main@addd8049`; not deployed. Task 8.2's open decisions and Tasks 8.3 and later not started | Requires B1/V20/version read (met, satisfied by 8.1); open idle/timeouts, Tasks 8.3 and later, 5.1b (merged source-only via PR #208; not deployed), and its own deployment evidence |
 | 9 — live integration | ⬜ Blocked | Requires B1 catalog/read/write endpoints and relevant B2 Waves 1–6 |
@@ -419,8 +426,22 @@ The owner-authorized immutable build, scoped digest deployment, one valid same-s
 B1 version interpretation, and cutover read-readiness observation are recorded in
 [`B2_TASK_4_5_DEMO_RESET_STOP_GO.md`](../runbooks/B2_TASK_4_5_DEMO_RESET_STOP_GO.md). Wave 5's Wave 4
 prerequisite is satisfied, but no Wave 5 implementation or deployment is authorized by that GO.
-**Current B2 priority (2026-09-02): record the owner's Task 5.6 GO decision after source
-completion.** [PR #212](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/212) merged at
+**Current B2 priority (2026-09-02): Claude addresses the review of Wave 6 Tasks 6.1/6.2.**
+The owner selected Claude because this control includes markup, styling, responsive behavior, and
+accessibility. [Draft PR #214](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/214) is implemented but unmerged at
+`57b0f406`, based on `main@06b35250`; Codex's verdict is **CHANGES REQUESTED**.
+Fix conflict refresh that unlocks after failure, submission unlocking before response reconciliation,
+and the missing-version-to-zero path. Complete local/mock visual checks with screenshots; the
+temporary page-level placement does not settle the final UI decision. See the B2 ledger's Wave 6
+review table for scenarios and expected evidence.
+
+[Frontend CI](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33624869316) confirms 515 tests and the build passed, plus
+one passing static login-HTML smoke with the existing backend-health skip. That smoke is neither
+blocked by a backend requirement nor evidence of the new control's appearance. The source-head
+required aggregate passed; Codex supplies the missing two governed status documents. Tasks 6.1/6.2
+remain unchecked and the feature flag remains off. Task 5.6's owner GO and Task 6.3 remain separate.
+
+**Wave 5 source completion:** [PR #212](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/212) merged at
 `main@d8fa499de05fa1370a0271c4822230a6ea113695`, with reviewed base `a2c402db` and final head
 `01917e16` as its two parents. The merged tree is identical to the reviewed head. Source commit
 `d4e98459` contains Tasks 5.1, 5.2, 5.3, 5.3a, 5.4, and 5.5 together; `01917e16` adds their
@@ -480,7 +501,9 @@ source-only on `main@0b5d60d1`** (PR #161); **5.7/G5 remains unchecked** pending
    `main@f954b5a7`. Wave 5's Task 4.5 prerequisite is satisfied; Tasks 5.1, 5.2, 5.3, 5.3a,
    5.4, and 5.5 merged via PR #212 at `main@d8fa499d`. Final-head CI passed and the merged tree
    matches the reviewed head. Task 5.6's seven technical conditions are met; its owner GO decision
-   remains open. Deployment still requires separate authorization.
+   remains open. Wave 6 Tasks 6.1/6.2 are implemented but unmerged in draft PR #214; Claude must
+   address the behavioral findings and provide visual evidence before acceptance.
+   Deployment still requires separate authorization.
    Tasks 2.6–2.7, live proofs, remaining bundles, deployment, and exposure retain their own gates.
 4. **Process lane:** keep the status-propagation CI guard healthy in required `static-guard`; it is
    process-control only and does not advance the runtime baseline.
