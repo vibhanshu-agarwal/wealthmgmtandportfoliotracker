@@ -1000,6 +1000,16 @@ does not itself record the separate pre-deploy STOP/GO decision or any serving p
 
 Portfolio-service only; the asset route shipped in Wave 2.
 
+
+**Parallel source assignment — 2026-09-03:** Tasks 7.1–7.2 are assigned to Cursor under the
+[public-composition kickoff](../../../docs/agent-instructions/CURSOR_KICKOFF_B1_WAVE_7_PUBLIC_COMPOSITION.md),
+based on main@6a171558. This is a handoff-ready source assignment, not execution or completion;
+both boxes remain unchecked. Requirement 9.2 and the implementation-lane graph allow development
+while Codex prepares 6.5. The controller remains isolated on Cursor's branch and excluded from
+R-B3. Tasks 7.3 onward, merge, deployment, and exposure remain separate. Publication of the new
+implementation branch/PR needs owner approval under AGENTS.md.
+
+
 - [ ] **7.1 Introduce `CompositionController`** — `PUT /api/portfolio/holdings`, taking the expected
   version and the desired set, resolving the target from the authenticated principal with **no
   portfolio identifier on the wire**. This is a **Wave 7 pre-build task, deliberately not Wave 4**:

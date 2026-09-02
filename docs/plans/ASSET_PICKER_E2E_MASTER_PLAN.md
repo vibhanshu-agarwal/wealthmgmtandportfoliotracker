@@ -2,6 +2,18 @@
 
 **Last verified:** 2026-09-03
 
+
+**Parallel source assignment (2026-09-03):** the owner requested implementation work be assigned
+before Codex starts Task 6.5. **Cursor is assigned B1 Tasks 7.1–7.2**, the public composition
+controller and HTTP tests, using the [bounded kickoff](../agent-instructions/CURSOR_KICKOFF_B1_WAVE_7_PUBLIC_COMPOSITION.md).
+Status is **assigned / ready for handoff**, not running or implemented. Baseline is
+main@6a171558a0f802eadd5d7ed5bf28545ca5c91905. The dependency graph explicitly allows this
+source work alongside Wave 6 release preparation. The implementation stays on Cursor's branch:
+the Wave 7 controller must not enter R-B3's source/image, and no merge or exposure is authorized.
+New GitHub publication remains separately approval-gated under AGENTS.md. All task checkboxes
+retain their existing completion state.
+
+
 **B1 Wave 6 source completion (verified 2026-09-03):** Tasks **6.1–6.4 are source-complete**
 after owner-approved [PR #217](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/217)
 merged at `main@d66bb23d5ef3606373c15d9ee02fda27c62df5c2` on `2026-09-02T19:28:09Z`.
