@@ -39,7 +39,7 @@ authorize Wave 5 implementation or deployment.
 are implemented but unmerged in [draft PR #214](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/214) at `ded1a0e1`.
 All three code findings are closed. The valid empty-list zero sentinel remains accepted under
 Task 1.2/B1. New mock screenshots are reported but have not been supplied for review; the reported
-375px clipping remains a layout limitation to assess. The Wave 6 table records the current
+375px sidebar clipping is owner-deferred to the [sidebar backlog](../../../docs/todos/backlog/responsive-dashboard-sidebar/README.md). The Wave 6 table records the current
 assessment and 526-test CI evidence. Keep 6.1/6.2 unchecked, flags disabled, final placement open,
 and Task 5.6's owner GO separate. The remaining Wave 5
 source bundle merged via [PR #212](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/212) at
@@ -1662,7 +1662,7 @@ and final UI placement stays OPEN.
 | R1 — conflict refresh | **Fixed.** `handleReobserve` awaits a direct `fetchPortfolio` call and replaces the user-scoped cache before clearing conflict. A failed/offline read stays blocked instead of relying on a Query Core paused-refetch promise. The regression explicitly sets `onlineManager` offline, rejects the network request, preserves conflict, and verifies reconnect does not submit another PUT. A successful read need not return a larger version |
 | R2 — response reconciliation | **Fixed.** Cache reconciliation uses awaited hook-level mutation callbacks. Delayed-enrichment and unmount regressions establish the busy-state and shared-cache behavior; the round-2 patch preserves that fix |
 | R3 — observed version | **Fixed.** `version != null` marks both omitted and explicit null wire fields unobserved, consistently with the existing `?? 0` value fallback. The actual-adapter regression supplies wire null and expects `versionObserved: false`. **Correction retained:** a successful empty GET may legitimately map to zero under Task 1.2 and B1's absent-portfolio contract; the earlier objection to that sentinel is withdrawn |
-| R4 — visual acceptance | **Evidence pending.** Claude reports new local mock captures in dark/light themes and wide/375px viewports, but no new image files/links accompanied the report. The seven previously supplied images establish only a dark-theme reset failure view. Supply the new captures, including an actual pending `Resetting…` state; “submitting-adjacent success” is not evidence of that state. Narrow-screen clipping is reported, not accepted as a passing responsive check |
+| R4 — visual acceptance | **Evidence pending.** Claude reports new local mock captures in dark/light themes and wide/375px viewports, but no new image files/links accompanied the report. The seven previously supplied images establish only a dark-theme reset failure view. Supply the new captures, including an actual pending `Resetting…` state; “submitting-adjacent success” is not evidence of that state. The owner deferred the existing narrow-screen sidebar clipping to the [sidebar backlog](../../../docs/todos/backlog/responsive-dashboard-sidebar/README.md); its fix is separate from Wave 6, and the limitation is not counted as a passing responsive check |
 
 **Verified current evidence:** [Frontend CI](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33636041342) passed 62 files / **526 tests**,
 lint, typecheck, and the build on `ded1a0e1`. Its `e2e-smoke` job ran **one passing
@@ -1677,10 +1677,10 @@ the two focused test files passed **45 tests**.
 **Visual scope and packet:** Claude reports that at 375px the reset control is clipped by the
 shared sidebar. Source comparison confirms `Sidebar.tsx` and `DashboardLayout.tsx` are unchanged
 from the reviewed base, retaining a non-collapsing fixed-width sidebar and constrained content
-area. That corroborates an existing shell constraint, but does not prove the new control's
-narrow-screen acceptance. Inspect the supplied narrow view and determine whether a scoped
-control adjustment is sufficient or a separate shell follow-up is needed; a global redesign
-is outside this kickoff. Keep the limitation explicit until assessed.
+area. On 2026-09-02 the owner deferred this existing shell issue to the [sidebar backlog](../../../docs/todos/backlog/responsive-dashboard-sidebar/README.md),
+assigned to Claude for later UI work. Its fix does not block Wave 6 source review. Actual
+control screenshots remain required, and the reported clipping stays documented as a known
+limitation rather than a passed narrow-screen check.
 
 Claude reports removing the temporary mock bootstrap and preview configuration. The latest
 commit changes exactly four intended frontend source/test files, and the worktree was clean

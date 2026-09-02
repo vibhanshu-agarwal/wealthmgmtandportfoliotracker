@@ -12,7 +12,8 @@ This reconciliation does not advance a runtime baseline or claim a new productio
 **Current source review:** [draft PR #214](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/214), `ded1a0e1` on
 base `main@06b35250`, implements B2 Wave 6 Tasks 6.1/6.2 but remains unmerged.
 All three code findings are closed. Visual acceptance remains pending delivery of the new
-mock screenshots and assessment of the reported narrow-screen clipping. See the B2 ledger.
+mock screenshots. The owner deferred the existing narrow-screen sidebar issue to the
+[sidebar backlog](../todos/backlog/responsive-dashboard-sidebar/README.md); its fix is separate from this source review. See the B2 ledger.
 
 **Program-state code baselines (runtime):** the cross-program baseline remains
 `main@e221662b6c891639a56894289e150ee01fb537f6`; B2 Wave 4 now serves the deliberately pinned
@@ -336,7 +337,7 @@ All four artifacts are tracked. Wave 1 (1.1-1.19) and Wave 2 Tasks 2.1-2.5 merge
 | 3 — Redis-backed presence | 🟡 Tasks 3.1–3.6 source merged via PR #179 / `main@cc97a209`; Task 3.7 open | Default TTL **150s** via `APP_DEMO_PRESENCE_TTL`; not deployed/live-verified |
 | 4 — portfolio-service demo reset | ✅ Complete — Tasks 4.1–4.4a merged via PR #180 / `main@63fc058`; Task 4.5 live GO | Exact cut serves internally on `portfolio-service--0000093` / `sha256:9a1d5533…`; one authorized same-state reset returned `200`, exact golden 159/159, unchanged version `0` per B1; [evidence](../runbooks/B2_TASK_4_5_DEMO_RESET_STOP_GO.md) |
 | 5 — manual-reset gateway bundle | 🟡 Tasks 5.1a and 5.1b source merged via [PR #202](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/202) / `main@64761dc2` and [PR #208](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/208) / `main@f954b5a7`; neither is deployed. Wave 4's prerequisite is satisfied. Remaining source Tasks 5.1, 5.2, 5.3, 5.3a, 5.4, and 5.5 merged via [PR #212](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/212) / `main@d8fa499d` | Filter, both routes, exact read-only exceptions, tests, and identity guard accepted; final CI passed on the identical reviewed tree. Task 5.6: 7/7 technical conditions met, owner GO pending; no deployment |
-| 6 — manual reset frontend | 🟡 Tasks 6.1/6.2 implemented but unmerged in [draft PR #214](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/214) / `ded1a0e1`; code findings closed, visual acceptance pending | New mock screenshots not yet supplied for review; reported 375px clipping is consistent with the unchanged fixed sidebar. Flag off, placement open; 6.3 still gated |
+| 6 — manual reset frontend | 🟡 Tasks 6.1/6.2 implemented but unmerged in [draft PR #214](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/214) / `ded1a0e1`; code findings closed, visual acceptance pending | New mock screenshots not yet supplied for review; the existing 375px sidebar clipping is deferred to the [sidebar backlog](../todos/backlog/responsive-dashboard-sidebar/README.md). Flag off, placement open; 6.3 still gated |
 | 7 — decimal rollout note | ℹ Informational | No independent release gate |
 | 8 — login-orchestrated reset | 🟡 Task 8.1 (`updatedAt` read contract) source merged via [PR #185](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/185) / `main@198c878d`; not deployed. Task 8.2a (`CloudFrontOriginSecretProvider`) source merged via [PR #203](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/203) / `main@addd8049`; not deployed. Task 8.2's open decisions and Tasks 8.3 and later not started | Requires B1/V20/version read (met, satisfied by 8.1); open idle/timeouts, Tasks 8.3 and later, 5.1b (merged source-only via PR #208; not deployed), and its own deployment evidence |
 | 9 — live integration | ⬜ Blocked | Requires B1 catalog/read/write endpoints and relevant B2 Waves 1–6 |
@@ -439,10 +440,10 @@ passed on this source head; the backend integration job was still running at the
 Claude reports new local mock captures, but those image files/links have not been supplied to Codex.
 The previously supplied images establish only the dark-theme failure view. Attach the actual
 idle/submitting/success/conflict/failure views and narrow/wide light/dark evidence; a success
-capture does not establish the pending state. Reported clipping at 375px is consistent with the
-unchanged shared fixed sidebar and is an unresolved layout limitation, not a passed responsive
-check. Review that image before deciding a local control adjustment or a separate shell follow-up;
-this review does not authorize a global redesign. Correct the stale PR evidence and recheck
+capture does not establish the pending state. On 2026-09-02 the owner deferred the existing
+375px sidebar clipping to the [sidebar backlog](../todos/backlog/responsive-dashboard-sidebar/README.md). That shared-shell fix does not block Wave 6
+source review; the limitation remains documented rather than counted as a passed responsive
+check. The control's actual visual evidence is still required. Correct the stale PR evidence and recheck
 final-head CI. Tasks 6.1/6.2 stay unchecked, the feature flag stays off, and 5.6/6.3 remain separate gates.
 
 **Wave 5 source completion:** [PR #212](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/212) merged at
