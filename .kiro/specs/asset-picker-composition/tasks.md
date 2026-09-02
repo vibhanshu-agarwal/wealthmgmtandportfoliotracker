@@ -35,13 +35,13 @@ It records the owner-authorized immutable build, digest deployment, one successf
 the corrected B1 version rule. Wave 5's Wave 4 prerequisite is satisfied, but this GO does not
 authorize Wave 5 implementation or deployment.
 
-**Current priority (2026-09-02):** finish Wave 6 visual acceptance and the review packet. Tasks 6.1/6.2
-are implemented but unmerged in [draft PR #214](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/214) at `ded1a0e1`.
-All three code findings are closed. The valid empty-list zero sentinel remains accepted under
-Task 1.2/B1. New mock screenshots are reported but have not been supplied for review; the reported
-375px sidebar clipping is owner-deferred to the [sidebar backlog](../../../docs/todos/backlog/responsive-dashboard-sidebar/README.md). The Wave 6 table records the current
-assessment and 526-test CI evidence. Keep 6.1/6.2 unchecked, flags disabled, final placement open,
-and Task 5.6's owner GO separate. The remaining Wave 5
+**Current priority (2026-09-02):** Claude fixes Wave 6 feedback/hover text contrast. Tasks 6.1/6.2
+remain unmerged in [draft PR #214](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/214)
+at published `d0f86f5b`, with source unchanged from `ded1a0e1`. R1–R3 remain closed.
+All 11 PNGs are delivered and inspected; the version explanation is corrected. R4 now identifies
+one scoped contrast issue with measured ratios and follow-up below. The 375px sidebar clipping
+remains owner-deferred to the [sidebar backlog](../../../docs/todos/backlog/responsive-dashboard-sidebar/README.md).
+Keep 6.1/6.2 unchecked, flags disabled, final placement open, and Task 5.6's owner GO separate. The remaining Wave 5
 source bundle merged via [PR #212](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/212) at
 `main@d8fa499de05fa1370a0271c4822230a6ea113695`; its tree is identical to reviewed head `01917e16`.
 Tasks 5.1, 5.2, 5.3, 5.3a, 5.4, and 5.5 are source-complete and checked below.
@@ -1647,55 +1647,72 @@ their own gates.
 
 ## Wave 6 — Manual-reset control (frontend) · *design.md D5 Stage 5, gated on Wave 5 AND B1 task 5.1*
 
-**Wave 6 round-2 review (2026-09-02): code findings closed; visual acceptance pending; unmerged.**
+**Wave 6 visual review (2026-09-02): R1–R3 closed; R4 contrast changes requested; unmerged.**
 [Draft PR #214](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/214), Claude branch
-`claude/b2-wave-6-manual-reset-frontend`, is reviewed at source head
-`ded1a0e10ba03bbe35b07a5dff5d80652535cc82`, based on
-`main@06b352502c14f6d34662b30ff6f0b0a3047c80e7`. The latest source fix follows
-Codex review documentation `107f550e`; the PR remains draft. Published head `9fbe3158`
-adds only documentation/backlog changes after `ded1a0e1`; source is unchanged.
+`claude/b2-wave-6-manual-reset-frontend`, is reviewed at published head
+`d0f86f5b87db9fcfc93c50d2931844cc8d015e22`, based on
+`main@06b352502c14f6d34662b30ff6f0b0a3047c80e7`. All changes since source fix
+`ded1a0e1` are documentation/evidence; no source behavior changed.
 The owner selected Claude for UI work; its kickoff was supplied from Codex's sibling worktree
 at `9651f083` and is not yet on main. Flags remain disabled in committed configuration,
 and final UI placement stays OPEN.
 
 | Review item | Current assessment and required evidence |
 |---|---|
-| R1 — conflict refresh | **Fixed.** `handleReobserve` awaits a direct `fetchPortfolio` call and replaces the user-scoped cache before clearing conflict. A failed/offline read stays blocked instead of relying on a Query Core paused-refetch promise. The regression explicitly sets `onlineManager` offline, rejects the network request, preserves conflict, and verifies reconnect does not submit another PUT. A successful read need not return a larger version |
-| R2 — response reconciliation | **Fixed.** Cache reconciliation uses awaited hook-level mutation callbacks. Delayed-enrichment and unmount regressions establish the busy-state and shared-cache behavior; the round-2 patch preserves that fix |
-| R3 — observed version | **Fixed.** `version != null` marks both omitted and explicit null wire fields unobserved, consistently with the existing `?? 0` value fallback. The actual-adapter regression supplies wire null and expects `versionObserved: false`. **Correction retained:** a successful empty GET may legitimately map to zero under Task 1.2 and B1's absent-portfolio contract; the earlier objection to that sentinel is withdrawn |
-| R4 — visual acceptance | **Delivery pending.** Claude now reports a genuine disabled `Resetting…` capture with a held-open mock PUT, a 375×812 view, and dark/light control states. The images are described as visible in Claude's tool transcript, but no image attachments or links appear in the pasted report or PR body/comments. Codex cannot visually review an inaccessible transcript; export and attach the PNGs or provide saved paths. Previously supplied images establish only the dark-theme failure view. The owner deferred the existing narrow-screen sidebar clipping to the [sidebar backlog](../../../docs/todos/backlog/responsive-dashboard-sidebar/README.md); its fix is separate from Wave 6, and the limitation is not counted as a passing responsive check |
+| R1 — conflict refresh | **Fixed.** Direct `fetchPortfolio` must succeed and update the user-scoped cache before conflict clears. The offline/reconnect regression preserves conflict and prevents another PUT; a successful read need not return a larger version |
+| R2 — response reconciliation | **Fixed.** Awaited hook-level mutation callbacks retain busy-state and shared-cache behavior across delayed enrichment and unmount |
+| R3 — observed version | **Fixed.** `version != null` marks omitted/null fields unobserved; the actual-adapter regression covers wire null. The valid empty-GET zero sentinel remains accepted under Task 1.2/B1 |
+| R4 — visual acceptance | **Screenshots delivered and reviewed; P2 contrast fix required.** All 11 PNGs are committed and the PR embeds pinned image links. Idle, submitting, success, conflict, recovery and failure presentation is now inspectable. Feedback and enabled hover text fail normal-size contrast; see the bounded fix below. The owner-deferred sidebar issue remains separate |
 
-**Verified current evidence:** [Frontend CI](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33636041342) passed 62 files / **526 tests**,
-lint, typecheck, and the build on `ded1a0e1`. Its `e2e-smoke` job ran **one passing
-static login-HTML check**, using `SKIP_BACKEND_HEALTH_CHECK=true`; no backend is required for
-that smoke, and it is not Wave 9's assembled-stack reset proof. Status propagation, gateway
-unit tests, and Azure image smoke passed. The [source-head backend pipeline](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33636041409)
-is now confirmed completed successfully. Published head `9fbe3158` also passed frontend
-build/tests, its one static login smoke, and status propagation; the
-[new backend pipeline](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33639746603)
-was still running at this checkpoint. Recheck final-head CI before acceptance.
-Codex inspected the implementation and new regressions with an independent review; R1–R3
-are closed, with no remaining code finding from these review rounds. Independent execution of
-the two focused test files passed **45 tests**.
+**Visual evidence reviewed:** [Screenshot index](../../../docs/evidence/b2-wave-6-manual-reset/README.md),
+at `d0f86f5b`: dark wide idle/success/conflict/refresh-recovered/failure/submitting;
+light wide idle/success/conflict; dark and light idle at 375×812.
+Image 06 visibly shows `Resetting…` with disabled styling, and the existing behavioral tests
+prove pending submission exclusion. Images 10/11 confirm the known sidebar clipping.
+The owner deferred the shared shell to the [sidebar backlog](../../../docs/todos/backlog/responsive-dashboard-sidebar/README.md);
+that fix does not block Wave 6. Its narrow-screen limitation is documented, not counted as a
+passing responsive check.
 
-**Visual scope and packet:** Claude reports that at 375px the reset control is clipped by the
-shared sidebar. Source comparison confirms `Sidebar.tsx` and `DashboardLayout.tsx` are unchanged
-from the reviewed base, retaining a non-collapsing fixed-width sidebar and constrained content
-area. On 2026-09-02 the owner deferred this existing shell issue to the [sidebar backlog](../../../docs/todos/backlog/responsive-dashboard-sidebar/README.md),
-assigned to Claude for later UI work. Its fix does not block Wave 6 source review. Actual
-control screenshots remain required, and the reported clipping stays documented as a known
-limitation rather than a passed narrow-screen check.
+**R4 bounded finding — normal-size text contrast:** Codex and an independent reviewer
+calculated contrast from the actual styles and installed Tailwind palette, avoiding
+anti-aliased screenshot pixels. Feedback is 12px and button labels 14px; enabled text needs
+at least **4.5:1** under [WCAG 2.2 SC 1.4.3](https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html),
+including hover text. The disabled pending button is not this finding.
 
-Claude reports removing the temporary mock bootstrap and preview configuration; the review
-worktree was clean at `9fbe3158`. The PR description has been rewritten to include both fix
-rounds, 526 tests, completed local static smoke, earlier local-stack work, new mocked visual
-checks, and the deferred sidebar item. Screenshot descriptions are present, but the captures
-themselves are not attached or linked. Claude's backlog addendum records visual confirmation
-by Claude; it does not establish that Codex has inspected that image.
-One factual correction remains in the PR's local-stack paragraph: demo reset can increment
-version when the persisted tuple changes; only an already-golden same-state reset leaves it
-unchanged. Replace the broader claim that reset never changes version. These observations
-do not establish production deployment or Task 6.3/9/10 acceptance.
+| Text/state | Foreground / background | Contrast |
+|---|---|---|
+| Success, light | `emerald-600 #059669` / page `hsl(220 20% 97%)` | **3.51:1** |
+| Conflict/failure, light | destructive `hsl(0 84% 60%)` / page `hsl(220 20% 97%)` | **3.52:1** |
+| Conflict/failure, dark | destructive `hsl(0 62% 55%)` / page `hsl(222 47% 7%)` | **4.32:1** |
+| Enabled reset/refresh button, hover, either theme | white / accent `hsl(160 84% 39%)` | **2.59:1** |
+
+The control selects these feedback classes at `ManualResetControl.tsx:191,197,204`;
+its outline buttons at lines 162/173 inherit hover colors from `button.tsx:17`.
+Theme definitions are in `globals.css:27-30,84-87`. Although shared tokens predate the PR,
+the new control uses them for essential feedback and recovery actions. Dark success passes.
+
+**Claude follow-up:** change only the control's feedback/hover color choices, preserving
+behavior, copy, accessibility semantics, flags and the shared theme/sidebar. Verify computed
+foreground/background ratios >=4.5:1 in light and dark for success, conflict, failure and enabled
+reset/refresh hover states, then recapture the affected states. A focused browser contrast check
+is appropriate; repeating only the current jsdom behavior tests would not prove rendered contrast.
+Keep the already-reviewed R1–R3 behavior regressions passing and check final-head CI.
+
+**Verified behavior/CI:** source `ded1a0e1` passed 62 files / **526 frontend tests**, lint,
+typecheck, build and one static login-HTML smoke in
+[Frontend CI](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33636041342);
+its [backend pipeline](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33636041409)
+completed successfully. Independent execution of the two behavior review files passed **45 tests**.
+At published `d0f86f5b`, frontend build/tests, static smoke, status propagation, gateway unit tests
+and Azure image smoke passed; [integration/downstream CI](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33641767467)
+was still running at this checkpoint. Static smoke uses `SKIP_BACKEND_HEALTH_CHECK=true`;
+it needs no backend and is not Wave 9's assembled-stack reset proof.
+
+**Packet corrections closed:** the PR now contains pinned PNG links and correctly explains
+that a changed persisted tuple increments version, while an already-golden same-state reset
+leaves it unchanged. Local-stack and mock evidence are distinguished. The worktree was clean
+at `d0f86f5b`; temporary preview scaffolding is absent from the source diff.
+No production deployment or Task 6.3/9/10 acceptance follows from these local observations.
 
 Codex updates only the two governed documents under the existing documentation permission.
 Tasks 6.1/6.2 stay unchecked while unmerged. Task 5.6's owner GO, Task 6.3, B1 G5, deployment,
