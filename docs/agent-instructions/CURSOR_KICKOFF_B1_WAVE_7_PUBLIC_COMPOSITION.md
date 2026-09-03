@@ -1,5 +1,10 @@
 # B1 Tasks 7.1–7.2 — Public Composition Endpoint Implementation Plan
 
+**Historical kickoff — source now merged:** PR #219 merged the reviewed Tasks 7.1–7.2 source
+at main@c0f84045 on 2026-09-03T05:42:58Z. The assignment/readiness statements below describe
+the original handoff, not a new implementation request. R-B3 remains the frozen 6a171558 / cu4
+image without this controller. Wave 7 checklist reconciliation and activation remain separate.
+
 **OWNER APPROVAL — publication and release:** The owner requested parallel implementation assignment
 before Codex begins Task 6.5. Local implementation and tests in Cursor's assigned worktree are in scope.
 The owner authorized publication and CI-green merge of this kickoff's documentation package on
@@ -34,15 +39,20 @@ release/artifact boundaries; and [B1 tasks](../../.kiro/specs/portfolio-composit
 ## Assignment and parallel isolation
 
 - Prepared 2026-09-03. Owner: Cursor. Reviewer: Codex. Complexity: medium, backend only.
-- Verified baseline: main@6a171558a0f802eadd5d7ed5bf28545ca5c91905, after PRs #217 and #215.
-  No open PR overlapped this assignment at preparation time.
+- Original baseline: main@6a171558a0f802eadd5d7ed5bf28545ca5c91905, after PRs #217 and #215.
+  Permitted start after Cursor's sync: origin/main@9c2ebc1233801253a3e54b6e930e28e1a00ebf3d.
+  Codex verified that only PR #218's four documentation files differ. Branch from this exact
+  observed main; inspect any newer main before substituting it. R-B3 stays pinned to 6a171558.
 - Assigned worktree: D:/Projects/Development/Java/Spring/wealthmgmtandportfoliotracker-cursor.
   Read its AGENTS.md and local instructions. Before each mutation verify git rev-parse --show-toplevel.
   Preserve unrelated modifications, branches and stashes; do not repurpose Claude's or Codex's tree.
 - Suggested branch: cursor/b1-wave-7-public-composition, based on the exact baseline above.
-  If that branch exists, inspect it rather than resetting it. Read this kickoff from Codex's
-  worktree if it has not been published; do not cherry-pick the entire documentation branch.
-- Scheduling status: assigned/ready for Cursor handoff; no Cursor process has been launched by Codex.
+  Preserve the existing B2 5.1b branch and untracked audit/stdout/stderr files; do not clean, move,
+  stash or commit them as part of this bundle. If switching would overwrite any path, stop and
+  use the permitted sibling-worktree isolation pattern. If the target branch exists, inspect
+  it rather than resetting it. PR #218 already published this kickoff.
+- Scheduling status: Cursor reconfirmed assigned/ready; the existing local implementation/test
+  authorization stands. No process has been launched or implementation reported to Codex.
 - Why parallel is allowed: Requirement 9.2 and the task dependency graph explicitly place 7.1–7.2
   in the implementation lane, independently of Wave 6 release proof.
 - Why merge is held: the generic gateway /api/portfolio/** route would expose this controller when

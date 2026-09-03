@@ -1,0 +1,114 @@
+{
+  "schemaVersion": 1,
+  "task": "B1 6.5 approved candidate build",
+  "authorization": {
+    "ownerResponse": "Approved.",
+    "scope": "One portfolio-service ACR build from frozen source, capture immutable digest and stop.",
+    "date": "2026-09-03"
+  },
+  "operator": "Codex",
+  "sourceCommit": "6a171558a0f802eadd5d7ed5bf28545ca5c91905",
+  "sourceTree": "4df697ed7605104a304ad08651e21522e32d52db",
+  "checkout": "C:/worktrees/wealthmgmtandportfoliotracker-codex-r-b3-candidate",
+  "checkoutCleanBeforeAndAfterSubmission": true,
+  "localCutTag": "b1-r-b3-cut-6a171558-20260903T032527Z",
+  "localCutTagObject": "adc9df00788ff19418ec1e33da1590e3ddfafb57",
+  "tagPublished": false,
+  "sourcePreparation": "candidate-source-20260903.json",
+  "submission": {
+    "count": 1,
+    "cliExitCode": 0,
+    "printedRunId": false,
+    "runResolution": "Read-only task list-runs found the sole new run cu4; its eventual outputImages tag/digest matched the approved image.",
+    "retry": false
+  },
+  "run": {
+    "createTime": "2026-09-03T03:32:53.626947+00:00",
+    "finishTime": "2026-09-03T03:35:20.004647+00:00",
+    "outputImages": [
+      {
+        "digest": "sha256:2be727eaf4577699c783ae66073670d4984fe66c666af3e56422c934fdd0b023",
+        "registry": "wealthprodacr.azurecr.io",
+        "repository": "portfolio-service",
+        "tag": "b1-r-b3-6a171558-20260903T032527Z"
+      }
+    ],
+    "platform": {
+      "architecture": "amd64",
+      "os": "linux",
+      "variant": null
+    },
+    "runId": "cu4",
+    "startTime": "2026-09-03T03:32:53.977180+00:00",
+    "status": "Succeeded"
+  },
+  "registry": "wealthprodacr",
+  "image": "wealthprodacr.azurecr.io/portfolio-service@sha256:2be727eaf4577699c783ae66073670d4984fe66c666af3e56422c934fdd0b023",
+  "tagQueryResult": {
+    "architecture": null,
+    "changeableAttributes": {
+      "deleteEnabled": true,
+      "listEnabled": true,
+      "readEnabled": true,
+      "writeEnabled": true
+    },
+    "createdTime": "2026-09-03T03:35:18.4610003Z",
+    "digest": "sha256:2be727eaf4577699c783ae66073670d4984fe66c666af3e56422c934fdd0b023",
+    "imageSize": null,
+    "lastUpdateTime": "2026-09-03T03:35:18.4610003Z",
+    "os": null,
+    "tags": null
+  },
+  "manifestQueryResult": {
+    "architecture": "amd64",
+    "createdTime": "2026-09-03T03:35:18.2892302Z",
+    "digest": "sha256:2be727eaf4577699c783ae66073670d4984fe66c666af3e56422c934fdd0b023",
+    "imageSize": 314499695,
+    "os": "linux",
+    "readEnabled": true,
+    "tags": [
+      "b1-r-b3-6a171558-20260903T032527Z"
+    ]
+  },
+  "capturedAtUtc": "2026-09-03 03:36:32 UTC",
+  "preBuildRecheck": {
+    "candidateTagAbsent": true,
+    "sourceAndTreeMatch": true,
+    "servingRevision": "portfolio-service--0000093",
+    "servingDigest": "sha256:9a1d55335b83b97967e434d374c7f5f5ca79ea2adccad8f8e518b674e9a39f47",
+    "soleActive": true,
+    "trafficWeight": 100,
+    "internalIngress": true,
+    "insecureConnectionsAllowed": false,
+    "startupSeedFlag": "false",
+    "diagnosticsFlag": "false",
+    "rollbackManifestReadEnabled": true
+  },
+  "postBuildServingRevisions": [
+    {
+      "healthState": "Healthy",
+      "images": [
+        "wealthprodacr.azurecr.io/portfolio-service@sha256:9a1d55335b83b97967e434d374c7f5f5ca79ea2adccad8f8e518b674e9a39f47"
+      ],
+      "name": "portfolio-service--0000093",
+      "runningState": "ScaledToZero",
+      "trafficWeight": 100
+    }
+  ],
+  "operations": {
+    "build": true,
+    "additionalBuild": false,
+    "deploy": false,
+    "seed": false,
+    "rollback": false,
+    "applicationProbe": false,
+    "applicationSecretValuesRead": false,
+    "workflowDispatch": false,
+    "scheduleChange": false
+  },
+  "proofLimits": [
+    "Successful packaging and registry provenance, not tests against the packaged image.",
+    "No G2b/R-B3 serving proof or Writer_Convergence claim.",
+    "Historical source-preparation and Azure preflight JSON remain time-stamped snapshots."
+  ]
+}

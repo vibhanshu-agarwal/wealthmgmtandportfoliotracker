@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "kind": "owner-release-decision",
+  "decisionDate": "2026-09-03",
+  "recordedAtUtc": "2026-09-03T05:49:41.617293+00:00",
+  "ownerStatement": "Approved. Please go ahead.",
+  "approvedRequest": "Record B1 Task 6.6 complete and Task 6.7 R-B3 GO locally after the completed G2b proof.",
+  "decision": "GO",
+  "completedTasks": [
+    "B1 6.6",
+    "B1 6.7"
+  ],
+  "proofCommit": "1ebc418676b8d1b840076b2a8fe7da4729139ffe",
+  "proofPath": "docs/evidence/b1-task-6-6/g2b-serving-proof-20260903.json",
+  "proofSha256": "906cb4f810f1980d64d3f4ac2d1aaba4c4bcc92b6615b4ccc4bcfc3598cebacd",
+  "binding": {
+    "source": "6a171558a0f802eadd5d7ed5bf28545ca5c91905",
+    "tree": "4df697ed7605104a304ad08651e21522e32d52db",
+    "acrBuild": "cu4",
+    "image": "wealthprodacr.azurecr.io/portfolio-service@sha256:2be727eaf4577699c783ae66073670d4984fe66c666af3e56422c934fdd0b023",
+    "workflowSha": "9c2ebc1233801253a3e54b6e930e28e1a00ebf3d",
+    "deploymentRunId": 33718062217,
+    "packetSha256AtExecution": "b2943b47a84f78109e54b5f8fa63016271b47a05c65ed5fa2a47bfa0eba3549f",
+    "referenceSha256": "344fa0f6f657f5e16e8275d1300043f27e53ccf6bd72193c85bfb70fb99910bd",
+    "catalogSha256": "cfa5e6b7317e922c07452359b851e55ee0a2a5ae9014224665244f9c2264de8b",
+    "anchor": "2020-01-01T00:00:00.000Z"
+  },
+  "proofOutcome": "SAME_STATE",
+  "frozenAndResultVersion": 0,
+  "operationCountsAtProof": {
+    "deployments": 1,
+    "seedAttempts": 1,
+    "seedRetries": 0,
+    "rollbacks": 0
+  },
+  "decisionActions": {
+    "localLedgerClosure": true,
+    "newProductionOperation": false,
+    "secretAccess": false,
+    "publication": false,
+    "wave7Activation": false
+  },
+  "unchangedGates": [
+    "Wave 7 activation and R-C",
+    "AM.1 and AM.2",
+    "B2 owner gates",
+    "Writer_Convergence"
+  ],
+  "historicalProofPreserved": true,
+  "note": "The original proof JSON retains its pre-decision pending status as captured. This later decision supersedes only that owner-decision status; no operational observations were rewritten or replayed."
+}
