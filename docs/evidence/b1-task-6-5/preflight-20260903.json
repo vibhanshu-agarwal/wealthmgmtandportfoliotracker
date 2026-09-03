@@ -1,0 +1,313 @@
+{
+  "schemaVersion": 1,
+  "task": "B1 6.5",
+  "decision": "GO",
+  "ownerDecisionDate": "2026-09-03",
+  "authority": "Owner approved Task 6.5 GO and read-only preflight in this task.",
+  "observationDateUtc": "2026-09-03",
+  "observationWindowUtc": "02:45–02:47",
+  "completedAtUtc": "2026-09-03 02:47:00 UTC",
+  "scope": "Read-only control-plane and registry metadata; no authenticated application/DB probe or cloud mutation.",
+  "sourceCut": "6a171558a0f802eadd5d7ed5bf28545ca5c91905",
+  "repositoryBaseline": "9c2ebc1233801253a3e54b6e930e28e1a00ebf3d",
+  "resourceGroup": "wealth-azure-prod-rg",
+  "registry": "wealthprodacr",
+  "apps": [
+    {
+      "environmentReferences": [
+        {
+          "container": "portfolio-service",
+          "name": "INTERNAL_API_KEY",
+          "secretRef": "internal-api-key"
+        }
+      ],
+      "images": [
+        {
+          "image": "wealthprodacr.azurecr.io/portfolio-service@sha256:9a1d55335b83b97967e434d374c7f5f5ca79ea2adccad8f8e518b674e9a39f47",
+          "name": "portfolio-service"
+        }
+      ],
+      "ingress": {
+        "allowInsecure": false,
+        "external": false,
+        "fqdn": "portfolio-service.internal.lemonmoss-ecef29d7.centralindia.azurecontainerapps.io",
+        "targetPort": 8080,
+        "traffic": [
+          {
+            "latestRevision": true,
+            "weight": 100
+          }
+        ]
+      },
+      "latestReadyRevision": "portfolio-service--0000093",
+      "latestRevision": "portfolio-service--0000093",
+      "name": "portfolio-service",
+      "provisioningState": "Succeeded",
+      "revisionMode": "Single",
+      "runningStatus": "Running",
+      "scale": {
+        "maxReplicas": 3,
+        "minReplicas": null
+      },
+      "activeRevisions": [
+        {
+          "active": true,
+          "createdTime": "2026-09-01T15:14:56+00:00",
+          "healthState": "Healthy",
+          "images": [
+            "wealthprodacr.azurecr.io/portfolio-service@sha256:9a1d55335b83b97967e434d374c7f5f5ca79ea2adccad8f8e518b674e9a39f47"
+          ],
+          "name": "portfolio-service--0000093",
+          "provisioningState": "Provisioned",
+          "replicas": 0,
+          "runningState": "ScaledToZero",
+          "scale": {
+            "cooldownPeriod": null,
+            "maxReplicas": 3,
+            "minReplicas": null,
+            "pollingInterval": null,
+            "rules": null
+          },
+          "trafficWeight": 100
+        }
+      ]
+    },
+    {
+      "environmentReferences": [
+        {
+          "container": "api-gateway",
+          "name": "INTERNAL_API_KEY",
+          "secretRef": "internal-api-key"
+        }
+      ],
+      "images": [
+        {
+          "image": "wealthprodacr.azurecr.io/api-gateway:63fc0584ad307af7f50e9500f4911ac5999d6b76",
+          "name": "api-gateway"
+        }
+      ],
+      "ingress": {
+        "allowInsecure": false,
+        "external": true,
+        "fqdn": "api-gateway.lemonmoss-ecef29d7.centralindia.azurecontainerapps.io",
+        "targetPort": 8080,
+        "traffic": [
+          {
+            "latestRevision": true,
+            "weight": 100
+          }
+        ]
+      },
+      "latestReadyRevision": "api-gateway--0000077",
+      "latestRevision": "api-gateway--0000077",
+      "name": "api-gateway",
+      "provisioningState": "Succeeded",
+      "revisionMode": "Single",
+      "runningStatus": "Running",
+      "scale": {
+        "maxReplicas": 3,
+        "minReplicas": null
+      },
+      "activeRevisions": [
+        {
+          "healthState": "Healthy",
+          "images": [
+            "wealthprodacr.azurecr.io/api-gateway:63fc0584ad307af7f50e9500f4911ac5999d6b76"
+          ],
+          "name": "api-gateway--0000077",
+          "replicas": 0,
+          "runningState": "ScaledToZero",
+          "trafficWeight": 100
+        }
+      ]
+    },
+    {
+      "environmentReferences": [
+        {
+          "container": "market-data-service",
+          "name": "INTERNAL_API_KEY",
+          "secretRef": "internal-api-key"
+        }
+      ],
+      "images": [
+        {
+          "image": "wealthprodacr.azurecr.io/market-data-service:9b2cf0d655b4b7ae2ce20ff7b67e4ad750df6900",
+          "name": "market-data-service"
+        }
+      ],
+      "ingress": {
+        "allowInsecure": false,
+        "external": false,
+        "fqdn": "market-data-service.internal.lemonmoss-ecef29d7.centralindia.azurecontainerapps.io",
+        "targetPort": 8080,
+        "traffic": [
+          {
+            "latestRevision": true,
+            "weight": 100
+          }
+        ]
+      },
+      "latestReadyRevision": "market-data-service--0000079",
+      "latestRevision": "market-data-service--0000079",
+      "name": "market-data-service",
+      "provisioningState": "Succeeded",
+      "revisionMode": "Single",
+      "runningStatus": "Running",
+      "scale": {
+        "maxReplicas": 3,
+        "minReplicas": null
+      },
+      "activeRevisions": [
+        {
+          "healthState": "Healthy",
+          "images": [
+            "wealthprodacr.azurecr.io/market-data-service:9b2cf0d655b4b7ae2ce20ff7b67e4ad750df6900"
+          ],
+          "name": "market-data-service--0000079",
+          "replicas": 0,
+          "runningState": "ScaledToZero",
+          "trafficWeight": 100
+        }
+      ]
+    },
+    {
+      "environmentReferences": [
+        {
+          "container": "insight-service",
+          "name": "INTERNAL_API_KEY",
+          "secretRef": "internal-api-key"
+        }
+      ],
+      "images": [
+        {
+          "image": "wealthprodacr.azurecr.io/insight-service:9b2cf0d655b4b7ae2ce20ff7b67e4ad750df6900",
+          "name": "insight-service"
+        }
+      ],
+      "ingress": {
+        "allowInsecure": false,
+        "external": false,
+        "fqdn": "insight-service.internal.lemonmoss-ecef29d7.centralindia.azurecontainerapps.io",
+        "targetPort": 8080,
+        "traffic": [
+          {
+            "latestRevision": true,
+            "weight": 100
+          }
+        ]
+      },
+      "latestReadyRevision": "insight-service--0000079",
+      "latestRevision": "insight-service--0000079",
+      "name": "insight-service",
+      "provisioningState": "Succeeded",
+      "revisionMode": "Single",
+      "runningStatus": "Running",
+      "scale": {
+        "maxReplicas": 3,
+        "minReplicas": null
+      },
+      "activeRevisions": [
+        {
+          "healthState": "Healthy",
+          "images": [
+            "wealthprodacr.azurecr.io/insight-service:9b2cf0d655b4b7ae2ce20ff7b67e4ad750df6900"
+          ],
+          "name": "insight-service--0000079",
+          "replicas": 0,
+          "runningState": "ScaledToZero",
+          "trafficWeight": 100
+        }
+      ]
+    }
+  ],
+  "candidate": {
+    "built": false,
+    "digest": null
+  },
+  "operations": {
+    "secretValuesRead": false,
+    "build": false,
+    "deploy": false,
+    "seed": false,
+    "rollback": false,
+    "scheduleChange": false
+  },
+  "portfolioFlags": [
+    {
+      "name": "APP_DEMO_SEED_ON_STARTUP",
+      "secretRef": null,
+      "value": "false"
+    },
+    {
+      "name": "APP_DEMO_TX_DIAGNOSTICS",
+      "secretRef": null,
+      "value": "false"
+    }
+  ],
+  "rawArmPortfolioScale": {
+    "maxReplicas": 3,
+    "minReplicas": null
+  },
+  "scaleInterpretation": "minReplicas returned null from both CLI and ARM; zero observed replicas and ScaledToZero are separate observations, not an assertion of an explicit minReplicas=0 setting.",
+  "refreshJob": {
+    "images": [
+      {
+        "image": "wealthprodacr.azurecr.io/market-data-service:9b2cf0d655b4b7ae2ce20ff7b67e4ad750df6900",
+        "name": "market-data-refresh"
+      }
+    ],
+    "name": "market-data-refresh-job",
+    "provisioningState": "Succeeded",
+    "replicaRetryLimit": 0,
+    "schedule": {
+      "cronExpression": "0 8 * * *",
+      "parallelism": 1,
+      "replicaCompletionCount": 1
+    },
+    "triggerType": "Schedule"
+  },
+  "rollbackManifest": {
+    "architecture": "amd64",
+    "changeableAttributes": {
+      "deleteEnabled": true,
+      "listEnabled": true,
+      "readEnabled": true,
+      "writeEnabled": true
+    },
+    "createdTime": "2026-09-01T14:58:15.7942093Z",
+    "digest": "sha256:9a1d55335b83b97967e434d374c7f5f5ca79ea2adccad8f8e518b674e9a39f47",
+    "imageSize": 314499296,
+    "lastUpdateTime": "2026-09-01T14:58:15.7942093Z",
+    "os": "linux",
+    "tags": [
+      "b2-task-4-5-63fc0584-20260901T144653Z"
+    ]
+  },
+  "rollbackBuild": {
+    "createTime": "2026-09-01T14:55:28.275751+00:00",
+    "finishTime": "2026-09-01T14:58:18.667193+00:00",
+    "outputImages": [
+      {
+        "digest": "sha256:9a1d55335b83b97967e434d374c7f5f5ca79ea2adccad8f8e518b674e9a39f47",
+        "registry": "wealthprodacr.azurecr.io",
+        "repository": "portfolio-service",
+        "tag": "b2-task-4-5-63fc0584-20260901T144653Z"
+      }
+    ],
+    "platform": {
+      "architecture": "amd64",
+      "os": "linux",
+      "variant": null
+    },
+    "runId": "cu3",
+    "sourceTrigger": null,
+    "startTime": "2026-09-01T14:55:28.753879+00:00",
+    "status": "Succeeded"
+  },
+  "rollbackSourceEvidence": "docs/runbooks/B2_TASK_4_5_DEMO_RESET_STOP_GO.md pins 63fc0584ad307af7f50e9500f4911ac5999d6b76; ACR sourceTrigger is null, so SHA provenance uses that prior reviewed immutable-build record.",
+  "rollbackProposal": {
+    "image": "wealthprodacr.azurecr.io/portfolio-service@sha256:9a1d55335b83b97967e434d374c7f5f5ca79ea2adccad8f8e518b674e9a39f47",
+    "executionAuthorized": false,
+    "compatibility": "Preserves the currently served B2 internal demo-reset and version-tolerant seed; would remove candidate strict seed and additive updatedAt response. No dependent frontend/gateway rollout is in this release."
+  }
+}

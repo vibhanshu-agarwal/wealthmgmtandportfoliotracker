@@ -1,17 +1,18 @@
 # B1 Task 6.5 — Pre-deployment Readiness Record
 
-**OWNER APPROVAL — remaining boundaries:** The owner authorized assigning parallel implementation
-first, then kicking off 6.5. Cursor's local assignment was recorded in commit 01e0664 before this
-preparation began. This record covers repository evidence and release planning. On 2026-09-03,
-the owner authorized publication of these documentation changes and merge if CI is green.
-That approval does not record Task 6.5's release GO or authorize Cursor's implementation merge.
-Azure access, registry builds, production workflow dispatch, live seed and rollback execution
-retain their own concrete authorization; none was performed here.
+**OWNER APPROVAL — next boundaries:** On 2026-09-03 the owner approved Task 6.5 GO and the
+read-only Azure/ACR preflight: “Yes Task 6.5 GO and read-only preflight approved.” Both are recorded
+below. The next proposed cloud action is one candidate build from the frozen source in §6.1;
+approval would create its registry artifact, while withholding approval leaves it unbuilt.
+Publication of this new documentation update also needs approval; PR #218's earlier approval was
+fulfilled by its merge. No candidate build, deployment dispatch, live seed, rollback, implementation
+publication/merge, exposure or schedule restoration is authorized by the present GO.
 
 **Prepared:** 2026-09-03 by Codex, architecture/review owner.
-**State:** preparation started; the stated G5 prerequisite is reverified and supports a technical GO
-recommendation. Task 6.5 remains unchecked until the owner records its GO decision. This is not a
-deployment-ready artifact attestation and does not close Tasks 6.6 or 6.7.
+**State:** Task 6.5 GO recorded by owner decision; read-only metadata preflight completed on
+2026-09-03 at approximately 02:45–02:47 UTC. The existing portfolio revision/digest is confirmed.
+The candidate remains unbuilt. This is not a deployment-ready artifact attestation and does not
+close Tasks 6.6 or 6.7.
 
 ## 1. Decision and authority
 
@@ -27,9 +28,11 @@ design's R-B3/Artifact 2b boundary, and the [G5 record](B1_G5_INGRESS_BLOCKER.md
 ## 2. Parallel assignment happened first
 
 Cursor owns [Tasks 7.1–7.2](../agent-instructions/CURSOR_KICKOFF_B1_WAVE_7_PUBLIC_COMPOSITION.md)
-on a separate branch, based on main@6a171558a0f802eadd5d7ed5bf28545ca5c91905.
-This is assigned/ready for handoff, not a claim that Cursor has started. Codex cannot launch Cursor
-from this session. The source dependency graph permits parallel development; the artifact manifest
+on a separate implementation branch. Its original baseline is main@6a171558; the permitted start
+is now origin/main@9c2ebc1233801253a3e54b6e930e28e1a00ebf3d, whose only delta is PR #218's four
+documentation files. Cursor reported assignment readiness, not execution. Its prior B2 branch and
+untracked audit/stdout/stderr files remain untouched. The reply to start local work is a handoff,
+not evidence that a Cursor process has started. The source dependency graph permits parallel development; the artifact manifest
 forbids the new controller in R-B3.
 
 The implementation branch must not merge or be cherry-picked into the frozen R-B3 cut. A future
@@ -87,27 +90,47 @@ release. Its existing source tests are in the accepted baseline. No public compo
 is included. Before packaging, repeat the source fence on the exact detached candidate checkout;
 Cursor's branch must never be used as a convenient build directory.
 
-## 5. Runtime facts still require a separately authorized read-back
+## 5. Approved read-only preflight and rollback proposal
 
-The [B2 4.5 serving record](B2_TASK_4_5_DEMO_RESET_STOP_GO.md) is the latest committed runtime
-evidence available here, not a fresh Azure observation:
-- serving revision: portfolio-service--0000093;
-- source cut: 63fc0584ad307af7f50e9500f4911ac5999d6b76;
-- digest: sha256:9a1d55335b83b97967e434d374c7f5f5ca79ea2adccad8f8e518b674e9a39f47;
-- sole serving revision, 100% traffic, internal ingress at that proof.
+Sanitized [metadata evidence](../evidence/b1-task-6-5/preflight-20260903.json) records the selected
+Azure CLI/ARM GET fields and ACR results. Subscription “Azure subscription 1” was Enabled;
+resource group is wealth-azure-prod-rg and registry is wealthprodacr.
 
-Do not copy R-B2's older revision 0000081/digest d544649f into a rollback command mechanically:
-B2 4.5 subsequently deployed a newer version-tolerant seed cut with the internal demo-reset endpoint.
-The operating plan must reconcile 6.7's "restore version-tolerant R-B2 capability" with preservation
-of already-served B2 functionality. The last known 0000093 digest is a proposed compatibility
-baseline to verify, not an approved or freshly confirmed rollback target.
+| Observation | Result |
+|---|---|
+| Portfolio revision | portfolio-service--0000093; sole active revision; Healthy / Provisioned; ScaledToZero with 0 replicas |
+| Portfolio image | wealthprodacr.azurecr.io/portfolio-service@sha256:9a1d55335b83b97967e434d374c7f5f5ca79ea2adccad8f8e518b674e9a39f47 |
+| Traffic / ingress | Single revision mode; 100% traffic; internal ingress; allowInsecure=false; target port 8080 |
+| Scale | maxReplicas=3; minReplicas returned null in both CLI and direct ARM GET. Do not rewrite null as an explicitly observed configuration value of 0; zero running replicas was observed separately |
+| Startup controls | APP_DEMO_SEED_ON_STARTUP=false and APP_DEMO_TX_DIAGNOSTICS=false |
+| Internal-key configuration | Portfolio and gateway each reference internal-api-key; no key value read |
+| Gateway | api-gateway--0000077; sole active, Healthy / ScaledToZero, 100%; external ingress, insecure connections disabled |
+| Other apps | market-data-service--0000079 and insight-service--0000079; each sole active, Healthy / ScaledToZero, 100%, internal ingress |
+| Refresh job | Existing 9b2cf0d6 image tag; Schedule trigger 0 8 * * *; replicaRetryLimit=0; no execution or schedule change |
+| ACR availability | Exact portfolio manifest exists, readEnabled=true; linux/amd64; 314499296 bytes |
+| Registry provenance | Tag b2-task-4-5-63fc0584-20260901T144653Z; created 2026-09-01T14:58:15.7942093Z; successful build cu3 outputs that exact tag/digest |
+| Candidate | Source remains 6a171558; no candidate registry build or digest yet |
 
-Before the release handoff can request production execution, collect a read-only Azure snapshot
-under explicit owner authorization: active revision(s), immutable image(s), traffic, ingress,
-health, scale and relevant config names/flags. Verify registry provenance and availability for
-both candidate and rollback, and account for the additive updatedAt contract if rollback removes it.
-Do not read or print secret values. If the serving state differs from this record, reconcile it
-before choosing rollback. Never make an unreviewed substitution because a named digest is missing.
+The portfolio identity, digest, traffic and ingress agree with the
+[B2 4.5 record](B2_TASK_4_5_DEMO_RESET_STOP_GO.md). Its reviewed pinned-checkout build record supplies
+the source-SHA provenance; ACR's sourceTrigger field is null and does not independently attest that
+SHA. Peer app image references remain tags in the returned templates; these are preserved as tag
+references in the evidence, not promoted to attested running digests.
+
+**Exact proposed rollback image:** the portfolio digest above, preserving the currently served B2
+internal demo-reset and version-tolerant seed. It supersedes old R-B2 revision 0000081/digest
+d544649f as the proposed compatibility target. Registry metadata confirms availability, not a new
+pull/startup test. Re-read availability and serving state immediately before any approved build or
+dispatch; reconcile drift instead of substituting another image.
+
+Rollback would remove the candidate's strict seed and additive updatedAt response. The candidate
+introduces no new migration, and this release includes no frontend or gateway consumer rollout.
+Thus the proposal restores the currently served contract; it is not permission to roll back after
+R-C activation, nor to remove an updatedAt dependency deployed by intervening work.
+
+This was a control-plane/registry preflight only: no login, authenticated portfolio GET, database
+read, seed, reset, build or deployment was executed. Application readiness, holdings tuples, price
+tables, Spec A steady state and G2b are not re-proven by this snapshot.
 
 ## 6. Next operational handoff after preparation
 
@@ -131,6 +154,42 @@ These are handoff requirements for later operational work, not an instruction to
 A harmless same-state seed can prove the specified no-op, but must not be described as live evidence
 of a mutation or an intentional race. Local integration tests and live observations must be labelled
 separately. No production fixture alteration is implied to force a desired probe outcome.
+
+### 6.1 Concrete next proposal — one candidate build, no deployment
+
+Owner/operator roles: Codex owns this reviewed packet and its status record; the operator must be
+named when the build is authorized. Cursor continues only its isolated 7.1–7.2 source assignment.
+
+Proposed input and procedure:
+1. Use a clean detached sibling checkout at full source SHA
+   6a171558a0f802eadd5d7ed5bf28545ca5c91905, never moving main or Cursor's branch. Verify that the
+   source is controller-free and that the build inputs match the accepted Wave 6 source recorded
+   in §3. Record the source tree hash and a local artifact-cut tag under AM.1; publishing any tag
+   is a separately approved GitHub action.
+2. Reuse portfolio-service/Dockerfile.azure from that cut, root build context and linux/amd64.
+   One ACR build creates a unique portfolio-service tag of the form
+   b1-r-b3-6a171558-<UTC timestamp>. Do not substitute a tag or rebuild automatically on failure.
+3. Capture build run ID/result, registry tag, manifest digest, creation time, platform and size.
+   Require the run's output digest to equal the manifest behind that tag, and retain the source
+   checkout evidence with it. A source timestamp or SERVICE_VERSION field is not image identity.
+4. Stop after packaging. Return the exact immutable image reference for review. The existing
+   Dockerfile builds bootJar; it does not implement the future R-C verification graph or prove
+   that accepted source tests ran against this packaged image.
+
+This proposal is limited to packaging the already-reviewed source. It neither implements Wave 7
+candidate automation nor authorizes deploy.yml. A failed or ambiguous build stops without a
+replacement build. The candidate digest stays unrecorded until an approved build actually succeeds.
+
+The later dispatch packet must set deployment_mode=digest, services=portfolio-service,
+prebuilt_digest to the reviewed immutable ACR reference, and expected_main_sha to the freshly
+verified workflow commit on main. Current repository/workflow baseline is 9c2ebc12; it is distinct
+from the candidate source. Production-environment approval and non-cancelling concurrency remain.
+
+Before seeking deployment/Task 6.6 authorization, complete the probe packet with an approved
+credential/execution channel, exact one-call E2E identity/version protocol, complete persisted
+tuple/price evidence capture, and conditional rollback scope. PortfolioResponse omits cost-basis
+fields and global price tables, so authenticated HTTP holdings alone cannot supply that full proof.
+No database/secret access or fixture alteration is implied by this read-only metadata preflight.
 
 ## 7. Reproduction of completed local checks
 
@@ -160,7 +219,8 @@ Both diffs were empty. Deployment safeguard suites (each run locally, each succe
 its historical run remains successful, the exact caller paths have no drift, and the current
 inventory/guard tests pass. There is no remaining caller implementation prerequisite for 6.5.
 
-**Owner decision: not yet recorded.** No checkbox changed. Preparation does not imply permission
-to build in ACR, dispatch, seed, roll back, expose the picker, restore synthetics, close G2b/R-B3,
-or claim Writer_Convergence. The remaining work is the concrete operational handoff and its
-authorized current-state checks, not further 7.1/7.2 work on this release cut.
+**Owner decision: GO, 2026-09-03.** Task 6.5 is checked for the recorded decision; Tasks 6.6/6.7
+and 7.1/7.2 remain unchecked. The approved read-only preflight is complete with the limitations in
+§5. Next is the build-only decision in §6.1, followed by review of the exact artifact and a separate
+deployment/proof packet. No build, dispatch, seed, rollback, exposure, schedule change, G2b/R-B3
+closure or Writer_Convergence claim follows from this decision.

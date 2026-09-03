@@ -1,5 +1,12 @@
 # Implementation Plan
 
+**OWNER APPROVAL — remaining actions:** Task 6.5 GO and read-only Azure/ACR preflight were
+approved on 2026-09-03 and are recorded locally below. Publishing this new update and building
+the frozen candidate require new approval; approval would publish the record/create the artifact,
+otherwise both remain local/unbuilt. Deployment, live seed, rollback, implementation publication/
+merge and exposure retain their gates. The concrete build-only proposal is in the
+[readiness record](../../../docs/runbooks/B1_TASK_6_5_PRE_DEPLOY_READINESS.md#61-concrete-next-proposal--one-candidate-build-no-deployment).
+
 **B1 Wave 6 source completion (verified 2026-09-03):** Tasks **6.1–6.4 are source-complete**
 after owner-approved [PR #217](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/217)
 merged at `main@d66bb23d5ef3606373c15d9ee02fda27c62df5c2` on `2026-09-02T19:28:09Z`.
@@ -23,10 +30,11 @@ compare the full winning tuple and require exactly two attempts. The absent-crea
 asserted unresolved by user before real post-rollback advice reports the committed version.
 The initializer forwards its own observation; global-price snapshot/sentinel coverage is retained.
 
-Tasks 6.1–6.4 are checked for merged source completion. **Tasks 6.5–6.7 remain unchecked**:
-the next decision is Task 6.5's pre-deployment STOP/GO; G2b/R-B3 serving proof, Wave 7 activation,
-and Writer_Convergence remain open. No deployment, live seed, schedule restoration, B2 gate
-decision, or feature exposure follows from this source merge or documentation reconciliation.
+Tasks 6.1–6.4 are checked for merged source completion. **Task 6.5 is GO by owner decision on
+2026-09-03; Tasks 6.6/6.7 remain unchecked.** Read-only metadata preflight is recorded in the
+[6.5 readiness record](../../../docs/runbooks/B1_TASK_6_5_PRE_DEPLOY_READINESS.md). Candidate build, deployment, G2b/R-B3 serving proof, Wave 7
+activation and Writer_Convergence remain open. No live seed, schedule restoration, B2 gate
+decision or feature exposure follows from the 6.5 decision.
 
 **Current program status (verified 2026-09-03 against `main@d66bb23d`; historical runtime baseline `e221662`; R-A / R-B / R-B2 serving digests below):**
 Waves `P`, `0`, and `1` are complete. Wave 2 tasks **2.1–2.6 and R-A are complete**: G2 serving
@@ -56,8 +64,8 @@ wiring, and focused tests have no source drift through `main@48d0aba8`; the inve
 still finds exactly three callers. The historical ingress/custom-domain failures and recovery
 remain in the [G5 record](../../../docs/runbooks/B1_G5_INGRESS_BLOCKER.md).
 G5's prerequisite for B1 Wave 6 is satisfied; Tasks 6.1–6.4 subsequently merged through PR #217
-and are source-complete. Task 6.5 remains the next release decision; R-B3 deployment/serving
-proof, Wave 7 activation, and new live operations are not performed or authorized by this close-out. Unattended synthetics remain suspended;
+and are source-complete. Task 6.5 has its separate 2026-09-03 owner GO and approved read-only
+preflight; candidate build, R-B3 deployment/serving proof and Wave 7 activation remain open. Unattended synthetics remain suspended;
 further dispatch or schedule restoration requires separate authorization.
 Candidate packaging / R-C (task 7.5)
 is **not** complete. Public `PUT /api/portfolio/holdings` remains Wave 7. The deployed seed remains
@@ -951,7 +959,8 @@ Named individually so the R-C manifest can enumerate them rather than gesture at
   Codex reverified successful run/job conclusions and all three per-caller markers; source
   comparison from `f66d7ab6` through `48d0aba8` found no caller/helper/workflow/test drift,
   and the current inventory guard passes with exactly three callers. No live replay was needed.
-  G5's Wave 6 prerequisite is satisfied. Tasks 6.1–6.7 and Wave 7 remain unchecked; no R-B3
+  G5's Wave 6 prerequisite is satisfied. Tasks 6.1–6.4 later merged and 6.5 received owner GO;
+  Tasks 6.6/6.7 and Wave 7 remain unchecked; no R-B3
   deploy, public `PUT`, Writer_Convergence, backlog closure, further dispatch, or schedule
   restoration is authorized. Unattended synthetics remain suspended in `synthetic-monitoring.yml`.
   _Requirements: 8.32, 8.39_
@@ -961,8 +970,8 @@ Named individually so the R-C manifest can enumerate them rather than gesture at
 **Tasks 6.1–6.4 source-complete:** merged PR #217 / `main@d66bb23d`; Codex ACCEPT at
 `1bdb1d31`, R1/R2 closed, and final PR-event CI successful. The completion record above pins
 the evidence. The [Claude kickoff](../../../docs/agent-instructions/CLAUDE_KICKOFF_B1_WAVE_6_VERSION_REQUIRED_SEED.md)
-is retained as historical execution scope. Tasks 6.5–6.7 remain unchecked; G5 completion
-does not itself record the separate pre-deploy STOP/GO decision or any serving proof.
+is retained as historical execution scope. Task 6.5 has the separate owner GO recorded below;
+Tasks 6.6/6.7 remain unchecked. The read-only metadata snapshot is not G2b serving proof.
 
 - [x] **6.1 Seed `POST` requires `expectedVersion`** and delegates to `HoldingReplacementService`.
   Target stays compiled-in. Failure returns Requirement 7's `409` envelope with
@@ -981,13 +990,14 @@ does not itself record the separate pre-deploy STOP/GO decision or any serving p
   fixed-count defect Spec A removed. **Retain Spec A's full-table byte-identity price regression,
   sentinel rows included** (`P10`): this edits the exact writer from the PR #97 incident.
   _Requirements: 8.13, 8.19, 8.30, 8.31, 3.4_
-- [ ] **6.5 STOP/GO — G5 before deploy.**
-  **Preparation started 2026-09-03, after Cursor 7.1–7.2 assignment in local commit 01e0664.**
-  [Readiness record](../../../docs/runbooks/B1_TASK_6_5_PRE_DEPLOY_READINESS.md): Codex recommends
-  technical GO on G5; its successful run and unchanged caller paths were reverified at main@6a171558.
-  Fresh caller inventory/9 self-tests and 90 deployment-safeguard tests pass. Owner GO remains
-  unrecorded, so this checkbox stays open. Candidate source is pinned and controller-free; candidate
-  registry digest and fresh serving/rollback evidence are not yet collected. No deployment authorized.
+- [x] **6.5 STOP/GO — G5 before deploy.**
+  **GO — owner decision 2026-09-03:** “Yes Task 6.5 GO and read-only preflight approved.”
+  [Readiness record](../../../docs/runbooks/B1_TASK_6_5_PRE_DEPLOY_READINESS.md) records the existing
+  G5 technical evidence and the approved Azure/ACR metadata preflight. Sole portfolio revision
+  0000093/digest 9a1d5533 still has 100% internal traffic; flags remain false. ACR confirms the
+  existing digest and successful build cu3. This closes the decision, not a new deployment.
+  Candidate source stays controller-free at 6a171558; it is unbuilt. The current digest is a
+  proposed rollback target, with compatibility limits recorded. Tasks 6.6/6.7 stay unchecked.
   **Go:** 5.7 green.
   **Abort:** do not deploy the version-required endpoint; unmigrated callers would fail on the first
   run.
@@ -1009,9 +1019,10 @@ Portfolio-service only; the asset route shipped in Wave 2.
 
 **Parallel source assignment — 2026-09-03:** Tasks 7.1–7.2 are assigned to Cursor under the
 [public-composition kickoff](../../../docs/agent-instructions/CURSOR_KICKOFF_B1_WAVE_7_PUBLIC_COMPOSITION.md),
-based on main@6a171558. This is a handoff-ready source assignment, not execution or completion;
-both boxes remain unchecked. Requirement 9.2 and the implementation-lane graph allow development
-while Codex prepares 6.5. The controller remains isolated on Cursor's branch and excluded from
+originally based on main@6a171558. Cursor reconfirmed readiness; it may start from the verified
+docs-only descendant origin/main@9c2ebc12 under the existing local implementation authorization.
+No execution or completion is reported; both boxes remain unchecked. Requirement 9.2 and the
+implementation-lane graph permit development alongside the remaining R-B3 release work. The controller remains isolated on Cursor's branch and excluded from
 R-B3. Tasks 7.3 onward, merge, deployment, and exposure remain separate. Publication of the new
 implementation branch/PR needs owner approval under AGENTS.md.
 
