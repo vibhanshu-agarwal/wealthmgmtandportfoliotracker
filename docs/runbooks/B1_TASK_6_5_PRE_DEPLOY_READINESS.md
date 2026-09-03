@@ -1,13 +1,12 @@
 # B1 Task 6.5 — Pre-deployment Readiness Record
 
-**OWNER APPROVAL — next bundle approved; credentials required:** Task 6.5 GO, read-only
-preflight and build cu4 were approved and completed. The owner subsequently approved the exact
-[Task 6.6 bundle](B1_TASK_6_6_G2B_EXECUTION_PACKET.md#10-approved-preflight--credential-prerequisite)
-with “Please proceed”. Preliminary metadata/source checks passed; absent secure process variables
-block application/database preflight and deployment. Existing approval remains subject to drift
-checks. Publication of local records/tag and Task 6.7 closure remain separate owner decisions:
-approval publishes/closes those items; without it they remain local/open. PR #218's publication
-authorization is already fulfilled.
+**OWNER ACTION — Task 6.6 production Environment gate:** Task 6.5 and candidate build cu4
+are complete. The approved [Task 6.6 bundle](B1_TASK_6_6_G2B_EXECUTION_PACKET.md#11-credential-source-correction-and-approved-dispatch)
+now has resolved credentials and successful read-only DB/application preflight. Single deployment
+[run 33718062217](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33718062217)
+passed validation and awaits the owner's GitHub production Environment approval: approval permits
+that exact candidate rollout; without it deployment remains pending. No seed has been sent.
+Publication of local records/tag and Task 6.7 closure remain separate owner decisions.
 
 **Prepared:** 2026-09-03 by Codex, architecture/review owner.
 **State:** Task 6.5 GO recorded by owner decision; read-only metadata preflight completed on
@@ -222,7 +221,8 @@ credential/execution channel, one-call E2E identity/version protocol, complete p
 capture, read readiness and conditional rollback scope. Its offline E2E reference accounts for the
 identity-dependent cost basis. PortfolioResponse omits cost-basis fields and global price tables,
 so HTTP holdings alone cannot supply that proof. Execution approval is now recorded in the
-packet's §10; secure credentials remain the prerequisite to application/database preflight.
+packet's §10. Section 11 corrects the credential-source assumption and records successful
+read-only preflight plus the single dispatch waiting at the production Environment gate.
 
 A later dispatch would use deployment_mode=digest, services=portfolio-service, this exact
 prebuilt_digest, and a freshly verified expected_main_sha for the main workflow. The source cut
@@ -262,6 +262,7 @@ and 7.1/7.2 remain unchecked. The approved read-only preflight is complete with 
 §5. The separately approved one-build operation is complete: §6.1 records cu4 and the verified
 immutable digest. Execution stopped at the approved boundary. The Task 6.6 packet and offline
 E2E reference were then prepared, and the owner approved the exact execution bundle. Preliminary
-metadata checks passed; absent credentials block application/database preflight and deployment.
-No dispatch, seed, rollback, exposure, schedule change,
+checks passed; the shared .env.secrets supplied the existing credentials. Read-only preflight
+passed, and one guarded cu4 deployment dispatch awaits production Environment approval. No seed,
+rollback, exposure, schedule change,
 G2b/R-B3 closure or Writer_Convergence claim follows from the GO or build.

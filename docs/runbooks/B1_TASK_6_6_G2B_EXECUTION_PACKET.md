@@ -1,15 +1,16 @@
 # B1 Task 6.6 — R-B3 deployment and G2b proof packet
 
-**OWNER APPROVAL — recorded; credential prerequisite unresolved:** On 2026-09-03 the owner
-replied “Please proceed” to the exact §8 bundle. That authorizes secure read-only preflight, one
-cu4 digest deployment, one fixed-E2E seed, and the specified conditional pre-seed rollback.
-The initial preflight stopped before deployment because all eight required process variables
-were absent. Approval remains valid subject to the packet's drift checks; no repeat approval is
-needed merely to resume. See §10. Publication and Task 6.7 closure remain separate owner decisions.
+**OWNER ACTION — GitHub production Environment approval:** The approved deployment was
+submitted once as [run 33718062217](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33718062217).
+Input validation passed; authorize-production is waiting for the owner's GitHub review. Approving
+that gate permits the already-authorized exact cu4 deployment; leaving it pending prevents rollout.
+The operator must not self-approve or bypass it. All required credentials resolved from the owner's
+existing .env.secrets; the previous credential blocker is corrected in §11. Seed attempts remain 0.
+Publication and Task 6.7 closure remain separate decisions.
 
 **Prepared:** 2026-09-03 by Codex, architecture/review owner.
-**State:** Execution approved; preliminary cloud/repository checks passed; application/database
-preflight and deployment await secure credentials. Seed attempts: 0; deployment dispatches: 0.
+**State:** Preflight passed; one guarded dispatch submitted; waiting for production Environment
+approval. Candidate deployment has not started at this checkpoint. Seed attempts: 0.
 **Operator:** The owner-authorized release operator; no implementation-agent assignment or message
 is implied by this document. Codex owns review and status reconciliation.
 **Goal:** Bind the existing candidate to every serving portfolio revision, then demonstrate
@@ -84,7 +85,10 @@ rounding. No-op byte comparisons below are stricter and preserve the complete ca
 
 ### 2.2 Credentials and client
 
-Use owner-supplied environment variables in the release operator's local process:
+Resolve these client inputs in memory from the owner-identified original-checkout .env.secrets
+at D:/Projects/Development/Java/Spring/wealthmgmtandportfoliotracker/.env.secrets, or use already
+supplied process variables. They are not eight independently provisioned secrets. Process-variable
+absence alone is not a blocker when this authorized source is available:
 
 | Operation | Variables |
 |---|---|
@@ -92,10 +96,18 @@ Use owner-supplied environment variables in the release operator's local process
 | Internal seed | INTERNAL_API_KEY |
 | Existing production PostgreSQL connection | PGHOST, PGPORT, PGDATABASE, PGUSER, PGPASSWORD |
 
-Check presence only before authorization; do not print values, lengths, hashes or complete
-environment blocks. The owner supplies these securely outside chat. This packet does not authorize
-retrieval of secret values from Azure/GitHub, new database roles, grants or network rules.
-No credential has been checked or consumed during packet preparation.
+The two E2E keys map directly. INTERNAL_API_KEY maps from TF_VAR_internal_api_key.
+PGHOST/PGPORT/PGDATABASE derive from POSTGRES_CONNECTION_STRING (remove a jdbc: prefix for URI
+parsing; default port 5432 only if omitted). PGUSER and PGPASSWORD map from
+SPRING_DATASOURCE_USERNAME and SPRING_DATASOURCE_PASSWORD, as the owner confirmed. These are
+also the underlying sources used by terraform-azure.yml. The file is shared in the original
+checkout and is not automatically copied into a worktree or inherited by this process.
+
+Parse only the six required keys as data; do not execute/source the file, copy it into a worktree,
+print values/lengths/hashes or expose complete environment blocks. Pass derived parameters only
+to the intended child process. The owner explicitly identified this local source; no new secrets
+or credentials are required. Retrieval of secret values from Azure/GitHub, new database roles,
+grants and network rules remain outside this bundle.
 
 Chosen SQL client: the locally cached postgres:16-alpine image by **local image ID**
 sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777.
@@ -107,12 +119,15 @@ For each capture, place the exact §4 SQL in a new private local directory as sn
 The directory also receives the CSV outputs. After authorization, use:
 
 ~~~powershell
-docker run --rm --pull never --entrypoint psql --workdir /capture --mount "type=bind,source=$captureDirectory,target=/capture" --env PGHOST --env PGPORT --env PGDATABASE --env PGUSER --env PGPASSWORD --env PGSSLMODE=verify-full --env PGSSLROOTCERT=/etc/ssl/certs/ca-certificates.crt --env PGCONNECT_TIMEOUT=10 --env PGAPPNAME=b1-g2b-proof --env "PGOPTIONS=-c default_transaction_read_only=on -c statement_timeout=45000 -c lock_timeout=5000" sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777 -X -w -q -v ON_ERROR_STOP=1 -f snapshot.sql
+docker run --rm --pull never --entrypoint psql --workdir /capture --mount "type=bind,source=$captureDirectory,target=/capture" --env PGHOST --env PGPORT --env PGDATABASE --env PGUSER --env PGPASSWORD --env PGSSLMODE=verify-full --env PGSSLROOTCERT=/etc/ssl/certs/ca-certificates.crt --env PGCONNECT_TIMEOUT=10 --env PGAPPNAME=b1-g2b-proof sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777 -X -w -q -v ON_ERROR_STOP=1 -f snapshot.sql
 ~~~
 
 captureDirectory is the resolved absolute path of that new local directory, not a credential.
 Require an empty output directory and exit 0; never overwrite or accept a partial prior capture.
 The TLS certificate bundle must validate the supplied host. Do not downgrade TLS if it fails.
+Do not send PGOPTIONS: the live Neon pooler rejects the default_transaction_read_only startup
+parameter. The exact SQL below establishes READ ONLY and transaction-local timeouts explicitly;
+this connection-client correction neither changes the database nor relaxes the transaction guard.
 Keep raw captures private; commit only sanitized identities, counts, hashes and assertion results.
 
 HTTP uses the same local operator process, credentials in memory, no request/response tracing
@@ -168,9 +183,11 @@ one successful request cannot establish homogeneous serving state.
 Verify peer revisions/images/traffic, refresh-job image/schedule, ingress, scale and startup flags
 against preflight. No direct containerapp update, secret/scale/traffic changes or rebuild is allowed.
 
-### Read readiness after rollout
+### Read readiness before and after rollout
 
-The B2 4.5 attempt showed that Azure health can precede authenticated read readiness.
+The B2 4.5 attempt showed that Azure health can precede authenticated read readiness. Apply
+this same bounded read-only gate to a transient pre-deployment read failure; the resumed preflight
+encountered HTTP 504 and then passed on the first bounded readiness read. No seed is part of it.
 Allow at most six authenticated read-readiness attempts, each with a 60-second timeout and
 30 seconds between attempts. Only connectivity timeouts and HTTP 502/503/504 permit another
 readiness attempt. HTTP 401/403, a wrong identity, malformed portfolio/version or schema mismatch
@@ -357,3 +374,48 @@ an authorized local credential source to load into memory. Do not search for sec
 them from Azure/GitHub. Recheck time-sensitive release state, peer/replica/job/concurrency and
 Environment controls, then complete the original packet under the existing approval. Source or
 operational drift still invokes the original stop/review rule. Tasks 6.6/6.7 remain unchecked.
+
+## 11. Credential source correction and approved dispatch
+
+The owner correctly identified the shared .env.secrets in the original project checkout. Codex
+had checked only process-variable presence and missed that available source. The historical §10
+record is superseded: all eight client inputs resolve from six existing keys, with the mapping
+in §2.2. No new credentials were required. Values were loaded only into process memory; the
+source file was not changed, copied or published. No Azure/GitHub secret values were retrieved.
+
+The first database client attempt and one diagnostic SELECT 1 connection were rejected before
+SQL execution because Neon does not accept the default_transaction_read_only startup option
+through this pooler. Removing PGOPTIONS fixed the connection. TLS verify-full and the exact
+explicit READ ONLY transaction remained; no database settings, roles or grants changed. This
+was a client-invocation defect, not missing or invalid database credentials.
+
+The corrected rehearsal at 05:08:28–05:10:21 UTC completed the seven read-only snapshots:
+23 schema-column rows, one parent/159 holdings for each fixture, 160 market_prices rows and
+16,125 history rows. Schema matched the migration-derived offline fixture; all 159 complete E2E
+tuples matched the frozen reference. E2E parent id was d61870f5-d420-4947-987c-401e36d2069f,
+version 0; that observation was discarded. Login returned 200. The first authenticated portfolio
+read returned 504; bounded read-only readiness subsequently passed on its first read at
+05:12:03 UTC, returning 200 with the same E2E identity/version and 159 holdings. No seed was sent.
+
+Main still matched 9c2ebc1233801253a3e54b6e930e28e1a00ebf3d. Candidate/rollback manifests were
+readable. Peers and refresh schedule/image remained at the reviewed baseline; no deploy or
+synthetic workflow overlapped. The unrelated CI verification run was left alone. Portfolio
+revision 0000093 was Healthy/Running, with one ready replica, zero restarts and 100% traffic.
+Both startup flags remained false; command/args overrides and volumes were absent. No relevant
+extra configuration-source environment name or cost-basis-anchor override was present.
+
+The production Environment has required reviewer vibhanshu-agarwal and a main-only branch rule;
+CLOUD_PROVIDER is azure. Its account settings permit self-review/admin bypass, but neither was
+used: this packet requires the owner to act on the Environment gate.
+
+**One approved dispatch:** [33718062217](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33718062217),
+created 2026-09-03T05:14:53Z, workflow_dispatch on the exact reviewed main SHA. Inputs were
+deployment_mode=digest, services=portfolio-service and the full cu4 image in §1. At 05:15:17 UTC,
+validate succeeded and authorize-production was waiting. The actual deployment job had not
+started. Seed attempts and rollbacks remain 0; neither Task 6.6 nor Task 6.7 is complete.
+
+[Sanitized resumed evidence](../evidence/b1-task-6-6/resolved-preflight-and-dispatch-20260903.json)
+retains the credential mapping, client correction, snapshot counts/hashes, readiness and run
+identity. Raw database/HTTP captures remain private outside Git. After the owner approves the
+GitHub gate, continue the original post-rollout checks and one-seed protocol under the existing
+authorization. Never resubmit this deployment just because it is waiting.

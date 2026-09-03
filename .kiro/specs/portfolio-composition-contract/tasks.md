@@ -1,12 +1,12 @@
 # Implementation Plan
 
-**OWNER APPROVAL — Task 6.6 execution recorded:** The owner approved the exact
-[Task 6.6 bundle](../../../docs/runbooks/B1_TASK_6_6_G2B_EXECUTION_PACKET.md#10-approved-preflight--credential-prerequisite)
-with “Please proceed” on 2026-09-03. Preliminary source/cloud metadata checks passed; all eight
-required process variables are absent. Secure credentials are required before application/database
-preflight and deployment. Existing approval remains subject to drift checks. Publication of local
-records/tag and Task 6.7 closure remain separate decisions: approval publishes/closes those items;
-without it they remain local/open. Tasks 6.6/6.7 remain unchecked.
+**OWNER ACTION — production Environment gate:** Task 6.6's exact bundle is owner-approved.
+[Run 33718062217](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33718062217)
+passed validation and waits for the owner's GitHub production Environment approval. Approval
+permits the exact cu4 deployment; otherwise it stays pending. The shared .env.secrets supplies
+all client inputs; read-only DB/application preflight passed. See the
+[corrected record](../../../docs/runbooks/B1_TASK_6_6_G2B_EXECUTION_PACKET.md#11-credential-source-correction-and-approved-dispatch).
+Seed attempts are 0. Tasks 6.6/6.7 remain unchecked; publication and R-B3 closure are separate.
 
 **B1 Wave 6 source completion (verified 2026-09-03):** Tasks **6.1–6.4 are source-complete**
 after owner-approved [PR #217](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/217)
@@ -1013,9 +1013,10 @@ Tasks 6.6/6.7 remain unchecked. The read-only metadata snapshot is not G2b servi
   fixes cu4's digest, the guarded deployment, secure SQL/HTTP channel, complete tuple/price
   snapshots, one frozen-version E2E seed, and pre-seed-only conditional rollback. The independent
   E2E reference is offline expected data. The owner approved the bundle with “Please proceed”.
-  Initial source/metadata checks passed; all eight required process variables are absent, so
-  application/database preflight and deployment await secure credentials. Deployment dispatches
-  and seed attempts are both 0. Existing approval remains; no G2b proof or completion tick follows.
+  The shared .env.secrets resolves all required client parameters; the earlier process-variable
+  blocker was incorrect. Read-only database capture and authenticated readiness passed after the
+  documented client correction and transient 504. Dispatch 33718062217 is waiting for production
+  Environment approval; seed attempts remain 0. No G2b proof or completion tick follows.
   The existing demo oracle cannot supply E2E cost-basis expectations.
   _Requirements: 8.14, 8.16, 8.30_
 - [ ] **6.7 STOP/GO — R-B3.**

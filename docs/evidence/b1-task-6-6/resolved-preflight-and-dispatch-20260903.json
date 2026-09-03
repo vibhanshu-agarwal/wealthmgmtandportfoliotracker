@@ -1,0 +1,312 @@
+{
+  "schemaVersion": 1,
+  "task": "B1 6.6",
+  "state": "WAITING_PRODUCTION_ENVIRONMENT_APPROVAL",
+  "capturedAtUtc": "2026-09-03 05:15:17 UTC",
+  "authorization": {
+    "ownerExecutionApproval": "Please proceed",
+    "localCredentialSourceIdentifiedByOwner": true,
+    "productionEnvironmentSelfApproval": false
+  },
+  "credentialResolution": {
+    "sourcePath": "D:/Projects/Development/Java/Spring/wealthmgmtandportfoliotracker/.env.secrets",
+    "sourceReadOnly": true,
+    "valuesExposed": false,
+    "newCredentialsRequired": false,
+    "sourceKeys": [
+      "E2E_TEST_USER_EMAIL",
+      "E2E_TEST_USER_PASSWORD",
+      "TF_VAR_internal_api_key",
+      "POSTGRES_CONNECTION_STRING",
+      "SPRING_DATASOURCE_USERNAME",
+      "SPRING_DATASOURCE_PASSWORD"
+    ],
+    "mapping": {
+      "E2E_TEST_USER_EMAIL": "E2E_TEST_USER_EMAIL",
+      "E2E_TEST_USER_PASSWORD": "E2E_TEST_USER_PASSWORD",
+      "INTERNAL_API_KEY": "TF_VAR_internal_api_key",
+      "PGHOST": "POSTGRES_CONNECTION_STRING hostname",
+      "PGPORT": "POSTGRES_CONNECTION_STRING port, PostgreSQL default 5432 when omitted",
+      "PGDATABASE": "POSTGRES_CONNECTION_STRING database path",
+      "PGUSER": "SPRING_DATASOURCE_USERNAME",
+      "PGPASSWORD": "SPRING_DATASOURCE_PASSWORD"
+    },
+    "allRequiredInputsResolved": true,
+    "priorConclusionCorrection": "Process-variable absence did not mean credentials were unavailable; the shared original-checkout file was missed."
+  },
+  "clientCorrection": {
+    "initialFailure": "Neon pooler rejected PGOPTIONS default_transaction_read_only as an unsupported startup parameter.",
+    "change": "Removed PGOPTIONS from the client startup. Retained exact BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY and SET LOCAL statement/lock timeouts in SQL; TLS verify-full retained.",
+    "newRoleOrGrant": false,
+    "applicationCodeChange": false
+  },
+  "peerSnapshot": [
+    {
+      "allowInsecure": false,
+      "external": true,
+      "images": [
+        "wealthprodacr.azurecr.io/api-gateway:63fc0584ad307af7f50e9500f4911ac5999d6b76"
+      ],
+      "mode": "Single",
+      "name": "api-gateway",
+      "ready": "api-gateway--0000077",
+      "revision": "api-gateway--0000077",
+      "scale": {
+        "cooldownPeriod": 300,
+        "maxReplicas": 3,
+        "minReplicas": null,
+        "pollingInterval": 30,
+        "rules": null
+      },
+      "traffic": [
+        {
+          "latestRevision": true,
+          "weight": 100
+        }
+      ]
+    },
+    {
+      "allowInsecure": false,
+      "external": false,
+      "images": [
+        "wealthprodacr.azurecr.io/insight-service:9b2cf0d655b4b7ae2ce20ff7b67e4ad750df6900"
+      ],
+      "mode": "Single",
+      "name": "insight-service",
+      "ready": "insight-service--0000079",
+      "revision": "insight-service--0000079",
+      "scale": {
+        "cooldownPeriod": 300,
+        "maxReplicas": 3,
+        "minReplicas": null,
+        "pollingInterval": 30,
+        "rules": null
+      },
+      "traffic": [
+        {
+          "latestRevision": true,
+          "weight": 100
+        }
+      ]
+    },
+    {
+      "allowInsecure": false,
+      "external": false,
+      "images": [
+        "wealthprodacr.azurecr.io/portfolio-service@sha256:9a1d55335b83b97967e434d374c7f5f5ca79ea2adccad8f8e518b674e9a39f47"
+      ],
+      "mode": "Single",
+      "name": "portfolio-service",
+      "ready": "portfolio-service--0000093",
+      "revision": "portfolio-service--0000093",
+      "scale": {
+        "cooldownPeriod": 300,
+        "maxReplicas": 3,
+        "minReplicas": null,
+        "pollingInterval": 30,
+        "rules": null
+      },
+      "traffic": [
+        {
+          "latestRevision": true,
+          "weight": 100
+        }
+      ]
+    },
+    {
+      "allowInsecure": false,
+      "external": false,
+      "images": [
+        "wealthprodacr.azurecr.io/market-data-service:9b2cf0d655b4b7ae2ce20ff7b67e4ad750df6900"
+      ],
+      "mode": "Single",
+      "name": "market-data-service",
+      "ready": "market-data-service--0000079",
+      "revision": "market-data-service--0000079",
+      "scale": {
+        "cooldownPeriod": 300,
+        "maxReplicas": 3,
+        "minReplicas": null,
+        "pollingInterval": 30,
+        "rules": null
+      },
+      "traffic": [
+        {
+          "latestRevision": true,
+          "weight": 100
+        }
+      ]
+    }
+  ],
+  "runtimeControls": {
+    "anchor": [],
+    "diagnostics": [
+      "false"
+    ],
+    "envNames": [
+      "APP_DEMO_SEED_ON_STARTUP",
+      "APP_DEMO_TX_DIAGNOSTICS",
+      "DEPLOYMENT_ENVIRONMENT_NAME",
+      "MANAGEMENT_OPENTELEMETRY_TRACING_EXPORT_OTLP_TRANSPORT",
+      "MANAGEMENT_TRACING_EXPORT_ENABLED",
+      "MANAGEMENT_TRACING_SAMPLING_PROBABILITY",
+      "SERVICE_VERSION",
+      "SPRING_PROFILES_ACTIVE",
+      "INTERNAL_API_KEY",
+      "KAFKA_BOOTSTRAP_SERVERS",
+      "KAFKA_SASL_PASSWORD",
+      "KAFKA_SASL_USERNAME",
+      "REDIS_URL",
+      "SPRING_DATASOURCE_PASSWORD",
+      "SPRING_DATASOURCE_URL",
+      "SPRING_DATASOURCE_USERNAME"
+    ],
+    "images": [
+      "wealthprodacr.azurecr.io/portfolio-service@sha256:9a1d55335b83b97967e434d374c7f5f5ca79ea2adccad8f8e518b674e9a39f47"
+    ],
+    "ingress": {
+      "additionalPortMappings": null,
+      "allowInsecure": false,
+      "clientCertificateMode": null,
+      "corsPolicy": null,
+      "customDomains": null,
+      "exposedPort": 0,
+      "external": false,
+      "fqdn": "portfolio-service.internal.lemonmoss-ecef29d7.centralindia.azurecontainerapps.io",
+      "ipSecurityRestrictions": [],
+      "stickySessions": null,
+      "targetPort": 8080,
+      "targetPortHttpScheme": null,
+      "traffic": [
+        {
+          "latestRevision": true,
+          "weight": 100
+        }
+      ],
+      "transport": "Auto"
+    },
+    "keyRefs": [
+      "internal-api-key"
+    ],
+    "mode": "Single",
+    "ready": "portfolio-service--0000093",
+    "revision": "portfolio-service--0000093",
+    "scale": {
+      "cooldownPeriod": 300,
+      "maxReplicas": 3,
+      "minReplicas": null,
+      "pollingInterval": 30,
+      "rules": null
+    },
+    "startup": [
+      "false"
+    ],
+    "volumes": [],
+    "commandIsNull": true,
+    "argsIsNull": true
+  },
+  "dispatch": {
+    "count": 1,
+    "workflow": "deploy.yml",
+    "mode": "digest",
+    "services": "portfolio-service",
+    "mainSha": "9c2ebc1233801253a3e54b6e930e28e1a00ebf3d",
+    "prebuiltDigest": "wealthprodacr.azurecr.io/portfolio-service@sha256:2be727eaf4577699c783ae66073670d4984fe66c666af3e56422c934fdd0b023",
+    "runId": 33718062217,
+    "url": "https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33718062217",
+    "createdAt": "2026-09-03T05:14:53Z",
+    "validation": "success",
+    "authorizeProduction": "waiting",
+    "requiredReviewer": "vibhanshu-agarwal",
+    "deploymentJobStarted": false
+  },
+  "seedAttempts": 0,
+  "rollbackCount": 0,
+  "publication": false,
+  "proofLimitations": [
+    "Read-only snapshots and readiness are preflight, not G2b seed proof.",
+    "The first authenticated GET returned 504; bounded readiness then returned 200 on its first read.",
+    "No candidate deployment has begun at this capture; GitHub Environment approval remains pending.",
+    "Task 6.6 and Task 6.7 remain unchecked."
+  ],
+  "databaseAndInitialHttpRehearsal": {
+    "phase": "readonly-rehearsal-after-client-correction",
+    "startedAtUtc": "2026-09-03T05:08:28.755661+00:00",
+    "deploymentDispatches": 0,
+    "seedAttempts": 0,
+    "clientCorrection": "Removed pooler-rejected PGOPTIONS; exact SQL retains explicit BEGIN REPEATABLE READ READ ONLY plus transaction-local timeouts.",
+    "allRequiredInputsResolved": true,
+    "databaseClientExitCode": 0,
+    "transactionReadOnly": true,
+    "captures": {
+      "demo-holdings.csv": {
+        "rows": 159,
+        "sha256": "abe730e474760140025a89ba982925f174221d72ac5efc2f47f9d59bbdaf4f30"
+      },
+      "demo-portfolio.csv": {
+        "rows": 1,
+        "sha256": "78f29ef630c1df3dfa1e3450a7ef7f07c65c040c2f53e1a40580b724eb13d4a0"
+      },
+      "e2e-holdings.csv": {
+        "rows": 159,
+        "sha256": "3e0b9258ca55dc1570cd3e7e3e5657ee4a275bcfd88716bee5e3096e4c04877b"
+      },
+      "e2e-portfolio.csv": {
+        "rows": 1,
+        "sha256": "f4ad995687b9c556064f442ed40916a58a8fa929cc5a2063e68317253b5660ab"
+      },
+      "market-price-history.csv": {
+        "rows": 16125,
+        "sha256": "2a02e92f4c9c56c31c903c730f50e0e8650066c19106b324d405fc72e0694ad9"
+      },
+      "market-prices.csv": {
+        "rows": 160,
+        "sha256": "0097a758917f73287f2c0dcb6d4d4b467276dad8a5f5074453ce8a3607ce97b3"
+      },
+      "schema.csv": {
+        "rows": 23,
+        "sha256": "1ffe14b89a0b56d4c5064c6ea701e6b0edcbd3c6aa2750b7a94ab86035dd4bad"
+      }
+    },
+    "e2eParent": {
+      "id": "d61870f5-d420-4947-987c-401e36d2069f",
+      "user_id": "00000000-0000-0000-0000-000000000e2e",
+      "created_at": "2026-08-31 16:02:21.975238",
+      "updated_at": "2026-08-31 16:02:21.975238",
+      "version": "0"
+    },
+    "loginStatus": 200,
+    "portfolioReadStatus": 504,
+    "status": "PREFLIGHT_STOP",
+    "failureType": "RuntimeError",
+    "failureStage": "portfolio_read_failed",
+    "finishedAtUtc": "2026-09-03T05:10:21.727928+00:00"
+  },
+  "offlineComparison": {
+    "kind": "read-only-rehearsal-analysis-not-seed-proof",
+    "allSevenCsvPresent": true,
+    "schemaMatchesOfflineMigrationFixture": true,
+    "activeSetMatches": true,
+    "completeTupleMismatchCount": 0,
+    "expectedSeedCaseIfStateUnchanged": "SAME_STATE",
+    "rehearsalVersionDiscarded": true
+  },
+  "successfulReadiness": {
+    "phase": "bounded-readonly-readiness-before-deployment",
+    "startedAtUtc": "2026-09-03T05:11:59.892114+00:00",
+    "seedAttempts": 0,
+    "reads": [
+      {
+        "attempt": 1,
+        "status": 200,
+        "atUtc": "2026-09-03T05:12:03.241232+00:00"
+      }
+    ],
+    "loginStatus": 200,
+    "portfolioId": "d61870f5-d420-4947-987c-401e36d2069f",
+    "versionDiscarded": true,
+    "holdingsCount": 159,
+    "status": "READ_READY",
+    "finishedAtUtc": "2026-09-03T05:12:03.241232+00:00"
+  }
+}
