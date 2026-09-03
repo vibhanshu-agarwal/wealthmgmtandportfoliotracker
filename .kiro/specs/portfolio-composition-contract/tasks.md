@@ -1,5 +1,14 @@
 # Implementation Plan
 
+**OWNER APPROVAL RECORDED — R-C preparation kickoff docs, 2026-09-03:** The owner requested
+Claude's kickoff and a docs-only PR; publication of that package is authorized, merge is separate.
+The [kickoff](../../../docs/agent-instructions/CLAUDE_KICKOFF_B1_R_C_CANDIDATE_PREPARATION.md)
+and [architecture review](../../../docs/superpowers/plans/2026-09-03-b1-r-c-candidate-architecture-review.md)
+prepare Claude's local tooling/tests assignment before the Task 7.3 build. No implementation agent
+was started by this document. All completion boxes stay unchanged. Implementation publication,
+R-C build/registry operations, live evidence, deployment and later gate decisions retain their
+separate approvals.
+
 **OWNER DECISION RECORDED — R-B3 GO, 2026-09-03:** The owner approved local completion
 of Task 6.6 and Task 6.7 GO after reviewing the successful G2b proof: “Approved. Please go ahead.”
 Both tasks are now checked locally. The [decision record](../../../docs/evidence/b1-task-6-6/r-b3-owner-go-20260903.json)
@@ -1050,14 +1059,22 @@ The earlier read-only metadata snapshot remains distinct from the completed serv
 
 Portfolio-service only; the asset route shipped in Wave 2.
 
+**Prepared Claude handoff — 2026-09-03:** Implement the local candidate machinery under the
+[bounded kickoff](../../../docs/agent-instructions/CLAUDE_KICKOFF_B1_R_C_CANDIDATE_PREPARATION.md):
+Tasks 7.4/7.5/7.6 and 7.5a preparation precede the single 7.3 release build. The
+[review](../../../docs/superpowers/plans/2026-09-03-b1-r-c-candidate-architecture-review.md)
+retains five prerequisites, including the proposed report-carrier corrections and unresolved
+persistent SQL-writer disposition. Tooling completion is not candidate or serving acceptance.
+No 7.x, GC.5 or AM checkbox is advanced by this handoff.
+
 
 **Reviewed and merged parallel source work — 2026-09-03:** Cursor implemented Tasks 7.1–7.2
 under the [public-composition kickoff](../../../docs/agent-instructions/CURSOR_KICKOFF_B1_WAVE_7_PUBLIC_COMPOSITION.md)
 from main@9c2ebc12. Codex ACCEPT at 2f50120f closed the null-element, transactional
 projection-rollback, HTTP assertion and evidence-packet findings. PR #219 merged at
 main@c0f84045 on 2026-09-03T05:42:58Z. The source/test work is merged, while both
-checkboxes retain main's existing unchecked state. This Wave 6 evidence PR changes only
-6.5–6.7 completion relative to main; Wave 7 checklist reconciliation remains separate.
+checkboxes retain main's existing unchecked state. PR #220 changed only
+6.5–6.7 completion relative to its base; Wave 7 checklist reconciliation remains separate.
 The controller stays outside the frozen R-B3 source/image; Tasks 7.3 onward, deployment
 and exposure retain their own gates.
 

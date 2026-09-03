@@ -2,6 +2,17 @@
 
 **Last verified:** 2026-09-03
 
+**OWNER APPROVAL RECORDED — Claude R-C preparation kickoff, 2026-09-03:** The owner requested
+the Claude kickoff and its docs-only PR. This authorizes publication of this documentation package;
+merge and implementation publication/release operations remain separate decisions. The
+[Claude kickoff](../agent-instructions/CLAUDE_KICKOFF_B1_R_C_CANDIDATE_PREPARATION.md) defines local
+packaging/evidence tooling and tests under Codex's
+[architecture review](../superpowers/plans/2026-09-03-b1-r-c-candidate-architecture-review.md).
+It is ready for handoff; no Claude process was started by preparing it. R-C readiness remains NO-GO
+pending the graph/JAR/image chain, required-suite mapping, GC.5 base/policy, SQL-writer disposition
+and registry-digest smoke. This changes assignment/preparation status only: all completion boxes,
+the last verified runtime baseline (R-B3 / cu4, revision 0000094) and B2 gates are unchanged.
+
 **OWNER DECISION RECORDED — R-B3 GO, 2026-09-03:** The owner approved local completion
 of Task 6.6 and Task 6.7 GO after reviewing the successful G2b proof: “Approved. Please go ahead.”
 Both tasks are now checked locally. The [decision record](../evidence/b1-task-6-6/r-b3-owner-go-20260903.json)
@@ -23,7 +34,7 @@ The [review packet](../../audit/b1-wave7/README.md) retains the resolved finding
 merged at main@c0f84045 on 2026-09-03T05:42:58Z. The source is merged; the deployed
 R-B3 image remains frozen at 6a171558 / cu4 and excludes this controller. Wave 7 completion
 checkboxes retain main's unchecked state; their reconciliation stays in the separate Cursor review
-task. This documentation PR publishes the approved Wave 6 release evidence and 6.5–6.7 close-out.
+task. PR #220 published the approved Wave 6 release evidence and 6.5–6.7 close-out.
 
 **Task 6.5 GO — owner decision recorded 2026-09-03:** the owner approved GO and read-only preflight
 following the existing technical recommendation. The
