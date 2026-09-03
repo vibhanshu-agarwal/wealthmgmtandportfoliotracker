@@ -262,6 +262,14 @@ class CompositionControllerTest {
                 Arguments.of(
                         "null_ticker",
                         "{\"expectedVersion\":0,\"holdings\":[{\"ticker\":null,\"quantity\":\"1.00000000\"}]}",
+                        "malformed_request"),
+                Arguments.of(
+                        "null_holding_element",
+                        "{\"expectedVersion\":0,\"holdings\":[null]}",
+                        "malformed_request"),
+                Arguments.of(
+                        "mixed_null_holding_element",
+                        "{\"expectedVersion\":0,\"holdings\":[{\"ticker\":\"AAPL\",\"quantity\":\"1.00000000\"},null]}",
                         "malformed_request"));
     }
 

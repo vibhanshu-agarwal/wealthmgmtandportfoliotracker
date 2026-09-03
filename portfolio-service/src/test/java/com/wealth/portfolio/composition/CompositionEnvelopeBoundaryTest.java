@@ -130,6 +130,26 @@ class CompositionEnvelopeBoundaryTest {
     }
 
     @Test
+    void nullHoldingElementMapsToMalformedRequest() throws Exception {
+        mockMvc.perform(put("/__test__/composition-boundary")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"expectedVersion\":0,\"holdings\":[null]}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("malformed_request"));
+    }
+
+    @Test
+    void mixedNullHoldingElementMapsToMalformedRequest() throws Exception {
+        mockMvc.perform(put("/__test__/composition-boundary")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"expectedVersion":0,"holdings":[{"ticker":"AAPL","quantity":"1.00000000"},null]}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("malformed_request"));
+    }
+
+    @Test
     void validEnvelopeDecodes() throws Exception {
         mockMvc.perform(put("/__test__/composition-boundary")
                         .contentType(MediaType.APPLICATION_JSON)

@@ -14,6 +14,9 @@ import java.util.List;
  * <p>Quantity is intentionally not {@code @NotNull}: required/positive domain is enforced by
  * {@link QuantityDomain} at the application-operation layer after the version check, preserving
  * {@code 409} → semantic {@code 400} precedence.
+ *
+ * <p>Null elements inside {@code holdings} are rejected by Bean Validation ({@code List<@NotNull>})
+ * as {@code malformed_request} before the write adapter is invoked.
  */
 public record CompositionHoldingsRequest(
         @NotNull
@@ -21,7 +24,7 @@ public record CompositionHoldingsRequest(
         Long expectedVersion,
         @NotNull
         @Valid
-        List<HoldingIntent> holdings
+        List<@NotNull HoldingIntent> holdings
 ) {
 
     public record HoldingIntent(

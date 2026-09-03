@@ -10,7 +10,6 @@ import com.wealth.portfolio.PortfolioRepository;
 import com.wealth.portfolio.TestContainerImages;
 import java.math.BigDecimal;
 import java.time.Instant;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -131,6 +130,8 @@ class CompositionControllerIT {
                         });
         assertThat(reloaded.getId()).isEqualTo(portfolioId);
         assertThat(reloaded.getVersion()).isEqualTo(1L);
+        assertThat(Instant.parse(body.get("createdAt").asText())).isEqualTo(reloaded.getCreatedAt());
+        assertThat(Instant.parse(body.get("updatedAt").asText())).isEqualTo(reloaded.getUpdatedAt());
         assertThat(reloaded.getHoldings()).hasSize(1);
         AssetHolding held = reloaded.getHoldings().getFirst();
         assertThat(held.getAssetTicker()).isEqualTo(activeTicker);
@@ -412,6 +413,137 @@ class CompositionControllerIT {
         assertThat(afterA.getHoldings().getFirst().getQuantity()).isEqualByComparingTo("9.00000000");
     }
 
+    @Test
+    void isolatedNullHoldingElementReturns400MalformedWithoutMutation() throws Exception {
+        String userId = UUID.randomUUID().toString();
+        seedPortfolioWithOneHolding(userId, new BigDecimal("1.00000000"));
+        Portfolio before = snapshot(userId);
+
+        ResponseEntity<String> response =
+                putHoldings(userId, "{\"expectedVersion\":1,\"holdings\":[null]}");
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        JsonNode error = jsonMapper.readTree(response.getBody());
+        assertThat(error.get("error").asText()).isEqualTo("malformed_request");
+        assertUnchanged(userId, before);
+    }
+
+    @Test
+    void mixedNullHoldingElementReturns400MalformedWithoutMutation() throws Exception {
+        String userId = UUID.randomUUID().toString();
+        seedPortfolioWithOneHolding(userId, new BigDecimal("1.00000000"));
+        Portfolio before = snapshot(userId);
+
+        ResponseEntity<String> response =
+                putHoldings(
+                        userId,
+                        """
+                        {"expectedVersion":1,"holdings":[{"ticker":"%s","quantity":"2.00000000"},null]}
+                        """
+                                .formatted(activeTicker));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        JsonNode error = jsonMapper.readTree(response.getBody());
+        assertThat(error.get("error").asText()).isEqualTo("malformed_request");
+        assertUnchanged(userId, before);
+    }
+
+    @Test
+    void currentVersionMissingQuantityReturns400AfterVersionCheck() throws Exception {
+        String userId = UUID.randomUUID().toString();
+        seedPortfolioWithOneHolding(userId, new BigDecimal("1.00000000"));
+        Portfolio before = snapshot(userId);
+
+        ResponseEntity<String> response =
+                putHoldings(
+                        userId,
+                        """
+                        {"expectedVersion":1,"holdings":[{"ticker":"%s"}]}
+                        """
+                                .formatted(activeTicker));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        JsonNode error = jsonMapper.readTree(response.getBody());
+        assertThat(error.get("error").asText()).isEqualTo("quantity_out_of_domain");
+        assertThat(error.get("tickers").get(0).asText()).isEqualTo(activeTicker);
+        assertUnchanged(userId, before);
+    }
+
+    @Test
+    void currentVersionNullQuantityReturns400AfterVersionCheck() throws Exception {
+        String userId = UUID.randomUUID().toString();
+        seedPortfolioWithOneHolding(userId, new BigDecimal("1.00000000"));
+        Portfolio before = snapshot(userId);
+
+        ResponseEntity<String> response =
+                putHoldings(
+                        userId,
+                        """
+                        {"expectedVersion":1,"holdings":[{"ticker":"%s","quantity":null}]}
+                        """
+                                .formatted(activeTicker));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        JsonNode error = jsonMapper.readTree(response.getBody());
+        assertThat(error.get("error").asText()).isEqualTo("quantity_out_of_domain");
+        assertThat(error.get("tickers").get(0).asText()).isEqualTo(activeTicker);
+        assertUnchanged(userId, before);
+    }
+
+    @Test
+    void staleVersionPlusMissingQuantityStill409WithoutMutation() throws Exception {
+        String userId = UUID.randomUUID().toString();
+        seedPortfolioWithOneHolding(userId, new BigDecimal("1.00000000"));
+        Portfolio before = snapshot(userId);
+
+        ResponseEntity<String> response =
+                putHoldings(
+                        userId,
+                        """
+                        {"expectedVersion":0,"holdings":[{"ticker":"%s"}]}
+                        """
+                                .formatted(activeTicker));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        JsonNode error = jsonMapper.readTree(response.getBody());
+        assertThat(error.get("error").asText()).isEqualTo("portfolio_version_conflict");
+        assertThat(error.get("currentVersion").asLong()).isEqualTo(before.getVersion());
+        assertUnchanged(userId, before);
+    }
+
+    @Test
+    void duplicateTickersReturn400WithCompleteDeterministicOffenders() throws Exception {
+        String userId = UUID.randomUUID().toString();
+        seedPortfolioWithOneHolding(userId, new BigDecimal("1.00000000"));
+        Portfolio before = snapshot(userId);
+
+        ResponseEntity<String> response =
+                putHoldings(
+                        userId,
+                        """
+                        {"expectedVersion":1,"holdings":[
+                          {"ticker":"%s","quantity":"1.00000000"},
+                          {"ticker":"%s","quantity":"2.00000000"},
+                          {"ticker":"%s","quantity":"3.00000000"},
+                          {"ticker":"%s","quantity":"4.00000000"}
+                        ]}
+                        """
+                                .formatted(
+                                        activeTicker,
+                                        otherActiveTicker,
+                                        activeTicker,
+                                        otherActiveTicker));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        JsonNode error = jsonMapper.readTree(response.getBody());
+        assertThat(error.get("error").asText()).isEqualTo("duplicate_ticker");
+        assertThat(error.get("ticker").asText()).isEqualTo(activeTicker);
+        assertThat(error.get("tickers").get(0).asText()).isEqualTo(activeTicker);
+        assertThat(error.get("tickers").get(1).asText()).isEqualTo(otherActiveTicker);
+        assertThat(error.get("tickers")).hasSize(2);
+        assertUnchanged(userId, before);
+    }
+
     private UUID seedPortfolioWithTwoHoldings(String userId, Instant asOf) {
         return tx.execute(
                 status -> {
@@ -449,6 +581,9 @@ class CompositionControllerIT {
                                     h -> {
                                         h.getQuantity();
                                         h.getAvgCostBasis();
+                                        h.getCostBasisCurrency();
+                                        h.getCostBasisSource();
+                                        h.getCostBasisAsOf();
                                     });
                     return p;
                 });
@@ -459,31 +594,32 @@ class CompositionControllerIT {
         assertThat(after.getId()).isEqualTo(before.getId());
         assertThat(after.getVersion()).isEqualTo(before.getVersion());
         assertThat(after.getUpdatedAt()).isEqualTo(before.getUpdatedAt());
-        Map<String, BigDecimal> beforeQty =
+        Map<String, AssetHolding> beforeByTicker =
                 before.getHoldings().stream()
-                        .collect(
-                                Collectors.toMap(
-                                        AssetHolding::getAssetTicker, AssetHolding::getQuantity));
-        Map<String, BigDecimal> afterQty =
+                        .collect(Collectors.toMap(AssetHolding::getAssetTicker, h -> h));
+        Map<String, AssetHolding> afterByTicker =
                 after.getHoldings().stream()
-                        .collect(
-                                Collectors.toMap(
-                                        AssetHolding::getAssetTicker, AssetHolding::getQuantity));
-        assertThat(afterQty.keySet()).isEqualTo(beforeQty.keySet());
-        beforeQty.forEach(
-                (ticker, qty) ->
-                        assertThat(afterQty.get(ticker)).isEqualByComparingTo(qty));
-        List<UUID> beforeIds =
-                before.getHoldings().stream()
-                        .sorted(Comparator.comparing(AssetHolding::getAssetTicker))
-                        .map(AssetHolding::getId)
-                        .toList();
-        List<UUID> afterIds =
-                after.getHoldings().stream()
-                        .sorted(Comparator.comparing(AssetHolding::getAssetTicker))
-                        .map(AssetHolding::getId)
-                        .toList();
-        assertThat(afterIds).isEqualTo(beforeIds);
+                        .collect(Collectors.toMap(AssetHolding::getAssetTicker, h -> h));
+        assertThat(afterByTicker.keySet()).isEqualTo(beforeByTicker.keySet());
+        beforeByTicker.forEach(
+                (ticker, beforeHolding) -> {
+                    AssetHolding afterHolding = afterByTicker.get(ticker);
+                    assertThat(afterHolding.getId()).isEqualTo(beforeHolding.getId());
+                    assertThat(afterHolding.getQuantity())
+                            .isEqualByComparingTo(beforeHolding.getQuantity());
+                    if (beforeHolding.getAvgCostBasis() == null) {
+                        assertThat(afterHolding.getAvgCostBasis()).isNull();
+                    } else {
+                        assertThat(afterHolding.getAvgCostBasis())
+                                .isEqualByComparingTo(beforeHolding.getAvgCostBasis());
+                    }
+                    assertThat(afterHolding.getCostBasisCurrency())
+                            .isEqualTo(beforeHolding.getCostBasisCurrency());
+                    assertThat(afterHolding.getCostBasisSource())
+                            .isEqualTo(beforeHolding.getCostBasisSource());
+                    assertThat(afterHolding.getCostBasisAsOf())
+                            .isEqualTo(beforeHolding.getCostBasisAsOf());
+                });
     }
 
     private ResponseEntity<String> putHoldings(String userId, String jsonBody) {
