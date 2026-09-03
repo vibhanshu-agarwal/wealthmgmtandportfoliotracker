@@ -1,15 +1,15 @@
 # B1 Task 6.6 — R-B3 deployment and G2b proof packet
 
-**OWNER APPROVAL — execution remains closed:** This packet prepares the next task following
-the owner's request to continue. Before live work, approve the exact bundle in §8: read-only
-cloud/application/database preflight using securely supplied credentials, one portfolio-only
-digest deployment, one fixed-E2E seed attempt, and conditional image rollback only before that
-attempt. Approval permits those bounded operations after all preconditions pass; without it,
-the candidate remains undeployed and Task 6.6 remains open. Publishing these documents or the
-local cut tag is a separate decision. The repository's AGENTS.md requires these approvals.
+**OWNER APPROVAL — recorded; credential prerequisite unresolved:** On 2026-09-03 the owner
+replied “Please proceed” to the exact §8 bundle. That authorizes secure read-only preflight, one
+cu4 digest deployment, one fixed-E2E seed, and the specified conditional pre-seed rollback.
+The initial preflight stopped before deployment because all eight required process variables
+were absent. Approval remains valid subject to the packet's drift checks; no repeat approval is
+needed merely to resume. See §10. Publication and Task 6.7 closure remain separate owner decisions.
 
 **Prepared:** 2026-09-03 by Codex, architecture/review owner.
-**State:** Local review packet and offline reference prepared; no Task 6.6 live operation performed.
+**State:** Execution approved; preliminary cloud/repository checks passed; application/database
+preflight and deployment await secure credentials. Seed attempts: 0; deployment dispatches: 0.
 **Operator:** The owner-authorized release operator; no implementation-agent assignment or message
 is implied by this document. Codex owns review and status reconciliation.
 **Goal:** Bind the existing candidate to every serving portfolio revision, then demonstrate
@@ -330,3 +330,30 @@ The fixture used migration-derived columns and distinct E2E/demo cost bases. The
 was removed. This validates query syntax and serialization; production schema, credentials, TLS
 and connectivity remain live preflight predicates. No application code or operational helper was
 implemented, and the full application test suites were not rerun.
+
+## 10. Approved preflight — credential prerequisite
+
+The owner replied “Please proceed” to the exact execution request after review packet commit
+1bd9314d3e7a2903747b8a6838556ec6a4e6d4a2. This approval is recorded; it is not being requested again.
+The [sanitized preliminary result](../evidence/b1-task-6-6/approved-preflight-20260903.json)
+records checks captured around 2026-09-03 04:28:56 UTC and hashes the approved packet/reference.
+
+GitHub main remained 9c2ebc1233801253a3e54b6e930e28e1a00ebf3d. Relevant source/workflow/caller
+paths had no delta from the frozen cut; the caller guard still found exactly three callers, and
+the local cut tag resolved to the frozen source. Both candidate and rollback manifests remained
+readable with the expected digests, tags, platforms and sizes. Portfolio revision 0000093 remained
+sole active, Healthy/Provisioned/ScaledToZero, at 100% internal traffic in Single mode. Both flags
+were false, minReplicas remained null, and the named cost-basis-anchor override was absent. This
+limited check does not attest every possible configuration source or replace application readiness.
+
+Presence-only checks found all required variables absent from this operator process:
+E2E_TEST_USER_EMAIL, E2E_TEST_USER_PASSWORD, INTERNAL_API_KEY, PGHOST, PGPORT, PGDATABASE,
+PGUSER and PGPASSWORD. No credential value was retrieved; no login, application read, database
+connection, deployment dispatch, seed attempt or rollback occurred. This is
+PREFLIGHT_BLOCKED_CREDENTIALS, not completed preflight or a failed serving proof.
+
+Resume after the owner securely supplies the specified process variables or explicitly identifies
+an authorized local credential source to load into memory. Do not search for secrets or retrieve
+them from Azure/GitHub. Recheck time-sensitive release state, peer/replica/job/concurrency and
+Environment controls, then complete the original packet under the existing approval. Source or
+operational drift still invokes the original stop/review rule. Tasks 6.6/6.7 remain unchecked.

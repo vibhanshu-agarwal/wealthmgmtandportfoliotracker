@@ -1,14 +1,13 @@
 # B1 Task 6.5 — Pre-deployment Readiness Record
 
-**OWNER APPROVAL — remaining boundaries:** On 2026-09-03 the owner approved Task 6.5 GO,
-read-only preflight, and then the exact single-build request with “Approved.” That build completed
-as cu4; the operator stopped after digest verification and recording. Publishing this record or
-its local cut tag needs a new approval: approval publishes that evidence; otherwise it stays local.
-PR #218's publication approval is already fulfilled. Deployment dispatch, live seed, rollback,
-implementation publication/merge, exposure and schedule restoration remain separately gated.
-The build result alone grants no deployment approval. The subsequently prepared
-[Task 6.6 execution packet](B1_TASK_6_6_G2B_EXECUTION_PACKET.md) specifies the next approval bundle;
-its secure preflight, deployment and one seed remain unexecuted.
+**OWNER APPROVAL — next bundle approved; credentials required:** Task 6.5 GO, read-only
+preflight and build cu4 were approved and completed. The owner subsequently approved the exact
+[Task 6.6 bundle](B1_TASK_6_6_G2B_EXECUTION_PACKET.md#10-approved-preflight--credential-prerequisite)
+with “Please proceed”. Preliminary metadata/source checks passed; absent secure process variables
+block application/database preflight and deployment. Existing approval remains subject to drift
+checks. Publication of local records/tag and Task 6.7 closure remain separate owner decisions:
+approval publishes/closes those items; without it they remain local/open. PR #218's publication
+authorization is already fulfilled.
 
 **Prepared:** 2026-09-03 by Codex, architecture/review owner.
 **State:** Task 6.5 GO recorded by owner decision; read-only metadata preflight completed on
@@ -222,7 +221,8 @@ The subsequent [Task 6.6 packet](B1_TASK_6_6_G2B_EXECUTION_PACKET.md) now specif
 credential/execution channel, one-call E2E identity/version protocol, complete persisted tuple/price
 capture, read readiness and conditional rollback scope. Its offline E2E reference accounts for the
 identity-dependent cost basis. PortfolioResponse omits cost-basis fields and global price tables,
-so HTTP holdings alone cannot supply that proof. No live step follows without execution approval.
+so HTTP holdings alone cannot supply that proof. Execution approval is now recorded in the
+packet's §10; secure credentials remain the prerequisite to application/database preflight.
 
 A later dispatch would use deployment_mode=digest, services=portfolio-service, this exact
 prebuilt_digest, and a freshly verified expected_main_sha for the main workflow. The source cut
@@ -261,6 +261,7 @@ inventory/guard tests pass. There is no remaining caller implementation prerequi
 and 7.1/7.2 remain unchecked. The approved read-only preflight is complete with the limitations in
 §5. The separately approved one-build operation is complete: §6.1 records cu4 and the verified
 immutable digest. Execution stopped at the approved boundary. The Task 6.6 packet and offline
-E2E reference were then prepared under the owner's request to continue; review and execution
-approval remain open. No dispatch, seed, rollback, exposure, schedule change,
+E2E reference were then prepared, and the owner approved the exact execution bundle. Preliminary
+metadata checks passed; absent credentials block application/database preflight and deployment.
+No dispatch, seed, rollback, exposure, schedule change,
 G2b/R-B3 closure or Writer_Convergence claim follows from the GO or build.

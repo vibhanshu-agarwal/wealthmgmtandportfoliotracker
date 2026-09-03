@@ -1,13 +1,12 @@
 # Implementation Plan
 
-**OWNER APPROVAL — remaining actions:** Task 6.5 GO, read-only preflight and the separately
-approved single build cu4 are recorded below. Publishing this update or its local cut tag needs
-new approval: approval publishes the evidence; otherwise it remains local. Deployment, live seed,
-rollback, implementation publication/merge and exposure retain their gates. The
-[build result](../../../docs/runbooks/B1_TASK_6_5_PRE_DEPLOY_READINESS.md#61-approved-candidate-build--result-and-provenance)
-closes packaging only. The [Task 6.6 packet](../../../docs/runbooks/B1_TASK_6_6_G2B_EXECUTION_PACKET.md)
-and offline E2E reference are prepared locally; secure preflight and the exact live bundle still need
-execution approval. No Task 6.6/6.7 checkbox changes follow from preparation.
+**OWNER APPROVAL — Task 6.6 execution recorded:** The owner approved the exact
+[Task 6.6 bundle](../../../docs/runbooks/B1_TASK_6_6_G2B_EXECUTION_PACKET.md#10-approved-preflight--credential-prerequisite)
+with “Please proceed” on 2026-09-03. Preliminary source/cloud metadata checks passed; all eight
+required process variables are absent. Secure credentials are required before application/database
+preflight and deployment. Existing approval remains subject to drift checks. Publication of local
+records/tag and Task 6.7 closure remain separate decisions: approval publishes/closes those items;
+without it they remain local/open. Tasks 6.6/6.7 remain unchecked.
 
 **B1 Wave 6 source completion (verified 2026-09-03):** Tasks **6.1–6.4 are source-complete**
 after owner-approved [PR #217](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/217)
@@ -1013,8 +1012,11 @@ Tasks 6.6/6.7 remain unchecked. The read-only metadata snapshot is not G2b servi
   **Preparation 2026-09-03:** [Execution packet](../../../docs/runbooks/B1_TASK_6_6_G2B_EXECUTION_PACKET.md)
   fixes cu4's digest, the guarded deployment, secure SQL/HTTP channel, complete tuple/price
   snapshots, one frozen-version E2E seed, and pre-seed-only conditional rollback. The independent
-  E2E reference is offline expected data. No live proof executed; owner execution approval remains
-  open. The existing demo oracle cannot supply E2E cost-basis expectations.
+  E2E reference is offline expected data. The owner approved the bundle with “Please proceed”.
+  Initial source/metadata checks passed; all eight required process variables are absent, so
+  application/database preflight and deployment await secure credentials. Deployment dispatches
+  and seed attempts are both 0. Existing approval remains; no G2b proof or completion tick follows.
+  The existing demo oracle cannot supply E2E cost-basis expectations.
   _Requirements: 8.14, 8.16, 8.30_
 - [ ] **6.7 STOP/GO — R-B3.**
   **Go:** 6.6 green.

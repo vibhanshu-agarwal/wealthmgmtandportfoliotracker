@@ -1,0 +1,128 @@
+{
+  "schemaVersion": 1,
+  "task": "B1 6.6",
+  "state": "PREFLIGHT_BLOCKED_CREDENTIALS",
+  "authorization": {
+    "ownerResponse": "Please proceed",
+    "scope": "Packet section 8: secure read-only preflight, one cu4 digest deployment, one fixed-E2E seed, at most one conditional pre-seed rollback; no publication or Task 6.7 closure.",
+    "packetCommit": "1bd9314d3e7a2903747b8a6838556ec6a4e6d4a2",
+    "date": "2026-09-03"
+  },
+  "capturedAtUtc": "2026-09-03 04:28:56 UTC",
+  "mainSha": "9c2ebc1233801253a3e54b6e930e28e1a00ebf3d",
+  "reviewedSource": "6a171558a0f802eadd5d7ed5bf28545ca5c91905",
+  "riskPathDiffEmpty": true,
+  "callerInventoryCount": 3,
+  "credentialPresence": {
+    "E2E_TEST_USER_EMAIL": false,
+    "E2E_TEST_USER_PASSWORD": false,
+    "INTERNAL_API_KEY": false,
+    "PGHOST": false,
+    "PGPORT": false,
+    "PGDATABASE": false,
+    "PGUSER": false,
+    "PGPASSWORD": false
+  },
+  "candidateManifest": {
+    "architecture": "amd64",
+    "digest": "sha256:2be727eaf4577699c783ae66073670d4984fe66c666af3e56422c934fdd0b023",
+    "imageSize": 314499695,
+    "os": "linux",
+    "readEnabled": true,
+    "tags": [
+      "b1-r-b3-6a171558-20260903T032527Z"
+    ]
+  },
+  "rollbackManifest": {
+    "architecture": "amd64",
+    "digest": "sha256:9a1d55335b83b97967e434d374c7f5f5ca79ea2adccad8f8e518b674e9a39f47",
+    "imageSize": 314499296,
+    "os": "linux",
+    "readEnabled": true,
+    "tags": [
+      "b2-task-4-5-63fc0584-20260901T144653Z"
+    ]
+  },
+  "servingRevisions": [
+    {
+      "active": true,
+      "health": "Healthy",
+      "images": [
+        "wealthprodacr.azurecr.io/portfolio-service@sha256:9a1d55335b83b97967e434d374c7f5f5ca79ea2adccad8f8e518b674e9a39f47"
+      ],
+      "name": "portfolio-service--0000093",
+      "provisioning": "Provisioned",
+      "running": "ScaledToZero",
+      "trafficWeight": 100
+    }
+  ],
+  "portfolioControlPlane": {
+    "anchor": [],
+    "diagnostics": [
+      {
+        "name": "APP_DEMO_TX_DIAGNOSTICS",
+        "value": "false"
+      }
+    ],
+    "ingress": {
+      "additionalPortMappings": null,
+      "allowInsecure": false,
+      "clientCertificateMode": null,
+      "corsPolicy": null,
+      "customDomains": null,
+      "exposedPort": 0,
+      "external": false,
+      "fqdn": "portfolio-service.internal.lemonmoss-ecef29d7.centralindia.azurecontainerapps.io",
+      "ipSecurityRestrictions": [],
+      "stickySessions": null,
+      "targetPort": 8080,
+      "targetPortHttpScheme": null,
+      "traffic": [
+        {
+          "latestRevision": true,
+          "weight": 100
+        }
+      ],
+      "transport": "Auto"
+    },
+    "mode": "Single",
+    "ready": "portfolio-service--0000093",
+    "revision": "portfolio-service--0000093",
+    "scale": {
+      "cooldownPeriod": 300,
+      "maxReplicas": 3,
+      "minReplicas": null,
+      "pollingInterval": 30,
+      "rules": null
+    },
+    "startup": [
+      {
+        "name": "APP_DEMO_SEED_ON_STARTUP",
+        "value": "false"
+      }
+    ]
+  },
+  "operations": {
+    "githubMetadataRead": true,
+    "azureRegistryMetadataRead": true,
+    "credentialPresenceChecked": true,
+    "credentialValuesRetrieved": false,
+    "applicationLogin": false,
+    "applicationRead": false,
+    "databaseConnection": false,
+    "workflowDispatchCount": 0,
+    "seedAttemptCount": 0,
+    "rollbackCount": 0,
+    "publication": false
+  },
+  "notCompleted": [
+    "secure credential channel",
+    "application and PostgreSQL preflight",
+    "fresh peer/replica/job/concurrency/environment-gate checks before deployment",
+    "deployment and G2b proof"
+  ],
+  "resume": "Existing owner approval remains; supply the specified process environment securely or explicitly authorize a named local credential source. Recheck time-sensitive release state before any deployment. No Azure/GitHub secret retrieval authorized.",
+  "approvedPacketSha256": "f4423e8ba17ac3c212a22b7df7f955e2ce0a39af72f0ff88299f14cb503a2413",
+  "offlineReferenceSha256": "ce7a7e71f1cc5e837884b0650cf8d351492cffe897ff8698b099dd61797229a9",
+  "hashConvention": "SHA-256 of committed Git file bytes at the approved packet commit"
+}
