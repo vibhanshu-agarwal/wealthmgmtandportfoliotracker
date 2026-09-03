@@ -1,0 +1,1286 @@
+{
+  "schemaVersion": 1,
+  "kind": "offline-reference-not-live-evidence",
+  "sourceCommit": "6a171558a0f802eadd5d7ed5bf28545ca5c91905",
+  "catalogPath": "config/seed-tickers.json",
+  "catalogSha256": "cfa5e6b7317e922c07452359b851e55ee0a2a5ae9014224665244f9c2264de8b",
+  "catalogTotalEntries": 160,
+  "activeEntryCount": 159,
+  "targetUserId": "00000000-0000-0000-0000-000000000e2e",
+  "costBasisAnchor": "2020-01-01T00:00:00.000Z",
+  "derivation": "Independent decimal arithmetic from the frozen catalog; Java signed-32-bit String.hashCode and positive-divisor floorMod; two HALF_UP scale-4 rounding stages. No production Java helper or demo-account oracle output used.",
+  "persistedHoldings": [
+    {
+      "assetTicker": "AAPL",
+      "quantity": "37.00000000",
+      "avgCostBasis": "200.7733",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "AAVE-USD",
+      "quantity": "7.00000000",
+      "avgCostBasis": "98.7897",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "ABBV",
+      "quantity": "24.00000000",
+      "avgCostBasis": "175.5571",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "ACN",
+      "quantity": "21.00000000",
+      "avgCostBasis": "336.2568",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "ADA-USD",
+      "quantity": "26.00000000",
+      "avgCostBasis": "0.4858",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "ADANIENT.NS",
+      "quantity": "42.00000000",
+      "avgCostBasis": "3117.8163",
+      "costBasisCurrency": "INR",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "ADANIPORTS.NS",
+      "quantity": "9.00000000",
+      "avgCostBasis": "1391.3558",
+      "costBasisCurrency": "INR",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "ADBE",
+      "quantity": "29.00000000",
+      "avgCostBasis": "535.6089",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "ALGO-USD",
+      "quantity": "5.00000000",
+      "avgCostBasis": "0.1938",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "AMD",
+      "quantity": "21.00000000",
+      "avgCostBasis": "176.5101",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "AMZN",
+      "quantity": "31.00000000",
+      "avgCostBasis": "190.5728",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "APOLLOHOSP.NS",
+      "quantity": "1.00000000",
+      "avgCostBasis": "6698.6065",
+      "costBasisCurrency": "INR",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "APT-USD",
+      "quantity": "37.00000000",
+      "avgCostBasis": "11.7141",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "ARB-USD",
+      "quantity": "11.00000000",
+      "avgCostBasis": "1.1505",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "ASIANPAINT.NS",
+      "quantity": "16.00000000",
+      "avgCostBasis": "3020.6640",
+      "costBasisCurrency": "INR",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "ATOM-USD",
+      "quantity": "23.00000000",
+      "avgCostBasis": "8.8626",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "AUDUSD=X",
+      "quantity": "20.00000000",
+      "avgCostBasis": "0.6546",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "AVAX-USD",
+      "quantity": "6.00000000",
+      "avgCostBasis": "36.2715",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "AVGO",
+      "quantity": "42.00000000",
+      "avgCostBasis": "1344.1003",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "AXISBANK.NS",
+      "quantity": "7.00000000",
+      "avgCostBasis": "1175.7538",
+      "costBasisCurrency": "INR",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "AXS-USD",
+      "quantity": "24.00000000",
+      "avgCostBasis": "7.4826",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "BA",
+      "quantity": "12.00000000",
+      "avgCostBasis": "185.4158",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "BAC",
+      "quantity": "9.00000000",
+      "avgCostBasis": "38.9832",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "BAJAJ-AUTO.NS",
+      "quantity": "16.00000000",
+      "avgCostBasis": "9416.5828",
+      "costBasisCurrency": "INR",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "BAJAJFINSV.NS",
+      "quantity": "42.00000000",
+      "avgCostBasis": "1694.8597",
+      "costBasisCurrency": "INR",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "BAJFINANCE.NS",
+      "quantity": "37.00000000",
+      "avgCostBasis": "6997.3506",
+      "costBasisCurrency": "INR",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "BCH-USD",
+      "quantity": "3.00000000",
+      "avgCostBasis": "500.4431",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "BHARTIARTL.NS",
+      "quantity": "9.00000000",
+      "avgCostBasis": "1404.9173",
+      "costBasisCurrency": "INR",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "BNB-USD",
+      "quantity": "38.00000000",
+      "avgCostBasis": "624.7253",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "BPCL.NS",
+      "quantity": "13.00000000",
+      "avgCostBasis": "622.1720",
+      "costBasisCurrency": "INR",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "BRITANNIA.NS",
+      "quantity": "24.00000000",
+      "avgCostBasis": "5117.9142",
+      "costBasisCurrency": "INR",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "BRK-B",
+      "quantity": "35.00000000",
+      "avgCostBasis": "425.1968",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "BTC-USD",
+      "quantity": "15.00000000",
+      "avgCostBasis": "68106.3200",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "C",
+      "quantity": "18.00000000",
+      "avgCostBasis": "63.2491",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "CHZ-USD",
+      "quantity": "17.00000000",
+      "avgCostBasis": "0.1180",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "CIPLA.NS",
+      "quantity": "29.00000000",
+      "avgCostBasis": "1586.3352",
+      "costBasisCurrency": "INR",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "COALINDIA.NS",
+      "quantity": "16.00000000",
+      "avgCostBasis": "445.6232",
+      "costBasisCurrency": "INR",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "COST",
+      "quantity": "24.00000000",
+      "avgCostBasis": "758.7760",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "CRM",
+      "quantity": "7.00000000",
+      "avgCostBasis": "299.7094",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "CSCO",
+      "quantity": "17.00000000",
+      "avgCostBasis": "50.4651",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "CVX",
+      "quantity": "42.00000000",
+      "avgCostBasis": "158.7160",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "DIS",
+      "quantity": "45.00000000",
+      "avgCostBasis": "116.7653",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "DIVISLAB.NS",
+      "quantity": "4.00000000",
+      "avgCostBasis": "4390.0073",
+      "costBasisCurrency": "INR",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "DOGE-USD",
+      "quantity": "47.00000000",
+      "avgCostBasis": "0.1730",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "DOT-USD",
+      "quantity": "33.00000000",
+      "avgCostBasis": "8.0904",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "DRREDDY.NS",
+      "quantity": "46.00000000",
+      "avgCostBasis": "6220.9429",
+      "costBasisCurrency": "INR",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "EGLD-USD",
+      "quantity": "14.00000000",
+      "avgCostBasis": "42.3441",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "EICHERMOT.NS",
+      "quantity": "14.00000000",
+      "avgCostBasis": "4844.4740",
+      "costBasisCurrency": "INR",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "ETC-USD",
+      "quantity": "12.00000000",
+      "avgCostBasis": "27.1758",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "ETH-USD",
+      "quantity": "17.00000000",
+      "avgCostBasis": "3605.4264",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "EURUSD=X",
+      "quantity": "32.00000000",
+      "avgCostBasis": "1.1091",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "FIL-USD",
+      "quantity": "21.00000000",
+      "avgCostBasis": "6.3067",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "FLOW-USD",
+      "quantity": "14.00000000",
+      "avgCostBasis": "0.9029",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "FTM-USD",
+      "quantity": "3.00000000",
+      "avgCostBasis": "0.7956",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "GALA-USD",
+      "quantity": "35.00000000",
+      "avgCostBasis": "0.0482",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "GBPUSD=X",
+      "quantity": "49.00000000",
+      "avgCostBasis": "1.3181",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "GE",
+      "quantity": "21.00000000",
+      "avgCostBasis": "171.5288",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "GOOGL",
+      "quantity": "27.00000000",
+      "avgCostBasis": "179.9112",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "GRASIM.NS",
+      "quantity": "11.00000000",
+      "avgCostBasis": "2504.4178",
+      "costBasisCurrency": "INR",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "GRT-USD",
+      "quantity": "29.00000000",
+      "avgCostBasis": "0.2975",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "GS",
+      "quantity": "35.00000000",
+      "avgCostBasis": "476.0725",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "HBAR-USD",
+      "quantity": "47.00000000",
+      "avgCostBasis": "0.0919",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "HCLTECH.NS",
+      "quantity": "37.00000000",
+      "avgCostBasis": "1606.5270",
+      "costBasisCurrency": "INR",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "HD",
+      "quantity": "1.00000000",
+      "avgCostBasis": "363.4264",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "HDFCBANK.NS",
+      "quantity": "45.00000000",
+      "avgCostBasis": "1604.1881",
+      "costBasisCurrency": "INR",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "HDFCLIFE.NS",
+      "quantity": "7.00000000",
+      "avgCostBasis": "631.4605",
+      "costBasisCurrency": "INR",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "HEROMOTOCO.NS",
+      "quantity": "33.00000000",
+      "avgCostBasis": "5363.3148",
+      "costBasisCurrency": "INR",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "HINDALCO.NS",
+      "quantity": "48.00000000",
+      "avgCostBasis": "628.8484",
+      "costBasisCurrency": "INR",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "HINDUNILVR.NS",
+      "quantity": "23.00000000",
+      "avgCostBasis": "2307.8524",
+      "costBasisCurrency": "INR",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "IBM",
+      "quantity": "27.00000000",
+      "avgCostBasis": "198.1344",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "ICICIBANK.NS",
+      "quantity": "29.00000000",
+      "avgCostBasis": "1124.2969",
+      "costBasisCurrency": "INR",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "ICP-USD",
+      "quantity": "46.00000000",
+      "avgCostBasis": "13.1259",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "IMX-USD",
+      "quantity": "24.00000000",
+      "avgCostBasis": "2.1685",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "INDUSINDBK.NS",
+      "quantity": "19.00000000",
+      "avgCostBasis": "1459.8768",
+      "costBasisCurrency": "INR",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "INFY.NS",
+      "quantity": "32.00000000",
+      "avgCostBasis": "1479.1281",
+      "costBasisCurrency": "INR",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "INJ-USD",
+      "quantity": "31.00000000",
+      "avgCostBasis": "28.5684",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "INTC",
+      "quantity": "23.00000000",
+      "avgCostBasis": "36.3527",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "ITC.NS",
+      "quantity": "46.00000000",
+      "avgCostBasis": "471.3589",
+      "costBasisCurrency": "INR",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "JNJ",
+      "quantity": "7.00000000",
+      "avgCostBasis": "163.7422",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "JPM",
+      "quantity": "22.00000000",
+      "avgCostBasis": "208.5104",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "JSWSTEEL.NS",
+      "quantity": "9.00000000",
+      "avgCostBasis": "944.0525",
+      "costBasisCurrency": "INR",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "KAVA-USD",
+      "quantity": "39.00000000",
+      "avgCostBasis": "0.5781",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "KO",
+      "quantity": "5.00000000",
+      "avgCostBasis": "62.8496",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "KOTAKBANK.NS",
+      "quantity": "38.00000000",
+      "avgCostBasis": "1732.8483",
+      "costBasisCurrency": "INR",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "LINK-USD",
+      "quantity": "32.00000000",
+      "avgCostBasis": "19.1904",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "LLY",
+      "quantity": "32.00000000",
+      "avgCostBasis": "802.1636",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "LT.NS",
+      "quantity": "48.00000000",
+      "avgCostBasis": "3711.4925",
+      "costBasisCurrency": "INR",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "LTC-USD",
+      "quantity": "33.00000000",
+      "avgCostBasis": "86.6017",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "M&M.NS",
+      "quantity": "44.00000000",
+      "avgCostBasis": "2258.2677",
+      "costBasisCurrency": "INR",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "MA",
+      "quantity": "3.00000000",
+      "avgCostBasis": "491.0106",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "MANA-USD",
+      "quantity": "5.00000000",
+      "avgCostBasis": "0.4688",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "MARUTI.NS",
+      "quantity": "14.00000000",
+      "avgCostBasis": "12356.6561",
+      "costBasisCurrency": "INR",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "MATIC-USD",
+      "quantity": "28.00000000",
+      "avgCostBasis": "0.7285",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "MCD",
+      "quantity": "43.00000000",
+      "avgCostBasis": "274.9188",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "META",
+      "quantity": "36.00000000",
+      "avgCostBasis": "529.4863",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "MRK",
+      "quantity": "15.00000000",
+      "avgCostBasis": "130.0447",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "MSFT",
+      "quantity": "25.00000000",
+      "avgCostBasis": "420.2922",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "NEAR-USD",
+      "quantity": "12.00000000",
+      "avgCostBasis": "6.7291",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "NEO-USD",
+      "quantity": "36.00000000",
+      "avgCostBasis": "15.3708",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "NESTLEIND.NS",
+      "quantity": "30.00000000",
+      "avgCostBasis": "2637.3819",
+      "costBasisCurrency": "INR",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "NFLX",
+      "quantity": "13.00000000",
+      "avgCostBasis": "634.4519",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "NKE",
+      "quantity": "3.00000000",
+      "avgCostBasis": "92.6095",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "NTPC.NS",
+      "quantity": "5.00000000",
+      "avgCostBasis": "358.2784",
+      "costBasisCurrency": "INR",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "NVDA",
+      "quantity": "18.00000000",
+      "avgCostBasis": "893.5105",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "NZDUSD=X",
+      "quantity": "8.00000000",
+      "avgCostBasis": "0.5910",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "ONGC.NS",
+      "quantity": "41.00000000",
+      "avgCostBasis": "283.1934",
+      "costBasisCurrency": "INR",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "OP-USD",
+      "quantity": "35.00000000",
+      "avgCostBasis": "2.6582",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "ORCL",
+      "quantity": "45.00000000",
+      "avgCostBasis": "128.2586",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "PEP",
+      "quantity": "50.00000000",
+      "avgCostBasis": "172.6966",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "PFE",
+      "quantity": "20.00000000",
+      "avgCostBasis": "29.1649",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "PG",
+      "quantity": "2.00000000",
+      "avgCostBasis": "161.4207",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "POWERGRID.NS",
+      "quantity": "49.00000000",
+      "avgCostBasis": "300.5267",
+      "costBasisCurrency": "INR",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "PYPL",
+      "quantity": "16.00000000",
+      "avgCostBasis": "66.3443",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "QCOM",
+      "quantity": "35.00000000",
+      "avgCostBasis": "178.5905",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "RELIANCE.NS",
+      "quantity": "17.00000000",
+      "avgCostBasis": "2858.1344",
+      "costBasisCurrency": "INR",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "ROSE-USD",
+      "quantity": "23.00000000",
+      "avgCostBasis": "0.1128",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "RTX",
+      "quantity": "45.00000000",
+      "avgCostBasis": "112.7009",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "RUNE-USD",
+      "quantity": "8.00000000",
+      "avgCostBasis": "5.4665",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "SAND-USD",
+      "quantity": "40.00000000",
+      "avgCostBasis": "0.4726",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "SBILIFE.NS",
+      "quantity": "24.00000000",
+      "avgCostBasis": "1574.0545",
+      "costBasisCurrency": "INR",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "SBIN.NS",
+      "quantity": "50.00000000",
+      "avgCostBasis": "852.7424",
+      "costBasisCurrency": "INR",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "SBUX",
+      "quantity": "3.00000000",
+      "avgCostBasis": "92.2371",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "SHIB-USD",
+      "quantity": "14.00000000",
+      "avgCostBasis": "0.0000",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "SHREECEM.NS",
+      "quantity": "42.00000000",
+      "avgCostBasis": "28246.8244",
+      "costBasisCurrency": "INR",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "SOL-USD",
+      "quantity": "42.00000000",
+      "avgCostBasis": "191.0506",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "SUNPHARMA.NS",
+      "quantity": "31.00000000",
+      "avgCostBasis": "1678.6829",
+      "costBasisCurrency": "INR",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "T",
+      "quantity": "35.00000000",
+      "avgCostBasis": "17.8089",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "TATACONSUM.NS",
+      "quantity": "27.00000000",
+      "avgCostBasis": "1090.1499",
+      "costBasisCurrency": "INR",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "TATASTEEL.NS",
+      "quantity": "31.00000000",
+      "avgCostBasis": "165.7930",
+      "costBasisCurrency": "INR",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "TCS.NS",
+      "quantity": "6.00000000",
+      "avgCostBasis": "4139.3499",
+      "costBasisCurrency": "INR",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "TECHM.NS",
+      "quantity": "19.00000000",
+      "avgCostBasis": "1316.6101",
+      "costBasisCurrency": "INR",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "THETA-USD",
+      "quantity": "24.00000000",
+      "avgCostBasis": "1.9040",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "TITAN.NS",
+      "quantity": "8.00000000",
+      "avgCostBasis": "3635.3095",
+      "costBasisCurrency": "INR",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "TMO",
+      "quantity": "41.00000000",
+      "avgCostBasis": "556.2748",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "TON-USD",
+      "quantity": "15.00000000",
+      "avgCostBasis": "6.9242",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "TRX-USD",
+      "quantity": "28.00000000",
+      "avgCostBasis": "0.1209",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "TSLA",
+      "quantity": "29.00000000",
+      "avgCostBasis": "181.9328",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "ULTRACEMCO.NS",
+      "quantity": "41.00000000",
+      "avgCostBasis": "10884.1428",
+      "costBasisCurrency": "INR",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "UNH",
+      "quantity": "26.00000000",
+      "avgCostBasis": "482.0451",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "UNI-USD",
+      "quantity": "40.00000000",
+      "avgCostBasis": "8.3341",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "UPL.NS",
+      "quantity": "43.00000000",
+      "avgCostBasis": "538.4205",
+      "costBasisCurrency": "INR",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "USDC-USD",
+      "quantity": "3.00000000",
+      "avgCostBasis": "1.0015",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "USDCAD=X",
+      "quantity": "24.00000000",
+      "avgCostBasis": "1.3937",
+      "costBasisCurrency": "CAD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "USDCHF=X",
+      "quantity": "33.00000000",
+      "avgCostBasis": "0.9136",
+      "costBasisCurrency": "CHF",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "USDHKD=X",
+      "quantity": "39.00000000",
+      "avgCostBasis": "7.7938",
+      "costBasisCurrency": "HKD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "USDINR=X",
+      "quantity": "37.00000000",
+      "avgCostBasis": "83.6420",
+      "costBasisCurrency": "INR",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "USDJPY=X",
+      "quantity": "17.00000000",
+      "avgCostBasis": "156.8482",
+      "costBasisCurrency": "JPY",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "USDSGD=X",
+      "quantity": "6.00000000",
+      "avgCostBasis": "1.4268",
+      "costBasisCurrency": "SGD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "V",
+      "quantity": "37.00000000",
+      "avgCostBasis": "279.7435",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "VET-USD",
+      "quantity": "43.00000000",
+      "avgCostBasis": "0.0429",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "VZ",
+      "quantity": "7.00000000",
+      "avgCostBasis": "42.2356",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "WIPRO.NS",
+      "quantity": "11.00000000",
+      "avgCostBasis": "493.2041",
+      "costBasisCurrency": "INR",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "WMT",
+      "quantity": "29.00000000",
+      "avgCostBasis": "62.2044",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "XLM-USD",
+      "quantity": "19.00000000",
+      "avgCostBasis": "0.1144",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "XMR-USD",
+      "quantity": "25.00000000",
+      "avgCostBasis": "180.2850",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "XOM",
+      "quantity": "45.00000000",
+      "avgCostBasis": "114.7672",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "XRP-USD",
+      "quantity": "38.00000000",
+      "avgCostBasis": "0.6458",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "XTZ-USD",
+      "quantity": "50.00000000",
+      "avgCostBasis": "1.1133",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    },
+    {
+      "assetTicker": "ZEC-USD",
+      "quantity": "14.00000000",
+      "avgCostBasis": "24.8098",
+      "costBasisCurrency": "USD",
+      "costBasisSource": "SEED",
+      "costBasisAsOf": "2020-01-01T00:00:00.000Z"
+    }
+  ]
+}

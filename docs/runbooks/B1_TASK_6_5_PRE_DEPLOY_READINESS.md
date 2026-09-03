@@ -6,7 +6,9 @@ as cu4; the operator stopped after digest verification and recording. Publishing
 its local cut tag needs a new approval: approval publishes that evidence; otherwise it stays local.
 PR #218's publication approval is already fulfilled. Deployment dispatch, live seed, rollback,
 implementation publication/merge, exposure and schedule restoration remain separately gated.
-No deployment approval is requested by this build result; its concrete proof packet is still needed.
+The build result alone grants no deployment approval. The subsequently prepared
+[Task 6.6 execution packet](B1_TASK_6_6_G2B_EXECUTION_PACKET.md) specifies the next approval bundle;
+its secure preflight, deployment and one seed remain unexecuted.
 
 **Prepared:** 2026-09-03 by Codex, architecture/review owner.
 **State:** Task 6.5 GO recorded by owner decision; read-only metadata preflight completed on
@@ -216,10 +218,11 @@ was made, and the local cut tag alone does not check the aggregate AM.1/AM.2 tas
 login/read, database read, seed or rollback was executed. The existing production image remains
 active; the new image is a registry candidate.
 
-Before requesting deployment/Task 6.6 authorization, prepare and review the exact probe packet:
-approved credential/execution channel, one-call E2E identity/version protocol, complete persisted
-tuple/price evidence capture, readiness checks and conditional rollback scope. PortfolioResponse
-omits cost-basis fields and global price tables, so HTTP holdings alone cannot supply that full proof.
+The subsequent [Task 6.6 packet](B1_TASK_6_6_G2B_EXECUTION_PACKET.md) now specifies the secure
+credential/execution channel, one-call E2E identity/version protocol, complete persisted tuple/price
+capture, read readiness and conditional rollback scope. Its offline E2E reference accounts for the
+identity-dependent cost basis. PortfolioResponse omits cost-basis fields and global price tables,
+so HTTP holdings alone cannot supply that proof. No live step follows without execution approval.
 
 A later dispatch would use deployment_mode=digest, services=portfolio-service, this exact
 prebuilt_digest, and a freshly verified expected_main_sha for the main workflow. The source cut
@@ -257,6 +260,7 @@ inventory/guard tests pass. There is no remaining caller implementation prerequi
 **Owner decision: GO, 2026-09-03.** Task 6.5 is checked for the recorded decision; Tasks 6.6/6.7
 and 7.1/7.2 remain unchecked. The approved read-only preflight is complete with the limitations in
 §5. The separately approved one-build operation is complete: §6.1 records cu4 and the verified
-immutable digest. Execution stopped at the approved boundary. Next is review of the artifact and a
-concrete deployment/6.6 proof packet. No dispatch, seed, rollback, exposure, schedule change,
+immutable digest. Execution stopped at the approved boundary. The Task 6.6 packet and offline
+E2E reference were then prepared under the owner's request to continue; review and execution
+approval remain open. No dispatch, seed, rollback, exposure, schedule change,
 G2b/R-B3 closure or Writer_Convergence claim follows from the GO or build.

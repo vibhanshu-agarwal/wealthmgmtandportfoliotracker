@@ -5,7 +5,9 @@ approved single build cu4 are recorded below. Publishing this update or its loca
 new approval: approval publishes the evidence; otherwise it remains local. Deployment, live seed,
 rollback, implementation publication/merge and exposure retain their gates. The
 [build result](../../../docs/runbooks/B1_TASK_6_5_PRE_DEPLOY_READINESS.md#61-approved-candidate-build--result-and-provenance)
-closes packaging only; a concrete deployment/6.6 proof packet is needed before execution approval.
+closes packaging only. The [Task 6.6 packet](../../../docs/runbooks/B1_TASK_6_6_G2B_EXECUTION_PACKET.md)
+and offline E2E reference are prepared locally; secure preflight and the exact live bundle still need
+execution approval. No Task 6.6/6.7 checkbox changes follow from preparation.
 
 **B1 Wave 6 source completion (verified 2026-09-03):** Tasks **6.1–6.4 are source-complete**
 after owner-approved [PR #217](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/217)
@@ -1008,6 +1010,11 @@ Tasks 6.6/6.7 remain unchecked. The read-only metadata snapshot is not G2b servi
 - [ ] **6.6 G2b serving proof.** Every serving digest requires the version and delegates; proved by a
   controlled seed showing identity preservation, the expected version outcome, and the price
   regression.
+  **Preparation 2026-09-03:** [Execution packet](../../../docs/runbooks/B1_TASK_6_6_G2B_EXECUTION_PACKET.md)
+  fixes cu4's digest, the guarded deployment, secure SQL/HTTP channel, complete tuple/price
+  snapshots, one frozen-version E2E seed, and pre-seed-only conditional rollback. The independent
+  E2E reference is offline expected data. No live proof executed; owner execution approval remains
+  open. The existing demo oracle cannot supply E2E cost-basis expectations.
   _Requirements: 8.14, 8.16, 8.30_
 - [ ] **6.7 STOP/GO — R-B3.**
   **Go:** 6.6 green.

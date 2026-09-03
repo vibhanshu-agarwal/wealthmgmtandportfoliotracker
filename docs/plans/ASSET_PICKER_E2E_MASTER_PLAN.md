@@ -7,8 +7,9 @@ approved single ACR build are complete. Build cu4 produced the verified candidat
 [readiness record](../runbooks/B1_TASK_6_5_PRE_DEPLOY_READINESS.md#61-approved-candidate-build--result-and-provenance).
 The new documentation and local cut tag remain unpublished: approval would publish the evidence,
 otherwise it stays local. PR #218's authorization is already fulfilled. Deployment, live seed,
-rollback, implementation publication/merge and exposure remain separately gated; a concrete
-deployment/6.6 proof packet is still needed before seeking execution approval.
+rollback, implementation publication/merge and exposure remain separately gated. The local
+[Task 6.6 execution packet](../runbooks/B1_TASK_6_6_G2B_EXECUTION_PACKET.md) now specifies the exact
+live bundle and secure preflight; owner execution approval remains open.
 
 **Runtime baseline:** unchanged; the approved 2026-09-03 metadata read-back confirms the existing
 portfolio revision 0000093/digest 9a1d5533 at 100% internal traffic. This is not new application or
@@ -26,7 +27,8 @@ the Wave 7 controller must not enter R-B3's source/image, and no merge or exposu
 PR #218 published that assignment and readiness preparation; its authorization is fulfilled.
 Cursor's existing local implementation/test authorization stands. Preserve its prior branch and
 untracked files; implementation publication/merge and production operations retain their gates.
-Only Task 6.5's checkbox changes in this follow-up, under the new owner decision.
+The earlier owner decision changed only Task 6.5's checkbox. The subsequent build and Task 6.6
+packet preparation introduce no further completion ticks.
 
 
 **Task 6.5 GO — owner decision recorded 2026-09-03:** the owner approved GO and read-only preflight
@@ -41,6 +43,14 @@ tag/manifest read-backs agree. [Build evidence](../evidence/b1-task-6-5/candidat
 records the exact digest and local cut tag. The prior 0000093/9a1d5533 image remains active at
 100% traffic. Execution stopped after digest capture; deployment/6.6 proof stays separate. Tasks
 6.6/6.7 remain unchecked; no application probe was replayed.
+
+**Task 6.6 preparation — 2026-09-03:** The [execution packet](../runbooks/B1_TASK_6_6_G2B_EXECUTION_PACKET.md)
+and [offline E2E reference](../evidence/b1-task-6-6/e2e-golden-reference-6a171558.json) are ready for
+review. The reference covers all ACTIVE entries using the E2E identity, not the existing demo
+oracle's identity. The packet specifies complete read-only SQL snapshots, application readiness,
+one frozen-version seed, exact digest deployment and conditional rollback before seed transmission.
+Secure preflight and the live bundle await approval. No Task 6.6 production read, seed or rollout
+has occurred; this is preparation, not G2b or R-B3 evidence.
 
 **B1 Wave 6 source completion (verified 2026-09-03):** Tasks **6.1–6.4 are source-complete**
 after owner-approved [PR #217](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/217)
@@ -489,7 +499,7 @@ DAG work may be promoted if CI latency begins blocking delivery.
 
 This priority does not waive any release or production gate. B1 Task 5.7/G5 closed under the
 owner's 2026-09-02 decision; B1 Wave 6's G5 prerequisite is satisfied. Wave 7 still requires
-R-B3 and its activation gates. B1 Tasks 6.1–6.4 are merged and 6.5 has owner GO. Candidate cu4 is packaged; deployment/6.6 proof planning is next. Tasks
+R-B3 and its activation gates. B1 Tasks 6.1–6.4 are merged and 6.5 has owner GO. Candidate cu4 is packaged; the deployment/6.6 proof packet is prepared for owner execution review. Tasks
 5.1a (`InternalApiKeyProvider`) and 8.2a (`CloudFrontOriginSecretProvider`) have merged source-only
 via PRs #202 and #203 at `main@64761dc2` and `main@addd8049`; neither is deployed. Task 5.1b
 (`ReplicaTokenProvider`) merged source-only via
@@ -598,8 +608,8 @@ implementation, or a production operation.
 [Claude kickoff — B1 Wave 6 Tasks 6.1–6.4](../agent-instructions/CLAUDE_KICKOFF_B1_WAVE_6_VERSION_REQUIRED_SEED.md)
 is retained as the historical execution plan for merged PR #217. Its implementation and final
 review are complete; it is not a new assignment. Task 6.5 has owner GO and candidate build cu4
-has succeeded. Next is the concrete deployment/6.6 proof packet and its separate execution
-approval. R-B3 and B2 gates remain open.
+has succeeded. The deployment/6.6 proof packet and offline E2E reference are now prepared;
+secure preflight and the exact live bundle await their separate execution approval. R-B3 and B2 gates remain open.
 
 ## 7. Handoff requirements
 
