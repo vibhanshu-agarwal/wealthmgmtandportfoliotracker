@@ -1,11 +1,11 @@
 # Implementation Plan
 
-**OWNER APPROVAL — remaining actions:** Task 6.5 GO and read-only Azure/ACR preflight were
-approved on 2026-09-03 and are recorded locally below. Publishing this new update and building
-the frozen candidate require new approval; approval would publish the record/create the artifact,
-otherwise both remain local/unbuilt. Deployment, live seed, rollback, implementation publication/
-merge and exposure retain their gates. The concrete build-only proposal is in the
-[readiness record](../../../docs/runbooks/B1_TASK_6_5_PRE_DEPLOY_READINESS.md#61-concrete-next-proposal--one-candidate-build-no-deployment).
+**OWNER APPROVAL — remaining actions:** Task 6.5 GO, read-only preflight and the separately
+approved single build cu4 are recorded below. Publishing this update or its local cut tag needs
+new approval: approval publishes the evidence; otherwise it remains local. Deployment, live seed,
+rollback, implementation publication/merge and exposure retain their gates. The
+[build result](../../../docs/runbooks/B1_TASK_6_5_PRE_DEPLOY_READINESS.md#61-approved-candidate-build--result-and-provenance)
+closes packaging only; a concrete deployment/6.6 proof packet is needed before execution approval.
 
 **B1 Wave 6 source completion (verified 2026-09-03):** Tasks **6.1–6.4 are source-complete**
 after owner-approved [PR #217](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/217)
@@ -32,8 +32,8 @@ The initializer forwards its own observation; global-price snapshot/sentinel cov
 
 Tasks 6.1–6.4 are checked for merged source completion. **Task 6.5 is GO by owner decision on
 2026-09-03; Tasks 6.6/6.7 remain unchecked.** Read-only metadata preflight is recorded in the
-[6.5 readiness record](../../../docs/runbooks/B1_TASK_6_5_PRE_DEPLOY_READINESS.md). Candidate build, deployment, G2b/R-B3 serving proof, Wave 7
-activation and Writer_Convergence remain open. No live seed, schedule restoration, B2 gate
+[6.5 readiness record](../../../docs/runbooks/B1_TASK_6_5_PRE_DEPLOY_READINESS.md). The separately approved candidate build is recorded in §6.1 of that record. Deployment,
+G2b/R-B3 serving proof, Wave 7 activation and Writer_Convergence remain open. No live seed, schedule restoration, B2 gate
 decision or feature exposure follows from the 6.5 decision.
 
 **Current program status (verified 2026-09-03 against `main@d66bb23d`; historical runtime baseline `e221662`; R-A / R-B / R-B2 serving digests below):**
@@ -65,7 +65,7 @@ still finds exactly three callers. The historical ingress/custom-domain failures
 remain in the [G5 record](../../../docs/runbooks/B1_G5_INGRESS_BLOCKER.md).
 G5's prerequisite for B1 Wave 6 is satisfied; Tasks 6.1–6.4 subsequently merged through PR #217
 and are source-complete. Task 6.5 has its separate 2026-09-03 owner GO and approved read-only
-preflight; candidate build, R-B3 deployment/serving proof and Wave 7 activation remain open. Unattended synthetics remain suspended;
+preflight. The separately approved build cu4 succeeded; R-B3 deployment/serving proof and Wave 7 activation remain open. Unattended synthetics remain suspended;
 further dispatch or schedule restoration requires separate authorization.
 Candidate packaging / R-C (task 7.5)
 is **not** complete. Public `PUT /api/portfolio/holdings` remains Wave 7. The deployed seed remains
@@ -996,10 +996,11 @@ Tasks 6.6/6.7 remain unchecked. The read-only metadata snapshot is not G2b servi
   G5 technical evidence and the approved Azure/ACR metadata preflight. Sole portfolio revision
   0000093/digest 9a1d5533 still has 100% internal traffic; flags remain false. ACR confirms the
   existing digest and successful build cu3. This closes the decision, not a new deployment.
-  Candidate source stays controller-free at 6a171558; it is unbuilt. Codex prepared the clean
-  detached build checkout, verified source/tree identity, and recorded the exact proposed ACR
-  build in readiness §6.1. Build approval remains open. The current serving digest is a proposed
-  rollback target, with compatibility limits recorded. Tasks 6.6/6.7 stay unchecked.
+  The separately approved single build cu4 succeeded from controller-free 6a171558, producing
+  digest 2be727ea…; readiness §6.1 and its JSON evidence record the full immutable reference,
+  run/tag/manifest agreement and local cut tag. The prior 0000093/9a1d5533 image remains active
+  at 100% traffic. Execution stopped after digest capture. The existing serving digest remains
+  the proposed rollback target. Tasks 6.6/6.7 and aggregate AM.1/AM.2 stay unchecked.
   **Go:** 5.7 green.
   **Abort:** do not deploy the version-required endpoint; unmigrated callers would fail on the first
   run.

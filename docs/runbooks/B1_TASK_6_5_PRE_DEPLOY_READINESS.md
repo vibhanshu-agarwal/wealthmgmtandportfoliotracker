@@ -1,18 +1,19 @@
 # B1 Task 6.5 — Pre-deployment Readiness Record
 
-**OWNER APPROVAL — next boundaries:** On 2026-09-03 the owner approved Task 6.5 GO and the
-read-only Azure/ACR preflight: “Yes Task 6.5 GO and read-only preflight approved.” Both are recorded
-below. The next proposed cloud action is one candidate build from the frozen source in §6.1;
-approval would create its registry artifact, while withholding approval leaves it unbuilt.
-Publication of this new documentation update also needs approval; PR #218's earlier approval was
-fulfilled by its merge. No candidate build, deployment dispatch, live seed, rollback, implementation
-publication/merge, exposure or schedule restoration is authorized by the present GO.
+**OWNER APPROVAL — remaining boundaries:** On 2026-09-03 the owner approved Task 6.5 GO,
+read-only preflight, and then the exact single-build request with “Approved.” That build completed
+as cu4; the operator stopped after digest verification and recording. Publishing this record or
+its local cut tag needs a new approval: approval publishes that evidence; otherwise it stays local.
+PR #218's publication approval is already fulfilled. Deployment dispatch, live seed, rollback,
+implementation publication/merge, exposure and schedule restoration remain separately gated.
+No deployment approval is requested by this build result; its concrete proof packet is still needed.
 
 **Prepared:** 2026-09-03 by Codex, architecture/review owner.
 **State:** Task 6.5 GO recorded by owner decision; read-only metadata preflight completed on
 2026-09-03 at approximately 02:45–02:47 UTC. The existing portfolio revision/digest is confirmed.
-The candidate remains unbuilt. This is not a deployment-ready artifact attestation and does not
-close Tasks 6.6 or 6.7.
+The single owner-approved candidate build subsequently succeeded as cu4 at 03:35:20 UTC.
+Its immutable registry digest is verified in §6.1. This is packaging evidence, not a deployment-ready
+or serving-proof attestation, and does not close Tasks 6.6 or 6.7.
 
 ## 1. Decision and authority
 
@@ -72,7 +73,8 @@ Remote evidence:
 **Runtime recipe:** existing portfolio-service/Dockerfile.azure.
 **Deployment mechanism:** the existing prebuilt-digest path through deploy.yml; no generic main/tag
 build, frontend rollout, gateway rollout, seed/verify follow-on job or schedule restoration.
-**Candidate registry digest:** not yet built or captured. Source CI is not a digest attestation.
+**Candidate registry digest:** sha256:2be727eaf4577699c783ae66073670d4984fe66c666af3e56422c934fdd0b023 (approved build cu4).
+Registry provenance is in §6.1; source CI remains distinct from tests against the packaged image.
 **Workflow ref:** main, with expected_main_sha verified at the moment of an authorized dispatch.
 It may differ from the candidate source SHA after documentation-only merges; record and review
 that distinction rather than rebuilding the candidate from moving main.
@@ -109,7 +111,7 @@ resource group is wealth-azure-prod-rg and registry is wealthprodacr.
 | Refresh job | Existing 9b2cf0d6 image tag; Schedule trigger 0 8 * * *; replicaRetryLimit=0; no execution or schedule change |
 | ACR availability | Exact portfolio manifest exists, readEnabled=true; linux/amd64; 314499296 bytes |
 | Registry provenance | Tag b2-task-4-5-63fc0584-20260901T144653Z; created 2026-09-01T14:58:15.7942093Z; successful build cu3 outputs that exact tag/digest |
-| Candidate | Source remains 6a171558; no candidate registry build or digest yet |
+| Candidate at this preflight | Source 6a171558 was unbuilt at 02:45–02:47 UTC; the later approved build result is in §6.1 |
 
 The portfolio identity, digest, traffic and ingress agree with the
 [B2 4.5 record](B2_TASK_4_5_DEMO_RESET_STOP_GO.md). Its reviewed pinned-checkout build record supplies
@@ -155,68 +157,74 @@ A harmless same-state seed can prove the specified no-op, but must not be descri
 of a mutation or an intentional race. Local integration tests and live observations must be labelled
 separately. No production fixture alteration is implied to force a desired probe outcome.
 
-### 6.1 Concrete next proposal — one candidate build, no deployment
+### 6.1 Approved candidate build — result and provenance
 
-**Proposed operator: Codex in this Task 6.5 task.** Cursor's review is handled in the separate fork.
-This packet requests one ACR build and capture of its immutable result. It grants no permission by
-itself; the owner has approved GO and metadata preflight only.
+**Operator: Codex in this Task 6.5 task.** The owner approved the exact one-build request and
+digest capture; no further operation was inferred. Cursor's review remains in the separate fork.
 
-Repository preparation completed on 2026-09-03:
-- Clean detached checkout:
-  C:/worktrees/wealthmgmtandportfoliotracker-codex-r-b3-candidate.
-- Exact source: 6a171558a0f802eadd5d7ed5bf28545ca5c91905.
-- Git tree: 4df697ed7605104a304ad08651e21522e32d52db.
-- Zero source/build-input difference from accepted Wave 6 head 1bdb1d31, including the Azure
-  Dockerfile and .dockerignore. No public CompositionController/holdings PUT mapping exists.
-  Strict expectedVersion input and shared replacement delegation are present.
-- Checkout has no local changes or untracked files; gradlew is LF as required for the Linux
-  builder. No full application test suite was rerun; the accepted evidence in §3 is unchanged.
-- Proposed image tag: b1-r-b3-6a171558-20260903T032527Z. The approved read-only registry query
-  found no existing tag with that name. Recheck immediately before queuing.
-- Proposed local cut tag: b1-r-b3-cut-6a171558-20260903T032527Z. It has not been created.
-  Record this tag at the frozen commit when an approved build begins, per AM.1; never force
-  or publish it without the separately required authorization.
+**Result: one build submitted, cu4 Succeeded.** The
+[sanitized build evidence](../evidence/b1-task-6-5/candidate-build-20260903.json) records the run,
+registry read-backs, source identity, local cut tag and unchanged serving revision.
 
-The [source-preparation record](../evidence/b1-task-6-5/candidate-source-20260903.json) binds these
-observations. It is not an image attestation and does not mark AM.1/AM.2 or any release gate complete.
+| Binding | Verified value |
+|---|---|
+| Source checkout | C:/worktrees/wealthmgmtandportfoliotracker-codex-r-b3-candidate; detached and clean before and after submission |
+| Source commit | 6a171558a0f802eadd5d7ed5bf28545ca5c91905 |
+| Source tree | 4df697ed7605104a304ad08651e21522e32d52db |
+| Local annotated cut tag | b1-r-b3-cut-6a171558-20260903T032527Z; object adc9df00788ff19418ec1e33da1590e3ddfafb57; resolves to the frozen commit; unpublished |
+| Recipe / context | portfolio-service/Dockerfile.azure, clean repository root, linux/amd64; no secret/custom build argument |
+| ACR build | cu4; created 2026-09-03T03:32:53.626947Z; started 03:32:53.977180Z; finished 03:35:20.004647Z; Succeeded |
+| Image tag | b1-r-b3-6a171558-20260903T032527Z |
+| Immutable manifest | sha256:2be727eaf4577699c783ae66073670d4984fe66c666af3e56422c934fdd0b023 |
+| Manifest metadata | Created 2026-09-03T03:35:18.2892302Z; linux/amd64; 314499695 bytes; readEnabled=true |
+| Cross-check | Run outputImages, lookup by approved tag, and lookup by immutable digest agree exactly; the manifest lists the approved tag |
+| After the build | Sole portfolio revision 0000093 remains Healthy / ScaledToZero at 100% traffic on the prior 9a1d5533 digest |
 
-After explicit owner build approval, recheck that the detached checkout is still clean at the exact
-commit/tree, the tag is unused, and the approved serving/registry baseline in §5 has not drifted.
-Then, from that candidate checkout, execute exactly one build:
+Deployable image reference, recorded for later review:
+
+~~~text
+wealthprodacr.azurecr.io/portfolio-service@sha256:2be727eaf4577699c783ae66073670d4984fe66c666af3e56422c934fdd0b023
+~~~
+
+The pre-build drift check reconfirmed the clean source/tree, zero build-input difference from
+accepted Wave 6 head 1bdb1d31, unused candidate tag, and prior portfolio revision/image at 100%
+internal traffic with both startup flags false. The recorded rollback manifest remained readable.
+No public CompositionController/holdings PUT mapping exists in this source; the strict seed and
+shared replacement delegation are present. The earlier
+[source-preparation record](../evidence/b1-task-6-5/candidate-source-20260903.json) intentionally
+retains its pre-approval/unbuilt snapshot; this result supersedes it for build status.
+
+The following approved command was submitted exactly once from the candidate checkout:
 
 ~~~powershell
 az acr build --registry wealthprodacr --resource-group wealth-azure-prod-rg --subscription ee625b3f-7cb1-4482-be3c-4363c5d76d23 --image portfolio-service:b1-r-b3-6a171558-20260903T032527Z --file portfolio-service/Dockerfile.azure --platform linux/amd64 --no-wait --query "{runId:runId,status:status,platform:platform}" --output json --only-show-errors .
 ~~~
 
-The installed CLI help confirms these options. The command uploads the clean source context and
-queues one server-side build whose output is pushed to the named ACR repository; it does not
-dispatch a deployment. No secret or custom build argument is supplied.
+The CLI exited 0 without a run ID in stdout. Read-only run history identified the sole new run,
+cu4; its eventual outputImages matched the approved tag and digest. No build retry or retag occurred.
+A Windows-incompatible read-only discovery query failed locally; the corrected metadata query
+succeeded without another submission. Tag lookup returns tag metadata, whereas digest lookup
+returns manifest metadata; OS, architecture and image size above come from the digest lookup.
 
-Follow the returned run ID with read-only ACR run metadata. Require successful completion, then
-capture the outputImages digest and the tag's manifest metadata. They must agree exactly. Record
-run ID, source/tree/cut tag, image tag, lowercase sha256 manifest digest, creation time, platform
-and size. Return the immutable wealthprodacr.azurecr.io/portfolio-service@sha256 reference for
-review, then stop.
+The immutable binding is the observed clean checkout/context → single ACR run → output image
+tag/digest → independent registry lookup. A successful Dockerfile build is not a test run against
+the packaged image: the existing recipe runs bootJar, not the future R-C verification graph.
+The accepted source test counts in §3 were not rerun. No candidate automation or application change
+was made, and the local cut tag alone does not check the aggregate AM.1/AM.2 tasks.
 
-A failed build, missing run ID after an ambiguous submission, duplicate tag, source/serving drift
-or contradictory registry result stops execution. Do not submit a second build, retag another
-image or silently substitute source. Resolve an uncertain submission through read-only run
-records before requesting a new build decision.
+**Stop boundary reached:** no image pull/startup smoke, workflow dispatch, deployment, application
+login/read, database read, seed or rollback was executed. The existing production image remains
+active; the new image is a registry candidate.
 
-The existing Dockerfile builds bootJar; this is not the future R-C verification graph and does
-not prove that accepted source tests ran against the packaged image. No candidate automation or
-application change is included.
+Before requesting deployment/Task 6.6 authorization, prepare and review the exact probe packet:
+approved credential/execution channel, one-call E2E identity/version protocol, complete persisted
+tuple/price evidence capture, readiness checks and conditional rollback scope. PortfolioResponse
+omits cost-basis fields and global price tables, so HTTP holdings alone cannot supply that full proof.
 
-The later dispatch packet must set deployment_mode=digest, services=portfolio-service,
-prebuilt_digest to the reviewed immutable ACR reference, and expected_main_sha to the freshly
-verified workflow commit on main. Repository/workflow planning baseline is 9c2ebc12; it is distinct
-from the candidate source. Production-environment approval and non-cancelling concurrency remain.
-
-Before seeking deployment/Task 6.6 authorization, complete the probe packet with an approved
-credential/execution channel, exact one-call E2E identity/version protocol, complete persisted
-tuple/price evidence capture, and conditional rollback scope. PortfolioResponse omits cost-basis
-fields and global price tables, so authenticated HTTP holdings alone cannot supply that full proof.
-No database/secret access or fixture alteration is implied by this metadata/build preparation.
+A later dispatch would use deployment_mode=digest, services=portfolio-service, this exact
+prebuilt_digest, and a freshly verified expected_main_sha for the main workflow. The source cut
+stays frozen independently of that workflow commit. Production-environment approval and
+non-cancelling concurrency remain. No second build or different digest is authorized.
 
 ## 7. Reproduction of completed local checks
 
@@ -248,6 +256,7 @@ inventory/guard tests pass. There is no remaining caller implementation prerequi
 
 **Owner decision: GO, 2026-09-03.** Task 6.5 is checked for the recorded decision; Tasks 6.6/6.7
 and 7.1/7.2 remain unchecked. The approved read-only preflight is complete with the limitations in
-§5. Next is the build-only decision in §6.1, followed by review of the exact artifact and a separate
-deployment/proof packet. No build, dispatch, seed, rollback, exposure, schedule change, G2b/R-B3
-closure or Writer_Convergence claim follows from this decision.
+§5. The separately approved one-build operation is complete: §6.1 records cu4 and the verified
+immutable digest. Execution stopped at the approved boundary. Next is review of the artifact and a
+concrete deployment/6.6 proof packet. No dispatch, seed, rollback, exposure, schedule change,
+G2b/R-B3 closure or Writer_Convergence claim follows from the GO or build.
