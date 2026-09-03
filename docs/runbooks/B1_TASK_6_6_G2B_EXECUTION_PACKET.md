@@ -1,16 +1,16 @@
 # B1 Task 6.6 — R-B3 deployment and G2b proof packet
 
-**OWNER ACTION — GitHub production Environment approval:** The approved deployment was
-submitted once as [run 33718062217](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33718062217).
-Input validation passed; authorize-production is waiting for the owner's GitHub review. Approving
-that gate permits the already-authorized exact cu4 deployment; leaving it pending prevents rollout.
-The operator must not self-approve or bypass it. All required credentials resolved from the owner's
-existing .env.secrets; the previous credential blocker is corrected in §11. Seed attempts remain 0.
-Publication and Task 6.7 closure remain separate decisions.
+**OWNER DECISION — Task 6.7 R-B3 GO and local ledger closure:** Task 6.6 has technical ACCEPT:
+the approved cu4 deployment and single same-state seed passed the complete serving/data proof.
+See the [completed report](B1_TASK_6_6_G2B_SERVING_PROOF.md). Approving the recommendation permits local
+6.6 completion and 6.7 GO ticks; withholding approval leaves both unchecked and R-B3 open.
+The candidate is already serving. Publication, further production action, Wave 7 activation
+and Writer_Convergence closure are not included.
 
 **Prepared:** 2026-09-03 by Codex, architecture/review owner.
-**State:** Preflight passed; one guarded dispatch submitted; waiting for production Environment
-approval. Candidate deployment has not started at this checkpoint. Seed attempts: 0.
+**State:** Deployment and one-seed proof completed; Task 6.6 technical ACCEPT.
+Candidate revision 0000094 serves 100% traffic. One seed returned 200 with exact SAME_STATE
+preservation; zero retries/rollbacks. Task 6.7 and local completion ticks await the owner decision.
 **Operator:** The owner-authorized release operator; no implementation-agent assignment or message
 is implied by this document. Codex owns review and status reconciliation.
 **Goal:** Bind the existing candidate to every serving portfolio revision, then demonstrate
@@ -192,6 +192,9 @@ Allow at most six authenticated read-readiness attempts, each with a 60-second t
 30 seconds between attempts. Only connectivity timeouts and HTTP 502/503/504 permit another
 readiness attempt. HTTP 401/403, a wrong identity, malformed portfolio/version or schema mismatch
 is an immediate stop. Login/JWT refresh is not a seed and must never trigger a helper/global setup.
+GET /api/portfolio returns a list: require exactly one E2E portfolio and validate that element's
+identity, version, timestamps and holdings. The operator initially expected a top-level object;
+the existing controller/list contract was confirmed and the verifier corrected before eligibility.
 Discard all readiness versions. No seed is sent until both read readiness and complete SQL capture
 have succeeded. If readiness expires before the seed, use §7's conditional rollback rule.
 
@@ -377,6 +380,8 @@ operational drift still invokes the original stop/review rule. Tasks 6.6/6.7 rem
 
 ## 11. Credential source correction and approved dispatch
 
+**Historical waiting checkpoint; superseded by the completed §12 proof.**
+
 The owner correctly identified the shared .env.secrets in the original project checkout. Codex
 had checked only process-variable presence and missed that available source. The historical §10
 record is superseded: all eight client inputs resolve from six existing keys, with the mapping
@@ -419,3 +424,24 @@ retains the credential mapping, client correction, snapshot counts/hashes, readi
 identity. Raw database/HTTP captures remain private outside Git. After the owner approves the
 GitHub gate, continue the original post-rollout checks and one-seed protocol under the existing
 authorization. Never resubmit this deployment just because it is waiting.
+
+## 12. Completed deployment and proof
+
+The owner released the production Environment gate; run 33718062217 succeeded at 05:26:31 UTC.
+The [completed proof](B1_TASK_6_6_G2B_SERVING_PROOF.md) and
+[sanitized evidence](../evidence/b1-task-6-6/g2b-serving-proof-20260903.json) record the exact
+cu4 serving binding, required skipped jobs, independent peer/configuration checks and one seed.
+The original packet SHA-256 at execution is preserved in that evidence; this status update
+does not rewrite the executed protocol.
+
+After corrected list-response readiness, a fresh eligibility read and independent BEFORE snapshot
+froze N=0 and classified SAME_STATE. The one seed returned 200 at 05:35:13 UTC. Fresh AFTER and
+one post-read confirmed the same portfolio identity, version 0, unchanged updated_at, all 159
+complete holdings, and byte-identical demo/schema/full price/history captures. No retry,
+rollback, second build or publication occurred. Replica identities changed within the same
+sole candidate revision; both observed replicas were ready with zero restarts.
+
+**Review:** Task 6.6 technical ACCEPT, with live no-op evidence and frozen-source negative/race
+coverage clearly distinguished. Stop after this proof report. The pre-seed conditional rollback
+authority has expired. Task 6.7 remains the owner's separate decision; no completion checkbox
+or aggregate/Wave 7 gate was changed.

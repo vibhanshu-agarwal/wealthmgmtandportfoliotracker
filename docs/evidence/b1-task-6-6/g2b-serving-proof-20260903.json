@@ -1,0 +1,1204 @@
+{
+  "schemaVersion": 1,
+  "task": "B1 6.6",
+  "verdict": "TECHNICAL_ACCEPT",
+  "ownerTask6_7Decision": "PENDING",
+  "ledgerCheckboxesChanged": false,
+  "capturedAtUtc": "2026-09-03T05:39:41.988223+00:00",
+  "authorization": {
+    "executionBundleApproved": true,
+    "githubProductionGatePassed": true,
+    "agentSelfApprovalOrBypass": false,
+    "publicationAuthorized": false
+  },
+  "binding": {
+    "source": "6a171558a0f802eadd5d7ed5bf28545ca5c91905",
+    "tree": "4df697ed7605104a304ad08651e21522e32d52db",
+    "acrBuild": "cu4",
+    "image": "wealthprodacr.azurecr.io/portfolio-service@sha256:2be727eaf4577699c783ae66073670d4984fe66c666af3e56422c934fdd0b023",
+    "workflowSha": "9c2ebc1233801253a3e54b6e930e28e1a00ebf3d",
+    "deploymentRunId": 33718062217,
+    "packetSha256AtExecution": "b2943b47a84f78109e54b5f8fa63016271b47a05c65ed5fa2a47bfa0eba3549f",
+    "referenceSha256": "344fa0f6f657f5e16e8275d1300043f27e53ccf6bd72193c85bfb70fb99910bd",
+    "catalogSha256": "cfa5e6b7317e922c07452359b851e55ee0a2a5ae9014224665244f9c2264de8b",
+    "anchor": "2020-01-01T00:00:00.000Z"
+  },
+  "credentialResolution": {
+    "existingSharedSourceSufficient": true,
+    "newCredentialsRequired": false,
+    "valuesExposed": false,
+    "sourceFileChanged": false
+  },
+  "runtime": {
+    "completedWorkflow": {
+      "status": "completed",
+      "conclusion": "success",
+      "headSha": "9c2ebc1233801253a3e54b6e930e28e1a00ebf3d",
+      "event": "workflow_dispatch",
+      "url": "https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33718062217",
+      "jobs": [
+        {
+          "name": "validate",
+          "conclusion": "success",
+          "status": "completed",
+          "startedAt": "2026-09-03T05:14:58Z",
+          "completedAt": "2026-09-03T05:15:05Z",
+          "steps": [
+            {
+              "name": "Run actions/checkout@v4",
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/setup-python@v5",
+              "conclusion": "success"
+            },
+            {
+              "name": "Validate dispatch inputs",
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "authorize-production",
+          "conclusion": "success",
+          "status": "completed",
+          "startedAt": "2026-09-03T05:24:05Z",
+          "completedAt": "2026-09-03T05:24:08Z",
+          "steps": [
+            {
+              "name": "Production deployment authorized",
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "route",
+          "conclusion": "success",
+          "status": "completed",
+          "startedAt": "2026-09-03T05:24:11Z",
+          "completedAt": "2026-09-03T05:24:17Z",
+          "steps": [
+            {
+              "name": "Determine cloud provider",
+              "conclusion": "success"
+            },
+            {
+              "name": "Log routing decision",
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "deploy-azure / preflight",
+          "conclusion": "success",
+          "status": "completed",
+          "startedAt": "2026-09-03T05:24:19Z",
+          "completedAt": "2026-09-03T05:24:56Z",
+          "steps": [
+            {
+              "name": "Checkout code",
+              "conclusion": "success"
+            },
+            {
+              "name": "Resolve service selection",
+              "conclusion": "success"
+            },
+            {
+              "name": "Validate prebuilt digest",
+              "conclusion": "success"
+            },
+            {
+              "name": "Azure login (OIDC)",
+              "conclusion": "success"
+            },
+            {
+              "name": "Verify required Resource Providers are registered",
+              "conclusion": "success"
+            },
+            {
+              "name": "Check whether infrastructure has been provisioned",
+              "conclusion": "success"
+            },
+            {
+              "name": "Resolve prebuilt digest in ACR",
+              "conclusion": "success"
+            },
+            {
+              "name": "Snapshot Container Apps and refresh Job",
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "deploy-aws",
+          "conclusion": "skipped",
+          "status": "completed",
+          "startedAt": "2026-09-03T05:24:17Z",
+          "completedAt": "2026-09-03T05:24:17Z",
+          "steps": []
+        },
+        {
+          "name": "deploy-azure / deploy (portfolio-service)",
+          "conclusion": "success",
+          "status": "completed",
+          "startedAt": "2026-09-03T05:24:58Z",
+          "completedAt": "2026-09-03T05:26:04Z",
+          "steps": [
+            {
+              "name": "Checkout code",
+              "conclusion": "success"
+            },
+            {
+              "name": "Azure login (OIDC)",
+              "conclusion": "success"
+            },
+            {
+              "name": "Log in to ACR",
+              "conclusion": "skipped"
+            },
+            {
+              "name": "Build Docker image",
+              "conclusion": "skipped"
+            },
+            {
+              "name": "Push Docker image",
+              "conclusion": "skipped"
+            },
+            {
+              "name": "Prove digest path skipped build and push",
+              "conclusion": "success"
+            },
+            {
+              "name": "Update Container App",
+              "conclusion": "success"
+            },
+            {
+              "name": "Update market-data-refresh Job image",
+              "conclusion": "skipped"
+            },
+            {
+              "name": "Wait for revision to reach Succeeded state",
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "deploy-azure / deploy-frontend",
+          "conclusion": "skipped",
+          "status": "completed",
+          "startedAt": "2026-09-03T05:26:04Z",
+          "completedAt": "2026-09-03T05:26:04Z",
+          "steps": []
+        },
+        {
+          "name": "deploy-azure / assert-scoped-non-interference",
+          "conclusion": "success",
+          "status": "completed",
+          "startedAt": "2026-09-03T05:26:07Z",
+          "completedAt": "2026-09-03T05:26:31Z",
+          "steps": [
+            {
+              "name": "Checkout code",
+              "conclusion": "success"
+            },
+            {
+              "name": "Azure login (OIDC)",
+              "conclusion": "success"
+            },
+            {
+              "name": "Record skipped conclusions for deploy-frontend, seed and verify",
+              "conclusion": "success"
+            },
+            {
+              "name": "Assert unselected apps and jobs are byte-identical",
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "deploy-azure / seed",
+          "conclusion": "skipped",
+          "status": "completed",
+          "startedAt": "2026-09-03T05:26:05Z",
+          "completedAt": "2026-09-03T05:26:04Z",
+          "steps": []
+        },
+        {
+          "name": "deploy-azure / verify",
+          "conclusion": "skipped",
+          "status": "completed",
+          "startedAt": "2026-09-03T05:26:05Z",
+          "completedAt": "2026-09-03T05:26:04Z",
+          "steps": []
+        }
+      ]
+    },
+    "postRolloutRuntimeAndRevisions": [
+      {
+        "anchor": [],
+        "argsIsNull": true,
+        "commandIsNull": true,
+        "diagnostics": [
+          "false"
+        ],
+        "envNames": [
+          "APP_DEMO_SEED_ON_STARTUP",
+          "APP_DEMO_TX_DIAGNOSTICS",
+          "DEPLOYMENT_ENVIRONMENT_NAME",
+          "MANAGEMENT_OPENTELEMETRY_TRACING_EXPORT_OTLP_TRANSPORT",
+          "MANAGEMENT_TRACING_EXPORT_ENABLED",
+          "MANAGEMENT_TRACING_SAMPLING_PROBABILITY",
+          "SERVICE_VERSION",
+          "SPRING_PROFILES_ACTIVE",
+          "INTERNAL_API_KEY",
+          "KAFKA_BOOTSTRAP_SERVERS",
+          "KAFKA_SASL_PASSWORD",
+          "KAFKA_SASL_USERNAME",
+          "REDIS_URL",
+          "SPRING_DATASOURCE_PASSWORD",
+          "SPRING_DATASOURCE_URL",
+          "SPRING_DATASOURCE_USERNAME"
+        ],
+        "images": [
+          "wealthprodacr.azurecr.io/portfolio-service@sha256:2be727eaf4577699c783ae66073670d4984fe66c666af3e56422c934fdd0b023"
+        ],
+        "ingress": {
+          "additionalPortMappings": null,
+          "allowInsecure": false,
+          "clientCertificateMode": null,
+          "corsPolicy": null,
+          "customDomains": null,
+          "exposedPort": 0,
+          "external": false,
+          "fqdn": "portfolio-service.internal.lemonmoss-ecef29d7.centralindia.azurecontainerapps.io",
+          "ipSecurityRestrictions": [],
+          "stickySessions": null,
+          "targetPort": 8080,
+          "targetPortHttpScheme": null,
+          "traffic": [
+            {
+              "latestRevision": true,
+              "weight": 100
+            }
+          ],
+          "transport": "Auto"
+        },
+        "mode": "Single",
+        "ready": "portfolio-service--0000094",
+        "revision": "portfolio-service--0000094",
+        "scale": {
+          "cooldownPeriod": 300,
+          "maxReplicas": 3,
+          "minReplicas": null,
+          "pollingInterval": 30,
+          "rules": null
+        },
+        "startup": [
+          "false"
+        ],
+        "volumes": []
+      },
+      [
+        {
+          "active": true,
+          "health": "Healthy",
+          "images": [
+            "wealthprodacr.azurecr.io/portfolio-service@sha256:9a1d55335b83b97967e434d374c7f5f5ca79ea2adccad8f8e518b674e9a39f47"
+          ],
+          "name": "portfolio-service--0000093",
+          "provisioning": "Provisioned",
+          "replicas": 0,
+          "running": "Deprovisioning",
+          "trafficWeight": 0
+        },
+        {
+          "active": true,
+          "health": "Healthy",
+          "images": [
+            "wealthprodacr.azurecr.io/portfolio-service@sha256:2be727eaf4577699c783ae66073670d4984fe66c666af3e56422c934fdd0b023"
+          ],
+          "name": "portfolio-service--0000094",
+          "provisioning": "Provisioned",
+          "replicas": 1,
+          "running": "Running",
+          "trafficWeight": 100
+        }
+      ]
+    ],
+    "beforeRevisionsAndReplicas": [
+      [
+        {
+          "active": false,
+          "health": "Healthy",
+          "images": [
+            "wealthprodacr.azurecr.io/portfolio-service@sha256:9a1d55335b83b97967e434d374c7f5f5ca79ea2adccad8f8e518b674e9a39f47"
+          ],
+          "name": "portfolio-service--0000093",
+          "provisioning": "Provisioned",
+          "replicas": 0,
+          "running": "Stopped",
+          "trafficWeight": 0
+        },
+        {
+          "active": true,
+          "health": "Healthy",
+          "images": [
+            "wealthprodacr.azurecr.io/portfolio-service@sha256:2be727eaf4577699c783ae66073670d4984fe66c666af3e56422c934fdd0b023"
+          ],
+          "name": "portfolio-service--0000094",
+          "provisioning": "Provisioned",
+          "replicas": 1,
+          "running": "Running",
+          "trafficWeight": 100
+        }
+      ],
+      [
+        {
+          "containers": [
+            {
+              "name": "portfolio-service",
+              "ready": true,
+              "restartCount": 0,
+              "runningState": "Running"
+            }
+          ],
+          "name": "portfolio-service--0000094-5b6c6cd557-kl6dg"
+        }
+      ]
+    ],
+    "immediateBeforeIngress": [
+      {
+        "latest": "portfolio-service--0000094",
+        "mode": "Single",
+        "ready": "portfolio-service--0000094",
+        "traffic": [
+          {
+            "latestRevision": true,
+            "weight": 100
+          }
+        ]
+      }
+    ],
+    "immediateBeforeRevisions": [
+      [
+        {
+          "active": false,
+          "health": "Healthy",
+          "images": [
+            "wealthprodacr.azurecr.io/portfolio-service@sha256:9a1d55335b83b97967e434d374c7f5f5ca79ea2adccad8f8e518b674e9a39f47"
+          ],
+          "name": "portfolio-service--0000093",
+          "provisioning": "Provisioned",
+          "replicas": 0,
+          "running": "Stopped",
+          "trafficWeight": 0
+        },
+        {
+          "active": true,
+          "health": "Healthy",
+          "images": [
+            "wealthprodacr.azurecr.io/portfolio-service@sha256:2be727eaf4577699c783ae66073670d4984fe66c666af3e56422c934fdd0b023"
+          ],
+          "name": "portfolio-service--0000094",
+          "provisioning": "Provisioned",
+          "replicas": 1,
+          "running": "Running",
+          "trafficWeight": 100
+        }
+      ]
+    ],
+    "finalRuntimeAndRevisions": [
+      {
+        "anchor": [],
+        "argsIsNull": true,
+        "commandIsNull": true,
+        "diagnostics": [
+          "false"
+        ],
+        "envNames": [
+          "APP_DEMO_SEED_ON_STARTUP",
+          "APP_DEMO_TX_DIAGNOSTICS",
+          "DEPLOYMENT_ENVIRONMENT_NAME",
+          "MANAGEMENT_OPENTELEMETRY_TRACING_EXPORT_OTLP_TRANSPORT",
+          "MANAGEMENT_TRACING_EXPORT_ENABLED",
+          "MANAGEMENT_TRACING_SAMPLING_PROBABILITY",
+          "SERVICE_VERSION",
+          "SPRING_PROFILES_ACTIVE",
+          "INTERNAL_API_KEY",
+          "KAFKA_BOOTSTRAP_SERVERS",
+          "KAFKA_SASL_PASSWORD",
+          "KAFKA_SASL_USERNAME",
+          "REDIS_URL",
+          "SPRING_DATASOURCE_PASSWORD",
+          "SPRING_DATASOURCE_URL",
+          "SPRING_DATASOURCE_USERNAME"
+        ],
+        "images": [
+          "wealthprodacr.azurecr.io/portfolio-service@sha256:2be727eaf4577699c783ae66073670d4984fe66c666af3e56422c934fdd0b023"
+        ],
+        "ingress": {
+          "additionalPortMappings": null,
+          "allowInsecure": false,
+          "clientCertificateMode": null,
+          "corsPolicy": null,
+          "customDomains": null,
+          "exposedPort": 0,
+          "external": false,
+          "fqdn": "portfolio-service.internal.lemonmoss-ecef29d7.centralindia.azurecontainerapps.io",
+          "ipSecurityRestrictions": [],
+          "stickySessions": null,
+          "targetPort": 8080,
+          "targetPortHttpScheme": null,
+          "traffic": [
+            {
+              "latestRevision": true,
+              "weight": 100
+            }
+          ],
+          "transport": "Auto"
+        },
+        "mode": "Single",
+        "ready": "portfolio-service--0000094",
+        "revision": "portfolio-service--0000094",
+        "scale": {
+          "cooldownPeriod": 300,
+          "maxReplicas": 3,
+          "minReplicas": null,
+          "pollingInterval": 30,
+          "rules": null
+        },
+        "startup": [
+          "false"
+        ],
+        "volumes": []
+      },
+      [
+        {
+          "active": false,
+          "health": "Healthy",
+          "images": [
+            "wealthprodacr.azurecr.io/portfolio-service@sha256:9a1d55335b83b97967e434d374c7f5f5ca79ea2adccad8f8e518b674e9a39f47"
+          ],
+          "name": "portfolio-service--0000093",
+          "provisioning": "Provisioned",
+          "replicas": 0,
+          "running": "Stopped",
+          "trafficWeight": 0
+        },
+        {
+          "active": true,
+          "health": "Healthy",
+          "images": [
+            "wealthprodacr.azurecr.io/portfolio-service@sha256:2be727eaf4577699c783ae66073670d4984fe66c666af3e56422c934fdd0b023"
+          ],
+          "name": "portfolio-service--0000094",
+          "provisioning": "Provisioned",
+          "replicas": 1,
+          "running": "Running",
+          "trafficWeight": 100
+        }
+      ]
+    ],
+    "finalReplicas": [
+      [
+        {
+          "containers": [
+            {
+              "name": "portfolio-service",
+              "ready": true,
+              "restartCount": 0,
+              "runningState": "Running"
+            }
+          ],
+          "name": "portfolio-service--0000094-5b6c6cd557-tq2fv"
+        }
+      ]
+    ],
+    "beforePeersAndJob": [
+      [
+        {
+          "allowInsecure": false,
+          "external": true,
+          "images": [
+            "wealthprodacr.azurecr.io/api-gateway:63fc0584ad307af7f50e9500f4911ac5999d6b76"
+          ],
+          "mode": "Single",
+          "name": "api-gateway",
+          "ready": "api-gateway--0000077",
+          "revision": "api-gateway--0000077",
+          "scale": {
+            "cooldownPeriod": 300,
+            "maxReplicas": 3,
+            "minReplicas": null,
+            "pollingInterval": 30,
+            "rules": null
+          },
+          "traffic": [
+            {
+              "latestRevision": true,
+              "weight": 100
+            }
+          ]
+        },
+        {
+          "allowInsecure": false,
+          "external": false,
+          "images": [
+            "wealthprodacr.azurecr.io/insight-service:9b2cf0d655b4b7ae2ce20ff7b67e4ad750df6900"
+          ],
+          "mode": "Single",
+          "name": "insight-service",
+          "ready": "insight-service--0000079",
+          "revision": "insight-service--0000079",
+          "scale": {
+            "cooldownPeriod": 300,
+            "maxReplicas": 3,
+            "minReplicas": null,
+            "pollingInterval": 30,
+            "rules": null
+          },
+          "traffic": [
+            {
+              "latestRevision": true,
+              "weight": 100
+            }
+          ]
+        },
+        {
+          "allowInsecure": false,
+          "external": false,
+          "images": [
+            "wealthprodacr.azurecr.io/portfolio-service@sha256:2be727eaf4577699c783ae66073670d4984fe66c666af3e56422c934fdd0b023"
+          ],
+          "mode": "Single",
+          "name": "portfolio-service",
+          "ready": "portfolio-service--0000094",
+          "revision": "portfolio-service--0000094",
+          "scale": {
+            "cooldownPeriod": 300,
+            "maxReplicas": 3,
+            "minReplicas": null,
+            "pollingInterval": 30,
+            "rules": null
+          },
+          "traffic": [
+            {
+              "latestRevision": true,
+              "weight": 100
+            }
+          ]
+        },
+        {
+          "allowInsecure": false,
+          "external": false,
+          "images": [
+            "wealthprodacr.azurecr.io/market-data-service:9b2cf0d655b4b7ae2ce20ff7b67e4ad750df6900"
+          ],
+          "mode": "Single",
+          "name": "market-data-service",
+          "ready": "market-data-service--0000079",
+          "revision": "market-data-service--0000079",
+          "scale": {
+            "cooldownPeriod": 300,
+            "maxReplicas": 3,
+            "minReplicas": null,
+            "pollingInterval": 30,
+            "rules": null
+          },
+          "traffic": [
+            {
+              "latestRevision": true,
+              "weight": 100
+            }
+          ]
+        }
+      ],
+      {
+        "images": [
+          "wealthprodacr.azurecr.io/market-data-service:9b2cf0d655b4b7ae2ce20ff7b67e4ad750df6900"
+        ],
+        "name": "market-data-refresh-job",
+        "replicaRetryLimit": 0,
+        "schedule": {
+          "cronExpression": "0 8 * * *",
+          "parallelism": 1,
+          "replicaCompletionCount": 1
+        }
+      }
+    ],
+    "beforeJobExecutions": [
+      [
+        {
+          "end": "2026-09-02T08:01:12+00:00",
+          "name": "market-data-refresh-job-29805600",
+          "start": "2026-09-02T08:00:00+00:00",
+          "status": "Succeeded"
+        },
+        {
+          "end": "2026-09-01T08:01:07+00:00",
+          "name": "market-data-refresh-job-29804160",
+          "start": "2026-09-01T08:00:00+00:00",
+          "status": "Succeeded"
+        },
+        {
+          "end": "2026-08-31T08:01:03+00:00",
+          "name": "market-data-refresh-job-29802720",
+          "start": "2026-08-31T08:00:00+00:00",
+          "status": "Succeeded"
+        }
+      ]
+    ],
+    "finalPeersAndJob": [
+      [
+        {
+          "allowInsecure": false,
+          "external": true,
+          "images": [
+            "wealthprodacr.azurecr.io/api-gateway:63fc0584ad307af7f50e9500f4911ac5999d6b76"
+          ],
+          "mode": "Single",
+          "name": "api-gateway",
+          "ready": "api-gateway--0000077",
+          "revision": "api-gateway--0000077",
+          "scale": {
+            "cooldownPeriod": 300,
+            "maxReplicas": 3,
+            "minReplicas": null,
+            "pollingInterval": 30,
+            "rules": null
+          },
+          "traffic": [
+            {
+              "latestRevision": true,
+              "weight": 100
+            }
+          ]
+        },
+        {
+          "allowInsecure": false,
+          "external": false,
+          "images": [
+            "wealthprodacr.azurecr.io/insight-service:9b2cf0d655b4b7ae2ce20ff7b67e4ad750df6900"
+          ],
+          "mode": "Single",
+          "name": "insight-service",
+          "ready": "insight-service--0000079",
+          "revision": "insight-service--0000079",
+          "scale": {
+            "cooldownPeriod": 300,
+            "maxReplicas": 3,
+            "minReplicas": null,
+            "pollingInterval": 30,
+            "rules": null
+          },
+          "traffic": [
+            {
+              "latestRevision": true,
+              "weight": 100
+            }
+          ]
+        },
+        {
+          "allowInsecure": false,
+          "external": false,
+          "images": [
+            "wealthprodacr.azurecr.io/portfolio-service@sha256:2be727eaf4577699c783ae66073670d4984fe66c666af3e56422c934fdd0b023"
+          ],
+          "mode": "Single",
+          "name": "portfolio-service",
+          "ready": "portfolio-service--0000094",
+          "revision": "portfolio-service--0000094",
+          "scale": {
+            "cooldownPeriod": 300,
+            "maxReplicas": 3,
+            "minReplicas": null,
+            "pollingInterval": 30,
+            "rules": null
+          },
+          "traffic": [
+            {
+              "latestRevision": true,
+              "weight": 100
+            }
+          ]
+        },
+        {
+          "allowInsecure": false,
+          "external": false,
+          "images": [
+            "wealthprodacr.azurecr.io/market-data-service:9b2cf0d655b4b7ae2ce20ff7b67e4ad750df6900"
+          ],
+          "mode": "Single",
+          "name": "market-data-service",
+          "ready": "market-data-service--0000079",
+          "revision": "market-data-service--0000079",
+          "scale": {
+            "cooldownPeriod": 300,
+            "maxReplicas": 3,
+            "minReplicas": null,
+            "pollingInterval": 30,
+            "rules": null
+          },
+          "traffic": [
+            {
+              "latestRevision": true,
+              "weight": 100
+            }
+          ]
+        }
+      ],
+      {
+        "images": [
+          "wealthprodacr.azurecr.io/market-data-service:9b2cf0d655b4b7ae2ce20ff7b67e4ad750df6900"
+        ],
+        "name": "market-data-refresh-job",
+        "replicaRetryLimit": 0,
+        "schedule": {
+          "cronExpression": "0 8 * * *",
+          "parallelism": 1,
+          "replicaCompletionCount": 1
+        }
+      }
+    ],
+    "finalJobExecutions": [
+      [
+        {
+          "end": "2026-09-02T08:01:12+00:00",
+          "name": "market-data-refresh-job-29805600",
+          "start": "2026-09-02T08:00:00+00:00",
+          "status": "Succeeded"
+        },
+        {
+          "end": "2026-09-01T08:01:07+00:00",
+          "name": "market-data-refresh-job-29804160",
+          "start": "2026-09-01T08:00:00+00:00",
+          "status": "Succeeded"
+        },
+        {
+          "end": "2026-08-31T08:01:03+00:00",
+          "name": "market-data-refresh-job-29802720",
+          "start": "2026-08-31T08:00:00+00:00",
+          "status": "Succeeded"
+        }
+      ]
+    ],
+    "finalWorkflowConcurrency": [
+      [
+        {
+          "conclusion": "success",
+          "createdAt": "2026-09-03T05:14:53Z",
+          "databaseId": 33718062217,
+          "headSha": "9c2ebc1233801253a3e54b6e930e28e1a00ebf3d",
+          "status": "completed"
+        },
+        {
+          "conclusion": "success",
+          "createdAt": "2026-09-01T15:11:40Z",
+          "databaseId": 33524223884,
+          "headSha": "67e55cf2c3b90d60149a79b084686d348ab9ba5e",
+          "status": "completed"
+        },
+        {
+          "conclusion": "success",
+          "createdAt": "2026-08-30T03:28:38Z",
+          "databaseId": 33290349879,
+          "headSha": "63fc0584ad307af7f50e9500f4911ac5999d6b76",
+          "status": "completed"
+        },
+        {
+          "conclusion": "success",
+          "createdAt": "2026-08-29T07:24:16Z",
+          "databaseId": 33240756821,
+          "headSha": "0887a309fe12f49ca37585e5a594661727cf4936",
+          "status": "completed"
+        },
+        {
+          "conclusion": "success",
+          "createdAt": "2026-08-28T10:32:21Z",
+          "databaseId": 33163735788,
+          "headSha": "cb5af200b0853fbc5720f5d111c7ee078b7824a5",
+          "status": "completed"
+        }
+      ],
+      [
+        {
+          "conclusion": "success",
+          "createdAt": "2026-08-31T15:57:44Z",
+          "databaseId": 33411410271,
+          "headSha": "f66d7ab6a4db1a327fd030ba9897bfc431104945",
+          "status": "completed"
+        },
+        {
+          "conclusion": "failure",
+          "createdAt": "2026-08-30T13:37:41Z",
+          "databaseId": 33314693132,
+          "headSha": "679c135159542fb1d46f7f13a38d3df571129036",
+          "status": "completed"
+        },
+        {
+          "conclusion": "failure",
+          "createdAt": "2026-08-29T13:39:57Z",
+          "databaseId": 33255596528,
+          "headSha": "ed933632c9cd35833a963f6fc2417b5d1ca5bd8a",
+          "status": "completed"
+        },
+        {
+          "conclusion": "failure",
+          "createdAt": "2026-08-28T19:56:35Z",
+          "databaseId": 33206064479,
+          "headSha": "9fbac4d2ada2240a980d5d7c9c2bd9dedc91de01",
+          "status": "completed"
+        },
+        {
+          "conclusion": "failure",
+          "createdAt": "2026-08-27T18:55:19Z",
+          "databaseId": 33105879956,
+          "headSha": "3fb400fdafb4035d05068a6bd96d0a6d4213f5ab",
+          "status": "completed"
+        }
+      ]
+    ]
+  },
+  "readiness": {
+    "phase": "post-deployment-read-readiness",
+    "startedAtUtc": "2026-09-03T05:29:33.319356+00:00",
+    "seedAttempts": 0,
+    "reads": [
+      {
+        "attempt": 1,
+        "status": 504,
+        "atUtc": "2026-09-03T05:31:27.514980+00:00"
+      },
+      {
+        "attempt": 2,
+        "status": 200,
+        "atUtc": "2026-09-03T05:31:59.975726+00:00"
+      }
+    ],
+    "status": "STOP",
+    "failureType": "AttributeError",
+    "failureStage": "readiness_exception",
+    "finishedAtUtc": "2026-09-03T05:31:59.975726+00:00"
+  },
+  "readinessCorrection": {
+    "phase": "readiness-verifier-correction",
+    "atUtc": "2026-09-03T05:33:29.387870+00:00",
+    "seedAttempts": 0,
+    "status": "READ_READY",
+    "httpStatus": 200,
+    "readObservedAtUtc": "2026-09-03T05:33:30.875110+00:00",
+    "correction": "Existing GET contract returns a one-element portfolio list; prior verifier incorrectly expected a top-level object. Source and controller tests confirm list contract.",
+    "portfolioId": "d61870f5-d420-4947-987c-401e36d2069f",
+    "createdAt": "2026-08-31T16:02:21.975238Z",
+    "updatedAt": "2026-08-31T16:02:21.975238Z",
+    "holdingsCount": 159,
+    "versionDiscarded": true
+  },
+  "before": {
+    "phase": "fresh-eligibility-and-before",
+    "startedAtUtc": "2026-09-03T05:33:47.491502+00:00",
+    "seedAttempts": 0,
+    "packetSha256": "b2943b47a84f78109e54b5f8fa63016271b47a05c65ed5fa2a47bfa0eba3549f",
+    "referenceSha256": "344fa0f6f657f5e16e8275d1300043f27e53ccf6bd72193c85bfb70fb99910bd",
+    "status": "BEFORE_READY",
+    "frozenVersion": 0,
+    "e2eParent": {
+      "id": "d61870f5-d420-4947-987c-401e36d2069f",
+      "user_id": "00000000-0000-0000-0000-000000000e2e",
+      "created_at": "2026-08-31 16:02:21.975238",
+      "version": "0",
+      "updated_at": "2026-08-31 16:02:21.975238"
+    },
+    "expectedOutcome": "SAME_STATE",
+    "referenceComparison": {
+      "matches": true,
+      "activeSetMatches": true,
+      "tupleMismatchCount": 0,
+      "holdingCount": 159,
+      "expectedCount": 159
+    },
+    "httpDatabaseAgreement": true,
+    "capture": {
+      "startedAtUtc": "2026-09-03T05:33:48.997713+00:00",
+      "finishedAtUtc": "2026-09-03T05:33:52.636185+00:00",
+      "transactionReadOnly": true,
+      "clientExitCode": 0,
+      "files": {
+        "schema.csv": {
+          "rowCount": 23,
+          "columns": [
+            "table_name",
+            "ordinal_position",
+            "column_name",
+            "data_type",
+            "udt_name",
+            "numeric_precision",
+            "numeric_scale",
+            "datetime_precision",
+            "is_nullable"
+          ],
+          "sha256": "1ffe14b89a0b56d4c5064c6ea701e6b0edcbd3c6aa2750b7a94ab86035dd4bad"
+        },
+        "e2e-portfolio.csv": {
+          "rowCount": 1,
+          "columns": [
+            "id",
+            "user_id",
+            "created_at",
+            "version",
+            "updated_at"
+          ],
+          "sha256": "f4ad995687b9c556064f442ed40916a58a8fa929cc5a2063e68317253b5660ab"
+        },
+        "e2e-holdings.csv": {
+          "rowCount": 159,
+          "columns": [
+            "id",
+            "portfolio_id",
+            "asset_ticker",
+            "quantity",
+            "avg_cost_basis",
+            "cost_basis_currency",
+            "cost_basis_source",
+            "cost_basis_as_of"
+          ],
+          "sha256": "3e0b9258ca55dc1570cd3e7e3e5657ee4a275bcfd88716bee5e3096e4c04877b"
+        },
+        "demo-portfolio.csv": {
+          "rowCount": 1,
+          "columns": [
+            "id",
+            "user_id",
+            "created_at",
+            "version",
+            "updated_at"
+          ],
+          "sha256": "78f29ef630c1df3dfa1e3450a7ef7f07c65c040c2f53e1a40580b724eb13d4a0"
+        },
+        "demo-holdings.csv": {
+          "rowCount": 159,
+          "columns": [
+            "id",
+            "portfolio_id",
+            "asset_ticker",
+            "quantity",
+            "avg_cost_basis",
+            "cost_basis_currency",
+            "cost_basis_source",
+            "cost_basis_as_of"
+          ],
+          "sha256": "abe730e474760140025a89ba982925f174221d72ac5efc2f47f9d59bbdaf4f30"
+        },
+        "market-prices.csv": {
+          "rowCount": 160,
+          "columns": [
+            "ticker",
+            "current_price",
+            "updated_at",
+            "quote_currency",
+            "observed_at"
+          ],
+          "sha256": "82d39a5a84a940864beda41c4e97fe0dff41e576bb442766534088aa5b976405"
+        },
+        "market-price-history.csv": {
+          "rowCount": 16284,
+          "columns": [
+            "id",
+            "ticker",
+            "quote_currency",
+            "price",
+            "observed_at"
+          ],
+          "sha256": "33e60beba3fd2eca9922d1be4409fd3fa11d38a2c748c2589061149748ca42ea"
+        }
+      }
+    },
+    "finishedAtUtc": "2026-09-03T05:33:52.713512+00:00"
+  },
+  "attempt": {
+    "attemptStartedAtUtc": "2026-09-03T05:35:12.766079+00:00",
+    "seedAttempts": 1,
+    "frozenVersion": 0,
+    "traceId": "be76c56f6c6542fdb864d770be4d3baf",
+    "deploymentRunId": 33718062217,
+    "body": {
+      "expectedVersion": 0
+    },
+    "retries": 0,
+    "redirects": false
+  },
+  "proof": {
+    "phase": "single-seed-and-aftermath",
+    "startedAtUtc": "2026-09-03T05:35:12.749035+00:00",
+    "seedAttempts": 1,
+    "frozenVersion": 0,
+    "traceId": "be76c56f6c6542fdb864d770be4d3baf",
+    "expectedOutcome": "SAME_STATE",
+    "seedStatus": 200,
+    "seedResponseAtUtc": "2026-09-03T05:35:13.693197+00:00",
+    "seedResponse": {
+      "userId": "00000000-0000-0000-0000-000000000e2e",
+      "portfolioId": "d61870f5-d420-4947-987c-401e36d2069f",
+      "holdingsInserted": 159
+    },
+    "afterCapture": {
+      "startedAtUtc": "2026-09-03T05:35:13.707203+00:00",
+      "finishedAtUtc": "2026-09-03T05:35:17.853407+00:00",
+      "transactionReadOnly": true,
+      "clientExitCode": 0,
+      "files": {
+        "schema.csv": {
+          "rowCount": 23,
+          "columns": [
+            "table_name",
+            "ordinal_position",
+            "column_name",
+            "data_type",
+            "udt_name",
+            "numeric_precision",
+            "numeric_scale",
+            "datetime_precision",
+            "is_nullable"
+          ],
+          "sha256": "1ffe14b89a0b56d4c5064c6ea701e6b0edcbd3c6aa2750b7a94ab86035dd4bad"
+        },
+        "e2e-portfolio.csv": {
+          "rowCount": 1,
+          "columns": [
+            "id",
+            "user_id",
+            "created_at",
+            "version",
+            "updated_at"
+          ],
+          "sha256": "f4ad995687b9c556064f442ed40916a58a8fa929cc5a2063e68317253b5660ab"
+        },
+        "e2e-holdings.csv": {
+          "rowCount": 159,
+          "columns": [
+            "id",
+            "portfolio_id",
+            "asset_ticker",
+            "quantity",
+            "avg_cost_basis",
+            "cost_basis_currency",
+            "cost_basis_source",
+            "cost_basis_as_of"
+          ],
+          "sha256": "3e0b9258ca55dc1570cd3e7e3e5657ee4a275bcfd88716bee5e3096e4c04877b"
+        },
+        "demo-portfolio.csv": {
+          "rowCount": 1,
+          "columns": [
+            "id",
+            "user_id",
+            "created_at",
+            "version",
+            "updated_at"
+          ],
+          "sha256": "78f29ef630c1df3dfa1e3450a7ef7f07c65c040c2f53e1a40580b724eb13d4a0"
+        },
+        "demo-holdings.csv": {
+          "rowCount": 159,
+          "columns": [
+            "id",
+            "portfolio_id",
+            "asset_ticker",
+            "quantity",
+            "avg_cost_basis",
+            "cost_basis_currency",
+            "cost_basis_source",
+            "cost_basis_as_of"
+          ],
+          "sha256": "abe730e474760140025a89ba982925f174221d72ac5efc2f47f9d59bbdaf4f30"
+        },
+        "market-prices.csv": {
+          "rowCount": 160,
+          "columns": [
+            "ticker",
+            "current_price",
+            "updated_at",
+            "quote_currency",
+            "observed_at"
+          ],
+          "sha256": "82d39a5a84a940864beda41c4e97fe0dff41e576bb442766534088aa5b976405"
+        },
+        "market-price-history.csv": {
+          "rowCount": 16284,
+          "columns": [
+            "id",
+            "ticker",
+            "quote_currency",
+            "price",
+            "observed_at"
+          ],
+          "sha256": "33e60beba3fd2eca9922d1be4409fd3fa11d38a2c748c2589061149748ca42ea"
+        }
+      }
+    },
+    "postReadStatus": 200,
+    "postReadDatabaseAgreement": true,
+    "e2eParentAfter": {
+      "id": "d61870f5-d420-4947-987c-401e36d2069f",
+      "user_id": "00000000-0000-0000-0000-000000000e2e",
+      "created_at": "2026-08-31 16:02:21.975238",
+      "version": "0",
+      "updated_at": "2026-08-31 16:02:21.975238"
+    },
+    "referenceComparisonAfter": {
+      "matches": true,
+      "activeSetMatches": true,
+      "tupleMismatchCount": 0,
+      "holdingCount": 159,
+      "expectedCount": 159
+    },
+    "byteEquality": {
+      "schema.csv": true,
+      "e2e-portfolio.csv": true,
+      "e2e-holdings.csv": true,
+      "demo-portfolio.csv": true,
+      "demo-holdings.csv": true,
+      "market-prices.csv": true,
+      "market-price-history.csv": true
+    },
+    "status": "DATA_PROOF_PASS_PENDING_FINAL_SERVING_CHECK",
+    "finishedAtUtc": "2026-09-03T05:35:19.441022+00:00"
+  },
+  "assertions": {
+    "workflowAndSkippedStepsPass": true,
+    "allServingRevisionsUseCandidate": true,
+    "singleModeLatestReadyAnd100PercentTraffic": true,
+    "oldRevisionInactiveZeroTrafficZeroReplicas": true,
+    "startupAndDiagnosticsFalse": true,
+    "ingressScaleAndConfigurationControlsUnchanged": true,
+    "peerAppMetadataUnchanged": true,
+    "refreshJobUnchangedAndNoObservedOverlap": true,
+    "noObservedWorkflowOverlap": true,
+    "completeDataProofPass": true,
+    "priceAndHistoryFullRowsByteIdentical": true,
+    "demoFixtureByteIdentical": true,
+    "schemaMatchesFrozenMigrationFixtureAndUnchanged": true
+  },
+  "replicaObservation": {
+    "beforeNames": [
+      "portfolio-service--0000094-5b6c6cd557-kl6dg"
+    ],
+    "afterNames": [
+      "portfolio-service--0000094-5b6c6cd557-tq2fv"
+    ],
+    "sameReplicaContinuityClaimed": false,
+    "bothObservationsReadyZeroRestarts": true
+  },
+  "rollbackCount": 0,
+  "seedRetries": 0,
+  "additionalBuilds": 0,
+  "publication": false,
+  "limitations": [
+    "Live success is SAME_STATE, not a mutation or race test.",
+    "Strict omission/conflict/delegation coverage relies on accepted frozen source tests bound to the serving digest; no extra live negative probe was sent.",
+    "Price/history changed between the earlier preflight rehearsal and BEFORE; this proof establishes equality only across the fresh BEFORE/AFTER seed window. No cause of the earlier changes is attributed.",
+    "Replica identity changed between pre/post observations; both belonged to the sole candidate revision and were ready with zero restarts.",
+    "Peer image tags are preserved as observed tags, not asserted runtime digests.",
+    "Task 6.7, publication, Wave 7 activation and Writer_Convergence are not closed."
+  ]
+}

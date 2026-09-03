@@ -1,12 +1,11 @@
 # Implementation Plan
 
-**OWNER ACTION — production Environment gate:** Task 6.6's exact bundle is owner-approved.
-[Run 33718062217](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33718062217)
-passed validation and waits for the owner's GitHub production Environment approval. Approval
-permits the exact cu4 deployment; otherwise it stays pending. The shared .env.secrets supplies
-all client inputs; read-only DB/application preflight passed. See the
-[corrected record](../../../docs/runbooks/B1_TASK_6_6_G2B_EXECUTION_PACKET.md#11-credential-source-correction-and-approved-dispatch).
-Seed attempts are 0. Tasks 6.6/6.7 remain unchecked; publication and R-B3 closure are separate.
+**OWNER DECISION — Task 6.7 R-B3 GO and local ledger closure:** Task 6.6 has technical ACCEPT:
+the approved cu4 deployment and single same-state seed passed the complete serving/data proof.
+See the [completed report](../../../docs/runbooks/B1_TASK_6_6_G2B_SERVING_PROOF.md). Approving the recommendation permits local
+6.6 completion and 6.7 GO ticks; withholding approval leaves both unchecked and R-B3 open.
+The candidate is already serving. Publication, further production action, Wave 7 activation
+and Writer_Convergence closure are not included.
 
 **B1 Wave 6 source completion (verified 2026-09-03):** Tasks **6.1–6.4 are source-complete**
 after owner-approved [PR #217](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/217)
@@ -33,9 +32,10 @@ The initializer forwards its own observation; global-price snapshot/sentinel cov
 
 Tasks 6.1–6.4 are checked for merged source completion. **Task 6.5 is GO by owner decision on
 2026-09-03; Tasks 6.6/6.7 remain unchecked.** Read-only metadata preflight is recorded in the
-[6.5 readiness record](../../../docs/runbooks/B1_TASK_6_5_PRE_DEPLOY_READINESS.md). The separately approved candidate build is recorded in §6.1 of that record. Deployment,
-G2b/R-B3 serving proof, Wave 7 activation and Writer_Convergence remain open. No live seed, schedule restoration, B2 gate
-decision or feature exposure follows from the 6.5 decision.
+[6.5 readiness record](../../../docs/runbooks/B1_TASK_6_5_PRE_DEPLOY_READINESS.md). The separately approved candidate build is recorded in §6.1 of that record. Deployment and
+G2b proof subsequently passed under its separate execution approval; Task 6.6 is technically
+ACCEPT. R-B3 owner closure, Wave 7 activation and Writer_Convergence remain open. No schedule
+restoration, B2 gate decision or feature exposure follows from the 6.5 decision.
 
 **Current program status (verified 2026-09-03 against `main@d66bb23d`; historical runtime baseline `e221662`; R-A / R-B / R-B2 serving digests below):**
 Waves `P`, `0`, and `1` are complete. Wave 2 tasks **2.1–2.6 and R-A are complete**: G2 serving
@@ -1015,13 +1015,20 @@ Tasks 6.6/6.7 remain unchecked. The read-only metadata snapshot is not G2b servi
   E2E reference is offline expected data. The owner approved the bundle with “Please proceed”.
   The shared .env.secrets resolves all required client parameters; the earlier process-variable
   blocker was incorrect. Read-only database capture and authenticated readiness passed after the
-  documented client correction and transient 504. Dispatch 33718062217 is waiting for production
-  Environment approval; seed attempts remain 0. No G2b proof or completion tick follows.
+  documented client correction and transient 504. The production gate was subsequently approved;
+  dispatch 33718062217 succeeded and candidate revision 0000094 serves alone at 100% traffic.
+  **Technical ACCEPT, 2026-09-03:** the [completed proof](../../../docs/runbooks/B1_TASK_6_6_G2B_SERVING_PROOF.md)
+  records one HTTP 200 seed at N=0 with exact SAME_STATE preservation: parent/child rows, schema,
+  demo, all 160 prices and 16,284 history rows are byte-identical BEFORE/AFTER. No retries or
+  rollback. The ledger tick is proposed with the separate 6.7 owner decision below.
   The existing demo oracle cannot supply E2E cost-basis expectations.
   _Requirements: 8.14, 8.16, 8.30_
 - [ ] **6.7 STOP/GO — R-B3.**
-  **Go:** 6.6 green.
+  **Go:** 6.6 green. Technical proof is now ACCEPT; owner decision pending.
   **Abort:** redeploy the R-B2 digest, restoring the version-tolerant seed, and do not begin Wave 7.
+  **Execution boundary:** the completed seed ended the packet's pre-seed conditional rollback
+  authority. Any later rollback requires a new explicit owner decision; no automatic redeploy
+  is authorized by this checkbox or the technical ACCEPT.
   The floor is Artifact 0 + Artifact 1 until R-C activates; it rises to R-B3 afterwards.
   _Requirements: 8.4, 8.28_
 

@@ -1,19 +1,19 @@
 # B1 Task 6.5 — Pre-deployment Readiness Record
 
-**OWNER ACTION — Task 6.6 production Environment gate:** Task 6.5 and candidate build cu4
-are complete. The approved [Task 6.6 bundle](B1_TASK_6_6_G2B_EXECUTION_PACKET.md#11-credential-source-correction-and-approved-dispatch)
-now has resolved credentials and successful read-only DB/application preflight. Single deployment
-[run 33718062217](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33718062217)
-passed validation and awaits the owner's GitHub production Environment approval: approval permits
-that exact candidate rollout; without it deployment remains pending. No seed has been sent.
-Publication of local records/tag and Task 6.7 closure remain separate owner decisions.
+**OWNER DECISION — Task 6.7 R-B3 GO and local ledger closure:** Task 6.6 has technical ACCEPT:
+the approved cu4 deployment and single same-state seed passed the complete serving/data proof.
+See the [completed report](B1_TASK_6_6_G2B_SERVING_PROOF.md). Approving the recommendation permits local
+6.6 completion and 6.7 GO ticks; withholding approval leaves both unchecked and R-B3 open.
+The candidate is already serving. Publication, further production action, Wave 7 activation
+and Writer_Convergence closure are not included.
 
 **Prepared:** 2026-09-03 by Codex, architecture/review owner.
 **State:** Task 6.5 GO recorded by owner decision; read-only metadata preflight completed on
 2026-09-03 at approximately 02:45–02:47 UTC. The existing portfolio revision/digest is confirmed.
 The single owner-approved candidate build subsequently succeeded as cu4 at 03:35:20 UTC.
 Its immutable registry digest is verified in §6.1. This is packaging evidence, not a deployment-ready
-or serving-proof attestation, and does not close Tasks 6.6 or 6.7.
+or serving-proof attestation by itself. The subsequent 6.6 serving proof is now technically
+ACCEPT in the linked report; Task 6.7 and local ledger closure remain pending.
 
 ## 1. Decision and authority
 
@@ -212,9 +212,9 @@ the packaged image: the existing recipe runs bootJar, not the future R-C verific
 The accepted source test counts in §3 were not rerun. No candidate automation or application change
 was made, and the local cut tag alone does not check the aggregate AM.1/AM.2 tasks.
 
-**Stop boundary reached:** no image pull/startup smoke, workflow dispatch, deployment, application
-login/read, database read, seed or rollback was executed. The existing production image remains
-active; the new image is a registry candidate.
+**Historical build stop boundary:** at the end of the one-build operation, no workflow dispatch,
+deployment, application login/read, database read, seed or rollback had been executed. The old
+image still served then; the later approved deployment/proof is recorded separately below.
 
 The subsequent [Task 6.6 packet](B1_TASK_6_6_G2B_EXECUTION_PACKET.md) now specifies the secure
 credential/execution channel, one-call E2E identity/version protocol, complete persisted tuple/price
@@ -222,10 +222,12 @@ capture, read readiness and conditional rollback scope. Its offline E2E referenc
 identity-dependent cost basis. PortfolioResponse omits cost-basis fields and global price tables,
 so HTTP holdings alone cannot supply that proof. Execution approval is now recorded in the
 packet's §10. Section 11 corrects the credential-source assumption and records successful
-read-only preflight plus the single dispatch waiting at the production Environment gate.
+read-only preflight plus the historical dispatch checkpoint. Section 12 and the
+[completed report](B1_TASK_6_6_G2B_SERVING_PROOF.md) now record the successful deployment and
+one-seed G2b proof, with technical ACCEPT and separate owner R-B3 decision pending.
 
-A later dispatch would use deployment_mode=digest, services=portfolio-service, this exact
-prebuilt_digest, and a freshly verified expected_main_sha for the main workflow. The source cut
+The later approved dispatch used deployment_mode=digest, services=portfolio-service, this exact
+prebuilt_digest, and verified expected_main_sha 9c2ebc1233801253a3e54b6e930e28e1a00ebf3d. The source cut
 stays frozen independently of that workflow commit. Production-environment approval and
 non-cancelling concurrency remain. No second build or different digest is authorized.
 
@@ -263,6 +265,7 @@ and 7.1/7.2 remain unchecked. The approved read-only preflight is complete with 
 immutable digest. Execution stopped at the approved boundary. The Task 6.6 packet and offline
 E2E reference were then prepared, and the owner approved the exact execution bundle. Preliminary
 checks passed; the shared .env.secrets supplied the existing credentials. Read-only preflight
-passed, and one guarded cu4 deployment dispatch awaits production Environment approval. No seed,
-rollback, exposure, schedule change,
-G2b/R-B3 closure or Writer_Convergence claim follows from the GO or build.
+passed. The owner then released the production gate; the one guarded cu4 deployment and one
+same-state seed proof passed. Task 6.6 is technically ACCEPT in the completed report. No rollback
+or schedule change occurred. Task 6.7, publication, completion ticks, Wave 7 activation and
+Writer_Convergence remain pending; none follows from the earlier 6.5 GO or build alone.
