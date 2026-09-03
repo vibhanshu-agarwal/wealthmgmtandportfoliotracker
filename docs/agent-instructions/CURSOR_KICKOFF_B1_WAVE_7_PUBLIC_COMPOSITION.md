@@ -1,5 +1,10 @@
 # B1 Tasks 7.1–7.2 — Public Composition Endpoint Implementation Plan
 
+**Historical kickoff — source now merged:** PR #219 merged the reviewed Tasks 7.1–7.2 source
+at main@c0f84045 on 2026-09-03T05:42:58Z. The assignment/readiness statements below describe
+the original handoff, not a new implementation request. R-B3 remains the frozen 6a171558 / cu4
+image without this controller. Wave 7 checklist reconciliation and activation remain separate.
+
 **OWNER APPROVAL — publication and release:** The owner requested parallel implementation assignment
 before Codex begins Task 6.5. Local implementation and tests in Cursor's assigned worktree are in scope.
 The owner authorized publication and CI-green merge of this kickoff's documentation package on

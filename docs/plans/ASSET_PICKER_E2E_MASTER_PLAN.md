@@ -13,20 +13,17 @@ traffic in Single mode after the approved deployment. Task 6.6's single-seed SAM
 passed; old revision 0000093/9a1d5533 is inactive with zero traffic. R-B3 owner GO and local closure are recorded.
 
 
-**Parallel source assignment (2026-09-03):** the owner requested implementation work be assigned
-before Codex starts Task 6.5. **Cursor is assigned B1 Tasks 7.1–7.2**, the public composition
-controller and HTTP tests, using the [bounded kickoff](../agent-instructions/CURSOR_KICKOFF_B1_WAVE_7_PUBLIC_COMPOSITION.md).
-Status is **assigned / ready for handoff**, reconfirmed by Cursor; no execution evidence yet.
-The permitted implementation start is origin/main@9c2ebc1233801253a3e54b6e930e28e1a00ebf3d;
-its only delta from the original main@6a171558 baseline is PR #218's four documentation files. The dependency graph explicitly allows this
-source work alongside Wave 6 release preparation. The implementation stays on Cursor's branch:
-the Wave 7 controller must not enter R-B3's source/image, and no merge or exposure is authorized.
-PR #218 published that assignment and readiness preparation; its authorization is fulfilled.
-Cursor's existing local implementation/test authorization stands. Preserve its prior branch and
-untracked files; implementation publication/merge and production operations retain their gates.
-The earlier owner decision changed only Task 6.5's checkbox. The subsequent approved close-out
-checks Tasks 6.6/6.7 locally. Cursor's separate work and all Wave 7 completion ticks are unchanged.
-
+**B1 Tasks 7.1–7.2 source ACCEPT and merged (2026-09-03):** Cursor implemented the public
+composition boundary and HTTP tests under the
+[bounded kickoff](../agent-instructions/CURSOR_KICKOFF_B1_WAVE_7_PUBLIC_COMPOSITION.md).
+Codex accepted head 2f50120f6a1231a158e3953c13e9ddc2af75cb78, based on main@9c2ebc12.
+The [review packet](../../audit/b1-wave7/README.md) retains the resolved findings,
+88 focused unit and 19 focused integration tests, and its unavailable original RED-log limitation.
+[PR #219](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/219)
+merged at main@c0f84045 on 2026-09-03T05:42:58Z. The source is merged; the deployed
+R-B3 image remains frozen at 6a171558 / cu4 and excludes this controller. Wave 7 completion
+checkboxes retain main's unchecked state; their reconciliation stays in the separate Cursor review
+task. This documentation PR publishes the approved Wave 6 release evidence and 6.5–6.7 close-out.
 
 **Task 6.5 GO — owner decision recorded 2026-09-03:** the owner approved GO and read-only preflight
 following the existing technical recommendation. The
@@ -364,7 +361,7 @@ Authority: [`.kiro/specs/portfolio-composition-contract/tasks.md`](../../.kiro/s
 | 4 – contract implementation | Source on Artifact 2a serving cut; mechanisms unexposed | Wave 4a–4c (4.1–4.21) merged on `main@2673f40` (PR #153) and included in Artifact 2a serving digest. Public `PUT` still Wave 7. Replacement orchestrator + preparers remain unexposed; `GET /api/assets` controller is now served with R-B2; candidate packaging (7.5/R-C) still pending |
 | 5 — version-bearing read | ✅ Tasks 5.1–5.3 / R-B2 complete; 5.4–5.6 merged via PR #161 at `main@0b5d60d1`; **5.7/G5 complete by owner decision on 2026-09-02** | [33411410271](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33411410271) from `main@f66d7ab6` executed all three callers with version markers, holdings-only seed, and 9 passing tests; evidence reviewed/merged via PR #197. Historical failures and close-out: [G5 record](../runbooks/B1_G5_INGRESS_BLOCKER.md) |
 | 6 — version-required seed | ✅ Tasks 6.1–6.7 complete locally; R-B3 owner GO recorded 2026-09-03 | Strict version boundary and identity-preserving replacement are on main. 6.5 owner GO recorded; read-only preflight confirms the existing cut. cu4 deployed as revision 0000094; 6.6 technical ACCEPT from one same-state seed; 6.6 complete and 6.7 owner GO recorded; publication remains separate |
-| 7 — activation | 🟡 Tasks 7.1–7.2 assigned to Cursor, handoff ready; implementation not yet reported | Isolated controller + HTTP tests may proceed alongside 6.5; excluded from R-B3 source. Candidate packaging, merge and activation remain gated |
+| 7 — activation | 🟡 Tasks 7.1–7.2 source ACCEPT at 2f50120f and merged via PR #219 / main@c0f84045 | Controller and tests remain excluded from frozen R-B3; completion-checkbox reconciliation stays with Cursor review. Candidate packaging and activation remain gated |
 
 Spec A V17–V19 were applied at checkpoint 9.6; **V20 is applied under R-B** and unchanged by R-B2.
 **R-A / G2**, **R-B / G3**, and **R-B2 / G2a** are complete. Wave 4 composition write mechanisms
@@ -537,7 +534,7 @@ passed **526 tests / 62 files**, lint, typecheck, build, and static login-HTML s
 
 Tasks 6.1/6.2 are checked for source completion. Committed flags stay off; final placement,
 Task 5.6's owner GO, Task 6.3, and exposure remain separate. No new runtime attestation is made.
-**Current B1 priority (2026-09-03): Task 6.5 owner GO/read-only preflight recorded; Cursor 7.1–7.2 remains ready for local implementation.** Tasks 6.1–6.4
+**Current B1 priority (2026-09-03): publish the approved Wave 6 / R-B3 evidence and close-out; Wave 7 source from PR #219 is merged.** Tasks 6.1–6.4
 merged through PR #217 after source ACCEPT and final-head CI. The historical Claude kickoff
 is complete as a source assignment. Any release handoff must separately specify the authorized
 artifact, serving-proof scope, and rollback conditions; this record authorizes no production operation.

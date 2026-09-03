@@ -6,6 +6,14 @@ Both tasks are now checked locally. The [decision record](../../../docs/evidence
 binds this approval to the unchanged proof and cu4 serving image. Publication, further production
 operations, Wave 7 activation and Writer_Convergence closure remain outside this approval.
 
+**Wave 7 source review and merge (2026-09-03):** Codex ACCEPT applies to Tasks 7.1–7.2
+at 2f50120f6a1231a158e3953c13e9ddc2af75cb78, based on main@9c2ebc12. The
+[review packet](../../../audit/b1-wave7/README.md) records 88 focused unit and 19 focused
+integration tests with zero failures/errors/skips. [PR #219](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/219)
+subsequently merged at main@c0f84045 on 2026-09-03T05:42:58Z. Source merge does not alter
+the frozen R-B3 image, pinned to 6a171558 / cu4. Tasks 7.1–7.2 retain their unchecked
+state from main; their completion reconciliation remains in the separate Cursor review task.
+
 **B1 Wave 6 source completion (verified 2026-09-03):** Tasks **6.1–6.4 are source-complete**
 after owner-approved [PR #217](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/217)
 merged at `main@d66bb23d5ef3606373c15d9ee02fda27c62df5c2` on `2026-09-02T19:28:09Z`.
@@ -1043,15 +1051,15 @@ The earlier read-only metadata snapshot remains distinct from the completed serv
 Portfolio-service only; the asset route shipped in Wave 2.
 
 
-**Parallel source assignment — 2026-09-03:** Tasks 7.1–7.2 are assigned to Cursor under the
-[public-composition kickoff](../../../docs/agent-instructions/CURSOR_KICKOFF_B1_WAVE_7_PUBLIC_COMPOSITION.md),
-originally based on main@6a171558. Cursor reconfirmed readiness; it may start from the verified
-docs-only descendant origin/main@9c2ebc12 under the existing local implementation authorization.
-No execution or completion is reported; both boxes remain unchecked. Requirement 9.2 and the
-implementation-lane graph permit development alongside the remaining R-B3 release work. The controller remains isolated on Cursor's branch and excluded from
-R-B3. Tasks 7.3 onward, merge, deployment, and exposure remain separate. Publication of the new
-implementation branch/PR needs owner approval under AGENTS.md.
-
+**Reviewed and merged parallel source work — 2026-09-03:** Cursor implemented Tasks 7.1–7.2
+under the [public-composition kickoff](../../../docs/agent-instructions/CURSOR_KICKOFF_B1_WAVE_7_PUBLIC_COMPOSITION.md)
+from main@9c2ebc12. Codex ACCEPT at 2f50120f closed the null-element, transactional
+projection-rollback, HTTP assertion and evidence-packet findings. PR #219 merged at
+main@c0f84045 on 2026-09-03T05:42:58Z. The source/test work is merged, while both
+checkboxes retain main's existing unchecked state. This Wave 6 evidence PR changes only
+6.5–6.7 completion relative to main; Wave 7 checklist reconciliation remains separate.
+The controller stays outside the frozen R-B3 source/image; Tasks 7.3 onward, deployment
+and exposure retain their own gates.
 
 - [ ] **7.1 Introduce `CompositionController`** — `PUT /api/portfolio/holdings`, taking the expected
   version and the desired set, resolving the target from the authenticated principal with **no

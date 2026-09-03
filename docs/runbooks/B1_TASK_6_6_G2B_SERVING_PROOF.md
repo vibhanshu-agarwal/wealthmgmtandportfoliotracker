@@ -140,3 +140,13 @@ Only the two B1 completion checkboxes and their status records were updated. No 
 seed, rollback, cloud/secret read or application test was performed for this documentation close-out.
 Wave 6 / R-B3 is complete locally. Publication and all later release/product gates retain their
 existing boundaries; no new Wave 7 implementation or activation is assigned by this close-out.
+
+## 6. Documentation publication approval — 2026-09-03
+
+The owner asked: “Do we need to create a PR for this? If yes, please go ahead.”
+This separately authorizes pushing the release-documentation branch and opening its PR.
+The original proof and owner-GO JSON remain unchanged. Current main includes PR #219, so the
+documentation branch incorporates that merge and preserves its application/test source exactly.
+The PR contains documentation/evidence only relative to that main baseline. No source cut,
+serving image, seed count, deployment or Wave 7 checkbox is changed by this publication.
+Merge and any later production operation require their own authorization.
