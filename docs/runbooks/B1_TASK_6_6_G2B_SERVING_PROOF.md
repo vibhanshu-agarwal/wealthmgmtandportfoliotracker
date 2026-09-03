@@ -1,10 +1,10 @@
 # B1 Task 6.6 — G2b serving proof, 2026-09-03
 
-**OWNER DECISION — Task 6.7 R-B3 GO and local ledger closure:** Codex recommends accepting
-Task 6.6 and recording Task 6.7 GO based on the completed proof below. Approval permits those
-two local completion ticks; withholding approval leaves both unchecked and the R-B3 gate open.
-The approved candidate is already serving. No further production action, rollback, publication,
-Wave 7 activation or Writer_Convergence closure follows automatically from this recommendation.
+**OWNER DECISION RECORDED — R-B3 GO, 2026-09-03:** The owner approved local completion
+of Task 6.6 and Task 6.7 GO after reviewing the successful G2b proof: “Approved. Please go ahead.”
+Both tasks are now checked locally. The [decision record](../evidence/b1-task-6-6/r-b3-owner-go-20260903.json)
+binds this approval to the unchanged proof and cu4 serving image. Publication, further production
+operations, Wave 7 activation and Writer_Convergence closure remain outside this approval.
 
 **Verdict:** Task 6.6 technical ACCEPT. One approved deployment and one seed attempt completed.
 **Execution:** 2026-09-03; deployment finished 05:26:31 UTC; seed/data proof 05:33:47–05:35:19 UTC.
@@ -124,7 +124,19 @@ The pre-seed conditional rollback authority ended when the attempt marker was wr
 Any later production change requires a new explicit owner decision; no automatic rollback or
 data repair is authorized by this result.
 
-Task 6.6 is technically ACCEPT and recommended for local completion. Task 6.7 requires the
-owner's separate R-B3 decision. Their checkboxes remain unchanged pending that decision.
+Task 6.6 is technically ACCEPT and complete. The owner subsequently approved Task 6.7 R-B3 GO
+and both local completion ticks, as recorded below.
 The local cut tag and documentation are unpublished; aggregate AM.1/AM.2, Wave 7 activation,
 B2 owner gates and Writer_Convergence remain open.
+
+## 5. Owner close-out — 2026-09-03
+
+After the completed report and local proof commit 1ebc418, the owner replied:
+“Approved. Please go ahead.” This approves the requested local completion of 6.6 and 6.7 GO.
+The [separate decision record](../evidence/b1-task-6-6/r-b3-owner-go-20260903.json) hashes the
+unchanged original proof JSON, whose pending status remains a historical observation.
+
+Only the two B1 completion checkboxes and their status records were updated. No new deployment,
+seed, rollback, cloud/secret read or application test was performed for this documentation close-out.
+Wave 6 / R-B3 is complete locally. Publication and all later release/product gates retain their
+existing boundaries; no new Wave 7 implementation or activation is assigned by this close-out.

@@ -1,16 +1,16 @@
 # B1 Task 6.6 — R-B3 deployment and G2b proof packet
 
-**OWNER DECISION — Task 6.7 R-B3 GO and local ledger closure:** Task 6.6 has technical ACCEPT:
-the approved cu4 deployment and single same-state seed passed the complete serving/data proof.
-See the [completed report](B1_TASK_6_6_G2B_SERVING_PROOF.md). Approving the recommendation permits local
-6.6 completion and 6.7 GO ticks; withholding approval leaves both unchecked and R-B3 open.
-The candidate is already serving. Publication, further production action, Wave 7 activation
-and Writer_Convergence closure are not included.
+**OWNER DECISION RECORDED — R-B3 GO, 2026-09-03:** The owner approved local completion
+of Task 6.6 and Task 6.7 GO after reviewing the successful G2b proof: “Approved. Please go ahead.”
+Both tasks are now checked locally. The [decision record](../evidence/b1-task-6-6/r-b3-owner-go-20260903.json)
+binds this approval to the unchanged proof and cu4 serving image. Publication, further production
+operations, Wave 7 activation and Writer_Convergence closure remain outside this approval.
 
 **Prepared:** 2026-09-03 by Codex, architecture/review owner.
 **State:** Deployment and one-seed proof completed; Task 6.6 technical ACCEPT.
 Candidate revision 0000094 serves 100% traffic. One seed returned 200 with exact SAME_STATE
-preservation; zero retries/rollbacks. Task 6.7 and local completion ticks await the owner decision.
+preservation; zero retries/rollbacks. The owner approved 6.7 R-B3 GO and local 6.6/6.7 closure
+on 2026-09-03; both tasks are checked. See §13 for the separate decision.
 **Operator:** The owner-authorized release operator; no implementation-agent assignment or message
 is implied by this document. Codex owns review and status reconciliation.
 **Goal:** Bind the existing candidate to every serving portfolio revision, then demonstrate
@@ -443,5 +443,14 @@ sole candidate revision; both observed replicas were ready with zero restarts.
 
 **Review:** Task 6.6 technical ACCEPT, with live no-op evidence and frozen-source negative/race
 coverage clearly distinguished. Stop after this proof report. The pre-seed conditional rollback
-authority has expired. Task 6.7 remains the owner's separate decision; no completion checkbox
-or aggregate/Wave 7 gate was changed.
+authority has expired. At the proof checkpoint, Task 6.7 and completion ticks awaited the owner.
+The subsequent §13 decision closes only 6.6/6.7; aggregate/Wave 7 gates remain unchanged.
+
+## 13. Owner R-B3 GO and local closure
+
+On 2026-09-03 the owner replied “Approved. Please go ahead.” to the explicit recommendation
+to record Task 6.6 complete and Task 6.7 GO locally. Both tasks are now checked.
+The [decision record](../evidence/b1-task-6-6/r-b3-owner-go-20260903.json) binds the approval
+to proof commit 1ebc418 and its immutable evidence hash. Historical §§10–12 and the proof JSON
+retain their capture-time states. The original execution protocol and operational results are
+unchanged; no seed, deployment or other live check was replayed.

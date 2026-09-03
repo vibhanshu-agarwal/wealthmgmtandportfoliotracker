@@ -1,11 +1,10 @@
 # Implementation Plan
 
-**OWNER DECISION — Task 6.7 R-B3 GO and local ledger closure:** Task 6.6 has technical ACCEPT:
-the approved cu4 deployment and single same-state seed passed the complete serving/data proof.
-See the [completed report](../../../docs/runbooks/B1_TASK_6_6_G2B_SERVING_PROOF.md). Approving the recommendation permits local
-6.6 completion and 6.7 GO ticks; withholding approval leaves both unchecked and R-B3 open.
-The candidate is already serving. Publication, further production action, Wave 7 activation
-and Writer_Convergence closure are not included.
+**OWNER DECISION RECORDED — R-B3 GO, 2026-09-03:** The owner approved local completion
+of Task 6.6 and Task 6.7 GO after reviewing the successful G2b proof: “Approved. Please go ahead.”
+Both tasks are now checked locally. The [decision record](../../../docs/evidence/b1-task-6-6/r-b3-owner-go-20260903.json)
+binds this approval to the unchanged proof and cu4 serving image. Publication, further production
+operations, Wave 7 activation and Writer_Convergence closure remain outside this approval.
 
 **B1 Wave 6 source completion (verified 2026-09-03):** Tasks **6.1–6.4 are source-complete**
 after owner-approved [PR #217](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/217)
@@ -31,10 +30,10 @@ asserted unresolved by user before real post-rollback advice reports the committ
 The initializer forwards its own observation; global-price snapshot/sentinel coverage is retained.
 
 Tasks 6.1–6.4 are checked for merged source completion. **Task 6.5 is GO by owner decision on
-2026-09-03; Tasks 6.6/6.7 remain unchecked.** Read-only metadata preflight is recorded in the
+2026-09-03; Tasks 6.6/6.7 are now complete under the separate owner R-B3 GO.** Read-only metadata preflight is recorded in the
 [6.5 readiness record](../../../docs/runbooks/B1_TASK_6_5_PRE_DEPLOY_READINESS.md). The separately approved candidate build is recorded in §6.1 of that record. Deployment and
 G2b proof subsequently passed under its separate execution approval; Task 6.6 is technically
-ACCEPT. R-B3 owner closure, Wave 7 activation and Writer_Convergence remain open. No schedule
+ACCEPT and the owner approved R-B3 GO. Wave 7 activation and Writer_Convergence remain open. No schedule
 restoration, B2 gate decision or feature exposure follows from the 6.5 decision.
 
 **Current program status (verified 2026-09-03 against `main@d66bb23d`; historical runtime baseline `e221662`; R-A / R-B / R-B2 serving digests below):**
@@ -66,12 +65,13 @@ still finds exactly three callers. The historical ingress/custom-domain failures
 remain in the [G5 record](../../../docs/runbooks/B1_G5_INGRESS_BLOCKER.md).
 G5's prerequisite for B1 Wave 6 is satisfied; Tasks 6.1–6.4 subsequently merged through PR #217
 and are source-complete. Task 6.5 has its separate 2026-09-03 owner GO and approved read-only
-preflight. The separately approved build cu4 succeeded; R-B3 deployment/serving proof and Wave 7 activation remain open. Unattended synthetics remain suspended;
+preflight. The separately approved cu4 deployment and one-seed proof passed; Tasks 6.6/6.7
+are complete under the owner R-B3 GO. Wave 7 activation remains open. Unattended synthetics remain suspended;
 further dispatch or schedule restoration requires separate authorization.
 Candidate packaging / R-C (task 7.5)
-is **not** complete. Public `PUT /api/portfolio/holdings` remains Wave 7. The deployed seed remains
-on its prior version-tolerant serving cut; the version-required rewrite is merged source only,
-and Writer_Convergence remains unproven. Dependent proof branch
+is **not** complete. Public `PUT /api/portfolio/holdings` remains Wave 7. The version-required
+seed now serves on cu4 / revision 0000094 with accepted G2b proof. Writer_Convergence remains
+unproven until its separate activation conditions are met. Dependent proof branch
 [`proof/b1-wave-2-g1-v20@e6a98c5`](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/tree/proof/b1-wave-2-g1-v20)
 remains historical and unmerged. Spec A V17–V19 were applied and verified at checkpoint 9.6; V20 is
 applied under R-B and unchanged by R-B2. Wave checkboxes record implementation evidence, not merged
@@ -961,9 +961,9 @@ Named individually so the R-C manifest can enumerate them rather than gesture at
   comparison from `f66d7ab6` through `48d0aba8` found no caller/helper/workflow/test drift,
   and the current inventory guard passes with exactly three callers. No live replay was needed.
   G5's Wave 6 prerequisite is satisfied. Tasks 6.1–6.4 later merged and 6.5 received owner GO;
-  Tasks 6.6/6.7 and Wave 7 remain unchecked; no R-B3
-  deploy, public `PUT`, Writer_Convergence, backlog closure, further dispatch, or schedule
-  restoration is authorized. Unattended synthetics remain suspended in `synthetic-monitoring.yml`.
+  Tasks 6.6/6.7 subsequently completed under their separate deployment/proof and owner R-B3 GO.
+  Wave 7 remains unchecked; no public `PUT`, Writer_Convergence, backlog closure, further
+  dispatch or schedule restoration is authorized by the G5 close-out. Unattended synthetics remain suspended in `synthetic-monitoring.yml`.
   _Requirements: 8.32, 8.39_
 
 ## Wave 6 — Version-required seed (Artifact 2b → R-B3)
@@ -972,7 +972,8 @@ Named individually so the R-C manifest can enumerate them rather than gesture at
 `1bdb1d31`, R1/R2 closed, and final PR-event CI successful. The completion record above pins
 the evidence. The [Claude kickoff](../../../docs/agent-instructions/CLAUDE_KICKOFF_B1_WAVE_6_VERSION_REQUIRED_SEED.md)
 is retained as historical execution scope. Task 6.5 has the separate owner GO recorded below;
-Tasks 6.6/6.7 remain unchecked. The read-only metadata snapshot is not G2b serving proof.
+Tasks 6.6/6.7 are now complete following the separate G2b proof and owner R-B3 GO.
+The earlier read-only metadata snapshot remains distinct from the completed serving proof.
 
 - [x] **6.1 Seed `POST` requires `expectedVersion`** and delegates to `HoldingReplacementService`.
   Target stays compiled-in. Failure returns Requirement 7's `409` envelope with
@@ -994,19 +995,19 @@ Tasks 6.6/6.7 remain unchecked. The read-only metadata snapshot is not G2b servi
 - [x] **6.5 STOP/GO — G5 before deploy.**
   **GO — owner decision 2026-09-03:** “Yes Task 6.5 GO and read-only preflight approved.”
   [Readiness record](../../../docs/runbooks/B1_TASK_6_5_PRE_DEPLOY_READINESS.md) records the existing
-  G5 technical evidence and the approved Azure/ACR metadata preflight. Sole portfolio revision
-  0000093/digest 9a1d5533 still has 100% internal traffic; flags remain false. ACR confirms the
+  G5 technical evidence and the approved Azure/ACR metadata preflight. At that checkpoint,
+  portfolio revision 0000093/digest 9a1d5533 had 100% internal traffic; flags were false. ACR confirms the
   existing digest and successful build cu3. This closes the decision, not a new deployment.
   The separately approved single build cu4 succeeded from controller-free 6a171558, producing
   digest 2be727ea…; readiness §6.1 and its JSON evidence record the full immutable reference,
-  run/tag/manifest agreement and local cut tag. The prior 0000093/9a1d5533 image remains active
-  at 100% traffic. Execution stopped after digest capture. The existing serving digest remains
-  the proposed rollback target. Tasks 6.6/6.7 and aggregate AM.1/AM.2 stay unchecked.
+  run/tag/manifest agreement and local cut tag. At the build checkpoint, the prior image still
+  served and execution stopped after digest capture. Tasks 6.6/6.7 subsequently completed below;
+  aggregate AM.1/AM.2 remain unchecked. Any further rollback requires separate owner approval.
   **Go:** 5.7 green.
   **Abort:** do not deploy the version-required endpoint; unmigrated callers would fail on the first
   run.
   _Requirements: 8.32, 8.39_
-- [ ] **6.6 G2b serving proof.** Every serving digest requires the version and delegates; proved by a
+- [x] **6.6 G2b serving proof.** Every serving digest requires the version and delegates; proved by a
   controlled seed showing identity preservation, the expected version outcome, and the price
   regression.
   **Preparation 2026-09-03:** [Execution packet](../../../docs/runbooks/B1_TASK_6_6_G2B_EXECUTION_PACKET.md)
@@ -1020,11 +1021,16 @@ Tasks 6.6/6.7 remain unchecked. The read-only metadata snapshot is not G2b servi
   **Technical ACCEPT, 2026-09-03:** the [completed proof](../../../docs/runbooks/B1_TASK_6_6_G2B_SERVING_PROOF.md)
   records one HTTP 200 seed at N=0 with exact SAME_STATE preservation: parent/child rows, schema,
   demo, all 160 prices and 16,284 history rows are byte-identical BEFORE/AFTER. No retries or
-  rollback. The ledger tick is proposed with the separate 6.7 owner decision below.
+  rollback. The owner approved completion on 2026-09-03: “Approved. Please go ahead.”
+  The [decision record](../../../docs/evidence/b1-task-6-6/r-b3-owner-go-20260903.json) binds this
+  local completion tick to proof commit 1ebc418 and its unchanged evidence hash.
   The existing demo oracle cannot supply E2E cost-basis expectations.
   _Requirements: 8.14, 8.16, 8.30_
-- [ ] **6.7 STOP/GO — R-B3.**
-  **Go:** 6.6 green. Technical proof is now ACCEPT; owner decision pending.
+- [x] **6.7 STOP/GO — R-B3.**
+  **GO — owner decision 2026-09-03:** “Approved. Please go ahead.” Task 6.6 is green and
+  accepted; the owner approved the explicit recommendation to record 6.6 complete and 6.7 GO
+  locally. This closes Wave 6 / R-B3 without authorizing publication or later production work.
+  **Go:** 6.6 green.
   **Abort:** redeploy the R-B2 digest, restoring the version-tolerant seed, and do not begin Wave 7.
   **Execution boundary:** the completed seed ended the packet's pre-seed conditional rollback
   authority. Any later rollback requires a new explicit owner decision; no automatic redeploy

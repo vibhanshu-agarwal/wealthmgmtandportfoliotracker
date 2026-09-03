@@ -1,11 +1,10 @@
 # B1 Task 6.5 — Pre-deployment Readiness Record
 
-**OWNER DECISION — Task 6.7 R-B3 GO and local ledger closure:** Task 6.6 has technical ACCEPT:
-the approved cu4 deployment and single same-state seed passed the complete serving/data proof.
-See the [completed report](B1_TASK_6_6_G2B_SERVING_PROOF.md). Approving the recommendation permits local
-6.6 completion and 6.7 GO ticks; withholding approval leaves both unchecked and R-B3 open.
-The candidate is already serving. Publication, further production action, Wave 7 activation
-and Writer_Convergence closure are not included.
+**OWNER DECISION RECORDED — R-B3 GO, 2026-09-03:** The owner approved local completion
+of Task 6.6 and Task 6.7 GO after reviewing the successful G2b proof: “Approved. Please go ahead.”
+Both tasks are now checked locally. The [decision record](../evidence/b1-task-6-6/r-b3-owner-go-20260903.json)
+binds this approval to the unchanged proof and cu4 serving image. Publication, further production
+operations, Wave 7 activation and Writer_Convergence closure remain outside this approval.
 
 **Prepared:** 2026-09-03 by Codex, architecture/review owner.
 **State:** Task 6.5 GO recorded by owner decision; read-only metadata preflight completed on
@@ -13,7 +12,7 @@ and Writer_Convergence closure are not included.
 The single owner-approved candidate build subsequently succeeded as cu4 at 03:35:20 UTC.
 Its immutable registry digest is verified in §6.1. This is packaging evidence, not a deployment-ready
 or serving-proof attestation by itself. The subsequent 6.6 serving proof is now technically
-ACCEPT in the linked report; Task 6.7 and local ledger closure remain pending.
+ACCEPT in the linked report; the owner subsequently approved Task 6.7 GO and local 6.6/6.7 closure.
 
 ## 1. Decision and authority
 
@@ -224,7 +223,7 @@ so HTTP holdings alone cannot supply that proof. Execution approval is now recor
 packet's §10. Section 11 corrects the credential-source assumption and records successful
 read-only preflight plus the historical dispatch checkpoint. Section 12 and the
 [completed report](B1_TASK_6_6_G2B_SERVING_PROOF.md) now record the successful deployment and
-one-seed G2b proof, with technical ACCEPT and separate owner R-B3 decision pending.
+one-seed G2b proof, now accepted under the separately recorded owner R-B3 GO.
 
 The later approved dispatch used deployment_mode=digest, services=portfolio-service, this exact
 prebuilt_digest, and verified expected_main_sha 9c2ebc1233801253a3e54b6e930e28e1a00ebf3d. The source cut
@@ -259,13 +258,13 @@ Both diffs were empty. Deployment safeguard suites (each run locally, each succe
 its historical run remains successful, the exact caller paths have no drift, and the current
 inventory/guard tests pass. There is no remaining caller implementation prerequisite for 6.5.
 
-**Owner decision: GO, 2026-09-03.** Task 6.5 is checked for the recorded decision; Tasks 6.6/6.7
-and 7.1/7.2 remain unchecked. The approved read-only preflight is complete with the limitations in
+**Owner decision: GO, 2026-09-03.** Task 6.5 is checked for its recorded decision. Tasks 6.6/6.7
+were subsequently checked under the separate owner R-B3 GO; Tasks 7.1/7.2 remain unchanged. The approved read-only preflight is complete with the limitations in
 §5. The separately approved one-build operation is complete: §6.1 records cu4 and the verified
 immutable digest. Execution stopped at the approved boundary. The Task 6.6 packet and offline
 E2E reference were then prepared, and the owner approved the exact execution bundle. Preliminary
 checks passed; the shared .env.secrets supplied the existing credentials. Read-only preflight
 passed. The owner then released the production gate; the one guarded cu4 deployment and one
 same-state seed proof passed. Task 6.6 is technically ACCEPT in the completed report. No rollback
-or schedule change occurred. Task 6.7, publication, completion ticks, Wave 7 activation and
-Writer_Convergence remain pending; none follows from the earlier 6.5 GO or build alone.
+or schedule change occurred. The owner then approved Task 6.7 GO and the two local completion
+ticks. Publication, Wave 7 activation and Writer_Convergence remain outside that approval.
