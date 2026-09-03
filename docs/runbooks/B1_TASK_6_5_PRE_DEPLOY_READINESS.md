@@ -157,39 +157,66 @@ separately. No production fixture alteration is implied to force a desired probe
 
 ### 6.1 Concrete next proposal — one candidate build, no deployment
 
-Owner/operator roles: Codex owns this reviewed packet and its status record; the operator must be
-named when the build is authorized. Cursor continues only its isolated 7.1–7.2 source assignment.
+**Proposed operator: Codex in this Task 6.5 task.** Cursor's review is handled in the separate fork.
+This packet requests one ACR build and capture of its immutable result. It grants no permission by
+itself; the owner has approved GO and metadata preflight only.
 
-Proposed input and procedure:
-1. Use a clean detached sibling checkout at full source SHA
-   6a171558a0f802eadd5d7ed5bf28545ca5c91905, never moving main or Cursor's branch. Verify that the
-   source is controller-free and that the build inputs match the accepted Wave 6 source recorded
-   in §3. Record the source tree hash and a local artifact-cut tag under AM.1; publishing any tag
-   is a separately approved GitHub action.
-2. Reuse portfolio-service/Dockerfile.azure from that cut, root build context and linux/amd64.
-   One ACR build creates a unique portfolio-service tag of the form
-   b1-r-b3-6a171558-<UTC timestamp>. Do not substitute a tag or rebuild automatically on failure.
-3. Capture build run ID/result, registry tag, manifest digest, creation time, platform and size.
-   Require the run's output digest to equal the manifest behind that tag, and retain the source
-   checkout evidence with it. A source timestamp or SERVICE_VERSION field is not image identity.
-4. Stop after packaging. Return the exact immutable image reference for review. The existing
-   Dockerfile builds bootJar; it does not implement the future R-C verification graph or prove
-   that accepted source tests ran against this packaged image.
+Repository preparation completed on 2026-09-03:
+- Clean detached checkout:
+  C:/worktrees/wealthmgmtandportfoliotracker-codex-r-b3-candidate.
+- Exact source: 6a171558a0f802eadd5d7ed5bf28545ca5c91905.
+- Git tree: 4df697ed7605104a304ad08651e21522e32d52db.
+- Zero source/build-input difference from accepted Wave 6 head 1bdb1d31, including the Azure
+  Dockerfile and .dockerignore. No public CompositionController/holdings PUT mapping exists.
+  Strict expectedVersion input and shared replacement delegation are present.
+- Checkout has no local changes or untracked files; gradlew is LF as required for the Linux
+  builder. No full application test suite was rerun; the accepted evidence in §3 is unchanged.
+- Proposed image tag: b1-r-b3-6a171558-20260903T032527Z. The approved read-only registry query
+  found no existing tag with that name. Recheck immediately before queuing.
+- Proposed local cut tag: b1-r-b3-cut-6a171558-20260903T032527Z. It has not been created.
+  Record this tag at the frozen commit when an approved build begins, per AM.1; never force
+  or publish it without the separately required authorization.
 
-This proposal is limited to packaging the already-reviewed source. It neither implements Wave 7
-candidate automation nor authorizes deploy.yml. A failed or ambiguous build stops without a
-replacement build. The candidate digest stays unrecorded until an approved build actually succeeds.
+The [source-preparation record](../evidence/b1-task-6-5/candidate-source-20260903.json) binds these
+observations. It is not an image attestation and does not mark AM.1/AM.2 or any release gate complete.
+
+After explicit owner build approval, recheck that the detached checkout is still clean at the exact
+commit/tree, the tag is unused, and the approved serving/registry baseline in §5 has not drifted.
+Then, from that candidate checkout, execute exactly one build:
+
+~~~powershell
+az acr build --registry wealthprodacr --resource-group wealth-azure-prod-rg --subscription ee625b3f-7cb1-4482-be3c-4363c5d76d23 --image portfolio-service:b1-r-b3-6a171558-20260903T032527Z --file portfolio-service/Dockerfile.azure --platform linux/amd64 --no-wait --query "{runId:runId,status:status,platform:platform}" --output json --only-show-errors .
+~~~
+
+The installed CLI help confirms these options. The command uploads the clean source context and
+queues one server-side build whose output is pushed to the named ACR repository; it does not
+dispatch a deployment. No secret or custom build argument is supplied.
+
+Follow the returned run ID with read-only ACR run metadata. Require successful completion, then
+capture the outputImages digest and the tag's manifest metadata. They must agree exactly. Record
+run ID, source/tree/cut tag, image tag, lowercase sha256 manifest digest, creation time, platform
+and size. Return the immutable wealthprodacr.azurecr.io/portfolio-service@sha256 reference for
+review, then stop.
+
+A failed build, missing run ID after an ambiguous submission, duplicate tag, source/serving drift
+or contradictory registry result stops execution. Do not submit a second build, retag another
+image or silently substitute source. Resolve an uncertain submission through read-only run
+records before requesting a new build decision.
+
+The existing Dockerfile builds bootJar; this is not the future R-C verification graph and does
+not prove that accepted source tests ran against the packaged image. No candidate automation or
+application change is included.
 
 The later dispatch packet must set deployment_mode=digest, services=portfolio-service,
 prebuilt_digest to the reviewed immutable ACR reference, and expected_main_sha to the freshly
-verified workflow commit on main. Current repository/workflow baseline is 9c2ebc12; it is distinct
+verified workflow commit on main. Repository/workflow planning baseline is 9c2ebc12; it is distinct
 from the candidate source. Production-environment approval and non-cancelling concurrency remain.
 
 Before seeking deployment/Task 6.6 authorization, complete the probe packet with an approved
 credential/execution channel, exact one-call E2E identity/version protocol, complete persisted
 tuple/price evidence capture, and conditional rollback scope. PortfolioResponse omits cost-basis
 fields and global price tables, so authenticated HTTP holdings alone cannot supply that full proof.
-No database/secret access or fixture alteration is implied by this read-only metadata preflight.
+No database/secret access or fixture alteration is implied by this metadata/build preparation.
 
 ## 7. Reproduction of completed local checks
 

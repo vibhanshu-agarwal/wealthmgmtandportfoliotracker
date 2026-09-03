@@ -996,8 +996,10 @@ Tasks 6.6/6.7 remain unchecked. The read-only metadata snapshot is not G2b servi
   G5 technical evidence and the approved Azure/ACR metadata preflight. Sole portfolio revision
   0000093/digest 9a1d5533 still has 100% internal traffic; flags remain false. ACR confirms the
   existing digest and successful build cu3. This closes the decision, not a new deployment.
-  Candidate source stays controller-free at 6a171558; it is unbuilt. The current digest is a
-  proposed rollback target, with compatibility limits recorded. Tasks 6.6/6.7 stay unchecked.
+  Candidate source stays controller-free at 6a171558; it is unbuilt. Codex prepared the clean
+  detached build checkout, verified source/tree identity, and recorded the exact proposed ACR
+  build in readiness §6.1. Build approval remains open. The current serving digest is a proposed
+  rollback target, with compatibility limits recorded. Tasks 6.6/6.7 stay unchecked.
   **Go:** 5.7 green.
   **Abort:** do not deploy the version-required endpoint; unmigrated callers would fail on the first
   run.

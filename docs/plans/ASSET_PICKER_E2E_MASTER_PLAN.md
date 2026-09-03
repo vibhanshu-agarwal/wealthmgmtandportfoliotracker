@@ -35,7 +35,9 @@ following the existing technical recommendation. The
 revision/digest, internal traffic and disabled startup/diagnostic flags; ACR build cu3 and manifest
 metadata agree with the reviewed B2 4.5 provenance. That digest is the proposed compatibility
 rollback target, not an authorized rollback. Candidate source remains frozen at 6a171558; it is
-unbuilt. Next is the build-only decision, then the separate deployment/6.6 proof packet. Tasks
+unbuilt. Codex has prepared a clean detached candidate checkout and the exact build-only request
+in readiness §6.1, with [source evidence](../evidence/b1-task-6-5/candidate-source-20260903.json).
+The next decision authorizes one named ACR build; deployment/6.6 proof stays separate. Tasks
 6.6/6.7 remain unchecked; no application probe was replayed.
 
 **B1 Wave 6 source completion (verified 2026-09-03):** Tasks **6.1–6.4 are source-complete**
