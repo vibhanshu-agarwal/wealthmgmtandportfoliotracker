@@ -83,12 +83,15 @@ exception type across the whole evidence pipeline.
 from __future__ import annotations
 
 import argparse
+import ast
 import hashlib
+import io
 import json
 import re
 import subprocess
 import sys
 import tempfile
+import tokenize
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -501,6 +504,10 @@ def fold_literal_run(tokens: list[Token], start: int) -> tuple[str | None, int]:
 
 _TYPE_KEYWORDS = {"class", "interface", "enum", "record"}
 
+#: Control-flow keywords whose own `(` can precede a `;`-separated declaration inside the SAME
+#: header (`try (A a = ...; B b = ...)`, `for (int i = 0; ...; ...)`) -- see `declared_types`.
+_CONTROL_HEADER_KEYWORDS = {"try", "for", "if", "while", "synchronized", "catch"}
+
 
 @dataclass
 class Scope:
@@ -604,6 +611,14 @@ WRITE_METHODS = {
     "insert", "upsert", "doWork",
 }
 
+#: Receiver types whose WRITE_METHODS calls carry NO SQL/statement argument of their own -- unlike
+#: `Statement.execute(sql)`/`JdbcTemplate.execute(sql)`, `BulkOperations.execute()` just flushes
+#: operations already queued via its own `.upsert(query, update)` calls. Without this, `needs_sql`
+#: reported it UNSUPPORTED for "a SQL call missing a string" when it was never a SQL call at all
+#: (GC5-0432). Bounded to the evidenced type; a genuinely unknown/custom `execute()` receiver is
+#: untouched and still needs its own resolvable argument.
+NON_SQL_BEARING_WRITE_TYPES = {"BulkOperations"}
+
 #: Collection mutators. Only reported when the receiver resolves to a mapped collection (a field
 #: carrying @OneToMany/@ManyToMany, or its getter), because an unqualified `.clear()` on a local
 #: HashMap is not a database write.
@@ -617,7 +632,7 @@ COLLECTION_MUTATORS = {"add", "addAll", "remove", "removeAll", "removeIf", "clea
 CALLBACK_METHODS = {"execute", "doWork"}
 
 
-def _mapped_receiver_name(tokens: list[Token], dot_index: int, mapped: set[str]) -> str | None:
+def _mapped_receiver_name(tokens: list[Token], dot_index: int, mapped: dict[str, set[str]]) -> str | None:
     """True when the receiver of `.clear()` / `.add(..)` is a cascade-mapped collection.
 
     Matches both the bare field (`holdings.clear()`) and its accessor
@@ -645,6 +660,49 @@ def _mapped_receiver_name(tokens: list[Token], dot_index: int, mapped: set[str])
                     return None
             j -= 1
     return None
+
+
+def _bare_reference_is_a_local(tokens: list[Token], method_indices: list[int], name: str,
+                               use_index: int) -> bool:
+    """True when a BARE (unqualified) reference to `name` at `use_index` resolves to an ordinary
+    local variable declared in THIS method, per Java's actual scoping: a local's scope begins at its
+    own declaration statement and ends at the close of its own immediately enclosing block. Tracks
+    brace depth linearly and only "activates" a shadow at the `;` that ends its declaring statement,
+    so a reference lexically BEFORE that declaration (`holdings.clear()` then, later, `List<String>
+    holdings = ...`), or reached only after the declaring block has already closed (`{ List<String>
+    holdings = ...; ... } holdings.clear();`), is correctly unaffected by it and still resolves to a
+    same-named field. A declaration inside a `try`/`for`/`if`/`while`/`catch`/`synchronized` header is
+    conservatively never recognised here (it is not treated as shadowing at all -- the safe
+    direction, since only a bounded straight-line/nested-block shape is proven)."""
+    ordered = [i for i in method_indices if i <= use_index]
+    scope_stack: list[set[str]] = [set()]
+    stmt: list[int] = []
+    for ti in ordered:
+        tok = tokens[ti]
+        if tok.kind == "code" and tok.text == "{":
+            scope_stack.append(set())
+            stmt = []
+            continue
+        if tok.kind == "code" and tok.text == "}":
+            if len(scope_stack) > 1:
+                scope_stack.pop()
+            stmt = []
+            continue
+        if tok.kind == "code" and tok.text == ";":
+            words = _strip_annotations([tokens[i].text for i in stmt if tokens[i].kind == "code"])
+            words = [w for w in words if w not in ("private", "public", "protected", "final",
+                                                   "static", "transient", "volatile")]
+            if not (words and words[0] in _CONTROL_HEADER_KEYWORDS):
+                if "=" in words:
+                    words = words[:words.index("=")]
+                if len(words) >= 2 and "(" not in words:
+                    decl_name = words[-1]
+                    if _IDENT_RE.fullmatch(decl_name) and decl_name not in _TYPE_KEYWORDS:
+                        scope_stack[-1].add(decl_name)
+            stmt = []
+            continue
+        stmt.append(ti)
+    return any(name in frame for frame in scope_stack)
 
 
 def _first_arg_is_callback(tokens: list[Token], open_paren: int) -> bool:
@@ -857,6 +915,254 @@ def _resolve_string_arg(
             return static_finals[tok.text], RESOLVED, "S1"
         return None, UNSUPPORTED, "argument symbol " + tok.text + " is not a resolvable constant"
     return None, UNSUPPORTED, "argument is not a constant string expression"
+
+
+def _parameter_names(head: list[str]) -> list[str]:
+    """Formal parameter names, in declaration order, from a method declaration head's token texts
+    (`java_method_heads`' output) -- the last identifier of each top-level comma-separated group
+    between the head's `(` and its matching `)`, mirroring how `declared_types` reads `Type name`."""
+    if "(" not in head:
+        return []
+    depth = 0
+    groups: list[list[str]] = [[]]
+    for t in head[head.index("(") + 1:]:
+        if t in ("(", "[", "{", "<"):
+            depth += 1
+            groups[-1].append(t)
+        elif t in (")", "]", "}", ">"):
+            if t == ")" and depth == 0:
+                break
+            depth -= 1
+            groups[-1].append(t)
+        elif t == "," and depth == 0:
+            groups.append([])
+        else:
+            groups[-1].append(t)
+    names = []
+    for g in groups:
+        idents = [x for x in g if _IDENT_RE.fullmatch(x)]
+        if idents:
+            names.append(idents[-1])
+    return names
+
+
+def _call_argument_spans(tokens: list[Token], open_paren: int) -> list[tuple[int, int]]:
+    """[start, end) token-index ranges for each top-level, comma-separated argument of a call whose
+    `(` sits at `open_paren`. Depth-aware: a nested call's or generic's own commas do not split here."""
+    spans: list[tuple[int, int]] = []
+    depth = 0
+    start = open_paren + 1
+    i = start
+    while i < len(tokens):
+        t = tokens[i]
+        if t.kind == "code" and t.text in "([{":
+            depth += 1
+        elif t.kind == "code" and t.text in ")]}":
+            if t.text == ")" and depth == 0:
+                if i > start:
+                    spans.append((start, i))
+                return spans
+            depth -= 1
+        elif t.kind == "code" and t.text == "," and depth == 0:
+            spans.append((start, i))
+            start = i + 1
+        i += 1
+    return spans
+
+
+def _parameter_reassigned(tokens: list[Token], method_indices: list[int], param_name: str) -> bool:
+    """True if `param_name` is the target of ANY assignment -- simple (`sql = ...`) or compound
+    (`sql += ...`) -- anywhere in this method body. `lex_java` never emits a single `+=`-shaped
+    token: `sql += "x"` lexes as the four separate tokens `sql`, `+`, `=`, `"x"`, so a compound
+    assignment is recognised as a bare `=` token whose immediately preceding token is an operator
+    (`+`, `-`, `*`, `/`, `%`, `&`, `|`, `^`) that is itself immediately preceded by `param_name`.
+    This analyzer does no control-flow reasoning about which reassignment a given use can observe,
+    so a parameter reassigned ANYWHERE in the method -- even on a line lexically after the sink --
+    can no longer be certified as still holding the caller-supplied value at any use site;
+    helper-call propagation must not apply to it at all."""
+    idx = set(method_indices)
+    compound_ops = ("+", "-", "*", "/", "%", "&", "|", "^")
+    for i in method_indices:
+        tok = tokens[i]
+        if tok.kind != "code" or tok.text != "=":
+            continue
+        if i - 1 not in idx:
+            continue
+        prev = tokens[i - 1]
+        if prev.kind == "code" and prev.text == param_name:
+            return True
+        if (prev.kind == "code" and prev.text in compound_ops
+                and i - 2 in idx and tokens[i - 2].kind == "code" and tokens[i - 2].text == param_name):
+            return True
+    return False
+
+
+def _literal_helper_call_values(tokens: list[Token], contexts: list[tuple[str, str]],
+                                by_method: dict[str, list[int]], static_finals: dict[str, str],
+                                helper_name: str, arity: int, arg_index: int) -> list[str] | None:
+    """The literal (or S1/S2-resolvable) value supplied at `arg_index` by EVERY call to
+    `helper_name(...)` with exactly `arity` top-level arguments, found anywhere else in this
+    compilation unit -- a bare call, or one qualified by `this.` (still provably the same object; a
+    private method's own class can call it either way). A call qualified by anything else is an
+    UNVERIFIABLE caller -- it may target a different overload, an inherited method, or another
+    object's private member of the same declaring class -- and makes the whole caller set unprovable,
+    so the answer is `None` (never approximated by ignoring that occurrence). `None` is also returned
+    when no in-scope call exists, or any found call's argument does not resolve: a caller this cannot
+    resolve, or zero callers, keeps the helper's own operation UNSUPPORTED exactly as before."""
+    values: list[str] = []
+    for i, tok in enumerate(tokens):
+        if tok.kind != "code" or tok.text != helper_name or i + 1 >= len(tokens):
+            continue
+        if tokens[i + 1].kind != "code" or tokens[i + 1].text != "(":
+            continue
+        if i > 0 and tokens[i - 1].kind == "code" and tokens[i - 1].text == ".":
+            qualifier = tokens[i - 2] if i >= 2 and tokens[i - 2].kind == "code" else None
+            if qualifier is None or qualifier.text != "this":
+                return None  # an unverifiable qualified caller: the full caller set is unprovable
+        typ, meth = contexts[i]
+        if not meth:
+            continue  # the method's own declaration head, not a call
+        spans = _call_argument_spans(tokens, i + 1)
+        if len(spans) != arity or arg_index >= len(spans):
+            continue
+        start, _end = spans[arg_index]
+        locals_map = _string_bindings(tokens, by_method.get(typ + "::" + meth, []), require_static_final=False)
+        value, coverage, _reason = _resolve_string_arg(tokens, start - 1, static_finals, locals_map)
+        if coverage != RESOLVED or value is None:
+            return None
+        values.append(value)
+    return values or None
+
+
+def _method_is_referenced(tokens: list[Token], method_name: str) -> bool:
+    """True when `method_name` appears as the target of a Java method reference (`this::q`, `R::q`,
+    `obj::q`, ...) anywhere in this compilation unit -- lexed as two separate `:` tokens, never a
+    single `::` token. A method reference lets the method escape as a functional-interface value and
+    be invoked indirectly later (`c.accept(...)`), which is invisible to a same-name-call scan: its
+    mere presence means the caller set can no longer be proven closed, regardless of how many direct
+    calls are also found, so helper-call propagation must not apply to this method at all."""
+    for i, tok in enumerate(tokens):
+        if tok.kind != "code" or tok.text != method_name or i < 2:
+            continue
+        if (tokens[i - 1].kind == "code" and tokens[i - 1].text == ":"
+                and tokens[i - 2].kind == "code" and tokens[i - 2].text == ":"):
+            return True
+    return False
+
+
+def _helper_propagated_sql(tokens: list[Token], contexts: list[tuple[str, str]],
+                           by_method: dict[str, list[int]], heads: dict[str, list[str]],
+                           static_finals: dict[str, str], typ: str, meth: str, arg_start: int,
+                           mutating_functions: set[str] | None) -> list[str] | None:
+    """"Finite literal helper-call propagation": when a SQL-bearing call's own argument (starting at
+    `arg_start`) could not be resolved directly, but is EXACTLY the enclosing method's own bare
+    String parameter (`sql` in `count(JdbcTemplate jdbc, String sql)`), or exactly ONE literal prefix
+    concatenated with that parameter (`"SHOW " + setting` in `show(Connection c, String setting)`),
+    try resolving it from the enclosing method's OWN callers instead: the enclosing method must be
+    `private` (the only visibility Java lets this analyzer exhaustively enumerate callers for from a
+    single compilation unit) AND never referenced as a method value (`this::q`) anywhere in the unit
+    (private visibility alone does not close the caller set once the method can escape and be
+    invoked indirectly), the parameter must never be reassigned anywhere in the method body, every
+    call to the method anywhere in the unit must supply a resolvable literal for that parameter, and
+    every resulting candidate SQL text must independently be read-only. Returns every candidate (for
+    the caller to pick a representative value and bind every one into the Tier-0 fingerprint) or None
+    the moment any part of this is not fully known: non-private visibility, a method reference, a
+    reassigned parameter, a non-parameter argument, an unresolved or unverifiable caller, zero
+    callers, or any non-read-only candidate leaves the call UNSUPPORTED exactly as before. A
+    diagnostic literal moved into an execution sink is a DIFFERENT call with its own unresolved
+    argument, never this method's own parameter, so it is untouched by this mechanism."""
+    head = heads.get(typ + "::" + meth)
+    if not head or "private" not in head:
+        return None  # visibility gate: only a private method's callers are exhaustively enumerable
+    if _method_is_referenced(tokens, meth.split("/")[0]):
+        return None  # the method can escape as a value and be invoked indirectly; not closed
+    params = _parameter_names(head)
+    if not params or arg_start >= len(tokens):
+        return None
+    # The SQL-consuming call's OWN argument list may carry more arguments after this one (e.g.
+    # `jdbc.queryForObject(sql, Integer.class)`) -- only the token(s) AT this argument's position
+    # must match one of the two recognised shapes; a following "," is exactly as valid a terminator
+    # as the call's own ")".
+    tok = tokens[arg_start]
+    prefix = ""
+    if tok.kind == "code" and _IDENT_RE.fullmatch(tok.text) and tok.text in params:
+        if arg_start + 1 >= len(tokens) or tokens[arg_start + 1].text not in (",", ")"):
+            return None
+        param_name = tok.text
+    elif tok.kind in ("string", "text_block"):
+        if (arg_start + 3 >= len(tokens) or tokens[arg_start + 1].text != "+"
+                or tokens[arg_start + 2].kind != "code"
+                or not _IDENT_RE.fullmatch(tokens[arg_start + 2].text)
+                or tokens[arg_start + 2].text not in params
+                or tokens[arg_start + 3].text not in (",", ")")):
+            return None
+        prefix = literal_value(tok)
+        param_name = tokens[arg_start + 2].text
+    else:
+        return None
+    method_indices = by_method.get(typ + "::" + meth, [])
+    if _parameter_reassigned(tokens, method_indices, param_name):
+        return None
+    param_index = params.index(param_name)
+    # `meth` carries java_contexts' synthetic arity suffix (`count/2`); the actual source token is
+    # the bare name, exactly like every other `meth.split("/")[0]` use in this module.
+    caller_values = _literal_helper_call_values(tokens, contexts, by_method, static_finals,
+                                                meth.split("/")[0], len(params), param_index)
+    if caller_values is None:
+        return None
+    resolved = [prefix + v for v in caller_values]
+    for v in resolved:
+        if not assess_sql(v, mutating_functions)["read_only"]:
+            return None
+    return resolved
+
+
+def _prepared_statement_sql(tokens: list[Token], method_indices: list[int],
+                            static_finals: dict[str, str], locals_map: dict[str, str]) -> dict[str, str]:
+    """`variable -> SQL` for a LOCAL `Type ps = <receiver>.prepareStatement(SQL)` /
+    `.prepareCall(SQL)` DECLARATION resolvable within one method body -- the shape
+    `try (PreparedStatement ps = connection.prepareStatement("...")) { ... ps.execute(); }`. A later
+    no-arg `ps.execute()` / `.executeQuery()` / `.executeUpdate()` can then be assessed against the
+    SQL it was actually prepared with, instead of UNSUPPORTED merely because the text lives on an
+    earlier line. Bound to a genuine declaration (`Type name =`, never a bare reassignment) and to a
+    name assigned this way exactly once: any second assignment of the same name, by this shape or any
+    other, is dropped as ambiguous and never guessed."""
+    found: dict[str, str] = {}
+    ambiguous: set[str] = set()
+    for i in method_indices:
+        tok = tokens[i]
+        if tok.kind != "code" or tok.text != "=" or i < 2:
+            continue
+        name_tok, type_tok = tokens[i - 1], tokens[i - 2]
+        if name_tok.kind != "code" or not _IDENT_RE.fullmatch(name_tok.text):
+            continue
+        name = name_tok.text
+        if type_tok.kind != "code" or not _IDENT_RE.fullmatch(type_tok.text):
+            # Not `Type name =` -- a bare reassignment. Any prior binding for this name becomes
+            # ambiguous: we cannot tell whether it still holds by the time it is used.
+            if name in found or name in ambiguous:
+                ambiguous.add(name)
+                found.pop(name, None)
+            continue
+        j = i + 1
+        is_prepare = (j + 3 < len(tokens)
+                     and tokens[j].kind == "code" and _IDENT_RE.fullmatch(tokens[j].text)
+                     and tokens[j + 1].kind == "code" and tokens[j + 1].text == "."
+                     and tokens[j + 2].kind == "code"
+                     and tokens[j + 2].text in ("prepareStatement", "prepareCall")
+                     and tokens[j + 3].kind == "code" and tokens[j + 3].text == "(")
+        if not is_prepare:
+            continue
+        if name in found or name in ambiguous:
+            ambiguous.add(name)
+            found.pop(name, None)
+            continue
+        value, coverage, _reason = _resolve_string_arg(tokens, j + 3, static_finals, locals_map)
+        if coverage == RESOLVED and value is not None:
+            found[name] = value
+        else:
+            ambiguous.add(name)
+    return found
 
 
 # --------------------------------------------------------------------------------------
@@ -1443,8 +1749,18 @@ def dependency_closure(path: str, tokens: list[Token], by_method: dict[str, list
 _MAPPED_ANNOTATIONS = ("OneToMany", "ManyToMany", "ElementCollection")
 
 
-def mapped_collection_names(tokens: list[Token], contexts: list[tuple[str, str]]) -> set[str]:
-    names: set[str] = set()
+def mapped_collection_names(tokens: list[Token], contexts: list[tuple[str, str]]) -> dict[str, set[str]]:
+    """Field (and getter-accessor) names backed by a PROVEN @OneToMany/@ManyToMany/@ElementCollection
+    mapping, to the set of simple class names whose field carries that annotation (the association's
+    owner(s)). Keyed by name -- not by declaring file -- so a cascade-triggering mutation reached
+    through an accessor in another compilation unit (`portfolio.getHoldings().clear()`) is still
+    recognised. A name maps to a SET, not a single owner, because two unrelated entities can declare a
+    mapped field with the same name; `resolve_receiver` must then disambiguate by the mutation's own
+    enclosing class rather than silently picking one. An owner is always a class an annotation was
+    actually found on; it is never guessed from the variable name, which is what lets
+    `resolve_receiver` tell a real mapped association apart from an ordinary local collection that
+    happens to share its name."""
+    names: dict[str, set[str]] = {}
     for i, (typ, meth) in enumerate(contexts):
         if meth:
             continue
@@ -1466,8 +1782,10 @@ def mapped_collection_names(tokens: list[Token], contexts: list[tuple[str, str]]
                 last = t.text
             j += 1
         if last:
-            names.add(last)
-            names.add("get" + last[0].upper() + last[1:])
+            owner = typ.split(".")[-1]
+            names.setdefault(last, set()).add(owner)
+            getter = "get" + last[0].upper() + last[1:]
+            names.setdefault(getter, set()).add(owner)
     return names
 
 
@@ -1942,7 +2260,7 @@ class Operation:
 
 
 def extract_operations(path: str, tokens: list[Token], contexts: list[tuple[str, str]],
-                       mapped: set[str] | None = None,
+                       mapped: dict[str, set[str]] | None = None,
                        mutating_functions: set[str] | None = None) -> tuple[list[Operation], dict[str, str], dict[str, list[int]]]:
     """Every write-like AND SQL-bearing call in one compilation unit, with its resolved statement
     when the shape is supported. Also returns the per-method token index map, used for method digests
@@ -1953,6 +2271,8 @@ def extract_operations(path: str, tokens: list[Token], contexts: list[tuple[str,
 
     class_level = [i for i, (_, meth) in enumerate(contexts) if meth == ""]
     static_finals = _string_bindings(tokens, class_level, require_static_final=True)
+    heads = java_method_heads(tokens)
+    declared_local_types = declared_types(tokens, contexts)
 
     # Repo-wide, not per-file: the @OneToMany lives on the entity (Portfolio), while the mutation
     # that triggers the cascade lives in a service (HoldingReplacementService.applyChildren calls
@@ -1983,16 +2303,51 @@ def extract_operations(path: str, tokens: list[Token], contexts: list[tuple[str,
         # receiver is not a mapped collection.
         mapped_name = (_mapped_receiver_name(tokens, i, mapped)
                        if name_tok.text in COLLECTION_MUTATORS else None)
+        if mapped_name is not None and i > 0 and tokens[i - 1].kind == "code" and tokens[i - 1].text == mapped_name:
+            # Bare-field form only (not a `x.getHoldings()` accessor chain, which cannot be locally
+            # shadowed): a local variable or parameter of the SAME name in THIS method can shadow the
+            # class field for part of the method, exactly like real Java scoping -- but `this.field`
+            # is NEVER shadowable (`this.x` can only ever mean the field in Java), so an explicit
+            # `this.` qualifier skips the shadow check entirely, and a plain local/parameter check
+            # must be position- and scope-aware, not "declared anywhere in the method at all".
+            receiver_index = i - 1
+            qualified_by_this = (receiver_index >= 2
+                                 and tokens[receiver_index - 1].kind == "code"
+                                 and tokens[receiver_index - 1].text == "."
+                                 and tokens[receiver_index - 2].kind == "code"
+                                 and tokens[receiver_index - 2].text == "this")
+            if not qualified_by_this:
+                method_idx = by_method.get(typ + "::" + meth, [])
+                shadowed = (mapped_name in _parameter_names(heads.get(typ + "::" + meth, []))
+                           or _bare_reference_is_a_local(tokens, method_idx, mapped_name, receiver_index))
+                if shadowed:
+                    mapped_name = None
         if mapped_name is not None:
             receiver = mapped_name  # `).clear` is not a usable subject identity
         elif name_tok.text in COLLECTION_MUTATORS and name_tok.text not in WRITE_METHODS:
             continue
         locals_map = _string_bindings(tokens, by_method.get(typ + "::" + meth, []), require_static_final=False)
         value, coverage, reason = _resolve_string_arg(tokens, i + 2, static_finals, locals_map)
+        propagated_values: list[str] | None = None
+        if (value is None and (is_query or name_tok.text in {
+                "update", "execute", "executeUpdate", "batchUpdate", "insert"})):
+            propagated_values = _helper_propagated_sql(tokens, contexts, by_method, heads, static_finals,
+                                                        typ, meth, i + 3, mutating_functions)
+            if propagated_values is not None:
+                value, coverage, reason = propagated_values[0], RESOLVED, "S4"
+            elif (name_tok.text in ("execute", "executeQuery", "executeUpdate")
+                  and i + 3 < len(tokens) and tokens[i + 3].kind == "code" and tokens[i + 3].text == ")"):
+                # No argument at all -- try prepared-statement provenance (GC5-0460): `ps` locally
+                # bound in THIS method from `= <receiver>.prepareStatement(SQL)`/`.prepareCall(SQL)`.
+                prepared = _prepared_statement_sql(tokens, by_method.get(typ + "::" + meth, []),
+                                                   static_finals, locals_map).get(receiver)
+                if prepared is not None:
+                    value, coverage, reason = prepared, RESOLVED, "S3"
 
         is_collection = mapped_name is not None
-        needs_sql = (not is_collection) and (is_query or name_tok.text in {
-            "update", "execute", "executeUpdate", "batchUpdate", "insert"})
+        needs_sql = (not is_collection) and (is_query or (
+            name_tok.text in {"update", "execute", "executeUpdate", "batchUpdate", "insert"}
+            and declared_local_types.get(receiver) not in NON_SQL_BEARING_WRITE_TYPES))
         deps: list[dict] = []
         statement = None
         shape = None
@@ -2008,6 +2363,10 @@ def extract_operations(path: str, tokens: list[Token], contexts: list[tuple[str,
                 statement["jpql"] = True
             if reason in ("S1", "S2"):
                 deps.append({"symbol": tokens[i + 3].text, "shape": reason, "value": value})
+            elif reason == "S3":
+                deps.append({"symbol": receiver, "shape": reason, "value": value})
+            elif reason == "S4" and propagated_values is not None:
+                deps.append({"symbol": meth, "shape": reason, "value": sorted(propagated_values)})
             if assessment["coverage"] == UNSUPPORTED:
                 cov, cov_reason = UNSUPPORTED, (
                     "constant SQL string resolved via " + reason + ", but " + assessment["read_only_problem"])
@@ -2399,6 +2758,89 @@ SCRIPT_DML_RE = re.compile(
 )
 
 
+def _line_start_offsets(src: str) -> list[int]:
+    """Cumulative character offset of the start of each 1-indexed source line, so a `tokenize`/`ast`
+    (row, col) position can be compared against a plain regex match's character offsets."""
+    offsets = [0]
+    for line in src.splitlines(keepends=True):
+        offsets.append(offsets[-1] + len(line))
+    return offsets
+
+
+def _python_non_executable_spans(src: str) -> list[tuple[int, int]]:
+    """Character-offset spans of Python source PROVEN not to be executable SQL: `#` comments and
+    module/class/function docstrings. Both are inert by Python's own grammar -- neither is ever
+    evaluated -- so no further proof is needed for either.
+
+    A third shape (a string that is the whole/joined argument of a `raise Name(...)`, e.g.
+    `check_b2_demo_identity.py`'s GuardError) was exempted here in an earlier revision of this
+    checkpoint, gated on `Name` being a class this file could prove had no constructor override. Three
+    successive review rounds each found a way to satisfy that proof while `Name` still executed the
+    argument at raise time: a lambda-assigned `__init__`, a later reassignment of the class name
+    itself, a class decorator, a parameter shadowing the class name at the raise site, rebinding the
+    `Exception` base name, and a post-definition `Name.__init__ = ...` attribute write. Soundly
+    ruling out every way a Python name can be rebound or a class transformed is an open-ended
+    metaprogramming/name-resolution problem, not a bounded one, so that exemption is REMOVED rather
+    than patched again: a `raise Name(...)` argument is never exempted here, regardless of what `Name`
+    is or appears to be. `check_b2_demo_identity.py`'s GuardError diagnostic is consequently a
+    documented, retained coverage residual (GC5-0486) rather than a clearance -- see the runbook and
+    the checkpoint return packet.
+
+    Everything else -- a plain variable, a concatenation, an unknown call, dynamic construction -- is
+    left uncovered and stays subject to the ordinary scan below; this is a bounded exemption for two
+    proven non-executable shapes, never a general "ignore every string" escape.
+
+    Uses only the standard library (`tokenize`, `ast`); a script this cannot parse contributes only
+    the comments `tokenize` recovered before failing, and everything else in it stays conservative."""
+    lines = src.splitlines(keepends=True)
+    line_offsets = _line_start_offsets(src)
+
+    def char_offset(lineno: int, col: int) -> int:
+        """Plain character offset -- for `tokenize` positions, which are already character-based."""
+        return line_offsets[lineno - 1] + col
+
+    def ast_char_offset(lineno: int, col: int) -> int:
+        """`ast` node positions are UTF-8 BYTE offsets from the start of the line -- a documented
+        CPython quirk that diverges from `tokenize` and from ordinary Python string indexing the
+        moment a line carries any non-ASCII character before the position in question. Decode the
+        byte-prefix back to text to find the true character column."""
+        line = lines[lineno - 1] if 0 <= lineno - 1 < len(lines) else ""
+        char_col = len(line.encode("utf-8")[:col].decode("utf-8", errors="ignore"))
+        return line_offsets[lineno - 1] + char_col
+
+    spans: list[tuple[int, int]] = []
+    try:
+        for tok in tokenize.generate_tokens(io.StringIO(src).readline):
+            if tok.type == tokenize.COMMENT:
+                spans.append((char_offset(*tok.start), char_offset(*tok.end)))
+    except (tokenize.TokenError, IndentationError, SyntaxError):
+        pass  # malformed/unmodeled syntax: keep whatever comments tokenize recovered; nothing else
+
+    try:
+        tree = ast.parse(src)
+    except SyntaxError:
+        return spans
+
+    def mark(node: ast.expr) -> None:
+        spans.append((ast_char_offset(node.lineno, node.col_offset),
+                      ast_char_offset(node.end_lineno, node.end_col_offset)))
+
+    def mark_docstring(node: ast.AST) -> None:
+        body = getattr(node, "body", None)
+        if not body:
+            return
+        first = body[0]
+        if (isinstance(first, ast.Expr) and isinstance(first.value, ast.Constant)
+                and isinstance(first.value.value, str)):
+            mark(first.value)
+
+    mark_docstring(tree)
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            mark_docstring(node)
+    return spans
+
+
 def script_dml_subjects(path: str, src: str) -> list[Finding]:
     """Scripts that appear to issue DML.
 
@@ -2408,10 +2850,16 @@ def script_dml_subjects(path: str, src: str) -> list[Finding]:
     A read-only script is cleared by a reviewed disposition, never by the tool guessing."""
     findings: list[Finding] = []
     seen_spans: set[str] = set()
+    # Python-only, bounded and additive: a match fully inside a proven comment/docstring span is not
+    # reported. The same clause text anywhere else -- a real sink, a variable, dynamic construction,
+    # a raise argument, or a non-Python script -- is a different span and is scanned exactly as before.
+    exempt = _python_non_executable_spans(src) if path.endswith(".py") else []
     # Scan the WHOLE file, not line by line: a triple-quoted statement whose verb and target sit on
     # different physical lines is invisible to a per-line scan. SCRIPT_DML_RE already permits a
     # whitespace run (newlines included) between clause tokens.
     for m in SCRIPT_DML_RE.finditer(src):
+        if any(start <= m.start() and m.end() <= end for start, end in exempt):
+            continue
         clause = " ".join(m.group(0).split())
         if clause in seen_spans:
             continue
@@ -2510,7 +2958,8 @@ def _all_dispositions(policy: dict) -> dict[str, dict]:
 
 
 def resolve_receiver(op: "Operation", types: dict[str, str], entity_index: dict[str, dict],
-                     store_by_type: dict[str, str]) -> tuple[str | None, str | None, dict | None, str | None]:
+                     store_by_type: dict[str, str],
+                     mapped_owners: dict[str, set[str]] | None = None) -> tuple[str | None, str | None, dict | None, str | None]:
     """Receiver persistence type, store, resolved entity, and mapping digest for one operation.
 
     Shared by writer_inventory and the test harness so the two can never drift on how a receiver is
@@ -2530,11 +2979,44 @@ def resolve_receiver(op: "Operation", types: dict[str, str], entity_index: dict[
                 entity = meta
                 break
     mapping_digest = entity["mapping_digest"] if entity else None
-    if op.form.startswith("holdings.") or op.form.startswith("getHoldings."):
-        owner = entity_index.get("Portfolio")
-        mapping_digest = owner["mapping_digest"] if owner else mapping_digest
-        store = store or STORE_POSTGRES
-        receiver_type = receiver_type or "Portfolio"
+    owner_candidates = (mapped_owners or {}).get(op.receiver)
+    if owner_candidates:
+        # `op.receiver` was already proven, by mapped_collection_names, to be a field or accessor
+        # carrying an actual @OneToMany/@ManyToMany/@ElementCollection annotation on EVERY class in
+        # `owner_candidates` -- never merely a variable spelled "holdings". Two unrelated entities can
+        # register the same field/getter name, so a single-candidate set is used directly, but a
+        # multi-candidate set is disambiguated ONLY by the mutation's own enclosing class -- direct,
+        # sufficient proof of which owner it belongs to -- and never by picking whichever owner a
+        # flat merge happened to keep. No other disambiguation signal (e.g. the receiver's own
+        # declared type through a cross-file accessor) is attempted; an unresolvable collision stays
+        # UNRESOLVED rather than guessed.
+        if len(owner_candidates) == 1:
+            owner_name = next(iter(owner_candidates))
+        elif op.enclosing_type in owner_candidates:
+            owner_name = op.enclosing_type
+        else:
+            owner_name = None
+        owner = entity_index.get(owner_name) if owner_name else None
+        if owner is not None:
+            # Its Java-declared type (List/Set/...) resolved `store` to STORE_MEMORY above; that
+            # resolution is WRONG for a mapped association and must be overridden outright, not just
+            # defaulted with `or` (which leaves memory in place once already set). The owner's OWN
+            # mapping controls both the effect and the Tier-0 fingerprint, because annotations such
+            # as @OptimisticLock(excluded = true) that decide whether mutating the collection bumps
+            # the parent's version live on the owner, not on the mutation site.
+            store = STORE_POSTGRES
+            receiver_type = owner_name
+            entity = owner
+            mapping_digest = owner["mapping_digest"]
+        else:
+            # Either the named owner could not be resolved as a real, indexed @Entity in this tree,
+            # or ownership is genuinely ambiguous (a collision the enclosing class does not resolve).
+            # Fall through to UNRESOLVED (blocking) exactly like any other receiver source analysis
+            # cannot type, rather than guessing Postgres or picking an arbitrary candidate.
+            store = None
+            receiver_type = None
+            entity = None
+            mapping_digest = None
     return receiver_type, store, entity, mapping_digest
 
 
@@ -2576,7 +3058,7 @@ class TreeAnalysis:
 
     lexed: dict[str, tuple[list[Token], list[tuple[str, str]]]]
     lex_failures: dict[str, str]
-    mapped: set[str]
+    mapped: dict[str, set[str]]
     entity_index: dict[str, dict]
     store_by_type: dict[str, str]
     mutating_functions: set[str]
@@ -2602,9 +3084,10 @@ def analyze_tree(tree: dict[str, str], reader: BlobReader, policy: dict) -> Tree
             lex_failures[path] = str(exc)
             continue
         lexed[path] = (tokens, java_contexts(tokens))
-    mapped: set[str] = set()
+    mapped: dict[str, set[str]] = {}
     for tokens, contexts in lexed.values():
-        mapped |= mapped_collection_names(tokens, contexts)
+        for name, owners in mapped_collection_names(tokens, contexts).items():
+            mapped.setdefault(name, set()).update(owners)
     return TreeAnalysis(lexed=lexed, lex_failures=lex_failures, mapped=mapped,
                         entity_index=build_entity_index(lexed), store_by_type=_store_by_type(policy),
                         mutating_functions=sql_mutating_functions(tree, reader, excluded), excluded=excluded)
@@ -2621,7 +3104,8 @@ def unit_operations(path: str, tokens: list[Token], contexts: list[tuple[str, st
     types = declared_types(tokens, contexts)
     out: list[tuple] = []
     for op in ops:
-        rt, store, entity, md = resolve_receiver(op, types, analysis.entity_index, analysis.store_by_type)
+        rt, store, entity, md = resolve_receiver(op, types, analysis.entity_index, analysis.store_by_type,
+                                                 analysis.mapped)
         facts = operation_code_facts(op, tokens, by_method,
                                      heads.get(op.enclosing_type + "::" + op.enclosing_method, []), rt, md)
         out.append((op, rt, store, entity, md, canonical_fingerprint(facts)))
@@ -3453,7 +3937,7 @@ def governed_modules(tree: dict[str, str], reader: "BlobReader", policy: dict) -
         ops, _f, _bm = extract_operations(path, toks, contexts, mapped, mutating)
         types = declared_types(toks, contexts)
         for op in ops:
-            rt, store, entity, _md = resolve_receiver(op, types, entity_index, store_by_type)
+            rt, store, entity, _md = resolve_receiver(op, types, entity_index, store_by_type, mapped)
             if read_only_accounted(op, rt, store):
                 continue
             effect, _basis = classify_effect(op, rt, store, entity, cascades, relevant_tables, unparsed,
@@ -4011,7 +4495,7 @@ _DEFAULT_STORE_BY_TYPE = {
     "HttpHeaders": STORE_MEMORY, "MDC": STORE_MEMORY, "SpanExporter": STORE_MEMORY,
     "KafkaTemplate": STORE_TRANSPORT,
     "RedisTemplate": STORE_REDIS, "StringRedisTemplate": STORE_REDIS,
-    "MongoTemplate": STORE_MONGO, "MongoRepository": STORE_MONGO,
+    "MongoTemplate": STORE_MONGO, "MongoRepository": STORE_MONGO, "BulkOperations": STORE_MONGO,
     "JdbcTemplate": STORE_POSTGRES, "NamedParameterJdbcTemplate": STORE_POSTGRES,
     "JdbcClient": STORE_POSTGRES, "EntityManager": STORE_POSTGRES, "Session": STORE_POSTGRES,
     "Connection": STORE_POSTGRES, "Statement": STORE_POSTGRES, "PreparedStatement": STORE_POSTGRES,
@@ -4043,6 +4527,15 @@ def declared_types(tokens: list[Token], contexts: list[tuple[str, str]]) -> dict
             words = _strip_annotations([tokens[i].text for i in stmt if tokens[i].kind == "code"])
             words = [w for w in words if w not in ("private", "public", "protected", "final",
                                                    "static", "transient", "volatile")]
+            if words and words[0] in _CONTROL_HEADER_KEYWORDS and len(words) > 1 and words[1] == "(":
+                # `_statements` splits on every top-level `;`, including the ones SEPARATING
+                # resources inside `try (A a = ...; B b = ...)`. The first resource's chunk still
+                # carries the header's own unbalanced "try (" (or `for (`), which would otherwise
+                # trip the call-shape guard below and silently lose that resource's type -- exactly
+                # the `Statement statement = connection.createStatement()` shape used throughout the
+                # diagnostic classes (GC5-0476/0479-0482). Later resources in the same header start
+                # cleanly after their own `;` and are unaffected.
+                words = words[2:]
             if len(words) < 2:
                 continue
             if "=" in words:
@@ -4052,6 +4545,13 @@ def declared_types(tokens: list[Token], contexts: list[tuple[str, str]]) -> dict
             name = words[-1]
             type_tokens = words[:-1]
             if not _IDENT_RE.fullmatch(name) or not type_tokens:
+                continue
+            if name in _TYPE_KEYWORDS:
+                # A `.class` literal (`Connection.class`, alone or as an array/varargs element such
+                # as `new Class<?>[] {Connection.class}`) splits into its own comma/brace-delimited
+                # "statement" with no `(` and no `=`, so it reaches here shaped exactly like a
+                # declaration `Connection class` -- `class` is a reserved word and can never be a
+                # real identifier, so this is always a literal, never a receiver to type.
                 continue
             # The base simple type is the identifier just before the generic `<`, else the last
             # segment of a possibly-dotted type path: `java.util.Map<..>` -> Map,
@@ -4256,9 +4756,92 @@ READ_ONLY_DATA_METHODS = {
     "rollback", "opsForValue", "opsForHash",
 }
 
+#: Metadata/wrapper/lifecycle calls on a JDBC or JPA receiver: they inspect or unwrap the receiver,
+#: bind a parameter for a LATER execute call, or end its scope -- never issue a statement of their
+#: own. Narrow and named, not a generic method-name allowlist: an unknown `execute`, callback or
+#: reflectively dispatched call is not in this set and stays unaccounted, including when forwarded
+#: through the diagnostic proxies below. `setLong` is the JDBC `PreparedStatement` parameter-binding
+#: contract (`pgAdvisoryXactLock`'s `ps.setLong(1, ADVISORY_LOCK_KEY)`), not a database write.
+PERSISTENCE_METADATA_METHODS = {"getAutoCommit", "isWrapperFor", "isJoinedToTransaction", "close",
+                                "setLong"}
+
 RECOGNIZED_RECEIVER_METHODS = (
-    WRITE_METHODS | COLLECTION_MUTATORS | CALLBACK_METHODS | READ_ONLY_DATA_METHODS | SQL_QUERY_METHODS
+    WRITE_METHODS | COLLECTION_MUTATORS | CALLBACK_METHODS | READ_ONLY_DATA_METHODS
+    | SQL_QUERY_METHODS | PERSISTENCE_METADATA_METHODS
 )
+
+
+_MUTATING_DERIVED_QUERY_RE = re.compile(r"^(?:delete|remove)[A-Z]")
+
+
+def _annotation_simple_name(tokens: list[Token], at_index: int) -> str | None:
+    """The simple (last-segment) name of the annotation whose `@` token sits at `at_index` --
+    resolves both a short (`@Query`) and a fully qualified
+    (`@org.springframework.data.jpa.repository.Query`) spelling to the same identity, so a custom
+    mutating query cannot bypass detection merely by being qualified."""
+    j = at_index + 1
+    name = None
+    while j < len(tokens):
+        t = tokens[j]
+        if t.kind != "code" or not _IDENT_RE.fullmatch(t.text):
+            break
+        name = t.text
+        j += 1
+        if j < len(tokens) and tokens[j].kind == "code" and tokens[j].text == ".":
+            j += 1
+            continue
+        break
+    return name
+
+
+def _repository_markers_are_plain(tokens: list[Token]) -> bool:
+    """A `*Repository<...>` interface is a well-understood, safe declaration: Spring Data can only
+    auto-generate a SELECT-shaped query from a find/exists/count-prefixed method name, or a
+    DELETE-shaped one from a delete/remove-prefixed name -- UNLESS it carries a custom @Query,
+    @Modifying or @Procedure annotation (short or fully qualified), whose actual SQL/JPQL this
+    analyzer does not see and so cannot vouch for. A default/static interface method with a real body
+    is unaffected: any write inside one is still caught as its own Operation by the ordinary
+    per-method-body scan -- this check is only about the declarative, body-less method signatures
+    Spring Data itself implements."""
+    for i, tok in enumerate(tokens):
+        if tok.kind == "code" and tok.text == "@" and i + 1 < len(tokens):
+            if _annotation_simple_name(tokens, i) in ("Query", "Modifying", "Procedure"):
+                return False
+        if (tok.kind == "code" and tok.text == "(" and i >= 1 and tokens[i - 1].kind == "code"
+                and _MUTATING_DERIVED_QUERY_RE.match(tokens[i - 1].text)):
+            return False
+    return True
+
+
+def _callback_or_readonly_accounted_types(tokens: list[Token], types: dict[str, str],
+                                          store_by_type: dict[str, str]) -> set[str]:
+    """Types whose method calls on a receiver of that type in this file are entirely the recognized
+    transaction/session callback-wrapper shape (`x.execute(status -> ...)`) or a recognized
+    read-only/metadata/lifecycle call (`x.getConnection()`, `x.getAutoCommit()`, ...). Both are
+    already-trusted, NAMED forms: extract_operations deliberately does not turn the callback wrapper
+    into an Operation (any real mutation inside it is still caught on its own line as its own
+    subject), and the metadata/lifecycle set never issues a statement of its own. Neither should read
+    as "unaccounted" merely because it produced no Operation of its own for the marker check to see."""
+    recognized_other = READ_ONLY_DATA_METHODS | PERSISTENCE_METADATA_METHODS
+    accounted: set[str] = set()
+    for i, tok in enumerate(tokens):
+        if tok.kind != "code" or tok.text != "." or i + 2 >= len(tokens):
+            continue
+        name_tok, open_tok = tokens[i + 1], tokens[i + 2]
+        if name_tok.kind != "code" or open_tok.kind != "code" or open_tok.text != "(":
+            continue
+        is_callback = name_tok.text in CALLBACK_METHODS and _first_arg_is_callback(tokens, i + 2)
+        if not (is_callback or name_tok.text in recognized_other):
+            continue
+        receiver = tokens[i - 1].text if i > 0 and tokens[i - 1].kind == "code" else None
+        if not receiver:
+            continue
+        rtype = types.get(receiver)
+        if rtype is None and receiver in store_by_type:
+            rtype = receiver
+        if rtype:
+            accounted.add(rtype)
+    return accounted
 
 
 def persistence_usage_findings(path: str, tokens: list[Token], contexts: list[tuple[str, str]],
@@ -4273,10 +4856,23 @@ def persistence_usage_findings(path: str, tokens: list[Token], contexts: list[tu
         recognized write, a recognized read-only method, or it is reported UNSUPPORTED. A resolved
         `jdbcTemplate.update` no longer covers an unrecognized `jdbcTemplate.call` on the same bean."""
     findings: list[Finding] = []
-    markers = sorted({m for m in PERSISTENCE_TYPE_MARKERS if m in src})
-    if _REPOSITORY_RE.search(src):
+    # Token/type-exact, not raw substring: `src` used to be scanned as one joined STRING, so
+    # "Session" matched inside "JwtSessionIdentity" and "JdbcTemplate" matched inside
+    # "NamedParameterJdbcTemplate" -- real, different identifiers that merely contain the marker as
+    # text. A plain type/annotation marker is only real when some CODE token's text equals it
+    # exactly; an "@Marker" annotation marker is only real when an actual "@" token is immediately
+    # followed by that exact name.
+    code_texts = {t.text for t in tokens if t.kind == "code"}
+    markers = sorted(
+        m for m in PERSISTENCE_TYPE_MARKERS
+        if (m in code_texts if not m.startswith("@") else
+            any(t.kind == "code" and t.text == "@" and i + 1 < len(tokens)
+                and tokens[i + 1].kind == "code" and tokens[i + 1].text == m[1:]
+                for i, t in enumerate(tokens))))
+    if _REPOSITORY_RE.search(src) and not _repository_markers_are_plain(tokens):
         markers.append("*Repository<")
-    unaccounted = [m for m in markers if m not in resolved_receiver_types]
+    accounted = resolved_receiver_types | _callback_or_readonly_accounted_types(tokens, types, store_by_type)
+    unaccounted = [m for m in markers if m not in accounted]
     if unaccounted:
         findings.append(Finding(
             path, "file:", "persistence-usage", UNSUPPORTED,
@@ -4471,11 +5067,16 @@ def run_all(repo: Path, policy: dict, base_sha_override: str | None, head: str =
             "boundaries": [
                 "Receiver types are resolved from in-file/in-tree declarations only; an unresolvable "
                 "receiver is UNRESOLVED and blocks.",
-                "SQL-bearing calls are classified by their RESOLVED statement (S0/S1/S2); a read-only "
-                "statement is one that leads with SELECT/WITH/VALUES/EXPLAIN/SHOW, carries no DML/DDL, "
-                "no CALL/DO/PERFORM/INTO/LOCK/sequence construct, and invokes no persistent SQL function "
-                "defined in the tree. A SELECT invoking a volatile function the tree does not define is "
-                "NOT detected as a write (declared boundary).",
+                "SQL-bearing calls are classified by their RESOLVED statement (a literal/+-folded run, a "
+                "same-file static final constant, a method-local constant assigned once, a same-method "
+                "prepared statement bound then executed with no argument of its own, or every caller of a "
+                "same-unit helper supplying a literal for its own String parameter); a read-only statement "
+                "is one that leads with SELECT/WITH/VALUES/EXPLAIN/SHOW, carries no DML/DDL, no "
+                "CALL/DO/PERFORM/INTO/LOCK/sequence construct, and invokes only a routine in the small "
+                "built-in allowlist. A SELECT invoking any other routine -- migration-defined, unknown to "
+                "source analysis, or otherwise outside that allowlist, volatile or not -- is NOT read-only: "
+                "its effect stays UNRESOLVED and blocks exactly like RELEVANT; it is never silently cleared "
+                "as harmless.",
                 "Effects are operation-specific: ON DELETE CASCADE indirect targets apply only to "
                 "DELETE/TRUNCATE, not INSERT/UPDATE.",
                 "Automatic effect clearance is inactive unless separately approved; UNRELATED writes "
