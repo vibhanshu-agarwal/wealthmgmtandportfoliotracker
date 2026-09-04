@@ -58,3 +58,42 @@ tasks.register('specA912StatementHistoryProbe', JavaExec) {
     classpath = sourceSets.test.runtimeClasspath
     mainClass = 'com.wealth.portfolio.seed.rca.SpecA912StatementHistoryProbe'
 }
+
+// Task 7.4 — B1 R-C candidate verification graph. One immutable checkout, one graph: both test
+// tasks run unfiltered, then bootJar, so the JAR staged below is provably the same main-class
+// output the suites just exercised. `mustRunAfter` only orders tasks already in a requested graph
+// — it does not pull test/integrationTest into a plain `bootJar` invocation, so ordinary bootJar
+// use outside this graph is unaffected.
+tasks.named('bootJar') {
+    mustRunAfter tasks.named('test'), tasks.named('integrationTest')
+}
+
+tasks.register('candidateVerification') {
+    description = 'Runs the unfiltered R-C candidate graph: test + integrationTest, then bootJar.'
+    group = 'verification'
+    dependsOn tasks.named('test'), tasks.named('integrationTest'), tasks.named('bootJar')
+}
+
+// Manifest validation must succeed before staging; invoking staging alone must not bypass
+// verification. This runs the floor/discovery check (scripts/b1_candidate_evidence.py
+// manifest-check) against the graph's own fresh output *inside* the Gradle build, so a failing
+// floor or an unreported new suite fails the build before prepareCandidateArtifact can run.
+tasks.register('candidateManifestValidation', Exec) {
+    description = 'Task 7.5 floor/discovery validation, gating candidate staging.'
+    group = 'verification'
+    dependsOn tasks.named('candidateVerification')
+    workingDir rootProject.projectDir
+    commandLine 'python', '-B', 'scripts/b1_candidate_evidence.py', 'manifest-check'
+    timeout = java.time.Duration.ofMinutes(5)
+}
+
+tasks.register('prepareCandidateArtifact', Copy) {
+    description = 'Stages the graph-verified bootJar for Dockerfile.candidate (outside build/, kept out of .dockerignore)'
+    group = 'verification'
+    // Depends on manifest validation, not candidateVerification directly, so a failing floor or
+    // discovery check blocks staging even though the underlying Gradle tasks all succeeded.
+    dependsOn tasks.named('candidateManifestValidation')
+    from tasks.named('bootJar', Jar).flatMap { it.archiveFile }
+    into "${rootProject.projectDir}/.candidate-artifacts"
+    rename { "${project.name}.jar" }
+}

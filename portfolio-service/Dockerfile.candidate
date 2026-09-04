@@ -1,0 +1,30 @@
+# =============================================================================
+# R-C candidate image — portfolio-service (Task 7.4/Task B, local preparation only)
+# Build context: repo root (docker build -f portfolio-service/Dockerfile.candidate .)
+#
+# Copy-only recipe. Unlike Dockerfile.azure and Dockerfile (AWS), this file does NOT
+# run Gradle and does NOT compile anything. It copies the exact bootJar archive that
+# candidateVerification/candidateManifestValidation already verified and
+# prepareCandidateArtifact staged to .candidate-artifacts/portfolio-service.jar
+# (portfolio-service/build.gradle) -- so the image packages the same main-class
+# output the test suites just exercised, not a fresh recompilation of possibly
+# different source. Preserves that JAR's AOT contents unmodified.
+#
+# Same runtime as Dockerfile.azure's runtime stage (Microsoft OpenJDK 21 on Mariner),
+# NOT the AWS/Lambda runtime (Dockerfile, Dockerfile.slim-it use Amazon
+# Corretto/Amazon Linux + the Lambda Web Adapter -- wrong runtime for this artifact).
+#
+# ARG must be declared before FROM to be usable as the base image reference. A
+# future release build pins an exact runtime-base digest here via
+# --build-arg RUNTIME_BASE=mcr.microsoft.com/openjdk/jdk:21-mariner@sha256:<digest>
+# rather than trusting a floating tag; record the resolved digest actually used in
+# the run's evidence. Local development builds may use the default floating tag.
+# =============================================================================
+ARG RUNTIME_BASE=mcr.microsoft.com/openjdk/jdk:21-mariner
+FROM ${RUNTIME_BASE}
+
+COPY .candidate-artifacts/portfolio-service.jar /app.jar
+
+EXPOSE 8081
+
+ENTRYPOINT ["java", "-jar", "/app.jar"]
