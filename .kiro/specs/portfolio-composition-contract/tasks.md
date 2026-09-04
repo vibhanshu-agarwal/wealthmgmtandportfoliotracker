@@ -1,5 +1,24 @@
 # Implementation Plan
 
+**OWNER APPROVAL REQUIRED — R-C implementation publication:** the reviewed local bundle
+has not been authorized for push or an implementation PR. Approval of the named publication
+would permit that push/PR only; declining or deferring leaves the local work available. Merge,
+release-candidate build/push, registry access or smoke, live-database operations, deployment
+and completion-box changes retain their separate gates.
+
+**R-C local tooling ACCEPT — 2026-09-04:** Codex accepted the source-governance tooling
+(round 11) and the local HTTP smoke harness (round 14). The [return packet](../../../docs/superpowers/plans/2026-09-04-b1-rc-candidate-preparation-return-packet.md) consolidates the candidate Gradle graph/staging, copy-only image recipe,
+evidence tooling and runbook. The recorded tooling results total 363 tests across their
+respective runs; the 73-test final smoke suite passed with zero skips. The preserved
+September 3 LOCAL_DEV graph recorded 760 application tests in 89 classes, with zero skips,
+failures or errors and all 11 required report entries present. That graph predates later
+tooling and documentation edits and is not final committed-candidate verification.
+R-C readiness remains **NO-GO**: the reviewed source cut is BLOCKED with 504 reported
+governance findings, R3 remains unresolved, and release/registry/serving evidence is incomplete.
+Tasks 7.3–7.11, GC.5, AM.1/AM.2 and Writer_Convergence receive no completion-box changes.
+The last verified R-B3 runtime baseline, B2 gates and the separate 7.1–7.2 reconciliation
+remain unchanged.
+
 **OWNER APPROVAL RECORDED — R-C preparation kickoff docs, 2026-09-03:** The owner requested
 Claude's kickoff and a docs-only PR; publication of that package is authorized, merge is separate.
 The [kickoff](../../../docs/agent-instructions/CLAUDE_KICKOFF_B1_R_C_CANDIDATE_PREPARATION.md)
@@ -1161,15 +1180,24 @@ and exposure retain their own gates.
   | suite | gradle task | required report class pattern |
   |---|---|---|
   | Legacy route contract (both retirements) | `test` | `*LegacyWriterRetirementTest` |
-  | Asset discovery contract | `test` | `*AssetDiscoveryContractTest` |
+  | Asset discovery contract | `test` | `*AssetCatalogControllerTest` |
   | Composition controller HTTP contract | `test` | `*CompositionControllerTest` |
   | Composition service + four-case matrix | `test` | `*HoldingReplacementServiceTest` |
   | Error envelope and precedence (P8, P11c, P11h, P11i) | `test` | `*ErrorContractTest` |
-  | Version read | `test` | `*PortfolioVersionReadTest` |
+  | Version read (controller) | `test` | `*PortfolioControllerTest` |
+  | Version read (service mapping) | `test` | `*PortfolioServiceVersionMappingTest` |
   | Concurrency (P2, P3, P4, P11b) | `integrationTest` | `*ConcurrentCompositionIT` |
   | Decimal fidelity and no-op equality (P7, P11f) | `integrationTest` | `*DecimalFidelityIT` |
   | Seed delegation, identity, **price regression `P10`** | `integrationTest` | `*PortfolioSeedServiceIT` |
   | Migration and repository | `integrationTest` | `*V20MigrationIT` |
+
+  **R2 carrier reconciliation — 2026-09-04:** Codex reviewed the actual report carriers.
+  The asset-discovery requirement is carried by `AssetCatalogControllerTest`. Version read
+  requires both `PortfolioControllerTest` and `PortfolioServiceVersionMappingTest`; neither
+  alone covers both controller and service-mapping evidence. This requirement-text
+  correction yields 11 required entries for 10 conceptual suites.
+  `scripts/b1-candidate-policy.json` implements this governed floor; its contents do not
+  supersede these requirements. The correction changes no completion box.
 
   **This table is a required minimum, not the selection.** `candidateVerification` runs both tasks
   unfiltered; these are **report class patterns** matched against the generated manifest, not
