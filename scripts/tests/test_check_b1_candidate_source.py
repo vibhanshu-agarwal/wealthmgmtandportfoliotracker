@@ -189,7 +189,7 @@ def operations_of(src: str) -> dict[str, dict]:
     for op in ops:
         start_key = op.enclosing_type + "::" + op.enclosing_method
         receiver_type, store, entity, mapping_digest = gov.resolve_receiver(
-            op, types, entity_index, store_by_type)
+            op, types, entity_index, store_by_type, mapped)
         facts = gov.operation_code_facts(op, tokens, by_method, heads.get(start_key, []),
                                          receiver_type, mapping_digest)
         out[op.subject_id] = {
@@ -770,16 +770,34 @@ class FindingsModelTests(unittest.TestCase):
 class RealRepoSmokeTests(unittest.TestCase):
     """Against the actual repository, so the checks run on real source, not only fixtures."""
 
-    def test_real_repo_run_is_blocked_and_reproduces_the_stored_counts(self):
+    #: The B1 candidate merge cut (PR #222+#223), an IMMUTABLE historical commit -- never `HEAD` of
+    #: this working branch, which drifts as ordinary commits land and turned the previous version of
+    #: this test into a live-HEAD magic-number assertion that a reviewer correctly rejected. Pinning
+    #: to this fixed commit is the same methodology used throughout GC.5 coverage-closure's own
+    #: before/after real-tree comparisons: the INPUT tree never changes, so a count that moves here
+    #: can only be explained by a deliberate, reviewed change to the analyzer itself.
+    _FIXED_CUT = "9c3add3cd3a38ff94c2196b20e636eeb5bfa4315"
+
+    def test_real_repo_run_at_the_fixed_cut_reproduces_the_pinned_counts(self):
         policy_path = REPO / "scripts" / "b1-candidate-policy.json"
         result = gov.run_all(REPO, json.loads(policy_path.read_text(encoding="utf-8")), None,
-                             "HEAD", gov.LOCAL_PREPARATION, policy_path)
+                             self._FIXED_CUT, gov.LOCAL_PREPARATION, policy_path)
         self.assertEqual(result["overall_status"], "BLOCKED")
+        self.assertFalse(result["candidate_ready"])
         by_ob = result["summary"]["by_obligation"]
-        self.assertEqual(result["target"]["changed_paths"], 451)
-        self.assertEqual(by_ob["content-governance"][gov.CONFIRMED_MATCH], 139)
+        self.assertEqual(result["target"]["changed_paths"], 468)
+        self.assertEqual(by_ob["content-governance"][gov.CONFIRMED_MATCH], 167)
         self.assertEqual(by_ob["path-governance"][gov.CONFIRMED_MATCH], 84)
-        self.assertEqual(by_ob["path-governance"][gov.UNREVIEWED], 131)
+        self.assertEqual(by_ob["path-governance"][gov.UNREVIEWED], 137)
+        self.assertEqual(by_ob["persistence-usage"][gov.UNSUPPORTED], 6)
+        self.assertEqual(by_ob["writer-inventory"][gov.UNRESOLVED], 25)
+        self.assertEqual(by_ob["writer-inventory"][gov.UNREVIEWED], 73)
+        # GC5-0486: `check_b2_demo_identity.py`'s GuardError diagnostic. The raise-argument
+        # exemption that once cleared this (see `_python_non_executable_spans`) was removed as
+        # unsound; this single writer-inventory UNSUPPORTED is the documented, retained residual.
+        self.assertEqual(by_ob["writer-inventory"][gov.UNSUPPORTED], 1)
+        total = sum(sum(kinds.values()) for kinds in by_ob.values())
+        self.assertEqual(total, 507)
 
     def test_every_tracked_java_file_lexes(self):
         cut = gov.resolve_commit(REPO, "HEAD")
@@ -824,6 +842,126 @@ class UnenumeratedMutationTests(unittest.TestCase):
                      "[ValidateSet('search', 'install', 'update')]"):
             self.assertEqual(gov.script_dml_subjects("a.js", line), [], line)
 
+    def test_script_comment_example_is_not_reported(self):
+        """GC5-0484: `INSERT INTO t` inside a `#`-comment (this analyzer's own docstring-style
+        comments describe SQL clause shapes as examples) is not executable and must not block."""
+        src = '#: (`INSERT INTO t (a, b)`, `CREATE TABLE t (...)`, not a routine call.\nx = 1\n'
+        self.assertEqual(gov.script_dml_subjects("scripts/example.py", src), [])
+
+    def test_script_docstring_example_is_not_reported(self):
+        """GC5-0485: `insert into portfolios` inside a function's own docstring (not the executable
+        body) is not executable and must not block."""
+        src = ('def f():\n'
+               '    """Discovers the signup insert into portfolios and related writers."""\n'
+               '    return 1\n')
+        self.assertEqual(gov.script_dml_subjects("scripts/example.py", src), [])
+
+    def test_module_docstring_example_is_not_reported(self):
+        src = '"""Module note: an INSERT INTO users row seeds the demo account."""\nx = 1\n'
+        self.assertEqual(gov.script_dml_subjects("scripts/example.py", src), [])
+
+    def test_bounded_diagnostic_raise_literal_is_a_documented_residual(self):
+        """GC5-0486: `check_b2_demo_identity.py`'s GuardError names the missing statement it expected
+        to find, and the literal text is never executed -- but three successive review rounds each
+        found a different way a `raise Name(...)` argument could still execute SQL despite `Name`
+        LOOKING like a provably inert class (a lambda-assigned `__init__`, a later reassignment of
+        the class name, a decorator, a parameter shadowing the class name, rebinding the `Exception`
+        base, a post-definition `Name.__init__ = ...` write). Soundly ruling out every way a Python
+        name can be rebound is an open-ended problem, so the exemption was removed rather than
+        patched a fourth time: a `raise Name(...)` argument is NEVER exempted, and this diagnostic is
+        a documented, retained coverage residual, not a clearance."""
+        src = ('class GuardError(Exception):\n'
+               '    """A source could not be read."""\n\n\n'
+               'def extract(text, label):\n'
+               '    if not text:\n'
+               '        raise GuardError(f"{label}: no `INSERT INTO users (...) VALUES (...)` "\n'
+               '                         "statement found")\n')
+        findings = gov.script_dml_subjects("scripts/example.py", src)
+        self.assertEqual(len(findings), 1, findings)
+        self.assertEqual(findings[0].kind, gov.UNSUPPORTED)
+
+    def test_docstring_with_a_non_ascii_character_still_exempts_correctly(self):
+        """Regression for a real offset bug: `ast` node positions are UTF-8 BYTE offsets, not
+        character offsets (a documented CPython quirk) -- an em dash before the matched text
+        previously misaligned an exempt span by one character and silently un-exempted a real
+        GC5-0486 diagnostic. The raise-argument mechanism that bug was found in is now removed
+        entirely (see the residual test above), but the SAME byte-offset arithmetic still applies to
+        docstring marking, which remains a live exemption -- this fixture exercises it there."""
+        src = ('def f(label, n):\n'
+               '    """ambiguous demo identity — INSERT INTO users rows for one required label"""\n'
+               '    return label, n\n')
+        self.assertEqual(gov.script_dml_subjects("scripts/example.py", src), [])
+
+    def test_raise_argument_is_never_exempted_regardless_of_shape(self):
+        """No `raise Name(...)` argument is ever exempted, regardless of what `Name` is or appears to
+        be -- covers the plain case, both `db.execute(...)`-nested-call risks, a non-call/re-raised
+        variable, a dotted (qualified) exception constructor, and the six binding/override/escape
+        shapes three review rounds found could each satisfy an "inert class" proof while still
+        executing the argument at raise time."""
+        for src in (
+            'raise RuntimeError("DELETE FROM portfolios")\n',
+            'raise RuntimeError(db.execute("DELETE FROM portfolios"))\n',
+            "raise RuntimeError(f\"failed: {db.execute('DELETE FROM portfolios')}\")\n",
+            'def f(err):\n    msg = "INSERT INTO users (id) VALUES (1)"\n    raise err\n',
+            'def f():\n    raise pkg.GuardError("INSERT INTO users (id) VALUES (1)")\n',
+            # __init__ assigned via lambda, not a FunctionDef.
+            'class GuardError(Exception):\n'
+            '    __init__ = lambda self, message: db.execute(message)\n'
+            'raise GuardError("DELETE FROM portfolios")\n',
+            # The class name is rebound after its definition.
+            'class GuardError(Exception):\n    pass\n'
+            'GuardError = lambda message: Exception(db.execute(message))\n'
+            'raise GuardError("DELETE FROM portfolios")\n',
+            # A decorator replaces the class with an executable factory.
+            '@decorate\nclass GuardError(Exception):\n    pass\n'
+            'raise GuardError("DELETE FROM portfolios")\n',
+            # A parameter shadows the module-level class name at the raise site.
+            'class GuardError(Exception):\n    pass\n'
+            'def f(GuardError):\n    raise GuardError("DELETE FROM portfolios")\n',
+            # The `Exception` base name itself is rebound.
+            'Exception = mutating_exception\n'
+            'class GuardError(Exception):\n    pass\n'
+            'raise GuardError("DELETE FROM portfolios")\n',
+            # A post-definition attribute write changes construction.
+            'class GuardError(Exception):\n    pass\n'
+            'GuardError.__init__ = lambda self, message: db.execute(message)\n'
+            'raise GuardError("DELETE FROM portfolios")\n',
+        ):
+            findings = gov.script_dml_subjects("scripts/example.py", src)
+            self.assertEqual(len(findings), 1, (src, findings))
+            self.assertEqual(findings[0].kind, gov.UNSUPPORTED)
+
+    def test_diagnostic_literal_moved_into_an_execution_sink_still_blocks(self):
+        """The same clause text used as a real sink argument (not a raise-only diagnostic) must keep
+        blocking -- the exemption is bounded to two proven shapes (comments, docstrings), not the
+        clause text."""
+        src = ('def run(cur):\n'
+               '    cur.execute("INSERT INTO users (id) VALUES (1)")\n')
+        findings = gov.script_dml_subjects("scripts/example.py", src)
+        self.assertEqual(len(findings), 1, findings)
+        self.assertEqual(findings[0].kind, gov.UNSUPPORTED)
+
+    def test_variable_carrying_sql_to_a_sink_still_blocks(self):
+        src = ('def run(cur):\n'
+               '    sql = "DELETE FROM asset_holdings WHERE id = 1"\n'
+               '    cur.execute(sql)\n')
+        findings = gov.script_dml_subjects("scripts/example.py", src)
+        self.assertEqual(len(findings), 1, findings)
+        self.assertEqual(findings[0].kind, gov.UNSUPPORTED)
+
+    def test_malformed_python_script_still_reports_the_clause(self):
+        """Unparsable script syntax must not silently exempt anything beyond the comments tokenize
+        could recover before failing."""
+        src = 'def f(:\n    cur.execute("DELETE FROM asset_holdings")\n'
+        findings = gov.script_dml_subjects("scripts/example.py", src)
+        self.assertEqual(len(findings), 1, findings)
+
+    def test_non_python_script_gets_no_comment_or_docstring_exemption(self):
+        """The exemption mechanism is Python-only; other script languages stay exactly as before."""
+        src = '# INSERT INTO t (a, b) is an example only\n'
+        findings = gov.script_dml_subjects("scripts/example.sh", src)
+        self.assertEqual(len(findings), 1, findings)
+
     def test_mapped_collection_clear_is_a_subject(self):
         src = ('@Entity class Portfolio {\n'
                '  @OneToMany(mappedBy = "portfolio", cascade = CascadeType.ALL, orphanRemoval = true)\n'
@@ -851,6 +989,77 @@ class UnenumeratedMutationTests(unittest.TestCase):
                                                full_policy(cut))
             self.assertTrue(any("Svc::apply" in f.subject_id and ".clear#" in f.subject_id
                                 for f in findings), [f.subject_id for f in findings])
+
+    def test_mapped_collection_effect_is_relevant_not_a_fabricated_unrelated(self):
+        """GC5-0444/GC5-0445: `Portfolio.holdings` is @OneToMany(cascade = ALL, orphanRemoval = true)
+        -- add/clear can persist changes. The prior code kept `List -> memory` through
+        `store = store or STORE_POSTGRES` (`or` never overrides an already-truthy value), so the
+        finding was reported UNRELATED ("disjoint from the relational tables") -- factually wrong for
+        a genuine cascade-mapped association. It must resolve RELEVANT with real table evidence."""
+        with TempGitRepo() as repo:
+            write_and_commit(repo, "p/src/main/java/Portfolio.java",
+                             '@Entity @Table(name = "portfolios") class Portfolio {\n'
+                             '  @OneToMany(mappedBy = "portfolio", cascade = CascadeType.ALL, orphanRemoval = true)\n'
+                             '  private List<AssetHolding> holdings = new ArrayList<>();\n'
+                             '  void addHolding(AssetHolding h) { holdings.add(h); }\n'
+                             '  void replaceAllHoldings(List<AssetHolding> next) { holdings.clear(); }\n}')
+            cut = gov.resolve_commit(repo, "HEAD")
+            findings, coverage = gov.writer_inventory(gov.tree_blobs(repo, cut), gov.BlobReader(repo),
+                                                       full_policy(cut))
+            by_form = {f.subject_id: f for f in findings if "holdings.add#" in f.subject_id
+                      or "holdings.clear#" in f.subject_id}
+            self.assertEqual(len(by_form), 2, [f.subject_id for f in findings])
+            for f in by_form.values():
+                basis = f.evidence["basis"]
+                self.assertEqual(basis["store"], gov.STORE_POSTGRES, basis)
+                self.assertIn("portfolios", basis.get("direct_tables", []), basis)
+                self.assertNotIn("disjoint from the relational tables", basis["reason"])
+
+    def test_ownership_that_cannot_be_proved_stays_unresolved_not_forced_postgres(self):
+        """A field carrying @OneToMany whose declaring class is never indexed as a real @Entity (for
+        example a missing @Entity annotation) must not be guessed into Postgres merely because the
+        receiver name was proven to be a mapped collection somewhere -- ownership of THIS specific
+        association is unproven, so it must fall through to the same UNRESOLVED (blocking) outcome as
+        any other receiver source analysis cannot type."""
+        src = ('class NotAnEntity {\n'
+               '  @OneToMany(mappedBy = "x")\n'
+               '  private List<Y> items = new ArrayList<>();\n'
+               '  void wipe() { items.clear(); }\n}')
+        tokens = gov.lex_java(src)
+        contexts = gov.java_contexts(tokens)
+        mapped = gov.mapped_collection_names(tokens, contexts)
+        self.assertIn("items", mapped)
+        ops, _finals, _by_method = gov.extract_operations("NotAnEntity.java", tokens, contexts, mapped)
+        types = gov.declared_types(tokens, contexts)
+        entity_index = gov.build_entity_index({"NotAnEntity.java": (tokens, contexts)})
+        self.assertEqual(entity_index, {})  # no @Entity anywhere in this unit -- ownership unprovable
+        op = next(o for o in ops if o.method_name == "clear")
+        rt, store, entity, md = gov.resolve_receiver(op, types, entity_index,
+                                                      dict(gov._DEFAULT_STORE_BY_TYPE), mapped)
+        self.assertIsNone(store)
+        self.assertIsNone(rt)
+        self.assertIsNone(entity)
+        effect, basis = gov.classify_effect(op, rt, store, entity, {}, {"portfolios"}, [], entity_index)
+        self.assertEqual(effect, gov.UNRESOLVED, basis)
+
+    def test_renamed_mapped_field_is_recognised_by_annotation_not_by_the_name_holdings(self):
+        """The mechanism must be evidence-backed, not keyed to the literal string "holdings": a mapped
+        field renamed to something else must still be recognised, proven and correctly classified
+        RELEVANT purely from its @OneToMany annotation and its owner's @Entity/@Table mapping."""
+        with TempGitRepo() as repo:
+            write_and_commit(repo, "p/src/main/java/Portfolio.java",
+                             '@Entity @Table(name = "portfolios") class Portfolio {\n'
+                             '  @OneToMany(mappedBy = "portfolio", cascade = CascadeType.ALL, orphanRemoval = true)\n'
+                             '  private List<AssetHolding> positions = new ArrayList<>();\n'
+                             '  void addPosition(AssetHolding h) { positions.add(h); }\n}')
+            cut = gov.resolve_commit(repo, "HEAD")
+            findings, _coverage = gov.writer_inventory(gov.tree_blobs(repo, cut), gov.BlobReader(repo),
+                                                        full_policy(cut))
+            matches = [f for f in findings if "positions.add#" in f.subject_id]
+            self.assertEqual(len(matches), 1, [f.subject_id for f in findings])
+            basis = matches[0].evidence["basis"]
+            self.assertEqual(basis["store"], gov.STORE_POSTGRES, basis)
+            self.assertIn("portfolios", basis.get("direct_tables", []), basis)
 
     def test_entity_manager_remove_survives_the_collection_gate(self):
         """remove() is BOTH a JPA write and a collection mutator. Gating it on a mapped receiver
@@ -1313,7 +1522,9 @@ class AddendumFixtureTests(unittest.TestCase):
     def test_E7_unsupported_shapes_and_ineffective_assertion(self):
         for src in ('class W { void m() { jdbc.update(String.join(" ", parts)); } }',
                     'class W { void m(String sql) { jdbc.update(sql); } }',
-                    'class W { void m() { PreparedStatement ps = c.prepareStatement("DELETE FROM portfolios"); ps.execute(); } }'):
+                    # A reassigned receiver is ambiguous prepared-statement provenance (GC5-0460's
+                    # mechanism is bound to a name assigned exactly once): still UNSUPPORTED.
+                    'class W { void m() { PreparedStatement ps = c.prepareStatement("DELETE FROM portfolios"); ps = other; ps.execute(); } }'):
             ops = operations_of(src)
             self.assertTrue(any(v["coverage"] == gov.UNSUPPORTED for v in ops.values()) or not ops,
                             src)
@@ -2893,13 +3104,232 @@ class PostConsolidationSqlAwareReadTests(unittest.TestCase):
         self.assertEqual(gov.assess_sql("DO $$ BEGIN PERFORM external_mutator(); END; $$")["unknown_routines"],
                          ["external_mutator()"])
 
-    def test_prepared_statement_with_dml_is_a_writer_and_chained_execute_stays_unsupported(self):
+    def test_prepared_statement_with_dml_is_a_writer_and_chained_execute_resolves_via_provenance(self):
+        """GC5-0460's mechanism (S3): a no-argument `ps.execute()` chained from a same-method,
+        assigned-exactly-once `ps = <receiver>.prepareStatement(SQL)` is assessed against that SQL --
+        the execute subject is never erased, it is a SEPARATE, independently resolved writer for the
+        same statement text, exactly like the prepareStatement call itself."""
         ops = operations_of('class W { void m() { PreparedStatement ps = c.prepareStatement("DELETE FROM portfolios"); ps.execute(); } }')
         prep = [v for k, v in ops.items() if "prepareStatement" in k]
+        execute = [v for k, v in ops.items() if "ps.execute" in k]
         self.assertTrue(prep, list(ops))
-        self.assertEqual(prep[0]["coverage"], gov.RESOLVED)
-        self.assertEqual(prep[0]["statement"]["target_tables"], ["portfolios"])
-        self.assertTrue(any(v["coverage"] == gov.UNSUPPORTED for k, v in ops.items() if "ps.execute" in k), list(ops))
+        self.assertTrue(execute, list(ops))
+        for v in (prep[0], execute[0]):
+            self.assertEqual(v["coverage"], gov.RESOLVED)
+            self.assertEqual(v["statement"]["target_tables"], ["portfolios"])
+        self.assertEqual(execute[0]["facts"]["shape"], "S3")
+
+    def test_prepared_statement_provenance_does_not_survive_receiver_reassignment(self):
+        """The mechanism is bound to a name assigned exactly once; any second assignment -- by this
+        shape or any other -- makes it ambiguous and the chained execute stays UNSUPPORTED."""
+        ops = operations_of(
+            'class W { void m() { PreparedStatement ps = c.prepareStatement("DELETE FROM portfolios"); '
+            'ps = other; ps.execute(); } }')
+        execute = [v for k, v in ops.items() if "ps.execute" in k]
+        self.assertTrue(execute, list(ops))
+        self.assertEqual(execute[0]["coverage"], gov.UNSUPPORTED)
+
+    def test_prepared_statement_provenance_needs_a_resolvable_prepare_argument(self):
+        """An unresolvable `prepareStatement` argument (a bare, unbound parameter) leaves the chained
+        execute UNSUPPORTED exactly as before -- provenance is never guessed."""
+        ops = operations_of(
+            'class W { void m(String sql) { PreparedStatement ps = c.prepareStatement(sql); ps.execute(); } }')
+        execute = [v for k, v in ops.items() if "ps.execute" in k]
+        self.assertTrue(execute, list(ops))
+        self.assertEqual(execute[0]["coverage"], gov.UNSUPPORTED)
+
+    def test_helper_propagation_safe_private_single_caller_resolves(self):
+        """The genuinely safe shape S4 is meant for: a private helper's own String parameter, one
+        bare in-file caller, a resolvable read-only literal."""
+        ops = operations_of(
+            'class R { Statement stmt; private void q(String sql) { stmt.executeQuery(sql); } '
+            'void run() { q("SELECT 1"); } }')
+        sink = [v for k, v in ops.items() if "stmt.executeQuery" in k]
+        self.assertTrue(sink, list(ops))
+        self.assertEqual(sink[0]["coverage"], gov.RESOLVED)
+
+    def test_helper_propagation_counts_a_this_qualified_caller_and_rejects_its_dml(self):
+        """A `this.q(...)` caller is provably the same object and MUST be counted, not silently
+        skipped -- if it supplies a mutating statement, propagation must fail, not clear the sink
+        merely because a DIFFERENT, safe caller also exists."""
+        ops = operations_of(
+            'class R { Statement stmt; private void q(String sql) { stmt.executeQuery(sql); } '
+            'void run() { q("SELECT 1"); this.q("DELETE FROM portfolios RETURNING id"); } }')
+        sink = [v for k, v in ops.items() if "stmt.executeQuery" in k]
+        self.assertTrue(sink, list(ops))
+        self.assertEqual(sink[0]["coverage"], gov.UNSUPPORTED)
+
+    def test_helper_propagation_rejects_an_unverifiable_qualified_caller(self):
+        """A call qualified by anything other than `this` (a different receiver expression) may
+        target a different overload, an inherited method, or another object's member -- the full
+        caller set becomes unprovable, so propagation must not apply at all."""
+        ops = operations_of(
+            'class R { Statement stmt; private void q(String sql) { stmt.executeQuery(sql); } '
+            'void run(R other) { q("SELECT 1"); other.q("SELECT 2"); } }')
+        sink = [v for k, v in ops.items() if "stmt.executeQuery" in k]
+        self.assertTrue(sink, list(ops))
+        self.assertEqual(sink[0]["coverage"], gov.UNSUPPORTED)
+
+    def test_helper_propagation_invalidated_by_parameter_reassignment_in_the_helper(self):
+        """Every VISIBLE caller supplying a safe literal proves nothing if the parameter is
+        reassigned to something else before the sink uses it -- the caller-supplied value is never
+        provably what reaches the sink."""
+        ops = operations_of(
+            'class R { Statement stmt; '
+            'private void q(String sql) { sql = "DELETE FROM portfolios RETURNING id"; stmt.executeQuery(sql); } '
+            'void run() { q("SELECT 1"); } }')
+        sink = [v for k, v in ops.items() if "stmt.executeQuery" in k]
+        self.assertTrue(sink, list(ops))
+        self.assertEqual(sink[0]["coverage"], gov.UNSUPPORTED)
+
+    def test_helper_propagation_requires_private_visibility(self):
+        """A public (or package-private) method's callers cannot be exhaustively enumerated from one
+        compilation unit -- Java allows calling it from anywhere. Only `private` guarantees every
+        caller is visible here."""
+        ops = operations_of(
+            'public class R { Statement stmt; public void q(String sql) { stmt.executeQuery(sql); } '
+            'void sample() { q("SELECT 1"); } }')
+        sink = [v for k, v in ops.items() if "stmt.executeQuery" in k]
+        self.assertTrue(sink, list(ops))
+        self.assertEqual(sink[0]["coverage"], gov.UNSUPPORTED)
+
+    def test_helper_propagation_rejects_a_method_reference_escape(self):
+        """A private method can still escape as a value via `this::q` and be invoked indirectly
+        later (`c.accept(...)`) -- invisible to a same-name-call scan. Its mere presence anywhere in
+        the unit means the caller set is no longer provably closed, even though a direct call also
+        exists and is itself safe."""
+        ops = operations_of(
+            'class R { Statement stmt; private void q(String sql) { stmt.executeQuery(sql); } '
+            'void run() { q("SELECT 1"); '
+            'java.util.function.Consumer<String> c = this::q; '
+            'c.accept("DELETE FROM portfolios RETURNING id"); } }')
+        sink = [v for k, v in ops.items() if "stmt.executeQuery" in k]
+        self.assertTrue(sink, list(ops))
+        self.assertEqual(sink[0]["coverage"], gov.UNSUPPORTED)
+
+    def test_helper_propagation_invalidated_by_compound_assignment_reassignment(self):
+        """`lex_java` never emits a single `+=` token: `sql += "..."` lexes as the separate tokens
+        `sql`, `+`, `=`, string -- the reassignment guard must recognise this shape too, not only a
+        bare `sql = ...`."""
+        ops = operations_of(
+            'class R { Statement stmt; '
+            'private void q(String sql) { sql += "; DELETE FROM portfolios RETURNING id"; '
+            'stmt.executeQuery(sql); } '
+            'void run() { q("SELECT 1"); } }')
+        sink = [v for k, v in ops.items() if "stmt.executeQuery" in k]
+        self.assertTrue(sink, list(ops))
+        self.assertEqual(sink[0]["coverage"], gov.UNSUPPORTED)
+
+    def test_mapped_field_explicit_this_qualifier_is_never_shadowed(self):
+        """`this.holdings` can only ever mean the field in Java -- a local variable of the same name
+        declared anywhere in the method must not suppress an EXPLICITLY `this.`-qualified reference."""
+        src = ('@Entity @Table(name="portfolios") class Portfolio {\n'
+               '  @OneToMany List<AssetHolding> holdings;\n'
+               '  void change() {\n'
+               '    List<String> holdings = new ArrayList<>();\n'
+               '    this.holdings.clear();\n'
+               '  }\n}\n')
+        ops = operations_of(src)
+        sink = [v for k, v in ops.items() if "holdings.clear" in k]
+        self.assertTrue(sink, list(ops))
+        facts = sink[0]["facts"]
+        self.assertEqual(facts["receiver_persistence_type"], "Portfolio", facts)
+
+    def test_mapped_field_reference_before_its_shadowing_local_declaration_is_not_shadowed(self):
+        """A bare reference to the field, lexically BEFORE a same-named local is declared later in
+        the same method, resolves to the field -- Java local scope begins at the declaration, not
+        the start of the enclosing block."""
+        src = ('@Entity @Table(name="portfolios") class Portfolio {\n'
+               '  @OneToMany List<AssetHolding> holdings;\n'
+               '  void change() {\n'
+               '    holdings.clear();\n'
+               '    List<String> holdings = new ArrayList<>();\n'
+               '  }\n}\n')
+        ops = operations_of(src)
+        sink = [v for k, v in ops.items() if "holdings.clear" in k]
+        self.assertTrue(sink, list(ops))
+        facts = sink[0]["facts"]
+        self.assertEqual(facts["receiver_persistence_type"], "Portfolio", facts)
+
+    def test_mapped_field_reference_after_the_shadowing_locals_block_closes_is_not_shadowed(self):
+        """A local declared and used INSIDE a nested block correctly shadows the field there, but its
+        scope ends when that block closes -- a later bare reference, outside the block, resolves to
+        the field again."""
+        src = ('@Entity @Table(name="portfolios") class Portfolio {\n'
+               '  @OneToMany List<AssetHolding> holdings;\n'
+               '  void change() {\n'
+               '    { List<String> holdings = new ArrayList<>(); holdings.clear(); }\n'
+               '    holdings.clear();\n'
+               '  }\n}\n')
+        ops = operations_of(src)
+        sink = [(k, v) for k, v in ops.items() if "holdings.clear" in k]
+        self.assertEqual(len(sink), 1, list(ops))  # the in-block local clear is not a subject at all
+        facts = sink[0][1]["facts"]
+        self.assertEqual(facts["receiver_persistence_type"], "Portfolio", facts)
+
+    def test_repository_custom_query_with_a_fully_qualified_annotation_still_blocks(self):
+        """A custom @Query/@Modifying repository method must not bypass detection merely by spelling
+        its annotations with a fully qualified name instead of the short form."""
+        d = Deployable(
+            'interface R extends JpaRepository<Portfolio, Long> {\n'
+            '  @org.springframework.data.jpa.repository.Modifying\n'
+            '  @org.springframework.data.jpa.repository.Query("DELETE FROM Portfolio")\n'
+            '  void wipe();\n}\n')
+        try:
+            res = d.run()
+            f = [x for x in res["findings"] if x["obligation"] == "persistence-usage"]
+            self.assertTrue(f, [x["obligation"] for x in res["findings"]])
+            self.assertEqual(f[0]["kind"], gov.UNSUPPORTED)
+        finally:
+            d.close()
+
+    def test_mapped_owner_collision_disambiguated_by_the_mutations_enclosing_class(self):
+        """Two unrelated entities declaring a mapped field with the SAME name must never let a flat
+        merge silently attribute one entity's mutation to the other -- the mutation's own enclosing
+        class, when it is one of the candidate owners, is the disambiguating proof."""
+        with TempGitRepo() as repo:
+            write_and_commit(repo, "p/src/main/java/Portfolio.java",
+                             '@Entity @Table(name="portfolios") class Portfolio {\n'
+                             '  @OneToMany List<AssetHolding> holdings;\n'
+                             '  void change() { holdings.clear(); }\n}\n')
+            write_and_commit(repo, "p/src/main/java/Audit.java",
+                             '@Entity @Table(name="audit_events") class Audit {\n'
+                             '  @OneToMany List<Other> holdings;\n}\n')
+            cut = gov.resolve_commit(repo, "HEAD")
+            findings, _ = gov.writer_inventory(gov.tree_blobs(repo, cut), gov.BlobReader(repo),
+                                               full_policy(cut))
+            f = next((x for x in findings if "holdings.clear#" in x.subject_id), None)
+            self.assertIsNotNone(f, [x.subject_id for x in findings])
+            basis = f.evidence["basis"]
+            self.assertEqual(basis["receiver_type"], "Portfolio", basis)
+            self.assertIn("portfolios", basis.get("direct_tables", []), basis)
+
+    def test_mapped_owner_cross_file_collision_disambiguated_by_the_mutations_enclosing_class(self):
+        with TempGitRepo() as repo:
+            write_and_commit(repo, "p/src/main/java/Portfolio.java",
+                             '@Entity @Table(name="portfolios") class Portfolio {\n'
+                             '  @OneToMany List<AssetHolding> positions;\n'
+                             '  void change() { positions.clear(); }\n}\n')
+            write_and_commit(repo, "p/src/main/java/ZOther.java",
+                             '@Entity @Table(name="audit_events") class ZOther {\n'
+                             '  @OneToMany List<Other> positions;\n}\n')
+            cut = gov.resolve_commit(repo, "HEAD")
+            findings, _ = gov.writer_inventory(gov.tree_blobs(repo, cut), gov.BlobReader(repo),
+                                               full_policy(cut))
+            f = next((x for x in findings if "positions.clear#" in x.subject_id), None)
+            self.assertIsNotNone(f, [x.subject_id for x in findings])
+            basis = f.evidence["basis"]
+            self.assertEqual(basis["receiver_type"], "Portfolio", basis)
+            self.assertIn("portfolios", basis.get("direct_tables", []), basis)
+
+    def test_mapped_local_variable_shadowing_the_field_is_not_swept_in(self):
+        """A local variable of the SAME name as a real mapped field, declared inside the method that
+        also mutates the real field, shadows it for the rest of that method -- Java scoping, not a
+        database write, and never a fabricated "touches portfolios" claim for an unrelated List."""
+        src = ('@Entity @Table(name="portfolios") class Portfolio {\n'
+               '  @OneToMany List<AssetHolding> holdings;\n'
+               '  void change() { List<String> holdings = new ArrayList<>(); holdings.clear(); }\n}\n')
+        self.assertEqual(operations_of(src), {})
 
     def test_jpql_write_with_unmapped_entity_is_unresolved(self):
         d = Deployable("class W {\n  private EntityManager em;\n"

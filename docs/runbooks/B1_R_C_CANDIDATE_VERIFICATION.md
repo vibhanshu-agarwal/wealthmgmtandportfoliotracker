@@ -293,6 +293,56 @@ dynamic SQL; it only refuses to call it modeled. Verb-less unmodeled execution i
 `sql:UNSUPPORTED`, while a verb-bearing dynamic function keeps its verb label so existing subject ids
 do not move.
 
+**Two further resolution shapes join S0/S1/S2 (GC.5 coverage closure).** S3: a no-argument
+`ps.execute()`/`.executeQuery()`/`.executeUpdate()` is assessed against the SQL its own receiver was
+prepared with, when that receiver is declared exactly once in the SAME method from
+`= <receiver>.prepareStatement(SQL)`/`.prepareCall(SQL)` and that SQL itself resolves — a bare
+reassignment anywhere, an unresolved preparation, or none found at all leaves it `UNSUPPORTED`
+exactly as before ("finite-literal helper-call propagation" does the same for a private helper's own
+`String` parameter). S4: when a SQL-bearing call's argument is exactly the enclosing method's own
+`String` parameter, or exactly one literal prefix concatenated with it (`"SHOW " + setting`), every
+call to that method anywhere in the unit must supply a resolvable literal for the parameter, and
+every resulting candidate must independently be read-only; any unresolved caller, zero callers, or
+one non-read-only candidate leaves it `UNSUPPORTED`. Neither shape follows a call across files or
+resolves an unbounded/recursive flow.
+
+**A cascade/orphanRemoval-mapped collection's owner controls its effect and fingerprint, never the
+variable's name.** `mapped_collection_names` proves a field or its accessor carries an actual
+`@OneToMany`/`@ManyToMany`/`@ElementCollection` annotation and records the exact class that carries
+it; only THAT proven owner's `@Entity`/`@Table` mapping may force the receiver's store to `postgres`
+and bind the mapping digest. An annotated field whose owner cannot be found as a real indexed
+`@Entity` stays `UNRESOLVED`, never guessed into `postgres` merely because a receiver happens to be
+named like a known mapped collection.
+
+**Persistence-usage marker/call accounting is token- and type-exact, not raw substring.** A marker
+type or `@Annotation` is real only when an actual code token equals it — `Session` no longer matches
+inside `JwtSessionIdentity`, nor `JdbcTemplate` inside `NamedParameterJdbcTemplate` or
+`DataSourceAutoConfiguration`. A `*Repository<...>` interface with no `@Query`/`@Modifying`/
+`@Procedure` method and no `delete`/`remove`-prefixed derived method is a recognized, declaration-only
+Spring Data shape; a transaction/session callback wrapper (`x.execute(status -> ...)`) and a small
+named set of metadata/wrapper/lifecycle calls (`getAutoCommit`, `isWrapperFor`,
+`isJoinedToTransaction`, `close`, the JDBC `PreparedStatement.setLong` parameter binder) account for
+their receiver without becoming a generic method-name allowlist — an unknown `execute`, callback or
+reflectively dispatched call, including one forwarded through the diagnostic JDBC proxies, is still
+unaccounted. A `Class<T>.class` literal (bare, or as an array/varargs element) is recognized as a
+literal, never misread as declaring a variable named `class`; a `try (A a = ...; B b = ...)` header's
+first resource keeps its declared type instead of losing it to the header's own unbalanced `(`. Mongo
+`BulkOperations`, constructed via `mongoTemplate.bulkOps(...)`, is a recognized non-SQL-bearing write
+receiver (`STORE_MONGO`) rather than a "SQL call missing a string".
+
+**A script's `#` comment or its module/class/function docstring** — two proven-non-executable Python
+shapes, using only `tokenize`/`ast` — is not reported as script DML; the identical clause text used as
+a real sink argument, a variable, or any non-Python script is untouched and still blocks. A third
+shape (a string that is the whole or joined argument of a `raise Name(...)`) was exempted here in an
+earlier revision, gated on proving `Name`'s constructor inert; three successive review rounds each
+found a way to satisfy that proof while `Name` still executed the argument at raise time (a
+lambda-assigned `__init__`, class-name rebinding, a class decorator, parameter shadowing, base-name
+rebinding, a post-definition `__init__` attribute write). Soundly ruling out every way a Python name
+can be rebound is an open-ended problem, so that exemption was removed rather than patched again: a
+`raise Name(...)` argument is never exempted, regardless of what `Name` is or appears to be.
+`check_b2_demo_identity.py`'s GuardError diagnostic (GC5-0486) is consequently a documented, retained
+`writer-inventory` `UNSUPPORTED` coverage residual, not a clearance.
+
 **Task A / Task B evidence is a per-run input, never committed in the policy** (committing a
 post-build hash would force a build→commit→rebuild cycle). Supply it with `--run-input <manifest>`
 (`{"task_a": {"evidence_file": …}, "task_b": {"evidence_file": …, "release_portion": false}}`; paths may
