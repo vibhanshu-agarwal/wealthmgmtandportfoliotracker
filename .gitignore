@@ -116,6 +116,9 @@ replay_pid*.log
 
 # Slim-image IT staging (host bootJar copied for Dockerfile.slim-it)
 .slim-it-artifacts/
+
+# R-C candidate staging (host bootJar copied for Dockerfile.candidate, Task 7.4)
+.candidate-artifacts/
 *.hprof
 
 ### Temporary / debug files ###

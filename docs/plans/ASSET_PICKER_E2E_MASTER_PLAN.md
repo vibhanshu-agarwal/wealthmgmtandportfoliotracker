@@ -2,16 +2,33 @@
 
 **Last verified:** 2026-09-03
 
+**OWNER APPROVAL RECORDED — R-C implementation publication, 2026-09-04:** the owner authorized
+the scoped commit, push and implementation PR of the reviewed 21-file local bundle. That
+authorization covers publication only. Merge, release-candidate build/push, registry access or
+smoke, live-database operations, deployment and completion-box changes retain their separate
+gates. The last verified R-B3 runtime baseline, B2 gates and the separate 7.1–7.2 reconciliation
+remain unchanged.
+
+**R-C local tooling ACCEPT — 2026-09-04:** Codex accepted the source-governance tooling
+(round 11) and the local HTTP smoke harness (round 14). The [return packet](../superpowers/plans/2026-09-04-b1-rc-candidate-preparation-return-packet.md) consolidates the candidate Gradle graph/staging, copy-only image recipe,
+evidence tooling and runbook. The recorded tooling results total 363 tests across their
+respective runs; the 73-test final smoke suite passed with zero skips. The preserved
+September 3 LOCAL_DEV graph recorded 760 application tests in 89 classes, with zero skips,
+failures or errors and all 11 required report entries present. That graph predates later
+tooling and documentation edits and is not final committed-candidate verification.
+R-C readiness remains **NO-GO**: the reviewed source cut is BLOCKED with 504 reported
+governance findings, R3 remains unresolved, and release/registry/serving evidence is incomplete.
+Tasks 7.3–7.11, GC.5, AM.1/AM.2 and Writer_Convergence receive no completion-box changes.
+
 **OWNER APPROVAL RECORDED — Claude R-C preparation kickoff, 2026-09-03:** The owner requested
 the Claude kickoff and its docs-only PR. This authorizes publication of this documentation package;
 merge and implementation publication/release operations remain separate decisions. The
 [Claude kickoff](../agent-instructions/CLAUDE_KICKOFF_B1_R_C_CANDIDATE_PREPARATION.md) defines local
 packaging/evidence tooling and tests under Codex's
 [architecture review](../superpowers/plans/2026-09-03-b1-r-c-candidate-architecture-review.md).
-It is ready for handoff; no Claude process was started by preparing it. R-C readiness remains NO-GO
-pending the graph/JAR/image chain, required-suite mapping, GC.5 base/policy, SQL-writer disposition
-and registry-digest smoke. This changes assignment/preparation status only: all completion boxes,
-the last verified runtime baseline (R-B3 / cu4, revision 0000094) and B2 gates are unchanged.
+That documentation event preceded implementation; current local preparation status is recorded
+above. Its approval covered the kickoff documentation only and grants no implementation
+publication or release authority.
 
 **OWNER DECISION RECORDED — R-B3 GO, 2026-09-03:** The owner approved local completion
 of Task 6.6 and Task 6.7 GO after reviewing the successful G2b proof: “Approved. Please go ahead.”

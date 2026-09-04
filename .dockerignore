@@ -1,8 +1,13 @@
 # Exclude Gradle build output from the Docker build context.
-# Without this, pre-built JARs from the CI runner are copied into the builder
-# stage and Gradle treats them as UP-TO-DATE, skipping processAot entirely.
-# The builder stage must always run a clean Gradle build inside Docker so that
-# processAot generates the AOT initializer classes and bootJar bundles them.
+# This applies to the IN-CONTAINER BUILDERS (Dockerfile.azure, Dockerfile): without
+# it, pre-built JARs from the CI runner are copied into the builder stage and
+# Gradle treats them as UP-TO-DATE, skipping processAot entirely. Those builder
+# stages must always run a clean Gradle build inside Docker so that processAot
+# generates the AOT initializer classes and bootJar bundles them.
+# Dockerfile.candidate (the R-C candidate copy-only recipe) does not build
+# in-container at all -- it copies a host-verified jar from
+# .candidate-artifacts/, which is NOT under build/ and is therefore unaffected by
+# this exclusion, same as Dockerfile.slim-it's .slim-it-artifacts/ precedent.
 **/build/
 **/.gradle/
 
