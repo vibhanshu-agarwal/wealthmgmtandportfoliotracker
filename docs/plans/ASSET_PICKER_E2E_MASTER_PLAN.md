@@ -2,11 +2,12 @@
 
 **Last verified:** 2026-09-03
 
-**OWNER APPROVAL REQUIRED — R-C implementation publication:** the reviewed local bundle
-has not been authorized for push or an implementation PR. Approval of the named publication
-would permit that push/PR only; declining or deferring leaves the local work available. Merge,
-release-candidate build/push, registry access or smoke, live-database operations, deployment
-and completion-box changes retain their separate gates.
+**OWNER APPROVAL RECORDED — R-C implementation publication, 2026-09-04:** the owner authorized
+the scoped commit, push and implementation PR of the reviewed 21-file local bundle. That
+authorization covers publication only. Merge, release-candidate build/push, registry access or
+smoke, live-database operations, deployment and completion-box changes retain their separate
+gates. The last verified R-B3 runtime baseline, B2 gates and the separate 7.1–7.2 reconciliation
+remain unchanged.
 
 **R-C local tooling ACCEPT — 2026-09-04:** Codex accepted the source-governance tooling
 (round 11) and the local HTTP smoke harness (round 14). The [return packet](../superpowers/plans/2026-09-04-b1-rc-candidate-preparation-return-packet.md) consolidates the candidate Gradle graph/staging, copy-only image recipe,
@@ -18,8 +19,6 @@ tooling and documentation edits and is not final committed-candidate verificatio
 R-C readiness remains **NO-GO**: the reviewed source cut is BLOCKED with 504 reported
 governance findings, R3 remains unresolved, and release/registry/serving evidence is incomplete.
 Tasks 7.3–7.11, GC.5, AM.1/AM.2 and Writer_Convergence receive no completion-box changes.
-The last verified R-B3 runtime baseline, B2 gates and the separate 7.1–7.2 reconciliation
-remain unchanged.
 
 **OWNER APPROVAL RECORDED — Claude R-C preparation kickoff, 2026-09-03:** The owner requested
 the Claude kickoff and its docs-only PR. This authorizes publication of this documentation package;
