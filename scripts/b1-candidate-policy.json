@@ -1,0 +1,468 @@
+{
+  "_purpose": "Reviewed policy inputs for the B1 R-C candidate verification graph (Task 7.4/7.5, Checkpoint 1 of docs/agent-instructions/CLAUDE_KICKOFF_B1_R_C_CANDIDATE_PREPARATION.md). Consumed by scripts/b1_candidate_evidence.py. Every value here traces to a specific architecture-review finding (docs/superpowers/plans/2026-09-03-b1-r-c-candidate-architecture-review.md) and was independently re-verified against source on 2026-09-03 before use -- see each entry's own citation.",
+  "b1_base_commit": {
+    "sha": "95fcb68dc7a47f99465354ec6d7b84137851389d",
+    "subject": "Merge pull request #123 from vibhanshu-agarwal/fix/mocked-chaos-429-assertion-quarantine",
+    "committed": "2026-08-20T22:40:40+05:30",
+    "review_finding": "R4",
+    "rationale": "GC.5 (tasks.md:342-367) requires a pinned base predating B1 implementation, proven an ancestor of cut-C, and explicitly rejects cut-B3 as a base. B1's spec docs (requirements/design/tasks, merged 2026-08-18) and the Wave-0 kickoff doc (merged 2026-08-20 06:55) are planning-only. The first B1 *code* commit is 62237deb ('B1 Wave 0: migrate the E2E fixtures to the Golden-State identity', PR #121). 95fcb68d is 62237deb's direct parent and the immediately preceding commit on main's first-parent line -- i.e. the last commit before B1 implementation began. Verified 2026-09-03: `git merge-base --is-ancestor 95fcb68d HEAD` and `git merge-base --is-ancestor 95fcb68d 6a171558a0f802eadd5d7ed5bf28545ca5c91905` (the R-B3 cut) both succeed, and 95fcb68d != 6a171558. 95fcb68d is a strict ancestor of R-B3 (99 first-parent commits separate them), which is exactly why a cut-B3 base would silently exclude B1 Waves 0-5 from GC.5's guard interval and why cut-B3 is rejected as a base.",
+    "not_the_r_b3_cut": "6a171558a0f802eadd5d7ed5bf28545ca5c91905"
+  },
+  "candidate_floor": {
+    "review_finding": "R2",
+    "review_citation_correction": "The review cites tasks.md:1147,1151 for the two unmatched literal patterns; re-verified 2026-09-03 that the current (and long-standing, since commit e94ebe228 2026-08-18) location is tasks.md:1164 (*AssetDiscoveryContractTest row) and tasks.md:1168 (*PortfolioVersionReadTest row). Lines 1147/1151 are unrelated Task 7.4 prose. Cosmetic only -- does not affect the substance below.",
+    "note": "candidateVerification runs `test` and `integrationTest` unfiltered; these are report **class patterns** (suffix match against the generated manifest) never `--tests` selectors. Three failure conditions apply per tasks.md 7.5: a task reporting zero tests, a required pattern absent from the manifest, and a required class present with no non-skipped test case.",
+    "entries": [
+      {
+        "suite": "Legacy route contract (both retirements)",
+        "task": "test",
+        "report_class_suffix": "LegacyWriterRetirementTest",
+        "requirement_source": "tasks.md:1163 (unchanged)"
+      },
+      {
+        "suite": "Asset discovery contract",
+        "task": "test",
+        "report_class_suffix": "AssetCatalogControllerTest",
+        "requirement_source": "R2: replaces the literal *AssetDiscoveryContractTest (tasks.md:1164), which does not exist anywhere in source (repo-wide grep confirmed 2026-09-03). AssetCatalogControllerTest.java (130 lines) covers GET /api/assets: full catalog incl. deprecated assets, no price fields, ETag/Cache-Control, and strong/weak/list/* If-None-Match -> 304."
+      },
+      {
+        "suite": "Composition controller HTTP contract",
+        "task": "test",
+        "report_class_suffix": "CompositionControllerTest",
+        "requirement_source": "tasks.md:1165 (unchanged)"
+      },
+      {
+        "suite": "Composition service + four-case matrix",
+        "task": "test",
+        "report_class_suffix": "HoldingReplacementServiceTest",
+        "requirement_source": "tasks.md:1166 (unchanged)"
+      },
+      {
+        "suite": "Error envelope and precedence (P8, P11c, P11h, P11i)",
+        "task": "test",
+        "report_class_suffix": "ErrorContractTest",
+        "requirement_source": "tasks.md:1167 (unchanged); carried by CompositionErrorContractTest.java via suffix match"
+      },
+      {
+        "suite": "Version read (controller)",
+        "task": "test",
+        "report_class_suffix": "PortfolioControllerTest",
+        "requirement_source": "R2: replaces the literal *PortfolioVersionReadTest (tasks.md:1168), which does not exist anywhere in source. PortfolioControllerTest.java:53 authenticatedPortfolioReadReturnsPersistedVersion() asserts jsonPath($[0].version).value(7) via MockMvc. Required together with the next row."
+      },
+      {
+        "suite": "Version read (service mapping)",
+        "task": "test",
+        "report_class_suffix": "PortfolioServiceVersionMappingTest",
+        "requirement_source": "R2: second required carrier for the Version read row. Lines 42/58 assert persisted nonzero version and updatedAt map through to the response unchanged."
+      },
+      {
+        "suite": "Concurrency (P2, P3, P4, P11b)",
+        "task": "integrationTest",
+        "report_class_suffix": "ConcurrentCompositionIT",
+        "requirement_source": "tasks.md:1169 (unchanged)"
+      },
+      {
+        "suite": "Decimal fidelity and no-op equality (P7, P11f)",
+        "task": "integrationTest",
+        "report_class_suffix": "DecimalFidelityIT",
+        "requirement_source": "tasks.md:1170 (unchanged)"
+      },
+      {
+        "suite": "Seed delegation, identity, price regression P10",
+        "task": "integrationTest",
+        "report_class_suffix": "PortfolioSeedServiceIT",
+        "requirement_source": "tasks.md:1171 (unchanged)"
+      },
+      {
+        "suite": "Migration and repository",
+        "task": "integrationTest",
+        "report_class_suffix": "V20MigrationIT",
+        "requirement_source": "tasks.md:1172 (unchanged)"
+      }
+    ],
+    "retained_support_classes": [
+      {
+        "classname_suffix": "PortfolioResponseVersionTest",
+        "task": "test",
+        "reason": "R2: DTO/version-representation support for the Version read row (version record component present; quantity serializes as a plain decimal string via ToPlainStringSerializer). Not independently required -- appears in the manifest automatically as a normal test class; recorded here so its absence would still be visible as a discovery-reconciliation finding, not silently dropped."
+      },
+      {
+        "classname_suffix": "PortfolioVersionMappingIT",
+        "task": "integrationTest",
+        "reason": "R2: real JPA persistence-mapping proof for the Version read row (persisted version==0 / createdAt==updatedAt on a fresh save; holdings hydrate; no cross-module @ManyToOne). Same non-required-but-tracked status as above."
+      }
+    ]
+  },
+  "discovery": {
+    "review_finding": "tasks.md:1182-1186 (Discovery reconciliation)",
+    "test_file_globs": [
+      "portfolio-service/src/test/java/**/*Test.java",
+      "portfolio-service/src/test/java/**/*IT.java"
+    ],
+    "helper_class_allowlist": [],
+    "helper_class_allowlist_note": "Empty and reviewed 2026-09-03: `git diff --name-only --diff-filter=AM 95fcb68d..HEAD` over the two globs above returns 65 B1-added/modified files; every one contains at least one @Test method (verified by grep) and no abstract Test/IT base class exists anywhere under portfolio-service/src/test. Re-run that check and add an explicit entry here (with rationale) before this allowlist may gain a member -- an empty allowlist that is silently widened defeats the reconciliation."
+  },
+  "report_dirs": {
+    "test": "portfolio-service/build/test-results/test",
+    "integrationTest": "portfolio-service/build/test-results/integrationTest"
+  },
+  "staging": {
+    "bootjar_dir": "portfolio-service/build/libs",
+    "bootjar_glob": "*.jar",
+    "staged_path": ".candidate-artifacts/portfolio-service.jar"
+  },
+  "gc5": {
+    "review_finding": "R4/GC.5 (tasks.md:342-367; requirements.md Requirement 10, non-goals 10.1-10.7)",
+    "research_basis": "6-agent parallel research sweep against HEAD, 2026-09-03 -- exact file:line citations for every entry below trace to that sweep.",
+    "design_note": "The path guard flags ANY change to a forbidden zone anywhere in <B1-base>..<cut-C>, regardless of which track's commit made it. Empirically confirmed 2026-09-03: this interval contains 451 changed files, including 95 under frontend/ and genuine B2 additions under api-gateway/.../presence/ and modifications to ReadOnlyEnforcementFilter.java -- because B1 and B2 share the same trunk and merge window. A flagged forbidden-zone hit is therefore evidence requiring an explicit reviewed disposition (see reviewed_exceptions), not an automatic B1 violation and not something this tool may silently wave through -- 'the file was already on main' / 'that was B2, not B1' reasoning is exactly the loophole the review warns against auto-applying. Also empirically confirmed: B1's OWN commits (Wave 0 62237deb, Wave 4b cab2814e, Wave 5b 0b5d60d1) touched files under frontend/, but only under frontend/tests/**, frontend/pacts/**, and playwright.config.ts (e2e specs, pact contracts, test helpers) -- never frontend/src/** (production UI). That is why the allowlist below distinguishes frontend test/contract infrastructure from frontend/src/**, rather than exempting frontend/ wholesale.",
+    "always_allowed_globs": [
+      "frontend/tests/**",
+      "frontend/pacts/**",
+      "frontend/playwright.config.ts",
+      "docs/**",
+      "*.md",
+      ".kiro/**",
+      ".github/**",
+      "audit/**",
+      "scripts/tests/**",
+      "**/src/test/**",
+      "**/*Test.java",
+      "**/*IT.java",
+      ".gitignore",
+      ".dockerignore"
+    ],
+    "always_allowed_globs_note": "Test fixtures and workflow/doc files per tasks.md's path-guard description ('an explicit allowlist (test fixtures, workflow files)'). A match here is never itself a violation, but does NOT exempt a file from the content guard -- a forbidden symbol inside an allowed-path file (e.g. a *Test.java under portfolio-service referencing the presence module) must still be caught, per Task C's own negative-fixture requirement.",
+    "forbidden_paths": [
+      {
+        "non_goal": "10.1",
+        "glob": "frontend/src/**",
+        "note": "Production frontend -- picker/draft/conflict/presence UX belongs to B2. Confirmed concrete files (2026-09-03): AssetPickerModal.tsx, AssetPicker.tsx, DraftRow.tsx, draftState.ts, draftValidity.ts, ConflictPanel.tsx, useDraftPrices.ts, lib/api/assetPicker.ts, assetPickerSave.ts, components/freshness/FreshnessStatus.tsx, FreshnessDetailsPopover.tsx, ManualResetControl.tsx, lib/api/demoReset.ts, PresenceBanner.tsx, lib/hooks/usePresence.ts -- treated as a blanket glob, not an itemized list, since 10.1 is a blanket non-goal for this backend-only spec."
+      },
+      {
+        "non_goal": "10.2",
+        "glob": "api-gateway/src/main/java/com/wealth/gateway/presence/**",
+        "note": "Presence mechanism -- implemented by B2 (not B1) under this exact package: DemoPresenceService.java, PresenceController.java, DemoPresenceConfig.java, DemoPresenceProperties.java, JwtSessionIdentity.java. None exists under portfolio-service, which is correct and must stay that way."
+      },
+      {
+        "non_goal": "10.3",
+        "glob": "api-gateway/src/main/java/com/wealth/gateway/ReadOnlyEnforcementFilter.java",
+        "note": "B1 must not modify this file. Confirmed 2026-09-03 it already carries B2's method-plus-path exemption (B2_EXEMPT_WRITES) layered on the still-path-only PROTECTED_PATTERNS/MUTATING_METHODS -- that is B2's own scope, this entry exists so a FUTURE B1 change to this exact file is caught."
+      },
+      {
+        "non_goal": "10.6",
+        "glob": "portfolio-service/src/main/java/com/wealth/portfolio/Fx*.java",
+        "note": "FxRateProvider.java, FxRateUnavailableException.java"
+      },
+      {
+        "non_goal": "10.6",
+        "glob": "portfolio-service/src/main/java/com/wealth/portfolio/fx/**",
+        "note": "EcbFxRateProvider.java (refresh cron), StaticFxRateProvider.java, FxProperties.java"
+      },
+      {
+        "non_goal": "10.6",
+        "glob": "portfolio-service/src/main/java/com/wealth/portfolio/PortfolioKafkaConfig.java",
+        "note": "Market-price refresh pipeline, Spec A owned"
+      },
+      {
+        "non_goal": "10.6",
+        "glob": "portfolio-service/src/main/java/com/wealth/portfolio/PriceUpdatedEventListener.java",
+        "note": "Market-price refresh pipeline, Spec A owned"
+      },
+      {
+        "non_goal": "10.6",
+        "glob": "portfolio-service/src/main/java/com/wealth/portfolio/MarketPriceProjectionService.java",
+        "note": "Market-price refresh pipeline, Spec A owned"
+      },
+      {
+        "non_goal": "10.6",
+        "glob": "portfolio-service/src/main/java/com/wealth/portfolio/PriceProjectionSignals.java",
+        "note": "Market-price refresh pipeline, Spec A owned"
+      },
+      {
+        "non_goal": "10.6",
+        "glob": "portfolio-service/src/main/java/com/wealth/portfolio/ObservationConflictException.java",
+        "note": "Market-price refresh pipeline, Spec A owned"
+      },
+      {
+        "non_goal": "10.6",
+        "glob": "portfolio-service/src/main/java/com/wealth/portfolio/RejectedPriceEventException.java",
+        "note": "Market-price refresh pipeline, Spec A owned"
+      }
+    ],
+    "forbidden_paths_explicit_non_matches": [
+      "portfolio-service/src/main/java/com/wealth/portfolio/composition/HoldingReplacementService.java is B1's own in-scope composition-write file -- same module as the FX files above, different concern, deliberately NOT forbidden.",
+      "portfolio-service/src/main/java/com/wealth/portfolio/CacheConfig.java is unrelated general Caffeine/Redis cache config, not a presence mechanism -- deliberately NOT forbidden."
+    ],
+    "forbidden_content_symbols": [
+      {
+        "non_goal": "10.2",
+        "symbol": "com.wealth.gateway.presence",
+        "note": "Reused from api-gateway/src/test/java/com/wealth/gateway/presence/DemoPresenceSourceGuardTest.java's own forbidden-reference list."
+      },
+      {
+        "non_goal": "10.2",
+        "symbol": "DemoPresenceService"
+      },
+      {
+        "non_goal": "10.2",
+        "symbol": "JwtSessionIdentity"
+      },
+      {
+        "non_goal": "10.2",
+        "symbol": "presence:demo"
+      },
+      {
+        "non_goal": "10.2",
+        "symbol": "/api/presence/demo"
+      },
+      {
+        "non_goal": "10.2",
+        "symbol": "anotherSessionActive"
+      }
+    ],
+    "per_holding_freshness_structural_check": {
+      "non_goal": "10.4",
+      "note": "Per-holding freshness state cannot be caught by a symbol grep alone -- it is the ABSENCE of new fields on two specific record types that matters, not a forbidden name. Baseline component lists confirmed against source directly (2026-09-06, correcting the research sweep's AssetPriceFreshnessDto path, which is under a dto/ subpackage, not directly under com.wealth.portfolio):",
+      "types": [
+        {
+          "file": "portfolio-service/src/main/java/com/wealth/portfolio/dto/AssetPriceFreshnessDto.java",
+          "record_name": "AssetPriceFreshnessDto",
+          "baseline_fields": [
+            "state",
+            "oldestKnownAssetPriceObservationTimestamp",
+            "staleHoldings",
+            "unknownPriceHoldings",
+            "missingPriceHoldings"
+          ]
+        },
+        {
+          "file": "portfolio-service/src/main/java/com/wealth/portfolio/PortfolioResponse.java",
+          "record_name": "HoldingResponse",
+          "baseline_fields": [
+            "id",
+            "assetTicker",
+            "quantity"
+          ]
+        }
+      ],
+      "explicit_non_violation": "HoldingValuationRow.java is a legitimate existing internal per-row computation input, not itself a violation -- the violation would be exposing a new per-holding freshness field via HoldingResponse or AssetPriceFreshnessDto specifically.",
+      "discovery_globs": [
+        "portfolio-service/src/main/**/*.java"
+      ],
+      "type_name_pattern": "Holding|Freshness",
+      "discovery_note": "v1 checked two hand-listed record headers. Types are now DISCOVERED from source and any per-holding type absent from the baseline fails closed, because the reviewer probe added a field to the AssetHolding CLASS, which a record-header parser cannot see at all."
+    },
+    "reviewed_exceptions": [],
+    "reviewed_exceptions_note": "Empty by default. A forbidden-path hit stays a blocking finding requiring explicit review until an entry naming the exact path/commit and a reviewed rationale is added here -- this tool must never auto-populate this list.",
+    "content_scan_excluded_globs": [
+      "docs/**",
+      "**/*.md",
+      ".kiro/**",
+      "audit/**",
+      ".cursor/**",
+      "**/*.lock",
+      "**/package-lock.json",
+      "frontend/pacts/**"
+    ],
+    "content_scan_excluded_globs_note": "Deny-by-default replacement for the v1 five-extension allow-list. Only documentation/spec/lockfile locations are excluded, each because a spec doc for ANOTHER track legitimately names these symbols; every runtime-bearing extension (.lua, .yml, .properties, .tf, .gradle, Dockerfile, .sh, .ps1) is now scanned by construction rather than by enumeration."
+  },
+  "writer_inventory": {
+    "review_finding": "tasks.md 7.6/G6 (Writer_Convergence, requirements.md 8.1/8.4/8.10)",
+    "research_basis": "6-agent parallel research sweep against HEAD, 2026-09-03: confirmed only 2 @Entity classes (Portfolio, AssetHolding) and 2 JpaRepository interfaces (PortfolioRepository, AssetHoldingRepository) exist repo-wide for these tables; zero @Modifying JPQL queries anywhere; only 3 Repository.save/delete call sites in the whole src/main tree, of which only 1 (HoldingReplacementService.java:79) touches portfolios/asset_holdings (the other 2 are market-data-service's unrelated AssetPrice entity).",
+    "enumeration_rules": [
+      "Grep every src/main Java file repo-wide for: .save(, .saveAll(, .delete(, .deleteAll(, .deleteById(, JdbcTemplate/NamedParameterJdbcTemplate update(/execute( calls, and raw java.sql.Statement.executeUpdate( calls.",
+      "For each hit, confirm which table(s) it touches (via the containing SQL literal or the repository's entity type) and whether it lives in src/main (production) or src/test (fixture).",
+      "For every migration file (V1-V20), record every INSERT/UPDATE/DELETE/CREATE FUNCTION/DROP touching asset_holdings or portfolios, distinguishing a one-time historical statement from a persistent reusable function/trigger.",
+      "For scripts/ and infrastructure/, confirm whether any script connects to a database and issues DML against these tables, versus reading/validating only."
+    ],
+    "production_writers": [
+      {
+        "id": "holding-replacement-service",
+        "file": "portfolio-service/src/main/java/com/wealth/portfolio/composition/HoldingReplacementService.java",
+        "disposition": "version-participating -- defines the mechanism",
+        "mechanism": "Line 79 portfolioRepository.saveAndFlush(new Portfolio(userId)) (INSERT, new user only, version=0 via DB DEFAULT). Lines 159-169 forceParentTransition: raw jdbcTemplate.update(\"UPDATE portfolios SET version = version + 1, updated_at = ... WHERE id = ? AND version = ?\") -- the CAS itself. Lines 176-193 applyChildren: portfolio.getHoldings().clear()/addHolding() on a CascadeType.ALL/orphanRemoval=true collection, flushed at line 180 -- cascades to asset_holdings DELETE/INSERT, gated behind the successful CAS UPDATE in the same transaction."
+      },
+      {
+        "id": "composition-write-service",
+        "file": "portfolio-service/src/main/java/com/wealth/portfolio/composition/CompositionWriteService.java",
+        "disposition": "version-participating -- delegates only",
+        "mechanism": "replace() (lines 46-48) delegates 100% to HoldingReplacementService.replace(); own repository calls are read-only (portfolioRepository.findById)."
+      },
+      {
+        "id": "portfolio-seed-service",
+        "file": "portfolio-service/src/main/java/com/wealth/portfolio/seed/PortfolioSeedService.java",
+        "disposition": "version-participating -- delegates only",
+        "mechanism": "seed() (lines 127-128) delegates 100% to HoldingReplacementService.replace(); javadoc states it deliberately never writes market_prices. Caller: PortfolioSeedController, compiled-in E2E_USER_ID = 00000000-0000-0000-0000-000000000e2e (PortfolioSeedController.java:25)."
+      },
+      {
+        "id": "demo-reset-service",
+        "file": "portfolio-service/src/main/java/com/wealth/portfolio/demo/DemoResetService.java",
+        "disposition": "version-participating -- delegates only",
+        "mechanism": "reset() (lines 64-65) delegates 100% to HoldingReplacementService.replace(). Caller: DemoResetController, compiled-in DEMO_USER_ID = 00000000-0000-0000-0000-0000000d3110 (DemoPortfolioInitializer.java:42, re-exposed DemoResetService.java:34)."
+      },
+      {
+        "id": "demo-portfolio-initializer",
+        "file": "portfolio-service/src/main/java/com/wealth/portfolio/seed/DemoPortfolioInitializer.java",
+        "disposition": "version-participating -- delegates only",
+        "mechanism": "convergeInTransaction (line 164) freezes the already-observed version, then calls seedService.seed(...) -> PortfolioSeedService -> HoldingReplacementService. Its separate runRollbackProbe() path (diagnostics-only, gated by APP_DEMO_TX_DIAGNOSTICS) never calls seed() at all."
+      }
+    ],
+    "flagged_writers_outside_holding_replacement_service": [],
+    "classified_non_writers": [
+      {
+        "id": "spec-a-912-dml-probe",
+        "file": "portfolio-service/src/main/java/com/wealth/portfolio/seed/diag/SpecA912StartupTransactionDiagnostics.java",
+        "lines": "35, 108-135",
+        "mechanism": "static final String DML_PROBE_SQL = \"DELETE FROM portfolios WHERE FALSE\"; executed via raw java.sql.Statement.executeUpdate at line 114.",
+        "disposition": "NON_WRITER",
+        "rationale": "WHERE FALSE matches zero rows by construction. Only runs when APP_DEMO_TX_DIAGNOSTICS=true (operator-set, not normal prod config) and only inside DemoPortfolioInitializer.runRollbackProbe() (lines 107-140), whose transaction unconditionally calls status.setRollbackOnly() (line 126) immediately after the probe regardless of outcome -- doubly safe even independent of the zero-row predicate. Test mirror: portfolio-service/src/test/java/com/wealth/portfolio/seed/rca/SpecA912PooledSessionReadOnlyProvenanceIT.java:54 (same pattern, fixture)."
+      },
+      {
+        "id": "portfolio-replace-all-holdings-dead-code",
+        "file": "portfolio-service/src/main/java/com/wealth/portfolio/Portfolio.java",
+        "lines": "68-73",
+        "mechanism": "replaceAllHoldings(List<AssetHolding> next) -- clears the collection and re-adds via orphanRemoval, mirroring what HoldingReplacementService.applyChildren does inline.",
+        "disposition": "DEAD_CODE",
+        "rationale": "Confirmed 2026-09-03: zero call sites anywhere in the tree besides its own definition. Not a live writer since nothing invokes it; noted for source hygiene, not a Writer_Convergence risk today. Re-check if a future change starts calling it."
+      },
+      {
+        "id": "market-price-projection-service-other-table",
+        "file": "portfolio-service/src/main/java/com/wealth/portfolio/MarketPriceProjectionService.java",
+        "disposition": "OTHER_TABLE",
+        "rationale": "jdbcTemplate.update(...) calls write only market_prices/market_price_history (e.g. HISTORY_INSERT_SQL) -- confirmed 2026-09-03 it never references asset_holdings or portfolios. Matched by the writer-inventory recheck's generic write-call grep, which cannot itself distinguish target table; classified here rather than narrowing the grep, consistent with how every other hit in this policy is dispositioned by review, not by a cleverer regex."
+      },
+      {
+        "id": "market-data-service-refresh-other-entity",
+        "file": "market-data-service/src/main/java/com/wealth/market/MarketDataRefreshService.java",
+        "disposition": "OTHER_TABLE",
+        "rationale": "assetPriceRepository.save(assetPrice) -- a distinct AssetPrice JPA entity/repository, unrelated to Portfolio/AssetHolding. Confirmed 2026-09-03: zero references to asset_holdings/portfolios/AssetHolding/PortfolioRepository anywhere in market-data-service."
+      },
+      {
+        "id": "market-data-service-price-other-entity",
+        "file": "market-data-service/src/main/java/com/wealth/market/MarketPriceService.java",
+        "disposition": "OTHER_TABLE",
+        "rationale": "assetPriceRepository.save(price) -- same distinct AssetPrice entity as market-price-projection-service-other-table; unrelated to Portfolio/AssetHolding."
+      },
+      {
+        "id": "insight-service-redis-not-database",
+        "file": "insight-service/src/main/java/com/wealth/insight/MarketDataService.java",
+        "disposition": "NOT_A_DATABASE_WRITE",
+        "rationale": "redisTemplate.opsForHash().delete(...) is a Redis cache eviction, not a SQL DELETE -- matched only because the writer-inventory recheck's grep pattern for '.delete(' is table-agnostic. Confirmed 2026-09-03: insight-service has zero direct DB access to asset_holdings/portfolios; it reads portfolio data via a REST call to portfolio-service."
+      }
+    ],
+    "excluded_from_recheck": [
+      {
+        "glob": ".kiro/skills/**",
+        "reason": "Claude-skill scaffolding templates for authoring NEW Spring Boot projects (e.g. creating-springboot-projects/assets/*.java) -- illustrative boilerplate, not part of this application's source tree. Confirmed 2026-09-03."
+      }
+    ],
+    "structural_risk_notes": [
+      {
+        "id": "portfolios-on-delete-cascade-ungated",
+        "file": "portfolio-service/src/main/resources/db/migration/V1__Initial_Schema.sql",
+        "lines": "22",
+        "note": "asset_holdings.portfolio_id REFERENCES portfolios(id) ON DELETE CASCADE. Confirmed no production src/main code currently issues DELETE FROM portfolios or calls portfolioRepository.delete/deleteById anywhere -- the only DELETE-issuing call sites for either table in the whole tree are test fixtures (cleanup/isolation helpers, listed below) and the V17 repair function (R3, see unresolved). But this FK cascade itself is an unconditional, DB-level deletion mechanism with no version-CAS gate of its own: any future code path, admin script, or manual DB session that issues a portfolio-row DELETE would cascade-delete that portfolio's holdings outside HoldingReplacementService entirely, regardless of source-level guards. Not a current violation (nothing exercises it in production); documented as a structural gap for awareness, not something this checkpoint's tooling can close from source alone."
+      }
+    ],
+    "unresolved_ref": "R3 -- see top-level `unresolved` array. V17__Repair_Archive_And_Timestamp3.sql:58-156 repair_migrate_holdings(text,text,text), called only by V18:13/V19:12 as one-time historical migrations, never dropped/revoked (confirmed by full-text grep of every migration file for DROP FUNCTION/REVOKE, zero matches), remains permanently callable post-V20 with no source-level guard. Blocks writer-inventory/G6 acceptance until a separate owner-authorized live/operational decision closes it.",
+    "migration_writers": {
+      "review_finding": "R3 context -- full V1-V20 read 2026-09-03, all 20 files, no gaps",
+      "one_time_historical": [
+        "V3__Seed_Portfolio_Data.sql:16-51 -- initial portfolio + AAPL/TSLA/BTC holdings seed for user-001 (idempotent INSERT ... ON CONFLICT DO UPDATE).",
+        "V7__Fix_Portfolio_User_Id_To_UUID.sql:5-7 -- UPDATE portfolios SET user_id=<uuid> WHERE user_id='user-001' (repairs V3's plain-string seed).",
+        "V15__Reconcile_Auth_Seed_Users.sql:52-54 -- UPDATE portfolios SET user_id=<demo-uuid> WHERE user_id=<old-uuid> (idempotent via WHERE guard; no companion asset_holdings UPDATE needed since holdings have no user_id column, only portfolio_id).",
+        "V18__Migrate_Btc_To_BtcUsd.sql:13, V19__Migrate_MmNs_To_Mahindra.sql:12 -- one-time PERFORM repair_migrate_holdings(...) calls; the calls are historical, the function they invoke (V17) is not.",
+        "V20__Portfolio_Composition_Contract.sql:8-21 -- ADD COLUMN version/updated_at DEFAULT backfills (rewrite every existing portfolios row) + backfill INSERT for any user lacking a portfolio row."
+      ],
+      "persistent_reusable_functions": [
+        "V17__Repair_Archive_And_Timestamp3.sql:58-156 repair_migrate_holdings -- see R3, unresolved.",
+        "V17__Repair_Archive_And_Timestamp3.sql:39-55 repair_archive_row -- writes only to repair_archive, not asset_holdings/portfolios; out of table-scope, noted for completeness.",
+        "V17__Repair_Archive_And_Timestamp3.sql:220-345 repair_migrate_market_prices / repair_migrate_history -- write only market_prices/market_price_history, not asset_holdings/portfolios; out of table-scope."
+      ],
+      "no_drop_or_revoke_confirmed": "Full-text grep (case-insensitive) of every V*.sql file for DROP FUNCTION and REVOKE: zero matches anywhere in the 20-file migration history."
+    },
+    "test_fixture_exclusions": {
+      "note": "Bypass the versioned-replacement CAS by design, for test setup/teardown/isolation only -- all confined to src/test, never the real portfolio_service database (Testcontainers-backed or PostgresRepairHarness ephemeral per-test databases). Listed for completeness so an automated re-check has a reviewed baseline to diff against, not because any are treated as production risk.",
+      "paths": [
+        "portfolio-service/src/test/java/com/wealth/portfolio/composition/CompositionControllerIT.java",
+        "portfolio-service/src/test/java/com/wealth/portfolio/composition/CompositionWriteServiceIT.java",
+        "portfolio-service/src/test/java/com/wealth/portfolio/composition/HoldingReplacementServiceIT.java",
+        "portfolio-service/src/test/java/com/wealth/portfolio/composition/ConcurrentCompositionIT.java",
+        "portfolio-service/src/test/java/com/wealth/portfolio/composition/DecimalFidelityIT.java",
+        "portfolio-service/src/test/java/com/wealth/portfolio/seed/PortfolioSeedServiceIT.java",
+        "portfolio-service/src/test/java/com/wealth/portfolio/seed/PortfolioSeedCollisionIT.java",
+        "portfolio-service/src/test/java/com/wealth/portfolio/seed/DemoPortfolioInitializerIT.java",
+        "portfolio-service/src/test/java/com/wealth/portfolio/PortfolioHoldingsHydrationIT.java",
+        "portfolio-service/src/test/java/com/wealth/portfolio/PortfolioVersionMappingIT.java",
+        "portfolio-service/src/test/java/com/wealth/portfolio/PortfolioAnalyticsIntegrationTest.java",
+        "portfolio-service/src/test/java/com/wealth/portfolio/Wave6DashboardDataAccuracyIT.java",
+        "portfolio-service/src/test/java/com/wealth/portfolio/V20MigrationIT.java",
+        "portfolio-service/src/test/java/com/wealth/portfolio/FlywayPreservationTest.java",
+        "portfolio-service/src/test/java/com/wealth/portfolio/catalog/PostMigrationIntegrityAssertionTest.java",
+        "portfolio-service/src/test/java/com/wealth/portfolio/repair/PostgresRepairMigrationIT.java",
+        "portfolio-service/src/test/java/com/wealth/portfolio/seed/rca/SpecA912PooledSessionReadOnlyProvenanceIT.java"
+      ]
+    },
+    "ruled_out_modules": [
+      "market-data-service: writes only market_prices/market_price_history via a separate AssetPrice entity -- confirmed zero references to asset_holdings/portfolios/AssetHolding/PortfolioRepository anywhere.",
+      "insight-service: zero direct DB access to these tables -- reads portfolio data via REST call to portfolio-service.",
+      "common-dto, common-catalog, common-observability: zero references to asset_holdings/portfolios/AssetHolding/PortfolioRepository anywhere.",
+      "scripts/, infrastructure/: none connect to a database or execute INSERT/UPDATE/DELETE against these tables -- confirmed by reading all ~32 scripts/ files and ~25 infrastructure/terraform/*/scripts/ files plus a repo-wide grep for DB-access idioms. scripts/tests/test_check_b2_demo_identity.py:98 performs a database UPDATE but only in its own test fixtures, not the tool it tests."
+    ]
+  },
+  "unresolved": [
+    {
+      "id": "R3",
+      "summary": "V17__Repair_Archive_And_Timestamp3.sql:58-156 defines repair_migrate_holdings(text,text,text), a persistent SQL function that mutates asset_holdings directly (UPDATE/DELETE by row id) with no portfolios.version CAS clause. V18/V19 invoke it for historical one-time migrations only (V18:13, V19:12); no DROP FUNCTION/REVOKE exists anywhere in tracked migrations or scripts, so it remains callable in any database built from the tracked migration history. The portfolios.version column itself is added only in V20, after V17-V19 ran, so the bypass was inert at migration-execution time -- the open risk is that the function remains callable post-V20/cutover with nothing in source preventing reinvocation outside the versioned write path.",
+      "status": "unresolved -- blocks 7.6/G6 acceptance per R3. A source-only review cannot establish live database privileges or prove the function unreachable; that requires a separate owner-authorized live/operational check. Do not resolve this by editing an already-applied Flyway migration or by silently excluding it from the writer inventory."
+    }
+  ],
+  "deployables": [
+    {
+      "envelope_id": "portfolio-service",
+      "module": "portfolio-service",
+      "note": "Roots are DERIVED from the build graph and validated against any declared list; a declared list that omits a derived root is a POLICY_INVALID finding, so an envelope cannot be narrowed without that narrowing itself being reviewed."
+    },
+    {
+      "envelope_id": "api-gateway",
+      "module": "api-gateway",
+      "note": "Bound separately: its JDBC insert into portfolios is a cross-deployable effect."
+    }
+  ],
+  "envelopes": [],
+  "envelopes_note": "EMPTY BY DESIGN. An envelope record attests that every member was analyzed, classified non-runtime, or reported unsupported (correction 7). That attestation is a human act; this tooling must never author one for itself. Until a reviewer writes these records, every deployable blocks with 'no reviewed envelope record' -- which is the correct state.",
+  "operational_records": [],
+  "unverified_coverage_reviews": [],
+  "scan_exclusions": [
+    {
+      "glob": "scripts/tests/**",
+      "reason": "tooling regression corpus",
+      "kind": "TEST_CORPUS"
+    }
+  ],
+  "relevant_tables": [
+    "asset_holdings",
+    "portfolios"
+  ],
+  "non_persistence_receiver_types": [
+    "Map",
+    "HashMap",
+    "LinkedHashMap",
+    "ConcurrentHashMap",
+    "Set",
+    "HashSet",
+    "List",
+    "ArrayList",
+    "HttpHeaders",
+    "MDC",
+    "SpanExporter"
+  ],
+  "non_persistence_receiver_types_note": "KafkaTemplate is deliberately ABSENT: it is message transport, not a generic non-persistence or in-memory type. It is classified store=transport so its outbound effect is described accurately rather than being flattened into 'in-memory'.",
+  "merge_grouping": [],
+  "automatic_b1_scope_clearance": [],
+  "effect_based_automatic_clearance": [],
+  "inactive_features_note": "Configured-but-empty and UNAPPROVED (correction 10). A non-empty value here is ignored and produces a blocking POLICY_INVALID finding, so enabling one is a visible, separately-approved act.",
+  "evidence_binding_note": "Task A/B evidence is supplied as a PER-RUN input via --run-input, never committed here -- committing a post-build hash would force a commit->rebuild cycle. See the runbook.",
+  "operational_target_environment": null,
+  "dispositions": []
+}
