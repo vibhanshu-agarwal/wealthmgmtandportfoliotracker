@@ -353,7 +353,7 @@ test.describe.serial("Asset Picker — real demo presence integration (Task 9.4)
     await secondTab.close();
   });
 
-  test("an independently logged-in second session turns the next opening true, once, with one advisory banner", async ({
+  test("false → true → false across close/reopen cycles on one mounted picker", async ({
     pageA,
     api,
     sessionA,
@@ -361,31 +361,57 @@ test.describe.serial("Asset Picker — real demo presence integration (Task 9.4)
   }) => {
     const observations = recordPresenceGets(pageA);
     await gotoPortfolio(pageA);
+    expect(
+      observations.length,
+      "presence must not be queried while the picker is closed (requirements.md 6.3)",
+    ).toBe(0);
 
-    // Activate B through a completed real presence call, immediately before the
-    // opening rather than before the page load: the overlay's TTL is short by
-    // design, so the gap between B's last touch and A's read has to stay well
-    // inside it for the `true` to be deterministic rather than a race. B's own
-    // answer proves both sessions are simultaneously live in Redis.
+    // `EditHoldingsButton` keeps `AssetPicker` mounted and only toggles `open`,
+    // so every opening below shares one page, one JS context, and therefore one
+    // TanStack QueryClient. That is the point of this test: a fresh page per
+    // opening would start from an empty cache and could never show that a
+    // previous opening's `staleTime: Infinity` answer was *discarded* rather
+    // than replayed. The sentinel is re-read after the last opening to prove no
+    // reload silently reset that cache underneath the claim.
+    await pageA.evaluate(() => {
+      (window as unknown as { __presenceArcSentinel?: number }).__presenceArcSentinel = 1;
+    });
+
+    // ---- Opening 1: session A alone -> a real false, no banner ----
+    let dialog = await openPicker(pageA);
+    const firstOpening = await expectExactlyOneNewPresenceGet(observations, 0, "opening 1");
+    expect(firstOpening.status).toBe(200);
+    expect(
+      firstOpening.anotherSessionActive,
+      "a lone demo session must read false from the real endpoint",
+    ).toBe(false);
+    await expect(dialog.getByText(BANNER_TEXT)).toHaveCount(0);
+    await closePicker(pageA);
+
+    // ---- Opening 2: an independently logged-in session B is active -> a real true ----
+    // B is touched immediately before this opening rather than earlier: the
+    // overlay's TTL is short by design, so the gap between B's last touch and
+    // A's read has to stay well inside it for `true` to be deterministic rather
+    // than a race. B's own answer proves both sessions are live at once.
     expect(
       await presenceProbe(api, sessionB),
       "session B's own real presence read must see session A active",
     ).toBe(true);
 
-    const dialog = await openPicker(pageA);
-    const observation = await expectExactlyOneNewPresenceGet(
+    const beforeSecond = observations.length;
+    dialog = await openPicker(pageA);
+    const secondOpening = await expectExactlyOneNewPresenceGet(
       observations,
-      0,
-      "with a second session active",
+      beforeSecond,
+      "opening 2, second session active",
     );
-
-    expect(observation.status).toBe(200);
+    expect(secondOpening.status).toBe(200);
     expect(
-      observation.anotherSessionActive,
-      "with an independently logged-in session active, the real endpoint must answer true",
+      secondOpening.anotherSessionActive,
+      "a reopen on the same mounted picker must issue its own query rather than " +
+        "replaying opening 1's cached false",
     ).toBe(true);
-
-    // Requirement 6.4 — exactly one persistent advisory banner, consumed from
+    // Requirement 6.4 - exactly one persistent advisory banner, consumed from
     // the response above rather than from a retained earlier assertion.
     await expect(dialog.getByText(BANNER_TEXT)).toHaveCount(1);
 
@@ -408,32 +434,23 @@ test.describe.serial("Asset Picker — real demo presence integration (Task 9.4)
     await heldCheckbox.click();
     await expect(heldCheckbox).toHaveAttribute("aria-checked", "false");
 
-    // Navigation to review still works — but nothing is ever submitted.
+    // Navigation to review still works - but nothing is ever submitted.
     await dialog.getByRole("button", { name: "Review changes" }).click();
     await expect(dialog.getByRole("button", { name: "Save changes" })).toBeVisible({
       timeout: 60_000,
     });
 
-    // Still exactly one presence GET for this opening, and still one banner.
     expect(
-      observations.length,
+      observations.length - beforeSecond,
       "editing and navigating to review must not re-query presence",
     ).toBe(1);
     await expect(dialog.getByText(BANNER_TEXT)).toHaveCount(1);
     expect(putCount, "presence must never trigger a holdings write").toBe(0);
-  });
+    await closePicker(pageA);
 
-  test("after the other session stops and its TTL elapses, the next opening reads false again", async ({
-    pageA,
-    api,
-    sessionA,
-  }) => {
-    // Session B is no longer touched by anything from here on — closing a tab
-    // is not a release, so the only thing that ends it is the TTL sweep.
+    // ---- Opening 3: B is never touched again and ages out -> a real false ----
+    // Closing the picker released nothing; only the TTL sweep ends session B.
     await new Promise((resolve) => setTimeout(resolve, EXPIRY_WAIT_MS));
-
-    // Setup probe (not browser traffic): confirm the sweep has actually taken
-    // B out before asserting the UI consequence.
     await expect
       .poll(() => presenceProbe(api, sessionA), {
         timeout: (TTL_SECONDS + 15) * 1_000,
@@ -442,24 +459,35 @@ test.describe.serial("Asset Picker — real demo presence integration (Task 9.4)
       })
       .toBe(false);
 
-    const observations = recordPresenceGets(pageA);
-    await gotoPortfolio(pageA);
-
-    const dialog = await openPicker(pageA);
-    const observation = await expectExactlyOneNewPresenceGet(
+    const beforeThird = observations.length;
+    dialog = await openPicker(pageA);
+    const thirdOpening = await expectExactlyOneNewPresenceGet(
       observations,
-      0,
-      "after the other session expired",
+      beforeThird,
+      "opening 3, after the other session expired",
     );
-
-    expect(observation.status).toBe(200);
+    expect(thirdOpening.status).toBe(200);
     expect(
-      observation.anotherSessionActive,
-      "once the other session has aged out, a later opening must read false again — " +
-        "the previous opening's true must not be served from cache",
+      thirdOpening.anotherSessionActive,
+      "once the other session has aged out, a later opening on the SAME mounted picker " +
+        "must read false again - opening 2's cached true must not be replayed",
     ).toBe(false);
     await expect(dialog.getByText(BANNER_TEXT)).toHaveCount(0);
-
     await closePicker(pageA);
+
+    // All three openings ran in one JS context, so the cache that had to be
+    // superseded is the same cache that served opening 2's true.
+    expect(
+      await pageA.evaluate(
+        () => (window as unknown as { __presenceArcSentinel?: number }).__presenceArcSentinel,
+      ),
+      "the page must not have reloaded between openings - a reload would reset the " +
+        "QueryClient and void the cache-discard claim",
+    ).toBe(1);
+
+    expect(
+      observations.length,
+      "three openings on one mounted picker means exactly three presence GETs in total",
+    ).toBe(3);
   });
 });

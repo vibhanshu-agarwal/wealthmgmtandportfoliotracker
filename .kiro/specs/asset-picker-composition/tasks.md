@@ -3969,10 +3969,13 @@ class, not by enumeration" through "operational signals only") deliberately keep
   evidence on this branch: dedicated `frontend/playwright.presence.real.config.ts` +
   `frontend/tests/e2e/asset-picker-presence.integration.spec.ts` against Docker Compose with the
   `docker-compose.presence-e2e.yml` overlay, using two independently issued demo logins (never one
-  storage state copied twice) and no route fulfillment for `/api/presence/demo` — a lone session
-  and a same-token second tab both read a real `false` with no banner, an independently logged-in
-  second session yields a real `true` and exactly one advisory banner, and a later opening reads
-  `false` again once that session ages out of the ZSET.
+  storage state copied twice) and no route fulfillment for `/api/presence/demo`. The
+  `false → true → false` arc runs as **close/reopen cycles on one mounted picker** — one page, one
+  JS context, one TanStack `QueryClient`, asserted by a window sentinel re-read after the last
+  opening — so the closing `false` demonstrates that the previous opening's `staleTime: Infinity`
+  `true` was *discarded* rather than replayed, which a fresh page per opening could not show
+  (review round 1 finding). Exactly one real GET per opening, three in total. A same-token second
+  tab reads a real `false` too (two tabs, one session).
   **One reproduced defect, fixed here:** `AssetPicker` advanced its presence key during draft
   seeding, which lands at least one render after the modal opens, so every *first* opening issued
   **two** `GET /api/presence/demo` calls — cold and warm catalog alike — against this task's own

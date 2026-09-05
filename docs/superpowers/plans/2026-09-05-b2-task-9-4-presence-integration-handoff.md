@@ -91,17 +91,35 @@ Real gateway, real Redis, real demo logins. **Nothing fulfills or mocks
 `/api/presence/demo`** — every boolean asserted is read out of an actual response
 body, and each banner assertion follows the response that caused it.
 
-| Leg | Real response | UI |
-|---|---|---|
-| Lone demo session opens the picker | `anotherSessionActive: false` | no banner |
-| Second tab, **same issued token** | `false` | no banner (two tabs = one session, req. 6.1) |
-| Independently logged-in session B active | `true` | exactly **one** advisory banner |
-| Later opening after B ages out of the ZSET | `false` | no banner |
+The `false → true → false` arc runs as **close/reopen cycles on a single
+mounted picker** — one page, one navigation, one JS context, therefore one
+TanStack `QueryClient`. `EditHoldingsButton` keeps `AssetPicker` mounted and only
+toggles `open`, so these are true reopens, not remounts.
 
-Per opening: **exactly one** browser `GET`, asserted as one new request followed by
-a 3s quiet window, then re-asserted. `OPTIONS` preflight is excluded by matching on
-the GET method. Session B is driven through an `APIRequestContext`, which never
-touches the page, so deliberate setup probes cannot inflate a per-opening count.
+| Opening (same page, same mount) | Real response | UI | New GETs |
+|---|---|---|---|
+| 1 — session A alone | `anotherSessionActive: false` | no banner | 1 |
+| 2 — independently logged-in session B active | `true` | exactly **one** advisory banner | 1 |
+| 3 — after B ages out of the ZSET | `false` | no banner | 1 |
+| *(separate test)* second tab, **same issued token** | `false` | no banner (two tabs = one session, req. 6.1) | 1 |
+
+Three openings, **three** presence GETs in total. Each is asserted as exactly one
+new request followed by a 3s quiet window, then re-asserted. `OPTIONS` preflight is
+excluded by matching on the GET method. Session B is driven through an
+`APIRequestContext`, which never touches the page, so deliberate setup probes
+cannot inflate a per-opening count.
+
+Because all three openings share one `QueryClient`, opening 3's `false` shows that
+opening 2's `staleTime: Infinity` `true` was **discarded**, not replayed. A window
+sentinel is set after the single page load and re-read after the last opening, so a
+silent reload cannot quietly reset the cache and void that claim.
+
+**The discriminating power of that arc was verified by mutation, not assumed.**
+Replacing the per-opening key with a constant (`usePresence(token, enabled, 0)`) —
+the exact shape of a "cached answer replayed" regression — makes the arc fail at
+opening 2 with *"expected the opening to issue its presence GET"*, because the
+opening issues **zero** GETs and serves opening 1's cached `false`. The source was
+then restored and confirmed byte-identical to the committed version.
 
 Advisory behaviour was verified with the banner showing: a held row unchecks, the
 Review step is reachable, presence is not re-queried, and
@@ -170,7 +188,7 @@ All commands below were executed. Results as observed:
 | `npx tsc --noEmit` | clean |
 | `npx tsc --noEmit -p tests/e2e/tsconfig.e2e-test.json` | **1 error, pre-existing** — see below |
 | `npx eslint` on the five changed/added TS files | clean |
-| `npx playwright test --config playwright.presence.real.config.ts` | **3 passed** (1.6m) |
+| `npx playwright test --config playwright.presence.real.config.ts` | **2 passed** (2.1m) — restructured into 2 tests in review round 1 |
 | `./gradlew.bat --no-daemon :api-gateway:integrationTest --tests '…DemoPresenceIntegrationTest'` | **13 tests, 0 failures, 0 skipped** |
 
 ### Failed and superseded runs, reported rather than hidden
@@ -242,6 +260,10 @@ validate a published PR.
 - Local only. Not deployed, not exercised in CI, no Production E2E, no live probe.
 - Each of Tasks 9.1, 9.3 and 9.4 was proved on its own stack run; there is still no
   *combined* assembled-stack proof covering them together.
+- Review round 1 (Codex, read-only) raised one P2: the arc originally ran with a
+  fresh browser context per test, so the closing `false` could not prove a cached
+  `true` had been discarded. Corrected as described above, and the correction was
+  mutation-checked rather than merely re-run green.
 - The `true` leg depends on session B being touched inside the TTL. It is touched
   immediately before the opening to keep that deterministic, but the margin is a
   short TTL by construction — a heavily loaded machine could narrow it.
