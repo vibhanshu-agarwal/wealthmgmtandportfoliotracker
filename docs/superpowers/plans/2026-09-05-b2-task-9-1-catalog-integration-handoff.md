@@ -9,10 +9,40 @@ the kickoff note's authorization boundary
 (`docs/superpowers/plans/2026-09-05-b2-task-9-1-claude-kickoff.md`, authored in
 Codex's worktree).
 
+## Review round (source/docs review, no independent test run by the reviewer)
+
+The reviewer read source and documentation only and flagged four gaps, all
+accepted as valid and addressed:
+
+1. **Revalidation assertion checked the UI before the second response actually
+   completed, and never compared the sent `If-None-Match` against the first
+   `ETag`.** Fixed — see "Real-stack browser proof" below for the exact new
+   assertion order and a re-verified RED/GREEN pair against the live stack.
+2. **The spec claimed `docker compose up -d` needed "nothing else," but the
+   Golden-State seeder needs a real `INTERNAL_API_KEY` and an explicit seed
+   step this config doesn't run itself.** Fixed — the exact reproducible
+   sequence (env vars, seeding command, working directory) is now in both the
+   spec's header comment and this note.
+3. **The full-suite flake claim ("resource contention from competing builds")
+   was asserted on the strength of one isolated retry passing, which doesn't
+   establish what caused the full-run failure.** The reviewer was right that
+   this wasn't established — re-investigated properly with a controlled `C:`
+   (clean, fast disk) vs. `D:` (this worktree) comparison; see "Full validation
+   run" below for the actual finding, which is narrower and more honest than
+   the original claim.
+4. **The branch has five (now six, after this round) commits, not four, as an
+   earlier version of this note stated.** Corrected below.
+
+The reviewer's note is accurate: no production verification is established by
+this change, and none was claimed.
+
 ## Branch and baseline
 
-- Branch: `claude/b2-task-9-1-real-catalog-integration`, currently 4 commits ahead
-  of `origin/main` at `4f1a0428`.
+- Branch: `claude/b2-task-9-1-real-catalog-integration`, currently **6 commits**
+  ahead of `origin/main` at `4f1a0428` (an earlier version of this note said 4 —
+  that count was already stale by the time it was written, since a 5th
+  documentation-only commit landed immediately after it, and a 6th landed
+  addressing this review round; corrected here).
 - Originally branched from `origin/main` at `c8fc407c` (PR #226, Task 9.6's
   fixture), and initially also carried a cherry-picked, previously-authored,
   previously-unpushed commit correcting Task 9.6's master-plan status from "open
@@ -21,10 +51,11 @@ Codex's worktree).
   independently pushed and merged upstream via PR #227 while this task's work was
   in progress. `git rebase origin/main` was then run on this (unpushed, so safe to
   rewrite) branch; it automatically detected and dropped the now-duplicate
-  cherry-pick ("skipped previously applied commit"), leaving exactly the four
-  Task 9.1 commits below rebased cleanly onto the current `origin/main`. The
-  master-plan status propagation guard was re-run against the final
-  `origin/main`/`HEAD` pair after the rebase and still passes.
+  cherry-pick ("skipped previously applied commit"), leaving the four Task 9.1
+  commits rebased cleanly onto the current `origin/main`, followed by two more
+  commits addressing this review round (see below). The master-plan status
+  propagation guard was re-run against the final `origin/main`/`HEAD` pair after
+  the rebase and still passes.
 - Working tree was clean apart from two pre-existing untracked plan docs, which
   were left untouched throughout: `docs/superpowers/plans/2026-09-04-b1-rc-pr222-session-handoff.md`
   and `docs/superpowers/plans/2026-09-05-b2-task-9-6-demo-authenticated-playwright-fixture.md`.
@@ -117,61 +148,90 @@ Task 9.9 owns any future CI wiring). Uses the ordinary Golden-State E2E identity
 (`helpers/browser-auth.ts` / `helpers/api.ts`) — Task 9.6's demo identity is not
 needed for a read-only catalog path. No `page.route` mocking anywhere in the spec.
 
-**Local stack used:** `docker compose up -d --build` (repository root
-`docker-compose.yml`), with `INTERNAL_API_KEY` set (a throwaway local value) so
-the Golden-State seeder could run, and Redis's host port remapped
-`16379:6379` via a local, untracked compose override (`services.redis.ports:
-!override`) — this machine's own `optimus-redis` container (an unrelated project)
-already held the default `6379`; nothing about that container was touched. Golden
-State was seeded via `frontend/tests/e2e/global-setup.ts` run standalone through
-`ts-node` (the same script CI's Playwright `globalSetup` uses).
+**Reproducible fresh-stack setup** (this is the exact recipe now written into both
+the spec's own header comment and the dedicated config's comment — a first pass
+of this note claimed `docker compose up -d` needed "nothing else," which was
+wrong: the Golden-State seeder needs a real `INTERNAL_API_KEY`, the config has no
+`globalSetup` to run it, and this host specifically had a port conflict). From the
+repository root, then from `frontend/`:
+
+```powershell
+$env:INTERNAL_API_KEY = "<any non-empty local value>"
+docker compose up -d --build
+# Wait for every service healthy: docker compose ps
+# This host's Docker daemon already had an unrelated project's `optimus-redis`
+# container bound to the default host port 6379 — worked around with a local,
+# untracked compose override (services.redis.ports: !override, replacing the
+# port entirely — a plain merge-append keeps both and still conflicts) passed as
+# an extra -f to both `build` and `up`. Not needed on a host without that
+# conflict; not part of this diff.
+
+cd frontend
+$env:INTERNAL_API_KEY = "<the same value as above>"
+$env:NEXT_PUBLIC_API_BASE_URL = "http://localhost:8080"
+npx ts-node --compiler-options '{"module":"commonjs"}' tests/e2e/global-setup.ts
+
+npx playwright test --config playwright.asset-catalog.real.config.ts --reporter=list
+```
 
 **What the spec proved, actually run (not assumed):**
 
 1. Navigated to `/portfolio` as the real E2E user, opened "Edit Holdings" — the
    real catalog rendered (checked against a live, sampled ticker from
-   `config/seed-tickers.json`, never a hardcoded ticker or count).
-2. The first `GET /api/assets` returned `200` with an `ETag` on the wire (a wire
-   sanity check only — Playwright's own response inspection bypasses the page's
-   CORS-enforced Headers API, so it can't by itself prove JS-readability; see next
-   point for the proof that actually matters).
-3. Closed the modal, fast-forwarded the page's own clock 61 real-seconds-equivalent
+   `config/seed-tickers.json`, never a hardcoded ticker or count). The first
+   `GET /api/assets` returned `200` with an `ETag` on the wire, and the request
+   carried no `If-None-Match` (nothing cached yet).
+2. Closed the modal, fast-forwarded the page's own clock 61 real-seconds-equivalent
    past `useCatalog`'s 60s `staleTime` (`page.clock.fastForward`, installed only
    after the page had already finished its real login/render — not a real 61s
-   sleep, not a virtualized clock from page load), reopened the modal: the second
-   `GET /api/assets` carried a real `If-None-Match` and received a genuine `304`,
-   with the catalog still rendered from the client's retained cache. **This
-   assertion is the actual cross-origin proof**: a `304` here is only reachable if
-   `fetchCatalog`'s own `response.headers.get("ETag")` — the browser's in-page JS,
-   subject to full CORS enforcement — really did read a non-null `ETag` on the
-   first response and really did get to send `If-None-Match` past the gateway's
-   preflight on the second.
-4. **RED/GREEN captured directly, not assumed:** reverted `SecurityConfig`'s two
-   new lines, rebuilt only the `api-gateway` image, reran the exact same spec
-   against the exact same running stack — it failed exactly as predicted (`304`
-   expected, got `200`, because the browser never captured a usable `ETag` to
-   revalidate with). Restored the fix, rebuilt, reran — passed again. Full local
-   command sequence:
+   sleep, not a virtualized clock from page load), reopened the modal, and — this
+   is the review-round tightening — **waited for the second `GET /api/assets`
+   response to actually land before touching the UI again**: asserted its
+   `If-None-Match` request header equals the *exact* `ETag` string the first
+   response returned (not just "some 304"), then asserted the status is a genuine
+   `304`. Only after that did it re-check the Browse checkbox is still visible and
+   that no `role="alert"` is present — proving `fetchCatalog`'s cache-retention
+   held after the revalidation actually completed, not merely that
+   stale-while-revalidate was still showing the first response's data. A
+   first-round version of this test checked the checkbox *before* waiting on the
+   second response and never compared the `If-None-Match` value at all — code
+   review caught both gaps; fixed and re-verified (see below).
+3. **This `If-None-Match`-equals-first-`ETag` assertion is the actual cross-origin
+   proof**: it is only satisfiable if `fetchCatalog`'s own
+   `response.headers.get("ETag")` — the browser's in-page JS, subject to full CORS
+   enforcement — really did read that exact `ETag` value across the CORS boundary
+   on the first response and really did get to send it as `If-None-Match` past the
+   gateway's preflight on the second. Playwright's own response/request header
+   inspection runs at the CDP Network layer and does *not* go through the page's
+   CORS-enforced Headers API, so it cannot substitute for this — the spec's header
+   comment says so explicitly now, so a future reader doesn't mistake the wire-level
+   sanity check for the actual proof.
+4. **RED/GREEN captured directly, twice** (once before this review round's test
+   tightening, once after, to confirm the tightened assertions still exercise the
+   same real defect): reverted `SecurityConfig`'s two new lines, rebuilt only the
+   `api-gateway` image, reran the exact same spec against the exact same running
+   stack. Before tightening: failed with `304` expected, `200` received. After
+   tightening: fails one assertion earlier and more precisely — `If-None-Match`
+   expected the real `ETag` string, received `null` — directly showing the browser
+   never captured a usable `ETag` to revalidate with at all. Restored the fix,
+   rebuilt, reran both times — passed again. Full local command sequence for the
+   post-tightening round:
 
    ```powershell
-   docker compose up -d --build
-   # (redis port conflict with an unrelated container on this host → local override,
-   #  see docker-compose.port-override.yml pattern above; not part of the diff)
-   $env:INTERNAL_API_KEY = "local-e2e-internal-key-2026"
-   npx ts-node --compiler-options '{"module":"commonjs"}' tests/e2e/global-setup.ts
    npx playwright test --config playwright.asset-catalog.real.config.ts --reporter=list
    # → 1 passed
    # (revert SecurityConfig, docker compose build api-gateway, docker compose up -d api-gateway)
    npx playwright test --config playwright.asset-catalog.real.config.ts --reporter=list
-   # → 1 failed: expected 304, got 200
+   # → 1 failed: "the second request must revalidate with the exact ETag the first
+   #   response returned" — expected the real ETag string, received null
    # (restore SecurityConfig, rebuild, restart)
    npx playwright test --config playwright.asset-catalog.real.config.ts --reporter=list
    # → 1 passed
    docker compose down
    ```
 
-5. The local stack was torn down (`docker compose down`) after evidence was
-   captured — nothing was left running.
+5. The local stack was torn down (`docker compose down`) after each round of
+   evidence was captured — nothing was left running between or after.
 
 No credentials, tokens, or response bodies beyond ticker symbols are reproduced
 above.
@@ -179,13 +239,37 @@ above.
 ## Full validation run (this branch, after all fixes)
 
 - `npx vitest run src/lib/api/assetPicker.test.ts src/lib/hooks/useCatalog.test.tsx src/components/asset-picker` → 22 files / 168 tests passed
-- `npm test` (full frontend suite, from `frontend/`) → 570 tests, 569 passed / 1
-  failed on the full run (`capture-suppression.test.ts`'s
-  `installGatewaySessionInitScript` test, a `5000ms` timeout); re-run in isolation
-  → passed in `1146ms`. Confirmed unrelated to this change (untouched file, no
-  dependency on anything edited here) and non-reproducing — a resource-contention
-  flake from the earlier heavy Gradle/Docker activity in the same session, not a
-  regression.
+- `npm test` (full frontend suite, from `frontend/`, run on this branch's
+  worktree at `D:/…/wealthmgmtandportfoliotracker-claude`) → 570 tests, 569
+  passed / 1 failed (`capture-suppression.test.ts`'s
+  `installGatewaySessionInitScript` test, a `5000ms` timeout). **A first pass of
+  this note claimed this was "a resource-contention flake from the earlier heavy
+  Gradle/Docker activity" on the strength of one isolated retry passing — code
+  review correctly rejected that as unestablished** (an isolated pass doesn't show
+  what actually made the full run fail, and I hadn't re-run the full suite with
+  no competing builds at all before writing that). Re-ran `npm test` again with
+  nothing else running (no Docker containers, no Gradle process) — **it failed
+  the same way again**, directly disproving the original "competing builds"
+  explanation. To isolate the real variable, built two disposable, detached
+  worktrees on `C:\temp\` (fast NVMe, vs. this repo's `D:` SATA HDD) and ran the
+  identical full suite in
+  each: `origin/main` unmodified → **567/567 passed**; this branch's exact code
+  (same commit) → **570/570 passed**. Both clean, on the same machine, in the
+  same session. That is a controlled, direct comparison: identical code passes
+  fully on `C:`, and the one file involved
+  (`tests/e2e/helpers/__tests__/capture-suppression.test.ts`) is untouched by
+  this diff and has no dependency on anything this task edited. **Conclusion,
+  properly established this time**: the failure is specific to running the
+  Vitest suite from this `D:` worktree in this session — not caused by this
+  change, and not shown to be a pre-existing defect in the test itself either,
+  since it did not reproduce at all on a clean environment with identical code.
+  I have not pinned the exact OS-level mechanism (disk I/O, leftover
+  process/scheduler pressure from the earlier Docker/Gradle activity on this
+  same drive, or something else `D:`-specific) and am not claiming one. The
+  authoritative full-suite result for this task's own code is the clean
+  **570/570 pass on `C:`**; the `D:`-specific failure is reported here as an
+  observed, unresolved environment artifact, not asserted as fixed or as
+  provably unrelated to disk speed.
 - `npx tsc --noEmit` (frontend) → clean, no errors.
 - `npx tsc -p tests/e2e/tsconfig.e2e-test.json --noEmit` → exactly the recorded
   baseline exception (`TS1343` at `global-setup-entrypoint.test.ts:23`), nothing
@@ -222,9 +306,12 @@ frontend/tests/e2e/asset-catalog.integration.spec.ts                       (new 
 - No production probe, deploy, push, PR, or workflow dispatch has been performed.
   All of that requires separate, explicit owner authorization per the kickoff
   note's boundary — this note deliberately does not request or assume it.
-- The `capture-suppression.test.ts` full-suite flake noted above was investigated
-  enough to confirm it is pre-existing and unrelated, not fixed (out of scope for
-  this task; flagged here for visibility, not left silently unmentioned).
+- The `capture-suppression.test.ts` full-suite failure on this `D:` worktree was
+  investigated with a controlled comparison (see above) that rules out this
+  diff's code as the cause, but does not pin the actual environmental mechanism
+  and is not fixed — out of scope for this task (the file is untouched by this
+  change) and flagged here as an open, unresolved observation, not asserted as
+  understood or resolved.
 
 ## Requested next step
 

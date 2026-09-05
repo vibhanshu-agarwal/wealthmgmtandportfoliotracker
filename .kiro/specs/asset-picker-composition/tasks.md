@@ -3915,20 +3915,28 @@ class, not by enumeration" through "operational signals only") deliberately keep
      so a *background* revalidation failure with an already-held catalog stays silent and
      self-heals, unchanged, per the existing staleTime policy. Regression:
      `AssetPicker.test.tsx` "catalog failure (Task 9.1)" (RED before, GREEN after; full targeted
-     Vitest run and `npm test` clean, one unrelated pre-existing full-suite flake in
-     `capture-suppression.test.ts` confirmed to pass in isolation).
+     Vitest run and `npm test` clean on a separate, clean worktree on a fast disk (see the handoff
+     note's review-round section for why "clean" needed a controlled comparison, not an isolated
+     retry, to actually establish).
   A dedicated real-stack browser spec, `tests/e2e/asset-catalog.integration.spec.ts` (own config
   `playwright.asset-catalog.real.config.ts`, local-only — not wired into any CI workflow; Task 9.9
-  owns that), exercises the actual browser against a local Docker Compose stack (`docker compose up
-  -d`) with distinct frontend (`:3000`) and gateway (`:8080`) origins: authenticated 200 with a
-  cross-origin-readable `ETag`, then (via `page.clock.fastForward` past `useCatalog`'s 60s
-  `staleTime`, not a real 61s wait or a Node substitute) a real `If-None-Match` revalidation
-  receiving a genuine `304` with the catalog retained. **Run and confirmed on this branch**: the
-  spec PASSED against the fixed gateway, then was re-run against the pre-fix `SecurityConfig`
-  (temporarily reverted, image rebuilt) and FAILED exactly as expected (`304` expected, got `200`,
-  because the browser's own `fetchCatalog` never captured a real `ETag` to revalidate with) —
-  RED/GREEN both captured directly, not assumed. The fix was then restored, rebuilt, and
-  reconfirmed GREEN. Full command sequence and evidence in
+  owns that; both files' header comments give the exact reproducible stack-up/seed/run sequence,
+  including the real `INTERNAL_API_KEY` and explicit `global-setup.ts` seed step a first pass of
+  this work incorrectly omitted), exercises the actual browser against a local Docker Compose stack
+  with distinct frontend (`:3000`) and gateway (`:8080`) origins, with zero `page.route` mocking:
+  an initial 200 sending no `If-None-Match` (nothing cached yet); then, after
+  `page.clock.fastForward` past `useCatalog`'s 60s `staleTime` (not a real 61s wait or a Node
+  substitute) and reopening, waits for the second request to actually complete before touching the
+  UI again, asserts its `If-None-Match` equals the exact first-response `ETag` (not just "some
+  304"), asserts the `304` itself, and only then re-confirms Browse is still populated with no
+  `role="alert"` visible. **Run and confirmed on this branch, including after a code-review pass
+  tightened these assertions**: the spec PASSED against the fixed gateway, then was re-run against
+  the pre-fix `SecurityConfig` (temporarily reverted, image rebuilt) and FAILED — precisely at the
+  `If-None-Match`/`ETag` comparison (expected the real `ETag` string, received `null`), showing
+  directly that the browser never captured a usable `ETag` cross-origin at all. RED/GREEN both
+  captured directly, not assumed, before and after the tightening. The fix was then restored,
+  rebuilt, and reconfirmed GREEN. Full command sequence and evidence — including the honest,
+  narrower full-suite-flake finding from the review round — in
   `docs/superpowers/plans/2026-09-05-b2-task-9-1-catalog-integration-handoff.md`.
   _Requirements: 2.1_
 - [ ] **9.2 Wire Task 1.13's composition-save mutation to the real `PUT /api/portfolio/holdings`** —
