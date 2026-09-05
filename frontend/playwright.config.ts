@@ -60,6 +60,9 @@ export default defineConfig({
         // presence TTL is shortened by docker-compose.presence-e2e.yml. Local-only:
         // run via its own playwright.presence.real.config.ts.
         /asset-picker-presence\.integration\.spec\.ts$/,
+        // B2 Task 9.5 — real portfolio assetPriceFreshness proof. Local-only:
+        // run via its own playwright.asset-freshness.real.config.ts.
+        /asset-price-freshness\.integration\.spec\.ts$/,
       ],
       use: {
         ...devices["Desktop Chrome"],

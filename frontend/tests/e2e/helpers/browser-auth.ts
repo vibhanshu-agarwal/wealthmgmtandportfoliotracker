@@ -1,8 +1,14 @@
 import type { APIRequestContext, Page } from "@playwright/test";
 import { e2eLoginCredentials } from "./e2e-credentials";
 
-const GATEWAY_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
 const AUTH_STORAGE_KEY = "wmpt.auth.session";
+const DEFAULT_GATEWAY_URL = "http://localhost:8080";
+
+function gatewayUrl(): string {
+  // Read at call time so vi.resetModules() + env mutation in helper unit tests
+  // (and parallel suite env changes) cannot leave a stale module-level URL.
+  return process.env.NEXT_PUBLIC_API_BASE_URL ?? DEFAULT_GATEWAY_URL;
+}
 
 type SessionPayload = {
   token: string;
@@ -26,7 +32,7 @@ export async function installGatewaySessionInitScript(
 ): Promise<void> {
   void request;
   const credentials = e2eLoginCredentials();
-  const res = await fetch(`${GATEWAY_URL}/api/auth/login`, {
+  const res = await fetch(`${gatewayUrl()}/api/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(credentials),

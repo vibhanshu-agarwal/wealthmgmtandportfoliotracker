@@ -2,16 +2,22 @@ import type { APIRequestContext } from "@playwright/test";
 import { mintJwt } from "./auth";
 import { e2eLoginCredentials } from "./e2e-credentials";
 
-const GATEWAY_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
+const DEFAULT_GATEWAY_URL = "http://localhost:8080";
 const REQUIRED_TICKERS = ["AAPL", "BTC-USD"] as const;
+
+function gatewayUrl(): string {
+  // Call-time read — same contract as browser-auth / demo-auth; required by
+  // capture-suppression helper tests that set NEXT_PUBLIC_API_BASE_URL per case.
+  return process.env.NEXT_PUBLIC_API_BASE_URL ?? DEFAULT_GATEWAY_URL;
+}
 
 /**
  * Resolves the E2E userId by calling API Gateway login.
  * A failed login fails the test — there is no fallback identity.
  */
-async function resolveUserId(): Promise<string> {
+async function resolveUserId(baseUrl: string): Promise<string> {
   const credentials = e2eLoginCredentials();
-  const res = await fetch(`${GATEWAY_URL}/api/auth/login`, {
+  const res = await fetch(`${baseUrl}/api/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(credentials),
@@ -41,10 +47,13 @@ export async function ensurePortfolioWithHoldings(
   request: APIRequestContext,
   token?: string,
 ): Promise<string> {
-  const userId = await resolveUserId();
+  // Capture once so login and portfolio GET cannot split across two gateway bases
+  // if NEXT_PUBLIC_API_BASE_URL changes mid-operation.
+  const baseUrl = gatewayUrl();
+  const userId = await resolveUserId(baseUrl);
   const bearerToken = token ?? mintJwt(userId);
 
-  const listRes = await request.get(`${GATEWAY_URL}/api/portfolio`, {
+  const listRes = await request.get(`${baseUrl}/api/portfolio`, {
     headers: { Authorization: `Bearer ${bearerToken}` },
   });
 

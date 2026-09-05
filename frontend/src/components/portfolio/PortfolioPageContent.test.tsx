@@ -23,7 +23,12 @@ vi.mock("@/lib/hooks/useAuthenticatedUserId", () => ({
 
 const mockUsePortfolio = vi.fn();
 const mockUsePortfolioSummary = vi.fn<
-  () => { data: PortfolioSummaryDTO | undefined; isLoading: boolean }
+  () => {
+    data: PortfolioSummaryDTO | undefined;
+    isLoading: boolean;
+    isError?: boolean;
+    error?: Error | null;
+  }
 >(() => ({ data: undefined, isLoading: false }));
 vi.mock("@/lib/hooks/usePortfolio", () => ({
   usePortfolio: () => mockUsePortfolio(),
@@ -241,13 +246,13 @@ describe("PortfolioPageContent — manual reset control (Tasks 6.1/6.2, independ
   });
 });
 
-describe("PortfolioPageContent — freshness status (Task 1.16/1.18)", () => {
+describe("PortfolioPageContent — freshness status (Task 1.16/1.18 / 9.5)", () => {
   afterEach(() => {
     vi.unstubAllEnvs();
     vi.clearAllMocks();
   });
 
-  it("renders the freshness status from usePortfolioSummary's assetPriceFreshness", () => {
+  function renderAuthenticatedPage() {
     mockUseAuthSession.mockReturnValue(authenticatedSession);
     mockUseAuthenticatedUserId.mockReturnValue({
       userId: "u1",
@@ -256,6 +261,16 @@ describe("PortfolioPageContent — freshness status (Task 1.16/1.18)", () => {
       error: null,
     });
     stubPortfolio();
+    stubNetwork();
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    return render(
+      <QueryClientProvider client={client}>
+        <PortfolioPageContent />
+      </QueryClientProvider>,
+    );
+  }
+
+  it("renders the freshness status from usePortfolioSummary's assetPriceFreshness", () => {
     mockUsePortfolioSummary.mockReturnValue({
       data: {
         userId: "u1",
@@ -272,6 +287,103 @@ describe("PortfolioPageContent — freshness status (Task 1.16/1.18)", () => {
       isLoading: false,
     });
 
+    renderAuthenticatedPage();
+
+    expect(screen.getByText(/1 holding stale/i)).toBeInTheDocument();
+  });
+
+  it("renders the backend-selected MISSING state with mixed nonzero counts and a known timestamp", () => {
+    mockUsePortfolioSummary.mockReturnValue({
+      data: {
+        userId: "u1",
+        portfolioCount: 1,
+        totalHoldings: 6,
+        totalValue: 1000,
+        assetPriceFreshness: {
+          state: "MISSING",
+          oldestKnownAssetPriceObservationTimestamp: "2026-08-14T08:00:12Z",
+          staleHoldings: 1,
+          unknownPriceHoldings: 2,
+          missingPriceHoldings: 3,
+        },
+      },
+      isLoading: false,
+    });
+
+    renderAuthenticatedPage();
+
+    // Compact strip follows backend state (MISSING), not a client-side sum of counts.
+    expect(screen.getByText(/3 holdings missing/i)).toBeInTheDocument();
+    expect(screen.getByText(/prices as of/i)).toBeInTheDocument();
+    expect(screen.queryByText(/all prices fresh/i)).not.toBeInTheDocument();
+  });
+
+  it("shows the absent-timestamp copy when oldestKnownAssetPriceObservationTimestamp is omitted", () => {
+    mockUsePortfolioSummary.mockReturnValue({
+      data: {
+        userId: "u1",
+        portfolioCount: 1,
+        totalHoldings: 0,
+        totalValue: 0,
+        assetPriceFreshness: {
+          state: "MISSING",
+          staleHoldings: 0,
+          unknownPriceHoldings: 0,
+          missingPriceHoldings: 2,
+        },
+      },
+      isLoading: false,
+    });
+
+    renderAuthenticatedPage();
+
+    expect(screen.getByText(/no price observation on record/i)).toBeInTheDocument();
+    expect(screen.getByText(/2 holdings missing/i)).toBeInTheDocument();
+  });
+
+  it("follows assetPriceFreshness even when holdings would contradict that state", () => {
+    // Holdings look priced/complete; freshness object deliberately says STALE.
+    mockUsePortfolio.mockReturnValue({
+      data: {
+        portfolioId: "p1",
+        ownerId: "u1",
+        name: "My Portfolio",
+        currency: "USD",
+        version: 4,
+        summary: { partialValuation: false },
+        holdings: [
+          { id: "h1", ticker: "AAPL", quantity: "10", currentPrice: 190 },
+          { id: "h2", ticker: "MSFT", quantity: "5", currentPrice: 400 },
+        ],
+        asOfDate: new Date().toISOString(),
+      },
+      isLoading: false,
+    });
+    mockUsePortfolioSummary.mockReturnValue({
+      data: {
+        userId: "u1",
+        portfolioCount: 1,
+        totalHoldings: 2,
+        totalValue: 3900,
+        assetPriceFreshness: {
+          state: "STALE",
+          oldestKnownAssetPriceObservationTimestamp: "2026-08-01T00:00:00Z",
+          staleHoldings: 2,
+          unknownPriceHoldings: 0,
+          missingPriceHoldings: 0,
+        },
+      },
+      isLoading: false,
+    });
+
+    mockUseAuthSession.mockReturnValue(authenticatedSession);
+    mockUseAuthenticatedUserId.mockReturnValue({
+      userId: "u1",
+      token: "jwt-token",
+      status: "authenticated",
+      error: null,
+    });
+    stubNetwork();
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(
       <QueryClientProvider client={client}>
@@ -279,6 +391,51 @@ describe("PortfolioPageContent — freshness status (Task 1.16/1.18)", () => {
       </QueryClientProvider>,
     );
 
-    expect(screen.getByText(/1 holding stale/i)).toBeInTheDocument();
+    expect(screen.getByText(/2 holdings stale/i)).toBeInTheDocument();
+    expect(screen.queryByText(/all prices fresh/i)).not.toBeInTheDocument();
+  });
+
+  it("does not present known-fresh while summary is loading or missing", () => {
+    mockUsePortfolioSummary.mockReturnValue({
+      data: undefined,
+      isLoading: true,
+    });
+
+    renderAuthenticatedPage();
+
+    expect(screen.queryByText(/all prices fresh/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/prices as of/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /details/i })).not.toBeInTheDocument();
+  });
+
+  it("does not present known-fresh when summary failed or freshness is unusable", () => {
+    mockUsePortfolioSummary.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: true,
+      error: new Error("Request failed (500)"),
+    });
+
+    renderAuthenticatedPage();
+
+    expect(screen.queryByText(/all prices fresh/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/prices as of/i)).not.toBeInTheDocument();
+  });
+
+  it("does not present known-fresh when the summary body omits assetPriceFreshness", () => {
+    mockUsePortfolioSummary.mockReturnValue({
+      data: {
+        userId: "u1",
+        portfolioCount: 1,
+        totalHoldings: 1,
+        totalValue: 1000,
+      } as PortfolioSummaryDTO,
+      isLoading: false,
+    });
+
+    renderAuthenticatedPage();
+
+    expect(screen.queryByText(/all prices fresh/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /details/i })).not.toBeInTheDocument();
   });
 });

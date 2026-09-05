@@ -64,6 +64,23 @@ describe("FreshnessDetailsPopover", () => {
     await waitFor(() => expect(screen.getByText(/2026/)).toBeInTheDocument());
   });
 
+  it("says so explicitly when the observation timestamp is omitted", async () => {
+    render(
+      <FreshnessDetailsPopover
+        freshness={freshness({
+          state: "MISSING",
+          missingPriceHoldings: 2,
+          // deliberately omit oldestKnownAssetPriceObservationTimestamp
+        })}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /details/i }));
+    await waitFor(() =>
+      expect(screen.getByText(/no price observation on record/i)).toBeInTheDocument(),
+    );
+    expect(screen.getByText(/missing: 2/i)).toBeInTheDocument();
+  });
+
   it("returns focus to the Details button on close", async () => {
     render(<FreshnessDetailsPopover freshness={freshness()} />);
     const button = screen.getByRole("button", { name: /details/i });
