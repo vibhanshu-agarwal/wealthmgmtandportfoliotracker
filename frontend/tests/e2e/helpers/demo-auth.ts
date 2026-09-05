@@ -10,6 +10,7 @@
 import { test as base, expect } from "@playwright/test";
 import type {
   APIRequestContext,
+  APIResponse,
   Browser,
   BrowserContext,
   Page,
@@ -88,6 +89,18 @@ function normalizeBaseUrl(baseUrl: string): string {
 }
 
 /**
+ * Names the *kind* of a thrown value without repeating anything it carries.
+ *
+ * `Error`/`TimeoutError` and the `typeof` of a non-Error throw are useful and
+ * safe; the alphabetic guard means a hand-rolled error whose `name` holds a
+ * payload degrades to a constant rather than leaking it.
+ */
+function describeErrorKind(error: unknown): string {
+  const kind = error instanceof Error ? error.name : typeof error;
+  return /^[A-Za-z]+$/.test(kind) ? kind : "unknown error";
+}
+
+/**
  * Logs in as the demo account against the real gateway and returns the
  * validated session.
  *
@@ -106,9 +119,23 @@ export async function authenticateDemoSession(
     options.apiBaseUrl ?? process.env.NEXT_PUBLIC_API_BASE_URL ?? DEFAULT_API_BASE_URL,
   );
 
-  const response = await request.post(`${apiBaseUrl}${LOGIN_PATH}`, {
-    data: { email: credentials.email, password: credentials.password },
-  });
+  let response: APIResponse;
+  try {
+    response = await request.post(`${apiBaseUrl}${LOGIN_PATH}`, {
+      data: { email: credentials.email, password: credentials.password },
+    });
+  } catch (error) {
+    // A transport failure (DNS, refused connection, timeout) rejects before any
+    // response exists. Neither the thrown text nor the base URL is safe to
+    // repeat: Playwright may quote the request in its message, and a base URL
+    // can legitimately carry basic-auth credentials. Report the kind of failure
+    // and the route only — and deliberately no `cause`, which would reprint the
+    // raw message wherever the chain is logged.
+    throw new Error(
+      `[e2e] demo login could not reach POST ${LOGIN_PATH} (${describeErrorKind(error)}). ` +
+        "Check NEXT_PUBLIC_API_BASE_URL and that the gateway is reachable.",
+    );
+  }
 
   if (!response.ok()) {
     throw new Error(

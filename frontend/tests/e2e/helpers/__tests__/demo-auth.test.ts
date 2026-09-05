@@ -352,6 +352,82 @@ describe("authenticateDemoSession", () => {
       expect(message).not.toContain(DEMO_TOKEN);
     }
   });
+
+  /**
+   * `request.post` can reject before any response exists — DNS failure, refused
+   * connection, timeout. Playwright's own error text is not written to this
+   * module's sanitization rules, and a base URL can legitimately carry
+   * basic-auth credentials, so the transport path needs the same treatment as
+   * every other failure rather than being the one hole in it.
+   */
+  function throwingRequest(thrown: unknown): APIRequestContext {
+    return {
+      post: async () => {
+        throw thrown;
+      },
+    } as unknown as APIRequestContext;
+  }
+
+  async function transportFailure(
+    thrown: unknown,
+    apiBaseUrl = "http://gateway.test",
+  ): Promise<Error> {
+    try {
+      await authenticateDemoSession(throwingRequest(thrown), {
+        apiBaseUrl,
+        credentials: demoCredentials,
+      });
+    } catch (error) {
+      return error as Error;
+    }
+    throw new Error("expected authenticateDemoSession to reject, but it resolved");
+  }
+
+  it("sanitizes a transport failure instead of rethrowing it verbatim", async () => {
+    const error = await transportFailure(
+      new Error(`connect ECONNREFUSED sending password=${DEMO_PASSWORD}`),
+    );
+
+    expect(error.message).not.toContain(DEMO_PASSWORD);
+    expect(error.message).not.toContain("ECONNREFUSED");
+  });
+
+  it("still names the login route when the transport fails", async () => {
+    const error = await transportFailure(new Error("boom"));
+
+    expect(error.message).toContain("/api/auth/login");
+  });
+
+  it("does not attach the raw transport error as a cause", async () => {
+    const raw = new Error(`leaky ${DEMO_PASSWORD}`);
+    const error = await transportFailure(raw);
+
+    expect((error as Error & { cause?: unknown }).cause).toBeUndefined();
+    expect(JSON.stringify(error, Object.getOwnPropertyNames(error))).not.toContain(
+      DEMO_PASSWORD,
+    );
+  });
+
+  it("never echoes an API base URL carrying basic-auth credentials", async () => {
+    // Playwright quotes the full request URL in its transport errors, so the
+    // double must too — otherwise this test passes without a sanitizer and
+    // proves nothing.
+    const baseUrl = `http://demo:${DEMO_PASSWORD}@gateway.test`;
+    const error = await transportFailure(
+      new Error(`apiRequestContext.post: connect ECONNREFUSED at ${baseUrl}/api/auth/login`),
+      baseUrl,
+    );
+
+    expect(error.message).not.toContain(DEMO_PASSWORD);
+    expect(error.message).not.toContain("gateway.test");
+  });
+
+  it("sanitizes a transport rejection that is not an Error", async () => {
+    const error = await transportFailure(`raw string carrying ${DEMO_PASSWORD}`);
+
+    expect(error).toBeInstanceOf(Error);
+    expect(error.message).not.toContain(DEMO_PASSWORD);
+  });
 });
 
 /** The exact key the application's own session reader uses. */
