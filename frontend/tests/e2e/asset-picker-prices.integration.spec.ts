@@ -228,9 +228,10 @@ test.describe("Asset Picker — real drafted price integration (Task 9.3)", () =
     expect(expectedEstimate, "sanity: quantity × real price must be computable").not.toBeNull();
     const expectedLabel = formatCurrency(expectedEstimate!);
 
+    const thirdDraftRow = dialog.locator(`[data-ticker="${thirdTicker}"]`);
     await expect(
-      dialog.getByText(expectedLabel),
-      `Browse must render ${thirdTicker}'s estimate from the captured real three-ticker price response`,
+      thirdDraftRow.getByText(expectedLabel, { exact: true }),
+      `Browse must render ${thirdTicker}'s estimate on that row from the captured real three-ticker price response`,
     ).toBeVisible({ timeout: 15_000 });
 
     await expect(quantityInput).toHaveValue(DISTINCT_QUANTITY);

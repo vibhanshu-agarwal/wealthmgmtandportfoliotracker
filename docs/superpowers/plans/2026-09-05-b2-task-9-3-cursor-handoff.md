@@ -64,7 +64,7 @@ npm test (full suite) — NEXT_PUBLIC_API_BASE_URL cleared; docker compose down 
 - Ordinary E2E login; no internal key in browser requests.
 - No `page.route` fulfillment for `/api/market/prices`.
 - Browser portfolio GET narrowed to AAPL+BTC-USD for a known open-time draft (Portfolio page may also request that two-ticker set).
-- Picker attribution: select a third ACTIVE catalog ticker inside Browse; assert the real price request is exactly that three-ticker set and drives the third ticker's estimate after quantity `7`.
+- Picker attribution: select a third ACTIVE catalog ticker inside Browse; assert the real price request is exactly that three-ticker set and assert that ticker's estimate **on its `data-ticker` row** after quantity `7`.
 - Empty draft dispatched no blank-ticker price request.
 - No composition `PUT` during the proof.
 - Default `playwright.config.ts` Chromium project ignores this local-only spec.
