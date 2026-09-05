@@ -27,30 +27,34 @@ vi.mock("@/lib/hooks/useAuthenticatedUserId", () => ({
 function Harness() {
   // Mirrors PortfolioPageContent: an active usePortfolioSummary observer alongside
   // EditHoldingsButton, so cache invalidation has something real to refetch.
-  usePortfolioSummary();
+  const { data: summary } = usePortfolioSummary();
   return (
-    <EditHoldingsButton
-      holdings={[]}
-      version={7}
-      userId="user-001"
-      token="test-token"
-    />
+    <>
+      <div data-testid="summary-freshness-state">
+        {summary?.assetPriceFreshness?.state ?? ""}
+      </div>
+      <EditHoldingsButton
+        holdings={[]}
+        version={7}
+        userId="user-001"
+        token="test-token"
+      />
+    </>
   );
 }
 
 describe("post-save freshness reconciliation (Task 1.18)", () => {
   it("triggers a real GET /api/portfolio/summary refetch after a successful save", async () => {
     let summaryCalls = 0;
-    let lastFreshnessState: string | undefined;
     server.use(
       http.get("/api/assets", () => HttpResponse.json({ catalogVersion: "v1", assets: [] })),
       http.get("/api/market/prices", () => HttpResponse.json([])),
       http.get("/api/presence/demo", () => HttpResponse.json({ anotherSessionActive: false })),
       http.get("/api/portfolio/summary", () => {
         summaryCalls += 1;
-        // Post-save re-read must consume the response as-is — save does not imply FRESH.
-        const state = "STALE";
-        lastFreshnessState = state;
+        // First read FRESH; post-save re-read returns STALE so the consumer must
+        // absorb the re-fetched body (save does not imply FRESH).
+        const state = summaryCalls === 1 ? "FRESH" : "STALE";
         return HttpResponse.json({
           userId: "user-001",
           portfolioCount: 1,
@@ -59,7 +63,7 @@ describe("post-save freshness reconciliation (Task 1.18)", () => {
           assetPriceFreshness: {
             state,
             oldestKnownAssetPriceObservationTimestamp: "2026-08-01T00:00:00Z",
-            staleHoldings: 1,
+            staleHoldings: state === "STALE" ? 1 : 0,
             unknownPriceHoldings: 0,
             missingPriceHoldings: 0,
           },
@@ -84,6 +88,9 @@ describe("post-save freshness reconciliation (Task 1.18)", () => {
     );
 
     await waitFor(() => expect(summaryCalls).toBeGreaterThanOrEqual(1));
+    await waitFor(() =>
+      expect(screen.getByTestId("summary-freshness-state")).toHaveTextContent("FRESH"),
+    );
     const callsBeforeSave = summaryCalls;
 
     fireEvent.click(screen.getByRole("button", { name: "Edit Holdings" }));
@@ -97,7 +104,10 @@ describe("post-save freshness reconciliation (Task 1.18)", () => {
     fireEvent.click(screen.getByRole("button", { name: /save changes/i }));
 
     await waitFor(() => expect(summaryCalls).toBeGreaterThan(callsBeforeSave));
-    expect(lastFreshnessState).toBe("STALE");
+    // Assert the hook consumer's returned state, not an MSW fixture variable.
+    await waitFor(() =>
+      expect(screen.getByTestId("summary-freshness-state")).toHaveTextContent("STALE"),
+    );
   });
 });
 

@@ -206,4 +206,54 @@ describe("usePortfolioSummary", () => {
     await waitFor(() => expect(result.current.isError).toBe(true));
     expect(result.current.data).toBeUndefined();
   });
+
+  it("does not invent freshness data when the summary fetch is rejected", async () => {
+    const { http, HttpResponse } = await import("msw");
+    const { server } = await import("@/test/msw/server");
+    server.use(http.get("/api/portfolio/summary", () => HttpResponse.error()));
+
+    mockUseAuthenticatedUserId.mockReturnValue({
+      userId: "user-001",
+      token: "eyJhbGciOiJIUzI1NiJ9.payload.sig",
+      status: "authenticated",
+      error: null,
+    });
+
+    const { result } = renderHook(() => usePortfolioSummary(), {
+      wrapper: makeWrapper(),
+    });
+
+    // Network rejection retries once under retryPolicy; wait for final settlement.
+    await waitFor(() => expect(result.current.isError).toBe(true), { timeout: 5_000 });
+    expect(result.current.data).toBeUndefined();
+  });
+
+  it("does not invent freshness data when the summary body is invalid JSON", async () => {
+    const { http, HttpResponse } = await import("msw");
+    const { server } = await import("@/test/msw/server");
+    server.use(
+      http.get(
+        "/api/portfolio/summary",
+        () =>
+          new HttpResponse("<!doctype html>not json", {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+      ),
+    );
+
+    mockUseAuthenticatedUserId.mockReturnValue({
+      userId: "user-001",
+      token: "eyJhbGciOiJIUzI1NiJ9.payload.sig",
+      status: "authenticated",
+      error: null,
+    });
+
+    const { result } = renderHook(() => usePortfolioSummary(), {
+      wrapper: makeWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.isError).toBe(true), { timeout: 5_000 });
+    expect(result.current.data).toBeUndefined();
+  });
 });

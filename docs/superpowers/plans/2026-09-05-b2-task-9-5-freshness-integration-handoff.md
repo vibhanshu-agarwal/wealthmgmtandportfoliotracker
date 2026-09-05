@@ -65,9 +65,11 @@ was changed.
   omitted timestamp, contradictory holdings vs freshness, loading/error/missing-object
   must not show “All prices fresh”.
 - `FreshnessDetailsPopover.test.tsx` — absent-timestamp copy in the popover.
-- `usePortfolio.test.ts` — five-field preservation; 503 failure leaves `data` undefined.
-- `postSaveReconciliation.integration.test.tsx` — post-save refetch still occurs and the
-  re-read body remains `STALE` (save does not imply `FRESH`).
+- `usePortfolio.test.ts` — five-field preservation; HTTP 503, rejected-fetch, and
+  invalid-JSON leave `data` undefined (no invented freshness).
+- `postSaveReconciliation.integration.test.tsx` — post-save refetch still occurs; Harness
+  renders `usePortfolioSummary`'s returned `assetPriceFreshness.state` and asserts the
+  consumer moves from `FRESH` to the re-fetched `STALE` (save does not imply `FRESH`).
 
 ### Real-stack proof (Task 2)
 
@@ -128,9 +130,10 @@ Fixture source: Golden-State seed via `global-setup.ts` + ordinary
 
 ### Deliberately not proved in the browser
 
-`STALE` / `UNKNOWN` / `MISSING` / mixed-count precedence, malformed body, and transport
-failure remain in Vitest and portfolio-service contract tests. No shared DB mutation or
-freshness-policy shortening was used to force those states.
+`STALE` / `UNKNOWN` / `MISSING` / mixed-count precedence stay in Vitest and
+portfolio-service contract tests. HTTP 503, rejected-fetch, and invalid-JSON summary
+failures are covered through `usePortfolioSummary` (no invented freshness). No shared
+DB mutation or freshness-policy shortening was used to force browser edge states.
 
 ## Verification record
 
@@ -143,12 +146,10 @@ freshness-policy shortening was used to force those states.
 | ESLint on every changed TS/TSX/config file | exit 0 |
 | `:portfolio-service:test` freshness/summary/serialization slices | BUILD SUCCESSFUL |
 | Playwright real freshness config | 1 passed |
-| `npm test` first attempt | 93 failed — **invalid**: shell still had `NEXT_PUBLIC_API_BASE_URL=http://localhost:8080` from the stack run, so MSW tests hit the gateway |
-| `npm test` after clearing that env | 1 failed / 598 passed — sole failure `capture-suppression.test.ts` login helper timed out at 5s |
-| Same capture-suppression file, two immediate retries | 10/10 passed each time (non-reproducing flake; untouched file) |
-
-Focused retry of the flake does **not** establish full-suite success by itself; the clean
-env full run’s only failure was that non-reproducing timeout.
+| `npm test` first attempt (historical) | 93 failed — **invalid**: shell still had `NEXT_PUBLIC_API_BASE_URL=http://localhost:8080` from the stack run |
+| Focused Vitest (post-save + hook + capture-suppression after review fixes) | 26 passed |
+| `npm test` after review fixes (clean env, no concurrent work) | **601 passed / 64 files** |
+| Call-time `NEXT_PUBLIC_API_BASE_URL` in `browser-auth` / `api` helpers | Stabilizes capture-suppression under the full suite (was timing out at 5s against a stale module-level `localhost:8080`) |
 
 ## Status-guard preparation
 

@@ -6,9 +6,10 @@
  * compact status + Details popover from that backend-owned object — never a
  * page.route fulfillment, rewrite, or browser-side freshness derivation.
  *
- * Deterministic STALE / UNKNOWN / MISSING / mixed-count / malformed / transport
- * failure paths stay in Vitest and portfolio-service contract tests. This spec
- * is successful-path local assembled-stack evidence only.
+ * Deterministic STALE / UNKNOWN / MISSING / mixed-count paths stay in Vitest and
+ * portfolio-service contract tests; HTTP 503, rejected-fetch, and invalid-JSON
+ * summary failures are covered through `usePortfolioSummary` (no invented freshness).
+ * This spec is successful-path local assembled-stack evidence only.
  *
  * Uses the ordinary Golden-State E2E identity (`helpers/browser-auth.ts`). No
  * Asset Picker feature flag; no composition PUT; no demo-only fixture.

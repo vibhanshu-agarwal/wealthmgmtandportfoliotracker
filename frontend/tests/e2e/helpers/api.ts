@@ -2,8 +2,14 @@ import type { APIRequestContext } from "@playwright/test";
 import { mintJwt } from "./auth";
 import { e2eLoginCredentials } from "./e2e-credentials";
 
-const GATEWAY_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
+const DEFAULT_GATEWAY_URL = "http://localhost:8080";
 const REQUIRED_TICKERS = ["AAPL", "BTC-USD"] as const;
+
+function gatewayUrl(): string {
+  // Call-time read — same contract as browser-auth / demo-auth; required by
+  // capture-suppression helper tests that set NEXT_PUBLIC_API_BASE_URL per case.
+  return process.env.NEXT_PUBLIC_API_BASE_URL ?? DEFAULT_GATEWAY_URL;
+}
 
 /**
  * Resolves the E2E userId by calling API Gateway login.
@@ -11,7 +17,7 @@ const REQUIRED_TICKERS = ["AAPL", "BTC-USD"] as const;
  */
 async function resolveUserId(): Promise<string> {
   const credentials = e2eLoginCredentials();
-  const res = await fetch(`${GATEWAY_URL}/api/auth/login`, {
+  const res = await fetch(`${gatewayUrl()}/api/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(credentials),
@@ -44,7 +50,7 @@ export async function ensurePortfolioWithHoldings(
   const userId = await resolveUserId();
   const bearerToken = token ?? mintJwt(userId);
 
-  const listRes = await request.get(`${GATEWAY_URL}/api/portfolio`, {
+  const listRes = await request.get(`${gatewayUrl()}/api/portfolio`, {
     headers: { Authorization: `Bearer ${bearerToken}` },
   });
 
