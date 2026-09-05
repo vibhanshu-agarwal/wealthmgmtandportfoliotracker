@@ -1,0 +1,47 @@
+# ============================================================
+# B2 Task 9.4 — LOCAL, DISPOSABLE overlay for the real presence proof.
+#
+# Layered on docker-compose.yml for the presence E2E run only:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.presence-e2e.yml up -d
+#
+# It changes three things and nothing else:
+#
+#  1. APP_DEMO_PRESENCE_TTL — the gateway's presence TTL. Production default is
+#     150s (requirements.md 6.2, `DemoPresenceProperties`); a 150s wait per
+#     expiry assertion would make the spec's "false again after the other
+#     session ages out" leg unusable. The shortened value is the *only* way the
+#     spec observes expiry — it never deletes another session's member to fake
+#     it. `DemoPresenceProperties` requires a whole number of seconds.
+#     Production configuration is untouched: this file is never deployed.
+#
+#  2. APP_DEMO_SEED_ON_STARTUP — portfolio-service's `DemoPortfolioInitializer`
+#     ships gated off (`app.demo.seed-on-startup=false`), so a stock local stack
+#     brings up the V15-seeded demo *user* with no portfolio behind it. The
+#     picker is reached from the Portfolio page, so the proof needs the demo
+#     account's portfolio to exist on a fresh database. Turning the gate on is
+#     what makes this run reproducible from an empty volume rather than from
+#     retained data. Note the ordinary Playwright global setup does NOT cover
+#     this — it seeds the Golden-State E2E subject
+#     (`00000000-0000-0000-0000-000000000e2e`), a different account.
+#
+#  3. redis host port — the stock file binds 6379:6379. Any Redis already
+#     holding the host's 6379 (a developer's own container, unrelated to this
+#     repository) would make `up` fail to bind, and stopping it is not this
+#     task's business. Only the *host* side moves; every service still reaches
+#     Redis at redis:6379 over the compose network, so nothing in the
+#     application is reconfigured. Override with PRESENCE_E2E_REDIS_PORT.
+# ============================================================
+
+services:
+  redis:
+    ports: !override
+      - '${PRESENCE_E2E_REDIS_PORT:-6380}:6379'
+
+  portfolio-service:
+    environment:
+      APP_DEMO_SEED_ON_STARTUP: '${APP_DEMO_SEED_ON_STARTUP:-true}'
+
+  api-gateway:
+    environment:
+      APP_DEMO_PRESENCE_TTL: '${APP_DEMO_PRESENCE_TTL:-20s}'
