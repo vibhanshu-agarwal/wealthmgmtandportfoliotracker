@@ -117,4 +117,64 @@ class CorsConfigurationTest {
                                     + "(bug condition: no .cors() in SecurityConfig)")
                                 .isEqualTo(FRONTEND_ORIGIN));
     }
+
+    // ── B2 Task 9.1 — GET /api/assets conditional-revalidation CORS boundary ──
+    //
+    // `AssetCatalogController` (B1 task 4.11) answers with an `ETag` and honours
+    // `If-None-Match` for 304s (fetchCatalog, Task 1.11). A cross-origin browser can
+    // only use that contract if the gateway's CORS policy both admits `If-None-Match`
+    // as a request header and exposes `ETag` on the response — neither of which
+    // `corsConfigurationSource()` did before this task (allowedHeaders lacked
+    // `If-None-Match`; exposedHeaders was never set at all).
+
+    private static final String ASSETS_PATH = "/api/assets";
+
+    /**
+     * Preflight for a conditional catalog GET must allow the browser to send
+     * {@code If-None-Match}.
+     *
+     * <p>On unfixed code, {@code corsConfigurationSource()}'s {@code allowedHeaders}
+     * omits {@code If-None-Match}, so the browser's own preflight check would refuse
+     * to send it and every "revalidate" request degrades to a full, uncached GET.
+     */
+    @Test
+    void preflightForAssetsAllowsIfNoneMatchHeader() {
+        webTestClient.options()
+                .uri(ASSETS_PATH)
+                .header("Origin", FRONTEND_ORIGIN)
+                .header("Access-Control-Request-Method", "GET")
+                .header("Access-Control-Request-Headers", "authorization,if-none-match")
+                .exchange()
+                .expectHeader().value("Access-Control-Allow-Headers", allowed ->
+                        assertThat(allowed)
+                                .as("preflight for " + ASSETS_PATH + " must allow the browser to "
+                                    + "send If-None-Match, or conditional revalidation can never "
+                                    + "reach the gateway cross-origin")
+                                .containsIgnoringCase("If-None-Match"));
+    }
+
+    /**
+     * An authenticated catalog GET must expose {@code ETag} to browser JavaScript.
+     *
+     * <p>On unfixed code, {@code exposedHeaders} is never configured, so
+     * {@code Access-Control-Expose-Headers} is absent and {@code fetchCatalog}'s
+     * {@code response.headers.get("ETag")} reads {@code null} cross-origin even
+     * though the header is present on the wire — permanently defeating conditional
+     * revalidation without ever surfacing as a visible error.
+     */
+    @Test
+    void authenticatedGetOnAssetsExposesETagHeader() {
+        String token = TestJwtFactory.validSeedUserToken();
+
+        webTestClient.get()
+                .uri(ASSETS_PATH)
+                .header("Origin", FRONTEND_ORIGIN)
+                .header("Authorization", "Bearer " + token)
+                .exchange()
+                .expectHeader().value("Access-Control-Expose-Headers", exposed ->
+                        assertThat(exposed)
+                                .as("GET " + ASSETS_PATH + " must expose ETag so the browser's "
+                                    + "fetch() can read it cross-origin")
+                                .containsIgnoringCase("ETag"));
+    }
 }

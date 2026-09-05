@@ -93,3 +93,11 @@ describe("fetchCatalog — conditional revalidation (Task 1.11)", () => {
     expect(ifNoneMatchSeen[1]).toBe('"v1"');
   });
 });
+
+describe("fetchCatalog — failure (Task 9.1)", () => {
+  it("throws when the initial request fails, leaving no catalog to fall back on", async () => {
+    server.use(http.get("/api/assets", () => new HttpResponse(null, { status: 500 })));
+
+    await expect(fetchCatalog(TOKEN)).rejects.toThrow("GET /api/assets failed (500)");
+  });
+});

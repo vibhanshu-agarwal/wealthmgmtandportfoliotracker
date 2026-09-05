@@ -47,6 +47,10 @@ export default defineConfig({
         /global-setup-entrypoint\.test\.ts$/,
         /global-setup-export\.test\.ts$/,
         /helpers[\\/]__tests__[\\/].*/,
+        // B2 Task 9.1 — requires NEXT_PUBLIC_ENABLE_ASSET_PICKER=true, which this
+        // config's own build never sets (Edit Holdings would have no entry point).
+        // Local-only: run via its own playwright.asset-catalog.real.config.ts.
+        /asset-catalog\.integration\.spec\.ts$/,
       ],
       use: {
         ...devices["Desktop Chrome"],
