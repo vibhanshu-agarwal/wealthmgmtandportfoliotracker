@@ -7,6 +7,7 @@
 | | SHA |
 |---|---|
 | Baseline (`origin/main` at branch creation) | `4f1a0428adc2d1cb4ce5d1b94deb7b55a8a1902f` |
+| Head (local commit) | `6809562999cf00b10169eff990dbf58baf91a9ed` |
 | Branch | `feat/b2-task-9-3-drafted-price-integration` |
 
 Run `git log --oneline origin/main..HEAD` for the commit list (do not hardcode a count).
