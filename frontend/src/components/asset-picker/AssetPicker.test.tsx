@@ -327,6 +327,57 @@ describe("AssetPicker — frozen open-time baseline (review-fix)", () => {
   });
 });
 
+describe("AssetPicker — catalog failure (Task 9.1)", () => {
+  it("shows a visible error and blocks Review when the initial catalog fetch fails, instead of an apparently-empty Browse", async () => {
+    server.use(http.get("/api/assets", () => new HttpResponse(null, { status: 500 })));
+
+    renderPicker();
+
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toHaveTextContent(/couldn.?t load the asset catalog/i),
+    );
+    // No Browse/Review surface reachable from a catalog that never loaded.
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /review changes/i })).not.toBeInTheDocument();
+  });
+
+  it("recovers to Browse once Retry succeeds", async () => {
+    let attempt = 0;
+    server.use(
+      http.get("/api/assets", () => {
+        attempt += 1;
+        if (attempt === 1) return new HttpResponse(null, { status: 500 });
+        return HttpResponse.json({
+          catalogVersion: "v1",
+          assets: [
+            {
+              ticker: "AAPL",
+              name: "Apple Inc.",
+              aliases: [],
+              assetClass: "STOCK",
+              quoteCurrency: "USD",
+              lifecycleStatus: "ACTIVE",
+            },
+          ],
+        });
+      }),
+    );
+
+    renderPicker();
+
+    await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: /retry/i }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("checkbox", { name: "Select AAPL" })).toHaveAttribute(
+        "aria-checked",
+        "true",
+      ),
+    );
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+});
+
 describe("AssetPicker — Review changes is blocked while the draft is invalid (review-fix)", () => {
   function stubCatalogAndPrices() {
     server.use(

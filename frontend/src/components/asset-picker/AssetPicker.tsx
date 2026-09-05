@@ -74,6 +74,11 @@ export function AssetPicker({
   onSaveSuccess,
 }: AssetPickerProps) {
   const catalogQuery = useCatalog(token, open);
+  // Task 9.1 — a catalog fetch that has never succeeded must not read as an empty,
+  // apparently-healthy Browse list. A *background* revalidation failure with an
+  // already-held catalog (`catalogQuery.data` still set) is deliberately excluded —
+  // that stays silent and self-heals, per the existing staleTime/refetch policy.
+  const catalogUnavailable = catalogQuery.isError && !catalogQuery.data;
   const queryClient = useQueryClient();
 
   const [seed, setSeed] = useState<DraftSeed>(EMPTY_SEED);
@@ -101,7 +106,7 @@ export function AssetPicker({
     setSeededForOpen(false);
     setStep("browse");
     setConflict(null);
-  } else if (open && !seededForOpen && !catalogQuery.isLoading) {
+  } else if (open && !seededForOpen && !catalogQuery.isLoading && !catalogUnavailable) {
     setOpenGeneration((prev) => prev + 1);
     const catalogAssets = catalogQuery.data?.assets ?? [];
     setSeed({
@@ -192,6 +197,16 @@ export function AssetPicker({
         />
       ) : catalogQuery.isLoading ? (
         <p className="py-8 text-center text-sm text-muted-foreground">Loading catalog…</p>
+      ) : catalogUnavailable ? (
+        <div role="alert" className="flex flex-col items-center gap-3 py-8 text-center">
+          <p className="text-sm text-destructive">
+            Couldn&apos;t load the asset catalog. Nothing can be reviewed or saved until it
+            loads.
+          </p>
+          <Button type="button" variant="outline" onClick={() => catalogQuery.refetch()}>
+            Retry
+          </Button>
+        </div>
       ) : step === "review" ? (
         <ReviewStep
           initialHoldings={seed.initialHoldingsAtOpen}
