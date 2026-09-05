@@ -56,7 +56,17 @@ public class SecurityConfig {
         CorsConfiguration config = new CorsConfiguration();
         config.setAllowedOriginPatterns(allowedOriginPatterns);
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        config.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Requested-With"));
+        // If-None-Match: B2 Task 9.1 — without it, a cross-origin browser's own preflight
+        // check refuses to send the conditional-revalidation header fetchCatalog relies on
+        // (Task 1.11), degrading every "revalidate" into a full GET.
+        config.setAllowedHeaders(
+                List.of("Authorization", "Content-Type", "X-Requested-With", "If-None-Match"));
+        // ETag: B2 Task 9.1 — without an explicit exposedHeaders entry, the browser's
+        // fetch() cannot read a cross-origin response's ETag at all (the CORS-safelisted
+        // response headers do not include it), so fetchCatalog's
+        // `response.headers.get("ETag")` silently reads null and conditional
+        // revalidation never engages — with no visible error anywhere.
+        config.setExposedHeaders(List.of("ETag"));
         config.setAllowCredentials(true);
         config.setMaxAge(3600L);
 
