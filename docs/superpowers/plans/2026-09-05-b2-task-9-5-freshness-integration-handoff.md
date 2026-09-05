@@ -172,7 +172,7 @@ Master-plan impact: updated — B2
 ```powershell
 py -3 scripts/check_master_plan_status_propagation.py `
   --base 1664bb8eb837af6300be39055e1dc5e7ff6fd662 `
-  --head a2e5572bcc3bf7d8ac3713fdce6451eea9554d9a `
+  --head fc1582627a7c9ae385d5dc3ed75bb89225474985 `
   --pr-body-file $bodyFile
 ```
 
