@@ -3914,7 +3914,7 @@ class, not by enumeration" through "operational signals only") deliberately keep
   complete and the backend field exists. This task remains undone because B2's frontend adapter and
   live integration have not been implemented; no additional Spec A work blocks it.
   _Requirements: 3.2, 3.4_
-- [ ] **9.6 Demo-authenticated Playwright fixture — authored first, so 9.7/9.8 don't
+- [x] **9.6 Demo-authenticated Playwright fixture — authored first, so 9.7/9.8 don't
   forward-reference each other (round-9 restructure, breaking a real cycle: round 8's version of
   this task said the reset-control render check reuses "the fixture Task 9.8 already establishes,"
   while 9.8 said it "depends forward on 9.6/9.7's CI wiring" — each task waited on the other, so
