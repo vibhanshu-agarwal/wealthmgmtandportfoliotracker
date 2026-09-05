@@ -87,6 +87,7 @@ function mockPage(): Page {
 type CapturedRequest = {
   sub?: string;
   posts: string[];
+  gets: string[];
 };
 
 function mockPortfolioRequest(
@@ -106,6 +107,7 @@ function mockPortfolioRequest(
   });
   return {
     get: async (_url: string, opts?: { headers?: Record<string, string> }) => {
+      captured.gets.push(String(_url));
       captured.sub = jwtSub(opts?.headers?.Authorization);
       if (String(_url).includes("/api/portfolio/summary")) {
         return jsonResponse(200, { total: 0 });
@@ -196,7 +198,7 @@ describe("ensurePortfolioWithHoldings (E2E identity)", () => {
     const login = await startLoginServer({ kind: "ok", userId: E2E_USER_ID });
     try {
       const { api } = await loadHelpers(login.url);
-      const captured: CapturedRequest = { posts: [] };
+      const captured: CapturedRequest = { posts: [], gets: [] };
       await api.ensurePortfolioWithHoldings(mockPortfolioRequest(captured));
       expect(login.bodies).toEqual([{ email: E2E_EMAIL, password: E2E_PASSWORD }]);
       expect(captured.sub).toBe(E2E_USER_ID);
@@ -214,7 +216,7 @@ describe("ensurePortfolioWithHoldings (E2E identity)", () => {
     });
     try {
       const { api } = await loadHelpers(login.url);
-      const captured: CapturedRequest = { posts: [] };
+      const captured: CapturedRequest = { posts: [], gets: [] };
       await expect(
         api.ensurePortfolioWithHoldings(mockPortfolioRequest(captured)),
       ).rejects.toThrow(/401[\s\S]*nope/);
@@ -226,7 +228,7 @@ describe("ensurePortfolioWithHoldings (E2E identity)", () => {
 
   it("fails the test on a connection-refused login instead of falling back to user-001", async () => {
     const { api } = await loadHelpers(unusedPortUrl());
-    const captured: CapturedRequest = { posts: [] };
+    const captured: CapturedRequest = { posts: [], gets: [] };
     await expect(
       api.ensurePortfolioWithHoldings(mockPortfolioRequest(captured)),
     ).rejects.toThrow();
@@ -239,7 +241,7 @@ describe("ensurePortfolioWithHoldings (read-and-assert)", () => {
     const login = await startLoginServer({ kind: "ok", userId: E2E_USER_ID });
     try {
       const { api } = await loadHelpers(login.url);
-      const captured: CapturedRequest = { posts: [] };
+      const captured: CapturedRequest = { posts: [], gets: [] };
       await expect(
         api.ensurePortfolioWithHoldings(mockPortfolioRequest(captured, [])),
       ).rejects.toThrow(/Golden-State|seeding skipped|expected a portfolio/i);
@@ -253,7 +255,7 @@ describe("ensurePortfolioWithHoldings (read-and-assert)", () => {
     const login = await startLoginServer({ kind: "ok", userId: E2E_USER_ID });
     try {
       const { api } = await loadHelpers(login.url);
-      const captured: CapturedRequest = { posts: [] };
+      const captured: CapturedRequest = { posts: [], gets: [] };
       await expect(
         api.ensurePortfolioWithHoldings(
           mockPortfolioRequest(captured, [
@@ -271,11 +273,64 @@ describe("ensurePortfolioWithHoldings (read-and-assert)", () => {
     const login = await startLoginServer({ kind: "ok", userId: E2E_USER_ID });
     try {
       const { api } = await loadHelpers(login.url);
-      const captured: CapturedRequest = { posts: [] };
+      const captured: CapturedRequest = { posts: [], gets: [] };
       await expect(
         api.ensurePortfolioWithHoldings(mockPortfolioRequest(captured)),
       ).resolves.toBe("p-1");
       expect(captured.posts).toEqual([]);
+    } finally {
+      await login.close();
+    }
+  });
+});
+
+/**
+ * Discriminating regression for call-time gateway URL resolution.
+ *
+ * The older helpers captured `NEXT_PUBLIC_API_BASE_URL` in a module-level
+ * constant. Existing tests set the env *before* `import()`, so they would
+ * still pass against that bug. These cases import first under a dead base,
+ * then retarget the env to a live ephemeral server and prove the subsequent
+ * call uses the new URL.
+ */
+describe("call-time NEXT_PUBLIC_API_BASE_URL (import-first regression)", () => {
+  it("installGatewaySessionInitScript uses the env value after import", async () => {
+    process.env.E2E_TEST_USER_EMAIL = E2E_EMAIL;
+    process.env.E2E_TEST_USER_PASSWORD = E2E_PASSWORD;
+    process.env.NEXT_PUBLIC_API_BASE_URL = unusedPortUrl();
+    vi.resetModules();
+    const browserAuth = await import("../browser-auth");
+
+    const login = await startLoginServer({ kind: "ok", userId: E2E_USER_ID });
+    try {
+      process.env.NEXT_PUBLIC_API_BASE_URL = login.url;
+      await browserAuth.installGatewaySessionInitScript(
+        mockPage(),
+        {} as APIRequestContext,
+      );
+      expect(login.bodies).toEqual([{ email: E2E_EMAIL, password: E2E_PASSWORD }]);
+    } finally {
+      await login.close();
+    }
+  });
+
+  it("ensurePortfolioWithHoldings uses one post-import base for login and portfolio GET", async () => {
+    process.env.E2E_TEST_USER_EMAIL = E2E_EMAIL;
+    process.env.E2E_TEST_USER_PASSWORD = E2E_PASSWORD;
+    process.env.NEXT_PUBLIC_API_BASE_URL = unusedPortUrl();
+    vi.resetModules();
+    const api = await import("../api");
+
+    const login = await startLoginServer({ kind: "ok", userId: E2E_USER_ID });
+    try {
+      process.env.NEXT_PUBLIC_API_BASE_URL = login.url;
+      const captured: CapturedRequest = { posts: [], gets: [] };
+      await expect(
+        api.ensurePortfolioWithHoldings(mockPortfolioRequest(captured)),
+      ).resolves.toBe("p-1");
+      expect(login.bodies).toEqual([{ email: E2E_EMAIL, password: E2E_PASSWORD }]);
+      expect(captured.gets).toEqual([`${login.url}/api/portfolio`]);
+      expect(captured.sub).toBe(E2E_USER_ID);
     } finally {
       await login.close();
     }

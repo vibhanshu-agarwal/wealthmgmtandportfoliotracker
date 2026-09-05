@@ -70,6 +70,8 @@ was changed.
 - `postSaveReconciliation.integration.test.tsx` — post-save refetch still occurs; Harness
   renders `usePortfolioSummary`'s returned `assetPriceFreshness.state` and asserts the
   consumer moves from `FRESH` to the re-fetched `STALE` (save does not imply `FRESH`).
+- `tests/e2e/helpers/browser-auth.ts` / `api.ts` — call-time gateway URL; `ensurePortfolioWithHoldings`
+  captures base once at entry. Import-first regressions in `capture-suppression.test.ts`.
 
 ### Real-stack proof (Task 2)
 
@@ -149,23 +151,30 @@ DB mutation or freshness-policy shortening was used to force browser edge states
 | `npm test` first attempt (historical) | 93 failed — **invalid**: shell still had `NEXT_PUBLIC_API_BASE_URL=http://localhost:8080` from the stack run |
 | Focused Vitest (post-save + hook + capture-suppression after review fixes) | 26 passed |
 | `npm test` after review fixes (clean env, no concurrent work) | **601 passed / 64 files** |
-| Call-time `NEXT_PUBLIC_API_BASE_URL` in `browser-auth` / `api` helpers | Stabilizes capture-suppression under the full suite (was timing out at 5s against a stale module-level `localhost:8080`) |
+| Import-first call-time URL regressions (`capture-suppression`) | 12/12 including two new cases that fail against a module-level constant |
 
-## Status-guard preparation
+### Helper stability (review rounds)
 
-PR body must contain exactly one plain line:
+- Call-time `NEXT_PUBLIC_API_BASE_URL` in `browser-auth` / `api`, with import-first
+  regressions that would fail against the old module-level constant.
+- `ensurePortfolioWithHoldings` captures the base URL once at entry for login + portfolio GET.
+
+## Status-guard result
+
+Proposed PR body (exact file used for the guard) contains this line at the start:
 
 ```text
 Master-plan impact: updated — B2
 ```
 
-After local commits exist, resolve base/head and run:
+Recorded after the final local commit (replace SHAs if a further commit lands):
 
 ```powershell
 py -3 scripts/check_master_plan_status_propagation.py --base $baseSha --head $headSha --pr-body-file $bodyFile
+# Expected and observed: exit 0
 ```
 
-Expect exit 0. Re-run against the live PR body after authorized publication.
+Re-run against the live PR body after authorized publication.
 
 ## Review notes for Codex
 

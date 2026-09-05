@@ -15,9 +15,9 @@ function gatewayUrl(): string {
  * Resolves the E2E userId by calling API Gateway login.
  * A failed login fails the test — there is no fallback identity.
  */
-async function resolveUserId(): Promise<string> {
+async function resolveUserId(baseUrl: string): Promise<string> {
   const credentials = e2eLoginCredentials();
-  const res = await fetch(`${gatewayUrl()}/api/auth/login`, {
+  const res = await fetch(`${baseUrl}/api/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(credentials),
@@ -47,10 +47,13 @@ export async function ensurePortfolioWithHoldings(
   request: APIRequestContext,
   token?: string,
 ): Promise<string> {
-  const userId = await resolveUserId();
+  // Capture once so login and portfolio GET cannot split across two gateway bases
+  // if NEXT_PUBLIC_API_BASE_URL changes mid-operation.
+  const baseUrl = gatewayUrl();
+  const userId = await resolveUserId(baseUrl);
   const bearerToken = token ?? mintJwt(userId);
 
-  const listRes = await request.get(`${gatewayUrl()}/api/portfolio`, {
+  const listRes = await request.get(`${baseUrl}/api/portfolio`, {
     headers: { Authorization: `Bearer ${bearerToken}` },
   });
 
