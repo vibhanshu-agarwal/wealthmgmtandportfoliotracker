@@ -41,20 +41,25 @@ function Harness() {
 describe("post-save freshness reconciliation (Task 1.18)", () => {
   it("triggers a real GET /api/portfolio/summary refetch after a successful save", async () => {
     let summaryCalls = 0;
+    let lastFreshnessState: string | undefined;
     server.use(
       http.get("/api/assets", () => HttpResponse.json({ catalogVersion: "v1", assets: [] })),
       http.get("/api/market/prices", () => HttpResponse.json([])),
       http.get("/api/presence/demo", () => HttpResponse.json({ anotherSessionActive: false })),
       http.get("/api/portfolio/summary", () => {
         summaryCalls += 1;
+        // Post-save re-read must consume the response as-is — save does not imply FRESH.
+        const state = "STALE";
+        lastFreshnessState = state;
         return HttpResponse.json({
           userId: "user-001",
           portfolioCount: 1,
-          totalHoldings: 0,
-          totalValue: 0,
+          totalHoldings: 1,
+          totalValue: 100,
           assetPriceFreshness: {
-            state: "FRESH",
-            staleHoldings: 0,
+            state,
+            oldestKnownAssetPriceObservationTimestamp: "2026-08-01T00:00:00Z",
+            staleHoldings: 1,
             unknownPriceHoldings: 0,
             missingPriceHoldings: 0,
           },
@@ -92,6 +97,7 @@ describe("post-save freshness reconciliation (Task 1.18)", () => {
     fireEvent.click(screen.getByRole("button", { name: /save changes/i }));
 
     await waitFor(() => expect(summaryCalls).toBeGreaterThan(callsBeforeSave));
+    expect(lastFreshnessState).toBe("STALE");
   });
 });
 

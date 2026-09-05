@@ -3987,10 +3987,19 @@ class, not by enumeration" through "operational signals only") deliberately keep
   Source/local verification only — not deployed, no Production E2E, and not wired into CI (Task 9.9
   owns Wave 9 CI). Wave 3's deployment/live proof (Task 3.7) stays open.
   _Requirements: 6.3_
-- [ ] **9.5 Wire Task 1.16's freshness status to a real `assetPriceFreshness`.** Spec A task 8.6 is
-  complete and the backend field exists. This task remains undone because B2's frontend adapter and
-  live integration have not been implemented; no additional Spec A work blocks it.
-  _Requirements: 3.2, 3.4_
+- [x] **9.5 Wire Task 1.16's freshness status to a real `assetPriceFreshness`.** Spec A task 8.6 is
+  complete and the backend field exists. Local assembled-stack evidence on this branch: dedicated
+  `frontend/playwright.asset-freshness.real.config.ts` +
+  `frontend/tests/e2e/asset-price-freshness.integration.spec.ts` against Docker Compose with
+  Golden-State + market-data seed (ordinary E2E login; no route fulfillment for
+  `/api/portfolio/summary`). The browser captures the real authenticated summary's
+  `assetPriceFreshness` object and asserts compact status + Details from the production formatter.
+  Deterministic STALE/UNKNOWN/MISSING/mixed-count, omitted-timestamp, loading/failure, and
+  no-client-derivation cases stay in Vitest; portfolio-service freshness valuation and Jackson
+  boundary tests re-confirmed. Source path already worked on `main` — no production source defect
+  reproduced. Source/local verification only — not deployed; Task 9.2's real post-save round trip,
+  Wave 9 CI (Task 9.9), and Production E2E stay open.
+  _Requirements: 3.2, 3.3/3a, 3.4_
 - [x] **9.6 Demo-authenticated Playwright fixture — authored first, so 9.7/9.8 don't
   forward-reference each other (round-9 restructure, breaking a real cycle: round 8's version of
   this task said the reset-control render check reuses "the fixture Task 9.8 already establishes,"
