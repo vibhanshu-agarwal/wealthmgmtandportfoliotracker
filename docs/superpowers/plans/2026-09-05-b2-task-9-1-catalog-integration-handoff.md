@@ -38,11 +38,18 @@ this change, and none was claimed.
 
 ## Branch and baseline
 
-- Branch: `claude/b2-task-9-1-real-catalog-integration`, currently **6 commits**
-  ahead of `origin/main` at `4f1a0428` (an earlier version of this note said 4 —
-  that count was already stale by the time it was written, since a 5th
-  documentation-only commit landed immediately after it, and a 6th landed
-  addressing this review round; corrected here).
+- Branch: `claude/b2-task-9-1-real-catalog-integration`, ahead of `origin/main`
+  at `4f1a0428`. **Deliberately not stating a fixed commit count here**: an
+  earlier version of this note said "4 commits," which was already stale by the
+  time it was written (a 5th, documentation-only commit landed immediately
+  after), and a corrected "6 commits" in a later version went stale the same way
+  the moment *that* correction was itself committed as a 7th — any commit that
+  states how many commits exist is, by construction, undercounting itself by
+  one. Run `git log --oneline origin/main..HEAD` for the true count; the
+  four implementation/test commits are `fix(gateway): allow If-None-Match…`,
+  `fix(asset-picker): show a visible error…`, `test(e2e): add real-stack
+  catalog…`, and `docs(b2): record Task 9.1…`, followed by documentation and
+  review-response commits on top.
 - Originally branched from `origin/main` at `c8fc407c` (PR #226, Task 9.6's
   fixture), and initially also carried a cherry-picked, previously-authored,
   previously-unpushed commit correcting Task 9.6's master-plan status from "open
