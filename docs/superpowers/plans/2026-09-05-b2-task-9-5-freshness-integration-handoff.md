@@ -161,20 +161,24 @@ DB mutation or freshness-policy shortening was used to force browser edge states
 
 ## Status-guard result
 
-Proposed PR body (exact file used for the guard) contains this line at the start:
+Proposed PR body (exact UTF-8 file used):
 
 ```text
 Master-plan impact: updated — B2
 ```
 
-Recorded after the final local commit (replace SHAs if a further commit lands):
+(plus Summary / Test plan sections; declaration is the sole plain line-start master-plan impact line.)
 
 ```powershell
-py -3 scripts/check_master_plan_status_propagation.py --base $baseSha --head $headSha --pr-body-file $bodyFile
-# Expected and observed: exit 0
+py -3 scripts/check_master_plan_status_propagation.py `
+  --base 1664bb8eb837af6300be39055e1dc5e7ff6fd662 `
+  --head a2e5572bcc3bf7d8ac3713fdce6451eea9554d9a `
+  --pr-body-file $bodyFile
 ```
 
-Re-run against the live PR body after authorized publication.
+**Observed:** exit 0 — `Master-plan status propagation guard passed (14 changed paths).`
+
+Re-run against the live PR body and actual base/head SHAs after authorized publication.
 
 ## Review notes for Codex
 
