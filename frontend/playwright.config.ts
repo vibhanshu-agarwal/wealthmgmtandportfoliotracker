@@ -36,6 +36,10 @@ export default defineConfig({
         /dashboard-smoke\.spec\.ts$/,
         /aws-synthetic\/.*/,
         /azure-synthetic\/.*/,
+        // Local-only Task 9.3 real-stack price proof — requires a flag-on build via
+        // playwright.draft-prices.real.config.ts; must not run under this default
+        // (picker-disabled) configuration.
+        /asset-picker-prices\.integration\.spec\.ts$/,
         // One-off verification scripts from the azure-demo-readiness-phase1 spec (already
         // shipped) — plain ts-node scripts with no test()/describe() calls, meant to be run
         // directly (see each file's own header comment), not picked up as Playwright specs.

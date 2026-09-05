@@ -13,6 +13,21 @@ import {
   validateRetainedDeprecatedQuantity,
 } from "./quantityValidator";
 
+/** Resolves a drafted ticker's unit price for display-only estimates (Task 9.3). */
+function draftUnitPrice(
+  price:
+    | {
+        currentPrice: number | null;
+        priceUnavailable?: boolean;
+      }
+    | undefined,
+): number | null {
+  if (!price || price.priceUnavailable || price.currentPrice == null) {
+    return null;
+  }
+  return price.currentPrice;
+}
+
 export interface BrowseStepProps {
   catalog: CatalogAsset[];
   draft: DraftHoldings;
@@ -128,7 +143,7 @@ export function BrowseStep({
               row.checked
                 ? computeEstimatedValue(
                     row.quantity,
-                    pricesQuery.data?.get(row.ticker)?.currentPrice ?? null,
+                    draftUnitPrice(pricesQuery.data?.get(row.ticker)),
                   )
                 : null
             }

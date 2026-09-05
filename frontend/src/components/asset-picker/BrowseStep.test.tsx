@@ -148,7 +148,7 @@ describe("BrowseStep — validation", () => {
   });
 });
 
-describe("BrowseStep — selected-asset pricing (Task 1.10)", () => {
+describe("BrowseStep — selected-asset pricing (Task 1.10 / Task 9.3)", () => {
   it("shows the estimated value for a checked row when a price is available", async () => {
     server.use(
       http.get("/api/market/prices", () =>
@@ -198,5 +198,147 @@ describe("BrowseStep — selected-asset pricing (Task 1.10)", () => {
     );
 
     expect(requestedTickers).toBeNull();
+  });
+
+  // Defect regression (Task 9.3): honor priceUnavailable the same way enrichWireHoldings does —
+  // never treat an explicit unavailable marker as a displayable $0.00 estimate.
+  it("does not render a fabricated $0.00 when priceUnavailable is true", async () => {
+    let pricesResponded = false;
+    server.use(
+      http.get("/api/market/prices", () => {
+        pricesResponded = true;
+        return HttpResponse.json([
+          {
+            ticker: "AAPL",
+            currentPrice: 0,
+            observedAt: null,
+            priceUnavailable: true,
+          },
+        ]);
+      }),
+    );
+
+    const draft = seedDraftFromHoldings([holding({ ticker: "AAPL", quantity: "10" })], catalog);
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <BrowseStep
+          catalog={catalog}
+          draft={draft}
+          onDraftChange={vi.fn()}
+          initialQuantities={new Map([["AAPL", "10"]])}
+          token="test-token"
+        />
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() => expect(pricesResponded).toBe(true));
+    // Must wait for react-query to paint the fulfilled row: findBy would succeed if $0.00
+    // were incorrectly rendered from currentPrice:0 + priceUnavailable:true.
+    await expect(
+      screen.findByText("$0.00", {}, { timeout: 1_000 }),
+    ).rejects.toThrow();
+    expect(screen.queryByText(/^\$/)).not.toBeInTheDocument();
+  });
+
+  // Added coverage: missing/null price rows stay unavailable, never $0.00.
+  it("does not render an estimate when the price row is missing or null", async () => {
+    server.use(
+      http.get("/api/market/prices", () =>
+        HttpResponse.json([
+          { ticker: "AAPL", currentPrice: null, observedAt: null, priceUnavailable: true },
+        ]),
+      ),
+    );
+
+    const draft = seedDraftFromHoldings([holding({ ticker: "AAPL", quantity: "10" })], catalog);
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <BrowseStep
+          catalog={catalog}
+          draft={draft}
+          onDraftChange={vi.fn()}
+          initialQuantities={new Map([["AAPL", "10"]])}
+          token="test-token"
+        />
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByRole("checkbox", { name: "Select AAPL" })).toHaveAttribute(
+        "aria-checked",
+        "true",
+      ),
+    );
+    expect(screen.queryByText(/^\$/)).not.toBeInTheDocument();
+  });
+
+  // Added coverage: quantity edits only change the displayed estimate; draft string is retained.
+  it("updates the displayed estimate when quantity changes without inventing a numeric draft", async () => {
+    server.use(
+      http.get("/api/market/prices", () =>
+        HttpResponse.json([
+          { ticker: "AAPL", currentPrice: 100, observedAt: "2026-01-01T00:00:00Z", priceUnavailable: false },
+        ]),
+      ),
+    );
+
+    const draft = seedDraftFromHoldings([holding({ ticker: "AAPL", quantity: "10" })], catalog);
+    const onDraftChange = vi.fn();
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <BrowseStep
+          catalog={catalog}
+          draft={draft}
+          onDraftChange={onDraftChange}
+          initialQuantities={new Map([["AAPL", "10"]])}
+          token="test-token"
+        />
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() => expect(screen.getByText("$1,000.00")).toBeInTheDocument());
+
+    fireEvent.change(screen.getByRole("textbox", { name: "AAPL quantity" }), {
+      target: { value: "2.5" },
+    });
+
+    const next = onDraftChange.mock.calls[0][0] as DraftHoldings;
+    expect(next.get("AAPL")?.quantity).toBe("2.5");
+    // Controlled input still shows the pre-change quantity until the parent re-renders
+    // with `next`; the estimate path must not coerce the draft into a number.
+    expect(typeof next.get("AAPL")?.quantity).toBe("string");
+  });
+
+  // Added coverage: a failed price batch must not block further quantity edits.
+  it("keeps the quantity input editable when a price batch fails", async () => {
+    server.use(
+      http.get("/api/market/prices", () =>
+        HttpResponse.json({ error: "unavailable" }, { status: 503 }),
+      ),
+    );
+
+    const draft = seedDraftFromHoldings([holding({ ticker: "AAPL", quantity: "10" })], catalog);
+    const onDraftChange = vi.fn();
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <BrowseStep
+          catalog={catalog}
+          draft={draft}
+          onDraftChange={onDraftChange}
+          initialQuantities={new Map([["AAPL", "10"]])}
+          token="test-token"
+        />
+      </QueryClientProvider>,
+    );
+
+    const input = screen.getByRole("textbox", { name: "AAPL quantity" });
+    await waitFor(() => expect(input).toBeEnabled());
+    fireEvent.change(input, { target: { value: "11" } });
+    expect(onDraftChange).toHaveBeenCalled();
+    expect(screen.queryByText(/^\$/)).not.toBeInTheDocument();
   });
 });

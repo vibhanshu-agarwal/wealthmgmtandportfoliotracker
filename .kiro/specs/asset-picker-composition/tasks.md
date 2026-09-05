@@ -3955,8 +3955,15 @@ class, not by enumeration" through "operational signals only") deliberately keep
   **Blocked on B1 Wave 7** (`CompositionController` — the public endpoint does not exist before
   B1 Wave 7, regardless of how complete B1 Wave 4's orchestrator is) **and** this document's Wave 1-2.
   _Requirements: 4.1, 4.2_
-- [ ] **9.3 Wire Task 1.10's price fetch** to the real `/api/market/prices?tickers=` for drafted
-  tickers only.
+- [x] **9.3 Wire Task 1.10's price fetch** to the real `/api/market/prices?tickers=` for drafted
+  tickers only. Local real-stack evidence on this branch: dedicated
+  `frontend/playwright.draft-prices.real.config.ts` +
+  `frontend/tests/e2e/asset-picker-prices.integration.spec.ts` against Docker Compose with
+  Golden-State + market-data seed (ordinary E2E login; no route fulfillment for
+  `/api/market/prices`); Vitest coverage for draft-only fetch, encoding, unavailable/
+  `priceUnavailable` (BrowseStep never fabricates `$0.00`), and failed-batch editability.
+  Source/local verification only — not deployed; remaining Wave 9 tasks and Production E2E stay
+  open.
   _Requirements: 3.1_
 - [ ] **9.4 Wire presence** to the real `GET /api/presence/demo` (Wave 3).
   _Requirements: 6.3_

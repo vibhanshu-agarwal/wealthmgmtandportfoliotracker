@@ -232,4 +232,35 @@ describe("loadMarketPrices — availability semantics", () => {
     const result = await loadMarketPrices([], "test-token");
     expect(result.size).toBe(0);
   });
+
+  // Added coverage (Task 9.3): canonical punctuation / URL encoding for drafted tickers.
+  it("URL-encodes exchange-suffixed and FX tickers without altering punctuation", async () => {
+    const tickers = ["BTC-USD", "BRK.B", "EURUSD=X"];
+    let rawUrl = "";
+    server.use(
+      http.get("/api/market/prices", ({ request }) => {
+        rawUrl = request.url;
+        const tks = (new URL(request.url).searchParams.get("tickers") ?? "")
+          .split(",")
+          .filter(Boolean);
+        return HttpResponse.json(
+          tks.map((ticker) => ({
+            ticker,
+            currentPrice: 1.0,
+            observedAt: "2026-01-01T00:00:00Z",
+            priceUnavailable: false,
+          })),
+        );
+      }),
+    );
+
+    const result = await loadMarketPrices(tickers, "test-token");
+    const decoded = new URL(rawUrl).searchParams.get("tickers") ?? "";
+    expect(decoded.split(",").sort()).toEqual([...tickers].sort());
+    // Hyphen / dot / equals must appear in the decoded query (not stripped).
+    expect(decoded).toContain("BTC-USD");
+    expect(decoded).toContain("BRK.B");
+    expect(decoded).toContain("EURUSD=X");
+    expect(result.size).toBe(3);
+  });
 });
