@@ -36,6 +36,32 @@ accepted as valid and addressed:
 The reviewer's note is accurate: no production verification is established by
 this change, and none was claimed.
 
+## Review round 2 (source/docs review, no independent test run by the reviewer)
+
+Two further gaps, both accepted as valid and addressed:
+
+1. **The revalidation test still didn't prove the 304 was processed
+   successfully — only that Browse stayed populated, which is exactly as
+   consistent with a silently-failed revalidation as with a successful one**,
+   since `AssetPicker` deliberately shows no error for a background failure
+   with an already-held catalog. Fixed by exposing react-query's own
+   `dataUpdatedAt` via a new test-only `data-catalog-updated-at` attribute
+   (verified directly against the installed `@tanstack/query-core` reducer
+   source that this value only advances on a genuine success, never on error)
+   and asserting it changes after the second request — see "Real-stack browser
+   proof" below.
+2. **The `C:`-vs-`D:` comparison didn't rule out a code/environment
+   interaction — it only showed both passed on `C:` while the changed code
+   failed on `D:`, missing the baseline-on-`D:` cell entirely.** Correct, and a
+   more careful comparison than my second pass had run. Filled in the missing
+   cell (and then some, since filling it in immediately raised a second
+   question): baseline passes cleanly on a fresh `D:` worktree too, and —
+   re-running the exact worktree that had twice failed — it now passes there as
+   well, with the exact same code, no changes in between. See "Full validation
+   run" below for the full table and the corrected, narrower conclusion: an
+   intermittent, non-reproducing-on-retry timeout, not a deterministic property
+   of this diff, this drive, or this worktree.
+
 ## Branch and baseline
 
 - Branch: `claude/b2-task-9-1-real-catalog-integration`, ahead of `origin/main`
@@ -246,37 +272,50 @@ above.
 ## Full validation run (this branch, after all fixes)
 
 - `npx vitest run src/lib/api/assetPicker.test.ts src/lib/hooks/useCatalog.test.tsx src/components/asset-picker` → 22 files / 168 tests passed
-- `npm test` (full frontend suite, from `frontend/`, run on this branch's
-  worktree at `D:/…/wealthmgmtandportfoliotracker-claude`) → 570 tests, 569
-  passed / 1 failed (`capture-suppression.test.ts`'s
-  `installGatewaySessionInitScript` test, a `5000ms` timeout). **A first pass of
-  this note claimed this was "a resource-contention flake from the earlier heavy
-  Gradle/Docker activity" on the strength of one isolated retry passing — code
-  review correctly rejected that as unestablished** (an isolated pass doesn't show
-  what actually made the full run fail, and I hadn't re-run the full suite with
-  no competing builds at all before writing that). Re-ran `npm test` again with
-  nothing else running (no Docker containers, no Gradle process) — **it failed
-  the same way again**, directly disproving the original "competing builds"
-  explanation. To isolate the real variable, built two disposable, detached
-  worktrees on `C:\temp\` (fast NVMe, vs. this repo's `D:` SATA HDD) and ran the
-  identical full suite in
-  each: `origin/main` unmodified → **567/567 passed**; this branch's exact code
-  (same commit) → **570/570 passed**. Both clean, on the same machine, in the
-  same session. That is a controlled, direct comparison: identical code passes
-  fully on `C:`, and the one file involved
-  (`tests/e2e/helpers/__tests__/capture-suppression.test.ts`) is untouched by
-  this diff and has no dependency on anything this task edited. **Conclusion,
-  properly established this time**: the failure is specific to running the
-  Vitest suite from this `D:` worktree in this session — not caused by this
-  change, and not shown to be a pre-existing defect in the test itself either,
-  since it did not reproduce at all on a clean environment with identical code.
-  I have not pinned the exact OS-level mechanism (disk I/O, leftover
-  process/scheduler pressure from the earlier Docker/Gradle activity on this
-  same drive, or something else `D:`-specific) and am not claiming one. The
-  authoritative full-suite result for this task's own code is the clean
-  **570/570 pass on `C:`**; the `D:`-specific failure is reported here as an
-  observed, unresolved environment artifact, not asserted as fixed or as
-  provably unrelated to disk speed.
+- `npm test` (full frontend suite, from `frontend/`) — a first pass of this note
+  claimed one full-run failure (`capture-suppression.test.ts`'s
+  `installGatewaySessionInitScript`, a `5000ms` real-loopback-HTTP-server
+  timeout) was "a resource-contention flake from the earlier heavy Gradle/Docker
+  activity," on the strength of one isolated retry passing. **Code review
+  rejected that as unestablished, correctly — an isolated retry doesn't show
+  what caused the full run to fail.** Re-investigated with a genuine controlled
+  comparison, run to completion (not stopped at the first result that looked
+  clean):
+
+  | code | worktree | disk | result |
+  |---|---|---|---|
+  | `origin/main` | this repo's assigned worktree | `D:` (repeated) | 570/570 passed twice in a row on the latest attempts, after 2 earlier failures at the same test |
+  | `origin/main` | fresh temp worktree | `C:` (NVMe) | 567/567 passed |
+  | `origin/main` | fresh temp worktree | `D:` (fresh, separate from the assigned one) | 567/567 passed |
+  | `origin/main` + this diff's `frontend/` files only | the same fresh `D:` temp worktree | `D:` | 570/570 passed |
+  | this branch's exact code | fresh temp worktree | `C:` (NVMe) | 570/570 passed |
+  | this branch's exact code | this repo's assigned worktree | `D:` (repeated) | 570/570, then 571/571 (one more test added since), passed twice more |
+
+  A first correction to this note (after the review round above) said the
+  failure was "specific to running the Vitest suite from this `D:` worktree" —
+  **that was also wrong, and the reviewer was right to flag it as unestablished
+  in the same way**: filling in the one cell that draft was missing (baseline
+  code on a *separate, fresh* `D:` worktree) showed a clean pass there too, and
+  re-running the *exact same, assigned* `D:` worktree that had twice failed
+  earlier in this session now passes cleanly, twice, with no code change in
+  between. That rules out both "this diff" and "this specific worktree/disk" as
+  a *deterministic* cause — the failure did not reproduce on retry in the same
+  place with the same code. **What the evidence actually supports**: an
+  intermittent, load-sensitive timeout in one pre-existing test's hardcoded
+  `5000ms` bound, which happened to trigger twice early in this session
+  (temporally close to sustained heavy Docker/Gradle build activity on this
+  machine) and has not reproduced since, in several attempts, with several
+  different code versions, in several different worktrees. This is consistent
+  with — but does not conclusively prove — transient system load as the
+  trigger; I have not correlated exact CPU/disk telemetry at the failure
+  moments against the passing ones, so I am not asserting that mechanism as
+  established, only as the best-supported explanation for a genuinely
+  intermittent result. The file itself (`tests/e2e/helpers/__tests__/capture-suppression.test.ts`)
+  is untouched by this diff. Full validation for this task's own code rests on
+  the **570/570 (now 571/571) clean full-suite passes**, reproduced multiple
+  times across multiple environments; the two earlier failures are disclosed
+  above rather than omitted, and the cause of their intermittency remains
+  unresolved.
 - `npx tsc --noEmit` (frontend) → clean, no errors.
 - `npx tsc -p tests/e2e/tsconfig.e2e-test.json --noEmit` → exactly the recorded
   baseline exception (`TS1343` at `global-setup-entrypoint.test.ts:23`), nothing
@@ -313,12 +352,15 @@ frontend/tests/e2e/asset-catalog.integration.spec.ts                       (new 
 - No production probe, deploy, push, PR, or workflow dispatch has been performed.
   All of that requires separate, explicit owner authorization per the kickoff
   note's boundary — this note deliberately does not request or assume it.
-- The `capture-suppression.test.ts` full-suite failure on this `D:` worktree was
-  investigated with a controlled comparison (see above) that rules out this
-  diff's code as the cause, but does not pin the actual environmental mechanism
-  and is not fixed — out of scope for this task (the file is untouched by this
-  change) and flagged here as an open, unresolved observation, not asserted as
-  understood or resolved.
+- `capture-suppression.test.ts`'s `installGatewaySessionInitScript` test timed
+  out twice early in this session's full-suite runs, then passed cleanly on
+  every subsequent attempt (multiple times, across multiple worktrees and disks,
+  with both baseline and this branch's code). The evidence available (see "Full
+  validation run") shows it is not a deterministic property of this diff, this
+  drive, or this worktree — but the intermittency itself is not explained, no
+  telemetry was correlated to the two failure moments, and the file is untouched
+  by this diff regardless. Reported here as an observed, disclosed, unresolved
+  flake, not as something fixed or fully understood.
 
 ## Requested next step
 

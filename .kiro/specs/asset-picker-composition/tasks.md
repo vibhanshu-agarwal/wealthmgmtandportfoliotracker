@@ -3915,28 +3915,35 @@ class, not by enumeration" through "operational signals only") deliberately keep
      so a *background* revalidation failure with an already-held catalog stays silent and
      self-heals, unchanged, per the existing staleTime policy. Regression:
      `AssetPicker.test.tsx` "catalog failure (Task 9.1)" (RED before, GREEN after; full targeted
-     Vitest run and `npm test` clean on a separate, clean worktree on a fast disk (see the handoff
-     note's review-round section for why "clean" needed a controlled comparison, not an isolated
-     retry, to actually establish).
+     Vitest run clean, and `npm test` clean, reproduced multiple times across multiple worktrees
+     and disks — the handoff note's two review-round sections record why establishing that took a
+     genuine controlled comparison across environments, not an isolated retry or a single
+     `C:`-vs-`D:` pair, and record two early-session, non-reproducing-on-retry timeouts in an
+     unrelated, untouched test file rather than omitting them).
   A dedicated real-stack browser spec, `tests/e2e/asset-catalog.integration.spec.ts` (own config
   `playwright.asset-catalog.real.config.ts`, local-only — not wired into any CI workflow; Task 9.9
   owns that; both files' header comments give the exact reproducible stack-up/seed/run sequence,
   including the real `INTERNAL_API_KEY` and explicit `global-setup.ts` seed step a first pass of
   this work incorrectly omitted), exercises the actual browser against a local Docker Compose stack
   with distinct frontend (`:3000`) and gateway (`:8080`) origins, with zero `page.route` mocking:
-  an initial 200 sending no `If-None-Match` (nothing cached yet); then, after
-  `page.clock.fastForward` past `useCatalog`'s 60s `staleTime` (not a real 61s wait or a Node
-  substitute) and reopening, waits for the second request to actually complete before touching the
-  UI again, asserts its `If-None-Match` equals the exact first-response `ETag` (not just "some
-  304"), asserts the `304` itself, and only then re-confirms Browse is still populated with no
-  `role="alert"` visible. **Run and confirmed on this branch, including after a code-review pass
-  tightened these assertions**: the spec PASSED against the fixed gateway, then was re-run against
-  the pre-fix `SecurityConfig` (temporarily reverted, image rebuilt) and FAILED — precisely at the
-  `If-None-Match`/`ETag` comparison (expected the real `ETag` string, received `null`), showing
-  directly that the browser never captured a usable `ETag` cross-origin at all. RED/GREEN both
-  captured directly, not assumed, before and after the tightening. The fix was then restored,
-  rebuilt, and reconfirmed GREEN. Full command sequence and evidence — including the honest,
-  narrower full-suite-flake finding from the review round — in
+  an initial 200 sending no `If-None-Match` (nothing cached yet, captures the first response's
+  `ETag` and react-query's `dataUpdatedAt` via a test-only `data-catalog-updated-at` attribute);
+  then, after `page.clock.fastForward` past `useCatalog`'s 60s `staleTime` (not a real 61s wait or
+  a Node substitute) and reopening, waits for the second request to actually complete before
+  touching the UI again, asserts its `If-None-Match` equals the exact first-response `ETag` (not
+  just "some 304"), asserts the `304` itself, then — a second review round's finding — asserts
+  `dataUpdatedAt` actually advanced (verified against the installed `@tanstack/query-core` reducer
+  source that this only happens on a genuine success, never on error, so it cannot be satisfied by
+  a silently-failed revalidation the same way "Browse still shows a checkbox" could be), and only
+  then re-confirms Browse is still populated with no `role="alert"` visible. **Run and confirmed on
+  this branch, including after two code-review passes tightened these assertions**: the spec PASSED
+  against the fixed gateway, then was re-run against the pre-fix `SecurityConfig` (temporarily
+  reverted, image rebuilt) and FAILED — precisely at the `If-None-Match`/`ETag` comparison (expected
+  the real `ETag` string, received `null`), showing directly that the browser never captured a
+  usable `ETag` cross-origin at all. RED/GREEN both captured directly, not assumed, across both
+  tightening rounds. The fix was then restored, rebuilt, and reconfirmed GREEN each time. Full
+  command sequence and evidence — including the honest, narrower full-suite-flake finding from both
+  review rounds — in
   `docs/superpowers/plans/2026-09-05-b2-task-9-1-catalog-integration-handoff.md`.
   _Requirements: 2.1_
 - [ ] **9.2 Wire Task 1.13's composition-save mutation to the real `PUT /api/portfolio/holdings`** —
