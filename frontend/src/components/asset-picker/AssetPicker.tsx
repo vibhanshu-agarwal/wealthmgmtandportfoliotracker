@@ -74,6 +74,11 @@ export function AssetPicker({
   onSaveSuccess,
 }: AssetPickerProps) {
   const catalogQuery = useCatalog(token, open);
+  // Task 9.1 — a catalog fetch that has never succeeded must not read as an empty,
+  // apparently-healthy Browse list. A *background* revalidation failure with an
+  // already-held catalog (`catalogQuery.data` still set) is deliberately excluded —
+  // that stays silent and self-heals, per the existing staleTime/refetch policy.
+  const catalogUnavailable = catalogQuery.isError && !catalogQuery.data;
   const queryClient = useQueryClient();
 
   const [seed, setSeed] = useState<DraftSeed>(EMPTY_SEED);
@@ -101,7 +106,7 @@ export function AssetPicker({
     setSeededForOpen(false);
     setStep("browse");
     setConflict(null);
-  } else if (open && !seededForOpen && !catalogQuery.isLoading) {
+  } else if (open && !seededForOpen && !catalogQuery.isLoading && !catalogUnavailable) {
     setOpenGeneration((prev) => prev + 1);
     const catalogAssets = catalogQuery.data?.assets ?? [];
     setSeed({
@@ -192,6 +197,16 @@ export function AssetPicker({
         />
       ) : catalogQuery.isLoading ? (
         <p className="py-8 text-center text-sm text-muted-foreground">Loading catalog…</p>
+      ) : catalogUnavailable ? (
+        <div role="alert" className="flex flex-col items-center gap-3 py-8 text-center">
+          <p className="text-sm text-destructive">
+            Couldn&apos;t load the asset catalog. Nothing can be reviewed or saved until it
+            loads.
+          </p>
+          <Button type="button" variant="outline" onClick={() => catalogQuery.refetch()}>
+            Retry
+          </Button>
+        </div>
       ) : step === "review" ? (
         <ReviewStep
           initialHoldings={seed.initialHoldingsAtOpen}
@@ -201,7 +216,20 @@ export function AssetPicker({
           saving={saveMutation.isPending}
         />
       ) : (
-        <div className="flex flex-col gap-4">
+        <div
+          className="flex flex-col gap-4"
+          // Task 9.1 — `dataUpdatedAt` only advances when the catalog query's
+          // queryFn actually resolves into a new *successful* state (react-query
+          // updates it on every settled fetch, including one whose 304 branch
+          // just returns the retained cachedCatalog — never on error, and never
+          // merely because a network response arrived). The real-stack browser
+          // spec asserts this changes after a 304, since "Browse still shows
+          // data" alone can't distinguish a successful revalidation from a
+          // failed one that silently kept the previous data (this component
+          // deliberately shows no error for a background failure with an
+          // already-held catalog).
+          data-catalog-updated-at={catalogQuery.dataUpdatedAt}
+        >
           <BrowseStep
             catalog={catalogQuery.data?.assets ?? []}
             draft={seed.draft}

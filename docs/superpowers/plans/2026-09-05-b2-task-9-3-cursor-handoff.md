@@ -1,12 +1,14 @@
 # B2 Task 9.3 — Cursor implementation handoff
 
-**Request:** authorize push / open PR when ready. No merge or deployment is authorized by this handoff.
+**OWNER AUTHORIZATION RECORDED — PR #229 publication and main synchronization:** the owner
+authorized publishing this branch, opening PR #229, and updating it after PR #228 merged. Merge
+remains conditional on fresh green CI for the combined state. No deployment is authorized.
 
 ## Baseline / head
 
 | | |
 |---|---|
-| Baseline | `origin/main` at branch creation (`git merge-base origin/main HEAD`) |
+| Baseline | `origin/main@4f1a0428` at branch creation; synchronized with PR #228 / `main@3ea9578c` during review |
 | Branch | `feat/b2-task-9-3-drafted-price-integration` |
 | Head / commits | `git rev-parse HEAD` and `git log --oneline origin/main..HEAD` (do not hardcode) |
 
@@ -74,15 +76,15 @@ Unavailable/failed-batch paths: Vitest+MSW only (called out in the integration s
 ## Task 9.3 status
 
 **Local/source price integration evidence is in place** (checkbox wording remains durable). Not deployed.
-Remaining Wave 9 tasks and Production E2E stay open. This branch does not include Task 9.1
-catalog/CORS changes; integrated catalog+prices browser proof remains a separate follow-up when
-that work is on the same baseline.
+Remaining Wave 9 tasks and Production E2E stay open. Task 9.1's catalog/CORS changes merged via
+PR #228 and are now in this branch's baseline. The Task 9.1 and Task 9.3 real-stack specs remain
+separate proofs; no combined catalog-and-prices browser proof has been run.
 
 **Publication caveat:** the full frontend `npm test` suite is still unresolved at 572/575 under a
 clean env with no competing stack (see above). Do not treat Task 9.3 as merge-ready until that
 suite result is closed or accepted by review.
 
-## PR body declaration (when authorized)
+## PR body declaration
 
 ```text
 Master-plan impact: updated — B2
