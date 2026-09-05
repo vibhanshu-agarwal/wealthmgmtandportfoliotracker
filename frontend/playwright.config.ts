@@ -55,6 +55,11 @@ export default defineConfig({
         // config's own build never sets (Edit Holdings would have no entry point).
         // Local-only: run via its own playwright.asset-catalog.real.config.ts.
         /asset-catalog\.integration\.spec\.ts$/,
+        // B2 Task 9.4 — real presence proof. Needs a flag-on build, the demo
+        // account (not this project's Golden-State E2E user), and a gateway whose
+        // presence TTL is shortened by docker-compose.presence-e2e.yml. Local-only:
+        // run via its own playwright.presence.real.config.ts.
+        /asset-picker-presence\.integration\.spec\.ts$/,
       ],
       use: {
         ...devices["Desktop Chrome"],

@@ -87,8 +87,21 @@ export function AssetPicker({
   // second open queries presence again rather than serving the first open's
   // staleTime:Infinity result forever — AssetPicker itself never unmounts between
   // opens (EditHoldingsButton only toggles its `open` prop).
-  const [openGeneration, setOpenGeneration] = useState(0);
-  const presence = usePresence(token, open, openGeneration);
+  //
+  // Task 9.4 (defect fix): the key advances on the open transition itself, never on
+  // draft seeding. Seeding lands at least one render after the modal opens (later
+  // still on a cold catalog), so keying presence off it made every first opening
+  // query *twice* — once under the pre-seed key and again under the seeded one,
+  // against requirements.md 6.3's "query presence **once**, on open". `openFor`
+  // additionally keeps the query disabled for the render that still carries the
+  // previous key, so the superseded key never fetches at all. Presence is
+  // deliberately independent of the catalog: an advisory signal on open must not
+  // wait on, or be cancelled by, a slow or failed catalog load.
+  const [openSession, setOpenSession] = useState({ key: 0, openFor: false });
+  if (open !== openSession.openFor) {
+    setOpenSession((prev) => ({ key: open ? prev.key + 1 : prev.key, openFor: open }));
+  }
+  const presence = usePresence(token, open && openSession.openFor, openSession.key);
   const [step, setStep] = useState<PickerStep>("browse");
   const [conflict, setConflict] = useState<{ currentVersion: number; message: string } | null>(
     null,
@@ -107,7 +120,6 @@ export function AssetPicker({
     setStep("browse");
     setConflict(null);
   } else if (open && !seededForOpen && !catalogQuery.isLoading && !catalogUnavailable) {
-    setOpenGeneration((prev) => prev + 1);
     const catalogAssets = catalogQuery.data?.assets ?? [];
     setSeed({
       draft: seedDraftFromHoldings(initialHoldings, catalogAssets),

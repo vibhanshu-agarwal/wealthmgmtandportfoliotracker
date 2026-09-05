@@ -3965,7 +3965,27 @@ class, not by enumeration" through "operational signals only") deliberately keep
   Source/local verification only — not deployed; remaining Wave 9 tasks and Production E2E stay
   open.
   _Requirements: 3.1_
-- [ ] **9.4 Wire presence** to the real `GET /api/presence/demo` (Wave 3).
+- [x] **9.4 Wire presence** to the real `GET /api/presence/demo` (Wave 3). Local real-stack
+  evidence on this branch: dedicated `frontend/playwright.presence.real.config.ts` +
+  `frontend/tests/e2e/asset-picker-presence.integration.spec.ts` against Docker Compose with the
+  `docker-compose.presence-e2e.yml` overlay, using two independently issued demo logins (never one
+  storage state copied twice) and no route fulfillment for `/api/presence/demo`. The
+  `false → true → false` arc runs as **close/reopen cycles on one mounted picker** — one page, one
+  JS context, one TanStack `QueryClient`, asserted by a window sentinel re-read after the last
+  opening — so the closing `false` demonstrates that the previous opening's `staleTime: Infinity`
+  `true` was *discarded* rather than replayed, which a fresh page per opening could not show
+  (review round 1 finding). Exactly one real GET per opening, three in total. A same-token second
+  tab reads a real `false` too (two tabs, one session).
+  **One reproduced defect, fixed here:** `AssetPicker` advanced its presence key during draft
+  seeding, which lands at least one render after the modal opens, so every *first* opening issued
+  **two** `GET /api/presence/demo` calls — cold and warm catalog alike — against this task's own
+  requirements.md 6.3 ("query presence **once**, on open"). The key now advances on the open
+  transition and the query stays disabled for the render still carrying the superseded key.
+  Requirement 6.5's fail-open path is covered by injected-failure Vitest cases and by the gateway's
+  own real-Redis `DemoPresenceIntegrationTest` (13 tests, `integrationTest` task), not by breaking
+  a Redis shared with the rest of the local stack.
+  Source/local verification only — not deployed, no Production E2E, and not wired into CI (Task 9.9
+  owns Wave 9 CI). Wave 3's deployment/live proof (Task 3.7) stays open.
   _Requirements: 6.3_
 - [ ] **9.5 Wire Task 1.16's freshness status to a real `assetPriceFreshness`.** Spec A task 8.6 is
   complete and the backend field exists. This task remains undone because B2's frontend adapter and
