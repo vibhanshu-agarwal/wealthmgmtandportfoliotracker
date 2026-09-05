@@ -11,13 +11,20 @@ Codex's worktree).
 
 ## Branch and baseline
 
-- Branch: `claude/b2-task-9-1-real-catalog-integration`
-- Base: `origin/main` at `c8fc407c` (includes PR #226, Task 9.6's fixture)
-- This branch also carries a cherry-picked, previously-authored, previously-unpushed
-  commit correcting Task 9.6's master-plan status from "open at PR #226, unmerged"
-  to "merged via PR #226" (`a2df6d55` on the sibling branch
-  `claude/b2-task-9-6-master-plan-status-correction`, cherry-picked here as it was
-  the same stale text this task's own master-plan edit builds on).
+- Branch: `claude/b2-task-9-1-real-catalog-integration`, currently 4 commits ahead
+  of `origin/main` at `4f1a0428`.
+- Originally branched from `origin/main` at `c8fc407c` (PR #226, Task 9.6's
+  fixture), and initially also carried a cherry-picked, previously-authored,
+  previously-unpushed commit correcting Task 9.6's master-plan status from "open
+  at PR #226, unmerged" to "merged via PR #226" (`a2df6d55` on the sibling branch
+  `claude/b2-task-9-6-master-plan-status-correction`) — that same correction was
+  independently pushed and merged upstream via PR #227 while this task's work was
+  in progress. `git rebase origin/main` was then run on this (unpushed, so safe to
+  rewrite) branch; it automatically detected and dropped the now-duplicate
+  cherry-pick ("skipped previously applied commit"), leaving exactly the four
+  Task 9.1 commits below rebased cleanly onto the current `origin/main`. The
+  master-plan status propagation guard was re-run against the final
+  `origin/main`/`HEAD` pair after the rebase and still passes.
 - Working tree was clean apart from two pre-existing untracked plan docs, which
   were left untouched throughout: `docs/superpowers/plans/2026-09-04-b1-rc-pr222-session-handoff.md`
   and `docs/superpowers/plans/2026-09-05-b2-task-9-6-demo-authenticated-playwright-fixture.md`.
