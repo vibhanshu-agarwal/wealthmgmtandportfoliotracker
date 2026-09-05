@@ -7,6 +7,16 @@
  * (`SecurityConfig`'s `If-None-Match`/`ETag` entries) are both exercised the same
  * way a real browser would: this spec makes no `page.route` calls of its own.
  *
+ * The revalidation assertion doesn't stop at "the network returned 304" or
+ * "Browse still shows a checkbox" — either alone is consistent with a
+ * revalidation that silently failed (this app deliberately shows no error for a
+ * background catalog failure with an already-held catalog, so the UI staying
+ * populated proves nothing about what actually happened). It also asserts
+ * react-query's own `dataUpdatedAt` advanced, via the test-only
+ * `data-catalog-updated-at` attribute `AssetPicker.tsx` exposes — that value
+ * only moves on a genuinely settled success, closing the gap a network-only or
+ * UI-only check would leave open.
+ *
  * Uses the ordinary Golden-State E2E identity (`helpers/browser-auth.ts` /
  * `helpers/api.ts`) — Task 9.6's demo-authenticated fixture exists for the
  * composition-write flows Task 9.2/9.8 own, and is not needed for this read-only
@@ -111,6 +121,21 @@ test.describe("Asset Picker — real catalog integration (Task 9.1)", () => {
       "the very first request has no cached catalog yet and must not send If-None-Match",
     ).toBeNull();
 
+    // `dataUpdatedAt` (exposed via a test-only `data-catalog-updated-at`
+    // attribute — see AssetPicker.tsx) only advances when the catalog query's
+    // queryFn actually resolves into a new *successful* react-query state, never
+    // merely because a network response arrived and never on error. Capturing
+    // it now, before the revalidation, is what lets the later assertion prove
+    // the *second* fetch was genuinely processed as success — not just that the
+    // network round-trip completed, and not just that Browse still shows
+    // something (stale-while-revalidate would do that even if the revalidation
+    // silently failed, since this component deliberately shows no error for a
+    // background failure with an already-held catalog).
+    const firstDataUpdatedAt = await dialog
+      .locator("[data-catalog-updated-at]")
+      .getAttribute("data-catalog-updated-at");
+    expect(firstDataUpdatedAt, "sanity check: the marker must be present once loaded").toBeTruthy();
+
     await dialog.getByRole("button", { name: "Close" }).click();
     await expect(dialog).not.toBeVisible();
 
@@ -141,12 +166,30 @@ test.describe("Asset Picker — real catalog integration (Task 9.1)", () => {
       "an unchanged canonical catalog must revalidate with a genuine 304, not a second 200",
     ).toBe(304);
 
-    // Only now, after the 304 has genuinely been received and processed, confirm
-    // fetchCatalog's cache-retention actually held: Browse is still populated
-    // and no failure state appeared.
+    // The actual proof that the 304 was processed successfully, not merely
+    // received: react-query's dataUpdatedAt must have advanced to a new value.
+    // This is the assertion "Browse still shows the checkbox" cannot make on
+    // its own — a query that silently errored during revalidation would leave
+    // the checkbox visible too (same reason above), but it would NOT advance
+    // dataUpdatedAt, since that only updates on a settled *success*.
+    await expect
+      .poll(
+        () => dialog.locator("[data-catalog-updated-at]").getAttribute("data-catalog-updated-at"),
+        {
+          timeout: 15_000,
+          message:
+            "the catalog query's dataUpdatedAt must advance after the 304 — proving react-query " +
+            "actually processed the revalidation as a success, not just that the network round-trip completed",
+        },
+      )
+      .not.toBe(firstDataUpdatedAt);
+
+    // Only now, after both the network 304 and react-query's own success
+    // transition are confirmed, do a final UI sanity check: Browse is still
+    // populated and no failure state appeared.
     await expect(
       dialog.getByRole("checkbox", { name: `Select ${sampleTicker}` }),
-      "the catalog must remain rendered from the retained cache after a 304",
+      "the catalog must remain rendered from the retained cache after a successful revalidation",
     ).toBeVisible({ timeout: 15_000 });
     await expect(
       dialog.getByRole("alert"),

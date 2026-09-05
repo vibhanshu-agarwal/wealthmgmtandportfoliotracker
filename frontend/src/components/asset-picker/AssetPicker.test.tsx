@@ -100,6 +100,22 @@ describe("AssetPicker — modal shell", () => {
     renderPicker();
     await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
   });
+
+  it("exposes the catalog query's dataUpdatedAt as a test-observable attribute once it resolves (Task 9.1)", async () => {
+    server.use(
+      http.get("/api/assets", () => HttpResponse.json({ catalogVersion: "v1", assets: [] })),
+    );
+    renderPicker();
+
+    // Radix Dialog portals the modal content to document.body, not into
+    // render()'s own container — query the whole document, matching this
+    // file's other assertions (screen.getByRole etc.).
+    await waitFor(() => {
+      const marker = document.querySelector("[data-catalog-updated-at]");
+      expect(marker).not.toBeNull();
+      expect(Number(marker?.getAttribute("data-catalog-updated-at"))).toBeGreaterThan(0);
+    });
+  });
 });
 
 describe("AssetPicker — review, save, conflict (Checkpoint 3)", () => {

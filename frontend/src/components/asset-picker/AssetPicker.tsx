@@ -216,7 +216,20 @@ export function AssetPicker({
           saving={saveMutation.isPending}
         />
       ) : (
-        <div className="flex flex-col gap-4">
+        <div
+          className="flex flex-col gap-4"
+          // Task 9.1 — `dataUpdatedAt` only advances when the catalog query's
+          // queryFn actually resolves into a new *successful* state (react-query
+          // updates it on every settled fetch, including one whose 304 branch
+          // just returns the retained cachedCatalog — never on error, and never
+          // merely because a network response arrived). The real-stack browser
+          // spec asserts this changes after a 304, since "Browse still shows
+          // data" alone can't distinguish a successful revalidation from a
+          // failed one that silently kept the previous data (this component
+          // deliberately shows no error for a background failure with an
+          // already-held catalog).
+          data-catalog-updated-at={catalogQuery.dataUpdatedAt}
+        >
           <BrowseStep
             catalog={catalogQuery.data?.assets ?? []}
             draft={seed.draft}
