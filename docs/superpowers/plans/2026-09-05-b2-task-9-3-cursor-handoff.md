@@ -4,13 +4,11 @@
 
 ## Baseline / head
 
-| | SHA |
+| | |
 |---|---|
-| Baseline (`origin/main` at branch creation) | `4f1a0428adc2d1cb4ce5d1b94deb7b55a8a1902f` |
-| Head (local commit) | `6809562999cf00b10169eff990dbf58baf91a9ed` |
+| Baseline | `origin/main` at branch creation (`git merge-base origin/main HEAD`) |
 | Branch | `feat/b2-task-9-3-drafted-price-integration` |
-
-Run `git log --oneline origin/main..HEAD` for the commit list (do not hardcode a count).
+| Head / commits | `git rev-parse HEAD` and `git log --oneline origin/main..HEAD` (do not hardcode) |
 
 ## Demonstrated defect vs already-working behavior
 
@@ -28,6 +26,7 @@ Run `git log --oneline origin/main..HEAD` for the commit list (do not hardcode a
 - `frontend/src/components/asset-picker/BrowseStep.test.tsx`
 - `frontend/src/lib/hooks/useDraftPrices.test.tsx`
 - `frontend/src/lib/api/portfolio.batching.test.ts`
+- `frontend/playwright.config.ts` (Chromium `testIgnore` for the local-only price spec)
 - `frontend/playwright.draft-prices.real.config.ts`
 - `frontend/tests/e2e/asset-picker-prices.integration.spec.ts`
 - `.kiro/specs/asset-picker-composition/tasks.md`
@@ -37,42 +36,51 @@ Run `git log --oneline origin/main..HEAD` for the commit list (do not hardcode a
 
 ## Test commands / results
 
-From `frontend/` (with `NEXT_PUBLIC_API_BASE_URL` unset — a leftover absolute base from the
-real-stack Playwright run sends Vitest fetches to the live gateway and bypasses MSW):
+From `frontend/` (Vitest with `NEXT_PUBLIC_API_BASE_URL` unset; Docker Compose down for the full suite):
 
 ```text
-npx vitest run src/lib/hooks/useDraftPrices.test.tsx src/lib/api/portfolio.batching.test.ts src/components/asset-picker
-→ 177 passed (earlier scoped asset-picker run)
-
 npx vitest run src/lib/hooks/useDraftPrices.test.tsx src/lib/api/portfolio.batching.test.ts src/components/asset-picker/BrowseStep.test.tsx
-→ 25 passed (after clearing NEXT_PUBLIC_API_BASE_URL)
+→ 25 passed (clean env)
 
 npx tsc --noEmit
 → exit 0
 
 npx playwright test --config playwright.draft-prices.real.config.ts
-→ 2 passed (real Docker stack; Golden-State + market-data seeded;
-   NEXT_PUBLIC_API_BASE_URL=http://localhost:8080 only for that command)
+→ 2 passed (Docker stack up + Golden-State/market-data seeded;
+   NEXT_PUBLIC_API_BASE_URL=http://localhost:8080 only for that command;
+   picker-attributed three-ticker request + third-ticker estimate)
 
-npm test (full suite) with NEXT_PUBLIC_API_BASE_URL still set to the local gateway:
-→ 75 failed — MSW handlers never saw /api/* (absolute URL bypass). Not a product regression.
-  Re-run of the Task 9.3 scoped files after unsetting the var: 25/25 passed.
+npm test (full suite) — NEXT_PUBLIC_API_BASE_URL cleared; docker compose down (no competing stack)
+→ UNRESOLVED: 3 failed | 572 passed (575); 2 failed files | 61 passed (63)
+  Failures (all 5s timeouts in pre-existing e2e helper unit tests, not Task 9.3 product files):
+  - capture-suppression.test.ts › installGatewaySessionInitScript › logs in with the E2E credentials…
+  - capture-suppression.test.ts › installGatewaySessionInitScript › resolves on a 200 login response
+  - global-setup-seed-version.test.ts › global-setup frozen portfolio seed sequence › logs in, reads portfolio once…
+  An earlier isolated retry of one of these files is not suite green. Full suite remains unresolved.
 ```
 
 ## Real browser evidence
 
 - Ordinary E2E login; no internal key in browser requests.
 - No `page.route` fulfillment for `/api/market/prices`.
-- Controlled draft set `AAPL,BTC-USD` (browser portfolio GET narrowed for attribution only).
-- Captured successful real price response; quantity edited to `7`; estimate matched `formatCurrency(computeEstimatedValue(...))`.
+- Browser portfolio GET narrowed to AAPL+BTC-USD for a known open-time draft (Portfolio page may also request that two-ticker set).
+- Picker attribution: select a third ACTIVE catalog ticker inside Browse; assert the real price request is exactly that three-ticker set and drives the third ticker's estimate after quantity `7`.
 - Empty draft dispatched no blank-ticker price request.
 - No composition `PUT` during the proof.
+- Default `playwright.config.ts` Chromium project ignores this local-only spec.
 
 Unavailable/failed-batch paths: Vitest+MSW only (called out in the integration spec header).
 
 ## Task 9.3 status
 
-**Complete for local/source verification** (checkbox updated with durable wording). Not deployed. Remaining Wave 9 and Production E2E stay open. Task 9.1 (PR #228) was still open at implementation time; this branch did not copy its changes. Integrated catalog+prices browser proof can be re-run after 9.1 lands if desired.
+**Local/source price integration evidence is in place** (checkbox wording remains durable). Not deployed.
+Remaining Wave 9 tasks and Production E2E stay open. This branch does not include Task 9.1
+catalog/CORS changes; integrated catalog+prices browser proof remains a separate follow-up when
+that work is on the same baseline.
+
+**Publication caveat:** the full frontend `npm test` suite is still unresolved at 572/575 under a
+clean env with no competing stack (see above). Do not treat Task 9.3 as merge-ready until that
+suite result is closed or accepted by review.
 
 ## PR body declaration (when authorized)
 

@@ -5,12 +5,14 @@
  * current draft's tickers via authenticated `GET /api/market/prices?tickers=`
  * through the local API Gateway — never a page.route fulfillment for prices.
  *
- * The browser-visible `GET /api/portfolio` response is narrowed to AAPL + BTC-USD
- * so the open-time draft is a controlled, attributable ticker set. That narrowing
- * is fixture setup only: price requests are never fulfilled by Playwright, and
- * Golden-State seeding / `ensurePortfolioWithHoldings` still use the real API.
- * Portfolio-page price traffic for the full holding set is therefore not confused
- * with picker batches for the controlled draft.
+ * Attribution: the browser-visible `GET /api/portfolio` response is narrowed to
+ * AAPL + BTC-USD so the open-time draft starts there. The Portfolio page may also
+ * request that same two-ticker set after enrichment — that alone is not picker
+ * attribution. This spec then selects a third ACTIVE catalog ticker inside the
+ * picker and proves the resulting real price request contains exactly
+ * `AAPL,BTC-USD,<third>` (sorted) and drives that ticker's displayed estimate.
+ * The Portfolio page's holdings remain the two-ticker set, so it cannot emit the
+ * three-ticker query.
  *
  * Unavailable / failed-batch paths stay in Vitest+MSW contract tests
  * (`BrowseStep.test.tsx`, `portfolio.batching.test.ts`); this spec is successful-
@@ -19,7 +21,9 @@
  * Uses the ordinary Golden-State E2E identity (`helpers/browser-auth.ts`). No
  * demo-only fixture; no public composition PUT.
  *
- * LOCAL-ONLY — not wired into any CI workflow. Task 9.9 owns broader Wave 9 CI.
+ * LOCAL-ONLY — ignored by the default `playwright.config.ts` Chromium project
+ * (`testIgnore`); run only via `playwright.draft-prices.real.config.ts`. Task 9.9
+ * owns broader Wave 9 CI.
  *
  * Fresh-stack setup (this config has no `globalSetup` of its own). From the
  * repository root, then from `frontend/`:
@@ -48,9 +52,20 @@ import { formatCurrency } from "../../src/lib/utils/format";
 import { computeEstimatedValue } from "../../src/lib/utils/quantityDisplay";
 import { ensurePortfolioWithHoldings } from "./helpers/api";
 import { installGatewaySessionInitScript } from "./helpers/browser-auth";
+import { activeTickers } from "./helpers/catalog";
 
-const TARGET_TICKERS = ["AAPL", "BTC-USD"] as const;
+const HELD_TICKERS = ["AAPL", "BTC-USD"] as const;
+const HELD_TICKER_SET = new Set<string>(HELD_TICKERS);
 const DISTINCT_QUANTITY = "7";
+
+/** Third ticker selected inside the picker — must not be in the narrowed holdings. */
+function pickThirdTicker(): string {
+  const third = activeTickers().find((ticker) => !HELD_TICKER_SET.has(ticker));
+  if (!third) {
+    throw new Error("[asset-picker-prices] no ACTIVE catalog ticker available beyond AAPL/BTC-USD");
+  }
+  return third;
+}
 
 type PriceRow = {
   ticker: string;
@@ -90,10 +105,10 @@ function setsEqual(a: string[], b: readonly string[]): boolean {
 }
 
 /**
- * Narrow the browser's portfolio read to the controlled draft tickers so open-time
- * seeding yields an attributable price request. Does not touch /api/market/prices.
+ * Narrow the browser's portfolio read to AAPL + BTC-USD so open-time seeding is
+ * a known two-ticker draft. Does not touch /api/market/prices.
  */
-async function narrowBrowserPortfolioToTargets(page: Page): Promise<void> {
+async function narrowBrowserPortfolioToHeldTargets(page: Page): Promise<void> {
   await page.route("**/api/portfolio", async (route) => {
     if (route.request().method() !== "GET") {
       await route.continue();
@@ -105,7 +120,7 @@ async function narrowBrowserPortfolioToTargets(page: Page): Promise<void> {
       await route.fulfill({ response, body: JSON.stringify(body) });
       return;
     }
-    const keep = new Set<string>(TARGET_TICKERS);
+    const keep = new Set<string>(HELD_TICKERS);
     const narrowed = body.map((portfolio) => ({
       ...portfolio,
       holdings: (portfolio.holdings ?? []).filter((h) => keep.has(h.assetTicker)),
@@ -125,12 +140,14 @@ test.describe("Asset Picker — real drafted price integration (Task 9.3)", () =
   test.beforeEach(async ({ page, request }) => {
     await installGatewaySessionInitScript(page, request);
     await ensurePortfolioWithHoldings(request);
-    await narrowBrowserPortfolioToTargets(page);
+    await narrowBrowserPortfolioToHeldTargets(page);
   });
 
-  test("fetches real prices only for the controlled draft set and renders the matching estimate", async ({
+  test("fetches real prices for a picker-only third ticker and renders its estimate", async ({
     page,
   }) => {
+    const thirdTicker = pickThirdTicker();
+    const pickerAttributedTickers = [...HELD_TICKERS, thirdTicker];
     const pickerPriceBatches: { tickers: string[]; status: number; body: PriceRow[] | null }[] =
       [];
     let putCount = 0;
@@ -144,9 +161,8 @@ test.describe("Asset Picker — real drafted price integration (Task 9.3)", () =
     page.on("response", async (response) => {
       if (!isMarketPricesGet(response)) return;
       const tickers = tickersFromPricesUrl(response.url());
-      // Only record batches whose ticker set matches the controlled draft — that is
-      // what distinguishes picker traffic from any unrelated price calls.
-      if (!setsEqual(tickers, TARGET_TICKERS)) return;
+      // Three-ticker set is picker-attributed: Portfolio holdings stay AAPL+BTC-USD only.
+      if (!setsEqual(tickers, pickerAttributedTickers)) return;
       let body: PriceRow[] | null = null;
       if (response.ok()) {
         try {
@@ -175,46 +191,49 @@ test.describe("Asset Picker — real drafted price integration (Task 9.3)", () =
     await expect(
       dialog.getByRole("checkbox", { name: "Select BTC-USD", exact: true }),
     ).toBeVisible();
-    await expect(dialog.getByRole("checkbox", { name: "Select AAPL", exact: true })).toHaveAttribute(
-      "aria-checked",
-      "true",
-    );
+
+    // Controlled picker transition: add a third catalog ticker that is not in the
+    // narrowed portfolio holdings — only the picker draft can request that set.
+    const thirdCheckbox = dialog.getByRole("checkbox", {
+      name: `Select ${thirdTicker}`,
+      exact: true,
+    });
+    await expect(thirdCheckbox).toBeVisible({ timeout: 30_000 });
+    await thirdCheckbox.click();
+    await expect(thirdCheckbox).toHaveAttribute("aria-checked", "true");
 
     await expect
       .poll(() => pickerPriceBatches.some((b) => b.status === 200 && b.body != null), {
         timeout: 30_000,
         message:
-          "opening the picker on the controlled AAPL+BTC-USD draft must dispatch a real " +
-          "GET /api/market/prices whose tickers param is exactly that set",
+          `after selecting ${thirdTicker} in the picker, a real GET /api/market/prices ` +
+          `must request exactly AAPL,BTC-USD,${thirdTicker} (any order)`,
       })
       .toBe(true);
 
     const successful = pickerPriceBatches.find((b) => b.status === 200 && b.body != null);
-    expect(successful, "expected at least one successful picker price batch").toBeTruthy();
-    expect(setsEqual(successful!.tickers, TARGET_TICKERS)).toBe(true);
+    expect(successful, "expected at least one successful picker-attributed price batch").toBeTruthy();
+    expect(setsEqual(successful!.tickers, pickerAttributedTickers)).toBe(true);
 
-    const aaplRow = successful!.body!.find((row) => row.ticker === "AAPL");
-    expect(aaplRow, "AAPL must appear in the real price response").toBeTruthy();
-    expect(aaplRow!.priceUnavailable ?? false).toBe(false);
-    expect(aaplRow!.currentPrice).not.toBeNull();
-    expect(typeof aaplRow!.currentPrice).toBe("number");
+    const thirdRow = successful!.body!.find((row) => row.ticker === thirdTicker);
+    expect(thirdRow, `${thirdTicker} must appear in the real price response`).toBeTruthy();
+    expect(thirdRow!.priceUnavailable ?? false).toBe(false);
+    expect(thirdRow!.currentPrice).not.toBeNull();
+    expect(typeof thirdRow!.currentPrice).toBe("number");
 
-    const quantityInput = dialog.getByRole("textbox", { name: "AAPL quantity" });
+    const quantityInput = dialog.getByRole("textbox", { name: `${thirdTicker} quantity` });
     await quantityInput.fill(DISTINCT_QUANTITY);
 
-    const expectedEstimate = computeEstimatedValue(DISTINCT_QUANTITY, aaplRow!.currentPrice);
+    const expectedEstimate = computeEstimatedValue(DISTINCT_QUANTITY, thirdRow!.currentPrice);
     expect(expectedEstimate, "sanity: quantity × real price must be computable").not.toBeNull();
     const expectedLabel = formatCurrency(expectedEstimate!);
 
     await expect(
       dialog.getByText(expectedLabel),
-      "Browse must render the estimate from the captured real price × the edited draft quantity",
+      `Browse must render ${thirdTicker}'s estimate from the captured real three-ticker price response`,
     ).toBeVisible({ timeout: 15_000 });
 
-    // Exact draft string retained in the input — never a float re-serialization.
     await expect(quantityInput).toHaveValue(DISTINCT_QUANTITY);
-
-    // Selecting/removing and editing quantities must not save holdings.
     expect(putCount).toBe(0);
   });
 
@@ -246,7 +265,7 @@ test.describe("Asset Picker — real drafted price integration (Task 9.3)", () =
       timeout: 30_000,
     });
 
-    for (const ticker of TARGET_TICKERS) {
+    for (const ticker of HELD_TICKERS) {
       await dialog.getByRole("checkbox", { name: `Select ${ticker}`, exact: true }).click();
       await expect(
         dialog.getByRole("checkbox", { name: `Select ${ticker}`, exact: true }),
