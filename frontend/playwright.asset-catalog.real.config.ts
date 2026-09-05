@@ -12,8 +12,10 @@ import path from "node:path";
 // Gateway at NEXT_PUBLIC_API_BASE_URL.
 //
 // LOCAL-ONLY — not invoked by any CI workflow (Task 9.9 owns that). Requires the
-// Docker Compose stack already up and healthy (`docker compose up -d` at the
-// repository root) before running:
+// Docker Compose stack up and healthy AND Golden State explicitly seeded first —
+// this config carries no `globalSetup` of its own. See
+// asset-catalog.integration.spec.ts's own header comment for the exact
+// stack-up/env-var/seed/run sequence before invoking:
 //
 //   npx playwright test --config playwright.asset-catalog.real.config.ts
 //
