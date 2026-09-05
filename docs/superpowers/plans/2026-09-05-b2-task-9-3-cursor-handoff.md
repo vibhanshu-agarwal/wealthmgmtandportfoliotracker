@@ -37,20 +37,27 @@ Run `git log --oneline origin/main..HEAD` for the commit list (do not hardcode a
 
 ## Test commands / results
 
-From `frontend/`:
+From `frontend/` (with `NEXT_PUBLIC_API_BASE_URL` unset — a leftover absolute base from the
+real-stack Playwright run sends Vitest fetches to the live gateway and bypasses MSW):
 
 ```text
 npx vitest run src/lib/hooks/useDraftPrices.test.tsx src/lib/api/portfolio.batching.test.ts src/components/asset-picker
-→ 177 passed
+→ 177 passed (earlier scoped asset-picker run)
+
+npx vitest run src/lib/hooks/useDraftPrices.test.tsx src/lib/api/portfolio.batching.test.ts src/components/asset-picker/BrowseStep.test.tsx
+→ 25 passed (after clearing NEXT_PUBLIC_API_BASE_URL)
 
 npx tsc --noEmit
 → exit 0
 
 npx playwright test --config playwright.draft-prices.real.config.ts
-→ 2 passed (real Docker stack; Golden-State + market-data seeded)
-```
+→ 2 passed (real Docker stack; Golden-State + market-data seeded;
+   NEXT_PUBLIC_API_BASE_URL=http://localhost:8080 only for that command)
 
-Stack setup used throwaway `INTERNAL_API_KEY=local-task-9-3-throwaway-key`, host redis remap `6380:6379` via untracked `docker-compose.redis-host-port.override.yml` (not committed).
+npm test (full suite) with NEXT_PUBLIC_API_BASE_URL still set to the local gateway:
+→ 75 failed — MSW handlers never saw /api/* (absolute URL bypass). Not a product regression.
+  Re-run of the Task 9.3 scoped files after unsetting the var: 25/25 passed.
+```
 
 ## Real browser evidence
 
