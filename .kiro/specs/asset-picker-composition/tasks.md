@@ -3884,17 +3884,52 @@ class, not by enumeration" through "operational signals only") deliberately keep
 
 ## Wave 9 — Live integration · *Track 3*
 
-- [ ] **9.1 Wire `BrowseStep`/`AssetList` to real `GET /api/assets`**, preserving Task 1.11's
+- [x] **9.1 Wire `BrowseStep`/`AssetList` to real `GET /api/assets`**, preserving Task 1.11's
   conditional-revalidation contract against the live response — the real `ETag`/`304` behavior,
-  never a second persistent cache layered on top of it. **Blocked on B1's `GET /api/assets`
-  controller (B1 task 4.11) actually shipping in a merged, deployed release, not merely Wave 2's
-  gateway route existing (round-10 addition — this task previously carried no B1 dependency at
-  all, unlike its sibling 9.2).** B1's own Artifact Manifest is explicit: R-A (Wave 2's release,
-  which ships the gateway route) must NOT contain Waves 4-7; the controller (Wave 4) only becomes
-  includable at R-B2 (+ Wave 4, Wave 5.1), gated on Wave 3/Spec A's cutover. Before R-B2, the
-  gateway route this task wires against forwards to an endpoint that doesn't exist in the deployed
-  artifact — verified directly: no `GET /api/assets` mapping exists anywhere in
-  `portfolio-service` source today.
+  never a second persistent cache layered on top of it. **Prerequisite resolved (this task's own
+  work): the old blocking sentence below was stale.** `AssetCatalogController`
+  (`portfolio-service/.../AssetCatalogController.java`, B1 task 4.11) exists in source today and
+  the master plan's own release ledger records it served under **R-B2** (Artifact 2a,
+  `portfolio-service--0000081`) — see "`GET /api/assets` serving catalog data" in
+  `ASSET_PICKER_E2E_MASTER_PLAN.md`. `BrowseStep`/`AssetPicker` were already wired to the real
+  `apiPath('/assets')` via `fetchCatalog` (Task 1.11); no second implementation or cache exists to
+  replace.
+  Two real integration defects were found and fixed, both invisible to the mocked contract tests
+  because MSW does not enforce browser CORS behavior (the recurring evidence/oracle-mismatch
+  pattern):
+  1. **Gateway CORS gap** — `api-gateway`'s `SecurityConfig.corsConfigurationSource()` allowed
+     `Authorization`/`Content-Type`/`X-Requested-With` but not `If-None-Match`, and never set
+     `exposedHeaders` at all. Cross-origin (distinct frontend/gateway ports — the real local-stack
+     and any CloudFront-split deployment), a browser's own preflight would refuse to send
+     `If-None-Match`, and `fetchCatalog`'s `response.headers.get("ETag")` would silently read
+     `null` — conditional revalidation permanently defeated with no visible error anywhere. Fixed
+     by adding `If-None-Match` to `allowedHeaders` and `ETag` to a new `exposedHeaders` entry.
+     Regression: `CorsConfigurationTest.preflightForAssetsAllowsIfNoneMatchHeader` /
+     `.authenticatedGetOnAssetsExposesETagHeader` (RED before the fix, GREEN after; full
+     `:api-gateway:test :api-gateway:integrationTest` re-run clean, no regressions).
+  2. **Silent empty-Browse on catalog failure** — `AssetPicker` had no `catalogQuery.isError`
+     branch: an initial catalog fetch failure fell through to an apparently-healthy, empty Browse
+     list (`catalogQuery.data?.assets ?? []`) with no visible error and no way to retell the user
+     anything failed. Fixed with a minimal `catalogUnavailable` (`isError && !data`) branch — a
+     visible `role="alert"` message plus a `Retry` button calling `catalogQuery.refetch()` — gated
+     so a *background* revalidation failure with an already-held catalog stays silent and
+     self-heals, unchanged, per the existing staleTime policy. Regression:
+     `AssetPicker.test.tsx` "catalog failure (Task 9.1)" (RED before, GREEN after; full targeted
+     Vitest run and `npm test` clean, one unrelated pre-existing full-suite flake in
+     `capture-suppression.test.ts` confirmed to pass in isolation).
+  A dedicated real-stack browser spec, `tests/e2e/asset-catalog.integration.spec.ts` (own config
+  `playwright.asset-catalog.real.config.ts`, local-only — not wired into any CI workflow; Task 9.9
+  owns that), exercises the actual browser against a local Docker Compose stack (`docker compose up
+  -d`) with distinct frontend (`:3000`) and gateway (`:8080`) origins: authenticated 200 with a
+  cross-origin-readable `ETag`, then (via `page.clock.fastForward` past `useCatalog`'s 60s
+  `staleTime`, not a real 61s wait or a Node substitute) a real `If-None-Match` revalidation
+  receiving a genuine `304` with the catalog retained. **Run and confirmed on this branch**: the
+  spec PASSED against the fixed gateway, then was re-run against the pre-fix `SecurityConfig`
+  (temporarily reverted, image rebuilt) and FAILED exactly as expected (`304` expected, got `200`,
+  because the browser's own `fetchCatalog` never captured a real `ETag` to revalidate with) —
+  RED/GREEN both captured directly, not assumed. The fix was then restored, rebuilt, and
+  reconfirmed GREEN. Full command sequence and evidence in
+  `docs/superpowers/plans/2026-09-05-b2-task-9-1-catalog-integration-handoff.md`.
   _Requirements: 2.1_
 - [ ] **9.2 Wire Task 1.13's composition-save mutation to the real `PUT /api/portfolio/holdings`** —
   transport only; the state machine (payload construction, 200/409 handling, first-time and
