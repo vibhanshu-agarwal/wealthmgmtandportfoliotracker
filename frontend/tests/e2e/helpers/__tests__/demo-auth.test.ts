@@ -428,6 +428,28 @@ describe("authenticateDemoSession", () => {
     expect(error).toBeInstanceOf(Error);
     expect(error.message).not.toContain(DEMO_PASSWORD);
   });
+
+  it("surfaces an allowlisted transport error name", async () => {
+    const timeout = new Error("timed out");
+    timeout.name = "TimeoutError";
+
+    const error = await transportFailure(timeout);
+
+    expect(error.message).toContain("TimeoutError");
+  });
+
+  it("suppresses an error name outside the allowlist even when it is alphabetic", async () => {
+    // `error.name` is attacker- and library-controlled, and "alphabetic" is no
+    // guarantee of non-sensitivity: a bearer token is alphanumeric, and this
+    // name is pure letters. Only an exact allowlist match may reach the message.
+    const sneaky = new Error("boom");
+    sneaky.name = "SecretBearerTokenAbcdefghij";
+
+    const error = await transportFailure(sneaky);
+
+    expect(error.message).not.toContain("SecretBearerTokenAbcdefghij");
+    expect(error.message).toContain("transport failure");
+  });
 });
 
 /** The exact key the application's own session reader uses. */

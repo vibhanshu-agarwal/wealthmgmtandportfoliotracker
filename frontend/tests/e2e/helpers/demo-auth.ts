@@ -88,16 +88,26 @@ function normalizeBaseUrl(baseUrl: string): string {
   return baseUrl.replace(/\/+$/, "");
 }
 
+/** The only label a transport failure may carry when nothing is allowlisted. */
+const TRANSPORT_FAILURE_LABEL = "transport failure";
+
 /**
- * Names the *kind* of a thrown value without repeating anything it carries.
+ * The exact `error.name` values that may be repeated in a diagnostic.
  *
- * `Error`/`TimeoutError` and the `typeof` of a non-Error throw are useful and
- * safe; the alphabetic guard means a hand-rolled error whose `name` holds a
- * payload degrades to a constant rather than leaking it.
+ * An allowlist rather than a shape check: `error.name` is library- and
+ * caller-controlled, and "looks alphabetic" is no evidence of non-sensitivity —
+ * a bearer token is alphanumeric, and a name can be pure letters and still
+ * carry a secret. Only an exact match here reaches the message; everything else
+ * degrades to the constant above.
  */
-function describeErrorKind(error: unknown): string {
-  const kind = error instanceof Error ? error.name : typeof error;
-  return /^[A-Za-z]+$/.test(kind) ? kind : "unknown error";
+const ALLOWED_TRANSPORT_ERROR_NAMES = new Set(["TimeoutError", "AbortError"]);
+
+/** Describes a transport failure using only fixed, non-derived text. */
+function describeTransportFailure(error: unknown): string {
+  const name = error instanceof Error ? error.name : "";
+  return ALLOWED_TRANSPORT_ERROR_NAMES.has(name)
+    ? `${TRANSPORT_FAILURE_LABEL}: ${name}`
+    : TRANSPORT_FAILURE_LABEL;
 }
 
 /**
@@ -132,7 +142,8 @@ export async function authenticateDemoSession(
     // and the route only — and deliberately no `cause`, which would reprint the
     // raw message wherever the chain is logged.
     throw new Error(
-      `[e2e] demo login could not reach POST ${LOGIN_PATH} (${describeErrorKind(error)}). ` +
+      `[e2e] demo login could not reach POST ${LOGIN_PATH} ` +
+        `(${describeTransportFailure(error)}). ` +
         "Check NEXT_PUBLIC_API_BASE_URL and that the gateway is reachable.",
     );
   }
