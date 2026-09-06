@@ -90,6 +90,9 @@ jobs:
           python scripts/tests/test_check_b2_demo_identity.py -v
           python scripts/check_b2_demo_identity.py
 
+      - name: B2 assembled E2E CI wiring contract tests
+        run: python scripts/tests/test_ci_e2e_wiring.py -v
+
       - name: Master-plan status propagation contract tests
         run: python scripts/tests/test_master_plan_status_propagation.py -v
 
@@ -463,6 +466,11 @@ jobs:
       # the Golden-State E2E user, not the local-dev account.
       E2E_TEST_USER_EMAIL: ${{ secrets.E2E_TEST_USER_EMAIL }}
       E2E_TEST_USER_PASSWORD: ${{ secrets.E2E_TEST_USER_PASSWORD }}
+      # The assembled-stack E2E specs use the seeded, intentionally public demo account.
+      NEXT_PUBLIC_ENABLE_ASSET_PICKER: "true"
+      NEXT_PUBLIC_ENABLE_DEMO_RESET_CONTROL: "true"
+      DEMO_TEST_EMAIL: "demo@wealthtracker.dev"
+      DEMO_TEST_PASSWORD: "demo-wealthtracker-2026"
     steps:
       - uses: actions/checkout@v4
 
@@ -567,6 +575,8 @@ jobs:
             tests/e2e/mocked-chaos.spec.ts \
             tests/e2e/live-contract.spec.ts \
             tests/e2e/portfolio-deep-link.spec.ts \
+            tests/e2e/asset-picker.spec.ts \
+            tests/e2e/demo-reset.spec.ts \
             --project=chromium \
             --reporter=list
 
