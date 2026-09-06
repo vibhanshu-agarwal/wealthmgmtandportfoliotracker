@@ -135,6 +135,29 @@ class TestAggregateDigests(unittest.TestCase):
             manifest.write_text('{"api-gateway":"' + digest_a + '","api-gateway":"' + digest_b + '"}')
             with mock.patch.dict(os.environ, {"AZURE_RG": "rg"}), mock.patch.object(self.mod, "capture", side_effect=AssertionError("capture called")), mock.patch("sys.argv", ["snapshot", "compare", "--before", json.dumps(before), "--selected", '["api-gateway"]', "--digest-manifest", str(manifest)]):
                 with self.assertRaises(ValueError): self.mod.main()
+
+    def test_main_wrong_git_sha_app_returns_one(self):
+        before = {"api-gateway": {"image": "repo/gateway:old"}}
+        after = {"api-gateway": {"image": "wrong/repo:newsha"}}
+        with mock.patch.dict(os.environ, {"AZURE_RG": "rg"}), mock.patch.object(self.mod, "capture", return_value=after), mock.patch("sys.argv", ["snapshot", "compare", "--before", json.dumps(before), "--selected", '["api-gateway"]', "--git-sha", "newsha"]):
+            self.assertEqual(self.mod.main(), 1)
+
+    def test_main_requested_digest_precedence_and_job_wrong_repo_returns_one(self):
+        digest = "sha256:" + "e" * 64
+        before = {"market-data-service": {"image": "repo/market:old"}, "market-data-refresh-job": {"image": "repo/market:old"}}
+        after = {"market-data-service": {"image": "repo/market@" + digest}, "market-data-refresh-job": {"image": "wrong/repo@" + digest}}
+        with mock.patch.dict(os.environ, {"AZURE_RG": "rg"}), mock.patch.object(self.mod, "capture", return_value=after), mock.patch("sys.argv", ["snapshot", "compare", "--before", json.dumps(before), "--selected", '["market-data-service"]', "--requested-digest", digest, "--git-sha", "wrongsha"]):
+            self.assertEqual(self.mod.main(), 1)
+
+    def test_main_missing_market_data_job_returns_one_and_good_app_job_zero(self):
+        digest = "sha256:" + "f" * 64
+        before = {"market-data-service": {"image": "repo/market:old"}, "market-data-refresh-job": {"image": "repo/market:old"}}
+        missing = {"market-data-service": {"image": "repo/market@" + digest}, "market-data-refresh-job": {"missing": True}}
+        with mock.patch.dict(os.environ, {"AZURE_RG": "rg"}), mock.patch.object(self.mod, "capture", return_value=missing), mock.patch("sys.argv", ["snapshot", "compare", "--before", json.dumps(before), "--selected", '["market-data-service"]', "--requested-digest", digest]):
+            self.assertEqual(self.mod.main(), 1)
+        good = {"market-data-service": {"image": "repo/market@" + digest}, "market-data-refresh-job": {"image": "repo/market@" + digest}}
+        with mock.patch.dict(os.environ, {"AZURE_RG": "rg"}), mock.patch.object(self.mod, "capture", return_value=good), mock.patch("sys.argv", ["snapshot", "compare", "--before", json.dumps(before), "--selected", '["market-data-service"]', "--requested-digest", digest]):
+            self.assertEqual(self.mod.main(), 0)
             with mock.patch.dict(os.environ, {"AZURE_RG": "rg"}), mock.patch.object(self.mod, "capture", return_value={"api-gateway": {"image": "wrong/repo@" + digest_a}}), mock.patch("sys.argv", ["snapshot", "compare", "--before", json.dumps({"api-gateway": {"image": "repo/gateway:old"}}), "--selected", '["api-gateway"]', "--requested-digest", digest_a]):
                 self.assertEqual(self.mod.main(), 1)
         for selected in ("[]", '["unknown"]'):
