@@ -2353,59 +2353,77 @@ class, not by enumeration" through "operational signals only") deliberately keep
   explanatory only; implementation and completion belong here, before any 8.9 serving proof.
 
   **One Azure run order:** add workflow-level `concurrency` with the fixed group
-  `wealth-production-azure-deploy` and `cancel-in-progress: false` in `deploy-azure.yml`, so direct
-  dispatch and reusable-workflow callers serialize against the same production target. A valid
+  `wealth-production-azure-deploy` and `cancel-in-progress: false` in `deploy-azure.yml`. The reusable
+  child remains `workflow_call`-only behind protected `deploy.yml`, so every caller serializes against
+  the same production target. A valid
   digest from each Buildx push does not otherwise stop an older concurrent run from deploying
   after a newer one or leaving a mixed-service production state.
 
   **One immutable image contract:** on the normal build path, replace the separate Docker build and
   push steps with one `docker buildx build --push --no-cache --pull --metadata-file metadata.json`
   step, validate `containerimage.digest` against `^sha256:[0-9a-f]{64}$`, publish it as
-  `steps.build.outputs.digest`, and update both each selected Container App and
+  `steps.digest.outputs.digest`, and update both each selected Container App and
   `market-data-refresh-job` (when market data is selected) by `repository@digest`. A selected
   `market-data-service` deployment SHALL fail if the paired refresh Job is absent; the update and
   `snapshot_container_apps.py compare` both reject that missing selected Job rather than warning
   and silently skipping it. Preserve the existing prebuilt-digest branch and its proof that the
   merged build/push step was skipped.
 
-  **One artifact namespace and mode matrix:** the producer and upload steps both run only when
-  `deploy_mode == 'scoped' && digest_mode != 'true'`. Each matrix instance writes `digest.txt` and
-  uploads `service-digest-${{ matrix.service }}` with `if-no-files-found: error`. The separate
-  `aggregate-digests` job declares `needs: [preflight, deploy]`, checks out the repository, downloads
-  `pattern: service-digest-*` to `digests/` without `merge-multiple`, and executes exactly:
+  **One artifact namespace and mode matrix:** only the service-digest producer and upload steps run
+  when `deploy_mode == 'scoped' && digest_mode != 'true'`; normal full mode still logs in, builds,
+  pushes, and validates digests without producing scoped artifacts. Each scoped matrix instance writes
+  raw `digest.txt` and `run-attempt.txt`, then uploads `service-digest-${{ matrix.service }}` with
+  `overwrite: true` and `if-no-files-found: error`. The separate `aggregate-digests` job declares
+  `needs: [preflight, deploy]`, checks out the repository, and downloads the current run's unmerged
+  `service-digest-*` artifacts into `$RUNNER_TEMP/service-digest-downloads`. It then executes these
+  two named steps:
   ```yaml
   env:
     SELECTED_SERVICES: ${{ needs.preflight.outputs.selected_services }}
-  run: >-
-    python3 .github/workflows/scripts/snapshot_container_apps.py aggregate-digests
-    --artifacts-dir digests --selected "$SELECTED_SERVICES"
-    --output digest-manifest.json
+  steps:
+    - name: Validate selected digest inputs
+      run: >-
+        python3 .github/workflows/scripts/snapshot_container_apps.py normalize-artifacts
+        --digest-root "$RUNNER_TEMP/service-digest-downloads"
+        --staging-root "$RUNNER_TEMP/service-digests"
+        --selected "$SELECTED_SERVICES" --run-attempt "${{ github.run_attempt }}"
+    - name: Aggregate selected service digests
+      run: >-
+        python3 .github/workflows/scripts/snapshot_container_apps.py aggregate-digests
+        --digest-root "$RUNNER_TEMP/service-digests" --selected "$SELECTED_SERVICES"
+        --output "$RUNNER_TEMP/digest-manifest.json"
   ```
-  The command validates exact selected-service coverage, service-name uniqueness, one
-  `digest.txt` per artifact, and lowercase digest shape before writing `digest-manifest.json` and
-  uploading the named artifact `digest-manifest` with `if-no-files-found: error`.
-  `assert-scoped-non-interference` separately verifies aggregation succeeded, downloads that named
-  artifact to `manifest/digest-manifest.json`, and passes it to `compare --digest-manifest`; its
+  Normalization validates exact selected-service coverage, uniqueness, both raw files, current
+  `run-attempt.txt`, and lowercase digest shape, then stages exactly one `<service>/digest.txt`.
+  Aggregation writes `$RUNNER_TEMP/digest-manifest.json`; the named `digest-manifest` artifact contains
+  that file plus `digest-manifest.run-attempt.txt`, with `overwrite: true` and
+  `if-no-files-found: error`. `assert-scoped-non-interference` separately verifies aggregation
+  succeeded, downloads the named artifact into `$RUNNER_TEMP`, validates the manifest attempt marker,
+  and passes `$RUNNER_TEMP/digest-manifest.json` to `compare --digest-manifest`; its
   prebuilt-digest branch continues to use `--requested-digest`. Full mode runs neither aggregation
   nor scoped comparison. The named manifest download is required and fails closed if absent; the
   producer-side pattern's zero-match case is instead caught by the aggregator's exact-coverage
   validation. The two artifact namespaces SHALL remain disjoint.
 
-  **Rerun contract:** artifact retrieval is current-attempt scoped. Partial reruns of only an
+  **Rerun contract:** artifact retrieval is scoped to the current run; explicit producer and manifest
+  run-attempt markers reject artifacts from any other attempt. Partial reruns of only an
   aggregator or consumer are unsupported and SHALL fail closed with instructions to use **Re-run
   all jobs**; no task may silently mix artifacts from different attempts. Namespace separation
   prevents a prior manifest from ever matching the per-service input pattern if cross-attempt
   retrieval is introduced later.
 
-  **Executable owners and gates:** `.github/workflows/scripts/snapshot_container_apps.py` owns the
-  new positional command and handles it without calling Azure capture;
+  **Executable owners and gates:** `.github/workflows/scripts/snapshot_container_apps.py` owns both
+  Azure-free commands, `normalize-artifacts` and `aggregate-digests`, and handles them without calling
+  Azure capture;
   `scripts/tests/test_snapshot_container_apps.py` owns CLI-level success/failure tests for parser wiring,
   directory layout, output writing, missing/extra/duplicate services, malformed digests, and the
   selected-missing-refresh-Job case. `scripts/tests/test_deploy_azure_service_allowlist.py` owns
-  named graph assertions for the exact interpreter/path, `selected_services` output, checkout,
+  normalization behavior plus named graph assertions for the exact interpreter/path,
+  `selected_services` output, checkout,
   job needs/conditions, producer and consumer gates, artifact names/paths, mode branches,
   concurrency group, and missing-Job fail-closed behavior; the prebuilt-digest suite is updated for
-  the merged step. Add `actionlint` to active CI, pinned to v1.7.12's Linux-amd64 archive and verify
+  the merged step. Upgrade the existing active-CI `actionlint` installation once to v1.7.12's
+  Linux-amd64 archive and verify
   SHA-256 `8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8`
   before execution, so valid substrings cannot hide invalid workflow YAML or expressions. **Go:** all three
   suites plus actionlint green, then a normal scoped Azure deployment proves the selected Apps (and
@@ -2967,9 +2985,11 @@ class, not by enumeration" through "operational signals only") deliberately keep
   mechanism's own repair, rounds 40–46. P1s: (1) the aggregation algorithm — download, merge,
   validate exact selected-service coverage, reject duplicate artifact inputs — had no executable
   owner; `compare()`'s own `digest_manifest` parameter only ever consumes an already-built dict, it
-  performs none of this. Fixed by giving `snapshot_container_apps.py` a third `command` choice,
-  `aggregate-digests` (matching the script's existing single-positional-`command` shape, not
-  subparsers), invoked by its own workflow step with `--artifacts-dir`/`--selected`/`--output`. (2)
+  performs none of this. At that review point, `snapshot_container_apps.py` gained the positional
+  `aggregate-digests` command and a raw-download invocation. That invocation and the guard/path
+  details below are historical only: updated Task 8.8b supersedes them with the Azure-free
+  `normalize-artifacts` download-root/staging-root step, `aggregate-digests --digest-root`, explicit
+  run-attempt markers, and the comparison branch's exact aggregate-success check. (2)
   The "manifest-download step" was described as one step both result-checking and downloading —
   impossible, since `actions/download-artifact` is a `uses:` action step that cannot also run the
   shell diagnostic the result-check needs. Split into two explicitly mode-gated steps: a `run:`
@@ -2977,9 +2997,9 @@ class, not by enumeration" through "operational signals only") deliberately keep
   step (`Download digest manifest`), both carrying the identical `deploy_mode`/`digest_mode`
   condition, both added to graph-coverage. P2: the manifest's transport contract was never named —
   "uploaded as its own artifact," "downloads that manifest," with no name, filename, or path
-  connecting the two sides. Pinned: artifact name `digest-manifest`, file `digest-manifest.json`,
-  downloaded to `manifest/digest-manifest.json`, `compare` invoked with
-  `--digest-manifest manifest/digest-manifest.json`; noted that `download-artifact@v4` already
+  connecting the two sides. The historical fix pinned the artifact name and filename; current Task
+  8.8b now owns the runner-temp download path, manifest attempt marker, and comparison invocation.
+  It also retains the fact that `download-artifact@v4` already
   fails closed by default on a missing named artifact, unlike `upload-artifact`'s silent-warn
   default, so no extra flag was needed on the download side (asymmetric with round-46's
   `if-no-files-found: error`, which *is* needed on the upload side — the two actions default

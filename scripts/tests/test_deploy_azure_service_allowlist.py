@@ -18,6 +18,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[2]
 WORKFLOW = REPO / ".github" / "workflows" / "deploy-azure.yml"
 DISPATCHER = REPO / ".github" / "workflows" / "deploy.yml"
+TASKS = REPO / ".kiro" / "specs" / "asset-picker-composition" / "tasks.md"
 
 
 def _read(path: Path) -> str:
@@ -93,9 +94,38 @@ class TestDeployAzureServiceAllowlist(unittest.TestCase):
         self.assertIn("normalize-artifacts", aggregate)
         self.assertIn("--digest-root \"$RUNNER_TEMP/service-digest-downloads\"", aggregate)
         self.assertIn("--staging-root \"$RUNNER_TEMP/service-digests\"", aggregate)
+        normal_gate = "if: needs.preflight.outputs.digest_mode != 'true'"
+        scoped_normal_gate = (
+            "if: needs.preflight.outputs.deploy_mode == 'scoped' && "
+            "needs.preflight.outputs.digest_mode != 'true'"
+        )
+        for step_name in ("Log in to ACR", "Build Docker image", "Validate and expose image digest"):
+            step = self._step(deploy, step_name)
+            self.assertIn(normal_gate, step)
+            self.assertNotIn("deploy_mode == 'scoped'", step)
+        for step_name in ("Upload service digest artifact", "Publish service digest artifact"):
+            self.assertIn(scoped_normal_gate, self._step(deploy, step_name))
+        self.assertIn("if-no-files-found: error", self._step(deploy, "Publish service digest artifact"))
+        self.assertIn("if-no-files-found: error", self._step(aggregate, "Upload digest manifest"))
         consumer = self._job("assert-scoped-non-interference:")
         self.assertIn("needs.aggregate-digests.result", consumer)
         self.assertIn("--digest-manifest", consumer)
+
+    def test_task_8_8b_docs_use_current_normalization_contract(self):
+        all_docs = _read(TASKS)
+        docs = all_docs[all_docs.index("**8.8b Azure deployment-evidence"):all_docs.index("**8.9 STOP/GO")]
+        self.assertNotIn("steps.build.outputs.digest", docs)
+        self.assertIn("steps.digest.outputs.digest", docs)
+        self.assertNotIn("--artifacts-dir digests", docs)
+        self.assertIn("normalize-artifacts", docs)
+        self.assertIn("$RUNNER_TEMP/digest-manifest.json", docs)
+        self.assertIn("workflow_call`-only", docs)
+        self.assertIn("current run", docs)
+        self.assertIn("run-attempt", docs)
+        self.assertIn("digest-manifest.run-attempt.txt", docs)
+        self.assertRegex(docs, r"owns both\s+Azure-free commands")
+        self.assertNotIn("artifact to `manifest/digest-manifest.json`", docs)
+        self.assertNotIn("one `digest.txt` per artifact", docs)
     @classmethod
     def setUpClass(cls):
         cls.text = _read(WORKFLOW)
@@ -191,6 +221,14 @@ class TestDeployAzureServiceAllowlist(unittest.TestCase):
         )
         self.assertIsNotNone(match, f"{heading} has no job-level if:")
         return match.group(1)
+
+    def _step(self, job: str, name: str) -> str:
+        match = re.search(rf"^      - name: {re.escape(name)}\s*$", job, re.MULTILINE)
+        self.assertIsNotNone(match, f"missing step {name}")
+        start = match.start()
+        next_step = re.search(r"^      - name: ", job[match.end():], re.MULTILINE)
+        end = match.end() + next_step.start() if next_step else len(job)
+        return job[start:end]
 
 
 if __name__ == "__main__":

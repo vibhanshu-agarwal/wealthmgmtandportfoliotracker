@@ -233,18 +233,19 @@ jobs:
           echo "digest=$digest" >> "$GITHUB_OUTPUT"
 
       - name: Upload service digest artifact
-        if: needs.preflight.outputs.digest_mode != 'true'
+        if: needs.preflight.outputs.deploy_mode == 'scoped' && needs.preflight.outputs.digest_mode != 'true'
         run: |
           mkdir -p "$RUNNER_TEMP/service-digests/${{ matrix.service }}"
           jq -r '."containerimage.digest"' "$RUNNER_TEMP/${{ matrix.service }}-metadata.json" > "$RUNNER_TEMP/service-digests/${{ matrix.service }}/digest.txt"
           printf '%s\n' '${{ github.run_attempt }}' > "$RUNNER_TEMP/service-digests/${{ matrix.service }}/run-attempt.txt"
       - name: Publish service digest artifact
-        if: needs.preflight.outputs.digest_mode != 'true'
+        if: needs.preflight.outputs.deploy_mode == 'scoped' && needs.preflight.outputs.digest_mode != 'true'
         uses: actions/upload-artifact@v4
         with:
           name: service-digest-${{ matrix.service }}
           path: ${{ runner.temp }}/service-digests/${{ matrix.service }}
           overwrite: true
+          if-no-files-found: error
 
       - name: Prove digest path skipped build and push
         if: needs.preflight.outputs.digest_mode == 'true'
@@ -371,6 +372,7 @@ jobs:
             ${{ runner.temp }}/digest-manifest.json
             ${{ runner.temp }}/digest-manifest.run-attempt.txt
           overwrite: true
+          if-no-files-found: error
 
   deploy-frontend:
     runs-on: ubuntu-latest

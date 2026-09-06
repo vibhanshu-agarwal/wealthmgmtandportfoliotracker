@@ -294,6 +294,7 @@ Temporarily accept uppercase/malformed digest, an extra service, or a missing Jo
 
 - Modify: `.github/workflows/deploy-azure.yml`
 - Modify: `.github/workflows/ci-verification.yml`
+- Modify: `.github/workflows/scripts/snapshot_container_apps.py` (normalization/aggregation helper)
 - Modify: `scripts/tests/test_deploy_azure_service_allowlist.py`
 - Modify: `scripts/tests/test_deploy_azure_prebuilt_digest.py`
 
@@ -311,7 +312,7 @@ Replace separate normal build/push operations with Buildx `--push --no-cache --p
 
 - [ ] **Step 4: Implement disjoint artifact namespaces**
 
-Each selected service uploads `service-digest-${{ matrix.service }}` containing `digest.txt`. Aggregation downloads `service-digest-*` without merge, runs the exact CLI contract, and uploads `digest-manifest`. Scoped comparison downloads only the named manifest and passes it to `compare --digest-manifest`; prebuilt mode uses `--requested-digest`; full mode runs neither scoped aggregation nor comparison.
+Each selected scoped-normal service uploads `service-digest-${{ matrix.service }}` containing `digest.txt` and `run-attempt.txt`, with overwrite and missing-file failure. Aggregation downloads the current run's `service-digest-*` artifacts without merge, runs `normalize-artifacts --digest-root <download> --staging-root <distinct-stage> --selected <json> --run-attempt <current>`, then runs `aggregate-digests --digest-root <distinct-stage> --selected <json> --output $RUNNER_TEMP/digest-manifest.json`. It uploads `digest-manifest` with its run-attempt marker and missing-file failure. Scoped comparison validates that marker and passes the runner-temp manifest to `compare --digest-manifest`; prebuilt mode uses `--requested-digest`; full mode keeps normal build/digest validation but runs neither scoped aggregation nor comparison.
 
 - [ ] **Step 5: Update actionlint once**
 
