@@ -103,6 +103,7 @@ def compare(
     selected: list[str],
     git_sha: str | None = None,
     requested_digest: str | None = None,
+    digest_manifest: dict[str, str] | None = None,
 ) -> list[str]:
     errors: list[str] = []
     selected_set = set(selected)
@@ -117,12 +118,19 @@ def compare(
     for name in KNOWN_SERVICES:
         if name in selected_set:
             image = str(after.get(name, {}).get("image", ""))
+            if digest_manifest and name in digest_manifest:
+                source = str(before.get(name, {}).get("image", ""))
+                repo = source.rsplit("@", 1)[0].rsplit(":", 1)[0]
+                expected = repo + "@" + digest_manifest[name]
+                if image != expected:
+                    errors.append(f"selected {name} image {image!r} does not equal expected {expected!r}")
+                continue
             if not marker:
                 errors.append(
                     f"selected {name} image {image!r} cannot be checked: "
                     "neither digest nor git sha was provided"
                 )
-            elif digest and (not image.endswith("@" + marker) or ("@" in str(before.get(name, {}).get("image", "")) and image.rsplit("@", 1)[0] != str(before.get(name, {}).get("image", "")).rsplit("@", 1)[0])):
+            elif digest and (image != str(before.get(name, {}).get("image", "")).rsplit(":", 1)[0] + "@" + marker if "@" not in str(before.get(name, {}).get("image", "")) else image != str(before.get(name, {}).get("image", "")).rsplit("@", 1)[0] + "@" + marker):
                 errors.append(
                     f"selected {name} image {image!r} does not contain {marker_label} {marker}"
                 )
@@ -141,10 +149,19 @@ def compare(
                 errors.append(
                     f"selected {REFRESH_JOB} image {image!r} does not contain git sha {git_sha}"
                 )
+            elif digest_manifest and name in digest_manifest:
+                expected = str(before.get(name, {}).get("image", "")).rsplit("@", 1)[0].rsplit(":", 1)[0] + "@" + digest_manifest[name]
+                if image != expected:
+                    errors.append(f"selected {name} image {image!r} does not equal expected {expected!r}")
         elif digest:
             image = str(after_job.get("image", ""))
             if not image.endswith("@" + digest):
                 errors.append(f"selected {REFRESH_JOB} image {image!r} does not contain exact digest {digest}")
+        elif digest_manifest and "market-data-service" in digest_manifest:
+            repo = str(before.get("market-data-service", {}).get("image", "")).rsplit("@", 1)[0].rsplit(":", 1)[0]
+            expected = repo + "@" + digest_manifest["market-data-service"]
+            if str(after_job.get("image", "")) != expected:
+                errors.append(f"selected {REFRESH_JOB} image does not equal expected {expected!r}")
     elif before.get(REFRESH_JOB) != after.get(REFRESH_JOB):
         errors.append(
             f"unselected {REFRESH_JOB} changed: {json.dumps(before.get(REFRESH_JOB))} -> {json.dumps(after.get(REFRESH_JOB))}"
@@ -181,12 +198,23 @@ def aggregate_digests(digest_root: str, selected: list[str], output: str | None)
 
 
 def validate_manifest(manifest: dict[str, str], selected: list[str]) -> dict[str, str]:
-    if set(manifest) != set(selected) or len(selected) != len(set(selected)):
+    if not selected or len(selected) != len(set(selected)) or not set(selected).issubset(set(KNOWN_SERVICES)) or set(manifest) != set(selected):
         raise ValueError("manifest keys must exactly equal unique selected services")
     for service, digest in manifest.items():
         if not DIGEST_RE.fullmatch(digest):
             raise ValueError(f"invalid digest for {service}")
     return manifest
+
+
+def load_manifest_text(text: str, selected: list[str]) -> dict[str, str]:
+    def reject_duplicates(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError("duplicate manifest key")
+            result[key] = value
+        return result
+    return validate_manifest(json.loads(text, object_pairs_hook=reject_duplicates), selected)
 
 
 def _write_output(name: str, value: str) -> None:
@@ -250,6 +278,7 @@ def main() -> int:
         selected,
         git_sha=args.git_sha or None,
         requested_digest=args.requested_digest or (manifest.get(selected[0]) if manifest and len(selected) == 1 else None),
+        digest_manifest=manifest,
     )
     print(json.dumps({"after": after, "errors": errors}, indent=2))
     if errors:

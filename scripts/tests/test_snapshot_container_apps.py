@@ -102,6 +102,26 @@ class TestAggregateDigests(unittest.TestCase):
             manifest = self.mod.aggregate_digests(root, ["market-data-service"], None)
             self.assertEqual(list(manifest), ["market-data-service"])
 
+    def test_manifest_duplicate_json_keys_and_invalid_selected_fail(self):
+        with self.assertRaises(ValueError):
+            self.mod.load_manifest_text('{"api-gateway":"sha256:' + 'a' * 64 + '","api-gateway":"sha256:' + 'b' * 64 + '"}', ["api-gateway"])
+        with self.assertRaises(ValueError):
+            self.mod.validate_manifest({}, [])
+        with self.assertRaises(ValueError):
+            self.mod.validate_manifest({"unknown": "sha256:" + "a" * 64}, ["unknown"])
+
+    def test_multi_service_cli_compare_uses_distinct_manifest_digests(self):
+        digest_a, digest_b = "sha256:" + "a" * 64, "sha256:" + "b" * 64
+        before = {"api-gateway": {"image": "repo/gateway:old"}, "portfolio-service": {"image": "repo/portfolio:old"}}
+        after = {"api-gateway": {"image": "repo/gateway@" + digest_a}, "portfolio-service": {"image": "repo/portfolio@" + digest_b}}
+        self.assertEqual(self.mod.compare(before, after, ["api-gateway", "portfolio-service"], digest_manifest={"api-gateway": digest_a, "portfolio-service": digest_b}), [])
+
+    def test_market_data_job_must_equal_app_expected_image(self):
+        digest = "sha256:" + "c" * 64
+        before = {"market-data-service": {"image": "repo/market:old"}, "market-data-refresh-job": {"image": "repo/market:old"}}
+        after = {"market-data-service": {"image": "repo/market@" + digest}, "market-data-refresh-job": {"image": "other/market@" + digest}}
+        self.assertTrue(self.mod.compare(before, after, ["market-data-service"], digest_manifest={"market-data-service": digest}))
+
 
 class TestCompareNonInterference(unittest.TestCase):
     @classmethod
