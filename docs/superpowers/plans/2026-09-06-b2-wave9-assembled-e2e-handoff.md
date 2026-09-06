@@ -2,30 +2,29 @@
 
 > ## OWNER APPROVAL REQUIRED — PUSH ONLY
 >
-> **Blocked action:** push the current corrections on `feat/b2-wave9-assembled-e2e` to the existing
-> pull request #232 against `main`.
+> **Historical approval boundary:** the prior push request for PR #232 is superseded by its merge
+> and CI completion. No deployment, workflow dispatch, production access, production E2E, merge,
+> or production flag change is authorized by this handoff.
 >
-> **Decision requested:** may the coordinator push the corrected branch so GitHub CI can rerun on
-> pull request #232?
+> **Recorded outcome:** PR #232 merged at `main@318f28592da6ab2e3bd66bc738aa68d374b180fa`.
+> Final CI run `34018608256` passed `docker-build-verify` and `ci-required`; body-edit guard run
+> `34020180243` also passed.
 >
 > - **If yes:** only the push and CI rerun on the existing pull request are authorized.
 > - **If no:** all work remains local and reviewable in this worktree.
 >
-> No deployment, workflow dispatch, production access, production E2E, merge, or production flag
-> change is authorized by this decision. PR #232's initial CI run is recorded below; its corrected
-> rerun remains pending this push.
+> The CI result is assembled-stack evidence only, not deployment or Production E2E evidence.
 
 ## Scope and status
 
-- Baseline: `origin/main@b4c68253b99a796d6301ef79b5aa5a47d5cbd962`.
+- Baseline: `origin/main@318f28592da6ab2e3bd66bc738aa68d374b180fa`.
 - Branch/worktree: `feat/b2-wave9-assembled-e2e` in
   `D:\Projects\Development\Java\Spring\wealthmgmtandportfoliotracker-codex-wave9`.
 - Locally complete: Tasks 9.2, 9.7, 9.8, and 9.9.
-- GitHub CI: PR #232's initial static-guard job failed; downstream jobs, including
-  `docker-build-verify`, were skipped, so no GitHub assembled E2E ran. The corrected CI rerun is
-  pending the coordinator's push. Deployment, production E2E, and production feature exposure are
-  not claimed. Production flags remain off. B1 R-C deployment/convergence, Task 3.7, Task 6.3,
-  Wave 8, and Wave 10 remain open.
+- GitHub CI: final PR #232 run `34018608256` passed `docker-build-verify` and `ci-required`; the
+  body-edit guard run `34020180243` also passed. Deployment, production E2E, and production feature
+  exposure are not claimed. Production flags remain off. B1 R-C deployment/convergence, Task 3.7,
+  Task 6.3, Wave 8, and Wave 10 remain open.
 
 The existing production composition-save transport was already wired. Task 9.2 therefore needed no
 production source change; its deliverable is the discriminating real-stack proof.
@@ -121,7 +120,6 @@ commit; the root coordinator will rerun the guard against the new head.
 
 ## Publication boundary
 
-Before pushing, re-resolve the baseline and head, review the docs-only diff, and rerun the
-repository status guard against the exact intended PR body. After the approved push, review the
-PR #232 CI rerun. Merge, deployment, workflow dispatch, and production validation require separate
-owner approval.
+Re-resolve the baseline and head, review the docs-only diff, and rerun the repository status guard
+against the exact intended PR body. Merge, deployment, workflow dispatch, and production validation
+require separate owner approval.

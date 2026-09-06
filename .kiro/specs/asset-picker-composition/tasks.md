@@ -3986,8 +3986,8 @@ class, not by enumeration" through "operational signals only") deliberately keep
   Requirement 6.5's fail-open path is covered by injected-failure Vitest cases and by the gateway's
   own real-Redis `DemoPresenceIntegrationTest` (13 tests, `integrationTest` task), not by breaking
   a Redis shared with the rest of the local stack.
-  Source/local verification only — not deployed, no Production E2E, and not wired into CI (Task 9.9
-  owns Wave 9 CI). Wave 3's deployment/live proof (Task 3.7) stays open.
+  Source/local verification only — not deployed and no Production E2E. Wave 9 CI wiring is merged
+  and CI-green in PR #232 (run `34018608256`); Wave 3's deployment/live proof (Task 3.7) stays open.
   _Requirements: 6.3_
 - [x] **9.5 Wire Task 1.16's freshness status to a real `assetPriceFreshness`.** Spec A task 8.6 is
   complete and the backend field exists. Local assembled-stack evidence on this branch: dedicated
@@ -4000,8 +4000,8 @@ class, not by enumeration" through "operational signals only") deliberately keep
   no-client-derivation cases stay in Vitest; portfolio-service freshness valuation and Jackson
   boundary tests re-confirmed. Source path already worked on `main` — no production source defect
   reproduced. Merged via PR #231 at `main@b4c68253b99a796d6301ef79b5aa5a47d5cbd962`. Source/local
-  verification only — not deployed; Task 9.2's real post-save round trip is complete, Wave 9 CI is
-  wired locally but has not run in GitHub CI, and Production E2E stays open.
+  verification only — not deployed; Task 9.2's real post-save round trip is complete, PR #232's
+  Wave 9 CI run `34018608256` passed, and Production E2E stays open.
   _Requirements: 3.2, 3.3/3a, 3.4_
 - [x] **9.6 Demo-authenticated Playwright fixture — authored first, so 9.7/9.8 don't
   forward-reference each other (round-9 restructure, breaking a real cycle: round 8's version of
