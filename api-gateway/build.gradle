@@ -9,6 +9,20 @@ plugins {
 // because containers are not running at build time.
 tasks.named('processTestAot') { enabled = false }
 
+sourceSets {
+    wave8IntegrationTest {
+        java.srcDir 'src/wave8IntegrationTest/java'
+        resources.srcDir 'src/wave8IntegrationTest/resources'
+        compileClasspath += sourceSets.main.output
+        runtimeClasspath += output + compileClasspath
+    }
+}
+
+configurations {
+    wave8IntegrationTestImplementation.extendsFrom testImplementation
+    wave8IntegrationTestRuntimeOnly.extendsFrom testRuntimeOnly
+}
+
 dependencies {
     implementation project(':common-dto')
     implementation project(':common-observability')
@@ -27,6 +41,10 @@ dependencies {
 
     // Distributed tracing — Boot 4.1 starter bundles micrometer-tracing-bridge-otel + OTLP export
     implementation 'org.springframework.boot:spring-boot-starter-opentelemetry'
+    testImplementation 'org.springframework.boot:spring-boot-micrometer-tracing-test'
+
+    // Real portfolio persistence is visible only to Wave 8's dedicated integration source set.
+    wave8IntegrationTestImplementation project(':portfolio-service')
 
     // Testcontainers — versions managed by testcontainers-bom in root build.gradle
     testImplementation 'org.testcontainers:testcontainers'
@@ -103,7 +121,18 @@ tasks.named('test') {
     finalizedBy tasks.named('jacocoTestReport')
 }
 
+tasks.register('wave8IntegrationTest', Test) {
+    description = 'Runs Wave 8 gateway-to-portfolio real-chain integration tests'
+    group = 'verification'
+    useJUnitPlatform()
+    testClassesDirs = sourceSets.wave8IntegrationTest.output.classesDirs
+    classpath = sourceSets.wave8IntegrationTest.runtimeClasspath
+    shouldRunAfter tasks.named('test')
+    timeout = java.time.Duration.ofMinutes(20)
+}
+
 tasks.named('integrationTest') {
+    dependsOn tasks.named('wave8IntegrationTest')
     finalizedBy tasks.named('jacocoTestReport')
 }
 

@@ -3,6 +3,8 @@ spring:
     name: api-gateway
   profiles:
     active: ${SPRING_PROFILES_ACTIVE:local}
+  reactor:
+    context-propagation: auto
   # spring.data.redis.* intentionally absent — lives only in application-local.yml
   # No default-filters here — any RequestRateLimiter reference triggers Redis autoconfiguration
   # on startup, which crashes deployments where no Redis is present (e.g. AWS without ElastiCache)
@@ -117,6 +119,11 @@ auth:
 app:
   demo-presence:
     ttl: ${APP_DEMO_PRESENCE_TTL:150s}
+  demo-login-reset:
+    idle-threshold: ${APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD:30m}
+    eligibility-timeout: ${APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT:2s}
+    reset-timeout: ${APP_DEMO_LOGIN_RESET_RESET_TIMEOUT:2s}
+    overall-timeout: ${APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT:4s}
   routes:
     # Single source of truth for downstream service URL defaults.
     # Each route above references ${app.routes.*-url} so a default-port change

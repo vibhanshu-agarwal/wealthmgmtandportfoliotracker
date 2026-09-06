@@ -135,7 +135,7 @@ It completes without changing the successful login response. Ordinary users comp
 
 Astra checks the four decision records against Requirement 7, D5, Task 8.2, Task 2.6, and Wave 10. No production behavior is committed until the threshold and timeout decisions are accepted and recorded.
 
-- [ ] **Step 7: Commit the shared configuration and test topology**
+- [x] **Step 7: Commit the shared configuration and test topology**
 
 The coordinator alone adds the accepted configuration values, `spring.reactor.context-propagation: auto`, `org.springframework.boot:spring-boot-micrometer-tracing-test`, the dedicated `wave8IntegrationTest` source set, and `integrationTest` dependency wiring. Terra rebases onto this reviewed commit before transport or trace tests rely on it.
 
