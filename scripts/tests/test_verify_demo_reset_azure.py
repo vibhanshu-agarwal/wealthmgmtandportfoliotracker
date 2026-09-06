@@ -879,6 +879,60 @@ def skip_event(**overrides) -> dict:
 
 
 class ReviewFixContractTest(unittest.TestCase):
+    def _key_diagnostic_boundaries(self, *, manual_status: int, presence_fails: bool):
+        cfg = config()
+        cfg.last_known_good_gateway_revision = "api-gateway--0000100"
+        evidence = verifier._initial_evidence(cfg)
+        evidence["serving"]["api-gateway"] = {
+            "revision": "api-gateway--0000101",
+            "image": "wealthprodacr.azurecr.io/api-gateway@" + DIGEST_A,
+        }
+        commands: list[list[str]] = []
+
+        def command_runner(command, *, timeout_seconds=None):
+            commands.append(list(command))
+            if command[:4] == ["az", "containerapp", "revision", "show"]:
+                return verifier.CommandResult(0, __import__("json").dumps([
+                    {"name": "INTERNAL_API_KEY", "secretRef": "internal-api-key"}
+                ]), "")
+            if command[:4] == ["az", "containerapp", "replica", "list"]:
+                return verifier.CommandResult(0, __import__("json").dumps([
+                    {"name": "api-gateway--0000101-replica-a"}
+                ]), "")
+            if command[:2] == ["docker", "run"]:
+                return verifier.CommandResult(0, "95ca17821ade\n", "")
+            if command[:3] == ["az", "containerapp", "exec"]:
+                return verifier.CommandResult(
+                    1 if presence_fails else 0,
+                    "" if presence_fails else "blank\n",
+                    "presence unavailable" if presence_fails else "",
+                )
+            return verifier.CommandResult(1, "", "unexpected command")
+
+        def http_runner(*, method, url, headers, json_body=None, timeout_seconds=None):
+            if method == "GET" and url.endswith("/api/portfolio"):
+                return verifier.HttpResponse(200, [{
+                    "userId": USER_ID, "version": 7,
+                    "updatedAt": "2026-09-06T01:00:00Z", "holdings": GOLDEN,
+                }], {})
+            if method == "PUT" and url.endswith("/api/portfolio/demo-reset"):
+                body = ({"error": "internal_api_key_not_configured", "message": "unavailable"}
+                        if manual_status == 503 else {"version": 8})
+                return verifier.HttpResponse(
+                    manual_status, body,
+                    {"X-Gateway-Replica-Token": "95ca17821ade"},
+                )
+            return verifier.HttpResponse(404, {}, {})
+
+        event = skip_event(
+            reason="reset_key_not_configured", leg="reset", httpStatus=None,
+            timeoutScope=None, overallTimeoutPhase=None, attemptedTarget=None,
+            elapsedMillis=None, eligibilityDispatchAttempted=True,
+            resetDispatchAttempted=False, internalApiKeyConfigured=False,
+            internalApiKeyAttached=None,
+        )
+        return cfg, evidence, command_runner, http_runner, commands, event
+
     def test_public_execution_path_has_no_symbolic_diagnostic_callback(self) -> None:
         import inspect
 
@@ -1266,6 +1320,32 @@ class ReviewFixContractTest(unittest.TestCase):
         self.assertEqual(result.evidence["events"]["outcome"], "d_query_error")
         self.assertIn("inconsistent", result.evidence["events"]["queryError"])
 
+    def test_later_distinct_emission_with_same_payload_can_never_preserve_go(self) -> None:
+        commands = StatefulCommandRunner(event_mode="success")
+        http = StatefulHttpRunner(commands)
+        clock = Clock()
+        success_calls = 0
+
+        def distinct_emission(command, *, timeout_seconds=None):
+            nonlocal success_calls
+            result = commands(command, timeout_seconds=timeout_seconds)
+            if "demo_reset_succeeded" in " ".join(command) and result.returncode == 0:
+                success_calls += 1
+                if success_calls == 2:
+                    rows = __import__("json").loads(result.stdout)
+                    rows[0]["TimeGenerated"] = "2026-09-06T01:02:05Z"
+                    return verifier.CommandResult(0, __import__("json").dumps(rows), "")
+            return result
+
+        result = verifier.run_proof(
+            config(), command_runner=distinct_emission, http_runner=http,
+            now=clock.now, monotonic=clock.monotonic, sleep=clock.sleep,
+            trace_factory=lambda: "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01",
+        )
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertEqual(result.evidence["events"]["outcome"], "d_query_error")
+        self.assertIn("distinct later success emission", result.evidence["events"]["queryError"])
+
     def test_runner_deadlines_cover_commands_slow_cleanup_and_post_cleanup_read(self) -> None:
         commands = StatefulCommandRunner(event_mode="success")
         http = StatefulHttpRunner(commands)
@@ -1425,6 +1505,46 @@ class ReviewFixContractTest(unittest.TestCase):
         self.assertTrue(result.evidence["diagnostics"]["replicaTokenRecovered"])
         self.assertTrue(result.evidence["diagnostics"]["sameReplica"])
         self.assertEqual(result.evidence["diagnostics"]["presence"], "blank")
+
+    def test_same_replica_manual_200_is_conclusive_without_presence_probe(self) -> None:
+        cfg, evidence, command_runner, http_runner, commands, event = (
+            self._key_diagnostic_boundaries(manual_status=200, presence_fails=True)
+        )
+        try:
+            facts = verifier._diagnose_unconfigured_key(
+                cfg, evidence, command_runner, http_runner, event
+            )
+        except verifier.ProofError as error:
+            self.fail(f"conclusive manual 200 must not invoke presence: {error}")
+        self.assertEqual(facts["manualResetStatus"], 200)
+        self.assertTrue(facts["sameReplica"])
+        self.assertFalse(any(command[:3] == ["az", "containerapp", "exec"]
+                             for command in commands))
+        self.assertNotIn("presence", facts)
+
+    def test_gateway_503_requires_presence_and_retains_prior_facts_if_it_fails(self) -> None:
+        cfg, evidence, command_runner, http_runner, commands, event = (
+            self._key_diagnostic_boundaries(manual_status=503, presence_fails=True)
+        )
+        facts = verifier._collect_diagnostics(
+            cfg, evidence, command_runner, http_runner, event
+        )
+        self.assertTrue(any(command[:3] == ["az", "containerapp", "exec"]
+                            for command in commands))
+        self.assertEqual(facts.get("templateReference"), "intact")
+        self.assertTrue(facts.get("replicaTokenRecovered"))
+        self.assertEqual(facts.get("manualResetStatus"), 503)
+        self.assertEqual(facts.get("manualResetEmitter"), "gateway")
+        self.assertTrue(facts.get("sameReplica"))
+        self.assertFalse(facts["available"])
+        detail = verifier.classify_task8_9(
+            events={"outcome": "b_skip_only", "success": None, "skip": event,
+                    "queryError": None},
+            observation={"golden": False}, decisions={}, diagnostics=facts,
+        )
+        self.assertEqual(detail["action"], "retry_presence_probe")
+        self.assertFalse(detail["resolved"])
+        self.assertFalse(detail["rollbackAuthorized"])
 
     def test_missing_last_good_template_reference_cannot_authorize_rollback(self) -> None:
         cfg = config()

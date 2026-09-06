@@ -754,6 +754,11 @@ def _event_value(value: str) -> Any:
     return value
 
 
+def _event_emission_identity(event: dict[str, Any]) -> tuple[Any, Any]:
+    """Identify one emitted log record, not merely its parsed business payload."""
+    return event.get("timeGenerated"), event.get("rawLog")
+
+
 def parse_event_rows(rows: Any, *, event: str, trace_id: str) -> dict[str, Any] | None:
     if not isinstance(rows, list):
         raise ProofError("log query result is not a list")
@@ -786,11 +791,9 @@ def parse_event_rows(rows: Any, *, event: str, trace_id: str) -> dict[str, Any] 
             matches.append(payload)
     unique: dict[str, dict[str, Any]] = {}
     for match in matches:
-        emission_identity = {
-            "timeGenerated": match.get("timeGenerated"),
-            "rawLog": match.get("rawLog"),
-        }
-        unique.setdefault(json.dumps(emission_identity, sort_keys=True, default=str), match)
+        unique.setdefault(
+            json.dumps(_event_emission_identity(match), default=str), match
+        )
     if len(unique) > 1:
         raise ProofError(f"inconsistent multiple {event} events found for one trace")
     return next(iter(unique.values())) if unique else None
@@ -866,12 +869,11 @@ def _poll_events(
                         if found[kind] is None:
                             found[kind] = observed
                         else:
-                            old = {key: value for key, value in found[kind].items()
-                                   if key not in {"rawLog", "timeGenerated"}}
-                            new = {key: value for key, value in observed.items()
-                                   if key not in {"rawLog", "timeGenerated"}}
-                            if old != new:
-                                errors.append(f"inconsistent later {kind} event for one trace")
+                            if (_event_emission_identity(found[kind])
+                                    != _event_emission_identity(observed)):
+                                errors.append(
+                                    f"distinct later {kind} emission for one trace"
+                                )
                 except Exception as error:
                     errors.append(f"{kind} query parse error: {error}")
             evidence["events"][kind] = found[kind]
@@ -1246,6 +1248,7 @@ def _collect_diagnostics(
 ) -> dict[str, Any]:
     reason = str(skip.get("reason", "unknown"))
     combined: dict[str, Any] = {"available": True}
+    evidence["diagnostics"].update(combined)
     try:
         if reason == "reset_key_not_configured":
             combined.update(_diagnose_unconfigured_key(
@@ -1288,7 +1291,7 @@ def _collect_diagnostics(
             "error": str(error),
         })
     evidence["diagnostics"].update(combined)
-    return combined
+    return dict(evidence["diagnostics"])
 
 
 def _diagnostic_step(evidence: dict[str, Any], name: str, **inputs: Any) -> None:
@@ -1412,11 +1415,13 @@ def _diagnose_unconfigured_key(
     if previous_ref is None:
         raise ProofError("last-known-good gateway template lacks an INTERNAL_API_KEY reference")
     if current_ref != previous_ref:
-        return {
+        result = {
             "templateReference": "regressed",
             "currentTemplateReference": current_ref,
             "lastGoodTemplateReference": previous_ref,
         }
+        evidence["diagnostics"].update(result)
+        return result
     event_token = skip.get("replicaToken")
     if not isinstance(event_token, str) or re.fullmatch(r"[0-9a-f]{12}", event_token) is None:
         raise ProofError("skip event has no valid emitter replica token")
@@ -1433,19 +1438,27 @@ def _diagnose_unconfigured_key(
         "emitterStillServing": raw_name in fleet,
         "fleetReplicaNames": fleet,
     }
+    evidence["diagnostics"].update(result)
     attempts: list[dict[str, Any]] = []
     for _ in range(max(1, min(6, 2 * len(fleet)))):
         probe = _manual_reset_probe(config, evidence, http_runner)
         attempts.append(dict(probe))
         result.update(probe)
+        result["manualResetAttempts"] = list(attempts)
+        evidence["diagnostics"].update(result)
         if probe.get("probeReplicaToken") == event_token:
             result["sameReplica"] = True
+            evidence["diagnostics"].update(result)
             break
     else:
         result["sameReplica"] = False
+        evidence["diagnostics"].update(result)
     result["manualResetAttempts"] = attempts
+    evidence["diagnostics"].update(result)
 
-    if result.get("sameReplica") is True and raw_name is not None:
+    if (result.get("sameReplica") is True and raw_name is not None
+            and result.get("manualResetStatus") == 503
+            and result.get("manualResetEmitter") == "gateway"):
         _diagnostic_step(evidence, "presence_probe", replica=raw_name, revision=current)
         presence = _record_command(
             evidence, command_runner,
@@ -1459,6 +1472,7 @@ def _diagnose_unconfigured_key(
         if presence not in {"blank\n", "nonblank\n"}:
             raise ProofError("same-replica presence probe returned an invalid category")
         result["presence"] = presence.strip()
+        evidence["diagnostics"].update(result)
     return result
 
 
