@@ -180,6 +180,7 @@ class DemoLoginResetRealChainIT {
                 .containsEntry("eligibilityDispatchAttempted", true).containsEntry("resetDispatchAttempted", true)
                 .containsEntry("internalApiKeyAttached", true).containsEntry("originVerifyHeaderAttached", null)
                 .containsEntry("replicaToken", "");
+        assertThat(wires.getFirst().originVerify()).as("eligibility X-Origin-Verify absent on wire").isNull();
         if (nextScenario.equals("reset_timeout") || nextScenario.equals("reset_in_flight")) {
             assertThat(event).containsEntry("attemptedTarget", "http://localhost:" + port(gateway) + "/api/internal/portfolio/demo-reset")
                     .containsEntry("exceptionClass", null);
@@ -216,7 +217,7 @@ class DemoLoginResetRealChainIT {
     static volatile boolean responseReleased;
     static int port(ConfigurableApplicationContext context) { return ((WebServerApplicationContext) context).getWebServer().getPort(); }
     static Logger logger(Class<?> type) { return (Logger) LoggerFactory.getLogger(type); }
-    record Wire(String path, String traceparent, String key) { }
+    record Wire(String path, String traceparent, String key, String originVerify) { }
     static class Capture extends AppenderBase<ILoggingEvent> {
         final List<ILoggingEvent> events = new CopyOnWriteArrayList<>();
         @Override protected void append(ILoggingEvent event) { event.prepareForDeferredProcessing(); events.add(event); }
@@ -238,7 +239,8 @@ class DemoLoginResetRealChainIT {
         @Bean jakarta.servlet.Filter wireCapture() {
             return (request, response, chain) -> {
                 var http = (jakarta.servlet.http.HttpServletRequest) request;
-                wires.add(new Wire(http.getRequestURI(), http.getHeader("traceparent"), http.getHeader("X-Internal-Api-Key")));
+                wires.add(new Wire(http.getRequestURI(), http.getHeader("traceparent"),
+                        http.getHeader("X-Internal-Api-Key"), http.getHeader("X-Origin-Verify")));
                 chain.doFilter(request, response);
             };
         }
