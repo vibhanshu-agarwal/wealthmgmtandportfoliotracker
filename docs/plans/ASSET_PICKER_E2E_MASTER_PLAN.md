@@ -487,6 +487,13 @@ All four artifacts are tracked. Wave 1 (1.1-1.19) and Wave 2 Tasks 2.1-2.5 merge
 | 9 — live integration | 🟡 Tasks 9.1, 9.3, 9.4, 9.5 (PR #231 at `main@b4c68253b99a796d6301ef79b5aa5a47d5cbd962`), and 9.6 have their recorded source/local evidence. Tasks 9.2/9.7/9.8/9.9 are source/assembled-stack complete: one disposable Compose real-browser run passed 5/5 across setup plus picker and demo-reset success/conflict; PR #232 merged at `main@318f28592da6ab2e3bd66bc738aa68d374b180fa`, with final CI run `34018608256` passing `docker-build-verify` and `ci-required`, and body-edit guard run `34020180243` passing | No deployment or Production E2E is claimed; B1 R-C deployment/convergence and Wave 10 still gate exposure; production flags remain off |
 | 10 — production exposure | ⬜ Blocked | Convergence gate after all required live evidence and open decisions close |
 
+**Wave 8 status correction (2026-09-07):** Task 8.1 provenance is source `6a171558`, cu4/revision
+`0000094`, digest `sha256:2be727eaf4577699c783ae66073670d4984fe66c666af3e56422c934fdd0b023`; this is
+historical provenance rather than fresh serving read-back, and no duplicate deployment is needed.
+Tasks 8.3–8.7a, including authentication/cardinality and real-chain evidence, are source-complete and
+independently accepted. Remaining Wave 8 gates are deployment/live proof (8.8/8.9), not source
+orchestration prerequisites; Task 5.6 GO and B1 R-C remain open.
+
 The aggregate `assetPriceFreshness` backend dependency is now **closed**: Spec A task 8.6 is
 complete and `PortfolioSummaryDto.assetPriceFreshness` exists. B2 Wave 1 delivered the mocked
 frontend adapter; Task 9.5 has local assembled-stack evidence that the Portfolio page consumes the

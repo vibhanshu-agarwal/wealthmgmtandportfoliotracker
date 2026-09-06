@@ -13,7 +13,8 @@ Task 8.1 source `6a171558` (including `updatedAt` and decimal-string serializati
 Task 8.2a (`CloudFrontOriginSecretProvider`) merged source-only through PR #203 at `main@addd8049`;
 it is not deployed. Task 5.1b (`ReplicaTokenProvider`) merged source-only through PR #208 at
 `main@f954b5a7`; it is not deployed. Task 8.2's owner-approved decision record awaits Astra
-acceptance before production behavior starts; Tasks 8.3 and later remain not started. Spec A task 8.6
+acceptance before production behavior starts; Tasks 8.3–8.7a are source/test complete and accepted.
+Task 8.8b's offline source foundation is complete; deployment and live-proof gates remain open. Spec A task 8.6
 is complete and the backend `assetPriceFreshness` response exists.
 The owner resolved the strict 30-minute idle threshold, page-level manual-reset placement, and
 2s/2s/4s login self-call timeouts on 2026-09-06. The decimal item is now a B1-owned historical
