@@ -1,8 +1,8 @@
 # B2 Wave 8 source handoff and publication packet
 
-**Owner approval callout:** Push, PR creation/merge, workflow dispatch, deployment, cloud/registry/secret access, and production probing remain blocked pending explicit owner authorization.
+**Owner approval callout (2026-09-07):** The owner approved push, PR creation, and publication/cloud actions. No production operation has occurred. Merge remains conditional on required PR checks and review; production dispatch remains blocked by the missing Task 5.6 owner GO, B1 R-C NO-GO/open status, and the exact Task 9/10 deployment/live-proof packets and authorizations.
 
-Baseline: `318f28592da6ab2e3bd66bc738aa68d374b180fa`  
+Baseline: `318f28592da6ab2e3bd66bc738aa68d374b180fa`
 Integrated head before this correction: `db90fe744d388a62c57151c02bc051bbf888ce6d`
 
 Tasks 8.1–8.7a are source-complete and independently accepted. Task 8.8b source/tooling is complete with 48 offline tests and pinned actionlint v1.7.12 passing using SHA-256 `8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8`. Coordinator-supplied consolidated evidence covers gateway unit/integration/real-chain/root graphs, Python workflow/proof suites, propagation checks, and diff validation; this worker's Python launcher verification is pending coordinator rerun because of a PyManager permission error.
