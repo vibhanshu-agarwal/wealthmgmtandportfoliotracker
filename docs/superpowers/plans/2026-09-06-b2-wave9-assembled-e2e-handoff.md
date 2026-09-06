@@ -114,8 +114,7 @@ guard's scope.
 
 The status-propagation guard passed locally with 21 changed paths and the exact declaration
 `Master-plan impact: updated — B2`, against
-`origin/main@b4c68253b99a796d6301ef79b5aa5a47d5cbd962` and reviewed head
-`dba83c3a1cc28212c6aa115db803cbd15858e1e4`. The historical guard evidence is complete and
+`origin/main@b4c68253b99a796d6301ef79b5aa5a47d5cbd962` and historical local guard head `7c2ffaec61642f87f21890bff7a90fe033a461f3`; final PR #232 CI ran on reviewed head `dba83c3a1cc28212c6aa115db803cbd15858e1e4`. The historical guard evidence is complete and
 reconciled; no rerun is pending from this handoff.
 
 ## Publication boundary
