@@ -45,6 +45,8 @@ dependencies {
 
     // Real portfolio persistence is visible only to Wave 8's dedicated integration source set.
     wave8IntegrationTestImplementation project(':portfolio-service')
+    wave8IntegrationTestImplementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    wave8IntegrationTestImplementation 'org.springframework.boot:spring-boot-starter-webmvc'
 
     // Testcontainers — versions managed by testcontainers-bom in root build.gradle
     testImplementation 'org.testcontainers:testcontainers'
