@@ -22,6 +22,14 @@ def _read(path: Path) -> str:
 
 
 class TestDeployAzureServiceAllowlist(unittest.TestCase):
+    def test_scoped_graph_has_job_step_scoped_digest_contract(self):
+        deploy = self._job("deploy:")
+        aggregate = self._job("aggregate-digests:")
+        self.assertRegex(self.text, r"concurrency:\s*\n\s*group:\s*wealth-production-azure-deploy\s*\n\s*cancel-in-progress:\s*false")
+        self.assertRegex(deploy, r"name:\s*Build Docker image[\s\S]*?docker buildx build[\s\S]*?--push[\s\S]*?--metadata-file")
+        self.assertIn("service-digest-${{ matrix.service }}", deploy)
+        self.assertRegex(aggregate, r"needs:\s*\[preflight, deploy\]")
+        self.assertIn("aggregate-digests", aggregate)
     @classmethod
     def setUpClass(cls):
         cls.text = _read(WORKFLOW)
