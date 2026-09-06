@@ -1,17 +1,19 @@
 # B2 Wave 9 assembled E2E — local completion handoff
 
-> ## OWNER APPROVAL REQUIRED — PUSH + PR ONLY
+> ## OWNER APPROVAL REQUIRED — PUSH ONLY
 >
-> **Blocked action:** push `feat/b2-wave9-assembled-e2e` and open a pull request against `main`.
+> **Blocked action:** push the current corrections on `feat/b2-wave9-assembled-e2e` to the existing
+> pull request #232 against `main`.
 >
-> **Decision requested:** may the coordinator push this documentation-complete branch and create the
-> pull request?
+> **Decision requested:** may the coordinator push the corrected branch so GitHub CI can rerun on
+> pull request #232?
 >
-> - **If yes:** only the push and pull-request creation are authorized.
+> - **If yes:** only the push and CI rerun on the existing pull request are authorized.
 > - **If no:** all work remains local and reviewable in this worktree.
 >
 > No deployment, workflow dispatch, production access, production E2E, merge, or production flag
-> change is authorized by this decision. The GitHub CI workflow is wired locally but has not run.
+> change is authorized by this decision. PR #232's initial CI run is recorded below; its corrected
+> rerun remains pending this push.
 
 ## Scope and status
 
@@ -19,8 +21,10 @@
 - Branch/worktree: `feat/b2-wave9-assembled-e2e` in
   `D:\Projects\Development\Java\Spring\wealthmgmtandportfoliotracker-codex-wave9`.
 - Locally complete: Tasks 9.2, 9.7, 9.8, and 9.9.
-- Not claimed: GitHub CI execution, push, pull request, deployment, production E2E, or production
-  feature exposure. Production flags remain off. B1 R-C deployment/convergence, Task 3.7, Task 6.3,
+- GitHub CI: PR #232's initial static-guard job failed; downstream jobs, including
+  `docker-build-verify`, were skipped, so no GitHub assembled E2E ran. The corrected CI rerun is
+  pending the coordinator's push. Deployment, production E2E, and production feature exposure are
+  not claimed. Production flags remain off. B1 R-C deployment/convergence, Task 3.7, Task 6.3,
   Wave 8, and Wave 10 remain open.
 
 The existing production composition-save transport was already wired. Task 9.2 therefore needed no
@@ -36,6 +40,9 @@ production source change; its deliverable is the discriminating real-stack proof
 | `ea2e1f49` | Harden picker E2E oracle coverage |
 | `f079b481` | Active CI job-level flags, required specs, and structural parity guard |
 | `5ac2eb13` | Astra's TDD locator fix for demo-reset conflict assertions |
+| `ab29adeb` | Govern the fourth Asset Picker seed-cleanup caller in the exact-four inventory |
+| `aa9789d4` | Pin the governed picker cleanup control flow after CI review |
+| `7c2ffaec` | Replace vulnerable brace heuristics with exact LF-normalized module-prefix pinning through `afterEach` |
 
 ## Local evidence
 
@@ -60,7 +67,7 @@ locator guard. The final corrected assembled rerun on the branch tip passed 5/5.
 | Mocked picker collection | 2 |
 | Picker retry-window guard | Full 31s virtual observation passed |
 | Focused independent picker/locator guards | 14/14; Terra final focused slice 17/17 |
-| Status-propagation guard | passed locally: 19 changed paths with `Master-plan impact: updated — B2` against the baseline and verified then-current head `69e229489f73c36f734d976200a83fb60b387c1c` |
+| Status-propagation guard | passed locally: 21 changed paths with `Master-plan impact: updated — B2` against the baseline and verified then-current head `7c2ffaec61642f87f21890bff7a90fe033a461f3` |
 
 ## Reproduction record
 
@@ -87,14 +94,29 @@ The static guard verifies the four exact job-level values in active
 failure forgiveness or disabling condition, and parity with the tracked Azure frontend literals,
 V15, and the demo fixture. It does not read `frontend/.env.local`.
 
-The status-propagation guard passed locally with 19 changed paths and the exact declaration
+## PR #232 CI discovery and remediation
+
+PR #232's initial CI static-guard failure identified a legitimate fourth seed caller:
+`frontend/tests/e2e/asset-picker.spec.ts`. It was absent from the fixed historical inventory.
+The failure skipped downstream jobs, including `docker-build-verify`, so GitHub did not run an
+assembled E2E. The three historical B1/G5 callers remain unchanged.
+
+Commits `ab29adeb`, `aa9789d4`, and `7c2ffaec` added the exact-four governed inventory and then
+replaced the vulnerable brace heuristics with an exact LF-normalized module-prefix pin through
+`afterEach`. The focused guard suite passed 14/14 and its direct guard passed; Astra's final review
+was **ACCEPT**. The prefix is intentionally maintained as an exact source prefix: a future intended
+fixture setup change requires updating the tracked prefix, while later test bodies stay out of this
+guard's scope.
+
+The status-propagation guard passed locally with 21 changed paths and the exact declaration
 `Master-plan impact: updated — B2`, against
 `origin/main@b4c68253b99a796d6301ef79b5aa5a47d5cbd962` and the verified then-current head
-`69e229489f73c36f734d976200a83fb60b387c1c`. Resolve the head again before publication; the
-root coordinator will rerun the guard against the next documentation-only commit.
+`7c2ffaec61642f87f21890bff7a90fe033a461f3`. The changed-path set remains 21 after this handoff-only
+commit; the root coordinator will rerun the guard against the new head.
 
 ## Publication boundary
 
-Before publication, re-resolve the baseline and head, review the docs-only diff, and run the
-repository status guard against the exact intended PR body. Stop after creating the pull request;
-merge, deployment, workflow dispatch, and production validation require separate owner approval.
+Before pushing, re-resolve the baseline and head, review the docs-only diff, and rerun the
+repository status guard against the exact intended PR body. After the approved push, review the
+PR #232 CI rerun. Merge, deployment, workflow dispatch, and production validation require separate
+owner approval.
