@@ -26,6 +26,16 @@ KNOWN_SERVICES = (
 REFRESH_JOB = "market-data-refresh-job"
 DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 
+def _validate_selected(selected: list[str]) -> None:
+    if not selected or len(selected) != len(set(selected)) or not set(selected).issubset(set(KNOWN_SERVICES)):
+        raise ValueError("selected services must be nonempty, unique, and known")
+
+def _repository(image: str) -> str:
+    ref = image.split("@", 1)[0]
+    slash = ref.rfind("/")
+    colon = ref.rfind(":")
+    return ref[:colon] if colon > slash else ref
+
 RunAz = Callable[[list[str]], subprocess.CompletedProcess[str]]
 
 
@@ -105,34 +115,33 @@ def compare(
     requested_digest: str | None = None,
     digest_manifest: dict[str, str] | None = None,
 ) -> list[str]:
+    _validate_selected(selected)
     errors: list[str] = []
     selected_set = set(selected)
     digest = (requested_digest or "").strip() or None
     sha = (git_sha or "").strip() or None
-    if digest:
-        marker, marker_label = digest, "digest"
-    elif sha:
-        marker, marker_label = sha, "git sha"
-    else:
-        marker, marker_label = None, "digest or git sha"
+    mode = "manifest" if digest_manifest is not None else "digest" if digest else "git-sha" if sha else None
+    expected_images = {}
+    if mode:
+        for name in selected:
+            repository = _repository(str(before.get(name, {}).get("image", "")))
+            if mode == "manifest":
+                expected_images[name] = repository + "@" + digest_manifest[name]
+            elif mode == "digest":
+                expected_images[name] = repository + "@" + digest
+            else:
+                expected_images[name] = repository + ":" + sha
     for name in KNOWN_SERVICES:
         if name in selected_set:
             image = str(after.get(name, {}).get("image", ""))
-            if digest_manifest and name in digest_manifest:
-                source = str(before.get(name, {}).get("image", ""))
-                repo = source.rsplit("@", 1)[0].rsplit(":", 1)[0]
-                expected = repo + "@" + digest_manifest[name]
-                if image != expected:
-                    errors.append(f"selected {name} image {image!r} does not equal expected {expected!r}")
-                continue
-            if not marker:
+            if not mode:
                 errors.append(
                     f"selected {name} image {image!r} cannot be checked: "
                     "neither digest nor git sha was provided"
                 )
-            elif digest and (image != str(before.get(name, {}).get("image", "")).rsplit(":", 1)[0] + "@" + marker if "@" not in str(before.get(name, {}).get("image", "")) else image != str(before.get(name, {}).get("image", "")).rsplit("@", 1)[0] + "@" + marker):
+            elif image != expected_images[name]:
                 errors.append(
-                    f"selected {name} image {image!r} does not contain {marker_label} {marker}"
+                    f"selected {name} image {image!r} does not equal expected digest/image {expected_images[name]!r}"
                 )
         elif before.get(name) != after.get(name):
             errors.append(
@@ -153,15 +162,8 @@ def compare(
                 expected = str(before.get(name, {}).get("image", "")).rsplit("@", 1)[0].rsplit(":", 1)[0] + "@" + digest_manifest[name]
                 if image != expected:
                     errors.append(f"selected {name} image {image!r} does not equal expected {expected!r}")
-        elif digest:
-            image = str(after_job.get("image", ""))
-            if not image.endswith("@" + digest):
-                errors.append(f"selected {REFRESH_JOB} image {image!r} does not contain exact digest {digest}")
-        elif digest_manifest and "market-data-service" in digest_manifest:
-            repo = str(before.get("market-data-service", {}).get("image", "")).rsplit("@", 1)[0].rsplit(":", 1)[0]
-            expected = repo + "@" + digest_manifest["market-data-service"]
-            if str(after_job.get("image", "")) != expected:
-                errors.append(f"selected {REFRESH_JOB} image does not equal expected {expected!r}")
+        elif mode and str(after_job.get("image", "")) != expected_images["market-data-service"]:
+            errors.append(f"selected {REFRESH_JOB} image does not equal expected {expected_images['market-data-service']!r}")
     elif before.get(REFRESH_JOB) != after.get(REFRESH_JOB):
         errors.append(
             f"unselected {REFRESH_JOB} changed: {json.dumps(before.get(REFRESH_JOB))} -> {json.dumps(after.get(REFRESH_JOB))}"
@@ -198,7 +200,8 @@ def aggregate_digests(digest_root: str, selected: list[str], output: str | None)
 
 
 def validate_manifest(manifest: dict[str, str], selected: list[str]) -> dict[str, str]:
-    if not selected or len(selected) != len(set(selected)) or not set(selected).issubset(set(KNOWN_SERVICES)) or set(manifest) != set(selected):
+    _validate_selected(selected)
+    if set(manifest) != set(selected):
         raise ValueError("manifest keys must exactly equal unique selected services")
     for service, digest in manifest.items():
         if not DIGEST_RE.fullmatch(digest):
@@ -277,7 +280,7 @@ def main() -> int:
         after,
         selected,
         git_sha=args.git_sha or None,
-        requested_digest=args.requested_digest or (manifest.get(selected[0]) if manifest and len(selected) == 1 else None),
+        requested_digest=args.requested_digest or None,
         digest_manifest=manifest,
     )
     print(json.dumps({"after": after, "errors": errors}, indent=2))
