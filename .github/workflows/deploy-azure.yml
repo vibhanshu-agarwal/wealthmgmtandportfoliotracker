@@ -223,11 +223,14 @@ jobs:
             -t $ACR_NAME.azurecr.io/${{ matrix.service }}:${{ github.sha }} \
             .
 
-      - name: Push Docker image
-        id: push
+      - name: Validate and expose image digest
+        id: digest
         if: needs.preflight.outputs.digest_mode != 'true'
         run: |
-          docker push $ACR_NAME.azurecr.io/${{ matrix.service }}:${{ github.sha }}
+          set -euo pipefail
+          digest="$(jq -r '."containerimage.digest" // empty' "$RUNNER_TEMP/${{ matrix.service }}-metadata.json")"
+          [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]] || { echo "::error::invalid image digest"; exit 1; }
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
 
       - name: Upload service digest artifact
         if: needs.preflight.outputs.digest_mode != 'true'
@@ -245,18 +248,12 @@ jobs:
         if: needs.preflight.outputs.digest_mode == 'true'
         env:
           BUILD_OUTCOME: ${{ steps.build.outcome }}
-          PUSH_OUTCOME: ${{ steps.push.outcome }}
         run: |
           set -euo pipefail
           fail=0
           echo "build.outcome=${BUILD_OUTCOME}"
-          echo "push.outcome=${PUSH_OUTCOME}"
           if [ "$BUILD_OUTCOME" != "skipped" ]; then
             echo "::error::digest deploy executed build (outcome=${BUILD_OUTCOME}); expected skipped"
-            fail=1
-          fi
-          if [ "$PUSH_OUTCOME" != "skipped" ]; then
-            echo "::error::digest deploy executed push (outcome=${PUSH_OUTCOME}); expected skipped"
             fail=1
           fi
           exit "$fail"
@@ -266,7 +263,7 @@ jobs:
           if [ "${{ needs.preflight.outputs.digest_mode }}" = "true" ]; then
             IMAGE="${{ needs.preflight.outputs.digest_image }}"
           else
-            IMAGE="$ACR_NAME.azurecr.io/${{ matrix.service }}:${{ github.sha }}"
+            IMAGE="$ACR_NAME.azurecr.io/${{ matrix.service }}@${{ steps.digest.outputs.digest }}"
           fi
           az containerapp update \
             --name ${{ matrix.service }} \
@@ -282,15 +279,13 @@ jobs:
               --name "$JOB_NAME" \
               --resource-group "$AZURE_RG" \
               --output none 2>/dev/null; then
-            echo "::warning::${JOB_NAME} not found in ${AZURE_RG}."
-            echo "::warning::Run 'terraform apply' in infrastructure/terraform/azure to create the refresh Job."
-            echo "::warning::Skipping Job image update; the long-running market-data-service deploy above still succeeded."
-            exit 0
+            echo "::error::${JOB_NAME} not found in ${AZURE_RG}; refusing partial market-data deployment. Re-run all jobs after repair."
+            exit 1
           fi
           az containerapp job update \
             --name "$JOB_NAME" \
             --resource-group "$AZURE_RG" \
-            --image $ACR_NAME.azurecr.io/market-data-service:${{ github.sha }}
+            --image "$ACR_NAME.azurecr.io/market-data-service@${{ steps.digest.outputs.digest }}"
 
       - name: Wait for revision to reach Succeeded state
         # G18 — initial sleep gives ACA internal DNS time to propagate the new revision
