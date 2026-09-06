@@ -30,6 +30,13 @@ class TestDeployAzureServiceAllowlist(unittest.TestCase):
         self.assertIn("service-digest-${{ matrix.service }}", deploy)
         self.assertRegex(aggregate, r"needs:\s*\[preflight, deploy\]")
         self.assertIn("aggregate-digests", aggregate)
+        self.assertIn("run-attempt.txt", aggregate)
+        self.assertIn("Re-run all jobs", aggregate)
+        self.assertIn("merge-multiple: false", aggregate)
+        self.assertIn("mv \"$dir\" \"$RUNNER_TEMP/service-digests/$service\"", aggregate)
+        consumer = self._job("assert-scoped-non-interference:")
+        self.assertIn("needs.aggregate-digests.result", consumer)
+        self.assertIn("--digest-manifest", consumer)
     @classmethod
     def setUpClass(cls):
         cls.text = _read(WORKFLOW)

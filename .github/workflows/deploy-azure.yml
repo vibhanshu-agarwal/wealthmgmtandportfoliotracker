@@ -237,12 +237,13 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/service-digests/${{ matrix.service }}"
           jq -r '."containerimage.digest"' "$RUNNER_TEMP/${{ matrix.service }}-metadata.json" > "$RUNNER_TEMP/service-digests/${{ matrix.service }}/digest.txt"
+          printf '%s\n' '${{ github.run_attempt }}' > "$RUNNER_TEMP/service-digests/${{ matrix.service }}/run-attempt.txt"
       - name: Publish service digest artifact
         if: needs.preflight.outputs.digest_mode != 'true'
         uses: actions/upload-artifact@v4
         with:
           name: service-digest-${{ matrix.service }}
-          path: ${{ runner.temp }}/service-digests/${{ matrix.service }}/digest.txt
+          path: ${{ runner.temp }}/service-digests/${{ matrix.service }}
 
       - name: Prove digest path skipped build and push
         if: needs.preflight.outputs.digest_mode == 'true'
@@ -351,7 +352,10 @@ jobs:
           set -euo pipefail
           selected='${{ needs.preflight.outputs.selected_services }}'
           for service in $(python3 -c 'import json,sys; print(*json.loads(sys.argv[1]))' "$selected"); do
-            test -f "$RUNNER_TEMP/service-digests/service-digest-${service}/digest.txt" || { echo "::error::missing digest for $service; Re-run all jobs."; exit 1; }
+            dir="$RUNNER_TEMP/service-digests/service-digest-${service}"
+            test -f "$dir/digest.txt" || { echo "::error::missing digest for $service; Re-run all jobs."; exit 1; }
+            test "$(cat "$dir/run-attempt.txt")" = "${{ github.run_attempt }}" || { echo "::error::stale digest artifact for $service; Re-run all jobs."; exit 1; }
+            mv "$dir" "$RUNNER_TEMP/service-digests/$service"
           done
       - name: Aggregate selected service digests
         run: |
@@ -607,7 +611,7 @@ jobs:
               --selected "$SELECTED" \
               --requested-digest "$REQUESTED_DIGEST" \
               --git-sha ""
-          elif [ "${{ needs.preflight.outputs.deploy_mode }}" = "scoped" ]; then
+          elif [ "${{ needs.preflight.outputs.deploy_mode }}" = "scoped" ] && [ "${{ needs.aggregate-digests.result }}" = "success" ]; then
             python3 .github/workflows/scripts/snapshot_container_apps.py compare \
               --before "$BEFORE" --selected "$SELECTED" --digest-manifest "$DIGEST_MANIFEST"
           else
