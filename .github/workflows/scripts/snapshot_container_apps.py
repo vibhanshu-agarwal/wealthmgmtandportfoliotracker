@@ -14,6 +14,7 @@ import json
 import os
 import subprocess
 import sys
+import re
 from typing import Any, Callable
 
 KNOWN_SERVICES = (
@@ -23,6 +24,7 @@ KNOWN_SERVICES = (
     "insight-service",
 )
 REFRESH_JOB = "market-data-refresh-job"
+DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 
 RunAz = Callable[[list[str]], subprocess.CompletedProcess[str]]
 
@@ -144,6 +146,34 @@ def compare(
     return errors
 
 
+def aggregate_digests(digest_root: str, selected: list[str], output: str | None) -> dict[str, str]:
+    root = os.path.abspath(digest_root)
+    selected_set = set(selected)
+    if len(selected_set) != len(selected) or not selected_set:
+        raise ValueError("selected services must be non-empty and unique")
+    if not selected_set.issubset(set(KNOWN_SERVICES)):
+        raise ValueError("selected services contain unknown entries")
+    expected = selected_set | ({REFRESH_JOB} if "market-data-service" in selected_set else set())
+    actual = {entry.name for entry in os.scandir(root) if entry.is_dir()}
+    if actual != expected:
+        raise ValueError(f"digest service set mismatch: expected {sorted(expected)}, found {sorted(actual)}")
+    manifest: dict[str, str] = {}
+    for service in selected:
+        files = [entry for entry in os.scandir(os.path.join(root, service)) if entry.is_file()]
+        if len(files) != 1 or files[0].name != "digest.txt":
+            raise ValueError(f"{service} must contain exactly one digest.txt")
+        with open(files[0].path, encoding="utf-8") as handle:
+            digest = handle.read().strip()
+        if not DIGEST_RE.fullmatch(digest):
+            raise ValueError(f"invalid lowercase digest for {service}")
+        manifest[service] = digest
+    if output:
+        with open(output, "w", encoding="utf-8") as handle:
+            json.dump(manifest, handle, sort_keys=True, indent=2)
+            handle.write("\n")
+    return manifest
+
+
 def _write_output(name: str, value: str) -> None:
     path = os.environ.get("GITHUB_OUTPUT")
     if not path:
@@ -157,7 +187,7 @@ def _write_output(name: str, value: str) -> None:
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
-    parser.add_argument("command", choices=("snapshot", "compare"))
+    parser.add_argument("command", choices=("snapshot", "compare", "aggregate-digests"))
     parser.add_argument("--before", default="")
     parser.add_argument("--selected", default="[]")
     # Empty default on purpose: do not inherit GITHUB_SHA from the environment.
@@ -165,11 +195,19 @@ def _parser() -> argparse.ArgumentParser:
     # rebuild pass the selected-app assertion.
     parser.add_argument("--git-sha", default="")
     parser.add_argument("--requested-digest", default="")
+    parser.add_argument("--digest-root", default="")
+    parser.add_argument("--output", default="")
     return parser
 
 
 def main() -> int:
     args = _parser().parse_args()
+
+    if args.command == "aggregate-digests":
+        selected = json.loads(args.selected)
+        manifest = aggregate_digests(args.digest_root, selected, args.output or None)
+        print(json.dumps(manifest, indent=2, sort_keys=True))
+        return 0
 
     resource_group = os.environ.get("AZURE_RG", "")
     if not resource_group:

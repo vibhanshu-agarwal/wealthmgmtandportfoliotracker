@@ -6,6 +6,7 @@ from __future__ import annotations
 import importlib.util
 import os
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -32,6 +33,49 @@ def _app(revision: str, image: str, weight: int = 100) -> dict:
         "revision": revision,
         "traffic": [{"revisionName": revision, "weight": weight}],
     }
+
+
+class TestAggregateDigests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.mod = _load()
+
+    def test_aggregate_parser_and_no_azure_environment(self):
+        args = self.mod._parser().parse_args(["aggregate-digests", "--digest-root", "x", "--selected", '["api-gateway"]'])
+        self.assertEqual(args.command, "aggregate-digests")
+        with tempfile.TemporaryDirectory() as root:
+            Path(root, "api-gateway").mkdir()
+            Path(root, "api-gateway", "digest.txt").write_text("sha256:" + "a" * 64)
+            output = Path(root, "manifest.json")
+            self.mod.aggregate_digests(root, ["api-gateway"], str(output))
+            self.assertTrue(output.exists())
+
+    def test_aggregate_exact_services_and_lowercase_digest(self):
+        with tempfile.TemporaryDirectory() as root:
+            for service in ("api-gateway", "portfolio-service"):
+                Path(root, service).mkdir()
+                Path(root, service, "digest.txt").write_text("sha256:" + "b" * 64)
+            manifest = self.mod.aggregate_digests(root, ["api-gateway", "portfolio-service"], None)
+            self.assertEqual(set(manifest), {"api-gateway", "portfolio-service"})
+
+    def test_aggregate_rejects_duplicate_missing_extra_malformed_and_missing_refresh_job(self):
+        cases = [
+            ({"api-gateway": ["sha256:" + "a" * 64, "sha256:" + "b" * 64]}, ["api-gateway"]),
+            ({}, ["api-gateway"]),
+            ({"api-gateway": ["sha256:" + "a" * 64], "extra": ["sha256:" + "a" * 64]}, ["api-gateway"]),
+            ({"api-gateway": ["SHA256:" + "a" * 64]}, ["api-gateway"]),
+            ({"market-data-service": ["sha256:" + "a" * 64]}, ["market-data-service"]),
+        ]
+        for entries, selected in cases:
+            with self.subTest(entries=entries):
+                with tempfile.TemporaryDirectory() as root:
+                    for service, digests in entries.items():
+                        Path(root, service).mkdir()
+                        for index, digest in enumerate(digests):
+                            name = "digest.txt" if index == 0 else f"digest-{index}.txt"
+                            Path(root, service, name).write_text(digest)
+                    with self.assertRaises(ValueError):
+                        self.mod.aggregate_digests(root, selected, None)
 
 
 class TestCompareNonInterference(unittest.TestCase):
