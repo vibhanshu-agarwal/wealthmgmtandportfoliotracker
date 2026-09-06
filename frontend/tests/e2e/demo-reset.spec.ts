@@ -1,5 +1,6 @@
 import type { Page, Request } from "@playwright/test";
 import { test, expect, DEMO_USER_ID } from "./helpers/demo-auth";
+import { resumeAfterObservation } from "./helpers/browser-clock";
 import {
   assertExactHoldings,
   loadDemoGoldenOracle,
@@ -40,9 +41,8 @@ test.afterEach(async ({ request, demoSession, demoPage }) => {
 });
 
 async function openObservedDemo(page: Page): Promise<DemoPortfolio> {
-  // Install before loading, and pause only after the UI has genuinely observed
-  // its portfolio. This freezes periodic refresh during the deliberately stale
-  // write; clock.runFor below then exercises timers for the no-retry assertion.
+  // Install before loading, but keep timers running for cache notifications.
+  // Only the deliberate stale write and no-retry windows pause the clock.
   await page.clock.install();
   const loaded = page.waitForResponse((response) => response.url() === portfolioUrl && response.request().method() === "GET");
   await page.goto("/portfolio");
@@ -51,7 +51,6 @@ async function openObservedDemo(page: Page): Promise<DemoPortfolio> {
   const observed = selectDemoPortfolio(await response.json());
   await expect(page.getByRole("button", { name: "Reset Demo Portfolio", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Reset Demo Portfolio", exact: true })).toBeEnabled();
-  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));
   return observed;
 }
 
@@ -77,8 +76,11 @@ test("demo reset restores the exact golden state through the real public gateway
 
   const resets: Request[] = [];
   demoPage.on("request", (req) => { if (req.url() === resetUrl && req.method() === "PUT") resets.push(req); });
+  const resetRequest = demoPage.waitForRequest((req) => req.url() === resetUrl && req.method() === "PUT");
   const resetResponse = demoPage.waitForResponse((response) => response.url() === resetUrl && response.request().method() === "PUT");
   await demoPage.getByRole("button", { name: "Reset Demo Portfolio", exact: true }).click();
+  const captured = await resumeAfterObservation(demoPage.clock, resetRequest);
+  expect(captured.postDataJSON()).toEqual({ expectedVersion: observed.version });
   const response = await resetResponse;
   expect(response.status()).toBe(200);
   expect(resets).toHaveLength(1);
@@ -98,6 +100,7 @@ test("demo reset restores the exact golden state through the real public gateway
   await expect(demoPage.getByRole("status").filter({ hasText: "Demo portfolio reset." })).toBeVisible();
   await expectVisibleHoldings(demoPage, golden);
   await expect(demoPage.getByRole("button", { name: "Reset Demo Portfolio", exact: true })).toBeEnabled();
+  await demoPage.clock.pauseAt(await demoPage.evaluate(() => Date.now() + 1000));
   await demoPage.clock.runFor(31_000);
   expect(resets).toHaveLength(1);
 });
@@ -110,12 +113,18 @@ test("stale demo reset returns one genuine 409 and stays frozen until explicit r
   assertExactHoldings(observed.holdings, setup.holdings);
   await expectVisibleHoldings(demoPage, setup.holdings);
 
+  // Freeze periodic refresh only while creating the stale version race. Resume
+  // immediately after the outgoing reset request has captured that version.
+  await demoPage.clock.pauseAt(await demoPage.evaluate(() => Date.now() + 1000));
   const concurrent = await writeNonGoldenDemoComposition(api, golden);
   expect(concurrent.version).toBeGreaterThan(observed.version);
   const resets: Request[] = [];
   demoPage.on("request", (req) => { if (req.url() === resetUrl && req.method() === "PUT") resets.push(req); });
+  const resetRequest = demoPage.waitForRequest((req) => req.url() === resetUrl && req.method() === "PUT");
   const resetResponse = demoPage.waitForResponse((response) => response.url() === resetUrl && response.request().method() === "PUT");
   await demoPage.getByRole("button", { name: "Reset Demo Portfolio", exact: true }).click();
+  const captured = await resumeAfterObservation(demoPage.clock, resetRequest);
+  expect(captured.postDataJSON()).toEqual({ expectedVersion: observed.version });
   const response = await resetResponse;
   expect(response.status()).toBe(409);
   expect(resets).toHaveLength(1);
@@ -135,9 +144,12 @@ test("stale demo reset returns one genuine 409 and stays frozen until explicit r
 
   // Cover retry delays and a periodic portfolio refresh. Even newer props must
   // not clear the conflict or resubmit without the user's explicit observation.
+  await demoPage.clock.pauseAt(await demoPage.evaluate(() => Date.now() + 1000));
   const backgroundResponse = demoPage.waitForResponse((res) => res.url() === portfolioUrl && res.request().method() === "GET");
   await demoPage.clock.runFor(65_000);
-  const background = await backgroundResponse;
+  // The HTTP response may arrive after runFor returns. Resume before awaiting
+  // enrichment and QueryObserver notifications, rather than polling frozen UI.
+  const background = await resumeAfterObservation(demoPage.clock, backgroundResponse);
   expect(background.status()).toBe(200);
   expect(selectDemoPortfolio(await background.json()).version).toBe(concurrent.version);
   await expectVisibleHoldings(demoPage, concurrent.holdings);
