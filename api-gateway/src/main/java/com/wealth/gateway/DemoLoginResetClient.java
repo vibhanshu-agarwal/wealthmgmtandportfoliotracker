@@ -50,10 +50,14 @@ public final class DemoLoginResetClient {
     }
 
     public Mono<DemoLoginPortfolioObservation> observeEligibility(String bearerToken) {
-        return Mono.defer(() -> loopbackTargetProvider.eligibilityTarget().flatMap(target -> {
+        return observeEligibility(bearerToken, null);
+    }
+
+    Mono<DemoLoginPortfolioObservation> observeEligibility(String bearerToken, DemoLoginResetDiagnostics.Attempt attempt) {
+        return Mono.defer(() -> ownedTarget(false, attempt).flatMap(target -> {
             AtomicReference<Boolean> headerAttached = new AtomicReference<>(false);
             boolean originRequired = originSecretProvider.isRequired();
-            return observedClient(headerAttached)
+            return observedClient(headerAttached, attempt, false, null)
                     .get()
                     .uri(target)
                     .headers(headers -> {
@@ -62,32 +66,50 @@ public final class DemoLoginResetClient {
                             headers.set(ORIGIN_VERIFY_HEADER, originSecretProvider.value());
                         }
                     })
-                    .exchangeToMono(response -> readEligiblePortfolio(response, target, originRequired,
-                            headerAttached.get()))
+                    .exchangeToMono(response -> {
+                        if (attempt != null) attempt.received(false, response.statusCode().value());
+                        return readEligiblePortfolio(response, target, originRequired, headerAttached.get());
+                    })
                     .timeout(properties.eligibilityTimeout());
         }));
     }
 
     public Mono<DemoLoginResetResult> reset(DemoLoginPortfolioObservation observation) {
+        return reset(observation, null);
+    }
+
+    Mono<DemoLoginResetResult> reset(DemoLoginPortfolioObservation observation, DemoLoginResetDiagnostics.Attempt attempt) {
         return Mono.defer(() -> {
             if (!internalApiKeyProvider.isConfigured()) {
                 return Mono.error(new ResetKeyNotConfiguredException());
             }
-            return loopbackTargetProvider.resetTarget().flatMap(target -> observedClient(new AtomicReference<>(false))
+            return ownedTarget(true, attempt).flatMap(target -> observedClient(new AtomicReference<>(false),
+                            attempt, true, observation.version())
                     .post()
                     .uri(target)
                     .contentType(MediaType.APPLICATION_JSON)
                     .header(INTERNAL_API_KEY_HEADER, internalApiKeyProvider.value())
                     .bodyValue(new ResetRequest(observation.version()))
-                    .exchangeToMono(response -> requireSuccess(response, target)
-                            .thenReturn(new DemoLoginResetResult(target, response.statusCode().value())))
+                    .exchangeToMono(response -> {
+                        if (attempt != null) attempt.received(true, response.statusCode().value());
+                        return requireSuccess(response, target)
+                                .then(response.releaseBody())
+                                .thenReturn(new DemoLoginResetResult(target, response.statusCode().value()));
+                    })
                     .timeout(properties.resetTimeout()));
         });
     }
 
-    private WebClient observedClient(AtomicReference<Boolean> headerAttached) {
+    private Mono<URI> ownedTarget(boolean reset, DemoLoginResetDiagnostics.Attempt attempt) {
+        return Mono.defer(() -> reset ? loopbackTargetProvider.resetTarget() : loopbackTargetProvider.eligibilityTarget())
+                .onErrorMap(error -> attempt == null ? error : new DemoLoginResetOrchestrator.OwnCodeFailure(error));
+    }
+
+    private WebClient observedClient(AtomicReference<Boolean> headerAttached,
+                                     DemoLoginResetDiagnostics.Attempt attempt, boolean reset, Long version) {
         ExchangeFilterFunction observation = (request, next) -> {
             headerAttached.set(request.headers().getFirst(ORIGIN_VERIFY_HEADER) != null);
+            if (attempt != null) attempt.dispatched(reset, request, version);
             return next.exchange(request);
         };
         return webClientBuilder.clone().filter(observation).build();
@@ -154,11 +176,24 @@ public final class DemoLoginResetClient {
                 age.compareTo(properties.idleThreshold()) > 0, target, originRequired, originAttached));
     }
 
-    private static Mono<Void> requireSuccess(ClientResponse response, URI target) {
+    private Mono<Void> requireSuccess(ClientResponse response, URI target) {
         if (response.statusCode().is2xxSuccessful()) {
             return Mono.empty();
         }
-        return response.releaseBody().then(Mono.error(new HttpStatusFailure(response.statusCode(), target)));
+        if (response.statusCode().value() == 409) {
+            return response.bodyToMono(String.class).defaultIfEmpty("").onErrorReturn("")
+                    .flatMap(body -> Mono.error(new HttpStatusFailure(response.statusCode(), target, currentVersion(body))));
+        }
+        return response.releaseBody().then(Mono.error(new HttpStatusFailure(response.statusCode(), target, null)));
+    }
+
+    private Long currentVersion(String body) {
+        try {
+            JsonNode version = objectMapper.readTree(body).path("currentVersion");
+            return version.isIntegralNumber() && version.canConvertToLong() ? version.longValue() : null;
+        } catch (Exception ignored) {
+            return null;
+        }
     }
 
     private record PortfolioPayload(UUID id, String userId, Instant updatedAt, Long version) {
@@ -173,11 +208,13 @@ public final class DemoLoginResetClient {
     public static final class HttpStatusFailure extends RuntimeException {
         private final HttpStatusCode status;
         private final URI target;
+        private final Long currentVersion;
 
-        HttpStatusFailure(HttpStatusCode status, URI target) {
+        HttpStatusFailure(HttpStatusCode status, URI target, Long currentVersion) {
             super("self-call returned " + status.value());
             this.status = status;
             this.target = target;
+            this.currentVersion = currentVersion;
         }
 
         public HttpStatusCode status() {
@@ -186,6 +223,10 @@ public final class DemoLoginResetClient {
 
         public URI target() {
             return target;
+        }
+
+        public Long currentVersion() {
+            return currentVersion;
         }
     }
 

@@ -12,6 +12,7 @@ import tools.jackson.databind.json.JsonMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 /**
  * Example test for Uniform_Auth_Error constant identity (Req 3.5, 3.6, 10.6): the unknown-email
@@ -22,10 +23,11 @@ class AuthControllerUniformErrorTest {
 
     @Mock AuthenticationService authService;
     @Mock SignupService signupService;
+    @Mock DemoLoginResetOrchestrator demoLoginReset;
 
     @Test
     void unknownEmailAndWrongPasswordProduceByteIdenticalBodies() throws Exception {
-        AuthController controller = new AuthController(authService, signupService);
+        AuthController controller = new AuthController(authService, signupService, demoLoginReset);
         JsonMapper mapper = JsonMapper.builder().build();
 
         when(authService.authenticate(new LoginDtos.LoginRequest("nobody@x.com", "pw")))
@@ -42,5 +44,21 @@ class AuthControllerUniformErrorTest {
         assertThat(unknownEmailResponse.getStatusCode().value()).isEqualTo(401);
         assertThat(wrongPasswordResponse.getStatusCode().value()).isEqualTo(401);
         assertThat(unknownBytes).isEqualTo(wrongPasswordBytes);
+        verifyNoInteractions(demoLoginReset);
+    }
+
+    @Test
+    void orchestrationPublisherConstructionAndSubscriptionFailuresCannotTurnLoginInto500() {
+        var response = new com.wealth.gateway.auth.LoginResponse("jwt", DemoLoginResetClient.DEMO_USER_ID, "demo", "Demo");
+        var request = new LoginDtos.LoginRequest("demo", "pw");
+        when(authService.authenticate(request)).thenReturn(Mono.just(response));
+        AuthController controller = new AuthController(authService, signupService, demoLoginReset);
+        when(demoLoginReset.afterLogin(response)).thenThrow(new IllegalStateException("construction"))
+                .thenReturn(Mono.error(new IllegalStateException("subscription")));
+        for (int i = 0; i < 2; i++) {
+            var result = controller.login(request).block();
+            assertThat(result.getStatusCode().value()).isEqualTo(200);
+            assertThat(result.getBody()).isEqualTo(new LoginDtos.LoginResponse("jwt", response.userId(), "demo", "Demo"));
+        }
     }
 }
