@@ -134,8 +134,12 @@ test("stale demo reset returns one genuine 409 and stays frozen until explicit r
   expect(conflict.currentVersion).toBe(concurrent.version);
   expect(typeof conflict.message).toBe("string");
   expect(conflict.message.length).toBeGreaterThan(0);
-  await expect(demoPage.getByRole("alert")).toContainText("Your portfolio changed elsewhere.");
-  await expect(demoPage.getByRole("alert")).toContainText(conflict.message);
+  // Next's route announcer also has role="alert". Identify this conflict notice
+  // for both its message assertions and its disappearance after re-observation.
+  const conflictAlert = demoPage.getByRole("alert").filter({ hasText: "Your portfolio changed elsewhere." });
+  await expect(conflictAlert).toBeVisible();
+  await expect(conflictAlert).toContainText("Your portfolio changed elsewhere.");
+  await expect(conflictAlert).toContainText(conflict.message);
   await expect(demoPage.getByRole("button", { name: "Reset Demo Portfolio", exact: true })).toHaveCount(0);
   await expect(demoPage.getByRole("button", { name: "Refresh & try again", exact: true })).toBeEnabled();
   const persisted = await readDemoPortfolio(api);
@@ -155,14 +159,14 @@ test("stale demo reset returns one genuine 409 and stays frozen until explicit r
   await expectVisibleHoldings(demoPage, concurrent.holdings);
   expect(resets).toHaveLength(1);
   await expect(demoPage.getByRole("button", { name: "Reset Demo Portfolio", exact: true })).toHaveCount(0);
-  await expect(demoPage.getByRole("alert")).toContainText("Your portfolio changed elsewhere.");
+  await expect(conflictAlert).toContainText("Your portfolio changed elsewhere.");
   const refreshedResponse = demoPage.waitForResponse((res) => res.url() === portfolioUrl && res.request().method() === "GET");
   await demoPage.getByRole("button", { name: "Refresh & try again", exact: true }).click();
   const refreshed = await refreshedResponse;
   expect(refreshed.status()).toBe(200);
   expect(selectDemoPortfolio(await refreshed.json()).version).toBe(concurrent.version);
   await expect(demoPage.getByRole("button", { name: "Reset Demo Portfolio", exact: true })).toBeEnabled();
-  await expect(demoPage.getByRole("alert")).toHaveCount(0);
+  await expect(conflictAlert).toHaveCount(0);
   await expectVisibleHoldings(demoPage, concurrent.holdings);
   expect(resets).toHaveLength(1);
 });
