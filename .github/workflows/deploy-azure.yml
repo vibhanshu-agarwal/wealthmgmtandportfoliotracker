@@ -244,6 +244,7 @@ jobs:
         with:
           name: service-digest-${{ matrix.service }}
           path: ${{ runner.temp }}/service-digests/${{ matrix.service }}
+          overwrite: true
 
       - name: Prove digest path skipped build and push
         if: needs.preflight.outputs.digest_mode == 'true'
@@ -354,8 +355,10 @@ jobs:
           for service in $(python3 -c 'import json,sys; print(*json.loads(sys.argv[1]))' "$selected"); do
             dir="$RUNNER_TEMP/service-digests/service-digest-${service}"
             test -f "$dir/digest.txt" || { echo "::error::missing digest for $service; Re-run all jobs."; exit 1; }
+            test -f "$dir/run-attempt.txt" || { echo "::error::missing attempt marker for $service; Re-run all jobs."; exit 1; }
             test "$(cat "$dir/run-attempt.txt")" = "${{ github.run_attempt }}" || { echo "::error::stale digest artifact for $service; Re-run all jobs."; exit 1; }
-            mv "$dir" "$RUNNER_TEMP/service-digests/$service"
+            mkdir -p "$RUNNER_TEMP/service-digests/$service"
+            cp "$dir/digest.txt" "$RUNNER_TEMP/service-digests/$service/digest.txt"
           done
       - name: Aggregate selected service digests
         run: |
@@ -363,11 +366,15 @@ jobs:
             --digest-root "${RUNNER_TEMP}/service-digests" \
             --selected '${{ needs.preflight.outputs.selected_services }}' \
             --output "${RUNNER_TEMP}/digest-manifest.json"
+          printf '%s\n' '${{ github.run_attempt }}' > "${RUNNER_TEMP}/digest-manifest.run-attempt.txt"
       - name: Upload digest manifest
         uses: actions/upload-artifact@v4
         with:
           name: digest-manifest
-          path: ${{ runner.temp }}/digest-manifest.json
+          path: |
+            ${{ runner.temp }}/digest-manifest.json
+            ${{ runner.temp }}/digest-manifest.run-attempt.txt
+          overwrite: true
 
   deploy-frontend:
     runs-on: ubuntu-latest
@@ -559,11 +566,17 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
       - name: Download named digest manifest for scoped compare
-        if: needs.preflight.outputs.deploy_mode == 'scoped'
+        if: needs.preflight.outputs.deploy_mode == 'scoped' && needs.preflight.outputs.digest_mode != 'true'
         uses: actions/download-artifact@v4
         with:
           name: digest-manifest
           path: ${{ runner.temp }}
+
+      - name: Validate digest manifest attempt
+        if: needs.preflight.outputs.deploy_mode == 'scoped' && needs.preflight.outputs.digest_mode != 'true'
+        run: |
+          test -f "$RUNNER_TEMP/digest-manifest.run-attempt.txt" || { echo "::error::missing manifest attempt marker; Re-run all jobs."; exit 1; }
+          test "$(cat "$RUNNER_TEMP/digest-manifest.run-attempt.txt")" = "${{ github.run_attempt }}" || { echo "::error::stale digest manifest; Re-run all jobs."; exit 1; }
 
       - name: Azure login (OIDC)
         uses: azure/login@v2
@@ -615,8 +628,6 @@ jobs:
             python3 .github/workflows/scripts/snapshot_container_apps.py compare \
               --before "$BEFORE" --selected "$SELECTED" --digest-manifest "$DIGEST_MANIFEST"
           else
-            python3 .github/workflows/scripts/snapshot_container_apps.py compare \
-              --before "$BEFORE" \
-              --selected "$SELECTED" \
-              --git-sha "${{ github.sha }}"
+            echo "::error::unsupported compare mode; Re-run all jobs."
+            exit 1
           fi

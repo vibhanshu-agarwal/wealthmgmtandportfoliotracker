@@ -33,7 +33,7 @@ class TestDeployAzureServiceAllowlist(unittest.TestCase):
         self.assertIn("run-attempt.txt", aggregate)
         self.assertIn("Re-run all jobs", aggregate)
         self.assertIn("merge-multiple: false", aggregate)
-        self.assertIn("mv \"$dir\" \"$RUNNER_TEMP/service-digests/$service\"", aggregate)
+        self.assertIn("cp \"$dir/digest.txt\" \"$RUNNER_TEMP/service-digests/$service/digest.txt\"", aggregate)
         consumer = self._job("assert-scoped-non-interference:")
         self.assertIn("needs.aggregate-digests.result", consumer)
         self.assertIn("--digest-manifest", consumer)
