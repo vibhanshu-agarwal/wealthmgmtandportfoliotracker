@@ -72,6 +72,7 @@ class ProofConfig:
     repository_sha: str
     run_attempt: str
     deployment_manifest: dict[str, Any]
+    service_repositories: dict[str, str]
     access_token: str = ""
     demo_email: str = DEMO_EMAIL
     demo_password: str = ""
@@ -85,6 +86,8 @@ class ProofConfig:
     poll_deadline_seconds: float = 60.0
     cleanup_max_attempts: int = 3
     cleanup_deadline_seconds: float = 30.0
+    operation_timeout_seconds: float = 15.0
+    post_cleanup_verification_seconds: float = 5.0
 
 
 @dataclass(frozen=True)
@@ -93,34 +96,55 @@ class ProofResult:
     evidence: dict[str, Any]
 
 
-CommandRunner = Callable[[list[str]], CommandResult]
+CommandRunner = Callable[..., CommandResult]
 HttpRunner = Callable[..., HttpResponse]
+DiagnosticRunner = Callable[..., dict[str, Any]]
+
+
+def redact_evidence(value: Any, secrets_to_remove: list[str]) -> Any:
+    """Return an evidence-safe copy with configured credentials removed everywhere."""
+    secrets_to_remove = [secret for secret in secrets_to_remove if secret]
+    if isinstance(value, dict):
+        return {key: redact_evidence(item, secrets_to_remove) for key, item in value.items()}
+    if isinstance(value, list):
+        return [redact_evidence(item, secrets_to_remove) for item in value]
+    if isinstance(value, tuple):
+        return tuple(redact_evidence(item, secrets_to_remove) for item in value)
+    if isinstance(value, str):
+        for secret in secrets_to_remove:
+            value = value.replace(secret, "[REDACTED]")
+        return value
+    return value
 
 
 def validate_deployment_manifest(
-    document: dict[str, Any], *, expected_attempt: str, expected_repository_sha: str
+    document: dict[str, Any], *, expected_attempt: str, expected_repository_sha: str,
+    repositories: dict[str, str],
 ) -> dict[str, Any]:
-    if str(document.get("runAttempt", "")) != str(expected_attempt):
-        raise ProofError("deployment manifest is not from the current run attempt")
-    repository_sha = document.get("repositorySha")
-    if not isinstance(repository_sha, str) or not REPOSITORY_SHA_RE.fullmatch(repository_sha):
+    if not str(expected_attempt):
+        raise ProofError("deployment manifest requires the current run attempt provenance")
+    if not isinstance(expected_repository_sha, str) or not REPOSITORY_SHA_RE.fullmatch(
+        expected_repository_sha
+    ):
         raise ProofError("deployment manifest requires a lowercase repository SHA")
-    if repository_sha != expected_repository_sha:
-        raise ProofError("deployment manifest repository SHA does not match the approved commit")
-    services = document.get("services")
-    if not isinstance(services, dict) or set(services) != set(SERVICES):
+    if not isinstance(document, dict) or set(document) != set(SERVICES):
         raise ProofError("deployment manifest must contain exactly the two Task 8.9 services")
+    if not isinstance(repositories, dict) or set(repositories) != set(SERVICES):
+        raise ProofError("explicit repositories must contain exactly the two Task 8.9 services")
+    normalized = {
+        "runAttempt": str(expected_attempt),
+        "repositorySha": expected_repository_sha,
+        "services": {},
+    }
     for service in SERVICES:
-        identity = services.get(service)
-        if not isinstance(identity, dict) or set(identity) != {"repository", "digest"}:
-            raise ProofError(f"{service} manifest identity must contain repository and digest")
-        repository = identity.get("repository")
-        digest = identity.get("digest")
+        repository = repositories.get(service)
+        digest = document.get(service)
         if not isinstance(repository, str) or not repository or "@" in repository:
             raise ProofError(f"{service} manifest repository is invalid")
         if not isinstance(digest, str) or not DIGEST_RE.fullmatch(digest):
             raise ProofError(f"{service} manifest digest must be lowercase sha256")
-    return document
+        normalized["services"][service] = {"repository": repository, "digest": digest}
+    return normalized
 
 
 def _utc(value: datetime) -> str:
@@ -151,15 +175,22 @@ def build_event_query(
     )
 
 
-def _default_command_runner(command: list[str]) -> CommandResult:
-    completed = subprocess.run(
-        command, check=False, capture_output=True, text=True, encoding="utf-8"
-    )
-    return CommandResult(completed.returncode, completed.stdout, completed.stderr)
+def _default_command_runner(
+    command: list[str], *, timeout_seconds: float = 15.0
+) -> CommandResult:
+    try:
+        completed = subprocess.run(
+            command, check=False, capture_output=True, text=True, encoding="utf-8",
+            timeout=timeout_seconds,
+        )
+        return CommandResult(completed.returncode, completed.stdout, completed.stderr)
+    except subprocess.TimeoutExpired:
+        return CommandResult(124, "", "operation timed out")
 
 
 def _default_http_runner(
-    *, method: str, url: str, headers: dict[str, str], json_body: Any = None
+    *, method: str, url: str, headers: dict[str, str], json_body: Any = None,
+    timeout_seconds: float = 15.0,
 ) -> HttpResponse:
     body = None if json_body is None else json.dumps(json_body).encode("utf-8")
     request_headers = dict(headers)
@@ -169,7 +200,7 @@ def _default_http_runner(
         url, data=body, headers=request_headers, method=method
     )
     try:
-        with urllib.request.urlopen(request, timeout=15) as response:
+        with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
             raw = response.read().decode("utf-8")
             return HttpResponse(
                 response.status,
@@ -220,8 +251,16 @@ def _initial_evidence(config: ProofConfig) -> dict[str, Any]:
         "source": {
             "repositorySha": config.repository_sha,
             "runAttempt": config.run_attempt,
+            "digestManifestShape": "task8.8b-service-digest-map",
+        },
+        "provider": "azure",
+        "keyAlignment": {
+            "internalApiKeyProven": False,
+            "proof": "not_observed",
+            "originVerification": "not_applicable_on_azure",
         },
         "serving": {},
+        "servingRevalidation": {},
         "decisions": {
             "idleThreshold": config.idle_threshold,
             "eligibilityTimeout": config.eligibility_timeout,
@@ -244,6 +283,8 @@ def _initial_evidence(config: ProofConfig) -> dict[str, Any]:
         "observation": {},
         "events": {},
         "classification": "not_observed",
+        "classificationDetail": {},
+        "diagnostics": {"operations": [], "available": False},
         "cleanup": {
             "armed": False,
             "attempts": [],
@@ -284,6 +325,10 @@ def _validate_config(config: ProofConfig) -> None:
         raise ProofError("poll interval and deadline must be positive")
     if config.cleanup_max_attempts <= 0 or config.cleanup_deadline_seconds <= 0:
         raise ProofError("cleanup bounds must be positive")
+    if config.operation_timeout_seconds <= 0 or config.post_cleanup_verification_seconds <= 0:
+        raise ProofError("operation and post-cleanup timeouts must be positive")
+    if not isinstance(config.service_repositories, dict) or set(config.service_repositories) != set(SERVICES):
+        raise ProofError("explicit service repositories are required")
     _duration_seconds(config.idle_threshold)
     if config.threshold_override is not None:
         _duration_seconds(config.threshold_override)
@@ -300,12 +345,13 @@ def _decode_json(result: CommandResult, label: str) -> Any:
 
 def _record_command(
     evidence: dict[str, Any], runner: CommandRunner, command: list[str], *, label: str,
-    mutating: bool = False
+    mutating: bool = False, timeout_seconds: float = 15.0,
 ) -> CommandResult:
     evidence["operations"].append(
-        {"kind": "azure_cli" if command[0] == "az" else "local_cli", "argv": command, "mutating": mutating}
+        {"kind": "azure_cli" if command[0] == "az" else "local_cli", "argv": command,
+         "mutating": mutating, "timeoutSeconds": timeout_seconds}
     )
-    result = runner(command)
+    result = runner(command, timeout_seconds=timeout_seconds)
     if result.returncode != 0:
         raise ProofError(f"{label} failed: {(result.stderr or result.stdout).strip()}")
     return result
@@ -313,7 +359,8 @@ def _record_command(
 
 def _record_http(
     evidence: dict[str, Any], runner: HttpRunner, *, method: str, url: str,
-    headers: dict[str, str], json_body: Any = None, mutating: bool
+    headers: dict[str, str], json_body: Any = None, mutating: bool,
+    timeout_seconds: float = 15.0,
 ) -> HttpResponse:
     safe: dict[str, Any] = {
         "kind": "http",
@@ -321,6 +368,7 @@ def _record_http(
         "url": url,
         "headerNames": sorted(headers),
         "mutating": mutating,
+        "timeoutSeconds": timeout_seconds,
     }
     if isinstance(json_body, dict):
         safe["bodyKeys"] = sorted(json_body)
@@ -336,12 +384,19 @@ def _record_http(
         evidence["requestCounts"]["logins"] += 1
     elif method == "PUT" and path.endswith("/api/portfolio/demo-reset"):
         evidence["requestCounts"]["cleanupResets"] += 1
-    return runner(method=method, url=url, headers=headers, json_body=json_body)
+    return runner(
+        method=method, url=url, headers=headers, json_body=json_body,
+        timeout_seconds=timeout_seconds,
+    )
 
 
-def _load_oracle(evidence: dict[str, Any], runner: CommandRunner, expected_user_id: str) -> list[dict[str, str]]:
+def _load_oracle(
+    evidence: dict[str, Any], runner: CommandRunner, expected_user_id: str, *,
+    timeout_seconds: float,
+) -> list[dict[str, str]]:
     result = _record_command(
-        evidence, runner, [sys.executable, "-B", str(ORACLE)], label="Task 4.4a golden oracle"
+        evidence, runner, [sys.executable, "-B", str(ORACLE)], label="Task 4.4a golden oracle",
+        timeout_seconds=timeout_seconds,
     )
     document = _decode_json(result, "Task 4.4a golden oracle")
     if document.get("metadata", {}).get("demoUserId") != expected_user_id:
@@ -364,15 +419,38 @@ def _acr_repository_name(repository: str, registry_name: str) -> str:
     return repository[len(prefix):]
 
 
+def _authoritative_yaml_defaults() -> dict[str, str]:
+    path = REPO / "api-gateway" / "src" / "main" / "resources" / "application.yml"
+    text = path.read_text(encoding="utf-8")
+    mapping = {
+        "APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD": "idle-threshold",
+        "APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT": "eligibility-timeout",
+        "APP_DEMO_LOGIN_RESET_RESET_TIMEOUT": "reset-timeout",
+        "APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT": "overall-timeout",
+    }
+    defaults: dict[str, str] = {}
+    for env_name, yaml_name in mapping.items():
+        match = re.search(
+            rf"^\s*{re.escape(yaml_name)}:\s*\$\{{{re.escape(env_name)}:([^}}]+)}}\s*$",
+            text,
+            re.MULTILINE,
+        )
+        if not match:
+            raise ProofError(f"authoritative YAML default missing for {env_name}")
+        defaults[env_name] = match.group(1)
+    return defaults
+
+
 def _preflight(config: ProofConfig, evidence: dict[str, Any], runner: CommandRunner) -> list[dict[str, str]]:
     manifest = validate_deployment_manifest(
         config.deployment_manifest,
         expected_attempt=config.run_attempt,
         expected_repository_sha=config.repository_sha,
+        repositories=config.service_repositories,
     )
     account = _record_command(
         evidence, runner, ["az", "account", "show", "--query", "id", "-o", "tsv"],
-        label="Azure subscription identity",
+        label="Azure subscription identity", timeout_seconds=config.operation_timeout_seconds,
     ).stdout.strip()
     if account != config.subscription_id:
         raise ProofError("Azure subscription does not equal the explicitly approved subscription")
@@ -385,7 +463,10 @@ def _preflight(config: ProofConfig, evidence: dict[str, Any], runner: CommandRun
             "-o", "json",
         ]
         revisions = _decode_json(
-            _record_command(evidence, runner, command, label=f"{service} serving revisions"),
+            _record_command(
+                evidence, runner, command, label=f"{service} serving revisions",
+                timeout_seconds=config.operation_timeout_seconds,
+            ),
             f"{service} serving revisions",
         )
         if not isinstance(revisions, list) or len(revisions) != 1:
@@ -408,6 +489,7 @@ def _preflight(config: ProofConfig, evidence: dict[str, Any], runner: CommandRun
         ["az", "monitor", "log-analytics", "workspace", "show", "--workspace-name", config.workspace_name,
          "--resource-group", config.resource_group, "--query", "customerId", "-o", "tsv"],
         label="Log Analytics workspace identity",
+        timeout_seconds=config.operation_timeout_seconds,
     ).stdout.strip()
     if not workspace_id:
         raise ProofError("Log Analytics workspace customerId is blank")
@@ -420,6 +502,7 @@ def _preflight(config: ProofConfig, evidence: dict[str, Any], runner: CommandRun
             ["az", "containerapp", "replica", "list", "--name", config.gateway_app,
              "--resource-group", config.resource_group, "--revision", gateway_revision, "-o", "json"],
             label="gateway replica read permission",
+            timeout_seconds=config.operation_timeout_seconds,
         ), "gateway replica read permission"
     )
     if not isinstance(replicas, list) or not replicas or not replicas[0].get("name"):
@@ -431,6 +514,7 @@ def _preflight(config: ProofConfig, evidence: dict[str, Any], runner: CommandRun
          "--replica", replicas[0]["name"], "--container", config.gateway_app,
          "--command", "java -jar /probe.jar"],
         label="non-disclosing presence probe RBAC rehearsal",
+        timeout_seconds=config.operation_timeout_seconds,
     )
     for service in SERVICES:
         identity = evidence["serving"][service]
@@ -440,31 +524,38 @@ def _preflight(config: ProofConfig, evidence: dict[str, Any], runner: CommandRun
              "--name", _acr_repository_name(identity["repository"], config.registry_name)
              + "@" + identity["digest"], "-o", "json"],
             label=f"{service} ACR pull-access rehearsal",
+            timeout_seconds=config.operation_timeout_seconds,
         )
     _record_command(
         evidence, runner,
         ["az", "acr", "login", "--name", config.registry_name],
         label="ACR authentication rehearsal",
+        timeout_seconds=config.operation_timeout_seconds,
     )
     for service in SERVICES:
         _record_command(
             evidence, runner,
             ["docker", "pull", evidence["serving"][service]["image"]],
             label=f"{service} immutable image pull rehearsal",
+            timeout_seconds=config.operation_timeout_seconds,
         )
     _record_command(
         evidence, runner,
         ["az", "monitor", "log-analytics", "query", "--workspace", workspace_id,
          "--analytics-query", "print task8_9_rbac_probe=1", "-o", "json"],
         label="Log Analytics query RBAC rehearsal",
+        timeout_seconds=config.operation_timeout_seconds,
     )
+    gateway_revision = evidence["serving"][config.gateway_app]["revision"]
     env_rows = _decode_json(
         _record_command(
             evidence, runner,
-            ["az", "containerapp", "show", "--name", config.gateway_app,
+            ["az", "containerapp", "revision", "show", "--name", config.gateway_app,
              "--resource-group", config.resource_group,
+             "--revision", gateway_revision,
              "--query", "properties.template.containers[0].env", "-o", "json"],
             label="Wave 8 decision readback",
+            timeout_seconds=config.operation_timeout_seconds,
         ),
         "Wave 8 decision readback",
     )
@@ -482,9 +573,16 @@ def _preflight(config: ProofConfig, evidence: dict[str, Any], runner: CommandRun
         "APP_DEMO_LOGIN_RESET_RESET_TIMEOUT": config.reset_timeout,
         "APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT": config.overall_timeout,
     }
+    yaml_defaults = _authoritative_yaml_defaults()
     for name, expected in approved.items():
-        if names.get(name) != expected:
+        effective = names.get(name, yaml_defaults[name])
+        if effective != expected:
             raise ProofError(f"serving {name} does not equal the approved value")
+        names[name] = effective
+    provider = names.get("CLOUD_PROVIDER", "azure")
+    if provider != "azure":
+        raise ProofError("serving CLOUD_PROVIDER is not azure")
+    evidence["provider"] = provider
     evidence["decisions"]["serving"] = {
         "idleThreshold": names["APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD"],
         "eligibilityTimeout": names["APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT"],
@@ -492,7 +590,76 @@ def _preflight(config: ProofConfig, evidence: dict[str, Any], runner: CommandRun
         "overallTimeout": names["APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT"],
     }
     evidence["preflight"] = {"passed": True, "rbacRehearsed": True}
-    return _load_oracle(evidence, runner, config.expected_user_id)
+    return _load_oracle(
+        evidence, runner, config.expected_user_id,
+        timeout_seconds=config.operation_timeout_seconds,
+    )
+
+
+def _revalidate_serving(
+    config: ProofConfig, evidence: dict[str, Any], runner: CommandRunner, *, stage: str,
+    expected_idle: str, allow_revision_change: bool = False,
+) -> None:
+    snapshot: dict[str, Any] = {"matched": False, "services": {}}
+    for service in SERVICES:
+        revisions = _decode_json(
+            _record_command(
+                evidence, runner,
+                ["az", "containerapp", "revision", "list", "--name", service,
+                 "--resource-group", config.resource_group,
+                 "--query", "[?properties.active && properties.trafficWeight == `100`].{name:name,image:properties.template.containers[0].image}",
+                 "-o", "json"],
+                label=f"{stage} {service} serving revalidation",
+                timeout_seconds=config.operation_timeout_seconds,
+            ),
+            f"{stage} {service} serving revalidation",
+        )
+        if not isinstance(revisions, list) or len(revisions) != 1:
+            raise ProofError(f"{stage}: {service} no longer has exactly one serving revision")
+        current = revisions[0]
+        recorded = evidence["serving"][service]
+        if current.get("image") != recorded["image"]:
+            raise ProofError(f"{stage}: {service} serving image changed during the proof")
+        if not allow_revision_change and current.get("name") != recorded["revision"]:
+            raise ProofError(f"{stage}: {service} serving revision changed during the proof")
+        snapshot["services"][service] = {
+            "revision": current.get("name"), "image": current.get("image"),
+            "recordedRevision": recorded["revision"],
+        }
+
+    gateway_revision = snapshot["services"][config.gateway_app]["revision"]
+    rows = _decode_json(
+        _record_command(
+            evidence, runner,
+            ["az", "containerapp", "revision", "show", "--name", config.gateway_app,
+             "--resource-group", config.resource_group, "--revision", gateway_revision,
+             "--query", "properties.template.containers[0].env", "-o", "json"],
+            label=f"{stage} serving decision revalidation",
+            timeout_seconds=config.operation_timeout_seconds,
+        ),
+        f"{stage} serving decision revalidation",
+    )
+    if not isinstance(rows, list):
+        raise ProofError(f"{stage}: serving decision readback is not a list")
+    values = {row["name"]: row.get("value") for row in rows
+              if isinstance(row, dict) and isinstance(row.get("name"), str)}
+    defaults = _authoritative_yaml_defaults()
+    expected = {
+        "APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD": expected_idle,
+        "APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT": config.eligibility_timeout,
+        "APP_DEMO_LOGIN_RESET_RESET_TIMEOUT": config.reset_timeout,
+        "APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT": config.overall_timeout,
+    }
+    effective = {name: values.get(name, defaults[name]) for name in expected}
+    if effective != expected:
+        raise ProofError(f"{stage}: serving decision values changed during the proof")
+    provider = values.get("CLOUD_PROVIDER", "azure")
+    if provider != "azure":
+        raise ProofError(f"{stage}: CLOUD_PROVIDER changed during the proof")
+    snapshot["decisions"] = effective
+    snapshot["provider"] = provider
+    snapshot["matched"] = True
+    evidence["servingRevalidation"][stage] = snapshot
 
 
 def _auth(token: str) -> dict[str, str]:
@@ -555,11 +722,13 @@ def _parse_instant(value: Any, label: str) -> datetime:
 
 
 def _read_portfolio(
-    config: ProofConfig, evidence: dict[str, Any], runner: HttpRunner, token: str
+    config: ProofConfig, evidence: dict[str, Any], runner: HttpRunner, token: str,
+    *, timeout_seconds: float | None = None,
 ) -> dict[str, Any]:
     response = _record_http(
         evidence, runner, method="GET", url=config.gateway_url + "/api/portfolio",
         headers=_auth(token), mutating=False,
+        timeout_seconds=timeout_seconds or config.operation_timeout_seconds,
     )
     if response.status != 200:
         raise ProofError(f"portfolio read returned HTTP {response.status}")
@@ -610,14 +779,18 @@ def parse_event_rows(rows: Any, *, event: str, trace_id: str) -> dict[str, Any] 
             payload.setdefault("timeGenerated", row.get("TimeGenerated"))
             payload["rawLog"] = text
             matches.append(payload)
-    if len(matches) > 1:
-        raise ProofError(f"multiple {event} events found for one trace")
-    return matches[0] if matches else None
+    unique: dict[str, dict[str, Any]] = {}
+    for match in matches:
+        comparable = {key: value for key, value in match.items() if key not in {"rawLog", "timeGenerated"}}
+        unique.setdefault(json.dumps(comparable, sort_keys=True, default=str), match)
+    if len(unique) > 1:
+        raise ProofError(f"inconsistent multiple {event} events found for one trace")
+    return next(iter(unique.values())) if unique else None
 
 
 def _query_once(
     config: ProofConfig, evidence: dict[str, Any], runner: CommandRunner, *, query: str,
-    label: str
+    label: str, timeout_seconds: float,
 ) -> tuple[Any | None, str | None]:
     command = [
         "az", "monitor", "log-analytics", "query", "--workspace",
@@ -625,8 +798,14 @@ def _query_once(
         "--timespan", evidence["trace"]["windowStart"] + "/" + evidence["trace"]["windowEnd"],
         "-o", "json",
     ]
-    evidence["operations"].append({"kind": "azure_cli", "argv": command, "mutating": False})
-    result = runner(command)
+    evidence["operations"].append({
+        "kind": "azure_cli", "argv": command, "mutating": False,
+        "timeoutSeconds": timeout_seconds,
+    })
+    try:
+        result = runner(command, timeout_seconds=timeout_seconds)
+    except Exception as error:
+        return None, f"{label} query runner error: {error}"
     if result.returncode != 0:
         return None, (result.stderr or result.stdout).strip() or f"{label} query failed"
     try:
@@ -651,16 +830,42 @@ def _poll_events(
     }
     found = {"success": None, "skip": None}
     errors: list[str] = []
+    evidence["events"] = {
+        "outcome": "polling", "success": None, "skip": None, "queryError": None,
+        "queries": queries, "windowStart": _utc(start), "windowEnd": _utc(end),
+        "pollIntervalSeconds": config.poll_interval_seconds,
+        "pollDeadlineSeconds": config.poll_deadline_seconds,
+    }
     began = monotonic()
     attempts = max(1, math.floor(config.poll_deadline_seconds / config.poll_interval_seconds) + 1)
     for attempt in range(attempts):
+        remaining = config.poll_deadline_seconds - (monotonic() - began)
+        pair_timeout = min(config.operation_timeout_seconds, max(0.001, remaining / 2))
         for kind in ("success", "skip"):
-            rows, error = _query_once(config, evidence, runner, query=queries[kind], label=kind)
+            rows, error = _query_once(
+                config, evidence, runner, query=queries[kind], label=kind,
+                timeout_seconds=pair_timeout,
+            )
             if error:
                 errors.append(error)
-            elif found[kind] is None:
+            else:
                 event_name = "demo_reset_succeeded" if kind == "success" else "demo_reset_self_call_skipped"
-                found[kind] = parse_event_rows(rows, event=event_name, trace_id=trace_id)
+                try:
+                    observed = parse_event_rows(rows, event=event_name, trace_id=trace_id)
+                    if observed is not None:
+                        if found[kind] is None:
+                            found[kind] = observed
+                        else:
+                            old = {key: value for key, value in found[kind].items()
+                                   if key not in {"rawLog", "timeGenerated"}}
+                            new = {key: value for key, value in observed.items()
+                                   if key not in {"rawLog", "timeGenerated"}}
+                            if old != new:
+                                errors.append(f"inconsistent later {kind} event for one trace")
+                except Exception as error:
+                    errors.append(f"{kind} query parse error: {error}")
+            evidence["events"][kind] = found[kind]
+            evidence["events"]["queryError"] = "; ".join(errors) if errors else None
         if errors or (found["success"] is not None and found["skip"] is not None):
             break
         if attempt + 1 < attempts:
@@ -678,7 +883,7 @@ def _poll_events(
         outcome = "b_skip_only"
     else:
         outcome = "c_neither"
-    return {
+    result = {
         "outcome": outcome,
         "success": found["success"],
         "skip": found["skip"],
@@ -687,30 +892,355 @@ def _poll_events(
         "pollIntervalSeconds": config.poll_interval_seconds,
         "pollDeadlineSeconds": config.poll_deadline_seconds,
     }
+    evidence["events"] = result
+    return result
 
 
-def _classification(events: dict[str, Any]) -> str:
-    outcome = events["outcome"]
-    skip = events.get("skip") or {}
-    reason = skip.get("reason")
-    if outcome == "a_success_only":
-        return "go_candidate"
+SKIP_BASE_FIELDS = {
+    "event", "reason", "leg", "httpStatus", "timeoutScope", "attemptedTarget",
+    "elapsedMillis", "replicaToken", "eligibilityDispatchAttempted",
+    "resetDispatchAttempted", "internalApiKeyConfigured", "internalApiKeyAttached",
+    "originVerifyRequired", "originVerifyHeaderAttached",
+}
+OVERALL_PHASES = {
+    "eligibility_pre_dispatch": (False, False),
+    "eligibility_in_flight": (True, False),
+    "between_legs": (True, False),
+    "reset_in_flight": (True, True),
+    "reset_post_response": (True, True),
+}
+
+
+def validate_skip_event(event: dict[str, Any], *, success_present: bool) -> dict[str, Any]:
+    if not isinstance(event, dict) or not SKIP_BASE_FIELDS.issubset(event):
+        missing = sorted(SKIP_BASE_FIELDS - set(event) if isinstance(event, dict) else SKIP_BASE_FIELDS)
+        raise ProofError("skip event is missing required diagnostic facts: " + ",".join(missing))
+    if event.get("event") != "demo_reset_self_call_skipped":
+        raise ProofError("skip event name is invalid")
+    for field in (
+        "eligibilityDispatchAttempted", "resetDispatchAttempted",
+        "internalApiKeyConfigured", "originVerifyRequired",
+    ):
+        if not isinstance(event.get(field), bool):
+            raise ProofError(f"skip event {field} must be boolean")
+    for field in ("internalApiKeyAttached", "originVerifyHeaderAttached"):
+        if event.get(field) is not None and not isinstance(event.get(field), bool):
+            raise ProofError(f"skip event {field} must be boolean or null")
+    if not isinstance(event.get("replicaToken"), str):
+        raise ProofError("skip event replicaToken must be a string")
+    if not event["resetDispatchAttempted"] and event["internalApiKeyAttached"] is not None:
+        raise ProofError("reset attachment must be null when reset was not dispatched")
+    if event["resetDispatchAttempted"] and not isinstance(event["internalApiKeyAttached"], bool):
+        raise ProofError("reset attachment must be boolean when reset was dispatched")
+    if (not event["eligibilityDispatchAttempted"] or not event["originVerifyRequired"]):
+        if event["originVerifyHeaderAttached"] is not None:
+            raise ProofError("origin attachment must be null when inapplicable")
+    elif not isinstance(event["originVerifyHeaderAttached"], bool):
+        raise ProofError("origin attachment must be boolean when required and dispatched")
+
+    reason = event.get("reason")
+    leg = event.get("leg")
+    if reason == "overall_timeout":
+        if leg != "overall" or event.get("timeoutScope") != "overall":
+            raise ProofError("overall_timeout requires leg=overall and timeoutScope=overall")
+        phase = event.get("overallTimeoutPhase")
+        if phase not in OVERALL_PHASES:
+            raise ProofError("overall_timeout has an invalid phase")
+        pair = (event["eligibilityDispatchAttempted"], event["resetDispatchAttempted"])
+        if pair != OVERALL_PHASES[phase]:
+            raise ProofError("overall timeout phase contradicts its dispatch pair")
+        expected_target = phase in {"eligibility_in_flight", "reset_in_flight"}
+        if expected_target != isinstance(event.get("attemptedTarget"), str):
+            raise ProofError("overall timeout attemptedTarget contradicts its phase")
+        if phase == "reset_post_response":
+            if not isinstance(event.get("httpStatus"), int):
+                raise ProofError("reset_post_response must retain the reset HTTP status")
+        elif event.get("httpStatus") is not None:
+            raise ProofError("overall timeout HTTP status is only valid post-response")
+        if not isinstance(event.get("elapsedMillis"), int) or event["elapsedMillis"] < 0:
+            raise ProofError("overall_timeout requires elapsedMillis")
+    elif reason in {"eligibility_timeout", "reset_timeout"}:
+        expected_leg = reason.removesuffix("_timeout")
+        if leg != expected_leg or event.get("timeoutScope") != "per-leg":
+            raise ProofError("per-leg timeout reason/leg/scope disagree")
+        if event.get("overallTimeoutPhase") is not None:
+            raise ProofError("per-leg timeout must not carry an overall phase")
+        if not isinstance(event.get("attemptedTarget"), str):
+            raise ProofError("per-leg timeout requires attemptedTarget")
+        if not isinstance(event.get("elapsedMillis"), int) or event["elapsedMillis"] < 0:
+            raise ProofError("per-leg timeout requires elapsedMillis")
+        if event.get("httpStatus") is not None:
+            raise ProofError("per-leg timeout must not carry HTTP status")
+    elif reason in {"eligibility_connection_failure", "reset_connection_failure"}:
+        if leg != reason.removesuffix("_connection_failure"):
+            raise ProofError("connection-failure reason and leg disagree")
+        if not isinstance(event.get("attemptedTarget"), str):
+            raise ProofError("connection failure requires attemptedTarget")
+        if event.get("timeoutScope") is not None or event.get("elapsedMillis") is not None:
+            raise ProofError("connection failure must not carry timeout diagnostics")
+    elif reason in {"eligibility_non_2xx_status", "reset_non_2xx_status"}:
+        if leg != reason.removesuffix("_non_2xx_status") or not isinstance(event.get("httpStatus"), int):
+            raise ProofError("non-2xx reason/leg/status disagree")
+        if event.get("timeoutScope") is not None or event.get("overallTimeoutPhase") is not None:
+            raise ProofError("non-2xx event must not carry timeout scope/phase")
+        if reason == "reset_non_2xx_status" and event["httpStatus"] == 409:
+            required = {
+                "observedVersion", "submittedExpectedVersion",
+                "downstreamCurrentVersion", "selfCallCount",
+            }
+            if not required.issubset(event):
+                raise ProofError("reset 409 requires version and self-call-count evidence")
+            if any(not isinstance(event.get(name), int) for name in required):
+                raise ProofError("reset 409 evidence must be integral")
+    elif reason == "eligibility_shape_failure":
+        if leg != "eligibility" or event.get("httpStatus") != 200:
+            raise ProofError("eligibility shape failure requires eligibility HTTP 200")
+    elif reason == "reset_key_not_configured":
+        if leg != "reset" or event.get("httpStatus") is not None:
+            raise ProofError("reset_key_not_configured requires reset leg and null status")
+        if event["resetDispatchAttempted"] or event["internalApiKeyConfigured"]:
+            raise ProofError("reset_key_not_configured contradicts reset dispatch/configuration")
+    elif reason == "gateway_orchestration_error":
+        if leg not in {"eligibility", "reset"} or not isinstance(event.get("exceptionClass"), str):
+            raise ProofError("gateway_orchestration_error requires leg and safe exception category")
+    else:
+        raise ProofError("skip event has an unknown reason")
+
+    if success_present and reason == "overall_timeout":
+        phase = event["overallTimeoutPhase"]
+        if phase in {"eligibility_pre_dispatch", "eligibility_in_flight", "between_legs"}:
+            event = dict(event)
+            event["impossibleWithSuccess"] = True
+    return event
+
+
+def _terminal(
+    class_name: str, action: str, *, rollback: bool = False, resolved: bool = True,
+    rationale: str,
+) -> dict[str, Any]:
+    return {
+        "class": class_name,
+        "action": action,
+        "rollbackAuthorized": rollback,
+        "resolved": resolved,
+        "rationale": rationale,
+    }
+
+
+def _expected_loopback(leg: str, target: Any) -> bool:
+    if not isinstance(target, str):
+        return False
+    path = "/api/portfolio" if leg == "eligibility" else "/api/internal/portfolio/demo-reset"
+    return re.fullmatch(rf"http://localhost:[1-9][0-9]*{re.escape(path)}", target) is not None
+
+
+def classify_task8_9(
+    *, events: dict[str, Any] | None, observation: dict[str, Any] | None,
+    decisions: dict[str, Any], diagnostics: dict[str, Any] | None = None,
+    setup_failed: bool = False,
+) -> dict[str, Any]:
+    diagnostics = diagnostics or {}
+    if setup_failed:
+        return _terminal("class_2a", "retry_fresh_end_to_end", rationale="setup failed before login")
+    if not events:
+        return _terminal("class_2b", "retry_historical_query", rationale="event evidence unavailable")
+    outcome = events.get("outcome")
     if outcome in {"c_neither", "d_query_error"}:
-        return "class_2b"
-    if reason == "gateway_orchestration_error":
-        return "class_1_immediate"
-    if outcome == "e_both":
-        if reason == "reset_key_not_configured":
-            return "class_1_immediate"
+        return _terminal("class_2b", "retry_historical_query", rationale="query ambiguous or failed")
+    success = events.get("success") or {}
+    skip = events.get("skip")
+    if outcome == "a_success_only":
+        read_version = (observation or {}).get("postLoginVersion")
+        event_version = success.get("version")
+        if (observation or {}).get("golden") is True and read_version == event_version:
+            return _terminal("go", "retain_serving_revision", rationale="trace-correlated reset proven")
+        if isinstance(read_version, int) and isinstance(event_version, int) and read_version > event_version:
+            return _terminal("class_2c", "retry_low_traffic_window", rationale="later writer proven")
+        return _terminal("class_2e", "investigate_persistence_or_read_consistency",
+                         rationale="success event and non-golden state are not a later-write race")
+    if not isinstance(skip, dict):
+        return _terminal("class_2b", "retry_historical_query", rationale="skip payload missing")
+    try:
+        skip = validate_skip_event(skip, success_present=outcome == "e_both")
+    except ProofError as error:
+        return _terminal("class_2b", "repair_event_query_or_schema", rationale=str(error))
+    reason = skip["reason"]
+    if reason == "gateway_orchestration_error" or (
+        outcome == "e_both" and reason == "reset_key_not_configured"
+    ) or skip.get("impossibleWithSuccess"):
+        return _terminal("class_1_immediate", "rollback_api_gateway", rollback=True,
+                         rationale="trace evidence is impossible under correct gateway behavior")
+
+    diagnosed: dict[str, Any]
+    if reason.endswith("_connection_failure"):
+        diagnosed = (
+            _terminal("class_2d", "repair_downstream_or_network", rationale="loopback target is correct")
+            if _expected_loopback(skip["leg"], skip["attemptedTarget"])
+            else _terminal("class_1_diagnosed", "rollback_api_gateway", rollback=True,
+                           rationale="attempted loopback target contradicts the fixed construction")
+        )
+    elif reason.endswith("_timeout"):
+        phase = skip.get("overallTimeoutPhase")
+        if reason == "overall_timeout" and phase in {
+            "eligibility_pre_dispatch", "between_legs", "reset_post_response"
+        }:
+            reproductions = diagnostics.get("reproductions", [])
+            if not isinstance(reproductions, list) or len(reproductions) > 2:
+                diagnosed = _terminal(
+                    "class_2d_unresolved", "reject_unbounded_reproduction_evidence",
+                    resolved=False, rationale="gateway-local reproduction evidence exceeded its bound",
+                )
+            elif diagnostics.get("applicationBlockingEvidence") or diagnostics.get("controlledIsolation"):
+                diagnosed = _terminal("class_1_diagnosed", "rollback_api_gateway", rollback=True,
+                                      rationale="gateway-local stall attributed to application code")
+            else:
+                diagnosed = _terminal("class_2d_unresolved", "collect_bounded_reproduction_evidence",
+                                      resolved=False,
+                                      rationale="gateway-local stall lacks code-specific evidence")
+        else:
+            budget_name = {
+                "eligibility_timeout": "eligibilityTimeout",
+                "reset_timeout": "resetTimeout",
+                "overall_timeout": "overallTimeout",
+            }[reason]
+            try:
+                budget_ms = _duration_seconds(str(decisions[budget_name])) * 1000
+            except (KeyError, ProofError):
+                return _terminal("class_2d_unresolved", "collect_serving_timeout_evidence",
+                                 resolved=False, rationale="timeout budget unavailable")
+            if skip["elapsedMillis"] >= 2 * budget_ms:
+                diagnosed = _terminal("class_1_diagnosed", "rollback_api_gateway", rollback=True,
+                                      rationale="timeout fired at least twice its serving budget")
+            elif skip["elapsedMillis"] <= budget_ms + max(budget_ms * 0.1, 200):
+                diagnosed = _terminal("class_2d", "resolve_downstream_latency",
+                                      rationale="timeout fired within the explicit scheduling-jitter band")
+            else:
+                diagnosed = _terminal("class_2d", "collect_timeout_attribution_evidence",
+                                      rationale="timeout elapsed value lies between attribution bands")
+    elif reason == "reset_non_2xx_status" and skip["httpStatus"] == 409:
+        if (skip["observedVersion"] != skip["submittedExpectedVersion"]
+                or skip["selfCallCount"] > 1):
+            diagnosed = _terminal("class_1_diagnosed", "rollback_api_gateway", rollback=True,
+                                  rationale="reset 409 proves stale version capture or duplicate call")
+        else:
+            diagnosed = _terminal("class_2d", "resolve_concurrent_writer",
+                                  rationale="single correctly versioned reset call raced legitimately")
+    elif reason == "reset_non_2xx_status" and skip["httpStatus"] == 403:
+        if skip["internalApiKeyConfigured"] and skip["internalApiKeyAttached"] is False:
+            diagnosed = _terminal("class_1_diagnosed", "rollback_api_gateway", rollback=True,
+                                  rationale="configured reset key was not attached")
+        elif not skip["internalApiKeyConfigured"]:
+            diagnosed = _terminal("class_1_diagnosed", "rollback_api_gateway", rollback=True,
+                                  rationale="403 contradicts the no-dispatch unconfigured-key path")
+        elif diagnostics.get("manualResetStatus") == 403:
+            diagnosed = _terminal("class_2d", "repair_key_configuration",
+                                  rationale="manual probe confirms environment key misalignment")
+        else:
+            diagnosed = _terminal("class_2d", "investigate_non_origin_403",
+                                  rationale="key attachment is proven")
+    elif reason == "eligibility_non_2xx_status" and skip["httpStatus"] == 403:
+        if skip["originVerifyRequired"] and skip["originVerifyHeaderAttached"] is False:
+            diagnosed = _terminal("class_1_diagnosed", "rollback_api_gateway", rollback=True,
+                                  rationale="required origin header was not attached")
+        else:
+            diagnosed = _terminal("class_2d", "investigate_non_origin_403",
+                                  rationale="origin verification does not attribute this 403")
+    elif reason == "reset_key_not_configured":
+        if diagnostics.get("templateReference") == "regressed":
+            diagnosed = _terminal("class_1_diagnosed", "rollback_api_gateway", rollback=True,
+                                  rationale="serving revision regressed the key reference")
+        elif diagnostics.get("templateReference") != "intact" or not diagnostics.get("replicaTokenRecovered"):
+            diagnosed = _terminal("class_2d_unresolved", "collect_replica_correlated_probe",
+                                  resolved=False, rationale="replica/template diagnosis unavailable")
+        elif (diagnostics.get("manualResetStatus") == 503
+              and diagnostics.get("manualResetEmitter") == "gateway"
+              and diagnostics.get("sameReplica") is True):
+            if diagnostics.get("presence") == "blank":
+                diagnosed = _terminal("class_2h", "repair_key_value_or_restart_replica",
+                                      rationale="same-replica independent presence probe corroborates blank")
+            elif diagnostics.get("presence") == "nonblank":
+                diagnosed = _terminal("class_1_diagnosed", "rollback_api_gateway", rollback=True,
+                                      rationale="provider blank contradicts independent environment read")
+            else:
+                diagnosed = _terminal("class_2d_unresolved", "retry_presence_probe", resolved=False,
+                                      rationale="presence probe did not yield a safe category")
+        elif diagnostics.get("manualResetStatus") in {200, 409}:
+            diagnosed = _terminal("class_1_diagnosed", "rollback_api_gateway", rollback=True,
+                                  rationale="same-replica manual reset contradicts no-key event")
+        else:
+            diagnosed = _terminal("class_2d_unresolved", "collect_manual_reset_probe", resolved=False,
+                                  rationale="manual reset diagnosis unavailable")
+    elif reason == "eligibility_shape_failure" and diagnostics.get("requestMalformed"):
+        diagnosed = _terminal("class_1_diagnosed", "rollback_api_gateway", rollback=True,
+                              rationale="gateway emitted a malformed eligibility request")
+    else:
+        diagnosed = _terminal("class_2d", "resolve_diagnosed_operational_condition",
+                              rationale="no revision-attributable evidence")
+
+    if outcome == "e_both" and not diagnosed["rollbackAuthorized"]:
         if reason in {"overall_timeout", "reset_timeout"}:
-            phase = skip.get("overallTimeoutPhase")
-            if reason == "overall_timeout" and phase in {
-                "eligibility_pre_dispatch", "eligibility_in_flight", "between_legs"
-            }:
-                return "class_1_immediate"
-            return "class_2f"
-        return "class_2g"
-    return "diagnosis_required"
+            if reason == "overall_timeout" and skip.get("overallTimeoutPhase") == "reset_post_response":
+                return diagnosed
+            return _terminal("class_2f", "resolve_timeout_then_rerun",
+                             rationale=diagnosed["rationale"])
+        return _terminal("class_2g", "complete_reason_specific_diagnosis",
+                         resolved=diagnosed["resolved"], rationale=diagnosed["rationale"])
+    return diagnosed
+
+
+def _collect_diagnostics(
+    config: ProofConfig, evidence: dict[str, Any], runner: DiagnosticRunner | None,
+    skip: dict[str, Any],
+) -> dict[str, Any]:
+    reason = str(skip.get("reason", "unknown"))
+    if reason == "reset_key_not_configured":
+        names = [
+            "compare_revision_template", "recover_replica_token",
+            "manual_reset_probe", "presence_probe",
+        ]
+    elif reason == "overall_timeout" and skip.get("overallTimeoutPhase") in {
+        "eligibility_pre_dispatch", "between_legs", "reset_post_response",
+    }:
+        names = ["bounded_reproduction"]
+    elif (reason == "reset_non_2xx_status" and skip.get("httpStatus") == 403
+          and skip.get("internalApiKeyConfigured") is True
+          and skip.get("internalApiKeyAttached") is True):
+        names = ["manual_reset_probe"]
+    else:
+        names = ["diagnose_" + reason]
+    combined: dict[str, Any] = {"available": runner is not None}
+    for name in names:
+        operation = {
+            "name": name,
+            "timeoutSeconds": config.operation_timeout_seconds,
+            "inputs": {
+                "reason": reason, "leg": skip.get("leg"),
+                "replicaToken": skip.get("replicaToken"),
+            },
+        }
+        evidence["diagnostics"]["operations"].append(operation)
+        if runner is None:
+            combined.update({
+                "available": False,
+                "unresolved": "diagnostic operations were not injected or separately approved",
+            })
+            continue
+        try:
+            result = runner(
+                name,
+                {"event": dict(skip), "serving": evidence["serving"],
+                 "decisions": evidence["decisions"]},
+                timeout_seconds=config.operation_timeout_seconds,
+            )
+            if not isinstance(result, dict):
+                raise ProofError("diagnostic runner returned a non-object")
+            combined.update(result)
+        except Exception as error:
+            combined.update({
+                "available": False, "errorCategory": type(error).__name__, "error": str(error)
+            })
+    evidence["diagnostics"].update(combined)
+    return combined
 
 
 def _set_threshold(
@@ -722,18 +1252,44 @@ def _set_threshold(
          "--resource-group", config.resource_group, "--set-env-vars",
          "APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD=" + value, "-o", "json"],
         label="idle-threshold update", mutating=True,
+        timeout_seconds=config.operation_timeout_seconds,
     )
 
 
 def _read_threshold(config: ProofConfig, evidence: dict[str, Any], runner: CommandRunner) -> str:
-    return _record_command(
-        evidence, runner,
-        ["az", "containerapp", "show", "--name", config.gateway_app,
-         "--resource-group", config.resource_group,
-         "--query", "properties.template.containers[0].env[?name=='APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD'].value | [0]",
-         "-o", "tsv"],
-        label="idle-threshold verification",
-    ).stdout.strip()
+    revisions = _decode_json(
+        _record_command(
+            evidence, runner,
+            ["az", "containerapp", "revision", "list", "--name", config.gateway_app,
+             "--resource-group", config.resource_group,
+             "--query", "[?properties.active && properties.trafficWeight == `100`].{name:name,image:properties.template.containers[0].image}",
+             "-o", "json"],
+            label="idle-threshold serving revision",
+            timeout_seconds=config.operation_timeout_seconds,
+        ),
+        "idle-threshold serving revision",
+    )
+    if not isinstance(revisions, list) or len(revisions) != 1 or not revisions[0].get("name"):
+        raise ProofError("idle-threshold readback requires exactly one serving revision")
+    rows = _decode_json(
+        _record_command(
+            evidence, runner,
+            ["az", "containerapp", "revision", "show", "--name", config.gateway_app,
+             "--resource-group", config.resource_group, "--revision", revisions[0]["name"],
+             "--query", "properties.template.containers[0].env", "-o", "json"],
+            label="idle-threshold verification",
+            timeout_seconds=config.operation_timeout_seconds,
+        ),
+        "idle-threshold verification",
+    )
+    if not isinstance(rows, list):
+        raise ProofError("idle-threshold serving readback is not an environment list")
+    values = {row["name"]: row.get("value") for row in rows
+              if isinstance(row, dict) and isinstance(row.get("name"), str)}
+    return values.get(
+        "APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD",
+        _authoritative_yaml_defaults()["APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD"],
+    )
 
 
 def _cleanup(
@@ -743,19 +1299,29 @@ def _cleanup(
     cleanup = evidence["cleanup"]
     deadline = monotonic() + config.cleanup_deadline_seconds
     for number in range(1, config.cleanup_max_attempts + 1):
-        if monotonic() > deadline:
+        remaining = deadline - monotonic()
+        if remaining <= 0:
             cleanup["deadlineExceeded"] = True
             break
         attempt: dict[str, Any] = {"number": number}
         cleanup["attempts"].append(attempt)
         try:
-            portfolio = _read_portfolio(config, evidence, runner, config.access_token)
+            portfolio = _read_portfolio(
+                config, evidence, runner, config.access_token,
+                timeout_seconds=min(config.operation_timeout_seconds, remaining),
+            )
             attempt["observedVersion"] = portfolio["version"]
+            remaining = deadline - monotonic()
+            if remaining <= 0:
+                cleanup["deadlineExceeded"] = True
+                attempt["error"] = "cleanup deadline exhausted after identity/version read"
+                break
             response = _record_http(
                 evidence, runner, method="PUT",
                 url=config.gateway_url + "/api/portfolio/demo-reset",
                 headers=_auth(config.access_token),
                 json_body={"expectedVersion": portfolio["version"]}, mutating=True,
+                timeout_seconds=min(config.operation_timeout_seconds, remaining),
             )
             attempt["status"] = response.status
             if response.status == 409:
@@ -766,8 +1332,17 @@ def _cleanup(
                 break
         except Exception as error:  # cleanup records and keeps trying inside its global bound
             attempt["error"] = str(error)
+    verification_deadline = monotonic() + config.post_cleanup_verification_seconds
     try:
-        final_portfolio = _read_portfolio(config, evidence, runner, config.access_token)
+        verification_remaining = verification_deadline - monotonic()
+        if verification_remaining <= 0:
+            raise ProofError("post-cleanup verification allowance exhausted before read")
+        final_portfolio = _read_portfolio(
+            config, evidence, runner, config.access_token,
+            timeout_seconds=min(config.operation_timeout_seconds, verification_remaining),
+        )
+        if monotonic() > verification_deadline:
+            raise ProofError("post-cleanup verification exceeded its bounded allowance")
         cleanup["postCleanupVersion"] = final_portfolio["version"]
         cleanup["postCleanupHoldings"] = _wire_holdings(final_portfolio["holdings"])
         cleanup["postCleanupGolden"] = _is_golden(final_portfolio, golden)
@@ -778,6 +1353,7 @@ def _cleanup(
 def run_proof(
     config: ProofConfig, *, command_runner: CommandRunner = _default_command_runner,
     http_runner: HttpRunner = _default_http_runner,
+    diagnostic_runner: DiagnosticRunner | None = None,
     now: Callable[[], datetime] = lambda: datetime.now(timezone.utc),
     monotonic: Callable[[], float] = time.monotonic,
     sleep: Callable[[float], None] = time.sleep,
@@ -787,6 +1363,7 @@ def run_proof(
     golden: list[dict[str, str]] = []
     override_applied = False
     candidate_go = False
+    secrets_to_remove = [config.access_token, config.demo_password]
     try:
         _validate_config(config)
         golden = _preflight(config, evidence, command_runner)
@@ -796,11 +1373,14 @@ def run_proof(
                 "status": config.mode + "_passed",
                 "errors": [],
             }
-            return ProofResult(0, evidence)
+            return ProofResult(0, redact_evidence(evidence, secrets_to_remove))
         if not config.access_token or not config.demo_password:
             raise ProofError("execute mode requires injected setup token and demo password")
 
-        before = _read_portfolio(config, evidence, http_runner, config.access_token)
+        before = _read_portfolio(
+            config, evidence, http_runner, config.access_token,
+            timeout_seconds=config.operation_timeout_seconds,
+        )
         evidence["setup"]["beforeVersion"] = before["version"]
         evidence["cleanup"]["armed"] = True
 
@@ -821,6 +1401,7 @@ def run_proof(
             url=config.gateway_url + "/api/portfolio/holdings",
             headers=_auth(config.access_token),
             json_body=_non_golden_write(before["version"], golden), mutating=True,
+            timeout_seconds=config.operation_timeout_seconds,
         )
         if write.status != 200:
             raise ProofError(f"deliberate non-golden write returned HTTP {write.status}")
@@ -844,6 +1425,11 @@ def run_proof(
         if (aged_at - persisted_updated_at).total_seconds() <= age_seconds - 0.001:
             raise ProofError("persisted updatedAt did not age strictly past the effective threshold")
         evidence["setup"]["agedAt"] = _utc(aged_at)
+        _revalidate_serving(
+            config, evidence, command_runner, stage="afterAge",
+            expected_idle=(config.threshold_override or config.idle_threshold),
+            allow_revision_change=config.threshold_override is not None,
+        )
 
         traceparent = trace_factory()
         match = TRACEPARENT_RE.fullmatch(traceparent)
@@ -861,7 +1447,7 @@ def run_proof(
                 url=config.gateway_url + "/api/auth/login",
                 headers={"traceparent": traceparent},
                 json_body={"email": config.demo_email, "password": config.demo_password},
-                mutating=True,
+                mutating=True, timeout_seconds=config.operation_timeout_seconds,
             )
             evidence["login"]["status"] = login_response.status
         except Exception as error:
@@ -874,7 +1460,10 @@ def run_proof(
             token = body.get("token") if isinstance(body, dict) else None
             if isinstance(token, str) and token:
                 try:
-                    post = _read_portfolio(config, evidence, http_runner, token)
+                    post = _read_portfolio(
+                        config, evidence, http_runner, token,
+                        timeout_seconds=config.operation_timeout_seconds,
+                    )
                     evidence["observation"] = {
                         "postLoginVersion": post["version"],
                         "holdings": _wire_holdings(post["holdings"]),
@@ -908,22 +1497,39 @@ def run_proof(
             start=window_start, end=window_end, monotonic=monotonic, sleep=sleep,
         )
         evidence["events"] = events
-        evidence["classification"] = _classification(events)
-        success = events.get("success") or {}
-        success_version = success.get("version")
-        candidate_go = bool(
-            events["outcome"] == "a_success_only"
-            and login_response is not None
-            and login_response.status == 200
-            and post is not None
-            and evidence["observation"].get("golden") is True
-            and isinstance(success_version, int)
-            and success_version == post["version"]
+        diagnostics: dict[str, Any] = {}
+        if isinstance(events.get("skip"), dict):
+            diagnostics = _collect_diagnostics(
+                config, evidence, diagnostic_runner, events["skip"]
+            )
+        detail = classify_task8_9(
+            events=events, observation=evidence["observation"],
+            decisions={
+                "eligibilityTimeout": config.eligibility_timeout,
+                "resetTimeout": config.reset_timeout,
+                "overallTimeout": config.overall_timeout,
+            },
+            diagnostics=diagnostics,
         )
-        if events["outcome"] == "a_success_only" and not candidate_go:
-            evidence["classification"] = "class_2e_or_failed_observation"
+        evidence["classificationDetail"] = detail
+        evidence["classification"] = detail["class"]
+        success = events.get("success") or {}
+        evidence["keyAlignment"] = {
+            "internalApiKeyProven": bool(success),
+            "proof": "trace_correlated_demo_reset_succeeded" if success else "not_proven",
+            "originVerification": "not_applicable_on_azure",
+        }
+        candidate_go = detail["class"] == "go"
     except Exception as error:
         evidence["verdict"]["errors"].append(str(error))
+        if not evidence["classificationDetail"]:
+            detail = classify_task8_9(
+                events=evidence.get("events") if evidence.get("events") else None,
+                observation=evidence.get("observation"), decisions={},
+                setup_failed=evidence["requestCounts"]["logins"] == 0,
+            )
+            evidence["classificationDetail"] = detail
+            evidence["classification"] = detail["class"]
     finally:
         if evidence["cleanup"]["armed"]:
             _cleanup(config, evidence, http_runner, golden, monotonic)
@@ -937,6 +1543,18 @@ def run_proof(
             except Exception as error:
                 evidence["thresholdRestore"]["error"] = str(error)
                 evidence["thresholdRestore"]["verified"] = False
+        if evidence["preflight"]["passed"] and evidence["cleanup"]["armed"]:
+            try:
+                _revalidate_serving(
+                    config, evidence, command_runner, stage="final",
+                    expected_idle=config.idle_threshold,
+                    allow_revision_change=config.threshold_override is not None,
+                )
+            except Exception as error:
+                evidence["servingRevalidation"]["final"] = {
+                    "matched": False, "error": str(error)
+                }
+                evidence["verdict"]["errors"].append(str(error))
 
     cleanup_ok = (
         not evidence["cleanup"]["armed"]
@@ -948,13 +1566,19 @@ def run_proof(
     )
     restore_ok = evidence["thresholdRestore"]["verified"]
     no_errors = not evidence["verdict"]["errors"]
-    final_go = candidate_go and cleanup_ok and restore_ok and no_errors and config.threshold_override is None
+    final_revalidated = evidence["servingRevalidation"].get("final", {}).get("matched") is True
+    final_go = (
+        candidate_go and cleanup_ok and restore_ok and no_errors
+        and config.threshold_override is None and final_revalidated
+        and evidence["provider"] == "azure"
+        and evidence["keyAlignment"]["internalApiKeyProven"]
+    )
     evidence["verdict"]["go"] = final_go
     evidence["verdict"]["status"] = "go" if final_go else (
         "diagnostic_only" if candidate_go and config.threshold_override is not None else "non_go"
     )
     evidence["verdict"]["exitCode"] = 0 if final_go else 1
-    return ProofResult(0 if final_go else 1, evidence)
+    return ProofResult(0 if final_go else 1, redact_evidence(evidence, secrets_to_remove))
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -971,6 +1595,8 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--repository-sha", required=True)
     parser.add_argument("--run-attempt", required=True)
     parser.add_argument("--deployment-manifest", type=Path, required=True)
+    parser.add_argument("--gateway-repository", required=True)
+    parser.add_argument("--portfolio-repository", required=True)
     parser.add_argument("--evidence-output", type=Path)
     parser.add_argument("--access-token-env", default="TASK8_9_ACCESS_TOKEN")
     parser.add_argument("--demo-password-env", default="TASK8_9_DEMO_PASSWORD")
@@ -983,12 +1609,15 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--poll-deadline-seconds", type=float, default=60.0)
     parser.add_argument("--cleanup-max-attempts", type=int, default=3)
     parser.add_argument("--cleanup-deadline-seconds", type=float, default=30.0)
+    parser.add_argument("--operation-timeout-seconds", type=float, default=15.0)
+    parser.add_argument("--post-cleanup-verification-seconds", type=float, default=5.0)
     return parser
 
 
 def main(
     argv: list[str] | None = None, *, command_runner: CommandRunner = _default_command_runner,
     http_runner: HttpRunner = _default_http_runner,
+    diagnostic_runner: DiagnosticRunner | None = None,
     environ: dict[str, str] | os._Environ[str] = os.environ,
     output: Callable[[str], None] = print,
     now: Callable[[], datetime] = lambda: datetime.now(timezone.utc),
@@ -1014,6 +1643,10 @@ def main(
             repository_sha=args.repository_sha,
             run_attempt=args.run_attempt,
             deployment_manifest=deployment_manifest,
+            service_repositories={
+                "api-gateway": args.gateway_repository,
+                "portfolio-service": args.portfolio_repository,
+            },
             access_token=environ.get(args.access_token_env, ""),
             demo_password=environ.get(args.demo_password_env, ""),
             idle_threshold=args.idle_threshold,
@@ -1025,19 +1658,22 @@ def main(
             poll_deadline_seconds=args.poll_deadline_seconds,
             cleanup_max_attempts=args.cleanup_max_attempts,
             cleanup_deadline_seconds=args.cleanup_deadline_seconds,
+            operation_timeout_seconds=args.operation_timeout_seconds,
+            post_cleanup_verification_seconds=args.post_cleanup_verification_seconds,
         )
         result = run_proof(
             config, command_runner=command_runner, http_runner=http_runner,
+            diagnostic_runner=diagnostic_runner,
             now=now, monotonic=monotonic, sleep=sleep, trace_factory=trace_factory,
         )
         document = result.evidence
         exit_code = result.exit_code
     except Exception as error:
-        document = {
+        document = redact_evidence({
             "schemaVersion": 1,
             "verdict": {"go": False, "status": "invalid_invocation", "exitCode": 2,
                         "errors": [str(error)]},
-        }
+        }, [environ.get(args.access_token_env, ""), environ.get(args.demo_password_env, "")])
         exit_code = 2
     rendered = json.dumps(document, sort_keys=True, indent=2)
     if args.evidence_output is not None:
