@@ -122,7 +122,7 @@ def compare(
                     f"selected {name} image {image!r} cannot be checked: "
                     "neither digest nor git sha was provided"
                 )
-            elif marker not in image:
+            elif digest and (not image.endswith("@" + marker) or ("@" in str(before.get(name, {}).get("image", "")) and image.rsplit("@", 1)[0] != str(before.get(name, {}).get("image", "")).rsplit("@", 1)[0])):
                 errors.append(
                     f"selected {name} image {image!r} does not contain {marker_label} {marker}"
                 )
@@ -133,12 +133,18 @@ def compare(
 
     if "market-data-service" in selected_set:
         after_job = after.get(REFRESH_JOB) or {}
-        if git_sha and not after_job.get("missing"):
+        if after_job.get("missing"):
+            errors.append(f"selected {REFRESH_JOB} is missing")
+        elif git_sha:
             image = str(after_job.get("image", ""))
             if git_sha not in image:
                 errors.append(
                     f"selected {REFRESH_JOB} image {image!r} does not contain git sha {git_sha}"
                 )
+        elif digest:
+            image = str(after_job.get("image", ""))
+            if not image.endswith("@" + digest):
+                errors.append(f"selected {REFRESH_JOB} image {image!r} does not contain exact digest {digest}")
     elif before.get(REFRESH_JOB) != after.get(REFRESH_JOB):
         errors.append(
             f"unselected {REFRESH_JOB} changed: {json.dumps(before.get(REFRESH_JOB))} -> {json.dumps(after.get(REFRESH_JOB))}"
@@ -153,7 +159,7 @@ def aggregate_digests(digest_root: str, selected: list[str], output: str | None)
         raise ValueError("selected services must be non-empty and unique")
     if not selected_set.issubset(set(KNOWN_SERVICES)):
         raise ValueError("selected services contain unknown entries")
-    expected = selected_set | ({REFRESH_JOB} if "market-data-service" in selected_set else set())
+    expected = selected_set
     actual = {entry.name for entry in os.scandir(root) if entry.is_dir()}
     if actual != expected:
         raise ValueError(f"digest service set mismatch: expected {sorted(expected)}, found {sorted(actual)}")
@@ -171,6 +177,15 @@ def aggregate_digests(digest_root: str, selected: list[str], output: str | None)
         with open(output, "w", encoding="utf-8") as handle:
             json.dump(manifest, handle, sort_keys=True, indent=2)
             handle.write("\n")
+    return manifest
+
+
+def validate_manifest(manifest: dict[str, str], selected: list[str]) -> dict[str, str]:
+    if set(manifest) != set(selected) or len(selected) != len(set(selected)):
+        raise ValueError("manifest keys must exactly equal unique selected services")
+    for service, digest in manifest.items():
+        if not DIGEST_RE.fullmatch(digest):
+            raise ValueError(f"invalid digest for {service}")
     return manifest
 
 
@@ -197,6 +212,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--requested-digest", default="")
     parser.add_argument("--digest-root", default="")
     parser.add_argument("--output", default="")
+    parser.add_argument("--digest-manifest", default="")
     return parser
 
 
@@ -223,13 +239,17 @@ def main() -> int:
 
     before = json.loads(args.before)
     selected = json.loads(args.selected)
+    manifest = None
+    if args.digest_manifest:
+        with open(args.digest_manifest, encoding="utf-8") as handle:
+            manifest = validate_manifest(json.load(handle), selected)
     after = capture(resource_group)
     errors = compare(
         before,
         after,
         selected,
         git_sha=args.git_sha or None,
-        requested_digest=args.requested_digest or None,
+        requested_digest=args.requested_digest or (manifest.get(selected[0]) if manifest and len(selected) == 1 else None),
     )
     print(json.dumps({"after": after, "errors": errors}, indent=2))
     if errors:

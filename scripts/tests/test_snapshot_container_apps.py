@@ -8,6 +8,7 @@ import os
 import sys
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 SCRIPT = (
@@ -64,7 +65,6 @@ class TestAggregateDigests(unittest.TestCase):
             ({}, ["api-gateway"]),
             ({"api-gateway": ["sha256:" + "a" * 64], "extra": ["sha256:" + "a" * 64]}, ["api-gateway"]),
             ({"api-gateway": ["SHA256:" + "a" * 64]}, ["api-gateway"]),
-            ({"market-data-service": ["sha256:" + "a" * 64]}, ["market-data-service"]),
         ]
         for entries, selected in cases:
             with self.subTest(entries=entries):
@@ -76,6 +76,31 @@ class TestAggregateDigests(unittest.TestCase):
                             Path(root, service, name).write_text(digest)
                     with self.assertRaises(ValueError):
                         self.mod.aggregate_digests(root, selected, None)
+
+    def test_cli_aggregate_without_azure_writes_exact_manifest(self):
+        with tempfile.TemporaryDirectory() as root:
+            Path(root, "api-gateway").mkdir()
+            digest = "sha256:" + "c" * 64
+            Path(root, "api-gateway", "digest.txt").write_text(digest)
+            output = Path(root, "manifest.json")
+            with mock.patch.dict(os.environ, {}, clear=True):
+                with mock.patch.object(self.mod, "capture", side_effect=AssertionError("Azure called")):
+                    with mock.patch("sys.argv", ["snapshot", "aggregate-digests", "--digest-root", root, "--selected", '["api-gateway"]', "--output", str(output)]):
+                        self.assertEqual(self.mod.main(), 0)
+            self.assertEqual(output.read_text(), '{\n  "api-gateway": "' + digest + '"\n}\n')
+
+    def test_compare_digest_manifest_round_trip_and_exact_selected_keys(self):
+        args = self.mod._parser().parse_args(["compare", "--digest-manifest", "manifest.json"])
+        self.assertEqual(args.digest_manifest, "manifest.json")
+        with self.assertRaises(ValueError):
+            self.mod.validate_manifest({"api-gateway": "sha256:" + "a" * 64}, ["api-gateway", "portfolio-service"])
+
+    def test_market_data_manifest_has_no_refresh_artifact(self):
+        with tempfile.TemporaryDirectory() as root:
+            Path(root, "market-data-service").mkdir()
+            Path(root, "market-data-service", "digest.txt").write_text("sha256:" + "d" * 64)
+            manifest = self.mod.aggregate_digests(root, ["market-data-service"], None)
+            self.assertEqual(list(manifest), ["market-data-service"])
 
 
 class TestCompareNonInterference(unittest.TestCase):
