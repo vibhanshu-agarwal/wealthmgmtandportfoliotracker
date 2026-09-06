@@ -15,7 +15,7 @@ import type { APIRequestContext, APIResponse, Page, Request, Response } from "@p
 import { e2eLoginCredentials } from "./helpers/e2e-credentials";
 import {
   assertExactPersistedHoldings,
-  assertExactlyOnePickerRequest,
+  assertNoAutomaticPickerRetry,
   assertVersionAdvanced,
   chooseKnownDifferentHoldings,
   selectExactPortfolio,
@@ -217,6 +217,8 @@ test.describe("Asset Picker — real composition save (Tasks 9.2, 9.7)", () => {
 
   test.beforeEach(async ({ page, request }) => {
     session = await authenticateE2eSession(request);
+    // Install before app timers are created; leave them running for UI reconciliation.
+    await page.clock.install();
     await page.addInitScript(
       ({ key, value }: { key: string; value: E2eSession }) =>
         window.localStorage.setItem(key, JSON.stringify(value)),
@@ -272,8 +274,11 @@ test.describe("Asset Picker — real composition save (Tasks 9.2, 9.7)", () => {
     assertExactPersistedHoldings(persistedAfterSave.holdings, expectedDraft);
     await expect(dialog).not.toBeVisible({ timeout: 15_000 });
     await expect(page.getByRole("status")).toHaveText(/saved/i);
-    await page.waitForTimeout(1_000);
-    assertExactlyOnePickerRequest(pickerWrites.requests.length);
+    await assertNoAutomaticPickerRetry(
+      page.clock,
+      await page.evaluate(() => Date.now()),
+      () => pickerWrites.requests.length,
+    );
   });
 
   test("stale picker save receives one real 409 and freezes the visible draft without retrying", async ({
@@ -319,7 +324,10 @@ test.describe("Asset Picker — real composition save (Tasks 9.2, 9.7)", () => {
     await expect(dialog.getByRole("button", { name: "Save changes" })).toHaveCount(0);
     await expect(dialog.getByRole("button", { name: "Review changes" })).toHaveCount(0);
 
-    await page.waitForTimeout(1_000);
-    assertExactlyOnePickerRequest(pickerWrites.requests.length);
+    await assertNoAutomaticPickerRetry(
+      page.clock,
+      await page.evaluate(() => Date.now()),
+      () => pickerWrites.requests.length,
+    );
   });
 });

@@ -1,3 +1,4 @@
+import type { Page } from "@playwright/test";
 import { selectPortfolioVersion } from "./portfolio-seed-version";
 
 export type CompositionHolding = {
@@ -111,6 +112,26 @@ export function assertExactlyOnePickerRequest(requestCount: number): void {
       `[asset-picker-real] picker save must start exactly one request, observed ${requestCount}`,
     );
   }
+}
+
+/**
+ * Observe beyond TanStack Query's 30-second retry-delay cap without a wall-clock
+ * sleep. Install the browser clock before navigation and keep it running until
+ * the save response/UI have settled. runFor executes every intervening timer;
+ * resume also lets notifications queued after that interval reconcile normally.
+ */
+export async function assertNoAutomaticPickerRetry(
+  clock: Pick<Page["clock"], "pauseAt" | "runFor" | "resume">,
+  browserNow: number,
+  requestCount: () => number,
+): Promise<void> {
+  await clock.pauseAt(browserNow + 1_000);
+  try {
+    await clock.runFor(31_000);
+  } finally {
+    await clock.resume();
+  }
+  assertExactlyOnePickerRequest(requestCount());
 }
 
 /** Confirms the post-save read has no omitted, extra, or quantity-mismatched holdings. */
