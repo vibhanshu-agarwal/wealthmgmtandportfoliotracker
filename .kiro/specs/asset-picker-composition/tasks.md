@@ -8,7 +8,7 @@ remains open (not deployed, not activated, not live-probed). Wave 4 Tasks 4.1–
 PR #180 at `main@63fc058` and their exact historical cut is now serving internally on
 `portfolio-service--0000093` at digest `sha256:9a1d5533…`; Task 4.5 is GO after the one controlled
 live call returned a valid already-golden no-op. The endpoint is not routed to users. Wave 8
-Task 8.1 merged source-only through PR #185 at `main@198c878d`; it is not deployed. Task 5.1a
+Task 8.1 source `6a171558` (including `updatedAt` and decimal-string serialization) was digest-deployed as cu4 / revision `0000094` (`sha256:2be727eaf4577699c783ae66073670d4984fe66c666af3e56422c934fdd0b023`), recorded provenance rather than a fresh read-back; no duplicate deployment is needed. Task 5.1a
 (`InternalApiKeyProvider`) merged source-only through PR #202 at `main@64761dc2`; it is not deployed.
 Task 8.2a (`CloudFrontOriginSecretProvider`) merged source-only through PR #203 at `main@addd8049`;
 it is not deployed. Task 5.1b (`ReplicaTokenProvider`) merged source-only through PR #208 at
@@ -1813,7 +1813,10 @@ mechanism's actual runtime behavior does not).**
   `List<PortfolioResponse>`. Add a real controller/serialization contract test covering a known
   timestamp and list cardinality. This closes the former cross-spec ownership gap; it is an
   implementation dependency now, not an owner-selection blocker.
-  **Complete on `main`; not deployed.** Merged via
+  **Complete and digest-deployed as cu4 / serving revision `0000094`** from source `6a171558`,
+  which contains `updatedAt` and decimal-string serialization; digest
+  `sha256:2be727eaf4577699c783ae66073670d4984fe66c666af3e56422c934fdd0b023`. This is recorded
+  provenance, not a fresh read-back; no duplicate 8.1 deployment is needed. Merged via
   [PR #185](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/185), merge
   commit `main@198c878d` (source commit `412733c8`, senior-review-passed). Built TDD-first in an
   isolated worktree off `origin/main@458813f` (replayed from an initial submission on
@@ -1828,8 +1831,8 @@ mechanism's actual runtime behavior does not).**
   `:portfolio-service:test` and `:portfolio-service:integrationTest` were green in PR #185's CI,
   including a transient Maven Central 429 that a job re-run cleared (unrelated to this change).
   **8 implementation/test files plus 2 status documents changed; no excluded surface touched.**
-  Deployment (an Artifact cut, revision serving, live verification) remains separately gated and
-  has not happened.
+  Any new Wave 8 deployment and live verification remain separately gated; this provenance does not
+  claim fresh runtime read-back.
   _Requirements: 7.3d; design.md D7_
 - [ ] **8.2 Blocker tracking, not resolved here: idle-reset threshold** (requirements.md 7.6, OPEN)
   and **login self-call timeouts** (2s/leg, 4s overall, design.md D5, OPEN) — product/operational
@@ -4165,7 +4168,7 @@ class, not by enumeration" through "operational signals only") deliberately keep
   clean runner.
   **Completion evidence:** the active `docker-build-verify` job now carries the four required
   job-level values and invokes both specs; the focused structural guard passed 5/5. The workflow is
-  wired locally but has **not** run in GitHub CI. This change does not alter deploy workflows or
+  merged in PR #232 with CI run [34018608256](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/34018608256) passing. This change does not alter deploy workflows or
   production flags.
   _Requirements: 1.1_
 

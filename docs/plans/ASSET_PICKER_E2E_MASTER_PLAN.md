@@ -478,8 +478,9 @@ All four artifacts are tracked. Wave 1 (1.1-1.19) and Wave 2 Tasks 2.1-2.5 merge
 The aggregate `assetPriceFreshness` backend dependency is now **closed**: Spec A task 8.6 is
 complete and `PortfolioSummaryDto.assetPriceFreshness` exists. B2 Wave 1 delivered the mocked
 frontend adapter; Task 9.5 has local assembled-stack evidence that the Portfolio page consumes the
-real summary object. Combined Wave 9 assembled-stack evidence is now complete locally; CI wiring is
-present locally but has not run in GitHub CI, and deployment and Production E2E remain open.
+real summary object. Combined Wave 9 assembled-stack evidence is complete, and PR #232 CI run
+`34018608256` passed `docker-build-verify` and `ci-required`; deployment and Production E2E remain
+open.
 
 ### Open B2 decisions
 

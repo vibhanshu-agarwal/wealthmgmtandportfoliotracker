@@ -1,6 +1,6 @@
 # B2 Wave 9 assembled E2E — local completion handoff
 
-> ## OWNER APPROVAL REQUIRED — PUSH ONLY
+> ## HISTORICAL APPROVAL BOUNDARY — SUPERSEDED
 >
 > **Historical approval boundary:** the prior push request for PR #232 is superseded by its merge
 > and CI completion. No deployment, workflow dispatch, production access, production E2E, merge,
@@ -9,19 +9,19 @@
 > **Recorded outcome:** PR #232 merged at `main@318f28592da6ab2e3bd66bc738aa68d374b180fa`.
 > Final CI run `34018608256` passed `docker-build-verify` and `ci-required`; body-edit guard run
 > `34020180243` also passed.
+> Reviewed PR head: `dba83c3a1cc28212c6aa115db803cbd15858e1e4`.
 >
-> - **If yes:** only the push and CI rerun on the existing pull request are authorized.
-> - **If no:** all work remains local and reviewable in this worktree.
 >
 > The CI result is assembled-stack evidence only, not deployment or Production E2E evidence.
 
 ## Scope and status
 
-- Baseline: `origin/main@318f28592da6ab2e3bd66bc738aa68d374b180fa`.
+- Historical Wave 9 baseline: `origin/main@b4c68253b99a796d6301ef79b5aa5a47d5cbd962`.
+- Reconciliation/merged-main baseline: `main@318f28592da6ab2e3bd66bc738aa68d374b180fa`.
 - Branch/worktree: `feat/b2-wave9-assembled-e2e` in
   `D:\Projects\Development\Java\Spring\wealthmgmtandportfoliotracker-codex-wave9`.
 - Locally complete: Tasks 9.2, 9.7, 9.8, and 9.9.
-- GitHub CI: final PR #232 run `34018608256` passed `docker-build-verify` and `ci-required`; the
+- GitHub CI: [PR #232](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/232) final run [34018608256](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/34018608256) passed `docker-build-verify` and `ci-required`; the
   body-edit guard run `34020180243` also passed. Deployment, production E2E, and production feature
   exposure are not claimed. Production flags remain off. B1 R-C deployment/convergence, Task 3.7,
   Task 6.3, Wave 8, and Wave 10 remain open.
