@@ -72,6 +72,7 @@ class ProofConfig:
     repository_sha: str
     run_attempt: str
     deployment_manifest: dict[str, Any]
+    manifest_attempt_marker: str
     service_repositories: dict[str, str]
     access_token: str = ""
     demo_email: str = DEMO_EMAIL
@@ -88,6 +89,7 @@ class ProofConfig:
     cleanup_deadline_seconds: float = 30.0
     operation_timeout_seconds: float = 15.0
     post_cleanup_verification_seconds: float = 5.0
+    last_known_good_gateway_revision: str | None = None
 
 
 @dataclass(frozen=True)
@@ -98,7 +100,6 @@ class ProofResult:
 
 CommandRunner = Callable[..., CommandResult]
 HttpRunner = Callable[..., HttpResponse]
-DiagnosticRunner = Callable[..., dict[str, Any]]
 
 
 def redact_evidence(value: Any, secrets_to_remove: list[str]) -> Any:
@@ -119,10 +120,13 @@ def redact_evidence(value: Any, secrets_to_remove: list[str]) -> Any:
 
 def validate_deployment_manifest(
     document: dict[str, Any], *, expected_attempt: str, expected_repository_sha: str,
-    repositories: dict[str, str],
+    repositories: dict[str, str], manifest_attempt_marker: str | None,
 ) -> dict[str, Any]:
     if not str(expected_attempt):
         raise ProofError("deployment manifest requires the current run attempt provenance")
+    if (not isinstance(manifest_attempt_marker, str)
+            or manifest_attempt_marker.splitlines() != [str(expected_attempt)]):
+        raise ProofError("deployment manifest attempt marker is missing, stale, or malformed")
     if not isinstance(expected_repository_sha, str) or not REPOSITORY_SHA_RE.fullmatch(
         expected_repository_sha
     ):
@@ -447,6 +451,7 @@ def _preflight(config: ProofConfig, evidence: dict[str, Any], runner: CommandRun
         expected_attempt=config.run_attempt,
         expected_repository_sha=config.repository_sha,
         repositories=config.service_repositories,
+        manifest_attempt_marker=config.manifest_attempt_marker,
     )
     account = _record_command(
         evidence, runner, ["az", "account", "show", "--query", "id", "-o", "tsv"],
@@ -781,8 +786,11 @@ def parse_event_rows(rows: Any, *, event: str, trace_id: str) -> dict[str, Any] 
             matches.append(payload)
     unique: dict[str, dict[str, Any]] = {}
     for match in matches:
-        comparable = {key: value for key, value in match.items() if key not in {"rawLog", "timeGenerated"}}
-        unique.setdefault(json.dumps(comparable, sort_keys=True, default=str), match)
+        emission_identity = {
+            "timeGenerated": match.get("timeGenerated"),
+            "rawLog": match.get("rawLog"),
+        }
+        unique.setdefault(json.dumps(emission_identity, sort_keys=True, default=str), match)
     if len(unique) > 1:
         raise ProofError(f"inconsistent multiple {event} events found for one trace")
     return next(iter(unique.values())) if unique else None
@@ -840,6 +848,8 @@ def _poll_events(
     attempts = max(1, math.floor(config.poll_deadline_seconds / config.poll_interval_seconds) + 1)
     for attempt in range(attempts):
         remaining = config.poll_deadline_seconds - (monotonic() - began)
+        if remaining <= 0:
+            break
         pair_timeout = min(config.operation_timeout_seconds, max(0.001, remaining / 2))
         for kind in ("success", "skip"):
             rows, error = _query_once(
@@ -1034,6 +1044,35 @@ def _expected_loopback(leg: str, target: Any) -> bool:
     return re.fullmatch(rf"http://localhost:[1-9][0-9]*{re.escape(path)}", target) is not None
 
 
+def _has_same_replica_attribution(diagnostics: dict[str, Any], event_token: Any) -> bool:
+    return bool(
+        isinstance(event_token, str)
+        and re.fullmatch(r"[0-9a-f]{12}", event_token)
+        and diagnostics.get("replicaTokenRecovered") is True
+        and diagnostics.get("emitterStillServing") is True
+        and diagnostics.get("sameReplica") is True
+        and diagnostics.get("emitterReplicaToken") == event_token
+        and diagnostics.get("probeReplicaToken") == event_token
+    )
+
+
+def _has_application_blocking_attribution(diagnostics: dict[str, Any]) -> bool:
+    reproductions = diagnostics.get("reproductions")
+    if (not isinstance(reproductions, list) or not 1 <= len(reproductions) <= 2
+            or any(not isinstance(item, dict) or not item.get("replicaToken")
+                   or item.get("sameRevision") is not True for item in reproductions)):
+        return False
+    blocking = diagnostics.get("applicationBlockingEvidence")
+    return bool(
+        isinstance(blocking, dict)
+        and blocking.get("kind") in {"thread_dump", "jfr", "async_profiler", "blockhound"}
+        and isinstance(blocking.get("reproductionIndex"), int)
+        and 0 <= blocking["reproductionIndex"] < len(reproductions)
+        and isinstance(blocking.get("artifact"), str)
+        and blocking["artifact"].strip()
+    )
+
+
 def classify_task8_9(
     *, events: dict[str, Any] | None, observation: dict[str, Any] | None,
     decisions: dict[str, Any], diagnostics: dict[str, Any] | None = None,
@@ -1090,7 +1129,8 @@ def classify_task8_9(
                     "class_2d_unresolved", "reject_unbounded_reproduction_evidence",
                     resolved=False, rationale="gateway-local reproduction evidence exceeded its bound",
                 )
-            elif diagnostics.get("applicationBlockingEvidence") or diagnostics.get("controlledIsolation"):
+            elif (_has_application_blocking_attribution(diagnostics)
+                  or diagnostics.get("controlledIsolation") is True):
                 diagnosed = _terminal("class_1_diagnosed", "rollback_api_gateway", rollback=True,
                                       rationale="gateway-local stall attributed to application code")
             else:
@@ -1135,9 +1175,14 @@ def classify_task8_9(
         elif diagnostics.get("manualResetStatus") == 403:
             diagnosed = _terminal("class_2d", "repair_key_configuration",
                                   rationale="manual probe confirms environment key misalignment")
-        else:
+        elif diagnostics.get("manualResetStatus") in {200, 409}:
             diagnosed = _terminal("class_2d", "investigate_non_origin_403",
-                                  rationale="key attachment is proven")
+                                  rationale="fresh manual probe rules out current key misalignment")
+        else:
+            diagnosed = _terminal(
+                "class_2d_unresolved", "collect_manual_reset_probe", resolved=False,
+                rationale="required fresh manual reset observation is unavailable",
+            )
     elif reason == "eligibility_non_2xx_status" and skip["httpStatus"] == 403:
         if skip["originVerifyRequired"] and skip["originVerifyHeaderAttached"] is False:
             diagnosed = _terminal("class_1_diagnosed", "rollback_api_gateway", rollback=True,
@@ -1164,9 +1209,15 @@ def classify_task8_9(
             else:
                 diagnosed = _terminal("class_2d_unresolved", "retry_presence_probe", resolved=False,
                                       rationale="presence probe did not yield a safe category")
-        elif diagnostics.get("manualResetStatus") in {200, 409}:
+        elif (diagnostics.get("manualResetStatus") in {200, 409}
+              and _has_same_replica_attribution(diagnostics, skip.get("replicaToken"))):
             diagnosed = _terminal("class_1_diagnosed", "rollback_api_gateway", rollback=True,
                                   rationale="same-replica manual reset contradicts no-key event")
+        elif diagnostics.get("manualResetStatus") in {200, 409}:
+            diagnosed = _terminal(
+                "class_2d_unresolved", "collect_replica_correlated_probe", resolved=False,
+                rationale="manual reset did not prove same-replica emitter attribution",
+            )
         else:
             diagnosed = _terminal("class_2d_unresolved", "collect_manual_reset_probe", resolved=False,
                                   rationale="manual reset diagnosis unavailable")
@@ -1183,64 +1234,232 @@ def classify_task8_9(
                 return diagnosed
             return _terminal("class_2f", "resolve_timeout_then_rerun",
                              rationale=diagnosed["rationale"])
-        return _terminal("class_2g", "complete_reason_specific_diagnosis",
-                         resolved=diagnosed["resolved"], rationale=diagnosed["rationale"])
+        diagnosed = dict(diagnosed)
+        diagnosed["dualEventTriage"] = "class_2g"
+        return diagnosed
     return diagnosed
 
 
 def _collect_diagnostics(
-    config: ProofConfig, evidence: dict[str, Any], runner: DiagnosticRunner | None,
-    skip: dict[str, Any],
+    config: ProofConfig, evidence: dict[str, Any], command_runner: CommandRunner,
+    http_runner: HttpRunner, skip: dict[str, Any],
 ) -> dict[str, Any]:
     reason = str(skip.get("reason", "unknown"))
-    if reason == "reset_key_not_configured":
-        names = [
-            "compare_revision_template", "recover_replica_token",
-            "manual_reset_probe", "presence_probe",
-        ]
-    elif reason == "overall_timeout" and skip.get("overallTimeoutPhase") in {
-        "eligibility_pre_dispatch", "between_legs", "reset_post_response",
-    }:
-        names = ["bounded_reproduction"]
-    elif (reason == "reset_non_2xx_status" and skip.get("httpStatus") == 403
-          and skip.get("internalApiKeyConfigured") is True
-          and skip.get("internalApiKeyAttached") is True):
-        names = ["manual_reset_probe"]
-    else:
-        names = ["diagnose_" + reason]
-    combined: dict[str, Any] = {"available": runner is not None}
-    for name in names:
-        operation = {
-            "name": name,
-            "timeoutSeconds": config.operation_timeout_seconds,
-            "inputs": {
-                "reason": reason, "leg": skip.get("leg"),
-                "replicaToken": skip.get("replicaToken"),
-            },
-        }
-        evidence["diagnostics"]["operations"].append(operation)
-        if runner is None:
+    combined: dict[str, Any] = {"available": True}
+    try:
+        if reason == "reset_key_not_configured":
+            combined.update(_diagnose_unconfigured_key(
+                config, evidence, command_runner, http_runner, skip
+            ))
+        elif (reason == "reset_non_2xx_status" and skip.get("httpStatus") == 403
+              and skip.get("internalApiKeyConfigured") is True
+              and skip.get("internalApiKeyAttached") is True):
+            combined.update(_manual_reset_probe(config, evidence, http_runner))
+        elif reason == "overall_timeout" and skip.get("overallTimeoutPhase") in {
+            "eligibility_pre_dispatch", "between_legs", "reset_post_response",
+        }:
+            plan = {
+                "maximumAttempts": 2,
+                "eachAttempt": [
+                    "fresh_identity_version_read", "deliberate_non_golden_write",
+                    "strict_idle_aging", "fresh_trace_login", "both_event_queries",
+                ],
+            }
             combined.update({
                 "available": False,
-                "unresolved": "diagnostic operations were not injected or separately approved",
+                "requiresSeparateApproval": True,
+                "boundedReproductionPlan": plan,
+                "unresolved": "bounded reproduction performs additional production writes",
             })
-            continue
-        try:
-            result = runner(
-                name,
-                {"event": dict(skip), "serving": evidence["serving"],
-                 "decisions": evidence["decisions"]},
-                timeout_seconds=config.operation_timeout_seconds,
-            )
-            if not isinstance(result, dict):
-                raise ProofError("diagnostic runner returned a non-object")
-            combined.update(result)
-        except Exception as error:
-            combined.update({
-                "available": False, "errorCategory": type(error).__name__, "error": str(error)
+            evidence["diagnostics"]["operations"].append({
+                "name": "bounded_reproduction",
+                "executable": False,
+                "requiresSeparateApproval": True,
+                "mutating": True,
+                "plan": plan,
             })
+        else:
+            combined["directEventDiagnosticsOnly"] = True
+    except Exception as error:
+        combined.update({
+            "available": False,
+            "unresolved": "concrete diagnostic observation failed",
+            "errorCategory": type(error).__name__,
+            "error": str(error),
+        })
     evidence["diagnostics"].update(combined)
     return combined
+
+
+def _diagnostic_step(evidence: dict[str, Any], name: str, **inputs: Any) -> None:
+    evidence["diagnostics"]["operations"].append({"name": name, "inputs": inputs})
+
+
+def _template_key_reference(
+    config: ProofConfig, evidence: dict[str, Any], runner: CommandRunner, revision: str,
+) -> str | None:
+    _diagnostic_step(evidence, "compare_revision_template", revision=revision)
+    rows = _decode_json(
+        _record_command(
+            evidence, runner,
+            ["az", "containerapp", "revision", "show", "--name", config.gateway_app,
+             "--resource-group", config.resource_group, "--revision", revision,
+             "--query", "properties.template.containers[0].env", "-o", "json"],
+            label=f"gateway environment variable identity for {revision}",
+            timeout_seconds=config.operation_timeout_seconds,
+        ),
+        f"gateway environment variable identity for {revision}",
+    )
+    if not isinstance(rows, list):
+        raise ProofError("gateway environment variable identity is not a list")
+    matching = [row for row in rows if isinstance(row, dict)
+                and row.get("name") == "INTERNAL_API_KEY"]
+    if len(matching) > 1:
+        raise ProofError("gateway template has duplicate INTERNAL_API_KEY references")
+    if not matching:
+        return None
+    reference = matching[0].get("secretRef")
+    return reference if isinstance(reference, str) and reference else None
+
+
+def _recover_emitter_replica(
+    config: ProofConfig, evidence: dict[str, Any], runner: CommandRunner,
+    event_token: str,
+) -> tuple[str | None, list[str], bool]:
+    revision = evidence["serving"][config.gateway_app]["revision"]
+    image = evidence["serving"][config.gateway_app]["image"]
+    _diagnostic_step(evidence, "recover_replica_token", revision=revision,
+                     emitterReplicaToken=event_token)
+    rows = _decode_json(
+        _record_command(
+            evidence, runner,
+            ["az", "containerapp", "replica", "list", "--name", config.gateway_app,
+             "--resource-group", config.resource_group, "--revision", revision, "-o", "json"],
+            label="diagnostic gateway replica list",
+            timeout_seconds=config.operation_timeout_seconds,
+        ),
+        "diagnostic gateway replica list",
+    )
+    if not isinstance(rows, list) or any(not isinstance(row, dict)
+                                         or not isinstance(row.get("name"), str) for row in rows):
+        raise ProofError("diagnostic gateway replica list is malformed")
+    names = [row["name"] for row in rows]
+    matches: list[str] = []
+    for name in names:
+        command = [
+            "docker", "run", "--rm", "--entrypoint", "java", image,
+            "-jar", "/replica-token.jar", name,
+        ]
+        result = _record_command(
+            evidence, runner, command, label=f"replica token tool for {name}",
+            timeout_seconds=config.operation_timeout_seconds,
+        )
+        if result.stderr != "" or re.fullmatch(r"[0-9a-f]{12}\n", result.stdout) is None:
+            raise ProofError(f"replica token tool contract failed for {name}")
+        if result.stdout[:-1] == event_token:
+            matches.append(name)
+    if len(matches) != 1:
+        raise ProofError(
+            f"emitter replica token matched {len(matches)} live replicas; observed={names!r}"
+        )
+    return matches[0], names, True
+
+
+def _header(headers: dict[str, str], name: str) -> str | None:
+    matches = [value for key, value in headers.items() if key.lower() == name.lower()]
+    return matches[0] if len(matches) == 1 and isinstance(matches[0], str) else None
+
+
+def _manual_reset_probe(
+    config: ProofConfig, evidence: dict[str, Any], runner: HttpRunner,
+) -> dict[str, Any]:
+    _diagnostic_step(evidence, "manual_reset_probe")
+    portfolio = _read_portfolio(
+        config, evidence, runner, config.access_token,
+        timeout_seconds=config.operation_timeout_seconds,
+    )
+    response = _record_http(
+        evidence, runner, method="PUT",
+        url=config.gateway_url + "/api/portfolio/demo-reset",
+        headers=_auth(config.access_token),
+        json_body={"expectedVersion": portfolio["version"]}, mutating=True,
+        timeout_seconds=config.operation_timeout_seconds,
+    )
+    body = response.body if isinstance(response.body, dict) else {}
+    emitter = None
+    if response.status == 503 and body.get("error") == "internal_api_key_not_configured":
+        emitter = "gateway" if set(body) == {"error", "message"} else (
+            "portfolio-service" if set(body) == {"error"} else None
+        )
+    return {
+        "manualResetStatus": response.status,
+        "manualResetEmitter": emitter,
+        "manualResetExpectedVersion": portfolio["version"],
+        "probeReplicaToken": _header(response.headers, "X-Gateway-Replica-Token"),
+    }
+
+
+def _diagnose_unconfigured_key(
+    config: ProofConfig, evidence: dict[str, Any], command_runner: CommandRunner,
+    http_runner: HttpRunner, skip: dict[str, Any],
+) -> dict[str, Any]:
+    last_good = config.last_known_good_gateway_revision
+    if not isinstance(last_good, str) or not last_good:
+        raise ProofError("last-known-good gateway revision is required for key diagnosis")
+    current = evidence["serving"][config.gateway_app]["revision"]
+    current_ref = _template_key_reference(config, evidence, command_runner, current)
+    previous_ref = _template_key_reference(config, evidence, command_runner, last_good)
+    if previous_ref is None:
+        raise ProofError("last-known-good gateway template lacks an INTERNAL_API_KEY reference")
+    if current_ref != previous_ref:
+        return {
+            "templateReference": "regressed",
+            "currentTemplateReference": current_ref,
+            "lastGoodTemplateReference": previous_ref,
+        }
+    event_token = skip.get("replicaToken")
+    if not isinstance(event_token, str) or re.fullmatch(r"[0-9a-f]{12}", event_token) is None:
+        raise ProofError("skip event has no valid emitter replica token")
+    raw_name, fleet, recovered = _recover_emitter_replica(
+        config, evidence, command_runner, event_token
+    )
+    result: dict[str, Any] = {
+        "templateReference": "intact",
+        "currentTemplateReference": current_ref,
+        "lastGoodTemplateReference": previous_ref,
+        "replicaTokenRecovered": recovered,
+        "emitterReplicaToken": event_token,
+        "emitterReplicaName": raw_name,
+        "emitterStillServing": raw_name in fleet,
+        "fleetReplicaNames": fleet,
+    }
+    attempts: list[dict[str, Any]] = []
+    for _ in range(max(1, min(6, 2 * len(fleet)))):
+        probe = _manual_reset_probe(config, evidence, http_runner)
+        attempts.append(dict(probe))
+        result.update(probe)
+        if probe.get("probeReplicaToken") == event_token:
+            result["sameReplica"] = True
+            break
+    else:
+        result["sameReplica"] = False
+    result["manualResetAttempts"] = attempts
+
+    if result.get("sameReplica") is True and raw_name is not None:
+        _diagnostic_step(evidence, "presence_probe", replica=raw_name, revision=current)
+        presence = _record_command(
+            evidence, command_runner,
+            ["az", "containerapp", "exec", "--name", config.gateway_app,
+             "--resource-group", config.resource_group, "--revision", current,
+             "--replica", raw_name, "--container", config.gateway_app,
+             "--command", "java -jar /probe.jar"],
+            label="same-replica internal key presence probe",
+            timeout_seconds=config.operation_timeout_seconds,
+        ).stdout
+        if presence not in {"blank\n", "nonblank\n"}:
+            raise ProofError("same-replica presence probe returned an invalid category")
+        result["presence"] = presence.strip()
+    return result
 
 
 def _set_threshold(
@@ -1324,6 +1543,10 @@ def _cleanup(
                 timeout_seconds=min(config.operation_timeout_seconds, remaining),
             )
             attempt["status"] = response.status
+            if monotonic() > deadline:
+                cleanup["deadlineExceeded"] = True
+                attempt["error"] = "cleanup deadline exceeded while reset was in flight"
+                break
             if response.status == 409:
                 cleanup["conflictObserved"] = True
                 continue
@@ -1353,7 +1576,6 @@ def _cleanup(
 def run_proof(
     config: ProofConfig, *, command_runner: CommandRunner = _default_command_runner,
     http_runner: HttpRunner = _default_http_runner,
-    diagnostic_runner: DiagnosticRunner | None = None,
     now: Callable[[], datetime] = lambda: datetime.now(timezone.utc),
     monotonic: Callable[[], float] = time.monotonic,
     sleep: Callable[[float], None] = time.sleep,
@@ -1500,7 +1722,7 @@ def run_proof(
         diagnostics: dict[str, Any] = {}
         if isinstance(events.get("skip"), dict):
             diagnostics = _collect_diagnostics(
-                config, evidence, diagnostic_runner, events["skip"]
+                config, evidence, command_runner, http_runner, events["skip"]
             )
         detail = classify_task8_9(
             events=events, observation=evidence["observation"],
@@ -1595,6 +1817,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--repository-sha", required=True)
     parser.add_argument("--run-attempt", required=True)
     parser.add_argument("--deployment-manifest", type=Path, required=True)
+    parser.add_argument("--deployment-manifest-run-attempt", type=Path, required=True)
     parser.add_argument("--gateway-repository", required=True)
     parser.add_argument("--portfolio-repository", required=True)
     parser.add_argument("--evidence-output", type=Path)
@@ -1611,13 +1834,13 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--cleanup-deadline-seconds", type=float, default=30.0)
     parser.add_argument("--operation-timeout-seconds", type=float, default=15.0)
     parser.add_argument("--post-cleanup-verification-seconds", type=float, default=5.0)
+    parser.add_argument("--last-known-good-gateway-revision")
     return parser
 
 
 def main(
     argv: list[str] | None = None, *, command_runner: CommandRunner = _default_command_runner,
     http_runner: HttpRunner = _default_http_runner,
-    diagnostic_runner: DiagnosticRunner | None = None,
     environ: dict[str, str] | os._Environ[str] = os.environ,
     output: Callable[[str], None] = print,
     now: Callable[[], datetime] = lambda: datetime.now(timezone.utc),
@@ -1628,6 +1851,7 @@ def main(
     args = _parser().parse_args(argv)
     try:
         deployment_manifest = json.loads(args.deployment_manifest.read_text(encoding="utf-8"))
+        manifest_attempt_marker = args.deployment_manifest_run_attempt.read_text(encoding="utf-8")
         if not isinstance(deployment_manifest, dict):
             raise ProofError("deployment manifest root must be an object")
         config = ProofConfig(
@@ -1643,6 +1867,7 @@ def main(
             repository_sha=args.repository_sha,
             run_attempt=args.run_attempt,
             deployment_manifest=deployment_manifest,
+            manifest_attempt_marker=manifest_attempt_marker,
             service_repositories={
                 "api-gateway": args.gateway_repository,
                 "portfolio-service": args.portfolio_repository,
@@ -1660,10 +1885,10 @@ def main(
             cleanup_deadline_seconds=args.cleanup_deadline_seconds,
             operation_timeout_seconds=args.operation_timeout_seconds,
             post_cleanup_verification_seconds=args.post_cleanup_verification_seconds,
+            last_known_good_gateway_revision=args.last_known_good_gateway_revision,
         )
         result = run_proof(
             config, command_runner=command_runner, http_runner=http_runner,
-            diagnostic_runner=diagnostic_runner,
             now=now, monotonic=monotonic, sleep=sleep, trace_factory=trace_factory,
         )
         document = result.evidence

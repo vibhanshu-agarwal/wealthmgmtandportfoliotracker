@@ -41,7 +41,7 @@ class ManifestAndKqlContractTest(unittest.TestCase):
     def test_manifest_requires_current_attempt_and_exact_service_set(self) -> None:
         parsed = verifier.validate_deployment_manifest(
             self.manifest(), expected_attempt="17", expected_repository_sha=COMMIT,
-            repositories=self.repositories(),
+            repositories=self.repositories(), manifest_attempt_marker="17\n",
         )
         self.assertEqual(parsed["services"]["api-gateway"]["digest"], DIGEST_A)
         self.assertEqual(parsed["runAttempt"], "17")
@@ -51,13 +51,13 @@ class ManifestAndKqlContractTest(unittest.TestCase):
         with self.assertRaisesRegex(verifier.ProofError, "exactly"):
             verifier.validate_deployment_manifest(
                 extra, expected_attempt="17", expected_repository_sha=COMMIT,
-                repositories=self.repositories(),
+                repositories=self.repositories(), manifest_attempt_marker="17\n",
             )
 
         with self.assertRaisesRegex(verifier.ProofError, "current run attempt"):
             verifier.validate_deployment_manifest(
                 self.manifest(), expected_attempt="", expected_repository_sha=COMMIT,
-                repositories=self.repositories(),
+                repositories=self.repositories(), manifest_attempt_marker="17\n",
             )
 
     def test_manifest_rejects_uppercase_or_non_digest_identity(self) -> None:
@@ -66,7 +66,7 @@ class ManifestAndKqlContractTest(unittest.TestCase):
         with self.assertRaisesRegex(verifier.ProofError, "lowercase sha256"):
             verifier.validate_deployment_manifest(
                 bad, expected_attempt="17", expected_repository_sha=COMMIT,
-                repositories=self.repositories(),
+                repositories=self.repositories(), manifest_attempt_marker="17\n",
             )
 
         with self.assertRaisesRegex(verifier.ProofError, "lowercase repository SHA"):
@@ -74,7 +74,7 @@ class ManifestAndKqlContractTest(unittest.TestCase):
                 self.manifest(),
                 expected_attempt="17",
                 expected_repository_sha="A" * 40,
-                repositories=self.repositories(),
+                repositories=self.repositories(), manifest_attempt_marker="17\n",
             )
 
     def test_kql_uses_absolute_utc_bounds_and_escapes_literals(self) -> None:
@@ -394,6 +394,7 @@ def config(*, mode: str = "execute", override: str | None = None) -> "verifier.P
         repository_sha=COMMIT,
         run_attempt="17",
         deployment_manifest=deployment_manifest(),
+        manifest_attempt_marker="17\n",
         service_repositories=service_repositories(),
         access_token="setup-token",
         demo_email="demo@wealthtracker.dev",
@@ -568,7 +569,7 @@ class ProofStateMachineTest(unittest.TestCase):
         rendered = __import__("json").dumps(result.evidence, sort_keys=True)
         self.assertNotIn("not-recorded", rendered)
         self.assertNotIn("setup-token", rendered)
-        self.assertEqual(commands.query_count, {"success": 3, "skip": 3})
+        self.assertEqual(commands.query_count, {"success": 2, "skip": 2})
         self.assertEqual(
             result.evidence["requestCounts"],
             {"portfolioReads": 4, "compositionWrites": 1, "logins": 1, "cleanupResets": 1},
@@ -606,7 +607,11 @@ class ProofStateMachineTest(unittest.TestCase):
                         "eligibility_connection_failure",
                     )
                 if mode == "both":
-                    self.assertEqual(result.evidence["classification"], "class_2g")
+                    self.assertEqual(result.evidence["classification"], "class_2d")
+                    self.assertEqual(
+                        result.evidence["classificationDetail"]["action"],
+                        "repair_downstream_or_network",
+                    )
                 if mode == "query_error":
                     self.assertIn("workspace query denied", result.evidence["events"]["queryError"])
 
@@ -805,8 +810,10 @@ class ProofStateMachineTest(unittest.TestCase):
         emitted: list[str] = []
         with tempfile.TemporaryDirectory() as directory:
             manifest_path = Path(directory) / "manifest.json"
+            marker_path = Path(directory) / "digest-manifest.run-attempt.txt"
             evidence_path = Path(directory) / "evidence.json"
             manifest_path.write_text(__import__("json").dumps(deployment_manifest()), encoding="utf-8")
+            marker_path.write_text("17\n", encoding="utf-8")
             exit_code = verifier.main(
                 [
                     "--mode", "execute", "--target", "production-azure",
@@ -817,6 +824,7 @@ class ProofStateMachineTest(unittest.TestCase):
                     "--gateway-url", "https://wealth.example.test",
                     "--repository-sha", COMMIT, "--run-attempt", "17",
                     "--deployment-manifest", str(manifest_path),
+                    "--deployment-manifest-run-attempt", str(marker_path),
                     "--gateway-repository", "wealthprodacr.azurecr.io/api-gateway",
                     "--portfolio-repository", "wealthprodacr.azurecr.io/portfolio-service",
                     "--evidence-output", str(evidence_path),
@@ -871,6 +879,33 @@ def skip_event(**overrides) -> dict:
 
 
 class ReviewFixContractTest(unittest.TestCase):
+    def test_public_execution_path_has_no_symbolic_diagnostic_callback(self) -> None:
+        import inspect
+
+        self.assertNotIn("diagnostic_runner", inspect.signature(verifier.run_proof).parameters)
+        self.assertNotIn("diagnostic_runner", inspect.signature(verifier.main).parameters)
+
+    def test_digest_manifest_requires_independent_current_attempt_marker(self) -> None:
+        parsed = verifier.validate_deployment_manifest(
+            deployment_manifest(),
+            expected_attempt="17",
+            manifest_attempt_marker="17\n",
+            expected_repository_sha=COMMIT,
+            repositories=service_repositories(),
+        )
+        self.assertEqual(parsed["runAttempt"], "17")
+
+        for marker in (None, "", "16\n", "17\nextra\n"):
+            with self.subTest(marker=marker):
+                with self.assertRaisesRegex(verifier.ProofError, "attempt marker"):
+                    verifier.validate_deployment_manifest(
+                        deployment_manifest(),
+                        expected_attempt="17",
+                        manifest_attempt_marker=marker,
+                        expected_repository_sha=COMMIT,
+                        repositories=service_repositories(),
+                    )
+
     def test_authoritative_aggregator_digest_map_is_consumed_directly(self) -> None:
         import importlib.util
 
@@ -891,7 +926,7 @@ class ReviewFixContractTest(unittest.TestCase):
             artifact,
             expected_attempt="17",
             expected_repository_sha=COMMIT,
-            repositories=service_repositories(),
+            repositories=service_repositories(), manifest_attempt_marker="17\n",
         )
         self.assertEqual(parsed["runAttempt"], "17")
         self.assertEqual(parsed["repositorySha"], COMMIT)
@@ -1062,8 +1097,13 @@ class ReviewFixContractTest(unittest.TestCase):
         attributed = verifier.classify_task8_9(
             events={"outcome": "b_skip_only", "success": None, "skip": local_stall,
                     "queryError": None}, observation={"golden": False}, decisions={},
-            diagnostics={"reproductions": [{"replicaToken": "different"}],
-                         "applicationBlockingEvidence": True},
+            diagnostics={
+                "reproductions": [{"replicaToken": "different", "sameRevision": True}],
+                "applicationBlockingEvidence": {
+                    "kind": "blockhound", "reproductionIndex": 0,
+                    "artifact": "evidence/blockhound-run-1.json",
+                },
+            },
         )
         self.assertEqual(attributed["class"], "class_1_diagnosed")
 
@@ -1079,27 +1119,96 @@ class ReviewFixContractTest(unittest.TestCase):
         self.assertEqual(over_bound["action"], "reject_unbounded_reproduction_evidence")
         self.assertFalse(over_bound["rollbackAuthorized"])
 
-    def test_non_go_skip_invokes_and_records_injected_diagnostic_operation(self) -> None:
+    def test_manual_probe_and_blocking_evidence_require_validated_attribution(self) -> None:
+        key_event = skip_event(
+            reason="reset_key_not_configured", leg="reset", httpStatus=None,
+            timeoutScope=None, overallTimeoutPhase=None, attemptedTarget=None,
+            elapsedMillis=None, eligibilityDispatchAttempted=True,
+            resetDispatchAttempted=False, internalApiKeyConfigured=False,
+            internalApiKeyAttached=None,
+        )
+        base = {
+            "templateReference": "intact",
+            "replicaTokenRecovered": True,
+            "manualResetStatus": 200,
+        }
+        for missing_correlation in (
+            {},
+            {"sameReplica": True},
+            {"sameReplica": True, "emitterReplicaToken": key_event["replicaToken"]},
+            {
+                "sameReplica": True,
+                "emitterReplicaToken": key_event["replicaToken"],
+                "probeReplicaToken": key_event["replicaToken"],
+                "emitterStillServing": False,
+            },
+        ):
+            with self.subTest(missing_correlation=missing_correlation):
+                result = verifier.classify_task8_9(
+                    events={"outcome": "b_skip_only", "success": None, "skip": key_event,
+                            "queryError": None},
+                    observation={"golden": False}, decisions={},
+                    diagnostics=base | missing_correlation,
+                )
+                self.assertFalse(result["rollbackAuthorized"])
+                self.assertFalse(result["resolved"])
+
+        attributed = verifier.classify_task8_9(
+            events={"outcome": "b_skip_only", "success": None, "skip": key_event,
+                    "queryError": None},
+            observation={"golden": False}, decisions={},
+            diagnostics=base | {
+                "sameReplica": True,
+                "emitterReplicaToken": key_event["replicaToken"],
+                "probeReplicaToken": key_event["replicaToken"],
+                "emitterStillServing": True,
+            },
+        )
+        self.assertTrue(attributed["rollbackAuthorized"])
+
+        local_stall = skip_event(
+            overallTimeoutPhase="between_legs", eligibilityDispatchAttempted=True,
+            resetDispatchAttempted=False, attemptedTarget=None,
+            internalApiKeyAttached=None,
+        )
+        weak = verifier.classify_task8_9(
+            events={"outcome": "b_skip_only", "success": None, "skip": local_stall,
+                    "queryError": None},
+            observation={"golden": False}, decisions={},
+            diagnostics={"applicationBlockingEvidence": True, "reproductions": []},
+        )
+        self.assertFalse(weak["rollbackAuthorized"])
+        self.assertFalse(weak["resolved"])
+
+        strong = verifier.classify_task8_9(
+            events={"outcome": "b_skip_only", "success": None, "skip": local_stall,
+                    "queryError": None},
+            observation={"golden": False}, decisions={},
+            diagnostics={
+                "reproductions": [{"replicaToken": "token-b", "sameRevision": True}],
+                "applicationBlockingEvidence": {
+                    "kind": "blockhound", "reproductionIndex": 0,
+                    "artifact": "evidence/blockhound-run-1.json",
+                },
+            },
+        )
+        self.assertTrue(strong["rollbackAuthorized"])
+
+    def test_non_go_skip_uses_event_facts_without_symbolic_diagnostic_operation(self) -> None:
         commands = StatefulCommandRunner(event_mode="skip")
         http = StatefulHttpRunner(commands)
         clock = Clock()
-        seen: list[tuple[str, float]] = []
-
-        def diagnose(operation, context, *, timeout_seconds):
-            seen.append((operation, timeout_seconds))
-            self.assertEqual(context["event"]["reason"], "eligibility_connection_failure")
-            return {"available": True}
 
         result = verifier.run_proof(
             config(), command_runner=commands, http_runner=http,
-            diagnostic_runner=diagnose, now=clock.now, monotonic=clock.monotonic,
+            now=clock.now, monotonic=clock.monotonic,
             sleep=clock.sleep,
             trace_factory=lambda: "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01",
         )
         self.assertNotEqual(result.exit_code, 0)
-        self.assertEqual(seen[0][0], "diagnose_eligibility_connection_failure")
         self.assertTrue(result.evidence["diagnostics"]["available"])
-        self.assertEqual(result.evidence["diagnostics"]["operations"][0]["name"], seen[0][0])
+        self.assertTrue(result.evidence["diagnostics"]["directEventDiagnosticsOnly"])
+        self.assertEqual(result.evidence["diagnostics"]["operations"], [])
 
     def test_query_exception_still_runs_both_queries_and_retains_partial_observation(self) -> None:
         commands = StatefulCommandRunner(event_mode="skip")
@@ -1187,6 +1296,29 @@ class ReviewFixContractTest(unittest.TestCase):
         self.assertEqual(cleanup_puts, [])
         self.assertTrue(result.evidence["cleanup"]["deadlineExceeded"])
 
+    def test_cleanup_put_returning_after_absolute_deadline_cannot_preserve_go(self) -> None:
+        commands = StatefulCommandRunner(event_mode="success")
+        http = StatefulHttpRunner(commands)
+        clock = Clock()
+
+        def slow_cleanup_put(*, method, url, headers, json_body=None, timeout_seconds=None):
+            response = http(
+                method=method, url=url, headers=headers, json_body=json_body,
+                timeout_seconds=timeout_seconds,
+            )
+            if method == "PUT" and url.endswith("/api/portfolio/demo-reset"):
+                clock.sleep(21)
+            return response
+
+        result = verifier.run_proof(
+            config(), command_runner=commands, http_runner=slow_cleanup_put,
+            now=clock.now, monotonic=clock.monotonic, sleep=clock.sleep,
+            trace_factory=lambda: "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01",
+        )
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertTrue(result.evidence["cleanup"]["deadlineExceeded"])
+        self.assertFalse(result.evidence["cleanup"]["succeeded"])
+
     def test_every_runner_call_honors_the_configured_operation_timeout_cap(self) -> None:
         cfg = config()
         cfg.operation_timeout_seconds = 7.0
@@ -1228,37 +1360,142 @@ class ReviewFixContractTest(unittest.TestCase):
             for command in commands.commands
         ))
 
-    def test_key_diagnosis_runs_explicit_template_token_manual_and_presence_operations(self) -> None:
+    def test_key_diagnosis_uses_concrete_command_and_http_orchestration_by_default(self) -> None:
         commands = StatefulCommandRunner(event_mode="skip")
         commands.skip_reason = "reset_key_not_configured"
+        original_command = commands.__call__
+        exec_count = 0
+
+        def diagnostic_commands(command, *, timeout_seconds=None):
+            nonlocal exec_count
+            if command[:4] == ["az", "containerapp", "revision", "show"]:
+                revision = commands._value_after(command, "--revision")
+                if "environment variable identity" in " ".join(command):
+                    raise AssertionError("labels must not leak into argv")
+                if revision in {"api-gateway--0000101", "api-gateway--0000100"}:
+                    return verifier.CommandResult(
+                        0,
+                        __import__("json").dumps(
+                            [{"name": "INTERNAL_API_KEY", "secretRef": "internal-api-key"}]
+                        ),
+                        "",
+                    )
+            if command[:2] == ["docker", "run"]:
+                self.assertIn(commands.revisions["api-gateway"][0]["image"], command)
+                self.assertEqual(command[-1], "api-gateway--0000101-replica-a")
+                return verifier.CommandResult(0, "95ca17821ade\n", "")
+            if command[:3] == ["az", "containerapp", "exec"]:
+                exec_count += 1
+                if exec_count >= 2:
+                    self.assertEqual(commands._value_after(command, "--replica"),
+                                     "api-gateway--0000101-replica-a")
+                    return verifier.CommandResult(0, "blank\n", "")
+            return original_command(command, timeout_seconds=timeout_seconds)
+
         http = StatefulHttpRunner(commands)
+        original_http = http.__call__
+        diagnostic_reset_count = 0
+
+        def diagnostic_http(*, method, url, headers, json_body=None, timeout_seconds=None):
+            nonlocal diagnostic_reset_count
+            if method == "PUT" and url.endswith("/api/portfolio/demo-reset"):
+                diagnostic_reset_count += 1
+                if diagnostic_reset_count == 1:
+                    self.assertEqual(json_body, {"expectedVersion": http.version})
+                    return verifier.HttpResponse(
+                        503,
+                        {"error": "internal_api_key_not_configured", "message": "unavailable"},
+                        {"X-Gateway-Replica-Token": "95ca17821ade"},
+                    )
+            return original_http(
+                method=method, url=url, headers=headers, json_body=json_body,
+                timeout_seconds=timeout_seconds,
+            )
+
+        cfg = config()
+        cfg.last_known_good_gateway_revision = "api-gateway--0000100"
         clock = Clock()
-        seen: list[str] = []
-        results = {
-            "compare_revision_template": {"templateReference": "intact"},
-            "recover_replica_token": {"replicaTokenRecovered": True},
-            "manual_reset_probe": {
-                "manualResetStatus": 503, "manualResetEmitter": "gateway", "sameReplica": True,
-            },
-            "presence_probe": {"presence": "blank"},
-        }
-
-        def diagnose(operation, context, *, timeout_seconds):
-            seen.append(operation)
-            return results[operation]
-
         result = verifier.run_proof(
-            config(), command_runner=commands, http_runner=http,
-            diagnostic_runner=diagnose, now=clock.now, monotonic=clock.monotonic,
-            sleep=clock.sleep,
+            cfg, command_runner=diagnostic_commands, http_runner=diagnostic_http,
+            now=clock.now, monotonic=clock.monotonic, sleep=clock.sleep,
             trace_factory=lambda: "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01",
         )
-        self.assertEqual(
-            seen,
-            ["compare_revision_template", "recover_replica_token", "manual_reset_probe",
-             "presence_probe"],
-        )
         self.assertEqual(result.evidence["classification"], "class_2h")
+        self.assertEqual(result.evidence["diagnostics"]["templateReference"], "intact")
+        self.assertTrue(result.evidence["diagnostics"]["replicaTokenRecovered"])
+        self.assertTrue(result.evidence["diagnostics"]["sameReplica"])
+        self.assertEqual(result.evidence["diagnostics"]["presence"], "blank")
+
+    def test_missing_last_good_template_reference_cannot_authorize_rollback(self) -> None:
+        cfg = config()
+        cfg.last_known_good_gateway_revision = "api-gateway--0000100"
+        evidence = verifier._initial_evidence(cfg)
+        evidence["serving"]["api-gateway"] = {
+            "revision": "api-gateway--0000101",
+            "image": "wealthprodacr.azurecr.io/api-gateway@" + DIGEST_A,
+        }
+
+        def template_runner(command, *, timeout_seconds=None):
+            revision = command[command.index("--revision") + 1]
+            rows = ([{"name": "INTERNAL_API_KEY", "secretRef": "internal-api-key"}]
+                    if revision == "api-gateway--0000101" else [])
+            return verifier.CommandResult(0, __import__("json").dumps(rows), "")
+
+        with self.assertRaisesRegex(verifier.ProofError, "last-known-good.*reference"):
+            verifier._diagnose_unconfigured_key(
+                cfg, evidence, template_runner,
+                lambda **_kwargs: verifier.HttpResponse(500, {}, {}),
+                skip_event(
+                    reason="reset_key_not_configured", leg="reset", httpStatus=None,
+                    timeoutScope=None, overallTimeoutPhase=None, attemptedTarget=None,
+                    elapsedMillis=None, eligibilityDispatchAttempted=True,
+                    resetDispatchAttempted=False, internalApiKeyConfigured=False,
+                    internalApiKeyAttached=None,
+                ),
+            )
+
+    def test_gateway_local_timeout_records_gated_bounded_reproduction_plan(self) -> None:
+        commands = StatefulCommandRunner(event_mode="skip")
+        commands.skip_reason = "overall_timeout"
+        original_command = commands.__call__
+
+        def between_legs(command, *, timeout_seconds=None):
+            result = original_command(command, timeout_seconds=timeout_seconds)
+            if (result.returncode == 0
+                    and "demo_reset_self_call_skipped" in " ".join(command)):
+                rows = __import__("json").loads(result.stdout)
+                for row in rows:
+                    row["Log_s"] = (row["Log_s"]
+                        .replace("attemptedTarget=http://localhost:8080/api/internal/portfolio/demo-reset",
+                                 "attemptedTarget=null")
+                        .replace("overallTimeoutPhase=reset_in_flight",
+                                 "overallTimeoutPhase=between_legs")
+                        .replace("resetDispatchAttempted=true", "resetDispatchAttempted=false")
+                        .replace("internalApiKeyAttached=true", "internalApiKeyAttached=null"))
+                return verifier.CommandResult(0, __import__("json").dumps(rows), "")
+            return result
+
+        http = StatefulHttpRunner(commands)
+        clock = Clock()
+        result = verifier.run_proof(
+            config(), command_runner=between_legs, http_runner=http,
+            now=clock.now, monotonic=clock.monotonic, sleep=clock.sleep,
+            trace_factory=lambda: "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01",
+        )
+        self.assertEqual(result.evidence["classification"], "class_2d_unresolved")
+        self.assertFalse(result.evidence["classificationDetail"]["rollbackAuthorized"])
+        self.assertIn("requiresSeparateApproval", result.evidence["diagnostics"])
+        self.assertTrue(result.evidence["diagnostics"]["requiresSeparateApproval"])
+        self.assertEqual(result.evidence["diagnostics"]["boundedReproductionPlan"], {
+            "maximumAttempts": 2,
+            "eachAttempt": [
+                "fresh_identity_version_read", "deliberate_non_golden_write",
+                "strict_idle_aging", "fresh_trace_login", "both_event_queries",
+            ],
+        })
+        login_requests = [request for request in http.requests
+                          if request["url"].endswith("/api/auth/login")]
+        self.assertEqual(len(login_requests), 1)
 
     def test_serving_drift_after_long_age_is_non_go_before_login(self) -> None:
         commands = StatefulCommandRunner(event_mode="success")
@@ -1349,6 +1586,15 @@ class ReviewFixContractTest(unittest.TestCase):
         self.assertEqual(probe_result["class"], "class_2d")
         self.assertEqual(probe_result["action"], "repair_key_configuration")
 
+        missing_probe = verifier.classify_task8_9(
+            events={"outcome": "b_skip_only", "success": None, "skip": attached_403,
+                    "queryError": None}, observation={"golden": False}, decisions={},
+            diagnostics={},
+        )
+        self.assertFalse(missing_probe["resolved"])
+        self.assertFalse(missing_probe["rollbackAuthorized"])
+        self.assertEqual(missing_probe["action"], "collect_manual_reset_probe")
+
     def test_reset_409_requires_the_full_four_field_evidence_quartet(self) -> None:
         missing_downstream = skip_event(
             reason="reset_non_2xx_status", leg="reset", httpStatus=409,
@@ -1384,6 +1630,38 @@ class ReviewFixContractTest(unittest.TestCase):
         self.assertIsNotNone(result.evidence["events"]["success"])
         self.assertEqual(seen, ["success", "skip"])
 
+    def test_polling_never_starts_a_pair_after_budget_but_finishes_a_started_pair(self) -> None:
+        trace_id = "0123456789abcdef0123456789abcdef"
+        start = datetime(2026, 9, 6, 1, 2, 3, tzinfo=timezone.utc)
+        end = datetime(2026, 9, 6, 1, 3, 3, tzinfo=timezone.utc)
+
+        for deadline, interval in ((0.5, 0.5), (0.15, 1.0)):
+            with self.subTest(deadline=deadline):
+                cfg = config()
+                cfg.poll_deadline_seconds = deadline
+                cfg.poll_interval_seconds = interval
+                clock = Clock()
+                calls: list[str] = []
+
+                def timed_empty_query(command, *, timeout_seconds=None):
+                    calls.append("success" if "demo_reset_succeeded" in " ".join(command)
+                                 else "skip")
+                    clock.sleep(0.1)
+                    return verifier.CommandResult(0, "[]", "")
+
+                evidence = verifier._initial_evidence(cfg)
+                evidence["target"]["workspaceCustomerId"] = "workspace-customer-id"
+                evidence["trace"] = {
+                    "windowStart": verifier._utc(start),
+                    "windowEnd": verifier._utc(end),
+                }
+                result = verifier._poll_events(
+                    cfg, evidence, timed_empty_query, trace_id=trace_id,
+                    start=start, end=end, monotonic=clock.monotonic, sleep=clock.sleep,
+                )
+                self.assertEqual(calls, ["success", "skip"])
+                self.assertEqual(result["outcome"], "c_neither")
+
     def test_identical_repeated_events_are_deduplicated_without_masking_go(self) -> None:
         commands = StatefulCommandRunner(event_mode="success")
         http = StatefulHttpRunner(commands)
@@ -1405,6 +1683,27 @@ class ReviewFixContractTest(unittest.TestCase):
             trace_factory=lambda: "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01",
         )
         self.assertEqual(result.exit_code, 0)
+
+    def test_separate_emissions_with_same_payload_fail_closed(self) -> None:
+        trace_id = "0123456789abcdef0123456789abcdef"
+        raw = f"INFO [{trace_id}] event=demo_reset_succeeded version=3"
+        rows = [
+            {"TimeGenerated": "2026-09-06T01:02:04Z", "Log_s": raw},
+            {"TimeGenerated": "2026-09-06T01:02:05Z", "Log_s": raw},
+        ]
+        with self.assertRaisesRegex(verifier.ProofError, "multiple"):
+            verifier.parse_event_rows(
+                rows, event="demo_reset_succeeded", trace_id=trace_id
+            )
+
+        rows[1] = {
+            "TimeGenerated": rows[0]["TimeGenerated"],
+            "Log_s": raw + " emitterSequence=2",
+        }
+        with self.assertRaisesRegex(verifier.ProofError, "multiple"):
+            verifier.parse_event_rows(
+                rows, event="demo_reset_succeeded", trace_id=trace_id
+            )
 
     def test_yaml_defaults_are_authoritative_when_revision_env_entries_are_absent(self) -> None:
         commands = StatefulCommandRunner(event_mode="success")
