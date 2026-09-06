@@ -27,10 +27,19 @@ import java.util.concurrent.atomic.AtomicReference;
 import reactor.netty.DisposableServer;
 import reactor.netty.http.server.HttpServer;
 import tools.jackson.databind.ObjectMapper;
+import io.micrometer.observation.ObservationRegistry;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class DemoLoginResetClientTest {
+
+    @Test
+    void configurationBindsTheInjectedObservationRegistryToTheWebClientBuilder() {
+        ObservationRegistry registry = ObservationRegistry.create();
+        WebClient.Builder builder = new DemoLoginResetConfiguration().demoLoginResetWebClientBuilder(registry);
+        assertThat(ReflectionTestUtils.getField(builder, "observationRegistry")).isSameAs(registry);
+    }
 
     @Test
     void eligibilitySelectsOnlyTheCompiledInDemoPortfolioAndPreservesItsObservation() {
