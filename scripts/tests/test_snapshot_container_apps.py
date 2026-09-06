@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import os
 import sys
 import tempfile
@@ -121,6 +122,24 @@ class TestAggregateDigests(unittest.TestCase):
         before = {"market-data-service": {"image": "repo/market:old"}, "market-data-refresh-job": {"image": "repo/market:old"}}
         after = {"market-data-service": {"image": "repo/market@" + digest}, "market-data-refresh-job": {"image": "other/market@" + digest}}
         self.assertTrue(self.mod.compare(before, after, ["market-data-service"], digest_manifest={"market-data-service": digest}))
+
+    def test_main_cli_manifest_and_failure_modes(self):
+        digest_a, digest_b = "sha256:" + "a" * 64, "sha256:" + "b" * 64
+        with tempfile.TemporaryDirectory() as root:
+            manifest = Path(root, "manifest.json")
+            manifest.write_text('{"api-gateway":"' + digest_a + '","portfolio-service":"' + digest_b + '"}')
+            before = {"api-gateway": {"image": "repo/gateway:old"}, "portfolio-service": {"image": "repo/portfolio:old"}}
+            after = {"api-gateway": {"image": "repo/gateway@" + digest_a}, "portfolio-service": {"image": "repo/portfolio@" + digest_b}}
+            with mock.patch.dict(os.environ, {"AZURE_RG": "rg"}), mock.patch.object(self.mod, "capture", return_value=after), mock.patch("sys.argv", ["snapshot", "compare", "--before", json.dumps(before), "--selected", '["api-gateway","portfolio-service"]', "--digest-manifest", str(manifest)]):
+                self.assertEqual(self.mod.main(), 0)
+            manifest.write_text('{"api-gateway":"' + digest_a + '","api-gateway":"' + digest_b + '"}')
+            with mock.patch.dict(os.environ, {"AZURE_RG": "rg"}), mock.patch.object(self.mod, "capture", side_effect=AssertionError("capture called")), mock.patch("sys.argv", ["snapshot", "compare", "--before", json.dumps(before), "--selected", '["api-gateway"]', "--digest-manifest", str(manifest)]):
+                with self.assertRaises(ValueError): self.mod.main()
+            with mock.patch.dict(os.environ, {"AZURE_RG": "rg"}), mock.patch.object(self.mod, "capture", return_value={"api-gateway": {"image": "wrong/repo@" + digest_a}}), mock.patch("sys.argv", ["snapshot", "compare", "--before", json.dumps({"api-gateway": {"image": "repo/gateway:old"}}), "--selected", '["api-gateway"]', "--requested-digest", digest_a]):
+                self.assertEqual(self.mod.main(), 1)
+        for selected in ("[]", '["unknown"]'):
+            with mock.patch.dict(os.environ, {"AZURE_RG": "rg"}), mock.patch.object(self.mod, "capture", side_effect=AssertionError("capture called")), mock.patch("sys.argv", ["snapshot", "compare", "--before", "{}", "--selected", selected]):
+                with self.assertRaises(ValueError): self.mod.main()
 
 
 class TestCompareNonInterference(unittest.TestCase):

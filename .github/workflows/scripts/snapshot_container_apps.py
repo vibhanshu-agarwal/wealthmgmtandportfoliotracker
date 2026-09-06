@@ -152,17 +152,9 @@ def compare(
         after_job = after.get(REFRESH_JOB) or {}
         if after_job.get("missing"):
             errors.append(f"selected {REFRESH_JOB} is missing")
-        elif git_sha:
-            image = str(after_job.get("image", ""))
-            if git_sha not in image:
-                errors.append(
-                    f"selected {REFRESH_JOB} image {image!r} does not contain git sha {git_sha}"
-                )
-            elif digest_manifest and name in digest_manifest:
-                expected = str(before.get(name, {}).get("image", "")).rsplit("@", 1)[0].rsplit(":", 1)[0] + "@" + digest_manifest[name]
-                if image != expected:
-                    errors.append(f"selected {name} image {image!r} does not equal expected {expected!r}")
-        elif mode and str(after_job.get("image", "")) != expected_images["market-data-service"]:
+        elif not mode:
+            errors.append(f"selected {REFRESH_JOB} cannot be verified without an expected image")
+        elif str(after_job.get("image", "")) != expected_images["market-data-service"]:
             errors.append(f"selected {REFRESH_JOB} image does not equal expected {expected_images['market-data-service']!r}")
     elif before.get(REFRESH_JOB) != after.get(REFRESH_JOB):
         errors.append(
@@ -270,10 +262,11 @@ def main() -> int:
 
     before = json.loads(args.before)
     selected = json.loads(args.selected)
+    _validate_selected(selected)
     manifest = None
     if args.digest_manifest:
         with open(args.digest_manifest, encoding="utf-8") as handle:
-            manifest = validate_manifest(json.load(handle), selected)
+            manifest = load_manifest_text(handle.read(), selected)
     after = capture(resource_group)
     errors = compare(
         before,
