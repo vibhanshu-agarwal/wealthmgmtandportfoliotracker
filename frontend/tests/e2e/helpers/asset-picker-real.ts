@@ -14,16 +14,16 @@ export type ObservedPortfolio = {
 
 const DETERMINISTIC_HOLDING_SETS: readonly CompositionHolding[][] = [
   [
-    { ticker: "AAPL", quantity: "17" },
-    { ticker: "BTC-USD", quantity: "2" },
+    { ticker: "AAPL", quantity: "17.00000000" },
+    { ticker: "BTC-USD", quantity: "2.00000000" },
   ],
   [
-    { ticker: "AAPL", quantity: "23" },
-    { ticker: "BTC-USD", quantity: "3" },
+    { ticker: "AAPL", quantity: "23.00000000" },
+    { ticker: "BTC-USD", quantity: "3.00000000" },
   ],
   [
-    { ticker: "AAPL", quantity: "29" },
-    { ticker: "BTC-USD", quantity: "5" },
+    { ticker: "AAPL", quantity: "29.00000000" },
+    { ticker: "BTC-USD", quantity: "5.00000000" },
   ],
 ];
 
@@ -100,6 +100,15 @@ export function assertVersionAdvanced(label: string, previousVersion: number, ne
   if (!Number.isSafeInteger(nextVersion) || nextVersion <= previousVersion) {
     throw new Error(
       `[asset-picker-real] ${label} must strictly advance version: ${nextVersion} is not greater than ${previousVersion}`,
+    );
+  }
+}
+
+/** Counts browser request starts, so a failed or in-flight retry cannot hide. */
+export function assertExactlyOnePickerRequest(requestCount: number): void {
+  if (requestCount !== 1) {
+    throw new Error(
+      `[asset-picker-real] picker save must start exactly one request, observed ${requestCount}`,
     );
   }
 }

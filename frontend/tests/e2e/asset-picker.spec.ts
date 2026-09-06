@@ -11,10 +11,11 @@
  *   NEXT_PUBLIC_ENABLE_ASSET_PICKER=true npx playwright test --config playwright.config.ts tests/e2e/asset-picker.spec.ts
  */
 import { expect, test } from "@playwright/test";
-import type { APIRequestContext, APIResponse, Page, Response } from "@playwright/test";
+import type { APIRequestContext, APIResponse, Page, Request, Response } from "@playwright/test";
 import { e2eLoginCredentials } from "./helpers/e2e-credentials";
 import {
   assertExactPersistedHoldings,
+  assertExactlyOnePickerRequest,
   assertVersionAdvanced,
   chooseKnownDifferentHoldings,
   selectExactPortfolio,
@@ -25,7 +26,7 @@ import { FIXED_E2E_USER_ID } from "./helpers/portfolio-seed-version";
 
 const AUTH_STORAGE_KEY = "wmpt.auth.session";
 const DEFAULT_GATEWAY_URL = "http://localhost:8080";
-const PINNED_PICKER_QUANTITY = "31";
+const PINNED_PICKER_QUANTITY = "31.00000000";
 const CLEANUP_MAX_ATTEMPTS = 3;
 
 type E2eSession = {
@@ -125,10 +126,10 @@ function isPortfolioGet(response: Response): boolean {
   return response.request().method() === "GET" && new URL(response.url()).pathname === "/api/portfolio";
 }
 
-function isCompositionPut(response: Response): boolean {
+function isCompositionPutRequest(request: Request): boolean {
   return (
-    response.request().method() === "PUT" &&
-    new URL(response.url()).pathname === "/api/portfolio/holdings"
+    request.method() === "PUT" &&
+    new URL(request.url()).pathname === "/api/portfolio/holdings"
   );
 }
 
@@ -150,16 +151,31 @@ function captureBrowserPortfolioReads(page: Page): {
   return { reads, errors };
 }
 
-function capturePickerWrites(page: Page): Array<{ status: number; body: unknown }> {
-  const writes: Array<{ status: number; body: unknown }> = [];
-  page.on("response", (response) => {
-    if (!isCompositionPut(response)) return;
-    void response
-      .json()
-      .then((body) => writes.push({ status: response.status(), body }))
-      .catch(() => writes.push({ status: response.status(), body: undefined }));
+function capturePickerWrites(page: Page): {
+  requests: Request[];
+  responses: Map<Request, Response>;
+} {
+  const requests: Request[] = [];
+  const responses = new Map<Request, Response>();
+  // Request starts are synchronous. A retry whose response is delayed, failed, or
+  // still in flight therefore counts immediately and cannot evade the one-PUT oracle.
+  page.on("request", (request) => {
+    if (isCompositionPutRequest(request)) requests.push(request);
   });
-  return writes;
+  page.on("response", (response) => {
+    const request = response.request();
+    if (isCompositionPutRequest(request)) responses.set(request, response);
+  });
+  return { requests, responses };
+}
+
+async function assertInstalledBrowserSession(page: Page, session: E2eSession): Promise<void> {
+  const stored = await page.evaluate(
+    (key) => window.localStorage.getItem(key),
+    AUTH_STORAGE_KEY,
+  );
+  expect(stored, "the browser must receive this test's freshly authenticated session").toBeTruthy();
+  expect(JSON.parse(stored!)).toEqual(session);
 }
 
 async function restoreGoldenState(
@@ -202,8 +218,9 @@ test.describe("Asset Picker — real composition save (Tasks 9.2, 9.7)", () => {
   test.beforeEach(async ({ page, request }) => {
     session = await authenticateE2eSession(request);
     await page.addInitScript(
-      (value: E2eSession) => window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(value)),
-      session,
+      ({ key, value }: { key: string; value: E2eSession }) =>
+        window.localStorage.setItem(key, JSON.stringify(value)),
+      { key: AUTH_STORAGE_KEY, value: session },
     );
   });
 
@@ -222,6 +239,7 @@ test.describe("Asset Picker — real composition save (Tasks 9.2, 9.7)", () => {
     const pickerWrites = capturePickerWrites(page);
 
     await page.goto("/portfolio", { waitUntil: "domcontentloaded" });
+    await assertInstalledBrowserSession(page, session!);
     await expect(page.getByRole("heading", { name: "Portfolio" })).toBeVisible({ timeout: 30_000 });
     await expect(page.getByRole("button", { name: "Edit Holdings" })).toBeVisible();
     await expect.poll(() => browserReads.reads.length, { timeout: 15_000 }).toBeGreaterThan(0);
@@ -242,14 +260,20 @@ test.describe("Asset Picker — real composition save (Tasks 9.2, 9.7)", () => {
     await dialog.getByRole("button", { name: "Review changes" }).click();
     await dialog.getByRole("button", { name: "Save changes" }).click();
 
-    await expect.poll(() => pickerWrites.length, { timeout: 15_000 }).toBe(1);
-    const save = pickerWrites[0]!;
-    expect(save.status, "the one picker save must receive real HTTP 200").toBe(200);
-    const saveResponse = selectExactPortfolio([save.body], FIXED_E2E_USER_ID);
+    await expect.poll(() => pickerWrites.requests.length, { timeout: 15_000 }).toBe(1);
+    const pickerRequest = pickerWrites.requests[0]!;
+    await expect.poll(() => pickerWrites.responses.has(pickerRequest), { timeout: 15_000 }).toBe(true);
+    const saveResponseWire = pickerWrites.responses.get(pickerRequest)!;
+    expect(saveResponseWire.status(), "the one picker save must receive real HTTP 200").toBe(200);
+    const saveResponse = selectExactPortfolio([await saveResponseWire.json()], FIXED_E2E_USER_ID);
     assertVersionAdvanced("picker save", pickerOpened.version, saveResponse.version);
 
     const persistedAfterSave = await observePortfolio(request, session!);
     assertExactPersistedHoldings(persistedAfterSave.holdings, expectedDraft);
+    await expect(dialog).not.toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole("status")).toHaveText(/saved/i);
+    await page.waitForTimeout(1_000);
+    assertExactlyOnePickerRequest(pickerWrites.requests.length);
   });
 
   test("stale picker save receives one real 409 and freezes the visible draft without retrying", async ({
@@ -262,6 +286,7 @@ test.describe("Asset Picker — real composition save (Tasks 9.2, 9.7)", () => {
     const pickerWrites = capturePickerWrites(page);
 
     await page.goto("/portfolio", { waitUntil: "domcontentloaded" });
+    await assertInstalledBrowserSession(page, session!);
     await expect(page.getByRole("heading", { name: "Portfolio" })).toBeVisible({ timeout: 30_000 });
     await expect(page.getByRole("button", { name: "Edit Holdings" })).toBeVisible();
     await expect.poll(() => browserReads.reads.length, { timeout: 15_000 }).toBeGreaterThan(0);
@@ -277,8 +302,13 @@ test.describe("Asset Picker — real composition save (Tasks 9.2, 9.7)", () => {
 
     await dialog.getByRole("button", { name: "Review changes" }).click();
     await dialog.getByRole("button", { name: "Save changes" }).click();
-    await expect.poll(() => pickerWrites.length, { timeout: 15_000 }).toBe(1);
-    expect(pickerWrites[0]!.status, "the stale picker save must receive real HTTP 409").toBe(409);
+    await expect.poll(() => pickerWrites.requests.length, { timeout: 15_000 }).toBe(1);
+    const pickerRequest = pickerWrites.requests[0]!;
+    await expect.poll(() => pickerWrites.responses.has(pickerRequest), { timeout: 15_000 }).toBe(true);
+    expect(
+      pickerWrites.responses.get(pickerRequest)!.status(),
+      "the stale picker save must receive real HTTP 409",
+    ).toBe(409);
 
     await expect(dialog.getByText("Your portfolio changed elsewhere")).toBeVisible();
     const draftRegion = dialog.getByRole("region", { name: /your draft/i });
@@ -290,6 +320,6 @@ test.describe("Asset Picker — real composition save (Tasks 9.2, 9.7)", () => {
     await expect(dialog.getByRole("button", { name: "Review changes" })).toHaveCount(0);
 
     await page.waitForTimeout(1_000);
-    expect(pickerWrites).toHaveLength(1);
+    assertExactlyOnePickerRequest(pickerWrites.requests.length);
   });
 });

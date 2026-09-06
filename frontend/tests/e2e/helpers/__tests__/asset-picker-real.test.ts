@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   assertExactPersistedHoldings,
+  assertExactlyOnePickerRequest,
   assertVersionAdvanced,
   chooseKnownDifferentHoldings,
   selectExactPortfolio,
@@ -13,8 +14,8 @@ const portfolio = {
   userId: E2E_USER_ID,
   version: 7,
   holdings: [
-    { assetTicker: "AAPL", quantity: "10" },
-    { assetTicker: "BTC-USD", quantity: "2" },
+    { assetTicker: "AAPL", quantity: "10.00000000" },
+    { assetTicker: "BTC-USD", quantity: "2.00000000" },
   ],
 };
 
@@ -30,8 +31,8 @@ describe("real asset-picker E2E oracles", () => {
       userId: E2E_USER_ID,
       version: 7,
       holdings: [
-        { ticker: "AAPL", quantity: "10" },
-        { ticker: "BTC-USD", quantity: "2" },
+        { ticker: "AAPL", quantity: "10.00000000" },
+        { ticker: "BTC-USD", quantity: "2.00000000" },
       ],
     });
   });
@@ -51,17 +52,17 @@ describe("real asset-picker E2E oracles", () => {
 
   it("requires the persisted holding set to equal every ticker and quantity in the edited draft", () => {
     const expected = [
-      { ticker: "AAPL", quantity: "31" },
-      { ticker: "BTC-USD", quantity: "2" },
+      { ticker: "AAPL", quantity: "31.00000000" },
+      { ticker: "BTC-USD", quantity: "2.00000000" },
     ];
 
     expect(() => assertExactPersistedHoldings(expected, expected)).not.toThrow();
     expect(() =>
       assertExactPersistedHoldings(
         [
-          { ticker: "AAPL", quantity: "31" },
-          { ticker: "BTC-USD", quantity: "2" },
-          { ticker: "GOOGL", quantity: "1" },
+          { ticker: "AAPL", quantity: "31.00000000" },
+          { ticker: "BTC-USD", quantity: "2.00000000" },
+          { ticker: "GOOGL", quantity: "1.00000000" },
         ],
         expected,
       ),
@@ -69,8 +70,8 @@ describe("real asset-picker E2E oracles", () => {
     expect(() =>
       assertExactPersistedHoldings(
         [
-          { ticker: "AAPL", quantity: "30" },
-          { ticker: "BTC-USD", quantity: "2" },
+          { ticker: "AAPL", quantity: "30.00000000" },
+          { ticker: "BTC-USD", quantity: "2.00000000" },
         ],
         expected,
       ),
@@ -79,19 +80,23 @@ describe("real asset-picker E2E oracles", () => {
 
   it("chooses a valid deterministic setup that differs from the observed holding set", () => {
     const selected = chooseKnownDifferentHoldings([
-      { ticker: "AAPL", quantity: "17" },
-      { ticker: "BTC-USD", quantity: "2" },
+      { ticker: "AAPL", quantity: "17.00000000" },
+      { ticker: "BTC-USD", quantity: "2.00000000" },
     ]);
 
     expect(selected).not.toEqual([
-      { ticker: "AAPL", quantity: "17" },
-      { ticker: "BTC-USD", quantity: "2" },
+      { ticker: "AAPL", quantity: "17.00000000" },
+      { ticker: "BTC-USD", quantity: "2.00000000" },
     ]);
-    expect(selected).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ ticker: "AAPL" }),
-        expect.objectContaining({ ticker: "BTC-USD" }),
-      ]),
-    );
+    expect(selected).toEqual([
+      { ticker: "AAPL", quantity: "23.00000000" },
+      { ticker: "BTC-USD", quantity: "3.00000000" },
+    ]);
+  });
+
+  it("rejects zero or additional browser requests even when their responses are delayed or fail", () => {
+    expect(() => assertExactlyOnePickerRequest(0)).toThrow(/exactly one/);
+    expect(() => assertExactlyOnePickerRequest(1)).not.toThrow();
+    expect(() => assertExactlyOnePickerRequest(2)).toThrow(/exactly one/);
   });
 });
