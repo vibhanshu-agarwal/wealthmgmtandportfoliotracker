@@ -1881,7 +1881,7 @@ mechanism's actual runtime behavior does not).**
   **No dependency of its own — mergeable independently, like 5.1a; not gated on Wave 5, Wave 4, or
   the rest of Wave 8.**
   _Requirements: 7.3c; design.md D5 (round-24 amendment)_
-- [ ] **8.3 Eligibility-read self-call** — `WebClient` (non-blocking, GC.9), loopback target
+- [x] **8.3 Eligibility-read self-call** — `WebClient` (non-blocking, GC.9), loopback target
   `http://localhost:{port}/api/portfolio` (not the public CloudFront URL), **where `{port}` is
   resolved through a testable seam, not baked in as `${server.port}` at bean-construction time
   (round-18 correction: `${server.port}` resolves eagerly via normal property binding, but under
@@ -1921,9 +1921,9 @@ mechanism's actual runtime behavior does not).**
   `traceparent` on the triggering login request propagates onto this leg automatically; this is the
   mechanism Task 8.9's causal-correlation proof depends on.
   _Requirements: 7.3c, 7.4; design.md D5_
-- [ ] **8.4 Idle check** — reset eligible iff `updated_at` age exceeds the resolved threshold (8.2).
+- [x] **8.4 Idle check** — reset eligible iff `updated_at` age exceeds the resolved threshold (8.2).
   _Requirements: 7.4_
-- [ ] **8.5 Reset self-call** — `POST /api/internal/portfolio/demo-reset`, **target is the
+- [x] **8.5 Reset self-call** — `POST /api/internal/portfolio/demo-reset`, **target is the
   gateway's own loopback address (`http://localhost:{port}/api/internal/portfolio/demo-reset`,
   `{port}` resolved through 8.3's same call-time seam, round-18 — not a second, independently
   hardcoded `${server.port}` reference),
@@ -1953,7 +1953,7 @@ mechanism's actual runtime behavior does not).**
   per 8.2. **Built from the same auto-configured, observation-enabled `WebClient.Builder` as 8.3
   (round-14 addition)**, so trace context propagates onto this leg too.
   _Requirements: 7.3, 7.3c; design.md D5 (round-23 amendment)_
-- [ ] **8.6 Overall orchestration deadline** across both legs combined, per 8.2's resolved value.
+- [x] **8.6 Overall orchestration deadline** across both legs combined, per 8.2's resolved value.
   **The deadline, when it fires, cancels the in-progress orchestration chain — the downstream
   subscription is disposed (standard Reactor `timeout` operator semantics), so a leg whose call
   has not yet gone out when the deadline fires never dispatches afterward (round-30 self-audit
@@ -1981,7 +1981,7 @@ mechanism's actual runtime behavior does not).**
   it).** The seam is production-inert — the default binding is the same `System.nanoTime()` call
   the round-22 correction requires, and its wall-clock-immunity rationale is unchanged.
   _Requirements: design.md D5 (overall timeout)_
-- [ ] **8.7 Fail-open wrapper** (GC.8) — any outcome other than a clean success on either leg skips
+- [x] **8.7 Fail-open wrapper** (GC.8) — any outcome other than a clean success on either leg skips
   the reset and lets login proceed, un-logged as a user-facing error. **Also emits a structured,
   trace-correlated event on that catch path (round-18 addition — `event=demo_reset_self_call_skipped`,
   INFO level, plus the active trace id), mirroring 4.2's success-event pattern but for the failure
@@ -2266,7 +2266,7 @@ class, not by enumeration" through "operational signals only") deliberately keep
   this single, documented config change is what closes round-18's gap, not a second, narrower
   code-level mechanism competing with it.**
   _Requirements: 7.3c_
-- [ ] **8.7a Integration test — trace propagation through the login orchestration's *own* `WebClient`
+- [x] **8.7a Integration test — trace propagation through the login orchestration's *own* `WebClient`
   calls, not the gateway's route-level proxy client (round-15 addition: `HttpTraceContextPropagationIT`
   only proves Spring Cloud Gateway's built-in proxy forwards `traceparent` on its route-level
   forwarding to insight-service — it exercises no code this wave writes at all; citing it for 8.3/8.5's
@@ -2352,11 +2352,12 @@ class, not by enumeration" through "operational signals only") deliberately keep
   serving revision reproducible. The longer rationale currently embedded in Task 10.2 Step A is
   explanatory only; implementation and completion belong here, before any 8.9 serving proof.
 
-  **Source-foundation status (2026-09-06):** the offline workflow/helper source and structural tests
+  **Source-foundation status (2026-09-07):** the offline workflow/helper source and structural tests
   are locally complete and independently ACCEPT at coordinator commit `b59cf26` (24 snapshot + 14
-  allowlist + 10 prebuilt tests). The pinned actionlint installer/checksum is source-reviewed but was
-  not executed locally because no binary was available. This task remains unchecked: no workflow run,
-  Azure deployment, serving revision/digest read-back, or manifest comparison evidence exists yet.
+  allowlist + 10 prebuilt tests). Pinned actionlint v1.7.12 was also run locally with the required
+  checksum and shellcheck invocation, with no findings. The source foundation is complete, but this
+  deployment gate remains unchecked: no workflow run, Azure deployment, serving revision/digest
+  read-back, or manifest comparison evidence exists yet.
 
   **One Azure run order:** add workflow-level `concurrency` with the fixed group
   `wealth-production-azure-deploy` and `cancel-in-progress: false` in `deploy-azure.yml`. The reusable
