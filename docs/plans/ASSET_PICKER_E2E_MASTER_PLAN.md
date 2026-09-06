@@ -16,7 +16,7 @@ beginning of the module through `afterEach`, including cleanup and fixture regis
 LF/CRLF line endings are normalized; any other changes within that prefix, including comments
 or whitespace, require review and an explicit canonical update. This bounded contract does not
 parse TypeScript or cover the later test bodies. This source inventory update changes no
-production gate or historical caller policy.
+production runtime gate or historical caller policy.
 
 **OWNER APPROVAL RECORDED — R-C implementation publication, 2026-09-04:** the owner authorized
 the scoped commit, push and implementation PR of the reviewed 21-file local bundle. That

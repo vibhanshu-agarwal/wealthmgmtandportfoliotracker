@@ -101,6 +101,11 @@ PR #232's initial CI static-guard failure identified a legitimate fourth seed ca
 The failure skipped downstream jobs, including `docker-build-verify`, so GitHub did not run an
 assembled E2E. The three historical B1/G5 callers remain unchanged.
 
+PR #232 then exposed a 1/33 status-propagation check failure: the inventory preamble displaced
+the existing merge-stable runtime-baseline wording below the header's first 20 lines. The minimal
+header correction truthfully states that the inventory changes no production runtime gate; it does
+not claim an unmerged or documentation-only update.
+
 Commits `ab29adeb`, `aa9789d4`, and `7c2ffaec` added the exact-four governed inventory and then
 replaced the vulnerable brace heuristics with an exact LF-normalized module-prefix pin through
 `afterEach`. The focused guard suite passed 14/14 and its direct guard passed; Astra's final review
