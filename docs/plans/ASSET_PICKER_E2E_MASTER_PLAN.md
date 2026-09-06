@@ -214,6 +214,18 @@ B2 Wave 1 (Tasks 1.1-1.19) and Wave 2 Tasks 2.1-2.5 are merged source-only throu
 
 **User-visible state:** there is no functional Asset Picker in the application today.
 
+**Wave 9 reconciliation (PR #232):** the assembled-stack CI wiring is merged and final CI run
+[34018608256](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/34018608256)
+passed `docker-build-verify` and `ci-required`; body-edit guard run
+[34020180243](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/34020180243)
+also passed. Wave 9 remains not deployed and has no Production E2E claim.
+
+**Wave 8 Task 8.1 provenance:** source `6a171558`, including `updatedAt` and decimal-string
+serialization, is included in the tracked cu4 digest
+`sha256:2be727eaf4577699c783ae66073670d4984fe66c666af3e56422c934fdd0b023`, serving revision
+`0000094`. This is recorded provenance, not a fresh read-back; no duplicate 8.1 deployment is
+needed.
+
 **Handoff state:** Spec A 9.12 is **operationally complete**, and Spec A 9.13's scale restoration
 remains effective. B2 Task 4.5 is now **GO** on `portfolio-service--0000093` /
 `sha256:9a1d5533…`; the owner-authorized one-call probe returned a correct already-golden no-op with
