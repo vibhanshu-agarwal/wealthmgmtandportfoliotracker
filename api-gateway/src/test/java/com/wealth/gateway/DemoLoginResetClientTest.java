@@ -29,6 +29,7 @@ import reactor.netty.http.server.HttpServer;
 import tools.jackson.databind.ObjectMapper;
 import io.micrometer.observation.ObservationRegistry;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.beans.factory.support.StaticListableBeanFactory;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -39,6 +40,22 @@ class DemoLoginResetClientTest {
         ObservationRegistry registry = ObservationRegistry.create();
         WebClient.Builder builder = new DemoLoginResetConfiguration().demoLoginResetWebClientBuilder(registry);
         assertThat(ReflectionTestUtils.getField(builder, "observationRegistry")).isSameAs(registry);
+    }
+
+    @Test
+    void factoryUsesUtcFallbackWithoutPublishingAGlobalClock() {
+        StaticListableBeanFactory beans = new StaticListableBeanFactory();
+        DemoLoginResetClient client = factoryClient(beans);
+        assertThat(beans.getBeanNamesForType(Clock.class)).isEmpty();
+        assertThat(ReflectionTestUtils.getField(client, "clock")).isEqualTo(Clock.systemUTC());
+    }
+
+    @Test
+    void factoryUsesTheSingleContextClockRatherThanAlwaysUsingUtc() {
+        StaticListableBeanFactory beans = new StaticListableBeanFactory();
+        Clock fixed = Clock.fixed(Instant.parse("2026-09-06T00:00:00Z"), ZoneOffset.UTC);
+        beans.addBean("testClock", fixed);
+        assertThat(ReflectionTestUtils.getField(factoryClient(beans), "clock")).isSameAs(fixed);
     }
 
     @Test
@@ -292,6 +309,13 @@ class DemoLoginResetClientTest {
                 new DemoLoginResetProperties(Duration.ofMinutes(30), Duration.ofSeconds(2),
                         Duration.ofSeconds(2), Duration.ofSeconds(4)),
                 Clock.fixed(Instant.parse("2026-09-06T00:31:00Z"), ZoneOffset.UTC), new ObjectMapper());
+    }
+
+    private static DemoLoginResetClient factoryClient(StaticListableBeanFactory beans) {
+        return new DemoLoginResetConfiguration().demoLoginResetClient(WebClient.builder(), loopbackPort(18321),
+                new InternalApiKeyProvider("internal"), new CloudFrontOriginSecretProvider(""),
+                new DemoLoginResetProperties(Duration.ofMinutes(30), Duration.ofSeconds(2), Duration.ofSeconds(2), Duration.ofSeconds(4)),
+                beans.getBeanProvider(Clock.class), new ObjectMapper());
     }
 
     private static DemoLoginPortfolioObservation observation(long version) {
