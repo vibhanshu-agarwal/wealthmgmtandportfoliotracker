@@ -3946,14 +3946,16 @@ class, not by enumeration" through "operational signals only") deliberately keep
   review rounds — in
   `docs/superpowers/plans/2026-09-05-b2-task-9-1-catalog-integration-handoff.md`.
   _Requirements: 2.1_
-- [ ] **9.2 Wire Task 1.13's composition-save mutation to the real `PUT /api/portfolio/holdings`** —
+- [x] **9.2 Wire Task 1.13's composition-save mutation to the real `PUT /api/portfolio/holdings`** —
   transport only; the state machine (payload construction, 200/409 handling, first-time and
   empty-set cases, success transition) was already built and tested against a mock in 1.13,
   including the open-time strict-preflight invariant (Task 1.5/1.6) rather than any submit-time
   recheck (round-6 correction: a stale reference here still described the recheck Task 1.13 no
   longer performs).
-  **Blocked on B1 Wave 7** (`CompositionController` — the public endpoint does not exist before
-  B1 Wave 7, regardless of how complete B1 Wave 4's orchestrator is) **and** this document's Wave 1-2.
+  **Locally source/assembled-stack complete (2026-09-06).** The disposable Compose stack exercised
+  the real public endpoint; the production save transport was already wired, so no production source
+  change was required. This is local evidence only: B1 R-C deployment/convergence and production
+  exposure remain open.
   _Requirements: 4.1, 4.2_
 - [x] **9.3 Wire Task 1.10's price fetch** to the real `/api/market/prices?tickers=` for drafted
   tickers only. Local real-stack evidence on this branch: dedicated
@@ -3962,8 +3964,8 @@ class, not by enumeration" through "operational signals only") deliberately keep
   Golden-State + market-data seed (ordinary E2E login; no route fulfillment for
   `/api/market/prices`); Vitest coverage for draft-only fetch, encoding, unavailable/
   `priceUnavailable` (BrowseStep never fabricates `$0.00`), and failed-batch editability.
-  Source/local verification only — not deployed; remaining Wave 9 tasks and Production E2E stay
-  open.
+  Source/local verification only — not deployed; remaining Wave 9 deployment and Production E2E
+  gates stay open.
   _Requirements: 3.1_
 - [x] **9.4 Wire presence** to the real `GET /api/presence/demo` (Wave 3). Local real-stack
   evidence on this branch: dedicated `frontend/playwright.presence.real.config.ts` +
@@ -3997,8 +3999,9 @@ class, not by enumeration" through "operational signals only") deliberately keep
   Deterministic STALE/UNKNOWN/MISSING/mixed-count, omitted-timestamp, loading/failure, and
   no-client-derivation cases stay in Vitest; portfolio-service freshness valuation and Jackson
   boundary tests re-confirmed. Source path already worked on `main` — no production source defect
-  reproduced. Source/local verification only — not deployed; Task 9.2's real post-save round trip,
-  Wave 9 CI (Task 9.9), and Production E2E stay open.
+  reproduced. Merged via PR #231 at `main@b4c68253b99a796d6301ef79b5aa5a47d5cbd962`. Source/local
+  verification only — not deployed; Task 9.2's real post-save round trip is complete, Wave 9 CI is
+  wired locally but has not run in GitHub CI, and Production E2E stays open.
   _Requirements: 3.2, 3.3/3a, 3.4_
 - [x] **9.6 Demo-authenticated Playwright fixture — authored first, so 9.7/9.8 don't
   forward-reference each other (round-9 restructure, breaking a real cycle: round 8's version of
@@ -4014,7 +4017,8 @@ class, not by enumeration" through "operational signals only") deliberately keep
   (`PortfolioSeedController.java:23`), a different subject than `DemoResetAuthorizationFilter`
   accepts). This fixture has no dependency on any other task in this wave; 9.8 imports it.
   _Requirements: 7.3a_
-- [ ] **9.7 Author `tests/e2e/asset-picker.spec.ts`.** **Blocked on B1 Wave 7** (round-12 addition —
+- [x] **9.7 Author `tests/e2e/asset-picker.spec.ts`.** **Locally source/assembled-stack complete
+  (2026-09-06).** (round-12 addition —
   this task exercises the real `PUT /api/portfolio/holdings`, the same public endpoint 9.2 needs;
   stated explicitly rather than left implicit, matching how 9.2/9.8 already state it). **This gate
   transitively guarantees B1 task 6.1 (the version-required seed) has already shipped too — not a
@@ -4056,11 +4060,25 @@ class, not by enumeration" through "operational signals only") deliberately keep
     state; require `200`. A `409` here is retried to restore hygiene (bounded, e.g. three attempts,
     each beginning with another fresh observation) but SHALL still fail the test, never silently
     forgiven — the same discipline Task 9.8's cleanup already uses.
+  **Caller governance:** Task 9.7 adds the fourth exact site in
+  [`check-b1-seed-version-callers.py`](../../../scripts/check-b1-seed-version-callers.py).
+  Its bounded fresh-version cleanup retries are checked separately from the three historical
+  B1 Wave 5b/G5 callers; those callers and their marker/terminal-conflict contracts are unchanged.
+  No additional seed caller is permitted by this cleanup-specific inventory update. The guard
+  pins the exact reviewed module prefix through `afterEach`, allowing only LF/CRLF differences.
+  It does not parse TypeScript or cover later test bodies; any other prefix change (including
+  comments or whitespace) requires a reviewed canonical update.
+  **Completion evidence:** the disposable Compose real-browser run passed 5/5, including setup and
+  the real picker success and stale-version conflict cases. Exact collection reported 5 tests and
+  the mocked-picker configuration collected 2. The full 31s virtual retry-window observation passed;
+  focused independent picker/locator guards passed 14/14 (Terra's final focused slice: 17/17). This
+  does not claim GitHub CI, deployment, or Production E2E.
   _Requirements: 4.1, 4.2, 4.3, 4.4; design.md D1_
-- [ ] **9.8 Author `tests/e2e/demo-reset.spec.ts`, using Task 9.6's fixture.** **Blocked on B1 Wave 7
+- [x] **9.8 Author `tests/e2e/demo-reset.spec.ts`, using Task 9.6's fixture.** **Locally
+  source/assembled-stack complete (2026-09-06).**
   (round-9 addition — this task's own setup writes through the demo-authenticated composition
   `PUT`, the same public endpoint 9.2 needs, so B1 Wave 7 gates this task too, not "9.2
-  specifically" as an earlier draft implied).** Nothing else exercises the real public route or its
+  specifically" as an earlier draft implied). Nothing else exercises the real public route or its
   UI control together: Wave 4.5 probes the **internal** endpoint directly, bypassing the gateway
   entirely; Wave 5's Test 1 (5.4) runs against a **stubbed** portfolio-service; Wave 5.3a/4.4 are
   unit/integration-level but not through the gateway or the UI. **Its own first assertion confirms
@@ -4113,8 +4131,12 @@ class, not by enumeration" through "operational signals only") deliberately keep
     attempt beginning with another identity-checked re-observation, not a blind resubmission of the
     previous version; the test records and re-raises the unexpected conflict after cleanup
     completes.
+  **Completion evidence:** the same disposable Compose real-browser run passed 5/5, including setup
+  and the real demo-reset success and stale-version conflict cases. The initial assembled run exposed
+  an alert-locator oracle collision with Next's route announcer; Astra's TDD fix `5ac2eb13` scopes
+  every assertion to the conflict notice and adds its locator guard. This remains local evidence only.
   _Requirements: 7.3a, 7.3b; design.md D5_
-- [ ] **9.9 CI/CD wiring for the full-stack E2E workflow — job-level env, the correct active
+- [x] **9.9 CI/CD wiring for the full-stack E2E workflow — job-level env, the correct active
   workflow, authored last since it only needs the file names 9.7/9.8 already establish (round-9
   reordering of round-5/7's own fixes).** Two compounding errors an earlier draft of this task had:
   (1) it set the flags on a *build* step, but Playwright's own `webServer.command`
@@ -4141,6 +4163,10 @@ class, not by enumeration" through "operational signals only") deliberately keep
   Add a structural parity assertion that the two CI fixture literals equal the tracked Azure
   frontend demo literals and V15 identity; never fall back to untracked `frontend/.env.local` on a
   clean runner.
+  **Completion evidence:** the active `docker-build-verify` job now carries the four required
+  job-level values and invokes both specs; the focused structural guard passed 5/5. The workflow is
+  wired locally but has **not** run in GitHub CI. This change does not alter deploy workflows or
+  production flags.
   _Requirements: 1.1_
 
 ## Wave 10 — Production exposure gate · *Track 4, design.md D5 Stage 7*

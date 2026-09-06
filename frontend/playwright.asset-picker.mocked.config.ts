@@ -1,12 +1,11 @@
 import { defineConfig, devices } from "@playwright/test";
 import path from "node:path";
 
-// Dedicated mocked E2E config for B2's Asset Picker flows (Checkpoint 4, Task 4 in
-// the kickoff note). Deliberately separate from playwright.mocked.config.ts, not a
-// widened testMatch on it: this is the ONLY place NEXT_PUBLIC_ENABLE_ASSET_PICKER is
-// ever "true" for a build this repo produces, and that must never leak into the
-// shared mocked config's own build (which portfolio-deep-link.spec.ts depends on
-// staying default-disabled) or into any workflow/deployment environment.
+// Dedicated mocked E2E config for B2's preserved Wave-1 Asset Picker flows. It
+// deliberately collects only `asset-picker.mocked.spec.ts`; Task 9.7's required
+// `asset-picker.spec.ts` is a real gateway/backend proof and must never run here.
+// This remains separate from playwright.mocked.config.ts, so enabling the picker
+// cannot leak into that shared mocked build or into any workflow/deployment env.
 //
 //   npx playwright test --config playwright.asset-picker.mocked.config.ts
 //
@@ -18,7 +17,7 @@ const ciChannel = process.env.CI === "true" ? { channel: "chrome" as const } : {
 
 export default defineConfig({
   testDir: path.resolve(__dirname, "tests/e2e"),
-  testMatch: /asset-picker\.spec\.ts$/,
+  testMatch: /asset-picker\.mocked\.spec\.ts$/,
   timeout: 60_000,
   retries: 0,
   workers: 1,

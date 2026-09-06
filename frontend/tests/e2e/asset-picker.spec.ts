@@ -1,182 +1,333 @@
 /**
- * B2 Checkpoint 4 — one mocked-backed happy path and one conflict path through the
- * Asset Picker. Uses a local static export plus page/network mocks (no backend health
- * dependency) — run against `playwright.asset-picker.mocked.config.ts`, the one build
- * this repo produces with `NEXT_PUBLIC_ENABLE_ASSET_PICKER=true`.
+ * B2 Tasks 9.2 and 9.7 — real assembled-stack composition save proof.
  *
- *   npx playwright test --config playwright.asset-picker.mocked.config.ts
+ * This is intentionally collected by `playwright.config.ts` in the flag-on CI
+ * job. It makes no `page.route` calls: setup, picker saves, conflicts, and
+ * cleanup all traverse the real gateway/backend. The preserved mocked Wave-1
+ * coverage lives in `asset-picker.mocked.spec.ts` and is collected only by
+ * `playwright.asset-picker.mocked.config.ts`.
+ *
+ * Run only against the coordinator's disposable assembled stack:
+ *   NEXT_PUBLIC_ENABLE_ASSET_PICKER=true npx playwright test --config playwright.config.ts tests/e2e/asset-picker.spec.ts
  */
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test } from "@playwright/test";
+import type { APIRequestContext, APIResponse, Page, Request, Response } from "@playwright/test";
+import { e2eLoginCredentials } from "./helpers/e2e-credentials";
+import {
+  assertExactPersistedHoldings,
+  assertNoAutomaticPickerRetry,
+  assertVersionAdvanced,
+  chooseKnownDifferentHoldings,
+  selectExactPortfolio,
+  type CompositionHolding,
+  type ObservedPortfolio,
+} from "./helpers/asset-picker-real";
+import { FIXED_E2E_USER_ID } from "./helpers/portfolio-seed-version";
 
-const SESSION = {
-  token: "e2e-mocked-token",
-  userId: "user-001",
-  email: "dev@localhost.local",
-  name: "Dev User",
+const AUTH_STORAGE_KEY = "wmpt.auth.session";
+const DEFAULT_GATEWAY_URL = "http://localhost:8080";
+const PINNED_PICKER_QUANTITY = "31.00000000";
+const CLEANUP_MAX_ATTEMPTS = 3;
+
+type E2eSession = {
+  token: string;
+  userId: string;
+  email: string;
+  name: string;
 };
 
-const CATALOG = {
-  catalogVersion: "v1",
-  assets: [
-    { ticker: "AAPL", name: "Apple Inc.", aliases: ["Apple"], assetClass: "STOCK", quoteCurrency: "USD", lifecycleStatus: "ACTIVE" },
-    { ticker: "GOOGL", name: "Alphabet", aliases: ["Google"], assetClass: "STOCK", quoteCurrency: "USD", lifecycleStatus: "ACTIVE" },
-  ],
-};
-
-function json(body: unknown, status = 200) {
-  return { status, contentType: "application/json", body: JSON.stringify(body) };
+function gatewayUrl(): string {
+  return (process.env.NEXT_PUBLIC_API_BASE_URL ?? DEFAULT_GATEWAY_URL).replace(/\/+$/, "");
 }
 
-function portfolioBody(version: number) {
-  return [
-    {
-      id: "p1",
-      userId: "user-001",
-      createdAt: "2026-01-01T00:00:00Z",
-      version,
-      holdings: [{ id: "h1", assetTicker: "AAPL", quantity: "10" }],
-    },
-  ];
+function internalApiKey(): string {
+  const key = process.env.INTERNAL_API_KEY ?? process.env.TF_VAR_internal_api_key;
+  if (!key?.trim()) {
+    throw new Error("[asset-picker-real] INTERNAL_API_KEY is required for unconditional E2E cleanup");
+  }
+  return key;
 }
 
-function summaryBody() {
-  return {
-    userId: "user-001",
-    portfolioCount: 1,
-    totalHoldings: 1,
-    totalValue: 1000,
-    assetPriceFreshness: {
-      state: "FRESH",
-      staleHoldings: 0,
-      unknownPriceHoldings: 0,
-      missingPriceHoldings: 0,
-    },
-  };
+function bearer(token: string): Record<string, string> {
+  return { Authorization: `Bearer ${token}` };
 }
 
-function analyticsBody() {
-  return {
-    totalValue: 1000,
-    totalCostBasis: 1000,
-    totalUnrealizedPnL: null,
-    totalUnrealizedPnLPercent: null,
-    baseCurrency: "USD",
-    partialValuation: false,
-    bestPerformer: { ticker: "AAPL", change24hPercent: null },
-    worstPerformer: { ticker: "AAPL", change24hPercent: null },
-    holdings: [],
-    performanceSeries: [],
-    performanceCoverage: { holdingsWithHistory: 0, totalHoldings: 0, partial: false, synthetic: false },
-  };
+async function authenticateE2eSession(request: APIRequestContext): Promise<E2eSession> {
+  const response = await request.post(`${gatewayUrl()}/api/auth/login`, {
+    data: e2eLoginCredentials(),
+  });
+  expect(response.status(), "ordinary E2E login must succeed before any composition write").toBe(200);
+  const body = (await response.json()) as Partial<E2eSession>;
+  if (
+    typeof body.token !== "string" ||
+    typeof body.userId !== "string" ||
+    typeof body.email !== "string" ||
+    typeof body.name !== "string"
+  ) {
+    throw new Error("[asset-picker-real] ordinary E2E login returned an incomplete session");
+  }
+  if (body.userId !== FIXED_E2E_USER_ID) {
+    throw new Error(
+      `[asset-picker-real] ordinary E2E login resolved ${body.userId}, not ${FIXED_E2E_USER_ID}`,
+    );
+  }
+  return body as E2eSession;
 }
 
-async function mockReadOnlyEndpoints(page: Page, portfolioVersion: number) {
-  await page.route("**/api/portfolio", (route) => route.fulfill(json(portfolioBody(portfolioVersion))));
-  await page.route("**/api/portfolio/summary**", (route) => route.fulfill(json(summaryBody())));
-  await page.route("**/api/portfolio/analytics", (route) => route.fulfill(json(analyticsBody())));
-  await page.route("**/api/market/prices**", (route) => route.fulfill(json([])));
-  await page.route("**/api/assets", (route) => route.fulfill(json(CATALOG)));
-  await page.route("**/api/presence/demo", (route) =>
-    route.fulfill(json({ anotherSessionActive: false })),
+async function observePortfolio(
+  request: APIRequestContext,
+  session: E2eSession,
+): Promise<ObservedPortfolio> {
+  const response = await request.get(`${gatewayUrl()}/api/portfolio`, { headers: bearer(session.token) });
+  expect(response.status(), "identity-checked GET /api/portfolio must succeed").toBe(200);
+  return selectExactPortfolio(await response.json(), FIXED_E2E_USER_ID);
+}
+
+async function putComposition(
+  request: APIRequestContext,
+  session: E2eSession,
+  expectedVersion: number,
+  holdings: readonly CompositionHolding[],
+): Promise<APIResponse> {
+  return request.put(`${gatewayUrl()}/api/portfolio/holdings`, {
+    headers: { ...bearer(session.token), "Content-Type": "application/json" },
+    data: { expectedVersion, holdings },
+  });
+}
+
+async function writeKnownDifferentComposition(
+  request: APIRequestContext,
+  session: E2eSession,
+  observed: ObservedPortfolio,
+): Promise<ObservedPortfolio> {
+  const holdings = chooseKnownDifferentHoldings(observed.holdings);
+  const response = await putComposition(request, session, observed.version, holdings);
+  expect(response.status(), "direct deterministic setup write must return 200").toBe(200);
+  const persisted = selectExactPortfolio([await response.json()], FIXED_E2E_USER_ID);
+  assertVersionAdvanced("direct deterministic setup", observed.version, persisted.version);
+  assertExactPersistedHoldings(persisted.holdings, holdings);
+  return persisted;
+}
+
+function withPinnedPickerEdit(holdings: readonly CompositionHolding[]): CompositionHolding[] {
+  let changed = false;
+  const edited = holdings.map((holding) => {
+    if (holding.ticker !== "AAPL") return { ...holding };
+    changed = true;
+    return { ticker: "AAPL", quantity: PINNED_PICKER_QUANTITY };
+  });
+  if (!changed) {
+    throw new Error("[asset-picker-real] deterministic setup must provide AAPL for the pinned picker edit");
+  }
+  return edited;
+}
+
+function isPortfolioGet(response: Response): boolean {
+  return response.request().method() === "GET" && new URL(response.url()).pathname === "/api/portfolio";
+}
+
+function isCompositionPutRequest(request: Request): boolean {
+  return (
+    request.method() === "PUT" &&
+    new URL(request.url()).pathname === "/api/portfolio/holdings"
   );
 }
 
-test.describe("Asset Picker — mocked flows", () => {
-  test.beforeEach(async ({ page }) => {
-    await page.addInitScript((session) => {
-      window.localStorage.setItem("wmpt.auth.session", JSON.stringify(session));
-    }, SESSION);
-  });
-
-  test("happy path: browse, add a ticker, review, save", async ({ page }) => {
-    await mockReadOnlyEndpoints(page, 7);
-    let putBody: unknown = null;
-    await page.route("**/api/portfolio/holdings", (route) => {
-      putBody = route.request().postDataJSON();
-      return route.fulfill(
-        json({
-          id: "p1",
-          userId: "user-001",
-          createdAt: "2026-01-01T00:00:00Z",
-          version: 8,
-          holdings: [
-            { id: "h1", assetTicker: "AAPL", quantity: "10" },
-            { id: "h2", assetTicker: "GOOGL", quantity: "3" },
-          ],
-        }),
+function captureBrowserPortfolioReads(page: Page): {
+  reads: ObservedPortfolio[];
+  errors: Error[];
+} {
+  const reads: ObservedPortfolio[] = [];
+  const errors: Error[] = [];
+  page.on("response", (response) => {
+    if (!isPortfolioGet(response)) return;
+    void response
+      .json()
+      .then((payload) => reads.push(selectExactPortfolio(payload, FIXED_E2E_USER_ID)))
+      .catch((error: unknown) =>
+        errors.push(error instanceof Error ? error : new Error(String(error))),
       );
+  });
+  return { reads, errors };
+}
+
+function capturePickerWrites(page: Page): {
+  requests: Request[];
+  responses: Map<Request, Response>;
+} {
+  const requests: Request[] = [];
+  const responses = new Map<Request, Response>();
+  // Request starts are synchronous. A retry whose response is delayed, failed, or
+  // still in flight therefore counts immediately and cannot evade the one-PUT oracle.
+  page.on("request", (request) => {
+    if (isCompositionPutRequest(request)) requests.push(request);
+  });
+  page.on("response", (response) => {
+    const request = response.request();
+    if (isCompositionPutRequest(request)) responses.set(request, response);
+  });
+  return { requests, responses };
+}
+
+async function assertInstalledBrowserSession(page: Page, session: E2eSession): Promise<void> {
+  const stored = await page.evaluate(
+    (key) => window.localStorage.getItem(key),
+    AUTH_STORAGE_KEY,
+  );
+  expect(stored, "the browser must receive this test's freshly authenticated session").toBeTruthy();
+  expect(JSON.parse(stored!)).toEqual(session);
+}
+
+async function restoreGoldenState(
+  request: APIRequestContext,
+  session: E2eSession,
+): Promise<void> {
+  let observedConflict = false;
+  for (let attempt = 1; attempt <= CLEANUP_MAX_ATTEMPTS; attempt += 1) {
+    // Every attempt deliberately re-observes the identity-matched, current version.
+    const observed = await observePortfolio(request, session);
+    const response = await request.post(`${gatewayUrl()}/api/internal/portfolio/seed`, {
+      headers: { "Content-Type": "application/json", "X-Internal-Api-Key": internalApiKey() },
+      data: { expectedVersion: observed.version },
     });
 
-    await page.goto("/portfolio", { waitUntil: "domcontentloaded" });
-    await expect(page.getByRole("heading", { name: "Portfolio" })).toBeVisible({ timeout: 15_000 });
-
-    await page.getByRole("button", { name: "Edit Holdings" }).click();
-    const dialog = page.getByRole("dialog", { name: "Edit Holdings" });
-    await expect(dialog).toBeVisible();
-
-    // AAPL is already checked (GC.1 — the draft opens fully seeded).
-    await expect(dialog.getByRole("checkbox", { name: "Select AAPL" })).toHaveAttribute(
-      "aria-checked",
-      "true",
+    if (response.status() === 200) {
+      if (observedConflict) {
+        throw new Error(
+          "[asset-picker-real] cleanup restored Golden State after an observed 409; the conflict still fails the test",
+        );
+      }
+      return;
+    }
+    if (response.status() === 409) {
+      observedConflict = true;
+      continue;
+    }
+    throw new Error(
+      `[asset-picker-real] version-bearing cleanup seed returned HTTP ${response.status()} on attempt ${attempt}`,
     );
+  }
+  throw new Error(
+    `[asset-picker-real] version-bearing cleanup seed returned HTTP 409 on all ${CLEANUP_MAX_ATTEMPTS} attempts`,
+  );
+}
 
-    // Add GOOGL and give it a quantity.
-    await dialog.getByRole("checkbox", { name: "Select GOOGL" }).click();
-    await dialog.getByRole("textbox", { name: "GOOGL quantity" }).fill("3");
+test.describe("Asset Picker — real composition save (Tasks 9.2, 9.7)", () => {
+  let session: E2eSession | undefined;
 
-    await dialog.getByRole("button", { name: /review changes/i }).click();
-    await expect(dialog.getByText(/added.*1/i)).toBeVisible();
-    await expect(dialog.getByText("GOOGL")).toBeVisible();
-
-    await dialog.getByRole("button", { name: /save changes/i }).click();
-
-    // Success: modal closes, and the button-area announces the save.
-    await expect(dialog).not.toBeVisible({ timeout: 10_000 });
-    await expect(page.getByRole("status")).toHaveText(/saved/i);
-
-    expect(putBody).toEqual({
-      expectedVersion: 7,
-      holdings: [
-        { ticker: "AAPL", quantity: "10" },
-        { ticker: "GOOGL", quantity: "3" },
-      ],
-    });
+  test.beforeEach(async ({ page, request }) => {
+    session = await authenticateE2eSession(request);
+    // Install before app timers are created; leave them running for UI reconciliation.
+    await page.clock.install();
+    await page.addInitScript(
+      ({ key, value }: { key: string; value: E2eSession }) =>
+        window.localStorage.setItem(key, JSON.stringify(value)),
+      { key: AUTH_STORAGE_KEY, value: session },
+    );
   });
 
-  test("conflict path: 409 freezes the draft; reload-and-start-over recovers", async ({ page }) => {
-    await mockReadOnlyEndpoints(page, 7);
-    await page.route("**/api/portfolio/holdings", (route) =>
-      route.fulfill(
-        json(
-          {
-            error: "portfolio_version_conflict",
-            message: "Someone else saved a different version.",
-            currentVersion: 9,
-          },
-          409,
-        ),
-      ),
-    );
+  test.afterEach(async ({ request }) => {
+    // Unconditional hygiene: runs after both a passing and a failing case.
+    await restoreGoldenState(request, session ?? (await authenticateE2eSession(request)));
+  });
+
+  test("picker save sends one real PUT, strictly advances its loaded version, and persists the full edited draft", async ({
+    page,
+    request,
+  }) => {
+    const beforeSetup = await observePortfolio(request, session!);
+    const setup = await writeKnownDifferentComposition(request, session!, beforeSetup);
+    const browserReads = captureBrowserPortfolioReads(page);
+    const pickerWrites = capturePickerWrites(page);
 
     await page.goto("/portfolio", { waitUntil: "domcontentloaded" });
+    await assertInstalledBrowserSession(page, session!);
+    await expect(page.getByRole("heading", { name: "Portfolio" })).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole("button", { name: "Edit Holdings" })).toBeVisible();
+    await expect.poll(() => browserReads.reads.length, { timeout: 15_000 }).toBeGreaterThan(0);
+    if (browserReads.errors.length > 0) throw browserReads.errors[0]!;
+    const pickerOpened = browserReads.reads.at(-1)!;
+    expect(pickerOpened.version).toBe(setup.version);
+    assertExactPersistedHoldings(pickerOpened.holdings, setup.holdings);
+
     await page.getByRole("button", { name: "Edit Holdings" }).click();
     const dialog = page.getByRole("dialog", { name: "Edit Holdings" });
-    await expect(dialog).toBeVisible();
+    const aaplQuantity = dialog.getByRole("textbox", { name: "AAPL quantity" });
+    await expect(aaplQuantity).toHaveValue(
+      pickerOpened.holdings.find((holding) => holding.ticker === "AAPL")!.quantity,
+    );
+    await aaplQuantity.fill(PINNED_PICKER_QUANTITY);
+    const expectedDraft = withPinnedPickerEdit(pickerOpened.holdings);
 
-    await dialog.getByRole("button", { name: /review changes/i }).click();
-    await dialog.getByRole("button", { name: /save changes/i }).click();
+    await dialog.getByRole("button", { name: "Review changes" }).click();
+    await dialog.getByRole("button", { name: "Save changes" }).click();
 
-    // GC.4: frozen conflict state — the draft stays visible, read-only.
-    await expect(dialog.getByText(/someone else saved a different version/i)).toBeVisible();
-    const region = dialog.getByRole("region", { name: /draft/i });
-    await expect(region).toBeVisible();
-    await expect(region).toContainText("AAPL");
+    await expect.poll(() => pickerWrites.requests.length, { timeout: 15_000 }).toBe(1);
+    const pickerRequest = pickerWrites.requests[0]!;
+    await expect.poll(() => pickerWrites.responses.has(pickerRequest), { timeout: 15_000 }).toBe(true);
+    const saveResponseWire = pickerWrites.responses.get(pickerRequest)!;
+    expect(saveResponseWire.status(), "the one picker save must receive real HTTP 200").toBe(200);
+    const saveResponse = selectExactPortfolio([await saveResponseWire.json()], FIXED_E2E_USER_ID);
+    assertVersionAdvanced("picker save", pickerOpened.version, saveResponse.version);
+
+    const persistedAfterSave = await observePortfolio(request, session!);
+    assertExactPersistedHoldings(persistedAfterSave.holdings, expectedDraft);
+    await expect(dialog).not.toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole("status")).toHaveText(/saved/i);
+    await assertNoAutomaticPickerRetry(
+      page.clock,
+      await page.evaluate(() => Date.now()),
+      () => pickerWrites.requests.length,
+    );
+  });
+
+  test("stale picker save receives one real 409 and freezes the visible draft without retrying", async ({
+    page,
+    request,
+  }) => {
+    const beforeSetup = await observePortfolio(request, session!);
+    await writeKnownDifferentComposition(request, session!, beforeSetup);
+    const browserReads = captureBrowserPortfolioReads(page);
+    const pickerWrites = capturePickerWrites(page);
+
+    await page.goto("/portfolio", { waitUntil: "domcontentloaded" });
+    await assertInstalledBrowserSession(page, session!);
+    await expect(page.getByRole("heading", { name: "Portfolio" })).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole("button", { name: "Edit Holdings" })).toBeVisible();
+    await expect.poll(() => browserReads.reads.length, { timeout: 15_000 }).toBeGreaterThan(0);
+    if (browserReads.errors.length > 0) throw browserReads.errors[0]!;
+    const pickerOpened = browserReads.reads.at(-1)!;
+
+    await page.getByRole("button", { name: "Edit Holdings" }).click();
+    const dialog = page.getByRole("dialog", { name: "Edit Holdings" });
+    await dialog.getByRole("textbox", { name: "AAPL quantity" }).fill(PINNED_PICKER_QUANTITY);
+
+    const independentWrite = await writeKnownDifferentComposition(request, session!, pickerOpened);
+    assertVersionAdvanced("independent stale-version writer", pickerOpened.version, independentWrite.version);
+
+    await dialog.getByRole("button", { name: "Review changes" }).click();
+    await dialog.getByRole("button", { name: "Save changes" }).click();
+    await expect.poll(() => pickerWrites.requests.length, { timeout: 15_000 }).toBe(1);
+    const pickerRequest = pickerWrites.requests[0]!;
+    await expect.poll(() => pickerWrites.responses.has(pickerRequest), { timeout: 15_000 }).toBe(true);
+    expect(
+      pickerWrites.responses.get(pickerRequest)!.status(),
+      "the stale picker save must receive real HTTP 409",
+    ).toBe(409);
+
+    await expect(dialog.getByText("Your portfolio changed elsewhere")).toBeVisible();
+    const draftRegion = dialog.getByRole("region", { name: /your draft/i });
+    await expect(draftRegion).toContainText("AAPL");
+    await expect(draftRegion).toContainText(PINNED_PICKER_QUANTITY);
     await expect(dialog.getByRole("checkbox")).toHaveCount(0);
+    await expect(dialog.getByRole("textbox")).toHaveCount(0);
+    await expect(dialog.getByRole("button", { name: "Save changes" })).toHaveCount(0);
+    await expect(dialog.getByRole("button", { name: "Review changes" })).toHaveCount(0);
 
-    // The next open re-reads the portfolio at its now-current version.
-    await mockReadOnlyEndpoints(page, 9);
-
-    await dialog.getByRole("button", { name: /reload latest.*start over/i }).click();
-    await expect(dialog).not.toBeVisible({ timeout: 10_000 });
+    await assertNoAutomaticPickerRetry(
+      page.clock,
+      await page.evaluate(() => Date.now()),
+      () => pickerWrites.requests.length,
+    );
   });
 });

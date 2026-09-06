@@ -33,6 +33,11 @@ export default defineConfig({
     {
       name: "chromium",
       testIgnore: [
+        // Preserved Wave-1 mock coverage has its own static-export configuration.
+        // Task 9.7's real asset-picker.spec.ts remains collected here when CI sets
+        // NEXT_PUBLIC_ENABLE_ASSET_PICKER=true; never run its mocked sibling against
+        // the assembled gateway/backend stack.
+        /asset-picker\.mocked\.spec\.ts$/,
         /dashboard-smoke\.spec\.ts$/,
         /aws-synthetic\/.*/,
         /azure-synthetic\/.*/,

@@ -1,5 +1,10 @@
 ﻿#!/usr/bin/env python3
-"""Exact inventory guard for B1 Wave 5b version-aware seed callers."""
+"""Exact inventory: three historical B1 Wave 5b callers plus B2 Task 9.7 cleanup.
+
+The three G5 callers retain their frozen-version/terminal-conflict contracts.
+Only the governed picker cleanup may retry 409 for hygiene, with a fresh fixed-E2E
+observation on every bounded attempt and an eventual failure even after recovery.
+"""
 
 from __future__ import annotations
 
@@ -14,6 +19,7 @@ SYNTHETIC_WF = REPO / ".github/workflows/synthetic-monitoring.yml"
 DEPLOY_AZURE_WF = REPO / ".github/workflows/deploy-azure.yml"
 GLOBAL_SETUP = REPO / "frontend/tests/e2e/global-setup.ts"
 API_SMOKE = REPO / "frontend/tests/e2e/azure-synthetic/api-live-smoke.spec.ts"
+ASSET_PICKER = REPO / "frontend/tests/e2e/asset-picker.spec.ts"
 
 SEED_PATH_RE = re.compile(r"/api/internal/portfolio/seed")
 EXPECTED_VERSION_RE = re.compile(r"expectedVersion")
@@ -145,6 +151,326 @@ def check_api_smoke(text: str | None = None) -> str:
     return "azure-api-smoke (frontend/tests/e2e/azure-synthetic/api-live-smoke.spec.ts)"
 
 
+def _picker_function(body: str, name: str) -> str:
+    # This source guard recognizes the checked-in top-level function shape. Scope
+    # checks to cleanup and its identity read: the picker save's own 200/409 must
+    # never satisfy an internal-seed policy check elsewhere in the same file.
+    match = re.search(rf"^async function {name}\(.*?^\}}", body, re.M | re.S)
+    if match is None:
+        raise GuardError(f"asset-picker-cleanup: missing function {name}")
+    return match.group()
+
+
+def _require_picker(body: str, pattern: str, policy: str) -> None:
+    if re.search(pattern, body, re.S) is None:
+        raise GuardError(f"asset-picker-cleanup: {policy}")
+
+
+# Fail-closed source contract from the beginning of the module through afterEach.
+# There is intentionally no TypeScript lexer or delimiter interpretation here:
+# unknown syntax, wrappers, comments, and whitespace changes all require review.
+# Only LF/CRLF differences are normalized. The test case bodies remain outside
+# this bounded contract. Update this literal only after reviewing the full prefix.
+PICKER_GOVERNED_PREFIX = r'''/**
+ * B2 Tasks 9.2 and 9.7 — real assembled-stack composition save proof.
+ *
+ * This is intentionally collected by `playwright.config.ts` in the flag-on CI
+ * job. It makes no `page.route` calls: setup, picker saves, conflicts, and
+ * cleanup all traverse the real gateway/backend. The preserved mocked Wave-1
+ * coverage lives in `asset-picker.mocked.spec.ts` and is collected only by
+ * `playwright.asset-picker.mocked.config.ts`.
+ *
+ * Run only against the coordinator's disposable assembled stack:
+ *   NEXT_PUBLIC_ENABLE_ASSET_PICKER=true npx playwright test --config playwright.config.ts tests/e2e/asset-picker.spec.ts
+ */
+import { expect, test } from "@playwright/test";
+import type { APIRequestContext, APIResponse, Page, Request, Response } from "@playwright/test";
+import { e2eLoginCredentials } from "./helpers/e2e-credentials";
+import {
+  assertExactPersistedHoldings,
+  assertNoAutomaticPickerRetry,
+  assertVersionAdvanced,
+  chooseKnownDifferentHoldings,
+  selectExactPortfolio,
+  type CompositionHolding,
+  type ObservedPortfolio,
+} from "./helpers/asset-picker-real";
+import { FIXED_E2E_USER_ID } from "./helpers/portfolio-seed-version";
+
+const AUTH_STORAGE_KEY = "wmpt.auth.session";
+const DEFAULT_GATEWAY_URL = "http://localhost:8080";
+const PINNED_PICKER_QUANTITY = "31.00000000";
+const CLEANUP_MAX_ATTEMPTS = 3;
+
+type E2eSession = {
+  token: string;
+  userId: string;
+  email: string;
+  name: string;
+};
+
+function gatewayUrl(): string {
+  return (process.env.NEXT_PUBLIC_API_BASE_URL ?? DEFAULT_GATEWAY_URL).replace(/\/+$/, "");
+}
+
+function internalApiKey(): string {
+  const key = process.env.INTERNAL_API_KEY ?? process.env.TF_VAR_internal_api_key;
+  if (!key?.trim()) {
+    throw new Error("[asset-picker-real] INTERNAL_API_KEY is required for unconditional E2E cleanup");
+  }
+  return key;
+}
+
+function bearer(token: string): Record<string, string> {
+  return { Authorization: `Bearer ${token}` };
+}
+
+async function authenticateE2eSession(request: APIRequestContext): Promise<E2eSession> {
+  const response = await request.post(`${gatewayUrl()}/api/auth/login`, {
+    data: e2eLoginCredentials(),
+  });
+  expect(response.status(), "ordinary E2E login must succeed before any composition write").toBe(200);
+  const body = (await response.json()) as Partial<E2eSession>;
+  if (
+    typeof body.token !== "string" ||
+    typeof body.userId !== "string" ||
+    typeof body.email !== "string" ||
+    typeof body.name !== "string"
+  ) {
+    throw new Error("[asset-picker-real] ordinary E2E login returned an incomplete session");
+  }
+  if (body.userId !== FIXED_E2E_USER_ID) {
+    throw new Error(
+      `[asset-picker-real] ordinary E2E login resolved ${body.userId}, not ${FIXED_E2E_USER_ID}`,
+    );
+  }
+  return body as E2eSession;
+}
+
+async function observePortfolio(
+  request: APIRequestContext,
+  session: E2eSession,
+): Promise<ObservedPortfolio> {
+  const response = await request.get(`${gatewayUrl()}/api/portfolio`, { headers: bearer(session.token) });
+  expect(response.status(), "identity-checked GET /api/portfolio must succeed").toBe(200);
+  return selectExactPortfolio(await response.json(), FIXED_E2E_USER_ID);
+}
+
+async function putComposition(
+  request: APIRequestContext,
+  session: E2eSession,
+  expectedVersion: number,
+  holdings: readonly CompositionHolding[],
+): Promise<APIResponse> {
+  return request.put(`${gatewayUrl()}/api/portfolio/holdings`, {
+    headers: { ...bearer(session.token), "Content-Type": "application/json" },
+    data: { expectedVersion, holdings },
+  });
+}
+
+async function writeKnownDifferentComposition(
+  request: APIRequestContext,
+  session: E2eSession,
+  observed: ObservedPortfolio,
+): Promise<ObservedPortfolio> {
+  const holdings = chooseKnownDifferentHoldings(observed.holdings);
+  const response = await putComposition(request, session, observed.version, holdings);
+  expect(response.status(), "direct deterministic setup write must return 200").toBe(200);
+  const persisted = selectExactPortfolio([await response.json()], FIXED_E2E_USER_ID);
+  assertVersionAdvanced("direct deterministic setup", observed.version, persisted.version);
+  assertExactPersistedHoldings(persisted.holdings, holdings);
+  return persisted;
+}
+
+function withPinnedPickerEdit(holdings: readonly CompositionHolding[]): CompositionHolding[] {
+  let changed = false;
+  const edited = holdings.map((holding) => {
+    if (holding.ticker !== "AAPL") return { ...holding };
+    changed = true;
+    return { ticker: "AAPL", quantity: PINNED_PICKER_QUANTITY };
+  });
+  if (!changed) {
+    throw new Error("[asset-picker-real] deterministic setup must provide AAPL for the pinned picker edit");
+  }
+  return edited;
+}
+
+function isPortfolioGet(response: Response): boolean {
+  return response.request().method() === "GET" && new URL(response.url()).pathname === "/api/portfolio";
+}
+
+function isCompositionPutRequest(request: Request): boolean {
+  return (
+    request.method() === "PUT" &&
+    new URL(request.url()).pathname === "/api/portfolio/holdings"
+  );
+}
+
+function captureBrowserPortfolioReads(page: Page): {
+  reads: ObservedPortfolio[];
+  errors: Error[];
+} {
+  const reads: ObservedPortfolio[] = [];
+  const errors: Error[] = [];
+  page.on("response", (response) => {
+    if (!isPortfolioGet(response)) return;
+    void response
+      .json()
+      .then((payload) => reads.push(selectExactPortfolio(payload, FIXED_E2E_USER_ID)))
+      .catch((error: unknown) =>
+        errors.push(error instanceof Error ? error : new Error(String(error))),
+      );
+  });
+  return { reads, errors };
+}
+
+function capturePickerWrites(page: Page): {
+  requests: Request[];
+  responses: Map<Request, Response>;
+} {
+  const requests: Request[] = [];
+  const responses = new Map<Request, Response>();
+  // Request starts are synchronous. A retry whose response is delayed, failed, or
+  // still in flight therefore counts immediately and cannot evade the one-PUT oracle.
+  page.on("request", (request) => {
+    if (isCompositionPutRequest(request)) requests.push(request);
+  });
+  page.on("response", (response) => {
+    const request = response.request();
+    if (isCompositionPutRequest(request)) responses.set(request, response);
+  });
+  return { requests, responses };
+}
+
+async function assertInstalledBrowserSession(page: Page, session: E2eSession): Promise<void> {
+  const stored = await page.evaluate(
+    (key) => window.localStorage.getItem(key),
+    AUTH_STORAGE_KEY,
+  );
+  expect(stored, "the browser must receive this test's freshly authenticated session").toBeTruthy();
+  expect(JSON.parse(stored!)).toEqual(session);
+}
+
+async function restoreGoldenState(
+  request: APIRequestContext,
+  session: E2eSession,
+): Promise<void> {
+  let observedConflict = false;
+  for (let attempt = 1; attempt <= CLEANUP_MAX_ATTEMPTS; attempt += 1) {
+    // Every attempt deliberately re-observes the identity-matched, current version.
+    const observed = await observePortfolio(request, session);
+    const response = await request.post(`${gatewayUrl()}/api/internal/portfolio/seed`, {
+      headers: { "Content-Type": "application/json", "X-Internal-Api-Key": internalApiKey() },
+      data: { expectedVersion: observed.version },
+    });
+
+    if (response.status() === 200) {
+      if (observedConflict) {
+        throw new Error(
+          "[asset-picker-real] cleanup restored Golden State after an observed 409; the conflict still fails the test",
+        );
+      }
+      return;
+    }
+    if (response.status() === 409) {
+      observedConflict = true;
+      continue;
+    }
+    throw new Error(
+      `[asset-picker-real] version-bearing cleanup seed returned HTTP ${response.status()} on attempt ${attempt}`,
+    );
+  }
+  throw new Error(
+    `[asset-picker-real] version-bearing cleanup seed returned HTTP 409 on all ${CLEANUP_MAX_ATTEMPTS} attempts`,
+  );
+}
+
+test.describe("Asset Picker — real composition save (Tasks 9.2, 9.7)", () => {
+  let session: E2eSession | undefined;
+
+  test.beforeEach(async ({ page, request }) => {
+    session = await authenticateE2eSession(request);
+    // Install before app timers are created; leave them running for UI reconciliation.
+    await page.clock.install();
+    await page.addInitScript(
+      ({ key, value }: { key: string; value: E2eSession }) =>
+        window.localStorage.setItem(key, JSON.stringify(value)),
+      { key: AUTH_STORAGE_KEY, value: session },
+    );
+  });
+
+  test.afterEach(async ({ request }) => {
+    // Unconditional hygiene: runs after both a passing and a failing case.
+    await restoreGoldenState(request, session ?? (await authenticateE2eSession(request)));
+  });
+'''
+
+
+def _check_picker_canonical_structure(body: str) -> None:
+    if not body.replace("\r\n", "\n").startswith(PICKER_GOVERNED_PREFIX):
+        raise GuardError(
+            "asset-picker-cleanup: canonical module prefix through afterEach changed; "
+            "review the complete prefix before updating its source contract"
+        )
+
+
+def check_asset_picker_cleanup(text: str | None = None) -> str:
+    source = text if text is not None else _read(ASSET_PICKER)
+    # These scoped fragment checks provide specific policy diagnostics. The
+    # canonical check below also rejects extra statements and disabled fixtures.
+    body = re.sub(r"(?m)^\s*//[^\n]*", "", source)
+    if len(SEED_PATH_RE.findall(body)) != 1:
+        raise GuardError("asset-picker-cleanup: exactly one seed call site is allowed")
+    cleanup = _picker_function(body, "restoreGoldenState")
+    observation = _picker_function(body, "observePortfolio")
+    login = _picker_function(body, "authenticateE2eSession")
+    _require_picker(body,
+        r'import\s*\{\s*FIXED_E2E_USER_ID\s*\}\s*from\s*"\./helpers/portfolio-seed-version"',
+        "fixed E2E identity must come from the shared version helper")
+    _require_picker(login,
+        r'if\s*\(body\.userId\s*!==\s*FIXED_E2E_USER_ID\)\s*\{\s*throw new Error\(',
+        "login must reject a different E2E identity")
+    _require_picker(observation,
+        r'await request\.get\(`\$\{gatewayUrl\(\)\}/api/portfolio`,\s*\{\s*headers:\s*bearer\(session\.token\)\s*\}\)',
+        "identity/version must come from an authenticated portfolio read")
+    _require_picker(observation,
+        r'return selectExactPortfolio\(await response\.json\(\),\s*FIXED_E2E_USER_ID\);',
+        "read must select exactly the fixed E2E identity")
+    _require_picker(observation, r'\.toBe\(200\)', "identity read must require HTTP 200")
+    _require_picker(body, r'const CLEANUP_MAX_ATTEMPTS\s*=\s*3\s*;',
+        "cleanup must remain bounded to three attempts")
+    loop = r'for\s*\(let attempt = 1; attempt <= CLEANUP_MAX_ATTEMPTS; attempt \+= 1\)\s*\{'
+    _require_picker(cleanup, loop, "cleanup must use the bounded attempt counter")
+    _require_picker(cleanup,
+        loop + r'\s*const observed = await observePortfolio\(request, session\);\s*const response = await request\.post\(',
+        "each seed attempt must begin with a fresh identity-checked observation")
+    _require_picker(cleanup,
+        r'const response = await request\.post\(`\$\{gatewayUrl\(\)\}/api/internal/portfolio/seed`,\s*\{',
+        "the governed call must POST the internal seed endpoint")
+    _require_picker(cleanup, r'"X-Internal-Api-Key":\s*internalApiKey\(\)',
+        "the seed request must carry the internal key")
+    _require_picker(cleanup, r'data:\s*\{\s*expectedVersion:\s*observed\.version\s*\}',
+        "expectedVersion must be the fresh observation's version")
+    _require_picker(cleanup, r'if\s*\(response\.status\(\) === 200\)',
+        "cleanup must require HTTP 200")
+    _require_picker(cleanup, r'let observedConflict = false;',
+        "cleanup must remember any 409 across attempts")
+    _require_picker(cleanup,
+        r'if\s*\(response\.status\(\) === 200\)\s*\{\s*'
+        r'if\s*\(observedConflict\)\s*\{\s*throw new Error\(.*?\);\s*\}\s*return;\s*\}',
+        "any observed 409 must fail even after HTTP 200 restores hygiene")
+    _require_picker(cleanup,
+        r'if\s*\(response\.status\(\) === 409\)\s*\{\s*observedConflict = true;\s*continue;\s*\}'
+        r'\s*throw new Error\(.*?\);\s*\}\s*throw new Error\(.*?\);\s*\}\s*$',
+        "409 must retry freshly, while other failures and exhausted retries still fail")
+    _require_picker(body,
+        r'test\.afterEach\(async\s*\(\{ request \}\)\s*=>\s*\{\s*'
+        r'await restoreGoldenState\(request, session \?\? \(await authenticateE2eSession\(request\)\)\);\s*\}\);',
+        "afterEach must restore unconditionally, including failed session setup")
+    _check_picker_canonical_structure(source)
+    return "asset-picker-cleanup (frontend/tests/e2e/asset-picker.spec.ts; B2 Task 9.7)"
+
+
 def check_deploy_azure_credentials(text: str | None = None) -> None:
     body = text if text is not None else _read(DEPLOY_AZURE_WF)
     seed_idx = body.find("Seed live Azure")
@@ -168,6 +494,7 @@ def _allowed_seed_paths() -> set[Path]:
         SHELL_SCRIPT.resolve(),
         GLOBAL_SETUP.resolve(),
         API_SMOKE.resolve(),
+        ASSET_PICKER.resolve(),
         (REPO / "frontend/tests/e2e/helpers/portfolio-seed-version.ts").resolve(),
         (
             REPO
@@ -220,6 +547,7 @@ def run_guard(
     synthetic_text: str | None = None,
     global_setup_text: str | None = None,
     api_smoke_text: str | None = None,
+    asset_picker_text: str | None = None,
     deploy_azure_text: str | None = None,
     skip_discovery: bool = False,
 ) -> str:
@@ -227,6 +555,7 @@ def run_guard(
         check_shell_caller(shell_text),
         check_global_setup(global_setup_text),
         check_api_smoke(api_smoke_text),
+        check_asset_picker_cleanup(asset_picker_text),
     ]
     check_synthetic_workflow(synthetic_text)
     check_deploy_azure_credentials(deploy_azure_text)
@@ -237,7 +566,8 @@ def run_guard(
                 "unexpected seed call site(s): " + ", ".join(unexpected)
             )
     lines = [
-        "B1 seed-version caller inventory OK — exactly three callers:",
+        "B1/B2 seed-version caller inventory OK — exactly four governed callers:",
+        "  (three historical B1 Wave 5b callers plus B2 Task 9.7 cleanup)",
         *[f"  - {c}" for c in callers],
     ]
     return "\n".join(lines)
