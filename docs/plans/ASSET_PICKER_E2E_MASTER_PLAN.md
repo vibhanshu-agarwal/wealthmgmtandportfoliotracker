@@ -2,6 +2,18 @@
 
 **Last verified:** 2026-09-05
 
+**Seed caller inventory update — B2 Task 9.7 (2026-09-06):**
+The [caller guard](../../scripts/check-b1-seed-version-callers.py) now recognizes exactly four
+governed sites: the three historical B1 Wave 5b callers (`synthetic-shell`, `global-setup`,
+`azure-api-smoke`) plus `frontend/tests/e2e/asset-picker.spec.ts` cleanup. The historical
+three-caller G5 evidence and marker contract are unchanged. Only the Task 9.7 cleanup may retry
+an internal seed `409` for hygiene: each of at most three attempts freshly reads the portfolio
+with the E2E bearer token, selects the fixed E2E identity, and sends that `expectedVersion` with
+the internal key. Any observed cleanup conflict still fails the case, even after a later `200`.
+The guard rejects additional caller paths and rejects this fourth caller if its version,
+identity, credentials, unconditional cleanup, or conflict policy is weakened. This source
+inventory update changes no production gate or historical caller policy.
+
 **OWNER APPROVAL RECORDED — R-C implementation publication, 2026-09-04:** the owner authorized
 the scoped commit, push and implementation PR of the reviewed 21-file local bundle. That
 authorization covers publication only. Merge, release-candidate build/push, registry access or

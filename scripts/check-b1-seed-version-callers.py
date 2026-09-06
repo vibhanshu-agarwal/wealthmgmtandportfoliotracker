@@ -1,5 +1,10 @@
 ﻿#!/usr/bin/env python3
-"""Exact inventory guard for B1 Wave 5b version-aware seed callers."""
+"""Exact inventory: three historical B1 Wave 5b callers plus B2 Task 9.7 cleanup.
+
+The three G5 callers retain their frozen-version/terminal-conflict contracts.
+Only the governed picker cleanup may retry 409 for hygiene, with a fresh fixed-E2E
+observation on every bounded attempt and an eventual failure even after recovery.
+"""
 
 from __future__ import annotations
 
@@ -14,6 +19,7 @@ SYNTHETIC_WF = REPO / ".github/workflows/synthetic-monitoring.yml"
 DEPLOY_AZURE_WF = REPO / ".github/workflows/deploy-azure.yml"
 GLOBAL_SETUP = REPO / "frontend/tests/e2e/global-setup.ts"
 API_SMOKE = REPO / "frontend/tests/e2e/azure-synthetic/api-live-smoke.spec.ts"
+ASSET_PICKER = REPO / "frontend/tests/e2e/asset-picker.spec.ts"
 
 SEED_PATH_RE = re.compile(r"/api/internal/portfolio/seed")
 EXPECTED_VERSION_RE = re.compile(r"expectedVersion")
@@ -145,6 +151,77 @@ def check_api_smoke(text: str | None = None) -> str:
     return "azure-api-smoke (frontend/tests/e2e/azure-synthetic/api-live-smoke.spec.ts)"
 
 
+def _picker_function(body: str, name: str) -> str:
+    # This source guard recognizes the checked-in top-level function shape. Scope
+    # checks to cleanup and its identity read: the picker save's own 200/409 must
+    # never satisfy an internal-seed policy check elsewhere in the same file.
+    match = re.search(rf"^async function {name}\(.*?^\}}", body, re.M | re.S)
+    if match is None:
+        raise GuardError(f"asset-picker-cleanup: missing function {name}")
+    return match.group()
+
+
+def _require_picker(body: str, pattern: str, policy: str) -> None:
+    if re.search(pattern, body, re.S) is None:
+        raise GuardError(f"asset-picker-cleanup: {policy}")
+
+
+def check_asset_picker_cleanup(text: str | None = None) -> str:
+    body = text if text is not None else _read(ASSET_PICKER)
+    # Ignore full-line commentary, preserving URL/string literals. All semantic
+    # patterns below are scoped to executable statements in the named functions.
+    body = re.sub(r"(?m)^\s*//[^\n]*", "", body)
+    if len(SEED_PATH_RE.findall(body)) != 1:
+        raise GuardError("asset-picker-cleanup: exactly one seed call site is allowed")
+    cleanup = _picker_function(body, "restoreGoldenState")
+    observation = _picker_function(body, "observePortfolio")
+    login = _picker_function(body, "authenticateE2eSession")
+    _require_picker(body,
+        r'import\s*\{\s*FIXED_E2E_USER_ID\s*\}\s*from\s*"\./helpers/portfolio-seed-version"',
+        "fixed E2E identity must come from the shared version helper")
+    _require_picker(login,
+        r'if\s*\(body\.userId\s*!==\s*FIXED_E2E_USER_ID\)\s*\{\s*throw new Error\(',
+        "login must reject a different E2E identity")
+    _require_picker(observation,
+        r'await request\.get\(`\$\{gatewayUrl\(\)\}/api/portfolio`,\s*\{\s*headers:\s*bearer\(session\.token\)\s*\}\)',
+        "identity/version must come from an authenticated portfolio read")
+    _require_picker(observation,
+        r'return selectExactPortfolio\(await response\.json\(\),\s*FIXED_E2E_USER_ID\);',
+        "read must select exactly the fixed E2E identity")
+    _require_picker(observation, r'\.toBe\(200\)', "identity read must require HTTP 200")
+    _require_picker(body, r'const CLEANUP_MAX_ATTEMPTS\s*=\s*3\s*;',
+        "cleanup must remain bounded to three attempts")
+    loop = r'for\s*\(let attempt = 1; attempt <= CLEANUP_MAX_ATTEMPTS; attempt \+= 1\)\s*\{'
+    _require_picker(cleanup, loop, "cleanup must use the bounded attempt counter")
+    _require_picker(cleanup,
+        loop + r'\s*const observed = await observePortfolio\(request, session\);\s*const response = await request\.post\(',
+        "each seed attempt must begin with a fresh identity-checked observation")
+    _require_picker(cleanup,
+        r'const response = await request\.post\(`\$\{gatewayUrl\(\)\}/api/internal/portfolio/seed`,\s*\{',
+        "the governed call must POST the internal seed endpoint")
+    _require_picker(cleanup, r'"X-Internal-Api-Key":\s*internalApiKey\(\)',
+        "the seed request must carry the internal key")
+    _require_picker(cleanup, r'data:\s*\{\s*expectedVersion:\s*observed\.version\s*\}',
+        "expectedVersion must be the fresh observation's version")
+    _require_picker(cleanup, r'if\s*\(response\.status\(\) === 200\)',
+        "cleanup must require HTTP 200")
+    _require_picker(cleanup, r'let observedConflict = false;',
+        "cleanup must remember any 409 across attempts")
+    _require_picker(cleanup,
+        r'if\s*\(response\.status\(\) === 200\)\s*\{\s*'
+        r'if\s*\(observedConflict\)\s*\{\s*throw new Error\(.*?\);\s*\}\s*return;\s*\}',
+        "any observed 409 must fail even after HTTP 200 restores hygiene")
+    _require_picker(cleanup,
+        r'if\s*\(response\.status\(\) === 409\)\s*\{\s*observedConflict = true;\s*continue;\s*\}'
+        r'\s*throw new Error\(.*?\);\s*\}\s*throw new Error\(.*?\);\s*\}\s*$',
+        "409 must retry freshly, while other failures and exhausted retries still fail")
+    _require_picker(body,
+        r'test\.afterEach\(async\s*\(\{ request \}\)\s*=>\s*\{\s*'
+        r'await restoreGoldenState\(request, session \?\? \(await authenticateE2eSession\(request\)\)\);\s*\}\);',
+        "afterEach must restore unconditionally, including failed session setup")
+    return "asset-picker-cleanup (frontend/tests/e2e/asset-picker.spec.ts; B2 Task 9.7)"
+
+
 def check_deploy_azure_credentials(text: str | None = None) -> None:
     body = text if text is not None else _read(DEPLOY_AZURE_WF)
     seed_idx = body.find("Seed live Azure")
@@ -168,6 +245,7 @@ def _allowed_seed_paths() -> set[Path]:
         SHELL_SCRIPT.resolve(),
         GLOBAL_SETUP.resolve(),
         API_SMOKE.resolve(),
+        ASSET_PICKER.resolve(),
         (REPO / "frontend/tests/e2e/helpers/portfolio-seed-version.ts").resolve(),
         (
             REPO
@@ -220,6 +298,7 @@ def run_guard(
     synthetic_text: str | None = None,
     global_setup_text: str | None = None,
     api_smoke_text: str | None = None,
+    asset_picker_text: str | None = None,
     deploy_azure_text: str | None = None,
     skip_discovery: bool = False,
 ) -> str:
@@ -227,6 +306,7 @@ def run_guard(
         check_shell_caller(shell_text),
         check_global_setup(global_setup_text),
         check_api_smoke(api_smoke_text),
+        check_asset_picker_cleanup(asset_picker_text),
     ]
     check_synthetic_workflow(synthetic_text)
     check_deploy_azure_credentials(deploy_azure_text)
@@ -237,7 +317,8 @@ def run_guard(
                 "unexpected seed call site(s): " + ", ".join(unexpected)
             )
     lines = [
-        "B1 seed-version caller inventory OK — exactly three callers:",
+        "B1/B2 seed-version caller inventory OK — exactly four governed callers:",
+        "  (three historical B1 Wave 5b callers plus B2 Task 9.7 cleanup)",
         *[f"  - {c}" for c in callers],
     ]
     return "\n".join(lines)

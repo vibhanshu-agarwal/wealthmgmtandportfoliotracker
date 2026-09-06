@@ -4060,6 +4060,11 @@ class, not by enumeration" through "operational signals only") deliberately keep
     state; require `200`. A `409` here is retried to restore hygiene (bounded, e.g. three attempts,
     each beginning with another fresh observation) but SHALL still fail the test, never silently
     forgiven — the same discipline Task 9.8's cleanup already uses.
+  **Caller governance:** Task 9.7 adds the fourth exact site in
+  [`check-b1-seed-version-callers.py`](../../../scripts/check-b1-seed-version-callers.py).
+  Its bounded fresh-version cleanup retries are checked separately from the three historical
+  B1 Wave 5b/G5 callers; those callers and their marker/terminal-conflict contracts are unchanged.
+  No additional seed caller is permitted by this cleanup-specific inventory update.
   **Completion evidence:** the disposable Compose real-browser run passed 5/5, including setup and
   the real picker success and stale-version conflict cases. Exact collection reported 5 tests and
   the mocked-picker configuration collected 2. The full 31s virtual retry-window observation passed;
