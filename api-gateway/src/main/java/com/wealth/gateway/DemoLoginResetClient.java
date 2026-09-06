@@ -51,16 +51,6 @@ public final class DemoLoginResetClient {
         this.objectMapper = objectMapper;
     }
 
-    DemoLoginResetClient(WebClient.Builder webClientBuilder,
-                         GatewayLoopbackTargetProvider loopbackTargetProvider,
-                         InternalApiKeyProvider internalApiKeyProvider,
-                         CloudFrontOriginSecretProvider originSecretProvider,
-                         DemoLoginResetProperties properties,
-                         Clock clock) {
-        this(webClientBuilder, loopbackTargetProvider, internalApiKeyProvider, originSecretProvider, properties,
-                clock, new ObjectMapper());
-    }
-
     public Mono<DemoLoginPortfolioObservation> observeEligibility(String bearerToken) {
         return Mono.defer(() -> loopbackTargetProvider.eligibilityTarget().flatMap(target -> {
             AtomicReference<Boolean> headerAttached = new AtomicReference<>(false);

@@ -26,6 +26,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import reactor.netty.DisposableServer;
 import reactor.netty.http.server.HttpServer;
+import tools.jackson.databind.ObjectMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -43,7 +44,7 @@ class DemoLoginResetClientTest {
                 new InternalApiKeyProvider("internal"), new CloudFrontOriginSecretProvider("origin"),
                 new DemoLoginResetProperties(Duration.ofMinutes(30), Duration.ofSeconds(2),
                         Duration.ofSeconds(2), Duration.ofSeconds(4)),
-                Clock.fixed(Instant.parse("2026-09-06T00:31:00Z"), ZoneOffset.UTC));
+                Clock.fixed(Instant.parse("2026-09-06T00:31:00Z"), ZoneOffset.UTC), new ObjectMapper());
 
         StepVerifier.create(client.observeEligibility("jwt"))
                 .assertNext(observation -> {
@@ -140,7 +141,7 @@ class DemoLoginResetClientTest {
                 Duration.ofMillis(1), Duration.ofMillis(1), Duration.ofSeconds(4));
         DemoLoginResetClient client = new DemoLoginResetClient(WebClient.builder().exchangeFunction(request -> Mono.never()),
                 loopbackPort(18321), new InternalApiKeyProvider("internal"), new CloudFrontOriginSecretProvider(""),
-                shortTimeouts, Clock.fixed(Instant.parse("2026-09-06T00:31:00Z"), ZoneOffset.UTC));
+                shortTimeouts, Clock.fixed(Instant.parse("2026-09-06T00:31:00Z"), ZoneOffset.UTC), new ObjectMapper());
         StepVerifier.create(client.observeEligibility("jwt")).expectError(TimeoutException.class).verify();
         StepVerifier.create(client.reset(new DemoLoginPortfolioObservation(java.util.UUID.randomUUID(),
                         DemoLoginResetClient.DEMO_USER_ID, Instant.EPOCH, 1, true,
@@ -160,9 +161,10 @@ class DemoLoginResetClientTest {
             return Mono.just(jsonResponse("[]"));
         }), new GatewayLoopbackTargetProvider(environment), new InternalApiKeyProvider("internal"),
                 new CloudFrontOriginSecretProvider(""), new DemoLoginResetProperties(Duration.ofMinutes(30),
-                Duration.ofSeconds(2), Duration.ofSeconds(2), Duration.ofSeconds(4)), Clock.systemUTC());
+                Duration.ofSeconds(2), Duration.ofSeconds(2), Duration.ofSeconds(4)), Clock.systemUTC(), new ObjectMapper());
+        Mono<DemoLoginPortfolioObservation> publisher = client.observeEligibility("jwt");
         properties.put("local.server.port", "19432");
-        StepVerifier.create(client.observeEligibility("jwt")).expectError(DemoLoginResetClient.EligibilityShapeException.class).verify();
+        StepVerifier.create(publisher).expectError(DemoLoginResetClient.EligibilityShapeException.class).verify();
         assertThat(requests).singleElement().extracting(org.springframework.web.reactive.function.client.ClientRequest::url)
                 .isEqualTo(URI.create("http://localhost:19432/api/portfolio"));
     }
@@ -205,7 +207,7 @@ class DemoLoginResetClientTest {
             DemoLoginResetClient client = new DemoLoginResetClient(WebClient.builder(), loopbackPort(server.port()),
                     new InternalApiKeyProvider("internal"), new CloudFrontOriginSecretProvider(""),
                     new DemoLoginResetProperties(Duration.ofMinutes(30), Duration.ofSeconds(2), Duration.ofSeconds(2), Duration.ofSeconds(4)),
-                    Clock.systemUTC());
+                    Clock.systemUTC(), new ObjectMapper());
             StepVerifier.create(client.reset(observation(41))).expectNextCount(1).verifyComplete();
             assertThat(calls).hasValue(1);
             assertThat(requestBody).hasValue("{\"expectedVersion\":41}");
@@ -233,6 +235,8 @@ class DemoLoginResetClientTest {
 
     @Test
     void eligibilityRejectsMalformedTimestampAndNegativeVersion() {
+        StepVerifier.create(client(request -> Mono.just(jsonResponse("")), "", "internal").observeEligibility("jwt"))
+                .expectError(DemoLoginResetClient.EligibilityShapeException.class).verify();
         StepVerifier.create(client(request -> Mono.just(jsonResponse("""
                 [{"id":"00000000-0000-0000-0000-000000000002","userId":"00000000-0000-0000-0000-0000000d3110","updatedAt":"not-an-instant","version":1}]
                 """)), "", "internal").observeEligibility("jwt")).expectError().verify();
@@ -275,7 +279,7 @@ class DemoLoginResetClientTest {
                 new InternalApiKeyProvider(internal), new CloudFrontOriginSecretProvider(origin),
                 new DemoLoginResetProperties(Duration.ofMinutes(30), Duration.ofSeconds(2),
                         Duration.ofSeconds(2), Duration.ofSeconds(4)),
-                Clock.fixed(Instant.parse("2026-09-06T00:31:00Z"), ZoneOffset.UTC));
+                Clock.fixed(Instant.parse("2026-09-06T00:31:00Z"), ZoneOffset.UTC), new ObjectMapper());
     }
 
     private static DemoLoginPortfolioObservation observation(long version) {
