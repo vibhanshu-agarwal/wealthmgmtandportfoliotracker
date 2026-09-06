@@ -119,9 +119,14 @@ public final class DemoLoginResetClient {
                                                                        boolean originRequired,
                                                                        boolean originAttached) {
         return requireSuccess(response, target)
-                .then(response.bodyToMono(String.class)
+                // A received successful response whose body cannot be consumed is an
+                // eligibility shape failure, regardless of the decoder/publisher exception type.
+                // Keep this boundary inside the call deadline and outside our own idle handling.
+                .then(Mono.defer(() -> response.bodyToMono(String.class)
                         .switchIfEmpty(Mono.error(new EligibilityShapeException(0)))
                         .flatMap(this::decodePortfolioArray))
+                        .onErrorMap(error -> error instanceof EligibilityShapeException
+                                ? error : new EligibilityShapeException(0)))
                 .flatMap(portfolios -> selectDemoPortfolio(portfolios, target, originRequired, originAttached));
     }
 

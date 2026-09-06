@@ -65,6 +65,45 @@ class DemoLoginResetTracingIntegrationTest {
     }
 
     @Test
+    void oversizedEligibilityBodyIsAResponseShapeFailureWithTheOriginalInboundTrace() {
+        // This valid JSON exceeds the real String decoder's aggregation limit. If aggregation
+        // were bypassed, its ordinary demo portfolio would otherwise be eligible for reset.
+        String oversized = PORTFOLIO.replace("\"version\":71", "\"version\":71,\"metadata\":\""
+                + "x".repeat(300_000) + "\"");
+        Fixture f = new Fixture();
+        f.eligibility = r -> Mono.just(response(200, oversized));
+        assertUnprocessableEligibility(f);
+    }
+
+    @Test
+    void eligibilityBodyPublisherFailuresCannotMasqueradeAsGatewayOrTimeoutDefects() {
+        for (Exception failure : List.of(new java.io.IOException("private body failure"),
+                new IllegalStateException("private body failure"),
+                new java.util.concurrent.TimeoutException("private body failure"))) {
+            Fixture f = new Fixture();
+            f.eligibility = r -> Mono.just(org.springframework.web.reactive.function.client.ClientResponse
+                    .create(org.springframework.http.HttpStatus.OK).header("Content-Type", "application/json")
+                    .body(reactor.core.publisher.Flux.error(failure)).build());
+            assertUnprocessableEligibility(f);
+        }
+    }
+
+    private void assertUnprocessableEligibility(Fixture f) {
+        request(f);
+        var event = assertions.event("eligibility_shape_failure", "replica-token", expectedTrace);
+        assertions.bothLegs(event, f, true, false, true, true);
+        assertThat(f.requests).singleElement().satisfies(r -> {
+            assertThat(r.method().name()).isEqualTo("GET");
+            assertThat(r.url()).isEqualTo(GET);
+        });
+        assertThat(event).containsEntry("leg", "eligibility").containsEntry("httpStatus", 200)
+                .containsEntry("timeoutScope", null).containsEntry("elapsedMillis", null)
+                .containsEntry("attemptedTarget", null).containsEntry("overallTimeoutPhase", null)
+                .containsEntry("exceptionClass", null);
+        assertThat(assertions.appender.list.getFirst().getFormattedMessage()).doesNotContain("private body failure");
+    }
+
+    @Test
     void everyFailureFamilyKeepsTheInboundTraceAndOriginalHttpLoginResponse() {
         // The fixtures induce network outcomes; neither the orchestrator nor its diagnostics are mocked.
         for (String reason : List.of("eligibility_connection_failure", "reset_connection_failure",
