@@ -158,7 +158,7 @@ class TestAggregateDigests(unittest.TestCase):
         good = {"market-data-service": {"image": "repo/market@" + digest}, "market-data-refresh-job": {"image": "repo/market@" + digest}}
         with mock.patch.dict(os.environ, {"AZURE_RG": "rg"}), mock.patch.object(self.mod, "capture", return_value=good), mock.patch("sys.argv", ["snapshot", "compare", "--before", json.dumps(before), "--selected", '["market-data-service"]', "--requested-digest", digest]):
             self.assertEqual(self.mod.main(), 0)
-            with mock.patch.dict(os.environ, {"AZURE_RG": "rg"}), mock.patch.object(self.mod, "capture", return_value={"api-gateway": {"image": "wrong/repo@" + digest_a}}), mock.patch("sys.argv", ["snapshot", "compare", "--before", json.dumps({"api-gateway": {"image": "repo/gateway:old"}}), "--selected", '["api-gateway"]', "--requested-digest", digest_a]):
+            with mock.patch.dict(os.environ, {"AZURE_RG": "rg"}), mock.patch.object(self.mod, "capture", return_value={"api-gateway": {"image": "wrong/repo@" + digest}}), mock.patch("sys.argv", ["snapshot", "compare", "--before", json.dumps({"api-gateway": {"image": "repo/gateway:old"}}), "--selected", '["api-gateway"]', "--requested-digest", digest]):
                 self.assertEqual(self.mod.main(), 1)
         for selected in ("[]", '["unknown"]'):
             with mock.patch.dict(os.environ, {"AZURE_RG": "rg"}), mock.patch.object(self.mod, "capture", side_effect=AssertionError("capture called")), mock.patch("sys.argv", ["snapshot", "compare", "--before", "{}", "--selected", selected]):
