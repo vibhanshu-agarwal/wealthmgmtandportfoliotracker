@@ -166,11 +166,105 @@ def _require_picker(body: str, pattern: str, policy: str) -> None:
         raise GuardError(f"asset-picker-cleanup: {policy}")
 
 
+# Deliberately bounded source contract, not a general TypeScript control-flow
+# parser. Executable changes to this cleanup/fixture section require review and
+# an explicit canonical update. Trivia is ignored; literal contents are retained.
+PICKER_CLEANUP_AND_FIXTURES = r'''
+async function restoreGoldenState(
+  request: APIRequestContext,
+  session: E2eSession,
+): Promise<void> {
+  let observedConflict = false;
+  for (let attempt = 1; attempt <= CLEANUP_MAX_ATTEMPTS; attempt += 1) {
+    // Every attempt deliberately re-observes the identity-matched, current version.
+    const observed = await observePortfolio(request, session);
+    const response = await request.post(`${gatewayUrl()}/api/internal/portfolio/seed`, {
+      headers: { "Content-Type": "application/json", "X-Internal-Api-Key": internalApiKey() },
+      data: { expectedVersion: observed.version },
+    });
+
+    if (response.status() === 200) {
+      if (observedConflict) {
+        throw new Error(
+          "[asset-picker-real] cleanup restored Golden State after an observed 409; the conflict still fails the test",
+        );
+      }
+      return;
+    }
+    if (response.status() === 409) {
+      observedConflict = true;
+      continue;
+    }
+    throw new Error(
+      `[asset-picker-real] version-bearing cleanup seed returned HTTP ${response.status()} on attempt ${attempt}`,
+    );
+  }
+  throw new Error(
+    `[asset-picker-real] version-bearing cleanup seed returned HTTP 409 on all ${CLEANUP_MAX_ATTEMPTS} attempts`,
+  );
+}
+
+test.describe("Asset Picker — real composition save (Tasks 9.2, 9.7)", () => {
+  let session: E2eSession | undefined;
+
+  test.beforeEach(async ({ page, request }) => {
+    session = await authenticateE2eSession(request);
+    // Install before app timers are created; leave them running for UI reconciliation.
+    await page.clock.install();
+    await page.addInitScript(
+      ({ key, value }: { key: string; value: E2eSession }) =>
+        window.localStorage.setItem(key, JSON.stringify(value)),
+      { key: AUTH_STORAGE_KEY, value: session },
+    );
+  });
+
+  test.afterEach(async ({ request }) => {
+    // Unconditional hygiene: runs after both a passing and a failing case.
+    await restoreGoldenState(request, session ?? (await authenticateE2eSession(request)));
+  });
+'''
+
+PICKER_TOKEN_RE = re.compile(
+    r'''"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`'''
+    r'|//[^\n]*|/\*[\s\S]*?\*/|[A-Za-z_$][\w$]*|[0-9]+|\S'
+)
+
+
+def _picker_source_tokens(body: str) -> list[str]:
+    # Literals (including the reviewed, non-nested templates) stay atomic, so
+    # their URL slashes and interpolation braces are never treated as trivia.
+    return [
+        token for token in PICKER_TOKEN_RE.findall(body)
+        if not token.startswith(("//", "/*"))
+    ]
+
+
+def _check_picker_canonical_structure(body: str) -> None:
+    tokens = _picker_source_tokens(body)
+    expected = _picker_source_tokens(PICKER_CLEANUP_AND_FIXTURES)
+    marker = ["async", "function", "restoreGoldenState", "("]
+    starts = [
+        index for index in range(len(tokens) - len(marker) + 1)
+        if tokens[index:index + len(marker)] == marker
+    ]
+    if len(starts) != 1:
+        raise GuardError("asset-picker-cleanup: canonical cleanup must occur exactly once")
+    start = starts[0]
+    # The reviewed module prefix has no regex literals with brace characters.
+    # This delimiter check rejects wrapping the section in a conditional/block.
+    prefix = tokens[:start]
+    if prefix.count("{") != prefix.count("}") or tokens[start:start + len(expected)] != expected:
+        raise GuardError(
+            "asset-picker-cleanup: canonical cleanup and top-level fixture structure changed; "
+            "review the complete executable section before updating its source contract"
+        )
+
+
 def check_asset_picker_cleanup(text: str | None = None) -> str:
-    body = text if text is not None else _read(ASSET_PICKER)
-    # Ignore full-line commentary, preserving URL/string literals. All semantic
-    # patterns below are scoped to executable statements in the named functions.
-    body = re.sub(r"(?m)^\s*//[^\n]*", "", body)
+    source = text if text is not None else _read(ASSET_PICKER)
+    # These scoped fragment checks provide specific policy diagnostics. The
+    # canonical check below also rejects extra statements and disabled fixtures.
+    body = re.sub(r"(?m)^\s*//[^\n]*", "", source)
     if len(SEED_PATH_RE.findall(body)) != 1:
         raise GuardError("asset-picker-cleanup: exactly one seed call site is allowed")
     cleanup = _picker_function(body, "restoreGoldenState")
@@ -219,6 +313,7 @@ def check_asset_picker_cleanup(text: str | None = None) -> str:
         r'test\.afterEach\(async\s*\(\{ request \}\)\s*=>\s*\{\s*'
         r'await restoreGoldenState\(request, session \?\? \(await authenticateE2eSession\(request\)\)\);\s*\}\);',
         "afterEach must restore unconditionally, including failed session setup")
+    _check_picker_canonical_structure(source)
     return "asset-picker-cleanup (frontend/tests/e2e/asset-picker.spec.ts; B2 Task 9.7)"
 
 

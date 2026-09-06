@@ -10,9 +10,12 @@ three-caller G5 evidence and marker contract are unchanged. Only the Task 9.7 cl
 an internal seed `409` for hygiene: each of at most three attempts freshly reads the portfolio
 with the E2E bearer token, selects the fixed E2E identity, and sends that `expectedVersion` with
 the internal key. Any observed cleanup conflict still fails the case, even after a later `200`.
-The guard rejects additional caller paths and rejects this fourth caller if its version,
-identity, credentials, unconditional cleanup, or conflict policy is weakened. This source
-inventory update changes no production gate or historical caller policy.
+The guard rejects additional caller paths and checks this fourth caller's version, identity,
+credentials, and conflict policy. It also pins the reviewed cleanup and top-level fixture
+structure, rejecting extra executable statements or conditional cleanup registration. This is
+a bounded source-shape check, not general TypeScript control-flow validation; executable changes
+to that section require review and an explicit canonical update. This source inventory update
+changes no production gate or historical caller policy.
 
 **OWNER APPROVAL RECORDED — R-C implementation publication, 2026-09-04:** the owner authorized
 the scoped commit, push and implementation PR of the reviewed 21-file local bundle. That

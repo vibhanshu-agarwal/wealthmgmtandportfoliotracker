@@ -4064,7 +4064,9 @@ class, not by enumeration" through "operational signals only") deliberately keep
   [`check-b1-seed-version-callers.py`](../../../scripts/check-b1-seed-version-callers.py).
   Its bounded fresh-version cleanup retries are checked separately from the three historical
   B1 Wave 5b/G5 callers; those callers and their marker/terminal-conflict contracts are unchanged.
-  No additional seed caller is permitted by this cleanup-specific inventory update.
+  No additional seed caller is permitted by this cleanup-specific inventory update. The guard
+  pins the reviewed cleanup/top-level fixture structure with a bounded source-shape check, not
+  general TypeScript control-flow validation; executable changes require a reviewed canonical update.
   **Completion evidence:** the disposable Compose real-browser run passed 5/5, including setup and
   the real picker success and stale-version conflict cases. Exact collection reported 5 tests and
   the mocked-picker configuration collected 2. The full 31s virtual retry-window observation passed;

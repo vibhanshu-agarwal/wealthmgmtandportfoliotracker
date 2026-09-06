@@ -117,6 +117,27 @@ class CheckB1SeedVersionCallersTest(unittest.TestCase):
                         self.guard.run_guard(skip_discovery=True)
                 self.assertIn(diagnostic, str(ctx.exception))
 
+    def test_picker_cleanup_control_flow_mutations_fail(self) -> None:
+        source = (REPO / "frontend/tests/e2e/asset-picker.spec.ts").read_text(encoding="utf-8")
+        success_branch = "    if (response.status() === 200) {"
+        hook_start = source.index("  test.afterEach(async ({ request }) => {")
+        hook_end = source.index("\n  });", hook_start) + len("\n  });")
+        hook = source[hook_start:hook_end]
+        mutations = {
+            "forgive previous 409": source.replace(
+                success_branch, "    observedConflict = false;\n" + success_branch, 1),
+            "reset attempt counter": source.replace(
+                success_branch, "    attempt = 0;\n" + success_branch, 1),
+            "disable afterEach registration": source.replace(
+                hook, "  if (false) {\n" + hook + "\n  }", 1),
+        }
+        for name, mutated in mutations.items():
+            with self.subTest(name=name):
+                self.assertNotEqual(source, mutated)
+                with self.assertRaises(self.guard.GuardError) as ctx:
+                    self.guard.run_guard(asset_picker_text=mutated, skip_discovery=True)
+                self.assertIn("canonical", str(ctx.exception))
+
     def test_scheduled_synthetic_trigger_fails(self) -> None:
         synthetic = self.guard._read(self.guard.SYNTHETIC_WF).replace(
             "  workflow_dispatch:\n",
