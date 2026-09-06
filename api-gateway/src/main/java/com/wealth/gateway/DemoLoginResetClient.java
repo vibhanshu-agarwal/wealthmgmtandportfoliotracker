@@ -9,6 +9,7 @@ import org.springframework.web.reactive.function.client.ClientResponse;
 import org.springframework.web.reactive.function.client.ExchangeFilterFunction;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
+import tools.jackson.databind.ObjectMapper;
 
 import java.net.URI;
 import java.time.Clock;
@@ -31,19 +32,32 @@ public final class DemoLoginResetClient {
     private final CloudFrontOriginSecretProvider originSecretProvider;
     private final DemoLoginResetProperties properties;
     private final Clock clock;
+    private final ObjectMapper objectMapper;
 
     public DemoLoginResetClient(WebClient.Builder webClientBuilder,
                                 GatewayLoopbackTargetProvider loopbackTargetProvider,
                                 InternalApiKeyProvider internalApiKeyProvider,
                                 CloudFrontOriginSecretProvider originSecretProvider,
                                 DemoLoginResetProperties properties,
-                                Clock clock) {
+                                Clock clock,
+                                ObjectMapper objectMapper) {
         this.webClientBuilder = webClientBuilder;
         this.loopbackTargetProvider = loopbackTargetProvider;
         this.internalApiKeyProvider = internalApiKeyProvider;
         this.originSecretProvider = originSecretProvider;
         this.properties = properties;
         this.clock = clock;
+        this.objectMapper = objectMapper;
+    }
+
+    DemoLoginResetClient(WebClient.Builder webClientBuilder,
+                         GatewayLoopbackTargetProvider loopbackTargetProvider,
+                         InternalApiKeyProvider internalApiKeyProvider,
+                         CloudFrontOriginSecretProvider originSecretProvider,
+                         DemoLoginResetProperties properties,
+                         Clock clock) {
+        this(webClientBuilder, loopbackTargetProvider, internalApiKeyProvider, originSecretProvider, properties,
+                clock, new ObjectMapper());
     }
 
     public Mono<DemoLoginPortfolioObservation> observeEligibility(String bearerToken) {
@@ -94,8 +108,20 @@ public final class DemoLoginResetClient {
                                                                        boolean originRequired,
                                                                        boolean originAttached) {
         return requireSuccess(response, target)
-                .then(response.bodyToFlux(PortfolioPayload.class).collectList())
+                .then(response.bodyToMono(String.class).flatMap(this::decodePortfolioArray))
                 .flatMap(portfolios -> selectDemoPortfolio(portfolios, target, originRequired, originAttached));
+    }
+
+    private Mono<List<PortfolioPayload>> decodePortfolioArray(String body) {
+        if (body == null || !body.trim().startsWith("[")
+                || !body.matches("(?s).*\"version\"\\s*:\\s*-?\\d+\\s*[,}].*")) {
+            return Mono.error(new EligibilityShapeException(0));
+        }
+        try {
+            return Mono.just(List.of(objectMapper.readValue(body, PortfolioPayload[].class)));
+        } catch (Exception exception) {
+            return Mono.error(new EligibilityShapeException(0));
+        }
     }
 
     private Mono<DemoLoginPortfolioObservation> selectDemoPortfolio(List<PortfolioPayload> portfolios, URI target,

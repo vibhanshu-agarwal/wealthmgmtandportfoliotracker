@@ -21,6 +21,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+
+import reactor.netty.DisposableServer;
+import reactor.netty.http.server.HttpServer;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -188,6 +193,66 @@ class DemoLoginResetClientTest {
     }
 
     @Test
+    void resetSendsTheExactObservedVersionInOneOnWirePost() {
+        AtomicReference<String> requestBody = new AtomicReference<>();
+        AtomicInteger calls = new AtomicInteger();
+        DisposableServer server = HttpServer.create().port(0).handle((request, response) ->
+                request.receive().aggregate().asString().doOnNext(body -> {
+                    calls.incrementAndGet();
+                    requestBody.set(body);
+                }).then(response.status(200).send())).bindNow();
+        try {
+            DemoLoginResetClient client = new DemoLoginResetClient(WebClient.builder(), loopbackPort(server.port()),
+                    new InternalApiKeyProvider("internal"), new CloudFrontOriginSecretProvider(""),
+                    new DemoLoginResetProperties(Duration.ofMinutes(30), Duration.ofSeconds(2), Duration.ofSeconds(2), Duration.ofSeconds(4)),
+                    Clock.systemUTC());
+            StepVerifier.create(client.reset(observation(41))).expectNextCount(1).verifyComplete();
+            assertThat(calls).hasValue(1);
+            assertThat(requestBody).hasValue("{\"expectedVersion\":41}");
+        } finally {
+            server.disposeNow();
+        }
+    }
+
+    @Test
+    void resetDoesNotRetryNon2xxOrConnectionFailures() {
+        for (int status : List.of(302, 403, 429, 500)) {
+            AtomicInteger calls = new AtomicInteger();
+            StepVerifier.create(client(request -> {
+                        calls.incrementAndGet();
+                        return Mono.just(ClientResponse.create(org.springframework.http.HttpStatusCode.valueOf(status)).build());
+                    }, "", "internal").reset(observation(17)))
+                    .expectError(DemoLoginResetClient.HttpStatusFailure.class).verify();
+            assertThat(calls).hasValue(1);
+        }
+        AtomicInteger calls = new AtomicInteger();
+        StepVerifier.create(client(request -> { calls.incrementAndGet(); return Mono.error(new java.io.IOException("down")); }, "", "internal").reset(observation(17)))
+                .expectError(java.io.IOException.class).verify();
+        assertThat(calls).hasValue(1);
+    }
+
+    @Test
+    void eligibilityRejectsMalformedTimestampAndNegativeVersion() {
+        StepVerifier.create(client(request -> Mono.just(jsonResponse("""
+                [{"id":"00000000-0000-0000-0000-000000000002","userId":"00000000-0000-0000-0000-0000000d3110","updatedAt":"not-an-instant","version":1}]
+                """)), "", "internal").observeEligibility("jwt")).expectError().verify();
+        StepVerifier.create(client(request -> Mono.just(jsonResponse("""
+                [{"id":"00000000-0000-0000-0000-000000000002","userId":"00000000-0000-0000-0000-0000000d3110","updatedAt":"2026-09-06T00:00:00Z","version":-1}]
+                """)), "", "internal").observeEligibility("jwt"))
+                .expectError(DemoLoginResetClient.EligibilityShapeException.class).verify();
+    }
+
+    @Test
+    void eligibilityRejectsTopLevelObjectAndFractionalVersionInsteadOfCoercingEither() {
+        StepVerifier.create(client(request -> Mono.just(jsonResponse("""
+                {"id":"00000000-0000-0000-0000-000000000002","userId":"00000000-0000-0000-0000-0000000d3110","updatedAt":"2026-09-06T00:00:00Z","version":1}
+                """)), "", "internal").observeEligibility("jwt")).expectError().verify();
+        StepVerifier.create(client(request -> Mono.just(jsonResponse("""
+                [{"id":"00000000-0000-0000-0000-000000000002","userId":"00000000-0000-0000-0000-0000000d3110","updatedAt":"2026-09-06T00:00:00Z","version":7.9}]
+                """)), "", "internal").observeEligibility("jwt")).expectError().verify();
+    }
+
+    @Test
     void blankInternalKeyPreventsResetDispatch() {
         ExchangeFunction exchange = request -> Mono.error(new AssertionError("must not dispatch"));
         DemoLoginResetClient client = client(exchange, "", " ");
@@ -207,6 +272,11 @@ class DemoLoginResetClientTest {
                 new DemoLoginResetProperties(Duration.ofMinutes(30), Duration.ofSeconds(2),
                         Duration.ofSeconds(2), Duration.ofSeconds(4)),
                 Clock.fixed(Instant.parse("2026-09-06T00:31:00Z"), ZoneOffset.UTC));
+    }
+
+    private static DemoLoginPortfolioObservation observation(long version) {
+        return new DemoLoginPortfolioObservation(java.util.UUID.randomUUID(), DemoLoginResetClient.DEMO_USER_ID,
+                Instant.EPOCH, version, true, URI.create("http://localhost:18321/api/portfolio"), false, false);
     }
 
     private static GatewayLoopbackTargetProvider loopbackPort(int port) {
