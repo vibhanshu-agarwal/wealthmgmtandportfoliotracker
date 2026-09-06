@@ -147,10 +147,10 @@ resolved by making the master plan the authoritative release gate, this section 
 **pass 21 (Codex)** found 1 further P1: this document's own stage-4 rollout bundle grouped the
 manual-reset gateway pieces with the login-orchestrated self-call as one deployable unit, which
 either blocks the manual path — needing only `version`, already unaffected by the `updated_at`
-gap — on unrelated, still-open work (`updated_at` ownership, the idle-reset threshold, the self-call
+gap — on then-unresolved work (`updated_at` ownership, the idle-reset threshold, the self-call
 timeouts), or contradicts this section's own release-gate framing; split into a manual-reset gateway
 bundle (stage 4, shippable once stage 1-3 land) and a separately-gated, later login-orchestration
-deployment (stage 6, gated on the three open items above), with the frontend control (stage 5)
+deployment (stage 6, gated on those decisions and prerequisites), with the frontend control (stage 5)
 completing the manual path independent of stage 6.
 **pass 22 (Codex, raised via a `tasks.md` review round rather than a review of this document
 directly)** raised a P0 concern that `intent: []` in `DemoResetService.reset`'s call to `replace`
@@ -394,17 +394,13 @@ write-direction mandate, 4.2 the read-direction one; pass 7 correction: previous
 designs the fix (B1 `design.md` D6, a `ToPlainStringSerializer` on `HoldingResponse.quantity`).
 **B1 task 4.9 is merged on `main`** — verified directly against current source, not assumed from
 the task list alone: `PortfolioResponse.HoldingResponse.quantity` is serialized as an exact decimal
-string on the wire. *(Pass 5 correction retained: an earlier draft said B1 "already implements it"
-before merge — distinct from the ownership claim, which does hold.)* The still-open B2 item is the
-frontend migration and rollout sequencing (Requirement 8.3 / Task 2.7), not B1 design work.
-
-**The real, still-open item is a frontend migration B1 has no obligation to perform**, since B1
-Requirement 10.1 forbids B1 from touching the frontend at all: `frontend/src/lib/api/portfolio.ts`
-declares `interface BackendHolding { quantity: number }` today. B2 owns migrating that interface
-(and every type/consumer derived from it) to `string`, and owns sequencing so B1's string-quantity
-read contract does not go live in production ahead of that migration — otherwise the *existing*
-Portfolio page (unrelated to the picker) silently breaks the moment `HoldingResponse.quantity`
-stops being a JSON number. B2's own `DraftRow` state stores quantity as the string the input holds;
+string on the wire. The tolerant frontend adapter also landed through PR #178. The remaining item
+is not future source migration or rollout sequencing: B1 owns a historical containment/frontend-
+artifact audit because its string-producing backend source served before that adapter landed.
+Task 2.7 stays open until the deployed frontend artifact, routing/cache/rollback paths, and impact
+are reconstructed and receive a reviewed disposition. Recorded ingress closure makes impact
+unproven, not closed; Task 2.6 compatibility and Wave 10.2 item 2 remain safeguards. B2's own
+`DraftRow` state stores quantity as the string the input holds;
 a derived, memoized numeric value is computed only for the estimated-value display, never fed back
 into the draft or the submit payload.
 
@@ -516,20 +512,14 @@ already correctly gated behind B1 Wave 7 for live integration elsewhere in this 
 imprecisely here.)* Once implemented, that single read is the eligibility observation for the
 manual trigger below — never a second, reset-time re-read.
 
-**`updated_at` is a separate dependency with explicit B2 ownership — caught on pass 4, no longer
-assumed away or left ownerless.**
-Verified against B1's actual tasks, not its schema intent: B1 Wave 3/V20 adds the `updated_at`
-**column** to the `portfolios` table (`portfolio-composition-contract/requirements.md` 5.14-5.15),
-but no B1 task puts it on the wire — Wave 5 task 5.1 exposes only `version` on
-`GET /api/portfolio` (`portfolio-composition-contract/tasks.md:688`). Nothing in B1's current
-scope exposes `updatedAt` on `PortfolioResponse`. **B2 Task 8.1 owns that additive read-contract
-field and its mapping/serialization test after B1's V20 column and version-bearing read land.**
-Until those prerequisites and Task 8.1 complete, **the login-orchestrated idle-reset trigger
-(requirements.md 7.4), which needs `updated_at` to decide eligibility, is not implementable** — a narrower and later gate
-than "blocked on Wave 3" alone. The manual trigger below needs only `version` — specified but, per
-the correction above, not yet implemented — and is unaffected by the `updated_at` gap specifically.
-*(Pass 5 cross-audit correction: this sentence still said "already exposed," reintroducing the
-exact framing corrected 20 lines above.)*
+**`updated_at` is a separate dependency with explicit B2 ownership — caught on pass 4 and now
+delivered.** B1 Wave 3/V20 added the `updated_at` column to `portfolios`; B2 Task 8.1 then added the
+`updatedAt` read contract, entity mapping, and serialization test. Recorded cu4 provenance binds
+source `6a171558` to digest
+`sha256:2be727eaf4577699c783ae66073670d4984fe66c666af3e56422c934fdd0b023`, serving revision
+`0000094`; this is provenance rather than a fresh runtime read-back. The login-orchestrated reset
+may therefore consume the persisted field without another Task 8.1 deployment. The manual trigger
+continues to depend only on the separately delivered `version` contract.
 
 ```
 New, B2-owned. `POST /api/internal/portfolio/demo-reset` lives in portfolio-service, unchanged since
@@ -782,9 +772,10 @@ possible; this design picks one explicitly:
 
 - **Chosen: a gateway self-call, pinned to the loopback target — not the public CloudFront URL
   (pass 6 correction: the deployable target was previously left unstated).** The login handler
-  SHALL make an outbound HTTP call to `http://localhost:${server.port}/api/portfolio` (this
-  gateway's own process — `server.port` is `8080` in every profile, verified across all five
-  `application*.yml` files; on AWS this is the same Lambda invocation via the AWS Lambda Web
+  SHALL make an outbound HTTP call to its own loopback `/api/portfolio` route. A
+  `GatewayLoopbackTargetProvider` resolves `local.server.port` at subscription time rather than
+  caching `${server.port}` at bean construction; this is required because RANDOM_PORT binds the
+  actual port only after startup. On AWS this is the same Lambda invocation via the AWS Lambda Web
   Adapter's `AWS_LWA_PORT=8080`, on Azure Container Apps the same pod — "same process" holds on
   both targets, "same pod" pass 6's wording only fit one of them), attaching the freshly-minted JWT
   as that call's `Authorization` header. This is deliberately **not** a call to the public,
@@ -843,8 +834,9 @@ possible; this design picks one explicitly:
   *read*. **Also noted (pass 6):** the production `/api/portfolio` route carries a
   `RequestRateLimiter` keyed by `userOrIpKeyResolver` (`application-prod.yml` line 69-79) — the
   self-call consumes the demo user's own rate-limit budget, like any other request attributed to
-  that user's JWT subject. At the login-gated frequency this trigger runs (once per idle-eligible
-  login, not per request), this is not expected to matter in practice, but a `429` here is a real,
+  that user's JWT subject. The gateway cannot know eligibility before the read, so it performs one
+  eligibility GET after every successful demo authentication/JWT mint that reaches dispatch—not
+  for ordinary users or failed authentication. This is not expected to matter in practice, but a `429` here is a real,
   reachable outcome and is covered by the fail-open rule below like any other non-success response.
   **Rejected alternative:** a direct trusted downstream call from api-gateway straight to
   portfolio-service (mirroring the internal-key trust boundary `/api/internal/**` uses for the
@@ -919,11 +911,10 @@ possible; this design picks one explicitly:
 - **Bounded timeouts, per leg and overall — not "the self-call" singular (pass 8 correction: an
   earlier draft assigned one timeout to one self-call, but D5 now describes two — the eligibility
   `GET` and the reset `POST` — leaving the second's latency contract, and the orchestration's total
-  budget, unstated).** EACH of the two self-calls SHALL carry its own explicit timeout,
-  provisionally **2 seconds per leg** — OPEN, the same provisional-value treatment as the presence
-  TTL (D4) and the idle threshold (requirements.md 7.4): a starting value pending confirmation, not
-  a frozen requirement. THE login handler SHALL additionally enforce an **overall orchestration
-  deadline** across both legs combined, provisionally **4 seconds** (also OPEN) — bounding the
+  budget, unstated).** The eligibility self-call SHALL have a **2-second** timeout and the reset
+  self-call SHALL have a separate **2-second** timeout. THE login handler SHALL additionally enforce
+  a **4-second overall orchestration deadline** across both legs combined, beginning before
+  eligibility-target construction — bounding the
   worst case where the eligibility read consumes most of its own timeout budget before the reset
   call even starts, so the fail-open rule below has a hard ceiling to trigger against rather than
   relying on per-leg timeouts alone to compose into a bounded total. On any timeout — per-leg or
@@ -940,11 +931,10 @@ possible; this design picks one explicitly:
   rather than a contained, per-request one. The two self-calls compose sequentially (eligibility
   read, then — only if eligible — the reset call), never in parallel, since the reset call's
   decision depends on the read's outcome.
-- **The 2-second-per-leg and 4-second-overall values are OPEN, and now tracked as such** — added to
-  requirements.md's Open items and this section's own cross-reference below, alongside the presence
-  TTL and idle threshold this design already treats the same way. *(Pass 8 correction: previously
-  marked "OPEN" only inline in this paragraph, with no entry in either Open-items surface — the
-  exact failure mode `updatedAt` and `assetPriceFreshness` were already caught for.)*
+- **The 2-second eligibility, 2-second reset, and 4-second overall values are owner-approved and
+  frozen.** The owner accepts approximately four seconds of added demo-login latency and legitimate
+  fail-open skips on cold or slow backends; these values do not change the global gateway proxy
+  timeouts.
 - **Fail-open, defined by outcome class, not by enumeration.** THE rule is: **any eligibility-read
   or reset-call outcome other than a clean success SHALL skip the reset and let login proceed
   unaffected** — timeout, connection failure, and **every HTTP status outside 2xx**, without
@@ -960,6 +950,31 @@ possible; this design picks one explicitly:
   and the reset call's `409` (requirements.md 3c already covered this last one specifically). None
   of these SHALL be logged as user-facing errors or surfaced to the browser — they are operational
   signals only.
+
+**Frozen Wave 8 orchestration contract (owner decision, 2026-09-06).** Bind positive durations
+under `app.demo-login-reset`: `idle-threshold=30m`, `eligibility-timeout=2s`,
+`reset-timeout=2s`, and `overall-timeout=4s`, with explicit `APP_DEMO_LOGIN_RESET_*` environment
+overrides and no duplicate fallback defaults. The orchestration entry point is
+`Mono<Void> afterLogin(com.wealth.gateway.auth.LoginResponse response)`. Invocation and publisher
+construction occur inside the deferred fail-open boundary; the successful login response is
+returned unchanged.
+
+Idle age uses an injected UTC `Clock`; elapsed diagnostics use a separate injected monotonic
+nano-clock, defaulting to `System.nanoTime`. Loopback and reset-target construction are deferred,
+nonblocking, and cancellable. The overall timeout has five phases:
+`eligibility_pre_dispatch`, `eligibility_in_flight`, `between_legs`, `reset_in_flight`, and
+`reset_post_response`. Phase and both dispatch facts must agree; `attemptedTarget` is null when no
+call is in flight. Cancellation before reset dispatch permanently prevents that dispatch, including
+after a delayed target publisher is released. Cancellation after dispatch cannot roll back a
+downstream transaction, so `demo_reset_succeeded` can coherently coexist with either
+`reset_timeout` or `overall_timeout`.
+
+Normal idle-ineligible completion is a clean no-op and emits no
+`demo_reset_self_call_skipped` event. All counters, timestamps, phase, and at-most-one failure
+emission are per subscription. There is no reread, retry, detached subscription, blocking client,
+or mutable singleton timing state. The complete decision rationale, event fields, property names,
+and three-level test topology are authoritative in
+`docs/superpowers/plans/2026-09-06-b2-wave8-decision-record.md`.
 
 **Authorization — the missing rule, added on review.** `ReadOnlyEnforcementFilter` allowlisting a
 path only controls whether a **read-only** (`ro=true`) principal may reach it — verified directly:
@@ -1359,29 +1374,25 @@ existing allowlist behavior changes. **Distinct from, and not a substitute for, 
 question (JWT subject must equal `DEMO_USER_ID`); both run for the same request, checking unrelated
 conditions.
 
-## D7 — What this design does not (yet) specify
+## D7 — Remaining decisions and evidence
 
-Per `requirements.md`'s open items: the idle-reset threshold, the manual reset control's placement,
-the presence TTL's exact value, and — added pass 8 — the login self-call timeouts (D5: 2 seconds
-per leg, 4 seconds overall, both provisional). These are product/operational decisions, not
-implementation unknowns — do not resolve them by picking a default in code without raising them.
-(A quantity upper bound was listed here in Revision 1's first draft; it is not open — B1
-Requirement 3.1 already freezes it at `99999999999.99999999` — removed from this list on review.)
+The owner resolved the Wave 8 product/operational choices on 2026-09-06: the idle threshold is a
+strict 30 minutes of persisted `PortfolioResponse.updatedAt` age, the existing page-level manual
+reset placement is final for this release, and the self-call budgets are 2s eligibility / 2s reset /
+4s overall. The presence TTL was already settled at 150 seconds. These values are frozen in D5 and
+the Wave 8 decision record; they are no longer implementation defaults or open questions.
 
-**The frontend decimal-adapter migration's rollout sequencing (requirements.md Requirement 8.3) —
-missing from this list until now, added on pass 5's cross-document audit.** D3 above states the
-sequencing obligation (`BackendHolding.quantity: number → string` must not go live ahead of B1's
-string-quantity read contract) as a settled `SHALL`, but *when* — coordinated against which of B1's
-Wave 4/5 deploys, by whom — is not decided, matching requirements.md's own framing of this item as
-still open. This section exists specifically to catch open items D3 states as settled-in-shape but
-unsettled-in-timing; it had not, until this pass.
+The remaining decimal item is historical. The backend decimal-string source served before the
+tolerant frontend adapter landed. B1 owns the containment/frontend-artifact audit across deployed
+frontend artifacts, routing, caches, and rollback paths, followed by a reviewed disposition.
+Recorded ingress closure makes impact unproven rather than closed. Task 2.6 compatibility, Task 2.7,
+and Wave 10.2 item 2 remain open. Deployment, live proof, and exposure gates also remain separate.
 
-**`updatedAt` exposure on `PortfolioResponse` is no longer open.** The parallel Azure handoff audit
-confirmed that leaving a production-gating field ownerless made the plan literally unexecutable.
-B2 Task 8.1 now owns the additive field `updatedAt` (camelCase; database column `updated_at`), its
-entity-to-response mapping, ISO-8601 encoding matching `createdAt`, and a contract test on every
-element of the existing `List<PortfolioResponse>`. It remains blocked on B1's V20 column and Task
-5.1 response work, but ownership is settled and this item is removed from the Open-items count.
+**`updatedAt` exposure on `PortfolioResponse` is no longer open.** B2 Task 8.1 delivered the
+additive field `updatedAt` (camelCase; database column `updated_at`), its entity-to-response mapping,
+ISO-8601 encoding matching `createdAt`, and a contract test on every element of the existing
+`List<PortfolioResponse>`. Its recorded cu4 provenance is described above; no duplicate deployment
+is required.
 
 **`assetPriceFreshness` dependency closed on 2026-08-24.** Spec A task 8.6 is complete and the
 aggregate field exists in `portfolio-service`'s portfolio-summary response. Requirements 3.2 and

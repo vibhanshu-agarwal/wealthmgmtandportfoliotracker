@@ -680,8 +680,8 @@ sensible portfolio most of the time, even if a previous visitor left it edited o
    inside the picker. If the control instead lives outside the picker, e.g. a standalone
    page-level button, there is no open draft to protect and no `ConflictPanel` to show it in; that
    placement's `409` SHALL instead surface as a simple, draft-free error notice — same envelope
-   and no-retry contract, placement-appropriate presentation.)* The envelope and no-retry rule are
-   settled now; only the presentation is conditional on 7.6's still-open placement decision.
+   and no-retry contract, placement-appropriate presentation.)* The owner selected that page-level,
+   draft-free presentation for this release; the envelope and no-retry rule remain unchanged.
 3c. THE login-orchestrated trigger SHALL be **fail-open relative to login on both sides of the
    call**: if its reset call loses the version race (a `409`, meaning something else wrote to the
    demo portfolio between the eligibility read and this call), login SHALL proceed unaffected and
@@ -697,17 +697,18 @@ sensible portfolio most of the time, even if a previous visitor left it edited o
    timeout: skip, proceed, no user-visible error. *(Pass 6 addition: `design.md` D5 identifies two
    concretely reachable 4xx cases — an `X-Origin-Verify` mismatch on the gateway self-call, and the
    portfolio route's own rate limiter — that an enumerated "timeout, 5xx" list would have missed.)*
-3d. **B2 owns exposing `updatedAt` on `PortfolioResponse`; it is not a Wave-3 given.** Verified
-   against B1's actual tasks: B1 Wave 3/V20 adds the `updated_at`
-   **column** to the `portfolios` table (B1 `requirements.md` 5.14-5.15), but no B1 task exposes it
-   on the wire — Wave 5 task 5.1 exposes only `version` on `GET /api/portfolio`
-   (`portfolio-composition-contract/tasks.md:688`). This B2 plan therefore owns the additive DTO
-   field, entity-to-response mapping, and exact ISO-8601 contract test after B1's V20 column and
-   Task 5.1 response work land; criterion 4 remains blocked on that implementation, not on an
-   owner-selection decision. *(Architecture reconciliation after the parallel Azure audit:
-   an earlier draft of criterion 3 assumed Wave 3 alone would put `updated_at` on the response.)*
-4. THE reset trigger SHALL be: on demo login, reset if and only if the demo portfolio has been
-   idle longer than a threshold (provisionally **30 minutes** — OPEN). *(Settled, entry [6] Q9:
+3d. **B2 owns exposing `updatedAt` on `PortfolioResponse`; it was not a Wave-3 given.** Task 8.1
+   delivered the additive DTO field, entity-to-response mapping, and exact ISO-8601 contract via
+   PR #185. Recorded cu4 provenance binds source `6a171558` to digest
+   `sha256:2be727eaf4577699c783ae66073670d4984fe66c666af3e56422c934fdd0b023`, serving
+   revision `0000094`; this is provenance, not a fresh runtime read-back. Criterion 4 therefore
+   consumes the persisted response field and does not schedule a duplicate Task 8.1 deployment.
+4. THE reset trigger SHALL be: on demo login, reset if and only if the demo portfolio's persisted
+   `PortfolioResponse.updatedAt` age is **strictly greater than 30 minutes**. Below-threshold,
+   exactly-equal, and future timestamps are ineligible. Active viewing, an unsaved draft, and the
+   150-second presence TTL do not renew or defer this persisted-write signal. A production proof
+   that qualifies for Wave 10 waits until the real threshold is strictly exceeded; a temporary
+   threshold override is diagnostic only. *(Settled, entry [6] Q9:
    durable, no scheduler, no lease, no delayed-job infrastructure; rejects reset-on-logout as
    unreliable and a fixed schedule as capable of erasing a visible session.)* **Correction to the
    idle signal itself:** entry [6] proposed reading `portfolios.updated_at` and asserted the
@@ -718,13 +719,18 @@ sensible portfolio most of the time, even if a previous visitor left it edited o
    and asserted the column already exists, citing `V1__Initial_Schema.sql:32`. That line is
    `market_prices.updated_at`. The `portfolios` table is `(id, user_id, created_at)` and no later
    migration adds to it."* `updated_at` is added to `portfolios` by B1's own V20 migration (Wave
-   3) — but, per 3d, the column alone is not enough. **This reset trigger is therefore not
-   implementable until `updated_at` is exposed on `PortfolioResponse`** — later and narrower than
-   "B1 Wave 3 lands," which this spec previously stated.
+   3) — and Task 8.1 now exposes it on `PortfolioResponse` as recorded in 3d.
 5. THE reset SHALL also be triggerable manually via an explicit control, independent of the
    login-time idle check. *(Settled, entry [6] Q9: "manual button, plus reset-on-demo-login".)*
-6. **OPEN — not yet decided, needs a product call:** the exact idle threshold (30 minutes is a
-   starting value, not a commitment) and where the manual reset control lives in the UI.
+6. THE manual reset control SHALL remain at the existing page-level `PortfolioPageContent` host for
+   this release. A stale-version `409` uses the draft-free notice described in 3b. Moving the control
+   into the picker is a separate product change with its own frozen-draft, accessibility, recovery,
+   and E2E acceptance work.
+7. THE login-orchestrated eligibility read SHALL time out after **2 seconds**, the reset call after
+   **2 seconds**, and the complete optional orchestration after **4 seconds**. The overall bracket
+   begins before eligibility-target construction. Any non-clean outcome is fail-open relative to
+   the already-successful login. A reset dispatched before cancellation may still commit after
+   either the reset-leg or overall timeout; timeout cancellation is not transaction rollback.
 
 ## Requirement 8: Decimal fidelity end to end
 
@@ -734,26 +740,20 @@ saved, with no floating-point drift introduced by the trip through the browser.
 ### Acceptance Criteria
 
 **Correction to this requirement's original premise:** entry [6] E1 identified a real hazard as of
-2026-08-16 (the read side emitted quantity as a JSON number). **B1 owns and has designed the fix,
-but has not yet implemented it — ownership is settled, implementation is not** *(pass 6 correction:
-this criterion still said "B1 has since closed it entirely" and "task 4.9 implements both
-directions," the exact overclaim `design.md` D3 was already corrected out of; the two documents
-must agree, and now do)*: current B1 Requirement 4.1-4.7 requires decimal strings both directions
-(4.1 is the write-direction mandate; 4.2 the read-direction one; 4.3-4.7 supporting/enforcement
-criteria — pass 7 correction: an earlier citation of "4.2-4.7" omitted 4.1, the one criterion that
-actually states the write-side requirement)
-and B1's own `design.md` D6 specifies a `ToPlainStringSerializer` on `HoldingResponse.quantity`; B1
-task 4.9 is **merged on `main`** and `PortfolioResponse.HoldingResponse.quantity` is serialized as
-an exact decimal string on the wire. B2 Task 8.1 (`updatedAt`) and frontend migration Task 2.7
-remain later and open. The B1 backend decimal-string contract is on `main`; the remaining gap is
-B2's frontend migration (Requirement 8.3 / Task 2.7).
+2026-08-16, when the read side emitted quantity as a JSON number. B1 subsequently implemented the
+decimal-string response contract: task 4.9 is merged on `main`, and
+`PortfolioResponse.HoldingResponse.quantity` is serialized as an exact decimal string on the wire.
+B2 Task 8.1 (`updatedAt`) is also complete with the provenance recorded in Requirement 7.3d. The
+remaining Task 2.7 question is therefore historical deployment containment, not prospective source
+implementation.
 
-**The actual, still-open gap is different: B1's backend contract change and the existing frontend
-are on a collision course.** `frontend/src/lib/api/portfolio.ts` declares `interface
-BackendHolding { quantity: number }` today — the live frontend already assumes a JSON number, and
-nothing in B1's scope touches the frontend (B1 Requirement 10.1: "no frontend change"). If B1's
-string-quantity read contract reaches production before this adapter is migrated, the existing
-Portfolio page (which B1 does not touch) breaks.
+The recorded sequence has the backend decimal-string source `f22e2ff` serving on 2026-08-26 as
+revision `0000081` / digest
+`sha256:d544649f5b67baec8b563016882d239d3ecb9c5672399586e0bc656c78961d4f`, while the tolerant
+frontend adapter source landed later at `fd42df7a` through PR #178 on 2026-08-29. Recorded ingress closure makes user-visible impact
+unproven; it does not prove that no incompatible frontend artifact, route, cache, or rollback path
+was exposed. Task 2.7 remains open for B1's historical containment/frontend-artifact audit and a
+reviewed disposition. Task 2.6 compatibility and Wave 10.2 item 2 remain open safeguards.
 
 1. THE client SHALL treat every quantity — on read (`PortfolioResponse`/`HoldingResponse`) and on
    write (the `PUT` body) — as a plain-decimal string, never as a parsed JavaScript `number`, from
@@ -788,16 +788,15 @@ Portfolio page (which B1 does not touch) breaks.
 
 ## Open items, explicitly not resolved by this revision
 
-- **Q9's idle threshold** (Requirement 7.6) — needs a product decision on the exact minute value.
-- **Manual reset control's location in the UI** (Requirement 7.6) — needs a product decision.
-- **Login-orchestrated self-call timeouts** (`design.md` D5) — 2 seconds per leg (eligibility read,
-  reset call) and 4 seconds overall are starting values, not commitments, same provisional-value
-  treatment as the idle threshold above. *(Added pass 8: previously marked "OPEN"
-  only inline in D5, with no entry in this list — the same gap already caught for `updatedAt` and
-  `assetPriceFreshness`.)*
-- **The frontend decimal-adapter migration's rollout sequencing** (Requirement 8.3) — needs
-  explicit coordination with B1's Wave 4/5 deploy timing, not just a statement that it must happen
-  first.
+- **The frontend decimal-adapter migration's historical rollout sequencing** (Requirement 8.3) —
+  Task 2.6 compatibility remains mandatory. A B1-owned historical containment/frontend-artifact
+  audit must disposition the backend-before-adapter exception; Task 2.7 and Wave 10.2 item 2 remain
+  open. Recorded ingress closure makes user-visible impact unproven, not closed.
+
+**Closed by owner decision on 2026-09-06:** Requirement 7's idle threshold is 30 minutes with a
+strict boundary, the login self-call timeouts are 2s/2s/4s, and the manual reset remains page-level
+for this release. The authoritative rationale and implementation contract are recorded in
+`docs/superpowers/plans/2026-09-06-b2-wave8-decision-record.md`.
 
 **Closed on 2026-08-24:** the former `assetPriceFreshness` backend dependency is removed from this
 list. Spec A task 8.6 is complete and the aggregate field exists in `portfolio-service`; B2 retains

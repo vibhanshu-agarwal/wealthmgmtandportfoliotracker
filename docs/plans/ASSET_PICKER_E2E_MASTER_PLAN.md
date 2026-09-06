@@ -138,7 +138,7 @@ This reconciliation does not advance a runtime baseline or claim a new productio
 merged at `main@48d0aba8468325b91e1bf9b84bd43cbeaacdf74a` on 2026-09-02 at 15:53:57Z.
 The merged tree is identical to final head `b918ff09`, whose CI is green. B2 Wave 6 Tasks
 6.1/6.2 are source-complete and checked; source/visual ACCEPT at `970b637b` and R1–R4 closure
-carry forward. Committed flags remain disabled, final placement and Task 6.3 remain open,
+carry forward. Committed flags remain disabled; the page-level placement is final and Task 6.3 remains open,
 and the owner-deferred [sidebar backlog](../todos/backlog/responsive-dashboard-sidebar/README.md)
 remains separate. No fresh runtime attestation is made.
 
@@ -241,7 +241,7 @@ three-caller run. Wave 5's Wave 4 prerequisite is satisfied; its source bundle m
 at `main@d8fa499d` after Codex ACCEPT and final-head CI success. Task 5.6's seven technical
 conditions are met; its owner GO remains pending. Wave 6 frontend Tasks 6.1/6.2 merged via
 PR #214 at `main@48d0aba8`, identical to CI-green final head `b918ff09`. The flags remain
-disabled in source; final placement, backend readiness, and exposure remain open. No new
+disabled in source; page-level placement is final, while backend readiness and exposure remain open. No new
 production read-back or deployment operation is part of this close-out.
 
 This is the living, human-facing status document for the Asset Picker program. It is not a
@@ -477,13 +477,13 @@ All four artifacts are tracked. Wave 1 (1.1-1.19) and Wave 2 Tasks 2.1-2.5 merge
 | Wave | Status | Dependency note |
 |---|---|---|
 | 1 — mock-backed picker shell | ✅ Source merged (1.1-1.19), mock-backed only; not deployed/live | Feature flags, modal, browse/draft/review/conflict UX, mocked save/freshness/presence; PR #178 / `main@38e3d95` |
-| 2 — decimal adapter | 🟡 Tasks 2.1-2.5 source merged; 2.6-2.7 not started | PR #178 / `main@38e3d95`; rollout sequencing with B1 Wave 4/5 remains an explicit open coordination decision |
+| 2 — decimal adapter | 🟡 Tasks 2.1-2.5 source merged; 2.6-2.7 open | PR #178 / `main@38e3d95`; retain numeric compatibility while B1 completes the historical backend-before-adapter containment/frontend-artifact audit and reviewed disposition |
 | 3 — Redis-backed presence | 🟡 Tasks 3.1–3.6 source merged via PR #179 / `main@cc97a209`; Task 3.7 open | Default TTL **150s** via `APP_DEMO_PRESENCE_TTL`; not deployed/live-verified |
 | 4 — portfolio-service demo reset | ✅ Complete — Tasks 4.1–4.4a merged via PR #180 / `main@63fc058`; Task 4.5 live GO | Exact cut serves internally on `portfolio-service--0000093` / `sha256:9a1d5533…`; one authorized same-state reset returned `200`, exact golden 159/159, unchanged version `0` per B1; [evidence](../runbooks/B2_TASK_4_5_DEMO_RESET_STOP_GO.md) |
 | 5 — manual-reset gateway bundle | 🟡 Tasks 5.1a and 5.1b source merged via [PR #202](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/202) / `main@64761dc2` and [PR #208](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/208) / `main@f954b5a7`; neither is deployed. Wave 4's prerequisite is satisfied. Remaining source Tasks 5.1, 5.2, 5.3, 5.3a, 5.4, and 5.5 merged via [PR #212](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/212) / `main@d8fa499d` | Filter, both routes, exact read-only exceptions, tests, and identity guard accepted; final CI passed on the identical reviewed tree. Task 5.6: 7/7 technical conditions met, owner GO pending; no deployment |
-| 6 — manual reset frontend | ✅ Tasks 6.1/6.2 merged via [PR #214](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/214) at `main@48d0aba8`, identical to CI-green head `b918ff09`; ACCEPT, R1–R4 closed | Committed flags off, placement open, Task 6.3 still gated; no new runtime attestation. The owner-deferred [sidebar backlog](../todos/backlog/responsive-dashboard-sidebar/README.md) remains open |
+| 6 — manual reset frontend | ✅ Tasks 6.1/6.2 merged via [PR #214](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/214) at `main@48d0aba8`, identical to CI-green head `b918ff09`; ACCEPT, R1–R4 closed | Committed flags off; the owner finalized the existing page-level placement on 2026-09-06. Task 6.3 remains gated; no new runtime attestation. The owner-deferred [sidebar backlog](../todos/backlog/responsive-dashboard-sidebar/README.md) remains open |
 | 7 — decimal rollout note | ℹ Informational | No independent release gate |
-| 8 — login-orchestrated reset | 🟡 Task 8.1 (`updatedAt` read contract) standalone PR #185 was source-only at merge; its behavior is included in tracked cu4 source 6a171558 / digest sha256:2be727eaf4577699c783ae66073670d4984fe66c666af3e56422c934fdd0b023 / revision 0000094 (provenance only, not fresh read-back; no duplicate deployment needed). Task 8.2a (`CloudFrontOriginSecretProvider`) source merged via [PR #203](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/203) / `main@addd8049`; not deployed. Task 8.2's open decisions and Tasks 8.3 and later not started. Reconciled provenance: source `6a171558` contains `PortfolioResponse.updatedAt` and decimal-string serialization; tracked cu4 evidence binds it to digest `sha256:2be727eaf4577699c783ae66073670d4984fe66c666af3e56422c934fdd0b023`, serving revision `0000094` (provenance only, not a fresh read-back). | Requires B1/V20/version read (met, satisfied by 8.1); open idle/timeouts, Tasks 8.3 and later, 5.1b (merged source-only via PR #208; not deployed), and its own deployment evidence |
+| 8 — login-orchestrated reset | 🟡 Task 8.1 (`updatedAt` read contract) standalone PR #185 was source-only at merge; its behavior is included in tracked cu4 source 6a171558 / digest sha256:2be727eaf4577699c783ae66073670d4984fe66c666af3e56422c934fdd0b023 / revision 0000094 (provenance only, not fresh read-back; no duplicate deployment needed). Task 8.2a (`CloudFrontOriginSecretProvider`) source merged via [PR #203](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/203) / `main@addd8049`; not deployed. The owner approved Task 8.2's 30m strict idle threshold, 2s/2s/4s timeouts, page-level placement, and retained decimal compatibility on 2026-09-06; Astra independently accepted the aligned decision/spec packet. [Decision record](../superpowers/plans/2026-09-06-b2-wave8-decision-record.md). Tasks 8.3 and later remain not started. | Requires B1/V20/version read (met, satisfied by 8.1); Tasks 8.3 and later, 5.1b (merged source-only via PR #208; not deployed), and its own deployment evidence |
 | 9 — live integration | 🟡 Tasks 9.1, 9.3, 9.4, 9.5 (PR #231 at `main@b4c68253b99a796d6301ef79b5aa5a47d5cbd962`), and 9.6 have their recorded source/local evidence. Tasks 9.2/9.7/9.8/9.9 are source/assembled-stack complete: one disposable Compose real-browser run passed 5/5 across setup plus picker and demo-reset success/conflict; PR #232 merged at `main@318f28592da6ab2e3bd66bc738aa68d374b180fa`, with final CI run `34018608256` passing `docker-build-verify` and `ci-required`, and body-edit guard run `34020180243` passing | No deployment or Production E2E is claimed; B1 R-C deployment/convergence and Wave 10 still gate exposure; production flags remain off |
 | 10 — production exposure | ⬜ Blocked | Convergence gate after all required live evidence and open decisions close |
 
@@ -494,15 +494,13 @@ real summary object. Combined Wave 9 assembled-stack evidence is complete, and P
 `34018608256` passed `docker-build-verify` and `ci-required`; deployment and Production E2E remain
 open.
 
-### Open B2 decisions
+### B2 decision status
 
-1. Demo reset idle threshold; 30 minutes is provisional.
-2. Manual reset control placement in the UI.
-3. Login self-call timeouts; 2 seconds per leg and 4 seconds overall are provisional.
-4. Decimal-adapter deployment sequencing relative to B1 Wave 4/5.
-
-These do not block starting the mock-backed picker shell. They do block the affected reset/presence
-behavior and final production exposure.
+The owner resolved the Wave 8 product/operational decisions on 2026-09-06: strict 30-minute
+persisted idle age, 2s eligibility / 2s reset / 4s overall timeouts, and page-level manual reset.
+Numeric compatibility remains in place while B1 owns the historical backend-before-adapter
+containment/frontend-artifact audit. Task 2.7 and Wave 10.2 item 2 remain open pending that reviewed
+disposition. See the [decision record](../superpowers/plans/2026-09-06-b2-wave8-decision-record.md).
 
 ## 5. Dependency path to a production Asset Picker
 
@@ -591,8 +589,8 @@ calculations passed: light success 5.11:1, light alerts 6.03:1, dark alerts 6.95
 [Frontend CI at accepted source](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33646074169)
 passed **526 tests / 62 files**, lint, typecheck, build, and static login-HTML smoke.
 
-Tasks 6.1/6.2 are checked for source completion. Committed flags stay off; final placement,
-Task 5.6's owner GO, Task 6.3, and exposure remain separate. No new runtime attestation is made.
+Tasks 6.1/6.2 are checked for source completion. Committed flags stay off; page-level placement is
+final, while Task 5.6's owner GO, Task 6.3, and exposure remain separate. No new runtime attestation is made.
 **Current B1 priority (2026-09-03): publish the approved Wave 6 / R-B3 evidence and close-out; Wave 7 source from PR #219 is merged.** Tasks 6.1–6.4
 merged through PR #217 after source ACCEPT and final-head CI. The historical Claude kickoff
 is complete as a source assignment. Any release handoff must separately specify the authorized
@@ -660,7 +658,7 @@ further implementation remain separate decisions. B1 G5 closed under its own own
    matches the reviewed head. Task 5.6's seven technical conditions are met; its owner GO decision
    remains open. Wave 6 Tasks 6.1/6.2 merged via PR #214 at `main@48d0aba8`, identical to
    final CI-green head `b918ff09`, and are checked for source completion. Flags remain off
-   in committed source; final placement and Task 6.3 remain open. No new runtime attestation is made.
+   in committed source; page-level placement is final and Task 6.3 remains open. No new runtime attestation is made.
    Tasks 2.6–2.7, live proofs, remaining bundles, deployment, and exposure retain their own gates.
 4. **Process lane:** keep the status-propagation CI guard healthy in required `static-guard`; it is
    process-control only and does not advance the runtime baseline.

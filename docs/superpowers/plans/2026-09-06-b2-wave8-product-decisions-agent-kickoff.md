@@ -15,7 +15,7 @@
 - Start from `origin/main@318f28592da6ab2e3bd66bc738aa68d374b180fa`, the merge commit for PR #232. Verify the SHA before editing; if `origin/main` moved, record the new baseline and inspect the intervening changes.
 - PR #232's reviewed head was `dba83c3a1cc28212c6aa115db803cbd15858e1e4`. Final CI run `34018608256` passed, including `docker-build-verify` and `ci-required`; the PR-body edit guard run `34020180243` also passed. This is assembled-stack evidence, not deployment or Production E2E.
 - Do not reimplement Tasks 8.1, 5.1a, 5.1b, or 8.2a. Reconcile their source and runtime provenance before scheduling any prerequisite deployment.
-- Task 8.2 remains unresolved. Thirty minutes idle, two seconds per leg, and four seconds overall are provisional values and must not become production defaults without a recorded owner decision.
+- Task 8.2's product/operational choices were owner-approved on 2026-09-06 and independently accepted by Astra. They are frozen in the decision record: strict 30-minute persisted idle age, 2-second eligibility, 2-second reset, and 4-second overall timeouts, plus page-level manual-reset placement.
 - “Idle” means the age of the persisted portfolio `updatedAt`; it does not mean browser inactivity and is unrelated to the 150-second presence TTL.
 - Use strict TDD for implementation and workflow tooling: observe a discriminating RED, make the smallest change, observe GREEN, then mutation-check the critical oracle and restore byte-for-byte.
 - The login reset is sequential, nonblocking, per subscription, and fail-open. Do not use `WebClient.create()`, `.block()`, `RestTemplate`, detached subscriptions, automatic retry, or singleton mutable progress state.
@@ -105,23 +105,23 @@ Create `.wave8-reconciliation-pr-body.md` with the exact intended PR-body declar
 - Modify after decisions: `docs/plans/ASSET_PICKER_E2E_MASTER_PLAN.md`
 - Create: `docs/superpowers/plans/2026-09-06-b2-wave8-decision-record.md`
 
-- [ ] **Step 1: Prepare the idle-threshold decision**
+- [x] **Step 1: Prepare the idle-threshold decision**
 
 Present evidence and a recommendation for the exact duration. The record must define the source (`PortfolioResponse.updatedAt`), strict comparison boundary (below and equal are ineligible; strictly above is eligible), impact on shared-demo restoration, and how a production-threshold live proof earns eligibility without conflating it with presence TTL.
 
-- [ ] **Step 2: Prepare the timeout decision**
+- [x] **Step 2: Prepare the timeout decision**
 
 Present evidence and a recommendation for the eligibility-leg timeout, reset-leg timeout, and overall deadline. The record must state acceptable added login latency, expected cold/warm backend behavior, cancellation semantics, and the fact that every non-clean outcome remains fail-open. The provisional 2s/2s/4s values are candidates, not defaults.
 
-- [ ] **Step 3: Prepare the manual-reset placement decision**
+- [x] **Step 3: Prepare the manual-reset placement decision**
 
 Compare the existing page-level host with an in-picker control. Page-level placement preserves draft-free conflict presentation. In-picker placement requires the frozen-draft `ConflictPanel`, accessibility coverage, and E2E locator changes. This decision does not block Wave 8 source work but remains a Wave 10 exposure gate.
 
-- [ ] **Step 4: Disposition decimal sequencing**
+- [x] **Step 4: Disposition decimal sequencing**
 
 Treat this as a historical compatibility audit. Compare actual frontend/backend deployment provenance, coordinate any violated ordering with B1 ownership, and preserve Task 2.6's numeric compatibility branch until a separate retirement decision. Do not declare the issue closed because PR #232 merged or because current backend serialization is correct.
 
-- [ ] **Step 5: Freeze implementation contracts**
+- [x] **Step 5: Freeze implementation contracts**
 
 After owner decisions, freeze configuration property names, the orchestration entry point, event fields, clock seam, loopback target seam, reset-target construction seam, and test topology. Recommended entry point:
 
@@ -131,7 +131,7 @@ Mono<Void> afterLogin(com.wealth.gateway.auth.LoginResponse response);
 
 It completes without changing the successful login response. Ordinary users complete without either self-call.
 
-- [ ] **Step 6: Obtain Astra ACCEPT**
+- [x] **Step 6: Obtain Astra ACCEPT**
 
 Astra checks the four decision records against Requirement 7, D5, Task 8.2, Task 2.6, and Wave 10. No production behavior is committed until the threshold and timeout decisions are accepted and recorded.
 
@@ -169,7 +169,7 @@ Build both clients from the injected observation-enabled builder. Read the loopb
 
 - [ ] **Step 3: Prove exact cardinality and call counts**
 
-Every test asserts one eligibility GET. Ineligible or failed eligibility produces zero reset POSTs. Eligible clean flow produces one reset POST using the same observed version. No reread and no retry are permitted.
+Every successful demo-authentication flow that reaches eligibility dispatch asserts exactly one eligibility GET. Ordinary-user, failed-authentication, and `eligibility_pre_dispatch` timeout flows assert zero eligibility GETs. Ineligible or failed eligibility produces zero reset POSTs. Eligible clean flow produces one reset POST using the same observed version. No reread and no retry are permitted.
 
 - [ ] **Step 4: Mutation-check**
 
@@ -194,7 +194,7 @@ Temporarily select the first portfolio, change `>` to `>=`, reread before reset,
 
 - [ ] **Step 1: Write orchestration RED tests**
 
-Cover successful demo login, ordinary user, failed authentication, eligibility failure, ineligible observation, reset conflict, reset failure, synchronous construction failures, and all three overall-timeout phases. Assert the original login response and uniform authentication errors remain unchanged.
+Cover successful demo login, ordinary user, failed authentication, eligibility failure, ineligible observation, reset conflict, reset failure, synchronous construction failures, both per-leg timeouts, and all five overall-timeout phases. Assert the original login response and uniform authentication errors remain unchanged.
 
 - [ ] **Step 2: Add deterministic time measurement**
 
@@ -206,7 +206,7 @@ Compose eligibility, strict idle check, and reset within the successful demo-log
 
 - [ ] **Step 4: Emit the exact diagnostic contract**
 
-Emit one trace-correlated `demo_reset_self_call_skipped` event for each skip, with the stable coarse reason vocabulary and the diagnostic fields required by Task 8.7. Every induced failure branch asserts the exact inbound trace id plus its exact reason, request count, and branch-specific diagnostic fields; clean success emits no failure event. Keep configured/required, dispatched, and attached fields distinct. Preserve nullable fields when a request was never finalized.
+Emit one trace-correlated `demo_reset_self_call_skipped` event for each non-clean skip, with the stable coarse reason vocabulary and the diagnostic fields required by Task 8.7. Clean idle-ineligible completion and clean success emit no failure event. Every induced failure branch asserts the exact inbound trace id plus its exact reason, request count, and branch-specific diagnostic fields. Keep configured/required, dispatched, and attached fields distinct. Preserve nullable fields when a request was never finalized.
 
 - [ ] **Step 5: Prove cancellation and dual-event behavior**
 
@@ -237,13 +237,13 @@ Start the actual gateway on `RANDOM_PORT` with `@AutoConfigureTracing(export = f
 
 Use the dedicated `wave8IntegrationTest` source set/task whose classpath alone contains `project(':portfolio-service')`. Do not add MVC/JPA, a second application class, or duplicate resources to the ordinary gateway test classpath. Use explicit reactive/servlet bootstraps and narrow scans. Make the existing `:api-gateway:integrationTest` depend on `:api-gateway:wave8IntegrationTest`, so the root `integrationTest` command used by CI necessarily executes the real-chain task.
 
-- [ ] **Step 3: Prove the two real persistence races**
+- [ ] **Step 3: Prove the real persistence and post-response races**
 
-Use the portfolio-service integration discipline to prove: a committed reset response delayed past the gateway deadline, and a successful reset followed by a gateway-handler failure. Require real persisted version advancement and the real `demo_reset_succeeded` event alongside the gateway skip event where applicable. An HTTP status stub cannot satisfy these cases.
+Use the portfolio-service integration discipline to prove four named cases: a committed reset whose response exceeds the reset-leg timeout; a committed reset whose response exceeds the overall deadline in `reset_in_flight`; a committed reset whose response is received before the overall deadline fires in `reset_post_response`; and a successful reset followed by a gateway-handler failure. Require real persisted version advancement and the real `demo_reset_succeeded` event alongside the gateway skip event where applicable. Assert the post-response timeout preserves the received HTTP status. An HTTP status stub cannot satisfy these cases.
 
 - [ ] **Step 4: Prove the CI graph discriminates**
 
-After both named real-chain race cases pass, temporarily make each one fail in turn and run the same root `integrationTest` graph used by CI. Require each mutation to fail in `:api-gateway:wave8IntegrationTest`, record collection evidence naming both test methods, then restore the test byte-for-byte and rerun GREEN. A direct `wave8IntegrationTest` pass alone is insufficient.
+After every named real-chain case passes, temporarily make each one fail in turn and run the same root `integrationTest` graph used by CI. Require each mutation to fail in `:api-gateway:wave8IntegrationTest`, record collection evidence naming every test method, then restore the test byte-for-byte and rerun GREEN. A direct `wave8IntegrationTest` pass alone is insufficient.
 
 - [ ] **Step 5: Run focused and complete gateway verification**
 
