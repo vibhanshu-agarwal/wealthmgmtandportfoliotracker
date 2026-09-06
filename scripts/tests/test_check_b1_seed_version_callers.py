@@ -138,6 +138,35 @@ class CheckB1SeedVersionCallersTest(unittest.TestCase):
                     self.guard.run_guard(asset_picker_text=mutated, skip_discovery=True)
                 self.assertIn("canonical", str(ctx.exception))
 
+    def test_regex_wrapper_cannot_disable_picker_fixtures(self) -> None:
+        source = (REPO / "frontend/tests/e2e/asset-picker.spec.ts").read_text(encoding="utf-8")
+        boundary = "async function restoreGoldenState("
+        self.assertEqual(source.count(boundary), 1)
+        mutated = source.replace(boundary, "if (false) {\n  void /}/;\n" + boundary, 1) + "\n}\n"
+        with self.assertRaises(self.guard.GuardError) as ctx:
+            self.guard.run_guard(asset_picker_text=mutated, skip_discovery=True)
+        self.assertIn("canonical", str(ctx.exception))
+
+    def test_picker_prefix_rejects_unreviewed_insertions(self) -> None:
+        source = (REPO / "frontend/tests/e2e/asset-picker.spec.ts").read_text(encoding="utf-8")
+        boundary = "async function restoreGoldenState("
+        mutations = {
+            "module statement": "void 0;\n" + source,
+            "regex statement": source.replace(boundary, "void /}/;\n" + boundary, 1),
+            "comment before cleanup": source.replace(boundary, "/* reviewed prefix changed */\n" + boundary, 1),
+            "module comment": "/* reviewed prefix changed */\n" + source,
+        }
+        for name, mutated in mutations.items():
+            with self.subTest(name=name):
+                with self.assertRaises(self.guard.GuardError) as ctx:
+                    self.guard.run_guard(asset_picker_text=mutated, skip_discovery=True)
+                self.assertIn("canonical", str(ctx.exception))
+
+    def test_picker_prefix_accepts_crlf(self) -> None:
+        source = (REPO / "frontend/tests/e2e/asset-picker.spec.ts").read_text(encoding="utf-8")
+        message = self.guard.run_guard(asset_picker_text=source.replace("\n", "\r\n"), skip_discovery=True)
+        self.assertIn("exactly four governed callers", message)
+
     def test_scheduled_synthetic_trigger_fails(self) -> None:
         synthetic = self.guard._read(self.guard.SYNTHETIC_WF).replace(
             "  workflow_dispatch:\n",

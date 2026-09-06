@@ -166,10 +166,191 @@ def _require_picker(body: str, pattern: str, policy: str) -> None:
         raise GuardError(f"asset-picker-cleanup: {policy}")
 
 
-# Deliberately bounded source contract, not a general TypeScript control-flow
-# parser. Executable changes to this cleanup/fixture section require review and
-# an explicit canonical update. Trivia is ignored; literal contents are retained.
-PICKER_CLEANUP_AND_FIXTURES = r'''
+# Fail-closed source contract from the beginning of the module through afterEach.
+# There is intentionally no TypeScript lexer or delimiter interpretation here:
+# unknown syntax, wrappers, comments, and whitespace changes all require review.
+# Only LF/CRLF differences are normalized. The test case bodies remain outside
+# this bounded contract. Update this literal only after reviewing the full prefix.
+PICKER_GOVERNED_PREFIX = r'''/**
+ * B2 Tasks 9.2 and 9.7 — real assembled-stack composition save proof.
+ *
+ * This is intentionally collected by `playwright.config.ts` in the flag-on CI
+ * job. It makes no `page.route` calls: setup, picker saves, conflicts, and
+ * cleanup all traverse the real gateway/backend. The preserved mocked Wave-1
+ * coverage lives in `asset-picker.mocked.spec.ts` and is collected only by
+ * `playwright.asset-picker.mocked.config.ts`.
+ *
+ * Run only against the coordinator's disposable assembled stack:
+ *   NEXT_PUBLIC_ENABLE_ASSET_PICKER=true npx playwright test --config playwright.config.ts tests/e2e/asset-picker.spec.ts
+ */
+import { expect, test } from "@playwright/test";
+import type { APIRequestContext, APIResponse, Page, Request, Response } from "@playwright/test";
+import { e2eLoginCredentials } from "./helpers/e2e-credentials";
+import {
+  assertExactPersistedHoldings,
+  assertNoAutomaticPickerRetry,
+  assertVersionAdvanced,
+  chooseKnownDifferentHoldings,
+  selectExactPortfolio,
+  type CompositionHolding,
+  type ObservedPortfolio,
+} from "./helpers/asset-picker-real";
+import { FIXED_E2E_USER_ID } from "./helpers/portfolio-seed-version";
+
+const AUTH_STORAGE_KEY = "wmpt.auth.session";
+const DEFAULT_GATEWAY_URL = "http://localhost:8080";
+const PINNED_PICKER_QUANTITY = "31.00000000";
+const CLEANUP_MAX_ATTEMPTS = 3;
+
+type E2eSession = {
+  token: string;
+  userId: string;
+  email: string;
+  name: string;
+};
+
+function gatewayUrl(): string {
+  return (process.env.NEXT_PUBLIC_API_BASE_URL ?? DEFAULT_GATEWAY_URL).replace(/\/+$/, "");
+}
+
+function internalApiKey(): string {
+  const key = process.env.INTERNAL_API_KEY ?? process.env.TF_VAR_internal_api_key;
+  if (!key?.trim()) {
+    throw new Error("[asset-picker-real] INTERNAL_API_KEY is required for unconditional E2E cleanup");
+  }
+  return key;
+}
+
+function bearer(token: string): Record<string, string> {
+  return { Authorization: `Bearer ${token}` };
+}
+
+async function authenticateE2eSession(request: APIRequestContext): Promise<E2eSession> {
+  const response = await request.post(`${gatewayUrl()}/api/auth/login`, {
+    data: e2eLoginCredentials(),
+  });
+  expect(response.status(), "ordinary E2E login must succeed before any composition write").toBe(200);
+  const body = (await response.json()) as Partial<E2eSession>;
+  if (
+    typeof body.token !== "string" ||
+    typeof body.userId !== "string" ||
+    typeof body.email !== "string" ||
+    typeof body.name !== "string"
+  ) {
+    throw new Error("[asset-picker-real] ordinary E2E login returned an incomplete session");
+  }
+  if (body.userId !== FIXED_E2E_USER_ID) {
+    throw new Error(
+      `[asset-picker-real] ordinary E2E login resolved ${body.userId}, not ${FIXED_E2E_USER_ID}`,
+    );
+  }
+  return body as E2eSession;
+}
+
+async function observePortfolio(
+  request: APIRequestContext,
+  session: E2eSession,
+): Promise<ObservedPortfolio> {
+  const response = await request.get(`${gatewayUrl()}/api/portfolio`, { headers: bearer(session.token) });
+  expect(response.status(), "identity-checked GET /api/portfolio must succeed").toBe(200);
+  return selectExactPortfolio(await response.json(), FIXED_E2E_USER_ID);
+}
+
+async function putComposition(
+  request: APIRequestContext,
+  session: E2eSession,
+  expectedVersion: number,
+  holdings: readonly CompositionHolding[],
+): Promise<APIResponse> {
+  return request.put(`${gatewayUrl()}/api/portfolio/holdings`, {
+    headers: { ...bearer(session.token), "Content-Type": "application/json" },
+    data: { expectedVersion, holdings },
+  });
+}
+
+async function writeKnownDifferentComposition(
+  request: APIRequestContext,
+  session: E2eSession,
+  observed: ObservedPortfolio,
+): Promise<ObservedPortfolio> {
+  const holdings = chooseKnownDifferentHoldings(observed.holdings);
+  const response = await putComposition(request, session, observed.version, holdings);
+  expect(response.status(), "direct deterministic setup write must return 200").toBe(200);
+  const persisted = selectExactPortfolio([await response.json()], FIXED_E2E_USER_ID);
+  assertVersionAdvanced("direct deterministic setup", observed.version, persisted.version);
+  assertExactPersistedHoldings(persisted.holdings, holdings);
+  return persisted;
+}
+
+function withPinnedPickerEdit(holdings: readonly CompositionHolding[]): CompositionHolding[] {
+  let changed = false;
+  const edited = holdings.map((holding) => {
+    if (holding.ticker !== "AAPL") return { ...holding };
+    changed = true;
+    return { ticker: "AAPL", quantity: PINNED_PICKER_QUANTITY };
+  });
+  if (!changed) {
+    throw new Error("[asset-picker-real] deterministic setup must provide AAPL for the pinned picker edit");
+  }
+  return edited;
+}
+
+function isPortfolioGet(response: Response): boolean {
+  return response.request().method() === "GET" && new URL(response.url()).pathname === "/api/portfolio";
+}
+
+function isCompositionPutRequest(request: Request): boolean {
+  return (
+    request.method() === "PUT" &&
+    new URL(request.url()).pathname === "/api/portfolio/holdings"
+  );
+}
+
+function captureBrowserPortfolioReads(page: Page): {
+  reads: ObservedPortfolio[];
+  errors: Error[];
+} {
+  const reads: ObservedPortfolio[] = [];
+  const errors: Error[] = [];
+  page.on("response", (response) => {
+    if (!isPortfolioGet(response)) return;
+    void response
+      .json()
+      .then((payload) => reads.push(selectExactPortfolio(payload, FIXED_E2E_USER_ID)))
+      .catch((error: unknown) =>
+        errors.push(error instanceof Error ? error : new Error(String(error))),
+      );
+  });
+  return { reads, errors };
+}
+
+function capturePickerWrites(page: Page): {
+  requests: Request[];
+  responses: Map<Request, Response>;
+} {
+  const requests: Request[] = [];
+  const responses = new Map<Request, Response>();
+  // Request starts are synchronous. A retry whose response is delayed, failed, or
+  // still in flight therefore counts immediately and cannot evade the one-PUT oracle.
+  page.on("request", (request) => {
+    if (isCompositionPutRequest(request)) requests.push(request);
+  });
+  page.on("response", (response) => {
+    const request = response.request();
+    if (isCompositionPutRequest(request)) responses.set(request, response);
+  });
+  return { requests, responses };
+}
+
+async function assertInstalledBrowserSession(page: Page, session: E2eSession): Promise<void> {
+  const stored = await page.evaluate(
+    (key) => window.localStorage.getItem(key),
+    AUTH_STORAGE_KEY,
+  );
+  expect(stored, "the browser must receive this test's freshly authenticated session").toBeTruthy();
+  expect(JSON.parse(stored!)).toEqual(session);
+}
+
 async function restoreGoldenState(
   request: APIRequestContext,
   session: E2eSession,
@@ -224,39 +405,12 @@ test.describe("Asset Picker — real composition save (Tasks 9.2, 9.7)", () => {
   });
 '''
 
-PICKER_TOKEN_RE = re.compile(
-    r'''"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`'''
-    r'|//[^\n]*|/\*[\s\S]*?\*/|[A-Za-z_$][\w$]*|[0-9]+|\S'
-)
-
-
-def _picker_source_tokens(body: str) -> list[str]:
-    # Literals (including the reviewed, non-nested templates) stay atomic, so
-    # their URL slashes and interpolation braces are never treated as trivia.
-    return [
-        token for token in PICKER_TOKEN_RE.findall(body)
-        if not token.startswith(("//", "/*"))
-    ]
-
 
 def _check_picker_canonical_structure(body: str) -> None:
-    tokens = _picker_source_tokens(body)
-    expected = _picker_source_tokens(PICKER_CLEANUP_AND_FIXTURES)
-    marker = ["async", "function", "restoreGoldenState", "("]
-    starts = [
-        index for index in range(len(tokens) - len(marker) + 1)
-        if tokens[index:index + len(marker)] == marker
-    ]
-    if len(starts) != 1:
-        raise GuardError("asset-picker-cleanup: canonical cleanup must occur exactly once")
-    start = starts[0]
-    # The reviewed module prefix has no regex literals with brace characters.
-    # This delimiter check rejects wrapping the section in a conditional/block.
-    prefix = tokens[:start]
-    if prefix.count("{") != prefix.count("}") or tokens[start:start + len(expected)] != expected:
+    if not body.replace("\r\n", "\n").startswith(PICKER_GOVERNED_PREFIX):
         raise GuardError(
-            "asset-picker-cleanup: canonical cleanup and top-level fixture structure changed; "
-            "review the complete executable section before updating its source contract"
+            "asset-picker-cleanup: canonical module prefix through afterEach changed; "
+            "review the complete prefix before updating its source contract"
         )
 
 

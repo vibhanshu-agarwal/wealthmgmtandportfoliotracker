@@ -11,11 +11,12 @@ an internal seed `409` for hygiene: each of at most three attempts freshly reads
 with the E2E bearer token, selects the fixed E2E identity, and sends that `expectedVersion` with
 the internal key. Any observed cleanup conflict still fails the case, even after a later `200`.
 The guard rejects additional caller paths and checks this fourth caller's version, identity,
-credentials, and conflict policy. It also pins the reviewed cleanup and top-level fixture
-structure, rejecting extra executable statements or conditional cleanup registration. This is
-a bounded source-shape check, not general TypeScript control-flow validation; executable changes
-to that section require review and an explicit canonical update. This source inventory update
-changes no production gate or historical caller policy.
+credentials, and conflict policy. It also requires an exact reviewed source prefix from the
+beginning of the module through `afterEach`, including cleanup and fixture registration. Only
+LF/CRLF line endings are normalized; any other changes within that prefix, including comments
+or whitespace, require review and an explicit canonical update. This bounded contract does not
+parse TypeScript or cover the later test bodies. This source inventory update changes no
+production gate or historical caller policy.
 
 **OWNER APPROVAL RECORDED — R-C implementation publication, 2026-09-04:** the owner authorized
 the scoped commit, push and implementation PR of the reviewed 21-file local bundle. That
