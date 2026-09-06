@@ -1,7 +1,7 @@
 # B2 Wave 8 product and operational decision record
 
-**Decision date:** 2026-09-06  
-**Owner approval:** recorded in the Wave 8 kickoff session  
+**Decision date:** 2026-09-06
+**Owner approval:** recorded in the Wave 8 kickoff session
 **Applies to:** login-orchestrated demo reset and the Wave 10 exposure gate
 
 ## Approved decisions
