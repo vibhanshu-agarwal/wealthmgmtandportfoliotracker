@@ -287,7 +287,7 @@ jobs:
           az containerapp job update \
             --name "$JOB_NAME" \
             --resource-group "$AZURE_RG" \
-            --image "$ACR_NAME.azurecr.io/market-data-service@${{ steps.digest.outputs.digest }}"
+            --image "${{ needs.preflight.outputs.digest_mode == 'true' && needs.preflight.outputs.digest_image || format('{0}.azurecr.io/market-data-service@{1}', env.ACR_NAME, steps.digest.outputs.digest) }}"
 
       - name: Wait for revision to reach Succeeded state
         # G18 — initial sleep gives ACA internal DNS time to propagate the new revision
@@ -350,24 +350,12 @@ jobs:
           merge-multiple: false
       - name: Validate selected digest inputs
         run: |
-          set -euo pipefail
-          selected='${{ needs.preflight.outputs.selected_services }}'
           rm -rf "$RUNNER_TEMP/service-digests"
-          mkdir -p "$RUNNER_TEMP/service-digests"
-          expected=$(python3 -c 'import json,sys; print(" ".join("service-digest-" + x for x in json.loads(sys.argv[1])))' "$selected")
-          for dir in "$RUNNER_TEMP"/service-digest-downloads/service-digest-*; do
-            [ -d "$dir" ] || continue
-            case " $expected " in *" $(basename "$dir") "*) ;; *) echo "::error::unexpected digest artifact $(basename "$dir"); Re-run all jobs."; exit 1;; esac
-          done
-          for service in $(python3 -c 'import json,sys; print(*json.loads(sys.argv[1]))' "$selected"); do
-            dir="$RUNNER_TEMP/service-digest-downloads/service-digest-${service}"
-            test -f "$dir/digest.txt" || { echo "::error::missing digest for $service; Re-run all jobs."; exit 1; }
-            test -f "$dir/run-attempt.txt" || { echo "::error::missing attempt marker for $service; Re-run all jobs."; exit 1; }
-            test "$(cat "$dir/run-attempt.txt")" = "${{ github.run_attempt }}" || { echo "::error::stale digest artifact for $service; Re-run all jobs."; exit 1; }
-            test "$(find "$dir" -maxdepth 1 -type f | wc -l)" = 2 || { echo "::error::invalid artifact contents for $service; Re-run all jobs."; exit 1; }
-            mkdir -p "$RUNNER_TEMP/service-digests/$service"
-            cp "$dir/digest.txt" "$RUNNER_TEMP/service-digests/$service/digest.txt"
-          done
+          python3 .github/workflows/scripts/snapshot_container_apps.py normalize-artifacts \
+            --digest-root "$RUNNER_TEMP/service-digest-downloads" \
+            --staging-root "$RUNNER_TEMP/service-digests" \
+            --selected '${{ needs.preflight.outputs.selected_services }}' \
+            --run-attempt '${{ github.run_attempt }}'
       - name: Aggregate selected service digests
         run: |
           python3 .github/workflows/scripts/snapshot_container_apps.py aggregate-digests \

@@ -190,6 +190,34 @@ def aggregate_digests(digest_root: str, selected: list[str], output: str | None)
             handle.write("\n")
     return manifest
 
+def normalize_digest_artifacts(download_root: str, staging_root: str, selected: list[str], attempt: str) -> None:
+    _validate_selected(selected)
+    source = os.path.abspath(download_root)
+    stage = os.path.abspath(staging_root)
+    expected = {"service-digest-" + service for service in selected}
+    actual = {entry.name for entry in os.scandir(source) if entry.is_dir()}
+    if actual != expected:
+        raise ValueError("digest artifact set mismatch; Re-run all jobs")
+    os.makedirs(stage, exist_ok=True)
+    for service in selected:
+        directory = os.path.join(source, "service-digest-" + service)
+        digest_file = os.path.join(directory, "digest.txt")
+        marker_file = os.path.join(directory, "run-attempt.txt")
+        if not os.path.isfile(digest_file) or not os.path.isfile(marker_file):
+            raise ValueError("missing digest artifact marker; Re-run all jobs")
+        if open(marker_file, encoding="utf-8").read().strip() != str(attempt):
+            raise ValueError("stale digest artifact; Re-run all jobs")
+        files = {entry.name for entry in os.scandir(directory) if entry.is_file()}
+        if files != {"digest.txt", "run-attempt.txt"}:
+            raise ValueError("invalid digest artifact contents; Re-run all jobs")
+        digest = open(digest_file, encoding="utf-8").read().strip()
+        if not DIGEST_RE.fullmatch(digest):
+            raise ValueError("invalid digest artifact; Re-run all jobs")
+        target = os.path.join(stage, service)
+        os.makedirs(target, exist_ok=True)
+        with open(os.path.join(target, "digest.txt"), "w", encoding="utf-8") as handle:
+            handle.write(digest + "\n")
+
 
 def validate_manifest(manifest: dict[str, str], selected: list[str]) -> dict[str, str]:
     _validate_selected(selected)
@@ -225,7 +253,7 @@ def _write_output(name: str, value: str) -> None:
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
-    parser.add_argument("command", choices=("snapshot", "compare", "aggregate-digests"))
+    parser.add_argument("command", choices=("snapshot", "compare", "aggregate-digests", "normalize-artifacts"))
     parser.add_argument("--before", default="")
     parser.add_argument("--selected", default="[]")
     # Empty default on purpose: do not inherit GITHUB_SHA from the environment.
@@ -236,6 +264,8 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--digest-root", default="")
     parser.add_argument("--output", default="")
     parser.add_argument("--digest-manifest", default="")
+    parser.add_argument("--staging-root", default="")
+    parser.add_argument("--run-attempt", default="")
     return parser
 
 
@@ -246,6 +276,9 @@ def main() -> int:
         selected = json.loads(args.selected)
         manifest = aggregate_digests(args.digest_root, selected, args.output or None)
         print(json.dumps(manifest, indent=2, sort_keys=True))
+        return 0
+    if args.command == "normalize-artifacts":
+        normalize_digest_artifacts(args.digest_root, args.staging_root, json.loads(args.selected), args.run_attempt)
         return 0
 
     resource_group = os.environ.get("AZURE_RG", "")

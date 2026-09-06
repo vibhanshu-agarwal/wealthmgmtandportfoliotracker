@@ -32,14 +32,12 @@ class TestDeployAzureServiceAllowlist(unittest.TestCase):
         digest = "sha256:" + "a" * 64
         with tempfile.TemporaryDirectory() as root:
             download = Path(root) / "downloads" / "service-digest-api-gateway"
-            stage = Path(root) / "stage" / "api-gateway"
             download.mkdir(parents=True)
-            stage.mkdir(parents=True)
             (download / "digest.txt").write_text(digest)
             (download / "run-attempt.txt").write_text("2\n")
-            self.assertEqual((download / "run-attempt.txt").read_text().strip(), "2")
-            (stage / "digest.txt").write_text((download / "digest.txt").read_text())
+            module.normalize_digest_artifacts(str(Path(root) / "downloads"), str(Path(root) / "stage"), ["api-gateway"], "2")
             self.assertEqual(module.aggregate_digests(str(Path(root) / "stage"), ["api-gateway"], None), {"api-gateway": digest})
+            stage = Path(root) / "stage" / "api-gateway"
             (stage / "extra.txt").write_text("x")
             with self.assertRaises(ValueError): module.aggregate_digests(str(Path(root) / "stage"), ["api-gateway"], None)
     def test_scoped_graph_has_job_step_scoped_digest_contract(self):
@@ -51,9 +49,9 @@ class TestDeployAzureServiceAllowlist(unittest.TestCase):
         self.assertRegex(aggregate, r"needs:\s*\[preflight, deploy\]")
         self.assertIn("aggregate-digests", aggregate)
         self.assertIn("run-attempt.txt", aggregate)
-        self.assertIn("Re-run all jobs", aggregate)
+        self.assertIn("Re-run all jobs", self.text)
         self.assertIn("merge-multiple: false", aggregate)
-        self.assertIn("cp \"$dir/digest.txt\" \"$RUNNER_TEMP/service-digests/$service/digest.txt\"", aggregate)
+        self.assertIn("normalize-artifacts", aggregate)
         consumer = self._job("assert-scoped-non-interference:")
         self.assertIn("needs.aggregate-digests.result", consumer)
         self.assertIn("--digest-manifest", consumer)

@@ -83,6 +83,10 @@ class TestDeployAzurePrebuiltDigest(unittest.TestCase):
     def test_digest_update_uses_preflight_digest_image(self):
         deploy = self._job("deploy:")
         self.assertIn("needs.preflight.outputs.digest_image", deploy)
+        job = self._step("Update market-data-refresh Job image")
+        self.assertIn("needs.preflight.outputs.digest_mode", job)
+        self.assertIn("steps.digest.outputs.digest", job)
+        self.assertIn("market-data-refresh-job", job)
 
     def test_digest_compare_refuses_empty_digest_and_clears_git_sha(self):
         body = self._job("assert-scoped-non-interference:")
