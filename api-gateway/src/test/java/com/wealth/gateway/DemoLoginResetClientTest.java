@@ -244,6 +244,9 @@ class DemoLoginResetClientTest {
 
     @Test
     void eligibilityRejectsMalformedTimestampAndNegativeVersion() {
+        StepVerifier.create(client(request -> Mono.just(ClientResponse.create(HttpStatus.OK).build()), "", "internal")
+                        .observeEligibility("jwt"))
+                .expectError(DemoLoginResetClient.EligibilityShapeException.class).verify();
         StepVerifier.create(client(request -> Mono.just(jsonResponse("")), "", "internal").observeEligibility("jwt"))
                 .expectError(DemoLoginResetClient.EligibilityShapeException.class).verify();
         StepVerifier.create(client(request -> Mono.just(jsonResponse("""

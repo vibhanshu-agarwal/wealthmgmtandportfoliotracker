@@ -99,7 +99,9 @@ public final class DemoLoginResetClient {
                                                                        boolean originRequired,
                                                                        boolean originAttached) {
         return requireSuccess(response, target)
-                .then(response.bodyToMono(String.class).flatMap(this::decodePortfolioArray))
+                .then(response.bodyToMono(String.class)
+                        .switchIfEmpty(Mono.error(new EligibilityShapeException(0)))
+                        .flatMap(this::decodePortfolioArray))
                 .flatMap(portfolios -> selectDemoPortfolio(portfolios, target, originRequired, originAttached));
     }
 
