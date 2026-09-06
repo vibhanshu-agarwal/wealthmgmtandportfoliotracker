@@ -187,7 +187,26 @@ class TestCiE2eWiring(unittest.TestCase):
         self.assertNotRegex(command, r"(?m)^\s*set\s+\+o\s+(?:errexit|pipefail)\b")
         self.assertNotIn("||", command)
         self.assertNotRegex(command, r"(?m)^\s*exit\s+0\s*$")
-        self.assertNotRegex(command, r"\b(?:if|else)\s+npx playwright test\b")
+        self.assertNotRegex(
+            command,
+            r"(?m)^\s*(?:if|then|elif|else|fi|case|esac|for|while|until|do|done)\b",
+            "required Playwright invocation must be unconditional",
+        )
+
+    def test_multiline_shell_conditional_cannot_make_required_specs_advisory(self) -> None:
+        step = _named_block(self.job, "Run Playwright E2E tests", 6)
+        command = _run_body(step)
+        wrapped_command = "          if false; then\n" + command + "          fi\n"
+        wrapped_step = step.replace(command, wrapped_command)
+        wrapped_job = self.job.replace(step, wrapped_step)
+
+        original_job = self.job
+        self.job = wrapped_job
+        try:
+            with self.assertRaisesRegex(AssertionError, "unconditional"):
+                self.test_exact_playwright_invocation_requires_both_specs()
+        finally:
+            self.job = original_job
 
     def test_demo_literals_and_identity_match_tracked_sources_without_env_fallback(self) -> None:
         env = _job_env(self.job)

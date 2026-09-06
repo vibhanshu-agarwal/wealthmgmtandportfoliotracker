@@ -58,6 +58,7 @@ locator guard. The corrected assembled run passed 5/5.
 | Changed-file ESLint | clean |
 | Real assembled E2E collection | 5 |
 | Mocked picker collection | 2 |
+| Status-propagation guard | passed locally: 18 changed paths against the baseline and then-current local HEAD |
 
 ## Reproduction record
 
@@ -66,10 +67,10 @@ the local run. Do not point these commands at production.
 
 ```powershell
 npm test
-npx tsc --noEmit -p tests/e2e/tsconfig.e2e-test.json
+npx tsc --noEmit --module esnext --moduleResolution bundler --incremental false
 npx eslint <changed Wave 9 files>
-npx playwright test --list
-npx playwright test --config playwright.asset-picker.mocked.config.ts --list
+npx playwright test --config playwright.config.ts tests/e2e/asset-picker.spec.ts tests/e2e/demo-reset.spec.ts --project=chromium --reporter=list
+npx playwright test --config playwright.asset-picker.mocked.config.ts --project=chromium --reporter=list --list
 ```
 
 Run from the repository root:
@@ -83,6 +84,11 @@ The static guard verifies the four exact job-level values in active
 `docker-build-verify`, both explicit real E2E paths in its one required Playwright invocation, no
 failure forgiveness or disabling condition, and parity with the tracked Azure frontend literals,
 V15, and the demo fixture. It does not read `frontend/.env.local`.
+
+The status-propagation guard passed locally with 18 changed paths against
+`origin/main@b4c68253b99a796d6301ef79b5aa5a47d5cbd962` and the then-current local HEAD. Resolve
+the head again before publication; this record intentionally does not freeze a stale post-handoff
+commit SHA.
 
 ## Publication boundary
 
