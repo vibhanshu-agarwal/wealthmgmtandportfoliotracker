@@ -2352,6 +2352,12 @@ class, not by enumeration" through "operational signals only") deliberately keep
   serving revision reproducible. The longer rationale currently embedded in Task 10.2 Step A is
   explanatory only; implementation and completion belong here, before any 8.9 serving proof.
 
+  **Source-foundation status (2026-09-06):** the offline workflow/helper source and structural tests
+  are locally complete and independently ACCEPT at coordinator commit `b59cf26` (24 snapshot + 14
+  allowlist + 10 prebuilt tests). The pinned actionlint installer/checksum is source-reviewed but was
+  not executed locally because no binary was available. This task remains unchecked: no workflow run,
+  Azure deployment, serving revision/digest read-back, or manifest comparison evidence exists yet.
+
   **One Azure run order:** add workflow-level `concurrency` with the fixed group
   `wealth-production-azure-deploy` and `cancel-in-progress: false` in `deploy-azure.yml`. The reusable
   child remains `workflow_call`-only behind protected `deploy.yml`, so every caller serializes against

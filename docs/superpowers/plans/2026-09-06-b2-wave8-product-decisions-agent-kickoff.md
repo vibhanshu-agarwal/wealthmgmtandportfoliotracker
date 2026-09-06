@@ -67,19 +67,19 @@ Shared-file ownership:
 - Modify: `.kiro/specs/asset-picker-composition/tasks.md`
 - Modify: `docs/superpowers/plans/2026-09-06-b2-wave9-assembled-e2e-handoff.md`
 
-- [ ] **Step 1: Verify immutable facts**
+- [x] **Step 1: Verify immutable facts**
 
 Confirm PR #232 is merged at `318f28592da6ab2e3bd66bc738aa68d374b180fa`, its reviewed head is `dba83c3a1cc28212c6aa115db803cbd15858e1e4`, CI run `34018608256` passed `docker-build-verify` and `ci-required`, and body-edit run `34020180243` passed. Record the URLs and conclusions; do not infer CI from merge state.
 
-- [ ] **Step 2: Correct stale Wave 9 wording**
+- [x] **Step 2: Correct stale Wave 9 wording**
 
 Replace every “local only,” “GitHub CI has not run,” “rerun pending,” and “push/PR pending” statement that is false after PR #232. Preserve these true boundaries: no Wave 9 deployment, no Production E2E, both frontend flags remain off, Wave 10 remains blocked.
 
-- [ ] **Step 3: Reconcile prerequisite provenance**
+- [x] **Step 3: Reconcile prerequisite provenance**
 
 Record that source `6a171558` contains `PortfolioResponse.updatedAt` and decimal string serialization, and that the tracked cu4 build evidence binds that source to digest `sha256:2be727eaf4577699c783ae66073670d4984fe66c666af3e56422c934fdd0b023`, recorded as serving revision `0000094`. State that this is provenance, not a fresh runtime read-back; do not schedule a duplicate 8.1 deployment from stale prose.
 
-- [ ] **Step 4: Validate status changes**
+- [x] **Step 4: Validate status changes**
 
 Run:
 
@@ -159,11 +159,11 @@ The coordinator alone adds the accepted configuration values, `spring.reactor.co
 - Consumes the existing `InternalApiKeyProvider`, `CloudFrontOriginSecretProvider`, `ReplicaTokenProvider`, observation-enabled `WebClient.Builder`, and resolved Task 8.2 values.
 - Produces one eligibility observation containing the exact demo portfolio identity, persisted `updatedAt`, and version, plus a reset operation that submits that exact version once.
 
-- [ ] **Step 1: Write transport RED tests**
+- [x] **Step 1: Write transport RED tests**
 
 Cover call-time `local.server.port`, bearer authorization, conditional origin header, exact single-demo selection, zero/multiple matches, malformed timestamp/shape, strict threshold boundaries, exact version POST, blank internal key with zero dispatch, every non-2xx family including redirect, connection failures, and per-leg timeouts.
 
-- [ ] **Step 2: Implement the smallest nonblocking transport**
+- [x] **Step 2: Implement the smallest nonblocking transport**
 
 Build both clients from the injected observation-enabled builder. Read the loopback port at subscription/call time. Put synchronous URL/request construction in `Mono.defer(...)`. Keep the origin-header attachment observation at the finalized `ClientRequest` boundary because the existing gateway filter strips the header before downstream forwarding.
 
@@ -171,7 +171,9 @@ Build both clients from the injected observation-enabled builder. Read the loopb
 
 Every successful demo-authentication flow that reaches eligibility dispatch asserts exactly one eligibility GET. Ordinary-user, failed-authentication, and `eligibility_pre_dispatch` timeout flows assert zero eligibility GETs. Ineligible or failed eligibility produces zero reset POSTs. Eligible clean flow produces one reset POST using the same observed version. No reread and no retry are permitted.
 
-- [ ] **Step 4: Mutation-check**
+Transport-level single-dispatch/no-retry evidence is green. Authentication-flow and ineligible-path cardinality remain open for Task 3's controller/orchestrator tests.
+
+- [x] **Step 4: Mutation-check**
 
 Temporarily select the first portfolio, change `>` to `>=`, reread before reset, or derive header evidence from provider configuration. Confirm the intended test fails, restore byte-for-byte, and rerun GREEN.
 
@@ -268,19 +270,19 @@ Tag acceptance tests `integration`; root Gradle collection is tag-based. The las
 - Modify: `.github/workflows/scripts/snapshot_container_apps.py`
 - Modify: `scripts/tests/test_snapshot_container_apps.py`
 
-- [ ] **Step 1: Write CLI RED tests**
+- [x] **Step 1: Write CLI RED tests**
 
 Cover `aggregate-digests` parser wiring, no Azure environment requirement, exact selected-service coverage, one `digest.txt` per service directory, duplicate/missing/extra services, lowercase `sha256:[0-9a-f]{64}`, output writing, and missing selected refresh Job failure.
 
-- [ ] **Step 2: Implement `aggregate-digests`**
+- [x] **Step 2: Implement `aggregate-digests`**
 
 Handle aggregation before Azure environment validation. Never call Azure capture in this command. Produce the exact manifest consumed by `compare --digest-manifest`.
 
-- [ ] **Step 3: Tighten comparison**
+- [x] **Step 3: Tighten comparison**
 
 Bind selected Container Apps and the selected market-data refresh Job to exact repository digests. A selected market-data deployment with a missing refresh Job fails rather than warning and skipping.
 
-- [ ] **Step 4: Mutation-check artifact validation**
+- [x] **Step 4: Mutation-check artifact validation**
 
 Temporarily accept uppercase/malformed digest, an extra service, or a missing Job. Confirm the focused test fails, restore, and rerun GREEN.
 
@@ -298,23 +300,23 @@ Temporarily accept uppercase/malformed digest, an extra service, or a missing Jo
 - Modify: `scripts/tests/test_deploy_azure_service_allowlist.py`
 - Modify: `scripts/tests/test_deploy_azure_prebuilt_digest.py`
 
-- [ ] **Step 1: Write workflow graph RED tests**
+- [x] **Step 1: Write workflow graph RED tests**
 
 Require workflow concurrency group `wealth-production-azure-deploy` with `cancel-in-progress: false`; one Buildx build/push step with a metadata file; strict digest validation; exact `service-digest-*` producer artifacts; an `aggregate-digests` job with `needs: [preflight, deploy]`; named `digest-manifest` consumer artifact; exact mode gates; current-attempt-only retrieval; missing-artifact failure; and “Re-run all jobs” guidance for unsupported partial reruns.
 
-- [ ] **Step 2: Preserve protected invocation**
+- [x] **Step 2: Preserve protected invocation**
 
 Keep `deploy-azure.yml` reusable-only. The parent `deploy.yml` retains `expected_main_sha`, Environment approval, and the production deployment lock. Add child workflow concurrency without reintroducing direct dispatch.
 
-- [ ] **Step 3: Implement immutable normal-build deployment**
+- [x] **Step 3: Implement immutable normal-build deployment**
 
 Replace separate normal build/push operations with Buildx `--push --no-cache --pull --metadata-file`. Validate `containerimage.digest`, expose it as an output, and update every selected App and the paired refresh Job by `repository@digest`. Preserve and test the prebuilt-digest branch and its proof that normal build/push was skipped.
 
-- [ ] **Step 4: Implement disjoint artifact namespaces**
+- [x] **Step 4: Implement disjoint artifact namespaces**
 
 Each selected scoped-normal service uploads `service-digest-${{ matrix.service }}` containing `digest.txt` and `run-attempt.txt`, with overwrite and missing-file failure. Aggregation downloads the current run's `service-digest-*` artifacts without merge, runs `normalize-artifacts --digest-root <download> --staging-root <distinct-stage> --selected <json> --run-attempt <current>`, then runs `aggregate-digests --digest-root <distinct-stage> --selected <json> --output $RUNNER_TEMP/digest-manifest.json`. It uploads `digest-manifest` with its run-attempt marker and missing-file failure. Scoped comparison validates that marker and passes the runner-temp manifest to `compare --digest-manifest`; prebuilt mode uses `--requested-digest`; full mode keeps normal build/digest validation but runs neither scoped aggregation nor comparison.
 
-- [ ] **Step 5: Update actionlint once**
+- [x] **Step 5: Update actionlint once**
 
 Upgrade the existing active-CI actionlint installation from 1.7.7 to 1.7.12 and verify Linux-amd64 archive SHA-256 `8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8`. Do not add a second installation.
 
@@ -327,6 +329,8 @@ python -B scripts/tests/test_deploy_azure_prebuilt_digest.py -v
 ```
 
 Run the repository's pinned actionlint command against the changed workflows.
+
+Offline source verification is green at 24 snapshot + 14 allowlist + 10 prebuilt tests, including reviewed mutation evidence. The pinned actionlint source/checksum is updated, but no local actionlint executable was available; Step 6 remains open for its CI-carried execution. No workflow run or deployment evidence is claimed.
 
 ---
 
