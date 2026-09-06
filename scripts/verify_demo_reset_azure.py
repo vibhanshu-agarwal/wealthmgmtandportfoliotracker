@@ -17,6 +17,7 @@ import subprocess
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -173,7 +174,7 @@ def build_event_query(
             f"| where ContainerAppName_s == '{_kql_literal(app_name)}'",
             f"| where tostring(Log_s) contains '{_kql_literal(event_name)}'",
             f"| where tostring(Log_s) contains '{_kql_literal(trace_id)}'",
-            "| project TimeGenerated, Log_s",
+            "| project TimeGenerated, ContainerAppName_s, RevisionName_s, Log_s",
             "| order by TimeGenerated asc",
         )
     )
@@ -196,6 +197,55 @@ def _default_http_runner(
     *, method: str, url: str, headers: dict[str, str], json_body: Any = None,
     timeout_seconds: float = 15.0,
 ) -> HttpResponse:
+    """Bound the entire transport, including DNS and drip-fed headers/error bodies.
+
+    A disposable process is cancellable even while a platform resolver or SSL read
+    blocks. Credentials travel on stdin, never process arguments or retained output.
+    """
+    deadline = time.monotonic() + timeout_seconds
+    payload = json.dumps(dict(method=method, url=url, headers=headers,
+                              json_body=json_body, timeout_seconds=timeout_seconds))
+    command = [sys.executable, "-B", "-c",
+               "import runpy,sys; runpy.run_path(sys.argv[1])['_http_worker']()",
+               str(Path(__file__).resolve())]
+    with subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                          stderr=subprocess.PIPE, text=True, encoding="utf-8",
+                          creationflags=(subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0)) as process:
+        try:
+            stdout, _ = process.communicate(payload, timeout=max(0, deadline - time.monotonic()))
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.communicate()
+            raise ProofError("HTTP operation deadline exceeded") from None
+    if time.monotonic() >= deadline:
+        raise ProofError("HTTP operation deadline exceeded")
+    if process.returncode != 0:
+        raise ProofError("HTTP transport worker failed")
+    result = json.loads(stdout)
+    if "error" in result:
+        raise ProofError(result["error"])
+    return HttpResponse(result["status"], result["body"], result["headers"])
+
+
+def _http_worker() -> None:
+    try:
+        response = _http_request(**json.load(sys.stdin))
+        result = dict(status=response.status, body=response.body, headers=response.headers)
+    except Exception as error:
+        result = {"error": f"HTTP transport failed: {type(error).__name__}: {error}"}
+    print(json.dumps(result))
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, request, response, code, message, headers, new_url):
+        # The recorded ingress origin and path are the only approved HTTP target.
+        return None
+
+
+def _http_request(
+    *, method: str, url: str, headers: dict[str, str], json_body: Any = None,
+    timeout_seconds: float = 15.0,
+) -> HttpResponse:
     body = None if json_body is None else json.dumps(json_body).encode("utf-8")
     request_headers = dict(headers)
     if body is not None:
@@ -204,7 +254,8 @@ def _default_http_runner(
         url, data=body, headers=request_headers, method=method
     )
     try:
-        with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
+        opener = urllib.request.build_opener(_NoRedirect())
+        with opener.open(request, timeout=timeout_seconds) as response:
             raw = response.read().decode("utf-8")
             return HttpResponse(
                 response.status,
@@ -212,12 +263,13 @@ def _default_http_runner(
                 dict(response.headers.items()),
             )
     except urllib.error.HTTPError as error:
-        raw = error.read().decode("utf-8")
-        try:
-            parsed = json.loads(raw) if raw else None
-        except json.JSONDecodeError:
-            parsed = {"error": "non_json_response"}
-        return HttpResponse(error.code, parsed, dict(error.headers.items()))
+        with error:
+            raw = error.read().decode("utf-8")
+            try:
+                parsed = json.loads(raw) if raw else None
+            except json.JSONDecodeError:
+                parsed = {"error": "non_json_response"}
+            return HttpResponse(error.code, parsed, dict(error.headers.items()))
 
 
 def _new_traceparent() -> str:
@@ -321,8 +373,12 @@ def _validate_config(config: ProofConfig) -> None:
         raise ProofError("mode must be preflight, rehearsal, or execute")
     if not config.subscription_id:
         raise ProofError("an explicit approved subscription is required")
-    if not config.gateway_url.startswith("https://"):
-        raise ProofError("the production gateway URL must use https")
+    parsed_url = urllib.parse.urlsplit(config.gateway_url)
+    if (parsed_url.scheme != "https" or not parsed_url.hostname
+            or parsed_url.username is not None or parsed_url.password is not None
+            or parsed_url.port not in (None, 443) or parsed_url.path not in ("", "/")
+            or parsed_url.query or parsed_url.fragment):
+        raise ProofError("the production gateway URL must be an https origin on port 443")
     if config.demo_email != DEMO_EMAIL:
         raise ProofError("the proof is restricted to the fixed demo account")
     if config.poll_interval_seconds <= 0 or config.poll_deadline_seconds <= 0:
@@ -445,6 +501,26 @@ def _authoritative_yaml_defaults() -> dict[str, str]:
     return defaults
 
 
+def _validate_gateway_ingress(
+    config: ProofConfig, evidence: dict[str, Any], runner: CommandRunner,
+) -> None:
+    ingress = _decode_json(_record_command(
+        evidence, runner,
+        ["az", "containerapp", "show", "--name", config.gateway_app,
+         "--resource-group", config.resource_group, "--query", "properties.configuration.ingress",
+         "-o", "json"], label="gateway current ingress binding",
+        timeout_seconds=config.operation_timeout_seconds), "gateway current ingress binding")
+    if not isinstance(ingress, dict) or ingress.get("external") is not True:
+        raise ProofError("approved gateway has no external ingress")
+    domains = [ingress.get("fqdn")]
+    domains.extend(row.get("name") for row in ingress.get("customDomains", [])
+                   if isinstance(row, dict) and row.get("bindingType") == "SniEnabled")
+    host = urllib.parse.urlsplit(config.gateway_url).hostname
+    if host not in {domain.lower() for domain in domains if isinstance(domain, str)}:
+        raise ProofError("gateway URL is outside the approved app's current ingress/domain binding")
+    evidence["target"]["gatewayIngressHost"] = host
+
+
 def _preflight(config: ProofConfig, evidence: dict[str, Any], runner: CommandRunner) -> list[dict[str, str]]:
     manifest = validate_deployment_manifest(
         config.deployment_manifest,
@@ -459,6 +535,8 @@ def _preflight(config: ProofConfig, evidence: dict[str, Any], runner: CommandRun
     ).stdout.strip()
     if account != config.subscription_id:
         raise ProofError("Azure subscription does not equal the explicitly approved subscription")
+
+    _validate_gateway_ingress(config, evidence, runner)
 
     for service in SERVICES:
         command = [
@@ -606,6 +684,7 @@ def _revalidate_serving(
     expected_idle: str, allow_revision_change: bool = False,
 ) -> None:
     snapshot: dict[str, Any] = {"matched": False, "services": {}}
+    _validate_gateway_ingress(config, evidence, runner)
     for service in SERVICES:
         revisions = _decode_json(
             _record_command(
@@ -754,12 +833,15 @@ def _event_value(value: str) -> Any:
     return value
 
 
-def _event_emission_identity(event: dict[str, Any]) -> tuple[Any, Any]:
+def _event_emission_identity(event: dict[str, Any]) -> tuple[Any, ...]:
     """Identify one emitted log record, not merely its parsed business payload."""
-    return event.get("timeGenerated"), event.get("rawLog")
+    return (event.get("containerAppName"), event.get("revisionName"),
+            event.get("timeGenerated"), event.get("rawLog"))
 
 
-def parse_event_rows(rows: Any, *, event: str, trace_id: str) -> dict[str, Any] | None:
+def parse_event_rows(rows: Any, *, event: str, trace_id: str,
+                     app_name: str | None = None,
+                     revision_name: str | None = None) -> dict[str, Any] | None:
     if not isinstance(rows, list):
         raise ProofError("log query result is not a list")
     matches = []
@@ -785,8 +867,14 @@ def parse_event_rows(rows: Any, *, event: str, trace_id: str) -> dict[str, Any] 
                 )
             }
         if payload.get("event") == event:
+            if app_name is not None and row.get("ContainerAppName_s") != app_name:
+                raise ProofError("event app identity is outside the recorded proof target")
+            if revision_name is not None and row.get("RevisionName_s") != revision_name:
+                raise ProofError("event revision identity is outside the recorded proof target")
             payload["traceId"] = trace_id
-            payload.setdefault("timeGenerated", row.get("TimeGenerated"))
+            payload["timeGenerated"] = row.get("TimeGenerated")
+            payload["containerAppName"] = row.get("ContainerAppName_s")
+            payload["revisionName"] = row.get("RevisionName_s")
             payload["rawLog"] = text
             matches.append(payload)
     unique: dict[str, dict[str, Any]] = {}
@@ -864,7 +952,10 @@ def _poll_events(
             else:
                 event_name = "demo_reset_succeeded" if kind == "success" else "demo_reset_self_call_skipped"
                 try:
-                    observed = parse_event_rows(rows, event=event_name, trace_id=trace_id)
+                    app = config.portfolio_app if kind == "success" else config.gateway_app
+                    target = evidence["servingRevalidation"]["afterAge"]["services"][app]
+                    observed = parse_event_rows(rows, event=event_name, trace_id=trace_id,
+                                                app_name=app, revision_name=target["revision"])
                     if observed is not None:
                         if found[kind] is None:
                             found[kind] = observed
@@ -1695,6 +1786,7 @@ def run_proof(
             body = login_response.body
             token = body.get("token") if isinstance(body, dict) else None
             if isinstance(token, str) and token:
+                secrets_to_remove.append(token)
                 try:
                     post = _read_portfolio(
                         config, evidence, http_runner, token,

@@ -263,7 +263,10 @@ class StatefulCommandRunner:
                 )
                 fields.append(f"{key}={rendered}")
             line = f"INFO [{trace_id}] " + " ".join(fields)
-            return self._result([{"TimeGenerated": payload["timestamp"], "Log_s": line}])
+            service = "portfolio-service" if kind == "success" else "api-gateway"
+            return self._result([{"TimeGenerated": payload["timestamp"], "Log_s": line,
+                                 "ContainerAppName_s": service,
+                                 "RevisionName_s": self.revisions[service][0]["name"]}])
         if command[:4] == ["az", "containerapp", "revision", "show"]:
             values = dict(self.decision_values)
             if self.restore_readback is not None and self.update_count >= 2:
@@ -273,6 +276,10 @@ class StatefulCommandRunner:
                 + [{"name": "CLOUD_PROVIDER", "value": "azure"}]
             )
         if command[:3] == ["az", "containerapp", "show"]:
+            if self._value_after(command, "--query") == "properties.configuration.ingress":
+                return self._result({"external": True, "fqdn": "api-gateway.current.test",
+                                     "customDomains": [{"name": "wealth.example.test",
+                                                        "bindingType": "SniEnabled"}]})
             if self._value_after(command, "--query") == "properties.template.containers[0].env":
                 return self._result(
                     [{"name": name, "value": value} for name, value in self.decision_values.items()]
@@ -1770,6 +1777,10 @@ class ReviewFixContractTest(unittest.TestCase):
                     return verifier.CommandResult(0, "[]", "")
 
                 evidence = verifier._initial_evidence(cfg)
+                evidence["servingRevalidation"]["afterAge"] = {"services": {
+                    "api-gateway": {"revision": "api-gateway--0000101"},
+                    "portfolio-service": {"revision": "portfolio-service--0000202"},
+                }}
                 evidence["target"]["workspaceCustomerId"] = "workspace-customer-id"
                 evidence["trace"] = {
                     "windowStart": verifier._utc(start),
@@ -1899,6 +1910,259 @@ class ReviewFixContractTest(unittest.TestCase):
         self.assertNotIn("setup-token", rendered)
         self.assertNotIn("not-recorded", rendered)
         self.assertGreaterEqual(rendered.count("[REDACTED]"), 7)
+
+
+class FinalReviewRegressionTest(unittest.TestCase):
+    def test_http_redirect_cannot_escape_the_recorded_target(self):
+        from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+        import threading
+
+        class Handler(BaseHTTPRequestHandler):
+            def log_message(self, *args):
+                pass
+
+            def do_GET(self):
+                if self.path == "/redirect":
+                    self.send_response(302)
+                    self.send_header("Location", "/outside-proof-target")
+                    self.end_headers()
+                else:
+                    self.server.outside_requests += 1
+                    self.send_response(200)
+                    self.end_headers()
+                    self.wfile.write(b'{"unexpected":"target"}')
+
+        with ThreadingHTTPServer(("127.0.0.1", 0), Handler) as server:
+            server.outside_requests = 0
+            threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.01},
+                             daemon=True).start()
+            try:
+                response = verifier._default_http_runner(
+                    method="GET", url=f"http://127.0.0.1:{server.server_port}/redirect",
+                    headers={"Authorization": "Bearer test-only-token"}, timeout_seconds=2)
+                self.assertEqual(response.status, 302)
+                self.assertEqual(server.outside_requests, 0)
+            finally:
+                server.shutdown()
+
+    def test_stale_revision_url_is_rejected_before_http_or_mutation(self):
+        for url in ("https://api-gateway--old.current.test", "https://unapproved.test",
+                    "https://wealth.example.test:444", "https://wealth.example.test/old",
+                    "https://user@wealth.example.test"):
+            with self.subTest(url=url):
+                cfg = config()
+                cfg.gateway_url = url
+                result, _, http, _ = run_case(cfg=cfg)
+                self.assertEqual(result.exit_code, 1)
+                self.assertFalse(result.evidence["verdict"]["go"])
+                self.assertFalse(result.evidence["cleanup"]["armed"])
+                self.assertEqual(http.requests, [])
+
+    def test_current_ingress_fqdn_and_bound_domain_are_accepted(self):
+        for url in ("https://api-gateway.current.test", "https://wealth.example.test"):
+            cfg = config()
+            cfg.gateway_url = url
+            result, _, _, _ = run_case(cfg=cfg)
+            self.assertEqual(result.exit_code, 0)
+
+    def test_ingress_binding_drift_fails_before_login_and_still_cleans_up(self):
+        commands = StatefulCommandRunner()
+        http = StatefulHttpRunner(commands)
+        clock = Clock()
+        binding_reads = 0
+
+        def drift(command, *, timeout_seconds=None):
+            nonlocal binding_reads
+            if "properties.configuration.ingress" in command:
+                binding_reads += 1
+                if binding_reads > 1:
+                    return commands._result({"external": True, "fqdn": "api-gateway.current.test",
+                                             "customDomains": []})
+            return commands(command, timeout_seconds=timeout_seconds)
+
+        result = verifier.run_proof(config(), command_runner=drift, http_runner=http,
+                                    now=clock.now, monotonic=clock.monotonic, sleep=clock.sleep)
+        self.assertEqual(result.exit_code, 1)
+        self.assertEqual(result.evidence["requestCounts"]["logins"], 0)
+        self.assertTrue(result.evidence["cleanup"]["postCleanupGolden"])
+
+    def test_event_from_another_app_is_rejected_even_with_matching_revision(self):
+        import json
+        commands = StatefulCommandRunner()
+        http = StatefulHttpRunner(commands)
+        clock = Clock()
+
+        def other_app(command, *, timeout_seconds=None):
+            response = commands(command, timeout_seconds=timeout_seconds)
+            if command[:4] == ["az", "monitor", "log-analytics", "query"]:
+                rows = json.loads(response.stdout)
+                for row in rows:
+                    if "Log_s" in row:
+                        row["ContainerAppName_s"] = "different-app"
+                return commands._result(rows)
+            return response
+
+        result = verifier.run_proof(config(), command_runner=other_app, http_runner=http,
+                                    now=clock.now, monotonic=clock.monotonic, sleep=clock.sleep)
+        self.assertEqual(result.evidence["events"]["outcome"], "d_query_error")
+        self.assertEqual(result.exit_code, 1)
+
+    def test_cross_revision_events_fail_closed_for_each_service(self):
+        import json
+        for kind in ("success", "skip"):
+            for identity in ("other--revision", None):
+                with self.subTest(kind=kind, identity=identity):
+                    commands = StatefulCommandRunner(event_mode=kind)
+                    http = StatefulHttpRunner(commands)
+                    clock = Clock()
+
+                    def mismatched(command, *, timeout_seconds=None):
+                        response = commands(command, timeout_seconds=timeout_seconds)
+                        if command[:4] == ["az", "monitor", "log-analytics", "query"]:
+                            rows = json.loads(response.stdout)
+                            for row in rows:
+                                if "Log_s" in row:
+                                    row["RevisionName_s"] = identity
+                            return commands._result(rows)
+                        return response
+
+                    result = verifier.run_proof(config(), command_runner=mismatched,
+                                                http_runner=http, now=clock.now,
+                                                monotonic=clock.monotonic, sleep=clock.sleep)
+                    self.assertEqual(result.evidence["events"]["outcome"], "d_query_error")
+                    self.assertIn("revision", result.evidence["events"]["queryError"])
+                    self.assertEqual(result.exit_code, 1)
+                    self.assertTrue(result.evidence["cleanup"]["postCleanupGolden"])
+
+    def test_service_specific_revision_identity_is_retained_and_queried(self):
+        result, _, _, _ = run_case(event_mode="both")
+        for kind, app, revision in (("success", "portfolio-service", "portfolio-service--0000202"),
+                                    ("skip", "api-gateway", "api-gateway--0000101")):
+            event = result.evidence["events"][kind]
+            self.assertEqual(event.get("revisionName"), revision)
+            self.assertEqual(event.get("containerAppName"), app)
+            self.assertIn("RevisionName_s", result.evidence["events"]["queries"][kind])
+
+    def test_real_slow_stream_total_deadline_and_armed_cleanup(self):
+        import socketserver
+        import threading
+        import time
+
+        class Drip(socketserver.BaseRequestHandler):
+            def handle(self):
+                self.request.recv(65536)
+                self.server.started.set()
+                status = self.server.status
+                head = f"HTTP/1.1 {status} Slow\r\nContent-Length: 42\r\nConnection: close\r\n\r\n".encode()
+                try:
+                    if self.server.slow_headers:
+                        for byte in head:
+                            self.request.sendall(bytes([byte]))
+                            time.sleep(0.04)
+                        self.request.sendall(b'"' + b'a' * 40 + b'"')
+                    else:
+                        self.request.sendall(head + b'"')
+                        for _ in range(40):
+                            self.request.sendall(b'a')
+                            time.sleep(0.04)
+                        self.request.sendall(b'"')
+                except OSError:
+                    pass
+                finally:
+                    self.server.disconnected.set()
+
+        class Server(socketserver.ThreadingTCPServer):
+            daemon_threads = True
+
+        with Server(("127.0.0.1", 0), Drip) as server:
+            server.started = threading.Event()
+            server.disconnected = threading.Event()
+            threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.01},
+                             daemon=True).start()
+            url = f"http://127.0.0.1:{server.server_address[1]}"
+            try:
+                for status, slow_headers in ((200, False), (500, False), (200, True)):
+                    with self.subTest(status=status, slow_headers=slow_headers):
+                        server.status, server.slow_headers = status, slow_headers
+                        server.started.clear()
+                        server.disconnected.clear()
+                        began = time.monotonic()
+                        with self.assertRaisesRegex(verifier.ProofError, "deadline"):
+                            verifier._default_http_runner(method="GET", url=url, headers={},
+                                                          timeout_seconds=0.4)
+                        self.assertLess(time.monotonic() - began, 0.65)
+                        self.assertTrue(server.started.is_set(), "must exercise real transport")
+                        self.assertTrue(server.disconnected.wait(0.3), "timed-out transport must stop")
+
+                server.status, server.slow_headers = 200, False
+                commands = StatefulCommandRunner()
+                http = StatefulHttpRunner(commands)
+                clock = Clock()
+                cfg = config(override="1s")
+                cfg.operation_timeout_seconds = 0.4
+
+                def interrupted_write(**kwargs):
+                    response = http(**kwargs)
+                    if kwargs["url"].endswith("/holdings"):
+                        return verifier._default_http_runner(method="GET", url=url, headers={},
+                                                             timeout_seconds=kwargs["timeout_seconds"])
+                    return response
+
+                result = verifier.run_proof(cfg, command_runner=commands, http_runner=interrupted_write,
+                                            now=clock.now, monotonic=clock.monotonic, sleep=clock.sleep)
+                self.assertEqual(result.exit_code, 1)
+                self.assertIn("deadline", " ".join(result.evidence["verdict"]["errors"]))
+                self.assertTrue(result.evidence["cleanup"]["postCleanupGolden"])
+                self.assertTrue(result.evidence["thresholdRestore"]["verified"])
+                self.assertEqual(commands.threshold, "30m")
+                resets = [r for r in http.requests if r["url"].endswith("/demo-reset")]
+                self.assertEqual(resets[0]["json"]["expectedVersion"], 2)
+            finally:
+                server.shutdown()
+
+    def test_minted_token_redacted_from_retained_emitted_saved_and_cleanup_evidence(self):
+        import json
+        from unittest.mock import patch
+        commands = StatefulCommandRunner()
+        http = StatefulHttpRunner(commands)
+        clock = Clock()
+        cleanup_failed_once = False
+
+        def leaking_http(**kwargs):
+            nonlocal cleanup_failed_once
+            if kwargs["headers"].get("Authorization") == "Bearer probe-token":
+                raise RuntimeError("post-login Bearer probe-token setup-token not-recorded")
+            if kwargs["url"].endswith("/demo-reset") and not cleanup_failed_once:
+                cleanup_failed_once = True
+                raise RuntimeError("cleanup Bearer probe-token")
+            return http(**kwargs)
+
+        result = verifier.run_proof(config(), command_runner=commands, http_runner=leaking_http,
+                                    now=clock.now, monotonic=clock.monotonic, sleep=clock.sleep)
+        retained = json.dumps(result.evidence)
+        self.assertTrue(result.evidence["cleanup"]["postCleanupGolden"])
+        self.assertIn("[REDACTED]", result.evidence["observation"]["error"])
+        self.assertIn("[REDACTED]", result.evidence["cleanup"]["attempts"][0]["error"])
+        with tempfile.TemporaryDirectory() as directory:
+            manifest = Path(directory) / "manifest.json"
+            marker = Path(directory) / "marker.txt"
+            saved = Path(directory) / "evidence.json"
+            manifest.write_text(json.dumps(deployment_manifest()), encoding="utf-8")
+            marker.write_text("17\n", encoding="utf-8")
+            args = ["--mode", "execute", "--target", "production-azure", "--subscription", "sub-approved",
+                    "--resource-group", "wealth-azure-prod-rg", "--gateway-app", "api-gateway",
+                    "--portfolio-app", "portfolio-service", "--workspace", "wealth-prod-la",
+                    "--registry", "wealthprodacr", "--gateway-url", "https://wealth.example.test",
+                    "--repository-sha", COMMIT, "--run-attempt", "17", "--deployment-manifest", str(manifest),
+                    "--deployment-manifest-run-attempt", str(marker), "--evidence-output", str(saved),
+                    "--gateway-repository", service_repositories()["api-gateway"],
+                    "--portfolio-repository", service_repositories()["portfolio-service"]]
+            emitted = []
+            with patch.object(verifier, "run_proof", return_value=result):
+                verifier.main(args, output=emitted.append)
+            for surface in (retained, emitted[0], saved.read_text(encoding="utf-8")):
+                for secret in ("probe-token", "setup-token", "not-recorded"):
+                    self.assertNotIn(secret, surface)
 
 
 if __name__ == "__main__":

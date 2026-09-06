@@ -320,7 +320,7 @@ Each selected scoped-normal service uploads `service-digest-${{ matrix.service }
 
 Upgrade the existing active-CI actionlint installation from 1.7.7 to 1.7.12 and verify Linux-amd64 archive SHA-256 `8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8`. Do not add a second installation.
 
-- [ ] **Step 6: Run workflow verification**
+- [x] **Step 6: Run workflow verification**
 
 ```powershell
 python -B scripts/tests/test_snapshot_container_apps.py -v
@@ -330,7 +330,7 @@ python -B scripts/tests/test_deploy_azure_prebuilt_digest.py -v
 
 Run the repository's pinned actionlint command against the changed workflows.
 
-Offline source verification is green at 24 snapshot + 14 allowlist + 10 prebuilt tests, including reviewed mutation evidence. The pinned actionlint source/checksum is updated, but no local actionlint executable was available; Step 6 remains open for its CI-carried execution. No workflow run or deployment evidence is claimed.
+Offline source verification is green at 24 snapshot + 14 allowlist + 10 prebuilt tests, including reviewed mutation evidence. Later consolidated verification passed the pinned actionlint v1.7.12 checksum (`8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8`) and invocation against the changed workflows; Step 6 is complete. No workflow run or deployment evidence is claimed.
 
 ---
 
