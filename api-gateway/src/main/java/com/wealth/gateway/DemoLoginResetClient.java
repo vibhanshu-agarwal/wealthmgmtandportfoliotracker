@@ -10,6 +10,7 @@ import org.springframework.web.reactive.function.client.ExchangeFilterFunction;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
 
 import java.net.URI;
 import java.time.Clock;
@@ -113,12 +114,34 @@ public final class DemoLoginResetClient {
     }
 
     private Mono<List<PortfolioPayload>> decodePortfolioArray(String body) {
-        if (body == null || !body.trim().startsWith("[")
-                || !body.matches("(?s).*\"version\"\\s*:\\s*-?\\d+\\s*[,}].*")) {
-            return Mono.error(new EligibilityShapeException(0));
-        }
         try {
-            return Mono.just(List.of(objectMapper.readValue(body, PortfolioPayload[].class)));
+            JsonNode root = objectMapper.readTree(body);
+            if (root == null || !root.isArray()) {
+                return Mono.error(new EligibilityShapeException(0));
+            }
+            List<PortfolioPayload> portfolios = new java.util.ArrayList<>();
+            for (JsonNode node : root) {
+                if (!node.isObject()) {
+                    return Mono.error(new EligibilityShapeException(0));
+                }
+                JsonNode userId = node.path("userId");
+                if (!userId.isTextual()) {
+                    return Mono.error(new EligibilityShapeException(0));
+                }
+                if (!DEMO_USER_ID.equals(userId.asText())) {
+                    continue;
+                }
+                JsonNode id = node.path("id");
+                JsonNode updatedAt = node.path("updatedAt");
+                JsonNode version = node.path("version");
+                if (!id.isTextual() || !updatedAt.isTextual() || !version.isIntegralNumber()
+                        || !version.canConvertToLong()) {
+                    return Mono.error(new EligibilityShapeException(0));
+                }
+                portfolios.add(new PortfolioPayload(UUID.fromString(id.asText()), userId.asText(),
+                        Instant.parse(updatedAt.asText()), version.longValue()));
+            }
+            return Mono.just(portfolios);
         } catch (Exception exception) {
             return Mono.error(new EligibilityShapeException(0));
         }

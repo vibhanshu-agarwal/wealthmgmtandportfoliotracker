@@ -250,6 +250,10 @@ class DemoLoginResetClientTest {
         StepVerifier.create(client(request -> Mono.just(jsonResponse("""
                 [{"id":"00000000-0000-0000-0000-000000000002","userId":"00000000-0000-0000-0000-0000000d3110","updatedAt":"2026-09-06T00:00:00Z","version":7.9}]
                 """)), "", "internal").observeEligibility("jwt")).expectError().verify();
+        StepVerifier.create(client(request -> Mono.just(jsonResponse("""
+                [{"id":"00000000-0000-0000-0000-000000000001","userId":"other","updatedAt":"2026-09-06T00:00:00Z","version":1},
+                 {"id":"00000000-0000-0000-0000-000000000002","userId":"00000000-0000-0000-0000-0000000d3110","updatedAt":"2026-09-06T00:00:00Z","version":7.9}]
+                """)), "", "internal").observeEligibility("jwt")).expectError().verify();
     }
 
     @Test
