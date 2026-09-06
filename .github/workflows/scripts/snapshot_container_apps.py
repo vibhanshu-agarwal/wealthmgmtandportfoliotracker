@@ -15,6 +15,7 @@ import os
 import subprocess
 import sys
 import re
+from pathlib import Path
 from typing import Any, Callable
 
 KNOWN_SERVICES = (
@@ -194,6 +195,8 @@ def normalize_digest_artifacts(download_root: str, staging_root: str, selected: 
     _validate_selected(selected)
     source = os.path.abspath(download_root)
     stage = os.path.abspath(staging_root)
+    if source == stage:
+        raise ValueError("download and staging roots must be distinct")
     expected = {"service-digest-" + service for service in selected}
     actual = {entry.name for entry in os.scandir(source) if entry.is_dir()}
     if actual != expected:
@@ -205,12 +208,12 @@ def normalize_digest_artifacts(download_root: str, staging_root: str, selected: 
         marker_file = os.path.join(directory, "run-attempt.txt")
         if not os.path.isfile(digest_file) or not os.path.isfile(marker_file):
             raise ValueError("missing digest artifact marker; Re-run all jobs")
-        if open(marker_file, encoding="utf-8").read().strip() != str(attempt):
+        if Path(marker_file).read_text(encoding="utf-8").strip() != str(attempt):
             raise ValueError("stale digest artifact; Re-run all jobs")
         files = {entry.name for entry in os.scandir(directory) if entry.is_file()}
         if files != {"digest.txt", "run-attempt.txt"}:
             raise ValueError("invalid digest artifact contents; Re-run all jobs")
-        digest = open(digest_file, encoding="utf-8").read().strip()
+        digest = Path(digest_file).read_text(encoding="utf-8").strip()
         if not DIGEST_RE.fullmatch(digest):
             raise ValueError("invalid digest artifact; Re-run all jobs")
         target = os.path.join(stage, service)

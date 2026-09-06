@@ -40,6 +40,24 @@ class TestDeployAzureServiceAllowlist(unittest.TestCase):
             stage = Path(root) / "stage" / "api-gateway"
             (stage / "extra.txt").write_text("x")
             with self.assertRaises(ValueError): module.aggregate_digests(str(Path(root) / "stage"), ["api-gateway"], None)
+
+    def test_normalizer_rejects_missing_extra_stale_marker_malformed_and_same_root(self):
+        spec = importlib.util.spec_from_file_location("snapshot_cli", REPO / ".github" / "workflows" / "scripts" / "snapshot_container_apps.py")
+        module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+        digest = "sha256:" + "b" * 64
+        cases = ("missing", "extra", "stale", "marker", "malformed", "same-root")
+        for case in cases:
+            with self.subTest(case=case), tempfile.TemporaryDirectory() as root:
+                download = Path(root) / "download"; download.mkdir()
+                service = download / "service-digest-api-gateway"; service.mkdir()
+                if case != "missing": (service / "digest.txt").write_text(digest if case != "malformed" else "SHA256:bad")
+                if case != "marker": (service / "run-attempt.txt").write_text("1" if case == "stale" else "2")
+                if case == "extra": (download / "service-digest-extra").mkdir()
+                if case == "same-root":
+                    with self.assertRaises(ValueError): module.normalize_digest_artifacts(str(download), str(download), ["api-gateway"], "2")
+                else:
+                    with self.assertRaises(ValueError) if case != "missing" or True else self.assertRaises(ValueError):
+                        module.normalize_digest_artifacts(str(download), str(Path(root) / "stage"), ["api-gateway"], "2")
     def test_scoped_graph_has_job_step_scoped_digest_contract(self):
         deploy = self._job("deploy:")
         aggregate = self._job("aggregate-digests:")
@@ -52,6 +70,8 @@ class TestDeployAzureServiceAllowlist(unittest.TestCase):
         self.assertIn("Re-run all jobs", self.text)
         self.assertIn("merge-multiple: false", aggregate)
         self.assertIn("normalize-artifacts", aggregate)
+        self.assertIn("--digest-root \"$RUNNER_TEMP/service-digest-downloads\"", aggregate)
+        self.assertIn("--staging-root \"$RUNNER_TEMP/service-digests\"", aggregate)
         consumer = self._job("assert-scoped-non-interference:")
         self.assertIn("needs.aggregate-digests.result", consumer)
         self.assertIn("--digest-manifest", consumer)
