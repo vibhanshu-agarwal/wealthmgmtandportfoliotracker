@@ -346,17 +346,25 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           pattern: service-digest-*
-          path: ${{ runner.temp }}/service-digests
+          path: ${{ runner.temp }}/service-digest-downloads
           merge-multiple: false
       - name: Validate selected digest inputs
         run: |
           set -euo pipefail
           selected='${{ needs.preflight.outputs.selected_services }}'
+          rm -rf "$RUNNER_TEMP/service-digests"
+          mkdir -p "$RUNNER_TEMP/service-digests"
+          expected=$(python3 -c 'import json,sys; print(" ".join("service-digest-" + x for x in json.loads(sys.argv[1])))' "$selected")
+          for dir in "$RUNNER_TEMP"/service-digest-downloads/service-digest-*; do
+            [ -d "$dir" ] || continue
+            case " $expected " in *" $(basename "$dir") "*) ;; *) echo "::error::unexpected digest artifact $(basename "$dir"); Re-run all jobs."; exit 1;; esac
+          done
           for service in $(python3 -c 'import json,sys; print(*json.loads(sys.argv[1]))' "$selected"); do
-            dir="$RUNNER_TEMP/service-digests/service-digest-${service}"
+            dir="$RUNNER_TEMP/service-digest-downloads/service-digest-${service}"
             test -f "$dir/digest.txt" || { echo "::error::missing digest for $service; Re-run all jobs."; exit 1; }
             test -f "$dir/run-attempt.txt" || { echo "::error::missing attempt marker for $service; Re-run all jobs."; exit 1; }
             test "$(cat "$dir/run-attempt.txt")" = "${{ github.run_attempt }}" || { echo "::error::stale digest artifact for $service; Re-run all jobs."; exit 1; }
+            test "$(find "$dir" -maxdepth 1 -type f | wc -l)" = 2 || { echo "::error::invalid artifact contents for $service; Re-run all jobs."; exit 1; }
             mkdir -p "$RUNNER_TEMP/service-digests/$service"
             cp "$dir/digest.txt" "$RUNNER_TEMP/service-digests/$service/digest.txt"
           done

@@ -9,6 +9,8 @@ P-A.5 STOP/GO. Stdlib only — no PyYAML.
 from __future__ import annotations
 
 import re
+import tempfile
+import importlib.util
 import unittest
 from pathlib import Path
 
@@ -22,6 +24,24 @@ def _read(path: Path) -> str:
 
 
 class TestDeployAzureServiceAllowlist(unittest.TestCase):
+    def test_normalized_current_attempt_artifacts_feed_real_aggregate_cli(self):
+        script = REPO / ".github" / "workflows" / "scripts" / "snapshot_container_apps.py"
+        spec = importlib.util.spec_from_file_location("snapshot_cli", script)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        digest = "sha256:" + "a" * 64
+        with tempfile.TemporaryDirectory() as root:
+            download = Path(root) / "downloads" / "service-digest-api-gateway"
+            stage = Path(root) / "stage" / "api-gateway"
+            download.mkdir(parents=True)
+            stage.mkdir(parents=True)
+            (download / "digest.txt").write_text(digest)
+            (download / "run-attempt.txt").write_text("2\n")
+            self.assertEqual((download / "run-attempt.txt").read_text().strip(), "2")
+            (stage / "digest.txt").write_text((download / "digest.txt").read_text())
+            self.assertEqual(module.aggregate_digests(str(Path(root) / "stage"), ["api-gateway"], None), {"api-gateway": digest})
+            (stage / "extra.txt").write_text("x")
+            with self.assertRaises(ValueError): module.aggregate_digests(str(Path(root) / "stage"), ["api-gateway"], None)
     def test_scoped_graph_has_job_step_scoped_digest_contract(self):
         deploy = self._job("deploy:")
         aggregate = self._job("aggregate-digests:")
