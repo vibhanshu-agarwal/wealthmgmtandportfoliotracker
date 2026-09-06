@@ -60,7 +60,7 @@ locator guard. The final corrected assembled rerun on the branch tip passed 5/5.
 | Mocked picker collection | 2 |
 | Picker retry-window guard | Full 31s virtual observation passed |
 | Focused independent picker/locator guards | 14/14; Terra final focused slice 17/17 |
-| Status-propagation guard | passed locally: 18 changed paths against the baseline and then-current local HEAD |
+| Status-propagation guard | passed locally: 19 changed paths with `Master-plan impact: updated — B2` against the baseline and verified then-current head `69e229489f73c36f734d976200a83fb60b387c1c` |
 
 ## Reproduction record
 
@@ -87,10 +87,11 @@ The static guard verifies the four exact job-level values in active
 failure forgiveness or disabling condition, and parity with the tracked Azure frontend literals,
 V15, and the demo fixture. It does not read `frontend/.env.local`.
 
-The status-propagation guard passed locally with 18 changed paths against
-`origin/main@b4c68253b99a796d6301ef79b5aa5a47d5cbd962` and the then-current local HEAD. Resolve
-the head again before publication; this record intentionally does not freeze a stale post-handoff
-commit SHA.
+The status-propagation guard passed locally with 19 changed paths and the exact declaration
+`Master-plan impact: updated — B2`, against
+`origin/main@b4c68253b99a796d6301ef79b5aa5a47d5cbd962` and the verified then-current head
+`69e229489f73c36f734d976200a83fb60b387c1c`. Resolve the head again before publication; the
+root coordinator will rerun the guard against the next documentation-only commit.
 
 ## Publication boundary
 
