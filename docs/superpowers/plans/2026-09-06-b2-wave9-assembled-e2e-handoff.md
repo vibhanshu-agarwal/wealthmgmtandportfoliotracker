@@ -45,12 +45,12 @@ backend paths; it is not a cloud or production result.
 
 The first assembled run failed at the conflict alert oracle because Next's route announcer also has
 `role="alert"`. Astra's `5ac2eb13` changed the assertions to target the conflict notice and added a
-locator guard. The corrected assembled run passed 5/5.
+locator guard. The final corrected assembled rerun on the branch tip passed 5/5.
 
 | Verification | Result |
 |---|---|
-| Frontend `npm test` | 68 files / 642 tests |
-| Focused CI structural guard | 4/4 |
+| Frontend `npm test` | 69 files / 648 tests |
+| Focused CI structural guard | 5/5 |
 | Golden-state oracle derivation | 12/12 |
 | Focused Wave 9 Vitest before locator fix | 79/79 |
 | Locator guard after the fix | 1/1 |
@@ -58,6 +58,8 @@ locator guard. The corrected assembled run passed 5/5.
 | Changed-file ESLint | clean |
 | Real assembled E2E collection | 5 |
 | Mocked picker collection | 2 |
+| Picker retry-window guard | Full 31s virtual observation passed |
+| Focused independent picker/locator guards | 14/14; Terra final focused slice 17/17 |
 | Status-propagation guard | passed locally: 18 changed paths against the baseline and then-current local HEAD |
 
 ## Reproduction record

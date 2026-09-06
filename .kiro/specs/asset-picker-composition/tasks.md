@@ -4062,8 +4062,9 @@ class, not by enumeration" through "operational signals only") deliberately keep
     forgiven — the same discipline Task 9.8's cleanup already uses.
   **Completion evidence:** the disposable Compose real-browser run passed 5/5, including setup and
   the real picker success and stale-version conflict cases. Exact collection reported 5 tests and
-  the mocked-picker configuration collected 2. This does not claim GitHub CI, deployment, or
-  Production E2E.
+  the mocked-picker configuration collected 2. The full 31s virtual retry-window observation passed;
+  focused independent picker/locator guards passed 14/14 (Terra's final focused slice: 17/17). This
+  does not claim GitHub CI, deployment, or Production E2E.
   _Requirements: 4.1, 4.2, 4.3, 4.4; design.md D1_
 - [x] **9.8 Author `tests/e2e/demo-reset.spec.ts`, using Task 9.6's fixture.** **Locally
   source/assembled-stack complete (2026-09-06).**
@@ -4155,7 +4156,7 @@ class, not by enumeration" through "operational signals only") deliberately keep
   frontend demo literals and V15 identity; never fall back to untracked `frontend/.env.local` on a
   clean runner.
   **Completion evidence:** the active `docker-build-verify` job now carries the four required
-  job-level values and invokes both specs; the focused structural guard passed 4/4. The workflow is
+  job-level values and invokes both specs; the focused structural guard passed 5/5. The workflow is
   wired locally but has **not** run in GitHub CI. This change does not alter deploy workflows or
   production flags.
   _Requirements: 1.1_
