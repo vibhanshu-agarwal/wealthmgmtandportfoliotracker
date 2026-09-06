@@ -56,8 +56,28 @@ class TestDeployAzureServiceAllowlist(unittest.TestCase):
                 if case == "same-root":
                     with self.assertRaises(ValueError): module.normalize_digest_artifacts(str(download), str(download), ["api-gateway"], "2")
                 else:
-                    with self.assertRaises(ValueError) if case != "missing" or True else self.assertRaises(ValueError):
+                    with self.assertRaises(ValueError):
                         module.normalize_digest_artifacts(str(download), str(Path(root) / "stage"), ["api-gateway"], "2")
+
+    def test_normalize_artifacts_main_cli_valid_and_all_failures(self):
+        spec = importlib.util.spec_from_file_location("snapshot_cli", REPO / ".github" / "workflows" / "scripts" / "snapshot_container_apps.py")
+        module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+        digest = "sha256:" + "c" * 64
+        for case in ("valid", "missing", "extra", "stale", "marker", "malformed", "inner-extra"):
+            with self.subTest(case=case), tempfile.TemporaryDirectory() as root:
+                download = Path(root) / "download"; service = download / "service-digest-api-gateway"; service.mkdir(parents=True)
+                if case != "missing": (service / "digest.txt").write_text(digest if case != "malformed" else "bad")
+                if case != "marker": (service / "run-attempt.txt").write_text("2" if case != "stale" else "1")
+                if case == "extra": (download / "service-digest-extra").mkdir()
+                if case == "inner-extra": (service / "extra.txt").write_text("x")
+                stage = Path(root) / "stage"
+                with mock.patch("sys.argv", ["snapshot", "normalize-artifacts", "--digest-root", str(download), "--staging-root", str(stage), "--selected", '["api-gateway"]', "--run-attempt", "2"]):
+                    if case == "valid":
+                        self.assertEqual(module.main(), 0)
+                        self.assertEqual((stage / "api-gateway" / "digest.txt").read_text(), digest + "\n")
+                        self.assertEqual(module.aggregate_digests(str(stage), ["api-gateway"], None), {"api-gateway": digest})
+                    else:
+                        with self.assertRaises(ValueError): module.main()
     def test_scoped_graph_has_job_step_scoped_digest_contract(self):
         deploy = self._job("deploy:")
         aggregate = self._job("aggregate-digests:")
