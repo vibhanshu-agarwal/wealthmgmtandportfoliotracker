@@ -500,6 +500,9 @@ class PostgresRepairMigrationIT {
         var session = PostgresRepairHarness.newSession();
         session.migrateRemaining();
 
+        assertThat(successfulMigrationCount(session, "21")).isEqualTo(1);
+        assertThat(transientRepairFunctions(session)).isEmpty();
+
         int archiveBefore = count(session, "SELECT COUNT(*) FROM repair_archive");
         int auditBefore = count(session, "SELECT COUNT(*) FROM repair_audit");
         int btcHistory = count(session, "SELECT COUNT(*) FROM market_price_history WHERE ticker = 'BTC'");
@@ -566,11 +569,13 @@ class PostgresRepairMigrationIT {
         session.jdbc()
                 .execute(
                         """
-                        CREATE FUNCTION public.test_repair_holdings_dependency()
+                        CREATE FUNCTION public.test_repair_archive_dependency()
                         RETURNS void
                         LANGUAGE sql
                         BEGIN ATOMIC
-                          SELECT public.repair_migrate_holdings('VTEST', 'NOOP', 'NOOP');
+                          SELECT public.repair_archive_row(
+                              'VTEST', 'asset_holdings', 'LEGACY_SYNTHETIC', 'NOOP', '{}'::jsonb
+                          );
                         END;
                         """);
 
@@ -578,12 +583,16 @@ class PostgresRepairMigrationIT {
                 .isInstanceOf(FlywayException.class)
                 .rootCause()
                 .hasMessageContaining(
-                        "cannot drop function repair_migrate_holdings(text,text,text)")
-                .hasMessageContaining("test_repair_holdings_dependency() depends on function");
+                        "cannot drop function repair_archive_row(text,text,text,text,jsonb)")
+                .hasMessageContaining("test_repair_archive_dependency() depends on function");
 
         assertThat(successfulMigrationCount(session, "21")).isZero();
         assertThat(transientRepairFunctions(session))
-                .contains("repair_migrate_holdings(text,text,text)");
+                .containsExactly(
+                        "repair_archive_row(text,text,text,text,jsonb)",
+                        "repair_migrate_history(text,text,text)",
+                        "repair_migrate_holdings(text,text,text)",
+                        "repair_migrate_market_prices(text,text,text,text,boolean)");
     }
 
     @Test
