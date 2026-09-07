@@ -138,6 +138,11 @@ class StatefulCommandRunner:
         self.fail_command_containing: str | None = None
         self.query_count = {"success": 0, "skip": 0}
         self.revision_calls = {service: 0 for service in ("api-gateway", "portfolio-service")}
+        self.ingress = {
+            "external": True,
+            "fqdn": "api-gateway.current.test",
+            "customDomains": [{"name": "wealth.example.test", "bindingType": "SniEnabled"}],
+        }
 
     def _result(self, payload="", *, code=0, error=""):
         if not isinstance(payload, str):
@@ -277,9 +282,7 @@ class StatefulCommandRunner:
             )
         if command[:3] == ["az", "containerapp", "show"]:
             if self._value_after(command, "--query") == "properties.configuration.ingress":
-                return self._result({"external": True, "fqdn": "api-gateway.current.test",
-                                     "customDomains": [{"name": "wealth.example.test",
-                                                        "bindingType": "SniEnabled"}]})
+                return self._result(self.ingress)
             if self._value_after(command, "--query") == "properties.template.containers[0].env":
                 return self._result(
                     [{"name": name, "value": value} for name, value in self.decision_values.items()]
@@ -1964,6 +1967,51 @@ class FinalReviewRegressionTest(unittest.TestCase):
             cfg.gateway_url = url
             result, _, _, _ = run_case(cfg=cfg)
             self.assertEqual(result.exit_code, 0)
+
+    def test_preflight_accepts_current_fqdn_when_custom_domains_are_null_missing_or_empty(self):
+        for label, custom_domains in (("null", None), ("missing", ...), ("empty", [])):
+            with self.subTest(shape=label):
+                commands = StatefulCommandRunner()
+                commands.ingress = {"external": True, "fqdn": "api-gateway.current.test"}
+                if custom_domains is not ...:
+                    commands.ingress["customDomains"] = custom_domains
+                cfg = config(mode="preflight")
+                cfg.gateway_url = "https://api-gateway.current.test"
+                http = StatefulHttpRunner(commands)
+
+                result = verifier.run_proof(cfg, command_runner=commands, http_runner=http)
+
+                self.assertEqual(result.exit_code, 0)
+                self.assertEqual(http.requests, [])
+                self.assertFalse(result.evidence["cleanup"]["armed"])
+                self.assertFalse(any(command[:3] == ["az", "containerapp", "update"]
+                                     for command in commands.commands))
+
+    def test_preflight_rejects_malformed_or_unbound_gateway_custom_domains(self):
+        cases = (
+            ("malformed", {"name": "wealth.example.test"}, "https://api-gateway.current.test",
+             "gateway customDomains is not a list"),
+            ("unbound", [], "https://wealth.example.test",
+             "gateway URL is outside the approved app's current ingress/domain binding"),
+        )
+        for label, custom_domains, url, expected_error in cases:
+            with self.subTest(shape=label):
+                commands = StatefulCommandRunner()
+                commands.ingress = {
+                    "external": True,
+                    "fqdn": "api-gateway.current.test",
+                    "customDomains": custom_domains,
+                }
+                cfg = config(mode="preflight")
+                cfg.gateway_url = url
+                http = StatefulHttpRunner(commands)
+
+                result = verifier.run_proof(cfg, command_runner=commands, http_runner=http)
+
+                self.assertEqual(result.exit_code, 1)
+                self.assertEqual(result.evidence["verdict"]["errors"], [expected_error])
+                self.assertEqual(http.requests, [])
+                self.assertFalse(result.evidence["cleanup"]["armed"])
 
     def test_ingress_binding_drift_fails_before_login_and_still_cleans_up(self):
         commands = StatefulCommandRunner()

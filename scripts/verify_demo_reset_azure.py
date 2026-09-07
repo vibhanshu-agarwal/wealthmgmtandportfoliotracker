@@ -513,7 +513,12 @@ def _validate_gateway_ingress(
     if not isinstance(ingress, dict) or ingress.get("external") is not True:
         raise ProofError("approved gateway has no external ingress")
     domains = [ingress.get("fqdn")]
-    domains.extend(row.get("name") for row in ingress.get("customDomains", [])
+    custom_domains = ingress.get("customDomains", [])
+    if custom_domains is None:
+        custom_domains = []
+    if not isinstance(custom_domains, list):
+        raise ProofError("gateway customDomains is not a list")
+    domains.extend(row.get("name") for row in custom_domains
                    if isinstance(row, dict) and row.get("bindingType") == "SniEnabled")
     host = urllib.parse.urlsplit(config.gateway_url).hostname
     if host not in {domain.lower() for domain in domains if isinstance(domain, str)}:
