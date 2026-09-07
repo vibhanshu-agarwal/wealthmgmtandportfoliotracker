@@ -3,7 +3,7 @@
 **Owner approval callout (2026-09-07):** The owner approved push, PR creation, and publication/cloud actions. No production operation has occurred. Merge remains conditional on required PR checks and review; production dispatch remains blocked by the missing Task 5.6 owner GO, B1 R-C NO-GO/open status, and the exact Task 9/10 deployment/live-proof packets and authorizations.
 
 Baseline: `318f28592da6ab2e3bd66bc738aa68d374b180fa`
-Reviewed source candidate: `caf0f648395c92f73682f0ba0f26cca7fbcc7104` (not merged or deployed). Subsequent publication-packet commits change only this handoff; the publication branch includes those documentation updates.
+Reviewed source candidate: `113d914684057a1dfc1d33ee8b65eddc98b0a32d` (not merged or deployed). Subsequent publication-packet commits change only this handoff; the publication branch includes those documentation updates.
 
 Tasks 8.1–8.7a are source-complete and independently accepted. Task 8.8b source/tooling is complete with 48 offline tests and pinned actionlint v1.7.12 passing using SHA-256 `8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8`. Coordinator evidence covers gateway unit/integration/real-chain/root graphs, Python workflow/proof suites, propagation checks, and diff validation; the worker launcher was blocked, but coordinator subsequently passed all six suites/checks.
 
@@ -21,7 +21,7 @@ Open gates: Task 8.8 deployment evidence, Task 8.9 live serving proof, Task 5.6 
 
 ## Exact review evidence
 
-RED/GREEN/mutation evidence is preserved in the lane reviews and coordinator ledger: gateway transport/orchestration RED cases were converted to GREEN; strict digest/job equality mutation was killed and restored; workflow artifact/mode mutations were killed; verifier diagnostic, deadline, correlation, and current-attempt mutations were killed across exactly three fix rounds. Historical fresh execution at `db90fe74` passed 316 gateway unit, 193 gateway integration, 4 real-chain, 37 insight, 37 market-data, and 208 portfolio tests, with root `integrationTest` exit 0. At the reviewed source candidate, Gradle verification commands exited 0 with all tasks UP-TO-DATE. Coordinator checks passed: Python suites 24+14+10+73+24+33 (178 total), identity guard PASS, 36-path propagation guard PASS, actionlint v1.7.12 with checksum/invocation PASS, and `git diff --check` PASS.
+RED/GREEN/mutation evidence is preserved in the lane reviews and coordinator ledger: gateway transport/orchestration RED cases were converted to GREEN; strict digest/job equality mutation was killed and restored; workflow artifact/mode mutations were killed; verifier diagnostic, deadline, correlation, and current-attempt mutations were killed across exactly three fix rounds. Historical fresh execution at `db90fe74` passed 316 gateway unit, 193 gateway integration, 4 real-chain, 37 insight, 37 market-data, and 208 portfolio tests, with root `integrationTest` exit 0. At the reviewed source candidate, Gradle verification commands exited 0 with all tasks UP-TO-DATE. Coordinator checks passed: Python suites 24+14+10+73+24+33 (178 total), identity guard PASS, 36-path propagation guard PASS, actionlint v1.7.12 with checksum/invocation PASS, and `git diff --check` PASS. PR #233's first required `static-guard` run then exposed two Azure digest uploads that lacked stable step IDs and manifest classifications; `113d9146` added the two IDs and matching `playwright: false` entries. The local failure was reproduced before the fix, then the 24 sanitizer-contract tests, live sanitizer guard, 14 Azure allowlist tests, and the 178-test combined Python suite passed; focused independent review returned SPEC PASS / QUALITY APPROVED.
 
 The publication body above contains exactly one `Master-plan impact: updated — B2` declaration. These are source/local observations only; no workflow/deployment/serving/live proof is claimed.
 
@@ -37,7 +37,7 @@ The publication body above contains exactly one `Master-plan impact: updated —
 | 5 | `45784950..eadbb15d` |
 | 6 | `b59cf26c` |
 | 7 | `f21671eb..2bfddf87` |
-| 8 | `c17bb0a8`, `778c1369`, `ad180d69`, cleanup `7e6593b`, `400b0e0`, `cfdec6c9`, `35e4584d`, final-review fix `2d73cbd0`, nullable follow-up `caf0f648` |
+| 8 | `c17bb0a8`, `778c1369`, `ad180d69`, cleanup `7e6593b`, `400b0e0`, `cfdec6c9`, `35e4584d`, final-review fix `2d73cbd0`, nullable follow-up `caf0f648`, CI guard fix `113d9146` |
 
 ## RED/GREEN, mutation, and review rounds
 
