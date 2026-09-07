@@ -239,6 +239,7 @@ jobs:
           jq -r '."containerimage.digest"' "$RUNNER_TEMP/${{ matrix.service }}-metadata.json" > "$RUNNER_TEMP/service-digests/${{ matrix.service }}/digest.txt"
           printf '%s\n' '${{ github.run_attempt }}' > "$RUNNER_TEMP/service-digests/${{ matrix.service }}/run-attempt.txt"
       - name: Publish service digest artifact
+        id: upload-service-digest
         if: needs.preflight.outputs.deploy_mode == 'scoped' && needs.preflight.outputs.digest_mode != 'true'
         uses: actions/upload-artifact@v4
         with:
@@ -365,6 +366,7 @@ jobs:
             --output "${RUNNER_TEMP}/digest-manifest.json"
           printf '%s\n' '${{ github.run_attempt }}' > "${RUNNER_TEMP}/digest-manifest.run-attempt.txt"
       - name: Upload digest manifest
+        id: upload-digest-manifest
         uses: actions/upload-artifact@v4
         with:
           name: digest-manifest
