@@ -30,15 +30,21 @@ public class AuthController {
 
     private final AuthenticationService authService;
     private final SignupService signupService;
+    private final DemoLoginResetOrchestrator demoLoginReset;
 
-    public AuthController(AuthenticationService authService, SignupService signupService) {
+    public AuthController(AuthenticationService authService, SignupService signupService,
+                          DemoLoginResetOrchestrator demoLoginReset) {
         this.authService = authService;
         this.signupService = signupService;
+        this.demoLoginReset = demoLoginReset;
     }
 
     @PostMapping("/login")
     public Mono<ResponseEntity<Object>> login(@RequestBody LoginDtos.LoginRequest request) {
         return authService.authenticate(request)
+                .flatMap(resp -> Mono.defer(() -> demoLoginReset.afterLogin(resp))
+                        // Also isolate unexpected publisher-construction or diagnostic-sink faults.
+                        .onErrorResume(error -> Mono.empty()).thenReturn(resp))
                 .map(resp -> ResponseEntity.ok((Object) new LoginDtos.LoginResponse(
                         resp.token(), resp.userId(), resp.email(), resp.name())))
                 .onErrorResume(InvalidCredentialsException.class, ex -> Mono.just(uniformAuthError()))

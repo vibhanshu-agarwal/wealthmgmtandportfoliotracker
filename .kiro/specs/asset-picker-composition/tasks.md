@@ -8,15 +8,18 @@ remains open (not deployed, not activated, not live-probed). Wave 4 Tasks 4.1–
 PR #180 at `main@63fc058` and their exact historical cut is now serving internally on
 `portfolio-service--0000093` at digest `sha256:9a1d5533…`; Task 4.5 is GO after the one controlled
 live call returned a valid already-golden no-op. The endpoint is not routed to users. Wave 8
-Task 8.1 merged source-only through PR #185 at `main@198c878d`; it is not deployed. Task 5.1a
+Task 8.1 source `6a171558` (including `updatedAt` and decimal-string serialization) was digest-deployed as cu4 / revision `0000094` (`sha256:2be727eaf4577699c783ae66073670d4984fe66c666af3e56422c934fdd0b023`), recorded provenance rather than a fresh read-back; no duplicate deployment is needed. Task 5.1a
 (`InternalApiKeyProvider`) merged source-only through PR #202 at `main@64761dc2`; it is not deployed.
 Task 8.2a (`CloudFrontOriginSecretProvider`) merged source-only through PR #203 at `main@addd8049`;
 it is not deployed. Task 5.1b (`ReplicaTokenProvider`) merged source-only through PR #208 at
-`main@f954b5a7`; it is not deployed. Task 8.2's open idle-threshold/self-call-timeout
-decisions and Tasks 8.3 and later remain not started. Spec A task 8.6
+`main@f954b5a7`; it is not deployed. The owner-approved decision/spec packet received Astra ACCEPT;
+Tasks 8.3–8.7a are source/test complete and independently accepted.
+Task 8.8b's offline source foundation is complete; deployment and live-proof gates remain open. Spec A task 8.6
 is complete and the backend `assetPriceFreshness` response exists.
-Four decisions remain open: idle threshold, manual-reset placement, login self-call timeouts, and
-decimal-adapter deployment sequencing. See
+The owner resolved the strict 30-minute idle threshold, page-level manual-reset placement, and
+2s/2s/4s login self-call timeouts on 2026-09-06. The decimal item is now a B1-owned historical
+containment/frontend-artifact audit; Task 2.7 and Wave 10.2 item 2 remain open. See the
+[decision record](../../../docs/superpowers/plans/2026-09-06-b2-wave8-decision-record.md) and
 [`docs/plans/ASSET_PICKER_E2E_MASTER_PLAN.md`](../../../docs/plans/ASSET_PICKER_E2E_MASTER_PLAN.md)
 for the living cross-program view.
 
@@ -42,7 +45,7 @@ authorize Wave 5 implementation or deployment.
 passed. Source/visual ACCEPT at `970b637b` and R1–R4 closure carry forward unchanged.
 The 375px sidebar limitation remains owner-deferred to the
 [sidebar backlog](../../../docs/todos/backlog/responsive-dashboard-sidebar/README.md).
-Tasks 6.1/6.2 are checked below; committed flags remain disabled, final placement is open,
+Tasks 6.1/6.2 are checked below; committed flags remain disabled, page-level placement is final,
 and Task 5.6's owner GO and Task 6.3 remain separate. This source reconciliation makes no new
 runtime or feature-exposure claim. The next cross-program source kickoff is B1 Wave 6
 Tasks 6.1–6.4 after G5 close-out; implementation is separate work.
@@ -330,7 +333,7 @@ re-asserted in every task description.
   **Every induced case additionally asserts 8.7's complete both-legs field set — both
   `configured`/`required` values, both dispatch fields, and both `attached` values, with the
   diagnostic fields the induced branch defines: **`timeoutScope` asserted for its exact value —
-  `per-leg` on the eligibility-/reset-leg timeout cases, `overall` on all three overall-timeout
+  `per-leg` on the eligibility-/reset-leg timeout cases, `overall` on all five overall-timeout
   phase cases — and `elapsedMillis` asserted against a deterministic band derived from each case's
   own test-configured timeout value, never merely "populated" (round-32 correction — a real gap:
   "populated" is satisfied by any non-null value, including a constant or a wrongly-scoped one,
@@ -544,14 +547,13 @@ re-asserted in every task description.
   `DemoResetService.reset(...)` itself, sleeping immediately after that call returns (the commit and
   its log line have already happened by then) and before the controller method returns — this avoids
   relying on servlet response-buffering behavior, which is not a guaranteed contract for when bytes
-  are actually flushed.** **Timing decoupled from 8.2's real, still-open resolved value (round-21
+  are actually flushed.** **Timing decoupled from 8.2's resolved production value (round-21
   correction — an earlier draft calibrated the delay "to exceed 8.2's resolved overall-timeout
-  value," but that value is explicitly still an OPEN item elsewhere in this document (Task 8.2), so
-  this test couldn't be fully specified until it resolves, and a delay calibrated against a
+  value," but a delay calibrated against a
   multi-second real value would be exactly the slow, margin-dependent flakiness pattern Task 8.9's
   own bounded-polling design exists to avoid): override the overall timeout to a small, test-only
-  value (e.g. 100ms) via Spring test property override, independent of whatever 8.2 eventually
-  resolves to in production, and set the decorator's sleep to a generous, deterministic multiple of
+  value (e.g. 100ms) via Spring test property override, independent of 8.2's production value, and
+  set the decorator's sleep to a generous, deterministic multiple of
   that test-only value (e.g. 500ms) — this makes the test fast and non-flaky by construction, not by
   tuning a margin against a real-world duration.** **A second, independent, deterministic delay is
   also inserted on the eligibility leg's own response — a small, bounded value comfortably inside
@@ -597,12 +599,12 @@ re-asserted in every task description.
   untested one):** eligibility stub healthy and fast, returning a single-entry idle-eligible
   response; then stall the orchestration *between* the legs deterministically, by overriding
   8.5's own construction seam (the same owned seam the reset-leg construction-fault case uses)
-  with an implementation that sleeps past the test-only overall deadline **and then completes
-  construction normally** — the deadline fires during the sleep, with the read complete and no
-  reset call yet dispatched, which is precisely `between_legs`. **The seam's own sleep is timed to
-  finish, and construction to complete, comfortably after the test-only deadline has already
-  fired — the whole point being to give a broken cancellation implementation a real window to
-  leak a late dispatch — and the test explicitly waits for that window to close (round-31 addition
+  with a deferred, nonblocking, cancellable target publisher that remains incomplete past the
+  test-only overall deadline **and is then released normally** — the deadline fires with the read
+  complete and no reset call yet dispatched, which is precisely `between_legs`. **The publisher is
+  released comfortably after the test-only deadline has already fired — the whole point being to
+  give a broken cancellation implementation a real window to leak a late dispatch — and the test
+  explicitly waits for that window to close (round-31 addition
   — without an explicit wait, a fast assertion could observe the pre-cancellation state and pass
   regardless of whether cancellation actually works, proving nothing about 8.6's guarantee).**
   Assert, **independently at the downstream stub, not merely from the emitted event fields
@@ -617,7 +619,15 @@ re-asserted in every task description.
   `leg=overall`, `eligibilityDispatchAttempted=true`, **`resetDispatchAttempted=false`**,
   **`overallTimeoutPhase=between_legs`**, the reset leg's `internalApiKeyAttached=null`, no
   `demo_reset_succeeded` for this trace id, and login proceeding untouched.
-  **These three overall-timeout cases together prove the pair-plus-phase agreement rule 8.7 states
+  **Two additional companion cases complete the phase model.** For
+  `eligibility_pre_dispatch`, hold the deferred loopback-target publisher incomplete until after the
+  overall deadline, then release it and independently assert zero eligibility and reset requests;
+  the event has both dispatch fields false, `attemptedTarget=null`, and no success event. For
+  `reset_post_response`, let the real reset commit and return a successful response, then hold a
+  gateway-owned post-response publisher past the overall deadline; assert both dispatch fields
+  true, `attemptedTarget=null`, `overallTimeoutPhase=reset_post_response`, `httpStatus=200`, and both the real
+  `demo_reset_succeeded` event and the fail-open `overall_timeout` event under the same trace.
+  **These five overall-timeout cases together prove the pair-plus-phase agreement rule 8.7 states
   by construction is actually honored at runtime** — every phase value induced and asserted, not
   only stated in prose. **This test exercises one specific ordering — success
   logged before the skip fires, from a fast commit whose *response* is delayed (round-22 correction:
@@ -928,26 +938,15 @@ field, and one hard rule about where each may be used:
   cycle count. Until that decision, 2.1's `number` branch and 2.2's fidelity gate stay in place
   indefinitely; they cost nothing while dormant.
   _Requirements: 8.3_
-- [ ] **2.7 Proposed cross-spec deployment gate — pending cross-spec approval, not settled `SHALL`
-  language (round-5 correction: round 4 stated this as a normative `SHALL` on B1's own release
-  process, which overstepped — requirements.md's own Open items list still calls this sequencing
-  "needs explicit coordination... not just a statement that it must happen first," meaning the
-  *coordination itself*, not only the ordering fact, remains genuinely unresolved between the two
-  specs).** Requirement 8.3 protects `frontend/src/lib/api/portfolio.ts`'s **existing** consumer —
-  the Portfolio page, unrelated to the picker, gated by neither feature flag — from B1's
-  `quantity: number → string` change reaching production before this frontend can tolerate it. Task
-  2.1's boundary is itself correct under either shape from the moment it ships, but it still has to
-  actually **be deployed** before B1 task 4.9 is, or a real window exists where the
-  currently-deployed, unmodified frontend receives strings its current code doesn't parse as
-  quantities at all. **Proposed mechanism, awaiting B1-side agreement:** B1 task 4.9 would not
-  deploy to production until Tasks 2.1/2.3/2.4 have already deployed — verified by confirming Wave
-  2's own frontend deploy predates B1 4.9's, the same predecessor-ordering discipline this document
-  already applies (there, uncontroversially, since B2 owns both sides) to B1 task 5.1 (Wave 4.5,
-  Wave 6.3). **This document can propose the mechanism but cannot unilaterally bind B1's release
-  process** — B2 does not own B1's deploy decisions. This item therefore stays counted among the
-  header's five open items until B1's owners (or the master plan, as the cross-spec release
-  authority) actually adopt this or an equivalent mechanism; adoption, not this task's existence, is
-  what would close it.
+- [ ] **2.7 Historical backend-before-adapter containment/frontend-artifact audit — B1-owned,
+  reviewed disposition required.** The backend decimal-string source `f22e2ff` served on 2026-08-26
+  as revision `0000081` / digest
+  `sha256:d544649f5b67baec8b563016882d239d3ecb9c5672399586e0bc656c78961d4f`; the tolerant frontend adapter source `fd42df7a`
+  landed later through PR #178 on 2026-08-29. Reconstruct which frontend artifact was serving,
+  which routes and caches could expose it, and which rollback artifacts remained available during
+  that interval. Recorded ingress closure makes user-visible impact unproven, not closed. Record a
+  reviewed containment and impact disposition before checking this item. No fresh cloud access is
+  authorized by this task. Task 2.6 compatibility and Wave 10.2 item 2 remain open independently.
   _Requirements: 8.3_
 
 ## Wave 3 — Presence (Redis-backed) · *B2-owned backend* · **source merged via PR #179 at `main@cc97a209`; Task 3.7 deploy/live proof open**
@@ -1665,7 +1664,8 @@ Tasks 6.1/6.2 are therefore checked as source-complete. The last source change a
 feedback and hover color classes plus comments in `ManualResetControl.tsx`, with no behavior,
 shared Button, global theme, sidebar or flag changes. The owner selected Claude for UI work;
 its kickoff was supplied from Codex's sibling worktree at `9651f083` and is not yet on main.
-Committed flags remain disabled and final UI placement stays OPEN. Merge is not a fresh
+Committed flags remain disabled; the owner finalized the existing page-level placement on
+2026-09-06. Merge is not a fresh
 production read-back or feature-exposure approval.
 
 | Review item | Final assessment |
@@ -1719,19 +1719,20 @@ mock evidence are distinguished. The worktree was clean at `970b637b`; temporary
 scaffolding is absent from the source diff.
 
 **Reconciliation:** final-head CI and merge are verified; Tasks 6.1/6.2 now record source
-completion. Task 5.6's owner GO, Task 6.3, final placement, and feature exposure remain open.
+completion. The owner finalized the existing page-level placement on 2026-09-06. Task 5.6's owner
+GO, Task 6.3, and feature exposure remain open.
 B1 G5 closed separately by owner decision on 2026-09-02. Neither decision closes those B2
 gates or attests a new deployment. The sidebar backlog remains open.
 
 - [x] **6.1 Manual reset control**, behind 1.1's `NEXT_PUBLIC_ENABLE_DEMO_RESET_CONTROL` flag —
-  location per requirements.md 7.6, **OPEN**; build against a placeholder location and relocate
-  without re-plumbing the call once decided. Buildable and testable against a mock now, same as
+  the existing page-level `PortfolioPageContent` host is final for this release. Moving it into the
+  picker is a separate product change. Buildable and testable against a mock now, same as
   Wave 1; **the flag, not a merge/deploy decision, is what keeps it hidden (round-3 correction of
   round-2's own "do not deploy" framing, which repeated the exact unenforceable-merge-hold mistake
   Wave 2 already fixed once — `deploy.yml` deploys `frontend/**` on every merge regardless of this
   wave's own readiness).** 6.1/6.2 may merge and deploy at any time; 6.3 below is about backend
   readiness, not about whether this code reaches production infrastructure.
-  _Requirements: 7.5, 7.6 (OPEN)_
+  _Requirements: 7.5, 7.6_
 - [x] **6.2 Wire to `PUT /api/portfolio/demo-reset`**, carrying the `expectedVersion` last observed
   by the browser (GC.6) — never re-read inside the call. `200` replaces visible state with the
   response body; `409` surfaces per 7.3b's placement-conditional presentation (in-picker
@@ -1813,7 +1814,10 @@ mechanism's actual runtime behavior does not).**
   `List<PortfolioResponse>`. Add a real controller/serialization contract test covering a known
   timestamp and list cardinality. This closes the former cross-spec ownership gap; it is an
   implementation dependency now, not an owner-selection blocker.
-  **Complete on `main`; not deployed.** Merged via
+  **Complete and digest-deployed as cu4 / serving revision `0000094`** from source `6a171558`,
+  which contains `updatedAt` and decimal-string serialization; digest
+  `sha256:2be727eaf4577699c783ae66073670d4984fe66c666af3e56422c934fdd0b023`. This is recorded
+  provenance, not a fresh read-back; no duplicate 8.1 deployment is needed. Merged via
   [PR #185](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/185), merge
   commit `main@198c878d` (source commit `412733c8`, senior-review-passed). Built TDD-first in an
   isolated worktree off `origin/main@458813f` (replayed from an initial submission on
@@ -1828,13 +1832,17 @@ mechanism's actual runtime behavior does not).**
   `:portfolio-service:test` and `:portfolio-service:integrationTest` were green in PR #185's CI,
   including a transient Maven Central 429 that a job re-run cleared (unrelated to this change).
   **8 implementation/test files plus 2 status documents changed; no excluded surface touched.**
-  Deployment (an Artifact cut, revision serving, live verification) remains separately gated and
-  has not happened.
+  Any new Wave 8 deployment and live verification remain separately gated; this provenance does not
+  claim fresh runtime read-back.
   _Requirements: 7.3d; design.md D7_
-- [ ] **8.2 Blocker tracking, not resolved here: idle-reset threshold** (requirements.md 7.6, OPEN)
-  and **login self-call timeouts** (2s/leg, 4s overall, design.md D5, OPEN) — product/operational
-  decisions, not implementation unknowns; do not pick a default in code without raising them.
-  _Requirements: Open items — idle threshold, self-call timeouts_
+- [x] **8.2 Owner decisions recorded and independently accepted by Astra:** idle threshold
+  **30 minutes**, strict persisted `updatedAt` age (`>` only), and login self-call timeouts
+  **2s eligibility / 2s reset / 4s overall**. The existing page-level manual-reset host is final for
+  this release. Task 2.6 numeric compatibility remains while B1 owns the historical sequencing
+  audit. The authoritative rationale and frozen implementation contract are in
+  `docs/superpowers/plans/2026-09-06-b2-wave8-decision-record.md`; do not start production behavior
+  until Astra accepts this record and the aligned requirements/design/task corrections.
+  _Requirements: 7.4, 7.6, 7.7; design.md D5_
 - [x] **8.2a `CloudFrontOriginSecretProvider`** — **merged source-only via PR #203 at
   `main@addd8049`** (not deployed). Extracting the origin secret's single read, so 8.3
   and the existing filter provably share one value (round-24 addition — a real ownership gap: round
@@ -1874,7 +1882,7 @@ mechanism's actual runtime behavior does not).**
   **No dependency of its own — mergeable independently, like 5.1a; not gated on Wave 5, Wave 4, or
   the rest of Wave 8.**
   _Requirements: 7.3c; design.md D5 (round-24 amendment)_
-- [ ] **8.3 Eligibility-read self-call** — `WebClient` (non-blocking, GC.9), loopback target
+- [x] **8.3 Eligibility-read self-call** — `WebClient` (non-blocking, GC.9), loopback target
   `http://localhost:{port}/api/portfolio` (not the public CloudFront URL), **where `{port}` is
   resolved through a testable seam, not baked in as `${server.port}` at bean-construction time
   (round-18 correction: `${server.port}` resolves eagerly via normal property binding, but under
@@ -1914,9 +1922,9 @@ mechanism's actual runtime behavior does not).**
   `traceparent` on the triggering login request propagates onto this leg automatically; this is the
   mechanism Task 8.9's causal-correlation proof depends on.
   _Requirements: 7.3c, 7.4; design.md D5_
-- [ ] **8.4 Idle check** — reset eligible iff `updated_at` age exceeds the resolved threshold (8.2).
+- [x] **8.4 Idle check** — reset eligible iff `updated_at` age exceeds the resolved threshold (8.2).
   _Requirements: 7.4_
-- [ ] **8.5 Reset self-call** — `POST /api/internal/portfolio/demo-reset`, **target is the
+- [x] **8.5 Reset self-call** — `POST /api/internal/portfolio/demo-reset`, **target is the
   gateway's own loopback address (`http://localhost:{port}/api/internal/portfolio/demo-reset`,
   `{port}` resolved through 8.3's same call-time seam, round-18 — not a second, independently
   hardcoded `${server.port}` reference),
@@ -1946,7 +1954,7 @@ mechanism's actual runtime behavior does not).**
   per 8.2. **Built from the same auto-configured, observation-enabled `WebClient.Builder` as 8.3
   (round-14 addition)**, so trace context propagates onto this leg too.
   _Requirements: 7.3, 7.3c; design.md D5 (round-23 amendment)_
-- [ ] **8.6 Overall orchestration deadline** across both legs combined, per 8.2's resolved value.
+- [x] **8.6 Overall orchestration deadline** across both legs combined, per 8.2's resolved value.
   **The deadline, when it fires, cancels the in-progress orchestration chain — the downstream
   subscription is disposed (standard Reactor `timeout` operator semantics), so a leg whose call
   has not yet gone out when the deadline fires never dispatches afterward (round-30 self-audit
@@ -1974,7 +1982,7 @@ mechanism's actual runtime behavior does not).**
   it).** The seam is production-inert — the default binding is the same `System.nanoTime()` call
   the round-22 correction requires, and its wall-clock-immunity rationale is unchanged.
   _Requirements: design.md D5 (overall timeout)_
-- [ ] **8.7 Fail-open wrapper** (GC.8) — any outcome other than a clean success on either leg skips
+- [x] **8.7 Fail-open wrapper** (GC.8) — any outcome other than a clean success on either leg skips
   the reset and lets login proceed, un-logged as a user-facing error. **Also emits a structured,
   trace-correlated event on that catch path (round-18 addition — `event=demo_reset_self_call_skipped`,
   INFO level, plus the active trace id), mirroring 4.2's success-event pattern but for the failure
@@ -2013,7 +2021,9 @@ class, not by enumeration" through "operational signals only") deliberately keep
     revision-attributable and genuinely rollback-fixable; see Task 8.9's Abort clause, this
     reason's own Diagnosed-tier bullet and Class 2h).**
   - **`leg`** (`eligibility`/`reset`/`overall`), **`httpStatus`** (the actual status code, when the
-    branch reached one — `null` for timeout/connection-failure/`reset_key_not_configured`/the
+    branch reached one — `null` for timeout unless an `overall_timeout` occurs in
+    `reset_post_response`, because that phase preserves the reset response's actual status;
+    otherwise `null` for connection-failure/`reset_key_not_configured`/the
     *pre-dispatch* form of `gateway_orchestration_error`; the *post-response* form (below) records
     the status the leg actually received before the handler threw, and `eligibility_shape_failure`
     records the read's actual status — a `200` whose body shape was wrong, which is exactly what
@@ -2078,10 +2088,9 @@ class, not by enumeration" through "operational signals only") deliberately keep
     the gap between them, and `attemptedTarget` names *a* target as if exactly one always exists):**
     **`attemptedTarget` on an `overall_timeout` event is the in-flight leg's target when
     `overallTimeoutPhase` is `eligibility_in_flight` or `reset_in_flight`, and explicitly `null`
-    when the phase is `between_legs`** — no call is in flight at the moment the deadline fires in
-    that phase, and recording the eligibility leg's already-completed target would misleadingly
-    suggest that leg was still being dialed when the timeout actually caught the orchestration's
-    own inter-leg processing. **`elapsedMillis` on an `overall_timeout` event is read from a
+    for `eligibility_pre_dispatch`, `between_legs`, and `reset_post_response`** — no call is in
+    flight in those phases. Recording a completed or not-yet-dispatched target would misstate what
+    the deadline caught. **`elapsedMillis` on an `overall_timeout` event is read from a
     second, independent monotonic timer, bracketed at 8.6's own orchestration-entry point** (see
     8.6 — `System.nanoTime()` captured once before the eligibility leg's own call dispatches, read
     at the moment the overall deadline fires) — never derived from, or confused with, any single
@@ -2140,18 +2149,19 @@ class, not by enumeration" through "operational signals only") deliberately keep
     downstream eligibility latency in the first case, the orchestration's own post-read processing
     stalling in the second, which is a *gateway* problem this revision could have introduced. A
     field pair whose one value covers both cannot tell 2f's "8.2 is tuned too tight" tuning verdict
-    apart from a genuine orchestration stall):** `eligibility_in_flight` (dispatched, awaiting the
-    read's response), `between_legs` (the read completed; the deadline fired during the idle check,
-    reset construction, or any orchestration step before the reset dispatch), or
-    `reset_in_flight` (both calls out, awaiting the reset's response). The phase is recorded from
+    apart from a genuine orchestration stall):** `eligibility_pre_dispatch` (target/request
+    construction before the GET leaves the process), `eligibility_in_flight` (dispatched, awaiting
+    the read's response), `between_legs` (the read completed; the deadline fired during the idle
+    check, reset construction, or any orchestration step before reset dispatch), `reset_in_flight`
+    (both calls out, awaiting the reset's response), or `reset_post_response` (a reset response was
+    received and gateway response handling has not completed). The phase is recorded from
     the orchestration's own progress state at the moment the overall deadline fires, the same
     runtime-fact discipline the dispatch fields follow — never reconstructed from them afterward.
     **The pair and the phase are consistent by construction and SHALL agree**:
-    `eligibility_in_flight`/`between_legs` both carry `eligibility=true, reset=false`;
-    `reset_in_flight` carries `true, true`. **GC.8 induces and asserts both branches — the
-    `true/false` one at `eligibility_in_flight` and the `true/true` one at `reset_in_flight`
-    (round-29 — round-28 added an assertion only for the latter, leaving the branch whose
-    ambiguity motivated this field entirely unexercised).**
+    `eligibility_pre_dispatch` carries `eligibility=false, reset=false`;
+    `eligibility_in_flight`/`between_legs` carry `eligibility=true, reset=false`; and
+    `reset_in_flight`/`reset_post_response` carry `true, true`. **GC.8 induces and asserts all five
+    phases and their exact dispatch pair.**
     - **Reset leg:** `internalApiKeyConfigured` (5.1a's provider resolved a non-blank value),
       `resetDispatchAttempted` (whether the reset call was actually sent, observed directly —
       `false` whenever `configured=false`, whenever a pre-dispatch `gateway_orchestration_error`
@@ -2172,13 +2182,14 @@ class, not by enumeration" through "operational signals only") deliberately keep
       verification — i.e. `CLOUDFRONT_ORIGIN_SECRET` is non-blank in this process, which is exactly
       the same condition that makes `CloudFrontOriginVerifyFilter` a live check rather than a no-op),
       `eligibilityDispatchAttempted` (whether the eligibility read was actually sent, observed
-      directly — `true`
-      on every ordinary path, since nothing but a pre-dispatch `gateway_orchestration_error` prevents
-      this leg's own call from going out; `false` specifically when that reason fires **before**
-      this leg's own request construction completes), and `originVerifyHeaderAttached`
+      directly — `true` once this leg's call goes out; `false` when a pre-dispatch
+      `gateway_orchestration_error` fires **or** the overall deadline fires in
+      `eligibility_pre_dispatch`, before request construction completes), and
+      `originVerifyHeaderAttached`
       (tri-state: the header was actually present on this specific outbound request; `null` when
       `required=false` — an attach that was never applicable, independent of dispatch — **and also
-      `null` when `eligibilityDispatchAttempted=false`**, for the same reason the reset leg's does).
+      `null` whenever `eligibilityDispatchAttempted=false`**, regardless of reason, for the same
+      reason the reset leg's does).
       **`required=false`
       makes a missing header the correct, expected state, not a defect
       (round-24 correction — verified directly against `CloudFrontOriginVerifyFilter.java:38-41,
@@ -2256,7 +2267,7 @@ class, not by enumeration" through "operational signals only") deliberately keep
   this single, documented config change is what closes round-18's gap, not a second, narrower
   code-level mechanism competing with it.**
   _Requirements: 7.3c_
-- [ ] **8.7a Integration test — trace propagation through the login orchestration's *own* `WebClient`
+- [x] **8.7a Integration test — trace propagation through the login orchestration's *own* `WebClient`
   calls, not the gateway's route-level proxy client (round-15 addition: `HttpTraceContextPropagationIT`
   only proves Spring Cloud Gateway's built-in proxy forwards `traceparent` on its route-level
   forwarding to insight-service — it exercises no code this wave writes at all; citing it for 8.3/8.5's
@@ -2342,60 +2353,85 @@ class, not by enumeration" through "operational signals only") deliberately keep
   serving revision reproducible. The longer rationale currently embedded in Task 10.2 Step A is
   explanatory only; implementation and completion belong here, before any 8.9 serving proof.
 
+  **Source-foundation status (2026-09-07):** the offline workflow/helper source and structural tests
+  are locally complete and independently ACCEPT at coordinator commit `b59cf26` (24 snapshot + 14
+  allowlist + 10 prebuilt tests). Pinned actionlint v1.7.12 was also run locally with the required
+  checksum and shellcheck invocation, with no findings. The source foundation is complete, but this
+  deployment gate remains unchecked: no workflow run, Azure deployment, serving revision/digest
+  read-back, or manifest comparison evidence exists yet.
+
   **One Azure run order:** add workflow-level `concurrency` with the fixed group
-  `wealth-production-azure-deploy` and `cancel-in-progress: false` in `deploy-azure.yml`, so direct
-  dispatch and reusable-workflow callers serialize against the same production target. A valid
+  `wealth-production-azure-deploy` and `cancel-in-progress: false` in `deploy-azure.yml`. The reusable
+  child remains `workflow_call`-only behind protected `deploy.yml`, so every caller serializes against
+  the same production target. A valid
   digest from each Buildx push does not otherwise stop an older concurrent run from deploying
   after a newer one or leaving a mixed-service production state.
 
   **One immutable image contract:** on the normal build path, replace the separate Docker build and
   push steps with one `docker buildx build --push --no-cache --pull --metadata-file metadata.json`
   step, validate `containerimage.digest` against `^sha256:[0-9a-f]{64}$`, publish it as
-  `steps.build.outputs.digest`, and update both each selected Container App and
+  `steps.digest.outputs.digest`, and update both each selected Container App and
   `market-data-refresh-job` (when market data is selected) by `repository@digest`. A selected
   `market-data-service` deployment SHALL fail if the paired refresh Job is absent; the update and
   `snapshot_container_apps.py compare` both reject that missing selected Job rather than warning
   and silently skipping it. Preserve the existing prebuilt-digest branch and its proof that the
   merged build/push step was skipped.
 
-  **One artifact namespace and mode matrix:** the producer and upload steps both run only when
-  `deploy_mode == 'scoped' && digest_mode != 'true'`. Each matrix instance writes `digest.txt` and
-  uploads `service-digest-${{ matrix.service }}` with `if-no-files-found: error`. The separate
-  `aggregate-digests` job declares `needs: [preflight, deploy]`, checks out the repository, downloads
-  `pattern: service-digest-*` to `digests/` without `merge-multiple`, and executes exactly:
+  **One artifact namespace and mode matrix:** only the service-digest producer and upload steps run
+  when `deploy_mode == 'scoped' && digest_mode != 'true'`; normal full mode still logs in, builds,
+  pushes, and validates digests without producing scoped artifacts. Each scoped matrix instance writes
+  raw `digest.txt` and `run-attempt.txt`, then uploads `service-digest-${{ matrix.service }}` with
+  `overwrite: true` and `if-no-files-found: error`. The separate `aggregate-digests` job declares
+  `needs: [preflight, deploy]`, checks out the repository, and downloads the current run's unmerged
+  `service-digest-*` artifacts into `$RUNNER_TEMP/service-digest-downloads`. It then executes these
+  two named steps:
   ```yaml
   env:
     SELECTED_SERVICES: ${{ needs.preflight.outputs.selected_services }}
-  run: >-
-    python3 .github/workflows/scripts/snapshot_container_apps.py aggregate-digests
-    --artifacts-dir digests --selected "$SELECTED_SERVICES"
-    --output digest-manifest.json
+  steps:
+    - name: Validate selected digest inputs
+      run: >-
+        python3 .github/workflows/scripts/snapshot_container_apps.py normalize-artifacts
+        --digest-root "$RUNNER_TEMP/service-digest-downloads"
+        --staging-root "$RUNNER_TEMP/service-digests"
+        --selected "$SELECTED_SERVICES" --run-attempt "${{ github.run_attempt }}"
+    - name: Aggregate selected service digests
+      run: >-
+        python3 .github/workflows/scripts/snapshot_container_apps.py aggregate-digests
+        --digest-root "$RUNNER_TEMP/service-digests" --selected "$SELECTED_SERVICES"
+        --output "$RUNNER_TEMP/digest-manifest.json"
   ```
-  The command validates exact selected-service coverage, service-name uniqueness, one
-  `digest.txt` per artifact, and lowercase digest shape before writing `digest-manifest.json` and
-  uploading the named artifact `digest-manifest` with `if-no-files-found: error`.
-  `assert-scoped-non-interference` separately verifies aggregation succeeded, downloads that named
-  artifact to `manifest/digest-manifest.json`, and passes it to `compare --digest-manifest`; its
+  Normalization validates exact selected-service coverage, uniqueness, both raw files, current
+  `run-attempt.txt`, and lowercase digest shape, then stages exactly one `<service>/digest.txt`.
+  Aggregation writes `$RUNNER_TEMP/digest-manifest.json`; the named `digest-manifest` artifact contains
+  that file plus `digest-manifest.run-attempt.txt`, with `overwrite: true` and
+  `if-no-files-found: error`. `assert-scoped-non-interference` separately verifies aggregation
+  succeeded, downloads the named artifact into `$RUNNER_TEMP`, validates the manifest attempt marker,
+  and passes `$RUNNER_TEMP/digest-manifest.json` to `compare --digest-manifest`; its
   prebuilt-digest branch continues to use `--requested-digest`. Full mode runs neither aggregation
   nor scoped comparison. The named manifest download is required and fails closed if absent; the
   producer-side pattern's zero-match case is instead caught by the aggregator's exact-coverage
   validation. The two artifact namespaces SHALL remain disjoint.
 
-  **Rerun contract:** artifact retrieval is current-attempt scoped. Partial reruns of only an
+  **Rerun contract:** artifact retrieval is scoped to the current run; explicit producer and manifest
+  run-attempt markers reject artifacts from any other attempt. Partial reruns of only an
   aggregator or consumer are unsupported and SHALL fail closed with instructions to use **Re-run
   all jobs**; no task may silently mix artifacts from different attempts. Namespace separation
   prevents a prior manifest from ever matching the per-service input pattern if cross-attempt
   retrieval is introduced later.
 
-  **Executable owners and gates:** `.github/workflows/scripts/snapshot_container_apps.py` owns the
-  new positional command and handles it without calling Azure capture;
+  **Executable owners and gates:** `.github/workflows/scripts/snapshot_container_apps.py` owns both
+  Azure-free commands, `normalize-artifacts` and `aggregate-digests`, and handles them without calling
+  Azure capture;
   `scripts/tests/test_snapshot_container_apps.py` owns CLI-level success/failure tests for parser wiring,
   directory layout, output writing, missing/extra/duplicate services, malformed digests, and the
   selected-missing-refresh-Job case. `scripts/tests/test_deploy_azure_service_allowlist.py` owns
-  named graph assertions for the exact interpreter/path, `selected_services` output, checkout,
+  normalization behavior plus named graph assertions for the exact interpreter/path,
+  `selected_services` output, checkout,
   job needs/conditions, producer and consumer gates, artifact names/paths, mode branches,
   concurrency group, and missing-Job fail-closed behavior; the prebuilt-digest suite is updated for
-  the merged step. Add `actionlint` to active CI, pinned to v1.7.12's Linux-amd64 archive and verify
+  the merged step. Upgrade the existing active-CI `actionlint` installation once to v1.7.12's
+  Linux-amd64 archive and verify
   SHA-256 `8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8`
   before execution, so valid substrings cannot hide invalid workflow YAML or expressions. **Go:** all three
   suites plus actionlint green, then a normal scoped Azure deployment proves the selected Apps (and
@@ -2537,7 +2573,8 @@ class, not by enumeration" through "operational signals only") deliberately keep
   dispatch pair was still phase-ambiguous on `leg=overall`, its `true/false` value defined as "during
   the eligibility read **or between the legs**," two states implying opposite diagnoses (downstream
   latency vs. this revision's own orchestration stalling after a completed read), so an explicit
-  `overallTimeoutPhase` (`eligibility_in_flight`/`between_legs`/`reset_in_flight`) now records the
+  `overallTimeoutPhase` (`eligibility_pre_dispatch`/`eligibility_in_flight`/`between_legs`/
+  `reset_in_flight`/`reset_post_response`) now records the
   phase in flight, with `between_legs` made Class 1 attribution in the Diagnosed tier's timeout
   bullet regardless of the elapsed band, Class 2f's benign-race reading conditioned on
   `reset_in_flight`, and GC.8 induced for the previously untested `true/false` branch; the round-28
@@ -2956,9 +2993,11 @@ class, not by enumeration" through "operational signals only") deliberately keep
   mechanism's own repair, rounds 40–46. P1s: (1) the aggregation algorithm — download, merge,
   validate exact selected-service coverage, reject duplicate artifact inputs — had no executable
   owner; `compare()`'s own `digest_manifest` parameter only ever consumes an already-built dict, it
-  performs none of this. Fixed by giving `snapshot_container_apps.py` a third `command` choice,
-  `aggregate-digests` (matching the script's existing single-positional-`command` shape, not
-  subparsers), invoked by its own workflow step with `--artifacts-dir`/`--selected`/`--output`. (2)
+  performs none of this. At that review point, `snapshot_container_apps.py` gained the positional
+  `aggregate-digests` command and a raw-download invocation. That invocation and the guard/path
+  details below are historical only: updated Task 8.8b supersedes them with the Azure-free
+  `normalize-artifacts` download-root/staging-root step, `aggregate-digests --digest-root`, explicit
+  run-attempt markers, and the comparison branch's exact aggregate-success check. (2)
   The "manifest-download step" was described as one step both result-checking and downloading —
   impossible, since `actions/download-artifact` is a `uses:` action step that cannot also run the
   shell diagnostic the result-check needs. Split into two explicitly mode-gated steps: a `run:`
@@ -2966,9 +3005,9 @@ class, not by enumeration" through "operational signals only") deliberately keep
   step (`Download digest manifest`), both carrying the identical `deploy_mode`/`digest_mode`
   condition, both added to graph-coverage. P2: the manifest's transport contract was never named —
   "uploaded as its own artifact," "downloads that manifest," with no name, filename, or path
-  connecting the two sides. Pinned: artifact name `digest-manifest`, file `digest-manifest.json`,
-  downloaded to `manifest/digest-manifest.json`, `compare` invoked with
-  `--digest-manifest manifest/digest-manifest.json`; noted that `download-artifact@v4` already
+  connecting the two sides. The historical fix pinned the artifact name and filename; current Task
+  8.8b now owns the runner-temp download path, manifest attempt marker, and comparison invocation.
+  It also retains the fact that `download-artifact@v4` already
   fails closed by default on a missing named artifact, unlike `upload-artifact`'s silent-warn
   default, so no extra flag was needed on the download side (asymmetric with round-46's
   `if-no-files-found: error`, which *is* needed on the upload side — the two actions default
@@ -3554,9 +3593,9 @@ class, not by enumeration" through "operational signals only") deliberately keep
       orchestration was doing its *own* work rather than waiting on anyone):**
       `eligibility_in_flight` or `reset_in_flight` means the budget was spent waiting on a
       downstream response — the band comparison applies as written, and a within-band result is
-      genuine downstream latency, Class 2d. **`between_legs` means the deadline fired with no call
-      in flight: the read had returned and the reset had not yet gone out, so the budget was
-      consumed inside the gateway process itself — but that localizes the stall without
+      genuine downstream latency, Class 2d. **`eligibility_pre_dispatch`, `between_legs`, or
+      `reset_post_response` means the deadline fired with no call in flight, so the budget was
+      consumed inside gateway-owned construction or response processing — but that localizes the stall without
       establishing its cause (round-30 correction — round-29 made this phase immediate Class 1
       attribution on the reasoning that "no downstream latency can explain time spent while
       nothing was awaited," which is true but proves only *where*, not *why*: a replica under CPU
@@ -3621,13 +3660,16 @@ class, not by enumeration" through "operational signals only") deliberately keep
       "genuine downstream latency, Class 2d" — benign — while the analogous impossibility, dual
       `reset_key_not_configured`, is immediate Class 1; the two pointers at 2f and here were
       circular, with no bullet owning the contradiction):** when a `demo_reset_succeeded` co-occurs
-      for the same trace id and `overallTimeoutPhase` is `eligibility_in_flight` or `between_legs`,
+      for the same trace id and `overallTimeoutPhase` is `eligibility_pre_dispatch`,
+      `eligibility_in_flight`, or `between_legs`,
       do NOT apply this bullet's band or reproduction rules — the pair is impossible under correct
       behavior (the phase says the reset was never dispatched; the success event proves a reset
       completed), and every explanation — a mis-recorded phase, a mis-emitted or cross-attributed
       event — is itself a Wave 8 code defect, mirroring the dual-`reset_key_not_configured` logic
-      at Class 1 — Immediate's second condition: **attribution, Class 1**. Only
-      `reset_in_flight` coexists legitimately with success — that case is Class 2f's benign race.
+      at Class 1 — Immediate's second condition: **attribution, Class 1**. Both
+      `reset_in_flight` and `reset_post_response` can coexist legitimately with success. Route the
+      former through Class 2f's downstream-timeout reading and the latter through this bullet's
+      no-call-in-flight gateway-local diagnosis.
     - **Reset-leg `409`** (round-21 — no longer excluded, see 8.7): compare `observedVersion`
       against `submittedExpectedVersion` — inequality is attribution (a version-capture bug per
       GC.6); `selfCallCount > 1` for this trace id is also attribution (a duplicate-call bug),
@@ -3795,27 +3837,29 @@ class, not by enumeration" through "operational signals only") deliberately keep
       full version/state evidence for whoever investigates) rather than looping this task until it
       happens to pass.
     - **2f — both events found for this trace id (outcome (e)), skip reason is `overall_timeout`
-      specifically (round-21 narrowing — split from a single Class 2f that previously covered *any*
-      skip reason alongside success, below):** a genuinely plausible late-success race against the
-      gateway's own timeout budget, not a gateway code defect — the orchestration correctly gave up
-      per its configured deadline, and the downstream call happened to complete anyway, **in either
+      or `reset_timeout`:** a genuinely plausible late-success race against the gateway's timeout
+      budget, not by itself a gateway code defect — cancellation cannot roll back a reset already
+      dispatched to portfolio-service, so the downstream call may commit anyway, **in either
       order (round-22 correction — an earlier draft narrated one specific order, portfolio-service
       committing after the gateway had already logged its timeout; the opposite order — a slow
       commit itself delaying past the deadline, with the response merely arriving even later — is
-      equally real and equally lands here; classification is by trace id and `reason` alone, GC.8's
-      own dual-event test only demonstrates one order is reachable, not that it is the only one, see
+      equally real and equally lands here; classification consumes trace id, reason, phase, and the
+      diagnostic facts below. GC.8's own dual-event test only demonstrates one order is reachable,
+      not that it is the only one, see
       GC.8)**. Block exposure; do not automatically roll back. Preserve both events' own emitted
       timestamps (not which the log backend happened to return first when queried — round-22
       correction, see step 6) and `reason`, plus `demo_reset_succeeded`'s own resulting `version`
-      **(round-21 correction — the skip event carries no "resulting version" of its own, since no
-      reset it reports on ever completed; only the success event has one)**, and diagnose whether the
-      *overall* timeout value (8.2) is simply tuned too tight relative to genuine downstream latency
-      at this deployment's scale — a tuning question for 8.2's own resolved value, not evidence
-      against this revision's code. **This benign reading holds only when
-      `overallTimeoutPhase=reset_in_flight` (round-29 — the phase field makes the previously
-      implicit precondition checkable): a success event exists, so the reset call must have
-      dispatched and portfolio-service must have committed, which is consistent with
-      `reset_in_flight` and with nothing else. `eligibility_in_flight` or `between_legs` alongside a
+      **(the skip schema carries no resulting-version field; take that value only from the
+      co-occurring success event)**. Diagnose the timeout using its scope and phase:
+      `reset_timeout` retains `leg=reset` and `timeoutScope=per-leg`; it does
+      not invent an overall phase and may indicate that the reset-leg budget is tight relative to
+      genuine downstream latency. For `overall_timeout`, `reset_in_flight` has the same downstream-
+      wait interpretation. **`reset_post_response` also coexists legitimately with success, but it
+      does not imply downstream latency: route it through the Diagnosed-tier no-call-in-flight,
+      gateway-local stall analysis before assigning a class.** A success event proves the reset
+      dispatched and committed, which is consistent with those two phases and with nothing earlier.
+      `eligibility_pre_dispatch`,
+      `eligibility_in_flight`, or `between_legs` alongside a
       `demo_reset_succeeded` for the same trace id is a contradiction — the reset was reportedly
       never dispatched, yet a reset demonstrably completed — resolved by the Diagnosed-tier
       `*_timeout` bullet's own terminal rule for exactly this impossible combination: attribution,
@@ -3824,7 +3868,8 @@ class, not by enumeration" through "operational signals only") deliberately keep
       a logical impossibility as benign Class 2d; the terminal rule now owns it, mirroring the
       dual-`reset_key_not_configured` precedent).** Re-run once resolved.
     - **2g — both events found for this trace id (outcome (e)), skip reason is anything other than
-      `overall_timeout`, `gateway_orchestration_error`, or `reset_key_not_configured`** (round-21
+      `overall_timeout`, `reset_timeout`, `gateway_orchestration_error`, or
+      `reset_key_not_configured`** (round-21
       addition, scope corrected round-21, corrected again round-26 — `gateway_orchestration_error`
       is excluded because it is *unconditionally* Class 1 — Immediate regardless of what else
       co-occurs; `reset_key_not_configured` is excluded because that combination is not "contradictory
@@ -3986,8 +4031,8 @@ class, not by enumeration" through "operational signals only") deliberately keep
   Requirement 6.5's fail-open path is covered by injected-failure Vitest cases and by the gateway's
   own real-Redis `DemoPresenceIntegrationTest` (13 tests, `integrationTest` task), not by breaking
   a Redis shared with the rest of the local stack.
-  Source/local verification only — not deployed, no Production E2E, and not wired into CI (Task 9.9
-  owns Wave 9 CI). Wave 3's deployment/live proof (Task 3.7) stays open.
+  Source/local verification only — not deployed and no Production E2E. Wave 9 CI wiring is merged
+  and CI-green in PR #232 (run `34018608256`); Wave 3's deployment/live proof (Task 3.7) stays open.
   _Requirements: 6.3_
 - [x] **9.5 Wire Task 1.16's freshness status to a real `assetPriceFreshness`.** Spec A task 8.6 is
   complete and the backend field exists. Local assembled-stack evidence on this branch: dedicated
@@ -4000,8 +4045,8 @@ class, not by enumeration" through "operational signals only") deliberately keep
   no-client-derivation cases stay in Vitest; portfolio-service freshness valuation and Jackson
   boundary tests re-confirmed. Source path already worked on `main` — no production source defect
   reproduced. Merged via PR #231 at `main@b4c68253b99a796d6301ef79b5aa5a47d5cbd962`. Source/local
-  verification only — not deployed; Task 9.2's real post-save round trip is complete, Wave 9 CI is
-  wired locally but has not run in GitHub CI, and Production E2E stays open.
+  verification only — not deployed; Task 9.2's real post-save round trip is complete, PR #232's
+  Wave 9 CI run `34018608256` passed, and Production E2E stays open.
   _Requirements: 3.2, 3.3/3a, 3.4_
 - [x] **9.6 Demo-authenticated Playwright fixture — authored first, so 9.7/9.8 don't
   forward-reference each other (round-9 restructure, breaking a real cycle: round 8's version of
@@ -4165,7 +4210,7 @@ class, not by enumeration" through "operational signals only") deliberately keep
   clean runner.
   **Completion evidence:** the active `docker-build-verify` job now carries the four required
   job-level values and invokes both specs; the focused structural guard passed 5/5. The workflow is
-  wired locally but has **not** run in GitHub CI. This change does not alter deploy workflows or
+  merged in PR #232 with CI run [34018608256](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/34018608256) passing. This change does not alter deploy workflows or
   production flags.
   _Requirements: 1.1_
 
@@ -4186,15 +4231,12 @@ class, not by enumeration" through "operational signals only") deliberately keep
   independently gated from the manual bundle; it did not make either optional for production.**
   **Go, all of:**
   1. B1/Spec A's own activation gates (B1's R-C and everything R-C depends on).
-  2. B1 task 4.9 (decimal fidelity) confirmed live, **with evidence that Tasks 2.1/2.3/2.4 were
-     already live first — round-6 correction: the settled ordering *outcome* is not optional even
-     though Wave 2.7's coordination *mechanism* is still only proposed.** "4.9 is currently live" by
-     itself does not rule out a real, already-happened breakage window (B1 ships 4.9, the
-     unmodified Portfolio page breaks for a stretch, Wave 2 deploys after) — that window can't be
-     undone by 4.9 merely being live *now*. Check the actual deploy timestamps/revision history on
-     Azure revision/workflow history for both changes and confirm Wave 2's frontend deploy
-     predates B1 4.9's; treat a violated order as a defect to remediate (verify no user was actually
-     affected, or accept the incident), never as something this gate can silently pass around.
+  2. B1 task 4.9 decimal fidelity confirmed live, plus Task 2.7's reviewed historical containment/
+     frontend-artifact disposition. The recorded backend-before-adapter sequence cannot be undone;
+     reconstruct the frontend artifact, routing, cache, rollback, and impact evidence for that
+     interval. Recorded ingress closure makes user-visible impact unproven, not closed. Keep Task
+     2.6 compatibility until its separate retirement decision; this gate cannot silently pass an
+     undispositioned historical window.
   3. Waves 3 (presence, **Task 3.7's Azure live probe green**) and 4 (portfolio-service endpoint, gate 4.5, itself
      requiring B1 task 5.1 per its own round-3 fix) **deployed to production and live-verified**, per
      their own STOP/GOs satisfied in the deployed environment — not merely green in CI. Wave 5
@@ -4243,9 +4285,9 @@ class, not by enumeration" through "operational signals only") deliberately keep
      8.9 SHALL be rerun (under the real threshold, no override) against the currently-serving
      deployment before this item is satisfied again.
   5. Wave 9 (Live integration) actually completed, not merely unblocked.
-  6. The still-open UI product decision resolved: manual-reset control placement. The presence TTL
-     is settled at 150 seconds; the idle threshold and self-call timeouts are covered by item 4
-     above, since Wave 8 cannot deploy without them.
+  6. The page-level manual-reset placement approved on 2026-09-06 remains the implemented control.
+     The presence TTL is settled at 150 seconds; the 30-minute idle threshold and 2s/2s/4s
+     self-call timeouts are covered by item 4 above, since Wave 8 cannot deploy without them.
   **Go action — a real deployment, not a configuration flip, and both flags together, not one
   independently of the other (round-4 correction: round 3's "independently" framing permitted
   launching the picker while requirements.md 7.5's manual control stayed hidden indefinitely — the

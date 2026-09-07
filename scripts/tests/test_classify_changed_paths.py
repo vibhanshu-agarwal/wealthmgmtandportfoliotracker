@@ -660,6 +660,17 @@ class EvidenceStepTests(unittest.TestCase):
         self.assertIn('| tee -a "$GITHUB_STEP_SUMMARY"', job.group(0))
 
 
+class AzureImageSmokeBuildGraphTests(unittest.TestCase):
+    def test_wave8_test_project_dependency_is_optional_for_trimmed_azure_build(self):
+        build = (REPO / "api-gateway" / "build.gradle").read_text(encoding="utf-8")
+        self.assertIn("if (rootProject.findProject(':portfolio-service') != null)", build)
+        self.assertRegex(
+            build,
+            r"if \(rootProject\.findProject\(':portfolio-service'\) != null\) \{\s*"
+            r"wave8IntegrationTestImplementation project\(':portfolio-service'\)\s*\}",
+        )
+
+
 @unittest.skipUnless(BASH, "needs bash; both present on ubuntu-latest")
 class AzureImageSmokeProbeOutputTests(unittest.TestCase):
     """Regression for the probe stdout oracle in azure-image-smoke-test.
@@ -750,7 +761,6 @@ class AzureImageSmokeProbeOutputTests(unittest.TestCase):
         self.assertRegex(job, r"replica-token case: tool exited non-zero")
         self.assertRegex(job, r"replica_stderr_file")
         self.assertRegex(job, r"if \[ -s \"\$replica_stderr_file\" \]")
-
 
 class ToolingAvailabilityTests(unittest.TestCase):
     def test_jq_and_bash_are_present_when_running_on_a_runner(self):

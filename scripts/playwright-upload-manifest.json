@@ -71,6 +71,18 @@
     "playwright": false
   },
   {
+    "workflow": ".github/workflows/deploy-azure.yml",
+    "job": "deploy",
+    "stepId": "upload-service-digest",
+    "playwright": false
+  },
+  {
+    "workflow": ".github/workflows/deploy-azure.yml",
+    "job": "aggregate-digests",
+    "stepId": "upload-digest-manifest",
+    "playwright": false
+  },
+  {
     "workflow": ".github/workflows/frontend-ci.yml",
     "job": "build-and-test",
     "stepId": "upload-static-export",

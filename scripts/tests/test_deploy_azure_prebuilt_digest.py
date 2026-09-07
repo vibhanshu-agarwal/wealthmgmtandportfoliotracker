@@ -57,14 +57,12 @@ class TestDeployAzurePrebuiltDigest(unittest.TestCase):
         self.assertGreater(lookup, infra)
         self.assertGreater(update, lookup)
 
-    def test_build_and_push_are_separate_steps_gated_off_digest_mode(self):
+    def test_buildx_is_single_push_step_gated_off_digest_mode(self):
         deploy = self._job("deploy:")
         self.assertIn("- name: Build Docker image", deploy)
-        self.assertIn("- name: Push Docker image", deploy)
-        self.assertGreaterEqual(
-            deploy.count("needs.preflight.outputs.digest_mode != 'true'"),
-            2,
-        )
+        self.assertNotIn("- name: Push Docker image", deploy)
+        self.assertIn("docker buildx build", deploy)
+        self.assertIn("--push", deploy)
 
     def test_digest_path_asserts_build_and_push_were_skipped(self):
         deploy = self._job("deploy:")
@@ -73,7 +71,6 @@ class TestDeployAzurePrebuiltDigest(unittest.TestCase):
         self.assertGreater(prove, 0)
         self.assertGreater(update, prove)
         self.assertIn("steps.build.outcome", deploy)
-        self.assertIn("steps.push.outcome", deploy)
         self.assertIn("skipped", deploy)
 
     def test_revision_wait_is_not_gated_on_digest_mode(self):
@@ -86,6 +83,10 @@ class TestDeployAzurePrebuiltDigest(unittest.TestCase):
     def test_digest_update_uses_preflight_digest_image(self):
         deploy = self._job("deploy:")
         self.assertIn("needs.preflight.outputs.digest_image", deploy)
+        job = self._step("Update market-data-refresh Job image")
+        self.assertIn("needs.preflight.outputs.digest_mode", job)
+        self.assertIn("steps.digest.outputs.digest", job)
+        self.assertIn("market-data-refresh-job", job)
 
     def test_digest_compare_refuses_empty_digest_and_clears_git_sha(self):
         body = self._job("assert-scoped-non-interference:")

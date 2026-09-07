@@ -39,6 +39,10 @@ class GatewaySerializationBoundarySliceTest {
     @MockitoBean
     SignupService signupService;
 
+    // This slice owns JSON serialization, not the optional downstream orchestration.
+    @MockitoBean
+    DemoLoginResetOrchestrator demoLoginReset;
+
     @Test
     void autoconfiguredMapper_isJackson3JsonMapper() {
         assertThat(jsonMapper.getClass().getName()).startsWith("tools.jackson.");
@@ -47,6 +51,7 @@ class GatewaySerializationBoundarySliceTest {
 
     @Test
     void loginResponse_serializesViaAutoconfiguredMapper() {
+        when(demoLoginReset.afterLogin(org.mockito.ArgumentMatchers.any())).thenReturn(Mono.empty());
         when(authenticationService.authenticate(new LoginDtos.LoginRequest("dev@localhost.local", "password")))
                 .thenReturn(Mono.just(new LoginResponse("test-token", "user-001", "dev@localhost.local", "Development User")));
 

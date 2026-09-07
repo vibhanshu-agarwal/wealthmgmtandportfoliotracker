@@ -144,9 +144,9 @@ jobs:
         # Pinned to a specific version + verified checksum, not a floating action tag,
         # for the same reason the rest of this hardening avoids unverified assumptions.
         run: |
-          curl -sSLO https://github.com/rhysd/actionlint/releases/download/v1.7.7/actionlint_1.7.7_linux_amd64.tar.gz
-          echo "023070a287cd8cccd71515fedc843f1985bf96c436b7effaecce67290e7e0757  actionlint_1.7.7_linux_amd64.tar.gz" | sha256sum -c -
-          tar -xzf actionlint_1.7.7_linux_amd64.tar.gz actionlint
+          curl -sSLO https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz
+          echo "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8  actionlint_1.7.12_linux_amd64.tar.gz" | sha256sum -c -
+          tar -xzf actionlint_1.7.12_linux_amd64.tar.gz actionlint
           ./actionlint -version
 
       - name: actionlint — deploy workflows

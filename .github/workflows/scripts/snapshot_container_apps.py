@@ -14,6 +14,8 @@ import json
 import os
 import subprocess
 import sys
+import re
+from pathlib import Path
 from typing import Any, Callable
 
 KNOWN_SERVICES = (
@@ -23,6 +25,17 @@ KNOWN_SERVICES = (
     "insight-service",
 )
 REFRESH_JOB = "market-data-refresh-job"
+DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
+
+def _validate_selected(selected: list[str]) -> None:
+    if not selected or len(selected) != len(set(selected)) or not set(selected).issubset(set(KNOWN_SERVICES)):
+        raise ValueError("selected services must be nonempty, unique, and known")
+
+def _repository(image: str) -> str:
+    ref = image.split("@", 1)[0]
+    slash = ref.rfind("/")
+    colon = ref.rfind(":")
+    return ref[:colon] if colon > slash else ref
 
 RunAz = Callable[[list[str]], subprocess.CompletedProcess[str]]
 
@@ -101,28 +114,35 @@ def compare(
     selected: list[str],
     git_sha: str | None = None,
     requested_digest: str | None = None,
+    digest_manifest: dict[str, str] | None = None,
 ) -> list[str]:
+    _validate_selected(selected)
     errors: list[str] = []
     selected_set = set(selected)
     digest = (requested_digest or "").strip() or None
     sha = (git_sha or "").strip() or None
-    if digest:
-        marker, marker_label = digest, "digest"
-    elif sha:
-        marker, marker_label = sha, "git sha"
-    else:
-        marker, marker_label = None, "digest or git sha"
+    mode = "manifest" if digest_manifest is not None else "digest" if digest else "git-sha" if sha else None
+    expected_images = {}
+    if mode:
+        for name in selected:
+            repository = _repository(str(before.get(name, {}).get("image", "")))
+            if mode == "manifest":
+                expected_images[name] = repository + "@" + digest_manifest[name]
+            elif mode == "digest":
+                expected_images[name] = repository + "@" + digest
+            else:
+                expected_images[name] = repository + ":" + sha
     for name in KNOWN_SERVICES:
         if name in selected_set:
             image = str(after.get(name, {}).get("image", ""))
-            if not marker:
+            if not mode:
                 errors.append(
                     f"selected {name} image {image!r} cannot be checked: "
                     "neither digest nor git sha was provided"
                 )
-            elif marker not in image:
+            elif image != expected_images[name]:
                 errors.append(
-                    f"selected {name} image {image!r} does not contain {marker_label} {marker}"
+                    f"selected {name} image {image!r} does not equal expected digest/image {expected_images[name]!r}"
                 )
         elif before.get(name) != after.get(name):
             errors.append(
@@ -131,17 +151,96 @@ def compare(
 
     if "market-data-service" in selected_set:
         after_job = after.get(REFRESH_JOB) or {}
-        if git_sha and not after_job.get("missing"):
-            image = str(after_job.get("image", ""))
-            if git_sha not in image:
-                errors.append(
-                    f"selected {REFRESH_JOB} image {image!r} does not contain git sha {git_sha}"
-                )
+        if after_job.get("missing"):
+            errors.append(f"selected {REFRESH_JOB} is missing")
+        elif not mode:
+            errors.append(f"selected {REFRESH_JOB} cannot be verified without an expected image")
+        elif str(after_job.get("image", "")) != expected_images["market-data-service"]:
+            errors.append(f"selected {REFRESH_JOB} image does not equal expected {expected_images['market-data-service']!r}")
     elif before.get(REFRESH_JOB) != after.get(REFRESH_JOB):
         errors.append(
             f"unselected {REFRESH_JOB} changed: {json.dumps(before.get(REFRESH_JOB))} -> {json.dumps(after.get(REFRESH_JOB))}"
         )
     return errors
+
+
+def aggregate_digests(digest_root: str, selected: list[str], output: str | None) -> dict[str, str]:
+    root = os.path.abspath(digest_root)
+    selected_set = set(selected)
+    if len(selected_set) != len(selected) or not selected_set:
+        raise ValueError("selected services must be non-empty and unique")
+    if not selected_set.issubset(set(KNOWN_SERVICES)):
+        raise ValueError("selected services contain unknown entries")
+    expected = selected_set
+    actual = {entry.name for entry in os.scandir(root) if entry.is_dir()}
+    if actual != expected:
+        raise ValueError(f"digest service set mismatch: expected {sorted(expected)}, found {sorted(actual)}")
+    manifest: dict[str, str] = {}
+    for service in selected:
+        files = [entry for entry in os.scandir(os.path.join(root, service)) if entry.is_file()]
+        if len(files) != 1 or files[0].name != "digest.txt":
+            raise ValueError(f"{service} must contain exactly one digest.txt")
+        with open(files[0].path, encoding="utf-8") as handle:
+            digest = handle.read().strip()
+        if not DIGEST_RE.fullmatch(digest):
+            raise ValueError(f"invalid lowercase digest for {service}")
+        manifest[service] = digest
+    if output:
+        with open(output, "w", encoding="utf-8") as handle:
+            json.dump(manifest, handle, sort_keys=True, indent=2)
+            handle.write("\n")
+    return manifest
+
+def normalize_digest_artifacts(download_root: str, staging_root: str, selected: list[str], attempt: str) -> None:
+    _validate_selected(selected)
+    source = os.path.abspath(download_root)
+    stage = os.path.abspath(staging_root)
+    if source == stage:
+        raise ValueError("download and staging roots must be distinct")
+    expected = {"service-digest-" + service for service in selected}
+    actual = {entry.name for entry in os.scandir(source) if entry.is_dir()}
+    if actual != expected:
+        raise ValueError("digest artifact set mismatch; Re-run all jobs")
+    os.makedirs(stage, exist_ok=True)
+    for service in selected:
+        directory = os.path.join(source, "service-digest-" + service)
+        digest_file = os.path.join(directory, "digest.txt")
+        marker_file = os.path.join(directory, "run-attempt.txt")
+        if not os.path.isfile(digest_file) or not os.path.isfile(marker_file):
+            raise ValueError("missing digest artifact marker; Re-run all jobs")
+        if Path(marker_file).read_text(encoding="utf-8").strip() != str(attempt):
+            raise ValueError("stale digest artifact; Re-run all jobs")
+        files = {entry.name for entry in os.scandir(directory) if entry.is_file()}
+        if files != {"digest.txt", "run-attempt.txt"}:
+            raise ValueError("invalid digest artifact contents; Re-run all jobs")
+        digest = Path(digest_file).read_text(encoding="utf-8").strip()
+        if not DIGEST_RE.fullmatch(digest):
+            raise ValueError("invalid digest artifact; Re-run all jobs")
+        target = os.path.join(stage, service)
+        os.makedirs(target, exist_ok=True)
+        with open(os.path.join(target, "digest.txt"), "w", encoding="utf-8") as handle:
+            handle.write(digest + "\n")
+
+
+def validate_manifest(manifest: dict[str, str], selected: list[str]) -> dict[str, str]:
+    _validate_selected(selected)
+    if set(manifest) != set(selected):
+        raise ValueError("manifest keys must exactly equal unique selected services")
+    for service, digest in manifest.items():
+        if not DIGEST_RE.fullmatch(digest):
+            raise ValueError(f"invalid digest for {service}")
+    return manifest
+
+
+def load_manifest_text(text: str, selected: list[str]) -> dict[str, str]:
+    def reject_duplicates(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError("duplicate manifest key")
+            result[key] = value
+        return result
+    return validate_manifest(json.loads(text, object_pairs_hook=reject_duplicates), selected)
 
 
 def _write_output(name: str, value: str) -> None:
@@ -157,7 +256,7 @@ def _write_output(name: str, value: str) -> None:
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
-    parser.add_argument("command", choices=("snapshot", "compare"))
+    parser.add_argument("command", choices=("snapshot", "compare", "aggregate-digests", "normalize-artifacts"))
     parser.add_argument("--before", default="")
     parser.add_argument("--selected", default="[]")
     # Empty default on purpose: do not inherit GITHUB_SHA from the environment.
@@ -165,11 +264,25 @@ def _parser() -> argparse.ArgumentParser:
     # rebuild pass the selected-app assertion.
     parser.add_argument("--git-sha", default="")
     parser.add_argument("--requested-digest", default="")
+    parser.add_argument("--digest-root", default="")
+    parser.add_argument("--output", default="")
+    parser.add_argument("--digest-manifest", default="")
+    parser.add_argument("--staging-root", default="")
+    parser.add_argument("--run-attempt", default="")
     return parser
 
 
 def main() -> int:
     args = _parser().parse_args()
+
+    if args.command == "aggregate-digests":
+        selected = json.loads(args.selected)
+        manifest = aggregate_digests(args.digest_root, selected, args.output or None)
+        print(json.dumps(manifest, indent=2, sort_keys=True))
+        return 0
+    if args.command == "normalize-artifacts":
+        normalize_digest_artifacts(args.digest_root, args.staging_root, json.loads(args.selected), args.run_attempt)
+        return 0
 
     resource_group = os.environ.get("AZURE_RG", "")
     if not resource_group:
@@ -185,6 +298,11 @@ def main() -> int:
 
     before = json.loads(args.before)
     selected = json.loads(args.selected)
+    _validate_selected(selected)
+    manifest = None
+    if args.digest_manifest:
+        with open(args.digest_manifest, encoding="utf-8") as handle:
+            manifest = load_manifest_text(handle.read(), selected)
     after = capture(resource_group)
     errors = compare(
         before,
@@ -192,6 +310,7 @@ def main() -> int:
         selected,
         git_sha=args.git_sha or None,
         requested_digest=args.requested_digest or None,
+        digest_manifest=manifest,
     )
     print(json.dumps({"after": after, "errors": errors}, indent=2))
     if errors:

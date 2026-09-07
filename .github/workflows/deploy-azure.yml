@@ -54,6 +54,10 @@ on:
         type: string
         default: ""
 
+concurrency:
+  group: wealth-production-azure-deploy
+  cancel-in-progress: false
+
 env:
   AZURE_RG: wealth-azure-prod-rg
   ACR_NAME: wealthprodacr
@@ -210,35 +214,50 @@ jobs:
         id: build
         if: needs.preflight.outputs.digest_mode != 'true'
         run: |
-          docker build \
+          docker buildx build \
+            --push \
             --no-cache \
             --pull \
+            --metadata-file "$RUNNER_TEMP/${{ matrix.service }}-metadata.json" \
             -f ${{ matrix.service }}/Dockerfile.azure \
             -t $ACR_NAME.azurecr.io/${{ matrix.service }}:${{ github.sha }} \
             .
 
-      - name: Push Docker image
-        id: push
+      - name: Validate and expose image digest
+        id: digest
         if: needs.preflight.outputs.digest_mode != 'true'
         run: |
-          docker push $ACR_NAME.azurecr.io/${{ matrix.service }}:${{ github.sha }}
+          set -euo pipefail
+          digest="$(jq -r '."containerimage.digest" // empty' "$RUNNER_TEMP/${{ matrix.service }}-metadata.json")"
+          [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]] || { echo "::error::invalid image digest"; exit 1; }
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+
+      - name: Upload service digest artifact
+        if: needs.preflight.outputs.deploy_mode == 'scoped' && needs.preflight.outputs.digest_mode != 'true'
+        run: |
+          mkdir -p "$RUNNER_TEMP/service-digests/${{ matrix.service }}"
+          jq -r '."containerimage.digest"' "$RUNNER_TEMP/${{ matrix.service }}-metadata.json" > "$RUNNER_TEMP/service-digests/${{ matrix.service }}/digest.txt"
+          printf '%s\n' '${{ github.run_attempt }}' > "$RUNNER_TEMP/service-digests/${{ matrix.service }}/run-attempt.txt"
+      - name: Publish service digest artifact
+        id: upload-service-digest
+        if: needs.preflight.outputs.deploy_mode == 'scoped' && needs.preflight.outputs.digest_mode != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: service-digest-${{ matrix.service }}
+          path: ${{ runner.temp }}/service-digests/${{ matrix.service }}
+          overwrite: true
+          if-no-files-found: error
 
       - name: Prove digest path skipped build and push
         if: needs.preflight.outputs.digest_mode == 'true'
         env:
           BUILD_OUTCOME: ${{ steps.build.outcome }}
-          PUSH_OUTCOME: ${{ steps.push.outcome }}
         run: |
           set -euo pipefail
           fail=0
           echo "build.outcome=${BUILD_OUTCOME}"
-          echo "push.outcome=${PUSH_OUTCOME}"
           if [ "$BUILD_OUTCOME" != "skipped" ]; then
             echo "::error::digest deploy executed build (outcome=${BUILD_OUTCOME}); expected skipped"
-            fail=1
-          fi
-          if [ "$PUSH_OUTCOME" != "skipped" ]; then
-            echo "::error::digest deploy executed push (outcome=${PUSH_OUTCOME}); expected skipped"
             fail=1
           fi
           exit "$fail"
@@ -248,7 +267,7 @@ jobs:
           if [ "${{ needs.preflight.outputs.digest_mode }}" = "true" ]; then
             IMAGE="${{ needs.preflight.outputs.digest_image }}"
           else
-            IMAGE="$ACR_NAME.azurecr.io/${{ matrix.service }}:${{ github.sha }}"
+            IMAGE="$ACR_NAME.azurecr.io/${{ matrix.service }}@${{ steps.digest.outputs.digest }}"
           fi
           az containerapp update \
             --name ${{ matrix.service }} \
@@ -264,15 +283,13 @@ jobs:
               --name "$JOB_NAME" \
               --resource-group "$AZURE_RG" \
               --output none 2>/dev/null; then
-            echo "::warning::${JOB_NAME} not found in ${AZURE_RG}."
-            echo "::warning::Run 'terraform apply' in infrastructure/terraform/azure to create the refresh Job."
-            echo "::warning::Skipping Job image update; the long-running market-data-service deploy above still succeeded."
-            exit 0
+            echo "::error::${JOB_NAME} not found in ${AZURE_RG}; refusing partial market-data deployment. Re-run all jobs after repair."
+            exit 1
           fi
           az containerapp job update \
             --name "$JOB_NAME" \
             --resource-group "$AZURE_RG" \
-            --image $ACR_NAME.azurecr.io/market-data-service:${{ github.sha }}
+            --image "${{ needs.preflight.outputs.digest_mode == 'true' && needs.preflight.outputs.digest_image || format('{0}.azurecr.io/market-data-service@{1}', env.ACR_NAME, steps.digest.outputs.digest) }}"
 
       - name: Wait for revision to reach Succeeded state
         # G18 — initial sleep gives ACA internal DNS time to propagate the new revision
@@ -320,6 +337,45 @@ jobs:
   # Runs after backend deploy (so the api-gateway FQDN is stable), but also
   # skipped when infra_ready=false.
   # ---------------------------------------------------------------------------
+  aggregate-digests:
+    runs-on: ubuntu-latest
+    needs: [preflight, deploy]
+    if: needs.preflight.outputs.deploy_mode == 'scoped' && needs.preflight.outputs.digest_mode != 'true'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Download current-run service digest artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: service-digest-*
+          path: ${{ runner.temp }}/service-digest-downloads
+          merge-multiple: false
+      - name: Validate selected digest inputs
+        run: |
+          rm -rf "$RUNNER_TEMP/service-digests"
+          python3 .github/workflows/scripts/snapshot_container_apps.py normalize-artifacts \
+            --digest-root "$RUNNER_TEMP/service-digest-downloads" \
+            --staging-root "$RUNNER_TEMP/service-digests" \
+            --selected '${{ needs.preflight.outputs.selected_services }}' \
+            --run-attempt '${{ github.run_attempt }}'
+      - name: Aggregate selected service digests
+        run: |
+          python3 .github/workflows/scripts/snapshot_container_apps.py aggregate-digests \
+            --digest-root "${RUNNER_TEMP}/service-digests" \
+            --selected '${{ needs.preflight.outputs.selected_services }}' \
+            --output "${RUNNER_TEMP}/digest-manifest.json"
+          printf '%s\n' '${{ github.run_attempt }}' > "${RUNNER_TEMP}/digest-manifest.run-attempt.txt"
+      - name: Upload digest manifest
+        id: upload-digest-manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: digest-manifest
+          path: |
+            ${{ runner.temp }}/digest-manifest.json
+            ${{ runner.temp }}/digest-manifest.run-attempt.txt
+          overwrite: true
+          if-no-files-found: error
+
   deploy-frontend:
     runs-on: ubuntu-latest
     needs: [preflight, deploy]
@@ -498,7 +554,7 @@ jobs:
   # ---------------------------------------------------------------------------
   assert-scoped-non-interference:
     runs-on: ubuntu-latest
-    needs: [preflight, deploy, deploy-frontend, seed, verify]
+    needs: [preflight, deploy, aggregate-digests, deploy-frontend, seed, verify]
     if: >-
       always() &&
       needs.preflight.result == 'success' &&
@@ -509,6 +565,18 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+      - name: Download named digest manifest for scoped compare
+        if: needs.preflight.outputs.deploy_mode == 'scoped' && needs.preflight.outputs.digest_mode != 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: digest-manifest
+          path: ${{ runner.temp }}
+
+      - name: Validate digest manifest attempt
+        if: needs.preflight.outputs.deploy_mode == 'scoped' && needs.preflight.outputs.digest_mode != 'true'
+        run: |
+          test -f "$RUNNER_TEMP/digest-manifest.run-attempt.txt" || { echo "::error::missing manifest attempt marker; Re-run all jobs."; exit 1; }
+          test "$(cat "$RUNNER_TEMP/digest-manifest.run-attempt.txt")" = "${{ github.run_attempt }}" || { echo "::error::stale digest manifest; Re-run all jobs."; exit 1; }
 
       - name: Azure login (OIDC)
         uses: azure/login@v2
@@ -544,6 +612,7 @@ jobs:
           SELECTED: ${{ needs.preflight.outputs.selected_services }}
           DIGEST_MODE: ${{ needs.preflight.outputs.digest_mode }}
           REQUESTED_DIGEST: ${{ needs.preflight.outputs.digest }}
+          DIGEST_MANIFEST: ${{ runner.temp }}/digest-manifest.json
         run: |
           if [ "$DIGEST_MODE" = "true" ]; then
             if [ -z "$REQUESTED_DIGEST" ]; then
@@ -555,9 +624,10 @@ jobs:
               --selected "$SELECTED" \
               --requested-digest "$REQUESTED_DIGEST" \
               --git-sha ""
-          else
+          elif [ "${{ needs.preflight.outputs.deploy_mode }}" = "scoped" ] && [ "${{ needs.aggregate-digests.result }}" = "success" ]; then
             python3 .github/workflows/scripts/snapshot_container_apps.py compare \
-              --before "$BEFORE" \
-              --selected "$SELECTED" \
-              --git-sha "${{ github.sha }}"
+              --before "$BEFORE" --selected "$SELECTED" --digest-manifest "$DIGEST_MANIFEST"
+          else
+            echo "::error::unsupported compare mode; Re-run all jobs."
+            exit 1
           fi
