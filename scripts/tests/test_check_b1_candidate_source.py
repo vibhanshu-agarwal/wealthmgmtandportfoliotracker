@@ -791,13 +791,15 @@ class RealRepoSmokeTests(unittest.TestCase):
         self.assertEqual(by_ob["path-governance"][gov.UNREVIEWED], 137)
         self.assertEqual(by_ob["persistence-usage"][gov.UNSUPPORTED], 6)
         self.assertEqual(by_ob["writer-inventory"][gov.UNRESOLVED], 25)
-        self.assertEqual(by_ob["writer-inventory"][gov.UNREVIEWED], 73)
+        # R3's V17 subject is closed only through the hash-bound operational record, so this
+        # immutable-cut inventory has one fewer writer-inventory UNREVIEWED finding.
+        self.assertEqual(by_ob["writer-inventory"][gov.UNREVIEWED], 72)
         # GC5-0486: `check_b2_demo_identity.py`'s GuardError diagnostic. The raise-argument
         # exemption that once cleared this (see `_python_non_executable_spans`) was removed as
         # unsound; this single writer-inventory UNSUPPORTED is the documented, retained residual.
         self.assertEqual(by_ob["writer-inventory"][gov.UNSUPPORTED], 1)
         total = sum(sum(kinds.values()) for kinds in by_ob.values())
-        self.assertEqual(total, 507)
+        self.assertEqual(total, 506)
 
     def test_every_tracked_java_file_lexes(self):
         cut = gov.resolve_commit(REPO, "HEAD")
@@ -1628,6 +1630,45 @@ class AddendumFixtureTests(unittest.TestCase):
             self.assertEqual(res2["readiness_substatus"], gov.PASS_EXCEPT_UNVERIFIED)
             self.assertEqual(res2["overall_status"], gov.BLOCKED)
             self.assertFalse(res2["candidate_ready"])
+        finally:
+            d.close()
+
+    def test_E15a_parsed_sql_operational_record_expires_after_migration_change(self):
+        """A declared record must bind to its parsed SQL subject and its migration subset."""
+        d = Deployable(None, extra={"svc/src/main/resources/db/migration/V2__repair.sql":
+                                    "CREATE FUNCTION repair_holdings() RETURNS void AS $$ "
+                                    "BEGIN DELETE FROM asset_holdings; END; $$ LANGUAGE plpgsql;\n"})
+        try:
+            initial = d.run()
+            sql_f = [x for x in initial["findings"] if x["subject_id"].startswith("sql:")
+                     and x["kind"] == gov.UNREVIEWED]
+            self.assertEqual(len(sql_f), 1, initial["findings"])
+            q_hash = d.artifact("evidence/parsed-query.sql", "SELECT 1;\n")
+            r_hash = d.artifact("evidence/parsed-result.json", '{"absent": true}\n')
+            reviewed = d.commit("record parsed SQL operational proof")
+            record = {
+                "subject_ref": {"path": sql_f[0]["path"], "subject_id": sql_f[0]["subject_id"]},
+                "environment_identity": "prod-db-1",
+                "query_artifact": {"path": "evidence/parsed-query.sql", "sha256": q_hash},
+                "result_artifact": {"path": "evidence/parsed-result.json", "sha256": r_hash},
+                "operator": "owner", "recorded_at": "2026-09-07", "reviewed_commit": reviewed,
+                "migration_subset_digest": d.envelope(reviewed)["migration_subset_digest"],
+            }
+            clean = d.run(d.policy(reviewed, operational_records=[record],
+                                   operational_target_environment="prod-db-1"), cut=reviewed)
+            self.assertTrue(any(x["subject_id"] == sql_f[0]["subject_id"]
+                                and x["basis"] == "operational_record"
+                                for x in clean["unverified_coverage"]), clean["findings"])
+
+            d.write("svc/src/main/resources/db/migration/V3__new.sql", "CREATE TABLE audit_log (id bigint);\n")
+            changed = d.commit("add migration after operational proof")
+            expired = d.run(d.policy(changed, operational_records=[record],
+                                     operational_target_environment="prod-db-1"), cut=changed)
+            stale = [x for x in expired["findings"] if x["subject_id"] == sql_f[0]["subject_id"]]
+            self.assertEqual(len(stale), 1, expired["findings"])
+            self.assertEqual(stale[0]["obligation"], "operational-record")
+            self.assertEqual(stale[0]["kind"], gov.UNRESOLVED)
+            self.assertIn("migration subset changed", stale[0]["detail"])
         finally:
             d.close()
 

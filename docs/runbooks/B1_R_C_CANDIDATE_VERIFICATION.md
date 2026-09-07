@@ -110,7 +110,7 @@ the full evidence bundle:
 - `candidate_ready`: always `false` today; `candidate_ready_blocked_by` names exactly what is
   outstanding (Task B packaging/registry evidence, Task C's source-governance findings awaiting
   reviewed disposition, Task C's unimplemented HTTP smoke evidence, and any unresolved policy
-  finding such as R3 — see `scripts/b1-candidate-policy.json`).
+  finding — see `scripts/b1-candidate-policy.json`).
 - `problems`: an empty list.
 - `manifest` / `per_task_totals`: the complete generated manifest and per-task test counts.
 - `stage`: the bootJar/staged paths and their shared SHA-256.
@@ -508,11 +508,15 @@ being absorbed, because leaked resources leave the next run's environment unknow
   pushed registry artifact (no push has happened) or an exact-digest HTTP smoke (not implemented).
   Nor do they say anything about source governance: the GC.5 guard runs as its own step and is
   currently BLOCKED. **The existence of the Task C guard files clears nothing** — not its open GC.5
-  findings, not the missing smoke proof, and not R3.
-- **R3 (`repair_migrate_holdings`) is unresolved by design.** See
-  `scripts/b1-candidate-policy.json`'s `unresolved` array. A source-only review cannot establish live
-  database privileges or prove the function unreachable; that is a separate owner-authorized
-  live/operational decision, not something this runbook can close.
+  findings or the missing smoke proof. R3 is the narrow exception: its owner-authorized Decision 1
+  proof has been recorded as an evidence-bound operational record in
+  `scripts/b1-candidate-policy.json`.
+- **R3 (`repair_migrate_holdings`) is closed locally in policy only.** The tracked non-secret query
+  and result summaries under `docs/evidence/b1-r3-decision1/` bind the accepted Decision 1 proof,
+  exact target environment, R-B3r reviewed commit, V21 success, and absence of all four transient
+  repair routines. V18/V19 remain historical calls in their original order. This closure is invalid
+  if the portfolio-service migration subset changes, and does not clear any other source-governance
+  finding, establish candidate readiness, or approve an R-C release.
 - **No packaged-image *smoke*.** Step 5 proves the image contains the right bytes; it never starts
   the application, opens a port, or exercises an endpoint. The exact-digest HTTP smoke harness
   (startup, `GET /api/assets`, a composition, the `409` envelope) is Task C scope.

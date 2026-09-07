@@ -361,25 +361,26 @@
         "id": "portfolios-on-delete-cascade-ungated",
         "file": "portfolio-service/src/main/resources/db/migration/V1__Initial_Schema.sql",
         "lines": "22",
-        "note": "asset_holdings.portfolio_id REFERENCES portfolios(id) ON DELETE CASCADE. Confirmed no production src/main code currently issues DELETE FROM portfolios or calls portfolioRepository.delete/deleteById anywhere -- the only DELETE-issuing call sites for either table in the whole tree are test fixtures (cleanup/isolation helpers, listed below) and the V17 repair function (R3, see unresolved). But this FK cascade itself is an unconditional, DB-level deletion mechanism with no version-CAS gate of its own: any future code path, admin script, or manual DB session that issues a portfolio-row DELETE would cascade-delete that portfolio's holdings outside HoldingReplacementService entirely, regardless of source-level guards. Not a current violation (nothing exercises it in production); documented as a structural gap for awareness, not something this checkpoint's tooling can close from source alone."
+        "note": "asset_holdings.portfolio_id REFERENCES portfolios(id) ON DELETE CASCADE. Confirmed no production src/main code currently issues DELETE FROM portfolios or calls portfolioRepository.delete/deleteById anywhere -- the only DELETE-issuing call sites for either table in the whole tree are test fixtures (cleanup/isolation helpers, listed below) and the historical V17 repair function, which V21 drops. But this FK cascade itself is an unconditional, DB-level deletion mechanism with no version-CAS gate of its own: any future code path, admin script, or manual DB session that issues a portfolio-row DELETE would cascade-delete that portfolio's holdings outside HoldingReplacementService entirely, regardless of source-level guards. Not a current violation (nothing exercises it in production); documented as a structural gap for awareness, not something this checkpoint's tooling can close from source alone."
       }
     ],
-    "unresolved_ref": "R3 -- see top-level `unresolved` array. V17__Repair_Archive_And_Timestamp3.sql:58-156 repair_migrate_holdings(text,text,text), called only by V18:13/V19:12 as one-time historical migrations, never dropped/revoked (confirmed by full-text grep of every migration file for DROP FUNCTION/REVOKE, zero matches), remains permanently callable post-V20 with no source-level guard. Blocks writer-inventory/G6 acceptance until a separate owner-authorized live/operational decision closes it.",
+    "r3_operational_closure": "R3 is closed only for V17__Repair_Archive_And_Timestamp3.sql:58-156 repair_migrate_holdings(text,text,text): V18:13 then V19:12 remain historical one-time calls, while accepted Decision 1 proof records V21 successful exactly once and all four transient repair routines absent in the target database. The evidence-bound operational record below is invalidated if the portfolio-service migration subset changes. This does not clear any other governance finding or establish release readiness.",
     "migration_writers": {
-      "review_finding": "R3 context -- full V1-V20 read 2026-09-03, all 20 files, no gaps",
+      "review_finding": "R3 closure context -- V17-V19 historical order retained and V21 verified by accepted Decision 1 serving proof",
       "one_time_historical": [
         "V3__Seed_Portfolio_Data.sql:16-51 -- initial portfolio + AAPL/TSLA/BTC holdings seed for user-001 (idempotent INSERT ... ON CONFLICT DO UPDATE).",
         "V7__Fix_Portfolio_User_Id_To_UUID.sql:5-7 -- UPDATE portfolios SET user_id=<uuid> WHERE user_id='user-001' (repairs V3's plain-string seed).",
         "V15__Reconcile_Auth_Seed_Users.sql:52-54 -- UPDATE portfolios SET user_id=<demo-uuid> WHERE user_id=<old-uuid> (idempotent via WHERE guard; no companion asset_holdings UPDATE needed since holdings have no user_id column, only portfolio_id).",
         "V18__Migrate_Btc_To_BtcUsd.sql:13, V19__Migrate_MmNs_To_Mahindra.sql:12 -- one-time PERFORM repair_migrate_holdings(...) calls; the calls are historical, the function they invoke (V17) is not.",
-        "V20__Portfolio_Composition_Contract.sql:8-21 -- ADD COLUMN version/updated_at DEFAULT backfills (rewrite every existing portfolios row) + backfill INSERT for any user lacking a portfolio row."
+        "V20__Portfolio_Composition_Contract.sql:8-21 -- ADD COLUMN version/updated_at DEFAULT backfills (rewrite every existing portfolios row) + backfill INSERT for any user lacking a portfolio row.",
+        "V21__Drop_Transient_Repair_Functions.sql -- forward-only DROP FUNCTION IF EXISTS statements retire the four V17 repair helpers; accepted Decision 1 observed one successful Flyway row, checksum 385711525, then global absence of those routines."
       ],
-      "persistent_reusable_functions": [
-        "V17__Repair_Archive_And_Timestamp3.sql:58-156 repair_migrate_holdings -- see R3, unresolved.",
+      "retired_repair_functions": [
+        "V17__Repair_Archive_And_Timestamp3.sql:58-156 repair_migrate_holdings was persistent after V17 and was invoked historically by V18:13 then V19:12; V21 drops it after the recorded one-time calls.",
         "V17__Repair_Archive_And_Timestamp3.sql:39-55 repair_archive_row -- writes only to repair_archive, not asset_holdings/portfolios; out of table-scope, noted for completeness.",
         "V17__Repair_Archive_And_Timestamp3.sql:220-345 repair_migrate_market_prices / repair_migrate_history -- write only market_prices/market_price_history, not asset_holdings/portfolios; out of table-scope."
       ],
-      "no_drop_or_revoke_confirmed": "Full-text grep (case-insensitive) of every V*.sql file for DROP FUNCTION and REVOKE: zero matches anywhere in the 20-file migration history."
+      "retirement_postcondition": "The earlier V1-V20 history contained no DROP FUNCTION/REVOKE. V21 is the forward-only lifecycle transition: accepted Decision 1 observed one successful V21 row and zero matching repair routines across schemas."
     },
     "test_fixture_exclusions": {
       "note": "Bypass the versioned-replacement CAS by design, for test setup/teardown/isolation only -- all confined to src/test, never the real portfolio_service database (Testcontainers-backed or PostgresRepairHarness ephemeral per-test databases). Listed for completeness so an automated re-check has a reviewed baseline to diff against, not because any are treated as production risk.",
@@ -410,13 +411,7 @@
       "scripts/, infrastructure/: none connect to a database or execute INSERT/UPDATE/DELETE against these tables -- confirmed by reading all ~32 scripts/ files and ~25 infrastructure/terraform/*/scripts/ files plus a repo-wide grep for DB-access idioms. scripts/tests/test_check_b2_demo_identity.py:98 performs a database UPDATE but only in its own test fixtures, not the tool it tests."
     ]
   },
-  "unresolved": [
-    {
-      "id": "R3",
-      "summary": "V17__Repair_Archive_And_Timestamp3.sql:58-156 defines repair_migrate_holdings(text,text,text), a persistent SQL function that mutates asset_holdings directly (UPDATE/DELETE by row id) with no portfolios.version CAS clause. V18/V19 invoke it for historical one-time migrations only (V18:13, V19:12); no DROP FUNCTION/REVOKE exists anywhere in tracked migrations or scripts, so it remains callable in any database built from the tracked migration history. The portfolios.version column itself is added only in V20, after V17-V19 ran, so the bypass was inert at migration-execution time -- the open risk is that the function remains callable post-V20/cutover with nothing in source preventing reinvocation outside the versioned write path.",
-      "status": "unresolved -- blocks 7.6/G6 acceptance per R3. A source-only review cannot establish live database privileges or prove the function unreachable; that requires a separate owner-authorized live/operational check. Do not resolve this by editing an already-applied Flyway migration or by silently excluding it from the writer inventory."
-    }
-  ],
+  "unresolved": [],
   "deployables": [
     {
       "envelope_id": "portfolio-service",
@@ -431,7 +426,36 @@
   ],
   "envelopes": [],
   "envelopes_note": "EMPTY BY DESIGN. An envelope record attests that every member was analyzed, classified non-runtime, or reported unsupported (correction 7). That attestation is a human act; this tooling must never author one for itself. Until a reviewer writes these records, every deployable blocks with 'no reviewed envelope record' -- which is the correct state.",
-  "operational_records": [],
+  "operational_records": [
+    {
+      "subject_ref": {
+        "path": "portfolio-service/src/main/resources/db/migration/V17__Repair_Archive_And_Timestamp3.sql",
+        "subject_id": "sql:CREATE OR REPLACE FUNCTION,DELETE FROM,INSERT INTO,UPDATE:3ca0fb1b#0"
+      },
+      "environment_identity": {
+        "subscription_id": "ee625b3f-7cb1-4482-be3c-4363c5d76d23",
+        "resource_group": "wealth-azure-prod-rg",
+        "container_app": "portfolio-service",
+        "revision": "portfolio-service--0000095",
+        "image_digest": "sha256:fa060bf054b9c108b8b59d9e9b27845d6b707f40040a7dcba16411db7f0e8552",
+        "database": "neondb",
+        "postgresql_version": "18.6",
+        "effective_role": "neondb_owner"
+      },
+      "query_artifact": {
+        "path": "docs/evidence/b1-r3-decision1/v21-r3-operational-query.sql",
+        "sha256": "sha256:6859e41f621f2f2cc1b9294c595469955d5523e9fc21c79e211ea718e469d570"
+      },
+      "result_artifact": {
+        "path": "docs/evidence/b1-r3-decision1/v21-r3-operational-result.json",
+        "sha256": "sha256:a2aa8a7f69fb51f5f4cf79ea801366609a76cc0adffc383b3a282ea98ad32fe3"
+      },
+      "operator": "B1 governance/release owner",
+      "recorded_at": "2026-09-07T15:48:36.8872829Z",
+      "reviewed_commit": "97b83e52bcbfface4377cefd69ebb111270cb21e",
+      "migration_subset_digest": "sha256:56f0469af36a13dfbc311717f4c7c66c564fdf66b0e46765203bd0cca35c7bae"
+    }
+  ],
   "unverified_coverage_reviews": [],
   "scan_exclusions": [
     {
@@ -463,6 +487,15 @@
   "effect_based_automatic_clearance": [],
   "inactive_features_note": "Configured-but-empty and UNAPPROVED (correction 10). A non-empty value here is ignored and produces a blocking POLICY_INVALID finding, so enabling one is a visible, separately-approved act.",
   "evidence_binding_note": "Task A/B evidence is supplied as a PER-RUN input via --run-input, never committed here -- committing a post-build hash would force a commit->rebuild cycle. See the runbook.",
-  "operational_target_environment": null,
+  "operational_target_environment": {
+    "subscription_id": "ee625b3f-7cb1-4482-be3c-4363c5d76d23",
+    "resource_group": "wealth-azure-prod-rg",
+    "container_app": "portfolio-service",
+    "revision": "portfolio-service--0000095",
+    "image_digest": "sha256:fa060bf054b9c108b8b59d9e9b27845d6b707f40040a7dcba16411db7f0e8552",
+    "database": "neondb",
+    "postgresql_version": "18.6",
+    "effective_role": "neondb_owner"
+  },
   "dispositions": []
 }

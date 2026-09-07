@@ -3353,20 +3353,20 @@ def writer_inventory(tree: dict[str, str], reader: BlobReader, policy: dict,
             coverage["sql_subjects"] += 1
             key = f.path + "|" + f.subject_id
             seen.add(key)
+            rec = op_records.get(key)
+            if rec is not None:
+                problem = validate_operational_record(rec, repo, cut_sha, owning)
+                if problem or (target_env and rec.get("environment_identity") != target_env):
+                    detail = problem or ("operational record environment "
+                                         + repr(rec.get("environment_identity")) + " is not the "
+                                         "declared target " + repr(target_env))
+                    findings.append(Finding(f.path, f.subject_id, "operational-record", UNRESOLVED,
+                                            detail, {"subject": rec.get("subject_ref")}))
+                else:
+                    unverified.append({"path": f.path, "subject_id": f.subject_id,
+                                       "basis": "operational_record", "operator": rec["operator"]})
+                continue
             if f.kind == UNSUPPORTED:
-                rec = op_records.get(key)
-                if rec is not None:
-                    problem = validate_operational_record(rec, repo, cut_sha, owning)
-                    if problem or (target_env and rec.get("environment_identity") != target_env):
-                        detail = problem or ("operational record environment "
-                                             + repr(rec.get("environment_identity")) + " is not the "
-                                             "declared target " + repr(target_env))
-                        findings.append(Finding(f.path, f.subject_id, "operational-record", UNRESOLVED,
-                                                detail, {"subject": rec.get("subject_ref")}))
-                    else:
-                        unverified.append({"path": f.path, "subject_id": f.subject_id,
-                                           "basis": "operational_record", "operator": rec["operator"]})
-                    continue
                 findings.append(f)
                 continue
             disp = dispositions.get(key)

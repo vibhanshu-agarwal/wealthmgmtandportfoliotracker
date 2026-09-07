@@ -46,6 +46,11 @@ The fresh `LOCAL_PREPARATION` scan at the source cut produced 508 findings:
 Aggregate state: 252 `CONFIRMED_MATCH`, 223 `UNREVIEWED`, 26 `UNRESOLVED`, and
 7 `UNSUPPORTED`.
 
+**2026-09-07 R3 update:** the table above is the preserved historical baseline. R3 alone is now
+closed locally in policy using the accepted Decision 1 V21 proof, an exact target-environment
+identity, and hash-bound non-secret evidence. This does not alter the historical baseline, resolve
+any other finding, make source governance `PASS`, or make R-C ready.
+
 Evidence identities to preserve:
 
 - analyzer SHA-256:
@@ -121,18 +126,14 @@ services discovered outside the policy still require records. Envelope membershi
 migration subsets, and unsupported members must agree with the selected review cut before an
 envelope can support other decisions.
 
-### 5. R3 operational risk
+### 5. R3 operational record (closed locally in policy)
 
-Preserve the existing qualification: prior catalog evidence establishes risk for the inspected
-database and inspected role. It does not independently prove the deployed application's current
-effective database identity.
-
-The later decision needs separately authorized evidence connecting the deployed application to
-its effective database identity and privileges. Review routine ownership and execution,
-membership/inheritance, direct table DML, and applicable database controls together. Revoking
-`PUBLIC` execution alone is not sufficient because it does not remove the routine owner's own
-privileges or direct DML capability. Do not edit an already-applied Flyway migration as a
-substitute for an operational decision.
+The prior catalog preflight is retained as historical risk context, not remediation proof. The
+accepted Decision 1 serving proof supplies the later authorized observation: V21 succeeded once in
+the exact deployed target and all four transient repair routines are absent. The policy record binds
+that observation to the production identity, reviewed R-B3r commit, evidence hashes, and the
+portfolio-service migration-subset digest; a changed subset fails closed. Do not edit an
+already-applied Flyway migration as a substitute for this record.
 
 ## Recommended execution order
 
@@ -142,8 +143,8 @@ substitute for an operational decision.
    persistence and composition effects.
 4. Review path, content, understood-writer, and migration subjects in evidence-bound families.
 5. Review the nine per-holding subjects and four deployable envelopes against the final source cut.
-6. Prepare R3's operational evidence and remediation decision under a separate owner-authorized
-   live-operation package if live access is needed.
+6. Preserve R3's closed record and renew it only through a new authorized operational proof if its
+   portfolio-service migration subset changes.
 7. Only with explicit owner authorization, author governed records and rerun the analyzer. Reconcile
    every added, removed, and changed finding before claiming source-governance `PASS`.
 
@@ -155,6 +156,6 @@ This backlog is complete only when:
   resolution or disposition;
 - every unsupported subject has supported coverage or contract-valid independent proof;
 - per-holding baselines and all four envelope records are reviewed and valid for the chosen cut;
-- R3 has an accepted decision based on correctly qualified operational identity and privilege
-  evidence;
+- R3's closed record remains bound to correctly qualified operational identity and V21 absence
+  evidence (renew it if its migration subset changes);
 - a fresh scan is reproducible, all semantic delta is explained, source governance reports `PASS`,

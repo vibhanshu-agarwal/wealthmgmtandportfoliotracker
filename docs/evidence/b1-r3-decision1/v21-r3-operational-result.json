@@ -1,0 +1,36 @@
+{
+  "schema": "b1-r3-operational-result/1",
+  "evidence_source": {
+    "path": "C:/Users/pc/.codex/visualizations/2026/09/06/01a075d2-62dd-7830-b4d2-f1715b0b8550/b1-r-b3r-97b83e52-decision1-serving-proof.json",
+    "sha256": "sha256:2525541c5abfe2b9b18eae7f6a3deb0935fded5b52b407f2668a085bba5590a1",
+    "status": "TECHNICAL_ACCEPT"
+  },
+  "observed_at": "2026-09-07T15:48:36.8872829Z",
+  "environment_identity": {
+    "subscription_id": "ee625b3f-7cb1-4482-be3c-4363c5d76d23",
+    "resource_group": "wealth-azure-prod-rg",
+    "container_app": "portfolio-service",
+    "revision": "portfolio-service--0000095",
+    "image_digest": "sha256:fa060bf054b9c108b8b59d9e9b27845d6b707f40040a7dcba16411db7f0e8552",
+    "database": "neondb",
+    "postgresql_version": "18.6",
+    "effective_role": "neondb_owner"
+  },
+  "v21": {
+    "successful_rows": 1,
+    "description": "Drop Transient Repair Functions",
+    "flyway_checksum": 385711525,
+    "reviewed_commit": "97b83e52bcbfface4377cefd69ebb111270cb21e",
+    "git_blob_id": "0e7389a3904e76f8f0eb6083a41f2c67d14b77ab",
+    "file_sha256": "sha256:bdfac3abbc6215e7087b249e1c2a12b2cf140750242a814ddb4f6c3519bc934f"
+  },
+  "postconditions": {
+    "exact_to_regprocedure_null_count": 4,
+    "matching_repair_routines_all_schemas": 0,
+    "ordinary_portfolio_read": {"version": 0, "holdings": 159},
+    "single_seed_outcome": "SAME_STATE",
+    "retired_public_composition_route_status": 404,
+    "peer_services_and_refresh_job_unchanged": true
+  },
+  "secret_values_recorded": false
+}
