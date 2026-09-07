@@ -1672,6 +1672,98 @@ class AddendumFixtureTests(unittest.TestCase):
         finally:
             d.close()
 
+    def test_E15b_duplicate_operational_records_fail_closed(self):
+        d = Deployable(None, extra={"svc/src/main/resources/db/migration/V2__repair.sql":
+                                    "CREATE FUNCTION repair_holdings() RETURNS void AS $$ "
+                                    "BEGIN DELETE FROM asset_holdings; END; $$ LANGUAGE plpgsql;\n"})
+        try:
+            finding = [x for x in d.run()["findings"] if x["subject_id"].startswith("sql:")][0]
+            q_hash = d.artifact("evidence/query.sql", "SELECT 1;\n")
+            r_hash = d.artifact("evidence/result.json", '{"absent": true}\n')
+            reviewed = d.commit("record operational artifacts")
+            record = {"subject_ref": {"path": finding["path"], "subject_id": finding["subject_id"]},
+                      "environment_identity": "prod-db-1",
+                      "query_artifact": {"path": "evidence/query.sql", "sha256": q_hash},
+                      "result_artifact": {"path": "evidence/result.json", "sha256": r_hash},
+                      "operator": "owner", "recorded_at": "2026-09-07", "reviewed_commit": reviewed,
+                      "migration_subset_digest": d.envelope(reviewed)["migration_subset_digest"]}
+            invalid_first = dict(record, environment_identity="wrong-db")
+            res = d.run(d.policy(reviewed, operational_records=[invalid_first, record],
+                                 operational_target_environment="prod-db-1"), cut=reviewed)
+            self.assertTrue(any(x["obligation"] == "operational-record"
+                                and x["kind"] == gov.UNRESOLVED for x in res["findings"]), res["findings"])
+        finally:
+            d.close()
+
+    def test_E15c_orphan_operational_record_is_missing_subject(self):
+        d = Deployable(None)
+        try:
+            q_hash = d.artifact("evidence/query.sql", "SELECT 1;\n")
+            r_hash = d.artifact("evidence/result.json", '{"absent": true}\n')
+            reviewed = d.commit("record operational artifacts")
+            record = {"subject_ref": {"path": "svc/src/main/resources/db/migration/V1__init.sql",
+                                      "subject_id": "sql:DELETE FROM:missing#0"},
+                      "environment_identity": "prod-db-1",
+                      "query_artifact": {"path": "evidence/query.sql", "sha256": q_hash},
+                      "result_artifact": {"path": "evidence/result.json", "sha256": r_hash},
+                      "operator": "owner", "recorded_at": "2026-09-07", "reviewed_commit": reviewed,
+                      "migration_subset_digest": d.envelope(reviewed)["migration_subset_digest"]}
+            res = d.run(d.policy(reviewed, operational_records=[record],
+                                 operational_target_environment="prod-db-1"), cut=reviewed)
+            orphan = [x for x in res["findings"] if x["subject_id"] == record["subject_ref"]["subject_id"]]
+            self.assertEqual([(x["obligation"], x["kind"]) for x in orphan],
+                             [("operational-record", gov.MISSING_SUBJECT)])
+        finally:
+            d.close()
+
+    def test_E15d_operational_record_requires_declared_target_environment(self):
+        d = Deployable(None, extra={"svc/src/main/resources/db/migration/V2__repair.sql":
+                                    "CREATE FUNCTION repair_holdings() RETURNS void AS $$ "
+                                    "BEGIN DELETE FROM asset_holdings; END; $$ LANGUAGE plpgsql;\n"})
+        try:
+            finding = [x for x in d.run()["findings"] if x["subject_id"].startswith("sql:")][0]
+            q_hash = d.artifact("evidence/query.sql", "SELECT 1;\n")
+            r_hash = d.artifact("evidence/result.json", '{"absent": true}\n')
+            reviewed = d.commit("record operational artifacts")
+            record = {"subject_ref": {"path": finding["path"], "subject_id": finding["subject_id"]},
+                      "environment_identity": "prod-db-1",
+                      "query_artifact": {"path": "evidence/query.sql", "sha256": q_hash},
+                      "result_artifact": {"path": "evidence/result.json", "sha256": r_hash},
+                      "operator": "owner", "recorded_at": "2026-09-07", "reviewed_commit": reviewed,
+                      "migration_subset_digest": d.envelope(reviewed)["migration_subset_digest"]}
+            res = d.run(d.policy(reviewed, operational_records=[record],
+                                 operational_target_environment=None), cut=reviewed)
+            self.assertTrue(any(x["obligation"] == "operational-record"
+                                and "target environment" in x["detail"] for x in res["findings"]),
+                            res["findings"])
+        finally:
+            d.close()
+
+    def test_E15e_operational_record_subject_must_exist_at_reviewed_commit(self):
+        d = Deployable(None)
+        try:
+            predating = d.head
+            d.write("svc/src/main/resources/db/migration/V2__repair.sql",
+                    "CREATE FUNCTION repair_holdings() RETURNS void AS $$ "
+                    "BEGIN DELETE FROM asset_holdings; END; $$ LANGUAGE plpgsql;\n")
+            current = d.commit("add parsed repair subject")
+            finding = [x for x in d.run(cut=current)["findings"] if x["subject_id"].startswith("sql:")][0]
+            q_hash = d.artifact("evidence/query.sql", "SELECT 1;\n")
+            r_hash = d.artifact("evidence/result.json", '{"absent": true}\n')
+            record = {"subject_ref": {"path": finding["path"], "subject_id": finding["subject_id"]},
+                      "environment_identity": "prod-db-1",
+                      "query_artifact": {"path": "evidence/query.sql", "sha256": q_hash},
+                      "result_artifact": {"path": "evidence/result.json", "sha256": r_hash},
+                      "operator": "owner", "recorded_at": "2026-09-07", "reviewed_commit": predating,
+                      "migration_subset_digest": d.envelope(current)["migration_subset_digest"]}
+            res = d.run(d.policy(current, operational_records=[record],
+                                 operational_target_environment="prod-db-1"), cut=current)
+            self.assertTrue(any(x["obligation"] == "operational-record"
+                                and "did not exist at reviewed_commit" in x["detail"]
+                                for x in res["findings"]), res["findings"])
+        finally:
+            d.close()
+
     def test_E16_disposition_without_envelope_id_is_invalid(self):
         d = Deployable(JDBC_WRITER)
         try:
