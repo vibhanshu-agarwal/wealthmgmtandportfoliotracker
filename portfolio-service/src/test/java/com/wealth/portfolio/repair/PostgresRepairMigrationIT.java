@@ -12,6 +12,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.flywaydb.core.api.FlywayException;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -499,6 +500,9 @@ class PostgresRepairMigrationIT {
         var session = PostgresRepairHarness.newSession();
         session.migrateRemaining();
 
+        assertThat(successfulMigrationCount(session, "21")).isEqualTo(1);
+        assertThat(transientRepairFunctions(session)).isEmpty();
+
         int archiveBefore = count(session, "SELECT COUNT(*) FROM repair_archive");
         int auditBefore = count(session, "SELECT COUNT(*) FROM repair_audit");
         int btcHistory = count(session, "SELECT COUNT(*) FROM market_price_history WHERE ticker = 'BTC'");
@@ -520,9 +524,133 @@ class PostgresRepairMigrationIT {
                 .isEqualTo(mahindraHistory);
         assertThat(count(session, "SELECT COUNT(*) FROM asset_holdings WHERE asset_ticker = 'BTC'"))
                 .isZero();
+        assertThat(transientRepairFunctions(session)).isEmpty();
+    }
+
+    @Test
+    void v20ToV21DropsTransientRepairFunctionsAndPreservesCompositionConstraints() {
+        var session = PostgresRepairHarness.newSession();
+        session.migrateTo("20");
+
+        assertThat(transientRepairFunctions(session))
+                .containsExactly(
+                        "repair_archive_row(text,text,text,text,jsonb)",
+                        "repair_migrate_history(text,text,text)",
+                        "repair_migrate_holdings(text,text,text)",
+                        "repair_migrate_market_prices(text,text,text,text,boolean)");
+
+        session.migrateRemaining();
+
+        assertThat(transientRepairFunctions(session)).isEmpty();
+        assertThat(successfulMigrationCount(session, "21")).isEqualTo(1);
+        assertThat(
+                        count(
+                                session,
+                                """
+                                SELECT COUNT(*)
+                                  FROM pg_constraint
+                                 WHERE conname IN (
+                                     'uq_portfolios_user_id',
+                                     'chk_asset_holdings_quantity_positive'
+                                 )
+                                """))
+                .isEqualTo(2);
+
+        session.migrateRemaining();
+
+        assertThat(successfulMigrationCount(session, "21")).isEqualTo(1);
+        assertThat(transientRepairFunctions(session)).isEmpty();
+    }
+
+    @Test
+    void v21FailsClosedWhenAnotherObjectDependsOnARepairFunction() {
+        var session = PostgresRepairHarness.newSession();
+        session.migrateTo("20");
+        session.jdbc()
+                .execute(
+                        """
+                        CREATE FUNCTION public.test_repair_archive_dependency()
+                        RETURNS void
+                        LANGUAGE sql
+                        BEGIN ATOMIC
+                          SELECT public.repair_archive_row(
+                              'VTEST', 'asset_holdings', 'LEGACY_SYNTHETIC', 'NOOP', '{}'::jsonb
+                          );
+                        END;
+                        """);
+
+        assertThatThrownBy(session::migrateRemaining)
+                .isInstanceOf(FlywayException.class)
+                .rootCause()
+                .hasMessageContaining(
+                        "cannot drop function repair_archive_row(text,text,text,text,jsonb)")
+                .hasMessageContaining("test_repair_archive_dependency() depends on function");
+
+        assertThat(successfulMigrationCount(session, "21")).isZero();
+        assertThat(transientRepairFunctions(session))
+                .containsExactly(
+                        "repair_archive_row(text,text,text,text,jsonb)",
+                        "repair_migrate_history(text,text,text)",
+                        "repair_migrate_holdings(text,text,text)",
+                        "repair_migrate_market_prices(text,text,text,text,boolean)");
+    }
+
+    @Test
+    void v21IsSafeWhenTransientFunctionsWereAlreadyRemoved() {
+        var session = PostgresRepairHarness.newSession();
+        session.migrateTo("20");
+        dropTransientRepairFunctions(session);
+
+        session.migrateRemaining();
+
+        assertThat(successfulMigrationCount(session, "21")).isEqualTo(1);
+        assertThat(transientRepairFunctions(session)).isEmpty();
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────
+
+    private static List<String> transientRepairFunctions(PostgresRepairHarness.Session session) {
+        return session.jdbc()
+                .queryForList(
+                        """
+                        SELECT signature
+                          FROM (VALUES
+                              ('repair_archive_row(text,text,text,text,jsonb)'),
+                              ('repair_migrate_history(text,text,text)'),
+                              ('repair_migrate_holdings(text,text,text)'),
+                              ('repair_migrate_market_prices(text,text,text,text,boolean)')
+                          ) AS repair_functions(signature)
+                         WHERE to_regprocedure('public.' || signature) IS NOT NULL
+                         ORDER BY signature
+                        """,
+                        String.class);
+    }
+
+    private static int successfulMigrationCount(
+            PostgresRepairHarness.Session session, String version) {
+        Integer value =
+                session.jdbc()
+                        .queryForObject(
+                                """
+                                SELECT COUNT(*)
+                                  FROM flyway_schema_history
+                                 WHERE version = ? AND success = true
+                                """,
+                                Integer.class,
+                                version);
+        return value == null ? 0 : value;
+    }
+
+    private static void dropTransientRepairFunctions(PostgresRepairHarness.Session session) {
+        session.jdbc()
+                .execute(
+                        """
+                        DROP FUNCTION public.repair_migrate_holdings(text, text, text) RESTRICT;
+                        DROP FUNCTION public.repair_migrate_market_prices(text, text, text, text, boolean) RESTRICT;
+                        DROP FUNCTION public.repair_migrate_history(text, text, text) RESTRICT;
+                        DROP FUNCTION public.repair_archive_row(text, text, text, text, jsonb) RESTRICT;
+                        """);
+    }
 
     private static String catchRoot(PostgresRepairHarness.Session session) {
         try {

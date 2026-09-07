@@ -3338,9 +3338,48 @@ def writer_inventory(tree: dict[str, str], reader: BlobReader, policy: dict,
             findings.append(f)
 
     # SQL subjects -- one validation path, plus operational records for immutable persistent objects.
-    op_records = {r["subject_ref"]["path"] + "|" + r["subject_ref"]["subject_id"]: r
-                  for r in policy.get("operational_records", []) if r.get("subject_ref")}
+    # Keep every declaration: collapsing this list into a dict would let a later duplicate silently
+    # replace an earlier (possibly invalid) record for the same subject.
+    op_records: dict[str, list[dict]] = {}
+    for index, rec in enumerate(policy.get("operational_records", [])):
+        ref = rec.get("subject_ref") if isinstance(rec, dict) else None
+        if (not isinstance(ref, dict) or not isinstance(ref.get("path"), str)
+                or not isinstance(ref.get("subject_id"), str)):
+            findings.append(Finding(
+                "scripts/b1-candidate-policy.json", "operational-record:" + str(index),
+                "operational-record", UNRESOLVED,
+                "operational record subject_ref must name an exact path and subject_id"))
+            continue
+        key = ref["path"] + "|" + ref["subject_id"]
+        op_records.setdefault(key, []).append(rec)
     target_env = policy.get("operational_target_environment")
+    sql_seen: set[str] = set()
+
+    def validate_declared_records(key: str, records: list[dict], owning: dict,
+                                  emit_findings: bool = True) -> bool:
+        valid = len(records) == 1
+        for rec in records:
+            problems: list[str] = []
+            if len(records) > 1:
+                problems.append("duplicate operational records declare the same subject " + key)
+            problem = validate_operational_record(rec, repo, cut_sha, owning, history)
+            if problem:
+                problems.append(problem)
+            if not target_env:
+                problems.append("operational records require a declared target environment")
+            elif rec.get("environment_identity") != target_env:
+                problems.append("operational record environment "
+                                + repr(rec.get("environment_identity")) + " is not the declared target "
+                                + repr(target_env))
+            if problems:
+                valid = False
+                if emit_findings:
+                    findings.append(Finding(
+                        rec["subject_ref"]["path"], rec["subject_ref"]["subject_id"],
+                        "operational-record", UNRESOLVED, "; ".join(problems),
+                        {"subject": rec.get("subject_ref")}))
+        return valid
+
     for path, blob in sorted(tree.items()):
         if not path.endswith(".sql") or any(glob_match(path, g) for g in excluded):
             continue
@@ -3353,20 +3392,15 @@ def writer_inventory(tree: dict[str, str], reader: BlobReader, policy: dict,
             coverage["sql_subjects"] += 1
             key = f.path + "|" + f.subject_id
             seen.add(key)
+            sql_seen.add(key)
+            records = op_records.get(key)
+            if records is not None:
+                if validate_declared_records(key, records, owning):
+                    rec = records[0]
+                    unverified.append({"path": f.path, "subject_id": f.subject_id,
+                                       "basis": "operational_record", "operator": rec["operator"]})
+                continue
             if f.kind == UNSUPPORTED:
-                rec = op_records.get(key)
-                if rec is not None:
-                    problem = validate_operational_record(rec, repo, cut_sha, owning)
-                    if problem or (target_env and rec.get("environment_identity") != target_env):
-                        detail = problem or ("operational record environment "
-                                             + repr(rec.get("environment_identity")) + " is not the "
-                                             "declared target " + repr(target_env))
-                        findings.append(Finding(f.path, f.subject_id, "operational-record", UNRESOLVED,
-                                                detail, {"subject": rec.get("subject_ref")}))
-                    else:
-                        unverified.append({"path": f.path, "subject_id": f.subject_id,
-                                           "basis": "operational_record", "operator": rec["operator"]})
-                    continue
                 findings.append(f)
                 continue
             disp = dispositions.get(key)
@@ -3377,6 +3411,16 @@ def writer_inventory(tree: dict[str, str], reader: BlobReader, policy: dict,
                                      f.evidence.get("code_fingerprint"))
             if problem:
                 findings.append(Finding(f.path, f.subject_id, "writer-inventory", kind, problem))
+
+    for key, records in sorted(op_records.items()):
+        if key in sql_seen:
+            continue
+        ref = records[0]["subject_ref"]
+        # The record is still validated above, but a missing current subject is the authoritative
+        # classification: do not emit a second provenance/environment finding for the same orphan.
+        validate_declared_records(key, records, _owning_envelope_for(ref["path"], envelopes), False)
+        findings.append(Finding(ref["path"], ref["subject_id"], "operational-record", MISSING_SUBJECT,
+                                "operational record names a SQL subject that does not exist at the cut"))
 
     for key, disp in sorted(dispositions.items()):
         if key not in seen:
@@ -3841,7 +3885,8 @@ def validate_claim_record(record: dict, expected_obligation: str, subject_id: st
 
 
 def validate_operational_record(rec: dict, repo: Path | None, cut_sha: str,
-                                envelope_for_migration: dict) -> str | None:
+                                envelope_for_migration: dict,
+                                history: "HistoricalIndex | None" = None) -> str | None:
     """A live-database fact, validated substantively (F4). It binds a NON-SECRET environment
     identity, the exact query and result artifacts by hash, an operator, a real reviewed_commit, and
     the migration subset of the SUBJECT'S OWNING envelope -- so a record taken against the wrong
@@ -3853,8 +3898,16 @@ def validate_operational_record(rec: dict, repo: Path | None, cut_sha: str,
         return "operational record is missing " + ", ".join(missing)
     if not isinstance(rec.get("operator"), str) or not rec["operator"].strip():
         return "operational record has no operator"
-    if repo is not None and not commit_exists(repo, rec.get("reviewed_commit")):
-        return "operational record reviewed_commit does not exist in this repository"
+    if repo is not None:
+        reviewed_commit = rec.get("reviewed_commit")
+        if not commit_exists(repo, reviewed_commit):
+            return "operational record reviewed_commit does not exist in this repository"
+        if history is not None:
+            ref = rec["subject_ref"]
+            key = ref["path"] + "|" + ref["subject_id"]
+            if key not in history.at(reviewed_commit):
+                return ("operational record subject did not exist at reviewed_commit "
+                        + str(reviewed_commit)[:12])
     for key in ("query_artifact", "result_artifact"):
         art = rec.get(key)
         if not isinstance(art, dict) or not art.get("path") or not str(art.get("sha256", "")).startswith("sha256:"):

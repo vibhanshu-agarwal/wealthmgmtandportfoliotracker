@@ -72,9 +72,9 @@ public final class PostgresRepairHarness {
         }
 
         public void remigrateRepairVersions() {
-            jdbc.update("DELETE FROM flyway_schema_history WHERE version IN ('17', '18', '19')");
-            // Out-of-order is required only for this repair replay path: V20 may already be
-            // applied while V17–V19 history rows are deleted for re-execution.
+            jdbc.update("DELETE FROM flyway_schema_history WHERE version IN ('17', '18', '19', '21')");
+            // Out-of-order is required only for this repair replay path: V20 remains applied while
+            // V17–V19 are replayed, then V21 removes their transient helpers again.
             flyway(null, true).migrate();
         }
 

@@ -32,8 +32,11 @@ respective runs; the 73-test final smoke suite passed with zero skips. The prese
 September 3 LOCAL_DEV graph recorded 760 application tests in 89 classes, with zero skips,
 failures or errors and all 11 required report entries present. That graph predates later
 tooling and documentation edits and is not final committed-candidate verification.
-R-C readiness remains **NO-GO**: the reviewed source cut is BLOCKED with 504 reported
-governance findings, R3 remains unresolved, and release/registry/serving evidence is incomplete.
+In that dated 2026-09-04 snapshot, R-C readiness remained **NO-GO**: the September 3 reviewed source
+cut was BLOCKED with 504 reported governance findings. That count is an older cut snapshot, not the
+current analyzer result, and release/registry/serving evidence is incomplete. R3 alone is closed locally
+in policy by the evidence-bound V21 Decision 1 proof; this does not make the governance scan pass or
+alter any completion box.
 Tasks 7.3–7.11, GC.5, AM.1/AM.2 and Writer_Convergence receive no completion-box changes.
 
 **OWNER APPROVAL RECORDED — Claude R-C preparation kickoff, 2026-09-03:** The owner requested
