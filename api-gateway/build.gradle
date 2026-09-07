@@ -44,7 +44,11 @@ dependencies {
     testImplementation 'org.springframework.boot:spring-boot-micrometer-tracing-test'
 
     // Real portfolio persistence is visible only to Wave 8's dedicated integration source set.
-    wave8IntegrationTestImplementation project(':portfolio-service')
+    // Azure's production image build intentionally trims test-only service projects from
+    // settings.gradle, so do not require this project when that reduced graph is evaluated.
+    if (rootProject.findProject(':portfolio-service') != null) {
+        wave8IntegrationTestImplementation project(':portfolio-service')
+    }
     wave8IntegrationTestImplementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     wave8IntegrationTestImplementation 'org.springframework.boot:spring-boot-starter-webmvc'
 
