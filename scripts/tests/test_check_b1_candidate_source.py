@@ -1625,10 +1625,9 @@ class AddendumFixtureTests(unittest.TestCase):
             pol = d.policy(d.head, operational_records=[rec],
                            operational_target_environment="prod-db-1")
             res2 = gov.run_all(d.repo, pol, None, d.head, gov.LOCAL_PREPARATION, None)
-            self.assertTrue(res2["unverified_coverage"], res2["summary"])
-            # Correction 1: unverified residue is a DIAGNOSTIC substatus and still blocks.
-            self.assertEqual(res2["readiness_substatus"], gov.PASS_EXCEPT_UNVERIFIED)
-            self.assertEqual(res2["overall_status"], gov.BLOCKED)
+            self.assertEqual(res2["unverified_coverage"], [], res2["summary"])
+            self.assertEqual(res2["readiness_substatus"], gov.PASS)
+            self.assertEqual(res2["overall_status"], gov.PASS)
             self.assertFalse(res2["candidate_ready"])
         finally:
             d.close()
@@ -1656,9 +1655,9 @@ class AddendumFixtureTests(unittest.TestCase):
             }
             clean = d.run(d.policy(reviewed, operational_records=[record],
                                    operational_target_environment="prod-db-1"), cut=reviewed)
-            self.assertTrue(any(x["subject_id"] == sql_f[0]["subject_id"]
-                                and x["basis"] == "operational_record"
-                                for x in clean["unverified_coverage"]), clean["findings"])
+            self.assertEqual(clean["unverified_coverage"], [], clean["findings"])
+            self.assertFalse(any(x["subject_id"] == sql_f[0]["subject_id"]
+                                 for x in clean["findings"]), clean["findings"])
 
             d.write("svc/src/main/resources/db/migration/V3__new.sql", "CREATE TABLE audit_log (id bigint);\n")
             changed = d.commit("add migration after operational proof")
@@ -1761,6 +1760,193 @@ class AddendumFixtureTests(unittest.TestCase):
             self.assertTrue(any(x["obligation"] == "operational-record"
                                 and "did not exist at reviewed_commit" in x["detail"]
                                 for x in res["findings"]), res["findings"])
+        finally:
+            d.close()
+
+    def test_E15f_exact_source_and_artifact_bound_coverage_review_clears_unsupported(self):
+        """A review of real independent evidence clears only its exact unsupported subject."""
+        d = Deployable("class W { private DatabaseClient client; }\n")
+        try:
+            initial = d.run()
+            finding = [x for x in initial["findings"] if x["kind"] == gov.UNSUPPORTED][0]
+            evidence_hash = d.artifact(
+                "evidence/coverage.txt",
+                "Independent review traced every DatabaseClient path; no write reaches governed tables.\n")
+            reviewed = d.commit("record coverage proof")
+            source_blob = run_git(d.repo, "rev-parse", reviewed + ":" + finding["path"]).strip()
+            review = {
+                "path": finding["path"], "subject_id": finding["subject_id"],
+                "obligation": finding["obligation"], "status": gov.ACCEPTED,
+                "reviewer": "independent-reviewer", "reviewed_commit": reviewed,
+                "environment_identity": "prod-db-1",
+                "source_blob": source_blob,
+                "evidence_artifact": {"path": "evidence/coverage.txt", "sha256": evidence_hash},
+                "conclusion": gov.UNRELATED,
+            }
+            clean = d.run(d.policy(
+                reviewed, unverified_coverage_reviews=[review],
+                operational_target_environment="prod-db-1"), cut=reviewed)
+            self.assertFalse(any(x["path"] == finding["path"]
+                                 and x["subject_id"] == finding["subject_id"]
+                                 and x["obligation"] == finding["obligation"]
+                                 for x in clean["findings"]), clean["findings"])
+            self.assertEqual(clean["unverified_coverage"], [])
+            self.assertEqual(clean["source_governance_status"], gov.PASS)
+        finally:
+            d.close()
+
+    def test_E15g_coverage_review_with_stale_source_blob_fails_closed(self):
+        d = Deployable("class W { private DatabaseClient client; }\n")
+        try:
+            finding = [x for x in d.run()["findings"] if x["kind"] == gov.UNSUPPORTED][0]
+            evidence_hash = d.artifact("evidence/coverage.txt", "independent trace\n")
+            reviewed = d.commit("record coverage proof")
+            review = {
+                "path": finding["path"], "subject_id": finding["subject_id"],
+                "obligation": finding["obligation"], "status": gov.ACCEPTED,
+                "reviewer": "independent-reviewer", "reviewed_commit": reviewed,
+                "environment_identity": "prod-db-1",
+                "source_blob": "0" * 40,
+                "evidence_artifact": {"path": "evidence/coverage.txt", "sha256": evidence_hash},
+                "conclusion": gov.UNRELATED,
+            }
+            result = d.run(d.policy(
+                reviewed, unverified_coverage_reviews=[review],
+                operational_target_environment="prod-db-1"), cut=reviewed)
+            self.assertTrue(any(x["kind"] == gov.UNSUPPORTED and x["path"] == finding["path"]
+                                for x in result["findings"]), result["findings"])
+            invalid = [x for x in result["findings"] if x["obligation"] == "coverage-review"]
+            self.assertEqual(len(invalid), 1, result["findings"])
+            self.assertIn("source_blob", invalid[0]["detail"])
+        finally:
+            d.close()
+
+    def test_E15h_duplicate_coverage_reviews_fail_closed(self):
+        d = Deployable("class W { private DatabaseClient client; }\n")
+        try:
+            finding = [x for x in d.run()["findings"] if x["kind"] == gov.UNSUPPORTED][0]
+            evidence_hash = d.artifact("evidence/coverage.txt", "independent trace\n")
+            reviewed = d.commit("record coverage proof")
+            review = {
+                "path": finding["path"], "subject_id": finding["subject_id"],
+                "obligation": finding["obligation"], "status": gov.ACCEPTED,
+                "reviewer": "independent-reviewer", "reviewed_commit": reviewed,
+                "environment_identity": "prod-db-1",
+                "source_blob": run_git(d.repo, "rev-parse", reviewed + ":" + finding["path"]).strip(),
+                "evidence_artifact": {"path": "evidence/coverage.txt", "sha256": evidence_hash},
+                "conclusion": gov.UNRELATED,
+            }
+            result = d.run(d.policy(
+                reviewed, unverified_coverage_reviews=[review, dict(review)],
+                operational_target_environment="prod-db-1"), cut=reviewed)
+            self.assertTrue(any(x["kind"] == gov.UNSUPPORTED and x["path"] == finding["path"]
+                                for x in result["findings"]), result["findings"])
+            self.assertTrue(any("duplicate" in x["detail"]
+                                for x in result["findings"]
+                                if x["obligation"] == "coverage-review"), result["findings"])
+        finally:
+            d.close()
+
+    def test_E15i_coverage_review_artifact_hash_mismatch_fails_closed(self):
+        d = Deployable("class W { private DatabaseClient client; }\n")
+        try:
+            finding = [x for x in d.run()["findings"] if x["kind"] == gov.UNSUPPORTED][0]
+            d.artifact("evidence/coverage.txt", "independent trace\n")
+            reviewed = d.commit("record coverage proof")
+            review = {
+                "path": finding["path"], "subject_id": finding["subject_id"],
+                "obligation": finding["obligation"], "status": gov.ACCEPTED,
+                "reviewer": "independent-reviewer", "reviewed_commit": reviewed,
+                "environment_identity": "prod-db-1",
+                "source_blob": run_git(d.repo, "rev-parse", reviewed + ":" + finding["path"]).strip(),
+                "evidence_artifact": {"path": "evidence/coverage.txt", "sha256": "sha256:" + "0" * 64},
+                "conclusion": gov.UNRELATED,
+            }
+            result = d.run(d.policy(
+                reviewed, unverified_coverage_reviews=[review],
+                operational_target_environment="prod-db-1"), cut=reviewed)
+            self.assertTrue(any(x["kind"] == gov.UNSUPPORTED and x["path"] == finding["path"]
+                                for x in result["findings"]), result["findings"])
+            self.assertTrue(any("bytes do not match" in x["detail"]
+                                for x in result["findings"]
+                                if x["obligation"] == "coverage-review"), result["findings"])
+        finally:
+            d.close()
+
+    def test_E15j_coverage_review_for_wrong_environment_fails_closed(self):
+        d = Deployable("class W { private DatabaseClient client; }\n")
+        try:
+            finding = [x for x in d.run()["findings"] if x["kind"] == gov.UNSUPPORTED][0]
+            evidence_hash = d.artifact("evidence/coverage.txt", "independent trace\n")
+            reviewed = d.commit("record coverage proof")
+            review = {
+                "path": finding["path"], "subject_id": finding["subject_id"],
+                "obligation": finding["obligation"], "status": gov.ACCEPTED,
+                "reviewer": "independent-reviewer", "reviewed_commit": reviewed,
+                "environment_identity": "other-db",
+                "source_blob": run_git(d.repo, "rev-parse", reviewed + ":" + finding["path"]).strip(),
+                "evidence_artifact": {"path": "evidence/coverage.txt", "sha256": evidence_hash},
+                "conclusion": gov.UNRELATED,
+            }
+            result = d.run(d.policy(
+                reviewed, unverified_coverage_reviews=[review],
+                operational_target_environment="prod-db-1"), cut=reviewed)
+            self.assertTrue(any(x["kind"] == gov.UNSUPPORTED and x["path"] == finding["path"]
+                                for x in result["findings"]), result["findings"])
+            self.assertTrue(any("environment" in x["detail"]
+                                for x in result["findings"]
+                                if x["obligation"] == "coverage-review"), result["findings"])
+        finally:
+            d.close()
+
+    def test_E15k_coverage_review_missing_required_identity_fails_closed(self):
+        d = Deployable("class W { private DatabaseClient client; }\n")
+        try:
+            finding = [x for x in d.run()["findings"] if x["kind"] == gov.UNSUPPORTED][0]
+            evidence_hash = d.artifact("evidence/coverage.txt", "independent trace\n")
+            reviewed = d.commit("record coverage proof")
+            review = {
+                "path": finding["path"], "subject_id": finding["subject_id"],
+                "obligation": finding["obligation"], "status": gov.ACCEPTED,
+                "reviewer": "independent-reviewer", "reviewed_commit": reviewed,
+                "source_blob": run_git(d.repo, "rev-parse", reviewed + ":" + finding["path"]).strip(),
+                "evidence_artifact": {"path": "evidence/coverage.txt", "sha256": evidence_hash},
+                "conclusion": gov.UNRELATED,
+            }
+            result = d.run(d.policy(
+                reviewed, unverified_coverage_reviews=[review],
+                operational_target_environment="prod-db-1"), cut=reviewed)
+            self.assertTrue(any(x["kind"] == gov.UNSUPPORTED and x["path"] == finding["path"]
+                                for x in result["findings"]), result["findings"])
+            self.assertTrue(any("missing environment_identity" in x["detail"]
+                                for x in result["findings"]
+                                if x["obligation"] == "coverage-review"), result["findings"])
+        finally:
+            d.close()
+
+    def test_E15l_coverage_review_carries_to_a_later_cut_only_when_source_is_unchanged(self):
+        d = Deployable("class W { private DatabaseClient client; }\n")
+        try:
+            finding = [x for x in d.run()["findings"] if x["kind"] == gov.UNSUPPORTED][0]
+            evidence_hash = d.artifact("evidence/coverage.txt", "independent trace\n")
+            reviewed = d.commit("record coverage proof")
+            review = {
+                "path": finding["path"], "subject_id": finding["subject_id"],
+                "obligation": finding["obligation"], "status": gov.ACCEPTED,
+                "reviewer": "independent-reviewer", "reviewed_commit": reviewed,
+                "environment_identity": "prod-db-1",
+                "source_blob": run_git(d.repo, "rev-parse", reviewed + ":" + finding["path"]).strip(),
+                "evidence_artifact": {"path": "evidence/coverage.txt", "sha256": evidence_hash},
+                "conclusion": gov.UNRELATED,
+            }
+            d.write("common/src/main/java/Util.java", "class Util { int reviewedPolicyRevision; }\n")
+            later_cut = d.commit("commit policy-side change without changing reviewed source")
+            clean = d.run(d.policy(
+                later_cut, unverified_coverage_reviews=[review],
+                operational_target_environment="prod-db-1"), cut=later_cut)
+            self.assertFalse(any(x["path"] == finding["path"]
+                                 and x["subject_id"] == finding["subject_id"]
+                                 for x in clean["findings"]), clean["findings"])
         finally:
             d.close()
 
