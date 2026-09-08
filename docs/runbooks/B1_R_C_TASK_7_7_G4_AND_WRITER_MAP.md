@@ -1,17 +1,20 @@
 # B1 R-C Task 7.7 — G4 Evidence Protocol and Writer Map
 
 > [!IMPORTANT]
-> ## OWNER APPROVAL REQUIRED BEFORE ANY FURTHER LIVE COLLECTION
+> ## OWNER APPROVAL RECORDED — LIVE ATTEMPT STOPPED FAIL-CLOSED
 >
-> **Blocked actions:** every production HTTP request beyond an ordinary read, signup, seed/reset,
-> legacy-route POST, Kafka produce, database mutation, workflow dispatch, deployment, configuration
-> or traffic change, and rollback. The owner approved this documentation design on 2026-09-08; that
-> approval authorizes this protocol and mapping to be written and reviewed, not executed. If later
-> live collection is declined, G4 and Task 7.7 remain open and Task 7.8 must not be presented.
+> The owner approved this design on 2026-09-08 and authorized its bounded execution on 2026-09-09.
+> Immutable runtime identity remained unverified for three mutable-tag revisions and the read-only
+> Kafka gate found `insight-group` absent, so the protocol stopped before every
+> write-bearing request. Group recovery/recreation, any consumer join or offset action, Kafka
+> produce, database mutation, workflow dispatch, deployment, configuration/traffic change,
+> rollback and Task 7.8 remain blocked pending a separate owner decision.
 
-**Status:** PROTOCOL DESIGNED AND INDEPENDENTLY ACCEPTED; EXECUTION NOT AUTHORIZED. The protocol has
-a zero-mutation budget and fails closed. The writer mapping closes the documentation comparison
-between the Task 7.6 candidate inventory and R-B3r source; it does not by itself establish G6.
+**Status:** PROTOCOL DESIGNED AND INDEPENDENTLY ACCEPTED; AUTHORIZED ATTEMPT STOPPED ON UNVERIFIED
+RUNTIME IDENTITY AND FAILED CONSUMER-STEADY-STATE PREDICATES. The protocol has a zero-mutation
+budget and failed closed. The
+writer mapping closes the documentation comparison between the Task 7.6 candidate inventory and
+R-B3r source; it does not by itself establish G6.
 
 **Serving cut:** `portfolio-service--0000095` /
 `wealthprodacr.azurecr.io/portfolio-service@sha256:fa060bf054b9c108b8b59d9e9b27845d6b707f40040a7dcba16411db7f0e8552`,
@@ -143,9 +146,10 @@ source/test blob, migration state or relevant database invariant changes. Any un
 can write, any Kafka production, any database DML/DDL, or any configuration/deployment action
 invalidates the zero-mutation claim. This protocol grants no rollback or cleanup authority.
 
-### 2.4 Current protocol evaluation
+### 2.4 Earlier pre-execution protocol evaluation
 
-The 2026-09-08 observations satisfy the portfolio digest/source join, code/test blob equality,
+This is the 2026-09-08 snapshot before the authorized execution in §2.5. Those observations satisfy
+the portfolio digest/source join, code/test blob equality,
 latest-observed catalog tuples, V21/repair state, relational invariants, refresh state and bounded
 marker checks. The retained catalog query uses `arg_max`, so it does not establish complete
 startup-line/replica coverage or `TupleCount = 1`. The observations also do **not** attest the
@@ -154,6 +158,26 @@ tags. Finally, no current all-partition lag-zero or bounded DLT non-growth evide
 application marker counts do not establish consumer steady state. These predicates require
 separately approved read-only recollection. Therefore this design does not change the current result:
 `G4=PARTIAL_CURRENT_OBSERVATIONS_GREEN` and Task 7.7 remains open.
+
+### 2.5 Authorized execution result
+
+The later owner authorization reached the read-only gates only. A fixed-window query covered all
+nine replicas observed for the exact three consumer revisions, with one startup line and one
+identical true/true catalog tuple per replica. DLT partition 0 did not grow (`80 → 80`) and
+`portfolio-group` was at `26602/26602`, lag zero. The same reviewed metadata-only command returned
+`GroupIdNotFoundException` for required group `insight-group`.
+
+Runtime identity also remains independently unverified for gateway, market-data and insight. The
+observed pull byte counts equal current OCI manifest/config/layer byte sums, but the tags are
+write-enabled and independent review rejected byte-length/timestamp equality as immutable content
+attestation. Only portfolio is configured by digest.
+
+The group absence fails predicate 8. It cannot be repaired inside this evidence protocol: starting or
+waking the consumer would join a group and could create/commit new offsets, while the predicate is
+about the pre-existing committed position. No signup, authenticated read, legacy-route POST, seed,
+database mutation or Kafka state change was attempted. G4 remains open and the downstream Task 7.7
+write-bearing proofs were correctly skipped. Sanitized evidence is in
+[`task-7-7-authorized-execution-20260908.json`](../evidence/b1-r-c/task-7-7-authorized-execution-20260908.json).
 
 ## 3. Task 7.6 candidate inventory → R-B3r serving map
 

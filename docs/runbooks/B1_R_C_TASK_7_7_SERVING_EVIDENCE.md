@@ -1,15 +1,17 @@
 # B1 R-C Task 7.7 — pre-deploy serving evidence
 
-> ## OWNER APPROVAL REQUIRED LATER — live collection remains separate
+> ## OWNER APPROVAL RECORDED — EXECUTION STOPPED AT THE READ-ONLY G4 GATE
 >
-> **Blocked actions:** one controlled signup plus authenticated portfolio read on each serving
-> gateway/portfolio digest, both retired legacy-route POST probes on each serving portfolio digest,
-> and one frozen-version seed with the complete before/after oracle. The approved G4 protocol is
-> zero-mutation, but its remaining runtime-identity/read-only collection is also not authorized by
-> the documentation approval. If the later bundle is declined or deferred, Task 7.7 remains open
-> and Task 7.8 must not be presented.
+> On 2026-09-09 the owner authorized the remaining Task 7.7 bundle. The read-only preconditions
+> left immutable runtime identity unverified for three mutable-tag revisions and found that Kafka
+> group `insight-group` is absent. The fail-closed protocol therefore stopped
+> before signup, authenticated read, either legacy-route POST, seed or final post-write G3.
+> Diagnosing or recreating the group, waking a consumer to join it, committing/resetting offsets,
+> deployment, configuration/traffic change, rollback and Task 7.8 remain blocked actions requiring
+> a separate owner decision. Task 7.8 must not be presented from this packet.
 
-**Status:** READ-ONLY COLLECTION COMPLETE; G4 PROTOCOL AND WRITER MAP INDEPENDENTLY ACCEPTED;
+**Status:** AUTHORIZED COMPLETION ATTEMPT STOPPED AT UNVERIFIED RUNTIME IDENTITY AND FAILED
+READ-ONLY G4 KAFKA PREDICATE;
 TASK 7.7 OPEN.
 Direct-revision G2a capability is observed, but the authenticated G2a predicate is not verified. G3
 is currently green but out of sequence; G4 is partially green; G2, G0a, G2a, G2b and derived G6
@@ -20,6 +22,8 @@ remain unverified. The approved protocol and serving-source map are in
 `7e752b4183aa25f75adad6e7b363501cd5f23aa5` (PR #238), which is the parent baseline of this
 docs-only evidence branch. **Machine-readable record:**
 [`task-7-7-serving-gates-20260908.json`](../evidence/b1-r-c/task-7-7-serving-gates-20260908.json).
+The later authorized attempt is recorded separately in
+[`task-7-7-authorized-execution-20260908.json`](../evidence/b1-r-c/task-7-7-authorized-execution-20260908.json).
 
 ## 1. Scope and stop boundary
 
@@ -110,7 +114,11 @@ tracked in [`v21-r3-operational-query.sql`](../evidence/b1-r3-decision1/v21-r3-o
 This provenance limit is another reason not to promote the partial observations into a complete
 Task 7.7 acceptance.
 
-## 5. Evidence oracle and current result
+## 5. Historical 2026-09-08 evidence oracle and pre-authorization result
+
+This table is the snapshot reviewed before the later authorization. Section 10 supersedes its
+authorization, startup-coverage, DLT and Kafka observations; the gates remain open for the current
+reasons recorded there.
 
 | Gate | Required Task 7.7 evidence | Reusable evidence | Result |
 |---|---|---|---|
@@ -139,7 +147,7 @@ addressable serving revision, with pre/post drift checks.
 Reuse requires exact source/artifact/configuration bindings and current invalidator checks. Historical
 checkboxes, mutable tags, `SERVICE_VERSION`, old G3 counts and old approvals are not current proof.
 
-## 7. Minimum completion bundle after separate authorization
+## 7. Historical minimum completion bundle — authorization later recorded; execution stopped in §10
 
 1. Run one controlled signup against every serving gateway digest, verify its one-user/one-
    portfolio provisioning transaction, and use its token for the authenticated G2a read.
@@ -157,7 +165,7 @@ checkboxes, mutable tags, `SERVICE_VERSION`, old G3 counts and old approvals are
 6. Recollect final G3 after all authorized writes, derive G6 and obtain independent whole-packet
    review. Any serving drift invalidates the affected observation and stops the bundle.
 
-## 8. Decision boundary
+## 8. Historical decision boundary — current result in §10
 
 Task 7.7 remains unchecked. Task 7.8 cannot be presented to the owner from this packet. The R-C
 candidate remains undeployed. Current serving state is bound and its read-only evidence is recorded,
@@ -176,3 +184,56 @@ before assignment. None was started here:
 - **Terra:** B2 Task 10.1 source-only CI/CD flag wiring with both repository variables remaining
   unset. Creating variables, enabling either flag, deploying or exposing production remains outside
   that development assignment.
+
+## 10. Authorized completion attempt — hard stop before writes
+
+The owner replied **“Authorized. Please complete the remaining work on task 7.7.”** on 2026-09-09.
+That authorization covered the remaining read-only predicates and, only after they were green, the
+minimum signup/read, legacy-route and one-seed proof bundle. It did not authorize repair,
+configuration, deployment, traffic, rollback, Task 7.8 or production exposure.
+
+Pre- and post-collection control-plane reads matched: every app remained in `Single` mode with the
+same sole active 100%-traffic revision recorded above. Exact-revision system logs and OCI metadata
+provided corroborative pull-reference and byte-count observations only. Every observed pull used
+the configured reference and an exact byte count equal to raw manifest + config + layer
+bytes for the corresponding immutable ACR digest: gateway `291792374` → `79a3f253…`, market-data
+`301484607` → `ad61144b…`, and insight `366233644` → `f7db159d…`; portfolio remained configured
+directly as `fa060bf0…`. Each tag's ACR creation and last-update timestamps are identical and
+precede revision creation. The tags remain write-enabled, and independent review rejected this
+pull-size/timestamp join as immutable content attestation: equal byte length is not content identity.
+Runtime identity for gateway, market-data and insight therefore remains **UNVERIFIED**, independent
+of the Kafka failure. Only portfolio is configured by immutable digest.
+
+The fixed end-exclusive window at `2026-09-08T19:05:50.938Z` closed the startup-line gap. All nine
+replicas observed through `ImagePulled` were covered: five portfolio, two market-data and two
+insight replicas. Every replica had exactly one `catalog_loaded` line, `TupleCount=1`, and the sole
+tuple `a00b32ac0267e1a9|160|159|true|true`. The retained query uses no `arg_max`. Bounded marker
+results remained green; only the three previously classified insight client-disconnect warnings
+matched generic `Exception` text. Exact KQL is retained in
+[`task-7-7-authorized-execution-20260908.kql`](../evidence/b1-r-c/task-7-7-authorized-execution-20260908.kql).
+The nine per-replica result rows were summarized from the live transcript rather than retained as a
+sanitized local table; the checked-in query and aggregate are reproducible, but local review cannot
+independently replay each raw row from this packet alone.
+
+Kafka metadata established one partition for `market-prices` and one for `market-prices.DLT`.
+Across the bounded window `2026-09-08T19:10:02.3389923Z` through
+`2026-09-08T19:20:09.3690188Z`, DLT partition 0 stayed at end offset `80`, proving non-growth.
+`portfolio-group` partition 0 was green at committed/log-end `26602/26602`, lag `0`, with no active
+member. After initial coordinator timeouts, a bounded 120-second description of `insight-group`
+returned `GroupIdNotFoundException: Group insight-group not found`. This is a definitive failed
+predicate, not lag zero and not a waiver candidate.
+
+The protocol forbids joining a group, consuming payloads, committing/resetting offsets or producing
+a record. Waking or recreating `insight-group` would therefore manufacture new state rather than
+prove the required pre-existing consumer position. Execution stopped immediately. Signup attempts,
+authenticated reads, legacy-route POSTs, seeds, database mutations, Kafka payload reads/joins/
+commits/resets/produces, workflow dispatches, deployments, traffic/config changes and rollbacks all
+remain zero. Final G3 was not recollected because no latest-valid G2 was created and no authorized
+write was reached.
+
+Accordingly G4 is open on both unverified mutable-tag runtime identity and failed consumer steady
+state; G2, G0a, authenticated G2a, G2b and derived G6 remain open. Task 7.7 remains unchecked and
+Task 7.8 remains unavailable. Cryptographic runtime attestation (or immutable-digest replacement
+revisions) and recovery of the missing group each need a separate owner-reviewed design. Group
+recovery must not misrepresent recreated offsets as historical lag evidence. Only after both paths
+are accepted and executed may a fresh complete read-only precondition packet be collected.

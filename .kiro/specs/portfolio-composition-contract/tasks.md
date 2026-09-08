@@ -44,6 +44,18 @@ dispatch, deployment or traffic/configuration change occurred. The
 [evidence packet](../../../docs/runbooks/B1_R_C_TASK_7_7_SERVING_EVIDENCE.md) records the boundary.
 Task 7.7 remains open; Task 7.8 must not be presented.
 
+**Task 7.7 authorized completion attempt — 2026-09-09:** the owner authorized the remaining
+read-only predicates and conditional write-bearing bundle. Complete startup coverage passed for all
+nine observed consumer replicas, and `market-prices.DLT` did not grow (`80 → 80`). Kafka metadata
+showed `portfolio-group` at committed/log-end `26602/26602`, lag `0`, but returned
+`GroupIdNotFoundException` for required `insight-group`. The fail-closed protocol stopped before any
+signup, authenticated read, legacy-route POST, seed or final G3. No database/Kafka/configuration/
+deployment state was changed. Independently, equal pull-byte counts for the three write-enabled tags
+were rejected as immutable content attestation, so those runtime identities remain unverified. Task
+7.7 therefore remains open on both predicates and Task 7.8 remains unavailable.
+Evidence:
+[`task-7-7-authorized-execution-20260908.json`](../../../docs/evidence/b1-r-c/task-7-7-authorized-execution-20260908.json).
+
 **OWNER APPROVAL RECORDED — R-C preparation kickoff docs, 2026-09-03:** The owner requested
 Claude's kickoff and a docs-only PR; publication of that package is authorized, merge is separate.
 The [kickoff](../../../docs/agent-instructions/CLAUDE_KICKOFF_B1_R_C_CANDIDATE_PREPARATION.md)
@@ -1284,6 +1296,11 @@ frozen R-B3 image; Tasks 7.7 onward, deployment and exposure retain their own ga
   Evidence:
   [`docs/runbooks/B1_R_C_TASK_7_7_SERVING_EVIDENCE.md`](../../../docs/runbooks/B1_R_C_TASK_7_7_SERVING_EVIDENCE.md),
   [`docs/runbooks/B1_R_C_TASK_7_7_G4_AND_WRITER_MAP.md`](../../../docs/runbooks/B1_R_C_TASK_7_7_G4_AND_WRITER_MAP.md).
+  **Authorized attempt 2026-09-09:** all-startup-line/replica coverage and DLT non-growth passed;
+  `portfolio-group` lag was zero, but three mutable-tag runtime identities remain unverified and
+  `insight-group` was absent from broker metadata. These independent G4 failures stopped the bundle
+  before every write-bearing proof. No completion box changes. Evidence:
+  [`task-7-7-authorized-execution-20260908.json`](../../../docs/evidence/b1-r-c/task-7-7-authorized-execution-20260908.json).
   _Requirements: 9.1, 9.2, 9.7, 1.14_
 - [ ] **7.8 STOP/GO — R-C pre-deploy.**
   **Go:** 7.4–7.7 green. A prohibited rollback is a policy, not evidence.
