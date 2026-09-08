@@ -2564,14 +2564,18 @@ class PostConsolidationEvidenceTests(unittest.TestCase):
         for bad in ("invented-jar", "sha256:" + "a" * 63, "SHA256:" + hexd, None, 12, ""):
             self.assertIsNone(ev.normalize_sha256_digest(bad), bad)
 
-    @unittest.skipUnless(REAL_A.is_file() and REAL_B.is_file(), "preserved real Task A/B bundles absent")
-    def test_preserved_real_bundles_parse_under_local_preparation_but_not_candidate(self):
-        a = json.loads(self.REAL_A.read_text(encoding="utf-8"))
-        b = json.loads(self.REAL_B.read_text(encoding="utf-8"))
+    def test_preserved_local_dev_bundles_parse_under_local_preparation_but_not_candidate(self):
+        # A deterministic preserved producer bundle: this regression must not change meaning when a
+        # developer happens to create a new CANDIDATE bundle in the live .candidate-artifacts dir.
+        cut, base = "1" * 40, "2" * 40
+        jar_path = Path("preserved-local-dev") / "portfolio-service.jar"
+        jar_sha = "a" * 64
+        a = producer_shaped_task_a(cut, base, "LOCAL_DEV", jar_path, jar_sha)
+        b = producer_shaped_task_b(cut, jar_path, jar_sha, "sha256:" + "b" * 64,
+                                   "linux/amd64")
         cut, base = a["run"]["head_sha"], a["run"]["b1_base_sha"]
         self.assertEqual(gov.task_a_schema_problems(a, cut, base, gov.LOCAL_PREPARATION), [])
         self.assertEqual(gov.task_b_schema_problems(b, cut, gov.LOCAL_PREPARATION, False), [])
-        # The real Task A run was LOCAL_DEV (dirty tree): never eligible as CANDIDATE input.
         cand = gov.task_a_schema_problems(a, cut, base, gov.CANDIDATE)
         self.assertTrue(any("mode" in p for p in cand), cand)
 
