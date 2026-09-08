@@ -1769,6 +1769,76 @@ class AddendumFixtureTests(unittest.TestCase):
         finally:
             d.close()
 
+    def test_operational_record_from_existing_non_ancestor_commit_fails_closed(self):
+        """A real sibling commit cannot certify the candidate even when every byte binding matches."""
+        d = Deployable(None, extra={"svc/src/main/resources/db/migration/V2__repair.sql":
+                                    "CREATE FUNCTION repair_holdings() RETURNS void AS $$ "
+                                    "BEGIN DELETE FROM asset_holdings; END; $$ LANGUAGE plpgsql;\n"})
+        try:
+            finding = [x for x in d.run()["findings"] if x["subject_id"].startswith("sql:")][0]
+            q_hash = d.artifact("evidence/query.sql", "SELECT 1;\n")
+            r_hash = d.artifact("evidence/result.json", '{"absent": true}\n')
+            common = d.commit("record common operational inputs")
+
+            run_git(d.repo, "switch", "-q", "-c", "independent-review", common)
+            d.write("review-note.txt", "review branch only\n")
+            divergent = d.commit("record review on sibling branch")
+
+            run_git(d.repo, "switch", "-q", "-c", "candidate-cut", common)
+            d.write("candidate-note.txt", "candidate branch only\n")
+            cut = d.commit("freeze candidate cut")
+
+            record = {"subject_ref": {"path": finding["path"], "subject_id": finding["subject_id"]},
+                      "environment_identity": "prod-db-1",
+                      "query_artifact": {"path": "evidence/query.sql", "sha256": q_hash},
+                      "result_artifact": {"path": "evidence/result.json", "sha256": r_hash},
+                      "operator": "owner", "recorded_at": "2026-09-08",
+                      "reviewed_commit": divergent,
+                      "migration_subset_digest": d.envelope(cut)["migration_subset_digest"]}
+            result = d.run(d.policy(
+                cut, operational_records=[record], operational_target_environment="prod-db-1"),
+                cut=cut)
+
+            invalid = [x for x in result["findings"] if x["obligation"] == "operational-record"]
+            self.assertEqual(len(invalid), 1, result["findings"])
+            self.assertIn("not an ancestor of the cut", invalid[0]["detail"])
+            self.assertEqual(result["source_governance_status"], gov.BLOCKED)
+        finally:
+            d.close()
+
+    def test_operational_record_from_later_commit_fails_closed(self):
+        """A descendant of the selected cut is future evidence and cannot certify that earlier cut."""
+        d = Deployable(None, extra={"svc/src/main/resources/db/migration/V2__repair.sql":
+                                    "CREATE FUNCTION repair_holdings() RETURNS void AS $$ "
+                                    "BEGIN DELETE FROM asset_holdings; END; $$ LANGUAGE plpgsql;\n"})
+        try:
+            finding = [x for x in d.run()["findings"] if x["subject_id"].startswith("sql:")][0]
+            q_hash = d.artifact("evidence/query.sql", "SELECT 1;\n")
+            r_hash = d.artifact("evidence/result.json", '{"absent": true}\n')
+            cut = d.commit("freeze candidate cut with operational inputs")
+            d.write("future-review-note.txt", "recorded after the candidate cut\n")
+            later = d.commit("record future review")
+            run_git(d.repo, "switch", "-q", "--detach", cut)
+            d.head = cut
+
+            record = {"subject_ref": {"path": finding["path"], "subject_id": finding["subject_id"]},
+                      "environment_identity": "prod-db-1",
+                      "query_artifact": {"path": "evidence/query.sql", "sha256": q_hash},
+                      "result_artifact": {"path": "evidence/result.json", "sha256": r_hash},
+                      "operator": "owner", "recorded_at": "2026-09-08",
+                      "reviewed_commit": later,
+                      "migration_subset_digest": d.envelope(cut)["migration_subset_digest"]}
+            result = d.run(d.policy(
+                cut, operational_records=[record], operational_target_environment="prod-db-1"),
+                cut=cut)
+
+            invalid = [x for x in result["findings"] if x["obligation"] == "operational-record"]
+            self.assertEqual(len(invalid), 1, result["findings"])
+            self.assertIn("not an ancestor of the cut", invalid[0]["detail"])
+            self.assertEqual(result["source_governance_status"], gov.BLOCKED)
+        finally:
+            d.close()
+
     def test_E15f_exact_source_and_artifact_bound_coverage_review_clears_unsupported(self):
         """A review of real independent evidence clears only its exact unsupported subject."""
         d = Deployable("class W { private DatabaseClient client; }\n")
@@ -1953,6 +2023,98 @@ class AddendumFixtureTests(unittest.TestCase):
             self.assertFalse(any(x["path"] == finding["path"]
                                  and x["subject_id"] == finding["subject_id"]
                                  for x in clean["findings"]), clean["findings"])
+        finally:
+            d.close()
+
+    def test_coverage_review_from_existing_non_ancestor_commit_fails_closed(self):
+        d = Deployable("class W { private DatabaseClient client; }\n")
+        try:
+            finding = [x for x in d.run()["findings"] if x["kind"] == gov.UNSUPPORTED][0]
+            evidence_hash = d.artifact("evidence/coverage.txt", "independent trace\n")
+            common = d.commit("record common coverage inputs")
+
+            run_git(d.repo, "switch", "-q", "-c", "independent-review", common)
+            d.write("review-note.txt", "review branch only\n")
+            divergent = d.commit("record review on sibling branch")
+
+            run_git(d.repo, "switch", "-q", "-c", "candidate-cut", common)
+            d.write("candidate-note.txt", "candidate branch only\n")
+            cut = d.commit("freeze candidate cut")
+            source_blob = run_git(d.repo, "rev-parse", cut + ":" + finding["path"]).strip()
+            review = {
+                "path": finding["path"], "subject_id": finding["subject_id"],
+                "obligation": finding["obligation"], "status": gov.ACCEPTED,
+                "reviewer": "independent-reviewer", "reviewed_commit": divergent,
+                "environment_identity": "prod-db-1", "source_blob": source_blob,
+                "evidence_artifact": {"path": "evidence/coverage.txt", "sha256": evidence_hash},
+                "conclusion": gov.UNRELATED,
+            }
+            result = d.run(d.policy(
+                cut, unverified_coverage_reviews=[review],
+                operational_target_environment="prod-db-1"), cut=cut)
+
+            self.assertTrue(any(x["kind"] == gov.UNSUPPORTED for x in result["findings"]),
+                            result["findings"])
+            invalid = [x for x in result["findings"] if x["obligation"] == "coverage-review"]
+            self.assertEqual(len(invalid), 1, result["findings"])
+            self.assertIn("not an ancestor of the cut", invalid[0]["detail"])
+        finally:
+            d.close()
+
+    def test_coverage_review_for_wrong_subject_fails_closed(self):
+        d = Deployable("class W { private DatabaseClient client; }\n")
+        try:
+            finding = [x for x in d.run()["findings"] if x["kind"] == gov.UNSUPPORTED][0]
+            evidence_hash = d.artifact("evidence/coverage.txt", "independent trace\n")
+            reviewed = d.commit("record coverage proof")
+            review = {
+                "path": finding["path"], "subject_id": "file:wrong-subject",
+                "obligation": finding["obligation"], "status": gov.ACCEPTED,
+                "reviewer": "independent-reviewer", "reviewed_commit": reviewed,
+                "environment_identity": "prod-db-1",
+                "source_blob": run_git(
+                    d.repo, "rev-parse", reviewed + ":" + finding["path"]).strip(),
+                "evidence_artifact": {"path": "evidence/coverage.txt", "sha256": evidence_hash},
+                "conclusion": gov.UNRELATED,
+            }
+            result = d.run(d.policy(
+                reviewed, unverified_coverage_reviews=[review],
+                operational_target_environment="prod-db-1"), cut=reviewed)
+
+            self.assertTrue(any(x["kind"] == gov.UNSUPPORTED for x in result["findings"]),
+                            result["findings"])
+            orphan = [x for x in result["findings"] if x["obligation"] == "coverage-review"]
+            self.assertEqual(len(orphan), 1, result["findings"])
+            self.assertEqual(orphan[0]["kind"], gov.MISSING_SUBJECT)
+        finally:
+            d.close()
+
+    def test_coverage_review_for_wrong_obligation_fails_closed(self):
+        d = Deployable("class W { private DatabaseClient client; }\n")
+        try:
+            finding = [x for x in d.run()["findings"] if x["kind"] == gov.UNSUPPORTED][0]
+            self.assertEqual(finding["obligation"], "persistence-usage")
+            evidence_hash = d.artifact("evidence/coverage.txt", "independent trace\n")
+            reviewed = d.commit("record coverage proof")
+            review = {
+                "path": finding["path"], "subject_id": finding["subject_id"],
+                "obligation": "writer-coverage", "status": gov.ACCEPTED,
+                "reviewer": "independent-reviewer", "reviewed_commit": reviewed,
+                "environment_identity": "prod-db-1",
+                "source_blob": run_git(
+                    d.repo, "rev-parse", reviewed + ":" + finding["path"]).strip(),
+                "evidence_artifact": {"path": "evidence/coverage.txt", "sha256": evidence_hash},
+                "conclusion": gov.UNRELATED,
+            }
+            result = d.run(d.policy(
+                reviewed, unverified_coverage_reviews=[review],
+                operational_target_environment="prod-db-1"), cut=reviewed)
+
+            self.assertTrue(any(x["kind"] == gov.UNSUPPORTED for x in result["findings"]),
+                            result["findings"])
+            orphan = [x for x in result["findings"] if x["obligation"] == "coverage-review"]
+            self.assertEqual(len(orphan), 1, result["findings"])
+            self.assertEqual(orphan[0]["kind"], gov.MISSING_SUBJECT)
         finally:
             d.close()
 

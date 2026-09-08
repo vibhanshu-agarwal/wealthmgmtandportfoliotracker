@@ -3957,6 +3957,8 @@ def validate_operational_record(rec: dict, repo: Path | None, cut_sha: str,
         reviewed_commit = rec.get("reviewed_commit")
         if not commit_exists(repo, reviewed_commit):
             return "operational record reviewed_commit does not exist in this repository"
+        if not is_ancestor(repo, reviewed_commit, cut_sha):
+            return "operational record reviewed_commit is not an ancestor of the cut"
         if history is not None:
             ref = rec["subject_ref"]
             key = ref["path"] + "|" + ref["subject_id"]
