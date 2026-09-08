@@ -3798,12 +3798,12 @@
         "path": "scripts/tests/test_check_b1_candidate_source.py",
         "obligation": "content-governance",
         "status": "ACCEPTED_REVIEWED",
-        "reviewer": "Codex Task 6 independent source review",
-        "reviewed_commit": "f87fdc16fa0de254445343cc5da5badd97134107",
+        "reviewer": "Codex Task 7a independent code review",
+        "reviewed_commit": "f6b6063b49fda9269473c383215a18ee6563da6d",
         "reviewed_at": "2026-09-08",
         "change_kind": "A",
         "src_blob": "0000000000000000000000000000000000000000",
-        "dst_blob": "3e4d4168ff8107fe6d2696154a90cfd8f1559030",
+        "dst_blob": "a3b3090803f073df3b85c9012e5884d0142095d2",
         "symbols": [
           "/api/presence/demo",
           "DemoPresenceService"
@@ -3811,7 +3811,7 @@
         "non_goals": [
           "10.2"
         ],
-        "rationale": "Forbidden-symbol text is analyzer/test fixture material used to prove non-goal enforcement; the exact blob is non-runtime governance tooling."
+        "rationale": "Exact Task 7a reviewed forbidden-symbol test-fixture material used to prove non-goal enforcement; the exact blob is non-runtime governance tooling."
       },
       {
         "path": "scripts/verify_b1_candidate_image.py",
