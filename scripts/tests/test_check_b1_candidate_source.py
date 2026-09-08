@@ -4553,6 +4553,35 @@ class RepositoryArtifactIdentityTests(unittest.TestCase):
         self.artifact["path"] = "evidence"
         self.assert_both_reject("tracked blob at the exact cut")
 
+    def test_executable_regular_artifact_at_cut_is_accepted(self):
+        run_git(self.d.repo, "update-index", "--chmod=+x", self.rel)
+        run_git(self.d.repo, "commit", "-q", "-m", "record executable regular evidence")
+        self.cut = run_git(self.d.repo, "rev-parse", "HEAD").strip()
+        self.assertTrue(run_git(self.d.repo, "ls-tree", self.cut, "--", self.rel).startswith("100755 blob "))
+        self.assertIsNone(self.operational_problem())
+        result = self.coverage_result()
+        self.assertEqual(result["source_governance_status"], gov.PASS, result["findings"])
+
+    def test_symlink_at_cut_rejected_when_checkout_materializes_a_regular_file(self):
+        run_git(self.d.repo, "config", "core.symlinks", "false")
+        link_target = b"coverage-target.txt"
+        artifact_path = self.d.repo / self.rel
+        artifact_path.write_bytes(link_target)
+        blob = run_git(self.d.repo, "hash-object", "-w", "--no-filters", str(artifact_path)).strip()
+        # Index construction avoids requiring native symlink privileges on Windows.
+        run_git(self.d.repo, "update-index", "--cacheinfo", "120000," + blob + "," + self.rel)
+        run_git(self.d.repo, "commit", "-q", "-m", "record a symlink artifact")
+        self.cut = run_git(self.d.repo, "rev-parse", "HEAD").strip()
+        artifact_path.unlink()
+        run_git(self.d.repo, "checkout", "--", self.rel)
+        self.assertTrue(artifact_path.is_file())
+        self.assertFalse(artifact_path.is_symlink())
+        self.assertEqual(artifact_path.read_bytes(), link_target)
+        self.assertTrue(run_git(self.d.repo, "ls-tree", self.cut, "--", self.rel).startswith("120000 blob "))
+        self.artifact["sha256"] = "sha256:" + hashlib.sha256(link_target).hexdigest()
+        self.record["result_artifact"] = dict(self.artifact)
+        self.assert_both_reject("regular tracked file at the exact cut")
+
     def test_malformed_hash_rejected(self):
         self.artifact["sha256"] = "sha256:not-a-digest"
         self.assert_both_reject("sha256 is malformed")

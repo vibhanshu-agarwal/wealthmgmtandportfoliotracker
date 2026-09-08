@@ -3971,6 +3971,13 @@ def validate_repository_artifact(artifact, repo: Path | None, cut_sha: str,
         blob = _blob_at(root, cut_sha, rel_path)
         if blob is None or _git_bytes(root, "cat-file", "-t", blob).strip() != b"blob":
             return label + " path does not resolve to a tracked blob at the exact cut"
+        # Symlinks are blobs too; core.symlinks=false materializes them as ordinary files.
+        # Require the exact tree entry (literal, NUL-delimited path) to be a regular file.
+        entry = _git_bytes(root, "--literal-pathspecs", "ls-tree", "-z", cut_sha, "--", rel_path)
+        if entry not in (
+                f"100644 blob {blob}\t{rel_path}\0".encode("utf-8"),
+                f"100755 blob {blob}\t{rel_path}\0".encode("utf-8")):
+            return label + " path is not a regular tracked file at the exact cut"
         if worktree_object_id(root, rel_path, worktree_path.read_bytes()) != blob:
             return label + " worktree bytes differ from the blob at the exact cut"
         canonical = _git_bytes(root, "cat-file", "blob", blob)
