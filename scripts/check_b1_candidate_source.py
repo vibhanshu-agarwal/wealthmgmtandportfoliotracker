@@ -3186,13 +3186,58 @@ def writer_inventory(tree: dict[str, str], reader: BlobReader, policy: dict,
                 "mapped_collections": len(analysis.mapped),
                 "persistent_sql_functions": sorted(analysis.mutating_functions)}
 
+    coverage_reviews: dict[str, list[dict]] = {}
+    for index, review in enumerate(policy.get("unverified_coverage_reviews", [])):
+        if (not isinstance(review, dict) or not isinstance(review.get("path"), str)
+                or not isinstance(review.get("subject_id"), str)
+                or not isinstance(review.get("obligation"), str)):
+            findings.append(Finding(
+                "scripts/b1-candidate-policy.json", "coverage-review:" + str(index),
+                "coverage-review", UNRESOLVED,
+                "coverage review must name an exact path, subject_id, and obligation"))
+            continue
+        key = review["path"] + "|" + review["subject_id"] + "|" + review["obligation"]
+        coverage_reviews.setdefault(key, []).append(review)
+    matched_coverage_reviews: set[str] = set()
+
+    def append_unsupported(finding: Finding) -> None:
+        """Clear one UNSUPPORTED subject only through one exact, independently evidenced review.
+
+        The original finding remains authoritative whenever the review is absent or invalid. An
+        invalid review adds a separate coverage-review finding so the precise fail-closed reason is
+        visible without erasing the analyzer's underlying coverage boundary.
+        """
+        key = finding.path + "|" + finding.subject_id + "|" + finding.obligation
+        reviews = coverage_reviews.get(key)
+        if reviews is None:
+            findings.append(finding)
+            return
+        matched_coverage_reviews.add(key)
+        valid = len(reviews) == 1
+        for review in reviews:
+            problems: list[str] = []
+            if len(reviews) > 1:
+                problems.append("duplicate coverage reviews declare the same subject " + key)
+            problem = validate_independent_coverage_review(
+                review, finding, repo, cut_sha, tree.get(finding.path),
+                policy.get("operational_target_environment"))
+            if problem:
+                problems.append(problem)
+            if problems:
+                valid = False
+                findings.append(Finding(
+                    finding.path, finding.subject_id, "coverage-review", UNRESOLVED,
+                    "; ".join(problems), {"reviewed_obligation": finding.obligation}))
+        if not valid:
+            findings.append(finding)
+
     def validate(record, obligation, subject_id, spath, fp):
         return validate_claim_record(record, obligation, subject_id, spath, fp, repo, cut_sha,
                                      envelopes, records_by_id, history)
 
     for path, problem in sorted(analysis.lex_failures.items()):
-        findings.append(Finding(path, "file:", "writer-inventory", UNSUPPORTED,
-                                "lexer rejected this file: " + problem))
+        append_unsupported(Finding(path, "file:", "writer-inventory", UNSUPPORTED,
+                                   "lexer rejected this file: " + problem))
 
     roots_union: list[str] = []
     for env in envelopes.values():
@@ -3229,7 +3274,7 @@ def writer_inventory(tree: dict[str, str], reader: BlobReader, policy: dict,
         for f in persistence_usage_findings(path, tokens, contexts, src_text, resolved_receivers,
                                             types, analysis.store_by_type):
             seen.add(f.path + "|" + f.subject_id + "|persistence-usage")
-            findings.append(f)
+            append_unsupported(f)
 
         for f in entity_setter_subjects(path, tokens, contexts, analysis.entity_index):
             key = f.path + "|" + f.subject_id
@@ -3256,8 +3301,8 @@ def writer_inventory(tree: dict[str, str], reader: BlobReader, policy: dict,
 
             if op.coverage == UNSUPPORTED:
                 coverage["operations_unsupported"] += 1
-                findings.append(Finding(path, op.subject_id, "writer-coverage", UNSUPPORTED,
-                                        op.coverage_reason, {"line_hint": op.line_hint}))
+                append_unsupported(Finding(path, op.subject_id, "writer-coverage", UNSUPPORTED,
+                                           op.coverage_reason, {"line_hint": op.line_hint}))
                 continue
 
             # Effect resolution: an UNRESOLVED op can be reclassified ONLY through the full validation
@@ -3335,7 +3380,7 @@ def writer_inventory(tree: dict[str, str], reader: BlobReader, policy: dict,
             continue
         for f in script_dml_subjects(path, src):
             seen.add(f.path + "|" + f.subject_id)
-            findings.append(f)
+            append_unsupported(f)
 
     # SQL subjects -- one validation path, plus operational records for immutable persistent objects.
     # Keep every declaration: collapsing this list into a dict would let a later duplicate silently
@@ -3396,12 +3441,13 @@ def writer_inventory(tree: dict[str, str], reader: BlobReader, policy: dict,
             records = op_records.get(key)
             if records is not None:
                 if validate_declared_records(key, records, owning):
-                    rec = records[0]
-                    unverified.append({"path": f.path, "subject_id": f.subject_id,
-                                       "basis": "operational_record", "operator": rec["operator"]})
+                    # A fully validated, exact-cut operational record is verified coverage. Its
+                    # operator remains visible in the policy/evidence itself; duplicating it in the
+                    # diagnostic residue would incorrectly keep source governance blocked.
+                    pass
                 continue
             if f.kind == UNSUPPORTED:
-                findings.append(f)
+                append_unsupported(f)
                 continue
             disp = dispositions.get(key)
             if disp is None:
@@ -3421,6 +3467,15 @@ def writer_inventory(tree: dict[str, str], reader: BlobReader, policy: dict,
         validate_declared_records(key, records, _owning_envelope_for(ref["path"], envelopes), False)
         findings.append(Finding(ref["path"], ref["subject_id"], "operational-record", MISSING_SUBJECT,
                                 "operational record names a SQL subject that does not exist at the cut"))
+
+    for key, reviews in sorted(coverage_reviews.items()):
+        if key in matched_coverage_reviews:
+            continue
+        review = reviews[0]
+        findings.append(Finding(
+            review["path"], review["subject_id"], "coverage-review", MISSING_SUBJECT,
+            "coverage review names an UNSUPPORTED subject that does not exist at the cut",
+            {"reviewed_obligation": review["obligation"]}))
 
     for key, disp in sorted(dispositions.items()):
         if key not in seen:
@@ -3902,6 +3957,8 @@ def validate_operational_record(rec: dict, repo: Path | None, cut_sha: str,
         reviewed_commit = rec.get("reviewed_commit")
         if not commit_exists(repo, reviewed_commit):
             return "operational record reviewed_commit does not exist in this repository"
+        if not is_ancestor(repo, reviewed_commit, cut_sha):
+            return "operational record reviewed_commit is not an ancestor of the cut"
         if history is not None:
             ref = rec["subject_ref"]
             key = ref["path"] + "|" + ref["subject_id"]
@@ -3923,6 +3980,76 @@ def validate_operational_record(rec: dict, repo: Path | None, cut_sha: str,
     if rec.get("migration_subset_digest") != expected:
         return ("migration subset changed since the operational record was taken; the recorded fact "
                 "no longer describes the migrations shipped in this deployable")
+    return None
+
+
+def validate_independent_coverage_review(review: dict, finding: Finding,
+                                         repo: Path | None, cut_sha: str,
+                                         current_source_blob: str | None,
+                                         target_environment) -> str | None:
+    """Validate the exceptional proof route for one otherwise UNSUPPORTED subject.
+
+    This deliberately does not reuse ordinary dispositions: an unsupported subject has no trusted
+    Tier-0 model/fingerprint for that route to validate. Instead, one independent review must bind
+    the exact cut, exact source blob, exact subject triple, exact target environment, and one local
+    evidence artifact by hash. Any ambiguity leaves the original UNSUPPORTED finding in place.
+    """
+    required = ("path", "subject_id", "obligation", "status", "reviewer",
+                "reviewed_commit", "environment_identity", "source_blob",
+                "evidence_artifact", "conclusion")
+    missing = [key for key in required if review.get(key) is None or review.get(key) == ""]
+    if missing:
+        return "coverage review is missing " + ", ".join(missing)
+    if (review.get("path"), review.get("subject_id"), review.get("obligation")) != (
+            finding.path, finding.subject_id, finding.obligation):
+        return "coverage review does not name this exact path, subject_id, and obligation"
+    if review.get("status") != ACCEPTED:
+        return "coverage review status is " + repr(review.get("status"))
+    if not isinstance(review.get("reviewer"), str) or not review["reviewer"].strip():
+        return "coverage review has no reviewer"
+    if review.get("conclusion") != UNRELATED:
+        return ("coverage review conclusion must be UNRELATED; a relevant unsupported mutation "
+                "cannot be cleared without analyzer support")
+    reviewed_commit = review.get("reviewed_commit")
+    if repo is not None:
+        if not commit_exists(repo, reviewed_commit):
+            return "coverage review reviewed_commit does not exist in this repository"
+        if not is_ancestor(repo, reviewed_commit, cut_sha):
+            return "coverage review reviewed_commit is not an ancestor of the cut"
+    elif not _SHA_RE.match(str(reviewed_commit)):
+        return "coverage review reviewed_commit is not a full commit sha"
+    if not target_environment:
+        return "coverage reviews require a declared target environment"
+    if review.get("environment_identity") != target_environment:
+        return ("coverage review environment " + repr(review.get("environment_identity"))
+                + " is not the declared target " + repr(target_environment))
+    source_blob = review.get("source_blob")
+    if not isinstance(source_blob, str) or not _SHA_RE.match(source_blob):
+        return "coverage review source_blob is not a full git blob id"
+    if current_source_blob is None:
+        return "coverage review source path does not exist at the cut"
+    if source_blob != current_source_blob:
+        return "coverage review source_blob does not match the source bytes at the exact cut"
+    if repo is not None and _blob_at(repo, reviewed_commit, finding.path) != source_blob:
+        return ("coverage review source_blob does not match the source bytes at reviewed_commit; "
+                "the proof is not bound to the code it claims to review")
+
+    artifact = review.get("evidence_artifact")
+    if not isinstance(artifact, dict) or not isinstance(artifact.get("path"), str):
+        return "coverage review evidence_artifact must name a relative path and its sha256"
+    recorded_hash = normalize_sha256_digest(artifact.get("sha256"))
+    if recorded_hash is None:
+        return "coverage review evidence_artifact sha256 is malformed"
+    if repo is not None:
+        root = repo.resolve()
+        artifact_path = (root / artifact["path"]).resolve()
+        if not artifact_path.is_relative_to(root):
+            return "coverage review evidence_artifact path escapes the repository"
+        if not artifact_path.is_file():
+            return "coverage review evidence_artifact file " + artifact["path"] + " is not present"
+        actual_hash = "sha256:" + hashlib.sha256(artifact_path.read_bytes()).hexdigest()
+        if actual_hash != recorded_hash:
+            return "coverage review evidence_artifact bytes do not match the recorded hash"
     return None
 
 
