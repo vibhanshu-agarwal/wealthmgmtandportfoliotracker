@@ -3799,11 +3799,11 @@
         "obligation": "content-governance",
         "status": "ACCEPTED_REVIEWED",
         "reviewer": "Codex Task 6 independent source review",
-        "reviewed_commit": "1a2901f89842b39cb3104ff2e0434cbeda0793df",
+        "reviewed_commit": "5681e378d1b0994fd17dae4fb9b09beb04212c99",
         "reviewed_at": "2026-09-08",
         "change_kind": "A",
         "src_blob": "0000000000000000000000000000000000000000",
-        "dst_blob": "ecfd7c3a6c76632f404d4e199ea5d8e4f25d3013",
+        "dst_blob": "74126838b428d031b4270a99b05c2038b7faf582",
         "symbols": [
           "/api/presence/demo",
           "DemoPresenceService"
