@@ -3672,13 +3672,13 @@
         "path": "scripts/b1_candidate_evidence.py",
         "obligation": "path-governance",
         "status": "ACCEPTED_REVIEWED",
-        "reviewer": "Codex Task 6 independent source review",
-        "reviewed_commit": "8f6800483d3be7afed3d7f1bec5ebae976a94afb",
+        "reviewer": "Codex Task 7a independent code review",
+        "reviewed_commit": "f6b6063b49fda9269473c383215a18ee6563da6d",
         "reviewed_at": "2026-09-08",
         "change_kind": "A",
         "src_blob": "0000000000000000000000000000000000000000",
-        "dst_blob": "1541e9754c059cbf018eeb0f9cdc3b381827565c",
-        "rationale": "Exact governance/build/smoke tooling blob reviewed; any SQL-shaped executable ambiguity is separately covered by the exact-source independent-proof contract."
+        "dst_blob": "cfa6cc9fb814d7872e030609f4f450620d6746c0",
+        "rationale": "Exact Task 7a reviewed candidate-evidence tooling blob; any SQL-shaped executable ambiguity is separately covered by the exact-source independent-proof contract."
       },
       {
         "path": "scripts/check-b1-seed-version-callers.py",
@@ -3696,31 +3696,31 @@
         "path": "scripts/check_b1_candidate_source.py",
         "obligation": "content-governance",
         "status": "ACCEPTED_REVIEWED",
-        "reviewer": "Codex Task 6 independent source review",
-        "reviewed_commit": "f87fdc16fa0de254445343cc5da5badd97134107",
+        "reviewer": "Codex Task 7a independent code review",
+        "reviewed_commit": "f6b6063b49fda9269473c383215a18ee6563da6d",
         "reviewed_at": "2026-09-08",
         "change_kind": "A",
         "src_blob": "0000000000000000000000000000000000000000",
-        "dst_blob": "a823f05c0c97bf8451aabd498c31abb169ccd646",
+        "dst_blob": "6093072a5a63c627b3da6dedbf714c05116e9ddb",
         "symbols": [
           "JwtSessionIdentity"
         ],
         "non_goals": [
           "10.2"
         ],
-        "rationale": "Forbidden-symbol text is analyzer/test fixture material used to prove non-goal enforcement; the exact blob is non-runtime governance tooling."
+        "rationale": "Exact Task 7a reviewed forbidden-symbol analyzer material used to prove non-goal enforcement; the exact blob is non-runtime governance tooling."
       },
       {
         "path": "scripts/check_b1_candidate_source.py",
         "obligation": "path-governance",
         "status": "ACCEPTED_REVIEWED",
-        "reviewer": "Codex Task 6 independent source review",
-        "reviewed_commit": "f87fdc16fa0de254445343cc5da5badd97134107",
+        "reviewer": "Codex Task 7a independent code review",
+        "reviewed_commit": "f6b6063b49fda9269473c383215a18ee6563da6d",
         "reviewed_at": "2026-09-08",
         "change_kind": "A",
         "src_blob": "0000000000000000000000000000000000000000",
-        "dst_blob": "a823f05c0c97bf8451aabd498c31abb169ccd646",
-        "rationale": "Exact governance/build/smoke tooling blob reviewed; any SQL-shaped executable ambiguity is separately covered by the exact-source independent-proof contract."
+        "dst_blob": "6093072a5a63c627b3da6dedbf714c05116e9ddb",
+        "rationale": "Exact Task 7a reviewed governance tooling blob; any SQL-shaped executable ambiguity is separately covered by the exact-source independent-proof contract."
       },
       {
         "path": "scripts/check_b2_demo_identity.py",
