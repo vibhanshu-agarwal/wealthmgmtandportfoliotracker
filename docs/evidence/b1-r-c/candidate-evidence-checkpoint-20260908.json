@@ -1,0 +1,104 @@
+{
+  "schemaVersion": 1,
+  "kind": "b1-r-c-candidate-evidence-checkpoint",
+  "recordedAtUtc": "2026-09-08T15:21:45.6804382Z",
+  "status": "CANDIDATE_EVIDENCE_GREEN_THROUGH_7_6",
+  "releaseCut": "8f1e8a36f8baa594efa8079190f87b42139fcf10",
+  "runtimeBaseDigest": "mcr.microsoft.com/openjdk/jdk@sha256:c11da1da65cf4855d433b5636beef229759e580c99730979f6b3aa834be96795",
+  "taskA": {
+    "graphVerificationStatus": "PASS",
+    "mode": "CANDIDATE",
+    "unitTests": 552,
+    "integrationTests": 212,
+    "totalTests": 764,
+    "skipped": 0,
+    "failures": 0,
+    "errors": 0,
+    "manifestClasses": 90,
+    "changedTestFilesReconciled": 70,
+    "stagedJarSha256": "441d252939d7333dca134b9cc1a5f6a0632cc274a53f410671212c543a85cda4",
+    "localEvidence": {
+      "path": ".candidate-artifacts/evidence.json",
+      "sha256": "4faa07865b68c9ea3cea8d1e21af6ef1f7f927b67538107459bc687499b9ca7f"
+    }
+  },
+  "taskB": {
+    "localImageTag": "wealth-portfolio-service:b1-rc-cut-c-8f1e8a36",
+    "localImageId": "sha256:551fa974fadddb7319ec1f6efe1528a7ddef6968bb8babec86271ce0d3c2d623",
+    "platform": "linux/amd64",
+    "localImageEvidenceSha256": "7cc0abd11aaa2ff3ed6fc3b9f406cd06fa6a0c7dbf75fe10cfa3da92e0452a07",
+    "imageBuildRecordSha256": "860b70204b602ec686797243ed5416b5742e08506698bf50fcb0bf3ae668584a",
+    "imageBuildLogSha256": "1f4f14f89fd430d67cc4368cc953190f48f2fdd927f80602b0394e26cebe79d5",
+    "registryTag": "wealthprodacr.azurecr.io/portfolio-service:b1-r-c-8f1e8a36f8ba-20260908",
+    "registryIndexDigest": "sha256:551fa974fadddb7319ec1f6efe1528a7ddef6968bb8babec86271ce0d3c2d623",
+    "registryPlatformManifestDigest": "sha256:1cf372a39d17709f74aba427259548a531e3e1ba04dc64ec7750369bb8e82126",
+    "registryPlatformDigestReference": "wealthprodacr.azurecr.io/portfolio-service@sha256:1cf372a39d17709f74aba427259548a531e3e1ba04dc64ec7750369bb8e82126",
+    "registryExtractedJarSha256": "441d252939d7333dca134b9cc1a5f6a0632cc274a53f410671212c543a85cda4",
+    "registryAttestationSha256": "4e5d266669e1b16b9f5f3e9ae1973162a6c290d84331e051388b0eb8025be5b0",
+    "pushLogSha256": "df264d7ee1056131308ba42d72e695eab8114a67c06caf5468185388ad9e4c1b",
+    "digestPullLogSha256": "be6fe5b1ab1ce176c7ca3c448b2fcdec017ac940dd0ba297b8325255b1102706",
+    "buildCount": 1,
+    "pushCount": 1,
+    "rebuildAfterAuthorization": false
+  },
+  "task7_5a": {
+    "label": "RELEASE_DIGEST",
+    "runId": "fac1385d4af3",
+    "registryDigest": "wealthprodacr.azurecr.io/portfolio-service@sha256:1cf372a39d17709f74aba427259548a531e3e1ba04dc64ec7750369bb8e82126",
+    "assertions": {
+      "A1": "PASS",
+      "A2": "PASS",
+      "A3": "PASS",
+      "A4": "PASS",
+      "A4-db": "PASS"
+    },
+    "startupSeconds": 9.5,
+    "assetCount": 160,
+    "failedAssertions": 0,
+    "assertionProblems": 0,
+    "cleanupVerified": true,
+    "smokeEvidenceSha256": "5335854af146920e5e9c75d691e275f84580b94b0b16d7916c5a8da5875efe3e",
+    "smokeLogSha256": "6d49fa27616b17c5dd5076988e4c17c941ab41b8572173de3c137b452a21995a"
+  },
+  "task7_6": {
+    "contract": "gc5-contract/3",
+    "mode": "CANDIDATE",
+    "sourceGovernanceStatus": "PASS",
+    "findings": 0,
+    "unverifiedCoverage": 0,
+    "taskABound": true,
+    "taskBBound": true,
+    "buildRecordBound": true,
+    "artifactsVerified": true,
+    "candidateReady": false,
+    "runInputSha256": "1cc8e2c1630c5355c4ded7719033044e07d56d091cfdfa51db6a4adc4140a864",
+    "taskBReleaseEvidenceSha256": "5e1e973588925d4ebaa133aa900aa47f662143b13c16ecf80ff30c1f97df9e2a",
+    "governanceEvidenceSha256": "bcccf50f04352aa218a235df171bd8d2c8df8a3964ba5ef939d3015e830224b5",
+    "governanceLogSha256": "143e83dadee5ef6ab56cfbb0008ecd7f9c9c7d02e9400abdaa50b40ede24462c"
+  },
+  "auditTrail": {
+    "firstCandidateGuardAttempt": "BLOCKED_ON_EVIDENCE_SCHEMA_ONLY",
+    "firstAttemptFinding": "registry_manifest_digest used a repository-at-digest reference where gc5-contract/3 requires a digest-only value",
+    "firstAttemptGovernanceEvidenceSha256": "f9f51a1ce426adf7d2207dac5fb9c7ef6523b0a5057387426197bf86ff50273a",
+    "firstAttemptLogSha256": "d83fe977e8c2ccfa5dbcbed3e0cdd1c363c83294f0cb734cb72166d36cbe9616",
+    "correction": "A separate v2 producer-shaped Task B bundle retained the full repository reference in the registry attestation and supplied the required digest-only registry_manifest_digest to the guard. No source, image, registry, or smoke operation was repeated."
+  },
+  "releaseDecision": {
+    "task7_3": "EVIDENCED",
+    "task7_4": "EVIDENCED",
+    "task7_5": "EVIDENCED",
+    "task7_5a": "EVIDENCED",
+    "task7_6": "EVIDENCED",
+    "task7_7": "OPEN_REQUIRES_SEPARATE_AUTHORIZATION",
+    "task7_8": "NOT_READY_FOR_STOP_GO",
+    "task7_9": "NOT_AUTHORIZED_NOT_RUN",
+    "candidateReady": false,
+    "nextRequiredAction": "Recollect Task 7.7 pre-deploy serving evidence G2, latest-valid G3, G4, G6, G0a, G2a, and G2b; then present Task 7.8 STOP/GO to the owner."
+  },
+  "limitations": [
+    "No Task 7.7 serving-gate recollection was performed.",
+    "No Task 7.8 owner STOP/GO decision has been made.",
+    "No deployment, workflow dispatch, production data access, production E2E, traffic change, public exposure, or Writer_Convergence claim occurred.",
+    "The candidate producer tools intentionally keep candidate_ready false and retain generic historical blocker prose; this checkpoint uses their scoped PASS evidence but does not upgrade their release verdict."
+  ]
+}

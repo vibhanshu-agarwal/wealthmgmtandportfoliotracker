@@ -1,6 +1,6 @@
 # Implementation Plan
 
-**Current R-C status — reconciled 2026-09-08 at `main@fecbe651`:**
+**Current R-C status — reconciled 2026-09-08 at `main@8f1e8a36`:**
 [PR #222](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/222)
 merged the candidate verification, copy-only packaging, GC.5 and exact-image smoke tooling.
 [PR #234](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/234)
@@ -12,10 +12,15 @@ cut; its Task A run reported 552 unit and 212 integration tests with zero skips/
 merged the Windows checkout/CRLF artifact-identity correction. Its reviewed head again passed the
 CANDIDATE source-governance guard with zero findings and zero unverified coverage.
 
-R-C remains **NO-GO for release execution** because PR #236 changed governed tooling after the
-prior Task A/B cut. Establish a new clean cut and rerun Task A before Task 7.3. No candidate image
-has been pushed to ACR, no registry digest has been smoked, and no R-C deployment, traffic change,
-serving proof or Writer_Convergence claim exists. Tasks 7.3–7.11 and AM.1/AM.2 remain open.
+The unchanged `main@8f1e8a36` release cut now has a passing Task A graph (552 unit + 212 integration
+tests, zero skips/failures/errors), a once-built/once-pushed candidate, a deployable `linux/amd64`
+ACR manifest, exact-digest smoke passing 5/5, and final CANDIDATE governance with zero findings and
+zero unverified coverage. The tracked [candidate evidence checkpoint](../../../docs/evidence/b1-r-c/candidate-evidence-checkpoint-20260908.json)
+binds the immutable identifiers and local artifact hashes. Tasks 7.3–7.6, including 7.5a, are
+evidenced. R-C remains **NO-GO for release execution** because Task 7.7 serving-gate recollection is
+open and Task 7.8 is not ready for owner STOP/GO. No R-C deployment, workflow dispatch, traffic
+change, production E2E, public exposure or Writer_Convergence claim exists. Tasks 7.7–7.11 and
+AM.1/AM.2 remain open.
 
 **OWNER APPROVAL RECORDED — R-C preparation kickoff docs, 2026-09-03:** The owner requested
 Claude's kickoff and a docs-only PR; publication of that package is authorized, merge is separate.
@@ -101,10 +106,11 @@ remain in the [G5 record](../../../docs/runbooks/B1_G5_INGRESS_BLOCKER.md).
 G5's prerequisite for B1 Wave 6 is satisfied; Tasks 6.1–6.4 subsequently merged through PR #217
 and are source-complete. Task 6.5 has its separate 2026-09-03 owner GO and approved read-only
 preflight. The separately approved cu4 deployment and one-seed proof passed; Tasks 6.6/6.7
-are complete under the owner R-B3 GO. Wave 7 activation remains open. Unattended synthetics remain suspended;
-further dispatch or schedule restoration requires separate authorization.
-Candidate packaging / R-C (task 7.5)
-is **not** complete. Public `PUT /api/portfolio/holdings` remains Wave 7. The version-required
+are complete under the owner R-B3 GO. Wave 7 serving/deployment activation remains open. Unattended
+synthetics remain suspended; further dispatch or schedule restoration requires separate authorization.
+Candidate packaging, exact-digest smoke and source-governance evidence are complete through Task
+7.6. Task 7.7 serving recollection is open. Public `PUT /api/portfolio/holdings` remains unexposed.
+The version-required
 seed now serves on cu4 / revision 0000094 with accepted G2b proof. Writer_Convergence remains
 unproven until its separate activation conditions are met. Dependent proof branch
 [`proof/b1-wave-2-g1-v20@e6a98c5`](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/tree/proof/b1-wave-2-g1-v20)
@@ -379,8 +385,9 @@ assertions are what make these durable.
   produced an exact-cut CANDIDATE result with zero findings and zero unverified coverage. PR #236
   corrected checkout-transform artifact identity without broadening the reviewed exception scopes;
   its exact reviewed head again passed with zero findings and zero unverified coverage. This closes
-  GC.5 source governance only. The fresh post-remediation Task A/B release bundle, registry digest,
-  exact-digest smoke and serving evidence remain Tasks 7.3–7.11.
+  GC.5 source governance. The later exact-cut checkpoint supplies the Task A/B release bundle,
+  registry digest, exact-digest smoke and final candidate binding through Task 7.6; serving evidence
+  and later release gates remain Tasks 7.7–7.11.
 
   **The base is the B1 base commit, pinned — not cut-B3.** Comparing only the last two cuts would
   miss scope creep merged into an earlier artifact.
@@ -766,7 +773,7 @@ in Waves 5–7.
 
 ### 4a — Orchestrator and preparers
 
-**Current status:** tasks **4.1–4.21 (Wave 4a–4c) are merged on `main@2673f40`** (PR #153; undeployed/unexposed). Candidate packaging / task 7.5 / R-C remain incomplete. Public `PUT` remains Wave 7. **No Wave 4/5 runtime deployment is authorized** (V20/R-B already applied via Artifact 2 cut `25aa730`). No gateway route change, seed rewrite, or public `PUT` exposure is authorized by this status.
+**Current status:** tasks **4.1–4.21 (Wave 4a–4c) are merged on `main@2673f40`** (PR #153; undeployed/unexposed). Candidate packaging and exact-digest smoke are complete through Task 7.6; Task 7.7 serving recollection and later R-C gates remain open. Public `PUT` remains unexposed. **No Wave 4/5 runtime deployment is authorized** (V20/R-B already applied via Artifact 2 cut `25aa730`). No gateway route change, seed rewrite, deployment, traffic change, or public `PUT` exposure is authorized by this status.
 
 - [x] **4.1 `HoldingReplacementService`** — the single orchestrator, in D2's exact order: version
   precondition → semantic `400` (quantity, then duplicates) → catalog/lifecycle `422` aggregated →
@@ -1004,8 +1011,9 @@ Named individually so the R-C manifest can enumerate them rather than gesture at
   and the current inventory guard passes with exactly three callers. No live replay was needed.
   G5's Wave 6 prerequisite is satisfied. Tasks 6.1–6.4 later merged and 6.5 received owner GO;
   Tasks 6.6/6.7 subsequently completed under their separate deployment/proof and owner R-B3 GO.
-  Wave 7 remains unchecked; no public `PUT`, Writer_Convergence, backlog closure, further
-  dispatch or schedule restoration is authorized by the G5 close-out. Unattended synthetics remain suspended in `synthetic-monitoring.yml`.
+  At that G5 decision, Wave 7 remained unchecked; the G5 close-out authorized no public `PUT`,
+  Writer_Convergence, backlog closure, further dispatch, or schedule restoration. Unattended
+  synthetics remain suspended in `synthetic-monitoring.yml`.
   _Requirements: 8.32, 8.39_
 
 ## Wave 6 — Version-required seed (Artifact 2b → R-B3)
@@ -1091,8 +1099,8 @@ Tasks 7.4/7.5/7.6 and 7.5a preparation precede the single 7.3 release build. The
 retains five prerequisites, including the proposed report-carrier corrections and unresolved
 persistent SQL-writer disposition. Tooling completion is not candidate or serving acceptance.
 That 2026-09-03 preparation handoff itself advanced no 7.x, GC.5 or AM checkbox. Later reviewed
-evidence closes GC.5 and Tasks 7.1–7.2 as recorded in the current status and checklist below;
-Tasks 7.3–7.11 and AM.1/AM.2 remain open.
+evidence closes GC.5 and Tasks 7.1–7.2. The September 8 exact-cut checkpoint separately closes the
+evidence steps through Task 7.6, including 7.5a; Tasks 7.7–7.11 and AM.1/AM.2 remain open.
 
 
 **Reviewed, merged and reconciled source work — 2026-09-08:** Cursor implemented Tasks 7.1–7.2
@@ -1101,7 +1109,7 @@ from main@9c2ebc12. Codex ACCEPT at 2f50120f closed the null-element, transactio
 projection-rollback, HTTP assertion and evidence-packet findings. PR #219 merged at
 main@c0f84045 on 2026-09-03T05:42:58Z. The owning acceptance evidence exists, so this
 2026-09-08 status reconciliation checks both source tasks. The controller remains outside the
-frozen R-B3 image; Tasks 7.3 onward, deployment and exposure retain their own gates.
+frozen R-B3 image; Tasks 7.7 onward, deployment and exposure retain their own gates.
 
 - [x] **7.1 Introduce `CompositionController`** — `PUT /api/portfolio/holdings`, taking the expected
   version and the desired set, resolving the target from the authenticated principal with **no
@@ -1114,10 +1122,10 @@ frozen R-B3 image; Tasks 7.3 onward, deployment and exposure retain their own ga
   response body, and every error envelope. These exercise the endpoint, not just the service
   primitive.
   _Requirements: 6.1, 6.2, 7.1, 7.10, 7.11, 7.12, 7.23_
-- [ ] **7.3 Build the R-C portfolio image once; capture its immutable digest.** Everything below binds
+- [x] **7.3 Build the R-C portfolio image once; capture its immutable digest.** Everything below binds
   to this digest.
   _Requirements: 9.7_
-- [ ] **7.4 Bind the candidate run to that exact digest — one mechanism, chosen.** Revision 2 offered
+- [x] **7.4 Bind the candidate run to that exact digest — one mechanism, chosen.** Revision 2 offered
   "run against the image **or** emit an attestation", which is a choice rather than a procedure. The
   repository currently permits precisely the gap this closes: `portfolio-service/Dockerfile:66` runs
   `:portfolio-service:bootJar` only — never tests — and `ci-verification.yml` tests source at lines 53
@@ -1172,7 +1180,7 @@ frozen R-B3 image; Tasks 7.3 onward, deployment and exposure retain their own ga
 
   The attestation is an output of this chain, not a substitute for it.
   _Requirements: 9.7_
-- [ ] **7.5 Candidate proof manifest — two proof kinds, not one.** Revision 3 said these suites run
+- [x] **7.5 Candidate proof manifest — two proof kinds, not one.** Revision 3 said these suites run
   "against that JAR". **They do not.** `build.gradle:122-123` wires `integrationTest` to
   `sourceSets.test.output.classesDirs` and `sourceSets.test.runtimeClasspath`, and `test` uses the
   same source-set model; `--tests` selects test **classes** and never substitutes the fat JAR for the
@@ -1222,7 +1230,7 @@ frozen R-B3 image; Tasks 7.3 onward, deployment and exposure retain their own ga
   GC.5 is deliberately absent from this table; it is source-governance evidence, not a JUnit suite —
   see GC.5.
   _Requirements: 9.7, 8.30_
-- [ ] **7.5a Black-box run against the exact ACR manifest digest.** **Pull and run
+- [x] **7.5a Black-box run against the exact ACR manifest digest.** **Pull and run
   `repository@sha256:…`** — the digest recorded in 7.4 step 8 — and run an HTTP contract smoke
   covering startup, the composition endpoint, `GET /api/assets`, and the `409` envelope.
 
@@ -1234,7 +1242,7 @@ frozen R-B3 image; Tasks 7.3 onward, deployment and exposure retain their own ga
   Running the registry digest closes both remaining joins in one step: local image → registry
   manifest, and registry manifest → deployed manifest.
   _Requirements: 9.7, 6.1, 7.1_
-- [ ] **7.6 Exhaustive holdings-writer inventory.** Enumerate from the source tree every path that
+- [x] **7.6 Exhaustive holdings-writer inventory.** Enumerate from the source tree every path that
   mutates `asset_holdings` and show each participates in Portfolio_Version. Store the output with the
   same digest. This is what makes G6 satisfy **P11g-2**; a conjunction of three named paths cannot
   establish a property quantified over all of them.
