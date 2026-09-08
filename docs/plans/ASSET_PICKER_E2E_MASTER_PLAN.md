@@ -3,7 +3,8 @@
 **Last verified:** 2026-09-08 at `main@7e752b4183aa25f75adad6e7b363501cd5f23aa5`;
 candidate release cut `8f1e8a36f8baa594efa8079190f87b42139fcf10`
 
-**Current delivery status — R-C candidate evidence green through Task 7.6; Task 7.7 live collection blocked:**
+**Current delivery status — R-C candidate evidence green through Task 7.6; Task 7.7 read-only
+collection complete but write-bearing gates open:**
 The program-state code baseline is current `main`; the latest tracked production runtime is R-B3r
 portfolio revision `0000095` / digest `sha256:fa060bf0…`.
 [PR #222](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/222)
@@ -26,18 +27,24 @@ reproduced the staged JAR hash. Exact-digest smoke passed A1/A2/A3/A4/A4-db (5/5
 CANDIDATE guard passed with zero findings, zero unverified coverage and all Task A/Task B/build
 artifacts verified. The tracked [candidate evidence checkpoint](../evidence/b1-r-c/candidate-evidence-checkpoint-20260908.json)
 records the immutable identifiers and local evidence hashes. Tasks 7.3–7.6, including 7.5a, are now
-evidenced. Task 7.7 serving-gate recollection is the next separately authorized action; Task 7.8 is
-not ready for an owner STOP/GO. No R-C deployment, workflow dispatch, traffic change, production
-E2E, public exposure or Writer_Convergence claim has occurred.
+evidenced. Task 7.7 has current read-only serving evidence and direct-revision version capability,
+but G2/G0a/G2a/G2b/G4 and derived G6 remain open; Task 7.8 is not ready for an owner STOP/GO. No R-C
+deployment, workflow dispatch, traffic change, production E2E, public exposure or
+Writer_Convergence claim has occurred.
 
-**Task 7.7 collection attempt — 2026-09-08:** the baseline fetch independently resolved PR #238's
+**Task 7.7 read-only collection — 2026-09-08:** the baseline fetch independently resolved PR #238's
 merge and remote `main` to `7e752b4183aa25f75adad6e7b363501cd5f23aa5`. Review corrected the
 serving baseline from historical cu4 to the later tracked R-B3r revision `0000095` / digest
-`sha256:fa060bf0…`. The task host rejected the first read-only Azure serving-metadata request and
-required fresh explicit owner approval in this task; the denial was not bypassed. No secret,
-database or public endpoint was accessed, and no production write, dispatch, deployment or traffic
-change occurred. The [blocked Task 7.7 packet](../runbooks/B1_R_C_TASK_7_7_SERVING_EVIDENCE.md)
-keeps all serving gates unverified. Task 7.7 remains open and Task 7.8 cannot yet be presented.
+`sha256:fa060bf0…`. The task host rejected the first read-only request; the owner then approved that
+bounded access. Current control-plane, ACR, Log Analytics, direct-revision GET and read-only Neon
+evidence now binds all four sole serving revisions. Only portfolio uses an immutable configured
+image; the three mutable-tag resolutions do not attest already-running bytes. The direct GET proves
+numeric-version backend capability but not G2a's authenticated-read predicate. The database snapshot
+is green with `violating_users=0`, but G3 is out of sequence until current G2 is valid. G4 is
+partially green. G2, G0a, G2a, G2b and G6 remain unverified.
+No production write, dispatch, deployment or traffic/configuration change occurred. The
+[Task 7.7 packet](../runbooks/B1_R_C_TASK_7_7_SERVING_EVIDENCE.md) records the exact results and
+approval boundary. Task 7.7 remains open and Task 7.8 cannot yet be presented.
 
 **Seed caller inventory update — B2 Task 9.7 (2026-09-06):**
 The [caller guard](../../scripts/check-b1-seed-version-callers.py) now recognizes exactly four
@@ -80,10 +87,11 @@ Both tasks are now checked locally. The [decision record](../evidence/b1-task-6-
 binds this approval to the unchanged proof and cu4 serving image. Publication, further production
 operations, Wave 7 activation and Writer_Convergence closure remain outside this approval.
 
-**Latest tracked runtime baseline:** R-B3r portfolio revision `0000095` / digest `fa060bf0…`
-superseded cu4 through the reviewed V21-only remediation deployment. The accepted remediation record
-captured Single mode, one active revision at 100% traffic and a SAME_STATE seed. Task 7.7 still
-requires current recollection; this tracked history is not promoted to fresh proof.
+**Current runtime baseline:** the Task 7.7 read-only collection reverified R-B3r portfolio revision
+`0000095` / digest `fa060bf0…` as the sole active 100%-traffic portfolio target. R-B3r superseded
+cu4 through the reviewed V21-only remediation deployment. The current direct-revision GET observes
+numeric-version capability but does not replace G2a's authenticated read; the remediation's
+historical SAME_STATE seed is not promoted to fresh G2b proof.
 
 
 **B1 Tasks 7.1–7.2 source ACCEPT and merged (2026-09-03):** Cursor implemented the public
@@ -193,8 +201,8 @@ fence changes. It has now been superseded for portfolio-service traffic by B2 Ta
 only the pinned B2 Wave 4 internal demo-reset cut. That portfolio revision was subsequently
 superseded by R-B3 / cu4 revision `0000094`, source `6a171558` and digest `2be727ea`, as recorded in
 the completed G2b report. The later V21-only R-B3r remediation then produced revision `0000095` /
-digest `fa060bf0…`; that is the latest tracked binding, not a current read-back. The seed requires
-expectedVersion.
+digest `fa060bf0…`; Task 7.7 has now read back that exact current binding. The seed requires
+expectedVersion, but the current controlled-seed proof remains separately gated.
 
 **Historical Task 4.5 repository evidence baseline:**
 `main@67e55cf2c3b90d60149a79b084686d348ab9ba5e` (merged Task 4.5 operator kickoff), independent of
@@ -348,7 +356,7 @@ At every meaningful merge or live checkpoint:
 | Track | Delivered | Current position | Remaining outcome |
 |---|---|---|---|
 | **A — Spec A catalog/data cutover** | Shared catalog, Postgres/Mongo repair, R4 rollout, enforcement, one reconciled controlled refresh, persisted refresh enablement, demo portfolio activation, and scale-to-zero restoration | **All 14 cutover checkpoints complete.** 9.13 completed on `portfolio-service--0000092`, `market-data-service--0000079`, and `insight-service--0000079`; B2 Task 4.5 later superseded only the portfolio revision with `portfolio-service--0000093`. 9.14 completed via apply [33331130603](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33331130603), reopening ACA external ingress on `api-gateway--0000077` with `allowInsecure=false` ([`SPEC_A_9_14_REOPEN_INGRESS.md`](../runbooks/SPEC_A_9_14_REOPEN_INGRESS.md)); the later custom-domain restore has independent `200` read-back, and PR #194 independently reviewed and merged that evidence ([`API_GATEWAY_CUSTOM_DOMAIN_RECOVERY.md`](../runbooks/API_GATEWAY_CUSTOM_DOMAIN_RECOVERY.md)); historical RCA remains `MECHANISM_REPRODUCED_SETTER_UNPROVEN` | Spec A's production cutover is done. B1 G5 closed by owner decision on 2026-09-02 using the reviewed three-caller run. B1 Wave 6 Tasks 6.1–6.4 are source-complete through PR #217; the four filed process follow-ups remain open |
-| **B — B1 portfolio composition backend** | Deployment prerequisites, fixture identity migration, legacy writer retirement, gateway provisioning, V20, version-bearing read, version-required seed, Wave 7 controller/tests, R-C preparation tooling, R3 closure, GC.5 source-governance closure, and immutable candidate evidence through Task 7.6 | **R-A/G2, R-B/G3, R-B2/G2a and R-B3/G2b complete historically; latest tracked runtime is R-B3r `0000095` / `fa060bf0…`.** Tasks 7.1–7.2 are merged. At `main@8f1e8a36`, Task A passed 764 tests; the once-built/once-pushed candidate is bound to `linux/amd64` manifest `sha256:1cf372a39d17709f74aba427259548a531e3e1ba04dc64ec7750369bb8e82126`; exact-digest smoke passed 5/5; and the final CANDIDATE guard passed zero findings/unverified coverage with artifacts verified. Task 7.7 live collection is blocked pending fresh explicit access approval in this task | Recollect Task 7.7 serving gates after approval; only a green packet permits presenting Task 7.8. Deployment 7.9, post-deploy GO, Writer_Convergence and production exposure remain separate gates |
+| **B — B1 portfolio composition backend** | Deployment prerequisites, fixture identity migration, legacy writer retirement, gateway provisioning, V20, version-bearing read, version-required seed, Wave 7 controller/tests, R-C preparation tooling, R3 closure, GC.5 source-governance closure, and immutable candidate evidence through Task 7.6 | **R-A/G2, R-B/G3, R-B2/G2a and R-B3/G2b complete historically; current portfolio runtime is R-B3r `0000095` / `fa060bf0…`.** Tasks 7.1–7.2 are merged. At `main@8f1e8a36`, Task A passed 764 tests; the once-built/once-pushed candidate is bound to `linux/amd64` manifest `sha256:1cf372a39d17709f74aba427259548a531e3e1ba04dc64ec7750369bb8e82126`; exact-digest smoke passed 5/5; and the final CANDIDATE guard passed zero findings/unverified coverage with artifacts verified. Task 7.7 read-only collection is complete, but G2/G0a/G2a/G2b/G4/G6 remain open and the G4 behavioral protocol plus explicit inventory-to-serving mapping still need design/review | Design and review the missing proof protocol/mapping, then seek separate write-bearing approval; only a green packet permits presenting Task 7.8. Deployment 7.9, post-deploy GO, Writer_Convergence and production exposure remain separate gates |
 | **C — B2 Asset Picker product** | Requirements, design, task plan, five-screen visual mockup, Waves 1–6 source, Wave 8 source/tooling, and Wave 9 local real-stack integration | Wave 8 source and Azure proof tooling merged via PR #233 at `main@a52ec1ef`; deployment/live proof remain open. Wave 9 Tasks 9.1–9.9 carry their recorded source/local evidence; PR #232 at `main@318f2859` passed the disposable Compose real-browser run 5/5 and required CI wiring | No production deployment or Production E2E is claimed. Tasks 2.6–2.7, 3.7, 5.6, 6.3, 8.8/8.9, B1 R-C deployment/convergence, and Wave 10 remain open; production flags remain off |
 | **D — Demo credibility** | Canonical prices refreshed and reconciled; demo initializer exists; authorized 9.12 retry activated the Active_Asset set | Demo portfolio holds the exact 159-holding golden set after Task 4.5's one-call live proof on `portfolio-service--0000093`; version remained `0` under the valid same-state no-op; both flags remain `false`; historical pooled-session setter remains unidentified | 9.14 and the custom-domain restore are complete; B1 G5 closed by owner decision on 2026-09-02 using run 33411410271. Operational 9.12 success does not close historical RCA |
 
@@ -601,10 +609,12 @@ public `200` read-back.
 **Owner priority: complete the Asset Picker production path before deferred CI optimization.**
 The exact `main@8f1e8a36` Task A graph, single candidate build/push, ACR platform digest,
 exact-digest smoke and final CANDIDATE artifact binding are complete through Task 7.6. The immediate
-B1 release action is to obtain fresh explicit Task 7.7 live-access approval in this task, then
-recollect G2, latest-valid G3, G4, G6, G0a, G2a and G2b serving evidence. Only after that packet is
-green may Task 7.8 be presented for the owner's STOP/GO. Deployment 7.9 and every later live or
-exposure action retain separate owner gates.
+B1 release action is to design and independently review the missing G4 behavioral protocol and
+explicit Task 7.6 inventory-to-serving mapping. Only then should a separate approval request cover
+the current G2 signup/authenticated G2a read, both G0a legacy-route POSTs, the complete G2b seed
+oracle, reviewed G4 probe and final post-write G3. Only after the complete packet is green may Task
+7.8 be presented for the owner's STOP/GO. Deployment 7.9 and every later live or exposure action
+retain separate owner gates.
 
 **B1 position:** R-B3 remains the production safety floor; the latest tracked serving release is
 R-B3r revision `0000095` / digest `fa060bf0…`. Tasks 7.1–7.2, candidate-preparation tooling, R3 and

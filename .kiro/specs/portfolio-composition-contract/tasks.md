@@ -22,16 +22,24 @@ open and Task 7.8 is not ready for owner STOP/GO. No R-C deployment, workflow di
 change, production E2E, public exposure or Writer_Convergence claim exists. Tasks 7.7–7.11 and
 AM.1/AM.2 remain open.
 
-**Task 7.7 collection attempt — 2026-09-08:** the fetched baseline is PR #238 merge
+**Task 7.7 read-only collection — 2026-09-08:** the fetched baseline is PR #238 merge
 `7e752b4183aa25f75adad6e7b363501cd5f23aa5`, and its tracked checkpoint confirms candidate cut
 `8f1e8a36` / `linux/amd64` digest `sha256:1cf372a3…` through Task 7.6. Independent review corrected
-the live baseline: the latest tracked serving portfolio is R-B3r revision `0000095` / digest
-`sha256:fa060bf0…`, not historical cu4 `0000094` / `2be727ea…`. The task host rejected the first
-read-only Azure metadata request and required fresh explicit owner approval in this task; the denial
-was not bypassed. No secret, database or public endpoint was accessed, and no production write,
-dispatch, deployment or traffic change occurred. The
-[blocked evidence packet](../../../docs/runbooks/B1_R_C_TASK_7_7_SERVING_EVIDENCE.md) records the
-frozen oracle and unverified gates. Task 7.7 remains open; Task 7.8 must not be presented.
+the live baseline to R-B3r portfolio revision `0000095` / digest `sha256:fa060bf0…`. After the
+owner approved the previously blocked read-only Azure, Log Analytics and Neon access, collection
+bound one active 100%-traffic revision for each app, one immutable portfolio reference and three
+registry-resolved mutable tags whose runtime bytes remain unattested. A direct GET on sole portfolio
+revision `0000095` returned one 159-holding synthetic portfolio with numeric version 0, proving
+backend capability but not G2a's authenticated-read predicate. The read-only database snapshot found
+`violating_users=0`, all 10 users at
+portfolio count 1, V21/checksum `385711525` successful exactly once, all four repair routines absent
+and current integrity green. G3 remains sequence-unsatisfied because current G2 is unverified; G4 is
+partially green. G2, G0a, G2a, G2b and derived G6 remain unverified because signup/authenticated
+read, legacy-route POSTs and the controlled seed were not authorized; the G4 behavioral protocol
+also remains to be designed and reviewed. No production write,
+dispatch, deployment or traffic/configuration change occurred. The
+[evidence packet](../../../docs/runbooks/B1_R_C_TASK_7_7_SERVING_EVIDENCE.md) records the boundary.
+Task 7.7 remains open; Task 7.8 must not be presented.
 
 **OWNER APPROVAL RECORDED — R-C preparation kickoff docs, 2026-09-03:** The owner requested
 Claude's kickoff and a docs-only PR; publication of that package is authorized, merge is separate.
@@ -1260,11 +1268,15 @@ frozen R-B3 image; Tasks 7.7 onward, deployment and exposure retain their own ga
   _Requirements: 8.1, 8.4, 8.10_
 - [ ] **7.7 Record pre-deploy serving evidence:** serving G2, G3 recollected after the latest valid
   G2, G4, and G6 (serving G0a, G2a, G2b).
-  **Collection attempt 2026-09-08:** baseline and tracked evidence review completed, but live
-  recollection did not start because the task host rejected the read-only Azure
-  request and required fresh explicit approval in this task. R-B3r `0000095` / `fa060bf0…`
-  supersedes cu4 and prevents old G0a/G2a/G2b bindings from being treated as current. G2, G3, G4,
-  G0a, G2a, G2b and derived G6 therefore remain unverified. Evidence:
+  **Read-only collection 2026-09-08:** after fresh owner approval, current Azure/ACR/Log Analytics,
+  direct-revision GET and read-only Neon evidence bound the four sole serving revisions. Only
+  portfolio `0000095` / `fa060bf0…` has an immutable configured image; three tag-based runtime
+  digests remain unattested. The direct GET proves numeric-version backend capability but not G2a's
+  authenticated-read predicate. Current G3 is green (`violating_users=0`, all 10 users at portfolio
+  count 1) but sequence-unsatisfied until current G2 is valid; G4 is partially green. G2, G0a, G2a,
+  G2b and derived G6 remain unverified. The G4 behavioral proof method and explicit Task 7.6
+  inventory-to-serving mapping are also open. No production write or configuration change occurred.
+  Evidence:
   [`docs/runbooks/B1_R_C_TASK_7_7_SERVING_EVIDENCE.md`](../../../docs/runbooks/B1_R_C_TASK_7_7_SERVING_EVIDENCE.md).
   _Requirements: 9.1, 9.2, 9.7, 1.14_
 - [ ] **7.8 STOP/GO — R-C pre-deploy.**

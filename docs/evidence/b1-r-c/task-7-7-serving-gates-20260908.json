@@ -1,10 +1,11 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "kind": "b1-r-c-task-7-7-serving-gates",
-  "recordedAtUtc": "2026-09-08T16:34:18.4327917Z",
-  "status": "BLOCKED_BEFORE_LIVE_COLLECTION",
+  "recordedAtUtc": "2026-09-08T17:23:07.9302156Z",
+  "status": "READ_ONLY_COLLECTION_COMPLETE_GATES_OPEN",
   "scope": {
     "authorized": "Task 7.7 bounded read-only evidence recollection only",
+    "approvalRecorded": "2026-09-08 owner reply: Approved",
     "productionWriteCount": 0,
     "workflowDispatchCount": 0,
     "deploymentCount": 0,
@@ -19,19 +20,10 @@
     "candidateCheckpoint": "docs/evidence/b1-r-c/candidate-evidence-checkpoint-20260908.json",
     "candidateEvidenceThrough": "7.6"
   },
-  "latestTrackedServingBaseline": {
-    "source": "docs/evidence/b1-r3-decision1/v21-r3-operational-result.json",
-    "observedAtUtc": "2026-09-07T15:48:36.8872829Z",
-    "release": "R-B3r",
-    "portfolioRevision": "portfolio-service--0000095",
-    "portfolioDigest": "sha256:fa060bf054b9c108b8b59d9e9b27845d6b707f40040a7dcba16411db7f0e8552",
-    "supersedesHistoricalG2bRevision": "portfolio-service--0000094",
-    "supersedesHistoricalG2bDigest": "sha256:2be727eaf4577699c783ae66073670d4984fe66c666af3e56422c934fdd0b023"
-  },
   "collectionContract": {
     "allowed": [
       "control-plane GETs",
-      "read-only log queries",
+      "read-only registry and log queries",
       "read-only container GET probes",
       "REPEATABLE READ READ ONLY SQL"
     ],
@@ -43,54 +35,223 @@
       "deployment",
       "configuration or traffic change",
       "rollback"
-    ],
-    "ordering": [
-      "establish complete serving sets and immutable digests",
-      "establish the latest valid G2 evidence",
-      "revalidate G4",
-      "revalidate serving G0a, G2a, and G2b",
-      "recollect final G3 after the latest valid G2 evidence and after every other authorized write-bearing probe",
-      "derive G6 using those serving gates plus the Task 7.6 exhaustive writer inventory"
     ]
   },
-  "collectionAttempt": {
-    "liveCommandInvoked": true,
-    "externalRequestExecuted": false,
-    "liveAccessSucceeded": false,
-    "blockedAction": "read-only Azure account and Container App serving-state queries",
-    "blocker": "The task host approval reviewer rejected live cloud metadata access and required fresh explicit owner approval in this task.",
-    "secretsRead": false,
-    "databaseConnected": false,
-    "publicEndpointCalled": false
+  "collection": {
+    "liveAccessSucceeded": true,
+    "secretsReadForConnectionOnly": true,
+    "secretValuesEmittedOrPersisted": false,
+    "databaseConnected": true,
+    "databaseTransactionMode": "REPEATABLE READ READ ONLY",
+    "publicWrites": 0,
+    "localToolingChange": "Docker downloaded postgres@sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777 before running the read-only psql client.",
+    "failedReadOnlyAttempts": [
+      "A public GET /api/assets returned 401 and made no application write.",
+      "The first 30-second health GET timed out during scale-from-zero; the retry returned 200.",
+      "One Log Analytics query had a syntax error and was corrected without changing cloud state."
+    ]
+  },
+  "evidenceProvenance": {
+    "rawCommandTranscriptRetained": false,
+    "exactExpandedSqlFileRetained": false,
+    "transport": "Ephemeral task command output was consolidated into this sanitized result record and the companion runbook.",
+    "g3PredicateSource": "docs/runbooks/B1_R_B_G3_SERVING_PROOF.md section G3 and .kiro/specs/portfolio-composition-contract/design.md gate table",
+    "v21QuerySource": "docs/evidence/b1-r3-decision1/v21-r3-operational-query.sql",
+    "databaseIsolation": "REPEATABLE READ READ ONLY",
+    "databaseSnapshotAtUtc": "2026-09-08T17:12:31.364Z",
+    "catalogTupleQuery": {
+      "table": "ContainerAppConsoleLogs_CL",
+      "cliTimespan": "P30D",
+      "endExclusiveUtc": "2026-09-08T17:50:18.132Z",
+      "queryFile": "docs/evidence/b1-r-c/task-7-7-log-queries-20260908.kql",
+      "queryUtf8Sha256": "cdcccd73f92f6ee88e61d65dcf288b66c6d94ddcbc5000cf3d0231f11f789403",
+      "predicate": "exact app/revision targets and Log_s has catalog_loaded; arg_max(TimeGenerated, Log_s) per target"
+    },
+    "boundedMarkerQuery": {
+      "table": "ContainerAppConsoleLogs_CL",
+      "cliTimespan": "P30D",
+      "endExclusiveUtc": "2026-09-08T17:50:18.132Z",
+      "queryFile": "docs/evidence/b1-r-c/task-7-7-log-queries-20260908.kql",
+      "queryUtf8Sha256": "65e0e42b07815705920af2f6dd8f8d1b21a80f98f14a89735ab27e3f4c16578d",
+      "revisionLifetimeStartsUtc": {
+        "portfolio-service--0000095": "2026-09-07T15:18:47Z",
+        "market-data-service--0000079": "2026-08-30T10:39:21Z",
+        "insight-service--0000079": "2026-08-30T10:39:20Z"
+      },
+      "markers": [
+        "catalog_load_failed",
+        "post_migration_integrity_failed",
+        "unsupported_asset_event_rejected",
+        "would_reject_unsupported_event",
+        " ERROR ",
+        "Exception"
+      ]
+    },
+    "limitation": "This is a durable sanitized observation record, not a retained raw-output capture. Gate statuses remain partial or unverified wherever the accepted serving oracle is not fully demonstrated."
+  },
+  "servingSets": {
+    "api-gateway": {
+      "revisionMode": "Single",
+      "latestRevision": "api-gateway--0000077",
+      "latestReadyRevision": "api-gateway--0000077",
+      "activeRevisionCount": 1,
+      "trafficPercent": 100,
+      "imageTag": "63fc0584ad307af7f50e9500f4911ac5999d6b76",
+      "registryResolvedDigestAtCollection": "sha256:79a3f253aaab1f3db58146612e8f2d05a70df6180482ace16efa1baef58469f3",
+      "runtimeDigestAttested": false,
+      "externalIngress": true,
+      "allowInsecure": false,
+      "customDomain": "api.vibhanshu-ai-portfolio.dev"
+    },
+    "portfolio-service": {
+      "revisionMode": "Single",
+      "latestRevision": "portfolio-service--0000095",
+      "latestReadyRevision": "portfolio-service--0000095",
+      "activeRevisionCount": 1,
+      "trafficPercent": 100,
+      "immutableImage": "wealthprodacr.azurecr.io/portfolio-service@sha256:fa060bf054b9c108b8b59d9e9b27845d6b707f40040a7dcba16411db7f0e8552",
+      "runtimeDigestAttested": true,
+      "minReplicas": null,
+      "maxReplicas": 3,
+      "demoSeedOnStartup": false,
+      "demoTransactionDiagnostics": false
+    },
+    "market-data-service": {
+      "revisionMode": "Single",
+      "latestRevision": "market-data-service--0000079",
+      "latestReadyRevision": "market-data-service--0000079",
+      "activeRevisionCount": 1,
+      "trafficPercent": 100,
+      "imageTag": "9b2cf0d655b4b7ae2ce20ff7b67e4ad750df6900",
+      "registryResolvedDigestAtCollection": "sha256:ad61144b2e747a5dd1b1fc9f5b5a091916559adf7c30117beae3563123aa2256",
+      "runtimeDigestAttested": false,
+      "minReplicas": null,
+      "maxReplicas": 3
+    },
+    "insight-service": {
+      "revisionMode": "Single",
+      "latestRevision": "insight-service--0000079",
+      "latestReadyRevision": "insight-service--0000079",
+      "activeRevisionCount": 1,
+      "trafficPercent": 100,
+      "imageTag": "9b2cf0d655b4b7ae2ce20ff7b67e4ad750df6900",
+      "registryResolvedDigestAtCollection": "sha256:f7db159d5b07085e471d784d50456a1eb384abe178a8fbcf7f4b5b17e916a46b",
+      "runtimeDigestAttested": false,
+      "minReplicas": null,
+      "maxReplicas": 3
+    }
+  },
+  "readOnlyObservations": {
+    "publicHealth": {
+      "status": 200,
+      "dateUtc": "2026-09-08T17:05:49Z",
+      "body": {"service": "portfolio-service", "status": "UP"}
+    },
+    "portfolioRevisionGet": {
+      "revision": "portfolio-service--0000095",
+      "replica": "portfolio-service--0000095-6644d-bm5qd",
+      "replicaReady": true,
+      "replicaRestartCount": 0,
+      "status": 200,
+      "syntheticIdentity": "00000000-0000-0000-0000-000000000e2e",
+      "portfolioCount": 1,
+      "holdingCount": 159,
+      "version": 0,
+      "responseBytes": 15281,
+      "responseSha256": "18a6be3aedd65d88a79805376dd41254bc2f67d02a93e36d2bd2566faaf3dbf2"
+    },
+    "databaseSnapshot": {
+      "capturedAtUtc": "2026-09-08T17:12:31.364Z",
+      "database": "neondb",
+      "effectiveRole": "neondb_owner",
+      "serverVersion": "18.6 (c5250a2)",
+      "violatingUsers": 0,
+      "portfolioDistribution": [{"portfolioCount": 1, "userCount": 10}],
+      "flywayHead": {"version": "21", "description": "Drop Transient Repair Functions", "checksum": 385711525, "successfulRows": 1},
+      "repairRoutinesAbsent": 4,
+      "matchingRepairRoutinesAllSchemas": 0,
+      "validatedUniquePortfolioPerUserConstraintCount": 1,
+      "validatedPositiveQuantityConstraintCount": 1,
+      "quantityDefault": null,
+      "nullVersionOrUpdatedAtRows": 0,
+      "outOfDomainHoldingRows": 0,
+      "portfolioRows": 10,
+      "holdingRows": 318,
+      "distinctHoldingTickers": 159,
+      "holdingsOutsideCatalog": 0,
+      "holdingsOutsideActiveCatalog": 0,
+      "repairAuditRows": 2,
+      "repairAuditRowsOutsideActiveCatalog": 0,
+      "retiredTickerRowsAcrossHoldingsPricesAndHistory": 0,
+      "currentPriceRows": 160,
+      "currentPriceDistinctTickers": 160,
+      "historyRows": 17078,
+      "historyDistinctTickers": 160,
+      "latestPriceObservedAtUtc": "2026-09-08T08:01:00.756Z",
+      "syntheticE2e": {"portfolioCount": 1, "holdingCount": 159, "minVersion": 0, "maxVersion": 0}
+    },
+    "catalogStartupTuples": [
+      {"app": "portfolio-service", "revision": "portfolio-service--0000095", "observedAtUtc": "2026-09-08T17:05:56.6540382Z", "version": "a00b32ac0267e1a9", "entries": 160, "active": 159, "rejectUnsupportedEvents": true, "enforceHoldingInvariant": true},
+      {"app": "market-data-service", "revision": "market-data-service--0000079", "observedAtUtc": "2026-08-31T16:00:36.0944673Z", "version": "a00b32ac0267e1a9", "entries": 160, "active": 159, "rejectUnsupportedEvents": true, "enforceHoldingInvariant": true},
+      {"app": "insight-service", "revision": "insight-service--0000079", "observedAtUtc": "2026-08-31T16:01:14.5750604Z", "version": "a00b32ac0267e1a9", "entries": 160, "active": 159, "rejectUnsupportedEvents": true, "enforceHoldingInvariant": true}
+    ],
+    "boundedLogMarkers": {
+      "catalogLoadFailed": 0,
+      "postMigrationIntegrityFailed": 0,
+      "unsupportedAssetEventRejected": 0,
+      "wouldRejectUnsupportedEvent": 0,
+      "unrelatedWarnings": "Three insight-service client-disconnect broken-pipe warnings on 2026-08-31; response was already committed."
+    },
+    "refreshJob": {
+      "trigger": "Schedule",
+      "cron": "0 8 * * *",
+      "parallelism": 1,
+      "replicaCompletionCount": 1,
+      "retryLimit": 0,
+      "timeoutSeconds": 600,
+      "runnerEnabled": true,
+      "lastFiveExecutionsSucceeded": true,
+      "latestExecution": "market-data-refresh-job-29814240",
+      "latestStartUtc": "2026-09-08T08:00:00Z",
+      "latestEndUtc": "2026-09-08T08:01:12Z"
+    },
+    "sourceLineage": {
+      "gatewayCurrentTag": "63fc0584ad307af7f50e9500f4911ac5999d6b76",
+      "gatewayHistoricalG2Tag": "18693d2defa3dcc34d1a508e03ed4a3c7e0b0f17",
+      "signupCriticalBlobCountCompared": 4,
+      "signupCriticalBlobsIdentical": 4,
+      "portfolioR_B3rSource": "97b83e52bcbfface4377cefd69ebb111270cb21e",
+      "portfolioRuntimeDiffFromCu4": ["portfolio-service/src/main/resources/db/migration/V21__Drop_Transient_Repair_Functions.sql"]
+    }
   },
   "gateResults": {
     "G2": {
       "status": "UNVERIFIED",
-      "reason": "No current complete gateway serving-set read-back or controlled signup was collected. Historical G2 was bound to api-gateway--0000076 and cannot be silently applied to later revision 0000077."
+      "reason": "The complete current gateway serving set and configured tag are bound, and ACR resolved that tag at collection time, but the already-running revision's pulled bytes were not independently attested. Four provisioning-critical source blobs match the historical G2 cut, but no controlled signup was authorized on api-gateway--0000077. Registry/source lineage is supporting evidence, not a serving provisioning proof."
     },
     "G3": {
-      "status": "UNVERIFIED",
-      "reason": "The required current relational snapshot was not collected after the latest valid G2 evidence."
+      "status": "OBSERVED_GREEN_SEQUENCE_UNSATISFIED",
+      "reason": "The current relational snapshot returned violating_users=0 and only portfolio_count=1 for all 10 users. Task 7.7 still requires this snapshot after a latest-valid current G2; G2 remains unverified because signup was not authorized."
     },
     "G4": {
-      "status": "UNVERIFIED",
-      "reason": "Current Spec A artifact, enforcement, catalog, repair, refresh, and steady-state observations were not collected."
+      "status": "PARTIAL_CURRENT_OBSERVATIONS_GREEN",
+      "reason": "Current revisions, three identical catalog/enforcement startup tuples, V21/repair state, relational integrity, scheduled refresh, and bounded failure markers are green. Mutable gateway/market/insight tag resolutions are not runtime-digest attestations. A current behavioral enforcement protocol has not yet been specified and reviewed, so the complete G4 oracle is not accepted."
     },
     "G0a": {
       "status": "UNVERIFIED",
-      "reason": "The R-B3r portfolio rollout superseded older serving bindings; no current complete serving-set and safe route-retirement proof was collected."
+      "reason": "R-B3r is bound to the sole serving portfolio digest and differs from cu4 runtime only by V21, but the two retired legacy-route POST probes were not authorized on revision 0000095."
     },
     "G2a": {
-      "status": "UNVERIFIED",
-      "reason": "The tracked R-B3r result contains an ordinary version-bearing read, but no current complete serving-set read-back was collected for Task 7.7."
+      "status": "PARTIAL_DIRECT_REVISION_CAPABILITY_ONLY",
+      "reason": "Single revision mode, one active 100%-traffic portfolio revision, immutable digest binding, and a direct in-revision GET with X-User-Id returned HTTP 200 with one synthetic portfolio, 159 holdings and numeric version 0. The required authenticated gateway read was not authorized or collected."
     },
     "G2b": {
       "status": "UNVERIFIED",
-      "reason": "R-B3r superseded the accepted cu4 G2b binding. The R-B3r remediation proof records one SAME_STATE seed but does not carry Task 7.7's complete global price/schema before-after oracle, and the present scope authorizes no new seed or other production write."
+      "reason": "R-B3r superseded cu4. Its accepted remediation history and V21-only source lineage are supporting evidence, but no current controlled seed with complete before/after tuple, price, history and schema snapshots was authorized."
     },
     "G6": {
       "status": "UNVERIFIED",
-      "reason": "Task 7.6 supplies the candidate-bound exhaustive inventory, but serving G0a, G2a, and G2b are not all verified for the current serving baseline."
+      "reason": "Task 7.6 supplies the candidate-bound exhaustive inventory. R-B3r runtime lineage is cu4 plus V21 only, but the explicit Task 7.6 inventory-to-serving-cut coverage mapping has not been completed. Derived G6 also requires fresh serving G0a, G2a and G2b; all three remain incomplete."
     }
   },
   "decisionBoundary": {
@@ -98,6 +259,6 @@
     "task7_8": "MUST_NOT_BE_PRESENTED",
     "task7_9": "NOT_AUTHORIZED_NOT_RUN",
     "candidateReady": false,
-    "nextRequiredAction": "Obtain explicit live read-only cloud/database access approval in this task and separately authorize any production-write probes the accepted Task 7.7 oracle requires; then recollect and independently review the complete serving packet."
+    "nextRequiredAction": "First design and independently review the current G4 behavioral-enforcement protocol and the exact write budget/failure handling. Only then request separate owner approval for a minimum write-bearing proof bundle: one controlled signup and authenticated portfolio read, the two retired legacy-route POST probes with 405/Allow GET and 404 predicates, one frozen-version controlled seed with complete before/after snapshots, the reviewed G4 probe, the explicit Task 7.6 inventory-to-serving mapping, and a final read-only G3 snapshot."
   }
 }
