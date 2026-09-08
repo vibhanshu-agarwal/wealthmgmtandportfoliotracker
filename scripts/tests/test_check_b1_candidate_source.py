@@ -1622,6 +1622,7 @@ class AddendumFixtureTests(unittest.TestCase):
             env = d.envelope()
             q_hash = d.artifact("evidence/op-query.sql", "DROP FUNCTION f();\n")
             r_hash = d.artifact("evidence/op-result.txt", "DROP FUNCTION\n")
+            d.commit("include operational artifacts at the cut")
             rec = {"subject_ref": {"path": sql_f[0]["path"], "subject_id": sql_f[0]["subject_id"]},
                    "environment_identity": "prod-db-1",
                    "query_artifact": {"path": "evidence/op-query.sql", "sha256": q_hash},
@@ -1629,10 +1630,12 @@ class AddendumFixtureTests(unittest.TestCase):
                    "operator": "owner", "recorded_at": "2026-09-03",
                    "reviewed_commit": d.head, "migration_subset_digest": env["migration_subset_digest"]}
             pol = d.policy(d.head, operational_records=[rec],
-                           operational_target_environment="prod-db-1")
+                           operational_target_environment="prod-db-1",
+                           scan_exclusions=[{"glob": "evidence/**", "kind": "TEST_CORPUS",
+                                             "reason": "captured operational evidence, not runtime SQL"}])
             res2 = gov.run_all(d.repo, pol, None, d.head, gov.LOCAL_PREPARATION, None)
             self.assertEqual(res2["unverified_coverage"], [], res2["summary"])
-            self.assertEqual(res2["readiness_substatus"], gov.PASS)
+            self.assertEqual(res2["readiness_substatus"], gov.PASS, res2["findings"])
             self.assertEqual(res2["overall_status"], gov.PASS)
             self.assertFalse(res2["candidate_ready"])
         finally:
@@ -1761,6 +1764,7 @@ class AddendumFixtureTests(unittest.TestCase):
                       "result_artifact": {"path": "evidence/result.json", "sha256": r_hash},
                       "operator": "owner", "recorded_at": "2026-09-07", "reviewed_commit": predating,
                       "migration_subset_digest": d.envelope(current)["migration_subset_digest"]}
+            current = d.commit("include artifacts while retaining the predating review")
             res = d.run(d.policy(current, operational_records=[record],
                                  operational_target_environment="prod-db-1"), cut=current)
             self.assertTrue(any(x["obligation"] == "operational-record"
@@ -2292,6 +2296,7 @@ class NormativeRegressionTests(unittest.TestCase):
             # Real artifacts with matching hashes, so the ONLY broken property is the environment.
             q_hash = d.artifact("evidence/q.sql", "DROP FUNCTION f();\n")
             r_hash = d.artifact("evidence/r.txt", "ok\n")
+            d.commit("include artifacts so only the environment is invalid")
             rec = {"subject_ref": {"path": sql_f["path"], "subject_id": sql_f["subject_id"]},
                    "environment_identity": "staging-db",
                    "query_artifact": {"path": "evidence/q.sql", "sha256": q_hash},
@@ -4431,6 +4436,160 @@ class CandidateEndToEndTests(unittest.TestCase):
             self.assertEqual(gov.worktree_object_id(repo, rel, raw), tree[rel])
         finally:
             tmp.cleanup()
+
+
+class RepositoryArtifactIdentityTests(unittest.TestCase):
+    """Evidence clearance must bind Git's canonical cut blob, not checkout-specific bytes."""
+
+    def setUp(self):
+        self.d = Deployable("class W { private DatabaseClient client; }\n")
+        self.addCleanup(self.d.close)
+        self.finding = next(x for x in self.d.run()["findings"] if x["kind"] == gov.UNSUPPORTED)
+        self.rel = "evidence/coverage.txt"
+        self.canonical = b"Independent trace: no governed write.\nSecond line.\n"
+        (self.d.repo / self.rel).write_bytes(self.canonical)
+        self.cut = self.d.commit("record independent evidence")
+        self.artifact = {"path": self.rel,
+                         "sha256": "sha256:" + hashlib.sha256(self.canonical).hexdigest()}
+        self.review = {
+            "path": self.finding["path"], "subject_id": self.finding["subject_id"],
+            "obligation": self.finding["obligation"], "status": gov.ACCEPTED,
+            "reviewer": "independent-reviewer", "reviewed_commit": self.cut,
+            "environment_identity": "fixture-db",
+            "source_blob": run_git(self.d.repo, "rev-parse", self.cut + ":" + self.finding["path"]).strip(),
+            "evidence_artifact": self.artifact, "conclusion": gov.UNRELATED,
+        }
+        self.envelope = self.d.envelope(self.cut)
+        self.record = {
+            "subject_ref": {"path": self.finding["path"], "subject_id": self.finding["subject_id"]},
+            "environment_identity": "fixture-db", "query_artifact": self.artifact,
+            "result_artifact": dict(self.artifact), "operator": "fixture-operator",
+            "recorded_at": "2026-09-08", "reviewed_commit": self.cut,
+            "migration_subset_digest": self.envelope["migration_subset_digest"],
+        }
+
+    def coverage_result(self):
+        return self.d.run(self.d.policy(
+            self.cut, unverified_coverage_reviews=[self.review],
+            operational_target_environment="fixture-db"), cut=self.cut)
+
+    def operational_problem(self):
+        return gov.validate_operational_record(self.record, self.d.repo, self.cut, self.envelope)
+
+    def checkout_crlf(self):
+        run_git(self.d.repo, "config", "core.autocrlf", "true")
+        (self.d.repo / self.rel).unlink()
+        run_git(self.d.repo, "checkout", "--", self.rel)
+        self.assertIn(b"\r\n", (self.d.repo / self.rel).read_bytes())
+        self.assertEqual(run_git(self.d.repo, "status", "--porcelain"), "")
+
+    def assert_both_reject(self, diagnostic):
+        with self.subTest(consumer="operational"):
+            problem = self.operational_problem()
+            self.assertIsNotNone(problem, "operational artifact must not clear")
+            self.assertIn(diagnostic, problem)
+        with self.subTest(consumer="coverage"):
+            result = self.coverage_result()
+            self.assertTrue(any(x["kind"] == gov.UNSUPPORTED for x in result["findings"]))
+            problems = [x["detail"] for x in result["findings"] if x["obligation"] == "coverage-review"]
+            self.assertTrue(any(diagnostic in problem for problem in problems), problems)
+
+    def test_coverage_review_accepts_unchanged_crlf_checkout(self):
+        self.checkout_crlf()
+        result = self.coverage_result()
+        self.assertEqual(result["source_governance_status"], gov.PASS, result["findings"])
+        self.assertEqual(result["unverified_coverage"], [])
+
+    def test_operational_record_accepts_unchanged_crlf_checkout(self):
+        self.checkout_crlf()
+        self.assertIsNone(self.operational_problem())
+
+    def test_logical_worktree_modification_rejected_even_with_matching_local_hash(self):
+        self.checkout_crlf()
+        changed = b"Changed conclusion: governed write exists.\r\n"
+        (self.d.repo / self.rel).write_bytes(changed)
+        self.artifact["sha256"] = "sha256:" + hashlib.sha256(changed).hexdigest()
+        self.record["result_artifact"] = dict(self.artifact)
+        self.assert_both_reject("worktree bytes differ from the blob at the exact cut")
+
+    def test_untracked_local_only_artifact_rejected(self):
+        self.artifact["path"] = "evidence/local-only.txt"
+        (self.d.repo / self.artifact["path"]).write_bytes(self.canonical)
+        self.assert_both_reject("tracked blob at the exact cut")
+
+    def test_operational_result_artifact_must_also_be_tracked_at_cut(self):
+        self.record["result_artifact"]["path"] = "evidence/local-result.txt"
+        (self.d.repo / "evidence/local-result.txt").write_bytes(self.canonical)
+        problem = self.operational_problem()
+        self.assertIsNotNone(problem)
+        self.assertIn("result_artifact", problem)
+        self.assertIn("tracked blob at the exact cut", problem)
+
+    def test_artifact_committed_only_after_cut_rejected(self):
+        self.artifact["path"] = "evidence/later.txt"
+        (self.d.repo / self.artifact["path"]).write_bytes(self.canonical)
+        self.d.commit("later artifact is not evidence at the frozen cut")
+        self.assert_both_reject("tracked blob at the exact cut")
+
+    def test_absolute_artifact_path_rejected(self):
+        self.artifact["path"] = str(self.d.repo / self.rel)
+        self.assert_both_reject("must be relative")
+
+    def test_escaping_artifact_path_rejected(self):
+        self.artifact["path"] = "../outside.txt"
+        self.assert_both_reject("escapes the repository")
+
+    def test_missing_worktree_artifact_rejected(self):
+        (self.d.repo / self.rel).unlink()
+        self.assert_both_reject("is not present")
+
+    def test_directory_artifact_rejected(self):
+        self.artifact["path"] = "evidence"
+        self.assert_both_reject("is not present")
+
+    def test_non_blob_at_cut_rejected_even_if_worktree_is_a_file(self):
+        (self.d.repo / "evidence").rename(self.d.repo / "saved-evidence")
+        (self.d.repo / "evidence").write_bytes(self.canonical)
+        self.artifact["path"] = "evidence"
+        self.assert_both_reject("tracked blob at the exact cut")
+
+    def test_executable_regular_artifact_at_cut_is_accepted(self):
+        run_git(self.d.repo, "update-index", "--chmod=+x", self.rel)
+        run_git(self.d.repo, "commit", "-q", "-m", "record executable regular evidence")
+        self.cut = run_git(self.d.repo, "rev-parse", "HEAD").strip()
+        self.assertTrue(run_git(self.d.repo, "ls-tree", self.cut, "--", self.rel).startswith("100755 blob "))
+        self.assertIsNone(self.operational_problem())
+        result = self.coverage_result()
+        self.assertEqual(result["source_governance_status"], gov.PASS, result["findings"])
+
+    def test_symlink_at_cut_rejected_when_checkout_materializes_a_regular_file(self):
+        run_git(self.d.repo, "config", "core.symlinks", "false")
+        link_target = b"coverage-target.txt"
+        artifact_path = self.d.repo / self.rel
+        artifact_path.write_bytes(link_target)
+        blob = run_git(self.d.repo, "hash-object", "-w", "--no-filters", str(artifact_path)).strip()
+        # Index construction avoids requiring native symlink privileges on Windows.
+        run_git(self.d.repo, "update-index", "--cacheinfo", "120000," + blob + "," + self.rel)
+        run_git(self.d.repo, "commit", "-q", "-m", "record a symlink artifact")
+        self.cut = run_git(self.d.repo, "rev-parse", "HEAD").strip()
+        artifact_path.unlink()
+        run_git(self.d.repo, "checkout", "--", self.rel)
+        self.assertTrue(artifact_path.is_file())
+        self.assertFalse(artifact_path.is_symlink())
+        self.assertEqual(artifact_path.read_bytes(), link_target)
+        self.assertTrue(run_git(self.d.repo, "ls-tree", self.cut, "--", self.rel).startswith("120000 blob "))
+        self.artifact["sha256"] = "sha256:" + hashlib.sha256(link_target).hexdigest()
+        self.record["result_artifact"] = dict(self.artifact)
+        self.assert_both_reject("regular tracked file at the exact cut")
+
+    def test_malformed_hash_rejected(self):
+        self.artifact["sha256"] = "sha256:not-a-digest"
+        self.assert_both_reject("sha256 is malformed")
+
+    def test_canonical_hash_mismatch_rejected_on_crlf_checkout(self):
+        self.checkout_crlf()
+        self.artifact["sha256"] = "sha256:" + "0" * 64
+        self.assert_both_reject("bytes do not match the recorded hash")
 
 
 if __name__ == "__main__":

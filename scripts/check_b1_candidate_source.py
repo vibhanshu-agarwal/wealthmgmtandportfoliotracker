@@ -3939,6 +3939,55 @@ def validate_claim_record(record: dict, expected_obligation: str, subject_id: st
     return None, ""
 
 
+def validate_repository_artifact(artifact, repo: Path | None, cut_sha: str,
+                                 label: str) -> str | None:
+    """Bind an evidence file to the canonical cut blob using Git's path-aware clean filter.
+
+    Checkout transformations may change raw bytes, but neither local-only evidence nor logical
+    edits may clear a claim. The recorded SHA-256 therefore describes the canonical Git blob,
+    after proving that the regular worktree file still clean-filters to that exact blob.
+    """
+    if (not isinstance(artifact, dict) or not isinstance(artifact.get("path"), str)
+            or not artifact["path"]):
+        return label + " must name a relative path and its sha256"
+    recorded_hash = normalize_sha256_digest(artifact.get("sha256"))
+    if recorded_hash is None:
+        return label + " sha256 is malformed"
+    relative = Path(artifact["path"])
+    if relative.anchor:
+        return label + " path must be relative"
+    if repo is None:
+        return None
+    try:
+        root = repo.resolve()
+        worktree_path = root / relative
+        if not worktree_path.resolve().is_relative_to(root):
+            return label + " path escapes the repository"
+        if worktree_path.is_symlink() or not worktree_path.is_file():
+            return label + " file " + artifact["path"] + " is not present as a regular worktree file"
+        # Keep the declared path for Git lookup: resolving a local symlink alias must not turn
+        # an untracked name into evidence from a different, tracked path.
+        rel_path = relative.as_posix()
+        blob = _blob_at(root, cut_sha, rel_path)
+        if blob is None or _git_bytes(root, "cat-file", "-t", blob).strip() != b"blob":
+            return label + " path does not resolve to a tracked blob at the exact cut"
+        # Symlinks are blobs too; core.symlinks=false materializes them as ordinary files.
+        # Require the exact tree entry (literal, NUL-delimited path) to be a regular file.
+        entry = _git_bytes(root, "--literal-pathspecs", "ls-tree", "-z", cut_sha, "--", rel_path)
+        if entry not in (
+                f"100644 blob {blob}\t{rel_path}\0".encode("utf-8"),
+                f"100755 blob {blob}\t{rel_path}\0".encode("utf-8")):
+            return label + " path is not a regular tracked file at the exact cut"
+        if worktree_object_id(root, rel_path, worktree_path.read_bytes()) != blob:
+            return label + " worktree bytes differ from the blob at the exact cut"
+        canonical = _git_bytes(root, "cat-file", "blob", blob)
+        if "sha256:" + hashlib.sha256(canonical).hexdigest() != recorded_hash:
+            return label + " canonical blob bytes do not match the recorded hash"
+    except (EvidenceError, OSError, ValueError) as exc:
+        return label + " could not be verified: " + str(exc)
+    return None
+
+
 def validate_operational_record(rec: dict, repo: Path | None, cut_sha: str,
                                 envelope_for_migration: dict,
                                 history: "HistoricalIndex | None" = None) -> str | None:
@@ -3966,16 +4015,9 @@ def validate_operational_record(rec: dict, repo: Path | None, cut_sha: str,
                 return ("operational record subject did not exist at reviewed_commit "
                         + str(reviewed_commit)[:12])
     for key in ("query_artifact", "result_artifact"):
-        art = rec.get(key)
-        if not isinstance(art, dict) or not art.get("path") or not str(art.get("sha256", "")).startswith("sha256:"):
-            return key + " must name a path and its sha256"
-        if repo is not None:
-            fp = Path(repo) / art["path"]
-            if not fp.is_file():
-                return key + " file " + art["path"] + " is not present"
-            actual = "sha256:" + hashlib.sha256(fp.read_bytes()).hexdigest()
-            if actual != art["sha256"]:
-                return key + " bytes do not match the recorded hash"
+        problem = validate_repository_artifact(rec.get(key), repo, cut_sha, key)
+        if problem:
+            return problem
     expected = envelope_for_migration.get("migration_subset_digest")
     if rec.get("migration_subset_digest") != expected:
         return ("migration subset changed since the operational record was taken; the recorded fact "
@@ -4034,23 +4076,8 @@ def validate_independent_coverage_review(review: dict, finding: Finding,
         return ("coverage review source_blob does not match the source bytes at reviewed_commit; "
                 "the proof is not bound to the code it claims to review")
 
-    artifact = review.get("evidence_artifact")
-    if not isinstance(artifact, dict) or not isinstance(artifact.get("path"), str):
-        return "coverage review evidence_artifact must name a relative path and its sha256"
-    recorded_hash = normalize_sha256_digest(artifact.get("sha256"))
-    if recorded_hash is None:
-        return "coverage review evidence_artifact sha256 is malformed"
-    if repo is not None:
-        root = repo.resolve()
-        artifact_path = (root / artifact["path"]).resolve()
-        if not artifact_path.is_relative_to(root):
-            return "coverage review evidence_artifact path escapes the repository"
-        if not artifact_path.is_file():
-            return "coverage review evidence_artifact file " + artifact["path"] + " is not present"
-        actual_hash = "sha256:" + hashlib.sha256(artifact_path.read_bytes()).hexdigest()
-        if actual_hash != recorded_hash:
-            return "coverage review evidence_artifact bytes do not match the recorded hash"
-    return None
+    return validate_repository_artifact(review.get("evidence_artifact"), repo, cut_sha,
+                                        "coverage review evidence_artifact")
 
 
 # --------------------------------------------------------------------------------------
