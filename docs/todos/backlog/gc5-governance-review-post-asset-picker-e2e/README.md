@@ -1,6 +1,7 @@
 # Backlog: Complete B1 GC.5 Governance Review After Asset Picker Production E2E
 
-**Status:** Open — intentionally deferred by the owner on 2026-09-05.
+**Status:** Completed locally on 2026-09-08 at Task 6 / Checkpoint D; publication and Task 7 remain
+separately gated.
 **Trigger:** Asset Picker functional E2E and Production E2E evidence are complete and accepted.
 **Priority:** Resume after that trigger, alongside the other selected backlog items.
 **Decision owners:** B1 governance/release owner, affected service owners, database/security
@@ -25,6 +26,29 @@ Asset Picker functional completion and GC.5 acceptance are different claims. The
 by themselves show that Asset Picker is broken, but the combined release candidate remains
 source-governance `BLOCKED`, `candidate_ready=false`, and R-C `NO-GO` until this backlog and the
 other release-evidence obligations are resolved.
+
+## 2026-09-08 Task 6 closure
+
+The final-cut inventory was regenerated after Tasks 1–5 merged and contained 553 subjects:
+276 `CONFIRMED_MATCH`, 245 `UNREVIEWED`, 25 `UNRESOLVED`, and 7 `UNSUPPORTED`. Task 6 reviewed that
+authoritative inventory rather than the older provisional count below.
+
+The final policy now carries:
+
+- exact blob-bound path/content review records for the final-cut changes, with the policy's own
+  vocabulary handled by exact-path self-governance entries rather than a wildcard;
+- 25 exact-fingerprint effect resolutions and 101 writer dispositions;
+- seven exact-source, artifact-hash, subject, commit, and target-environment-bound independent
+  coverage reviews;
+- reviewed baselines for all 11 discovered per-holding types (the original two plus nine current
+  families); and
+- four final envelopes with 201 `api-gateway`, 86 `insight-service`, 77 `market-data-service`, and
+  146 `portfolio-service` members.
+
+A fresh `LOCAL_PREPARATION` scan reports `source_governance_status=PASS`, zero findings, and zero
+unverified coverage. `candidate_ready` correctly remains `false`: Task 7's release build, registry
+evidence, and exact-digest HTTP smoke are not part of this closure. The accepted R3 operational
+record and V21 migration-subset digest remain unchanged.
 
 ## Preserved baseline
 
@@ -159,3 +183,5 @@ This backlog is complete only when:
 - R3's closed record remains bound to correctly qualified operational identity and V21 absence
   evidence (renew it if its migration subset changes);
 - a fresh scan is reproducible, all semantic delta is explained, source governance reports `PASS`,
+  and no unreviewed, unresolved, unsupported, invalid, changed-envelope, or unverified-coverage
+  state remains.
