@@ -683,9 +683,9 @@ def run_evidence(repo: Path, policy: dict, marker: dict, base_sha_override: str 
         "Task B: candidate image build, registry-digest resolution, and extracted-JAR hash join "
         "not implemented by this tooling yet",
         "Task C source-governance/writer-inventory: IMPLEMENTED "
-        "(scripts/check_b1_candidate_source.py, contract gc5-contract/2) but NOT CLEARED -- its "
+        "(scripts/check_b1_candidate_source.py, contract gc5-contract/3) but NOT CLEARED -- its "
         "findings require reviewed dispositions, which this tool does not grant and cannot infer",
-        "Task C exact-digest HTTP smoke harness: not implemented by this tooling yet",
+        "Task C exact-digest HTTP smoke evidence: not supplied or established by Task A tooling",
     ]
     unresolved_ids = [item.get("id", "?") for item in policy.get("unresolved", [])]
     if unresolved_ids:
