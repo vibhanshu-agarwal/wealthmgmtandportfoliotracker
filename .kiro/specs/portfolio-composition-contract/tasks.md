@@ -1,6 +1,6 @@
 # Implementation Plan
 
-**Current R-C status — reconciled 2026-09-08 at `main@8f1e8a36`:**
+**Current R-C status — reconciled 2026-09-08 at `main@7e752b41`; candidate cut `8f1e8a36`:**
 [PR #222](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/222)
 merged the candidate verification, copy-only packaging, GC.5 and exact-image smoke tooling.
 [PR #234](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/234)
@@ -21,6 +21,28 @@ evidenced. R-C remains **NO-GO for release execution** because Task 7.7 serving-
 open and Task 7.8 is not ready for owner STOP/GO. No R-C deployment, workflow dispatch, traffic
 change, production E2E, public exposure or Writer_Convergence claim exists. Tasks 7.7–7.11 and
 AM.1/AM.2 remain open.
+
+**Task 7.7 read-only collection — 2026-09-08:** the fetched baseline is PR #238 merge
+`7e752b4183aa25f75adad6e7b363501cd5f23aa5`, and its tracked checkpoint confirms candidate cut
+`8f1e8a36` / `linux/amd64` digest `sha256:1cf372a3…` through Task 7.6. Independent review corrected
+the live baseline to R-B3r portfolio revision `0000095` / digest `sha256:fa060bf0…`. After the
+owner approved the previously blocked read-only Azure, Log Analytics and Neon access, collection
+bound one active 100%-traffic revision for each app, one immutable portfolio reference and three
+registry-resolved mutable tags whose runtime bytes remain unattested. A direct GET on sole portfolio
+revision `0000095` returned one 159-holding synthetic portfolio with numeric version 0, proving
+backend capability but not G2a's authenticated-read predicate. The read-only database snapshot found
+`violating_users=0`, all 10 users at
+portfolio count 1, V21/checksum `385711525` successful exactly once, all four repair routines absent
+and current integrity green. G3 remains sequence-unsatisfied because current G2 is unverified; G4 is
+partially green. G2, G0a, G2a, G2b and derived G6 remain unverified because signup/authenticated
+read, legacy-route POSTs and the controlled seed were not authorized. The owner subsequently
+approved a zero-mutation, fail-closed G4 evidence-equivalence design and the explicit Task
+7.6-to-R-B3r writer map, which Astra independently accepted with no findings; those documentation
+steps do not close G4 or G6 because current runtime
+identity and the remaining serving gates are incomplete. No production write,
+dispatch, deployment or traffic/configuration change occurred. The
+[evidence packet](../../../docs/runbooks/B1_R_C_TASK_7_7_SERVING_EVIDENCE.md) records the boundary.
+Task 7.7 remains open; Task 7.8 must not be presented.
 
 **OWNER APPROVAL RECORDED — R-C preparation kickoff docs, 2026-09-03:** The owner requested
 Claude's kickoff and a docs-only PR; publication of that package is authorized, merge is separate.
@@ -110,8 +132,8 @@ are complete under the owner R-B3 GO. Wave 7 serving/deployment activation remai
 synthetics remain suspended; further dispatch or schedule restoration requires separate authorization.
 Candidate packaging, exact-digest smoke and source-governance evidence are complete through Task
 7.6. Task 7.7 serving recollection is open. Public `PUT /api/portfolio/holdings` remains unexposed.
-The version-required
-seed now serves on cu4 / revision 0000094 with accepted G2b proof. Writer_Convergence remains
+The latest tracked runtime is R-B3r revision `0000095` / digest `sha256:fa060bf0…`; it superseded
+historical cu4 revision `0000094` after the accepted G2b proof. Writer_Convergence remains
 unproven until its separate activation conditions are met. Dependent proof branch
 [`proof/b1-wave-2-g1-v20@e6a98c5`](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/tree/proof/b1-wave-2-g1-v20)
 remains historical and unmerged. Spec A V17–V19 were applied and verified at checkpoint 9.6; V20 is
@@ -1249,6 +1271,19 @@ frozen R-B3 image; Tasks 7.7 onward, deployment and exposure retain their own ga
   _Requirements: 8.1, 8.4, 8.10_
 - [ ] **7.7 Record pre-deploy serving evidence:** serving G2, G3 recollected after the latest valid
   G2, G4, and G6 (serving G0a, G2a, G2b).
+  **Read-only collection 2026-09-08:** after fresh owner approval, current Azure/ACR/Log Analytics,
+  direct-revision GET and read-only Neon evidence bound the four sole serving revisions. Only
+  portfolio `0000095` / `fa060bf0…` has an immutable configured image; three tag-based runtime
+  digests remain unattested. The direct GET proves numeric-version backend capability but not G2a's
+  authenticated-read predicate. Current G3 is green (`violating_users=0`, all 10 users at portfolio
+  count 1) but sequence-unsatisfied until current G2 is valid; G4 is partially green. G2, G0a, G2a,
+  G2b and derived G6 remain unverified. The independently accepted G4 method is zero-mutation
+  evidence equivalence because R-B3r has no applicable arbitrary-holdings input. The explicit Task 7.6
+  inventory-to-serving source map is complete, but mapping alone cannot close G6. No production
+  write or configuration change occurred.
+  Evidence:
+  [`docs/runbooks/B1_R_C_TASK_7_7_SERVING_EVIDENCE.md`](../../../docs/runbooks/B1_R_C_TASK_7_7_SERVING_EVIDENCE.md),
+  [`docs/runbooks/B1_R_C_TASK_7_7_G4_AND_WRITER_MAP.md`](../../../docs/runbooks/B1_R_C_TASK_7_7_G4_AND_WRITER_MAP.md).
   _Requirements: 9.1, 9.2, 9.7, 1.14_
 - [ ] **7.8 STOP/GO — R-C pre-deploy.**
   **Go:** 7.4–7.7 green. A prohibited rollback is a policy, not evidence.

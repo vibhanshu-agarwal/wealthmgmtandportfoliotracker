@@ -1,0 +1,311 @@
+{
+  "schemaVersion": 3,
+  "kind": "b1-r-c-task-7-7-serving-gates",
+  "recordedAtUtc": "2026-09-08T17:23:07.9302156Z",
+  "status": "READ_ONLY_COLLECTION_COMPLETE_PROTOCOL_DESIGNED_GATES_OPEN",
+  "scope": {
+    "authorized": "Task 7.7 bounded read-only evidence recollection only",
+    "approvalRecorded": "2026-09-08 owner reply: Approved",
+    "documentationDesignApprovalRecorded": "2026-09-08 owner reply: Approved the plan as above",
+    "productionWriteCount": 0,
+    "workflowDispatchCount": 0,
+    "deploymentCount": 0,
+    "trafficChangeCount": 0,
+    "rollbackCount": 0
+  },
+  "baseline": {
+    "fetchedMain": "7e752b4183aa25f75adad6e7b363501cd5f23aa5",
+    "mergeSubject": "Merge pull request #238 from vibhanshu-agarwal/codex/b1-rc-predeploy-evidence",
+    "candidateReleaseCut": "8f1e8a36f8baa594efa8079190f87b42139fcf10",
+    "candidatePlatformDigest": "sha256:1cf372a39d17709f74aba427259548a531e3e1ba04dc64ec7750369bb8e82126",
+    "candidateCheckpoint": "docs/evidence/b1-r-c/candidate-evidence-checkpoint-20260908.json",
+    "candidateEvidenceThrough": "7.6"
+  },
+  "collectionContract": {
+    "allowed": [
+      "control-plane GETs",
+      "read-only registry and log queries",
+      "read-only container GET probes",
+      "REPEATABLE READ READ ONLY SQL"
+    ],
+    "prohibited": [
+      "signup",
+      "seed or reset",
+      "legacy-route POST probes",
+      "workflow dispatch",
+      "deployment",
+      "configuration or traffic change",
+      "rollback"
+    ]
+  },
+  "approvedG4Protocol": {
+    "path": "docs/runbooks/B1_R_C_TASK_7_7_G4_AND_WRITER_MAP.md",
+    "method": "ZERO_MUTATION_EVIDENCE_EQUIVALENCE",
+    "productionMutationBudget": 0,
+    "liveNegativeHoldingProbe": "NOT_APPLICABLE_R_B3R_HAS_NO_ARBITRARY_HOLDINGS_INPUT",
+    "acceptance": "Exact behavioral test and enforcement-code blobs must join candidate evidence to the serving source, and every current serving consumer must have immutable runtime identity plus current catalog/configuration/database/log predicates. Any unresolved join leaves G4 open.",
+    "behavioralBlobJoins": {
+      "holdingEnforcement": "CompositionCatalogValidator a811017338120d4ea2307139923c6bd93fde63a9; HoldingReplacementService 48460fc52a1a697cbd88384096e85211a1e0c275; CompositionCatalogValidatorTest 8368c3286fad16e3dd0aba3a5d5798528f2537f9; HoldingReplacementServiceIT 6884e19d36f6350c9ab9875dae67306668478712",
+      "eventEnforcement": "MarketPriceProjectionService 27692c486dc62bf8763209eaca3e96cc5a326cdc; MarketPriceProjectionCurrencyTest e2c2dda3110f06017e571e82737eb25807e9a38e"
+    },
+    "currentEvaluation": "PARTIAL_CURRENT_OBSERVATIONS_GREEN",
+    "currentBlockers": [
+      "Already-running market-data and insight bytes remain unattested because their serving revisions are configured with mutable tags.",
+      "The retained catalog query uses arg_max and proves only the latest observed tuple per revision; it does not prove every startup line, observed-replica coverage, StartupLines >= 1, and TupleCount = 1.",
+      "Current application markers and refresh-job success do not prove consumer steady state; all-partition lag zero for portfolio-group and insight-group and bounded market-prices.DLT non-growth are unverified."
+    ],
+    "remainingReadOnlyQuery": "For each exact current consumer revision over its fixed lifetime window, retain every catalog_loaded line, join observed replicas, require no uncovered replica, StartupLines >= 1, TupleCount = 1, and one identical true/true catalog tuple across all consumers.",
+    "remainingKafkaMetadataChecks": "Using reviewed metadata-only commands, require committed offset == log-end and lag 0 on every market-prices partition for portfolio-group and insight-group; anchor and re-read every market-prices.DLT partition end offset across the bounded observation window and require no growth. Do not consume, join a group, commit/reset offsets, or produce.",
+    "executionAuthorized": false
+  },
+  "independentDesignReview": {
+    "reviewer": "Astra",
+    "reviewedAt": "2026-09-08",
+    "verdict": "ACCEPT",
+    "criticalFindingsOpen": 0,
+    "importantFindingsOpen": 0,
+    "minorFindingsOpen": 0,
+    "acceptedScope": "Documentation-only G4 protocol and Task 7.6-to-R-B3r serving-source writer map",
+    "excludedScope": "Live evidence, execution, Writer_Convergence, Task 7.7 completion and Task 7.8"
+  },
+  "writerInventoryServingMap": {
+    "path": "docs/runbooks/B1_R_C_TASK_7_7_G4_AND_WRITER_MAP.md",
+    "candidateCut": "8f1e8a36f8baa594efa8079190f87b42139fcf10",
+    "servingSource": "97b83e52bcbfface4377cefd69ebb111270cb21e",
+    "status": "DOCUMENTED_SOURCE_MAP_COMPLETE_G6_STILL_OPEN",
+    "effectivePortfolioServiceHoldingsWriterMechanism": "portfolio-service/src/main/java/com/wealth/portfolio/composition/HoldingReplacementService.java",
+    "effectivePortfolioServiceHoldingsWriterBlob": "48460fc52a1a697cbd88384096e85211a1e0c275",
+    "adjacentParentOnlyWriter": "api-gateway UserCredentialRepository inserts a version-0 portfolio during signup but never writes asset_holdings; it remains governed by G2/G3.",
+    "candidateOnlyServingExclusions": [
+      "portfolio-service/src/main/java/com/wealth/portfolio/composition/CompositionController.java",
+      "portfolio-service/src/main/java/com/wealth/portfolio/composition/CompositionWriteService.java"
+    ],
+    "candidateChangedNonWriter": "CompositionHoldingsRequest changes from serving blob 706e9d5d4647e651d4b645e481fdf9a2e5d970d0 to candidate blob a783dcf680dd2995c510bd7f6316875271c5d260 for null-element validation; it performs no DML.",
+    "residualStructuralRisk": "asset_holdings.portfolio_id ON DELETE CASCADE is ungated, but current production source has no portfolio-delete caller.",
+    "g6Accepted": false
+  },
+  "collection": {
+    "liveAccessSucceeded": true,
+    "secretsReadForConnectionOnly": true,
+    "secretValuesEmittedOrPersisted": false,
+    "databaseConnected": true,
+    "databaseTransactionMode": "REPEATABLE READ READ ONLY",
+    "publicWrites": 0,
+    "localToolingChange": "Docker downloaded postgres@sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777 before running the read-only psql client.",
+    "failedReadOnlyAttempts": [
+      "A public GET /api/assets returned 401 and made no application write.",
+      "The first 30-second health GET timed out during scale-from-zero; the retry returned 200.",
+      "One Log Analytics query had a syntax error and was corrected without changing cloud state."
+    ]
+  },
+  "evidenceProvenance": {
+    "rawCommandTranscriptRetained": false,
+    "exactExpandedSqlFileRetained": false,
+    "transport": "Ephemeral task command output was consolidated into this sanitized result record and the companion runbook.",
+    "g3PredicateSource": "docs/runbooks/B1_R_B_G3_SERVING_PROOF.md section G3 and .kiro/specs/portfolio-composition-contract/design.md gate table",
+    "v21QuerySource": "docs/evidence/b1-r3-decision1/v21-r3-operational-query.sql",
+    "databaseIsolation": "REPEATABLE READ READ ONLY",
+    "databaseSnapshotAtUtc": "2026-09-08T17:12:31.364Z",
+    "catalogTupleQuery": {
+      "table": "ContainerAppConsoleLogs_CL",
+      "cliTimespan": "P30D",
+      "endExclusiveUtc": "2026-09-08T17:50:18.132Z",
+      "queryFile": "docs/evidence/b1-r-c/task-7-7-log-queries-20260908.kql",
+      "queryUtf8Sha256": "cdcccd73f92f6ee88e61d65dcf288b66c6d94ddcbc5000cf3d0231f11f789403",
+      "predicate": "exact app/revision targets and Log_s has catalog_loaded; arg_max(TimeGenerated, Log_s) per target"
+    },
+    "boundedMarkerQuery": {
+      "table": "ContainerAppConsoleLogs_CL",
+      "cliTimespan": "P30D",
+      "endExclusiveUtc": "2026-09-08T17:50:18.132Z",
+      "queryFile": "docs/evidence/b1-r-c/task-7-7-log-queries-20260908.kql",
+      "queryUtf8Sha256": "65e0e42b07815705920af2f6dd8f8d1b21a80f98f14a89735ab27e3f4c16578d",
+      "revisionLifetimeStartsUtc": {
+        "portfolio-service--0000095": "2026-09-07T15:18:47Z",
+        "market-data-service--0000079": "2026-08-30T10:39:21Z",
+        "insight-service--0000079": "2026-08-30T10:39:20Z"
+      },
+      "markers": [
+        "catalog_load_failed",
+        "post_migration_integrity_failed",
+        "unsupported_asset_event_rejected",
+        "would_reject_unsupported_event",
+        " ERROR ",
+        "Exception"
+      ]
+    },
+    "limitation": "This is a durable sanitized observation record, not a retained raw-output capture. Gate statuses remain partial or unverified wherever the accepted serving oracle is not fully demonstrated."
+  },
+  "servingSets": {
+    "api-gateway": {
+      "revisionMode": "Single",
+      "latestRevision": "api-gateway--0000077",
+      "latestReadyRevision": "api-gateway--0000077",
+      "activeRevisionCount": 1,
+      "trafficPercent": 100,
+      "imageTag": "63fc0584ad307af7f50e9500f4911ac5999d6b76",
+      "registryResolvedDigestAtCollection": "sha256:79a3f253aaab1f3db58146612e8f2d05a70df6180482ace16efa1baef58469f3",
+      "runtimeDigestAttested": false,
+      "externalIngress": true,
+      "allowInsecure": false,
+      "customDomain": "api.vibhanshu-ai-portfolio.dev"
+    },
+    "portfolio-service": {
+      "revisionMode": "Single",
+      "latestRevision": "portfolio-service--0000095",
+      "latestReadyRevision": "portfolio-service--0000095",
+      "activeRevisionCount": 1,
+      "trafficPercent": 100,
+      "immutableImage": "wealthprodacr.azurecr.io/portfolio-service@sha256:fa060bf054b9c108b8b59d9e9b27845d6b707f40040a7dcba16411db7f0e8552",
+      "runtimeDigestAttested": true,
+      "minReplicas": null,
+      "maxReplicas": 3,
+      "demoSeedOnStartup": false,
+      "demoTransactionDiagnostics": false
+    },
+    "market-data-service": {
+      "revisionMode": "Single",
+      "latestRevision": "market-data-service--0000079",
+      "latestReadyRevision": "market-data-service--0000079",
+      "activeRevisionCount": 1,
+      "trafficPercent": 100,
+      "imageTag": "9b2cf0d655b4b7ae2ce20ff7b67e4ad750df6900",
+      "registryResolvedDigestAtCollection": "sha256:ad61144b2e747a5dd1b1fc9f5b5a091916559adf7c30117beae3563123aa2256",
+      "runtimeDigestAttested": false,
+      "minReplicas": null,
+      "maxReplicas": 3
+    },
+    "insight-service": {
+      "revisionMode": "Single",
+      "latestRevision": "insight-service--0000079",
+      "latestReadyRevision": "insight-service--0000079",
+      "activeRevisionCount": 1,
+      "trafficPercent": 100,
+      "imageTag": "9b2cf0d655b4b7ae2ce20ff7b67e4ad750df6900",
+      "registryResolvedDigestAtCollection": "sha256:f7db159d5b07085e471d784d50456a1eb384abe178a8fbcf7f4b5b17e916a46b",
+      "runtimeDigestAttested": false,
+      "minReplicas": null,
+      "maxReplicas": 3
+    }
+  },
+  "readOnlyObservations": {
+    "publicHealth": {
+      "status": 200,
+      "dateUtc": "2026-09-08T17:05:49Z",
+      "body": {"service": "portfolio-service", "status": "UP"}
+    },
+    "portfolioRevisionGet": {
+      "revision": "portfolio-service--0000095",
+      "replica": "portfolio-service--0000095-6644d-bm5qd",
+      "replicaReady": true,
+      "replicaRestartCount": 0,
+      "status": 200,
+      "syntheticIdentity": "00000000-0000-0000-0000-000000000e2e",
+      "portfolioCount": 1,
+      "holdingCount": 159,
+      "version": 0,
+      "responseBytes": 15281,
+      "responseSha256": "18a6be3aedd65d88a79805376dd41254bc2f67d02a93e36d2bd2566faaf3dbf2"
+    },
+    "databaseSnapshot": {
+      "capturedAtUtc": "2026-09-08T17:12:31.364Z",
+      "database": "neondb",
+      "effectiveRole": "neondb_owner",
+      "serverVersion": "18.6 (c5250a2)",
+      "violatingUsers": 0,
+      "portfolioDistribution": [{"portfolioCount": 1, "userCount": 10}],
+      "flywayHead": {"version": "21", "description": "Drop Transient Repair Functions", "checksum": 385711525, "successfulRows": 1},
+      "repairRoutinesAbsent": 4,
+      "matchingRepairRoutinesAllSchemas": 0,
+      "validatedUniquePortfolioPerUserConstraintCount": 1,
+      "validatedPositiveQuantityConstraintCount": 1,
+      "quantityDefault": null,
+      "nullVersionOrUpdatedAtRows": 0,
+      "outOfDomainHoldingRows": 0,
+      "portfolioRows": 10,
+      "holdingRows": 318,
+      "distinctHoldingTickers": 159,
+      "holdingsOutsideCatalog": 0,
+      "holdingsOutsideActiveCatalog": 0,
+      "repairAuditRows": 2,
+      "repairAuditRowsOutsideActiveCatalog": 0,
+      "retiredTickerRowsAcrossHoldingsPricesAndHistory": 0,
+      "currentPriceRows": 160,
+      "currentPriceDistinctTickers": 160,
+      "historyRows": 17078,
+      "historyDistinctTickers": 160,
+      "latestPriceObservedAtUtc": "2026-09-08T08:01:00.756Z",
+      "syntheticE2e": {"portfolioCount": 1, "holdingCount": 159, "minVersion": 0, "maxVersion": 0}
+    },
+    "catalogStartupTuples": [
+      {"app": "portfolio-service", "revision": "portfolio-service--0000095", "observedAtUtc": "2026-09-08T17:05:56.6540382Z", "version": "a00b32ac0267e1a9", "entries": 160, "active": 159, "rejectUnsupportedEvents": true, "enforceHoldingInvariant": true},
+      {"app": "market-data-service", "revision": "market-data-service--0000079", "observedAtUtc": "2026-08-31T16:00:36.0944673Z", "version": "a00b32ac0267e1a9", "entries": 160, "active": 159, "rejectUnsupportedEvents": true, "enforceHoldingInvariant": true},
+      {"app": "insight-service", "revision": "insight-service--0000079", "observedAtUtc": "2026-08-31T16:01:14.5750604Z", "version": "a00b32ac0267e1a9", "entries": 160, "active": 159, "rejectUnsupportedEvents": true, "enforceHoldingInvariant": true}
+    ],
+    "boundedLogMarkers": {
+      "catalogLoadFailed": 0,
+      "postMigrationIntegrityFailed": 0,
+      "unsupportedAssetEventRejected": 0,
+      "wouldRejectUnsupportedEvent": 0,
+      "unrelatedWarnings": "Three insight-service client-disconnect broken-pipe warnings on 2026-08-31; response was already committed."
+    },
+    "refreshJob": {
+      "trigger": "Schedule",
+      "cron": "0 8 * * *",
+      "parallelism": 1,
+      "replicaCompletionCount": 1,
+      "retryLimit": 0,
+      "timeoutSeconds": 600,
+      "runnerEnabled": true,
+      "lastFiveExecutionsSucceeded": true,
+      "latestExecution": "market-data-refresh-job-29814240",
+      "latestStartUtc": "2026-09-08T08:00:00Z",
+      "latestEndUtc": "2026-09-08T08:01:12Z"
+    },
+    "sourceLineage": {
+      "gatewayCurrentTag": "63fc0584ad307af7f50e9500f4911ac5999d6b76",
+      "gatewayHistoricalG2Tag": "18693d2defa3dcc34d1a508e03ed4a3c7e0b0f17",
+      "signupCriticalBlobCountCompared": 4,
+      "signupCriticalBlobsIdentical": 4,
+      "portfolioR_B3rSource": "97b83e52bcbfface4377cefd69ebb111270cb21e",
+      "portfolioRuntimeDiffFromCu4": ["portfolio-service/src/main/resources/db/migration/V21__Drop_Transient_Repair_Functions.sql"]
+    }
+  },
+  "gateResults": {
+    "G2": {
+      "status": "UNVERIFIED",
+      "reason": "The complete current gateway serving set and configured tag are bound, and ACR resolved that tag at collection time, but the already-running revision's pulled bytes were not independently attested. Four provisioning-critical source blobs match the historical G2 cut, but no controlled signup was authorized on api-gateway--0000077. Registry/source lineage is supporting evidence, not a serving provisioning proof."
+    },
+    "G3": {
+      "status": "OBSERVED_GREEN_SEQUENCE_UNSATISFIED",
+      "reason": "The current relational snapshot returned violating_users=0 and only portfolio_count=1 for all 10 users. Task 7.7 still requires this snapshot after a latest-valid current G2; G2 remains unverified because signup was not authorized."
+    },
+    "G4": {
+      "status": "PARTIAL_CURRENT_OBSERVATIONS_GREEN",
+      "reason": "The approved zero-mutation evidence-equivalence protocol is documented for both holding rejection and price-event rejection. Current revisions, three latest-observed identical catalog/enforcement tuples, enforcement/test blob equality, V21/repair state, relational integrity, scheduled refresh, and bounded failure markers are green. Already-running market-data and insight bytes remain unattested because their revisions use mutable tags. The retained arg_max catalog query also does not prove every startup line, observed-replica coverage, StartupLines >= 1, and TupleCount = 1. All-partition lag zero for portfolio-group and insight-group and bounded market-prices.DLT non-growth are unverified; application logs and refresh success cannot substitute. The complete G4 oracle is therefore not accepted."
+    },
+    "G0a": {
+      "status": "UNVERIFIED",
+      "reason": "R-B3r is bound to the sole serving portfolio digest and differs from cu4 runtime only by V21, but the two retired legacy-route POST probes were not authorized on revision 0000095."
+    },
+    "G2a": {
+      "status": "PARTIAL_DIRECT_REVISION_CAPABILITY_ONLY",
+      "reason": "Single revision mode, one active 100%-traffic portfolio revision, immutable digest binding, and a direct in-revision GET with X-User-Id returned HTTP 200 with one synthetic portfolio, 159 holdings and numeric version 0. The required authenticated gateway read was not authorized or collected."
+    },
+    "G2b": {
+      "status": "UNVERIFIED",
+      "reason": "R-B3r superseded cu4. Its accepted remediation history and V21-only source lineage are supporting evidence, but no current controlled seed with complete before/after tuple, price, history and schema snapshots was authorized."
+    },
+    "G6": {
+      "status": "UNVERIFIED",
+      "reason": "Task 7.6 supplies the candidate-bound exhaustive inventory, and the explicit mapping to R-B3r serving source is now documented. Derived G6 still requires fresh serving G0a, G2a and G2b; all three remain incomplete."
+    }
+  },
+  "decisionBoundary": {
+    "task7_7": "OPEN",
+    "task7_8": "MUST_NOT_BE_PRESENTED",
+    "task7_9": "NOT_AUTHORIZED_NOT_RUN",
+    "candidateReady": false,
+    "nextRequiredAction": "Request separate owner approval for the remaining read-only runtime-identity, fixed-window all-startup-line/replica consistency, all-partition lag-zero and bounded DLT non-growth work plus the minimum write-bearing proof bundle: one controlled signup and authenticated portfolio read, the two retired legacy-route POST probes with 405/Allow GET and 404 predicates, one frozen-version controlled seed with complete before/after snapshots, and a final read-only G3 snapshot."
+  }
+}
