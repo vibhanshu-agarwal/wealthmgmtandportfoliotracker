@@ -775,13 +775,19 @@ class RealRepoSmokeTests(unittest.TestCase):
     #: this test into a live-HEAD magic-number assertion that a reviewer correctly rejected. Pinning
     #: to this fixed commit is the same methodology used throughout GC.5 coverage-closure's own
     #: before/after real-tree comparisons: the INPUT tree never changes, so a count that moves here
-    #: can only be explained by a deliberate, reviewed change to the analyzer itself.
+    #: can only be explained by a deliberate, reviewed change to the analyzer itself. The policy is
+    #: separately pinned to the R3 operational-proof closure whose 72-writer count this fixture asserts.
     _FIXED_CUT = "9c3add3cd3a38ff94c2196b20e636eeb5bfa4315"
+    _FIXED_POLICY_COMMIT = "a0e640cd491cbe3840d58cf4ebbf3fd1084f8049"
 
     def test_real_repo_run_at_the_fixed_cut_reproduces_the_pinned_counts(self):
-        policy_path = REPO / "scripts" / "b1-candidate-policy.json"
-        result = gov.run_all(REPO, json.loads(policy_path.read_text(encoding="utf-8")), None,
-                             self._FIXED_CUT, gov.LOCAL_PREPARATION, policy_path)
+        tree = gov.tree_blobs(REPO, self._FIXED_POLICY_COMMIT)
+        policy_text = gov.BlobReader(REPO).text(tree["scripts/b1-candidate-policy.json"])
+        self.assertIsNotNone(policy_text)
+        # Both inputs are pinned. Loading the live policy made a later, legitimate review closure
+        # rewrite this fixture's classifications even though the source cut was immutable.
+        result = gov.run_all(REPO, json.loads(policy_text), None, self._FIXED_CUT,
+                             gov.LOCAL_PREPARATION, None)
         self.assertEqual(result["overall_status"], "BLOCKED")
         self.assertFalse(result["candidate_ready"])
         by_ob = result["summary"]["by_obligation"]
