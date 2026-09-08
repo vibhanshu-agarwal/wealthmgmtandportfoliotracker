@@ -1,6 +1,6 @@
 # Implementation Plan
 
-**Current R-C status — reconciled 2026-09-08 at `main@8f1e8a36`:**
+**Current R-C status — reconciled 2026-09-08 at `main@7e752b41`; candidate cut `8f1e8a36`:**
 [PR #222](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/222)
 merged the candidate verification, copy-only packaging, GC.5 and exact-image smoke tooling.
 [PR #234](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/234)
@@ -21,6 +21,17 @@ evidenced. R-C remains **NO-GO for release execution** because Task 7.7 serving-
 open and Task 7.8 is not ready for owner STOP/GO. No R-C deployment, workflow dispatch, traffic
 change, production E2E, public exposure or Writer_Convergence claim exists. Tasks 7.7–7.11 and
 AM.1/AM.2 remain open.
+
+**Task 7.7 collection attempt — 2026-09-08:** the fetched baseline is PR #238 merge
+`7e752b4183aa25f75adad6e7b363501cd5f23aa5`, and its tracked checkpoint confirms candidate cut
+`8f1e8a36` / `linux/amd64` digest `sha256:1cf372a3…` through Task 7.6. Independent review corrected
+the live baseline: the latest tracked serving portfolio is R-B3r revision `0000095` / digest
+`sha256:fa060bf0…`, not historical cu4 `0000094` / `2be727ea…`. The task host rejected the first
+read-only Azure metadata request and required fresh explicit owner approval in this task; the denial
+was not bypassed. No secret, database or public endpoint was accessed, and no production write,
+dispatch, deployment or traffic change occurred. The
+[blocked evidence packet](../../../docs/runbooks/B1_R_C_TASK_7_7_SERVING_EVIDENCE.md) records the
+frozen oracle and unverified gates. Task 7.7 remains open; Task 7.8 must not be presented.
 
 **OWNER APPROVAL RECORDED — R-C preparation kickoff docs, 2026-09-03:** The owner requested
 Claude's kickoff and a docs-only PR; publication of that package is authorized, merge is separate.
@@ -110,8 +121,8 @@ are complete under the owner R-B3 GO. Wave 7 serving/deployment activation remai
 synthetics remain suspended; further dispatch or schedule restoration requires separate authorization.
 Candidate packaging, exact-digest smoke and source-governance evidence are complete through Task
 7.6. Task 7.7 serving recollection is open. Public `PUT /api/portfolio/holdings` remains unexposed.
-The version-required
-seed now serves on cu4 / revision 0000094 with accepted G2b proof. Writer_Convergence remains
+The latest tracked runtime is R-B3r revision `0000095` / digest `sha256:fa060bf0…`; it superseded
+historical cu4 revision `0000094` after the accepted G2b proof. Writer_Convergence remains
 unproven until its separate activation conditions are met. Dependent proof branch
 [`proof/b1-wave-2-g1-v20@e6a98c5`](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/tree/proof/b1-wave-2-g1-v20)
 remains historical and unmerged. Spec A V17–V19 were applied and verified at checkpoint 9.6; V20 is
@@ -1249,6 +1260,12 @@ frozen R-B3 image; Tasks 7.7 onward, deployment and exposure retain their own ga
   _Requirements: 8.1, 8.4, 8.10_
 - [ ] **7.7 Record pre-deploy serving evidence:** serving G2, G3 recollected after the latest valid
   G2, G4, and G6 (serving G0a, G2a, G2b).
+  **Collection attempt 2026-09-08:** baseline and tracked evidence review completed, but live
+  recollection did not start because the task host rejected the read-only Azure
+  request and required fresh explicit approval in this task. R-B3r `0000095` / `fa060bf0…`
+  supersedes cu4 and prevents old G0a/G2a/G2b bindings from being treated as current. G2, G3, G4,
+  G0a, G2a, G2b and derived G6 therefore remain unverified. Evidence:
+  [`docs/runbooks/B1_R_C_TASK_7_7_SERVING_EVIDENCE.md`](../../../docs/runbooks/B1_R_C_TASK_7_7_SERVING_EVIDENCE.md).
   _Requirements: 9.1, 9.2, 9.7, 1.14_
 - [ ] **7.8 STOP/GO — R-C pre-deploy.**
   **Go:** 7.4–7.7 green. A prohibited rollback is a policy, not evidence.

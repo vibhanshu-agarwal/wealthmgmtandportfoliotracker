@@ -1,0 +1,103 @@
+{
+  "schemaVersion": 1,
+  "kind": "b1-r-c-task-7-7-serving-gates",
+  "recordedAtUtc": "2026-09-08T16:34:18.4327917Z",
+  "status": "BLOCKED_BEFORE_LIVE_COLLECTION",
+  "scope": {
+    "authorized": "Task 7.7 bounded read-only evidence recollection only",
+    "productionWriteCount": 0,
+    "workflowDispatchCount": 0,
+    "deploymentCount": 0,
+    "trafficChangeCount": 0,
+    "rollbackCount": 0
+  },
+  "baseline": {
+    "fetchedMain": "7e752b4183aa25f75adad6e7b363501cd5f23aa5",
+    "mergeSubject": "Merge pull request #238 from vibhanshu-agarwal/codex/b1-rc-predeploy-evidence",
+    "candidateReleaseCut": "8f1e8a36f8baa594efa8079190f87b42139fcf10",
+    "candidatePlatformDigest": "sha256:1cf372a39d17709f74aba427259548a531e3e1ba04dc64ec7750369bb8e82126",
+    "candidateCheckpoint": "docs/evidence/b1-r-c/candidate-evidence-checkpoint-20260908.json",
+    "candidateEvidenceThrough": "7.6"
+  },
+  "latestTrackedServingBaseline": {
+    "source": "docs/evidence/b1-r3-decision1/v21-r3-operational-result.json",
+    "observedAtUtc": "2026-09-07T15:48:36.8872829Z",
+    "release": "R-B3r",
+    "portfolioRevision": "portfolio-service--0000095",
+    "portfolioDigest": "sha256:fa060bf054b9c108b8b59d9e9b27845d6b707f40040a7dcba16411db7f0e8552",
+    "supersedesHistoricalG2bRevision": "portfolio-service--0000094",
+    "supersedesHistoricalG2bDigest": "sha256:2be727eaf4577699c783ae66073670d4984fe66c666af3e56422c934fdd0b023"
+  },
+  "collectionContract": {
+    "allowed": [
+      "control-plane GETs",
+      "read-only log queries",
+      "read-only container GET probes",
+      "REPEATABLE READ READ ONLY SQL"
+    ],
+    "prohibited": [
+      "signup",
+      "seed or reset",
+      "legacy-route POST probes",
+      "workflow dispatch",
+      "deployment",
+      "configuration or traffic change",
+      "rollback"
+    ],
+    "ordering": [
+      "establish complete serving sets and immutable digests",
+      "establish the latest valid G2 evidence",
+      "revalidate G4",
+      "revalidate serving G0a, G2a, and G2b",
+      "recollect final G3 after the latest valid G2 evidence and after every other authorized write-bearing probe",
+      "derive G6 using those serving gates plus the Task 7.6 exhaustive writer inventory"
+    ]
+  },
+  "collectionAttempt": {
+    "liveCommandInvoked": true,
+    "externalRequestExecuted": false,
+    "liveAccessSucceeded": false,
+    "blockedAction": "read-only Azure account and Container App serving-state queries",
+    "blocker": "The task host approval reviewer rejected live cloud metadata access and required fresh explicit owner approval in this task.",
+    "secretsRead": false,
+    "databaseConnected": false,
+    "publicEndpointCalled": false
+  },
+  "gateResults": {
+    "G2": {
+      "status": "UNVERIFIED",
+      "reason": "No current complete gateway serving-set read-back or controlled signup was collected. Historical G2 was bound to api-gateway--0000076 and cannot be silently applied to later revision 0000077."
+    },
+    "G3": {
+      "status": "UNVERIFIED",
+      "reason": "The required current relational snapshot was not collected after the latest valid G2 evidence."
+    },
+    "G4": {
+      "status": "UNVERIFIED",
+      "reason": "Current Spec A artifact, enforcement, catalog, repair, refresh, and steady-state observations were not collected."
+    },
+    "G0a": {
+      "status": "UNVERIFIED",
+      "reason": "The R-B3r portfolio rollout superseded older serving bindings; no current complete serving-set and safe route-retirement proof was collected."
+    },
+    "G2a": {
+      "status": "UNVERIFIED",
+      "reason": "The tracked R-B3r result contains an ordinary version-bearing read, but no current complete serving-set read-back was collected for Task 7.7."
+    },
+    "G2b": {
+      "status": "UNVERIFIED",
+      "reason": "R-B3r superseded the accepted cu4 G2b binding. The R-B3r remediation proof records one SAME_STATE seed but does not carry Task 7.7's complete global price/schema before-after oracle, and the present scope authorizes no new seed or other production write."
+    },
+    "G6": {
+      "status": "UNVERIFIED",
+      "reason": "Task 7.6 supplies the candidate-bound exhaustive inventory, but serving G0a, G2a, and G2b are not all verified for the current serving baseline."
+    }
+  },
+  "decisionBoundary": {
+    "task7_7": "OPEN",
+    "task7_8": "MUST_NOT_BE_PRESENTED",
+    "task7_9": "NOT_AUTHORIZED_NOT_RUN",
+    "candidateReady": false,
+    "nextRequiredAction": "Obtain explicit live read-only cloud/database access approval in this task and separately authorize any production-write probes the accepted Task 7.7 oracle requires; then recollect and independently review the complete serving packet."
+  }
+}
