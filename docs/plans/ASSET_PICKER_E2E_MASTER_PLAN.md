@@ -28,7 +28,10 @@ CANDIDATE guard passed with zero findings, zero unverified coverage and all Task
 artifacts verified. The tracked [candidate evidence checkpoint](../evidence/b1-r-c/candidate-evidence-checkpoint-20260908.json)
 records the immutable identifiers and local evidence hashes. Tasks 7.3–7.6, including 7.5a, are now
 evidenced. Task 7.7 has current read-only serving evidence and direct-revision version capability,
-but G2/G0a/G2a/G2b/G4 and derived G6 remain open; Task 7.8 is not ready for an owner STOP/GO. No R-C
+but G2/G0a/G2a/G2b/G4 and derived G6 remain open; Task 7.8 is not ready for an owner STOP/GO. The
+zero-mutation G4 evidence-equivalence protocol and explicit Task 7.6-to-R-B3r writer map are now
+designed and independently accepted; the map closes its documentation gap but cannot close G6
+without fresh G0a/G2a/G2b. No R-C
 deployment, workflow dispatch, traffic change, production E2E, public exposure or
 Writer_Convergence claim has occurred.
 
@@ -41,7 +44,9 @@ evidence now binds all four sole serving revisions. Only portfolio uses an immut
 image; the three mutable-tag resolutions do not attest already-running bytes. The direct GET proves
 numeric-version backend capability but not G2a's authenticated-read predicate. The database snapshot
 is green with `violating_users=0`, but G3 is out of sequence until current G2 is valid. G4 is
-partially green. G2, G0a, G2a, G2b and G6 remain unverified.
+partially green. G2, G0a, G2a, G2b and G6 remain unverified. The approved
+[G4 protocol and writer map](../runbooks/B1_R_C_TASK_7_7_G4_AND_WRITER_MAP.md) use a zero-mutation,
+fail-closed evidence-equivalence contract because R-B3r exposes no arbitrary-holdings input.
 No production write, dispatch, deployment or traffic/configuration change occurred. The
 [Task 7.7 packet](../runbooks/B1_R_C_TASK_7_7_SERVING_EVIDENCE.md) records the exact results and
 approval boundary. Task 7.7 remains open and Task 7.8 cannot yet be presented.
@@ -609,10 +614,12 @@ public `200` read-back.
 **Owner priority: complete the Asset Picker production path before deferred CI optimization.**
 The exact `main@8f1e8a36` Task A graph, single candidate build/push, ACR platform digest,
 exact-digest smoke and final CANDIDATE artifact binding are complete through Task 7.6. The immediate
-B1 release action is to design and independently review the missing G4 behavioral protocol and
-explicit Task 7.6 inventory-to-serving mapping. Only then should a separate approval request cover
+B1 release action is to request separate owner approval for the remaining predicates under the
+independently accepted zero-mutation G4 protocol and the serving proof bundle. That approval must
+cover
 the current G2 signup/authenticated G2a read, both G0a legacy-route POSTs, the complete G2b seed
-oracle, reviewed G4 probe and final post-write G3. Only after the complete packet is green may Task
+oracle, remaining G4 read-only predicates and final post-write G3. Only after the complete packet is
+green may Task
 7.8 be presented for the owner's STOP/GO. Deployment 7.9 and every later live or exposure action
 retain separate owner gates.
 

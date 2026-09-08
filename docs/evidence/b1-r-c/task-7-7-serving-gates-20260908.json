@@ -1,11 +1,12 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "kind": "b1-r-c-task-7-7-serving-gates",
   "recordedAtUtc": "2026-09-08T17:23:07.9302156Z",
-  "status": "READ_ONLY_COLLECTION_COMPLETE_GATES_OPEN",
+  "status": "READ_ONLY_COLLECTION_COMPLETE_PROTOCOL_DESIGNED_GATES_OPEN",
   "scope": {
     "authorized": "Task 7.7 bounded read-only evidence recollection only",
     "approvalRecorded": "2026-09-08 owner reply: Approved",
+    "documentationDesignApprovalRecorded": "2026-09-08 owner reply: Approved the plan as above",
     "productionWriteCount": 0,
     "workflowDispatchCount": 0,
     "deploymentCount": 0,
@@ -36,6 +37,52 @@
       "configuration or traffic change",
       "rollback"
     ]
+  },
+  "approvedG4Protocol": {
+    "path": "docs/runbooks/B1_R_C_TASK_7_7_G4_AND_WRITER_MAP.md",
+    "method": "ZERO_MUTATION_EVIDENCE_EQUIVALENCE",
+    "productionMutationBudget": 0,
+    "liveNegativeHoldingProbe": "NOT_APPLICABLE_R_B3R_HAS_NO_ARBITRARY_HOLDINGS_INPUT",
+    "acceptance": "Exact behavioral test and enforcement-code blobs must join candidate evidence to the serving source, and every current serving consumer must have immutable runtime identity plus current catalog/configuration/database/log predicates. Any unresolved join leaves G4 open.",
+    "behavioralBlobJoins": {
+      "holdingEnforcement": "CompositionCatalogValidator a811017338120d4ea2307139923c6bd93fde63a9; HoldingReplacementService 48460fc52a1a697cbd88384096e85211a1e0c275; CompositionCatalogValidatorTest 8368c3286fad16e3dd0aba3a5d5798528f2537f9; HoldingReplacementServiceIT 6884e19d36f6350c9ab9875dae67306668478712",
+      "eventEnforcement": "MarketPriceProjectionService 27692c486dc62bf8763209eaca3e96cc5a326cdc; MarketPriceProjectionCurrencyTest e2c2dda3110f06017e571e82737eb25807e9a38e"
+    },
+    "currentEvaluation": "PARTIAL_CURRENT_OBSERVATIONS_GREEN",
+    "currentBlockers": [
+      "Already-running market-data and insight bytes remain unattested because their serving revisions are configured with mutable tags.",
+      "The retained catalog query uses arg_max and proves only the latest observed tuple per revision; it does not prove every startup line, observed-replica coverage, StartupLines >= 1, and TupleCount = 1.",
+      "Current application markers and refresh-job success do not prove consumer steady state; all-partition lag zero for portfolio-group and insight-group and bounded market-prices.DLT non-growth are unverified."
+    ],
+    "remainingReadOnlyQuery": "For each exact current consumer revision over its fixed lifetime window, retain every catalog_loaded line, join observed replicas, require no uncovered replica, StartupLines >= 1, TupleCount = 1, and one identical true/true catalog tuple across all consumers.",
+    "remainingKafkaMetadataChecks": "Using reviewed metadata-only commands, require committed offset == log-end and lag 0 on every market-prices partition for portfolio-group and insight-group; anchor and re-read every market-prices.DLT partition end offset across the bounded observation window and require no growth. Do not consume, join a group, commit/reset offsets, or produce.",
+    "executionAuthorized": false
+  },
+  "independentDesignReview": {
+    "reviewer": "Astra",
+    "reviewedAt": "2026-09-08",
+    "verdict": "ACCEPT",
+    "criticalFindingsOpen": 0,
+    "importantFindingsOpen": 0,
+    "minorFindingsOpen": 0,
+    "acceptedScope": "Documentation-only G4 protocol and Task 7.6-to-R-B3r serving-source writer map",
+    "excludedScope": "Live evidence, execution, Writer_Convergence, Task 7.7 completion and Task 7.8"
+  },
+  "writerInventoryServingMap": {
+    "path": "docs/runbooks/B1_R_C_TASK_7_7_G4_AND_WRITER_MAP.md",
+    "candidateCut": "8f1e8a36f8baa594efa8079190f87b42139fcf10",
+    "servingSource": "97b83e52bcbfface4377cefd69ebb111270cb21e",
+    "status": "DOCUMENTED_SOURCE_MAP_COMPLETE_G6_STILL_OPEN",
+    "effectivePortfolioServiceHoldingsWriterMechanism": "portfolio-service/src/main/java/com/wealth/portfolio/composition/HoldingReplacementService.java",
+    "effectivePortfolioServiceHoldingsWriterBlob": "48460fc52a1a697cbd88384096e85211a1e0c275",
+    "adjacentParentOnlyWriter": "api-gateway UserCredentialRepository inserts a version-0 portfolio during signup but never writes asset_holdings; it remains governed by G2/G3.",
+    "candidateOnlyServingExclusions": [
+      "portfolio-service/src/main/java/com/wealth/portfolio/composition/CompositionController.java",
+      "portfolio-service/src/main/java/com/wealth/portfolio/composition/CompositionWriteService.java"
+    ],
+    "candidateChangedNonWriter": "CompositionHoldingsRequest changes from serving blob 706e9d5d4647e651d4b645e481fdf9a2e5d970d0 to candidate blob a783dcf680dd2995c510bd7f6316875271c5d260 for null-element validation; it performs no DML.",
+    "residualStructuralRisk": "asset_holdings.portfolio_id ON DELETE CASCADE is ungated, but current production source has no portfolio-delete caller.",
+    "g6Accepted": false
   },
   "collection": {
     "liveAccessSucceeded": true,
@@ -235,7 +282,7 @@
     },
     "G4": {
       "status": "PARTIAL_CURRENT_OBSERVATIONS_GREEN",
-      "reason": "Current revisions, three identical catalog/enforcement startup tuples, V21/repair state, relational integrity, scheduled refresh, and bounded failure markers are green. Mutable gateway/market/insight tag resolutions are not runtime-digest attestations. A current behavioral enforcement protocol has not yet been specified and reviewed, so the complete G4 oracle is not accepted."
+      "reason": "The approved zero-mutation evidence-equivalence protocol is documented for both holding rejection and price-event rejection. Current revisions, three latest-observed identical catalog/enforcement tuples, enforcement/test blob equality, V21/repair state, relational integrity, scheduled refresh, and bounded failure markers are green. Already-running market-data and insight bytes remain unattested because their revisions use mutable tags. The retained arg_max catalog query also does not prove every startup line, observed-replica coverage, StartupLines >= 1, and TupleCount = 1. All-partition lag zero for portfolio-group and insight-group and bounded market-prices.DLT non-growth are unverified; application logs and refresh success cannot substitute. The complete G4 oracle is therefore not accepted."
     },
     "G0a": {
       "status": "UNVERIFIED",
@@ -251,7 +298,7 @@
     },
     "G6": {
       "status": "UNVERIFIED",
-      "reason": "Task 7.6 supplies the candidate-bound exhaustive inventory. R-B3r runtime lineage is cu4 plus V21 only, but the explicit Task 7.6 inventory-to-serving-cut coverage mapping has not been completed. Derived G6 also requires fresh serving G0a, G2a and G2b; all three remain incomplete."
+      "reason": "Task 7.6 supplies the candidate-bound exhaustive inventory, and the explicit mapping to R-B3r serving source is now documented. Derived G6 still requires fresh serving G0a, G2a and G2b; all three remain incomplete."
     }
   },
   "decisionBoundary": {
@@ -259,6 +306,6 @@
     "task7_8": "MUST_NOT_BE_PRESENTED",
     "task7_9": "NOT_AUTHORIZED_NOT_RUN",
     "candidateReady": false,
-    "nextRequiredAction": "First design and independently review the current G4 behavioral-enforcement protocol and the exact write budget/failure handling. Only then request separate owner approval for a minimum write-bearing proof bundle: one controlled signup and authenticated portfolio read, the two retired legacy-route POST probes with 405/Allow GET and 404 predicates, one frozen-version controlled seed with complete before/after snapshots, the reviewed G4 probe, the explicit Task 7.6 inventory-to-serving mapping, and a final read-only G3 snapshot."
+    "nextRequiredAction": "Request separate owner approval for the remaining read-only runtime-identity, fixed-window all-startup-line/replica consistency, all-partition lag-zero and bounded DLT non-growth work plus the minimum write-bearing proof bundle: one controlled signup and authenticated portfolio read, the two retired legacy-route POST probes with 405/Allow GET and 404 predicates, one frozen-version controlled seed with complete before/after snapshots, and a final read-only G3 snapshot."
   }
 }

@@ -1,18 +1,20 @@
 # B1 R-C Task 7.7 — pre-deploy serving evidence
 
-> ## OWNER APPROVAL REQUIRED LATER — protocol review must come first
+> ## OWNER APPROVAL REQUIRED LATER — live collection remains separate
 >
 > **Blocked actions:** one controlled signup plus authenticated portfolio read on each serving
 > gateway/portfolio digest, both retired legacy-route POST probes on each serving portfolio digest,
-> one frozen-version seed with the complete before/after oracle, and a current portfolio
-> behavioral-enforcement probe whose target, payload, expected rejection, mutation limit and failure
-> handling are not yet specified or independently reviewed. Do not request or infer execution
-> approval until that protocol is complete. If the later bundle is declined or deferred, Task 7.7
-> remains open and Task 7.8 must not be presented.
+> and one frozen-version seed with the complete before/after oracle. The approved G4 protocol is
+> zero-mutation, but its remaining runtime-identity/read-only collection is also not authorized by
+> the documentation approval. If the later bundle is declined or deferred, Task 7.7 remains open
+> and Task 7.8 must not be presented.
 
-**Status:** READ-ONLY COLLECTION COMPLETE; TASK 7.7 OPEN. Direct-revision G2a capability is observed,
-but the authenticated G2a predicate is not verified. G3 is currently green but out of sequence; G4
-is partially green; G2, G0a, G2a, G2b and derived G6 remain unverified.
+**Status:** READ-ONLY COLLECTION COMPLETE; G4 PROTOCOL AND WRITER MAP INDEPENDENTLY ACCEPTED;
+TASK 7.7 OPEN.
+Direct-revision G2a capability is observed, but the authenticated G2a predicate is not verified. G3
+is currently green but out of sequence; G4 is partially green; G2, G0a, G2a, G2b and derived G6
+remain unverified. The approved protocol and serving-source map are in
+[`B1_R_C_TASK_7_7_G4_AND_WRITER_MAP.md`](B1_R_C_TASK_7_7_G4_AND_WRITER_MAP.md).
 
 **Recorded:** 2026-09-08. **Baseline:** fetched `main` merge
 `7e752b4183aa25f75adad6e7b363501cd5f23aa5` (PR #238), which is the parent baseline of this
@@ -114,11 +116,11 @@ Task 7.7 acceptance.
 |---|---|---|---|
 | G2 | Complete current gateway serving set, immutable digest/traffic binding and provisioning proof | Current set/configured tag, registry resolution plus four provisioning-critical blobs identical to historical G2 cut | **UNVERIFIED** — no runtime-digest attestation or controlled signup on current revision `0000077`; lineage is not serving behavior |
 | latest-valid G3 | Relational `users LEFT JOIN portfolios ... HAVING COUNT(p.id) <> 1` snapshot after latest valid G2 | Current read-only snapshot | **OBSERVED GREEN, SEQUENCE UNSATISFIED** — zero violations, but current G2 is not valid |
-| G4 | Current Spec A artifact/catalog identity, effective enforcement on all three consumers, portfolio behavioral enforcement, V17–V21/repair state, refresh steady state and bounded error/consumer observations | Current control-plane, logs, SQL and job observations | **PARTIAL, OBSERVATIONS GREEN** — mutable runtime digests are unattested and the behavioral-enforcement probe protocol is not yet specified/reviewed |
+| G4 | Current Spec A artifact/catalog identity, effective enforcement on all three consumers, portfolio behavioral enforcement, V17–V21/repair state, refresh steady state and bounded error/consumer observations | Current control-plane, logs, SQL and job observations plus the approved zero-mutation evidence-equivalence protocol | **PARTIAL, OBSERVATIONS GREEN** — already-running market-data and insight bytes remain unattested; retained `arg_max` proves only each revision's latest tuple; and all-partition lag-zero plus bounded `market-prices.DLT` non-growth are unverified |
 | G0a | Every current serving portfolio revision/digest lacks both retired writers | Sole current revision/digest; R-B3r is cu4 runtime plus V21 only | **UNVERIFIED** — both current legacy-route POST probes remain unauthorized |
 | G2a | Numeric Portfolio_Version from every current serving portfolio digest on the authenticated read | Current complete set plus direct in-revision GET | **PARTIAL, DIRECT CAPABILITY ONLY** — sole 100%-traffic revision returned numeric version 0, but no authenticated gateway read was authorized |
 | G2b | Every serving portfolio digest requires version and delegates; controlled proof preserves identity and the complete Spec A price/schema state | R-B3r history and V21-only runtime lineage | **UNVERIFIED** — no current controlled seed with the complete before/after oracle |
-| G6 | Fresh serving G0a + G2a + G2b, joined to exhaustive writer coverage for the serving and candidate cuts | Task 7.6 candidate inventory; R-B3r runtime lineage is cu4 plus V21 | **UNVERIFIED** — the explicit inventory-to-serving-cut mapping is open, and G0a/G2a/G2b are incomplete |
+| G6 | Fresh serving G0a + G2a + G2b, joined to exhaustive writer coverage for the serving and candidate cuts | Task 7.6 candidate inventory plus the explicit R-B3r serving-source map | **UNVERIFIED** — the source map is complete, but G0a/G2a/G2b are incomplete; mapping alone cannot establish the derived gate |
 
 G3 must be collected after the latest valid G2 evidence and after any other authorized production
 writes. One successful load-balanced request cannot prove a universal serving gate: collection must
@@ -146,10 +148,12 @@ checkboxes, mutable tags, `SERVICE_VERSION`, old G3 counts and old approvals are
    `POST /api/portfolio/{portfolioId}/holdings` must return 404.
 3. Run one frozen-version seed with separate complete BEFORE and AFTER tuple, price, history and
    schema snapshots, no retry and no inherited rollback authority.
-4. Before requesting execution approval, specify and independently review the G4 behavioral probe's
-   exact target/path, payload, expected rejection, mutation budget, before/after checks and failure
-   handling. Then run only the reviewed protocol if separately approved.
-5. Complete the explicit Task 7.6 inventory-to-R-B3r serving-cut mapping.
+4. Preserve the independently accepted zero-mutation G4 evidence-equivalence protocol, then collect
+   only its remaining immutable-runtime-identity, fixed-window all-startup-line/replica, all-partition
+   lag-zero and bounded DLT non-growth predicates if separately approved. Do
+   not invent a live negative holding probe: R-B3r exposes no applicable arbitrary-holdings input.
+5. Preserve the completed Task 7.6 inventory-to-R-B3r serving-cut mapping and re-open it on any
+   relevant source or serving-cut drift.
 6. Recollect final G3 after all authorized writes, derive G6 and obtain independent whole-packet
    review. Any serving drift invalidates the affected observation and stops the bundle.
 

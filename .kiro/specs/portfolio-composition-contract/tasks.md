@@ -35,8 +35,11 @@ backend capability but not G2a's authenticated-read predicate. The read-only dat
 portfolio count 1, V21/checksum `385711525` successful exactly once, all four repair routines absent
 and current integrity green. G3 remains sequence-unsatisfied because current G2 is unverified; G4 is
 partially green. G2, G0a, G2a, G2b and derived G6 remain unverified because signup/authenticated
-read, legacy-route POSTs and the controlled seed were not authorized; the G4 behavioral protocol
-also remains to be designed and reviewed. No production write,
+read, legacy-route POSTs and the controlled seed were not authorized. The owner subsequently
+approved a zero-mutation, fail-closed G4 evidence-equivalence design and the explicit Task
+7.6-to-R-B3r writer map, which Astra independently accepted with no findings; those documentation
+steps do not close G4 or G6 because current runtime
+identity and the remaining serving gates are incomplete. No production write,
 dispatch, deployment or traffic/configuration change occurred. The
 [evidence packet](../../../docs/runbooks/B1_R_C_TASK_7_7_SERVING_EVIDENCE.md) records the boundary.
 Task 7.7 remains open; Task 7.8 must not be presented.
@@ -1274,10 +1277,13 @@ frozen R-B3 image; Tasks 7.7 onward, deployment and exposure retain their own ga
   digests remain unattested. The direct GET proves numeric-version backend capability but not G2a's
   authenticated-read predicate. Current G3 is green (`violating_users=0`, all 10 users at portfolio
   count 1) but sequence-unsatisfied until current G2 is valid; G4 is partially green. G2, G0a, G2a,
-  G2b and derived G6 remain unverified. The G4 behavioral proof method and explicit Task 7.6
-  inventory-to-serving mapping are also open. No production write or configuration change occurred.
+  G2b and derived G6 remain unverified. The independently accepted G4 method is zero-mutation
+  evidence equivalence because R-B3r has no applicable arbitrary-holdings input. The explicit Task 7.6
+  inventory-to-serving source map is complete, but mapping alone cannot close G6. No production
+  write or configuration change occurred.
   Evidence:
-  [`docs/runbooks/B1_R_C_TASK_7_7_SERVING_EVIDENCE.md`](../../../docs/runbooks/B1_R_C_TASK_7_7_SERVING_EVIDENCE.md).
+  [`docs/runbooks/B1_R_C_TASK_7_7_SERVING_EVIDENCE.md`](../../../docs/runbooks/B1_R_C_TASK_7_7_SERVING_EVIDENCE.md),
+  [`docs/runbooks/B1_R_C_TASK_7_7_G4_AND_WRITER_MAP.md`](../../../docs/runbooks/B1_R_C_TASK_7_7_G4_AND_WRITER_MAP.md).
   _Requirements: 9.1, 9.2, 9.7, 1.14_
 - [ ] **7.8 STOP/GO — R-C pre-deploy.**
   **Go:** 7.4–7.7 green. A prohibited rollback is a policy, not evidence.
