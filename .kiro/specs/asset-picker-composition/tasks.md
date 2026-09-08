@@ -1,64 +1,34 @@
 # Implementation Plan
 
-**Current program status (reconciled 2026-09-02; PR #214 merged on main `48d0aba8`; source Tasks 6.1/6.2 complete; no new runtime attestation):** this task plan and its owning
-requirements/design/mockup are tracked. Wave 1 (Tasks 1.1-1.19) and Wave 2 Tasks 2.1-2.5 are merged
-source-only through PR #178, entirely mock-backed and disabled by default. Wave 3 presence source
-Tasks 3.1–3.6 merged source-only through PR #179 at `main@cc97a209`; Task 3.7 deployment/live proof
-remains open (not deployed, not activated, not live-probed). Wave 4 Tasks 4.1–4.4a merged through
-PR #180 at `main@63fc058` and their exact historical cut is now serving internally on
-`portfolio-service--0000093` at digest `sha256:9a1d5533…`; Task 4.5 is GO after the one controlled
-live call returned a valid already-golden no-op. The endpoint is not routed to users. Wave 8
-Task 8.1 source `6a171558` (including `updatedAt` and decimal-string serialization) was digest-deployed as cu4 / revision `0000094` (`sha256:2be727eaf4577699c783ae66073670d4984fe66c666af3e56422c934fdd0b023`), recorded provenance rather than a fresh read-back; no duplicate deployment is needed. Task 5.1a
-(`InternalApiKeyProvider`) merged source-only through PR #202 at `main@64761dc2`; it is not deployed.
-Task 8.2a (`CloudFrontOriginSecretProvider`) merged source-only through PR #203 at `main@addd8049`;
-it is not deployed. Task 5.1b (`ReplicaTokenProvider`) merged source-only through PR #208 at
-`main@f954b5a7`; it is not deployed. The owner-approved decision/spec packet received Astra ACCEPT;
-Tasks 8.3–8.7a are source/test complete and independently accepted.
-Task 8.8b's offline source foundation is complete; deployment and live-proof gates remain open. Spec A task 8.6
-is complete and the backend `assetPriceFreshness` response exists.
-The owner resolved the strict 30-minute idle threshold, page-level manual-reset placement, and
-2s/2s/4s login self-call timeouts on 2026-09-06. The decimal item is now a B1-owned historical
-containment/frontend-artifact audit; Task 2.7 and Wave 10.2 item 2 remain open. See the
-[decision record](../../../docs/superpowers/plans/2026-09-06-b2-wave8-decision-record.md) and
-[`docs/plans/ASSET_PICKER_E2E_MASTER_PLAN.md`](../../../docs/plans/ASSET_PICKER_E2E_MASTER_PLAN.md)
-for the living cross-program view.
+**Current program status (reconciled 2026-09-08 at `main@fecbe651`; no new runtime
+attestation):** Waves 1–6 retain their recorded source, review and limited historical deployment
+evidence. Wave 3 Task 3.7, Wave 5 Task 5.6 and Wave 6 Task 6.3 remain open. Production flags remain
+disabled.
 
-**Selected priority (2026-09-01):** resume Asset Picker delivery before further CI optimization.
-B1 Task 5.7/G5 closed by the owner's separate decision on 2026-09-02. B1 Wave 6's G5
-prerequisite is satisfied; Wave 7 still requires the later R-B3 and activation gates. Tasks 5.1a
-(`InternalApiKeyProvider`) and 8.2a (`CloudFrontOriginSecretProvider`) merged source-only via PRs
-#202 and #203 at `main@64761dc2` and `main@addd8049`; neither is deployed. Task 5.1b
-(`ReplicaTokenProvider`) merged source-only via
-[PR #208](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/208) at
-`main@f954b5a7`; it is not deployed. **Wave 4 Task 4.5 completed with a reviewed GO on
-2026-09-01.** Its Codex-authored Claude operator note is
-[`docs/agent-instructions/CLAUDE_KICKOFF_B2_TASK_4_5_DEMO_RESET_STOP_GO.md`](../../../docs/agent-instructions/CLAUDE_KICKOFF_B2_TASK_4_5_DEMO_RESET_STOP_GO.md).
-The reviewed execution record is
-[`docs/runbooks/B2_TASK_4_5_DEMO_RESET_STOP_GO.md`](../../../docs/runbooks/B2_TASK_4_5_DEMO_RESET_STOP_GO.md).
-It records the owner-authorized immutable build, digest deployment, one successful no-op probe, and
-the corrected B1 version rule. Wave 5's Wave 4 prerequisite is satisfied, but this GO does not
-authorize Wave 5 implementation or deployment.
+Wave 8 source and Azure deployment-proof tooling are merged through
+[PR #233](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/233) at
+`main@a52ec1ef`. Tasks 8.3–8.7a and the offline 8.8b foundation are source/test complete and
+independently accepted; Tasks 8.8 and 8.9 remain open because no production workflow run,
+deployment, serving read-back, manifest comparison or live proof has occurred. Task 8.1 behavior
+is present in the historical cu4 source/digest; that is provenance rather than a fresh read-back.
 
-**Current status (2026-09-02):** Wave 6 Tasks 6.1/6.2 are **merged and source-complete** via
-[PR #214](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/214) at
-`main@48d0aba8`. The merged tree is identical to final published head `b918ff09`; final-head CI
-passed. Source/visual ACCEPT at `970b637b` and R1–R4 closure carry forward unchanged.
-The 375px sidebar limitation remains owner-deferred to the
-[sidebar backlog](../../../docs/todos/backlog/responsive-dashboard-sidebar/README.md).
-Tasks 6.1/6.2 are checked below; committed flags remain disabled, page-level placement is final,
-and Task 5.6's owner GO and Task 6.3 remain separate. This source reconciliation makes no new
-runtime or feature-exposure claim. The next cross-program source kickoff is B1 Wave 6
-Tasks 6.1–6.4 after G5 close-out; implementation is separate work.
+Wave 9's source and disposable assembled-stack integration are complete through
+[PR #232](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/232) at
+`main@318f2859`. The real-browser run passed 5/5 across setup, picker save/conflict and demo-reset
+success/conflict; CI run `34018608256` passed `docker-build-verify` and `ci-required`. This is
+local/CI evidence, not Production E2E.
 
-The remaining Wave 5
-source bundle merged via [PR #212](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/212) at
-`main@d8fa499de05fa1370a0271c4822230a6ea113695`; its tree is identical to reviewed head `01917e16`.
-Tasks 5.1, 5.2, 5.3, 5.3a, 5.4, and 5.5 are source-complete and checked below.
-Final-head CI passed, including the executed Azure image smoke and required aggregate.
-Codex assesses all seven technical conditions for 5.6 as met and recommends GO; 5.6 stays unchecked
-pending the separate owner decision. Deployment and unrelated B2 gates remain separate;
-B1 G5 closed under its own owner decision on 2026-09-02.
-The detailed merge, CI, and gate evidence is at the Wave 5 heading below.
+B1's R3 and GC.5 blockers are closed on current `main`, and Tasks 7.1–7.2 are merged and reconciled
+complete. B1 R-C still requires a new clean-cut Task A, candidate build/digest/smoke, deployment and
+serving convergence. Consequently Wave 10 remains blocked and the Asset Picker is not exposed to
+production users. Task 2.7's historical containment/frontend-artifact disposition also remains open.
+
+The owner-resolved Wave 8 decisions remain: strict 30-minute idle age, 2s eligibility / 2s reset /
+4s overall timeouts, and page-level manual-reset placement. See the
+[decision record](../../../docs/superpowers/plans/2026-09-06-b2-wave8-decision-record.md) and the
+[`Asset Picker master plan`](../../../docs/plans/ASSET_PICKER_E2E_MASTER_PLAN.md) for the
+cross-program release sequence. The owner-deferred
+[sidebar issue](../../../docs/todos/backlog/responsive-dashboard-sidebar/README.md) remains separate.
 
 Task 5.1b's ledger defined its provider, token formula, operator tool, packaging,
 and Azure image-smoke extension as one bounded deliverable shared by Tasks 5.1 and 8.7. Its
@@ -1130,7 +1100,7 @@ until Wave 5 ships.
   `error: "portfolio_version_conflict"`, a `message` string, and `currentVersion` equal to the
   actual current version — asserted as structured field values against B1's documented envelope
   shape (`design.md` D2's citation of B1 `design.md` D7 — semantic field equality, not byte-for-byte
-  JSON comparison against a specific B1 test, since B1's own contract-test task is itself unchecked);
+  JSON comparison coupled to one specific B1 test implementation);
   and **both price tables are byte-identical before and after, sentinel rows included — matching
   B1's own `P10` regression discipline (`portfolio-composition-contract/tasks.md` task 6.4), not the
   weaker "writes no row" this task previously specified (round-9 correction)**. **A separate, thin

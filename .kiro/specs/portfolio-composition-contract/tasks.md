@@ -1,22 +1,21 @@
 # Implementation Plan
 
-**OWNER APPROVAL RECORDED — R-C implementation publication, 2026-09-04:** the owner authorized
-the scoped commit, push and implementation PR of the reviewed 21-file local bundle. That
-authorization covers publication only. Merge, release-candidate build/push, registry access or
-smoke, live-database operations, deployment and completion-box changes retain their separate
-gates. The last verified R-B3 runtime baseline, B2 gates and the separate 7.1–7.2 reconciliation
-remain unchanged.
+**Current R-C status — reconciled 2026-09-08 at `main@fecbe651`:**
+[PR #222](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/222)
+merged the candidate verification, copy-only packaging, GC.5 and exact-image smoke tooling.
+[PR #234](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/234)
+closed R3 with V21 and evidence-bound operational proof.
+[PR #235](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/235)
+closed the 553-subject GC.5 inventory with zero findings and zero unverified coverage at its exact
+cut; its Task A run reported 552 unit and 212 integration tests with zero skips/failures/errors.
+[PR #236](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/236)
+merged the Windows checkout/CRLF artifact-identity correction. Its reviewed head again passed the
+CANDIDATE source-governance guard with zero findings and zero unverified coverage.
 
-**R-C local tooling ACCEPT — 2026-09-04:** Codex accepted the source-governance tooling
-(round 11) and the local HTTP smoke harness (round 14). The [return packet](../../../docs/superpowers/plans/2026-09-04-b1-rc-candidate-preparation-return-packet.md) consolidates the candidate Gradle graph/staging, copy-only image recipe,
-evidence tooling and runbook. The recorded tooling results total 363 tests across their
-respective runs; the 73-test final smoke suite passed with zero skips. The preserved
-September 3 LOCAL_DEV graph recorded 760 application tests in 89 classes, with zero skips,
-failures or errors and all 11 required report entries present. That graph predates later
-tooling and documentation edits and is not final committed-candidate verification.
-R-C readiness remains **NO-GO**: the reviewed source cut is BLOCKED with 504 reported
-governance findings, R3 remains unresolved, and release/registry/serving evidence is incomplete.
-Tasks 7.3–7.11, GC.5, AM.1/AM.2 and Writer_Convergence receive no completion-box changes.
+R-C remains **NO-GO for release execution** because PR #236 changed governed tooling after the
+prior Task A/B cut. Establish a new clean cut and rerun Task A before Task 7.3. No candidate image
+has been pushed to ACR, no registry digest has been smoked, and no R-C deployment, traffic change,
+serving proof or Writer_Convergence claim exists. Tasks 7.3–7.11 and AM.1/AM.2 remain open.
 
 **OWNER APPROVAL RECORDED — R-C preparation kickoff docs, 2026-09-03:** The owner requested
 Claude's kickoff and a docs-only PR; publication of that package is authorized, merge is separate.
@@ -38,8 +37,9 @@ at 2f50120f6a1231a158e3953c13e9ddc2af75cb78, based on main@9c2ebc12. The
 [review packet](../../../audit/b1-wave7/README.md) records 88 focused unit and 19 focused
 integration tests with zero failures/errors/skips. [PR #219](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/219)
 subsequently merged at main@c0f84045 on 2026-09-03T05:42:58Z. Source merge does not alter
-the frozen R-B3 image, pinned to 6a171558 / cu4. Tasks 7.1–7.2 retain their unchecked
-state from main; their completion reconciliation remains in the separate Cursor review task.
+the frozen R-B3 image, pinned to 6a171558 / cu4. At that merge, Tasks 7.1–7.2 retained their
+unchecked state pending ledger reconciliation; this 2026-09-08 update now reconciles both as
+complete without changing the runtime baseline or advancing Task 7.3.
 
 **B1 Wave 6 source completion (verified 2026-09-03):** Tasks **6.1–6.4 are source-complete**
 after owner-approved [PR #217](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/217)
@@ -71,7 +71,7 @@ G2b proof subsequently passed under its separate execution approval; Task 6.6 is
 ACCEPT and the owner approved R-B3 GO. Wave 7 activation and Writer_Convergence remain open. No schedule
 restoration, B2 gate decision or feature exposure follows from the 6.5 decision.
 
-**Current program status (verified 2026-09-03 against `main@d66bb23d`; historical runtime baseline `e221662`; R-A / R-B / R-B2 serving digests below):**
+**Historical program checkpoint (verified 2026-09-03 against `main@d66bb23d`; historical runtime baseline `e221662`; R-A / R-B / R-B2 serving digests below):**
 Waves `P`, `0`, and `1` are complete. Wave 2 tasks **2.1–2.6 and R-A are complete**: G2 serving
 proof is green on gateway revision `api-gateway--0000076` /
 `sha256:2da5b303fd15772792167f2b26dc62250b2d9858270db315eab1d6d1a1554aec` (deploy run
@@ -357,7 +357,7 @@ assertions are what make these durable.
   than the portfolio read returns a Portfolio_Version" — would have failed correct code.
   _Requirements: 5.11, 5.12, 7.2_
 
-- [ ] **GC.5 Scope guard — source governance, not a JUnit suite.** Non-goals are **negative
+- [x] **GC.5 Scope guard — source governance, not a JUnit suite.** Non-goals are **negative
   constraints implementation can violate**, not absence of work; treating them as declared gaps gave
   the equality guard permission to ignore exactly the scope creep they prohibit.
 
@@ -374,6 +374,13 @@ assertions are what make these durable.
     guard permits.
 
   Both outputs are stored as source-governance evidence.
+
+  **Completion evidence (2026-09-08):** PR #235 reviewed the complete 553-subject inventory and
+  produced an exact-cut CANDIDATE result with zero findings and zero unverified coverage. PR #236
+  corrected checkout-transform artifact identity without broadening the reviewed exception scopes;
+  its exact reviewed head again passed with zero findings and zero unverified coverage. This closes
+  GC.5 source governance only. The fresh post-remediation Task A/B release bundle, registry digest,
+  exact-digest smoke and serving evidence remain Tasks 7.3–7.11.
 
   **The base is the B1 base commit, pinned — not cut-B3.** Comparing only the last two cuts would
   miss scope creep merged into an earlier artifact.
@@ -1083,27 +1090,27 @@ Tasks 7.4/7.5/7.6 and 7.5a preparation precede the single 7.3 release build. The
 [review](../../../docs/superpowers/plans/2026-09-03-b1-r-c-candidate-architecture-review.md)
 retains five prerequisites, including the proposed report-carrier corrections and unresolved
 persistent SQL-writer disposition. Tooling completion is not candidate or serving acceptance.
-No 7.x, GC.5 or AM checkbox is advanced by this handoff.
+That 2026-09-03 preparation handoff itself advanced no 7.x, GC.5 or AM checkbox. Later reviewed
+evidence closes GC.5 and Tasks 7.1–7.2 as recorded in the current status and checklist below;
+Tasks 7.3–7.11 and AM.1/AM.2 remain open.
 
 
-**Reviewed and merged parallel source work — 2026-09-03:** Cursor implemented Tasks 7.1–7.2
+**Reviewed, merged and reconciled source work — 2026-09-08:** Cursor implemented Tasks 7.1–7.2
 under the [public-composition kickoff](../../../docs/agent-instructions/CURSOR_KICKOFF_B1_WAVE_7_PUBLIC_COMPOSITION.md)
 from main@9c2ebc12. Codex ACCEPT at 2f50120f closed the null-element, transactional
 projection-rollback, HTTP assertion and evidence-packet findings. PR #219 merged at
-main@c0f84045 on 2026-09-03T05:42:58Z. The source/test work is merged, while both
-checkboxes retain main's existing unchecked state. PR #220 changed only
-6.5–6.7 completion relative to its base; Wave 7 checklist reconciliation remains separate.
-The controller stays outside the frozen R-B3 source/image; Tasks 7.3 onward, deployment
-and exposure retain their own gates.
+main@c0f84045 on 2026-09-03T05:42:58Z. The owning acceptance evidence exists, so this
+2026-09-08 status reconciliation checks both source tasks. The controller remains outside the
+frozen R-B3 image; Tasks 7.3 onward, deployment and exposure retain their own gates.
 
-- [ ] **7.1 Introduce `CompositionController`** — `PUT /api/portfolio/holdings`, taking the expected
+- [x] **7.1 Introduce `CompositionController`** — `PUT /api/portfolio/holdings`, taking the expected
   version and the desired set, resolving the target from the authenticated principal with **no
   portfolio identifier on the wire**. This is a **Wave 7 pre-build task, deliberately not Wave 4**:
   Wave 4's code ships inside the intermediate artifacts, and the generic `/api/portfolio/**` route
   would make a controller placed there user-reachable before R-C's gate. No multi-portfolio selector
   is introduced.
   _Requirements: 1.12, 6.1, 6.2, 9.1, 10.5_
-- [ ] **7.2 HTTP contract tests for the public endpoint** — request shape, `200`/`201` statuses,
+- [x] **7.2 HTTP contract tests for the public endpoint** — request shape, `200`/`201` statuses,
   response body, and every error envelope. These exercise the endpoint, not just the service
   primitive.
   _Requirements: 6.1, 6.2, 7.1, 7.10, 7.11, 7.12, 7.23_
