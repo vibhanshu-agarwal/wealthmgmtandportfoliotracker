@@ -3697,11 +3697,11 @@
         "obligation": "content-governance",
         "status": "ACCEPTED_REVIEWED",
         "reviewer": "Codex Task 6 independent source review",
-        "reviewed_commit": "8f6800483d3be7afed3d7f1bec5ebae976a94afb",
+        "reviewed_commit": "f87fdc16fa0de254445343cc5da5badd97134107",
         "reviewed_at": "2026-09-08",
         "change_kind": "A",
         "src_blob": "0000000000000000000000000000000000000000",
-        "dst_blob": "ced324096478850249a4638f9c7ceca9b0ff4425",
+        "dst_blob": "a823f05c0c97bf8451aabd498c31abb169ccd646",
         "symbols": [
           "JwtSessionIdentity"
         ],
@@ -3715,11 +3715,11 @@
         "obligation": "path-governance",
         "status": "ACCEPTED_REVIEWED",
         "reviewer": "Codex Task 6 independent source review",
-        "reviewed_commit": "8f6800483d3be7afed3d7f1bec5ebae976a94afb",
+        "reviewed_commit": "f87fdc16fa0de254445343cc5da5badd97134107",
         "reviewed_at": "2026-09-08",
         "change_kind": "A",
         "src_blob": "0000000000000000000000000000000000000000",
-        "dst_blob": "ced324096478850249a4638f9c7ceca9b0ff4425",
+        "dst_blob": "a823f05c0c97bf8451aabd498c31abb169ccd646",
         "rationale": "Exact governance/build/smoke tooling blob reviewed; any SQL-shaped executable ambiguity is separately covered by the exact-source independent-proof contract."
       },
       {
@@ -3799,11 +3799,11 @@
         "obligation": "content-governance",
         "status": "ACCEPTED_REVIEWED",
         "reviewer": "Codex Task 6 independent source review",
-        "reviewed_commit": "5681e378d1b0994fd17dae4fb9b09beb04212c99",
+        "reviewed_commit": "f87fdc16fa0de254445343cc5da5badd97134107",
         "reviewed_at": "2026-09-08",
         "change_kind": "A",
         "src_blob": "0000000000000000000000000000000000000000",
-        "dst_blob": "74126838b428d031b4270a99b05c2038b7faf582",
+        "dst_blob": "3e4d4168ff8107fe6d2696154a90cfd8f1559030",
         "symbols": [
           "/api/presence/demo",
           "DemoPresenceService"
@@ -6761,7 +6761,7 @@
       },
       "operator": "B1 governance/release owner",
       "recorded_at": "2026-09-07T15:48:36.8872829Z",
-      "reviewed_commit": "97b83e52bcbfface4377cefd69ebb111270cb21e",
+      "reviewed_commit": "f87fdc16fa0de254445343cc5da5badd97134107",
       "migration_subset_digest": "sha256:56f0469af36a13dfbc311717f4c7c66c564fdf66b0e46765203bd0cca35c7bae"
     }
   ],
@@ -8852,7 +8852,7 @@
     }
   ],
   "task6_review_summary": {
-    "reviewed_commit": "8f6800483d3be7afed3d7f1bec5ebae976a94afb",
+    "reviewed_commit": "f87fdc16fa0de254445343cc5da5badd97134107",
     "reviewer": "Codex Task 6 independent source review",
     "reviewed_at": "2026-09-08",
     "authoritative_inventory": {
