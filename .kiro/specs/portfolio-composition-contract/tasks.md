@@ -8,8 +8,9 @@ The pre-merge Task 7.7 evidence baseline is `main@108addca6d079b08d9d0822d87bfe4
 merged that packet at `5b438aed497dec7899302f4ba176de6042c6b546`. The exact candidate digest now
 serves as `portfolio-service--0000096` at 100% traffic and the one authenticated no-op PUT is
 `SAME_STATE`; see the [Task 7.9 serving proof](../../../docs/runbooks/B1_R_C_TASK_7_9_SERVING_PROOF.md).
-Task 7.10 remains separately closed. R-C is portfolio-only but not dark because the existing
-gateway wildcard makes the public composition controller reachable. No Writer_Convergence claim exists.
+Task 7.10 owner GO is recorded locally; Task 7.11, Writer_Convergence and publication remain separate.
+R-C is portfolio-only but not dark because the existing gateway wildcard makes the public composition
+controller reachable. No Writer_Convergence claim exists.
 
 **Historical R-C status — reconciled 2026-09-08 at `main@7e752b41`:**
 [PR #222](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/222)
@@ -823,7 +824,7 @@ in Waves 5–7.
 
 ### 4a — Orchestrator and preparers
 
-**Current status:** tasks **4.1–4.21 (Wave 4a–4c) are merged on `main@2673f40`** (PR #153). Candidate packaging and exact-digest smoke are complete through Task 7.6; Task 7.7 is independently accepted complete, Task 7.8 owner GO is recorded, and Task 7.9 serving proof is complete at `main@5fd1dac6`. Task 7.10 and later R-C gates remain separately closed. R-C is portfolio-only but not dark: the existing API-gateway `Path=/api/portfolio/**` wildcard makes the public controller reachable when the portfolio image serves. No rollback, post-deploy decision, or Writer_Convergence action is authorized by this status.
+**Current status:** tasks **4.1–4.21 (Wave 4a–4c) are merged on `main@2673f40`** (PR #153). Candidate packaging and exact-digest smoke are complete through Task 7.6; Task 7.7 is independently accepted complete, Task 7.8 owner GO is recorded, Task 7.9 serving proof is complete at `main@5fd1dac6`, and Task 7.10 owner GO is recorded locally. R-C is portfolio-only but not dark: the existing API-gateway `Path=/api/portfolio/**` wildcard makes the public controller reachable when the portfolio image serves. No rollback, Task 7.11, or Writer_Convergence action is authorized by this status.
 
 - [x] **4.1 `HoldingReplacementService`** — the single orchestrator, in D2's exact order: version
   precondition → semantic `400` (quantity, then duplicates) → catalog/lifecycle `422` aggregated →
@@ -1335,17 +1336,25 @@ frozen R-B3 image; Tasks 7.7 onward, deployment and exposure retain their own ga
   with complete unchanged before/after tuples. Evidence:
   [`B1_R_C_TASK_7_9_SERVING_PROOF.md`](../../../docs/runbooks/B1_R_C_TASK_7_9_SERVING_PROOF.md),
   [`task-7-9-serving-proof-20260909.json`](../../../docs/evidence/b1-r-c/task-7-9-serving-proof-20260909.json).
-  This checks Task 7.9 only: Task 7.10, rollback, publication and Writer_Convergence remain separate.
+  This checks Task 7.9 only; its evidence did not itself decide Task 7.10, rollback, publication or
+  Writer_Convergence.
   _Requirements: 9.7_
-- [ ] **7.10 STOP/GO — post-deploy.**
+- [x] **7.10 STOP/GO — post-deploy.**
   **Go:** 7.9 green.
-  **Abort:** roll back only to **R-B3r** `portfolio-service--0000095` /
-  `sha256:fa060bf054b9c108b8b59d9e9b27845d6b707f40040a7dcba16411db7f0e8552`, then verify that
-  exact safe digest is serving again. Never below the floor — it would restore a legacy writer
-  under a live constraint.
-  **Execution boundary:** Task 7.10 is unchecked and not started. The Task 7.9 contingent rollback
-  was unused and grants no continuing rollback authority; any Task 7.10 rollback needs its separate
-  owner decision.
+  **Abort contingency, not selected:** R-B3r `portfolio-service--0000095` is the historical
+  identity, but its revision object was purged in Single mode. Any future rollback requires separate
+  explicit owner authorization to deploy only the safe-floor
+  `sha256:fa060bf054b9c108b8b59d9e9b27845d6b707f40040a7dcba16411db7f0e8552`, creating an actually
+  named new revision that must be verified as serving that exact digest. Never below the floor — it
+  would restore a legacy writer under a live constraint.
+  **2026-09-09 owner-GO record:** the owner statement/decision was exactly `GO`, recorded locally
+  in the active Codex session. Technical predicates are green; Luna and Astra accepted the exact
+  pre-decision packet `726f575fd97864da8294e4c56d9c12dec4b4f8f8` with 0 Critical, 0 Important and
+  0 Minor findings. The local close-out is recorded in
+  [`B1_R_C_TASK_7_10_POST_DEPLOY_STOP_GO.md`](../../../docs/runbooks/B1_R_C_TASK_7_10_POST_DEPLOY_STOP_GO.md)
+  and [`task-7-10-post-deploy-assessment-20260909.json`](../../../docs/evidence/b1-r-c/task-7-10-post-deploy-assessment-20260909.json).
+  No rollback was used or authorized. Task 7.11, publication and Writer_Convergence remain separate;
+  post-decision close-out review is pending.
   _Requirements: 9.1, 9.7, 8.4_
 - [ ] **7.11 P11g-1 / P11g-2 evidence.** Transitional floor before activation; Writer_Convergence
   floor after.

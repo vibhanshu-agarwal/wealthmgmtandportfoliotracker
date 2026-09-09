@@ -15,12 +15,26 @@
     "independentReplayOrRevalidation": "Terra and Astra did not independently replay or revalidate the retained query semantics or results."
   },
   "authorization": {
-    "ownerDecision": "PENDING",
+    "ownerDecision": "GO",
     "decisionRequested": "Task 7.10 STOP/GO",
     "solRecommendation": "GO",
-    "independentReview": "ISSUES_FOUND; CORRECTION_AND_REREVIEW_PENDING",
-    "taskStatus": "INCOMPLETE",
-    "closed": ["production mutation", "rollback", "endpoint call or wake", "traffic or configuration change", "Task 7.11", "Writer_Convergence", "publication"]
+    "preDecisionPacketReview": {
+      "reviewers": ["Luna", "Astra"],
+      "reviewedCommit": "726f575fd97864da8294e4c56d9c12dec4b4f8f8",
+      "status": "ACCEPT",
+      "findings": {"critical": 0, "important": 0, "minor": 0}
+    },
+    "postDecisionCloseOutReview": "PENDING",
+    "taskStatus": "COMPLETE",
+    "closed": ["production mutation", "rollback", "endpoint call or wake", "traffic or configuration change", "Task 7.11", "Writer_Convergence", "push", "pull request", "merge", "publication"]
+  },
+  "ownerDecisionRecord": {
+    "ownerStatement": "GO",
+    "decision": "GO",
+    "channel": "active Codex session",
+    "recordedAtUtc": "2026-09-09T11:28:09.1914292Z",
+    "externalArtifactOrSessionId": null,
+    "effect": "Local Task 7.10 closure only; no production mutation is authorized."
   },
   "baseline": {
     "prNumber": 242,
@@ -40,12 +54,19 @@
       "authority": "Any rollback requires separate explicit owner authorization to deploy the exact safe-floor digest. That deployment will create an actually named new revision, which must be verified as serving the exact digest. Never roll below this floor."
     }
   },
-  "boundPriorEvidence": {
+  "preDecisionInputBindings": {
+    "bindingCommit": "726f575fd97864da8294e4c56d9c12dec4b4f8f8",
     "hashConvention": "All four SHA-256 values are over checked-out file bytes in this Windows worktree, with CRLF where present.",
     "task79Evidence": {"path": "docs/evidence/b1-r-c/task-7-9-serving-proof-20260909.json", "sha256": "0afbc70b1f15662ae312bcf9b11fa123996c6f8ce87e4e8cd64badd0bb9a3b9c"},
     "task79Runbook": {"path": "docs/runbooks/B1_R_C_TASK_7_9_SERVING_PROOF.md", "sha256": "4a51525dc426612ecc15c0f96bd5d35d7c0666bb5320ccd5de615d6be8c64748"},
     "taskLedger": {"path": ".kiro/specs/portfolio-composition-contract/tasks.md", "sha256": "6a90cc7411f7464e1b053d0b48ef5daa64fc991a739000508e237878a0268edf", "committedLfBlobSha256Companion": "4f6d7d41a098aa8d6e2fbe461c8f9bbac4a64f6227f24168895b7817abc9eaa5"},
     "masterPlan": {"path": "docs/plans/ASSET_PICKER_E2E_MASTER_PLAN.md", "sha256": "291edf831c78aaafc8569cb4d3686db590e859c77658a6ad8280c8f199d5021d"}
+  },
+  "postDecisionGovernanceBindings": {
+    "hashConvention": "SHA-256 over checked-out file bytes in this Windows worktree, with CRLF where present.",
+    "bindingScope": "Post-decision task ledger and master-plan inputs only; this packet does not self-hash.",
+    "taskLedger": {"path": ".kiro/specs/portfolio-composition-contract/tasks.md", "sha256": "717d030efebc2a2e049151d35c937ef3c1a56b6555b8479a8067bb99b10d5a6d"},
+    "masterPlan": {"path": "docs/plans/ASSET_PICKER_E2E_MASTER_PLAN.md", "sha256": "7247cdab65e769f94261ad696d6acf6f5d4dc600042906ffce5dec475a12276a"}
   },
   "localContainerRiskApproval": {
     "location": "active Codex session",
@@ -169,5 +190,5 @@
     "The first database orchestration string had a JavaScript delimiter syntax error and never launched.",
     "Three controller patch attempts failed before a usable patch: template-literal/backtick collision, apply_patch UTF-8 PATCH argument error, and malformed End Patch. The controller stopped rather than bypass the patch-only rule, and the worktree remained clean."
   ],
-  "notClaimed": ["a fresh live query by Terra", "owner Task 7.10 decision", "rollback authorization or execution", "endpoint call or wake", "Task 7.11 completion", "Writer_Convergence", "publication"]
+  "notClaimed": ["a fresh live query by Terra", "post-decision close-out review acceptance", "rollback authorization or execution", "endpoint call or wake", "Task 7.11 completion", "Writer_Convergence", "push", "pull request", "merge", "publication"]
 }

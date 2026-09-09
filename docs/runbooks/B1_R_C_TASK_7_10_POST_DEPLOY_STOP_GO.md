@@ -1,12 +1,14 @@
 # B1 R-C Task 7.10 — post-deploy STOP/GO, 2026-09-09
 
-> **OWNER APPROVAL REQUIRED — Task 7.10 STOP/GO.**
+> **OWNER GO RECORDED — Task 7.10 CLOSED LOCALLY.**
 >
-> **Decision requested:** Record **GO** or **ABORT** for Task 7.10. The technical packet is green and Sol recommends **GO**, but the owner decision is **PENDING**. Independent review found issues; correction and re-review are pending.
+> The owner statement and decision are exactly **GO**, recorded at `2026-09-09T11:28:09.1914292Z` in the active Codex session. No external artifact or session ID is asserted. Sol recommended GO; Luna and Astra accepted the pre-decision packet at `726f575fd97864da8294e4c56d9c12dec4b4f8f8` with 0 Critical, 0 Important, and 0 Minor findings. Post-decision close-out review is pending until reviewers inspect this new local commit.
 >
-> **GO:** record the owner's GO, then locally close/update the task ledger. GO authorizes **no** production mutation, endpoint call, wake, traffic/configuration change, rollback, publication, or Task 7.11 action.
->
-> **ABORT:** this does **not** authorize a rollback by itself. R-B3r portfolio-service--0000095 is the historical identity, but Task 7.9 records that Single mode purged its revision object. A separate explicit owner rollback authorization is required before deploying exactly sha256:fa060bf054b9c108b8b59d9e9b27845d6b707f40040a7dcba16411db7f0e8552. That deployment creates an actually named new revision, which must be verified as serving that exact digest. Never roll below the floor. The unused Task 7.9 contingency grants no continuing authority. Task 7.11 remains separate.
+> This close-out authorizes **local ledger closure only**. It authorizes **no** production mutation, endpoint call/wake, traffic or configuration change, rollback, Task 7.11 work, Writer_Convergence, push, pull request, merge, or publication.
+
+## Historical ABORT contingency — not selected
+
+R-B3r portfolio-service--0000095 is the historical identity, but Task 7.9 records that Single mode purged its revision object. Any future ABORT path still requires separate explicit owner rollback authorization before deploying exactly sha256:fa060bf054b9c108b8b59d9e9b27845d6b707f40040a7dcba16411db7f0e8552. That deployment would create an actually named new revision, which must be verified as serving that exact digest. Never roll below the floor. The unused Task 7.9 contingency grants no continuing authority. Task 7.11 remains separate.
 
 ## Scope and provenance
 
@@ -14,7 +16,11 @@ This is a retained-evidence decision packet supplied by Sol and recorded by Terr
 
 The retained baseline is PR #242 merge commit 118a19083e596b94a5801d588f7396eb963197f7. The retained deploy workflow [34328692256](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/34328692256) completed successfully. Its retained head is abbreviated as 5fd1dac6 (not revalidated here); candidate source is 8f1e8a36f8baa594efa8079190f87b42139fcf10, candidate JAR SHA-256 is 441d252939d7333dca134b9cc1a5f6a0632cc274a53f410671212c543a85cda4, and the candidate image is wealthprodacr.azurecr.io/portfolio-service@sha256:1cf372a39d17709f74aba427259548a531e3e1ba04dc64ec7750369bb8e82126.
 
-All four retained SHA-256 bindings are over checked-out file bytes in this Windows worktree, with CRLF where present. The Task 7.9 evidence, Task 7.9 runbook, task ledger, and master plan bindings are respectively 0afbc70b1f15662ae312bcf9b11fa123996c6f8ce87e4e8cd64badd0bb9a3b9c, 4a51525dc426612ecc15c0f96bd5d35d7c0666bb5320ccd5de615d6be8c64748, 6a90cc7411f7464e1b053d0b48ef5daa64fc991a739000508e237878a0268edf, and 291edf831c78aaafc8569cb4d3686db590e859c77658a6ad8280c8f199d5021d. The committed LF task-ledger blob companion SHA-256 is 4f6d7d41a098aa8d6e2fbe461c8f9bbac4a64f6227f24168895b7817abc9eaa5; it is not the Windows working-tree binding.
+All four retained SHA-256 bindings are over checked-out file bytes in this Windows worktree, with CRLF where present. At pre-decision input commit 726f575fd97864da8294e4c56d9c12dec4b4f8f8, the Task 7.9 evidence, Task 7.9 runbook, task ledger, and master plan bindings were respectively 0afbc70b1f15662ae312bcf9b11fa123996c6f8ce87e4e8cd64badd0bb9a3b9c, 4a51525dc426612ecc15c0f96bd5d35d7c0666bb5320ccd5de615d6be8c64748, 6a90cc7411f7464e1b053d0b48ef5daa64fc991a739000508e237878a0268edf, and 291edf831c78aaafc8569cb4d3686db590e859c77658a6ad8280c8f199d5021d. The committed LF task-ledger blob companion SHA-256 is 4f6d7d41a098aa8d6e2fbe461c8f9bbac4a64f6227f24168895b7817abc9eaa5; it is not the Windows working-tree binding. Post-decision bindings for the modified ledger and master plan are recorded below; the packet does not self-hash.
+
+## Post-decision governance bindings
+
+The same checked-out-Windows-byte convention applies. The post-decision task ledger SHA-256 is 717d030efebc2a2e049151d35c937ef3c1a56b6555b8479a8067bb99b10d5a6d and the post-decision master-plan SHA-256 is 7247cdab65e769f94261ad696d6acf6f5d4dc600042906ffce5dec475a12276a. These bind only the two changed governance inputs; neither the JSON packet nor this runbook self-hashes.
 
 ## Retained post-deploy assessment
 
@@ -46,4 +52,4 @@ The evidence is historical retained evidence, not a fresh attestation at decisio
 
 ## Decision record and next boundary
 
-Current assessment: all proposed GO predicates are green; rollback is unused and unauthorized; Task 7.10 remains incomplete; owner decision is pending. Independent review found issues, and correction/re-review are pending. Sol recommends GO. Neither this packet nor a future GO changes Task 7.11, Writer_Convergence, publication, or any production state. Do not check Task 7.10 or update the ledger until the owner records GO.
+All proposed GO predicates are green. The owner’s GO closes Task 7.10 locally; rollback remains unused and unauthorized. Luna and Astra accepted the pre-decision packet at 726f575fd97864da8294e4c56d9c12dec4b4f8f8 with zero findings, while post-decision close-out review is pending. Neither this local record nor the owner GO changes Task 7.11, Writer_Convergence, publication, or any production state.
