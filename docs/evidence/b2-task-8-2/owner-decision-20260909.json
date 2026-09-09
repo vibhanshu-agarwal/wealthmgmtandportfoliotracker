@@ -80,11 +80,13 @@
       "scripts/verify_demo_reset_azure.py"
     ],
     "added": [
-      "api-gateway/src/test/java/com/wealth/gateway/DemoLoginResetObservationTest.java"
+      "api-gateway/src/test/java/com/wealth/gateway/DemoLoginResetObservationTest.java",
+      "docs/evidence/b2-task-8-2/owner-decision-20260909.json"
     ],
     "instrumentationGapFound": false,
     "instrumentationNote": "No new metric or tag was added. DemoLoginResetObservationTest proves the injected observation-enabled WebClient.Builder already records one http.client.requests observation per successful leg, started and stopped so the timing is a complete leg duration, separable by HTTP method. It also pins the facts that uri is unattributed (none) on both legs, so method and not uri is the separating tag, and that the low-cardinality tag set is exactly client.name, exception, method, outcome, status, uri - carrying no credential, raw target, or identifier.",
-    "manifestDerivation": "Enumerated from `git diff --name-only` and `git ls-files --others --exclude-standard` against the branch base rather than maintained by hand, so the manifest cannot silently omit a file."
+    "manifestDerivation": "Enumerated from `git diff --name-status origin/main...HEAD` over the whole branch rather than maintained by hand, so the manifest cannot silently omit a file and the stated derivation reproduces the listed values exactly.",
+    "rebasedOnto": "81c672990401eb2a11feb7641c0acf9b7277a173"
   },
   "authorizationBoundary": "This decision resolves Task 8.2's values and the source/test/documentation reconciliation only. Push, pull-request creation, merge, workflow dispatch, deployment, cloud/registry/secret access, production probing, Task 8.8 deployment, Task 8.9 live proof, and Wave 10 exposure each remain separately owner-gated.",
   "independentReview": {
@@ -124,9 +126,56 @@
       {
         "id": 6,
         "finding": "origin/main advanced and modifies the same Wave 8 master-plan row; integration must preserve both the timeout decision and the Task 7.11 Writer Convergence status.",
-        "resolution": "Rebased onto the newer origin/main and reconciled the Wave 8 row to carry both statements.",
-        "status": "PENDING_REBASE"
+        "resolution": "Rebased onto origin/main@81c67299 (PR #244, Task 7.11 writer convergence). The Wave 8 master-plan row conflicted; resolved by taking the newer main's rows 8-10 wholesale and re-applying only the timeout sentence, so both the 2026-09-09 timeout decision and the Task 7.11 Writer Convergence status survive. Verified: the file's diff against the new main is exactly the one row-8 sentence, and 'Tasks 7.1-7.11 locally complete' plus 19 Task 7.11 references are intact.",
+        "status": "FIXED"
       }
     ]
+  },
+  "verification": {
+    "basis": "Per-class JUnit result XML counts and captured suite output, not build exit status - an earlier full gate reported shell exit 0 while Gradle had failed.",
+    "gradle": {
+      "test": {
+        "classes": 49,
+        "tests": 322,
+        "skipped": 0,
+        "failures": 0,
+        "errors": 0
+      },
+      "integrationTest": {
+        "classes": 20,
+        "tests": 193,
+        "skipped": 0,
+        "failures": 0,
+        "errors": 0
+      },
+      "wave8IntegrationTest": {
+        "classes": 1,
+        "tests": 4,
+        "skipped": 0,
+        "failures": 0,
+        "errors": 0
+      }
+    },
+    "python": {
+      "test_wave8_gateway_shared_contract": "OK",
+      "test_master_plan_status_propagation": "OK",
+      "test_verify_demo_reset_azure": {
+        "runsOnThisBranch": 10,
+        "passed": 6,
+        "failed": 4,
+        "onlyFailingTest": "test_real_slow_stream_total_deadline_and_armed_cleanup",
+        "note": "That test is a pre-existing wall-clock flake on unmodified origin/main, fixed on the separate unmerged branch codex/b2-wave8-slow-stream-flake. Every other test in the suite passed on all 10 runs.",
+        "combinedWithCodexFix": {
+          "runs": 10,
+          "passed": 10,
+          "failed": 0,
+          "caveat": "Provisional: Astra correction 2 requires further strengthening of that test, which is Codex-owned and still open, so the combined ten-run acceptance must be repeated against the corrected version."
+        }
+      }
+    },
+    "knownOpenFlake": {
+      "test": "DemoLoginResetRealChainIT.successfulResetPrecedesGatewaySuccessHandlerFailure",
+      "note": "Load-sensitive: runCase pins a 2-second real wall-clock overall deadline against Testcontainers Postgres. It injects its own --app.demo-login-reset.* overrides, so it is independent of the values in this decision. Passed in this gate run."
+    }
   }
 }
