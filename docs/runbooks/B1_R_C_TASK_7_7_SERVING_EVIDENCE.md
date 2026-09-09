@@ -1,31 +1,22 @@
 # B1 R-C Task 7.7 — pre-deploy serving evidence
 
-> ## OWNER APPROVAL RECORDED — EXECUTION STOPPED AT THE READ-ONLY G4 GATE
+> ## OWNER APPROVAL RECORDED — FINAL TECHNICAL PREDICATES GREEN
 >
-> On 2026-09-09 the owner authorized the remaining Task 7.7 bundle. The read-only preconditions
-> left immutable runtime identity unverified for three mutable-tag revisions and found that Kafka
-> group `insight-group` is absent. The fail-closed protocol therefore stopped
-> before signup, authenticated read, either legacy-route POST, seed or final post-write G3.
-> Diagnosing or recreating the group, waking a consumer to join it, committing/resetting offsets,
-> deployment, configuration/traffic change, rollback and Task 7.8 remain blocked actions requiring
-> a separate owner decision. Task 7.8 must not be presented from this packet.
+> The owner authorized all remaining Task 7.7 work, including immutable-digest replacement revisions,
+> transparent retained-range recovery for the missing `insight-group`, the bounded HTTP proofs,
+> exactly one seed and final read-only checks. Technical predicates are green. Task 7.8, R-C candidate
+> deployment, public exposure and Writer_Convergence were not performed.
 
-**Status:** AUTHORIZED COMPLETION ATTEMPT STOPPED AT UNVERIFIED RUNTIME IDENTITY AND FAILED
-READ-ONLY G4 KAFKA PREDICATE;
-TASK 7.7 OPEN.
-Direct-revision G2a capability is observed, but the authenticated G2a predicate is not verified. G3
-is currently green but out of sequence; G4 is partially green; G2, G0a, G2a, G2b and derived G6
-remain unverified. The approved protocol and serving-source map are in
+**Status:** G2, latest-valid G3, G4, G0a, G2a, G2b and derived G6 **PASS**.
+Astra independently ACCEPTed the final packet with no findings; Task 7.7 is complete. The map is in
 [`B1_R_C_TASK_7_7_G4_AND_WRITER_MAP.md`](B1_R_C_TASK_7_7_G4_AND_WRITER_MAP.md).
 
-**Recorded:** 2026-09-08. **Baseline:** fetched `main` merge
-`7e752b4183aa25f75adad6e7b363501cd5f23aa5` (PR #238), which is the parent baseline of this
-docs-only evidence branch. **Machine-readable record:**
-[`task-7-7-serving-gates-20260908.json`](../evidence/b1-r-c/task-7-7-serving-gates-20260908.json).
-The later authorized attempt is recorded separately in
-[`task-7-7-authorized-execution-20260908.json`](../evidence/b1-r-c/task-7-7-authorized-execution-20260908.json).
+**Final collection:** 2026-09-09. **Baseline:** `main@108addca6d079b08d9d0822d87bfe43812cd5699`.
+**Machine-readable final record:**
+[`task-7-7-completion-20260909.json`](../evidence/b1-r-c/task-7-7-completion-20260909.json).
+Sections 1–10 retain the earlier phases; section 11 supersedes their gate verdicts.
 
-## 1. Scope and stop boundary
+## 1. Historical initial scope and stop boundary
 
 The owner assigned Task 7.7 only and excluded Task 7.8, deployment, workflow dispatch, production
 writes, traffic/configuration changes, rollback, public exposure and Writer_Convergence. The frozen
@@ -165,7 +156,7 @@ checkboxes, mutable tags, `SERVICE_VERSION`, old G3 counts and old approvals are
 6. Recollect final G3 after all authorized writes, derive G6 and obtain independent whole-packet
    review. Any serving drift invalidates the affected observation and stops the bundle.
 
-## 8. Historical decision boundary — current result in §10
+## 8. Historical decision boundary — current result in §11
 
 Task 7.7 remains unchecked. Task 7.8 cannot be presented to the owner from this packet. The R-C
 candidate remains undeployed. Current serving state is bound and its read-only evidence is recorded,
@@ -237,3 +228,71 @@ Task 7.8 remains unavailable. Cryptographic runtime attestation (or immutable-di
 revisions) and recovery of the missing group each need a separate owner-reviewed design. Group
 recovery must not misrepresent recreated offsets as historical lag evidence. Only after both paths
 are accepted and executed may a fresh complete read-only precondition packet be collected.
+
+## 11. Final authorized completion — independently accepted PASS
+
+### 11.1 Immutable serving set
+
+The three tag-configured services were replaced by image-only revisions pinned to exact ACR digests
+already joined to source/build provenance. Portfolio remained unchanged. Final serving state is
+`Single`, one healthy/latest-ready revision and 100% traffic for each app:
+
+| App | Final revision | Exact configured digest |
+|---|---|---|
+| api-gateway | `api-gateway--0000078` | `sha256:79a3f253aaab1f3db58146612e8f2d05a70df6180482ace16efa1baef58469f3` |
+| portfolio-service | `portfolio-service--0000095` | `sha256:fa060bf054b9c108b8b59d9e9b27845d6b707f40040a7dcba16411db7f0e8552` |
+| market-data-service | `market-data-service--0000080` | `sha256:ad61144b2e747a5dd1b1fc9f5b5a091916559adf7c30117beae3563123aa2256` |
+| insight-service | `insight-service--0000080` | `sha256:f7db159d5b07085e471d784d50456a1eb384abe178a8fbcf7f4b5b17e916a46b` |
+
+Ingress, identity, environment/secret references, resources, scale, command/args and revision mode
+were preserved. The refresh job changed image only and retained schedule `0 8 * * *`, retry limit 0
+and timeout 600 seconds.
+
+### 11.2 Transparent retained-range recovery and G4
+
+Before recovery, `insight-group` was absent. The topic retained offsets 25808 through 26602 and the
+broker offset-retention setting was 10,080 minutes. Starting the immutable insight revision created
+current group state and replayed the retained range. This establishes bounded recovery and current
+steady state; it does **not** claim historical committed offsets or replay before the retention floor.
+
+At `02:00:53Z`, `02:03:11Z` and `04:14:21Z`, both required groups were at `26602/26602`, lag zero,
+while `market-prices.DLT` stayed at end offset 80. The insight revision had zero DLQ, processing-error,
+Redis-failure or retry-exhaustion markers. One generic broken-pipe warning was a client disconnect
+after a timed-out aggregate-summary request, not a replay/data failure.
+
+A direct TLS read-only Redis/PostgreSQL comparison covered all 159 active tickers. It found no
+missing, extra-fresh or null Redis entry, zero price mismatches after HALF_UP normalization to
+PostgreSQL `NUMERIC(19,4)`, and zero timestamp mismatches at epoch-millisecond precision. The final
+fixed-bound startup query covered all 11 observed replicas (7 portfolio, 2 market-data, 2 insight);
+each emitted the sole tuple `a00b32ac0267e1a9|160|159|true|true`. G4 is PASS. Exact queries are in
+[`task-7-7-completion-20260909.kql`](../evidence/b1-r-c/task-7-7-completion-20260909.kql).
+
+### 11.3 G2, G0a and G2a
+
+The required signup returned 201 and created exactly one user, credential and portfolio. Its token
+could not be retained after the same-process authenticated read returned 504. With explicit owner
+approval, one recovery signup returned 201 in one attempt and created exactly one additional user,
+credential and version-0 empty portfolio. That token's bounded authenticated GET returned 504 then
+200. No third signup or cleanup occurred.
+
+Using that identity, `POST /api/portfolio` returned 405 with `Allow: GET`, and versionless
+`POST /api/portfolio/{portfolioId}/holdings` returned 404. G2, G0a and G2a are PASS.
+
+### 11.4 Exactly-one seed, final G3 and G6
+
+The E2E portfolio started at frozen version 0 with 159 holdings. Complete BEFORE snapshots preceded
+transcript marker `TRACE_ID=2aa3d19ae8724fc999c4e00141742c69`; one POST was sent with zero retries
+and redirects. It returned 200 with identities preserved and `holdingsInserted=159`. Complete AFTER
+snapshots were byte-identical across schema, E2E/demo portfolios and holdings, market prices and
+market history. G2b is PASS with SAME_STATE.
+
+The post-write read-only snapshot found 12 users and 12 portfolios, every user at exactly one
+portfolio, `violating_users=0`, V21 successful once with checksum `385711525`, all four repair
+routines absent, both constraints validated, and zero integrity violations. Latest-valid G3 is PASS.
+Fresh G0a/G2a/G2b joined to the accepted exhaustive Task 7.6 writer map makes G6 PASS.
+
+### 11.5 Boundary
+
+All Task 7.7 technical predicates are green. Astra independently issued ACCEPT with no Critical,
+Important or Minor findings. Task 7.7 is complete and Task 7.8 is the next owner STOP/GO. No R-C
+candidate deployment, public composition exposure or Writer_Convergence claim occurred.

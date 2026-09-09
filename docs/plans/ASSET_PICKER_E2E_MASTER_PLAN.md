@@ -3,8 +3,17 @@
 **Last verified:** 2026-09-09 at `main@108addca6d079b08d9d0822d87bfe43812cd5699`;
 candidate release cut `8f1e8a36f8baa594efa8079190f87b42139fcf10`
 
-**Current delivery status — R-C candidate evidence green through Task 7.6; authorized Task 7.7
-attempt stopped at two read-only G4 predicates:**
+**Current delivery status — Task 7.7 complete; Task 7.8 owner STOP/GO is next:**
+The final authorized collection binds all four serving apps to exact immutable digests and passes
+G2, latest-valid G3, G4, G0a, G2a, G2b and derived G6. Transparent `insight-group` recovery is
+limited to the retained `25808–26602` range and is not represented as historical offset evidence.
+Exactly one seed returned SAME_STATE with complete byte-identical before/after snapshots; one
+required signup and one explicitly approved recovery signup left 12 users/12 portfolios with zero
+violations. Astra independently ACCEPTed the [final packet](../runbooks/B1_R_C_TASK_7_7_SERVING_EVIDENCE.md)
+with no Critical, Important or Minor findings. Task 7.8, R-C candidate deployment, Writer_Convergence
+and production exposure remain unperformed and separately gated.
+
+**Historical context retained below (superseded for current Task 7.7 verdict):**
 The program-state code baseline is current `main`; the latest tracked production runtime is R-B3r
 portfolio revision `0000095` / digest `sha256:fa060bf0…`.
 [PR #222](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/222)
@@ -83,8 +92,8 @@ records the original tooling acceptance and the preserved September 3 LOCAL_DEV 
 historical results remain development evidence only. PRs #234–#236 supersede its R3 and 504-finding
 status, while the September 8 [candidate evidence checkpoint](../evidence/b1-r-c/candidate-evidence-checkpoint-20260908.json)
 supplies the current-cut Task A/B bundle, registry manifest, exact-digest smoke and final zero-finding
-governance result through Task 7.6. It supplies no Task 7.7 serving proof or Task 7.8 decision. Tasks
-7.7–7.11, AM.1/AM.2 and Writer_Convergence remain open.
+governance result through Task 7.6. The independently accepted final serving packet completes
+Task 7.7. Tasks 7.8–7.11, AM.1/AM.2 and Writer_Convergence remain open.
 
 **OWNER APPROVAL RECORDED — Claude R-C preparation kickoff, 2026-09-03:** The owner requested
 the Claude kickoff and its docs-only PR. This authorizes publication of this documentation package;
@@ -102,13 +111,13 @@ Both tasks are now checked locally. The [decision record](../evidence/b1-task-6-
 binds this approval to the unchanged proof and cu4 serving image. Publication, further production
 operations, Wave 7 activation and Writer_Convergence closure remain outside this approval.
 
-**Current runtime baseline:** the authorized Task 7.7 attempt reverified R-B3r portfolio revision
-`0000095` / digest `fa060bf0…` as the sole active 100%-traffic portfolio target. R-B3r superseded
-cu4 through the reviewed V21-only remediation deployment. The current direct-revision GET observes
-numeric-version capability but does not replace G2a's authenticated read; the remediation's
-historical SAME_STATE seed is not promoted to fresh G2b proof. Current blockers are unverified
-runtime identity for the three mutable-tag revisions and absent Kafka group `insight-group`; no
-write-bearing serving proof ran.
+**Current runtime baseline:** portfolio remains R-B3r `0000095` / `fa060bf0…`; image-only
+replacement revisions now serve gateway `0000078` / `79a3f253…`, market-data `0000080` /
+`ad61144b…`, and insight `0000080` / `f7db159d…`. Each is the sole healthy/latest-ready,
+100%-traffic target in `Single` mode. The recovered `insight-group` replayed only the retained range
+and reached current lag zero without DLT growth. Authenticated numeric-version and retired-route
+probes, exactly one frozen-version seed, projection consistency and final G3 all passed. Astra
+independently ACCEPTed the complete packet with no findings.
 
 
 **B1 Tasks 7.1–7.2 source ACCEPT and merged (2026-09-03):** Cursor implemented the public
@@ -267,7 +276,7 @@ still passes with exactly three callers. Unattended synthetics remain suspended;
 manual dispatch and schedule restoration require separate authorization. See the
 [G5 decision and evidence](../runbooks/B1_G5_INGRESS_BLOCKER.md). B1 Wave 6's prerequisite is
 satisfied; no R-B3 deployment or public `PUT` activation is authorized here.
-B2 Wave 1 (Tasks 1.1-1.19) and Wave 2 Tasks 2.1-2.5 are merged source-only through PR #178 at `main@38e3d95`; they remain entirely mock-backed and disabled by default. Wave 3 presence source Tasks 3.1–3.6 merged source-only via PR #179 at `main@cc97a209`; Task 3.7 deploy/live proof remains open (not deployed, not activated, not live-probed). Wave 4 Tasks 4.1–4.4a merged via PR #180 at `main@63fc058`; that exact cut is now deployed only to the internal portfolio-service endpoint, and Task 4.5 completed with a reviewed live GO on `portfolio-service--0000093` / `sha256:9a1d5533…` ([evidence](../runbooks/B2_TASK_4_5_DEMO_RESET_STOP_GO.md)). Tasks 5.1a and 5.1b merged source-only via PRs #202 and #208 at `main@64761dc2` and `main@f954b5a7`; Task 8.1 standalone PR #185 was source-only at merge, but its behavior is included in tracked cu4 source 6a171558 / digest sha256:2be727eaf4577699c783ae66073670d4984fe66c666af3e56422c934fdd0b023 / revision 0000094 (provenance only, not fresh read-back; no duplicate deployment needed); Task 8.2a standalone PR #203 remains source-only and not deployed. Tasks 2.6–2.7, 3.7, Task 5.6's owner decision, Wave 8 Tasks 8.8–8.9, Wave 6 Task 6.3, and Wave 10 remain open. B1 Wave 7 Tasks 7.1–7.2 are complete; R-C Tasks 7.3–7.6 (including 7.5a) are evidenced at cut `8f1e8a36`, while Tasks 7.7–7.11 remain open. Wave 6 Tasks 6.1/6.2 merged source-only via PR #214 at `main@48d0aba8`. Wave 5 Tasks 5.1, 5.2, 5.3, 5.3a, 5.4, and 5.5 merged source-only via PR #212 at `main@d8fa499d`; they are not deployed. Wave 9 Task 9.6 (the demo-authenticated Playwright fixture) merged source-only via PR #226 at `main@c8fc407c`; it is not deployed. It is a reusable test helper that Task 9.8 imports, and it establishes no assembled-stack or Production E2E result. Task 9.1 catalog integration merged source-only via PR #228 at `main@3ea9578c`; it is not deployed and proves no Production E2E result. Task 9.3 drafted-price integration has local source evidence in PR #229 and is not deployed. Task 9.4 real presence integration carries local assembled-stack evidence (two independently issued demo logins against the real gateway and Redis, with no presence-route fulfillment) and a fixed duplicate-request defect; it is not deployed; merged CI wiring is covered by PR #232 final run 34018608256, and establishes no Production E2E result. Task 9.5 merged via PR #231 at `main@b4c68253b99a796d6301ef79b5aa5a47d5cbd962`. Wave 9 Tasks 9.2, 9.7, 9.8, and 9.9 are source/assembled-stack complete locally: the disposable Compose real-browser run passed 5/5 (setup plus picker and demo-reset success/conflict), and PR #232 final CI run 34018608256 passed docker-build-verify and ci-required. No deployment or Production E2E is claimed. B1 R-C deployment/convergence, Task 3.7, Task 6.3, Wave 8 Tasks 8.8–8.9, and Wave 10 remain open; production flags remain off.
+B2 Wave 1 (Tasks 1.1-1.19) and Wave 2 Tasks 2.1-2.5 are merged source-only through PR #178 at `main@38e3d95`; they remain entirely mock-backed and disabled by default. Wave 3 presence source Tasks 3.1–3.6 merged source-only via PR #179 at `main@cc97a209`; Task 3.7 deploy/live proof remains open (not deployed, not activated, not live-probed). Wave 4 Tasks 4.1–4.4a merged via PR #180 at `main@63fc058`; that exact cut is now deployed only to the internal portfolio-service endpoint, and Task 4.5 completed with a reviewed live GO on `portfolio-service--0000093` / `sha256:9a1d5533…` ([evidence](../runbooks/B2_TASK_4_5_DEMO_RESET_STOP_GO.md)). Tasks 5.1a and 5.1b merged source-only via PRs #202 and #208 at `main@64761dc2` and `main@f954b5a7`; Task 8.1 standalone PR #185 was source-only at merge, but its behavior is included in tracked cu4 source 6a171558 / digest sha256:2be727eaf4577699c783ae66073670d4984fe66c666af3e56422c934fdd0b023 / revision 0000094 (provenance only, not fresh read-back; no duplicate deployment needed); Task 8.2a standalone PR #203 remains source-only and not deployed. Tasks 2.6–2.7, 3.7, Task 5.6's owner decision, Wave 8 Tasks 8.8–8.9, Wave 6 Task 6.3, and Wave 10 remain open. B1 Wave 7 Tasks 7.1–7.2 are complete; R-C Tasks 7.3–7.6 (including 7.5a) are evidenced at cut `8f1e8a36`, while Task 7.7 is complete and Tasks 7.8–7.11 remain open. Wave 6 Tasks 6.1/6.2 merged source-only via PR #214 at `main@48d0aba8`. Wave 5 Tasks 5.1, 5.2, 5.3, 5.3a, 5.4, and 5.5 merged source-only via PR #212 at `main@d8fa499d`; they are not deployed. Wave 9 Task 9.6 (the demo-authenticated Playwright fixture) merged source-only via PR #226 at `main@c8fc407c`; it is not deployed. It is a reusable test helper that Task 9.8 imports, and it establishes no assembled-stack or Production E2E result. Task 9.1 catalog integration merged source-only via PR #228 at `main@3ea9578c`; it is not deployed and proves no Production E2E result. Task 9.3 drafted-price integration has local source evidence in PR #229 and is not deployed. Task 9.4 real presence integration carries local assembled-stack evidence (two independently issued demo logins against the real gateway and Redis, with no presence-route fulfillment) and a fixed duplicate-request defect; it is not deployed; merged CI wiring is covered by PR #232 final run 34018608256, and establishes no Production E2E result. Task 9.5 merged via PR #231 at `main@b4c68253b99a796d6301ef79b5aa5a47d5cbd962`. Wave 9 Tasks 9.2, 9.7, 9.8, and 9.9 are source/assembled-stack complete locally: the disposable Compose real-browser run passed 5/5 (setup plus picker and demo-reset success/conflict), and PR #232 final CI run 34018608256 passed docker-build-verify and ci-required. No deployment or Production E2E is claimed. B1 R-C deployment/convergence, Task 3.7, Task 6.3, Wave 8 Tasks 8.8–8.9, and Wave 10 remain open; production flags remain off.
 
 **User-visible state:** there is no production-exposed functional Asset Picker today.
 
@@ -373,7 +382,7 @@ At every meaningful merge or live checkpoint:
 | Track | Delivered | Current position | Remaining outcome |
 |---|---|---|---|
 | **A — Spec A catalog/data cutover** | Shared catalog, Postgres/Mongo repair, R4 rollout, enforcement, one reconciled controlled refresh, persisted refresh enablement, demo portfolio activation, and scale-to-zero restoration | **All 14 cutover checkpoints complete.** 9.13 completed on `portfolio-service--0000092`, `market-data-service--0000079`, and `insight-service--0000079`; B2 Task 4.5 later superseded only the portfolio revision with `portfolio-service--0000093`. 9.14 completed via apply [33331130603](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33331130603), reopening ACA external ingress on `api-gateway--0000077` with `allowInsecure=false` ([`SPEC_A_9_14_REOPEN_INGRESS.md`](../runbooks/SPEC_A_9_14_REOPEN_INGRESS.md)); the later custom-domain restore has independent `200` read-back, and PR #194 independently reviewed and merged that evidence ([`API_GATEWAY_CUSTOM_DOMAIN_RECOVERY.md`](../runbooks/API_GATEWAY_CUSTOM_DOMAIN_RECOVERY.md)); historical RCA remains `MECHANISM_REPRODUCED_SETTER_UNPROVEN` | Spec A's production cutover is done. B1 G5 closed by owner decision on 2026-09-02 using the reviewed three-caller run. B1 Wave 6 Tasks 6.1–6.4 are source-complete through PR #217; the four filed process follow-ups remain open |
-| **B — B1 portfolio composition backend** | Deployment prerequisites, fixture identity migration, legacy writer retirement, gateway provisioning, V20, version-bearing read, version-required seed, Wave 7 controller/tests, R-C preparation tooling, R3 closure, GC.5 source-governance closure, and immutable candidate evidence through Task 7.6 | **R-A/G2, R-B/G3, R-B2/G2a and R-B3/G2b complete historically; current portfolio runtime is R-B3r `0000095` / `fa060bf0…`.** Tasks 7.1–7.2 are merged. At `main@8f1e8a36`, Task A passed 764 tests; the once-built/once-pushed candidate is bound to `linux/amd64` manifest `sha256:1cf372a39d17709f74aba427259548a531e3e1ba04dc64ec7750369bb8e82126`; exact-digest smoke passed 5/5; and the final CANDIDATE guard passed zero findings/unverified coverage with artifacts verified. The G4 zero-mutation protocol and writer map are accepted. The authorized attempt proved full startup coverage, DLT non-growth and portfolio-group lag zero, but stopped because mutable-tag runtime identity remains unverified and `insight-group` is absent | Obtain separate owner-reviewed runtime-identity/revision and Kafka-group recovery decisions, then rerun the complete read-only packet. A green read-only precondition packet permits the authorized conditional write proofs; only the subsequently accepted complete Task 7.7 packet permits presenting Task 7.8. Deployment 7.9, post-deploy GO, Writer_Convergence and production exposure remain separate gates |
+| **B — B1 portfolio composition backend** | Deployment prerequisites, fixture identity migration, legacy writer retirement, gateway provisioning, V20, version-bearing read, version-required seed, Wave 7 controller/tests, R-C preparation tooling, R3 closure, GC.5 source-governance closure, immutable candidate evidence through Task 7.6, and accepted Task 7.7 serving evidence | **Task 7.7 complete.** All four apps have exact immutable serving digests; G2/G3/G4/G0a/G2a/G2b/G6 passed with transparent retained-range recovery, exactly one seed and final 12/12 integrity; Astra ACCEPTed with no findings | Task 7.8 is the next owner STOP/GO. Deployment 7.9, post-deploy GO, Writer_Convergence and production exposure remain separate gates |
 | **C — B2 Asset Picker product** | Requirements, design, task plan, five-screen visual mockup, Waves 1–6 source, Wave 8 source/tooling, and Wave 9 local real-stack integration | Wave 8 source and Azure proof tooling merged via PR #233 at `main@a52ec1ef`; deployment/live proof remain open. Wave 9 Tasks 9.1–9.9 carry their recorded source/local evidence; PR #232 at `main@318f2859` passed the disposable Compose real-browser run 5/5 and required CI wiring | No production deployment or Production E2E is claimed. Tasks 2.6–2.7, 3.7, 5.6, 6.3, 8.8/8.9, B1 R-C deployment/convergence, and Wave 10 remain open; production flags remain off |
 | **D — Demo credibility** | Canonical prices refreshed and reconciled; demo initializer exists; authorized 9.12 retry activated the Active_Asset set | Demo portfolio holds the exact 159-holding golden set after Task 4.5's one-call live proof on `portfolio-service--0000093`; version remained `0` under the valid same-state no-op; both flags remain `false`; historical pooled-session setter remains unidentified | 9.14 and the custom-domain restore are complete; B1 G5 closed by owner decision on 2026-09-02 using run 33411410271. Operational 9.12 success does not close historical RCA |
 
@@ -471,16 +480,16 @@ Authority: [`.kiro/specs/portfolio-composition-contract/tasks.md`](../../.kiro/s
 | 1 — legacy writer retirement | ✅ Complete | Old portfolio creator and versionless holding writer removed and kept retired |
 | 2 — gateway provisioning + asset route | ✅ R-A complete (G2 served) | PR #131 tasks 2.1–2.6 complete; serving revision `api-gateway--0000076`, digest `sha256:2da5b303…`; evidence [`B1_R_A_G2_SERVING_PROOF.md`](../runbooks/B1_R_A_G2_SERVING_PROOF.md) |
 | 3 – V20 schema | ✅ R-B complete (G3 served) | Tasks 3.1–3.7 complete; Artifact 2 cut `25aa730` applied V20; prior serving evidence [`B1_R_B_G3_SERVING_PROOF.md`](../runbooks/B1_R_B_G3_SERVING_PROOF.md); superseded for portfolio traffic by R-B2 |
-| 4 – contract implementation | Source on Artifact 2a serving cut; mechanisms unexposed | Wave 4a–4c (4.1–4.21) merged on `main@2673f40` (PR #153) and included in Artifact 2a serving digest. Public `PUT` still Wave 7. Replacement orchestrator + preparers remain unexposed; `GET /api/assets` controller is now served with R-B2; candidate packaging and exact-digest smoke are evidenced, but Task 7.7 serving recollection and later gates remain pending |
+| 4 – contract implementation | Source on Artifact 2a serving cut; mechanisms unexposed | Wave 4a–4c (4.1–4.21) merged on `main@2673f40` (PR #153) and included in Artifact 2a serving digest. Public `PUT` still Wave 7. Replacement orchestrator + preparers remain unexposed; `GET /api/assets` controller is now served with R-B2; candidate packaging, exact-digest smoke and Task 7.7 serving evidence are complete, while later gates remain pending |
 | 5 — version-bearing read | ✅ Tasks 5.1–5.3 / R-B2 complete; 5.4–5.6 merged via PR #161 at `main@0b5d60d1`; **5.7/G5 complete by owner decision on 2026-09-02** | [33411410271](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33411410271) from `main@f66d7ab6` executed all three callers with version markers, holdings-only seed, and 9 passing tests; evidence reviewed/merged via PR #197. Historical failures and close-out: [G5 record](../runbooks/B1_G5_INGRESS_BLOCKER.md) |
 | 6 — version-required seed | ✅ Tasks 6.1–6.7 complete locally; R-B3 owner GO recorded 2026-09-03 | Strict version boundary and identity-preserving replacement are on main. 6.5 owner GO recorded; read-only preflight confirms the existing cut. cu4 deployed as revision 0000094; 6.6 technical ACCEPT from one same-state seed; 6.6 complete and 6.7 owner GO recorded; publication remains separate |
-| 7 — activation | 🟡 Tasks 7.1–7.2 source complete; Tasks 7.3–7.6 candidate evidence green at `main@8f1e8a36` | Controller and tests remain excluded from frozen R-B3. The exact-cut Task A graph, once-built/once-pushed candidate, ACR platform digest, exact-digest smoke and final CANDIDATE governance binding are evidenced. The authorized Task 7.7 attempt stopped because mutable-tag runtime identity is unverified and `insight-group` is absent; 7.8 STOP/GO, deployment and activation remain gated |
+| 7 — activation | 🟡 Tasks 7.1–7.7 complete | Exact candidate evidence remains bound to `main@8f1e8a36`. Final pre-deploy serving collection passed G2/G3/G4/G0a/G2a/G2b/G6 with independent ACCEPT; Task 7.8 STOP/GO, deployment and activation remain gated |
 
 Spec A V17–V19 were applied at checkpoint 9.6; **V20 is applied under R-B** and unchanged by R-B2.
 **R-A / G2**, **R-B / G3**, and **R-B2 / G2a** are complete. Wave 4 composition write mechanisms
 remain unexposed in production; the public `PUT` source is merged, and candidate execution plus
-packaging evidence is green through Task 7.6. Task 7.7 serving recollection and Task 7.8 STOP/GO
-remain incomplete. Caller migration
+packaging evidence is green through Task 7.6 and Task 7.7 serving recollection is independently
+accepted complete. Task 7.8 STOP/GO remains unperformed. Caller migration
 source **Tasks 5.4–5.6 are on `main@0b5d60d1`** (PR #161); **5.7/G5 is complete** under the
 owner's 2026-09-02 decision. Run [33411410271](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33411410271)
 from `main@f66d7ab6` recorded all three callers; PR #197 merged the reviewed evidence at
@@ -510,7 +519,7 @@ portfolio deploy as a substitute for an authorized Artifact cut.**
 | PR #155 / R-B2 | **Complete for 5.1–5.3** — Task 5.1 on `main@f22e2ff`; Artifact 2a serving on `portfolio-service--0000081` / `sha256:d544649f…` ([run 32982880866](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/32982880866); [`B1_R_B2_G2A_SERVING_PROOF.md`](../runbooks/B1_R_B2_G2A_SERVING_PROOF.md)); G2a green | Tasks 5.4–5.6 subsequently merged source-only via PR #161; any future portfolio rollout invalidates G2a until re-proven |
 | PR #161 / G5 | **Caller source merged on `main@0b5d60d1`; 5.7/G5 complete by owner decision on 2026-09-02.** [33411410271](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33411410271) succeeded from `main@f66d7ab6` with all three markers; PR #197 merged the reviewed evidence at `main@b6c0da3`. [Close-out record](../runbooks/B1_G5_INGRESS_BLOCKER.md) | G5 prerequisite satisfied; Wave 6 and R-B3 subsequently completed under separate approvals; public `PUT` and schedule restoration remain separate |
 | PR #217 / B1 Wave 6 source | **Merged on `main@d66bb23d`**; Tasks 6.1–6.4 checked, Codex ACCEPT at `1bdb1d31`, R1/R2 closed, final PR-event CI successful | 6.5 owner GO; cu4 deployed and 6.6 G2b technical proof ACCEPT; 6.6/6.7 checked under owner R-B3 GO; unpublished local records |
-| PRs #222, #234–#237 / R-C preparation and status reconciliation | **Merged through `main@8f1e8a36`**; candidate tooling accepted, R3 closed, GC.5 closed, Windows checkout identity fixed, and the master plan reconciled to the release cut | The unchanged cut now has Task A/B, ACR manifest, exact-digest smoke and final CANDIDATE evidence through Task 7.6 ([checkpoint](../evidence/b1-r-c/candidate-evidence-checkpoint-20260908.json)). Task 7.7 serving recollection and Task 7.8 STOP/GO remain open; no R-C deployment or Writer_Convergence is claimed |
+| PRs #222, #234–#237 / R-C preparation and status reconciliation | **Merged through `main@8f1e8a36`**; candidate tooling accepted, R3 closed, GC.5 closed, Windows checkout identity fixed, and the master plan reconciled to the release cut | The unchanged cut has candidate evidence through Task 7.6 ([checkpoint](../evidence/b1-r-c/candidate-evidence-checkpoint-20260908.json)); final Task 7.7 serving evidence is independently accepted. Task 7.8 and later gates remain open; no R-C deployment or Writer_Convergence is claimed |
 | [`proof/b1-wave-2-g1-v20@e6a98c5`](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/tree/proof/b1-wave-2-g1-v20) | Historical dependent dual-schema proof branch; superseded for Wave 3 delivery by `cursor/b1-wave3-v20-schema` | Remain unmerged; no release action |
 
 ### Process-control status
@@ -625,24 +634,19 @@ public `200` read-back.
 
 **Owner priority: complete the Asset Picker production path before deferred CI optimization.**
 The exact `main@8f1e8a36` Task A graph, single candidate build/push, ACR platform digest,
-exact-digest smoke and final CANDIDATE artifact binding are complete through Task 7.6. The owner
-authorized the remaining Task 7.7 read-only predicates and the conditional signup/read,
-legacy-route and one-seed proof bundle. The read-only attempt passed complete startup coverage and
-DLT non-growth, and found `portfolio-group` at lag zero, but mutable-tag runtime identity remains
-unverified and the broker returned
-`GroupIdNotFoundException` for required `insight-group`. The protocol stopped before all
-write-bearing requests. The immediate B1 release action is now separate owner-reviewed decisions
-for cryptographic runtime identity (or immutable-digest replacement revisions) and absent-group
-recovery that does not misrepresent newly created offsets as historical lag evidence, followed by a
-fresh complete read-only precondition packet. Only after the complete Task
-7.7 packet is green may Task 7.8 be presented for the owner's STOP/GO. Deployment 7.9 and every
-later live or exposure action retain separate owner gates.
+exact-digest smoke and final CANDIDATE artifact binding are complete through Task 7.6. The owner-
+authorized Task 7.7 recovery and proof bundle now has all technical predicates green: immutable
+serving digests, transparent retained-range recovery/current lag zero with DLT non-growth, projection
+consistency, complete startup coverage, provisioning/authenticated/retired-route proofs, exactly one
+seed, final G3 and derived G6. Astra independently ACCEPTed the whole packet with no findings.
+Task 7.8 is the next owner STOP/GO. Deployment 7.9 and later live/exposure actions retain
+separate owner gates.
 
 **B1 position:** R-B3 remains the production safety floor; the latest tracked serving release is
 R-B3r revision `0000095` / digest `fa060bf0…`. Tasks 7.1–7.2, candidate-preparation tooling, R3 and
 GC.5 are complete on `main`; Tasks 7.3–7.6, including 7.5a, have current-cut
-candidate evidence. Tasks 7.7–7.11, AM.1/AM.2 and Writer_Convergence remain open. The R-C artifact
-exists in ACR, but it has not been deployed or served.
+candidate evidence. Task 7.7 is complete; Tasks 7.8–7.11,
+AM.1/AM.2 and Writer_Convergence remain open. The R-C artifact exists in ACR but is not deployed.
 
 **B2 position:** Wave 8 source and Azure proof tooling are merged through PR #233, and Wave 9's
 disposable Compose real-browser integration passed 5/5 through PR #232. These are source/local-CI
@@ -677,9 +681,8 @@ remains deferred unless delivery latency makes it a product blocker.
    are merged and reconciled complete. Candidate preparation tooling, R3 closure and GC.5 closure
    are merged through PRs #222 and #234–#236. The exact `main@8f1e8a36` Task A graph, candidate
    image/ACR manifest, exact-digest smoke and final CANDIDATE binding provide Task 7.3–7.6 evidence
-   with zero findings/unverified coverage. The authorized Task 7.7 attempt stopped before writes
-   because three mutable-tag runtime identities remain unverified and required Kafka group
-   `insight-group` is absent; Tasks 7.7–7.11 and Writer_Convergence remain open.
+   with zero findings/unverified coverage. Task 7.7 is independently accepted complete; Tasks
+   7.8–7.11 and Writer_Convergence remain open.
 3. **B2 product lane:** Waves 1–6 source have the recorded merge and review evidence; the exact
    historical Wave 4 cut remains deployed internally and Task 4.5 is GO. Wave 8 source and Azure
    proof tooling merged through PR #233 at `main@a52ec1ef`. Wave 9 source and disposable-stack
