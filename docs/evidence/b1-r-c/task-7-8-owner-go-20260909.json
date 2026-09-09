@@ -17,6 +17,7 @@
     "platform": "linux/amd64"
   },
   "preDecisionEvidence": {
+    "atCommit": "5b438aed497dec7899302f4ba176de6042c6b546",
     "candidateCheckpoint": {
       "path": "docs/evidence/b1-r-c/candidate-evidence-checkpoint-20260908.json",
       "sha256": "6190b98118735b9d3164753374aaee7a24d5c0b2fd4c5b63b9849a0cf1798ef7"
@@ -55,7 +56,7 @@
   "assessment": {
     "solRecommendation": "GO",
     "terraRecommendation": "GO",
-    "lunaAudit": "RECORDED",
+    "lunaPreDecisionAudit": "Pre-decision audit completed with the recorded cautions on evidence binding, retained-range recovery, and portfolio-only rollout reachability; this record does not claim to embed or supersede a post-decision diff audit.",
     "astraVerdict": "ACCEPT",
     "astraFindings": {
       "critical": 0,
@@ -68,6 +69,11 @@
     "localTask78Closure": true,
     "unlocksSeparateTask79PlanningAndApprovalOnly": true,
     "task79Started": false,
+    "build": false,
+    "push": false,
+    "cloudAccess": false,
+    "secretAccess": false,
+    "scheduleChange": false,
     "deployment": false,
     "workflowDispatch": false,
     "productionAccess": false,
