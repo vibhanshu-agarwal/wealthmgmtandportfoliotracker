@@ -119,13 +119,13 @@ class DemoLoginResetRealChainIT {
     @Test void committedResetResponseExceedsOverallDeadlineInFlight() throws Exception {
         Map<String, Object> event = runCase("reset_in_flight");
         assertThat(event).containsEntry("reason", "overall_timeout").containsEntry("leg", "overall")
-                .containsEntry("timeoutScope", "overall").containsEntry("elapsedMillis", 411L)
+                .containsEntry("timeoutScope", "overall").containsEntry("elapsedMillis", 548L)
                 .containsEntry("overallTimeoutPhase", "reset_in_flight").containsEntry("httpStatus", null);
     }
     @Test void committedResetResponsePrecedesOverallDeadlinePostResponse() throws Exception {
         Map<String, Object> event = runCase("reset_post_response");
         assertThat(event).containsEntry("reason", "overall_timeout").containsEntry("leg", "overall")
-                .containsEntry("timeoutScope", "overall").containsEntry("elapsedMillis", 411L)
+                .containsEntry("timeoutScope", "overall").containsEntry("elapsedMillis", 685L)
                 .containsEntry("overallTimeoutPhase", "reset_post_response").containsEntry("httpStatus", 200)
                 .containsEntry("attemptedTarget", null);
     }
@@ -158,7 +158,7 @@ class DemoLoginResetRealChainIT {
                 .jsonPath("$.email").isEqualTo("demo@example.com").jsonPath("$.name").isEqualTo("Demo");
         await().atMost(Duration.ofSeconds(8)).untilAsserted(() -> {
             assertThat(success.events).filteredOn(e -> trace.equals(e.getMDCPropertyMap().get("traceId"))).hasSize(1);
-            assertThat(skipped.events).hasSize(1);
+            assertThat(skipEvents()).hasSize(1);
         });
         var after = repositories.findByUserId(DEMO).getFirst();
         assertThat(after.getId()).isEqualTo(before.getId());
@@ -174,7 +174,7 @@ class DemoLoginResetRealChainIT {
         assertThat(wires.get(1).key()).isEqualTo(KEY);
         for (Wire wire : wires) assertThat(wire.traceparent()).matches("00-" + trace + "-[0-9a-f]{16}-01");
         Map<String, Object> event = new LinkedHashMap<>();
-        skipped.events.getFirst().getKeyValuePairs().forEach(pair -> event.put(pair.key, pair.value));
+        skipEvents().getFirst().getKeyValuePairs().forEach(pair -> event.put(pair.key, pair.value));
         assertThat(event).containsEntry("traceId", trace).containsEntry("event", "demo_reset_self_call_skipped")
                 .containsEntry("internalApiKeyConfigured", true).containsEntry("originVerifyRequired", false)
                 .containsEntry("eligibilityDispatchAttempted", true).containsEntry("resetDispatchAttempted", true)
@@ -188,6 +188,13 @@ class DemoLoginResetRealChainIT {
             await().atMost(Duration.ofSeconds(8)).until(() -> responseReleased);
         }
         return event;
+    }
+
+    private List<ILoggingEvent> skipEvents() {
+        return skipped.events.stream()
+                .filter(log -> log.getKeyValuePairs().stream().anyMatch(pair -> pair.key.equals("event")
+                        && pair.value.equals("demo_reset_self_call_skipped")))
+                .toList();
     }
 
     private void assertGolden(UUID portfolioId) throws Exception {

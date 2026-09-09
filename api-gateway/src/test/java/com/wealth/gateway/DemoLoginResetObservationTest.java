@@ -11,13 +11,11 @@ import java.util.Set;
 import static io.micrometer.observation.tck.TestObservationRegistryAssert.assertThat;
 
 /**
- * Task 8.2's retuning obligation: the approved 45s/10s per-leg budgets can only be tuned from
- * production evidence if a *successful* leg's duration is queryable, and if the two legs can be
- * told apart in that evidence. {@link DemoLoginResetDiagnostics} deliberately records
- * {@code elapsedMillis} only on a timeout, so the success side has to come from the client
- * observations the injected, observation-enabled {@code WebClient.Builder} already produces
- * ({@link DemoLoginResetConfiguration#demoLoginResetWebClientBuilder}). These tests prove that it
- * already does, rather than adding a second success-event vocabulary to restate it.
+ * Characterizes the standard request-level observations produced by the injected,
+ * observation-enabled {@code WebClient.Builder}
+ * ({@link DemoLoginResetConfiguration#demoLoginResetWebClientBuilder}). These observations stop
+ * when the response is obtained, before asynchronous body processing necessarily completes, so
+ * complete successful-leg timing is recorded separately by {@link DemoLoginResetDiagnostics}.
  */
 class DemoLoginResetObservationTest {
 
@@ -37,13 +35,12 @@ class DemoLoginResetObservationTest {
     }
 
     /**
-     * A started-but-never-stopped observation records no duration at all, so "an observation
-     * exists" is a weaker claim than "the leg's elapsed time is queryable". This asserts the
-     * stronger one: the leg observation is started *and* stopped, which is what makes its recorded
-     * timing a complete leg duration rather than an open span.
+     * A started-but-never-stopped observation records no request duration at all. This pins that
+     * the standard client observation closes without claiming that it brackets downstream body
+     * decoding or release.
      */
     @Test
-    void legObservationIsStartedAndStoppedSoItsDurationIsComplete() {
+    void clientObservationIsStartedAndStopped() {
         assertThat(runBothLegs())
                 .hasObservationWithNameEqualTo(NAME)
                 .that()

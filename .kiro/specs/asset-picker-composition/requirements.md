@@ -732,14 +732,15 @@ sensible portfolio most of the time, even if a previous visitor left it edited o
    begins before eligibility-target construction. Any non-clean outcome is fail-open relative to
    the already-successful login. A reset dispatched before cancellation may still commit after
    either the reset-leg or overall timeout; timeout cancellation is not transaction rollback.
-   **These values are sized against scale-to-zero, not against warm latency.** Every service runs
-   at `min_replicas = 0`, so the eligibility read is by construction the first request after idle
-   against a scaled-to-zero `portfolio-service` — the condition for which an approximately
-   35-second cold start is recorded. The superseded 2s/2s/4s budget could not absorb that and would
-   have skipped the reset in exactly the case it exists for. 45 seconds clears that cold start and
-   still fires *before* the gateway route's own 55-second downstream response timeout, so a Wave 8
-   timeout remains attributable to Wave 8; 60 seconds exceeds the 45 + 10 sum, so the overall
-   deadline is a backstop rather than a silent truncation of either leg. THE ordering guarantee
+   **These values are sized against scale-to-zero, not against warm latency.** Every service is
+   permitted to run at `min_replicas = 0`; when `portfolio-service` has scaled to zero and no earlier
+   request wakes it, the eligibility read encounters the approximately 35-second cold start recorded
+   for that service. The superseded 2s/2s/4s budget could not absorb that and would have skipped the
+   reset in that condition. 45 seconds clears the recorded observation and still fires *before* the
+   gateway route's own 55-second downstream response timeout, so a Wave 8 timeout remains attributable
+   to Wave 8. The 60-second overall deadline is five seconds greater than the nominal 45 + 10 leg
+   budgets and is intended as a backstop; target construction and other orchestration overhead can
+   consume that margin and may cause it to pre-empt a leg. THE ordering guarantee
    that the reset completes before the UI's first portfolio read SHALL be claimed only for clean
    orchestration success: on any fail-open path, and on a late commit after cancellation, the UI
    may read un-reset state or observe the portfolio change under it.
@@ -749,11 +750,13 @@ sensible portfolio most of the time, even if a previous visitor left it edited o
    `overallTimeoutPhase` on `demo_reset_self_call_skipped`; `leg`, `reason`, and the inbound trace
    id are present on every skip outcome. **Non-timeout failures** (connection failure, non-2xx
    status, response-shape failure) deliberately carry no `elapsedMillis`: they are classified by
-   `reason`, not timed, and this criterion does not claim otherwise. **Successful** legs are
-   covered by the observation-enabled client's per-leg `http.client.requests` observations, which
-   are started and stopped and so record a complete leg duration, separable by HTTP `method`
-   (eligibility is the `GET`, reset the `POST`). They are **not** separable by `uri`, which is
-   unattributed (`none`) because the client dispatches absolute URIs rather than templates.
+   `reason`, not timed, and this criterion does not claim otherwise. **Successful** legs emit
+   `demo_reset_self_call_completed` only after their complete response body is decoded or released;
+   that event carries `leg`, `httpStatus`, monotonic `elapsedMillis`, the inbound trace id, and the
+   replica token without a URL, user identifier, or credential. The standard `http.client.requests`
+   observations remain useful request-level telemetry, but are not claimed to bracket asynchronous
+   body processing; their `uri` tag is unattributed (`none`) because the client dispatches absolute
+   URIs rather than templates.
 
 ## Requirement 8: Decimal fidelity end to end
 

@@ -175,9 +175,16 @@ class DemoLoginResetTracingIntegrationTest {
             request(f);
             var event = assertions.event("overall_timeout", "replica-token", expectedTrace);
             assertions.bothLegs(event, f, !phase.equals("eligibility_pre_dispatch"), phase.startsWith("reset_"), true, true);
+            long elapsedMillis = switch (phase) {
+                case "eligibility_pre_dispatch" -> 123L;
+                case "eligibility_in_flight" -> 246L;
+                case "between_legs" -> 369L;
+                case "reset_in_flight" -> 492L;
+                case "reset_post_response" -> 615L;
+                default -> throw new IllegalStateException("unexpected phase " + phase);
+            };
             assertThat(event).containsEntry("overallTimeoutPhase", phase).containsEntry("timeoutScope", "overall")
-                    .containsEntry("elapsedMillis", phase.startsWith("reset_") ? 369L
-                            : phase.equals("eligibility_pre_dispatch") ? 123L : 246L)
+                    .containsEntry("elapsedMillis", elapsedMillis)
                     .containsEntry("httpStatus", phase.equals("reset_post_response") ? 200 : null)
                     .containsEntry("attemptedTarget", phase.equals("eligibility_in_flight") ? GET.toString()
                             : phase.equals("reset_in_flight") ? POST.toString() : null);

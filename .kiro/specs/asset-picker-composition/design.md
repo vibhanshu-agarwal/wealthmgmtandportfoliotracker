@@ -921,10 +921,10 @@ possible; this design picks one explicitly:
   overall — treat it exactly like any other eligibility-read or reset-call failure below: skip,
   proceed, no user-visible error.
   **These three values are sized against scale-to-zero, not warm latency (2026-09-09 owner
-  decision, superseding the 2026-09-06 values of 2s/2s/4s).** Every service deploys at
-  `min_replicas = 0`, and this eligibility read is by construction *the first request after idle*
-  against a scaled-to-zero `portfolio-service` — the exact condition for which an approximately
-  35-second cold start is recorded (`docs/changes/CHANGES_NEW_USER_SIGNUP_PROFILE_2026-08-12.md`;
+  decision, superseding the 2026-09-06 values of 2s/2s/4s).** Every service is permitted to deploy
+  at `min_replicas = 0`; when `portfolio-service` has scaled to zero and no earlier request wakes it,
+  the eligibility read encounters the condition for which an approximately 35-second cold start is
+  recorded (`docs/changes/CHANGES_NEW_USER_SIGNUP_PROFILE_2026-08-12.md`;
   20–35 seconds in `docs/analysis/azure-container-migration-analysis.md`). The superseded budget
   was an order of magnitude below that, so it would have skipped the reset in precisely the case
   the trigger exists for. **That ~35-second figure is a single recorded field observation, not a
@@ -935,15 +935,13 @@ possible; this design picks one explicitly:
   compute wake while firing *before* this gateway's own **55-second** downstream `response-timeout`
   (`application-prod.yml`, not overridden in the `azure` profile), so a Wave 8 timeout stays
   attributable to Wave 8 rather than to the route; **10 seconds** targets a `portfolio-service` the
-  eligibility leg has already warmed; and **60 seconds** exceeds the `45 + 10 = 55` sum, so the
-  overall deadline is a true backstop rather than a silent truncation of either leg's stated budget.
-  **That backstop is only 5 seconds wide, which absorbs orchestration overhead — it is not slack for
-  a slow leg**: if both legs run to their full budgets the overall deadline fires almost immediately
-  afterwards, which is the intended behaviour rather than a margin to rely on. The accepted cost is
-  login duration, not money — the eligibility read moves the `portfolio-service` wake a few seconds
-  earlier than the UI's own post-login portfolio read would have caused it rather than adding one,
-  so the values are effectively cost-neutral against the project's scale-to-zero budget. **That
-  neutrality is conditional on the viewer going on to read the portfolio**, the ordinary path after
+  eligibility leg has already warmed; and **60 seconds** exceeds the `45 + 10 = 55` nominal leg sum.
+  The overall deadline is therefore intended as a backstop, but its five-second margin also absorbs
+  target-construction and orchestration overhead and can pre-empt a leg if that overhead consumes the
+  margin. It is not slack for a slow leg. The accepted cost is login duration, not money. The
+  eligibility read is expected to move the `portfolio-service` wake a few seconds earlier than the
+  UI's own post-login portfolio read rather than add one, but that expectation is not measured billing
+  evidence and **is conditional on the viewer going on to read the portfolio**, the ordinary path after
   a demo login; a login abandoned before any portfolio read does add a wake that would not otherwise
   have occurred. The timeout *values* remain cost-neutral either way, since they change only how
   long an already-open gateway request is held, not whether the wake happens. A first demo login
@@ -965,14 +963,14 @@ possible; this design picks one explicitly:
   skip event; `leg`, `reason`, and the inbound trace id are present on every skip outcome.
   **Non-timeout failures — connection failure, non-2xx status, response-shape failure — carry no
   `elapsedMillis` by design**: they are classified by `reason` rather than timed, so "elapsed time
-  for every failure" is not a claim this design makes. **Successful** legs are covered by the
-  injected observation-enabled `WebClient.Builder`'s per-leg `http.client.requests` observations,
-  which are started and stopped and therefore record a complete leg duration, separable by HTTP
-  `method` (eligibility is the `GET`, reset the `POST`). They are **not** separable by `uri`: the
-  client dispatches absolute `URI` objects rather than templates, so Spring attributes `uri=none` on
-  both legs. The recorded low-cardinality tag set is exactly `client.name`, `exception`, `method`,
-  `outcome`, `status`, `uri` — no credential, raw target, or identifier. No second success-event
-  vocabulary is added, since that data is already queryable from the client spans.
+  for every failure" is not a claim this design makes. **Successful** legs emit one
+  `demo_reset_self_call_completed` event after complete response-body decoding or release. It carries
+  `leg`, `httpStatus`, monotonic `elapsedMillis`, the inbound trace id, and replica token, with no URL,
+  user identifier, or credential. The injected observation-enabled `WebClient.Builder` continues to
+  emit standard `http.client.requests` telemetry, but that observation ends when the response is
+  obtained and is not claimed to include asynchronous body processing. Its low-cardinality tag set is
+  exactly `client.name`, `exception`, `method`, `outcome`, `status`, `uri`; `uri=none` on both legs
+  because the client dispatches absolute `URI` objects rather than templates.
 - **Non-blocking execution, mandatory — not an implementation detail (pass 8 addition).**
   api-gateway's `/api/auth/login` handler is reactive WebFlux (`AuthController.login()` returns
   `Mono<ResponseEntity<Object>>`, verified directly against `AuthController.java:40`). Both

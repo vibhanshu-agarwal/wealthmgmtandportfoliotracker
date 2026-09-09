@@ -28,7 +28,7 @@
     ]
   },
   "rationale": {
-    "primary": "All services deploy at min_replicas = 0, so the login-orchestrated eligibility read is by construction the first request after idle against a scaled-to-zero portfolio-service. The superseded 2s/2s/4s budget was roughly an order of magnitude below the recorded cold start and would have skipped the automatic reset in precisely the case the trigger exists for.",
+    "primary": "All services are permitted to deploy at min_replicas = 0. When portfolio-service has scaled to zero and no earlier request wakes it, the login-orchestrated eligibility read encounters the recorded cold-start condition. The superseded 2s/2s/4s budget was roughly an order of magnitude below that observation and would have skipped the automatic reset in that condition.",
     "coldStartEvidence": [
       {
         "path": "docs/changes/CHANGES_NEW_USER_SIGNUP_PROFILE_2026-08-12.md",
@@ -53,8 +53,8 @@
       "activeProfilesSource": "infrastructure/terraform/azure/main.tf (SPRING_PROFILES_ACTIVE)",
       "appliesInProduction": true
     },
-    "coherence": "45 + 10 = 55 < 60, so the overall deadline is a backstop and never silently truncates either leg",
-    "costImpact": "Effectively cost-neutral against the project's $5-10/month Azure target. The eligibility read moves the portfolio-service wake a few seconds earlier than the UI's own post-login portfolio read would have caused it rather than adding a wake, and holding one gateway request open longer is negligible against the Container Apps Consumption free grant.",
+    "coherence": "The 45 + 10 = 55 nominal leg sum leaves five seconds under the 60-second overall backstop. Target construction and other orchestration overhead consume that margin and can cause the overall deadline to pre-empt a leg.",
+    "costImpact": "Expected to be negligible against the project's $5-10/month Azure target, but this is not measured billing evidence. When the viewer proceeds to a portfolio read, the eligibility read moves the portfolio-service wake earlier rather than adding one; an abandoned login can add a wake. Holding one gateway request open longer is expected to remain small against the Container Apps Consumption free grant.",
     "acceptedCost": "Login duration, not money. A first demo login after scale-to-zero may take approximately 60-95 seconds in total: the api-gateway cold start, paid before the login handler runs and therefore outside these timers, plus up to 60 seconds of orchestration."
   },
   "caveats": [
@@ -62,7 +62,7 @@
     "Reset-before-first-UI-read is guaranteed only on clean orchestration success.",
     "On a fail-open path the UI can read an un-reset portfolio.",
     "Cancelling the gateway publisher is not a downstream transaction rollback: a dispatched reset may commit after the deadline and race the UI's first read. Evidence classification imposes no ordering between demo_reset_succeeded and demo_reset_self_call_skipped.",
-    "Successful and failed elapsed times are captured separately for both legs so these initial values can be retuned from production evidence without a contract change.",
+    "Successful legs emit demo_reset_self_call_completed after full body decoding or release; timed-out legs expose elapsedMillis on demo_reset_self_call_skipped. Non-timeout failures remain classified without elapsedMillis by design.",
     "The existing disabled 'Signing in...' login control is sufficient feedback for this decision; demo-specific wake copy is a non-blocking enhancement."
   ],
   "reconciliation": {
@@ -71,8 +71,12 @@
       ".kiro/specs/asset-picker-composition/design.md",
       ".kiro/specs/asset-picker-composition/requirements.md",
       ".kiro/specs/asset-picker-composition/tasks.md",
+      "api-gateway/src/main/java/com/wealth/gateway/DemoLoginResetDiagnostics.java",
+      "api-gateway/src/main/java/com/wealth/gateway/DemoLoginResetOrchestrator.java",
       "api-gateway/src/main/resources/application.yml",
       "api-gateway/src/test/java/com/wealth/gateway/DemoLoginResetOrchestratorTest.java",
+      "api-gateway/src/test/java/com/wealth/gateway/DemoLoginResetTracingIntegrationTest.java",
+      "api-gateway/src/wave8IntegrationTest/java/com/wealth/gateway/DemoLoginResetRealChainIT.java",
       "docs/plans/ASSET_PICKER_E2E_MASTER_PLAN.md",
       "docs/superpowers/plans/2026-09-06-b2-wave8-decision-record.md",
       "scripts/tests/test_verify_demo_reset_azure.py",
@@ -83,8 +87,8 @@
       "api-gateway/src/test/java/com/wealth/gateway/DemoLoginResetObservationTest.java",
       "docs/evidence/b2-task-8-2/owner-decision-20260909.json"
     ],
-    "instrumentationGapFound": false,
-    "instrumentationNote": "No new metric or tag was added. DemoLoginResetObservationTest proves the injected observation-enabled WebClient.Builder already records one http.client.requests observation per successful leg, started and stopped so the timing is a complete leg duration, separable by HTTP method. It also pins the facts that uri is unattributed (none) on both legs, so method and not uri is the separating tag, and that the low-cardinality tag set is exactly client.name, exception, method, outcome, status, uri - carrying no credential, raw target, or identifier.",
+    "instrumentationGapFound": true,
+    "instrumentationNote": "The standard http.client.requests observation stops when the ClientResponse is obtained, before asynchronous body decoding or release necessarily completes. The gap is closed by one demo_reset_self_call_completed diagnostic per successful leg, emitted only after the full leg completes and carrying leg, httpStatus, monotonic elapsedMillis, traceId, and replicaToken with no URL, user identifier, or credential. DemoLoginResetObservationTest separately characterizes the standard request-level observation and its safe low-cardinality tags.",
     "manifestDerivation": "Enumerated from `git diff --name-status origin/main...HEAD` over the whole branch rather than maintained by hand, so the manifest cannot silently omit a file and the stated derivation reproduces the listed values exactly.",
     "rebasedOnto": "81c672990401eb2a11feb7641c0acf9b7277a173"
   },
@@ -96,14 +100,14 @@
       {
         "id": 1,
         "finding": "Observation test counted observations but did not prove complete-leg duration, completion, URI attribution, or safe tags.",
-        "resolution": "DemoLoginResetObservationTest expanded to 6 tests: started+stopped (complete duration), method separability, uri pinned as unattributed 'none', exact low-cardinality key set, and no credential/identifier key or bearer-token value in any tag.",
+        "resolution": "The standard client observation remains request-level and is no longer claimed to include asynchronous body work. DemoLoginResetDiagnostics now emits one safe demo_reset_self_call_completed event only after each full successful leg completes, with deterministic tests holding both response bodies open and proving that eligibility and reset timing are emitted only after their respective decode/release boundary. DemoLoginResetObservationTest separately pins the standard observation's method separability, uri=none, and safe low-cardinality tag set.",
         "status": "FIXED"
       },
       {
         "id": 2,
         "finding": "Repaired slow-stream test can still pass if the parent deadline/kill mechanism is disabled; the socket inactivity timeout masks that regression.",
-        "resolution": "Codex-owned file on branch codex/b2-wave8-slow-stream-flake; not changed here.",
-        "status": "REFERRED_TO_CODEX"
+        "resolution": "The real transport test now holds a partial response open without byte-drip sleeps, captures each actual HTTP worker process, and requires a non-zero return code proving parent-forced termination. A process-local mutation that disables communicate(timeout=...) makes all three transport subcases fail at that assertion; the unmodified implementation passes ten consecutive complete verifier suites.",
+        "status": "FIXED"
       },
       {
         "id": 3,
@@ -136,7 +140,7 @@
     "gradle": {
       "test": {
         "classes": 49,
-        "tests": 322,
+        "tests": 323,
         "skipped": 0,
         "failures": 0,
         "errors": 0
@@ -160,17 +164,11 @@
       "test_wave8_gateway_shared_contract": "OK",
       "test_master_plan_status_propagation": "OK",
       "test_verify_demo_reset_azure": {
-        "runsOnThisBranch": 10,
-        "passed": 6,
-        "failed": 4,
-        "onlyFailingTest": "test_real_slow_stream_total_deadline_and_armed_cleanup",
-        "note": "That test is a pre-existing wall-clock flake on unmodified origin/main, fixed on the separate unmerged branch codex/b2-wave8-slow-stream-flake. Every other test in the suite passed on all 10 runs.",
-        "combinedWithCodexFix": {
-          "runs": 10,
-          "passed": 10,
-          "failed": 0,
-          "caveat": "Provisional: Astra correction 2 requires further strengthening of that test, which is Codex-owned and still open, so the combined ten-run acceptance must be repeated against the corrected version."
-        }
+        "testsPerRun": 75,
+        "runs": 10,
+        "passed": 10,
+        "failed": 0,
+        "parentDeadlineMutation": "PASS: disabling subprocess communicate(timeout=...) makes all three slow-response subcases fail because the worker exits normally with return code 0 instead of being forcibly terminated"
       }
     },
     "knownOpenFlake": {

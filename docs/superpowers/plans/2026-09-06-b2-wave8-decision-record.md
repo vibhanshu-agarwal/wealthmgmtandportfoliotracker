@@ -23,10 +23,10 @@
    seconds~~, whose rationale accepted up to approximately four seconds of additional latency after
    successful demo authentication and accepted that cold or slow backends can cause a fail-open
    skip. Those values were set without engaging the recorded cold-start evidence. All four services
-   run at `min_replicas = 0` (`infrastructure/terraform/azure/variables.tf`,
-   `modules/container-app/variables.tf`), and the login-orchestrated eligibility read is by
-   construction *the first request after idle* against a scaled-to-zero `portfolio-service` — the
-   exact condition for which this repository records an observed **~35-second** cold start
+   are permitted to run at `min_replicas = 0` (`infrastructure/terraform/azure/variables.tf`,
+   `modules/container-app/variables.tf`). When `portfolio-service` has scaled to zero and no earlier
+   request wakes it, the login-orchestrated eligibility read encounters the condition for which this
+   repository records an observed **~35-second** cold start
    (`docs/changes/CHANGES_NEW_USER_SIGNUP_PROFILE_2026-08-12.md`, corroborated by
    `docs/analysis/azure-container-migration-analysis.md` at a 20–35 second realistic worst case).
    No value near 2 or 4 seconds can absorb that, so the superseded budget would have caused the
@@ -41,15 +41,16 @@
      recorded field observation, not a distribution — no p95/p99 exists for this path, so a slower
      cold start will still fail open.**
    - **10 seconds reset** targets a `portfolio-service` the eligibility leg has already warmed.
-   - **60 seconds overall** is greater than `45 + 10 = 55`, so the ceiling is a genuine backstop and
-     never silently truncates either leg. **The backstop is 5 seconds wide — enough for
-     orchestration overhead, not slack for a slow leg.**
+   - **60 seconds overall** is greater than the nominal `45 + 10 = 55` leg sum, so it is intended as
+     a backstop. **The margin is only 5 seconds and also absorbs target construction and orchestration
+     overhead; if that overhead consumes the margin, the overall deadline can pre-empt a leg.**
 
-   **Cost is unaffected**, which is what makes the longer budgets affordable under the project's
-   $5–10/month Azure target: the eligibility read moves the `portfolio-service` wake a few seconds
-   earlier than the UI's own post-login portfolio read would have caused it, rather than adding a
-   wake, and holding one gateway request open longer is negligible against the Container Apps
-   Consumption free grant. **The "moves rather than adds" part holds only when the viewer goes on to
+   **The expected cost effect is negligible**, which makes the longer budgets compatible with the
+   project's $5–10/month Azure target. This is an engineering expectation, not measured billing
+   evidence: the eligibility read normally moves the `portfolio-service` wake a few seconds earlier
+   than the UI's own post-login portfolio read rather than adding a wake, and holding one gateway
+   request open longer is small against the Container Apps Consumption free grant. **The "moves
+   rather than adds" part holds only when the viewer goes on to
    read the portfolio** — the ordinary path after a demo login; a login abandoned before any
    portfolio read does add a wake. The timeout *values* are cost-neutral either way, since they
    change only how long an already-open gateway request is held, not whether the wake happens.
@@ -167,7 +168,8 @@ classification therefore never imposes an ordering between `demo_reset_succeeded
 **Per-leg durations must stay queryable so these values can be retuned from production evidence.**
 The approved numbers are initial production values chosen against recorded cold-start evidence,
 not measurements of this orchestration. Both directions are already covered on `main`, and
-`DemoLoginResetObservationTest` proves the successful half rather than assuming it:
+The successful path now records the complete leg explicitly rather than inferring it from request-level
+client observations:
 
 - **Timed-out legs** — `demo_reset_self_call_skipped` carries monotonic `elapsedMillis`, the exact
   `timeoutScope` (`per-leg` or `overall`), and `overallTimeoutPhase` for overall timeouts. `leg`,
@@ -175,14 +177,12 @@ not measurements of this orchestration. Both directions are already covered on `
 - **Non-timeout failures** — connection failure, non-2xx status, and response-shape failure carry
   **no** `elapsedMillis` by design; they are classified by `reason` rather than timed. "Elapsed time
   for every failure category" is not a claim this record makes.
-- **Successful legs** — the injected, observation-enabled `WebClient.Builder` records one
-  `http.client.requests` client observation per leg, started *and* stopped so the recorded timing is
-  a complete leg duration, separable by `method` (the eligibility read is the `GET`, the reset write
-  is the `POST`). They are **not** separable by `uri`, which is `none` on both legs because the
-  client dispatches absolute URIs rather than templates. The low-cardinality tag set is exactly
-  `client.name`, `exception`, `method`, `outcome`, `status`, `uri` — no credential, raw target, or
-  identifier. No second success-event vocabulary was added, because the data is already queryable
-  from the client spans.
+- **Successful legs** — `demo_reset_self_call_completed` is emitted only after full response-body
+  decoding or release. It carries `leg`, `httpStatus`, monotonic `elapsedMillis`, the inbound trace
+  id, and replica token, with no URL, user identifier, or credential. Standard
+  `http.client.requests` telemetry remains available, but it stops when the response is obtained and
+  is not treated as complete body-processing time; `DemoLoginResetObservationTest` characterizes its
+  safe low-cardinality tags and its unattributed `uri=none` value separately.
 
 Timed-out and successful elapsed times are therefore captured separately for both legs, which is the
 precondition for reducing these values later without changing the contract.
