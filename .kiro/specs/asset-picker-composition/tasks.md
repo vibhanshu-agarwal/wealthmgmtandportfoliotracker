@@ -1810,9 +1810,11 @@ mechanism's actual runtime behavior does not).**
   ~~**2s eligibility / 2s reset / 4s overall**~~ **superseded 2026-09-09 by
   45s eligibility / 10s reset / 60s overall** — the original values were set without engaging the
   recorded ~35-second `portfolio-service` cold start, which the login-orchestrated eligibility read
-  meets by construction under `min_replicas = 0`; 45s clears it while staying below the gateway
-  route's 55-second downstream ceiling, and 60s exceeds the 45 + 10 sum so neither leg is silently
-  truncated. The idle threshold and the manual-reset placement are unchanged by that revision. The
+  may encounter after the service has scaled to zero; 45s clears that observed case with margin
+  while staying below the gateway route's 55-second downstream ceiling. The 60s overall deadline
+  provides a nominal five-second margin beyond the configured per-leg maxima, but target-construction
+  and orchestration overhead can consume that margin and the overall deadline may pre-empt a leg.
+  The idle threshold and the manual-reset placement are unchanged by that revision. The
   existing page-level manual-reset host is final for this release. Task 2.6 numeric compatibility remains while B1 owns the historical sequencing
   audit. The authoritative rationale and frozen implementation contract are in
   `docs/superpowers/plans/2026-09-06-b2-wave8-decision-record.md`; do not start production behavior

@@ -943,18 +943,21 @@ possible; this design picks one explicitly:
   UI's own post-login portfolio read rather than add one, but that expectation is not measured billing
   evidence and **is conditional on the viewer going on to read the portfolio**, the ordinary path after
   a demo login; a login abandoned before any portfolio read does add a wake that would not otherwise
-  have occurred. The timeout *values* remain cost-neutral either way, since they change only how
-  long an already-open gateway request is held, not whether the wake happens. A first demo login
+  have occurred. The timeout values are expected to have negligible incremental cost because they
+  principally change how long an already-open gateway request is held; this is an engineering
+  expectation, not measured billing evidence. A first demo login
   after idle may take roughly 60–95 seconds in total, since the `api-gateway` cold start is paid
   before this handler runs and is therefore outside these timers.
-- **What the timeouts do and do not guarantee.** Fail-open is unchanged: any timeout skips the reset
-  and lets login proceed with no user-visible error, and the manual control remains the fallback.
+- **What the timeouts do and do not guarantee.** Fail-open is unchanged: on any timeout the gateway
+  abandons waiting for a clean reset outcome and lets login proceed with no user-visible error; the
+  manual control remains the fallback when the portfolio is not reset.
   **"The reset completes before the UI's first portfolio read" is claimed only for clean
-  orchestration success.** On a fail-open path the login response returns with the demo portfolio
-  still un-reset, so the UI's first read can legitimately observe un-reset state; and because
-  cancelling the gateway's publisher is not a downstream transaction rollback, a reset already
-  dispatched may commit *after* the deadline fired and change the portfolio under the viewer's
-  first read. Both are accepted consequences of a best-effort maintenance operation, not defects,
+  orchestration success.** On a fail-open path the gateway no longer waits for a clean reset outcome:
+  the portfolio may remain un-reset, may already have been reset before a later gateway failure, or
+  may be changed by a reset that commits after the deadline. Cancelling the gateway's publisher is
+  not a downstream transaction rollback, so the UI's first read may observe any of those states and
+  a late commit can change the portfolio after that read. Those outcomes are accepted consequences
+  of a best-effort maintenance operation, not defects,
   and evidence classification therefore imposes no ordering between `demo_reset_succeeded` and
   `demo_reset_self_call_skipped`.
 - **Per-leg durations SHALL remain queryable for the outcomes that carry them**, so these initial
