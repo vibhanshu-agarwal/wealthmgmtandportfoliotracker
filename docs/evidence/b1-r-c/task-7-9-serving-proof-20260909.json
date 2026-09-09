@@ -140,7 +140,12 @@
     },
     "successfulJobs": ["validate", "authorize", "route", "preflight", "deploy portfolio", "non-interference"],
     "skipped": ["AWS", "ACR login", "build", "digest publish", "refresh job update", "aggregate", "frontend", "seed", "verify"],
-    "unselectedAppsAndJobByteIdentical": true,
+    "workflowComparator": {
+      "status": "success",
+      "unselectedAppCoverage": ["revision", "image", "traffic"],
+      "refreshJobCoverage": ["image"],
+      "notAFullConfigurationByteIdentityClaim": true
+    },
     "portfolioServing": {
       "revision": "portfolio-service--0000096",
       "createdUtc": "2026-09-09T08:25:59Z",
@@ -180,13 +185,38 @@
     "apiPersistentSha256": {
       "before": "283473d8da6987351cb7045e4cfdb70f96929b5ac39e4abd0ab3c1bfcf0b51e1",
       "put": "283473d8da6987351cb7045e4cfdb70f96929b5ac39e4abd0ab3c1bfcf0b51e1",
-      "after": "283473d8da6987351cb7045e4cfdb70f96929b5ac39e4abd0ab3c1bfcf0b51e1"
+      "after": "283473d8da6987351cb7045e4cfdb70f96929b5ac39e4abd0ab3c1bfcf0b51e1",
+      "canonicalRepresentation": {
+        "encoding": "UTF-8",
+        "serialization": "compact JSON",
+        "objectFieldOrder": ["id", "userId", "createdAt", "updatedAt", "version", "holdings"],
+        "holdingsOrder": "assetTicker ascending",
+        "holdingFieldOrder": ["id", "assetTicker", "quantity"],
+        "quantityRepresentation": "exact decimal string"
+      }
     },
     "databaseTupleSha256": {
       "before": "10d82a480c1609466a517a76219cdd482856b36bc3c8854815c0137865f04a84",
       "after": "10d82a480c1609466a517a76219cdd482856b36bc3c8854815c0137865f04a84",
       "includes": ["holding IDs", "cost-basis fields"],
-      "unchanged": true
+      "unchanged": true,
+      "canonicalRepresentation": {
+        "encoding": "UTF-8",
+        "source": "single PostgreSQL jsonb object serialized as trimmed JSON text",
+        "portfolioFieldOrder": ["id", "user_id", "created_at::text", "updated_at::text", "version", "holdings"],
+        "holdingsSelectionAndOrder": "filtered by parent portfolio and jsonb_agg ordered by asset_ticker",
+        "holdingFieldOrder": ["id", "ticker", "quantity::text", "avg_cost_basis::text", "cost_basis_currency", "cost_basis_source", "cost_basis_as_of::text"],
+        "parentPortfolioId": "implicit in the parent filter and nested holdings",
+        "rawPayloadRetained": false
+      }
+    },
+    "sequenceBounds": {
+      "databaseBeforeCompletedBeforeAttemptStartedUtc": "2026-09-09T08:38:08.0181210Z",
+      "putIssuedOnceAndCompletedBeforeAfterGet": true,
+      "afterGetCompletedBeforeDatabaseAfter": true,
+      "databaseAfterCompletedBeforeFixedFinalBoundUtc": "2026-09-09T08:38:31.9730193Z",
+      "individualCompletionTimestampsRetained": false,
+      "replayOrAdditionalPut": false
     },
     "outcome": "SAME_STATE"
   },
@@ -205,6 +235,39 @@
     "kafka": {"portfolioGroup": "26760/26760 lag 0", "insightGroup": "26760/26760 lag 0", "dltLogEnd": 80},
     "database": {"users": 12, "portfolios": 12, "holdings": 318, "violatingUsers": 0, "badHoldings": 0, "nullPortfolioState": 0, "legacyRows": 0, "repairFunctionsRemaining": 0},
     "rollbackPerformed": false
+  },
+  "supplementalNonInterference": {
+    "coverageStatus": "UNVERIFIED",
+    "scopeBoundary": "The core Task 7.9 exact digest, health, latest-ready traffic and one controlled probe are proven separately; this block does not claim complete configuration byte identity.",
+    "preDispatchObservation": {
+      "matchedAcceptedTask77PreservedConfiguration": ["ingress", "identity", "environment and secret references by name only", "resources", "scale", "command/args", "refresh-job schedule/retries/timeout"],
+      "exactObservationTimestampRetained": false,
+      "canonicalRawSnapshotHashRetained": false
+    },
+    "finalObservation": {
+      "apps": ["revision", "image", "latest-ready", "traffic"],
+      "refreshJob": ["image", "schedule", "retry limit", "timeout"]
+    },
+    "activityLog": {
+      "boundedWindowUtc": "2026-09-09T08:20:00Z..2026-09-09T08:40:00Z",
+      "onlyWrite": "Microsoft.App/containerApps/write to portfolio-service",
+      "startedUtc": "2026-09-09T08:25:49.9367135Z",
+      "acceptedUtc": "2026-09-09T08:25:50.3273361Z",
+      "otherRecordedControlPlaneOperations": "read-only listSecrets actions",
+      "noWriteTargets": ["api-gateway", "market-data-service", "insight-service", "market-data-refresh-job"]
+    },
+    "revisionTemplateComparison": {
+      "reviewObservation": "retained old portfolio-service--0000095 and current portfolio-service--0000096 templates were each read once and compared field-by-field",
+      "identicalExcept": ["image"],
+      "sameFields": ["environment entries", "secret references", "resources cpu=0.5/memory=1Gi", "empty probes", "empty volumes", "scale min=null/max=3/rules=null"],
+      "laterCanonicalHashAttempt": "old revision was purged under Single mode",
+      "canonicalPrePostTemplateHashClaimed": false
+    },
+    "workflowTrafficObjects": {
+      "fieldsObserved": ["latestRevision=true", "weight=100", "no label field"],
+      "completeCanonicalPrePostAppIdentityIngressConfigurationHashesRetained": false,
+      "revisionLabelRouteInventoryRetained": false
+    }
   },
   "limitationsAndBoundary": {
     "evidenceForm": "Sanitized consolidation of the bounded live transcript; secrets, access tokens, credential-bearing URLs and raw customer payloads are excluded.",

@@ -59,13 +59,42 @@ succeeded on `main@5fd1dac6` with `deployment_mode=digest`, `services=portfolio-
 matching expected-main SHA, and the exact immutable reference above. Validation, authorization,
 route, preflight, portfolio deploy, and non-interference succeeded. AWS, ACR login, build, digest
 publish, refresh-job update, aggregate, frontend, seed, and verify were skipped. The workflow's
-unselected-app/job byte-identical assertion succeeded.
+unselected-app comparator succeeded for app revision, image, and traffic plus refresh-job image;
+it was not a full configuration byte-identity comparison.
 
 `portfolio-service--0000096` was created at 08:25:59Z and is the sole latest/ready active revision
 in `Single` mode, Healthy/Provisioned, 100% traffic, one replica, with the exact candidate digest.
 Public portfolio health returned 200. Its replica emitted the exact catalog tuple at
 `2026-09-09T08:27:09.4726179Z`; the bounded error result stayed empty through
 `2026-09-09T08:38:31.9730193Z`.
+
+## Supplemental non-interference scope and limits
+
+The workflow comparator's exact coverage was unselected app revision/image/traffic and refresh-job
+image only. It does not establish full configuration byte identity. The supplementary coverage in
+this section is explicitly **UNVERIFIED** for that broader purpose; the core Task 7.9 exact digest,
+health, latest-ready traffic, and one controlled probe remain separately proven above.
+
+The pre-dispatch live observation matched accepted Task 7.7 preserved configuration for ingress,
+identity, environment/secret references by name only, resources, scale, command/args, and refresh
+job schedule/retries/timeout. Its exact observation timestamp and canonical raw snapshot hash were
+not retained. Final observations retain exact app revision/image/latest-ready/traffic and refresh
+job image/schedule/retry limit/timeout.
+
+Within the bounded Azure Activity Log window `2026-09-09T08:20:00Z..08:40:00Z`, the only write was
+`Microsoft.App/containerApps/write` to `portfolio-service`, started at
+`2026-09-09T08:25:49.9367135Z` and accepted at `2026-09-09T08:25:50.3273361Z`. The other recorded
+control-plane operations were read-only `listSecrets` actions; no write to `api-gateway`,
+`market-data-service`, `insight-service`, or the refresh job was recorded.
+
+During final review, retained old `portfolio-service--0000095` and current
+`portfolio-service--0000096` revision templates were each read once and compared field-by-field.
+They matched except for image: environment entries, secret references, CPU `0.5`/memory `1Gi`,
+empty probes/volumes, and scale min `null`/max `3`/rules `null` were identical. A later canonical
+hash attempt could not re-read the old template because Single mode had purged revision `0000095`;
+no canonical pre/post template hash is claimed. Workflow pre/post traffic objects had
+`latestRevision=true`, weight `100`, and no label field. Complete canonical pre/post app
+identity/ingress/configuration hashes and a revision-label-route inventory were not retained.
 
 ## One controlled authenticated no-op PUT
 
@@ -77,9 +106,21 @@ returned 200. There were no retries or redirects.
 The portfolio id, `createdAt`, `updatedAt`, version (`0/0/0`), and holding count (159) remained
 unchanged. The API persistent representation hash was
 `283473d8da6987351cb7045e4cfdb70f96929b5ac39e4abd0ab3c1bfcf0b51e1` before, on the PUT response,
-and after. Full database tuples, including holding IDs and cost-basis fields, were byte-identical:
-`10d82a480c1609466a517a76219cdd482856b36bc3c8854815c0137865f04a84` before and after. The result
-is `SAME_STATE`.
+and after. This API hash is compact UTF-8 JSON ordered as `id`, `userId`, `createdAt`, `updatedAt`,
+`version`, then holdings ordered by `assetTicker`; each holding is `id`, `assetTicker`, and exact
+decimal-string `quantity`. The database tuple representation had the identical before/after SHA-256
+`10d82a480c1609466a517a76219cdd482856b36bc3c8854815c0137865f04a84`: one trimmed PostgreSQL JSONB
+object, UTF-8 hashed, ordered as portfolio `id`, `user_id`, `created_at::text`, `updated_at::text`,
+`version`, and nested holdings. Holdings were filtered by that parent portfolio and `jsonb_agg`
+ordered by `asset_ticker`, with `id`, `ticker`, `quantity::text`, `avg_cost_basis::text`,
+`cost_basis_currency`, `cost_basis_source`, and `cost_basis_as_of::text`; the parent portfolio ID
+is implicit in the filter/nesting. Raw API/DB payloads were not retained. The result is
+`SAME_STATE`.
+
+The DB BEFORE completed before `attemptStartedUtc=2026-09-09T08:38:08.0181210Z`; the sole PUT
+completed before AFTER GET, AFTER GET before DB AFTER, and DB AFTER before fixed final bound
+`2026-09-09T08:38:31.9730193Z`. Individual completion timestamps were not retained. This is the
+bounded sequence evidence only: there was no replay or additional PUT.
 
 Two earlier local harness stops are disclosed: a PowerShell PID-variable collision and an omitted
 JDBC port parsed as `-1`. Each stopped before the PUT (`putAttemptCount=0`) and made no production

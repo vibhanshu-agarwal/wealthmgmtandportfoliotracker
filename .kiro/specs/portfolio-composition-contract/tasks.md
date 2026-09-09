@@ -2,7 +2,8 @@
 
 **Current R-C status — Task 7.9 serving proof recorded on 2026-09-09 at `main@5fd1dac6`:**
 G2, latest-valid G3, G4, G0a, G2a, G2b and derived G6 passed on exact immutable serving
-revisions; Task 7.8 owner GO then authorized the separately bounded Task 7.9 deployment.
+revisions; Task 7.8 owner GO closed the pre-deploy decision only, then separate Task 7.9 owner approval
+authorized the bounded deployment.
 The pre-merge Task 7.7 evidence baseline is `main@108addca6d079b08d9d0822d87bfe43812cd5699`; PR #240
 merged that packet at `5b438aed497dec7899302f4ba176de6042c6b546`. The exact candidate digest now
 serves as `portfolio-service--0000096` at 100% traffic and the one authenticated no-op PUT is
@@ -1328,7 +1329,8 @@ frozen R-B3 image; Tasks 7.7 onward, deployment and exposure retain their own ga
   [34328692256](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/34328692256)
   deployed only `wealthprodacr.azurecr.io/portfolio-service@sha256:1cf372a39d17709f74aba427259548a531e3e1ba04dc64ec7750369bb8e82126`
   to `portfolio-service--0000096`; build/push/retag/frontend/seed/verify were skipped and
-  non-interference passed. The active sole healthy/latest-ready revision is 100% traffic and the
+  the workflow comparator passed for unselected app revision/image/traffic and refresh-job image.
+  The active sole healthy/latest-ready revision is 100% traffic and the
   one authenticated frozen-version PUT over the exact current 159 holdings returned `SAME_STATE`
   with complete unchanged before/after tuples. Evidence:
   [`B1_R_C_TASK_7_9_SERVING_PROOF.md`](../../../docs/runbooks/B1_R_C_TASK_7_9_SERVING_PROOF.md),
