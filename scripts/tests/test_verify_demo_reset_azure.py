@@ -2119,6 +2119,7 @@ class FinalReviewRegressionTest(unittest.TestCase):
         import socketserver
         import threading
         import time
+        from unittest.mock import patch
 
         class Drip(socketserver.BaseRequestHandler):
             def handle(self):
@@ -2152,22 +2153,37 @@ class FinalReviewRegressionTest(unittest.TestCase):
             threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.01},
                              daemon=True).start()
             url = f"http://127.0.0.1:{server.server_address[1]}"
+            real_popen = verifier.subprocess.Popen
+            workers = []
+
+            def recording_popen(*args, **kwargs):
+                worker = real_popen(*args, **kwargs)
+                workers.append(worker)
+                return worker
+
             try:
-                for status, slow_headers in ((200, False), (500, False), (200, True)):
-                    with self.subTest(status=status, slow_headers=slow_headers):
-                        server.status, server.slow_headers = status, slow_headers
-                        server.started.clear()
-                        server.partial_response_sent.clear()
-                        server.disconnected.clear()
-                        began = time.monotonic()
-                        with self.assertRaisesRegex(verifier.ProofError, "deadline"):
-                            verifier._default_http_runner(method="GET", url=url, headers={},
-                                                          timeout_seconds=1.5)
-                        self.assertLess(time.monotonic() - began, 2.5)
-                        self.assertTrue(server.started.is_set(), "must exercise real transport")
-                        self.assertTrue(server.partial_response_sent.is_set(),
-                                        "deadline must interrupt a partial real response")
-                        self.assertTrue(server.disconnected.wait(1.0), "timed-out transport must stop")
+                with patch.object(verifier.subprocess, "Popen", side_effect=recording_popen):
+                    for status, slow_headers in ((200, False), (500, False), (200, True)):
+                        with self.subTest(status=status, slow_headers=slow_headers):
+                            server.status, server.slow_headers = status, slow_headers
+                            server.started.clear()
+                            server.partial_response_sent.clear()
+                            server.disconnected.clear()
+                            began = time.monotonic()
+                            with self.assertRaisesRegex(verifier.ProofError, "deadline"):
+                                verifier._default_http_runner(method="GET", url=url, headers={},
+                                                              timeout_seconds=1.5)
+                            self.assertLess(time.monotonic() - began, 2.5)
+                            self.assertTrue(server.started.is_set(), "must exercise real transport")
+                            self.assertTrue(server.partial_response_sent.is_set(),
+                                            "deadline must interrupt a partial real response")
+                            self.assertTrue(server.disconnected.wait(1.0),
+                                            "timed-out transport must stop")
+                            self.assertNotEqual(
+                                workers[-1].returncode,
+                                0,
+                                "parent deadline must forcibly terminate the live HTTP worker",
+                            )
 
                 server.status, server.slow_headers = 200, False
                 commands = StatefulCommandRunner()
