@@ -63,8 +63,8 @@ non-concurrent seeding is not an exemption.
 |---|---|---|---|---|
 | R-0 retirement | release lineage | — | P11g-1 prerequisite: legacy public writers retired | [design](../../.kiro/specs/portfolio-composition-contract/design.md); R-B G0a record |
 | R-A provisioning | release lineage | `api-gateway--0000076`; `sha256:2da5b303fd15772792167f2b26dc62250b2d9858270db315eab1d6d1a1554aec` | P11g-1 signup predicate; direct historical G2 | [R-A G2 proof](B1_R_A_G2_SERVING_PROOF.md) |
-| R-B | R-B evidence source | `portfolio-service--0000080`; `sha256:d111132f...` | P11g-1 G0a/G0b/G2 then G3; transitional seed allowed | [R-B G3 proof](B1_R_B_G3_SERVING_PROOF.md) |
-| R-B2 | R-B2 evidence source | `portfolio-service--0000081`; `sha256:d544649f...` | P11g-1 continuation; numeric version on serving revisions | [R-B2 G2a proof](B1_R_B2_G2A_SERVING_PROOF.md) |
+| R-B | `25aa730e4b0cac79532a3b5d2235719cda520f54` | `portfolio-service--0000080`; `sha256:d111132f576780fa5fec67dfc26ada3324153794746d21fe84b93b6822be3535` | P11g-1 G0a/G0b/G2 then G3; transitional seed allowed | [R-B G3 proof](B1_R_B_G3_SERVING_PROOF.md) |
+| R-B2 | `f22e2ffee78262f5526aec0bc8b4324076f30de7` | `portfolio-service--0000081`; `sha256:d544649f5b67baec8b563016882d239d3ecb9c5672399586e0bc656c78961d4f` | P11g-1 continuation; numeric version on serving revisions | [R-B2 G2a proof](B1_R_B2_G2A_SERVING_PROOF.md) |
 | **R-B3r raised floor** | `97b83e52bcbfface4377cefd69ebb111270cb21e` | historical `portfolio-service--0000095`; `sha256:fa060bf054b9c108b8b59d9e9b27845d6b707f40040a7dcba16411db7f0e8552` | Safe pre-activation floor; version-required seed/G2b; minimum rollback identity | [Task 6.6 G2b proof](B1_TASK_6_6_G2B_SERVING_PROOF.md), [Task 7.7 map](B1_R_C_TASK_7_7_G4_AND_WRITER_MAP.md) |
 | exact R-C candidate | `8f1e8a36f8baa594efa8079190f87b42139fcf10`; JAR `441d252939d7333dca134b9cc1a5f6a0632cc274a53f410671212c543a85cda4` | `wealthprodacr.azurecr.io/portfolio-service@sha256:1cf372a39d17709f74aba427259548a531e3e1ba04dc64ec7750369bb8e82126` | P11g-2 candidate; Task 7.6 PASS, findings `0`, unverified coverage `0` | [candidate checkpoint](../evidence/b1-r-c/candidate-evidence-checkpoint-20260908.json) |
 | R-C activation | exact candidate source above | `portfolio-service--0000096`; exact candidate digest; 100% latest-ready traffic | P11g-2 exact-artifact activation; one authenticated SAME_STATE composition operation | [Task 7.9 proof](B1_R_C_TASK_7_9_SERVING_PROOF.md) |
@@ -137,7 +137,9 @@ occurs:
 - R-A signup provisioning behavior or its exact artifact identity changes;
 - candidate source, JAR, manifest digest, serving revision, traffic, or exact artifact identity
   changes without fresh proof;
-- a portfolio-delete caller changes or becomes reachable, reopening the ungated cascade risk;
+- a portfolio-delete caller changes or becomes reachable, or a database schema, foreign-key,
+  cascade, or equivalent deletion-semantics change can affect `asset_holdings` deletion behavior,
+  reopening the ungated cascade risk;
 - a rollback below R-B3r is proposed, or the raised-floor policy/digest identity changes; or
 - any referenced commit/blob stops resolving to its recorded canonical bytes.
 
