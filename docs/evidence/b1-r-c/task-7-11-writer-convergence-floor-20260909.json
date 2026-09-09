@@ -1,6 +1,6 @@
 {
   "schemaVersion": "b1-task-7-11-writer-convergence-floor/1",
-  "generatedAtUtc": "2026-09-09T13:27:52Z",
+  "generatedAtUtc": "2026-09-09T13:37:12Z",
   "scope": {
     "task": "B1 R-C Task 7.11",
     "kind": "local documentation-only evidence consolidation",
@@ -57,7 +57,14 @@
   },
   "p11g2WriterConvergenceFloor": {
     "property": "P11g-2",
-    "quantifier": "universal over all 14 accepted writer-map rows, not a conjunction of three HTTP paths",
+    "quantifier": "universal over every applicable reachable runtime asset_holdings writer; the complete 14-row accepted inventory is dispositioned first and is not silently narrowed to three HTTP paths",
+    "inventoryCoverage": {
+      "inventoryCandidatesDispositioned": 14,
+      "p11g2ApplicableReachableRuntimeAssetHoldingsWriterPaths": 6,
+      "p11g2ExcludedOrExemptDispositionedCandidates": 8,
+      "applicableSubjects": ["HoldingReplacementService", "CompositionWriteService", "PortfolioSeedService", "DemoResetService", "DemoPortfolioInitializer", "CompositionController"],
+      "rule": "The P11g-2 universal claim applies to the six applicable reachable runtime asset_holdings writer paths. The other eight accepted candidates remain explicitly classified with their inapplicability, exemption, dead-path, non-writer, cascade-risk, or non-holdings-parent-only basis."
+    },
     "claimScope": "activated exact R-C candidate and rollback artifacts at or above R-B3r only",
     "requirements": ["8.1", "8.4", "8.10 Flyway exemption"],
     "requiredOutcome": "every reachable holdings writer participates in Portfolio_Version and preserves portfolio identity; Flyway is exempt only outside application context while its Quantity_Domain and New_Write_Invariant obligations remain",
@@ -71,20 +78,20 @@
     "proofDependencies": ["Task 7.6 PASS findings=0 unverifiedCoverage=0", "Task 7.7 accepted exhaustive map and fresh G0a/G2a/G2b-derived G6 PASS", "no application-source drift from candidate cut", "raised R-B3r rollback floor"]
   },
   "writerInventoryDisposition": [
-    {"subject": "HoldingReplacementService", "classification": "effective runtime writer converging on HoldingReplacementService and Portfolio_Version", "disposition": "sole effective portfolio-service asset_holdings DML mechanism; parent version CAS then same-transaction child replacement; portfolio identity preserved"},
-    {"subject": "CompositionWriteService", "classification": "delegating service/controller/DTO with no independent DML", "disposition": "candidate-only; delegates completely to HoldingReplacementService; absent from R-B3r"},
-    {"subject": "CompositionHoldingsRequest", "classification": "delegating service/controller/DTO with no independent DML", "disposition": "validation-only DTO; no DML; candidate null-element validation change does not add a writer mechanism"},
-    {"subject": "PortfolioSeedService", "classification": "delegating service/controller/DTO with no independent DML", "disposition": "serving delegate passes caller expectedVersion unchanged to HoldingReplacementService"},
-    {"subject": "DemoResetService", "classification": "delegating service/controller/DTO with no independent DML", "disposition": "serving delegate passes caller expectedVersion to HoldingReplacementService with fixed demo identity and catalog-derived desired state"},
-    {"subject": "DemoPortfolioInitializer", "classification": "delegating service/controller/DTO with no independent DML", "disposition": "freezes observed version then calls PortfolioSeedService; diagnostics probe rolls back and never seeds"},
-    {"subject": "CompositionController", "classification": "delegating service/controller/DTO with no independent DML", "disposition": "candidate-only public intent/expectedVersion caller; absent from R-B3r and no serving participation"},
-    {"subject": "Portfolio.replaceAllHoldings", "classification": "unreachable/dead method with call-site result", "disposition": "zero call sites; no Portfolio_Version participation while unreachable; inventory must reopen if a caller appears"},
-    {"subject": "V3/V7/V15/V18/V19/V20 statements", "classification": "historical Flyway writer exempt under Requirement 8.10", "disposition": "one-time schema/data transitions, not a runtime CAS path; Quantity_Domain and New_Write_Invariant still apply"},
-    {"subject": "V17 repair functions", "classification": "historical Flyway writer exempt under Requirement 8.10", "disposition": "historical persistent helpers, retired by V21; current database evidence records global absence"},
-    {"subject": "V21", "classification": "historical Flyway writer exempt under Requirement 8.10", "disposition": "forward-only retirement migration; drops four functions and performs no asset_holdings DML"},
-    {"subject": "ON DELETE CASCADE from portfolios to asset_holdings", "classification": "database cascade with no-current-delete-caller limitation", "disposition": "no Portfolio_Version gate of its own; conditionally safe only because accepted current production source has no reachable portfolio-delete caller"},
-    {"subject": "diagnostics DELETE FROM portfolios WHERE FALSE", "classification": "non-writer diagnostic/query path", "disposition": "matches zero rows and enclosing probe rolls back"},
-    {"subject": "API-gateway UserCredentialRepository portfolio insert", "classification": "outside asset_holdings quantifier; parent-only provisioning writer", "disposition": "creates version-0 parent during signup and never writes asset_holdings; governed separately by G2/G3 and not silently omitted"}
+    {"subject": "HoldingReplacementService", "classification": "effective runtime writer converging on HoldingReplacementService and Portfolio_Version", "p11g2Applicability": "APPLICABLE_REACHABLE_RUNTIME_ASSET_HOLDINGS_WRITER", "disposition": "sole effective portfolio-service asset_holdings DML mechanism; parent version CAS then same-transaction child replacement; portfolio identity preserved"},
+    {"subject": "CompositionWriteService", "classification": "delegating service/controller/DTO with no independent DML", "p11g2Applicability": "APPLICABLE_REACHABLE_RUNTIME_ASSET_HOLDINGS_WRITER_PATH", "disposition": "activated exact-R-C delegating service; no independent DML and delegates completely to HoldingReplacementService; it was absent from R-B3r"},
+    {"subject": "CompositionHoldingsRequest", "classification": "delegating service/controller/DTO with no independent DML", "p11g2Applicability": "EXCLUDED_NO_RUNTIME_ASSET_HOLDINGS_DML", "disposition": "validation-only DTO; no DML; candidate null-element validation change does not add a writer mechanism"},
+    {"subject": "PortfolioSeedService", "classification": "delegating service/controller/DTO with no independent DML", "p11g2Applicability": "APPLICABLE_REACHABLE_RUNTIME_ASSET_HOLDINGS_WRITER_PATH", "disposition": "serving delegate passes caller expectedVersion unchanged to HoldingReplacementService"},
+    {"subject": "DemoResetService", "classification": "delegating service/controller/DTO with no independent DML", "p11g2Applicability": "APPLICABLE_REACHABLE_RUNTIME_ASSET_HOLDINGS_WRITER_PATH", "disposition": "serving delegate passes caller expectedVersion to HoldingReplacementService with fixed demo identity and catalog-derived desired state"},
+    {"subject": "DemoPortfolioInitializer", "classification": "delegating service/controller/DTO with no independent DML", "p11g2Applicability": "APPLICABLE_REACHABLE_RUNTIME_ASSET_HOLDINGS_WRITER_PATH", "disposition": "freezes observed version then calls PortfolioSeedService; diagnostics probe rolls back and never seeds"},
+    {"subject": "CompositionController", "classification": "delegating service/controller/DTO with no independent DML", "p11g2Applicability": "APPLICABLE_REACHABLE_RUNTIME_ASSET_HOLDINGS_WRITER_PATH", "disposition": "activated exact-R-C public intent/expectedVersion caller; no independent DML and delegates through CompositionWriteService to HoldingReplacementService; it was absent from R-B3r"},
+    {"subject": "Portfolio.replaceAllHoldings", "classification": "unreachable/dead method with call-site result", "p11g2Applicability": "EXCLUDED_UNREACHABLE_DEAD_PATH", "disposition": "zero call sites; no Portfolio_Version participation while unreachable; inventory must reopen if a caller appears"},
+    {"subject": "V3/V7/V15/V18/V19/V20 statements", "classification": "historical Flyway writer exempt under Requirement 8.10", "p11g2Applicability": "EXEMPT_HISTORICAL_FLYWAY_OUTSIDE_RUNTIME_QUANTIFIER", "disposition": "one-time schema/data transitions, not a runtime CAS path; Quantity_Domain and New_Write_Invariant still apply"},
+    {"subject": "V17 repair functions", "classification": "historical Flyway writer exempt under Requirement 8.10", "p11g2Applicability": "EXEMPT_HISTORICAL_FLYWAY_OUTSIDE_RUNTIME_QUANTIFIER", "disposition": "historical persistent helpers, retired by V21; current database evidence records global absence"},
+    {"subject": "V21", "classification": "historical Flyway writer exempt under Requirement 8.10", "p11g2Applicability": "EXEMPT_HISTORICAL_FLYWAY_OUTSIDE_RUNTIME_QUANTIFIER", "disposition": "forward-only retirement migration; drops four functions and performs no asset_holdings DML"},
+    {"subject": "ON DELETE CASCADE from portfolios to asset_holdings", "classification": "database cascade with no-current-delete-caller limitation", "p11g2Applicability": "EXCLUDED_NO_CURRENT_REACHABLE_DELETE_CALLER_CONDITIONAL_RISK", "disposition": "no Portfolio_Version gate of its own; conditionally safe only because accepted current production source has no reachable portfolio-delete caller"},
+    {"subject": "diagnostics DELETE FROM portfolios WHERE FALSE", "classification": "non-writer diagnostic/query path", "p11g2Applicability": "EXCLUDED_NON_WRITER_DIAGNOSTIC_PATH", "disposition": "matches zero rows and enclosing probe rolls back"},
+    {"subject": "API-gateway UserCredentialRepository portfolio insert", "classification": "non-holdings parent-only writer outside P11g-2 quantifier", "p11g2Applicability": "EXCLUDED_NON_HOLDINGS_PARENT_ONLY_WRITER", "disposition": "creates version-0 parent during signup and never writes asset_holdings; governed separately by G2/G3 and explicitly dispositioned rather than omitted"}
   ],
   "rollbackFloor": {
     "floorArtifact": "R-B3r",
