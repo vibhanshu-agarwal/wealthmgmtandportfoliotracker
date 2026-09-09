@@ -1,0 +1,279 @@
+{
+  "schemaVersion": 1,
+  "task": "B1 R-C Task 7.9",
+  "recordedDate": "2026-09-09",
+  "recordedAtUtc": "2026-09-09T08:38:31.9730193Z",
+  "scope": "Exact attested portfolio-service digest deployment and serving proof only",
+  "authorization": {
+    "ownerApproved": [
+      "bounded Task 7.9 deployment",
+      "cloud and secret reads needed for the bounded proof",
+      "one authenticated no-op composition PUT",
+      "contingent exact R-B3r rollback",
+      "one GET /api/insights/health wake",
+      "GitHub production Environment gate approval"
+    ],
+    "insightWakeDirectOwnerApproval": {
+      "channel": "active Codex session",
+      "solDisclosure": "GET /api/insights/health would wake scale-to-zero insight-service and commit offsets.",
+      "solRequest": "Do you approve one production GET /api/insights/health?",
+      "ownerReply": "Approved. Please go ahead.",
+      "externalArtifactOrSessionId": null
+    },
+    "closed": [
+      "publication",
+      "push",
+      "pull request",
+      "merge",
+      "Task 7.10 post-deploy STOP/GO",
+      "Writer_Convergence claim",
+      "any broader operation"
+    ]
+  },
+  "baseline": {
+    "worktreeBaselineMain": "5fd1dac6a37513916fd2b80ca3929c4e20ad0de7",
+    "candidateSource": "8f1e8a36f8baa594efa8079190f87b42139fcf10",
+    "stagedJarSha256": "441d252939d7333dca134b9cc1a5f6a0632cc274a53f410671212c543a85cda4",
+    "candidateImage": "wealthprodacr.azurecr.io/portfolio-service@sha256:1cf372a39d17709f74aba427259548a531e3e1ba04dc64ec7750369bb8e82126",
+    "platform": "linux/amd64",
+    "rollbackFloor": {
+      "digest": "sha256:fa060bf054b9c108b8b59d9e9b27845d6b707f40040a7dcba16411db7f0e8552",
+      "revision": "portfolio-service--0000095",
+      "used": false,
+      "authority": "No rollback was needed or performed; Task 7.10 remains the separate post-deploy decision."
+    }
+  },
+  "preDispatch": {
+    "mainCi": {
+      "runId": 34324649773,
+      "url": "https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/34324649773",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    "scheduledRefresh": {
+      "execution": "market-data-refresh-job-29815680",
+      "status": "succeeded",
+      "startedUtc": "2026-09-09T08:00:00Z",
+      "completedUtc": "2026-09-09T08:01:12Z",
+      "marketPricesLogEnd": 26760
+    },
+    "database": {
+      "status": "PASS",
+      "users": 12,
+      "portfolios": 12,
+      "violatingUsers": 0,
+      "v17ThroughV21Successful": true,
+      "v21SuccessCount": 1,
+      "v21Checksum": 385711525,
+      "repairFunctionsRemaining": 0,
+      "constraintsValidated": true,
+      "quantityDefault": null,
+      "badHoldings": 0,
+      "nullPortfolioState": 0,
+      "activeHoldingTickers": 159,
+      "legacyBtcOrMmNsRows": 0
+    },
+    "catalog": {
+      "status": "PASS",
+      "fixedWindowEndExclusiveUtc": "2026-09-09T08:04:52.6970664Z",
+      "coveredRevisions": [
+        "portfolio-service--0000095",
+        "market-data-service--0000080",
+        "insight-service--0000080"
+      ],
+      "coverage": "Every observed pull replica had StartupLines>=1 and TupleCount=1.",
+      "tuple": "a00b32ac0267e1a9|160|159|true|true",
+      "errorsSincePriorBound": []
+    },
+    "authenticatedRead": {
+      "status": "PASS",
+      "loginStatus": 200,
+      "readStatus": 200,
+      "portfolioId": "d61870f5-d420-4947-987c-401e36d2069f",
+      "version": 0,
+      "holdingCount": 159,
+      "responseSha256Prefix": "6e9fa170",
+      "representation": "pre-deploy authenticated API response"
+    },
+    "kafka": {
+      "beforeWake": {
+        "portfolioGroup": "26760/26760 lag 0",
+        "insightGroup": "26602/26760 lag 158",
+        "dltLogEnd": 80,
+        "insightRevisionScale": "zero replicas"
+      },
+      "approvedWake": {
+        "method": "GET",
+        "path": "/api/insights/health",
+        "effect": "started existing insight-service--0000080 revision and allowed it to commit offsets",
+        "authorization": "separate direct owner approval in the active Codex session"
+      },
+      "afterWake": {
+        "portfolioGroup": "26760/26760 lag 0",
+        "insightGroup": "26760/26760 lag 0",
+        "dltLogEnd": 80
+      },
+      "excluded": ["signup", "seed", "reset", "cleanup"]
+    }
+  },
+  "githubProductionGate": {
+    "requiredOwnerReviewerId": 105557418,
+    "mainBranchPolicyVerified": true,
+    "currentUserCanApprove": true,
+    "approvalAuthorizedByOwner": true,
+    "environmentId": 20423330960,
+    "approvalApplied": true
+  },
+  "deployment": {
+    "workflow": {
+      "runId": 34328692256,
+      "url": "https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/34328692256",
+      "ref": "main",
+      "sha": "5fd1dac6a37513916fd2b80ca3929c4e20ad0de7",
+      "conclusion": "success"
+    },
+    "inputs": {
+      "deploymentMode": "digest",
+      "services": "portfolio-service",
+      "expectedMainSha": "5fd1dac6a37513916fd2b80ca3929c4e20ad0de7",
+      "prebuiltDigest": "wealthprodacr.azurecr.io/portfolio-service@sha256:1cf372a39d17709f74aba427259548a531e3e1ba04dc64ec7750369bb8e82126"
+    },
+    "successfulJobs": ["validate", "authorize", "route", "preflight", "deploy portfolio", "non-interference"],
+    "skipped": ["AWS", "ACR login", "build", "digest publish", "refresh job update", "aggregate", "frontend", "seed", "verify"],
+    "workflowComparator": {
+      "status": "success",
+      "unselectedAppCoverage": ["revision", "image", "traffic"],
+      "refreshJobCoverage": ["image"],
+      "notAFullConfigurationByteIdentityClaim": true
+    },
+    "portfolioServing": {
+      "revision": "portfolio-service--0000096",
+      "createdUtc": "2026-09-09T08:25:59Z",
+      "image": "wealthprodacr.azurecr.io/portfolio-service@sha256:1cf372a39d17709f74aba427259548a531e3e1ba04dc64ec7750369bb8e82126",
+      "latest": true,
+      "ready": true,
+      "revisionMode": "Single",
+      "soleActive": true,
+      "health": "Healthy/Provisioned",
+      "trafficPercent": 100,
+      "replicas": 1,
+      "publicHealthStatus": 200,
+      "startupCatalogTuple": "a00b32ac0267e1a9|160|159|true|true",
+      "startupCatalogObservedUtc": "2026-09-09T08:27:09.4726179Z",
+      "boundedErrorsThroughUtc": "2026-09-09T08:38:31.9730193Z",
+      "boundedErrors": []
+    }
+  },
+  "controlledNoOp": {
+    "endpoint": "PUT /api/portfolio/holdings",
+    "attemptStartedUtc": "2026-09-09T08:38:08.0181210Z",
+    "identity": "existing authenticated E2E identity",
+    "portfolioId": "d61870f5-d420-4947-987c-401e36d2069f",
+    "request": {
+      "expectedVersion": 0,
+      "holdings": "full current 159-holding set; every quantity sent as a decimal string"
+    },
+    "statuses": {"login": 200, "beforeGet": 200, "put": 200, "afterGet": 200},
+    "putAttemptCount": 1,
+    "retries": 0,
+    "redirects": 0,
+    "versionBeforePutAfter": [0, 0, 0],
+    "identityUnchanged": true,
+    "createdAtUnchanged": true,
+    "updatedAtUnchanged": true,
+    "holdingCount": 159,
+    "apiPersistentSha256": {
+      "before": "283473d8da6987351cb7045e4cfdb70f96929b5ac39e4abd0ab3c1bfcf0b51e1",
+      "put": "283473d8da6987351cb7045e4cfdb70f96929b5ac39e4abd0ab3c1bfcf0b51e1",
+      "after": "283473d8da6987351cb7045e4cfdb70f96929b5ac39e4abd0ab3c1bfcf0b51e1",
+      "canonicalRepresentation": {
+        "encoding": "UTF-8",
+        "serialization": "compact JSON",
+        "objectFieldOrder": ["id", "userId", "createdAt", "updatedAt", "version", "holdings"],
+        "holdingsOrder": "assetTicker ascending",
+        "holdingFieldOrder": ["id", "assetTicker", "quantity"],
+        "quantityRepresentation": "exact decimal string"
+      }
+    },
+    "databaseTupleSha256": {
+      "before": "10d82a480c1609466a517a76219cdd482856b36bc3c8854815c0137865f04a84",
+      "after": "10d82a480c1609466a517a76219cdd482856b36bc3c8854815c0137865f04a84",
+      "includes": ["holding IDs", "cost-basis fields"],
+      "unchanged": true,
+      "canonicalRepresentation": {
+        "encoding": "UTF-8",
+        "source": "single PostgreSQL jsonb object serialized as trimmed JSON text",
+        "portfolioFieldOrder": ["id", "user_id", "created_at::text", "updated_at::text", "version", "holdings"],
+        "holdingsSelectionAndOrder": "filtered by parent portfolio and jsonb_agg ordered by asset_ticker",
+        "holdingFieldOrder": ["id", "ticker", "quantity::text", "avg_cost_basis::text", "cost_basis_currency", "cost_basis_source", "cost_basis_as_of::text"],
+        "parentPortfolioId": "implicit in the parent filter and nested holdings",
+        "rawPayloadRetained": false
+      }
+    },
+    "sequenceBounds": {
+      "databaseBeforeCompletedBeforeAttemptStartedUtc": "2026-09-09T08:38:08.0181210Z",
+      "putIssuedOnceAndCompletedBeforeAfterGet": true,
+      "afterGetCompletedBeforeDatabaseAfter": true,
+      "databaseAfterCompletedBeforeFixedFinalBoundUtc": "2026-09-09T08:38:31.9730193Z",
+      "individualCompletionTimestampsRetained": false,
+      "replayOrAdditionalPut": false
+    },
+    "outcome": "SAME_STATE"
+  },
+  "transparentHarnessStops": [
+    {"reason": "PowerShell PID variable collision", "putAttemptCount": 0, "productionMutation": false},
+    {"reason": "omitted JDBC port parsed as -1", "putAttemptCount": 0, "productionMutation": false}
+  ],
+  "finalState": {
+    "apps": [
+      {"app": "api-gateway", "revision": "api-gateway--0000078", "digest": "sha256:79a3f253aaab1f3db58146612e8f2d05a70df6180482ace16efa1baef58469f3", "latestReadyTrafficPercent": 100},
+      {"app": "portfolio-service", "revision": "portfolio-service--0000096", "digest": "sha256:1cf372a39d17709f74aba427259548a531e3e1ba04dc64ec7750369bb8e82126", "latestReadyTrafficPercent": 100},
+      {"app": "market-data-service", "revision": "market-data-service--0000080", "digest": "sha256:ad61144b2e747a5dd1b1fc9f5b5a091916559adf7c30117beae3563123aa2256", "latestReadyTrafficPercent": 100},
+      {"app": "insight-service", "revision": "insight-service--0000080", "digest": "sha256:f7db159d5b07085e471d784d50456a1eb384abe178a8fbcf7f4b5b17e916a46b", "latestReadyTrafficPercent": 100}
+    ],
+    "refreshJob": {"digest": "sha256:ad61144b2e747a5dd1b1fc9f5b5a091916559adf7c30117beae3563123aa2256", "schedule": "0 8 * * *", "retryLimit": 0, "timeoutSeconds": 600},
+    "kafka": {"portfolioGroup": "26760/26760 lag 0", "insightGroup": "26760/26760 lag 0", "dltLogEnd": 80},
+    "database": {"users": 12, "portfolios": 12, "holdings": 318, "violatingUsers": 0, "badHoldings": 0, "nullPortfolioState": 0, "legacyRows": 0, "repairFunctionsRemaining": 0},
+    "rollbackPerformed": false
+  },
+  "supplementalNonInterference": {
+    "coverageStatus": "UNVERIFIED",
+    "scopeBoundary": "The core Task 7.9 exact digest, health, latest-ready traffic and one controlled probe are proven separately; this block does not claim complete configuration byte identity.",
+    "preDispatchObservation": {
+      "matchedAcceptedTask77PreservedConfiguration": ["ingress", "identity", "environment and secret references by name only", "resources", "scale", "command/args", "refresh-job schedule/retries/timeout"],
+      "exactObservationTimestampRetained": false,
+      "canonicalRawSnapshotHashRetained": false
+    },
+    "finalObservation": {
+      "apps": ["revision", "image", "latest-ready", "traffic"],
+      "refreshJob": ["image", "schedule", "retry limit", "timeout"]
+    },
+    "activityLog": {
+      "boundedWindowUtc": "2026-09-09T08:20:00Z..2026-09-09T08:40:00Z",
+      "onlyWrite": "Microsoft.App/containerApps/write to portfolio-service",
+      "startedUtc": "2026-09-09T08:25:49.9367135Z",
+      "acceptedUtc": "2026-09-09T08:25:50.3273361Z",
+      "otherRecordedControlPlaneOperations": "read-only listSecrets actions",
+      "noWriteTargets": ["api-gateway", "market-data-service", "insight-service", "market-data-refresh-job"]
+    },
+    "revisionTemplateComparison": {
+      "reviewObservation": "retained old portfolio-service--0000095 and current portfolio-service--0000096 templates were each read once and compared field-by-field",
+      "identicalExcept": ["image"],
+      "sameFields": ["environment entries", "secret references", "resources cpu=0.5/memory=1Gi", "empty probes", "empty volumes", "scale min=null/max=3/rules=null"],
+      "laterCanonicalHashAttempt": "old revision was purged under Single mode",
+      "canonicalPrePostTemplateHashClaimed": false
+    },
+    "workflowTrafficObjects": {
+      "fieldsObserved": ["latestRevision=true", "weight=100", "no label field"],
+      "completeCanonicalPrePostAppIdentityIngressConfigurationHashesRetained": false,
+      "revisionLabelRouteInventoryRetained": false
+    }
+  },
+  "limitationsAndBoundary": {
+    "evidenceForm": "Sanitized consolidation of the bounded live transcript; secrets, access tokens, credential-bearing URLs and raw customer payloads are excluded.",
+    "reachability": "R-C is portfolio-only but not dark: the existing API-gateway Path=/api/portfolio/** wildcard makes the composition controller public when portfolio-service receives traffic.",
+    "notClaimed": ["Task 7.10 decision", "rollback authority beyond the bounded contingency", "Writer_Convergence", "publication"],
+    "nextGate": "Task 7.10 is a separately closed owner STOP/GO; Task 7.9 evidence alone does not close it."
+  },
+  "taskVerdict": "COMPLETE"
+}
