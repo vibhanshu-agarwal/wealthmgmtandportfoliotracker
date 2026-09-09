@@ -13,6 +13,13 @@
       "one GET /api/insights/health wake",
       "GitHub production Environment gate approval"
     ],
+    "insightWakeDirectOwnerApproval": {
+      "channel": "active Codex session",
+      "solDisclosure": "GET /api/insights/health would wake scale-to-zero insight-service and commit offsets.",
+      "solRequest": "Do you approve one production GET /api/insights/health?",
+      "ownerReply": "Approved. Please go ahead.",
+      "externalArtifactOrSessionId": null
+    },
     "closed": [
       "publication",
       "push",
@@ -98,7 +105,8 @@
       "approvedWake": {
         "method": "GET",
         "path": "/api/insights/health",
-        "effect": "started existing insight-service--0000080 revision"
+        "effect": "started existing insight-service--0000080 revision and allowed it to commit offsets",
+        "authorization": "separate direct owner approval in the active Codex session"
       },
       "afterWake": {
         "portfolioGroup": "26760/26760 lag 0",

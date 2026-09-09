@@ -1337,8 +1337,13 @@ frozen R-B3 image; Tasks 7.7 onward, deployment and exposure retain their own ga
   _Requirements: 9.7_
 - [ ] **7.10 STOP/GO — post-deploy.**
   **Go:** 7.9 green.
-  **Abort:** roll back to **R-B3** and verify that safe digest is serving again. Never below the
-  floor — it would restore a legacy writer under a live constraint.
+  **Abort:** roll back only to **R-B3r** `portfolio-service--0000095` /
+  `sha256:fa060bf054b9c108b8b59d9e9b27845d6b707f40040a7dcba16411db7f0e8552`, then verify that
+  exact safe digest is serving again. Never below the floor — it would restore a legacy writer
+  under a live constraint.
+  **Execution boundary:** Task 7.10 is unchecked and not started. The Task 7.9 contingent rollback
+  was unused and grants no continuing rollback authority; any Task 7.10 rollback needs its separate
+  owner decision.
   _Requirements: 9.1, 9.7, 8.4_
 - [ ] **7.11 P11g-1 / P11g-2 evidence.** Transitional floor before activation; Writer_Convergence
   floor after.

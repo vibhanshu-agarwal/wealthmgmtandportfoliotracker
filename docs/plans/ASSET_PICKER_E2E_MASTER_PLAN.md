@@ -402,7 +402,7 @@ At every meaningful merge or live checkpoint:
 | Enforcement against unsupported holdings/events | ✅ Enabled |
 | `GET /api/assets` serving catalog data | ✅ Wave 2 gateway `/api/assets/**` route served with R-A; Wave 4b controller served with R-B2 Artifact 2a (`portfolio-service--0000081`) |
 | Version-bearing portfolio read | ✅ G2a/R-B2 originally green on `portfolio-service--0000081` / `sha256:d544649f…`; contract retained on the recorded B2 Task 4.5 revision `portfolio-service--0000093`; caller migration 5.4–5.6 on `main@0b5d60d1`; **5.7/G5 complete by owner decision on 2026-09-02**, using the three-caller [33411410271](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33411410271) and reviewed evidence PR #197 |
-| `PUT /api/portfolio/holdings` safe composition write | 🟡 Implemented and tested on `main`; not present in the serving R-B3 image and not publicly exposed |
+| `PUT /api/portfolio/holdings` safe composition write | ✅ Present and served by Task 7.9's exact R-C digest on `portfolio-service--0000096`; the existing gateway wildcard makes it publicly reachable. Task 7.10 and Writer_Convergence remain separately gated |
 | Asset Picker button/modal/browse/review/conflict UI | 🟡 Source merged behind a disabled-by-default flag; real disposable-stack integration passed locally/CI, not deployed/live |
 | Asset Picker full-stack E2E proof | 🟡 Disposable Compose real-browser proof passed 5/5 through PR #232; Production E2E has not run |
 | Asset Picker exposed to production users | ❌ Not implemented |
@@ -505,8 +505,9 @@ from `main@f66d7ab6` recorded all three callers; PR #197 merged the reviewed evi
 inventory guard passes. Unattended synthetics remain suspended. B1 Wave 6 source is complete and
 6.5 has owner GO; cu4 deployment, G2b serving proof and owner R-B3 GO are complete. The deployed
 seed requires expectedVersion. R3 and GC.5 are closed on current `main`; Tasks 7.1–7.2 are complete.
-Wave 7 release execution and activation remain gated, so Writer_Convergence is not claimed. **Do not treat a current-`main`
-portfolio deploy as a substitute for an authorized Artifact cut.**
+Task 7.9 release execution and exact-digest serving proof are complete. Only Task 7.10 post-deploy
+GO, Writer_Convergence, publication, and later gates remain separately closed. **Do not treat a
+current-`main` portfolio deploy as a substitute for an authorized Artifact cut.**
 
 ### Spec A checkpoint record
 

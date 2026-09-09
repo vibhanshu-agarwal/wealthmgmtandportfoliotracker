@@ -7,6 +7,11 @@ reads, one authenticated no-op composition `PUT`, a contingent exact R-B3r rollb
 `GET /api/insights/health` wake, and the GitHub production Environment gate approval. Publication,
 push, PR/merge, Task 7.10, Writer_Convergence, and any broader action remain closed.
 
+The health wake had its own direct owner approval in the active Codex session: Sol disclosed that
+one production `GET /api/insights/health` would wake scale-to-zero insight-service and commit
+offsets, then asked for approval of that one production GET. The owner replied, “Approved. Please
+go ahead.” No external artifact or session ID is asserted.
+
 **Task 7.9 is complete. Task 7.10 is not started or decided by this record.** R-C is
 portfolio-only but not dark: `Path=/api/portfolio/**` means the composition controller is publicly
 reachable when the new portfolio revision takes traffic.
@@ -40,8 +45,8 @@ No rollback occurred. The floor is retained for the separate Task 7.10 decision 
 
 After the refresh, portfolio Kafka was `26760/26760` lag 0. Insight was scale-to-zero at
 `26602/26760` lag 158, so the separately approved one health GET started existing revision
-`0000080`. Both groups then reached `26760/26760` lag 0 and DLT stayed at 80. No signup, seed,
-reset, or cleanup occurred.
+`0000080` and committed offsets. Both groups then reached `26760/26760` lag 0 and DLT stayed at
+80. No signup, seed, reset, or cleanup occurred.
 
 ## Approved workflow deployment
 
