@@ -1,13 +1,14 @@
 # Implementation Plan
 
-**Current R-C status — Task 7.8 owner GO recorded on 2026-09-09; decision baseline `main@5b438aed`:**
+**Current R-C status — Task 7.9 serving proof recorded on 2026-09-09 at `main@5fd1dac6`:**
 G2, latest-valid G3, G4, G0a, G2a, G2b and derived G6 passed on exact immutable serving
-revisions. Astra independently issued ACCEPT with no Critical, Important or Minor findings.
+revisions; Task 7.8 owner GO then authorized the separately bounded Task 7.9 deployment.
 The pre-merge Task 7.7 evidence baseline is `main@108addca6d079b08d9d0822d87bfe43812cd5699`; PR #240
-merged that packet at `5b438aed497dec7899302f4ba176de6042c6b546`. Task 7.8 is checked locally under the
-[owner-GO record](../../../docs/evidence/b1-r-c/task-7-8-owner-go-20260909.json). Task 7.9 is next but
-requires separate planning/approval and remains unstarted. No R-C deployment, public composition exposure or
-Writer_Convergence claim exists.
+merged that packet at `5b438aed497dec7899302f4ba176de6042c6b546`. The exact candidate digest now
+serves as `portfolio-service--0000096` at 100% traffic and the one authenticated no-op PUT is
+`SAME_STATE`; see the [Task 7.9 serving proof](../../../docs/runbooks/B1_R_C_TASK_7_9_SERVING_PROOF.md).
+Task 7.10 remains separately closed. R-C is portfolio-only but not dark because the existing
+gateway wildcard makes the public composition controller reachable. No Writer_Convergence claim exists.
 
 **Historical R-C status — reconciled 2026-09-08 at `main@7e752b41`:**
 [PR #222](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/222)
@@ -821,7 +822,7 @@ in Waves 5–7.
 
 ### 4a — Orchestrator and preparers
 
-**Current status:** tasks **4.1–4.21 (Wave 4a–4c) are merged on `main@2673f40`** (PR #153). Candidate packaging and exact-digest smoke are complete through Task 7.6; Task 7.7 is independently accepted complete and Task 7.8 owner GO is recorded. Task 7.9 and later R-C gates require separate approval and remain unstarted. Any R-C rollout is portfolio-only but not dark: the existing API-gateway `Path=/api/portfolio/**` wildcard makes the public controller reachable when the portfolio image serves. No deployment, traffic change, rollback, or public-exposure action is authorized by this status.
+**Current status:** tasks **4.1–4.21 (Wave 4a–4c) are merged on `main@2673f40`** (PR #153). Candidate packaging and exact-digest smoke are complete through Task 7.6; Task 7.7 is independently accepted complete, Task 7.8 owner GO is recorded, and Task 7.9 serving proof is complete at `main@5fd1dac6`. Task 7.10 and later R-C gates remain separately closed. R-C is portfolio-only but not dark: the existing API-gateway `Path=/api/portfolio/**` wildcard makes the public controller reachable when the portfolio image serves. No rollback, post-deploy decision, or Writer_Convergence action is authorized by this status.
 
 - [x] **4.1 `HoldingReplacementService`** — the single orchestrator, in D2's exact order: version
   precondition → semantic `400` (quantity, then duplicates) → catalog/lifecycle `422` aggregated →
@@ -1319,10 +1320,20 @@ frozen R-B3 image; Tasks 7.7 onward, deployment and exposure retain their own ga
   not dark because the existing gateway wildcard makes the public controller immediately reachable.
   No deployment, rollback, public exposure, Writer_Convergence claim, or Task 7.9 execution is authorized.
   _Requirements: 9.1, 9.7_
-- [ ] **7.9 Deploy the attested digest; collect the serving proof.** Use P-B.1's prebuilt-digest path
+- [x] **7.9 Deploy the attested digest; collect the serving proof.** Use P-B.1's prebuilt-digest path
   to update the Container App to the **exact ACR manifest digest** recorded in 7.4 — no rebuild, no
   retag. Then: active revision → that digest, traffic, controlled probe. If the deploy invokes
   `Dockerfile.azure` again, the serving proof describes a different artifact and the chain is broken.
+  **Completed 2026-09-09:** GitHub run
+  [34328692256](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/34328692256)
+  deployed only `wealthprodacr.azurecr.io/portfolio-service@sha256:1cf372a39d17709f74aba427259548a531e3e1ba04dc64ec7750369bb8e82126`
+  to `portfolio-service--0000096`; build/push/retag/frontend/seed/verify were skipped and
+  non-interference passed. The active sole healthy/latest-ready revision is 100% traffic and the
+  one authenticated frozen-version PUT over the exact current 159 holdings returned `SAME_STATE`
+  with complete unchanged before/after tuples. Evidence:
+  [`B1_R_C_TASK_7_9_SERVING_PROOF.md`](../../../docs/runbooks/B1_R_C_TASK_7_9_SERVING_PROOF.md),
+  [`task-7-9-serving-proof-20260909.json`](../../../docs/evidence/b1-r-c/task-7-9-serving-proof-20260909.json).
+  This checks Task 7.9 only: Task 7.10, rollback, publication and Writer_Convergence remain separate.
   _Requirements: 9.7_
 - [ ] **7.10 STOP/GO — post-deploy.**
   **Go:** 7.9 green.
