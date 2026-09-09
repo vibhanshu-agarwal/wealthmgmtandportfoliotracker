@@ -88,7 +88,7 @@ or whitespace, require review and an explicit canonical update. This bounded con
 parse TypeScript or cover the later test bodies. This source inventory update changes no
 production runtime gate or historical caller policy.
 
-**R-C tooling baseline:** the
+**Historical R-C tooling checkpoint — before Task 7.8 owner GO:** the
 [return packet](../superpowers/plans/2026-09-04-b1-rc-candidate-preparation-return-packet.md)
 records the original tooling acceptance and the preserved September 3 LOCAL_DEV graph. Those
 historical results remain development evidence only. PRs #234–#236 supersede its R3 and 504-finding
