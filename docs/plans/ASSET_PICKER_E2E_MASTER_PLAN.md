@@ -278,6 +278,8 @@ still passes with exactly three callers. Unattended synthetics remain suspended;
 manual dispatch and schedule restoration require separate authorization. See the
 [G5 decision and evidence](../runbooks/B1_G5_INGRESS_BLOCKER.md). B1 Wave 6's prerequisite is
 satisfied; no R-B3 deployment or public `PUT` activation is authorized here.
+
+**Historical cross-lane snapshot — pre Task 7.8 GO:**
 B2 Wave 1 (Tasks 1.1-1.19) and Wave 2 Tasks 2.1-2.5 are merged source-only through PR #178 at `main@38e3d95`; they remain entirely mock-backed and disabled by default. Wave 3 presence source Tasks 3.1–3.6 merged source-only via PR #179 at `main@cc97a209`; Task 3.7 deploy/live proof remains open (not deployed, not activated, not live-probed). Wave 4 Tasks 4.1–4.4a merged via PR #180 at `main@63fc058`; that exact cut is now deployed only to the internal portfolio-service endpoint, and Task 4.5 completed with a reviewed live GO on `portfolio-service--0000093` / `sha256:9a1d5533…` ([evidence](../runbooks/B2_TASK_4_5_DEMO_RESET_STOP_GO.md)). Tasks 5.1a and 5.1b merged source-only via PRs #202 and #208 at `main@64761dc2` and `main@f954b5a7`; Task 8.1 standalone PR #185 was source-only at merge, but its behavior is included in tracked cu4 source 6a171558 / digest sha256:2be727eaf4577699c783ae66073670d4984fe66c666af3e56422c934fdd0b023 / revision 0000094 (provenance only, not fresh read-back; no duplicate deployment needed); Task 8.2a standalone PR #203 remains source-only and not deployed. Tasks 2.6–2.7, 3.7, Task 5.6's owner decision, Wave 8 Tasks 8.8–8.9, Wave 6 Task 6.3, and Wave 10 remain open. B1 Wave 7 Tasks 7.1–7.2 are complete; R-C Tasks 7.3–7.6 (including 7.5a) are evidenced at cut `8f1e8a36`, while Task 7.7 is complete and Tasks 7.8–7.11 remain open. Wave 6 Tasks 6.1/6.2 merged source-only via PR #214 at `main@48d0aba8`. Wave 5 Tasks 5.1, 5.2, 5.3, 5.3a, 5.4, and 5.5 merged source-only via PR #212 at `main@d8fa499d`; they are not deployed. Wave 9 Task 9.6 (the demo-authenticated Playwright fixture) merged source-only via PR #226 at `main@c8fc407c`; it is not deployed. It is a reusable test helper that Task 9.8 imports, and it establishes no assembled-stack or Production E2E result. Task 9.1 catalog integration merged source-only via PR #228 at `main@3ea9578c`; it is not deployed and proves no Production E2E result. Task 9.3 drafted-price integration has local source evidence in PR #229 and is not deployed. Task 9.4 real presence integration carries local assembled-stack evidence (two independently issued demo logins against the real gateway and Redis, with no presence-route fulfillment) and a fixed duplicate-request defect; it is not deployed; merged CI wiring is covered by PR #232 final run 34018608256, and establishes no Production E2E result. Task 9.5 merged via PR #231 at `main@b4c68253b99a796d6301ef79b5aa5a47d5cbd962`. Wave 9 Tasks 9.2, 9.7, 9.8, and 9.9 are source/assembled-stack complete locally: the disposable Compose real-browser run passed 5/5 (setup plus picker and demo-reset success/conflict), and PR #232 final CI run 34018608256 passed docker-build-verify and ci-required. No deployment or Production E2E is claimed. B1 R-C deployment/convergence, Task 3.7, Task 6.3, Wave 8 Tasks 8.8–8.9, and Wave 10 remain open; production flags remain off.
 
 **User-visible state:** there is no production-exposed functional Asset Picker today.
@@ -647,7 +649,7 @@ planning/approval, deployment and later live/exposure actions retain separate ow
 **B1 position:** R-B3 remains the production safety floor; the latest tracked serving release is
 R-B3r revision `0000095` / digest `fa060bf0…`. Tasks 7.1–7.2, candidate-preparation tooling, R3 and
 GC.5 are complete on `main`; Tasks 7.3–7.6, including 7.5a, have current-cut
-candidate evidence. Task 7.7 is complete; Tasks 7.8–7.11,
+candidate evidence. Task 7.7 is complete; Task 7.8 owner GO is recorded; Tasks 7.9–7.11,
 AM.1/AM.2 and Writer_Convergence remain open. The R-C artifact exists in ACR but is not deployed.
 
 **B2 position:** Wave 8 source and Azure proof tooling are merged through PR #233, and Wave 9's
@@ -683,8 +685,8 @@ remains deferred unless delivery latency makes it a product blocker.
    are merged and reconciled complete. Candidate preparation tooling, R3 closure and GC.5 closure
    are merged through PRs #222 and #234–#236. The exact `main@8f1e8a36` Task A graph, candidate
    image/ACR manifest, exact-digest smoke and final CANDIDATE binding provide Task 7.3–7.6 evidence
-   with zero findings/unverified coverage. Task 7.7 is independently accepted complete; Tasks
-   7.8–7.11 and Writer_Convergence remain open.
+   with zero findings/unverified coverage. Task 7.7 is independently accepted complete; Task 7.8
+   owner GO is recorded; Tasks 7.9–7.11 and Writer_Convergence remain open.
 3. **B2 product lane:** Waves 1–6 source have the recorded merge and review evidence; the exact
    historical Wave 4 cut remains deployed internally and Task 4.5 is GO. Wave 8 source and Azure
    proof tooling merged through PR #233 at `main@a52ec1ef`. Wave 9 source and disposable-stack

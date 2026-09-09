@@ -18,6 +18,13 @@
   },
   "preDecisionEvidence": {
     "atCommit": "5b438aed497dec7899302f4ba176de6042c6b546",
+    "hashByteRepresentation": {
+      "encoding": "UTF-8",
+      "bom": false,
+      "checkedOutEol": "CRLF",
+      "gitBlobEol": "LF",
+      "derivation": "SHA-256 values are over no-BOM Windows checked-out bytes at atCommit, with raw Git LF blobs converted to CRLF by core.autocrlf=true."
+    },
     "candidateCheckpoint": {
       "path": "docs/evidence/b1-r-c/candidate-evidence-checkpoint-20260908.json",
       "sha256": "6190b98118735b9d3164753374aaee7a24d5c0b2fd4c5b63b9849a0cf1798ef7"
@@ -89,11 +96,18 @@
     "publicReachability": "The existing API-gateway Path=/api/portfolio/** wildcard makes the public composition controller reachable immediately after any R-C portfolio rollout."
   },
   "limitationsAndInvalidation": {
+    "evidenceTiming": "The September 8-9 observations are recorded historical evidence, not a fresh production attestation at this later decision or review time.",
+    "candidateArtifactsAvailability": "Historical raw .candidate-artifacts payloads are unavailable in this checkout, so their recorded hashes cannot be independently recomputed locally.",
+    "replicaEvidence": "Some replica evidence is transcript-derived aggregate evidence rather than retained raw sanitized rows.",
+    "task77FinalBinding": "The final Task 7.7 JSON does not itself hash-bind the final KQL or serving runbook; this Task 7.8 record independently binds both at atCommit.",
     "retainedRangeRecovery": "insight-group recovery proves current retained-range state, not historical offsets before retention.",
     "structuralRisk": "The portfolios-to-asset_holdings FK cascade remains a documented structural risk without a current source caller.",
     "recollectionRequiredIf": [
       "the candidate source, manifest digest, serving revision, traffic, configuration, or gateway route changes",
       "the Task 7.7 evidence or its bound assumptions drift before a future rollout",
+      "holdings writer or caller source changes",
+      "relevant repair-state or repair-routine changes",
+      "an invalidating user or portfolio write occurs after the final Task 7.7 G3 snapshot",
       "a Task 7.9 plan proposes anything other than the exact attested portfolio manifest"
     ]
   },
