@@ -20,7 +20,7 @@ All four retained SHA-256 bindings are over checked-out file bytes in this Windo
 
 ## Post-decision governance bindings
 
-The same checked-out-Windows-byte convention applies. The post-decision task ledger SHA-256 is 717d030efebc2a2e049151d35c937ef3c1a56b6555b8479a8067bb99b10d5a6d and the post-decision master-plan SHA-256 is 7247cdab65e769f94261ad696d6acf6f5d4dc600042906ffce5dec475a12276a. These bind only the two changed governance inputs; neither the JSON packet nor this runbook self-hashes.
+The post-decision convention is SHA-256 over exact committed Git blob bytes: UTF-8, no BOM, LF as stored by Git. These bind only the two changed governance inputs; neither the JSON packet nor this runbook self-hashes. The final task-ledger binding is `97e839f1b0bf119dbf7f4c279a57c2c648503da46a8a5b1329155bf656131570` for `.kiro/specs/portfolio-composition-contract/tasks.md`; the final master-plan binding is `532969938708025a304df2bfc3314ccab6b5e873e4734fc2bb3a48b045b3b4fe` for `docs/plans/ASSET_PICKER_E2E_MASTER_PLAN.md`.
 
 ## Retained post-deploy assessment
 

@@ -63,10 +63,10 @@
     "masterPlan": {"path": "docs/plans/ASSET_PICKER_E2E_MASTER_PLAN.md", "sha256": "291edf831c78aaafc8569cb4d3686db590e859c77658a6ad8280c8f199d5021d"}
   },
   "postDecisionGovernanceBindings": {
-    "hashConvention": "SHA-256 over checked-out file bytes in this Windows worktree, with CRLF where present.",
+    "hashConvention": "SHA-256 over exact committed Git blob bytes: UTF-8, no BOM, LF as stored by Git.",
     "bindingScope": "Post-decision task ledger and master-plan inputs only; this packet does not self-hash.",
-    "taskLedger": {"path": ".kiro/specs/portfolio-composition-contract/tasks.md", "sha256": "717d030efebc2a2e049151d35c937ef3c1a56b6555b8479a8067bb99b10d5a6d"},
-    "masterPlan": {"path": "docs/plans/ASSET_PICKER_E2E_MASTER_PLAN.md", "sha256": "7247cdab65e769f94261ad696d6acf6f5d4dc600042906ffce5dec475a12276a"}
+    "taskLedger": {"path": ".kiro/specs/portfolio-composition-contract/tasks.md", "sha256": "97e839f1b0bf119dbf7f4c279a57c2c648503da46a8a5b1329155bf656131570"},
+    "masterPlan": {"path": "docs/plans/ASSET_PICKER_E2E_MASTER_PLAN.md", "sha256": "532969938708025a304df2bfc3314ccab6b5e873e4734fc2bb3a48b045b3b4fe"}
   },
   "localContainerRiskApproval": {
     "location": "active Codex session",

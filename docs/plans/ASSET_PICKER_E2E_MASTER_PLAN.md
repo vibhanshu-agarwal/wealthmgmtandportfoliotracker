@@ -116,7 +116,7 @@ Both tasks are now checked locally. The [decision record](../evidence/b1-task-6-
 binds this approval to the unchanged proof and cu4 serving image. Publication, further production
 operations, Wave 7 activation and Writer_Convergence closure remain outside this approval.
 
-**Current runtime baseline:** portfolio remains R-B3r `0000095` / `fa060bf0…`; image-only
+**Historical Task 7.7/pre-Task-7.9 runtime baseline:** portfolio was R-B3r `0000095` / `fa060bf0…`; image-only
 replacement revisions now serve gateway `0000078` / `79a3f253…`, market-data `0000080` /
 `ad61144b…`, and insight `0000080` / `f7db159d…`. Each is the sole healthy/latest-ready,
 100%-traffic target in `Single` mode. The recovered `insight-group` replayed only the retained range
