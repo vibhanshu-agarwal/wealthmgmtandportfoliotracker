@@ -65,7 +65,7 @@
   "postDecisionGovernanceBindings": {
     "hashConvention": "SHA-256 over exact committed Git blob bytes: UTF-8, no BOM, LF as stored by Git.",
     "bindingScope": "Post-decision task ledger and master-plan inputs only; this packet does not self-hash.",
-    "taskLedger": {"path": ".kiro/specs/portfolio-composition-contract/tasks.md", "sha256": "97e839f1b0bf119dbf7f4c279a57c2c648503da46a8a5b1329155bf656131570"},
+    "taskLedger": {"path": ".kiro/specs/portfolio-composition-contract/tasks.md", "sha256": "6e78a627f84ec987c4d2793fd309f6d9b26cd3453c19c19795f89e60fa553972"},
     "masterPlan": {"path": "docs/plans/ASSET_PICKER_E2E_MASTER_PLAN.md", "sha256": "532969938708025a304df2bfc3314ccab6b5e873e4734fc2bb3a48b045b3b4fe"}
   },
   "localContainerRiskApproval": {

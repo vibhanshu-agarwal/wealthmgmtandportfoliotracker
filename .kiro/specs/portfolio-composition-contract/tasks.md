@@ -1151,8 +1151,8 @@ retains five prerequisites, including the proposed report-carrier corrections an
 persistent SQL-writer disposition. Tooling completion is not candidate or serving acceptance.
 That 2026-09-03 preparation handoff itself advanced no 7.x, GC.5 or AM checkbox. Later reviewed
 evidence closes GC.5 and Tasks 7.1–7.2. The September 8 exact-cut checkpoint separately closes the
-evidence steps through Task 7.6, including 7.5a. At that 2026-09-03 handoff, Task 7.7 was complete
-and Tasks 7.8–7.11 and AM.1/AM.2 remained open; later records below supersede that status.
+evidence steps through Task 7.6, including 7.5a. At the later pre-Task-7.8 checkpoint, Task 7.7 was
+complete and Tasks 7.8–7.11 and AM.1/AM.2 remained open; later records below supersede that status.
 
 
 **Reviewed, merged and reconciled source work — 2026-09-08:** Cursor implemented Tasks 7.1–7.2
