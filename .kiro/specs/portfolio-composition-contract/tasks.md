@@ -1356,8 +1356,10 @@ frozen R-B3 image; Tasks 7.7 onward, deployment and exposure retain their own ga
   0 Minor findings. The local close-out is recorded in
   [`B1_R_C_TASK_7_10_POST_DEPLOY_STOP_GO.md`](../../../docs/runbooks/B1_R_C_TASK_7_10_POST_DEPLOY_STOP_GO.md)
   and [`task-7-10-post-deploy-assessment-20260909.json`](../../../docs/evidence/b1-r-c/task-7-10-post-deploy-assessment-20260909.json).
-  No rollback was used or authorized. Task 7.11, publication and Writer_Convergence remain separate;
-  post-decision close-out review is pending.
+  No rollback was used or authorized. Task 7.11 is locally complete: P11g-1 is established for the
+  transitional range, while Writer_Convergence / P11g-2 is established only for the activated exact
+  R-C artifact and rollback artifacts at or above R-B3r. Publication remains separate until
+  explicitly authorized; post-decision close-out review is pending.
   _Requirements: 9.1, 9.7, 8.4_
 - [x] **7.11 P11g-1 / P11g-2 evidence.** P11g-1 is established for the transitional range;
   Writer_Convergence / P11g-2 is established for the activated exact R-C artifact and rollback
