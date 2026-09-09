@@ -1,17 +1,19 @@
 # Asset Picker — E2E Master Plan to Production
 
-**Last verified:** 2026-09-09 at `main@108addca6d079b08d9d0822d87bfe43812cd5699`;
-candidate release cut `8f1e8a36f8baa594efa8079190f87b42139fcf10`
+**Last verified:** 2026-09-09 at decision baseline `main@5b438aed497dec7899302f4ba176de6042c6b546`;
+pre-merge Task 7.7 evidence baseline `main@108addca6d079b08d9d0822d87bfe43812cd5699`; candidate release cut `8f1e8a36f8baa594efa8079190f87b42139fcf10`
 
-**Current delivery status — Task 7.7 complete; Task 7.8 owner STOP/GO is next:**
+**Current delivery status — Task 7.8 owner GO recorded; Task 7.9 is next and separately gated:**
 The final authorized collection binds all four serving apps to exact immutable digests and passes
 G2, latest-valid G3, G4, G0a, G2a, G2b and derived G6. Transparent `insight-group` recovery is
 limited to the retained `25808–26602` range and is not represented as historical offset evidence.
 Exactly one seed returned SAME_STATE with complete byte-identical before/after snapshots; one
 required signup and one explicitly approved recovery signup left 12 users/12 portfolios with zero
 violations. Astra independently ACCEPTed the [final packet](../runbooks/B1_R_C_TASK_7_7_SERVING_EVIDENCE.md)
-with no Critical, Important or Minor findings. Task 7.8, R-C candidate deployment, Writer_Convergence
-and production exposure remain unperformed and separately gated.
+with no Critical, Important or Minor findings. The [Task 7.8 owner-GO record](../evidence/b1-r-c/task-7-8-owner-go-20260909.json)
+closes the local pre-deploy decision only. Task 7.9 planning/approval, R-C candidate deployment,
+Writer_Convergence and production exposure remain unperformed and separately gated. Any future R-C
+rollout is portfolio-only but not dark: the existing gateway wildcard makes the public controller reachable immediately.
 
 **Historical context retained below (superseded for current Task 7.7 verdict):**
 The program-state code baseline is current `main`; the latest tracked production runtime is R-B3r
@@ -382,7 +384,7 @@ At every meaningful merge or live checkpoint:
 | Track | Delivered | Current position | Remaining outcome |
 |---|---|---|---|
 | **A — Spec A catalog/data cutover** | Shared catalog, Postgres/Mongo repair, R4 rollout, enforcement, one reconciled controlled refresh, persisted refresh enablement, demo portfolio activation, and scale-to-zero restoration | **All 14 cutover checkpoints complete.** 9.13 completed on `portfolio-service--0000092`, `market-data-service--0000079`, and `insight-service--0000079`; B2 Task 4.5 later superseded only the portfolio revision with `portfolio-service--0000093`. 9.14 completed via apply [33331130603](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33331130603), reopening ACA external ingress on `api-gateway--0000077` with `allowInsecure=false` ([`SPEC_A_9_14_REOPEN_INGRESS.md`](../runbooks/SPEC_A_9_14_REOPEN_INGRESS.md)); the later custom-domain restore has independent `200` read-back, and PR #194 independently reviewed and merged that evidence ([`API_GATEWAY_CUSTOM_DOMAIN_RECOVERY.md`](../runbooks/API_GATEWAY_CUSTOM_DOMAIN_RECOVERY.md)); historical RCA remains `MECHANISM_REPRODUCED_SETTER_UNPROVEN` | Spec A's production cutover is done. B1 G5 closed by owner decision on 2026-09-02 using the reviewed three-caller run. B1 Wave 6 Tasks 6.1–6.4 are source-complete through PR #217; the four filed process follow-ups remain open |
-| **B — B1 portfolio composition backend** | Deployment prerequisites, fixture identity migration, legacy writer retirement, gateway provisioning, V20, version-bearing read, version-required seed, Wave 7 controller/tests, R-C preparation tooling, R3 closure, GC.5 source-governance closure, immutable candidate evidence through Task 7.6, and accepted Task 7.7 serving evidence | **Task 7.7 complete.** All four apps have exact immutable serving digests; G2/G3/G4/G0a/G2a/G2b/G6 passed with transparent retained-range recovery, exactly one seed and final 12/12 integrity; Astra ACCEPTed with no findings | Task 7.8 is the next owner STOP/GO. Deployment 7.9, post-deploy GO, Writer_Convergence and production exposure remain separate gates |
+| **B — B1 portfolio composition backend** | Deployment prerequisites, fixture identity migration, legacy writer retirement, gateway provisioning, V20, version-bearing read, version-required seed, Wave 7 controller/tests, R-C preparation tooling, R3 closure, GC.5 source-governance closure, immutable candidate evidence through Task 7.6, accepted Task 7.7 serving evidence, and Task 7.8 owner GO | **Task 7.8 GO recorded.** All four apps have exact immutable serving digests; G2/G3/G4/G0a/G2a/G2b/G6 passed with transparent retained-range recovery, exactly one seed and final 12/12 integrity; Astra ACCEPTed with no findings | Task 7.9 planning/approval, deployment, post-deploy GO, Writer_Convergence and production exposure remain separate gates |
 | **C — B2 Asset Picker product** | Requirements, design, task plan, five-screen visual mockup, Waves 1–6 source, Wave 8 source/tooling, and Wave 9 local real-stack integration | Wave 8 source and Azure proof tooling merged via PR #233 at `main@a52ec1ef`; deployment/live proof remain open. Wave 9 Tasks 9.1–9.9 carry their recorded source/local evidence; PR #232 at `main@318f2859` passed the disposable Compose real-browser run 5/5 and required CI wiring | No production deployment or Production E2E is claimed. Tasks 2.6–2.7, 3.7, 5.6, 6.3, 8.8/8.9, B1 R-C deployment/convergence, and Wave 10 remain open; production flags remain off |
 | **D — Demo credibility** | Canonical prices refreshed and reconciled; demo initializer exists; authorized 9.12 retry activated the Active_Asset set | Demo portfolio holds the exact 159-holding golden set after Task 4.5's one-call live proof on `portfolio-service--0000093`; version remained `0` under the valid same-state no-op; both flags remain `false`; historical pooled-session setter remains unidentified | 9.14 and the custom-domain restore are complete; B1 G5 closed by owner decision on 2026-09-02 using run 33411410271. Operational 9.12 success does not close historical RCA |
 
@@ -483,13 +485,13 @@ Authority: [`.kiro/specs/portfolio-composition-contract/tasks.md`](../../.kiro/s
 | 4 – contract implementation | Source on Artifact 2a serving cut; mechanisms unexposed | Wave 4a–4c (4.1–4.21) merged on `main@2673f40` (PR #153) and included in Artifact 2a serving digest. Public `PUT` still Wave 7. Replacement orchestrator + preparers remain unexposed; `GET /api/assets` controller is now served with R-B2; candidate packaging, exact-digest smoke and Task 7.7 serving evidence are complete, while later gates remain pending |
 | 5 — version-bearing read | ✅ Tasks 5.1–5.3 / R-B2 complete; 5.4–5.6 merged via PR #161 at `main@0b5d60d1`; **5.7/G5 complete by owner decision on 2026-09-02** | [33411410271](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33411410271) from `main@f66d7ab6` executed all three callers with version markers, holdings-only seed, and 9 passing tests; evidence reviewed/merged via PR #197. Historical failures and close-out: [G5 record](../runbooks/B1_G5_INGRESS_BLOCKER.md) |
 | 6 — version-required seed | ✅ Tasks 6.1–6.7 complete locally; R-B3 owner GO recorded 2026-09-03 | Strict version boundary and identity-preserving replacement are on main. 6.5 owner GO recorded; read-only preflight confirms the existing cut. cu4 deployed as revision 0000094; 6.6 technical ACCEPT from one same-state seed; 6.6 complete and 6.7 owner GO recorded; publication remains separate |
-| 7 — activation | 🟡 Tasks 7.1–7.7 complete | Exact candidate evidence remains bound to `main@8f1e8a36`. Final pre-deploy serving collection passed G2/G3/G4/G0a/G2a/G2b/G6 with independent ACCEPT; Task 7.8 STOP/GO, deployment and activation remain gated |
+| 7 — activation | 🟡 Tasks 7.1–7.8 complete | Exact candidate evidence remains bound to `main@8f1e8a36`; Task 7.8 owner GO is recorded at `main@5b438aed`. Final pre-deploy serving collection passed G2/G3/G4/G0a/G2a/G2b/G6 with independent ACCEPT; Task 7.9 planning/approval, deployment and activation remain gated |
 
 Spec A V17–V19 were applied at checkpoint 9.6; **V20 is applied under R-B** and unchanged by R-B2.
 **R-A / G2**, **R-B / G3**, and **R-B2 / G2a** are complete. Wave 4 composition write mechanisms
 remain unexposed in production; the public `PUT` source is merged, and candidate execution plus
 packaging evidence is green through Task 7.6 and Task 7.7 serving recollection is independently
-accepted complete. Task 7.8 STOP/GO remains unperformed. Caller migration
+accepted complete. Task 7.8 owner GO is recorded; Task 7.9 requires separate planning/approval and remains unstarted. Caller migration
 source **Tasks 5.4–5.6 are on `main@0b5d60d1`** (PR #161); **5.7/G5 is complete** under the
 owner's 2026-09-02 decision. Run [33411410271](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33411410271)
 from `main@f66d7ab6` recorded all three callers; PR #197 merged the reviewed evidence at
@@ -519,7 +521,7 @@ portfolio deploy as a substitute for an authorized Artifact cut.**
 | PR #155 / R-B2 | **Complete for 5.1–5.3** — Task 5.1 on `main@f22e2ff`; Artifact 2a serving on `portfolio-service--0000081` / `sha256:d544649f…` ([run 32982880866](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/32982880866); [`B1_R_B2_G2A_SERVING_PROOF.md`](../runbooks/B1_R_B2_G2A_SERVING_PROOF.md)); G2a green | Tasks 5.4–5.6 subsequently merged source-only via PR #161; any future portfolio rollout invalidates G2a until re-proven |
 | PR #161 / G5 | **Caller source merged on `main@0b5d60d1`; 5.7/G5 complete by owner decision on 2026-09-02.** [33411410271](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33411410271) succeeded from `main@f66d7ab6` with all three markers; PR #197 merged the reviewed evidence at `main@b6c0da3`. [Close-out record](../runbooks/B1_G5_INGRESS_BLOCKER.md) | G5 prerequisite satisfied; Wave 6 and R-B3 subsequently completed under separate approvals; public `PUT` and schedule restoration remain separate |
 | PR #217 / B1 Wave 6 source | **Merged on `main@d66bb23d`**; Tasks 6.1–6.4 checked, Codex ACCEPT at `1bdb1d31`, R1/R2 closed, final PR-event CI successful | 6.5 owner GO; cu4 deployed and 6.6 G2b technical proof ACCEPT; 6.6/6.7 checked under owner R-B3 GO; unpublished local records |
-| PRs #222, #234–#237 / R-C preparation and status reconciliation | **Merged through `main@8f1e8a36`**; candidate tooling accepted, R3 closed, GC.5 closed, Windows checkout identity fixed, and the master plan reconciled to the release cut | The unchanged cut has candidate evidence through Task 7.6 ([checkpoint](../evidence/b1-r-c/candidate-evidence-checkpoint-20260908.json)); final Task 7.7 serving evidence is independently accepted. Task 7.8 and later gates remain open; no R-C deployment or Writer_Convergence is claimed |
+| PRs #222, #234–#237 / R-C preparation and status reconciliation | **Merged through `main@8f1e8a36`**; candidate tooling accepted, R3 closed, GC.5 closed, Windows checkout identity fixed, and the master plan reconciled to the release cut | The unchanged cut has candidate evidence through Task 7.6 ([checkpoint](../evidence/b1-r-c/candidate-evidence-checkpoint-20260908.json)); PR #240 at `main@5b438aed` merges final Task 7.7 evidence and the owner-GO record closes Task 7.8 locally. Task 7.9 and later gates remain separate; no R-C deployment or Writer_Convergence is claimed |
 | [`proof/b1-wave-2-g1-v20@e6a98c5`](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/tree/proof/b1-wave-2-g1-v20) | Historical dependent dual-schema proof branch; superseded for Wave 3 delivery by `cursor/b1-wave3-v20-schema` | Remain unmerged; no release action |
 
 ### Process-control status
@@ -639,8 +641,8 @@ authorized Task 7.7 recovery and proof bundle now has all technical predicates g
 serving digests, transparent retained-range recovery/current lag zero with DLT non-growth, projection
 consistency, complete startup coverage, provisioning/authenticated/retired-route proofs, exactly one
 seed, final G3 and derived G6. Astra independently ACCEPTed the whole packet with no findings.
-Task 7.8 is the next owner STOP/GO. Deployment 7.9 and later live/exposure actions retain
-separate owner gates.
+Task 7.8 owner GO is recorded at `main@5b438aed`; it closes only the local decision. Task 7.9
+planning/approval, deployment and later live/exposure actions retain separate owner gates.
 
 **B1 position:** R-B3 remains the production safety floor; the latest tracked serving release is
 R-B3r revision `0000095` / digest `fa060bf0…`. Tasks 7.1–7.2, candidate-preparation tooling, R3 and

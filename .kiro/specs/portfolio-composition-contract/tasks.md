@@ -1,10 +1,13 @@
 # Implementation Plan
 
-**Current R-C status — Task 7.7 complete on 2026-09-09; candidate cut `8f1e8a36`:**
+**Current R-C status — Task 7.8 owner GO recorded on 2026-09-09; decision baseline `main@5b438aed`:**
 G2, latest-valid G3, G4, G0a, G2a, G2b and derived G6 passed on exact immutable serving
 revisions. Astra independently issued ACCEPT with no Critical, Important or Minor findings.
-Task 7.8 owner STOP/GO is now the next task; it has not been decided or executed. No R-C candidate
-deployment, public composition exposure or Writer_Convergence claim exists.
+The pre-merge Task 7.7 evidence baseline is `main@108addca6d079b08d9d0822d87bfe43812cd5699`; PR #240
+merged that packet at `5b438aed497dec7899302f4ba176de6042c6b546`. Task 7.8 is checked locally under the
+[owner-GO record](../../../docs/evidence/b1-r-c/task-7-8-owner-go-20260909.json). Task 7.9 is next but
+requires separate planning/approval and remains unstarted. No R-C deployment, public composition exposure or
+Writer_Convergence claim exists.
 
 **Historical R-C status — reconciled 2026-09-08 at `main@7e752b41`:**
 [PR #222](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/222)
@@ -818,7 +821,7 @@ in Waves 5–7.
 
 ### 4a — Orchestrator and preparers
 
-**Current status:** tasks **4.1–4.21 (Wave 4a–4c) are merged on `main@2673f40`** (PR #153; undeployed/unexposed). Candidate packaging and exact-digest smoke are complete through Task 7.6; Task 7.7 serving evidence is independently accepted complete, while Task 7.8 and later R-C gates remain open. Public `PUT` remains unexposed. **No Wave 4/5 runtime deployment is authorized** (V20/R-B already applied via Artifact 2 cut `25aa730`). No gateway route change, seed rewrite, deployment, traffic change, or public `PUT` exposure is authorized by this status.
+**Current status:** tasks **4.1–4.21 (Wave 4a–4c) are merged on `main@2673f40`** (PR #153). Candidate packaging and exact-digest smoke are complete through Task 7.6; Task 7.7 is independently accepted complete and Task 7.8 owner GO is recorded. Task 7.9 and later R-C gates require separate approval and remain unstarted. Any R-C rollout is portfolio-only but not dark: the existing API-gateway `Path=/api/portfolio/**` wildcard makes the public controller reachable when the portfolio image serves. No deployment, traffic change, rollback, or public-exposure action is authorized by this status.
 
 - [x] **4.1 `HoldingReplacementService`** — the single orchestrator, in D2's exact order: version
   precondition → semantic `400` (quantity, then duplicates) → catalog/lifecycle `422` aggregated →
@@ -1306,9 +1309,15 @@ frozen R-B3 image; Tasks 7.7 onward, deployment and exposure retain their own ga
   [`docs/runbooks/B1_R_C_TASK_7_7_SERVING_EVIDENCE.md`](../../../docs/runbooks/B1_R_C_TASK_7_7_SERVING_EVIDENCE.md),
   [`task-7-7-completion-20260909.json`](../../../docs/evidence/b1-r-c/task-7-7-completion-20260909.json).
   _Requirements: 9.1, 9.2, 9.7, 1.14_
-- [ ] **7.8 STOP/GO — R-C pre-deploy.**
+- [x] **7.8 STOP/GO — R-C pre-deploy.**
   **Go:** 7.4–7.7 green. A prohibited rollback is a policy, not evidence.
   **Abort:** do not deploy. The system remains at R-B3, which is a safe steady state.
+  **Owner GO recorded 2026-09-09:** [`task-7-8-owner-go-20260909.json`](../../../docs/evidence/b1-r-c/task-7-8-owner-go-20260909.json)
+  binds the decision to `main@5b438aed` / PR #240 and the pre-merge Task 7.7 evidence baseline
+  `main@108addca6`. GO closes only this local decision and unlocks separate Task 7.9 planning and
+  approval; Task 7.9 remains unchecked and unstarted. Any future R-C rollout is portfolio-only but
+  not dark because the existing gateway wildcard makes the public controller immediately reachable.
+  No deployment, rollback, public exposure, Writer_Convergence claim, or Task 7.9 execution is authorized.
   _Requirements: 9.1, 9.7_
 - [ ] **7.9 Deploy the attested digest; collect the serving proof.** Use P-B.1's prebuilt-digest path
   to update the Container App to the **exact ACR manifest digest** recorded in 7.4 — no rebuild, no

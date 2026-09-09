@@ -1,0 +1,95 @@
+{
+  "schemaVersion": 1,
+  "kind": "owner-release-decision",
+  "decisionDate": "2026-09-09",
+  "recordedAtUtc": "2026-09-09T06:37:44.5236128Z",
+  "ownerStatement": "GO",
+  "decision": "GO",
+  "scope": "B1 R-C Task 7.8 pre-deploy decision record only",
+  "decisionBaseline": {
+    "currentMain": "5b438aed497dec7899302f4ba176de6042c6b546",
+    "prNumber": 240,
+    "mergeCommit": "5b438aed497dec7899302f4ba176de6042c6b546",
+    "preMergeTask77EvidenceBaseline": "108addca6d079b08d9d0822d87bfe43812cd5699",
+    "candidateSource": "8f1e8a36f8baa594efa8079190f87b42139fcf10",
+    "stagedJarSha256": "441d252939d7333dca134b9cc1a5f6a0632cc274a53f410671212c543a85cda4",
+    "candidateManifest": "wealthprodacr.azurecr.io/portfolio-service@sha256:1cf372a39d17709f74aba427259548a531e3e1ba04dc64ec7750369bb8e82126",
+    "platform": "linux/amd64"
+  },
+  "preDecisionEvidence": {
+    "candidateCheckpoint": {
+      "path": "docs/evidence/b1-r-c/candidate-evidence-checkpoint-20260908.json",
+      "sha256": "6190b98118735b9d3164753374aaee7a24d5c0b2fd4c5b63b9849a0cf1798ef7"
+    },
+    "task77Completion": {
+      "path": "docs/evidence/b1-r-c/task-7-7-completion-20260909.json",
+      "sha256": "1e1e980018c5b4f7bdf0468495ffb957459b74a575bcc4cf07a29f9622ef6feb"
+    },
+    "task77CompletionKql": {
+      "path": "docs/evidence/b1-r-c/task-7-7-completion-20260909.kql",
+      "sha256": "2cc8fe0bf8c4fb56dfeeab1c14c73ba4e36d881f21b0f73d6bb3e6aa65483ba7"
+    },
+    "task77ServingRunbook": {
+      "path": "docs/runbooks/B1_R_C_TASK_7_7_SERVING_EVIDENCE.md",
+      "sha256": "07a383ea5686b4511e4c25128178da10e8bbec1b7d8faf429d38e55196251a32"
+    },
+    "taskLedger": {
+      "path": ".kiro/specs/portfolio-composition-contract/tasks.md",
+      "sha256": "6549e05b77bded48ba1fcc9b85f64e23bca1afa140a1c074dcdd2ce62e3e2c89"
+    },
+    "masterPlan": {
+      "path": "docs/plans/ASSET_PICKER_E2E_MASTER_PLAN.md",
+      "sha256": "69ff2f854bfc8a6804ba587c0a34f773592a56f46de8cd1091e857dc23690f31"
+    },
+    "goldenReference": {
+      "path": "docs/evidence/b1-task-6-6/e2e-golden-reference-6a171558.json",
+      "sha256": "344fa0f6f657f5e16e8275d1300043f27e53ccf6bd72193c85bfb70fb99910bd"
+    }
+  },
+  "postMergeCi": {
+    "runId": 34316644304,
+    "status": "completed",
+    "conclusion": "success",
+    "ciRequired": "success"
+  },
+  "assessment": {
+    "solRecommendation": "GO",
+    "terraRecommendation": "GO",
+    "lunaAudit": "RECORDED",
+    "astraVerdict": "ACCEPT",
+    "astraFindings": {
+      "critical": 0,
+      "important": 0,
+      "minor": 0
+    },
+    "technicalPredicateStatus": "Tasks 7.4 through 7.7 green"
+  },
+  "decisionActions": {
+    "localTask78Closure": true,
+    "unlocksSeparateTask79PlanningAndApprovalOnly": true,
+    "task79Started": false,
+    "deployment": false,
+    "workflowDispatch": false,
+    "productionAccess": false,
+    "trafficOrConfigurationChange": false,
+    "rollbackAuthority": false,
+    "publicExposureAuthorization": false,
+    "writerConvergenceClaim": false,
+    "publication": false
+  },
+  "rolloutBoundary": {
+    "candidateRolloutScope": "portfolio-service only",
+    "isDark": false,
+    "publicReachability": "The existing API-gateway Path=/api/portfolio/** wildcard makes the public composition controller reachable immediately after any R-C portfolio rollout."
+  },
+  "limitationsAndInvalidation": {
+    "retainedRangeRecovery": "insight-group recovery proves current retained-range state, not historical offsets before retention.",
+    "structuralRisk": "The portfolios-to-asset_holdings FK cascade remains a documented structural risk without a current source caller.",
+    "recollectionRequiredIf": [
+      "the candidate source, manifest digest, serving revision, traffic, configuration, or gateway route changes",
+      "the Task 7.7 evidence or its bound assumptions drift before a future rollout",
+      "a Task 7.9 plan proposes anything other than the exact attested portfolio manifest"
+    ]
+  },
+  "note": "This owner GO closes only the local Task 7.8 decision record. It neither performs nor authorizes Task 7.9 execution; Task 7.9 needs its own planning and approval. No rollback authority is granted."
+}
