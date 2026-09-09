@@ -3,7 +3,7 @@
 **Last verified:** 2026-09-09 at runtime/program-state code baseline `main@5fd1dac6a37513916fd2b80ca3929c4e20ad0de7` for Task 7.9 serving proof;
 pre-merge Task 7.7 evidence baseline `main@108addca6d079b08d9d0822d87bfe43812cd5699`; candidate release cut `8f1e8a36f8baa594efa8079190f87b42139fcf10`
 
-**Current delivery status — Task 7.9 serving proof and Task 7.10 owner GO recorded locally:**
+**Current delivery status — Tasks 7.1–7.11 locally complete:**
 The final authorized collection binds all four serving apps to exact immutable digests and passes
 G2, latest-valid G3, G4, G0a, G2a, G2b and derived G6. Transparent `insight-group` recovery is
 limited to the retained `25808–26602` range and is not represented as historical offset evidence.
@@ -15,8 +15,11 @@ closes the local pre-deploy decision only. The separately approved Task 7.9 dige
 serves `portfolio-service--0000096` at the exact candidate manifest, 100% traffic, with one
 authenticated same-state composition PUT and non-interference proof; see the
 [Task 7.9 serving proof](../runbooks/B1_R_C_TASK_7_9_SERVING_PROOF.md). Task 7.10 owner GO is
-recorded locally; Task 7.11, Writer_Convergence and publication remain separately closed. R-C is portfolio-only but not dark:
-the existing gateway wildcard makes the public controller reachable immediately.
+recorded locally. P11g-1 is established for the transitional range; Writer_Convergence / P11g-2
+is established for the activated exact R-C artifact and rollback artifacts at or above R-B3r only.
+Publication remains separate until explicitly authorized, and no additional production operation or
+rollback occurred during Task 7.11. R-C is portfolio-only but not dark: the existing gateway
+wildcard makes the public controller reachable immediately.
 
 **Historical context retained below (superseded for current Task 7.7 verdict):**
 The program-state code baseline is current `main`; the latest tracked production runtime is R-B3r
@@ -651,15 +654,21 @@ consistency, complete startup coverage, provisioning/authenticated/retired-route
 seed, final G3 and derived G6. Astra independently ACCEPTed the whole packet with no findings.
 Task 7.8 owner GO is recorded at `main@5b438aed`; the separately approved Task 7.9 deployment
 completed at `main@5fd1dac6` with exact-digest, traffic, non-interference and same-state PUT
-evidence. Task 7.10 owner GO is recorded locally; Task 7.11 and later actions retain separate owner gates.
+evidence. Tasks 7.1–7.11 are locally complete: P11g-1 is established for the transitional range,
+and Writer_Convergence / P11g-2 is established for the activated exact R-C artifact and rollback
+artifacts at or above R-B3r only. Publication remains separate until explicitly authorized; no
+additional production operation or rollback occurred during Task 7.11.
 
 **B1 position:** R-B3 remains the production safety floor at R-B3r revision `0000095` /
 digest `fa060bf0…`; the latest Task 7.9 serving release is portfolio revision `0000096` /
 digest `1cf372a3…`. Tasks 7.1–7.2, candidate-preparation tooling, R3 and
 GC.5 are complete on `main`; Tasks 7.3–7.6, including 7.5a, have current-cut
-candidate evidence. Tasks 7.7–7.10 are complete locally; Task 7.11, AM.1/AM.2 and
-Writer_Convergence remain open. The R-C artifact is deployed only as the exact attested portfolio
-manifest; the public controller is consequently reachable through the existing gateway wildcard.
+candidate evidence. Tasks 7.7–7.11 are complete locally. P11g-1 is established for the
+transitional range; Writer_Convergence / P11g-2 is established for the activated exact R-C artifact
+and rollback artifacts at or above R-B3r only. AM.1/AM.2 remain open. Publication remains separate
+until explicitly authorized, and no additional production operation or rollback occurred during
+Task 7.11. The R-C artifact is deployed only as the exact attested portfolio manifest; the public
+controller is consequently reachable through the existing gateway wildcard.
 
 **B2 position:** Wave 8 source and Azure proof tooling are merged through PR #233, and Wave 9's
 disposable Compose real-browser integration passed 5/5 through PR #232. These are source/local-CI
@@ -694,9 +703,12 @@ remains deferred unless delivery latency makes it a product blocker.
    are merged and reconciled complete. Candidate preparation tooling, R3 closure and GC.5 closure
    are merged through PRs #222 and #234–#236. The exact `main@8f1e8a36` Task A graph, candidate
    image/ACR manifest, exact-digest smoke and final CANDIDATE binding provide Task 7.3–7.6 evidence
-   with zero findings/unverified coverage. Task 7.7 is independently accepted complete; Task 7.8
-   owner GO, Task 7.9 exact-digest serving proof, and Task 7.10 owner GO are recorded locally; Task 7.11 and
-   Writer_Convergence remain open.
+with zero findings/unverified coverage. Task 7.7 is independently accepted complete; Task 7.8
+owner GO, Task 7.9 exact-digest serving proof, and Task 7.10 owner GO are recorded locally.
+Tasks 7.1–7.11 are locally complete: P11g-1 is established for the transitional range and
+Writer_Convergence / P11g-2 is established for the activated exact R-C artifact and rollback
+artifacts at or above R-B3r only. Publication remains separate until explicitly authorized; no
+additional production operation or rollback occurred during Task 7.11.
 3. **B2 product lane:** Waves 1–6 source have the recorded merge and review evidence; the exact
    historical Wave 4 cut remains deployed internally and Task 4.5 is GO. Wave 8 source and Azure
    proof tooling merged through PR #233 at `main@a52ec1ef`. Wave 9 source and disposable-stack

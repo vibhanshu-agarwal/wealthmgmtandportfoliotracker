@@ -9,9 +9,9 @@
 > closure.  Its machine-readable companion is
 > [`task-7-11-writer-convergence-floor-20260909.json`](../evidence/b1-r-c/task-7-11-writer-convergence-floor-20260909.json).
 
-**Status:** `PENDING_REVIEW`
-**Writer recommendation:** `ACCEPT`, subject to independent process and final review
-**Task 7.11 acceptance:** not claimed; this document does not self-approve or check Task 7.11.
+**Status:** `COMPLETE_LOCAL`
+**Independent final-review verdict:** `ACCEPT` — Astra, for reviewed candidate `3501c53dc7159068781ed95e64fdcd0006e07157`; Critical 0, Important 0, Minor 0.
+**Task 7.11 acceptance:** locally complete. The review record persisted/was observed locally at `2026-09-09T14:54:03.2693903Z`; this is not an externally attested review time. Astra's candidate verdict does not review the later ledger-closeout commit, which requires its own Luna task review and final whole-branch Astra review.
 
 ## 1. Decision boundary and property split
 
@@ -29,7 +29,7 @@ does **not** establish Writer_Convergence.
 
 | Verdict | Range | What the evidence establishes | What it expressly does not establish |
 |---|---|---|---|
-| `PENDING_REVIEW` | R-B through before R-C activation | Duplicate-creating public paths remain retired, and signup provisioning remains present.  The R-B/R-B2 versionless seed is permitted transitional behavior. | Writer_Convergence / P11g-2.  A versionless transitional seed means this range cannot be promoted to the universal writer property. |
+| `ACCEPT` | R-B through before R-C activation | P11g-1 is established: duplicate-creating public paths remain retired, and signup provisioning remains present. The R-B/R-B2 versionless seed is permitted transitional behavior. | Writer_Convergence / P11g-2. A versionless transitional seed means this range cannot be promoted to the universal writer property. |
 
 The direct historical R-A G2 binding is deliberate: the sole serving revision
 `api-gateway--0000076`, at
@@ -42,7 +42,7 @@ sanitized historical evidence—not a fresh gateway verification.  R-B G0a also 
 
 | Verdict | Scope | Universal proof obligation | Boundary |
 |---|---|---|---|
-| `PENDING_REVIEW` | Activated exact R-C candidate at `portfolio-service--0000096`, and rollback artifacts at or above R-B3r only | Every one of the six applicable reachable runtime `asset_holdings` writer paths participates in `Portfolio_Version` and preserves portfolio identity. | All 15 accepted candidates are dispositioned first; the other nine are explicitly excluded or exempt, never silently dropped.  No validity is claimed below R-B3r. |
+| `ACCEPT` | Activated exact R-C candidate at `portfolio-service--0000096`, and rollback artifacts at or above R-B3r only | Writer_Convergence / P11g-2 is established: every one of the six applicable reachable runtime `asset_holdings` writer paths participates in `Portfolio_Version` and preserves portfolio identity. | All 15 accepted candidates are dispositioned first; the other nine are explicitly excluded or exempt, never silently dropped. No validity is claimed below R-B3r. |
 
 The universal claim is not a conjunction limited to G0a/G2a/G2b.  Fresh G0a, G2a and G2b form
 derived G6 only when joined to the accepted, exhaustive writer inventory.  The six applicable
@@ -151,9 +151,10 @@ historical evidence; its query semantics and results were not replayed here.  Ta
 authenticated SAME_STATE operation is not new write or race proof.  This proof makes no guarantee
 for future artifacts, drift, routes/callers, or any rollback below R-B3r.
 
-The evidence supports recommending `ACCEPT` to independent reviewers: P11g-1 is constrained to
-its transitional lineage, while P11g-2 is an exact-artifact, six-path universal claim after all
-15 accepted candidates have been dispositioned.  Nevertheless, **Task 7.11 remains
-`PENDING_REVIEW`** until independent process review and final review bind their verdicts.  No
-self-acceptance, Task 7.11 checkbox, production operation, or publication is authorized by this
-runbook.
+The independent final review accepts the exact reviewed candidate
+`3501c53dc7159068781ed95e64fdcd0006e07157`: P11g-1 is established only for its transitional
+lineage, while Writer_Convergence / P11g-2 is established as an exact-artifact, six-path universal
+claim after all 15 accepted candidates have been dispositioned. Task 7.11 is locally complete.
+Publication remains separate until explicitly authorized; no additional production operation or
+rollback occurred during Task 7.11. This later ledger-closeout commit is not covered by Astra's
+candidate verdict and requires its own Luna task review and final whole-branch Astra review.
