@@ -1,0 +1,173 @@
+{
+  "schemaVersion": 1,
+  "kind": "retained-post-deploy-assessment",
+  "task": "B1 R-C Task 7.10",
+  "recordedDate": "2026-09-09",
+  "evidenceProvenance": {
+    "source": "Retained evidence packet supplied by Sol",
+    "collector": "Sol",
+    "recorder": "Terra",
+    "liveQueriesPerformedByRecorder": false,
+    "claimBoundary": "This document consolidates already-collected evidence. It is not a new live-state attestation.",
+    "rawTask710QueryOrOutputTranscriptRetained": false,
+    "stableExternalHandoffArtifact": null,
+    "collectorReportedSanitizedEvidence": "Observability, Azure Activity Log, Kafka, database, and cleanup results are collector-reported sanitized retained evidence.",
+    "independentReplayOrRevalidation": "Terra and Astra did not independently replay or revalidate the retained query semantics or results."
+  },
+  "authorization": {
+    "ownerDecision": "PENDING",
+    "decisionRequested": "Task 7.10 STOP/GO",
+    "solRecommendation": "GO",
+    "independentReview": "ISSUES_FOUND; CORRECTION_AND_REREVIEW_PENDING",
+    "taskStatus": "INCOMPLETE",
+    "closed": ["production mutation", "rollback", "endpoint call or wake", "traffic or configuration change", "Task 7.11", "Writer_Convergence", "publication"]
+  },
+  "baseline": {
+    "prNumber": 242,
+    "mergeCommit": "118a19083e596b94a5801d588f7396eb963197f7",
+    "repositoryBaseline": "118a19083e596b94a5801d588f7396eb963197f7",
+    "workflowHeadSha": "5fd1dac6",
+    "workflowHeadShaRepresentation": "abbreviated retained value; full SHA was not revalidated by this packet",
+    "candidateSource": "8f1e8a36f8baa594efa8079190f87b42139fcf10",
+    "candidateJarSha256": "441d252939d7333dca134b9cc1a5f6a0632cc274a53f410671212c543a85cda4",
+    "candidateImage": "wealthprodacr.azurecr.io/portfolio-service@sha256:1cf372a39d17709f74aba427259548a531e3e1ba04dc64ec7750369bb8e82126",
+    "rollbackFloor": {
+      "revision": "portfolio-service--0000095",
+      "digest": "sha256:fa060bf054b9c108b8b59d9e9b27845d6b707f40040a7dcba16411db7f0e8552",
+      "used": false,
+      "historicalIdentity": "portfolio-service--0000095 is the historical R-B3r identity.",
+      "historicalRevisionObject": "Purged by Single mode according to the Task 7.9 record; it cannot be restored as an existing revision object.",
+      "authority": "Any rollback requires separate explicit owner authorization to deploy the exact safe-floor digest. That deployment will create an actually named new revision, which must be verified as serving the exact digest. Never roll below this floor."
+    }
+  },
+  "boundPriorEvidence": {
+    "hashConvention": "All four SHA-256 values are over checked-out file bytes in this Windows worktree, with CRLF where present.",
+    "task79Evidence": {"path": "docs/evidence/b1-r-c/task-7-9-serving-proof-20260909.json", "sha256": "0afbc70b1f15662ae312bcf9b11fa123996c6f8ce87e4e8cd64badd0bb9a3b9c"},
+    "task79Runbook": {"path": "docs/runbooks/B1_R_C_TASK_7_9_SERVING_PROOF.md", "sha256": "4a51525dc426612ecc15c0f96bd5d35d7c0666bb5320ccd5de615d6be8c64748"},
+    "taskLedger": {"path": ".kiro/specs/portfolio-composition-contract/tasks.md", "sha256": "6a90cc7411f7464e1b053d0b48ef5daa64fc991a739000508e237878a0268edf", "committedLfBlobSha256Companion": "4f6d7d41a098aa8d6e2fbe461c8f9bbac4a64f6227f24168895b7817abc9eaa5"},
+    "masterPlan": {"path": "docs/plans/ASSET_PICKER_E2E_MASTER_PLAN.md", "sha256": "291edf831c78aaafc8569cb4d3686db590e859c77658a6ad8280c8f199d5021d"}
+  },
+  "localContainerRiskApproval": {
+    "location": "active Codex session",
+    "solDisclosure": "Sol paraphrastically disclosed potential credential exfiltration and transient Docker environment retention, no secret printing, and container destruction.",
+    "solDisclosureIsExactQuote": false,
+    "ownerReply": "Approve.",
+    "externalArtifactOrSessionId": null
+  },
+  "deployment": {
+    "workflowRunId": 34328692256,
+    "conclusion": "success",
+    "deployedService": "portfolio-service",
+    "finalObservationUtc": "2026-09-09T10:05:13.6479484Z",
+    "portfolioService": {
+      "revision": "portfolio-service--0000096",
+      "revisionMode": "Single",
+      "soleActive": true,
+      "latest": true,
+      "latestReady": true,
+      "health": "Healthy/Provisioned",
+      "appState": "Succeeded/Running",
+      "image": "wealthprodacr.azurecr.io/portfolio-service@sha256:1cf372a39d17709f74aba427259548a531e3e1ba04dc64ec7750369bb8e82126",
+      "trafficPercent": 100,
+      "replicas": 0,
+      "replicaInterpretation": "Expected scale-to-zero; no wake or endpoint call was performed."
+    },
+    "unchangedPeers": [
+      {"app": "api-gateway", "revision": "api-gateway--0000078", "digest": "sha256:79a3f253aaab1f3db58146612e8f2d05a70df6180482ace16efa1baef58469f3"},
+      {"app": "market-data-service", "revision": "market-data-service--0000080", "digest": "sha256:ad61144b2e747a5dd1b1fc9f5b5a091916559adf7c30117beae3563123aa2256"},
+      {"app": "insight-service", "revision": "insight-service--0000080", "digest": "sha256:f7db159d5b07085e471d784d50456a1eb384abe178a8fbcf7f4b5b17e916a46b"}
+    ],
+    "refreshJob": {
+      "unchanged": true,
+      "imageDigest": "sha256:ad61144b2e747a5dd1b1fc9f5b5a091916559adf7c30117beae3563123aa2256",
+      "schedule": "0 8 * * *",
+      "retryLimit": 0,
+      "timeoutSeconds": 600,
+      "lastThreeRuns": "succeeded",
+      "latestRun": "market-data-refresh-job-29815680",
+      "latestRunWindowUtc": "2026-09-09T08:00:00Z..2026-09-09T08:01:12Z"
+    }
+  },
+  "observability": {
+    "evidenceClassification": "Collector-reported sanitized retained evidence; Terra and Astra did not independently replay or revalidate query semantics or results.",
+    "logWorkspace": "wealth-prod-la",
+    "logWorkspaceCustomerId": "83a9c3a2-659e-40ca-9784-1ff871b9d5ea",
+    "consoleWindowUtc": "2026-09-09T08:38:31.9730193Z..2026-09-09T10:05:16.7396363Z",
+    "coveredRevisions": ["api-gateway--0000078", "portfolio-service--0000096", "market-data-service--0000080", "insight-service--0000080"],
+    "emptyClassifiedMarkers": ["[INSIGHT-DLQ]", "processing error", "Redis failure", "retry exhausted", "catalog_load_failed", "post_migration_integrity_failed", "unsupported_asset_event_rejected", "would_reject_unsupported_event", "generic ERROR/Exception"],
+    "portfolioSystemWindowUtc": "2026-09-09T08:25:59Z..2026-09-09T10:05:16.7396363Z",
+    "portfolioSystemReasonsAbsent": ["Failed", "Unhealthy", "BackOff", "Crash", "Killing"]
+  },
+  "activityLog": {
+    "evidenceClassification": "Collector-reported sanitized retained evidence; Terra and Astra did not independently replay or revalidate query semantics or results.",
+    "windowUtc": "2026-09-09T08:40:00Z..2026-09-09T10:05:16.0447220Z",
+    "writesOrDeletes": "none",
+    "observedActions": ["Microsoft.App/containerApps/listSecrets/action started/succeeded around 10:00:14/15Z", "Microsoft.App/containerApps/listSecrets/action started/succeeded around 10:03:53/54Z"],
+    "attribution": "These actions arose from the expressly owner-approved Kafka and database read workflow; the prior read through 09:46 was empty."
+  },
+  "kafka": {
+    "evidenceClassification": "Collector-reported sanitized retained evidence, including cleanup; Terra and Astra did not independently replay or revalidate query semantics or results.",
+    "clientImage": "confluentinc/cp-kafka@sha256:acbbf674f2ed40e5d0a8ca51beb0f00692c866fc22b5ce06f8cadbdc54cd4436",
+    "ownerRiskAcceptance": "See localContainerRiskApproval; owner approval followed the paraphrastic disclosure in the active Codex session.",
+    "windowUtc": "2026-09-09T10:00:14.8617913Z..2026-09-09T10:03:53.6933444Z",
+    "observationsAtBothBounds": {
+      "portfolioGroup": "partition 0 current/log-end 26760/26760, lag 0, no active members",
+      "insightGroup": "partition 0 current/log-end 26760/26760, lag 0, no active members",
+      "dlt": "market-prices.DLT partition 0 log-end 80",
+      "dltNonGrowth": true
+    },
+    "metadataOnly": true,
+    "excluded": ["payload consumption", "producer", "group join", "offset commit", "offset reset", "offset delete"],
+    "cleanup": "Docker client exited and was removed; later docker ps by image returned no rows."
+  },
+  "database": {
+    "evidenceClassification": "Collector-reported sanitized retained evidence, including cleanup; Terra and Astra did not independently replay or revalidate query semantics or results.",
+    "clientImage": "postgres@sha256:a02db8cac496f15b094798a38254f14d6e00741f709360e5e00bb6668ea31636",
+    "ownerRiskAcceptance": "See localContainerRiskApproval; owner approval followed the paraphrastic disclosure in the active Codex session.",
+    "transaction": "REPEATABLE READ READ ONLY",
+    "startedUtc": "2026-09-09T10:03:04.6950233Z",
+    "observedUtc": "2026-09-09 10:03:07.497187Z",
+    "result": {
+      "users": 12,
+      "portfolios": 12,
+      "holdings": 318,
+      "violatingUsers": 0,
+      "v17ThroughV21AllSuccess": true,
+      "v21SuccessCount": 1,
+      "v21Checksum": 385711525,
+      "repairFunctionsRemaining": 0,
+      "constraintsValidated": true,
+      "quantityDefault": null,
+      "badHoldings": 0,
+      "nullPortfolioState": 0,
+      "legacyHoldingRows": 0
+    },
+    "transactionOutput": ["BEGIN", "COMMIT"],
+    "cleanup": "Container exited and was removed."
+  },
+  "goPredicates": [
+    {"predicate": "Task 7.9 exact-digest serving proof", "status": "GREEN", "basis": "Retained Task 7.9 evidence is complete; workflow run 34328692256 succeeded."},
+    {"predicate": "Exact candidate image serves as sole latest-ready revision", "status": "GREEN", "basis": "portfolio-service--0000096, Single mode, Healthy/Provisioned, 100% traffic at the retained final observation."},
+    {"predicate": "Peer and refresh-job non-interference", "status": "GREEN", "basis": "Retained final observation reports unchanged peer digests and refresh schedule/retry/timeout."},
+    {"predicate": "Bounded application and system failure evidence", "status": "GREEN", "basis": "Classified marker query was empty and no listed portfolio system reasons appeared in the retained windows."},
+    {"predicate": "Kafka convergence and DLT non-growth", "status": "GREEN", "basis": "Both groups were 26760/26760 lag 0 at both bounds; DLT remained 80."},
+    {"predicate": "Read-only database integrity", "status": "GREEN", "basis": "Retained REPEATABLE READ READ ONLY results show zero violations and expected migration/integrity values."},
+    {"predicate": "No unapproved control-plane mutation in final window", "status": "GREEN", "basis": "No writes/deletes; only attributed listSecrets actions are retained."}
+  ],
+  "decisionEffects": {
+    "GO": "Record the owner's GO, then locally close/update the ledger. GO authorizes no production mutation.",
+    "ABORT": "A separate explicit rollback authorization is required before deploying the exact safe-floor digest sha256:fa060bf054b9c108b8b59d9e9b27845d6b707f40040a7dcba16411db7f0e8552. The historical portfolio-service--0000095 object was purged by Single mode, so this creates an actually named new revision that must be verified as serving the exact digest. Never roll below the floor.",
+    "task79Contingency": "Unused and grants no continuing authority.",
+    "task711": "Separate and unchanged."
+  },
+  "toolingLimitations": [
+    "A multiline KQL semantic failure was caused by PowerShell native-command marshalling; the final one-line query worked.",
+    "Aliases first/last caused a parser error and were changed to firstSeen/lastSeen.",
+    "System table lacked Level_s; the final query used verified Reason_s.",
+    "The first Kafka secret resolution omitted --show-values and stopped before Docker.",
+    "The first secret-container request was blocked before secret retrieval until explicit owner risk approval.",
+    "The first database orchestration string had a JavaScript delimiter syntax error and never launched.",
+    "Three controller patch attempts failed before a usable patch: template-literal/backtick collision, apply_patch UTF-8 PATCH argument error, and malformed End Patch. The controller stopped rather than bypass the patch-only rule, and the worktree remained clean."
+  ],
+  "notClaimed": ["a fresh live query by Terra", "owner Task 7.10 decision", "rollback authorization or execution", "endpoint call or wake", "Task 7.11 completion", "Writer_Convergence", "publication"]
+}
