@@ -911,15 +911,68 @@ possible; this design picks one explicitly:
 - **Bounded timeouts, per leg and overall — not "the self-call" singular (pass 8 correction: an
   earlier draft assigned one timeout to one self-call, but D5 now describes two — the eligibility
   `GET` and the reset `POST` — leaving the second's latency contract, and the orchestration's total
-  budget, unstated).** The eligibility self-call SHALL have a **2-second** timeout and the reset
-  self-call SHALL have a separate **2-second** timeout. THE login handler SHALL additionally enforce
-  a **4-second overall orchestration deadline** across both legs combined, beginning before
+  budget, unstated).** The eligibility self-call SHALL have a **45-second** timeout and the reset
+  self-call SHALL have a separate **10-second** timeout. THE login handler SHALL additionally
+  enforce a **60-second overall orchestration deadline** across both legs combined, beginning before
   eligibility-target construction — bounding the
   worst case where the eligibility read consumes most of its own timeout budget before the reset
   call even starts, so the fail-open rule below has a hard ceiling to trigger against rather than
   relying on per-leg timeouts alone to compose into a bounded total. On any timeout — per-leg or
   overall — treat it exactly like any other eligibility-read or reset-call failure below: skip,
   proceed, no user-visible error.
+  **These three values are sized against scale-to-zero, not warm latency (2026-09-09 owner
+  decision, superseding the 2026-09-06 values of 2s/2s/4s).** Every service deploys at
+  `min_replicas = 0`, and this eligibility read is by construction *the first request after idle*
+  against a scaled-to-zero `portfolio-service` — the exact condition for which an approximately
+  35-second cold start is recorded (`docs/changes/CHANGES_NEW_USER_SIGNUP_PROFILE_2026-08-12.md`;
+  20–35 seconds in `docs/analysis/azure-container-migration-analysis.md`). The superseded budget
+  was an order of magnitude below that, so it would have skipped the reset in precisely the case
+  the trigger exists for. **That ~35-second figure is a single recorded field observation, not a
+  measured distribution — there is no p95 or p99 for this path, so 45 seconds is chosen against the
+  only datum available rather than against a characterised bound, and a cold start slower than the
+  recorded one will still fail open.** The revised values are bounded by a verified ceiling:
+  **45 seconds** allows headroom over the recorded cold start for Flyway startup migrations and Neon
+  compute wake while firing *before* this gateway's own **55-second** downstream `response-timeout`
+  (`application-prod.yml`, not overridden in the `azure` profile), so a Wave 8 timeout stays
+  attributable to Wave 8 rather than to the route; **10 seconds** targets a `portfolio-service` the
+  eligibility leg has already warmed; and **60 seconds** exceeds the `45 + 10 = 55` sum, so the
+  overall deadline is a true backstop rather than a silent truncation of either leg's stated budget.
+  **That backstop is only 5 seconds wide, which absorbs orchestration overhead — it is not slack for
+  a slow leg**: if both legs run to their full budgets the overall deadline fires almost immediately
+  afterwards, which is the intended behaviour rather than a margin to rely on. The accepted cost is
+  login duration, not money — the eligibility read moves the `portfolio-service` wake a few seconds
+  earlier than the UI's own post-login portfolio read would have caused it rather than adding one,
+  so the values are effectively cost-neutral against the project's scale-to-zero budget. **That
+  neutrality is conditional on the viewer going on to read the portfolio**, the ordinary path after
+  a demo login; a login abandoned before any portfolio read does add a wake that would not otherwise
+  have occurred. The timeout *values* remain cost-neutral either way, since they change only how
+  long an already-open gateway request is held, not whether the wake happens. A first demo login
+  after idle may take roughly 60–95 seconds in total, since the `api-gateway` cold start is paid
+  before this handler runs and is therefore outside these timers.
+- **What the timeouts do and do not guarantee.** Fail-open is unchanged: any timeout skips the reset
+  and lets login proceed with no user-visible error, and the manual control remains the fallback.
+  **"The reset completes before the UI's first portfolio read" is claimed only for clean
+  orchestration success.** On a fail-open path the login response returns with the demo portfolio
+  still un-reset, so the UI's first read can legitimately observe un-reset state; and because
+  cancelling the gateway's publisher is not a downstream transaction rollback, a reset already
+  dispatched may commit *after* the deadline fired and change the portfolio under the viewer's
+  first read. Both are accepted consequences of a best-effort maintenance operation, not defects,
+  and evidence classification therefore imposes no ordering between `demo_reset_succeeded` and
+  `demo_reset_self_call_skipped`.
+- **Per-leg durations SHALL remain queryable for the outcomes that carry them**, so these initial
+  values can be retuned from production evidence without a contract change. **Timed-out** legs carry
+  monotonic `elapsedMillis`, `timeoutScope`, and (for overall timeouts) `overallTimeoutPhase` on the
+  skip event; `leg`, `reason`, and the inbound trace id are present on every skip outcome.
+  **Non-timeout failures — connection failure, non-2xx status, response-shape failure — carry no
+  `elapsedMillis` by design**: they are classified by `reason` rather than timed, so "elapsed time
+  for every failure" is not a claim this design makes. **Successful** legs are covered by the
+  injected observation-enabled `WebClient.Builder`'s per-leg `http.client.requests` observations,
+  which are started and stopped and therefore record a complete leg duration, separable by HTTP
+  `method` (eligibility is the `GET`, reset the `POST`). They are **not** separable by `uri`: the
+  client dispatches absolute `URI` objects rather than templates, so Spring attributes `uri=none` on
+  both legs. The recorded low-cardinality tag set is exactly `client.name`, `exception`, `method`,
+  `outcome`, `status`, `uri` — no credential, raw target, or identifier. No second success-event
+  vocabulary is added, since that data is already queryable from the client spans.
 - **Non-blocking execution, mandatory — not an implementation detail (pass 8 addition).**
   api-gateway's `/api/auth/login` handler is reactive WebFlux (`AuthController.login()` returns
   `Mono<ResponseEntity<Object>>`, verified directly against `AuthController.java:40`). Both

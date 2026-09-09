@@ -21,9 +21,9 @@ class TestWave8GatewaySharedContract(unittest.TestCase):
         )
         expected = {
             "idle-threshold": ("APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD", "30m"),
-            "eligibility-timeout": ("APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT", "2s"),
-            "reset-timeout": ("APP_DEMO_LOGIN_RESET_RESET_TIMEOUT", "2s"),
-            "overall-timeout": ("APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT", "4s"),
+            "eligibility-timeout": ("APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT", "45s"),
+            "reset-timeout": ("APP_DEMO_LOGIN_RESET_RESET_TIMEOUT", "10s"),
+            "overall-timeout": ("APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT", "60s"),
         }
         self.assertEqual(1, self.application.count("  demo-login-reset:\n"))
         for property_name, (environment_name, value) in expected.items():

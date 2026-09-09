@@ -5,6 +5,7 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import com.wealth.gateway.auth.LoginResponse;
 import io.micrometer.context.ContextRegistry;
+import io.micrometer.observation.ObservationRegistry;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -332,6 +333,7 @@ class DemoLoginResetOrchestratorTest {
         String userId = DemoLoginResetClient.DEMO_USER_ID;
         Duration overall = Duration.ofSeconds(4);
         Duration perLeg = Duration.ofSeconds(2);
+        ObservationRegistry observationRegistry = ObservationRegistry.NOOP;
         Fixture() {
             when(targets.eligibilityTarget()).thenReturn(Mono.just(GET));
             when(targets.resetTarget()).thenReturn(Mono.just(POST));
@@ -350,7 +352,7 @@ class DemoLoginResetOrchestratorTest {
         }
         DemoLoginResetOrchestrator orchestrator() {
             var properties = new DemoLoginResetProperties(Duration.ofMinutes(30), perLeg, perLeg, overall);
-            WebClient.Builder builder = WebClient.builder().exchangeFunction(r -> {
+            WebClient.Builder builder = WebClient.builder().observationRegistry(observationRegistry).exchangeFunction(r -> {
                 requests.add(r);
                 return r.method().name().equals("GET") ? eligibility.apply(r) : reset.apply(r);
             });

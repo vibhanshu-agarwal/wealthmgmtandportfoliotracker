@@ -128,9 +128,9 @@ class StatefulCommandRunner:
         self.threshold = "30m"
         self.decision_values = {
             "APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD": "30m",
-            "APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT": "2s",
-            "APP_DEMO_LOGIN_RESET_RESET_TIMEOUT": "2s",
-            "APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT": "4s",
+            "APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT": "45s",
+            "APP_DEMO_LOGIN_RESET_RESET_TIMEOUT": "10s",
+            "APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT": "60s",
         }
         self.restore_readback: str | None = None
         self.fail_first_update_after_apply = False
@@ -1416,10 +1416,34 @@ class ReviewFixContractTest(unittest.TestCase):
         self.assertEqual(result.exit_code, 0)
         self.assertTrue(commands.timeouts)
         self.assertTrue(http.timeouts)
+        # Every call stays bounded. Control-plane calls honour the short operation cap; the demo
+        # login alone gets the longer login budget, because api-gateway's cold start is paid before
+        # the login handler runs and the approved orchestration deadline is 60s on top of that.
         self.assertTrue(all(
-            timeout is not None and 0 < timeout <= cfg.operation_timeout_seconds
+            timeout is not None and 0 < timeout
             for timeout in commands.timeouts + http.timeouts
         ))
+        self.assertTrue(all(
+            timeout <= cfg.operation_timeout_seconds for timeout in commands.timeouts
+        ))
+        login_budget = [t for t in http.timeouts if t == cfg.login_timeout_seconds]
+        self.assertEqual(len(login_budget), 1, "exactly one call may use the login budget")
+        self.assertTrue(all(
+            timeout <= cfg.operation_timeout_seconds
+            for timeout in http.timeouts if timeout != cfg.login_timeout_seconds
+        ))
+
+    def test_login_budget_must_exceed_the_approved_overall_orchestration_deadline(self) -> None:
+        cfg = config()
+        cfg.login_timeout_seconds = 60.0  # equal to the approved 60s overall deadline, not greater
+        result, _commands, _http, _clock = run_case(event_mode="success", cfg=cfg)
+        self.assertNotEqual(result.exit_code, 0)
+
+    def test_login_budget_must_be_positive(self) -> None:
+        cfg = config()
+        cfg.login_timeout_seconds = 0.0
+        result, _commands, _http, _clock = run_case(event_mode="success", cfg=cfg)
+        self.assertNotEqual(result.exit_code, 0)
 
     def test_serving_revision_config_is_revalidated_after_aging_and_before_go(self) -> None:
         result, commands, _http, _clock = run_case(event_mode="success")
@@ -1850,7 +1874,7 @@ class ReviewFixContractTest(unittest.TestCase):
             trace_factory=lambda: "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01",
         )
         self.assertEqual(result.exit_code, 0)
-        self.assertEqual(result.evidence["decisions"]["serving"]["overallTimeout"], "4s")
+        self.assertEqual(result.evidence["decisions"]["serving"]["overallTimeout"], "60s")
 
     def test_final_serving_revision_drift_after_cleanup_rejects_go(self) -> None:
         commands = StatefulCommandRunner(event_mode="success")
