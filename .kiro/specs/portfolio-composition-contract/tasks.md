@@ -8,9 +8,11 @@ The pre-merge Task 7.7 evidence baseline is `main@108addca6d079b08d9d0822d87bfe4
 merged that packet at `5b438aed497dec7899302f4ba176de6042c6b546`. The exact candidate digest now
 serves as `portfolio-service--0000096` at 100% traffic and the one authenticated no-op PUT is
 `SAME_STATE`; see the [Task 7.9 serving proof](../../../docs/runbooks/B1_R_C_TASK_7_9_SERVING_PROOF.md).
-Task 7.10 owner GO is recorded locally; Task 7.11, Writer_Convergence and publication remain separate.
-R-C is portfolio-only but not dark because the existing gateway wildcard makes the public composition
-controller reachable. No Writer_Convergence claim exists.
+Tasks 7.1–7.11 are locally complete. P11g-1 is established for the transitional range;
+Writer_Convergence / P11g-2 is established for the activated exact R-C artifact and rollback
+artifacts at or above R-B3r only. Publication remains separate until explicitly authorized, and no
+additional production operation or rollback occurred during Task 7.11. R-C is portfolio-only but
+not dark because the existing gateway wildcard makes the public composition controller reachable.
 
 **Historical R-C status — reconciled 2026-09-08 at `main@7e752b41`:**
 [PR #222](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/222)
@@ -824,7 +826,7 @@ in Waves 5–7.
 
 ### 4a — Orchestrator and preparers
 
-**Current status:** tasks **4.1–4.21 (Wave 4a–4c) are merged on `main@2673f40`** (PR #153). Candidate packaging and exact-digest smoke are complete through Task 7.6; Task 7.7 is independently accepted complete, Task 7.8 owner GO is recorded, Task 7.9 serving proof is complete at `main@5fd1dac6`, and Task 7.10 owner GO is recorded locally. R-C is portfolio-only but not dark: the existing API-gateway `Path=/api/portfolio/**` wildcard makes the public controller reachable when the portfolio image serves. No rollback, Task 7.11, or Writer_Convergence action is authorized by this status.
+**Current status:** tasks **4.1–4.21 (Wave 4a–4c) are merged on `main@2673f40`** (PR #153). Tasks 7.1–7.11 are locally complete: P11g-1 is established for the transitional range, while Writer_Convergence / P11g-2 is established for the activated exact R-C artifact and rollback artifacts at or above R-B3r only. R-C is portfolio-only but not dark: the existing API-gateway `Path=/api/portfolio/**` wildcard makes the public controller reachable when the portfolio image serves. Publication remains separate until explicitly authorized; no additional production operation or rollback occurred during Task 7.11.
 
 - [x] **4.1 `HoldingReplacementService`** — the single orchestrator, in D2's exact order: version
   precondition → semantic `400` (quantity, then duplicates) → catalog/lifecycle `422` aggregated →
@@ -1354,11 +1356,15 @@ frozen R-B3 image; Tasks 7.7 onward, deployment and exposure retain their own ga
   0 Minor findings. The local close-out is recorded in
   [`B1_R_C_TASK_7_10_POST_DEPLOY_STOP_GO.md`](../../../docs/runbooks/B1_R_C_TASK_7_10_POST_DEPLOY_STOP_GO.md)
   and [`task-7-10-post-deploy-assessment-20260909.json`](../../../docs/evidence/b1-r-c/task-7-10-post-deploy-assessment-20260909.json).
-  No rollback was used or authorized. Task 7.11, publication and Writer_Convergence remain separate;
-  post-decision close-out review is pending.
+  No rollback was used or authorized. Task 7.11 is locally complete: P11g-1 is established for the
+  transitional range, while Writer_Convergence / P11g-2 is established only for the activated exact
+  R-C artifact and rollback artifacts at or above R-B3r. Publication remains separate until
+  explicitly authorized; post-decision close-out review is pending.
   _Requirements: 9.1, 9.7, 8.4_
-- [ ] **7.11 P11g-1 / P11g-2 evidence.** Transitional floor before activation; Writer_Convergence
-  floor after.
+- [x] **7.11 P11g-1 / P11g-2 evidence.** P11g-1 is established for the transitional range;
+  Writer_Convergence / P11g-2 is established for the activated exact R-C artifact and rollback
+  artifacts at or above R-B3r only. Publication remains separate until explicitly authorized; no
+  additional production operation or rollback occurred during Task 7.11.
   _Requirements: 8.1, 8.4_
 
 ## Property classification
