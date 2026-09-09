@@ -1,0 +1,134 @@
+{
+  "schemaVersion": "b1-task-7-11-writer-convergence-floor/1",
+  "generatedAtUtc": "2026-09-09T13:27:52Z",
+  "scope": {
+    "task": "B1 R-C Task 7.11",
+    "kind": "local documentation-only evidence consolidation",
+    "included": [
+      "P11g-1 transitional rollback-floor evidence",
+      "P11g-2 activated exact-R-C and raised-floor writer-convergence evidence"
+    ],
+    "excluded": [
+      "application, SQL, workflow, infrastructure, or runtime-configuration change",
+      "cloud or secret access, live query, endpoint operation, deployment, rollback, publication, push, pull request, merge, or broader backlog closure"
+    ],
+    "selfHash": "not claimed"
+  },
+  "sourceBinding": {
+    "taskBranch": "codex/b1-rc-task-7-11-evidence",
+    "baselineHead": "62dfe938652372a35f0b87f940a892fba229fd37",
+    "candidateSourceCommit": "8f1e8a36f8baa594efa8079190f87b42139fcf10",
+    "candidateJarSha256": "441d252939d7333dca134b9cc1a5f6a0632cc274a53f410671212c543a85cda4",
+    "candidateManifest": "wealthprodacr.azurecr.io/portfolio-service@sha256:1cf372a39d17709f74aba427259548a531e3e1ba04dc64ec7750369bb8e82126",
+    "servingRevision": "portfolio-service--0000096",
+    "applicationDriftCheck": {
+      "fromCandidateToBaseline": "no portfolio-service or api-gateway application-source changes",
+      "toolingOnlyDrift": ["scripts/package-lock.json", "scripts/package.json"],
+      "effect": "any later application change under portfolio-service or api-gateway requires a fresh exhaustive writer inventory"
+    }
+  },
+  "inputEvidence": [
+    {"path": ".kiro/specs/portfolio-composition-contract/design.md", "commit": "17f3ef61353fa41c9a6acdce56fc77847edd3482", "blob": "8156324f05fbcee5aadb464de0ca06c784290b94", "canonicalBlobSha256": "78075b196049bba0973d99ee045a159bf8812af2afb852cc986c7d71c166adaa"},
+    {"path": ".kiro/specs/portfolio-composition-contract/requirements.md", "commit": "e94ebe2281a3307c8792109c245ab9c86c5fe74c", "blob": "cbba0b38741bf2358f6605ca21f5fa8912f2e2b1", "canonicalBlobSha256": "a1ac5c0576c7bdb1016d3438d7dea8e4e5bf541fe34447bbc1aba6087c8fd6c6"},
+    {"path": ".kiro/specs/portfolio-composition-contract/tasks.md", "commit": "62dfe938652372a35f0b87f940a892fba229fd37", "blob": "21959f31c12c9b93ca2d768c46ca6eb366fb115c", "canonicalBlobSha256": "6e78a627f84ec987c4d2793fd309f6d9b26cd3453c19c19795f89e60fa553972"},
+    {"path": "docs/evidence/b1-r-c/candidate-evidence-checkpoint-20260908.json", "commit": "805f5195c4afbdf93094226d5c8761e537e63d62", "blob": "4fd760c95fa1f4c9b9213365fbc846adbbb02750", "canonicalBlobSha256": "d64dc24d7d4c3685297e6661f7481621781e7982b6d73f0336ba427833ed85b0", "releaseBinding": "candidate source 8f1e8a36f8baa594efa8079190f87b42139fcf10; Task 7.6 PASS; findings=0; unverifiedCoverage=0"},
+    {"path": "docs/evidence/b1-r-c/task-7-7-completion-20260909.json", "commit": "d2fe7fc9c4e9f6bdce07d930312b4fff174d2ab9", "blob": "3bd7208a06e81e4e53523f65982e8d805e6a470d", "canonicalBlobSha256": "0962c1d36f768efe6aeab1d3bfb9c7ad84a85a8e2489ff5e0de457ec4acc45be", "releaseBinding": "R-B3r source 97b83e52bcbfface4377cefd69ebb111270cb21e; portfolio-service--0000095; digest sha256:fa060bf054b9c108b8b59d9e9b27845d6b707f40040a7dcba16411db7f0e8552; G6 PASS; Astra ACCEPT 0/0/0"},
+    {"path": "docs/evidence/b1-r-c/task-7-9-serving-proof-20260909.json", "commit": "11ef5b7d8306f8edc322b6248319e9c8d0b2e87e", "blob": "45db1071da0f966aa9d2416a9565dd53c29afbbe", "canonicalBlobSha256": "8b9b67420ca996ae92cca39cfa4aae3de17b628116453dfdd4de546ca436ccf3", "releaseBinding": "exact candidate manifest at portfolio-service--0000096 and 100 percent latest-ready traffic"},
+    {"path": "docs/evidence/b1-r-c/task-7-10-post-deploy-assessment-20260909.json", "commit": "62dfe938652372a35f0b87f940a892fba229fd37", "blob": "dd9ec0eca9f140071f8ac0dc93ccf85383a43a72", "canonicalBlobSha256": "60a098bcbe77af0aab40b83cf41803c30e21bf9d5bb971f1a88f8cabd202d0ca", "releaseBinding": "owner GO; no rollback; retained historical collector-reported telemetry"},
+    {"path": "docs/runbooks/B1_R_B_G3_SERVING_PROOF.md", "commit": "6c083d6b4cf16f09003508870305c370d20d21b1", "blob": "18841571230a7b24cf26baff54ab49ecfaf005d1", "canonicalBlobSha256": "68a8e2a9997e0b7caf9c78def70af7695e133199294e57f2a56e0dcb3f0cd57b"},
+    {"path": "docs/runbooks/B1_R_A_G2_SERVING_PROOF.md", "commit": "7eec475a1029e686c0d27fee5effc5c9908b0ae5", "blob": "795cf04636cadcb064af6e7674c97a7ebf308679", "canonicalBlobSha256": "89000fe418c1b30aab9c336a0678af89db2ff82d75fbd6b20c2b8898517d7dbe", "releaseBinding": "direct historical R-A G2 proof: api-gateway--0000076, sole serving revision, sha256:2da5b303fd15772792167f2b26dc62250b2d9858270db315eab1d6d1a1554aec, signup 201, exactly one user and one portfolio"},
+    {"path": "docs/runbooks/B1_R_B2_G2A_SERVING_PROOF.md", "commit": "1e367f73c0a8b1ef34b30f9e7ae1efa78de26820", "blob": "e9a78defcc4f15df8ea55efb10baf9f4abad101f", "canonicalBlobSha256": "7fc367a0c7963935d858a26630e5477cb95d94db1d88f1182ddc121481497338"},
+    {"path": "docs/runbooks/B1_TASK_6_6_G2B_SERVING_PROOF.md", "commit": "7dfa9ee9db9554ec6585d9469aa1b21c863d91a4", "blob": "2e9690c2de0485c28dea3719bb15e079a172bdd6", "canonicalBlobSha256": "6385ec4092474e0eae7f7e2c9effa3e238eb4694329adbe61aaede75464ae58f"},
+    {"path": "docs/runbooks/B1_R_C_TASK_7_7_G4_AND_WRITER_MAP.md", "commit": "d2fe7fc9c4e9f6bdce07d930312b4fff174d2ab9", "blob": "2352e42cd026afebb6146384945d0035a684e3c3", "canonicalBlobSha256": "7b38fc6a07fce4179dfdc888c108abae06f68f134b4d2ccbfbe60dafc647cfad"},
+    {"path": "docs/runbooks/B1_R_C_TASK_7_7_SERVING_EVIDENCE.md", "commit": "d2fe7fc9c4e9f6bdce07d930312b4fff174d2ab9", "blob": "11fceb91cd7a788bddcde4716bc0493c22fa14ee", "canonicalBlobSha256": "99fe1b8b33e86560432c45bd807945e0aadea943387b8b2cf2413251c6b723a0"},
+    {"path": "docs/runbooks/B1_R_C_TASK_7_9_SERVING_PROOF.md", "commit": "11ef5b7d8306f8edc322b6248319e9c8d0b2e87e", "blob": "01334f7a7134115429370df7b59c9c1a8c3c67f6", "canonicalBlobSha256": "27ba26a5b31862b7f355b23af16c05a441ff930caf08e51c7ea953d119dcd57b"},
+    {"path": "docs/runbooks/B1_R_C_TASK_7_10_POST_DEPLOY_STOP_GO.md", "commit": "62dfe938652372a35f0b87f940a892fba229fd37", "blob": "e01ccd373272a9574959b652663d6e9c7a083bf2", "canonicalBlobSha256": "52f9e507c063a234993530696f82cad03bdb7a46efec495b1604278ceab6edac"}
+  ],
+  "p11g1TransitionalFloor": {
+    "property": "P11g-1",
+    "eligibleArtifactRange": "R-B through pre-R-C activation, including versionless R-B/R-B2 transitional seed behavior",
+    "writerConvergenceClaimed": false,
+    "predicates": [
+      {"name": "duplicate-creating public paths remain retired", "evidence": "R-0 retirement and R-B G0a: POST /api/portfolio=405 Allow GET; versionless holdings POST=404"},
+      {"name": "signup provisioning remains present", "evidence": "direct historical R-A G2 proof records sole api-gateway--0000076, digest sha256:2da5b303fd15772792167f2b26dc62250b2d9858270db315eab1d6d1a1554aec, signup 201, exactly one user and one portfolio"}
+    ],
+    "transitionalSeed": "R-B/R-B2 versionless seed is expressly permitted only as P11g-1 transitional behavior; it prevents a P11g-2 Writer_Convergence claim.",
+    "historicalEvidenceOnly": true
+  },
+  "p11g2WriterConvergenceFloor": {
+    "property": "P11g-2",
+    "quantifier": "universal over all 14 accepted writer-map rows, not a conjunction of three HTTP paths",
+    "claimScope": "activated exact R-C candidate and rollback artifacts at or above R-B3r only",
+    "requirements": ["8.1", "8.4", "8.10 Flyway exemption"],
+    "requiredOutcome": "every reachable holdings writer participates in Portfolio_Version and preserves portfolio identity; Flyway is exempt only outside application context while its Quantity_Domain and New_Write_Invariant obligations remain",
+    "candidateBinding": {
+      "sourceCommit": "8f1e8a36f8baa594efa8079190f87b42139fcf10",
+      "jarSha256": "441d252939d7333dca134b9cc1a5f6a0632cc274a53f410671212c543a85cda4",
+      "manifest": "wealthprodacr.azurecr.io/portfolio-service@sha256:1cf372a39d17709f74aba427259548a531e3e1ba04dc64ec7750369bb8e82126",
+      "servingRevision": "portfolio-service--0000096",
+      "servingEvidence": "Task 7.9 records 100 percent latest-ready traffic and one authenticated SAME_STATE composition operation; it does not supply new write/race proof."
+    },
+    "proofDependencies": ["Task 7.6 PASS findings=0 unverifiedCoverage=0", "Task 7.7 accepted exhaustive map and fresh G0a/G2a/G2b-derived G6 PASS", "no application-source drift from candidate cut", "raised R-B3r rollback floor"]
+  },
+  "writerInventoryDisposition": [
+    {"subject": "HoldingReplacementService", "classification": "effective runtime writer converging on HoldingReplacementService and Portfolio_Version", "disposition": "sole effective portfolio-service asset_holdings DML mechanism; parent version CAS then same-transaction child replacement; portfolio identity preserved"},
+    {"subject": "CompositionWriteService", "classification": "delegating service/controller/DTO with no independent DML", "disposition": "candidate-only; delegates completely to HoldingReplacementService; absent from R-B3r"},
+    {"subject": "CompositionHoldingsRequest", "classification": "delegating service/controller/DTO with no independent DML", "disposition": "validation-only DTO; no DML; candidate null-element validation change does not add a writer mechanism"},
+    {"subject": "PortfolioSeedService", "classification": "delegating service/controller/DTO with no independent DML", "disposition": "serving delegate passes caller expectedVersion unchanged to HoldingReplacementService"},
+    {"subject": "DemoResetService", "classification": "delegating service/controller/DTO with no independent DML", "disposition": "serving delegate passes caller expectedVersion to HoldingReplacementService with fixed demo identity and catalog-derived desired state"},
+    {"subject": "DemoPortfolioInitializer", "classification": "delegating service/controller/DTO with no independent DML", "disposition": "freezes observed version then calls PortfolioSeedService; diagnostics probe rolls back and never seeds"},
+    {"subject": "CompositionController", "classification": "delegating service/controller/DTO with no independent DML", "disposition": "candidate-only public intent/expectedVersion caller; absent from R-B3r and no serving participation"},
+    {"subject": "Portfolio.replaceAllHoldings", "classification": "unreachable/dead method with call-site result", "disposition": "zero call sites; no Portfolio_Version participation while unreachable; inventory must reopen if a caller appears"},
+    {"subject": "V3/V7/V15/V18/V19/V20 statements", "classification": "historical Flyway writer exempt under Requirement 8.10", "disposition": "one-time schema/data transitions, not a runtime CAS path; Quantity_Domain and New_Write_Invariant still apply"},
+    {"subject": "V17 repair functions", "classification": "historical Flyway writer exempt under Requirement 8.10", "disposition": "historical persistent helpers, retired by V21; current database evidence records global absence"},
+    {"subject": "V21", "classification": "historical Flyway writer exempt under Requirement 8.10", "disposition": "forward-only retirement migration; drops four functions and performs no asset_holdings DML"},
+    {"subject": "ON DELETE CASCADE from portfolios to asset_holdings", "classification": "database cascade with no-current-delete-caller limitation", "disposition": "no Portfolio_Version gate of its own; conditionally safe only because accepted current production source has no reachable portfolio-delete caller"},
+    {"subject": "diagnostics DELETE FROM portfolios WHERE FALSE", "classification": "non-writer diagnostic/query path", "disposition": "matches zero rows and enclosing probe rolls back"},
+    {"subject": "API-gateway UserCredentialRepository portfolio insert", "classification": "outside asset_holdings quantifier; parent-only provisioning writer", "disposition": "creates version-0 parent during signup and never writes asset_holdings; governed separately by G2/G3 and not silently omitted"}
+  ],
+  "rollbackFloor": {
+    "floorArtifact": "R-B3r",
+    "sourceCommit": "97b83e52bcbfface4377cefd69ebb111270cb21e",
+    "immutableDigest": "sha256:fa060bf054b9c108b8b59d9e9b27845d6b707f40040a7dcba16411db7f0e8552",
+    "historicalRevision": "portfolio-service--0000095",
+    "historicalRevisionStatus": "purged by Single revision mode; its name cannot itself be targeted",
+    "rollbackIdentity": "the immutable digest remains the rollback identity",
+    "futureRollbackRequirement": "new explicit owner authorization plus proof that a newly named revision serves exactly this digest",
+    "rollbackBelowFloorPermitted": false,
+    "postActivationScope": "P11g-2 has no validity claim for a rollback below R-B3r"
+  },
+  "invalidationConditions": [
+    "application-source change under portfolio-service or api-gateway from the candidate cut",
+    "reachable asset_holdings writer added, changed, or made reachable",
+    "writer route, controller, call-site, or Portfolio_Version/identity-preservation disposition drift",
+    "seed, reset, initializer, or expectedVersion contract drift",
+    "gateway signup-provisioning behavior or its artifact identity drift",
+    "candidate source, JAR, manifest digest, serving revision, traffic, or exact artifact identity drift without fresh proof",
+    "portfolio-delete caller added, changed, or made reachable, reopening the ON DELETE CASCADE risk",
+    "rollback below R-B3r proposed or rollback-floor policy/identity changed",
+    "a referenced commit/blob no longer resolves to the recorded canonical bytes"
+  ],
+  "limitations": [
+    "No fresh live query was run for Task 7.11; all serving and telemetry facts are retained historical evidence.",
+    "Task 7.10 telemetry is collector-reported historical evidence; Task 7.11 did not replay or revalidate its query semantics/results.",
+    "Task 7.9's one authenticated SAME_STATE PUT does not claim new write or race proof.",
+    "Requirement 8.10 exempts Flyway from runtime application-writer participation, not its data-domain invariants.",
+    "ON DELETE CASCADE has no Portfolio_Version gate; the conclusion depends on no current reachable portfolio-delete caller.",
+    "No guarantee is made for future artifacts, source drift, new routes/callers, or any rollback below R-B3r.",
+    "This record authorizes no deployment, rollback, publication, or broader backlog closure."
+  ],
+  "review": {
+    "writerSelfReview": "PENDING",
+    "independentProcessReview": "PENDING",
+    "independentFinalReview": "PENDING",
+    "unresolvedFindings": "PENDING",
+    "reviewedCommit": "PENDING"
+  },
+  "verdict": {
+    "task711": "PENDING_REVIEW",
+    "recommendation": "PENDING",
+    "p11g1": "PENDING_REVIEW",
+    "p11g2": "PENDING_REVIEW",
+    "selfAcceptance": false
+  }
+}
