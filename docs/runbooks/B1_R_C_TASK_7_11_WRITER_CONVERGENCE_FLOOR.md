@@ -42,7 +42,7 @@ sanitized historical evidence—not a fresh gateway verification.  R-B G0a also 
 
 | Verdict | Scope | Universal proof obligation | Boundary |
 |---|---|---|---|
-| `PENDING_REVIEW` | Activated exact R-C candidate at `portfolio-service--0000096`, and rollback artifacts at or above R-B3r only | Every one of the six applicable reachable runtime `asset_holdings` writer paths participates in `Portfolio_Version` and preserves portfolio identity. | All 14 accepted candidates are dispositioned first; the other eight are explicitly excluded or exempt, never silently dropped.  No validity is claimed below R-B3r. |
+| `PENDING_REVIEW` | Activated exact R-C candidate at `portfolio-service--0000096`, and rollback artifacts at or above R-B3r only | Every one of the six applicable reachable runtime `asset_holdings` writer paths participates in `Portfolio_Version` and preserves portfolio identity. | All 15 accepted candidates are dispositioned first; the other nine are explicitly excluded or exempt, never silently dropped.  No validity is claimed below R-B3r. |
 
 The universal claim is not a conjunction limited to G0a/G2a/G2b.  Fresh G0a, G2a and G2b form
 derived G6 only when joined to the accepted, exhaustive writer inventory.  The six applicable
@@ -77,9 +77,9 @@ serve exactly that digest.  Rollback below R-B3r is prohibited for this property
 
 ## 3. Complete accepted writer inventory and dispositions
 
-The accepted map contains exactly 14 candidates.  It is the anti-omission proof: every candidate
+The accepted map contains exactly 15 candidates.  It is the anti-omission proof: every candidate
 is classified before the P11g-2 quantifier is applied.  Six are applicable reachable runtime
-holdings-writer paths; eight are excluded or exempt on the stated basis.
+holdings-writer paths; nine are excluded or exempt on the stated basis.
 
 | # | Accepted candidate | P11g-2 disposition | Result |
 |---:|---|---|---|
@@ -97,6 +97,7 @@ holdings-writer paths; eight are excluded or exempt on the stated basis.
 | 12 | `ON DELETE CASCADE` from `portfolios` to `asset_holdings` | Excluded conditional structural risk | No `Portfolio_Version` gate of its own; conditionally safe only while no reachable portfolio-delete caller exists. |
 | 13 | diagnostics `DELETE FROM portfolios WHERE FALSE` | Excluded: non-writer diagnostic path | Matches zero rows and the enclosing probe rolls back. |
 | 14 | API-gateway `UserCredentialRepository` portfolio insert | Excluded: parent-only, outside holdings quantifier | Creates a version-0 parent during signup; never writes `asset_holdings`; governed separately by G2/G3. |
+| 15 | market-price, market-data and insight matches | Excluded: other table/store outside portfolio holdings | None for portfolio holdings; excluded only after explicit classification. |
 
 The cascade condition is material.  Adding, changing, or making reachable any portfolio-delete
 caller reopens this inventory and invalidates P11g-2 until its `Portfolio_Version` and identity
@@ -152,7 +153,7 @@ for future artifacts, drift, routes/callers, or any rollback below R-B3r.
 
 The evidence supports recommending `ACCEPT` to independent reviewers: P11g-1 is constrained to
 its transitional lineage, while P11g-2 is an exact-artifact, six-path universal claim after all
-14 accepted candidates have been dispositioned.  Nevertheless, **Task 7.11 remains
+15 accepted candidates have been dispositioned.  Nevertheless, **Task 7.11 remains
 `PENDING_REVIEW`** until independent process review and final review bind their verdicts.  No
 self-acceptance, Task 7.11 checkbox, production operation, or publication is authorized by this
 runbook.

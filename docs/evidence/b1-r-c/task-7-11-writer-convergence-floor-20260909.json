@@ -57,13 +57,13 @@
   },
   "p11g2WriterConvergenceFloor": {
     "property": "P11g-2",
-    "quantifier": "universal over every applicable reachable runtime asset_holdings writer; the complete 14-row accepted inventory is dispositioned first and is not silently narrowed to three HTTP paths",
+    "quantifier": "universal over every applicable reachable runtime asset_holdings writer; the complete 15-row accepted inventory is dispositioned first and is not silently narrowed to three HTTP paths",
     "inventoryCoverage": {
-      "inventoryCandidatesDispositioned": 14,
+      "inventoryCandidatesDispositioned": 15,
       "p11g2ApplicableReachableRuntimeAssetHoldingsWriterPaths": 6,
-      "p11g2ExcludedOrExemptDispositionedCandidates": 8,
+      "p11g2ExcludedOrExemptDispositionedCandidates": 9,
       "applicableSubjects": ["HoldingReplacementService", "CompositionWriteService", "PortfolioSeedService", "DemoResetService", "DemoPortfolioInitializer", "CompositionController"],
-      "rule": "The P11g-2 universal claim applies to the six applicable reachable runtime asset_holdings writer paths. The other eight accepted candidates remain explicitly classified with their inapplicability, exemption, dead-path, non-writer, cascade-risk, or non-holdings-parent-only basis."
+      "rule": "The P11g-2 universal claim applies to the six applicable reachable runtime asset_holdings writer paths. The other nine accepted candidates remain explicitly classified with their inapplicability, exemption, dead-path, non-writer, cascade-risk, non-holdings-parent-only, or other-table/store basis."
     },
     "claimScope": "activated exact R-C candidate and rollback artifacts at or above R-B3r only",
     "requirements": ["8.1", "8.4", "8.10 Flyway exemption"],
@@ -91,7 +91,8 @@
     {"subject": "V21", "classification": "historical Flyway writer exempt under Requirement 8.10", "p11g2Applicability": "EXEMPT_HISTORICAL_FLYWAY_OUTSIDE_RUNTIME_QUANTIFIER", "disposition": "forward-only retirement migration; drops four functions and performs no asset_holdings DML"},
     {"subject": "ON DELETE CASCADE from portfolios to asset_holdings", "classification": "database cascade with no-current-delete-caller limitation", "p11g2Applicability": "EXCLUDED_NO_CURRENT_REACHABLE_DELETE_CALLER_CONDITIONAL_RISK", "disposition": "no Portfolio_Version gate of its own; conditionally safe only because accepted current production source has no reachable portfolio-delete caller"},
     {"subject": "diagnostics DELETE FROM portfolios WHERE FALSE", "classification": "non-writer diagnostic/query path", "p11g2Applicability": "EXCLUDED_NON_WRITER_DIAGNOSTIC_PATH", "disposition": "matches zero rows and enclosing probe rolls back"},
-    {"subject": "API-gateway UserCredentialRepository portfolio insert", "classification": "non-holdings parent-only writer outside P11g-2 quantifier", "p11g2Applicability": "EXCLUDED_NON_HOLDINGS_PARENT_ONLY_WRITER", "disposition": "creates version-0 parent during signup and never writes asset_holdings; governed separately by G2/G3 and explicitly dispositioned rather than omitted"}
+    {"subject": "API-gateway UserCredentialRepository portfolio insert", "classification": "non-holdings parent-only writer outside P11g-2 quantifier", "p11g2Applicability": "EXCLUDED_NON_HOLDINGS_PARENT_ONLY_WRITER", "disposition": "creates version-0 parent during signup and never writes asset_holdings; governed separately by G2/G3 and explicitly dispositioned rather than omitted"},
+    {"subject": "market-price, market-data and insight matches", "classification": "other table/store outside portfolio holdings", "p11g2Applicability": "EXCLUDED_OTHER_TABLE_OR_STORE_OUTSIDE_PORTFOLIO_HOLDINGS", "disposition": "market-price projection, market-data persistence, and insight Redis matches are outside portfolio holdings; excluded only after explicit classification"}
   ],
   "rollbackFloor": {
     "floorArtifact": "R-B3r",
@@ -111,7 +112,7 @@
     "seed, reset, initializer, or expectedVersion contract drift",
     "gateway signup-provisioning behavior or its artifact identity drift",
     "candidate source, JAR, manifest digest, serving revision, traffic, or exact artifact identity drift without fresh proof",
-    "portfolio-delete caller added, changed, or made reachable, reopening the ON DELETE CASCADE risk",
+    "portfolio-delete caller added, changed, or made reachable, or a database schema, foreign-key, cascade, or equivalent deletion-semantics change can affect asset_holdings deletion behavior, reopening the ON DELETE CASCADE risk",
     "rollback below R-B3r proposed or rollback-floor policy/identity changed",
     "a referenced commit/blob no longer resolves to the recorded canonical bytes"
   ],
