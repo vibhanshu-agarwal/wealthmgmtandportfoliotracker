@@ -726,11 +726,37 @@ sensible portfolio most of the time, even if a previous visitor left it edited o
    this release. A stale-version `409` uses the draft-free notice described in 3b. Moving the control
    into the picker is a separate product change with its own frozen-draft, accessibility, recovery,
    and E2E acceptance work.
-7. THE login-orchestrated eligibility read SHALL time out after **2 seconds**, the reset call after
-   **2 seconds**, and the complete optional orchestration after **4 seconds**. The overall bracket
+7. THE login-orchestrated eligibility read SHALL time out after **45 seconds**, the reset call
+   after **10 seconds**, and the complete optional orchestration after **60 seconds** *(revised by
+   owner decision 2026-09-09, superseding the 2026-09-06 values of 2s/2s/4s)*. The overall bracket
    begins before eligibility-target construction. Any non-clean outcome is fail-open relative to
    the already-successful login. A reset dispatched before cancellation may still commit after
    either the reset-leg or overall timeout; timeout cancellation is not transaction rollback.
+   **These values are sized against scale-to-zero, not against warm latency.** Every service is
+   permitted to run at `min_replicas = 0`; when `portfolio-service` has scaled to zero and no earlier
+   request wakes it, the eligibility read encounters the approximately 35-second cold start recorded
+   for that service. The superseded 2s/2s/4s budget could not absorb that and would have skipped the
+   reset in that condition. 45 seconds clears the recorded observation and still fires *before* the
+   gateway route's own 55-second downstream response timeout, so a Wave 8 timeout remains attributable
+   to Wave 8. The 60-second overall deadline is five seconds greater than the nominal 45 + 10 leg
+   budgets and is intended as a backstop; target construction and other orchestration overhead can
+   consume that margin and may cause it to pre-empt a leg. THE ordering guarantee
+   that the reset completes before the UI's first portfolio read SHALL be claimed only for clean
+   orchestration success: on any fail-open path, and on a late commit after cancellation, the UI
+   may read un-reset state or observe the portfolio change under it.
+8. THE elapsed time of each leg SHALL remain queryable for the outcomes that carry it, so these
+   initial values can be retuned from production evidence without changing the contract.
+   **Timed-out** legs carry `elapsedMillis`, `timeoutScope`, and — for overall timeouts —
+   `overallTimeoutPhase` on `demo_reset_self_call_skipped`; `leg`, `reason`, and the inbound trace
+   id are present on every skip outcome. **Non-timeout failures** (connection failure, non-2xx
+   status, response-shape failure) deliberately carry no `elapsedMillis`: they are classified by
+   `reason`, not timed, and this criterion does not claim otherwise. **Successful** legs emit
+   `demo_reset_self_call_completed` only after their complete response body is decoded or released;
+   that event carries `leg`, `httpStatus`, monotonic `elapsedMillis`, the inbound trace id, and the
+   replica token without a URL, user identifier, or credential. The standard `http.client.requests`
+   observations remain useful request-level telemetry, but are not claimed to bracket asynchronous
+   body processing; their `uri` tag is unattributed (`none`) because the client dispatches absolute
+   URIs rather than templates.
 
 ## Requirement 8: Decimal fidelity end to end
 
@@ -793,10 +819,14 @@ reviewed disposition. Task 2.6 compatibility and Wave 10.2 item 2 remain open sa
   audit must disposition the backend-before-adapter exception; Task 2.7 and Wave 10.2 item 2 remain
   open. Recorded ingress closure makes user-visible impact unproven, not closed.
 
-**Closed by owner decision on 2026-09-06:** Requirement 7's idle threshold is 30 minutes with a
-strict boundary, the login self-call timeouts are 2s/2s/4s, and the manual reset remains page-level
-for this release. The authoritative rationale and implementation contract are recorded in
-`docs/superpowers/plans/2026-09-06-b2-wave8-decision-record.md`.
+**Closed by owner decision on 2026-09-06, timeouts revised 2026-09-09:** Requirement 7's idle
+threshold is 30 minutes with a strict boundary, and the manual reset remains page-level for this
+release. The login self-call timeouts were **2s/2s/4s** on 2026-09-06 and are now
+**45s eligibility / 10s reset / 60s overall** by the 2026-09-09 owner decision, which supersedes
+only those three values on recorded scale-to-zero cold-start evidence; the idle threshold and
+manual-reset placement are unchanged. The authoritative rationale and implementation contract are
+recorded in `docs/superpowers/plans/2026-09-06-b2-wave8-decision-record.md`, with the superseding
+decision at `docs/evidence/b2-task-8-2/owner-decision-20260909.json`.
 
 **Closed on 2026-08-24:** the former `assetPriceFreshness` backend dependency is removed from this
 list. Spec A task 8.6 is complete and the aggregate field exists in `portfolio-service`; B2 retains

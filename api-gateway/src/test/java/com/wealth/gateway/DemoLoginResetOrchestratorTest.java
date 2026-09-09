@@ -5,11 +5,14 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import com.wealth.gateway.auth.LoginResponse;
 import io.micrometer.context.ContextRegistry;
+import io.micrometer.observation.ObservationRegistry;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
+import org.springframework.core.io.buffer.DataBuffer;
+import org.springframework.core.io.buffer.DefaultDataBufferFactory;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.web.reactive.function.client.ClientRequest;
 import org.springframework.web.reactive.function.client.ClientResponse;
@@ -21,6 +24,7 @@ import reactor.test.StepVerifier;
 import tools.jackson.databind.ObjectMapper;
 
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -75,7 +79,10 @@ class DemoLoginResetOrchestratorTest {
         StepVerifier.create(login).verifyComplete();
         StepVerifier.create(login).verifyComplete();
         assertThat(f.requests).extracting(r -> r.method().name()).containsExactly("GET", "POST", "GET", "POST");
-        assertThat(appender.list).isEmpty();
+        assertThat(events("demo_reset_self_call_completed"))
+                .extracting(event -> event.get("leg"))
+                .containsExactly("eligibility", "reset", "eligibility", "reset");
+        assertThat(events("demo_reset_self_call_skipped")).isEmpty();
     }
 
     @Test
@@ -83,9 +90,12 @@ class DemoLoginResetOrchestratorTest {
         Fixture f = new Fixture();
         f.reset = r -> Mono.just(response(409, "{\"currentVersion\":97}"));
         StepVerifier.create(f.run()).verifyComplete();
-        assertThat(appender.list.getFirst().getFormattedMessage())
-                .contains("event=demo_reset_self_call_skipped", "reason=reset_non_2xx_status", "httpStatus=409",
-                        "observedVersion=71", "submittedExpectedVersion=71", "downstreamCurrentVersion=97", "selfCallCount=1");
+        assertThat(appender.list)
+                .filteredOn(log -> log.getFormattedMessage().contains("event=demo_reset_self_call_skipped"))
+                .singleElement()
+                .satisfies(log -> assertThat(log.getFormattedMessage())
+                        .contains("reason=reset_non_2xx_status", "httpStatus=409", "observedVersion=71",
+                                "submittedExpectedVersion=71", "downstreamCurrentVersion=97", "selfCallCount=1"));
     }
 
     @Test
@@ -93,12 +103,50 @@ class DemoLoginResetOrchestratorTest {
         Fixture f = new Fixture();
         StepVerifier.create(f.run()).verifyComplete();
         assertThat(f.requests).extracting(r -> r.method().name()).containsExactly("GET", "POST");
-        assertThat(appender.list).isEmpty();
+        assertThat(events("demo_reset_self_call_completed"))
+                .extracting(event -> event.get("leg"))
+                .containsExactly("eligibility", "reset");
+        assertThat(events("demo_reset_self_call_skipped")).isEmpty();
+        appender.list.clear();
         f = new Fixture();
         f.eligibility = request -> Mono.just(response(200, PORTFOLIO.replace("00:00:00", "00:01:00")));
         StepVerifier.create(f.run()).verifyComplete();
         assertThat(f.requests).extracting(r -> r.method().name()).containsExactly("GET");
-        assertThat(appender.list).isEmpty();
+        assertThat(events("demo_reset_self_call_completed"))
+                .singleElement()
+                .satisfies(event -> assertThat(event).containsEntry("leg", "eligibility"));
+        assertThat(events("demo_reset_self_call_skipped")).isEmpty();
+    }
+
+    @Test
+    void successfulLegElapsedTimeIsEmittedOnlyAfterEachResponseBodyCompletes() {
+        Fixture f = new Fixture();
+        Sinks.One<byte[]> eligibilityBody = Sinks.one();
+        Sinks.One<byte[]> resetBody = Sinks.one();
+        f.eligibility = request -> Mono.just(streamingResponse(200, eligibilityBody));
+        f.reset = request -> Mono.just(streamingResponse(200, resetBody));
+
+        StepVerifier.create(f.run())
+                .then(() -> assertThat(events("demo_reset_self_call_completed")).isEmpty())
+                .then(() -> eligibilityBody.tryEmitValue(PORTFOLIO.getBytes(StandardCharsets.UTF_8)))
+                .then(() -> assertThat(events("demo_reset_self_call_completed"))
+                        .singleElement()
+                        .satisfies(event -> assertThat(event)
+                                .containsOnlyKeys("leg", "httpStatus", "elapsedMillis", "event",
+                                        "traceId", "replicaToken")
+                                .containsEntry("leg", "eligibility")
+                                .containsEntry("httpStatus", 200)
+                                .containsEntry("elapsedMillis", 123L)
+                                .containsEntry("traceId", TRACE)
+                                .containsEntry("replicaToken", "replica-token")))
+                .then(() -> resetBody.tryEmitValue("{}".getBytes(StandardCharsets.UTF_8)))
+                .verifyComplete();
+
+        assertThat(events("demo_reset_self_call_completed"))
+                .extracting(event -> event.get("leg"), event -> event.get("elapsedMillis"))
+                .containsExactly(
+                        org.assertj.core.groups.Tuple.tuple("eligibility", 123L),
+                        org.assertj.core.groups.Tuple.tuple("reset", 123L));
     }
 
     @Test
@@ -200,7 +248,10 @@ class DemoLoginResetOrchestratorTest {
         f = new Fixture();
         f.origin = "";
         StepVerifier.create(f.run()).verifyComplete();
-        assertThat(appender.list).isEmpty();
+        assertThat(events("demo_reset_self_call_completed"))
+                .extracting(event -> event.get("leg"))
+                .containsExactly("eligibility", "reset");
+        assertThat(events("demo_reset_self_call_skipped")).isEmpty();
         assertThat(f.requests).hasSize(2);
         f = new Fixture();
         f.origin = "";
@@ -269,11 +320,19 @@ class DemoLoginResetOrchestratorTest {
             Map<String, Object> event = event("overall_timeout");
             boolean get = !phase.equals("eligibility_pre_dispatch");
             boolean post = phase.startsWith("reset_");
+            long elapsedMillis = switch (phase) {
+                case "eligibility_pre_dispatch" -> 123L;
+                case "eligibility_in_flight" -> 246L;
+                case "between_legs" -> 369L;
+                case "reset_in_flight" -> 492L;
+                case "reset_post_response" -> 615L;
+                default -> throw new IllegalStateException("unexpected phase " + phase);
+            };
             bothLegs(event, f, get, post, true, true);
             assertThat(event).containsEntry("leg", "overall").containsEntry("timeoutScope", "overall")
                     .containsEntry("overallTimeoutPhase", phase)
                     .containsEntry("httpStatus", phase.equals("reset_post_response") ? 200 : null)
-                    .containsEntry("elapsedMillis", post ? 369L : get ? 246L : 123L)
+                    .containsEntry("elapsedMillis", elapsedMillis)
                     .containsEntry("attemptedTarget", phase.equals("eligibility_in_flight") ? GET.toString()
                             : phase.equals("reset_in_flight") ? POST.toString() : null);
         }
@@ -302,14 +361,28 @@ class DemoLoginResetOrchestratorTest {
         return event(reason, replica, TRACE);
     }
     Map<String, Object> event(String reason, String replica, String trace) {
-        assertThat(appender.list).hasSize(1);
+        var skipLogs = appender.list.stream()
+                .filter(log -> log.getKeyValuePairs().stream().anyMatch(pair -> pair.key.equals("event")
+                        && pair.value.equals("demo_reset_self_call_skipped")))
+                .toList();
+        assertThat(skipLogs).hasSize(1);
+        var skipLog = skipLogs.getFirst();
         Map<String, Object> fields = new LinkedHashMap<>();
-        appender.list.getFirst().getKeyValuePairs().forEach(pair -> fields.put(pair.key, pair.value));
-        fields.forEach((key, value) -> assertThat(appender.list.getFirst().getFormattedMessage())
+        skipLog.getKeyValuePairs().forEach(pair -> fields.put(pair.key, pair.value));
+        fields.forEach((key, value) -> assertThat(skipLog.getFormattedMessage())
                 .contains(key + "=" + ("".equals(value) ? "\"\"" : String.valueOf(value))));
         assertThat(fields).containsEntry("event", "demo_reset_self_call_skipped")
                 .containsEntry("reason", reason).containsEntry("traceId", trace).containsEntry("replicaToken", replica);
         return fields;
+    }
+    List<Map<String, Object>> events(String eventName) {
+        return appender.list.stream().map(log -> {
+                    Map<String, Object> fields = new LinkedHashMap<>();
+                    log.getKeyValuePairs().forEach(pair -> fields.put(pair.key, pair.value));
+                    return fields;
+                })
+                .filter(fields -> eventName.equals(fields.get("event")))
+                .toList();
     }
     void bothLegs(Map<String, Object> event, Fixture f, boolean get, boolean post, boolean key, boolean origin) {
         assertThat(event).containsEntry("eligibilityDispatchAttempted", get).containsEntry("resetDispatchAttempted", post)
@@ -322,6 +395,12 @@ class DemoLoginResetOrchestratorTest {
     static ClientResponse response(int status, String body) {
         return ClientResponse.create(HttpStatusCode.valueOf(status)).header("Content-Type", "application/json").body(body).build();
     }
+    static ClientResponse streamingResponse(int status, Sinks.One<byte[]> body) {
+        return ClientResponse.create(HttpStatusCode.valueOf(status))
+                .header("Content-Type", "application/json")
+                .body(body.asMono().map(bytes -> (DataBuffer) DefaultDataBufferFactory.sharedInstance.wrap(bytes)).flux())
+                .build();
+    }
     static class Fixture {
         final List<ClientRequest> requests = new CopyOnWriteArrayList<>();
         final GatewayLoopbackTargetProvider targets = mock(GatewayLoopbackTargetProvider.class);
@@ -332,6 +411,7 @@ class DemoLoginResetOrchestratorTest {
         String userId = DemoLoginResetClient.DEMO_USER_ID;
         Duration overall = Duration.ofSeconds(4);
         Duration perLeg = Duration.ofSeconds(2);
+        ObservationRegistry observationRegistry = ObservationRegistry.NOOP;
         Fixture() {
             when(targets.eligibilityTarget()).thenReturn(Mono.just(GET));
             when(targets.resetTarget()).thenReturn(Mono.just(POST));
@@ -350,7 +430,7 @@ class DemoLoginResetOrchestratorTest {
         }
         DemoLoginResetOrchestrator orchestrator() {
             var properties = new DemoLoginResetProperties(Duration.ofMinutes(30), perLeg, perLeg, overall);
-            WebClient.Builder builder = WebClient.builder().exchangeFunction(r -> {
+            WebClient.Builder builder = WebClient.builder().observationRegistry(observationRegistry).exchangeFunction(r -> {
                 requests.add(r);
                 return r.method().name().equals("GET") ? eligibility.apply(r) : reset.apply(r);
             });

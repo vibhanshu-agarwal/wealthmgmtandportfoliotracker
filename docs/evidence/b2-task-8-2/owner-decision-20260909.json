@@ -1,0 +1,179 @@
+{
+  "schemaVersion": 1,
+  "kind": "owner-configuration-decision",
+  "decisionDate": "2026-09-09",
+  "recordedAtUtc": "2026-09-09T15:35:53.819243+00:00",
+  "scope": "B2 Task 8.2 login-orchestrated demo-reset threshold and self-call timeout values only",
+  "ownerStatement": "GO for Tasks 0-5 using the confirmed C:\\worktrees path.",
+  "ownerStatementNote": "The quoted statement is the execution authorization for the reconciliation work. It followed the owner's acceptance of the 30m / 45s / 10s / 60s package in the same session, after the owner rejected an optional cross-field startup warning and confirmed the worktree location. It is not a deployment or exposure authorization.",
+  "decision": "APPROVED",
+  "approvedValues": {
+    "idleThreshold": "30m",
+    "eligibilityTimeout": "45s",
+    "resetTimeout": "10s",
+    "overallTimeout": "60s"
+  },
+  "supersedes": {
+    "decisionDate": "2026-09-06",
+    "record": "docs/superpowers/plans/2026-09-06-b2-wave8-decision-record.md",
+    "supersededValues": {
+      "eligibilityTimeout": "2s",
+      "resetTimeout": "2s",
+      "overallTimeout": "4s"
+    },
+    "unchanged": [
+      "idleThreshold",
+      "manualResetPlacement",
+      "decimalSequencing"
+    ]
+  },
+  "rationale": {
+    "primary": "All services are permitted to deploy at min_replicas = 0. When portfolio-service has scaled to zero and no earlier request wakes it, the login-orchestrated eligibility read encounters the recorded cold-start condition. The superseded 2s/2s/4s budget was roughly an order of magnitude below that observation and would have skipped the automatic reset in that condition.",
+    "coldStartEvidence": [
+      {
+        "path": "docs/changes/CHANGES_NEW_USER_SIGNUP_PROFILE_2026-08-12.md",
+        "claim": "portfolio-service first request after idle has an observed ~35s cold-start delay"
+      },
+      {
+        "path": "docs/analysis/azure-container-migration-analysis.md",
+        "claim": "realistic worst case 20-35s on 0.5 vCPU / 1 GiB"
+      },
+      {
+        "path": "docs/todos/backlog/kafka-consumers-have-no-scale-rule/README.md",
+        "claim": "the observed ~35s portfolio-service cold start is real and separate"
+      }
+    ],
+    "ceiling": {
+      "path": "api-gateway/src/main/resources/application-prod.yml",
+      "property": "spring.cloud.gateway.server.webflux.httpclient.response-timeout",
+      "value": "55s",
+      "overriddenInAzureProfile": false,
+      "consequence": "45s eligibility fires before the route ceiling, keeping a Wave 8 timeout attributable to Wave 8",
+      "activeProfiles": "prod,azure",
+      "activeProfilesSource": "infrastructure/terraform/azure/main.tf (SPRING_PROFILES_ACTIVE)",
+      "appliesInProduction": true
+    },
+    "coherence": "The 45 + 10 = 55 nominal leg sum leaves five seconds under the 60-second overall backstop. Target construction and other orchestration overhead consume that margin and can cause the overall deadline to pre-empt a leg.",
+    "costImpact": "Expected to be negligible against the project's $5-10/month Azure target, but this is not measured billing evidence. When the viewer proceeds to a portfolio read, the eligibility read moves the portfolio-service wake earlier rather than adding one; an abandoned login can add a wake. Holding one gateway request open longer is expected to remain small against the Container Apps Consumption free grant.",
+    "acceptedCost": "Login duration, not money. A first demo login after scale-to-zero may take approximately 60-95 seconds in total: the api-gateway cold start, paid before the login handler runs and therefore outside these timers, plus up to 60 seconds of orchestration."
+  },
+  "caveats": [
+    "Fail-open is unchanged: any timeout skips the reset, login proceeds, no user-visible error, and the manual reset remains the fallback.",
+    "Reset-before-first-UI-read is guaranteed only on clean orchestration success.",
+    "On a fail-open path the UI can read an un-reset portfolio.",
+    "Cancelling the gateway publisher is not a downstream transaction rollback: a dispatched reset may commit after the deadline and race the UI's first read. Evidence classification imposes no ordering between demo_reset_succeeded and demo_reset_self_call_skipped.",
+    "Successful legs emit demo_reset_self_call_completed after full body decoding or release; timed-out legs expose elapsedMillis on demo_reset_self_call_skipped. Non-timeout failures remain classified without elapsedMillis by design.",
+    "The existing disabled 'Signing in...' login control is sufficient feedback for this decision; demo-specific wake copy is a non-blocking enhancement."
+  ],
+  "reconciliation": {
+    "baselineCommit": "62dfe938652372a35f0b87f940a892fba229fd37",
+    "changed": [
+      ".kiro/specs/asset-picker-composition/design.md",
+      ".kiro/specs/asset-picker-composition/requirements.md",
+      ".kiro/specs/asset-picker-composition/tasks.md",
+      "api-gateway/src/main/java/com/wealth/gateway/DemoLoginResetDiagnostics.java",
+      "api-gateway/src/main/java/com/wealth/gateway/DemoLoginResetOrchestrator.java",
+      "api-gateway/src/main/resources/application.yml",
+      "api-gateway/src/test/java/com/wealth/gateway/DemoLoginResetOrchestratorTest.java",
+      "api-gateway/src/test/java/com/wealth/gateway/DemoLoginResetTracingIntegrationTest.java",
+      "api-gateway/src/wave8IntegrationTest/java/com/wealth/gateway/DemoLoginResetRealChainIT.java",
+      "docs/plans/ASSET_PICKER_E2E_MASTER_PLAN.md",
+      "docs/superpowers/plans/2026-09-06-b2-wave8-decision-record.md",
+      "scripts/tests/test_verify_demo_reset_azure.py",
+      "scripts/tests/test_wave8_gateway_shared_contract.py",
+      "scripts/verify_demo_reset_azure.py"
+    ],
+    "added": [
+      "api-gateway/src/test/java/com/wealth/gateway/DemoLoginResetObservationTest.java",
+      "docs/evidence/b2-task-8-2/owner-decision-20260909.json"
+    ],
+    "instrumentationGapFound": true,
+    "instrumentationNote": "The standard http.client.requests observation stops when the ClientResponse is obtained, before asynchronous body decoding or release necessarily completes. The gap is closed by one demo_reset_self_call_completed diagnostic per successful leg, emitted only after the full leg completes and carrying leg, httpStatus, monotonic elapsedMillis, traceId, and replicaToken with no URL, user identifier, or credential. DemoLoginResetObservationTest separately characterizes the standard request-level observation and its safe low-cardinality tags.",
+    "manifestDerivation": "Enumerated from `git diff --name-status origin/main...HEAD` over the whole branch rather than maintained by hand, so the manifest cannot silently omit a file and the stated derivation reproduces the listed values exactly.",
+    "rebasedOnto": "81c672990401eb2a11feb7641c0acf9b7277a173"
+  },
+  "authorizationBoundary": "This decision resolves Task 8.2's values and the source/test/documentation reconciliation only. Push, pull-request creation, merge, workflow dispatch, deployment, cloud/registry/secret access, production probing, Task 8.8 deployment, Task 8.9 live proof, and Wave 10 exposure each remain separately owner-gated.",
+  "independentReview": {
+    "reviewer": "Astra",
+    "verdict": "ACCEPT WITH FIXES",
+    "corrections": [
+      {
+        "id": 1,
+        "finding": "Observation test counted observations but did not prove complete-leg duration, completion, URI attribution, or safe tags.",
+        "resolution": "The standard client observation remains request-level and is no longer claimed to include asynchronous body work. DemoLoginResetDiagnostics now emits one safe demo_reset_self_call_completed event only after each full successful leg completes, with deterministic tests holding both response bodies open and proving that eligibility and reset timing are emitted only after their respective decode/release boundary. DemoLoginResetObservationTest separately pins the standard observation's method separability, uri=none, and safe low-cardinality tag set.",
+        "status": "FIXED"
+      },
+      {
+        "id": 2,
+        "finding": "Repaired slow-stream test can still pass if the parent deadline/kill mechanism is disabled; the socket inactivity timeout masks that regression.",
+        "resolution": "The real transport test now holds a partial response open without byte-drip sleeps, captures each actual HTTP worker process, and requires a non-zero return code proving parent-forced termination. A process-local mutation that disables communicate(timeout=...) makes all three transport subcases fail at that assertion; the unmodified implementation passes ten consecutive complete verifier suites.",
+        "status": "FIXED"
+      },
+      {
+        "id": 3,
+        "finding": "Verifier login operation timeout remained 15s, able to kill a valid login before the approved 60s orchestration deadline.",
+        "resolution": "Added a dedicated login_timeout_seconds (default 120s, covering the api-gateway cold start plus the 60s orchestration) with a --login-timeout-seconds flag, positive validation, and a cross-field guard requiring it to exceed the approved overall deadline. The operation cap still bounds all control-plane calls. Two new guard tests plus a strengthened cap invariant.",
+        "status": "FIXED"
+      },
+      {
+        "id": 4,
+        "finding": "Documentation overstated elapsed-time coverage; cold-start, margin, and cost-neutrality language needed qualification.",
+        "resolution": "requirements.md 7.8, design.md D5, and this record now state that elapsedMillis is populated for timeout outcomes only and not for connection/non-2xx/shape failures; that ~35s is a single field observation rather than a distribution; that the 60s backstop is 5s wide and absorbs orchestration overhead only; and that wake cost-neutrality is conditional on the viewer proceeding to a portfolio read.",
+        "status": "FIXED"
+      },
+      {
+        "id": 5,
+        "finding": "Evidence manifest omitted the changed orchestrator test.",
+        "resolution": "Manifest is now derived from git rather than hand-maintained, and includes DemoLoginResetOrchestratorTest.java.",
+        "status": "FIXED"
+      },
+      {
+        "id": 6,
+        "finding": "origin/main advanced and modifies the same Wave 8 master-plan row; integration must preserve both the timeout decision and the Task 7.11 Writer Convergence status.",
+        "resolution": "Rebased onto origin/main@81c67299 (PR #244, Task 7.11 writer convergence). The Wave 8 master-plan row conflicted; resolved by taking the newer main's rows 8-10 wholesale and re-applying only the timeout sentence, so both the 2026-09-09 timeout decision and the Task 7.11 Writer Convergence status survive. Verified: the file's diff against the new main is exactly the one row-8 sentence, and 'Tasks 7.1-7.11 locally complete' plus 19 Task 7.11 references are intact.",
+        "status": "FIXED"
+      }
+    ]
+  },
+  "verification": {
+    "basis": "Per-class JUnit result XML counts and captured suite output, not build exit status - an earlier full gate reported shell exit 0 while Gradle had failed.",
+    "gradle": {
+      "test": {
+        "classes": 49,
+        "tests": 323,
+        "skipped": 0,
+        "failures": 0,
+        "errors": 0
+      },
+      "integrationTest": {
+        "classes": 20,
+        "tests": 193,
+        "skipped": 0,
+        "failures": 0,
+        "errors": 0
+      },
+      "wave8IntegrationTest": {
+        "classes": 1,
+        "tests": 4,
+        "skipped": 0,
+        "failures": 0,
+        "errors": 0
+      }
+    },
+    "python": {
+      "test_wave8_gateway_shared_contract": "OK",
+      "test_master_plan_status_propagation": "OK",
+      "test_verify_demo_reset_azure": {
+        "testsPerRun": 75,
+        "runs": 10,
+        "passed": 10,
+        "failed": 0,
+        "parentDeadlineMutation": "PASS: disabling subprocess communicate(timeout=...) makes all three slow-response subcases fail because the worker exits normally with return code 0 instead of being forcibly terminated"
+      }
+    },
+    "knownOpenFlake": {
+      "test": "DemoLoginResetRealChainIT.successfulResetPrecedesGatewaySuccessHandlerFailure",
+      "note": "Load-sensitive: runCase pins a 2-second real wall-clock overall deadline against Testcontainers Postgres. It injects its own --app.demo-login-reset.* overrides, so it is independent of the values in this decision. Passed in this gate run."
+    }
+  }
+}

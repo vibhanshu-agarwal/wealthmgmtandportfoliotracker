@@ -33,13 +33,16 @@ public final class DemoLoginResetOrchestrator {
             if (!DemoLoginResetClient.DEMO_USER_ID.equals(response.userId())) return Mono.empty();
             var attempt = new DemoLoginResetDiagnostics.Attempt(keyProvider.isConfigured(), originProvider.isRequired(), nanoClock);
             return Mono.defer(() -> client.observeEligibility(response.token(), attempt)
-                            .flatMap(observation -> {
-                                attempt.observed(observation);
-                                if (!observation.isIdleEligible()) return Mono.empty();
-                                return Mono.defer(() -> client.reset(observation, attempt))
-                                        .flatMap(result -> Mono.defer(() -> completionHandler.complete(result))
-                                                .onErrorMap(OwnCodeFailure::new));
-                            }))
+                    .flatMap(observation -> {
+                        diagnostics.eligibilityCompleted(attempt, observation);
+                        if (!observation.isIdleEligible()) return Mono.empty();
+                        return Mono.defer(() -> client.reset(observation, attempt))
+                                .flatMap(result -> {
+                                    diagnostics.resetCompleted(attempt);
+                                    return Mono.defer(() -> completionHandler.complete(result))
+                                            .onErrorMap(OwnCodeFailure::new);
+                                });
+                    }))
                     .timeout(properties.overallTimeout(), Mono.error(new OverallDeadline()))
                     .onErrorResume(error -> {
                         diagnostics.skipped(attempt, error);

@@ -1807,12 +1807,19 @@ mechanism's actual runtime behavior does not).**
   _Requirements: 7.3d; design.md D7_
 - [x] **8.2 Owner decisions recorded and independently accepted by Astra:** idle threshold
   **30 minutes**, strict persisted `updatedAt` age (`>` only), and login self-call timeouts
-  **2s eligibility / 2s reset / 4s overall**. The existing page-level manual-reset host is final for
-  this release. Task 2.6 numeric compatibility remains while B1 owns the historical sequencing
+  ~~**2s eligibility / 2s reset / 4s overall**~~ **superseded 2026-09-09 by
+  45s eligibility / 10s reset / 60s overall** — the original values were set without engaging the
+  recorded ~35-second `portfolio-service` cold start, which the login-orchestrated eligibility read
+  may encounter after the service has scaled to zero; 45s clears that observed case with margin
+  while staying below the gateway route's 55-second downstream ceiling. The 60s overall deadline
+  provides a nominal five-second margin beyond the configured per-leg maxima, but target-construction
+  and orchestration overhead can consume that margin and the overall deadline may pre-empt a leg.
+  The idle threshold and the manual-reset placement are unchanged by that revision. The
+  existing page-level manual-reset host is final for this release. Task 2.6 numeric compatibility remains while B1 owns the historical sequencing
   audit. The authoritative rationale and frozen implementation contract are in
   `docs/superpowers/plans/2026-09-06-b2-wave8-decision-record.md`; do not start production behavior
   until Astra accepts this record and the aligned requirements/design/task corrections.
-  _Requirements: 7.4, 7.6, 7.7; design.md D5_
+  _Requirements: 7.4, 7.6, 7.7, 7.8; design.md D5_
 - [x] **8.2a `CloudFrontOriginSecretProvider`** — **merged source-only via PR #203 at
   `main@addd8049`** (not deployed). Extracting the origin secret's single read, so 8.3
   and the existing filter provably share one value (round-24 addition — a real ownership gap: round
@@ -4256,8 +4263,9 @@ class, not by enumeration" through "operational signals only") deliberately keep
      deployment before this item is satisfied again.
   5. Wave 9 (Live integration) actually completed, not merely unblocked.
   6. The page-level manual-reset placement approved on 2026-09-06 remains the implemented control.
-     The presence TTL is settled at 150 seconds; the 30-minute idle threshold and 2s/2s/4s
-     self-call timeouts are covered by item 4 above, since Wave 8 cannot deploy without them.
+     The presence TTL is settled at 150 seconds; the 30-minute idle threshold and the
+     45s/10s/60s self-call timeouts (2026-09-09, superseding 2s/2s/4s) are covered by item 4 above,
+     since Wave 8 cannot deploy without them.
   **Go action — a real deployment, not a configuration flip, and both flags together, not one
   independently of the other (round-4 correction: round 3's "independently" framing permitted
   launching the picker while requirements.md 7.5's manual control stayed hidden indefinitely — the

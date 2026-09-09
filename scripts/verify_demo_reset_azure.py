@@ -80,15 +80,21 @@ class ProofConfig:
     demo_password: str = ""
     expected_user_id: str = "00000000-0000-0000-0000-0000000d3110"
     idle_threshold: str = "30m"
-    eligibility_timeout: str = "2s"
-    reset_timeout: str = "2s"
-    overall_timeout: str = "4s"
+    eligibility_timeout: str = "45s"
+    reset_timeout: str = "10s"
+    overall_timeout: str = "60s"
     threshold_override: str | None = None
     poll_interval_seconds: float = 5.0
     poll_deadline_seconds: float = 60.0
     cleanup_max_attempts: int = 3
     cleanup_deadline_seconds: float = 30.0
     operation_timeout_seconds: float = 15.0
+    # The demo login can legitimately run long: api-gateway's own cold start is paid before
+    # the login handler begins (and is therefore outside the orchestration budget), and the
+    # approved orchestration deadline is 60s on top of that. operation_timeout_seconds bounds
+    # short az/control-plane calls and must not be reused here, or a valid slow login is cut
+    # off and misreported as a login failure.
+    login_timeout_seconds: float = 120.0
     post_cleanup_verification_seconds: float = 5.0
     last_known_good_gateway_revision: str | None = None
 
@@ -387,6 +393,12 @@ def _validate_config(config: ProofConfig) -> None:
         raise ProofError("cleanup bounds must be positive")
     if config.operation_timeout_seconds <= 0 or config.post_cleanup_verification_seconds <= 0:
         raise ProofError("operation and post-cleanup timeouts must be positive")
+    if config.login_timeout_seconds <= 0:
+        raise ProofError("login timeout must be positive")
+    if config.login_timeout_seconds <= _duration_seconds(config.overall_timeout):
+        raise ProofError(
+            "login timeout must exceed the approved overall orchestration deadline"
+        )
     if not isinstance(config.service_repositories, dict) or set(config.service_repositories) != set(SERVICES):
         raise ProofError("explicit service repositories are required")
     _duration_seconds(config.idle_threshold)
@@ -1779,7 +1791,7 @@ def run_proof(
                 url=config.gateway_url + "/api/auth/login",
                 headers={"traceparent": traceparent},
                 json_body={"email": config.demo_email, "password": config.demo_password},
-                mutating=True, timeout_seconds=config.operation_timeout_seconds,
+                mutating=True, timeout_seconds=config.login_timeout_seconds,
             )
             evidence["login"]["status"] = login_response.status
         except Exception as error:
@@ -1935,15 +1947,16 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--access-token-env", default="TASK8_9_ACCESS_TOKEN")
     parser.add_argument("--demo-password-env", default="TASK8_9_DEMO_PASSWORD")
     parser.add_argument("--idle-threshold", default="30m")
-    parser.add_argument("--eligibility-timeout", default="2s")
-    parser.add_argument("--reset-timeout", default="2s")
-    parser.add_argument("--overall-timeout", default="4s")
+    parser.add_argument("--eligibility-timeout", default="45s")
+    parser.add_argument("--reset-timeout", default="10s")
+    parser.add_argument("--overall-timeout", default="60s")
     parser.add_argument("--threshold-override")
     parser.add_argument("--poll-interval-seconds", type=float, default=5.0)
     parser.add_argument("--poll-deadline-seconds", type=float, default=60.0)
     parser.add_argument("--cleanup-max-attempts", type=int, default=3)
     parser.add_argument("--cleanup-deadline-seconds", type=float, default=30.0)
     parser.add_argument("--operation-timeout-seconds", type=float, default=15.0)
+    parser.add_argument("--login-timeout-seconds", type=float, default=120.0)
     parser.add_argument("--post-cleanup-verification-seconds", type=float, default=5.0)
     parser.add_argument("--last-known-good-gateway-revision")
     return parser
@@ -1995,6 +2008,7 @@ def main(
             cleanup_max_attempts=args.cleanup_max_attempts,
             cleanup_deadline_seconds=args.cleanup_deadline_seconds,
             operation_timeout_seconds=args.operation_timeout_seconds,
+            login_timeout_seconds=args.login_timeout_seconds,
             post_cleanup_verification_seconds=args.post_cleanup_verification_seconds,
             last_known_good_gateway_revision=args.last_known_good_gateway_revision,
         )

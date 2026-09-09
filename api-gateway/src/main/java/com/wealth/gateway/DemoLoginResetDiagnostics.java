@@ -27,6 +27,25 @@ public final class DemoLoginResetDiagnostics {
         fields.put("event", "demo_reset_self_call_skipped");
         fields.put("traceId", MDC.get("traceId"));
         fields.put("replicaToken", replicaTokenProvider.replicaToken());
+        emit(fields);
+    }
+
+    void eligibilityCompleted(Attempt attempt, DemoLoginPortfolioObservation observation) {
+        completed(attempt.observed(observation));
+    }
+
+    void resetCompleted(Attempt attempt) {
+        completed(attempt.success(true));
+    }
+
+    private void completed(Map<String, Object> fields) {
+        fields.put("event", "demo_reset_self_call_completed");
+        fields.put("traceId", MDC.get("traceId"));
+        fields.put("replicaToken", replicaTokenProvider.replicaToken());
+        emit(fields);
+    }
+
+    private void emit(Map<String, Object> fields) {
         var event = log.atInfo();
         fields.forEach(event::addKeyValue);
         // The existing console pattern renders %msg, not %kvp. Keep the structured evidence
@@ -83,11 +102,21 @@ public final class DemoLoginResetDiagnostics {
             if (reset) phase = "reset_post_response";
         }
 
-        synchronized void observed(DemoLoginPortfolioObservation observation) {
+        synchronized Map<String, Object> observed(DemoLoginPortfolioObservation observation) {
+            Map<String, Object> fields = success(false);
             observedVersion = observation.version();
             phase = "between_legs";
             status = null;
             target = null;
+            return fields;
+        }
+
+        synchronized Map<String, Object> success(boolean reset) {
+            Map<String, Object> fields = new LinkedHashMap<>();
+            fields.put("leg", reset ? "reset" : "eligibility");
+            fields.put("httpStatus", status);
+            fields.put("elapsedMillis", (nanoClock.getAsLong() - legStart) / 1_000_000L);
+            return fields;
         }
 
         synchronized Map<String, Object> failure(Throwable error) {
