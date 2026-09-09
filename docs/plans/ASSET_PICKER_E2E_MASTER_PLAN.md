@@ -538,10 +538,11 @@ current-`main` portfolio deploy as a substitute for an authorized Artifact cut.*
 | Status-propagation CI guard | Contract tests in `static-guard`; live PR-body check in dedicated `master-plan-status-propagation` workflow (`opened`/`synchronize`/`reopened`/`edited`) | Process-control only; does not advance the runtime baseline or create user-facing Asset Picker capability |
 | Docs-only CI fast path | **Complete** via PRs #198–#199 on `main@3396ec45`; `ci-required` is the eighth required context, while all seven previous contexts remain required. PR #202 added `azure-image-smoke-test` as an eighth `ci-required` dependency (transitive, not branch-protection); probe PR #200 proved the original four-job docs-only skip shape, PR #199 proved the full-suite shape, and PR #204 proved the current five-job docs-only shape | Keep the classifier fail-closed and preserve declared-versus-observed equality. DAG de-serialization and broader path selection stay deferred unless CI latency begins blocking delivery |
 
-The temporary product state is intentional but incomplete: the unsafe legacy writer is gone and the
-safe versioned replacement is implemented and tested on `main`, but it is not in the serving R-B3
-image and is not publicly exposed. The frontend picker cannot be enabled for users until B1 R-C
-activates the endpoint and the remaining B2 live/production gates pass.
+The temporary product state is intentional but incomplete: the unsafe legacy writer is gone, and the
+safe versioned replacement now serves in Task 7.9's exact R-C digest and is publicly reachable
+through the existing gateway wildcard. The Asset Picker frontend remains disabled and unexposed to
+users; Task 7.10, Writer_Convergence, publication, and the remaining B2 live/production gates stay
+separately gated.
 
 ## 4. Track C — B2 Asset Picker product
 
