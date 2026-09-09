@@ -1,0 +1,62 @@
+// Query block 1 of 3: execute separately.
+// Task 7.7 authorized completion attempt. All windows are end-exclusive and target exact revisions.
+let endBound=datetime(2026-09-08T19:05:50.938Z);
+let targets=datatable(app:string,rev:string,start:datetime)
+[
+  'portfolio-service','portfolio-service--0000095',datetime(2026-09-07T15:18:47Z),
+  'market-data-service','market-data-service--0000079',datetime(2026-08-30T10:39:21Z),
+  'insight-service','insight-service--0000079',datetime(2026-08-30T10:39:20Z)
+];
+let pulls=ContainerAppSystemLogs_CL
+| extend app=tostring(ContainerAppName_s),rev=tostring(RevisionName_s),replica=tostring(ReplicaName_s)
+| lookup kind=inner targets on app,rev
+| where TimeGenerated >= start and TimeGenerated < endBound
+| where Reason_s == 'ImagePulled'
+| summarize PullLines=count(),FirstPull=min(TimeGenerated),LastPull=max(TimeGenerated),PullMessages=make_set(Log_s) by app,rev,replica;
+let starts=ContainerAppConsoleLogs_CL
+| extend app=tostring(ContainerAppName_s),rev=tostring(RevisionName_s),replica=tostring(ContainerGroupName_s),msg=tostring(Log_s),containerImage=tostring(ContainerImage_s)
+| lookup kind=inner targets on app,rev
+| where TimeGenerated >= start and TimeGenerated < endBound
+| where msg has 'catalog_loaded'
+| extend version=extract('version=([0-9a-f]+)',1,msg),entries=toint(extract('entries=([0-9]+)',1,msg)),active=toint(extract('active=([0-9]+)',1,msg)),reject=extract('rejectUnsupportedEvents=(true|false)',1,msg),enforce=extract('enforceHoldingInvariant=(true|false)',1,msg)
+| extend tuple=strcat(version,'|',entries,'|',active,'|',reject,'|',enforce)
+| summarize StartupLines=count(),TupleCount=dcount(tuple),Tuples=make_set(tuple),ContainerImages=make_set(containerImage),FirstStartup=min(TimeGenerated),LastStartup=max(TimeGenerated) by app,rev,replica;
+pulls
+| join kind=leftouter starts on app,rev,replica
+| extend StartupLines=coalesce(StartupLines,0),TupleCount=coalesce(TupleCount,0)
+| project app,rev,replica,PullLines,FirstPull,LastPull,PullMessages,StartupLines,TupleCount,Tuples,ContainerImages,FirstStartup,LastStartup
+| order by app asc,rev asc,replica asc
+
+// Query block 2 of 3: execute separately.
+// Returns every raw startup line; no arg_max or latest-line reduction. Raw result rows are not checked in.
+let endBound=datetime(2026-09-08T19:05:50.938Z);
+let targets=datatable(app:string,rev:string,start:datetime)
+[
+  'portfolio-service','portfolio-service--0000095',datetime(2026-09-07T15:18:47Z),
+  'market-data-service','market-data-service--0000079',datetime(2026-08-30T10:39:21Z),
+  'insight-service','insight-service--0000079',datetime(2026-08-30T10:39:20Z)
+];
+ContainerAppConsoleLogs_CL
+| extend app=tostring(ContainerAppName_s),rev=tostring(RevisionName_s),replica=tostring(ContainerGroupName_s),msg=tostring(Log_s),containerImage=tostring(ContainerImage_s)
+| lookup kind=inner targets on app,rev
+| where TimeGenerated >= start and TimeGenerated < endBound
+| where msg has 'catalog_loaded'
+| project TimeGenerated,app,rev,replica,containerImage,msg
+| order by app asc,rev asc,replica asc,TimeGenerated asc
+
+// Query block 3 of 3: execute separately.
+// Bounded failure/enforcement-marker query.
+let endBound=datetime(2026-09-08T19:05:50.938Z);
+let targets=datatable(app:string,rev:string,start:datetime)
+[
+  'portfolio-service','portfolio-service--0000095',datetime(2026-09-07T15:18:47Z),
+  'market-data-service','market-data-service--0000079',datetime(2026-08-30T10:39:21Z),
+  'insight-service','insight-service--0000079',datetime(2026-08-30T10:39:20Z)
+];
+ContainerAppConsoleLogs_CL
+| extend app=tostring(ContainerAppName_s),rev=tostring(RevisionName_s),replica=tostring(ContainerGroupName_s),msg=tostring(Log_s)
+| lookup kind=inner targets on app,rev
+| where TimeGenerated >= start and TimeGenerated < endBound
+| where msg has_any ('catalog_load_failed','post_migration_integrity_failed','unsupported_asset_event_rejected','would_reject_unsupported_event') or msg matches regex '(?i)(^|[^A-Za-z])(ERROR|Exception)([^A-Za-z]|$)'
+| summarize Count=count(),First=min(TimeGenerated),Last=max(TimeGenerated),Replicas=dcount(replica),Samples=make_set(substring(msg,0,300),3) by app,rev
+| order by app asc,rev asc

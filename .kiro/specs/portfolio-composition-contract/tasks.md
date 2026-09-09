@@ -1,6 +1,12 @@
 # Implementation Plan
 
-**Current R-C status — reconciled 2026-09-08 at `main@7e752b41`; candidate cut `8f1e8a36`:**
+**Current R-C status — Task 7.7 complete on 2026-09-09; candidate cut `8f1e8a36`:**
+G2, latest-valid G3, G4, G0a, G2a, G2b and derived G6 passed on exact immutable serving
+revisions. Astra independently issued ACCEPT with no Critical, Important or Minor findings.
+Task 7.8 owner STOP/GO is now the next task; it has not been decided or executed. No R-C candidate
+deployment, public composition exposure or Writer_Convergence claim exists.
+
+**Historical R-C status — reconciled 2026-09-08 at `main@7e752b41`:**
 [PR #222](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/222)
 merged the candidate verification, copy-only packaging, GC.5 and exact-image smoke tooling.
 [PR #234](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/234)
@@ -43,6 +49,23 @@ identity and the remaining serving gates are incomplete. No production write,
 dispatch, deployment or traffic/configuration change occurred. The
 [evidence packet](../../../docs/runbooks/B1_R_C_TASK_7_7_SERVING_EVIDENCE.md) records the boundary.
 Task 7.7 remains open; Task 7.8 must not be presented.
+
+**Task 7.7 authorized completion attempt — 2026-09-09:** the owner authorized the remaining
+read-only predicates and conditional write-bearing bundle. Complete startup coverage passed for all
+nine observed consumer replicas, and `market-prices.DLT` did not grow (`80 → 80`). Kafka metadata
+showed `portfolio-group` at committed/log-end `26602/26602`, lag `0`, but returned
+`GroupIdNotFoundException` for required `insight-group`. The fail-closed protocol stopped before any
+signup, authenticated read, legacy-route POST, seed or final G3. No database/Kafka/configuration/
+deployment state was changed. Independently, equal pull-byte counts for the three write-enabled tags
+were rejected as immutable content attestation, so those runtime identities remain unverified. Task
+7.7 therefore remains open on both predicates and Task 7.8 remains unavailable.
+Evidence:
+[`task-7-7-authorized-execution-20260908.json`](../../../docs/evidence/b1-r-c/task-7-7-authorized-execution-20260908.json).
+**Final authorized completion — 2026-09-09:** immutable image pins, transparent retained-range
+`insight-group` recovery, current lag/DLT and projection consistency, signup/authenticated/retired-
+route probes, exactly one seed and final G3 are green. Astra independently issued ACCEPT with no
+Critical, Important or Minor findings; Task 7.7 is complete. Evidence:
+[`task-7-7-completion-20260909.json`](../../../docs/evidence/b1-r-c/task-7-7-completion-20260909.json).
 
 **OWNER APPROVAL RECORDED — R-C preparation kickoff docs, 2026-09-03:** The owner requested
 Claude's kickoff and a docs-only PR; publication of that package is authorized, merge is separate.
@@ -128,10 +151,10 @@ remain in the [G5 record](../../../docs/runbooks/B1_G5_INGRESS_BLOCKER.md).
 G5's prerequisite for B1 Wave 6 is satisfied; Tasks 6.1–6.4 subsequently merged through PR #217
 and are source-complete. Task 6.5 has its separate 2026-09-03 owner GO and approved read-only
 preflight. The separately approved cu4 deployment and one-seed proof passed; Tasks 6.6/6.7
-are complete under the owner R-B3 GO. Wave 7 serving/deployment activation remains open. Unattended
+are complete under the owner R-B3 GO. Wave 7 deployment activation remains open. Unattended
 synthetics remain suspended; further dispatch or schedule restoration requires separate authorization.
 Candidate packaging, exact-digest smoke and source-governance evidence are complete through Task
-7.6. Task 7.7 serving recollection is open. Public `PUT /api/portfolio/holdings` remains unexposed.
+7.6, and Task 7.7 serving recollection is independently accepted complete. Public `PUT /api/portfolio/holdings` remains unexposed.
 The latest tracked runtime is R-B3r revision `0000095` / digest `sha256:fa060bf0…`; it superseded
 historical cu4 revision `0000094` after the accepted G2b proof. Writer_Convergence remains
 unproven until its separate activation conditions are met. Dependent proof branch
@@ -795,7 +818,7 @@ in Waves 5–7.
 
 ### 4a — Orchestrator and preparers
 
-**Current status:** tasks **4.1–4.21 (Wave 4a–4c) are merged on `main@2673f40`** (PR #153; undeployed/unexposed). Candidate packaging and exact-digest smoke are complete through Task 7.6; Task 7.7 serving recollection and later R-C gates remain open. Public `PUT` remains unexposed. **No Wave 4/5 runtime deployment is authorized** (V20/R-B already applied via Artifact 2 cut `25aa730`). No gateway route change, seed rewrite, deployment, traffic change, or public `PUT` exposure is authorized by this status.
+**Current status:** tasks **4.1–4.21 (Wave 4a–4c) are merged on `main@2673f40`** (PR #153; undeployed/unexposed). Candidate packaging and exact-digest smoke are complete through Task 7.6; Task 7.7 serving evidence is independently accepted complete, while Task 7.8 and later R-C gates remain open. Public `PUT` remains unexposed. **No Wave 4/5 runtime deployment is authorized** (V20/R-B already applied via Artifact 2 cut `25aa730`). No gateway route change, seed rewrite, deployment, traffic change, or public `PUT` exposure is authorized by this status.
 
 - [x] **4.1 `HoldingReplacementService`** — the single orchestrator, in D2's exact order: version
   precondition → semantic `400` (quantity, then duplicates) → catalog/lifecycle `422` aggregated →
@@ -1122,7 +1145,7 @@ retains five prerequisites, including the proposed report-carrier corrections an
 persistent SQL-writer disposition. Tooling completion is not candidate or serving acceptance.
 That 2026-09-03 preparation handoff itself advanced no 7.x, GC.5 or AM checkbox. Later reviewed
 evidence closes GC.5 and Tasks 7.1–7.2. The September 8 exact-cut checkpoint separately closes the
-evidence steps through Task 7.6, including 7.5a; Tasks 7.7–7.11 and AM.1/AM.2 remain open.
+evidence steps through Task 7.6, including 7.5a. Task 7.7 is complete; Tasks 7.8–7.11 and AM.1/AM.2 remain open.
 
 
 **Reviewed, merged and reconciled source work — 2026-09-08:** Cursor implemented Tasks 7.1–7.2
@@ -1269,21 +1292,19 @@ frozen R-B3 image; Tasks 7.7 onward, deployment and exposure retain their own ga
   same digest. This is what makes G6 satisfy **P11g-2**; a conjunction of three named paths cannot
   establish a property quantified over all of them.
   _Requirements: 8.1, 8.4, 8.10_
-- [ ] **7.7 Record pre-deploy serving evidence:** serving G2, G3 recollected after the latest valid
+- [x] **7.7 Record pre-deploy serving evidence:** serving G2, G3 recollected after the latest valid
   G2, G4, and G6 (serving G0a, G2a, G2b).
-  **Read-only collection 2026-09-08:** after fresh owner approval, current Azure/ACR/Log Analytics,
-  direct-revision GET and read-only Neon evidence bound the four sole serving revisions. Only
-  portfolio `0000095` / `fa060bf0…` has an immutable configured image; three tag-based runtime
-  digests remain unattested. The direct GET proves numeric-version backend capability but not G2a's
-  authenticated-read predicate. Current G3 is green (`violating_users=0`, all 10 users at portfolio
-  count 1) but sequence-unsatisfied until current G2 is valid; G4 is partially green. G2, G0a, G2a,
-  G2b and derived G6 remain unverified. The independently accepted G4 method is zero-mutation
-  evidence equivalence because R-B3r has no applicable arbitrary-holdings input. The explicit Task 7.6
-  inventory-to-serving source map is complete, but mapping alone cannot close G6. No production
-  write or configuration change occurred.
-  Evidence:
+  **Final collection 2026-09-09:** all four apps are bound to exact immutable digests with one
+  healthy/latest-ready 100%-traffic revision each. The recovered `insight-group` is explicitly a new
+  retained-range replay, not historical offset evidence. Three samples found both required groups at
+  lag zero with DLT fixed at 80; cross-projection and complete 11-replica startup checks passed. One
+  required signup plus one owner-approved recovery signup established provisioning and authenticated
+  numeric version. Retired-route probes returned 405/`Allow: GET` and 404. Exactly one frozen-version
+  seed returned SAME_STATE with complete byte-identical before/after snapshots. Final G3 found
+  `violating_users=0` across 12 users/12 portfolios. G2, G3, G4, G0a, G2a, G2b and derived G6 are
+  green. Astra independently issued ACCEPT with no findings; Task 7.7 is complete. Evidence:
   [`docs/runbooks/B1_R_C_TASK_7_7_SERVING_EVIDENCE.md`](../../../docs/runbooks/B1_R_C_TASK_7_7_SERVING_EVIDENCE.md),
-  [`docs/runbooks/B1_R_C_TASK_7_7_G4_AND_WRITER_MAP.md`](../../../docs/runbooks/B1_R_C_TASK_7_7_G4_AND_WRITER_MAP.md).
+  [`task-7-7-completion-20260909.json`](../../../docs/evidence/b1-r-c/task-7-7-completion-20260909.json).
   _Requirements: 9.1, 9.2, 9.7, 1.14_
 - [ ] **7.8 STOP/GO — R-C pre-deploy.**
   **Go:** 7.4–7.7 green. A prohibited rollback is a policy, not evidence.

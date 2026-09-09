@@ -1,0 +1,66 @@
+// Task 7.7 final fixed-bound queries. Execute blocks separately.
+// ContainerImage_s is diagnostic output only. Revision-template digests in the JSON record are
+// the artifact-identity authority because this field is not representation-stable across replicas.
+let endBound=datetime(2026-09-09T04:15:16.2747176Z);
+let targets=datatable(app:string,rev:string,start:datetime)
+[
+  'portfolio-service','portfolio-service--0000095',datetime(2026-09-07T15:18:47Z),
+  'market-data-service','market-data-service--0000080',datetime(2026-09-09T00:00:00Z),
+  'insight-service','insight-service--0000080',datetime(2026-09-09T01:58:38Z)
+];
+let pulls=ContainerAppSystemLogs_CL
+| extend app=tostring(ContainerAppName_s),rev=tostring(RevisionName_s),replica=tostring(ReplicaName_s)
+| lookup kind=inner targets on app,rev
+| where TimeGenerated >= start and TimeGenerated < endBound
+| where Reason_s == 'ImagePulled'
+| summarize PullLines=count(),FirstPull=min(TimeGenerated),LastPull=max(TimeGenerated) by app,rev,replica;
+let starts=ContainerAppConsoleLogs_CL
+| extend app=tostring(ContainerAppName_s),rev=tostring(RevisionName_s),replica=tostring(ContainerGroupName_s),msg=tostring(Log_s),containerImage=tostring(ContainerImage_s)
+| lookup kind=inner targets on app,rev
+| where TimeGenerated >= start and TimeGenerated < endBound
+| where msg has 'catalog_loaded'
+| extend version=extract('version=([0-9a-f]+)',1,msg),entries=toint(extract('entries=([0-9]+)',1,msg)),active=toint(extract('active=([0-9]+)',1,msg)),reject=extract('rejectUnsupportedEvents=(true|false)',1,msg),enforce=extract('enforceHoldingInvariant=(true|false)',1,msg)
+| extend tuple=strcat(version,'|',entries,'|',active,'|',reject,'|',enforce)
+| summarize StartupLines=count(),TupleCount=dcount(tuple),Tuples=make_set(tuple),ContainerImages=make_set(containerImage),FirstStartup=min(TimeGenerated),LastStartup=max(TimeGenerated) by app,rev,replica;
+pulls
+| join kind=leftouter starts on app,rev,replica
+| extend StartupLines=coalesce(StartupLines,0),TupleCount=coalesce(TupleCount,0)
+| project app,rev,replica,PullLines,FirstPull,LastPull,StartupLines,TupleCount,Tuples,ContainerImages,FirstStartup,LastStartup
+| order by app asc,rev asc,replica asc
+
+// Raw startup lines; no arg_max/latest-line reduction.
+let endBound=datetime(2026-09-09T04:15:16.2747176Z);
+let targets=datatable(app:string,rev:string,start:datetime)
+[
+  'portfolio-service','portfolio-service--0000095',datetime(2026-09-07T15:18:47Z),
+  'market-data-service','market-data-service--0000080',datetime(2026-09-09T00:00:00Z),
+  'insight-service','insight-service--0000080',datetime(2026-09-09T01:58:38Z)
+];
+ContainerAppConsoleLogs_CL
+| extend app=tostring(ContainerAppName_s),rev=tostring(RevisionName_s),replica=tostring(ContainerGroupName_s),msg=tostring(Log_s),containerImage=tostring(ContainerImage_s)
+| lookup kind=inner targets on app,rev
+| where TimeGenerated >= start and TimeGenerated < endBound
+| where msg has 'catalog_loaded'
+| project TimeGenerated,app,rev,replica,containerImage,msg
+| order by app asc,rev asc,replica asc,TimeGenerated asc
+
+// Fixed-window failure/enforcement markers for all current consumer revisions.
+// Result: one classified insight client-disconnect warning; zero unclassified failure rows.
+let endBound=datetime(2026-09-09T04:15:16.2747176Z);
+let targets=datatable(app:string,rev:string,start:datetime)
+[
+  'portfolio-service','portfolio-service--0000095',datetime(2026-09-07T15:18:47Z),
+  'market-data-service','market-data-service--0000080',datetime(2026-09-09T00:00:00Z),
+  'insight-service','insight-service--0000080',datetime(2026-09-09T01:58:38Z)
+];
+ContainerAppConsoleLogs_CL
+| extend app=tostring(ContainerAppName_s),rev=tostring(RevisionName_s),replica=tostring(ContainerGroupName_s),msg=tostring(Log_s)
+| lookup kind=inner targets on app,rev
+| where TimeGenerated >= start and TimeGenerated < endBound
+| where msg has_any (
+    '[INSIGHT-DLQ]','processing error','Redis failure','retry exhausted',
+    'catalog_load_failed','post_migration_integrity_failed',
+    'unsupported_asset_event_rejected','would_reject_unsupported_event')
+    or msg matches regex '(?i)(^|[^A-Za-z])(ERROR|Exception)([^A-Za-z]|$)'
+| project TimeGenerated,app,rev,replica,msg
+| order by TimeGenerated asc,app asc,rev asc,replica asc

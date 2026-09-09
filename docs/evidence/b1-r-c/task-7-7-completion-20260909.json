@@ -1,0 +1,308 @@
+{
+  "schemaVersion": 1,
+  "task": "B1 R-C Task 7.7",
+  "recordedDate": "2026-09-09",
+  "baseline": {
+    "main": "108addca6d079b08d9d0822d87bfe43812cd5699",
+    "candidateSource": "8f1e8a36f8baa594efa8079190f87b42139fcf10",
+    "candidatePortfolioDigest": "sha256:1cf372a39d17709f74aba427259548a531e3e1ba04dc64ec7750369bb8e82126"
+  },
+  "authorization": {
+    "scope": "remaining Task 7.7 work only",
+    "included": [
+      "immutable-digest replacement revisions for the three mutable-tag services",
+      "transparent insight-group recovery over the retained market-prices range",
+      "one required controlled signup plus one explicitly approved recovery signup",
+      "authenticated read and retired-route probes",
+      "exactly one controlled frozen-version seed",
+      "post-write G3 and final read-only evidence"
+    ],
+    "excluded": [
+      "Task 7.8 decision",
+      "R-C candidate deployment",
+      "public composition exposure",
+      "Writer_Convergence claim"
+    ]
+  },
+  "servingSet": {
+    "revisionMode": "Single",
+    "trafficPercentEach": 100,
+    "apps": [
+      {
+        "app": "api-gateway",
+        "revision": "api-gateway--0000078",
+        "source": "63fc0584ad307af7f50e9500f4911ac5999d6b76",
+        "digest": "sha256:79a3f253aaab1f3db58146612e8f2d05a70df6180482ace16efa1baef58469f3",
+        "provenanceRun": 33290349879
+      },
+      {
+        "app": "portfolio-service",
+        "revision": "portfolio-service--0000095",
+        "source": "97b83e52bcbfface4377cefd69ebb111270cb21e",
+        "digest": "sha256:fa060bf054b9c108b8b59d9e9b27845d6b707f40040a7dcba16411db7f0e8552",
+        "unchanged": true
+      },
+      {
+        "app": "market-data-service",
+        "revision": "market-data-service--0000080",
+        "source": "9b2cf0d655b4b7ae2ce20ff7b67e4ad750df6900",
+        "digest": "sha256:ad61144b2e747a5dd1b1fc9f5b5a091916559adf7c30117beae3563123aa2256",
+        "provenanceRun": 32631640786
+      },
+      {
+        "app": "insight-service",
+        "revision": "insight-service--0000080",
+        "source": "9b2cf0d655b4b7ae2ce20ff7b67e4ad750df6900",
+        "digest": "sha256:f7db159d5b07085e471d784d50456a1eb384abe178a8fbcf7f4b5b17e916a46b",
+        "provenanceRun": 32631640786
+      }
+    ],
+    "preservedConfiguration": {
+      "ingress": true,
+      "identity": true,
+      "environmentAndSecretReferences": true,
+      "resources": true,
+      "scale": true,
+      "commandAndArgs": true,
+      "refreshJobSchedule": "0 8 * * *",
+      "refreshJobRetries": 0,
+      "refreshJobTimeoutSeconds": 600
+    },
+    "finalState": "all exact images latest-ready, healthy, sole active revision, 100 percent traffic"
+  },
+  "g4": {
+    "status": "PASS",
+    "catalogTuple": "a00b32ac0267e1a9|160|159|true|true",
+    "startupCoverage": {
+      "endExclusiveUtc": "2026-09-09T04:15:16.2747176Z",
+      "portfolioReplicas": 7,
+      "marketDataReplicas": 2,
+      "insightReplicas": 2,
+      "uncoveredReplicas": 0,
+      "tupleMismatches": 0
+    },
+    "kafka": {
+      "partitions": {
+        "market-prices": [0],
+        "market-prices.DLT": [0]
+      },
+      "retainedMarketPricesRange": {
+        "earliest": 25808,
+        "logEnd": 26602
+      },
+      "preRecoveryDltAnchor": {
+        "partition": 0,
+        "logEnd": 80
+      },
+      "offsetRetentionMinutes": 10080,
+      "recoveryDisclosure": "insight-group was absent before recovery; the replacement immutable-digest insight revision created current committed state by replaying only the retained range. This is recovery evidence, not proof of historical offsets older than retention.",
+      "samples": [
+        {
+          "utc": "2026-09-09T02:00:53Z",
+          "insight": "26602/26602 lag 0",
+          "portfolio": "26602/26602 lag 0",
+          "dltLogEnd": 80
+        },
+        {
+          "utc": "2026-09-09T02:03:11Z",
+          "insight": "26602/26602 lag 0",
+          "portfolio": "26602/26602 lag 0",
+          "dltLogEnd": 80
+        },
+        {
+          "utc": "2026-09-09T04:14:21Z",
+          "insight": "26602/26602 lag 0",
+          "portfolio": "26602/26602 lag 0",
+          "dltLogEnd": 80
+        }
+      ]
+    },
+    "crossProjection": {
+      "activeTickers": 159,
+      "missingRedisTickers": 0,
+      "extraFreshRedisTickers": 0,
+      "nullRedisValues": 0,
+      "halfUpNormalizedPriceMismatches": 0,
+      "epochMillisecondTimestampMismatches": 0,
+      "observedUtc": "2026-09-09T02:33:44Z"
+    },
+    "errors": {
+      "fixedWindowAllConsumerQuery": true,
+      "coveredRevisions": [
+        "portfolio-service--0000095",
+        "market-data-service--0000080",
+        "insight-service--0000080"
+      ],
+      "resultRows": 1,
+      "insightDlqMarkers": 0,
+      "processingErrors": 0,
+      "redisFailures": 0,
+      "retryExhaustion": 0,
+      "classifiedBenignWarnings": 1,
+      "unclassifiedFailures": 0,
+      "classification": "client disconnected after an aggregate-summary request timed out; response was already committed and no replay/data error was present"
+    }
+  },
+  "controlledSignup": {
+    "requiredAttempt": {
+      "status": 201,
+      "userId": "c95242e3-08a7-42d3-a7b8-8d2cd5890130",
+      "email": "task77-307ad168d861@example.com",
+      "credentials": 1,
+      "portfolios": 1,
+      "tokenDiscardedAfterSameProcessRead504": true
+    },
+    "ownerApprovedRecoveryAttempt": {
+      "startedUtc": "2026-09-09T04:00:13.8811388Z",
+      "completedUtc": "2026-09-09T04:02:41.1963553Z",
+      "status": 201,
+      "attempts": 1,
+      "userId": "fa46c0ab-c613-4130-82c4-b18824f62ce5",
+      "email": "task77-496a82c697fd@example.com",
+      "credentials": 1,
+      "portfolios": 1,
+      "authenticatedPortfolioStatuses": [504, 200],
+      "portfolioId": "0b62ab7c-cc79-432e-b1ed-fa301f2280f4",
+      "portfolioVersion": 0,
+      "holdingCount": 0
+    },
+    "thirdSignupAttempted": false,
+    "cleanupPerformed": false
+  },
+  "gates": {
+    "G2": {
+      "status": "PASS",
+      "basis": "immutable gateway revision plus successful one-user/one-credential/one-portfolio provisioning"
+    },
+    "G0a": {
+      "status": "PASS",
+      "postPortfolioStatus": 405,
+      "allow": "GET",
+      "versionlessHoldingsPostStatus": 404
+    },
+    "G2a": {
+      "status": "PASS",
+      "authenticatedReadStatus": 200,
+      "numericVersion": 0
+    },
+    "G2b": {
+      "status": "PASS",
+      "traceId": "2aa3d19ae8724fc999c4e00141742c69",
+      "attemptStartedUtc": "2026-09-09T04:10:34.7327341Z",
+      "postCompletedUtc": "2026-09-09T04:10:35.864Z",
+      "beforeCaptureUtc": {
+        "started": "2026-09-09T04:10:30.924Z",
+        "completed": "2026-09-09T04:10:34.495Z"
+      },
+      "afterCaptureUtc": {
+        "started": "2026-09-09T04:10:35.868Z",
+        "completed": "2026-09-09T04:10:38.950Z"
+      },
+      "e2eUserId": "00000000-0000-0000-0000-000000000e2e",
+      "e2ePortfolioId": "d61870f5-d420-4947-987c-401e36d2069f",
+      "frozenVersion": 0,
+      "postAttempts": 1,
+      "retries": 0,
+      "redirects": 0,
+      "statusCode": 200,
+      "holdingsInserted": 159,
+      "identityPreserved": true,
+      "expectedOutcome": "SAME_STATE",
+      "goldenReference": {
+        "path": "docs/evidence/b1-task-6-6/e2e-golden-reference-6a171558.json",
+        "sha256": "344fa0f6f657f5e16e8275d1300043f27e53ccf6bd72193c85bfb70fb99910bd",
+        "catalogVersion": "a00b32ac0267e1a9",
+        "activeTickerCount": 159,
+        "beforeComparison": "PASS",
+        "tupleMismatches": 0
+      },
+      "completeBeforeAfterByteIdentical": true,
+      "snapshotManifest": [
+        {
+          "file": "schema.csv",
+          "header": "table_name,ordinal_position,column_name,data_type,udt_name,numeric_precision,numeric_scale,datetime_precision,is_nullable",
+          "rows": 23,
+          "beforeSha256": "1ffe14b89a0b56d4c5064c6ea701e6b0edcbd3c6aa2750b7a94ab86035dd4bad",
+          "afterSha256": "1ffe14b89a0b56d4c5064c6ea701e6b0edcbd3c6aa2750b7a94ab86035dd4bad"
+        },
+        {
+          "file": "e2e-portfolio.csv",
+          "header": "id,user_id,created_at,version,updated_at",
+          "rows": 1,
+          "beforeSha256": "f4ad995687b9c556064f442ed40916a58a8fa929cc5a2063e68317253b5660ab",
+          "afterSha256": "f4ad995687b9c556064f442ed40916a58a8fa929cc5a2063e68317253b5660ab"
+        },
+        {
+          "file": "e2e-holdings.csv",
+          "header": "id,portfolio_id,asset_ticker,quantity,avg_cost_basis,cost_basis_currency,cost_basis_source,cost_basis_as_of",
+          "rows": 159,
+          "beforeSha256": "3e0b9258ca55dc1570cd3e7e3e5657ee4a275bcfd88716bee5e3096e4c04877b",
+          "afterSha256": "3e0b9258ca55dc1570cd3e7e3e5657ee4a275bcfd88716bee5e3096e4c04877b"
+        },
+        {
+          "file": "demo-portfolio.csv",
+          "header": "id,user_id,created_at,version,updated_at",
+          "rows": 1,
+          "beforeSha256": "78f29ef630c1df3dfa1e3450a7ef7f07c65c040c2f53e1a40580b724eb13d4a0",
+          "afterSha256": "78f29ef630c1df3dfa1e3450a7ef7f07c65c040c2f53e1a40580b724eb13d4a0"
+        },
+        {
+          "file": "demo-holdings.csv",
+          "header": "id,portfolio_id,asset_ticker,quantity,avg_cost_basis,cost_basis_currency,cost_basis_source,cost_basis_as_of",
+          "rows": 159,
+          "beforeSha256": "abe730e474760140025a89ba982925f174221d72ac5efc2f47f9d59bbdaf4f30",
+          "afterSha256": "abe730e474760140025a89ba982925f174221d72ac5efc2f47f9d59bbdaf4f30"
+        },
+        {
+          "file": "market-prices.csv",
+          "header": "ticker,current_price,updated_at,quote_currency,observed_at",
+          "rows": 160,
+          "beforeSha256": "f60cd478a1b893d869caa9742f3702e4a9efb6361acc6a135c3beceb57e031a3",
+          "afterSha256": "f60cd478a1b893d869caa9742f3702e4a9efb6361acc6a135c3beceb57e031a3"
+        },
+        {
+          "file": "market-price-history.csv",
+          "header": "id,ticker,quote_currency,price,observed_at",
+          "rows": 17078,
+          "beforeSha256": "4752b8c38a068700b87654ac1dca71ce2d796234728cde32c874f52ceab10ef9",
+          "afterSha256": "4752b8c38a068700b87654ac1dca71ce2d796234728cde32c874f52ceab10ef9"
+        }
+      ]
+    },
+    "G3": {
+      "status": "PASS",
+      "observedAfterAllWrites": true,
+      "readOnly": true,
+      "sequenceEvidence": {
+        "afterUtc": "2026-09-09T04:10:38.950Z",
+        "beforeUtc": "2026-09-09T04:14:21Z",
+        "basis": "final integrity snapshot executed after the AFTER seed capture completed and before the retained final Kafka sample"
+      },
+      "users": 12,
+      "portfolios": 12,
+      "violatingUsers": 0,
+      "portfolioCountDistribution": {
+        "1": 12
+      },
+      "v21SuccessCount": 1,
+      "v21Checksum": 385711525,
+      "repairFunctionsRemaining": 0,
+      "constraintsValidated": true,
+      "integrityViolations": 0
+    },
+    "G6": {
+      "status": "PASS",
+      "basis": "fresh G0a, G2a and G2b joined to the accepted exhaustive Task 7.6 candidate-to-serving writer map"
+    }
+  },
+  "independentReview": {
+    "reviewer": "Astra",
+    "status": "ACCEPT",
+    "date": "2026-09-09",
+    "criticalFindings": 0,
+    "importantFindings": 0,
+    "minorFindings": 0
+  },
+  "taskVerdict": "COMPLETE",
+  "nextBoundary": "Task 7.8 owner STOP/GO is next; no Task 7.8 action is included in this record"
+}

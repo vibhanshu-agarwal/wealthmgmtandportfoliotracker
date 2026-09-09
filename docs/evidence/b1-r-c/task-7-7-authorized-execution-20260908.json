@@ -1,0 +1,226 @@
+{
+  "schemaVersion": 1,
+  "kind": "b1-r-c-task-7-7-authorized-completion-attempt",
+  "recordedAtUtc": "2026-09-08T19:20:09.3690188Z",
+  "status": "STOPPED_AT_READ_ONLY_G4_KAFKA_PREDICATE",
+  "scope": {
+    "approvalRecorded": "2026-09-09 owner reply: Authorized. Please complete the remaining work on task 7.7.",
+    "authorized": [
+      "remaining read-only runtime-identity and complete startup-line evidence",
+      "metadata-only Kafka lag and DLT non-growth evidence",
+      "one controlled signup and authenticated portfolio read only after all read-only predicates are green",
+      "two retired legacy-route POST probes only after all read-only predicates are green",
+      "one frozen-version seed with complete before/after evidence only after all read-only predicates are green",
+      "final read-only G3 and independent review"
+    ],
+    "excluded": [
+      "Task 7.8 decision",
+      "deployment or workflow dispatch",
+      "traffic or configuration changes",
+      "rollback or repair",
+      "public composition PUT exposure",
+      "Writer_Convergence claim"
+    ]
+  },
+  "baseline": {
+    "evidenceBranchBase": "108addca6d079b08d9d0822d87bfe43812cd5699",
+    "baseDescription": "PR 239 merge containing the accepted Task 7.7 protocol and serving packet",
+    "candidateReleaseCut": "8f1e8a36f8baa594efa8079190f87b42139fcf10",
+    "candidatePlatformDigest": "sha256:1cf372a39d17709f74aba427259548a531e3e1ba04dc64ec7750369bb8e82126"
+  },
+  "operationCounts": {
+    "productionHttpRequestsBeyondOrdinaryRead": 0,
+    "controlledSignupAttempts": 0,
+    "authenticatedPortfolioReads": 0,
+    "legacyRoutePostAttempts": 0,
+    "seedAttempts": 0,
+    "databaseMutations": 0,
+    "kafkaPayloadConsumes": 0,
+    "kafkaConsumerGroupJoins": 0,
+    "kafkaOffsetCommitsResetsOrDeletes": 0,
+    "kafkaProduces": 0,
+    "workflowDispatches": 0,
+    "deployments": 0,
+    "trafficOrConfigurationChanges": 0,
+    "rollbacksOrRepairs": 0
+  },
+  "servingSet": {
+    "preAndPostMatch": true,
+    "revisionMode": "Single for all four apps",
+    "targets": [
+      {
+        "app": "api-gateway",
+        "revision": "api-gateway--0000077",
+        "trafficPercent": 100,
+        "image": "wealthprodacr.azurecr.io/api-gateway:63fc0584ad307af7f50e9500f4911ac5999d6b76"
+      },
+      {
+        "app": "portfolio-service",
+        "revision": "portfolio-service--0000095",
+        "trafficPercent": 100,
+        "image": "wealthprodacr.azurecr.io/portfolio-service@sha256:fa060bf054b9c108b8b59d9e9b27845d6b707f40040a7dcba16411db7f0e8552"
+      },
+      {
+        "app": "market-data-service",
+        "revision": "market-data-service--0000079",
+        "trafficPercent": 100,
+        "image": "wealthprodacr.azurecr.io/market-data-service:9b2cf0d655b4b7ae2ce20ff7b67e4ad750df6900"
+      },
+      {
+        "app": "insight-service",
+        "revision": "insight-service--0000079",
+        "trafficPercent": 100,
+        "image": "wealthprodacr.azurecr.io/insight-service:9b2cf0d655b4b7ae2ce20ff7b67e4ad750df6900"
+      }
+    ]
+  },
+  "runtimeIdentity": {
+    "method": "Corroborative-only comparison of Azure ImagePulled references and byte counts with current OCI manifest/config/layer byte sums and ACR tag timestamps",
+    "evaluation": "CORROBORATIVE_ONLY_NOT_CONTENT_ATTESTATION",
+    "observations": [
+      {
+        "app": "api-gateway",
+        "revision": "api-gateway--0000077",
+        "digest": "sha256:79a3f253aaab1f3db58146612e8f2d05a70df6180482ace16efa1baef58469f3",
+        "systemPulledBytes": 291792374,
+        "ociComputedBytes": 291792374,
+        "tagCreatedAtUtc": "2026-08-30T03:41:10.6168749Z",
+        "tagLastUpdatedAtUtc": "2026-08-30T03:41:10.6168749Z",
+        "revisionCreatedAtUtc": "2026-08-30T03:41:22Z"
+      },
+      {
+        "app": "portfolio-service",
+        "revision": "portfolio-service--0000095",
+        "digest": "sha256:fa060bf054b9c108b8b59d9e9b27845d6b707f40040a7dcba16411db7f0e8552",
+        "configuredByDigest": true,
+        "systemPulledBytes": 314504159
+      },
+      {
+        "app": "market-data-service",
+        "revision": "market-data-service--0000079",
+        "digest": "sha256:ad61144b2e747a5dd1b1fc9f5b5a091916559adf7c30117beae3563123aa2256",
+        "systemPulledBytes": 301484607,
+        "ociComputedBytes": 301484607,
+        "tagCreatedAtUtc": "2026-08-23T09:42:38.0575548Z",
+        "tagLastUpdatedAtUtc": "2026-08-23T09:42:38.0575548Z",
+        "revisionCreatedAtUtc": "2026-08-30T10:39:21Z"
+      },
+      {
+        "app": "insight-service",
+        "revision": "insight-service--0000079",
+        "digest": "sha256:f7db159d5b07085e471d784d50456a1eb384abe178a8fbcf7f4b5b17e916a46b",
+        "systemPulledBytes": 366233644,
+        "ociComputedBytes": 366233644,
+        "tagCreatedAtUtc": "2026-08-23T09:42:57.1118254Z",
+        "tagLastUpdatedAtUtc": "2026-08-23T09:42:57.1118254Z",
+        "revisionCreatedAtUtc": "2026-08-30T10:39:20Z"
+      }
+    ],
+    "limitation": "The three tag objects remain write-enabled, and equal byte length is not content identity. Independent review rejected the pull-size/timestamp join as digest proof. The api-gateway, market-data-service and insight-service runtime digests therefore remain UNVERIFIED independently of the Kafka failure; only portfolio-service is configured by immutable digest."
+  },
+  "startupCoverage": {
+    "queryEndExclusiveUtc": "2026-09-08T19:05:50.938Z",
+    "queryFile": "docs/evidence/b1-r-c/task-7-7-authorized-execution-20260908.kql",
+    "queryFileSha256": "df9eeca57f999272bc4846fe9ca7f728e364d4c293e67fff1a2cc0d6c150a2a0",
+    "observedReplicas": 9,
+    "replicasByRevision": {
+      "portfolio-service--0000095": 5,
+      "market-data-service--0000079": 2,
+      "insight-service--0000079": 2
+    },
+    "uncoveredReplicas": 0,
+    "startupLinesPerReplica": 1,
+    "tupleCountPerReplica": 1,
+    "soleTuple": "a00b32ac0267e1a9|160|159|true|true",
+    "durabilityNote": "This is a transcript-derived aggregate of the nine live per-replica rows. The checked-in KQL preserves the exact reproducible query, but the local packet does not retain the nine sanitized replica identifiers and timestamps; local review therefore verifies the aggregate and query shape, not independent replay of each raw row.",
+    "result": "PASS"
+  },
+  "boundedMarkers": {
+    "queryEndExclusiveUtc": "2026-09-08T19:05:50.938Z",
+    "catalogLoadFailed": 0,
+    "postMigrationIntegrityFailed": 0,
+    "unsupportedAssetEventRejected": 0,
+    "wouldRejectUnsupportedEvent": 0,
+    "unexpectedErrors": 0,
+    "benignWarnings": "Three previously recorded insight-service client-disconnect response-committed warnings matched Exception text.",
+    "result": "PASS"
+  },
+  "kafkaMetadata": {
+    "clientImage": "confluentinc/cp-kafka@sha256:acbbf674f2ed40e5d0a8ca51beb0f00692c866fc22b5ce06f8cadbdc54cd4436",
+    "windowStartUtc": "2026-09-08T19:10:02.3389923Z",
+    "windowClosedUtc": "2026-09-08T19:20:09.3690188Z",
+    "topic": {
+      "name": "market-prices",
+      "partitionCount": 1,
+      "replicationFactor": 2,
+      "partition": 0,
+      "finalLogEndOffset": 26602
+    },
+    "dlt": {
+      "name": "market-prices.DLT",
+      "partitionCount": 1,
+      "replicationFactor": 2,
+      "partition": 0,
+      "preEndOffset": 80,
+      "postEndOffset": 80,
+      "nonGrowth": true,
+      "result": "PASS"
+    },
+    "groups": [
+      {
+        "group": "portfolio-group",
+        "partition": 0,
+        "committedOffset": 26602,
+        "logEndOffset": 26602,
+        "lag": 0,
+        "activeMembers": 0,
+        "result": "PASS"
+      },
+      {
+        "group": "insight-group",
+        "result": "FAIL_GROUP_NOT_FOUND",
+        "error": "org.apache.kafka.common.errors.GroupIdNotFoundException: Group insight-group not found"
+      }
+    ],
+    "diagnostics": [
+      "Both initial 30-second group descriptions timed out at the coordinator path while topic metadata and DLT offsets remained readable.",
+      "A 60-second group-list diagnostic timed out on broker 8.",
+      "A bounded 120-second portfolio-group description then succeeded with lag zero.",
+      "A bounded 120-second insight-group description returned GroupIdNotFoundException, which is the load-bearing failed predicate."
+    ],
+    "readOnlyGuarantee": "No payload was consumed, no consumer group was joined, no offset was committed, reset or deleted, and no record was produced."
+  },
+  "stopDecision": {
+    "failedOrUnverifiedPredicates": [
+      "Every current serving revision must be bound to an immutable runtime digest.",
+      "Every market-prices partition must have committed offset equal to log end for both portfolio-group and insight-group."
+    ],
+    "observed": "Runtime identity remains unverified for the three mutable-tag revisions, and insight-group does not exist in broker group metadata.",
+    "decision": "STOP_BEFORE_WRITE_BEARING_PROOFS",
+    "reason": "The approved fail-closed protocol makes either an unresolved immutable identity or an absent/inconclusive group a hard stop. Equal pull byte counts cannot prove content identity. Creating or waking a consumer to manufacture group state would join the group and could commit offsets, which this evidence protocol expressly forbids."
+  },
+  "skippedAfterStop": [
+    "controlled signup and provisioning proof",
+    "authenticated portfolio read",
+    "POST /api/portfolio legacy-route probe",
+    "versionless holdings POST legacy-route probe",
+    "frozen-version controlled seed and before/after database captures",
+    "final post-write G3 snapshot"
+  ],
+  "gateResults": {
+    "G2": "UNVERIFIED_MUTABLE_TAG_RUNTIME_IDENTITY_AND_STOPPED_BEFORE_SIGNUP",
+    "G3": "OBSERVED_GREEN_SEQUENCE_UNSATISFIED_NOT_RECOLLECTED",
+    "G4": "OPEN_UNVERIFIED_MUTABLE_TAG_RUNTIME_IDENTITY_AND_FAILED_INSIGHT_GROUP_STEADY_STATE",
+    "G0a": "UNVERIFIED_STOPPED_BEFORE_POST_PROBES",
+    "G2a": "PARTIAL_DIRECT_CAPABILITY_ONLY_STOPPED_BEFORE_AUTHENTICATED_READ",
+    "G2b": "UNVERIFIED_STOPPED_BEFORE_SEED",
+    "G6": "UNVERIFIED_DEPENDENT_SERVING_GATES_OPEN"
+  },
+  "decisionBoundary": {
+    "task7_7": "OPEN",
+    "task7_8": "MUST_NOT_BE_PRESENTED",
+    "task7_9": "NOT_AUTHORIZED_NOT_RUN",
+    "candidateReady": false,
+    "nextRequiredAction": "Obtain separate owner-reviewed decisions for cryptographic runtime identity (or immutable-digest replacement revisions) and for diagnosing/restoring the absent insight-group without treating recreated offsets as historical lag evidence. After both designs are accepted and executed under their own authority, rerun the complete read-only precondition packet from a fresh DLT anchor; only a wholly green packet may reach the already authorized write-bearing Task 7.7 proofs."
+  }
+}
