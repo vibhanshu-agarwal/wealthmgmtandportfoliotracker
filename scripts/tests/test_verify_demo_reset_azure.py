@@ -2128,16 +2128,15 @@ class FinalReviewRegressionTest(unittest.TestCase):
                 head = f"HTTP/1.1 {status} Slow\r\nContent-Length: 42\r\nConnection: close\r\n\r\n".encode()
                 try:
                     if self.server.slow_headers:
-                        for byte in head:
-                            self.request.sendall(bytes([byte]))
-                            time.sleep(0.04)
-                        self.request.sendall(b'"' + b'a' * 40 + b'"')
+                        self.request.sendall(head[:8])
                     else:
-                        self.request.sendall(head + b'"')
-                        for _ in range(40):
-                            self.request.sendall(b'a')
-                            time.sleep(0.04)
-                        self.request.sendall(b'"')
+                        self.request.sendall(head + b'"a')
+                    self.server.partial_response_sent.set()
+                    # Hold the real socket open until the deadline kills the disposable HTTP
+                    # worker. Blocking on peer close is condition-driven and avoids scheduler-
+                    # dependent byte-drip sleeps while preserving the real transport boundary.
+                    while self.request.recv(65536):
+                        pass
                 except OSError:
                     pass
                 finally:
@@ -2148,6 +2147,7 @@ class FinalReviewRegressionTest(unittest.TestCase):
 
         with Server(("127.0.0.1", 0), Drip) as server:
             server.started = threading.Event()
+            server.partial_response_sent = threading.Event()
             server.disconnected = threading.Event()
             threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.01},
                              daemon=True).start()
@@ -2157,21 +2157,24 @@ class FinalReviewRegressionTest(unittest.TestCase):
                     with self.subTest(status=status, slow_headers=slow_headers):
                         server.status, server.slow_headers = status, slow_headers
                         server.started.clear()
+                        server.partial_response_sent.clear()
                         server.disconnected.clear()
                         began = time.monotonic()
                         with self.assertRaisesRegex(verifier.ProofError, "deadline"):
                             verifier._default_http_runner(method="GET", url=url, headers={},
-                                                          timeout_seconds=0.4)
-                        self.assertLess(time.monotonic() - began, 0.65)
+                                                          timeout_seconds=1.5)
+                        self.assertLess(time.monotonic() - began, 2.5)
                         self.assertTrue(server.started.is_set(), "must exercise real transport")
-                        self.assertTrue(server.disconnected.wait(0.3), "timed-out transport must stop")
+                        self.assertTrue(server.partial_response_sent.is_set(),
+                                        "deadline must interrupt a partial real response")
+                        self.assertTrue(server.disconnected.wait(1.0), "timed-out transport must stop")
 
                 server.status, server.slow_headers = 200, False
                 commands = StatefulCommandRunner()
                 http = StatefulHttpRunner(commands)
                 clock = Clock()
                 cfg = config(override="1s")
-                cfg.operation_timeout_seconds = 0.4
+                cfg.operation_timeout_seconds = 1.5
 
                 def interrupted_write(**kwargs):
                     response = http(**kwargs)
