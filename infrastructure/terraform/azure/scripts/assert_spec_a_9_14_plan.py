@@ -47,6 +47,7 @@ KNOWN_PROFILES = (
     CLOSE_PROFILE,
     "api-gateway-custom-domain-restore",
     "api-gateway-custom-domain-remove",
+    "api-gateway-timeout-rollout",
 )
 
 

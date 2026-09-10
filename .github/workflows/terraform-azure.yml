@@ -88,6 +88,7 @@ on:
           reopen or rollback of api-gateway ingress only (in-place update, image unchanged).
           api-gateway-custom-domain-restore / api-gateway-custom-domain-remove = guarded
           restore or removal of api.vibhanshu-ai-portfolio.dev hostname presence.
+          api-gateway-timeout-rollout = exact four api-gateway timeout environment additions.
         type: choice
         options:
           - standard
@@ -104,6 +105,7 @@ on:
           - spec-a-9.14-close-ingress
           - api-gateway-custom-domain-restore
           - api-gateway-custom-domain-remove
+          - api-gateway-timeout-rollout
         default: standard
       use_seed_image:
         description: "Use public seed image for Container Apps (true for first apply before images exist in ACR)"
@@ -468,6 +470,15 @@ jobs:
             --app-json "$APP_JSON" \
             --certificates-json "$CERT_JSON"
 
+      - name: Timeout-rollout gateway identity preflight (read-only)
+        id: timeout-rollout-preflight
+        if: github.event.inputs.change_profile == 'api-gateway-timeout-rollout'
+        run: |
+          set -euo pipefail
+          GATEWAY_ID="$(az containerapp show --name api-gateway --resource-group wealth-azure-prod-rg --query id -o tsv)"
+          test -n "$GATEWAY_ID"
+          echo "gateway_id=$GATEWAY_ID" >> "$GITHUB_OUTPUT"
+
       - name: Terraform Plan (read-only)
         run: terraform plan -out=tfplan
 
@@ -535,14 +546,24 @@ jobs:
 
       - name: Assert Plan — api-gateway custom-domain guard / exact scope
         env:
-          EXPECTED_GATEWAY_ID: ${{ steps.custom-domain-preflight.outputs.gateway_id || steps.custom-domain-remove-preflight.outputs.gateway_id }}
+          EXPECTED_GATEWAY_ID: ${{ steps.custom-domain-preflight.outputs.gateway_id || steps.custom-domain-remove-preflight.outputs.gateway_id || steps.timeout-rollout-preflight.outputs.gateway_id }}
+          EXPECTED_IMAGE_TAGS_JSON: ${{ needs.validate-dispatch.outputs.canonical_image_tags_json }}
+          EXPECTED_IMAGE_DIGESTS_JSON: ${{ needs.validate-dispatch.outputs.canonical_image_digests_json }}
         run: |
           set -euo pipefail
           ARGS=(tfplan.json --profile "${{ github.event.inputs.change_profile }}")
           if [ -n "${EXPECTED_GATEWAY_ID:-}" ]; then
             ARGS+=(--expected-gateway-id "$EXPECTED_GATEWAY_ID")
           fi
+          ARGS+=(--expected-image-tags-json "$EXPECTED_IMAGE_TAGS_JSON" --expected-image-digests-json "$EXPECTED_IMAGE_DIGESTS_JSON")
           python3 scripts/assert_api_gateway_custom_domain_plan.py "${ARGS[@]}"
+
+      - name: Assert Plan — api-gateway timeout rollout guard / exact scope
+        env:
+          EXPECTED_GATEWAY_ID: ${{ steps.timeout-rollout-preflight.outputs.gateway_id }}
+          EXPECTED_IMAGE_TAGS_JSON: ${{ needs.validate-dispatch.outputs.canonical_image_tags_json }}
+          EXPECTED_IMAGE_DIGESTS_JSON: ${{ needs.validate-dispatch.outputs.canonical_image_digests_json }}
+        run: python3 scripts/assert_api_gateway_timeout_rollout_plan.py tfplan.json --profile "${{ github.event.inputs.change_profile }}" --expected-gateway-id "$EXPECTED_GATEWAY_ID" --expected-image-tags-json "$EXPECTED_IMAGE_TAGS_JSON" --expected-image-digests-json "$EXPECTED_IMAGE_DIGESTS_JSON"
 
       # Sanitized summary only — built from tfplan.json via summarize_plan.py, which
       # emits ONLY "<address> <actions>" per changed resource, never attribute paths,
@@ -699,6 +720,15 @@ jobs:
             --app-json "$APP_JSON" \
             --certificates-json "$CERT_JSON"
 
+      - name: Timeout-rollout gateway identity preflight (read-only)
+        id: timeout-rollout-preflight
+        if: github.event.inputs.change_profile == 'api-gateway-timeout-rollout'
+        run: |
+          set -euo pipefail
+          GATEWAY_ID="$(az containerapp show --name api-gateway --resource-group wealth-azure-prod-rg --query id -o tsv)"
+          test -n "$GATEWAY_ID"
+          echo "gateway_id=$GATEWAY_ID" >> "$GITHUB_OUTPUT"
+
       # For scoped Spec A profiles (9.9, 9.11, and 9.12) this is READ-ONLY: `terraform import`
       # mutates the real backend's state immediately, before any plan or assertion runs —
       # during a cutover that would be a state mutation outside the declared resource
@@ -729,7 +759,8 @@ jobs:
             || [ "$PROFILE" = "spec-a-9.14-reopen-ingress" ] \
             || [ "$PROFILE" = "spec-a-9.14-close-ingress" ] \
             || [ "$PROFILE" = "api-gateway-custom-domain-restore" ] \
-            || [ "$PROFILE" = "api-gateway-custom-domain-remove" ]; then
+            || [ "$PROFILE" = "api-gateway-custom-domain-remove" ] \
+            || [ "$PROFILE" = "api-gateway-timeout-rollout" ]; then
             echo "::error::${RESOURCE_ADDRESS} is not in Terraform state, and change_profile=${PROFILE} only permits a read-only check here — auto-import is not allowed during a scoped Spec A production change, since it would mutate the backend before any plan or assertion runs."
             echo "::error::Repair state through a separate, reviewed operation (e.g. dispatch with change_profile=standard first) before retrying the scoped Spec A apply."
             exit 1
@@ -833,14 +864,24 @@ jobs:
 
       - name: Assert Plan — api-gateway custom-domain guard / exact scope
         env:
-          EXPECTED_GATEWAY_ID: ${{ steps.custom-domain-preflight.outputs.gateway_id || steps.custom-domain-remove-preflight.outputs.gateway_id }}
+          EXPECTED_GATEWAY_ID: ${{ steps.custom-domain-preflight.outputs.gateway_id || steps.custom-domain-remove-preflight.outputs.gateway_id || steps.timeout-rollout-preflight.outputs.gateway_id }}
+          EXPECTED_IMAGE_TAGS_JSON: ${{ needs.validate-dispatch.outputs.canonical_image_tags_json }}
+          EXPECTED_IMAGE_DIGESTS_JSON: ${{ needs.validate-dispatch.outputs.canonical_image_digests_json }}
         run: |
           set -euo pipefail
           ARGS=(tfplan.json --profile "${{ github.event.inputs.change_profile }}")
           if [ -n "${EXPECTED_GATEWAY_ID:-}" ]; then
             ARGS+=(--expected-gateway-id "$EXPECTED_GATEWAY_ID")
           fi
+          ARGS+=(--expected-image-tags-json "$EXPECTED_IMAGE_TAGS_JSON" --expected-image-digests-json "$EXPECTED_IMAGE_DIGESTS_JSON")
           python3 scripts/assert_api_gateway_custom_domain_plan.py "${ARGS[@]}"
+
+      - name: Assert Plan — api-gateway timeout rollout guard / exact scope
+        env:
+          EXPECTED_GATEWAY_ID: ${{ steps.timeout-rollout-preflight.outputs.gateway_id }}
+          EXPECTED_IMAGE_TAGS_JSON: ${{ needs.validate-dispatch.outputs.canonical_image_tags_json }}
+          EXPECTED_IMAGE_DIGESTS_JSON: ${{ needs.validate-dispatch.outputs.canonical_image_digests_json }}
+        run: python3 scripts/assert_api_gateway_timeout_rollout_plan.py tfplan.json --profile "${{ github.event.inputs.change_profile }}" --expected-gateway-id "$EXPECTED_GATEWAY_ID" --expected-image-tags-json "$EXPECTED_IMAGE_TAGS_JSON" --expected-image-digests-json "$EXPECTED_IMAGE_DIGESTS_JSON"
 
       - name: Terraform Apply
         run: terraform apply -auto-approve tfplan
