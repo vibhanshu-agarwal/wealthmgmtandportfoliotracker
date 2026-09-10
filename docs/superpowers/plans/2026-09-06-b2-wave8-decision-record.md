@@ -213,3 +213,23 @@ approved. This addendum does not authorize Task 8.9's production login, portfoli
 queries, cleanup, any AWS action, frontend deployment, feature-flag enablement, traffic manipulation
 outside the workflow's normal single-revision update, rollback, or Wave 10 exposure. See
 [`docs/evidence/b2-task-8-8/owner-approval-20260910.json`](../../evidence/b2-task-8-8/owner-approval-20260910.json).
+
+### 2026-09-10 deployment completion addendum
+
+After the protected `production` environment approval, owner-authorized
+[run 34433715705](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/34433715705)
+completed successfully from `main@ea34c017514532977ce08d07be3344c1c2cb065a`. The exact approved
+inputs were preserved: Azure routing, `deployment_mode=scoped`, `services=api-gateway`, empty
+`prebuilt_digest`, and the full `expected_main_sha`. The run built and deployed immutable image
+`wealthprodacr.azurecr.io/api-gateway@sha256:aee44edc12b03175379caf65546e04f5ca1e2cea0d8690c00190b01254f20aa1`
+as `api-gateway--0000079` with 100% latest-revision traffic. Its run-attempt-1 digest manifest
+contained only that selected service and passed the selected-service comparison.
+
+The scoped non-interference job compared the captured before-state with Azure after-state and
+passed with no errors: `portfolio-service--0000096`, `market-data-service--0000080`,
+`insight-service--0000080`, and the `market-data-refresh-job` image were byte-identical. AWS,
+frontend deployment, seed, broad verification, and refresh-job update were skipped by scope.
+Tasks 8.8 and 8.8b are complete. Task 8.8a remains AWS-only; Task 8.9 live login/reset/causal-log
+proof and Wave 10 exposure remain open and separately owner-gated. Both production feature flags
+remain disabled. See the
+[machine-readable completion evidence](../../evidence/b2-task-8-8/deployment-completion-20260910.json).
