@@ -394,12 +394,13 @@ write-direction mandate, 4.2 the read-direction one; pass 7 correction: previous
 designs the fix (B1 `design.md` D6, a `ToPlainStringSerializer` on `HoldingResponse.quantity`).
 **B1 task 4.9 is merged on `main`** — verified directly against current source, not assumed from
 the task list alone: `PortfolioResponse.HoldingResponse.quantity` is serialized as an exact decimal
-string on the wire. The tolerant frontend adapter also landed through PR #178. The remaining item
-is not future source migration or rollout sequencing: B1 owns a historical containment/frontend-
-artifact audit because its string-producing backend source served before that adapter landed.
-Task 2.7 stays open until the deployed frontend artifact, routing/cache/rollback paths, and impact
-are reconstructed and receive a reviewed disposition. Recorded ingress closure makes impact
-unproven, not closed; Task 2.6 compatibility and Wave 10.2 item 2 remain safeguards. B2's own
+string on the wire. The tolerant frontend adapter also landed through PR #178. B1's historical
+containment/frontend-artifact audit is independently ACCEPTed by Astra on 2026-09-10: it reconstructs
+the recorded backend deployments and documented frontend delivery paths, but bounds containment only
+at the recorded ACA boundary. Impact remains unproven, not impossible; contemporaneous frontend
+artifact, embedded-origin, cache, and rollback identities remain unresolved. `fd42df7` /
+`main@38e3d954` is source provenance, not serving proof. Task 2.6 compatibility remains mandatory
+and Wave 10.2 item 2 remains unsatisfied. B2's own
 `DraftRow` state stores quantity as the string the input holds;
 a derived, memoized numeric value is computed only for the estimated-value display, never fed back
 into the draft or the submit payload.
@@ -1437,10 +1438,12 @@ reset placement is final for this release, and the self-call budgets are 2s elig
 the Wave 8 decision record; they are no longer implementation defaults or open questions.
 
 The remaining decimal item is historical. The backend decimal-string source served before the
-tolerant frontend adapter landed. B1 owns the containment/frontend-artifact audit across deployed
-frontend artifacts, routing, caches, and rollback paths, followed by a reviewed disposition.
-Recorded ingress closure makes impact unproven rather than closed. Task 2.6 compatibility, Task 2.7,
-and Wave 10.2 item 2 remain open. Deployment, live proof, and exposure gates also remain separate.
+tolerant frontend adapter source merged. B1's containment/frontend-artifact audit is independently
+ACCEPTed by Astra on 2026-09-10; it bounds containment only at the recorded ACA path. Recorded
+ingress closure leaves impact unproven, not impossible, while contemporaneous frontend artifact,
+embedded-origin, cache, and rollback identities remain unresolved. Task 2.6 compatibility remains
+mandatory and Wave 10.2 item 2 remains unsatisfied. Deployment, live proof, and exposure gates also
+remain separate.
 
 **`updatedAt` exposure on `PortfolioResponse` is no longer open.** B2 Task 8.1 delivered the
 additive field `updatedAt` (camelCase; database column `updated_at`), its entity-to-response mapping,
