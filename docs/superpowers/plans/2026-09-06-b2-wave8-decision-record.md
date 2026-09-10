@@ -199,3 +199,17 @@ This record authorizes offline source and test work only. Push, pull-request cre
 execution, deployment, cloud/registry/secret access, production probing, Task 8.8 deployment, Task
 8.9 live proof, and Wave 10 exposure remain separately owner-gated. A gateway artifact containing
 Wave 5 behavior also requires Task 5.6 GO before deployment.
+
+### 2026-09-10 authorization addendum
+
+The owner subsequently and explicitly approved both Task 5.6 GO and one Task 8.8 Azure production
+deployment of the combined gateway artifact. The approved dispatch uses the protected
+`.github/workflows/deploy.yml` entry point, targets `main`, sets `deployment_mode=scoped`, sets
+`services=api-gateway`, leaves `prebuilt_digest` empty, and pins `expected_main_sha` to the full
+`main` SHA containing the docs-only authorization record. The reviewed application-source baseline
+is `37f3860062edf5cdf2c9494cc8669804c0d2e561`; the gateway source tree must remain identical after
+the record merges. Push, PR creation, and merge of this docs-only record were also explicitly
+approved. This addendum does not authorize Task 8.9's production login, portfolio mutation, KQL/log
+queries, cleanup, any AWS action, frontend deployment, feature-flag enablement, traffic manipulation
+outside the workflow's normal single-revision update, rollback, or Wave 10 exposure. See
+[`docs/evidence/b2-task-8-8/owner-approval-20260910.json`](../../evidence/b2-task-8-8/owner-approval-20260910.json).
