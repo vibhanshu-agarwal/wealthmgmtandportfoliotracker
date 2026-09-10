@@ -1,17 +1,21 @@
 # Asset Picker — E2E Master Plan to Production
 
-**Last verified:** 2026-09-09 at runtime/program-state code baseline `main@5fd1dac6a37513916fd2b80ca3929c4e20ad0de7` for Task 7.9 serving proof;
+**Last verified:** 2026-09-10 at `main@ea34c017514532977ce08d07be3344c1c2cb065a` for B2 Task 8.8 deployment evidence;
+2026-09-09 at runtime/program-state code baseline `main@5fd1dac6a37513916fd2b80ca3929c4e20ad0de7` for Task 7.9 serving proof;
 pre-merge Task 7.7 evidence baseline `main@108addca6d079b08d9d0822d87bfe43812cd5699`; candidate release cut `8f1e8a36f8baa594efa8079190f87b42139fcf10`
 
-**OWNER APPROVAL RECORDED — B2 Tasks 5.6 and 8.8, 2026-09-10:** The owner approved Task 5.6 GO
-for the complete Wave 5 gateway bundle and separately approved one Task 8.8 Azure production
-dispatch through the protected `Deploy` workflow: `deployment_mode=scoped`,
-`services=api-gateway`, empty `prebuilt_digest`, and `expected_main_sha` equal to the full `main`
-SHA containing this docs-only record. The reviewed application-source baseline is
-`37f3860062edf5cdf2c9494cc8669804c0d2e561`; the gateway source tree must remain identical after
-this record merges. This is authorization, not completion: no workflow run, new digest/revision,
-manifest comparison, or serving proof is claimed here. Task 8.9 and Wave 10 remain unauthorized.
-See the [machine-readable approval record](../evidence/b2-task-8-8/owner-approval-20260910.json).
+**B2 TASK 8.8 DEPLOYMENT COMPLETE — 2026-09-10:** After the recorded Task 5.6 GO and Task 8.8
+authorization, protected production
+[run 34433715705](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/34433715705)
+deployed only `api-gateway` from `main@ea34c017514532977ce08d07be3344c1c2cb065a` in scoped Azure
+mode. Immutable digest
+`sha256:aee44edc12b03175379caf65546e04f5ca1e2cea0d8690c00190b01254f20aa1` now serves as
+`api-gateway--0000079` at 100% latest-revision traffic. The current-attempt manifest comparison and
+byte-identical non-interference proof passed; all unselected apps and the refresh Job remained
+unchanged. Task 8.8b is therefore complete with 8.8. Task 8.9 live serving proof and Wave 10 remain
+open and separately owner-gated, and both production feature flags remain disabled. See the
+[completion evidence](../evidence/b2-task-8-8/deployment-completion-20260910.json) and
+[owner approval](../evidence/b2-task-8-8/owner-approval-20260910.json).
 
 **Current delivery status — Tasks 7.1–7.11 locally complete:**
 The final authorized collection binds all four serving apps to exact immutable digests and passes
@@ -403,7 +407,7 @@ At every meaningful merge or live checkpoint:
 |---|---|---|---|
 | **A — Spec A catalog/data cutover** | Shared catalog, Postgres/Mongo repair, R4 rollout, enforcement, one reconciled controlled refresh, persisted refresh enablement, demo portfolio activation, and scale-to-zero restoration | **All 14 cutover checkpoints complete.** 9.13 completed on `portfolio-service--0000092`, `market-data-service--0000079`, and `insight-service--0000079`; B2 Task 4.5 later superseded only the portfolio revision with `portfolio-service--0000093`. 9.14 completed via apply [33331130603](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33331130603), reopening ACA external ingress on `api-gateway--0000077` with `allowInsecure=false` ([`SPEC_A_9_14_REOPEN_INGRESS.md`](../runbooks/SPEC_A_9_14_REOPEN_INGRESS.md)); the later custom-domain restore has independent `200` read-back, and PR #194 independently reviewed and merged that evidence ([`API_GATEWAY_CUSTOM_DOMAIN_RECOVERY.md`](../runbooks/API_GATEWAY_CUSTOM_DOMAIN_RECOVERY.md)); historical RCA remains `MECHANISM_REPRODUCED_SETTER_UNPROVEN` | Spec A's production cutover is done. B1 G5 closed by owner decision on 2026-09-02 using the reviewed three-caller run. B1 Wave 6 Tasks 6.1–6.4 are source-complete through PR #217; the four filed process follow-ups remain open |
 | **B — B1 portfolio composition backend** | Deployment prerequisites, fixture identity migration, legacy writer retirement, gateway provisioning, V20, version-bearing read, version-required seed, Wave 7 controller/tests, R-C preparation tooling, R3 closure, GC.5 source-governance closure, immutable candidate evidence through Task 7.6, accepted Task 7.7 serving evidence, Task 7.8 owner GO, Task 7.9 exact-digest serving proof, and Task 7.10 owner GO recorded locally | **Tasks 7.1–7.11 complete locally.** `portfolio-service--0000096` serves the exact R-C manifest at 100%; the single authenticated no-op PUT was `SAME_STATE`. P11g-1 is established for the transitional range; Writer_Convergence / P11g-2 is established only for the activated exact R-C artifact and rollback artifacts at or above R-B3r. The workflow comparator covered unselected app revision/image/traffic and refresh-job image; both Kafka groups were lag zero with DLT 80 | Publication remains separate until explicitly authorized; no additional production operation or rollback occurred during Task 7.11 |
-| **C — B2 Asset Picker product** | Requirements, design, task plan, five-screen visual mockup, Waves 1–6 source, Wave 8 source/tooling, and Wave 9 local real-stack integration | Wave 8 source and Azure proof tooling merged via PR #233 at `main@a52ec1ef`; deployment/live proof remain open. Wave 9 Tasks 9.1–9.9 carry their recorded source/local evidence; PR #232 at `main@318f2859` passed the disposable Compose real-browser run 5/5 and required CI wiring | No production deployment or Production E2E is claimed. Tasks 2.6–2.7, 3.7, 5.6, 6.3, 8.8/8.9, and Wave 10 remain open; production flags remain off |
+| **C — B2 Asset Picker product** | Requirements, design, task plan, five-screen visual mockup, Waves 1–6 source, Wave 8 source/tooling, Task 8.8 scoped gateway deployment, and Wave 9 local real-stack integration | Wave 8 source and Azure proof tooling merged via PR #233 at `main@a52ec1ef`; Task 8.8/8.8b deployment evidence passed on `api-gateway--0000079` in run `34433715705`. Task 8.9 live serving proof remains open. Wave 9 Tasks 9.1–9.9 carry their recorded source/local evidence; PR #232 at `main@318f2859` passed the disposable Compose real-browser run 5/5 and required CI wiring | The combined Wave 5/Wave 8 gateway artifact is deployed hidden; no Production E2E or exposure is claimed. Tasks 2.6–2.7, 3.7, 6.3, 8.9, and Wave 10 remain open; production flags remain off |
 | **D — Demo credibility** | Canonical prices refreshed and reconciled; demo initializer exists; authorized 9.12 retry activated the Active_Asset set | Demo portfolio holds the exact 159-holding golden set after Task 4.5's one-call live proof on `portfolio-service--0000093`; version remained `0` under the valid same-state no-op; both flags remain `false`; historical pooled-session setter remains unidentified | 9.14 and the custom-domain restore are complete; B1 G5 closed by owner decision on 2026-09-02 using run 33411410271. Operational 9.12 success does not close historical RCA |
 
 ### What is actually usable today
@@ -578,10 +582,10 @@ All four artifacts are tracked. Wave 1 (1.1-1.19) and Wave 2 Tasks 2.1-2.5 merge
 | 2 — decimal adapter | 🟡 Tasks 2.1-2.5 source merged; 2.6-2.7 open | PR #178 / `main@38e3d95`; retain numeric compatibility while B1 completes the historical backend-before-adapter containment/frontend-artifact audit and reviewed disposition |
 | 3 — Redis-backed presence | 🟡 Tasks 3.1–3.6 source merged via PR #179 / `main@cc97a209`; Task 3.7 open | Default TTL **150s** via `APP_DEMO_PRESENCE_TTL`; not deployed/live-verified |
 | 4 — portfolio-service demo reset | ✅ Complete — Tasks 4.1–4.4a merged via PR #180 / `main@63fc058`; Task 4.5 live GO | Exact cut serves internally on `portfolio-service--0000093` / `sha256:9a1d5533…`; one authorized same-state reset returned `200`, exact golden 159/159, unchanged version `0` per B1; [evidence](../runbooks/B2_TASK_4_5_DEMO_RESET_STOP_GO.md) |
-| 5 — manual-reset gateway bundle | 🟡 Tasks 5.1a and 5.1b source merged via [PR #202](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/202) / `main@64761dc2` and [PR #208](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/208) / `main@f954b5a7`; neither is deployed. Wave 4's prerequisite is satisfied. Remaining source Tasks 5.1, 5.2, 5.3, 5.3a, 5.4, and 5.5 merged via [PR #212](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/212) / `main@d8fa499d` | Filter, both routes, exact read-only exceptions, tests, and identity guard accepted; final CI passed on the identical reviewed tree. Task 5.6 owner GO recorded 2026-09-10 for shipment in the approved Task 8.8 scoped gateway deployment; deployment evidence remains pending |
+| 5 — manual-reset gateway bundle | ✅ Source Tasks 5.1–5.5 plus 5.1a/5.1b are merged, Task 5.6 owner GO is recorded, and the complete bundle was shipped hidden with the approved Task 8.8 scoped gateway deployment | Serving in `api-gateway--0000079` at digest `sha256:aee44edc…`; deployment run `34433715705` and its non-interference proof passed. The frontend control remains disabled and Task 6.3 remains gated |
 | 6 — manual reset frontend | ✅ Tasks 6.1/6.2 merged via [PR #214](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/214) at `main@48d0aba8`, identical to CI-green head `b918ff09`; ACCEPT, R1–R4 closed | Committed flags off; the owner finalized the existing page-level placement on 2026-09-06. Task 6.3 remains gated; no new runtime attestation. The owner-deferred [sidebar backlog](../todos/backlog/responsive-dashboard-sidebar/README.md) remains open |
 | 7 — decimal rollout note | ℹ Informational | No independent release gate |
-| 8 — login-orchestrated reset | 🟡 Task 8.1 behavior is present in source `6a171558`, deployed historically as cu4/revision `0000094` at exact digest `sha256:2be727eaf4577699c783ae66073670d4984fe66c666af3e56422c934fdd0b023`; provenance only, not fresh read-back, and no duplicate deployment is needed. Only Task 8.2a remains source-only/not deployed. Owner-approved threshold/timeouts/placement and Astra acceptance are recorded; the self-call timeouts were revised on 2026-09-09 to 45s eligibility / 10s reset / 60s overall, superseding 2s/2s/4s on recorded scale-to-zero cold-start evidence (the 30-minute idle threshold and page-level manual-reset placement are unchanged). Tasks 8.3–8.7a and 8.8b source are complete and independently accepted; actionlint v1.7.12 passed with the required checksum/invocation. Task 8.8 owner GO for one scoped Azure `api-gateway` deployment is recorded 2026-09-10, but 8.8 and 8.9 remain operationally open: no authorized workflow result, new digest/revision, manifest comparison, or live proof is claimed yet. [Decision record](../superpowers/plans/2026-09-06-b2-wave8-decision-record.md). | Source prerequisites and Task 5.6 GO are satisfied. Remaining gates are Task 8.8/8.8b deployment evidence and Task 8.9. B1 R-C is locally complete: Writer_Convergence / P11g-2 is proved only for the activated exact R-C artifact and rollback artifacts at or above R-B3r; production flags remain off |
+| 8 — login-orchestrated reset | 🟡 Tasks 8.1–8.8 and 8.8b are complete for Azure. Owner-authorized scoped production run `34433715705` deployed the combined gateway artifact from `main@ea34c017514532977ce08d07be3344c1c2cb065a` as `api-gateway--0000079` at exact digest `sha256:aee44edc12b03175379caf65546e04f5ca1e2cea0d8690c00190b01254f20aa1`; the current-attempt manifest and non-interference proof passed. The approved 30-minute idle threshold and 45s/10s/60s timeouts are in the deployed code. [Decision record](../superpowers/plans/2026-09-06-b2-wave8-decision-record.md) and [completion evidence](../evidence/b2-task-8-8/deployment-completion-20260910.json). | Task 8.9 live login/reset/log-correlation proof remains open and separately gated. Task 8.8a remains AWS-only and does not apply to this Azure deployment. Production flags remain off |
 | 9 — live integration | 🟡 Tasks 9.1, 9.3, 9.4, 9.5 (PR #231 at `main@b4c68253b99a796d6301ef79b5aa5a47d5cbd962`), and 9.6 have their recorded source/local evidence. Tasks 9.2/9.7/9.8/9.9 are source/assembled-stack complete: one disposable Compose real-browser run passed 5/5 across setup plus picker and demo-reset success/conflict; PR #232 merged at `main@318f28592da6ab2e3bd66bc738aa68d374b180fa`, with final CI run `34018608256` passing `docker-build-verify` and `ci-required`, and body-edit guard run `34020180243` passing | No deployment or Production E2E is claimed; the B2-specific Wave 10 convergence/exposure gate and Production E2E still gate exposure. This is not the already-proved B1 P11g-2 property; production flags remain off |
 | 10 — production exposure | ⬜ Blocked | B2-specific convergence/exposure gate after all required B2 live evidence and open decisions close |
 
@@ -593,9 +597,9 @@ independently accepted. At that snapshot, remaining Wave 8 gates were deployment
 (8.8/8.9), not source orchestration prerequisites; Task 5.6 GO and B1 R-C deployment/convergence
 remained open. **Current status:** B1 R-C Tasks 7.1–7.11 are locally complete, and
 Writer_Convergence / P11g-2 is proved only for the activated exact R-C artifact and rollback artifacts
-at or above R-B3r. The active B2 gates are Task 8.8/8.8b deployment evidence, Task 8.9, Task 5.6 GO
-where applicable, the B2-specific Wave 10 convergence/exposure gate, and Production E2E; production
-flags remain off.
+at or above R-B3r. Task 5.6 GO and Task 8.8/8.8b deployment evidence are now complete. The active
+B2 gates are Task 8.9, the B2-specific Wave 10 convergence/exposure gate, and Production E2E;
+production flags remain off.
 
 The aggregate `assetPriceFreshness` backend dependency is now **closed**: Spec A task 8.6 is
 complete and `PortfolioSummaryDto.assetPriceFreshness` exists. B2 Wave 1 delivered the mocked
@@ -691,8 +695,9 @@ controller is consequently reachable through the existing gateway wildcard.
 
 **B2 position:** Wave 8 source and Azure proof tooling are merged through PR #233, and Wave 9's
 disposable Compose real-browser integration passed 5/5 through PR #232. These are source/local-CI
-claims, not production proof. Task 5.6 owner GO and Task 8.8 deployment authorization were recorded
-on 2026-09-10; the deployment evidence remains open. Tasks 2.6–2.7, 3.7, 6.3, 8.8/8.9 and Wave 10 remain open;
+claims, except for the separately evidenced Task 8.8 scoped gateway deployment. Task 5.6 owner GO
+and Task 8.8/8.8b deployment evidence completed on 2026-09-10 in run `34433715705`. Tasks 2.6–2.7,
+3.7, 6.3, 8.9 and Wave 10 remain open;
 both production feature flags remain disabled. The owner-deferred
 [sidebar issue](../todos/backlog/responsive-dashboard-sidebar/README.md) remains separate.
 
@@ -733,9 +738,9 @@ additional production operation or rollback occurred during Task 7.11.
    historical Wave 4 cut remains deployed internally and Task 4.5 is GO. Wave 8 source and Azure
    proof tooling merged through PR #233 at `main@a52ec1ef`. Wave 9 source and disposable-stack
    browser integration are complete through PR #232 at `main@318f2859`, whose run `34018608256`
-   passed `docker-build-verify` and `ci-required`. Task 5.6 owner GO and Task 8.8 deployment
-   authorization were recorded on 2026-09-10; Task 3.7 live proof, Task 6.3,
-   Wave 8 deployment evidence/live proof and Wave 10 remain open. Both feature flags remain off, and no
+   passed `docker-build-verify` and `ci-required`. Task 5.6 owner GO and Task 8.8/8.8b deployment
+   evidence completed on 2026-09-10 in run `34433715705`; Task 3.7 live proof, Task 6.3,
+   Task 8.9 live serving proof, and Wave 10 remain open. Both feature flags remain off, and no
    Production E2E or exposure is claimed.
 4. **Process lane:** keep the status-propagation CI guard healthy in required `static-guard`; it is
    process-control only and does not advance the runtime baseline.

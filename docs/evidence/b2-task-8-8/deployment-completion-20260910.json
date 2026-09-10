@@ -1,0 +1,93 @@
+{
+  "schemaVersion": 1,
+  "recordedDate": "2026-09-10",
+  "feature": "Asset Picker",
+  "task": "B2 Task 8.8 and 8.8b",
+  "result": "PASS",
+  "workflow": {
+    "name": "Deploy",
+    "runId": 34433715705,
+    "url": "https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/34433715705",
+    "status": "completed",
+    "conclusion": "success",
+    "createdAt": "2026-09-10T03:32:25Z",
+    "completedAt": "2026-09-10T03:40:10Z",
+    "runAttempt": 1
+  },
+  "source": {
+    "ref": "main",
+    "sha": "ea34c017514532977ce08d07be3344c1c2cb065a",
+    "reviewedApplicationBaseline": "37f3860062edf5cdf2c9494cc8669804c0d2e561",
+    "apiGatewaySourceChangedByApprovalRecord": false,
+    "deploymentWorkflowChangedByApprovalRecord": false
+  },
+  "dispatch": {
+    "deployment_mode": "scoped",
+    "services": "api-gateway",
+    "prebuilt_digest": "",
+    "expected_main_sha": "ea34c017514532977ce08d07be3344c1c2cb065a",
+    "cloud": "azure"
+  },
+  "deployment": {
+    "service": "api-gateway",
+    "before": {
+      "revision": "api-gateway--0000078",
+      "image": "wealthprodacr.azurecr.io/api-gateway@sha256:79a3f253aaab1f3db58146612e8f2d05a70df6180482ace16efa1baef58469f3",
+      "trafficPercent": 100
+    },
+    "after": {
+      "revision": "api-gateway--0000079",
+      "image": "wealthprodacr.azurecr.io/api-gateway@sha256:aee44edc12b03175379caf65546e04f5ca1e2cea0d8690c00190b01254f20aa1",
+      "trafficPercent": 100
+    },
+    "revisionProvisioningState": "Succeeded"
+  },
+  "digestEvidence": {
+    "artifact": "digest-manifest",
+    "artifactId": 10135556371,
+    "manifest": {
+      "api-gateway": "sha256:aee44edc12b03175379caf65546e04f5ca1e2cea0d8690c00190b01254f20aa1"
+    },
+    "runAttemptMarker": 1,
+    "selectedServiceManifestComparison": "PASS"
+  },
+  "nonInterference": {
+    "result": "PASS",
+    "unchanged": {
+      "portfolio-service": {
+        "revision": "portfolio-service--0000096",
+        "image": "wealthprodacr.azurecr.io/portfolio-service@sha256:1cf372a39d17709f74aba427259548a531e3e1ba04dc64ec7750369bb8e82126",
+        "trafficPercent": 100
+      },
+      "market-data-service": {
+        "revision": "market-data-service--0000080",
+        "image": "wealthprodacr.azurecr.io/market-data-service@sha256:ad61144b2e747a5dd1b1fc9f5b5a091916559adf7c30117beae3563123aa2256",
+        "trafficPercent": 100
+      },
+      "insight-service": {
+        "revision": "insight-service--0000080",
+        "image": "wealthprodacr.azurecr.io/insight-service@sha256:f7db159d5b07085e471d784d50456a1eb384abe178a8fbcf7f4b5b17e916a46b",
+        "trafficPercent": 100
+      },
+      "market-data-refresh-job": {
+        "image": "wealthprodacr.azurecr.io/market-data-service@sha256:ad61144b2e747a5dd1b1fc9f5b5a091916559adf7c30117beae3563123aa2256"
+      }
+    }
+  },
+  "skippedByScope": [
+    "deploy-aws",
+    "deploy-frontend",
+    "seed",
+    "verify",
+    "market-data-refresh-job update"
+  ],
+  "closure": {
+    "task8_8": "COMPLETE",
+    "task8_8b": "COMPLETE",
+    "task8_8a": "OPEN_AWS_ONLY_NOT_APPLICABLE_TO_THIS_AZURE_RUN",
+    "task8_9": "OPEN_SEPARATELY_OWNER_GATED",
+    "wave10": "OPEN_SEPARATELY_OWNER_GATED",
+    "productionFeatureFlags": "UNCHANGED_DISABLED"
+  },
+  "warning": "GitHub emitted Node.js 20 deprecation annotations for upstream actions forced onto Node.js 24; all affected jobs completed successfully."
+}

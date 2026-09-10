@@ -1,16 +1,17 @@
 # Implementation Plan
 
-**Current program status (reconciled 2026-09-08 at `main@fecbe651`; no new runtime
-attestation):** Waves 1–6 retain their recorded source, review and limited historical deployment
-evidence. Wave 3 Task 3.7, Wave 5 Task 5.6 and Wave 6 Task 6.3 remain open. Production flags remain
-disabled.
+**Current program status (reconciled 2026-09-10 at
+`main@ea34c017514532977ce08d07be3344c1c2cb065a`):** Waves 1–6 retain their recorded source and
+review evidence. Wave 5 Task 5.6 is GO and its gateway bundle is deployed hidden in the Task 8.8
+revision. Wave 3 Task 3.7 and Wave 6 Task 6.3 remain open. Production flags remain disabled.
 
 Wave 8 source and Azure deployment-proof tooling are merged through
 [PR #233](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/233) at
-`main@a52ec1ef`. Tasks 8.3–8.7a and the offline 8.8b foundation are source/test complete and
-independently accepted; Tasks 8.8 and 8.9 remain open because no production workflow run,
-deployment, serving read-back, manifest comparison or live proof has occurred. Task 8.1 behavior
-is present in the historical cu4 source/digest; that is provenance rather than a fresh read-back.
+`main@a52ec1ef`. Tasks 8.3–8.7a were independently accepted, and Task 8.8/8.8b completed in
+owner-authorized production run `34433715705`: `api-gateway--0000079` serves immutable digest
+`sha256:aee44edc12b03175379caf65546e04f5ca1e2cea0d8690c00190b01254f20aa1` at 100%, with the
+current-attempt manifest and scoped non-interference proof green. Task 8.9 live serving proof
+remains open and separately owner-gated.
 
 Wave 9's source and disposable assembled-stack integration are complete through
 [PR #232](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/232) at
@@ -18,13 +19,13 @@ Wave 9's source and disposable assembled-stack integration are complete through
 success/conflict; CI run `34018608256` passed `docker-build-verify` and `ci-required`. This is
 local/CI evidence, not Production E2E.
 
-B1's R3 and GC.5 blockers are closed on current `main`, and Tasks 7.1–7.2 are merged and reconciled
-complete. B1 R-C still requires a new clean-cut Task A, candidate build/digest/smoke, deployment and
-serving convergence. Consequently Wave 10 remains blocked and the Asset Picker is not exposed to
-production users. Task 2.7's historical containment/frontend-artifact disposition also remains open.
+B1's R3 and GC.5 blockers are closed, and Tasks 7.1–7.11 are locally complete with the Task 7.9
+exact-digest serving proof recorded. B2 Task 8.9 and the remaining Wave 10 prerequisites still block
+exposure, so the Asset Picker is not exposed to production users. Task 2.7's historical
+containment/frontend-artifact disposition also remains open.
 
-The owner-resolved Wave 8 decisions remain: strict 30-minute idle age, 2s eligibility / 2s reset /
-4s overall timeouts, and page-level manual-reset placement. See the
+The owner-resolved Wave 8 decisions remain: strict 30-minute idle age, 45s eligibility / 10s reset /
+60s overall timeouts, and page-level manual-reset placement. See the
 [decision record](../../../docs/superpowers/plans/2026-09-06-b2-wave8-decision-record.md) and the
 [`Asset Picker master plan`](../../../docs/plans/ASSET_PICKER_E2E_MASTER_PLAN.md) for the
 cross-program release sequence. The owner-deferred
@@ -2280,7 +2281,7 @@ class, not by enumeration" through "operational signals only") deliberately keep
   selects — Task 8.9's live causal-correlation proof depends on this contract holding, not merely
   being asserted.
   _Requirements: 7.3c, 7.4; design.md D5_
-- [ ] **8.8 STOP/GO — Wave 8 deployment** (GC.11). **Go:** Wave 4.5 (portfolio-service's internal
+- [x] **8.8 STOP/GO — Wave 8 deployment** (GC.11). **Go:** Wave 4.5 (portfolio-service's internal
   endpoint, live-verified) complete, AND Task 5.1a (`InternalApiKeyProvider`) merged (round-23
   addition — 8.5's build consumes it; this gate previously omitted the dependency the round-22
   shared-provider fix created), AND Task 8.2a (`CloudFrontOriginSecretProvider`, with its
@@ -2299,15 +2300,19 @@ class, not by enumeration" through "operational signals only") deliberately keep
   only for Wave 4, the standalone 5.1a, 5.1b, and 8.2a classes, and its own two open items.
   _Requirements: 7.3c, 7.4; design.md D5_
 
-  **Owner GO recorded 2026-09-10; deployment completion remains open.** The owner approved one
-  Azure production dispatch through `.github/workflows/deploy.yml`, targeting `main` in `scoped`
-  mode with `services=api-gateway` and an empty `prebuilt_digest`. The reviewed application-source
-  baseline is `37f3860062edf5cdf2c9494cc8669804c0d2e561`; the dispatch SHALL use the full `main`
-  SHA after this docs-only authorization record merges and SHALL verify that the `api-gateway`
-  source tree is unchanged from that baseline. Task 5.6 GO is recorded above. The authorization
-  does not include Task 8.9's production login, portfolio writes, log queries, cleanup, or Wave 10
-  exposure. Keep this checkbox open until the workflow records the immutable digest, new serving
-  revision, current-attempt manifest comparison, and scoped non-interference proof. See the
+  **Completed 2026-09-10.** Owner-authorized production
+  [run 34433715705](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/34433715705)
+  used `.github/workflows/deploy.yml` at
+  `main@ea34c017514532977ce08d07be3344c1c2cb065a` with `deployment_mode=scoped`,
+  `services=api-gateway`, and an empty `prebuilt_digest`. It deployed immutable image
+  `wealthprodacr.azurecr.io/api-gateway@sha256:aee44edc12b03175379caf65546e04f5ca1e2cea0d8690c00190b01254f20aa1`
+  as `api-gateway--0000079` with 100% latest-revision traffic. The current-attempt digest manifest
+  matched, and the workflow's byte-identical comparison proved that `portfolio-service`,
+  `market-data-service`, `insight-service`, and `market-data-refresh-job` were unchanged. AWS,
+  frontend deploy, seed, and broad verification were skipped. This closes deployment gate 8.8
+  only; Task 8.9's production login, portfolio write, causal log query, and cleanup remain open and
+  separately owner-gated. See the
+  [completion evidence](../../../docs/evidence/b2-task-8-8/deployment-completion-20260910.json) and
   [owner authorization record](../../../docs/evidence/b2-task-8-8/owner-approval-20260910.json).
 - [ ] **8.8a AWS-only: CloudFront forwards `traceparent` on `/api/*` (round-15 addition — verified
   gap: `infrastructure/terraform/aws/modules/cdn/main.tf`'s `/api/*` `ordered_cache_behavior`
@@ -2340,17 +2345,18 @@ class, not by enumeration" through "operational signals only") deliberately keep
   client-supplied trace id. Adds infrastructure scope beyond what the master plan's B2-owned-backend
   list previously described — reflected there too.
   _Requirements: design.md D5 (8.9's causal-correlation proof)_
-- [ ] **8.8b Azure deployment-evidence foundation — a prerequisite of 8.9, not work deferred to
+- [x] **8.8b Azure deployment-evidence foundation — a prerequisite of 8.9, not work deferred to
   Wave 10.** This task owns the `deploy-azure.yml`/verification-script changes that make an exact
   serving revision reproducible. The longer rationale currently embedded in Task 10.2 Step A is
   explanatory only; implementation and completion belong here, before any 8.9 serving proof.
 
-  **Source-foundation status (2026-09-07):** the offline workflow/helper source and structural tests
-  are locally complete and independently ACCEPT at coordinator commit `b59cf26` (24 snapshot + 14
-  allowlist + 10 prebuilt tests). Pinned actionlint v1.7.12 was also run locally with the required
-  checksum and shellcheck invocation, with no findings. The source foundation is complete, but this
-  deployment gate remains unchecked: no workflow run, Azure deployment, serving revision/digest
-  read-back, or manifest comparison evidence exists yet.
+  **Completed 2026-09-10:** the offline workflow/helper source and structural tests were independently
+  ACCEPT at coordinator commit `b59cf26` (24 snapshot + 14 allowlist + 10 prebuilt tests), and pinned
+  actionlint v1.7.12 passed with the required checksum and shellcheck invocation. Owner-authorized
+  production run `34433715705` then exercised the normal scoped build path, published the exact
+  `api-gateway` digest manifest for run attempt 1, deployed revision `api-gateway--0000079`, and
+  passed the selected-service manifest and scoped non-interference comparison. This evidence
+  foundation now unblocks Task 8.9; it does not itself supply Task 8.9's live serving proof.
 
   **One Azure run order:** add workflow-level `concurrency` with the fixed group
   `wealth-production-azure-deploy` and `cancel-in-progress: false` in `deploy-azure.yml`. The reusable
