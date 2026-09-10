@@ -9,7 +9,7 @@ import json
 import re
 import sys
 
-from api_gateway_resource_id import same_api_gateway_resource_id
+from api_gateway_resource_id import canonical_api_gateway_resource_id, same_api_gateway_resource_id
 
 PROFILE = "api-gateway-timeout-rollout"
 GATEWAY_ADDR = "module.api_gateway.azurerm_container_app.this"
@@ -79,6 +79,9 @@ def _normalized_side(side: object) -> dict | None:
     if container is None:
         return None
     container["env"] = [env[name] for name in sorted(env)]
+    canonical_id = canonical_api_gateway_resource_id(normalized.get("id"))
+    if canonical_id is not None:
+        normalized["id"] = canonical_id
     return normalized
 
 

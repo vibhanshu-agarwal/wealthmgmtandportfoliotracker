@@ -486,45 +486,21 @@ jobs:
             --revision "$GATEWAY_REVISION" \
             --query '{name:name,active:properties.active,trafficWeight:properties.trafficWeight,containers:properties.template.containers}' \
             -o json)"
-          ATTESTATION="$(python3 - "$APP_JSON" "$REVISION_JSON" <<'PY'
-          import json, re, sys
-          app, revision = (json.loads(value) for value in sys.argv[1:])
-          traffic = app.get("traffic")
-          if not isinstance(traffic, list) or len(traffic) != 1:
-              raise SystemExit("expected exactly one serving traffic entry")
-          serving = traffic[0]
-          if serving.get("latestRevision") is not True or serving.get("weight") != 100:
-              raise SystemExit("expected latest revision at 100 percent traffic")
-          latest = app.get("latestRevision")
-          if not isinstance(latest, str) or revision.get("name") != latest:
-              raise SystemExit("latest revision attestation is stale")
-          if revision.get("active") is not True or revision.get("trafficWeight") != 100:
-              raise SystemExit("revision is not the active 100 percent serving revision")
-          containers = revision.get("containers")
-          if not isinstance(containers, list) or len(containers) != 1:
-              raise SystemExit("expected exactly one gateway container")
-          container = containers[0]
-          if not isinstance(container, dict) or container.get("name") != "api-gateway":
-              raise SystemExit("serving revision container identity mismatch")
-          image = container.get("image")
-          match = re.fullmatch(r"wealthprodacr\.azurecr\.io/api-gateway@(sha256:[0-9a-f]{64})", image or "", re.IGNORECASE)
-          if match is None or not isinstance(app.get("id"), str) or not app["id"]:
-              raise SystemExit("serving revision image or resource id is malformed")
-          print(f"{app['id']}\t{latest}\t{match.group(1).lower()}")
-          PY
-          )"
+          ATTESTATION="$(python3 scripts/validate_api_gateway_timeout_attestation.py \
+            --app-json "$APP_JSON" --revision-json "$REVISION_JSON")"
           IFS=$'\t' read -r GATEWAY_ID ATTESTED_REVISION GATEWAY_DIGEST <<<"$ATTESTATION"
           test -n "$GATEWAY_ID" -a -n "$ATTESTED_REVISION" -a -n "$GATEWAY_DIGEST"
           python3 scripts/api_gateway_resource_id.py "$GATEWAY_ID"
           ACR_DIGEST="$(az acr manifest show-metadata --registry wealthprodacr --name "api-gateway@$GATEWAY_DIGEST" --query digest -o tsv)"
           test "$ACR_DIGEST" = "$GATEWAY_DIGEST"
           STABLE_APP_JSON="$(app_snapshot)"
-          python3 - "$APP_JSON" "$STABLE_APP_JSON" <<'PY'
-          import json, sys
-          before, after = (json.loads(value) for value in sys.argv[1:])
-          if before != after:
-              raise SystemExit("gateway serving state changed during attestation")
-          PY
+          STABLE_REVISION_JSON="$(az containerapp revision show --name api-gateway --resource-group wealth-azure-prod-rg \
+            --revision "$ATTESTED_REVISION" \
+            --query '{name:name,active:properties.active,trafficWeight:properties.trafficWeight,containers:properties.template.containers}' \
+            -o json)"
+          python3 scripts/validate_api_gateway_timeout_attestation.py \
+            --app-json "$STABLE_APP_JSON" --revision-json "$STABLE_REVISION_JSON" \
+            --expected-gateway-id "$GATEWAY_ID" --expected-revision "$ATTESTED_REVISION" --expected-digest "$GATEWAY_DIGEST"
           echo "gateway_id=$GATEWAY_ID" >> "$GITHUB_OUTPUT"
           echo "gateway_revision=$ATTESTED_REVISION" >> "$GITHUB_OUTPUT"
           echo "gateway_digest=$GATEWAY_DIGEST" >> "$GITHUB_OUTPUT"
@@ -593,6 +569,23 @@ jobs:
 
       - name: Assert Plan — Spec A 9.14 profile guard / exact scope
         run: python3 scripts/assert_spec_a_9_14_plan.py tfplan.json --profile "${{ github.event.inputs.change_profile }}"
+
+      - name: Revalidate timeout-rollout gateway attestation before plan guards
+        if: github.event.inputs.change_profile == 'api-gateway-timeout-rollout'
+        env:
+          EXPECTED_GATEWAY_ID: ${{ steps.timeout-rollout-preflight.outputs.gateway_id }}
+          EXPECTED_GATEWAY_REVISION: ${{ steps.timeout-rollout-preflight.outputs.gateway_revision }}
+          EXPECTED_GATEWAY_DIGEST: ${{ steps.timeout-rollout-preflight.outputs.gateway_digest }}
+        run: |
+          set -euo pipefail
+          APP_JSON="$(az containerapp show --name api-gateway --resource-group wealth-azure-prod-rg \
+            --query '{id:id,latestRevision:properties.latestRevisionName,traffic:properties.configuration.ingress.traffic}' -o json)"
+          REVISION_JSON="$(az containerapp revision show --name api-gateway --resource-group wealth-azure-prod-rg \
+            --revision "$EXPECTED_GATEWAY_REVISION" \
+            --query '{name:name,active:properties.active,trafficWeight:properties.trafficWeight,containers:properties.template.containers}' -o json)"
+          python3 scripts/validate_api_gateway_timeout_attestation.py \
+            --app-json "$APP_JSON" --revision-json "$REVISION_JSON" \
+            --expected-gateway-id "$EXPECTED_GATEWAY_ID" --expected-revision "$EXPECTED_GATEWAY_REVISION" --expected-digest "$EXPECTED_GATEWAY_DIGEST"
 
       - name: Assert Plan — api-gateway custom-domain guard / exact scope
         env:
@@ -788,45 +781,21 @@ jobs:
             --revision "$GATEWAY_REVISION" \
             --query '{name:name,active:properties.active,trafficWeight:properties.trafficWeight,containers:properties.template.containers}' \
             -o json)"
-          ATTESTATION="$(python3 - "$APP_JSON" "$REVISION_JSON" <<'PY'
-          import json, re, sys
-          app, revision = (json.loads(value) for value in sys.argv[1:])
-          traffic = app.get("traffic")
-          if not isinstance(traffic, list) or len(traffic) != 1:
-              raise SystemExit("expected exactly one serving traffic entry")
-          serving = traffic[0]
-          if serving.get("latestRevision") is not True or serving.get("weight") != 100:
-              raise SystemExit("expected latest revision at 100 percent traffic")
-          latest = app.get("latestRevision")
-          if not isinstance(latest, str) or revision.get("name") != latest:
-              raise SystemExit("latest revision attestation is stale")
-          if revision.get("active") is not True or revision.get("trafficWeight") != 100:
-              raise SystemExit("revision is not the active 100 percent serving revision")
-          containers = revision.get("containers")
-          if not isinstance(containers, list) or len(containers) != 1:
-              raise SystemExit("expected exactly one gateway container")
-          container = containers[0]
-          if not isinstance(container, dict) or container.get("name") != "api-gateway":
-              raise SystemExit("serving revision container identity mismatch")
-          image = container.get("image")
-          match = re.fullmatch(r"wealthprodacr\.azurecr\.io/api-gateway@(sha256:[0-9a-f]{64})", image or "", re.IGNORECASE)
-          if match is None or not isinstance(app.get("id"), str) or not app["id"]:
-              raise SystemExit("serving revision image or resource id is malformed")
-          print(f"{app['id']}\t{latest}\t{match.group(1).lower()}")
-          PY
-          )"
+          ATTESTATION="$(python3 scripts/validate_api_gateway_timeout_attestation.py \
+            --app-json "$APP_JSON" --revision-json "$REVISION_JSON")"
           IFS=$'\t' read -r GATEWAY_ID ATTESTED_REVISION GATEWAY_DIGEST <<<"$ATTESTATION"
           test -n "$GATEWAY_ID" -a -n "$ATTESTED_REVISION" -a -n "$GATEWAY_DIGEST"
           python3 scripts/api_gateway_resource_id.py "$GATEWAY_ID"
           ACR_DIGEST="$(az acr manifest show-metadata --registry wealthprodacr --name "api-gateway@$GATEWAY_DIGEST" --query digest -o tsv)"
           test "$ACR_DIGEST" = "$GATEWAY_DIGEST"
           STABLE_APP_JSON="$(app_snapshot)"
-          python3 - "$APP_JSON" "$STABLE_APP_JSON" <<'PY'
-          import json, sys
-          before, after = (json.loads(value) for value in sys.argv[1:])
-          if before != after:
-              raise SystemExit("gateway serving state changed during attestation")
-          PY
+          STABLE_REVISION_JSON="$(az containerapp revision show --name api-gateway --resource-group wealth-azure-prod-rg \
+            --revision "$ATTESTED_REVISION" \
+            --query '{name:name,active:properties.active,trafficWeight:properties.trafficWeight,containers:properties.template.containers}' \
+            -o json)"
+          python3 scripts/validate_api_gateway_timeout_attestation.py \
+            --app-json "$STABLE_APP_JSON" --revision-json "$STABLE_REVISION_JSON" \
+            --expected-gateway-id "$GATEWAY_ID" --expected-revision "$ATTESTED_REVISION" --expected-digest "$GATEWAY_DIGEST"
           echo "gateway_id=$GATEWAY_ID" >> "$GITHUB_OUTPUT"
           echo "gateway_revision=$ATTESTED_REVISION" >> "$GITHUB_OUTPUT"
           echo "gateway_digest=$GATEWAY_DIGEST" >> "$GITHUB_OUTPUT"
@@ -964,6 +933,23 @@ jobs:
       - name: Assert Plan — Spec A 9.14 profile guard / exact scope
         run: python3 scripts/assert_spec_a_9_14_plan.py tfplan.json --profile "${{ github.event.inputs.change_profile }}"
 
+      - name: Revalidate timeout-rollout gateway attestation before plan guards
+        if: github.event.inputs.change_profile == 'api-gateway-timeout-rollout'
+        env:
+          EXPECTED_GATEWAY_ID: ${{ steps.timeout-rollout-preflight.outputs.gateway_id }}
+          EXPECTED_GATEWAY_REVISION: ${{ steps.timeout-rollout-preflight.outputs.gateway_revision }}
+          EXPECTED_GATEWAY_DIGEST: ${{ steps.timeout-rollout-preflight.outputs.gateway_digest }}
+        run: |
+          set -euo pipefail
+          APP_JSON="$(az containerapp show --name api-gateway --resource-group wealth-azure-prod-rg \
+            --query '{id:id,latestRevision:properties.latestRevisionName,traffic:properties.configuration.ingress.traffic}' -o json)"
+          REVISION_JSON="$(az containerapp revision show --name api-gateway --resource-group wealth-azure-prod-rg \
+            --revision "$EXPECTED_GATEWAY_REVISION" \
+            --query '{name:name,active:properties.active,trafficWeight:properties.trafficWeight,containers:properties.template.containers}' -o json)"
+          python3 scripts/validate_api_gateway_timeout_attestation.py \
+            --app-json "$APP_JSON" --revision-json "$REVISION_JSON" \
+            --expected-gateway-id "$EXPECTED_GATEWAY_ID" --expected-revision "$EXPECTED_GATEWAY_REVISION" --expected-digest "$EXPECTED_GATEWAY_DIGEST"
+
       - name: Assert Plan — api-gateway custom-domain guard / exact scope
         env:
           EXPECTED_GATEWAY_ID: ${{ steps.custom-domain-preflight.outputs.gateway_id || steps.custom-domain-remove-preflight.outputs.gateway_id || steps.timeout-rollout-preflight.outputs.gateway_id }}
@@ -986,6 +972,23 @@ jobs:
           EXPECTED_IMAGE_TAGS_JSON: ${{ needs.validate-dispatch.outputs.canonical_image_tags_json }}
           EXPECTED_IMAGE_DIGESTS_JSON: ${{ needs.validate-dispatch.outputs.canonical_image_digests_json }}
         run: python3 scripts/assert_api_gateway_timeout_rollout_plan.py tfplan.json --profile "${{ github.event.inputs.change_profile }}" --expected-gateway-id "$EXPECTED_GATEWAY_ID" --expected-image-tags-json "$EXPECTED_IMAGE_TAGS_JSON" --expected-image-digests-json "$EXPECTED_IMAGE_DIGESTS_JSON" --expected-gateway-digest "$EXPECTED_GATEWAY_DIGEST"
+
+      - name: Revalidate timeout-rollout gateway attestation before apply
+        if: github.event.inputs.change_profile == 'api-gateway-timeout-rollout'
+        env:
+          EXPECTED_GATEWAY_ID: ${{ steps.timeout-rollout-preflight.outputs.gateway_id }}
+          EXPECTED_GATEWAY_REVISION: ${{ steps.timeout-rollout-preflight.outputs.gateway_revision }}
+          EXPECTED_GATEWAY_DIGEST: ${{ steps.timeout-rollout-preflight.outputs.gateway_digest }}
+        run: |
+          set -euo pipefail
+          APP_JSON="$(az containerapp show --name api-gateway --resource-group wealth-azure-prod-rg \
+            --query '{id:id,latestRevision:properties.latestRevisionName,traffic:properties.configuration.ingress.traffic}' -o json)"
+          REVISION_JSON="$(az containerapp revision show --name api-gateway --resource-group wealth-azure-prod-rg \
+            --revision "$EXPECTED_GATEWAY_REVISION" \
+            --query '{name:name,active:properties.active,trafficWeight:properties.trafficWeight,containers:properties.template.containers}' -o json)"
+          python3 scripts/validate_api_gateway_timeout_attestation.py \
+            --app-json "$APP_JSON" --revision-json "$REVISION_JSON" \
+            --expected-gateway-id "$EXPECTED_GATEWAY_ID" --expected-revision "$EXPECTED_GATEWAY_REVISION" --expected-digest "$EXPECTED_GATEWAY_DIGEST"
 
       - name: Terraform Apply
         run: terraform apply -auto-approve tfplan

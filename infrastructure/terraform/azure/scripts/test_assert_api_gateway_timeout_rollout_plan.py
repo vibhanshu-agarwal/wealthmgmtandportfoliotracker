@@ -91,6 +91,11 @@ class AssertApiGatewayTimeoutRolloutPlanTests(unittest.TestCase):
             plan["resource_changes"][0]["change"][side]["id"] = GATEWAY_ID.upper()
         self.assertEqual(_evaluate(plan), [])
 
+    def test_one_sided_case_only_gateway_id_difference_passes_final_normalized_equality(self):
+        plan = _plan()
+        plan["resource_changes"][0]["change"]["before"]["id"] = GATEWAY_ID.upper()
+        self.assertEqual(_evaluate(plan), [])
+
     def test_verified_running_gateway_digest_wins_over_acr_tag_digest(self):
         tag_digest = "sha256:" + "b2" * 32
         tag_digests = json.dumps({

@@ -10,10 +10,10 @@ default TF_VAR_image_tags to the dispatch commit's own SHA), and apply must sit 
 
 from __future__ import annotations
 
-import contextlib
-import io
+import json
 import re
 import subprocess
+import sys
 import unittest
 from pathlib import Path
 
@@ -453,34 +453,64 @@ class TestTerraformAzureWorkflowHardening(unittest.TestCase):
                 self.assertEqual(job.count('--expected-gateway-digest "$EXPECTED_GATEWAY_DIGEST"'), 2)
                 self.assertIn('python3 scripts/api_gateway_resource_id.py "$GATEWAY_ID"', job)
 
+    def test_timeout_attestation_revalidates_the_captured_revision_at_each_boundary(self):
+        remote = self._job("remote-plan:")
+        apply = self._job("apply:")
+        for job in (remote, apply):
+            self.assertIn("validate_api_gateway_timeout_attestation.py", job)
+            self.assertIn("--expected-gateway-id \"$EXPECTED_GATEWAY_ID\"", job)
+            self.assertIn("--expected-revision \"$EXPECTED_GATEWAY_REVISION\"", job)
+            self.assertIn("--expected-digest \"$EXPECTED_GATEWAY_DIGEST\"", job)
+        self.assertGreater(
+            remote.find("Revalidate timeout-rollout gateway attestation before plan guards"),
+            remote.find("Terraform Show (JSON)"),
+        )
+        self.assertLess(
+            remote.find("Revalidate timeout-rollout gateway attestation before plan guards"),
+            remote.find("Assert Plan — api-gateway timeout rollout guard / exact scope"),
+        )
+        self.assertGreater(
+            apply.find("Revalidate timeout-rollout gateway attestation before apply"),
+            apply.find("Assert Plan — api-gateway timeout rollout guard / exact scope"),
+        )
+        self.assertLess(
+            apply.find("Revalidate timeout-rollout gateway attestation before apply"),
+            apply.find("Terraform Apply"),
+        )
+
     def test_timeout_attestation_handoff_executes_as_exactly_three_fields(self):
         expected = [
             "/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/wealth-azure-prod-rg/providers/Microsoft.App/containerApps/api-gateway",
             "api-gateway--0000079",
             "sha256:" + "a1" * 32,
         ]
+        app = {
+            "id": expected[0],
+            "latestRevision": expected[1],
+            "traffic": [{"latestRevision": True, "weight": 100}],
+        }
+        revision = {
+            "name": expected[1],
+            "active": True,
+            "trafficWeight": 100,
+            "containers": [{"name": "api-gateway", "image": f"wealthprodacr.azurecr.io/api-gateway@{expected[2]}"}],
+        }
+        attestation_script = REPO / "infrastructure" / "terraform" / "azure" / "scripts" / "validate_api_gateway_timeout_attestation.py"
         for heading in ("remote-plan:", "apply:"):
             with self.subTest(job=heading):
                 job = self._job(heading)
-                producer = re.search(r"(?m)^          print\(f\"\{app\['id'\]\}.*$", job)
                 consumer = re.search(r"(?m)^          IFS=.*read -r GATEWAY_ID.*$", job)
-                self.assertIsNotNone(producer)
                 self.assertIsNotNone(consumer)
-                output = io.StringIO()
-                context = {
-                    "app": {"id": expected[0]},
-                    "latest": expected[1],
-                    "match": type(
-                        "Match",
-                        (),
-                        {"group": staticmethod(lambda index: expected[2])},
-                    )(),
-                }
-                with contextlib.redirect_stdout(output):
-                    exec(producer.group(0).strip(), context)
-
+                self.assertIn("ATTESTATION=\"$(python3 scripts/validate_api_gateway_timeout_attestation.py", job)
+                output = subprocess.run(
+                    [sys.executable, str(attestation_script), "--app-json", json.dumps(app), "--revision-json", json.dumps(revision)],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                self.assertEqual(output.returncode, 0, output.stderr)
                 self.assertEqual(
-                    output.getvalue().encode("utf-8"),
+                    output.stdout.encode("utf-8"),
                     ("\t".join(expected) + "\n").encode("utf-8"),
                 )
                 git_bash = Path(r"C:\Program Files\Git\bin\bash.exe")
@@ -493,7 +523,7 @@ class TestTerraformAzureWorkflowHardening(unittest.TestCase):
                     )
                 )
                 result = subprocess.run(
-                    [bash, "-c", consumer_script, "--", output.getvalue().rstrip("\n")],
+                    [bash, "-c", consumer_script, "--", output.stdout.rstrip("\n")],
                     capture_output=True,
                     text=True,
                     check=False,

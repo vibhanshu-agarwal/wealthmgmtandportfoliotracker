@@ -9,12 +9,25 @@ _API_GATEWAY_ID = re.compile(
     r"^/subscriptions/(?P<subscription>[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/resourcegroups/"
     r"(?P<resource_group>wealth-azure-prod-rg)/providers/"
     r"(?P<provider>microsoft\.app)/containerapps/(?P<name>api-gateway)$",
-    re.IGNORECASE,
+    re.IGNORECASE | re.ASCII,
 )
 
 
 def is_api_gateway_resource_id(value: object) -> bool:
     return isinstance(value, str) and _API_GATEWAY_ID.fullmatch(value) is not None
+
+
+def canonical_api_gateway_resource_id(value: object) -> str | None:
+    if not isinstance(value, str):
+        return None
+    match = _API_GATEWAY_ID.fullmatch(value)
+    if match is None:
+        return None
+    return (
+        f"/subscriptions/{match['subscription'].lower()}/resourcegroups/"
+        f"{match['resource_group'].lower()}/providers/{match['provider'].lower()}/"
+        f"containerapps/{match['name'].lower()}"
+    )
 
 
 def same_api_gateway_resource_id(actual: object, expected: object) -> bool:

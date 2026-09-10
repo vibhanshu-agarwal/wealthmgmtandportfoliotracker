@@ -295,6 +295,15 @@ class AssertApiGatewayCustomDomainPlanTests(unittest.TestCase):
         )
         self.assertFalse(sut._same_azure_resource_id(non_guid, non_guid.upper()))
 
+    def test_non_ascii_arm_id_lookalikes_are_rejected(self):
+        for value in (
+            GATEWAY_ID.replace("api-gateway", "ap\u0131-gateway"),
+            GATEWAY_ID.replace("api-gateway", "ap\u0130-gateway"),
+            GATEWAY_ID.replace("subscriptions", "\u017fubscriptions"),
+        ):
+            with self.subTest(value=value):
+                self.assertFalse(sut._same_azure_resource_id(value, GATEWAY_ID))
+
 
 if __name__ == "__main__":
     unittest.main()
