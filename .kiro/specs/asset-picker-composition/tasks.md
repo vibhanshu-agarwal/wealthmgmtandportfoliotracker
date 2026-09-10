@@ -10,8 +10,23 @@ Wave 8 source and Azure deployment-proof tooling are merged through
 `main@a52ec1ef`. Tasks 8.3–8.7a were independently accepted, and Task 8.8/8.8b completed in
 owner-authorized production run `34433715705`: `api-gateway--0000079` serves immutable digest
 `sha256:aee44edc12b03175379caf65546e04f5ca1e2cea0d8690c00190b01254f20aa1` at 100%, with the
-current-attempt manifest and scoped non-interference proof green. Task 8.9 live serving proof
-remains open and separately owner-gated.
+  current-attempt manifest and scoped non-interference proof green. Task 8.9 live serving proof
+  remains open and separately owner-gated.
+
+Task 8.9's preflight provenance correction is implemented locally but unmerged. The verifier now
+consumes one immutable attestation per service from
+[`deployment-provenance-20260910.json`](../../../docs/evidence/b2-task-8-9/deployment-provenance-20260910.json),
+preserving each deployment's own workflow run, attempt, source SHA, digest, and revision. It rejects
+missing services and requires the current Azure serving image **and revision** to match those exact
+records before any write can arm. This source-only correction does not authorize or complete the
+Task 8.9 live proof.
+
+The 2026-09-10 read-only rehearsal matched the explicit production subscription, ingress binding,
+workspace, and both attested serving image/revision pairs, then stopped fail-closed because the
+scale-to-zero gateway exposed no named replica for the non-disclosing exec probe. It issued zero
+HTTP requests and zero writes, and did not reach ACR login, image pulls, or KQL. A bounded gateway
+wake and rehearsal retry require a separate owner decision; see the
+[`rehearsal record`](../../../docs/evidence/b2-task-8-9/rehearsal-20260910.json).
 
 Wave 9's source and disposable assembled-stack integration are complete through
 [PR #232](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/232) at
@@ -3032,7 +3047,9 @@ class, not by enumeration" through "operational signals only") deliberately keep
   SHALL: verify `az account show --query id -o tsv` equals the explicitly supplied production
   subscription; resolve and require exactly one serving revision for `api-gateway` and
   `portfolio-service` in resource group `wealth-azure-prod-rg`; verify both template image fields
-  are digest-qualified and agree with Task 8.8b's current-attempt manifest; resolve workspace
+  are digest-qualified and that each serving image and revision agrees with its own immutable
+  deployment attestation (Task 8.8/8.8b for `api-gateway`, Task 7.9 for `portfolio-service`), without
+  inventing a shared workflow attempt or source SHA; resolve workspace
   `wealth-prod-la` to its `customerId`; and prove the invoking principal can read Container App
   revisions/replicas, execute the narrowly-scoped presence probe, pull the recorded ACR image, and
   query the workspace. Missing identity, zero/multiple serving revisions, missing RBAC, ACR login
