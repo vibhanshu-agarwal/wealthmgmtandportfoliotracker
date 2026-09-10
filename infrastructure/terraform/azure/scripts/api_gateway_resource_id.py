@@ -6,11 +6,15 @@ import re
 
 
 _API_GATEWAY_ID = re.compile(
-    r"^/subscriptions/(?P<subscription>[^/]+)/resourcegroups/"
+    r"^/subscriptions/(?P<subscription>[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/resourcegroups/"
     r"(?P<resource_group>wealth-azure-prod-rg)/providers/"
     r"(?P<provider>microsoft\.app)/containerapps/(?P<name>api-gateway)$",
     re.IGNORECASE,
 )
+
+
+def is_api_gateway_resource_id(value: object) -> bool:
+    return isinstance(value, str) and _API_GATEWAY_ID.fullmatch(value) is not None
 
 
 def same_api_gateway_resource_id(actual: object, expected: object) -> bool:
@@ -24,3 +28,19 @@ def same_api_gateway_resource_id(actual: object, expected: object) -> bool:
         actual_match[group].casefold() == expected_match[group].casefold()
         for group in ("subscription", "resource_group", "provider", "name")
     )
+
+
+def main() -> int:
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("resource_id")
+    args = parser.parse_args()
+    if not is_api_gateway_resource_id(args.resource_id):
+        print("ERROR: api-gateway ARM resource id is malformed.")
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

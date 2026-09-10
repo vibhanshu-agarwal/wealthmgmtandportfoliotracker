@@ -510,11 +510,12 @@ jobs:
           match = re.fullmatch(r"wealthprodacr\.azurecr\.io/api-gateway@(sha256:[0-9a-f]{64})", image or "", re.IGNORECASE)
           if match is None or not isinstance(app.get("id"), str) or not app["id"]:
               raise SystemExit("serving revision image or resource id is malformed")
-          print(f"{app['id']}\\t{latest}\\t{match.group(1).lower()}")
+          print(f"{app['id']}\t{latest}\t{match.group(1).lower()}")
           PY
           )"
           IFS=$'\t' read -r GATEWAY_ID ATTESTED_REVISION GATEWAY_DIGEST <<<"$ATTESTATION"
           test -n "$GATEWAY_ID" -a -n "$ATTESTED_REVISION" -a -n "$GATEWAY_DIGEST"
+          python3 scripts/api_gateway_resource_id.py "$GATEWAY_ID"
           ACR_DIGEST="$(az acr manifest show-metadata --registry wealthprodacr --name "api-gateway@$GATEWAY_DIGEST" --query digest -o tsv)"
           test "$ACR_DIGEST" = "$GATEWAY_DIGEST"
           STABLE_APP_JSON="$(app_snapshot)"
@@ -811,11 +812,12 @@ jobs:
           match = re.fullmatch(r"wealthprodacr\.azurecr\.io/api-gateway@(sha256:[0-9a-f]{64})", image or "", re.IGNORECASE)
           if match is None or not isinstance(app.get("id"), str) or not app["id"]:
               raise SystemExit("serving revision image or resource id is malformed")
-          print(f"{app['id']}\\t{latest}\\t{match.group(1).lower()}")
+          print(f"{app['id']}\t{latest}\t{match.group(1).lower()}")
           PY
           )"
           IFS=$'\t' read -r GATEWAY_ID ATTESTED_REVISION GATEWAY_DIGEST <<<"$ATTESTATION"
           test -n "$GATEWAY_ID" -a -n "$ATTESTED_REVISION" -a -n "$GATEWAY_DIGEST"
+          python3 scripts/api_gateway_resource_id.py "$GATEWAY_ID"
           ACR_DIGEST="$(az acr manifest show-metadata --registry wealthprodacr --name "api-gateway@$GATEWAY_DIGEST" --query digest -o tsv)"
           test "$ACR_DIGEST" = "$GATEWAY_DIGEST"
           STABLE_APP_JSON="$(app_snapshot)"

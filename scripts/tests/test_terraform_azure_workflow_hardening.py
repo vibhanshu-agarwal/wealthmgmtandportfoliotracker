@@ -10,7 +10,10 @@ default TF_VAR_image_tags to the dispatch commit's own SHA), and apply must sit 
 
 from __future__ import annotations
 
+import contextlib
+import io
 import re
+import subprocess
 import unittest
 from pathlib import Path
 
@@ -448,6 +451,55 @@ class TestTerraformAzureWorkflowHardening(unittest.TestCase):
                 self.assertIn("az acr manifest show-metadata", job)
                 self.assertIn("gateway_digest=$GATEWAY_DIGEST", job)
                 self.assertEqual(job.count('--expected-gateway-digest "$EXPECTED_GATEWAY_DIGEST"'), 2)
+                self.assertIn('python3 scripts/api_gateway_resource_id.py "$GATEWAY_ID"', job)
+
+    def test_timeout_attestation_handoff_executes_as_exactly_three_fields(self):
+        expected = [
+            "/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/wealth-azure-prod-rg/providers/Microsoft.App/containerApps/api-gateway",
+            "api-gateway--0000079",
+            "sha256:" + "a1" * 32,
+        ]
+        for heading in ("remote-plan:", "apply:"):
+            with self.subTest(job=heading):
+                job = self._job(heading)
+                producer = re.search(r"(?m)^          print\(f\"\{app\['id'\]\}.*$", job)
+                consumer = re.search(r"(?m)^          IFS=.*read -r GATEWAY_ID.*$", job)
+                self.assertIsNotNone(producer)
+                self.assertIsNotNone(consumer)
+                output = io.StringIO()
+                context = {
+                    "app": {"id": expected[0]},
+                    "latest": expected[1],
+                    "match": type(
+                        "Match",
+                        (),
+                        {"group": staticmethod(lambda index: expected[2])},
+                    )(),
+                }
+                with contextlib.redirect_stdout(output):
+                    exec(producer.group(0).strip(), context)
+
+                self.assertEqual(
+                    output.getvalue().encode("utf-8"),
+                    ("\t".join(expected) + "\n").encode("utf-8"),
+                )
+                git_bash = Path(r"C:\Program Files\Git\bin\bash.exe")
+                bash = str(git_bash) if git_bash.is_file() else "bash"
+                consumer_script = "\n".join(
+                    (
+                        'ATTESTATION="$1"',
+                        consumer.group(0).strip(),
+                        "printf '%s\\n' \"$GATEWAY_ID\" \"$ATTESTED_REVISION\" \"$GATEWAY_DIGEST\"",
+                    )
+                )
+                result = subprocess.run(
+                    [bash, "-c", consumer_script, "--", output.getvalue().rstrip("\n")],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(result.stdout.splitlines(), expected)
 
     def test_each_live_job_has_unique_step_ids_and_one_timeout_preflight(self):
         for heading in ("remote-plan:", "apply:"):

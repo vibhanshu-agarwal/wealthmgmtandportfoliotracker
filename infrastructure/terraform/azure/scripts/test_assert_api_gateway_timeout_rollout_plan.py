@@ -25,7 +25,7 @@ TIMEOUT_ENV = {
     "APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT": "165s",
     "SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT": "150s",
 }
-GATEWAY_ID = "/subscriptions/sub/resourceGroups/wealth-azure-prod-rg/providers/Microsoft.App/containerApps/api-gateway"
+GATEWAY_ID = "/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/wealth-azure-prod-rg/providers/Microsoft.App/containerApps/api-gateway"
 TAG = "a" * 40
 DIGEST = "sha256:" + "a1" * 32
 TAGS_JSON = json.dumps({name: TAG for name in ("api-gateway", "portfolio-service", "market-data-service", "insight-service")})

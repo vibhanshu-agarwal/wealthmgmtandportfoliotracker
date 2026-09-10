@@ -22,7 +22,7 @@ DOMAIN_ADDR = sut.CUSTOM_DOMAIN_ADDR
 GATEWAY_ADDR = sut.GATEWAY_ADDR
 HOSTNAME = sut.EXPECTED_HOSTNAME
 GATEWAY_ID = (
-    "/subscriptions/sub/resourceGroups/wealth-azure-prod-rg/providers/"
+    "/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/wealth-azure-prod-rg/providers/"
     "Microsoft.App/containerApps/api-gateway"
 )
 SECRET = "never-print-this-secret-value"
@@ -259,7 +259,10 @@ class AssertApiGatewayCustomDomainPlanTests(unittest.TestCase):
 
     def test_restore_and_remove_reject_material_gateway_id_differences(self):
         mismatches = {
-            "subscription": GATEWAY_ID.replace("/subscriptions/sub/", "/subscriptions/other/"),
+            "subscription": GATEWAY_ID.replace(
+                "/subscriptions/11111111-1111-1111-1111-111111111111/",
+                "/subscriptions/22222222-2222-2222-2222-222222222222/",
+            ),
             "resource_group": GATEWAY_ID.replace(
                 "/resourceGroups/wealth-azure-prod-rg/",
                 "/resourceGroups/other-rg/",
@@ -287,6 +290,10 @@ class AssertApiGatewayCustomDomainPlanTests(unittest.TestCase):
                 GATEWAY_ID.upper() + "/UNEXPECTED",
             )
         )
+        non_guid = GATEWAY_ID.replace(
+            "11111111-1111-1111-1111-111111111111", "not-a-guid"
+        )
+        self.assertFalse(sut._same_azure_resource_id(non_guid, non_guid.upper()))
 
 
 if __name__ == "__main__":
