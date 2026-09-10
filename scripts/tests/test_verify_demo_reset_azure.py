@@ -18,6 +18,7 @@ import verify_demo_reset_azure as verifier
 DIGEST_A = "sha256:" + "a" * 64
 DIGEST_B = "sha256:" + "b" * 64
 COMMIT = "1" * 40
+COMMIT_B = "2" * 40
 USER_ID = "00000000-0000-0000-0000-0000000d3110"
 GOLDEN = [
     {"assetTicker": "AAPL", "quantity": "37.00000000"},
@@ -26,56 +27,88 @@ GOLDEN = [
 
 
 class ManifestAndKqlContractTest(unittest.TestCase):
-    def manifest(self) -> dict:
-        return {
-            "api-gateway": DIGEST_A,
-            "portfolio-service": DIGEST_B,
-        }
-
-    def repositories(self) -> dict[str, str]:
-        return {
-            "api-gateway": "wealthprodacr.azurecr.io/api-gateway",
-            "portfolio-service": "wealthprodacr.azurecr.io/portfolio-service",
-        }
-
-    def test_manifest_requires_current_attempt_and_exact_service_set(self) -> None:
-        parsed = verifier.validate_deployment_manifest(
-            self.manifest(), expected_attempt="17", expected_repository_sha=COMMIT,
-            repositories=self.repositories(), manifest_attempt_marker="17\n",
+    def test_windows_command_resolution_uses_the_executable_cmd_shim(self) -> None:
+        resolved = verifier._resolve_command_executable(
+            ["az", "account", "show"],
+            platform_name="nt",
+            which=lambda name: r"C:\Program Files\Azure CLI\az.CMD" if name == "az" else None,
         )
-        self.assertEqual(parsed["services"]["api-gateway"]["digest"], DIGEST_A)
-        self.assertEqual(parsed["runAttempt"], "17")
 
-        extra = self.manifest()
-        extra["insight-service"] = "sha256:" + "c" * 64
+        self.assertEqual(resolved[0], r"C:\Program Files\Azure CLI\az.CMD")
+        self.assertEqual(resolved[1:], ["account", "show"])
+
+    def provenance(self) -> dict:
+        return {
+            "schemaVersion": 1,
+            "services": {
+                "api-gateway": {
+                    "repository": "wealthprodacr.azurecr.io/api-gateway",
+                    "digest": DIGEST_A,
+                    "revision": "api-gateway--0000101",
+                    "sourceSha": COMMIT,
+                    "workflowRunId": 101,
+                    "runAttempt": 3,
+                    "evidencePath": "docs/evidence/gateway.json",
+                },
+                "portfolio-service": {
+                    "repository": "wealthprodacr.azurecr.io/portfolio-service",
+                    "digest": DIGEST_B,
+                    "revision": "portfolio-service--0000202",
+                    "sourceSha": COMMIT_B,
+                    "workflowRunId": 202,
+                    "runAttempt": 1,
+                    "evidencePath": "docs/evidence/portfolio.json",
+                },
+            },
+        }
+
+    def test_provenance_preserves_independent_workflow_identity(self) -> None:
+        parsed = verifier.validate_deployment_provenance(self.provenance())
+
+        self.assertEqual(parsed["services"]["api-gateway"]["runAttempt"], 3)
+        self.assertEqual(parsed["services"]["api-gateway"]["sourceSha"], COMMIT)
+        self.assertEqual(parsed["services"]["portfolio-service"]["runAttempt"], 1)
+        self.assertEqual(parsed["services"]["portfolio-service"]["sourceSha"], COMMIT_B)
+        self.assertNotIn("runAttempt", parsed)
+        self.assertNotIn("repositorySha", parsed)
+
+    def test_provenance_rejects_missing_service_and_invalid_attempt(self) -> None:
+        missing = self.provenance()
+        del missing["services"]["portfolio-service"]
         with self.assertRaisesRegex(verifier.ProofError, "exactly"):
-            verifier.validate_deployment_manifest(
-                extra, expected_attempt="17", expected_repository_sha=COMMIT,
-                repositories=self.repositories(), manifest_attempt_marker="17\n",
-            )
+            verifier.validate_deployment_provenance(missing)
 
-        with self.assertRaisesRegex(verifier.ProofError, "current run attempt"):
-            verifier.validate_deployment_manifest(
-                self.manifest(), expected_attempt="", expected_repository_sha=COMMIT,
-                repositories=self.repositories(), manifest_attempt_marker="17\n",
-            )
+        stale = self.provenance()
+        stale["services"]["api-gateway"]["runAttempt"] = 0
+        with self.assertRaisesRegex(verifier.ProofError, "positive integer"):
+            verifier.validate_deployment_provenance(stale)
 
-    def test_manifest_rejects_uppercase_or_non_digest_identity(self) -> None:
-        bad = self.manifest()
-        bad["api-gateway"] = "sha256:" + "A" * 64
+    def test_checked_in_provenance_preserves_the_two_deployment_records(self) -> None:
+        import json
+
+        document = json.loads((
+            REPO / "docs/evidence/b2-task-8-9/deployment-provenance-20260910.json"
+        ).read_text(encoding="utf-8"))
+        parsed = verifier.validate_deployment_provenance(document)
+
+        gateway = parsed["services"]["api-gateway"]
+        portfolio = parsed["services"]["portfolio-service"]
+        self.assertEqual(gateway["workflowRunId"], 34433715705)
+        self.assertEqual(gateway["revision"], "api-gateway--0000079")
+        self.assertEqual(portfolio["workflowRunId"], 34328692256)
+        self.assertEqual(portfolio["revision"], "portfolio-service--0000096")
+        self.assertNotEqual(gateway["sourceSha"], portfolio["sourceSha"])
+
+    def test_provenance_rejects_uppercase_or_non_digest_identity(self) -> None:
+        bad = self.provenance()
+        bad["services"]["api-gateway"]["digest"] = "sha256:" + "A" * 64
         with self.assertRaisesRegex(verifier.ProofError, "lowercase sha256"):
-            verifier.validate_deployment_manifest(
-                bad, expected_attempt="17", expected_repository_sha=COMMIT,
-                repositories=self.repositories(), manifest_attempt_marker="17\n",
-            )
+            verifier.validate_deployment_provenance(bad)
 
+        bad = self.provenance()
+        bad["services"]["api-gateway"]["sourceSha"] = "A" * 40
         with self.assertRaisesRegex(verifier.ProofError, "lowercase repository SHA"):
-            verifier.validate_deployment_manifest(
-                self.manifest(),
-                expected_attempt="17",
-                expected_repository_sha="A" * 40,
-                repositories=self.repositories(), manifest_attempt_marker="17\n",
-            )
+            verifier.validate_deployment_provenance(bad)
 
     def test_kql_uses_absolute_utc_bounds_and_escapes_literals(self) -> None:
         start = datetime(2026, 9, 6, 1, 2, 3, tzinfo=timezone.utc)
@@ -94,12 +127,8 @@ class ManifestAndKqlContractTest(unittest.TestCase):
         self.assertIn("contains 'demo_reset_self_call_skipped'", query)
 
 
-def deployment_manifest() -> dict:
-    return ManifestAndKqlContractTest().manifest()
-
-
-def service_repositories() -> dict[str, str]:
-    return ManifestAndKqlContractTest().repositories()
+def deployment_provenance() -> dict:
+    return ManifestAndKqlContractTest().provenance()
 
 
 class StatefulCommandRunner:
@@ -401,11 +430,7 @@ def config(*, mode: str = "execute", override: str | None = None) -> "verifier.P
         workspace_name="wealth-prod-la",
         registry_name="wealthprodacr",
         gateway_url="https://wealth.example.test",
-        repository_sha=COMMIT,
-        run_attempt="17",
-        deployment_manifest=deployment_manifest(),
-        manifest_attempt_marker="17\n",
-        service_repositories=service_repositories(),
+        deployment_provenance=deployment_provenance(),
         access_token="setup-token",
         demo_email="demo@wealthtracker.dev",
         demo_password="not-recorded",
@@ -484,7 +509,7 @@ class ProofStateMachineTest(unittest.TestCase):
                 self.assertEqual(http.requests, [])
                 self.assertFalse(result.evidence["cleanup"]["armed"])
 
-    def test_preflight_rejects_subscription_and_repo_digest_disagreement_without_writes(self) -> None:
+    def test_preflight_rejects_subscription_disagreement_without_writes(self) -> None:
         commands = StatefulCommandRunner()
         commands.subscription = "some-other-subscription"
         http = StatefulHttpRunner(commands)
@@ -494,6 +519,20 @@ class ProofStateMachineTest(unittest.TestCase):
         self.assertNotEqual(result.exit_code, 0)
         self.assertEqual(http.requests, [])
 
+    def test_preflight_rejects_live_revision_that_differs_from_attestation(self) -> None:
+        cfg = config(mode="preflight")
+        cfg.deployment_provenance = deployment_provenance()
+        commands = StatefulCommandRunner()
+        commands.revisions["api-gateway"][0]["name"] = "api-gateway--stale"
+        http = StatefulHttpRunner(commands)
+
+        result = verifier.run_proof(cfg, command_runner=commands, http_runner=http)
+
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertEqual(http.requests, [])
+        self.assertIn("revision", " ".join(result.evidence["verdict"]["errors"]))
+
+    def test_preflight_rejects_repo_digest_disagreement_without_writes(self) -> None:
         commands = StatefulCommandRunner()
         commands.revisions["portfolio-service"][0]["image"] = (
             "wealthprodacr.azurecr.io/portfolio-service@sha256:" + "c" * 64
@@ -819,11 +858,11 @@ class ProofStateMachineTest(unittest.TestCase):
         clock = Clock()
         emitted: list[str] = []
         with tempfile.TemporaryDirectory() as directory:
-            manifest_path = Path(directory) / "manifest.json"
-            marker_path = Path(directory) / "digest-manifest.run-attempt.txt"
+            provenance_path = Path(directory) / "deployment-provenance.json"
             evidence_path = Path(directory) / "evidence.json"
-            manifest_path.write_text(__import__("json").dumps(deployment_manifest()), encoding="utf-8")
-            marker_path.write_text("17\n", encoding="utf-8")
+            provenance_path.write_text(
+                __import__("json").dumps(deployment_provenance()), encoding="utf-8"
+            )
             exit_code = verifier.main(
                 [
                     "--mode", "execute", "--target", "production-azure",
@@ -832,11 +871,7 @@ class ProofStateMachineTest(unittest.TestCase):
                     "--gateway-app", "api-gateway", "--portfolio-app", "portfolio-service",
                     "--workspace", "wealth-prod-la", "--registry", "wealthprodacr",
                     "--gateway-url", "https://wealth.example.test",
-                    "--repository-sha", COMMIT, "--run-attempt", "17",
-                    "--deployment-manifest", str(manifest_path),
-                    "--deployment-manifest-run-attempt", str(marker_path),
-                    "--gateway-repository", "wealthprodacr.azurecr.io/api-gateway",
-                    "--portfolio-repository", "wealthprodacr.azurecr.io/portfolio-service",
+                    "--deployment-provenance", str(provenance_path),
                     "--evidence-output", str(evidence_path),
                     "--poll-interval-seconds", "5", "--poll-deadline-seconds", "10",
                 ],
@@ -949,28 +984,12 @@ class ReviewFixContractTest(unittest.TestCase):
         self.assertNotIn("diagnostic_runner", inspect.signature(verifier.run_proof).parameters)
         self.assertNotIn("diagnostic_runner", inspect.signature(verifier.main).parameters)
 
-    def test_digest_manifest_requires_independent_current_attempt_marker(self) -> None:
-        parsed = verifier.validate_deployment_manifest(
-            deployment_manifest(),
-            expected_attempt="17",
-            manifest_attempt_marker="17\n",
-            expected_repository_sha=COMMIT,
-            repositories=service_repositories(),
-        )
-        self.assertEqual(parsed["runAttempt"], "17")
+    def test_legacy_joint_manifest_cannot_replace_per_service_provenance(self) -> None:
+        legacy = {"api-gateway": DIGEST_A, "portfolio-service": DIGEST_B}
+        with self.assertRaisesRegex(verifier.ProofError, "exactly schemaVersion and services"):
+            verifier.validate_deployment_provenance(legacy)
 
-        for marker in (None, "", "16\n", "17\nextra\n"):
-            with self.subTest(marker=marker):
-                with self.assertRaisesRegex(verifier.ProofError, "attempt marker"):
-                    verifier.validate_deployment_manifest(
-                        deployment_manifest(),
-                        expected_attempt="17",
-                        manifest_attempt_marker=marker,
-                        expected_repository_sha=COMMIT,
-                        repositories=service_repositories(),
-                    )
-
-    def test_authoritative_aggregator_digest_map_is_consumed_directly(self) -> None:
+    def test_scoped_gateway_artifact_does_not_invent_portfolio_workflow_identity(self) -> None:
         import importlib.util
 
         script = REPO / ".github/workflows/scripts/snapshot_container_apps.py"
@@ -979,25 +998,16 @@ class ReviewFixContractTest(unittest.TestCase):
         sys.modules[spec.name] = aggregator
         spec.loader.exec_module(aggregator)
         with tempfile.TemporaryDirectory() as directory:
-            for service, digest in (("api-gateway", DIGEST_A), ("portfolio-service", DIGEST_B)):
-                service_dir = Path(directory) / service
-                service_dir.mkdir()
-                (service_dir / "digest.txt").write_text(digest, encoding="utf-8")
-            artifact = aggregator.aggregate_digests(
-                directory, ["api-gateway", "portfolio-service"], None
-            )
-        parsed = verifier.validate_deployment_manifest(
-            artifact,
-            expected_attempt="17",
-            expected_repository_sha=COMMIT,
-            repositories=service_repositories(), manifest_attempt_marker="17\n",
-        )
-        self.assertEqual(parsed["runAttempt"], "17")
-        self.assertEqual(parsed["repositorySha"], COMMIT)
-        self.assertEqual(
-            parsed["services"]["portfolio-service"]["repository"],
-            "wealthprodacr.azurecr.io/portfolio-service",
-        )
+            service_dir = Path(directory) / "api-gateway"
+            service_dir.mkdir()
+            (service_dir / "digest.txt").write_text(DIGEST_A, encoding="utf-8")
+            artifact = aggregator.aggregate_digests(directory, ["api-gateway"], None)
+        provenance = deployment_provenance()
+        provenance["services"]["api-gateway"]["digest"] = artifact["api-gateway"]
+        parsed = verifier.validate_deployment_provenance(provenance)
+        self.assertEqual(parsed["services"]["api-gateway"]["workflowRunId"], 101)
+        self.assertEqual(parsed["services"]["portfolio-service"]["workflowRunId"], 202)
+        self.assertEqual(parsed["services"]["portfolio-service"]["sourceSha"], COMMIT_B)
 
     def test_all_overall_timeout_phases_require_the_exact_dispatch_pair(self) -> None:
         matrix = {
@@ -2235,19 +2245,14 @@ class FinalReviewRegressionTest(unittest.TestCase):
         self.assertIn("[REDACTED]", result.evidence["observation"]["error"])
         self.assertIn("[REDACTED]", result.evidence["cleanup"]["attempts"][0]["error"])
         with tempfile.TemporaryDirectory() as directory:
-            manifest = Path(directory) / "manifest.json"
-            marker = Path(directory) / "marker.txt"
+            provenance = Path(directory) / "deployment-provenance.json"
             saved = Path(directory) / "evidence.json"
-            manifest.write_text(json.dumps(deployment_manifest()), encoding="utf-8")
-            marker.write_text("17\n", encoding="utf-8")
+            provenance.write_text(json.dumps(deployment_provenance()), encoding="utf-8")
             args = ["--mode", "execute", "--target", "production-azure", "--subscription", "sub-approved",
                     "--resource-group", "wealth-azure-prod-rg", "--gateway-app", "api-gateway",
                     "--portfolio-app", "portfolio-service", "--workspace", "wealth-prod-la",
                     "--registry", "wealthprodacr", "--gateway-url", "https://wealth.example.test",
-                    "--repository-sha", COMMIT, "--run-attempt", "17", "--deployment-manifest", str(manifest),
-                    "--deployment-manifest-run-attempt", str(marker), "--evidence-output", str(saved),
-                    "--gateway-repository", service_repositories()["api-gateway"],
-                    "--portfolio-repository", service_repositories()["portfolio-service"]]
+                    "--deployment-provenance", str(provenance), "--evidence-output", str(saved)]
             emitted = []
             with patch.object(verifier, "run_proof", return_value=result):
                 verifier.main(args, output=emitted.append)

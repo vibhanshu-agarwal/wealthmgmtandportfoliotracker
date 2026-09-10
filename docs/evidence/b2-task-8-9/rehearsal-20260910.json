@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "recordedAtUtc": "2026-09-10T04:43:17.2770737Z",
+  "feature": "Asset Picker",
+  "task": "B2 Task 8.9 source-only preflight rehearsal",
+  "mode": "rehearsal",
+  "result": "STOPPED_FAIL_CLOSED",
+  "provenance": {
+    "path": "docs/evidence/b2-task-8-9/deployment-provenance-20260910.json",
+    "validation": "PASS",
+    "sharedWorkflowIdentitySynthesized": false
+  },
+  "liveReadback": {
+    "subscriptionMatchedExplicitProductionRecord": true,
+    "resourceGroup": "wealth-azure-prod-rg",
+    "gatewayIngressHost": "api.vibhanshu-ai-portfolio.dev",
+    "logAnalyticsWorkspaceResolved": true,
+    "services": {
+      "api-gateway": {
+        "revision": "api-gateway--0000079",
+        "image": "wealthprodacr.azurecr.io/api-gateway@sha256:aee44edc12b03175379caf65546e04f5ca1e2cea0d8690c00190b01254f20aa1",
+        "matchedAttestation": true
+      },
+      "portfolio-service": {
+        "revision": "portfolio-service--0000096",
+        "image": "wealthprodacr.azurecr.io/portfolio-service@sha256:1cf372a39d17709f74aba427259548a531e3e1ba04dc64ec7750369bb8e82126",
+        "matchedAttestation": true
+      }
+    }
+  },
+  "stop": {
+    "stage": "gateway replica resolution",
+    "reason": "RBAC rehearsal could not resolve a named gateway replica while the app was scaled to zero",
+    "classification": "class_2a",
+    "rollbackAuthorized": false,
+    "nextActionRequiresOwnerDecision": "Authorize a bounded production gateway wake before retrying the non-disclosing exec probe"
+  },
+  "localRunnerCorrection": {
+    "firstAttempt": "Stopped before cloud preflight because bare az could not be launched by Python on Windows",
+    "rootCause": "Azure CLI is exposed as az.cmd and direct subprocess argv execution did not resolve the Windows command shim",
+    "fix": "Resolve extensionless Windows commands with shutil.which before subprocess execution",
+    "regressionTest": "PASS"
+  },
+  "safety": {
+    "mutatingCommands": 0,
+    "httpRequests": 0,
+    "logins": 0,
+    "compositionWrites": 0,
+    "cleanupWrites": 0,
+    "acrLogins": 0,
+    "imagePulls": 0,
+    "kqlQueries": 0,
+    "cleanupArmed": false
+  },
+  "authorizationBoundary": "No production wake, login, application write, cleanup, workflow dispatch, deployment, push, pull request, merge, feature enablement, or Task 8.9 completion is authorized or claimed."
+}

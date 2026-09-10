@@ -13,6 +13,7 @@ import math
 import os
 import re
 import secrets
+import shutil
 import subprocess
 import sys
 import time
@@ -29,6 +30,10 @@ from typing import Any, Callable
 SERVICES = ("api-gateway", "portfolio-service")
 DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 REPOSITORY_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
+PROVENANCE_FIELDS = {
+    "repository", "digest", "revision", "sourceSha", "workflowRunId", "runAttempt",
+    "evidencePath",
+}
 TRACEPARENT_RE = re.compile(
     r"^00-([0-9a-f]{32})-([0-9a-f]{16})-0[01]$"
 )
@@ -70,11 +75,7 @@ class ProofConfig:
     workspace_name: str
     registry_name: str
     gateway_url: str
-    repository_sha: str
-    run_attempt: str
-    deployment_manifest: dict[str, Any]
-    manifest_attempt_marker: str
-    service_repositories: dict[str, str]
+    deployment_provenance: dict[str, Any]
     access_token: str = ""
     demo_email: str = DEMO_EMAIL
     demo_password: str = ""
@@ -125,36 +126,45 @@ def redact_evidence(value: Any, secrets_to_remove: list[str]) -> Any:
     return value
 
 
-def validate_deployment_manifest(
-    document: dict[str, Any], *, expected_attempt: str, expected_repository_sha: str,
-    repositories: dict[str, str], manifest_attempt_marker: str | None,
-) -> dict[str, Any]:
-    if not str(expected_attempt):
-        raise ProofError("deployment manifest requires the current run attempt provenance")
-    if (not isinstance(manifest_attempt_marker, str)
-            or manifest_attempt_marker.splitlines() != [str(expected_attempt)]):
-        raise ProofError("deployment manifest attempt marker is missing, stale, or malformed")
-    if not isinstance(expected_repository_sha, str) or not REPOSITORY_SHA_RE.fullmatch(
-        expected_repository_sha
-    ):
-        raise ProofError("deployment manifest requires a lowercase repository SHA")
-    if not isinstance(document, dict) or set(document) != set(SERVICES):
-        raise ProofError("deployment manifest must contain exactly the two Task 8.9 services")
-    if not isinstance(repositories, dict) or set(repositories) != set(SERVICES):
-        raise ProofError("explicit repositories must contain exactly the two Task 8.9 services")
-    normalized = {
-        "runAttempt": str(expected_attempt),
-        "repositorySha": expected_repository_sha,
-        "services": {},
-    }
+def validate_deployment_provenance(document: dict[str, Any]) -> dict[str, Any]:
+    """Validate independently attested immutable deployment identity for each service."""
+    if not isinstance(document, dict) or set(document) != {"schemaVersion", "services"}:
+        raise ProofError("deployment provenance must contain exactly schemaVersion and services")
+    if document.get("schemaVersion") != 1:
+        raise ProofError("deployment provenance schemaVersion must equal 1")
+    services = document.get("services")
+    if not isinstance(services, dict) or set(services) != set(SERVICES):
+        raise ProofError("deployment provenance must contain exactly the two Task 8.9 services")
+
+    normalized: dict[str, Any] = {"schemaVersion": 1, "services": {}}
     for service in SERVICES:
-        repository = repositories.get(service)
-        digest = document.get(service)
+        record = services.get(service)
+        if not isinstance(record, dict) or set(record) != PROVENANCE_FIELDS:
+            raise ProofError(f"{service} provenance fields are incomplete or unexpected")
+        repository = record.get("repository")
+        digest = record.get("digest")
+        revision = record.get("revision")
+        source_sha = record.get("sourceSha")
+        workflow_run_id = record.get("workflowRunId")
+        run_attempt = record.get("runAttempt")
+        evidence_path = record.get("evidencePath")
         if not isinstance(repository, str) or not repository or "@" in repository:
-            raise ProofError(f"{service} manifest repository is invalid")
+            raise ProofError(f"{service} provenance repository is invalid")
         if not isinstance(digest, str) or not DIGEST_RE.fullmatch(digest):
-            raise ProofError(f"{service} manifest digest must be lowercase sha256")
-        normalized["services"][service] = {"repository": repository, "digest": digest}
+            raise ProofError(f"{service} provenance digest must be lowercase sha256")
+        if not isinstance(revision, str) or not revision.startswith(service + "--"):
+            raise ProofError(f"{service} provenance revision is invalid")
+        if not isinstance(source_sha, str) or not REPOSITORY_SHA_RE.fullmatch(source_sha):
+            raise ProofError(f"{service} provenance sourceSha must be a lowercase repository SHA")
+        if (not isinstance(workflow_run_id, int) or isinstance(workflow_run_id, bool)
+                or workflow_run_id <= 0):
+            raise ProofError(f"{service} provenance workflowRunId must be a positive integer")
+        if not isinstance(run_attempt, int) or isinstance(run_attempt, bool) or run_attempt <= 0:
+            raise ProofError(f"{service} provenance runAttempt must be a positive integer")
+        if (not isinstance(evidence_path, str) or not evidence_path.startswith("docs/evidence/")
+                or not evidence_path.endswith(".json") or ".." in Path(evidence_path).parts):
+            raise ProofError(f"{service} provenance evidencePath is invalid")
+        normalized["services"][service] = dict(record)
     return normalized
 
 
@@ -186,12 +196,24 @@ def build_event_query(
     )
 
 
+def _resolve_command_executable(
+    command: list[str], *, platform_name: str = os.name,
+    which: Callable[[str], str | None] = shutil.which,
+) -> list[str]:
+    """Resolve Windows command shims before passing an argv list to subprocess."""
+    if platform_name != "nt" or not command or Path(command[0]).suffix:
+        return list(command)
+    executable = which(command[0])
+    return [executable, *command[1:]] if executable else list(command)
+
+
 def _default_command_runner(
     command: list[str], *, timeout_seconds: float = 15.0
 ) -> CommandResult:
     try:
         completed = subprocess.run(
-            command, check=False, capture_output=True, text=True, encoding="utf-8",
+            _resolve_command_executable(command),
+            check=False, capture_output=True, text=True, encoding="utf-8",
             timeout=timeout_seconds,
         )
         return CommandResult(completed.returncode, completed.stdout, completed.stderr)
@@ -311,9 +333,7 @@ def _initial_evidence(config: ProofConfig) -> dict[str, Any]:
             "gatewayUrl": config.gateway_url,
         },
         "source": {
-            "repositorySha": config.repository_sha,
-            "runAttempt": config.run_attempt,
-            "digestManifestShape": "task8.8b-service-digest-map",
+            "deploymentProvenanceShape": "per-service-immutable-attestation",
         },
         "provider": "azure",
         "keyAlignment": {
@@ -399,8 +419,6 @@ def _validate_config(config: ProofConfig) -> None:
         raise ProofError(
             "login timeout must exceed the approved overall orchestration deadline"
         )
-    if not isinstance(config.service_repositories, dict) or set(config.service_repositories) != set(SERVICES):
-        raise ProofError("explicit service repositories are required")
     _duration_seconds(config.idle_threshold)
     if config.threshold_override is not None:
         _duration_seconds(config.threshold_override)
@@ -539,13 +557,8 @@ def _validate_gateway_ingress(
 
 
 def _preflight(config: ProofConfig, evidence: dict[str, Any], runner: CommandRunner) -> list[dict[str, str]]:
-    manifest = validate_deployment_manifest(
-        config.deployment_manifest,
-        expected_attempt=config.run_attempt,
-        expected_repository_sha=config.repository_sha,
-        repositories=config.service_repositories,
-        manifest_attempt_marker=config.manifest_attempt_marker,
-    )
+    provenance = validate_deployment_provenance(config.deployment_provenance)
+    evidence["source"]["services"] = provenance["services"]
     account = _record_command(
         evidence, runner, ["az", "account", "show", "--query", "id", "-o", "tsv"],
         label="Azure subscription identity", timeout_seconds=config.operation_timeout_seconds,
@@ -573,12 +586,12 @@ def _preflight(config: ProofConfig, evidence: dict[str, Any], runner: CommandRun
             count = len(revisions) if isinstance(revisions, list) else "non-list"
             raise ProofError(f"{service} must have exactly one serving revision; found {count}")
         revision = revisions[0]
-        expected = manifest["services"][service]
+        expected = provenance["services"][service]
         expected_image = expected["repository"] + "@" + expected["digest"]
         if not isinstance(revision, dict) or revision.get("image") != expected_image:
-            raise ProofError(f"{service} serving repo@digest disagrees with current-attempt manifest")
-        if not revision.get("name"):
-            raise ProofError(f"{service} serving revision has no name")
+            raise ProofError(f"{service} serving repo@digest disagrees with attested deployment provenance")
+        if revision.get("name") != expected["revision"]:
+            raise ProofError(f"{service} serving revision disagrees with attested deployment provenance")
         evidence["serving"][service] = {
             "revision": revision["name"], "image": expected_image,
             "repository": expected["repository"], "digest": expected["digest"],
@@ -1937,12 +1950,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--workspace", required=True)
     parser.add_argument("--registry", required=True)
     parser.add_argument("--gateway-url", required=True)
-    parser.add_argument("--repository-sha", required=True)
-    parser.add_argument("--run-attempt", required=True)
-    parser.add_argument("--deployment-manifest", type=Path, required=True)
-    parser.add_argument("--deployment-manifest-run-attempt", type=Path, required=True)
-    parser.add_argument("--gateway-repository", required=True)
-    parser.add_argument("--portfolio-repository", required=True)
+    parser.add_argument("--deployment-provenance", type=Path, required=True)
     parser.add_argument("--evidence-output", type=Path)
     parser.add_argument("--access-token-env", default="TASK8_9_ACCESS_TOKEN")
     parser.add_argument("--demo-password-env", default="TASK8_9_DEMO_PASSWORD")
@@ -1974,10 +1982,9 @@ def main(
 ) -> int:
     args = _parser().parse_args(argv)
     try:
-        deployment_manifest = json.loads(args.deployment_manifest.read_text(encoding="utf-8"))
-        manifest_attempt_marker = args.deployment_manifest_run_attempt.read_text(encoding="utf-8")
-        if not isinstance(deployment_manifest, dict):
-            raise ProofError("deployment manifest root must be an object")
+        deployment_provenance = json.loads(args.deployment_provenance.read_text(encoding="utf-8"))
+        if not isinstance(deployment_provenance, dict):
+            raise ProofError("deployment provenance root must be an object")
         config = ProofConfig(
             mode=args.mode,
             target=args.target,
@@ -1988,14 +1995,7 @@ def main(
             workspace_name=args.workspace,
             registry_name=args.registry,
             gateway_url=args.gateway_url.rstrip("/"),
-            repository_sha=args.repository_sha,
-            run_attempt=args.run_attempt,
-            deployment_manifest=deployment_manifest,
-            manifest_attempt_marker=manifest_attempt_marker,
-            service_repositories={
-                "api-gateway": args.gateway_repository,
-                "portfolio-service": args.portfolio_repository,
-            },
+            deployment_provenance=deployment_provenance,
             access_token=environ.get(args.access_token_env, ""),
             demo_password=environ.get(args.demo_password_env, ""),
             idle_threshold=args.idle_threshold,

@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "services": {
+    "api-gateway": {
+      "repository": "wealthprodacr.azurecr.io/api-gateway",
+      "digest": "sha256:aee44edc12b03175379caf65546e04f5ca1e2cea0d8690c00190b01254f20aa1",
+      "revision": "api-gateway--0000079",
+      "sourceSha": "ea34c017514532977ce08d07be3344c1c2cb065a",
+      "workflowRunId": 34433715705,
+      "runAttempt": 1,
+      "evidencePath": "docs/evidence/b2-task-8-8/deployment-completion-20260910.json"
+    },
+    "portfolio-service": {
+      "repository": "wealthprodacr.azurecr.io/portfolio-service",
+      "digest": "sha256:1cf372a39d17709f74aba427259548a531e3e1ba04dc64ec7750369bb8e82126",
+      "revision": "portfolio-service--0000096",
+      "sourceSha": "5fd1dac6a37513916fd2b80ca3929c4e20ad0de7",
+      "workflowRunId": 34328692256,
+      "runAttempt": 1,
+      "evidencePath": "docs/evidence/b1-r-c/task-7-9-serving-proof-20260909.json"
+    }
+  }
+}
