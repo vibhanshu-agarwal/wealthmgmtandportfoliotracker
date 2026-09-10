@@ -1,7 +1,7 @@
 # Implementation Plan
 
 **Current program status (reconciled 2026-09-10 at
-`main@ea34c017514532977ce08d07be3344c1c2cb065a`):** Waves 1–6 retain their recorded source and
+`main@26148c4be75675613e28d89f713639a0376aaba7`):** Waves 1–6 retain their recorded source and
 review evidence. Wave 5 Task 5.6 is GO and its gateway bundle is deployed hidden in the Task 8.8
 revision. Wave 3 Task 3.7 and Wave 6 Task 6.3 remain open. Production flags remain disabled.
 
@@ -13,7 +13,8 @@ owner-authorized production run `34433715705`: `api-gateway--0000079` serves imm
   current-attempt manifest and scoped non-interference proof green. Task 8.9 live serving proof
   remains open and separately owner-gated.
 
-Task 8.9's preflight provenance correction is implemented locally but unmerged. The verifier now
+Task 8.9's preflight provenance correction merged through PR #248 at
+`main@26148c4be75675613e28d89f713639a0376aaba7`. The verifier now
 consumes one immutable attestation per service from
 [`deployment-provenance-20260910.json`](../../../docs/evidence/b2-task-8-9/deployment-provenance-20260910.json),
 preserving each deployment's own workflow run, attempt, source SHA, digest, and revision. It rejects
@@ -36,8 +37,8 @@ local/CI evidence, not Production E2E.
 
 B1's R3 and GC.5 blockers are closed, and Tasks 7.1–7.11 are locally complete with the Task 7.9
 exact-digest serving proof recorded. B2 Task 8.9 and the remaining Wave 10 prerequisites still block
-exposure, so the Asset Picker is not exposed to production users. Task 2.7's historical
-containment/frontend-artifact disposition also remains open.
+exposure, so the Asset Picker is not exposed to production users. Task 2.7's evidence audit is
+recorded for independent B1 review; its containment/frontend-artifact disposition remains open.
 
 The owner-resolved Wave 8 decisions remain: strict 30-minute idle age, 45s eligibility / 10s reset /
 60s overall timeouts, and page-level manual-reset placement. See the
@@ -925,7 +926,9 @@ field, and one hard rule about where each may be used:
   indefinitely; they cost nothing while dormant.
   _Requirements: 8.3_
 - [ ] **2.7 Historical backend-before-adapter containment/frontend-artifact audit — B1-owned,
-  reviewed disposition required.** The backend decimal-string source `f22e2ff` served on 2026-08-26
+  reviewed disposition required.** The 2026-09-10 evidence audit is recorded at
+  [`docs/evidence/b2-task-2-7/historical-containment-audit-20260910.md`](../../../docs/evidence/b2-task-2-7/historical-containment-audit-20260910.md)
+  and awaits independent B1 review; this task remains unchecked. The backend decimal-string source `f22e2ff` served on 2026-08-26
   as revision `0000081` / digest
   `sha256:d544649f5b67baec8b563016882d239d3ecb9c5672399586e0bc656c78961d4f`; the tolerant frontend adapter source `fd42df7a`
   landed later through PR #178 on 2026-08-29. Reconstruct which frontend artifact was serving,
