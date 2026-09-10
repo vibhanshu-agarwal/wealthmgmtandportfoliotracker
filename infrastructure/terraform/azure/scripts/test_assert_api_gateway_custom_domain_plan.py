@@ -22,7 +22,7 @@ DOMAIN_ADDR = sut.CUSTOM_DOMAIN_ADDR
 GATEWAY_ADDR = sut.GATEWAY_ADDR
 HOSTNAME = sut.EXPECTED_HOSTNAME
 GATEWAY_ID = (
-    "/subscriptions/sub/resourceGroups/wealth-azure-prod-rg/providers/"
+    "/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/wealth-azure-prod-rg/providers/"
     "Microsoft.App/containerApps/api-gateway"
 )
 SECRET = "never-print-this-secret-value"
@@ -259,7 +259,10 @@ class AssertApiGatewayCustomDomainPlanTests(unittest.TestCase):
 
     def test_restore_and_remove_reject_material_gateway_id_differences(self):
         mismatches = {
-            "subscription": GATEWAY_ID.replace("/subscriptions/sub/", "/subscriptions/other/"),
+            "subscription": GATEWAY_ID.replace(
+                "/subscriptions/11111111-1111-1111-1111-111111111111/",
+                "/subscriptions/22222222-2222-2222-2222-222222222222/",
+            ),
             "resource_group": GATEWAY_ID.replace(
                 "/resourceGroups/wealth-azure-prod-rg/",
                 "/resourceGroups/other-rg/",
@@ -278,6 +281,28 @@ class AssertApiGatewayCustomDomainPlanTests(unittest.TestCase):
                     plan_copy["resource_changes"][0]["change"][side]["container_app_id"] = mismatched_id
                     errors = sut.evaluate_plan(plan_copy, profile, GATEWAY_ID)
                     self.assertTrue(any("gateway" in error for error in errors))
+
+    def test_malformed_arm_ids_fail_even_when_casefold_equal(self):
+        self.assertFalse(sut._same_azure_resource_id("not-an-arm-id", "NOT-AN-ARM-ID"))
+        self.assertFalse(
+            sut._same_azure_resource_id(
+                GATEWAY_ID + "/unexpected",
+                GATEWAY_ID.upper() + "/UNEXPECTED",
+            )
+        )
+        non_guid = GATEWAY_ID.replace(
+            "11111111-1111-1111-1111-111111111111", "not-a-guid"
+        )
+        self.assertFalse(sut._same_azure_resource_id(non_guid, non_guid.upper()))
+
+    def test_non_ascii_arm_id_lookalikes_are_rejected(self):
+        for value in (
+            GATEWAY_ID.replace("api-gateway", "ap\u0131-gateway"),
+            GATEWAY_ID.replace("api-gateway", "ap\u0130-gateway"),
+            GATEWAY_ID.replace("subscriptions", "\u017fubscriptions"),
+        ):
+            with self.subTest(value=value):
+                self.assertFalse(sut._same_azure_resource_id(value, GATEWAY_ID))
 
 
 if __name__ == "__main__":

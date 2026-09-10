@@ -7,6 +7,8 @@ import argparse
 import json
 import sys
 
+from api_gateway_resource_id import same_api_gateway_resource_id
+
 RESTORE_PROFILE = "api-gateway-custom-domain-restore"
 REMOVE_PROFILE = "api-gateway-custom-domain-remove"
 SCOPED_PROFILES = (RESTORE_PROFILE, REMOVE_PROFILE)
@@ -61,7 +63,7 @@ def _inactive(value) -> bool:
 
 
 def _same_azure_resource_id(actual: object, expected: str) -> bool:
-    return isinstance(actual, str) and actual.casefold() == expected.casefold()
+    return same_api_gateway_resource_id(actual, expected)
 
 
 def _collect_changes(plan: dict) -> tuple[list[str], list[dict]]:
@@ -208,7 +210,7 @@ def _reject_gateway_resources(changes: list[dict], profile: str) -> list[str]:
     return errors
 
 
-def _evaluate_non_scoped(plan: dict, profile: str, expected_gateway_id: str, tags_json: str, digests_json: str) -> list[str]:
+def _evaluate_non_scoped(plan: dict, profile: str, expected_gateway_id: str, tags_json: str, digests_json: str, gateway_digest: str) -> list[str]:
     errors, changes = _collect_changes(plan)
     if errors:
         return errors
@@ -225,12 +227,12 @@ def _evaluate_non_scoped(plan: dict, profile: str, expected_gateway_id: str, tag
             return errors
         import assert_api_gateway_timeout_rollout_plan as timeout_rollout
 
-        return timeout_rollout.evaluate_plan(plan, profile, expected_gateway_id, tags_json, digests_json)
+        return timeout_rollout.evaluate_plan(plan, profile, expected_gateway_id, tags_json, digests_json, gateway_digest)
     errors.extend(_reject_gateway_resources(changes, profile))
     return errors
 
 
-def evaluate_plan(plan: dict, profile: str, expected_gateway_id: str | None = None, tags_json: str = "", digests_json: str = "") -> list[str]:
+def evaluate_plan(plan: dict, profile: str, expected_gateway_id: str | None = None, tags_json: str = "", digests_json: str = "", gateway_digest: str = "") -> list[str]:
     if profile not in KNOWN_PROFILES:
         return ["FAIL [profile] unknown change profile; fail closed."]
     if profile in SCOPED_PROFILES:
@@ -239,7 +241,7 @@ def evaluate_plan(plan: dict, profile: str, expected_gateway_id: str | None = No
         if profile == RESTORE_PROFILE:
             return _evaluate_restore(plan, expected_gateway_id)
         return _evaluate_remove(plan, expected_gateway_id)
-    return _evaluate_non_scoped(plan, profile, expected_gateway_id or "", tags_json, digests_json)
+    return _evaluate_non_scoped(plan, profile, expected_gateway_id or "", tags_json, digests_json, gateway_digest)
 
 
 def main() -> int:
@@ -249,6 +251,7 @@ def main() -> int:
     parser.add_argument("--expected-gateway-id", default="")
     parser.add_argument("--expected-image-tags-json", default="")
     parser.add_argument("--expected-image-digests-json", default="")
+    parser.add_argument("--expected-gateway-digest", default="")
     args = parser.parse_args()
 
     try:
@@ -258,7 +261,7 @@ def main() -> int:
         return 1
 
     gateway_id = args.expected_gateway_id.strip() or None
-    errors = evaluate_plan(plan, args.profile, gateway_id, args.expected_image_tags_json, args.expected_image_digests_json)
+    errors = evaluate_plan(plan, args.profile, gateway_id, args.expected_image_tags_json, args.expected_image_digests_json, args.expected_gateway_digest)
     if errors:
         print(f"API GATEWAY CUSTOM DOMAIN PLAN ASSERTION FAILED (profile={args.profile}):")
         for error in errors:

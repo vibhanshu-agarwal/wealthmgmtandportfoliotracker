@@ -25,7 +25,7 @@ TIMEOUT_ENV = {
     "APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT": "165s",
     "SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT": "150s",
 }
-GATEWAY_ID = "/subscriptions/sub/resourceGroups/wealth-azure-prod-rg/providers/Microsoft.App/containerApps/api-gateway"
+GATEWAY_ID = "/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/wealth-azure-prod-rg/providers/Microsoft.App/containerApps/api-gateway"
 TAG = "a" * 40
 DIGEST = "sha256:" + "a1" * 32
 TAGS_JSON = json.dumps({name: TAG for name in ("api-gateway", "portfolio-service", "market-data-service", "insight-service")})
@@ -63,7 +63,16 @@ def _plan(before_env=None, after_env=None):
 
 
 def _evaluate(plan, profile=PROFILE):
-    return sut.evaluate_plan(plan, profile, GATEWAY_ID, TAGS_JSON, DIGESTS_JSON)
+    return sut.evaluate_plan(plan, profile, GATEWAY_ID, TAGS_JSON, DIGESTS_JSON, DIGEST)
+
+
+def _evaluate_with_serving_digest(plan, serving_digest, *, tag_digests=DIGESTS_JSON):
+    try:
+        return sut.evaluate_plan(
+            plan, PROFILE, GATEWAY_ID, TAGS_JSON, tag_digests, serving_digest
+        )
+    except TypeError:
+        return ["missing serving-digest attestation interface"]
 
 
 class AssertApiGatewayTimeoutRolloutPlanTests(unittest.TestCase):
@@ -75,6 +84,30 @@ class AssertApiGatewayTimeoutRolloutPlanTests(unittest.TestCase):
         env = plan["resource_changes"][0]["change"]["after"]["template"][0]["container"][0]["env"]
         env.reverse()
         self.assertEqual(_evaluate(plan), [])
+
+    def test_case_only_gateway_id_difference_passes_the_timeout_baseline(self):
+        plan = _plan()
+        for side in ("before", "after"):
+            plan["resource_changes"][0]["change"][side]["id"] = GATEWAY_ID.upper()
+        self.assertEqual(_evaluate(plan), [])
+
+    def test_one_sided_case_only_gateway_id_difference_passes_final_normalized_equality(self):
+        plan = _plan()
+        plan["resource_changes"][0]["change"]["before"]["id"] = GATEWAY_ID.upper()
+        self.assertEqual(_evaluate(plan), [])
+
+    def test_verified_running_gateway_digest_wins_over_acr_tag_digest(self):
+        tag_digest = "sha256:" + "b2" * 32
+        tag_digests = json.dumps({
+            name: tag_digest
+            for name in ("api-gateway", "portfolio-service", "market-data-service", "insight-service")
+        })
+        self.assertEqual(_evaluate_with_serving_digest(_plan(), DIGEST, tag_digests=tag_digests), [])
+
+    def test_missing_or_mismatched_serving_digest_fails_closed(self):
+        other_digest = "sha256:" + "c3" * 32
+        self.assertTrue(_evaluate_with_serving_digest(_plan(), ""))
+        self.assertTrue(_evaluate_with_serving_digest(_plan(), other_digest))
 
     def test_missing_or_wrong_timeout_fails(self):
         for name, value in (("APP_DEMO_LOGIN_RESET_RESET_TIMEOUT", None),
