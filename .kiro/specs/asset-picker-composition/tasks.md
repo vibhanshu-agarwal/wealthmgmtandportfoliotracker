@@ -37,8 +37,9 @@ local/CI evidence, not Production E2E.
 
 B1's R3 and GC.5 blockers are closed, and Tasks 7.1–7.11 are locally complete with the Task 7.9
 exact-digest serving proof recorded. B2 Task 8.9 and the remaining Wave 10 prerequisites still block
-exposure, so the Asset Picker is not exposed to production users. Task 2.7's evidence audit is
-recorded for independent B1 review; its containment/frontend-artifact disposition remains open.
+exposure, so the Asset Picker is not exposed to production users. Task 2.7's historical audit is
+complete with Astra's 2026-09-10 ACCEPT: containment is only at the recorded ACA boundary and
+user-visible impact remains unproven, not impossible. Task 2.6 and Wave 10.2 item 2 remain open.
 
 The owner-resolved Wave 8 decisions remain: strict 30-minute idle age, 45s eligibility / 10s reset /
 60s overall timeouts, and page-level manual-reset placement. See the
@@ -81,7 +82,8 @@ tests, `page.route` in the two new mocked Playwright specs
 the only build that ever sets the former to `"true"` is
 `playwright.asset-picker.mocked.config.ts`'s own local `webServer`, never a workflow or deployment
 environment. **This is a source-on-`main` claim only, not a deployment, live-integration, or
-production-exposure claim.** Tasks 2.6-2.7 remain open. Wave 3 source merged via PR #179 at
+production-exposure claim.** Task 2.7's later historical audit is independently ACCEPTed; Task 2.6
+remains mandatory and Wave 10.2 item 2 remains unsatisfied. Wave 3 source merged via PR #179 at
 `main@cc97a209` (Tasks 3.1–3.6 source-only; Task 3.7 deploy/live proof open). Wave 4 Tasks
 4.1–4.4a merged through PR #180 at `main@63fc058`; Task 4.5 completed with a reviewed live GO on
 2026-09-01. Waves 5–10 remain open per their own gates below.
@@ -713,7 +715,8 @@ Buildable and fully testable without a live backend: mock `GET /api/assets` and
   skip-and-proceed option this one doesn't have). **This task's implementation SHALL run Wave 2 Task
   2.1's ingestion boundary as part of building `PortfolioResponseDTO`** — both tasks edit the same
   file (`portfolio.ts`) and are naturally implemented together, not a genuine cross-wave release
-  gate (unlike Wave 2.7 below): a developer picking up this document implements 2.1 first, or
+  gate. Task 2.7 is the independently ACCEPTed historical audit; Task 2.6 compatibility and Wave
+  10.2 item 2 remain independent safeguards. A developer picking up this document implements 2.1 first, or
   alongside 1.2, before 1.5's preflight has anything to check.
   _Requirements: 4.1, 4.5; design.md D2, D5_
 - [x] **1.3 `AssetPickerModal` shell** — WAI-ARIA Dialog pattern (role, `aria-modal`,
@@ -925,17 +928,16 @@ field, and one hard rule about where each may be used:
   cycle count. Until that decision, 2.1's `number` branch and 2.2's fidelity gate stay in place
   indefinitely; they cost nothing while dormant.
   _Requirements: 8.3_
-- [ ] **2.7 Historical backend-before-adapter containment/frontend-artifact audit — B1-owned,
-  reviewed disposition required.** The 2026-09-10 evidence audit is recorded at
+- [x] **2.7 Historical backend-before-adapter containment/frontend-artifact audit — B1-owned,
+  independently reviewed disposition.** The 2026-09-10 evidence audit is recorded at
   [`docs/evidence/b2-task-2-7/historical-containment-audit-20260910.md`](../../../docs/evidence/b2-task-2-7/historical-containment-audit-20260910.md)
-  and awaits independent B1 review; this task remains unchecked. The backend decimal-string source `f22e2ff` served on 2026-08-26
-  as revision `0000081` / digest
-  `sha256:d544649f5b67baec8b563016882d239d3ecb9c5672399586e0bc656c78961d4f`; the tolerant frontend adapter source `fd42df7a`
-  landed later through PR #178 on 2026-08-29. Reconstruct which frontend artifact was serving,
-  which routes and caches could expose it, and which rollback artifacts remained available during
-  that interval. Recorded ingress closure makes user-visible impact unproven, not closed. Record a
-  reviewed containment and impact disposition before checking this item. No fresh cloud access is
-  authorized by this task. Task 2.6 compatibility and Wave 10.2 item 2 remain open independently.
+  and was independently ACCEPTed by Astra on 2026-09-10. It reconstructs recorded backend
+  deployments (including `0000081` and later `0000084`–`0000089`) and documented frontend
+  delivery paths, with containment only at the recorded ACA boundary. User-visible impact is
+  unproven, not impossible; contemporaneous frontend artifact, embedded-origin, cache, and rollback
+  identities remain unresolved. `fd42df7` through PR #178 / `main@38e3d954` is source provenance,
+  not serving proof. No fresh cloud access is authorized by this task. Task 2.6 compatibility
+  remains mandatory, and Wave 10.2 item 2 remains unsatisfied independently.
   _Requirements: 8.3_
 
 ## Wave 3 — Presence (Redis-backed) · *B2-owned backend* · **source merged via PR #179 at `main@cc97a209`; Task 3.7 deploy/live proof open**
@@ -1767,10 +1769,11 @@ below.
 here.** Round 1 closed this wave on the theory that Task 2.1's shape-tolerant parsing removed the
 sequencing hazard entirely; round 3 corrected that to "Wave 2.2's flag-based write guard is the real
 mechanism" — also wrong, since that guard only protects the **picker's** writes, and requirements.md
-8.3 is actually about the **existing, unrelated Portfolio page**. The real mechanism is Wave 2.7's
-cross-spec deployment gate: Tasks 2.1/2.3/2.4 deployed before B1 task 4.9 is. Nothing needs a
-standalone gate *here* because 2.7 already states the condition directly; this wave number stays
-purely as a pointer so nothing downstream needs renumbering.
+8.3 is actually about the **existing, unrelated Portfolio page**. Task 2.7 is the independently
+ACCEPTed historical audit of the backend-before-adapter sequence, not a prospective cross-spec
+deployment gate. Task 2.6 compatibility and Wave 10.2 item 2 remain independent safeguards. Nothing
+needs a standalone gate *here*; this wave number stays purely as a pointer so nothing downstream
+needs renumbering.
 _Requirements: 8.3_
 
 ## Wave 8 — Login-orchestrated reset self-call · *design.md D5 Stage 6, separately gated*
@@ -1838,10 +1841,11 @@ mechanism's actual runtime behavior does not).**
   provides a nominal five-second margin beyond the configured per-leg maxima, but target-construction
   and orchestration overhead can consume that margin and the overall deadline may pre-empt a leg.
   The idle threshold and the manual-reset placement are unchanged by that revision. The
-  existing page-level manual-reset host is final for this release. Task 2.6 numeric compatibility remains while B1 owns the historical sequencing
-  audit. The authoritative rationale and frozen implementation contract are in
+  existing page-level manual-reset host is final for this release. Task 2.7's historical sequencing
+  audit is independently ACCEPTed; Task 2.6 numeric compatibility remains mandatory and Wave 10.2
+  item 2 remains unsatisfied. The authoritative rationale and frozen implementation contract are in
   `docs/superpowers/plans/2026-09-06-b2-wave8-decision-record.md`; do not start production behavior
-  until Astra accepts this record and the aligned requirements/design/task corrections.
+  until its separately required gates, including Task 8.9, are complete.
   _Requirements: 7.4, 7.6, 7.7, 7.8; design.md D5_
 - [x] **8.2a `CloudFrontOriginSecretProvider`** — **merged source-only via PR #203 at
   `main@addd8049`** (not deployed). Extracting the origin secret's single read, so 8.3
@@ -4249,12 +4253,12 @@ class, not by enumeration" through "operational signals only") deliberately keep
   independently gated from the manual bundle; it did not make either optional for production.**
   **Go, all of:**
   1. B1/Spec A's own activation gates (B1's R-C and everything R-C depends on).
-  2. B1 task 4.9 decimal fidelity confirmed live, plus Task 2.7's reviewed historical containment/
-     frontend-artifact disposition. The recorded backend-before-adapter sequence cannot be undone;
-     reconstruct the frontend artifact, routing, cache, rollback, and impact evidence for that
-     interval. Recorded ingress closure makes user-visible impact unproven, not closed. Keep Task
-     2.6 compatibility until its separate retirement decision; this gate cannot silently pass an
-     undispositioned historical window.
+  2. B1 task 4.9 decimal fidelity confirmed live, plus Task 2.7's independently ACCEPTed historical
+     containment/frontend-artifact disposition. That audit bounds containment only at the recorded
+     ACA path; impact remains unproven, not impossible, and its frontend evidence gaps remain
+     explicit. Task 2.6 compatibility remains independently mandatory but non-blocking; its later
+     retirement is not a condition of this gate. The Task 2.7 audit does not establish live decimal
+     fidelity or itself satisfy Wave 10.2 item 2, which remains unsatisfied.
   3. Waves 3 (presence, **Task 3.7's Azure live probe green**) and 4 (portfolio-service endpoint, gate 4.5, itself
      requiring B1 task 5.1 per its own round-3 fix) **deployed to production and live-verified**, per
      their own STOP/GOs satisfied in the deployed environment — not merely green in CI. Wave 5

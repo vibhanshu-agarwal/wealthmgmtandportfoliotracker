@@ -892,7 +892,7 @@ in Waves 5–7.
   production `PUT`).
   _Requirements: 7.12, 7.13, 7.15_
 - [x] **4.9 Decimal fidelity both directions.** Strict string deserializer on write;
-  `toPlainString()` serializer on `HoldingResponse.quantity`, which emits a JSON number today. No
+  `toPlainString()` serializer on `HoldingResponse.quantity`, which emits a JSON string. No
   exponential notation; trailing fractional zeros preserved as stored.
   **Evidence (on `main@2673f40`):** `ToPlainStringSerializer` on
   `PortfolioResponse.HoldingResponse.quantity`; `StrictDecimalFidelityTest` round-trip of
