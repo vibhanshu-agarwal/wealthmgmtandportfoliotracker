@@ -438,6 +438,17 @@ class TestTerraformAzureWorkflowHardening(unittest.TestCase):
                 self.assertIn("--expected-image-tags-json \"$EXPECTED_IMAGE_TAGS_JSON\"", job)
                 self.assertIn("--expected-image-digests-json \"$EXPECTED_IMAGE_DIGESTS_JSON\"", job)
 
+    def test_timeout_rollout_attests_serving_revision_digest_once_per_live_job(self):
+        for heading in ("remote-plan:", "apply:"):
+            with self.subTest(job=heading):
+                job = self._job(heading)
+                self.assertEqual(job.count("id: timeout-rollout-preflight"), 1)
+                self.assertIn("az containerapp revision show", job)
+                self.assertIn("trafficWeight", job)
+                self.assertIn("az acr manifest show-metadata", job)
+                self.assertIn("gateway_digest=$GATEWAY_DIGEST", job)
+                self.assertEqual(job.count('--expected-gateway-digest "$EXPECTED_GATEWAY_DIGEST"'), 2)
+
     def test_each_live_job_has_unique_step_ids_and_one_timeout_preflight(self):
         for heading in ("remote-plan:", "apply:"):
             with self.subTest(job=heading):

@@ -279,6 +279,15 @@ class AssertApiGatewayCustomDomainPlanTests(unittest.TestCase):
                     errors = sut.evaluate_plan(plan_copy, profile, GATEWAY_ID)
                     self.assertTrue(any("gateway" in error for error in errors))
 
+    def test_malformed_arm_ids_fail_even_when_casefold_equal(self):
+        self.assertFalse(sut._same_azure_resource_id("not-an-arm-id", "NOT-AN-ARM-ID"))
+        self.assertFalse(
+            sut._same_azure_resource_id(
+                GATEWAY_ID + "/unexpected",
+                GATEWAY_ID.upper() + "/UNEXPECTED",
+            )
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

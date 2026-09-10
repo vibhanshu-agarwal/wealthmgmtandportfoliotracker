@@ -9,6 +9,8 @@ import json
 import re
 import sys
 
+from api_gateway_resource_id import same_api_gateway_resource_id
+
 PROFILE = "api-gateway-timeout-rollout"
 GATEWAY_ADDR = "module.api_gateway.azurerm_container_app.this"
 TIMEOUT_ENV = {
@@ -184,21 +186,20 @@ def _plan_changes(plan: object, *, strict: bool) -> tuple[list[str], list[dict]]
     return errors, changes
 
 
-def _expected(tags_json: str, digests_json: str) -> tuple[str, str] | None:
+def _expected(tags_json: str, gateway_digest: str) -> tuple[str, str] | None:
     try:
-        tags, digests = json.loads(tags_json), json.loads(digests_json)
+        tags = json.loads(tags_json)
     except (TypeError, json.JSONDecodeError):
         return None
     tag = tags.get("api-gateway") if isinstance(tags, dict) else None
-    digest = digests.get("api-gateway") if isinstance(digests, dict) else None
-    return (tag, digest) if isinstance(tag, str) and _TAG.fullmatch(tag) and isinstance(digest, str) and _DIGEST.fullmatch(digest) else None
+    return (tag, gateway_digest) if isinstance(tag, str) and _TAG.fullmatch(tag) and isinstance(gateway_digest, str) and _DIGEST.fullmatch(gateway_digest) else None
 
 
 def _baseline_errors(before: dict, after: dict, gateway_id: str, tag: str, digest: str) -> list[str]:
     errors: list[str] = []
     for side in (before, after):
         container = _container(side)
-        if side.get("id") != gateway_id or container is None:
+        if not same_api_gateway_resource_id(side.get("id"), gateway_id) or container is None:
             return ["FAIL [baseline] api-gateway identity or container shape does not match the trusted baseline."]
         template = side["template"][0]
         if (container.get("name") != "api-gateway" or container.get("image") != f"wealthprodacr.azurecr.io/api-gateway@{digest}" or template.get("min_replicas") != 0 or template.get("max_replicas") != 3 or container.get("cpu") != 0.5 or container.get("memory") != "1Gi"):
@@ -209,8 +210,8 @@ def _baseline_errors(before: dict, after: dict, gateway_id: str, tag: str, diges
     return errors
 
 
-def _evaluate_rollout(plan: dict, gateway_id: str, tags_json: str, digests_json: str) -> list[str]:
-    expected = _expected(tags_json, digests_json)
+def _evaluate_rollout(plan: dict, gateway_id: str, tags_json: str, gateway_digest: str) -> list[str]:
+    expected = _expected(tags_json, gateway_digest)
     if not isinstance(gateway_id, str) or not gateway_id or expected is None:
         return ["FAIL [input] trusted gateway id, image tag, and image digest are required."]
     errors, changes = _plan_changes(plan, strict=True)
@@ -260,10 +261,10 @@ def _evaluate_non_rollout(plan: dict) -> list[str]:
     return []
 
 
-def evaluate_plan(plan: dict, profile: str, gateway_id: str = "", tags_json: str = "", digests_json: str = "") -> list[str]:
+def evaluate_plan(plan: dict, profile: str, gateway_id: str = "", tags_json: str = "", digests_json: str = "", gateway_digest: str = "") -> list[str]:
     if profile not in KNOWN_PROFILES:
         return ["FAIL [profile] unknown change profile; fail closed."]
-    return _evaluate_rollout(plan, gateway_id, tags_json, digests_json) if profile == PROFILE else _evaluate_non_rollout(plan)
+    return _evaluate_rollout(plan, gateway_id, tags_json, gateway_digest) if profile == PROFILE else _evaluate_non_rollout(plan)
 
 
 def main() -> int:
@@ -273,13 +274,14 @@ def main() -> int:
     parser.add_argument("--expected-gateway-id", default="")
     parser.add_argument("--expected-image-tags-json", default="")
     parser.add_argument("--expected-image-digests-json", default="")
+    parser.add_argument("--expected-gateway-digest", default="")
     args = parser.parse_args()
     try:
         plan = load_plan(args.plan_json)
     except (OSError, json.JSONDecodeError):
         print("ERROR: Failed to load Terraform plan JSON.", file=sys.stderr)
         return 1
-    errors = evaluate_plan(plan, args.profile, args.expected_gateway_id, args.expected_image_tags_json, args.expected_image_digests_json)
+    errors = evaluate_plan(plan, args.profile, args.expected_gateway_id, args.expected_image_tags_json, args.expected_image_digests_json, args.expected_gateway_digest)
     if errors:
         print(f"API GATEWAY TIMEOUT ROLLOUT ASSERTION FAILED (profile={args.profile}):")
         for error in errors:
