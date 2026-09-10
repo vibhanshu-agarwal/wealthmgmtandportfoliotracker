@@ -248,6 +248,11 @@ module "api_gateway" {
     MANAGEMENT_TRACING_SAMPLING_PROBABILITY                = "1.0"
     SERVICE_VERSION                                        = var.image_tags["api-gateway"]
     DEPLOYMENT_ENVIRONMENT_NAME                            = "prod"
+
+    APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT                       = "120s"
+    APP_DEMO_LOGIN_RESET_RESET_TIMEOUT                             = "30s"
+    APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT                           = "165s"
+    SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT = "150s"
   }
 
   # Sensitive env vars — values sourced from the secrets map below.
