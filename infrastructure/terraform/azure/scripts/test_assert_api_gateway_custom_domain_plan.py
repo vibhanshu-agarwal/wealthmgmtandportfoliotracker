@@ -198,6 +198,17 @@ class AssertApiGatewayCustomDomainPlanTests(unittest.TestCase):
     def test_known_profiles_include_restore_and_remove(self):
         self.assertIn(RESTORE, sut.KNOWN_PROFILES)
         self.assertIn(REMOVE, sut.KNOWN_PROFILES)
+        self.assertIn("api-gateway-timeout-rollout", sut.KNOWN_PROFILES)
+
+    def test_timeout_profile_delegates_to_the_timeout_guard(self):
+        errors = sut.evaluate_plan(
+            {"resource_changes": []},
+            "api-gateway-timeout-rollout",
+            GATEWAY_ID,
+            "{}",
+            "{}",
+        )
+        self.assertTrue(any("trusted gateway id" in error for error in errors), errors)
 
     def test_valid_9_14_reopen_passes_universal_guard(self):
         self.assertEqual(sut.evaluate_plan(_reopen_plan(), REOPEN), [])

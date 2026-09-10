@@ -52,6 +52,7 @@ VALID_PROFILES = (
     "spec-a-9.14-close-ingress",
     "api-gateway-custom-domain-restore",
     "api-gateway-custom-domain-remove",
+    "api-gateway-timeout-rollout",
 )
 SCOPED_SPEC_A_PROFILES = (
     "spec-a-9.9-enable",
@@ -67,6 +68,7 @@ SCOPED_SPEC_A_PROFILES = (
     "spec-a-9.14-close-ingress",
     "api-gateway-custom-domain-restore",
     "api-gateway-custom-domain-remove",
+    "api-gateway-timeout-rollout",
 )
 SPEC_A_9_12_PROFILES = (
     "spec-a-9.12-enable",
@@ -219,6 +221,10 @@ def validate(inputs: DispatchInputs) -> dict[str, str]:
             f"change_profile must be one of {VALID_PROFILES}, got {profile!r}."
         )
 
+    if profile == "api-gateway-timeout-rollout" and portfolio_digest:
+        raise DispatchValidationError(
+            "api-gateway-timeout-rollout requires expected_portfolio_image_digest to be omitted."
+        )
     if portfolio_digest:
         if not IMAGE_DIGEST.match(portfolio_digest):
             raise DispatchValidationError(

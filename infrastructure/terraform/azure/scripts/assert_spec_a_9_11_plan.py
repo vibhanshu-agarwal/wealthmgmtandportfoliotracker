@@ -48,6 +48,7 @@ KNOWN_PROFILES = (
     "spec-a-9.14-close-ingress",
     "api-gateway-custom-domain-restore",
     "api-gateway-custom-domain-remove",
+    "api-gateway-timeout-rollout",
 )
 
 REQUIRED_RETRY = 0

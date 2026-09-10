@@ -36,6 +36,7 @@ KNOWN_PROFILES = (
     "spec-a-9.14-close-ingress",
     RESTORE_PROFILE,
     REMOVE_PROFILE,
+    "api-gateway-timeout-rollout",
 )
 
 
@@ -207,7 +208,7 @@ def _reject_gateway_resources(changes: list[dict], profile: str) -> list[str]:
     return errors
 
 
-def _evaluate_non_scoped(plan: dict, profile: str) -> list[str]:
+def _evaluate_non_scoped(plan: dict, profile: str, expected_gateway_id: str, tags_json: str, digests_json: str) -> list[str]:
     errors, changes = _collect_changes(plan)
     if errors:
         return errors
@@ -219,11 +220,17 @@ def _evaluate_non_scoped(plan: dict, profile: str) -> list[str]:
         import assert_spec_a_9_14_plan as spec_a_9_14
 
         return spec_a_9_14.evaluate_plan(plan, profile)
+    if profile == "api-gateway-timeout-rollout":
+        if errors:
+            return errors
+        import assert_api_gateway_timeout_rollout_plan as timeout_rollout
+
+        return timeout_rollout.evaluate_plan(plan, profile, expected_gateway_id, tags_json, digests_json)
     errors.extend(_reject_gateway_resources(changes, profile))
     return errors
 
 
-def evaluate_plan(plan: dict, profile: str, expected_gateway_id: str | None = None) -> list[str]:
+def evaluate_plan(plan: dict, profile: str, expected_gateway_id: str | None = None, tags_json: str = "", digests_json: str = "") -> list[str]:
     if profile not in KNOWN_PROFILES:
         return ["FAIL [profile] unknown change profile; fail closed."]
     if profile in SCOPED_PROFILES:
@@ -232,7 +239,7 @@ def evaluate_plan(plan: dict, profile: str, expected_gateway_id: str | None = No
         if profile == RESTORE_PROFILE:
             return _evaluate_restore(plan, expected_gateway_id)
         return _evaluate_remove(plan, expected_gateway_id)
-    return _evaluate_non_scoped(plan, profile)
+    return _evaluate_non_scoped(plan, profile, expected_gateway_id or "", tags_json, digests_json)
 
 
 def main() -> int:
@@ -240,6 +247,8 @@ def main() -> int:
     parser.add_argument("plan_json")
     parser.add_argument("--profile", required=True)
     parser.add_argument("--expected-gateway-id", default="")
+    parser.add_argument("--expected-image-tags-json", default="")
+    parser.add_argument("--expected-image-digests-json", default="")
     args = parser.parse_args()
 
     try:
@@ -249,7 +258,7 @@ def main() -> int:
         return 1
 
     gateway_id = args.expected_gateway_id.strip() or None
-    errors = evaluate_plan(plan, args.profile, gateway_id)
+    errors = evaluate_plan(plan, args.profile, gateway_id, args.expected_image_tags_json, args.expected_image_digests_json)
     if errors:
         print(f"API GATEWAY CUSTOM DOMAIN PLAN ASSERTION FAILED (profile={args.profile}):")
         for error in errors:

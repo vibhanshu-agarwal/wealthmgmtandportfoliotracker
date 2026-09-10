@@ -496,6 +496,28 @@ class ValidateDispatchTests(unittest.TestCase):
             )
         self.assertIn("recreate_market_data_job=false", str(ctx.exception))
 
+    def test_timeout_rollout_profile_requires_no_seed_or_job_recreate(self):
+        sut.validate(self._inputs(change_profile="api-gateway-timeout-rollout"))
+        for flag in ("use_seed_image", "recreate_market_data_job"):
+            with self.subTest(flag=flag):
+                with self.assertRaises(sut.DispatchValidationError):
+                    sut.validate(
+                        self._inputs(
+                            change_profile="api-gateway-timeout-rollout",
+                            **{flag: "true"},
+                        )
+                    )
+
+    def test_timeout_rollout_profile_requires_portfolio_digest_omitted(self):
+        with self.assertRaises(sut.DispatchValidationError) as ctx:
+            sut.validate(
+                self._inputs(
+                    change_profile="api-gateway-timeout-rollout",
+                    expected_portfolio_image_digest=DIGEST,
+                )
+            )
+        self.assertIn("expected_portfolio_image_digest to be omitted", str(ctx.exception))
+
 
 if __name__ == "__main__":
     unittest.main()

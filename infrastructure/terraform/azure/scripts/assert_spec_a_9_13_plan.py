@@ -51,6 +51,7 @@ KNOWN_PROFILES = (
     "spec-a-9.14-close-ingress",
     "api-gateway-custom-domain-restore",
     "api-gateway-custom-domain-remove",
+    "api-gateway-timeout-rollout",
 )
 _DIGEST_PATTERN = re.compile(r"sha256:[0-9a-f]{64}\Z")
 _VERSION_PATTERN = re.compile(r"[0-9a-f]{40}\Z")

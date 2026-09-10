@@ -558,6 +558,7 @@ class SpecA913PlanTests(unittest.TestCase):
     def test_custom_domain_profiles_are_known(self):
         self.assertIn("api-gateway-custom-domain-restore", sut.KNOWN_PROFILES)
         self.assertIn("api-gateway-custom-domain-remove", sut.KNOWN_PROFILES)
+        self.assertIn("api-gateway-timeout-rollout", sut.KNOWN_PROFILES)
 
 
 if __name__ == "__main__":

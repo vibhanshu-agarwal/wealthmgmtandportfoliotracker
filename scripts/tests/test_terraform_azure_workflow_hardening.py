@@ -83,6 +83,10 @@ class TestTerraformAzureWorkflowHardening(unittest.TestCase):
         self.assertIn("spec-a-9.14-reopen-ingress", block)
         self.assertIn("spec-a-9.14-close-ingress", block)
 
+    def test_change_profile_input_has_timeout_rollout_profile(self):
+        block = self._block("change_profile:")
+        self.assertRegex(block, r"options:[\s\S]*?-\s*api-gateway-timeout-rollout")
+
     def test_expected_portfolio_image_digest_input_exists_as_optional_string(self):
         block = self._block("expected_portfolio_image_digest:")
         self.assertIn("required: false", block)
@@ -288,6 +292,13 @@ class TestTerraformAzureWorkflowHardening(unittest.TestCase):
         self.assertGreater(guard_9_13, -1)
         self.assertGreater(guard_9_14, guard_9_13)
 
+    def test_apply_job_invokes_timeout_rollout_guard_after_earlier_guards(self):
+        job = self._job("apply:")
+        self.assertIn(
+            'assert_api_gateway_timeout_rollout_plan.py tfplan.json --profile "${{ github.event.inputs.change_profile }}"',
+            job,
+        )
+
     def test_job_import_step_is_read_only_for_9_9_profiles(self):
         job = self._job("apply:")
         import_step = job[job.find("Import existing market-data refresh Job") :]
@@ -328,6 +339,13 @@ class TestTerraformAzureWorkflowHardening(unittest.TestCase):
         import_step = import_step[: import_step.find("\n\n      - name:")]
         self.assertIn("spec-a-9.14-reopen-ingress", import_step)
         self.assertIn("spec-a-9.14-close-ingress", import_step)
+        self.assertIn("exit 1", import_step)
+
+    def test_job_import_step_is_read_only_for_timeout_rollout_profile(self):
+        job = self._job("apply:")
+        import_step = job[job.find("Import existing market-data refresh Job") :]
+        import_step = import_step[: import_step.find("\n\n      - name:")]
+        self.assertIn("api-gateway-timeout-rollout", import_step)
         self.assertIn("exit 1", import_step)
 
     # -- remote-plan job -----------------------------------------------------------
@@ -404,6 +422,30 @@ class TestTerraformAzureWorkflowHardening(unittest.TestCase):
         self.assertGreater(guard_9_13, -1)
         self.assertGreater(guard_9_14, guard_9_13)
 
+    def test_remote_plan_invokes_timeout_rollout_guard_after_earlier_guards(self):
+        job = self._job("remote-plan:")
+        self.assertIn(
+            'assert_api_gateway_timeout_rollout_plan.py tfplan.json --profile "${{ github.event.inputs.change_profile }}"',
+            job,
+        )
+
+    def test_timeout_rollout_guard_uses_canonical_baselines_and_live_gateway_id(self):
+        for heading in ("remote-plan:", "apply:"):
+            with self.subTest(job=heading):
+                job = self._job(heading)
+                self.assertIn("Timeout-rollout gateway identity preflight", job)
+                self.assertIn("steps.timeout-rollout-preflight.outputs.gateway_id", job)
+                self.assertIn("--expected-image-tags-json \"$EXPECTED_IMAGE_TAGS_JSON\"", job)
+                self.assertIn("--expected-image-digests-json \"$EXPECTED_IMAGE_DIGESTS_JSON\"", job)
+
+    def test_each_live_job_has_unique_step_ids_and_one_timeout_preflight(self):
+        for heading in ("remote-plan:", "apply:"):
+            with self.subTest(job=heading):
+                job = self._job(heading)
+                ids = re.findall(r"(?m)^        id: ([A-Za-z0-9_-]+)$", job)
+                self.assertEqual(len(ids), len(set(ids)), ids)
+                self.assertEqual(ids.count("timeout-rollout-preflight"), 1)
+
     def test_remote_plan_never_applies(self):
         job = self._job("remote-plan:")
         self.assertNotIn("terraform apply", job)
@@ -479,6 +521,13 @@ class TestTerraformAzureWorkflowHardening(unittest.TestCase):
 
     def test_9_14_profile_assertion_script_exists(self):
         self.assertTrue(PROFILE_9_14_ASSERT_SCRIPT.is_file())
+
+    def test_timeout_rollout_profile_assertion_script_exists(self):
+        script = (
+            REPO / "infrastructure" / "terraform" / "azure" / "scripts"
+            / "assert_api_gateway_timeout_rollout_plan.py"
+        )
+        self.assertTrue(script.is_file())
 
     def test_run_blocks_do_not_interpolate_raw_portfolio_digest(self):
         raw = "${{ github.event.inputs.expected_portfolio_image_digest }}"
