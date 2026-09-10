@@ -1579,7 +1579,7 @@ reconciliation. B1 G5 subsequently closed under its own owner decision on 2026-0
   5.1a's shared read; the provider's own null/blank resolution behavior is unit-tested once in 5.1a,
   and every consumer's test injects the provider or a double of it, never a raw value)**.
   _Requirements: design.md D5 (pass 20, provider round-23)_
-- [ ] **5.6 STOP/GO — Wave 5 as one deployable unit** (GC.10). **Go, all of (round-2 correction:
+- [x] **5.6 STOP/GO — Wave 5 as one deployable unit** (GC.10). **Go, all of (round-2 correction:
   naming only 5.4/5.5 let this gate pass while 5.3's regression test, 5.3a's tests, and 5.1's own
   promised contract test were still red):**
   1. Tasks 5.1-5.5 all present and merged together — the filter, the route, and the allowlist entry,
@@ -1605,8 +1605,12 @@ reconciliation. B1 G5 subsequently closed under its own owner decision on 2026-0
   _Requirements: 5.1; design.md D5, D6_
 
 **Task 5.6 assessment (Codex, 2026-09-02): all seven technical conditions met; recommend GO.**
-The checkbox remains unchecked pending the separately reserved owner GO decision. Source-merge
-approval and this documentation reconciliation do not stand in for that decision.
+**Owner GO recorded 2026-09-10.** After the current-main readiness review re-ran the 24 snapshot,
+14 service-allowlist, 10 prebuilt-digest, 75 Azure proof-verifier, and 24 demo-identity tests plus
+the repository identity guard, the owner explicitly approved Task 5.6 GO. This authorizes the
+complete Wave 5 gateway bundle to ship only through the separately approved Task 8.8 scoped
+`api-gateway` deployment; it does not authorize Task 8.9's live proof or Wave 10 exposure. See the
+[owner authorization record](../../../docs/evidence/b2-task-8-8/owner-approval-20260910.json).
 
 | Condition | Assessment and evidence |
 |---|---|
@@ -1618,9 +1622,9 @@ approval and this documentation reconciliation do not stand in for that decision
 | 6 — actual image smoke green | Met: [final-head CI, attempt 2](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33613233150), `docs_only=false`, `azure-image-smoke-test=success`; blank/nonblank probes and replica-token vector all executed and matched strict stdout/stderr expectations; `ci-required=success` |
 | 7 — Task 4.5 live prerequisite complete | Met: existing [Task 4.5 evidence](../../../docs/runbooks/B2_TASK_4_5_DEMO_RESET_STOP_GO.md), reviewed live GO on `portfolio-service--0000093`; no new live call made |
 
-**Decision still required:** owner records Task 5.6 GO or a specific blocker. Even a GO is not
-deployment authorization; no new gateway runtime attestation is made here, and frontend exposure
-retains its own gate. B1 G5 closed separately by owner decision on 2026-09-02.
+**Decision recorded:** Task 5.6 GO is recorded above. The decision alone is not deployment
+completion; no new gateway runtime attestation is claimed here, and frontend exposure retains its
+own gate. B1 G5 closed separately by owner decision on 2026-09-02.
 
 ## Wave 6 — Manual-reset control (frontend) · *design.md D5 Stage 5, gated on Wave 5 AND B1 task 5.1*
 
@@ -2294,6 +2298,17 @@ class, not by enumeration" through "operational signals only") deliberately keep
   lesson**) — it is not gated with Wave 5's bundle or Wave 6, and does not need to wait for either;
   only for Wave 4, the standalone 5.1a, 5.1b, and 8.2a classes, and its own two open items.
   _Requirements: 7.3c, 7.4; design.md D5_
+
+  **Owner GO recorded 2026-09-10; deployment completion remains open.** The owner approved one
+  Azure production dispatch through `.github/workflows/deploy.yml`, targeting `main` in `scoped`
+  mode with `services=api-gateway` and an empty `prebuilt_digest`. The reviewed application-source
+  baseline is `37f3860062edf5cdf2c9494cc8669804c0d2e561`; the dispatch SHALL use the full `main`
+  SHA after this docs-only authorization record merges and SHALL verify that the `api-gateway`
+  source tree is unchanged from that baseline. Task 5.6 GO is recorded above. The authorization
+  does not include Task 8.9's production login, portfolio writes, log queries, cleanup, or Wave 10
+  exposure. Keep this checkbox open until the workflow records the immutable digest, new serving
+  revision, current-attempt manifest comparison, and scoped non-interference proof. See the
+  [owner authorization record](../../../docs/evidence/b2-task-8-8/owner-approval-20260910.json).
 - [ ] **8.8a AWS-only: CloudFront forwards `traceparent` on `/api/*` (round-15 addition — verified
   gap: `infrastructure/terraform/aws/modules/cdn/main.tf`'s `/api/*` `ordered_cache_behavior`
   forwards only `Authorization`, `Content-Type`, `Accept`, `Origin`, and `X-Internal-Api-Key`

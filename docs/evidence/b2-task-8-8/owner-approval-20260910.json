@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "recordedDate": "2026-09-10",
+  "feature": "Asset Picker",
+  "applicationSourceBaseline": "37f3860062edf5cdf2c9494cc8669804c0d2e561",
+  "approvals": [
+    {
+      "gate": "B2 Task 5.6",
+      "decision": "GO",
+      "scope": "Ship the complete merged Wave 5 manual-reset gateway bundle only as part of the separately approved Task 8.8 scoped api-gateway deployment."
+    },
+    {
+      "gate": "B2 Task 8.8",
+      "decision": "GO",
+      "scope": "One scoped Azure production deployment of api-gateway through the protected Deploy workflow."
+    },
+    {
+      "gate": "Publication of this authorization record",
+      "decision": "APPROVED",
+      "scope": "Docs-only branch push, pull-request creation, and merge after required checks pass."
+    }
+  ],
+  "dispatch": {
+    "workflow": ".github/workflows/deploy.yml",
+    "ref": "main",
+    "deployment_mode": "scoped",
+    "services": "api-gateway",
+    "prebuilt_digest": "",
+    "expected_main_sha": "Resolve to the full main SHA containing this docs-only record; fail closed if the gateway source tree differs from applicationSourceBaseline."
+  },
+  "verifiedReadiness": {
+    "snapshotTests": 24,
+    "serviceAllowlistTests": 14,
+    "prebuiltDigestTests": 10,
+    "azureProofVerifierTests": 75,
+    "demoIdentityTests": 24,
+    "repositoryIdentityGuard": "PASS",
+    "openPullRequests": 0,
+    "activeDeployRuns": 0
+  },
+  "rollbackBaseline": {
+    "service": "api-gateway",
+    "revision": "api-gateway--0000078",
+    "image": "wealthprodacr.azurecr.io/api-gateway@sha256:79a3f253aaab1f3db58146612e8f2d05a70df6180482ace16efa1baef58469f3",
+    "trafficPercent": 100,
+    "evidenceRun": "https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/34328692256"
+  },
+  "authorizationBoundary": "Task 8.9 production login, portfolio writes, log queries and cleanup; AWS; frontend deployment; feature enablement; production E2E; rollback; and Wave 10 exposure remain unauthorized."
+}
