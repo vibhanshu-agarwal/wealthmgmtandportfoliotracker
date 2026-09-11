@@ -135,6 +135,22 @@ def _env_expression(mapping: str, name: str, key_indent: int) -> str:
     )
     if not match:
         raise AssertionError(f"missing env value: {name}")
+
+    # The pattern is line-anchored, so on its own it would read only the first line of
+    # a YAML plain scalar that continues onto the next, more-indented line. That form
+    # folds to "<value> <continuation>", which is how an unset variable could still be
+    # made to expand to " true". A deeper-indented comment is safe: "#" terminates the
+    # scalar rather than continuing it.
+    for line in mapping[match.end() :].splitlines():
+        if not line.strip():
+            continue
+        indent = len(line) - len(line.lstrip(" "))
+        if indent > key_indent and not line.lstrip().startswith("#"):
+            raise AssertionError(
+                f"{name} continues onto a folded line; its value is not a single scalar"
+            )
+        break
+
     return match.group(1)
 
 
@@ -284,6 +300,18 @@ class TestCiE2eWiring(unittest.TestCase):
                 "static-export build step",
             )
 
+    def test_exactly_one_static_export_build_step_owns_the_flag_mappings(self) -> None:
+        # _named_block returns the FIRST match, so a decoy step with the same name
+        # could shadow the real one and leave the guard inspecting the wrong block.
+        headings = re.findall(
+            r"(?m)^      - name: Build Next\.js static export\s*$",
+            self.deploy_frontend_job,
+        )
+        self.assertEqual(
+            1, len(headings), "exactly one named static-export build step must exist"
+        )
+        self.assertIn("run: npm run build", self.azure_build_step)
+
     def test_flag_wiring_cannot_be_satisfied_by_a_literal_secret_or_default(self) -> None:
         original = self.azure_build_step
         rejected = (
@@ -294,6 +322,20 @@ class TestCiE2eWiring(unittest.TestCase):
                 "${{ vars.ENABLE_ASSET_PICKER || 'true' }}",
             ),
             ("NEXT_PUBLIC_ENABLE_ASSET_PICKER", "NEXT_PUBLIC_ASSET_PICKER"),
+            # A second expression concatenated onto the same line: with the variable
+            # unset this expands to "true" and enables the flag.
+            (
+                "${{ vars.ENABLE_ASSET_PICKER }}",
+                "${{ vars.ENABLE_ASSET_PICKER }}${{ 'true' }}",
+            ),
+            # The same attack spread over a YAML plain-scalar continuation line. YAML
+            # folds it to "<var> ${{ 'true' }}", which expands to " true" while the
+            # variable is unset -- and parseFeatureFlag trims before comparing.
+            (
+                "NEXT_PUBLIC_ENABLE_ASSET_PICKER: ${{ vars.ENABLE_ASSET_PICKER }}\n",
+                "NEXT_PUBLIC_ENABLE_ASSET_PICKER: ${{ vars.ENABLE_ASSET_PICKER }}\n"
+                "            ${{ 'true' }}\n",
+            ),
         )
         try:
             for old, new in rejected:
