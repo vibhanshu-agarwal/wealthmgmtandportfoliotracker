@@ -4,8 +4,8 @@ import com.wealth.gateway.auth.AuthenticationService;
 import com.wealth.gateway.auth.SignupService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -14,25 +14,30 @@ import org.springframework.test.web.reactive.server.WebTestClient;
 import java.time.Duration;
 import java.util.List;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
 /**
  * Pins the authoritative guard on actuator exposure.
  *
  * <p>The gateway is internet-facing. It previously ran with
  * {@code management.endpoints.web.exposure.include: "*"} and {@code /actuator/**} {@code permitAll()},
- * which published {@code env}, {@code beans}, {@code configprops}, {@code mappings},
- * {@code threaddump}, {@code conditions} and {@code scheduledtasks} to anyone on the internet, and
- * left {@code loggers} and {@code refresh} writable by unauthenticated POST.
+ * so {@code env}, {@code beans}, {@code configprops}, {@code mappings}, {@code threaddump},
+ * {@code heapdump} and the Spring Cloud Gateway routes endpoint were readable by anyone on the
+ * internet, and {@code loggers}, {@code refresh} and route insertion were writable by
+ * unauthenticated POST.
  *
- * <p>Narrowing exposure fixes that, but exposure is an <em>environment-overridable</em> property:
- * setting {@code MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=*} silently restores the hole. The
- * durable guard is therefore {@link SecurityConfig}, not the exposure list.
+ * <p>Narrowing exposure fixes that, but exposure is environment-overridable: relaxed binding means
+ * {@code MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=*} silently restores the hole. The durable guard
+ * is therefore {@link SecurityConfig}, not the exposure list. This class forces exposure back to
+ * {@code "*"} so every endpoint is registered, and asserts they are unreachable anyway — a test run
+ * under narrowed exposure would pass on a 404 and prove nothing about security.
  *
- * <p>This class deliberately forces exposure back to {@code "*"} so every endpoint is registered,
- * and asserts they are still unreachable. A test that ran with narrowed exposure would pass on a
- * 404 and prove nothing about the security layer — it would measure a different thing than it
- * claims to. Reverting the {@code denyAll()} in {@link SecurityConfig} must fail this class.
+ * <p>Both halves of the security decision are pinned:
+ * <ul>
+ *   <li>unauthenticated callers get exactly {@code 401}, not merely "not 200" — an unregistered
+ *       endpoint or a handler that 500s must not satisfy the gate;</li>
+ *   <li>authenticated callers get exactly {@code 403}. This is what makes {@code denyAll()}
+ *       load-bearing rather than decorative: under {@code authenticated()} a signed-in demo user
+ *       could read {@code env} and {@code mappings}, and every assertion here would still pass.</li>
+ * </ul>
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("aws")
@@ -70,63 +75,97 @@ class ActuatorExposureSecurityTest {
                 .build();
     }
 
-    private static final List<String> SENSITIVE_ENDPOINTS = List.of(
+    /**
+     * Highest-impact endpoints this application registers under wildcard exposure.
+     * {@code heapdump} carries {@code AUTH_JWT_SECRET} and the datasource password;
+     * {@code gateway/routes} is a proxy/SSRF primitive; {@code /actuator} is the index that
+     * advertises the rest, and was the endpoint actually read from the public internet.
+     */
+    private static final List<String> DENIED_READS = List.of(
+            "/actuator",
             "/actuator/env",
             "/actuator/beans",
             "/actuator/configprops",
             "/actuator/mappings",
             "/actuator/threaddump",
+            "/actuator/heapdump",
             "/actuator/loggers",
             "/actuator/conditions",
             "/actuator/scheduledtasks",
             "/actuator/metrics",
-            "/actuator/sbom");
+            "/actuator/sbom",
+            "/actuator/gateway/routes");
 
     @Test
-    void sensitiveEndpoints_areDeniedEvenWhenFullyExposed() {
-        for (String path : SENSITIVE_ENDPOINTS) {
+    void sensitiveEndpoints_returnUnauthorized_whenAnonymous() {
+        for (String path : DENIED_READS) {
             webTestClient.get()
                     .uri(path)
                     .exchange()
-                    .expectStatus().value(status -> assertThat(status)
-                            .as("%s is registered but must be denied at the security layer", path)
-                            .isNotEqualTo(200));
+                    .expectStatus().isUnauthorized();
         }
     }
 
     /**
-     * {@code loggers} and {@code refresh} mutate a running instance. Read denial is asserted above;
-     * this covers the write verb explicitly, since an accidental {@code permitAll()} would expose
-     * runtime mutation rather than mere disclosure.
+     * The decision {@code denyAll()} encodes: even a validly authenticated caller is refused.
+     * Relaxing to {@code authenticated()} must fail here.
      */
     @Test
-    void mutatingEndpoints_rejectUnauthenticatedPost() {
-        webTestClient.post()
-                .uri("/actuator/loggers/com.wealth.gateway")
-                .header("Content-Type", "application/json")
-                .bodyValue("{\"configuredLevel\":\"DEBUG\"}")
-                .exchange()
-                .expectStatus().value(status -> assertThat(status)
-                        .as("/actuator/loggers must not accept unauthenticated POST")
-                        .isNotIn(200, 204));
-
-        webTestClient.post()
-                .uri("/actuator/refresh")
-                .exchange()
-                .expectStatus().value(status -> assertThat(status)
-                        .as("/actuator/refresh must not accept unauthenticated POST")
-                        .isNotIn(200, 204));
+    void sensitiveEndpoints_returnForbidden_whenAuthenticated() {
+        String token = TestJwtFactory.validSeedUserToken();
+        for (String path : DENIED_READS) {
+            webTestClient.get()
+                    .uri(path)
+                    .header("Authorization", "Bearer " + token)
+                    .exchange()
+                    .expectStatus().isForbidden();
+        }
     }
 
     /**
-     * The fix must not break the one endpoint every consumer depends on: CI readiness polls,
-     * synthetic monitoring, the Azure verification step and the B1 smoke harness all read it.
+     * {@code loggers}, {@code refresh} and Gateway route insertion mutate a running instance, so
+     * the write verb is asserted separately from disclosure.
      */
     @Test
-    void health_remainsPubliclyReadable() {
-        webTestClient.get()
-                .uri("/actuator/health")
-                .exchange()
-                .expectStatus().isOk();
+    void mutatingEndpoints_rejectPost_anonymousAndAuthenticated() {
+        String token = TestJwtFactory.validSeedUserToken();
+
+        webTestClient.post().uri("/actuator/loggers/com.wealth.gateway")
+                .header("Content-Type", "application/json")
+                .bodyValue("{\"configuredLevel\":\"DEBUG\"}")
+                .exchange().expectStatus().isUnauthorized();
+        webTestClient.post().uri("/actuator/refresh")
+                .exchange().expectStatus().isUnauthorized();
+        webTestClient.post().uri("/actuator/gateway/refresh")
+                .exchange().expectStatus().isUnauthorized();
+
+        webTestClient.post().uri("/actuator/loggers/com.wealth.gateway")
+                .header("Authorization", "Bearer " + token)
+                .header("Content-Type", "application/json")
+                .bodyValue("{\"configuredLevel\":\"DEBUG\"}")
+                .exchange().expectStatus().isForbidden();
+        webTestClient.post().uri("/actuator/refresh")
+                .header("Authorization", "Bearer " + token)
+                .exchange().expectStatus().isForbidden();
+    }
+
+    /**
+     * The permit set was widened to the whole {@code /actuator/health} subtree because real
+     * consumers read the group sub-paths: {@code docker-compose.yml} probes
+     * {@code /actuator/health/readiness} and the AWS compute module probes
+     * {@code /actuator/health/liveness}. Asserting only {@code /actuator/health} would leave that
+     * widening untested.
+     */
+    @Test
+    void healthSubtree_remainsPubliclyReadable() {
+        for (String path : List.of(
+                "/actuator/health",
+                "/actuator/health/readiness",
+                "/actuator/health/liveness")) {
+            webTestClient.get()
+                    .uri(path)
+                    .exchange()
+                    .expectStatus().isOk();
+        }
     }
 }

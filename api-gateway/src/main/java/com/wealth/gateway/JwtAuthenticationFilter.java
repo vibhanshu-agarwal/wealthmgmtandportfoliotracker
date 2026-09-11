@@ -42,6 +42,12 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
         String path = exchange.getRequest().getURI().getPath();
 
         // Skip JWT processing for paths that are permitAll() in SecurityConfig.
+        // NOTE: the /actuator/health entries below are inert, not a security layer. This is a
+        // Spring Cloud Gateway GlobalFilter, so it runs only for exchanges matched by a route
+        // predicate, and every route is /api/** — actuator traffic is served by
+        // WebFluxEndpointHandlerMapping and never reaches this filter. They are kept only so the
+        // list keeps mirroring SecurityConfig permitAll(). Actuator denial is enforced solely by
+        // SecurityConfig; do not count this as defense in depth.
         // These paths have no principal — the filter must not reject them.
         // /api/auth/** is included to match the permitAll() declaration for auth endpoints.
         // /api/internal/** is the Golden-State E2E seeder — gated on X-Internal-Api-Key
