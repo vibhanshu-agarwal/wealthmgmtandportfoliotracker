@@ -45,6 +45,16 @@ resting on it is unsound — a service can report a version it is not running. T
 evidence-oracle failure mode catalogued elsewhere in this program: the measured signal drifted from
 the claimed one.
 
+## 2026-09-11 clarification
+
+`api-gateway--0000080` again reported the stale `SERVICE_VERSION=9b2cf0d6` while its runtime bean
+list proved the Redis-presence package, introduced later in source, was serving. The stale label
+caused an initial false NO-GO during Task 3.7 before runtime evidence corrected it.
+
+This is **not** a Task 8.9 provenance failure: Task 8.9's exact digest/revision attestation remains
+the serving-identity oracle. The follow-up remains necessary because the label can still mislead
+incident triage and any workflow that incorrectly treats it as the running-image identity.
+
 ## What to do
 
 1. Decide the intended invariant: is `SERVICE_VERSION` meant to name the running image, or the

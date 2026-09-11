@@ -29,7 +29,8 @@ the commit — don't quietly widen it.
 - **Re-read immediately before appending.** Append-only prevents *conflict*, not *loss* — two
   simultaneous writes on a shared filesystem can still clobber an entry. If the last entry number
   is not what you expect, re-read rather than overwrite.
-- Entry header: `## [N] <AGENT> — <short topic>`.
+- Entry header: `## [N] <AGENT> — <short topic>`. `<AGENT>` may be `CLAUDE`, `CODEX`, `CURSOR`,
+  or `FABLE`.
 - **Update the Status table** at the top when you append. It is the only mutable part of the file.
 - End every entry with `### Open questions for <OTHER>`. If there are none, say so explicitly.
 - Disagree openly and give reasoning. The point is a genuine second opinion, not consensus theatre.
@@ -47,6 +48,9 @@ The canonical fingerprint is **`git hash-object`**:
 ```
 git hash-object .kiro/specs/supported-asset-integrity/design.md
 ```
+
+A review ledger is itself a citable artifact. Pin its `git hash-object` fingerprint whenever a
+review conclusion depends on a particular ledger state.
 
 One command, identical in PowerShell and git-bash, available wherever git is. `md5sum` and `wc -l`
 are **not** used: `md5sum` is absent from PowerShell, and line counts diverge between tools on a

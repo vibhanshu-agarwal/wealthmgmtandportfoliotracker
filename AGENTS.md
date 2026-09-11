@@ -4,6 +4,13 @@
 
 These rules apply to every agent working in this repository, including Claude, Codex, and Cursor.
 
+## Interim Review Arrangement
+
+**INTERIM — wealthmgmtandportfoliotracker only.** While Codex plan limits hold, review runs
+inside Claude Code: Opus 5 orchestrates, Sonnet 5/Opus 5 implement, and Fable 5.1 reviews. No
+model reviews its own work. Codex temporarily owns documentation, status tracking, and
+master-plan reconciliation. Revert this arrangement when Codex plan limits lift.
+
 ## Owner Approval Callouts
 
 Some actions are the owner's to authorize, not an agent's to assume. These include: any push, pull
