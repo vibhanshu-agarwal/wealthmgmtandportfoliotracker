@@ -1,9 +1,10 @@
 # Implementation Plan
 
-**Current program status (reconciled 2026-09-10 at
-`main@26148c4be75675613e28d89f713639a0376aaba7`):** Waves 1–6 retain their recorded source and
+**Current program status (reconciled through PR #257 on 2026-09-11 at
+`main@ae2959ad5a5adae78ac26fb42d778cbd4380d054`):** Waves 1–6 retain their recorded source and
 review evidence. Wave 5 Task 5.6 is GO and its gateway bundle is deployed hidden in the Task 8.8
-revision. Wave 3 Task 3.7 and Wave 6 Task 6.3 remain open. Production flags remain disabled.
+revision. Wave 3 Task 3.7 is green on its recorded Azure evidence; Wave 6 Task 6.3 is green on its recorded
+2026-09-11 gateway-read evidence. Production flags remain disabled.
 
 Wave 8 source and Azure deployment-proof tooling are merged through
 [PR #233](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/233) at
@@ -84,7 +85,7 @@ the only build that ever sets the former to `"true"` is
 environment. **This is a source-on-`main` claim only, not a deployment, live-integration, or
 production-exposure claim.** Task 2.7's later historical audit is independently ACCEPTed; Task 2.6
 remains mandatory and Wave 10.2 item 2 remains unsatisfied. Wave 3 source merged via PR #179 at
-`main@cc97a209` (Tasks 3.1–3.6 source-only; Task 3.7 deploy/live proof open). Wave 4 Tasks
+`main@cc97a209`; Task 3.7's Azure deploy/live proof is complete on its recorded 2026-09-11 evidence. Wave 4 Tasks
 4.1–4.4a merged through PR #180 at `main@63fc058`; Task 4.5 completed with a reviewed live GO on
 2026-09-01. Waves 5–10 remain open per their own gates below.
 
@@ -940,7 +941,7 @@ field, and one hard rule about where each may be used:
   remains mandatory, and Wave 10.2 item 2 remains unsatisfied independently.
   _Requirements: 8.3_
 
-## Wave 3 — Presence (Redis-backed) · *B2-owned backend* · **source merged via PR #179 at `main@cc97a209`; Task 3.7 deploy/live proof open**
+## Wave 3 — Presence (Redis-backed) · *B2-owned backend* · **Task 3.7 Azure STOP/GO green on 2026-09-11; source merged via PR #179 at `main@cc97a209`**
 
 - [x] **3.1 Add a random `jti` claim to issued JWTs**, hashed one-way (`sha256`) as the session key
   at the gateway. *(Merged source-only via PR #179 at `main@cc97a209`; not deployed/live-verified.)*
@@ -996,21 +997,29 @@ field, and one hard rule about where each may be used:
   exactly per 3.1a, and the request it rides on proceeds normally regardless.
   _Requirements: 6.1_
 
-- [ ] **3.7 STOP/GO — deploy and live-probe presence before Wave 10 can cite it.** **Go:** 3.1-3.6
-  green; the resolved TTL is supplied as configuration; api-gateway is deployed to Azure; two
-  independent demo logins produce distinct `jti` values; after authenticated traffic from both,
-  an identity-bearing call to `GET /api/presence/demo` returns `200` and
-  `anotherSessionActive:true` for either caller while excluding its own session. The probe also
-  confirms a non-demo caller returns `false` without a Redis write. Legacy-no-`jti` and
-  Redis-unavailable fail-open behavior remain deterministic integration-test obligations in 3.6,
-  not destructive production fault injections. Record the gateway revision and configured TTL.
-  **Abort:** do not let Wave 10 describe Wave 3 as deployed/live-verified without this evidence.
+- [x] **3.7 STOP/GO — Azure-serving presence proved before Wave 10 cites it.** **GO recorded
+  2026-09-11:** Tasks 3.1–3.6 are green; serving revision `api-gateway--0000081` at digest
+  `sha256:090ad3ba4b7a…` maps to source `006aa9e6`, with `cc97a209` as an ancestor; the resolved
+  presence TTL is 150 seconds with no Container App override. In an owner-controlled window, demo
+  sessions A and B had distinct `jti` values and the exact successful sequence was **login A → A
+  reads `false` → login B → B reads `true` → A rechecks `true` → non-demo login/read returns
+  `false`**. The first baseline is deliberately taken after one demo login: demo login invokes the
+  Wave 8 `DemoLoginResetOrchestrator`, whose authenticated loopback `GET /api/portfolio` is routed
+  through `JwtAuthenticationFilter` and legitimately registers that login's presence member.
+  Therefore two demo logins before the baseline correctly return `true`; that former kickoff order
+  was an invalid oracle, not a Wave 3 defect. The owner-authorized, read-only Redis diagnostic
+  observed only A after one login and exactly A/B after two, with no unknown members. The non-demo
+  no-Redis-write property is satisfied by reviewed source plus 3.6's deterministic
+  `nonDemoCallerReturnsFalseAndLeavesRedisUntouched` test; the live non-demo response was also
+  `200` / `false`. Legacy-no-`jti` and Redis-unavailable fail-open behavior remain deterministic
+  integration-test obligations, not production fault injections. See
+  [durable evidence](../../../docs/evidence/b2-task-3-7/TASK_3_7_AZURE_PRESENCE_STOP_GO_2026-09-11.md).
   _Requirements: 6.1, 6.2, 6.3, 6.5_
 
 **TTL decision settled (2026-08-29):** default **150 seconds** via `APP_DEMO_PRESENCE_TTL` /
 `app.demo-presence.ttl`; whole-set key expiry adds **30 seconds** for orphan cleanup only (design.md
-D4). Wave 3 backend source merged via PR #179 at `main@cc97a209` — **not** deployed, live-probed, or
-flagged complete. Task 3.7 STOP/GO deploy/live evidence remains a later owner action.
+D4). The 2026-09-11 Task 3.7 evidence confirmed a live key TTL of 178–180 seconds, consistent with
+150 seconds plus slack; Wave 3 is deployed and live-verified on `api-gateway--0000081`.
 
 ## Wave 4 — Demo-reset, portfolio-service side · *design.md D5 Stage 1* · **Complete — Tasks 4.1–4.4a merged via PR #180 at `main@63fc058`; Task 4.5 live GO on `portfolio-service--0000093`**
 
@@ -1715,7 +1724,7 @@ scaffolding is absent from the source diff.
 
 **Reconciliation:** final-head CI and merge are verified; Tasks 6.1/6.2 now record source
 completion. The owner finalized the existing page-level placement on 2026-09-06. Task 5.6's owner
-GO, Task 6.3, and feature exposure remain open.
+GO and Task 6.3's backend-readiness GO are recorded; feature exposure remains open.
 B1 G5 closed separately by owner decision on 2026-09-02. Neither decision closes those B2
 gates or attests a new deployment. The sidebar backlog remains open.
 
@@ -4059,7 +4068,8 @@ class, not by enumeration" through "operational signals only") deliberately keep
   own real-Redis `DemoPresenceIntegrationTest` (13 tests, `integrationTest` task), not by breaking
   a Redis shared with the rest of the local stack.
   Source/local verification only — not deployed and no Production E2E. Wave 9 CI wiring is merged
-  and CI-green in PR #232 (run `34018608256`); Wave 3's deployment/live proof (Task 3.7) stays open.
+  and CI-green in PR #232 (run `34018608256`); Task 3.7's independent Azure proof is complete, but
+  this remains source/local Wave 9 evidence rather than Production E2E.
   _Requirements: 6.3_
 - [x] **9.5 Wire Task 1.16's freshness status to a real `assetPriceFreshness`.** Spec A task 8.6 is
   complete and the backend field exists. Local assembled-stack evidence on this branch: dedicated
