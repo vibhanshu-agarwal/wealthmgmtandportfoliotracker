@@ -1,0 +1,260 @@
+{
+  "schemaVersion": 1,
+  "recordedDate": "2026-09-11",
+  "feature": "Asset Picker",
+  "task": "B2 Task 8.9 deployment attestation recovery for api-gateway--0000081",
+  "result": "ATTESTED",
+  "purpose": "Task 8.9's preflight refused to proceed because the api-gateway serving identity no longer matched deployment-provenance-20260910.json. This record attests the deployment that actually produced the serving revision, so the proof can be re-attempted against a truthful attestation. It certifies deployment identity only; it is not a Task 8.9 result and does not advance any Wave 10 gate.",
+  "workflow": {
+    "name": "Deploy",
+    "workflowFile": ".github/workflows/deploy.yml",
+    "calledReusableWorkflow": ".github/workflows/deploy-azure.yml",
+    "runId": 34588465283,
+    "url": "https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/34588465283",
+    "event": "workflow_dispatch",
+    "status": "completed",
+    "conclusion": "success",
+    "createdAt": "2026-09-11T10:17:14Z",
+    "completedAt": "2026-09-11T10:22:53Z",
+    "runAttempt": 1,
+    "productionAuthorizationJob": {
+      "name": "authorize-production",
+      "conclusion": "success",
+      "startedAt": "2026-09-11T10:18:24Z",
+      "completedAt": "2026-09-11T10:18:27Z",
+      "environment": "production",
+      "approvals": 1,
+      "preventSelfReview": false,
+      "note": "The production environment gate is real and was exercised, but prevent_self_review is disabled and the dispatching actor and the approver are the same account. Recorded so that 'governed deployment' is not read as multi-party approval."
+    }
+  },
+  "source": {
+    "ref": "main",
+    "sha": "006aa9e6877290a701fe2a124a056299956e7d0a",
+    "commitSubject": "Merge pull request #254 from vibhanshu-agarwal/claude/actuator-exposure-hardening",
+    "reachableFromMain": true
+  },
+  "dispatch": {
+    "deployment_mode": "scoped",
+    "services": "api-gateway",
+    "prebuilt_digest": "",
+    "expected_main_sha": "006aa9e6877290a701fe2a124a056299956e7d0a",
+    "cloud": "azure"
+  },
+  "deployment": {
+    "service": "api-gateway",
+    "job": "deploy-azure / deploy (api-gateway)",
+    "jobId": 103228492415,
+    "jobStartedAt": "2026-09-11T10:19:07Z",
+    "jobCompletedAt": "2026-09-11T10:22:12Z",
+    "jobConclusion": "success",
+    "before": {
+      "revision": "api-gateway--0000080",
+      "image": "wealthprodacr.azurecr.io/api-gateway@sha256:aee44edc12b03175379caf65546e04f5ca1e2cea0d8690c00190b01254f20aa1",
+      "trafficPercent": 100
+    },
+    "after": {
+      "revision": "api-gateway--0000081",
+      "image": "wealthprodacr.azurecr.io/api-gateway@sha256:090ad3ba4b7ada20bca71781d4a1ce3ac81029b8a23a8a1d180dce2cff540d09",
+      "trafficPercent": 100
+    },
+    "revisionCreatedAt": "2026-09-11T10:21:31Z",
+    "revisionProvisioningState": "Provisioned",
+    "revisionHealthState": "Healthy",
+    "activeRevisionsMode": "Single",
+    "maxInactiveRevisions": 0
+  },
+  "digestEvidence": {
+    "artifacts": [
+      {
+        "name": "digest-manifest",
+        "artifactId": 10194754789,
+        "sizeBytes": 399,
+        "expired": false,
+        "expiresAt": "2026-12-10T10:17:15Z",
+        "files": {
+          "digest-manifest.json": {
+            "api-gateway": "sha256:090ad3ba4b7ada20bca71781d4a1ce3ac81029b8a23a8a1d180dce2cff540d09"
+          },
+          "digest-manifest.run-attempt.txt": "1"
+        }
+      },
+      {
+        "name": "service-digest-api-gateway",
+        "artifactId": 10194719381,
+        "sizeBytes": 321,
+        "expired": false,
+        "expiresAt": "2026-12-10T10:17:15Z",
+        "files": {
+          "digest.txt": "sha256:090ad3ba4b7ada20bca71781d4a1ce3ac81029b8a23a8a1d180dce2cff540d09",
+          "run-attempt.txt": "1"
+        }
+      }
+    ],
+    "artifactsTranscribedVerbatimBecause": "GitHub deletes these artifacts on 2026-12-10. Their contents are copied here so this attestation survives retention expiry.",
+    "derivationNote": "digest-manifest.json is aggregated from service-digest-api-gateway/digest.txt by the aggregate-digests job; both derive from one buildx --metadata-file. They corroborate each other's transcription, not each other's truth."
+  },
+  "jobLogExcerpts": {
+    "sourceCheckout": "2026-09-11T10:19:09.2361159Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +006aa9e6877290a701fe2a124a056299956e7d0a:refs/remotes/origin/main",
+    "imageArgument": "2026-09-11T10:21:17.9144438Z IMAGE=\"$ACR_NAME.azurecr.io/api-gateway@sha256:090ad3ba4b7ada20bca71781d4a1ce3ac81029b8a23a8a1d180dce2cff540d09\"",
+    "acaResponseLatestRevision": "2026-09-11T10:21:39.1447597Z \"latestRevisionName\": \"api-gateway--0000081\",",
+    "acaResponseLatestReadyRevision": "2026-09-11T10:21:39.1446146Z \"latestReadyRevisionName\": \"api-gateway--0000080\",",
+    "acaResponseImage": "2026-09-11T10:21:39.1481752Z \"image\": \"wealthprodacr.azurecr.io/api-gateway@sha256:090ad3ba4b7ada20bca71781d4a1ce3ac81029b8a23a8a1d180dce2cff540d09\",",
+    "nonInterferenceBeforeSnapshotApiGateway": "2026-09-11T10:22:37.8320300Z BEFORE: api-gateway revision api-gateway--0000080 image wealthprodacr.azurecr.io/api-gateway@sha256:aee44edc12b03175379caf65546e04f5ca1e2cea0d8690c00190b01254f20aa1 traffic 100",
+    "note": "Subscription identifiers appear masked as *** in GitHub logs; excerpts are reproduced as logged."
+  },
+  "armActivityLog": {
+    "scope": "Microsoft.App/containerApps/write on api-gateway, resource group wealth-azure-prod-rg",
+    "queryWindowUtc": [
+      "2026-09-10T18:00:00Z",
+      "2026-09-11T11:00:00Z"
+    ],
+    "writesObservedInWindow": 2,
+    "thisDeployment": {
+      "correlationId": "de41b631-8a26-471a-87dd-bd608d93693e",
+      "started": "2026-09-11T10:21:23.5640714Z",
+      "accepted": "2026-09-11T10:21:24.1734532Z",
+      "succeededEventPresent": false,
+      "caller": "9ebca111-8e69-4806-ad76-ed239928acd6",
+      "callerServicePrincipal": "ai102Principal1",
+      "callerAppId": "bda79a47-3b4b-468d-8f83-3e91915bc5ab",
+      "claims": {
+        "idtyp": "app",
+        "appidacr": "2"
+      }
+    },
+    "manualUpdateExclusion": {
+      "conclusion": "EXCLUDED",
+      "basis": [
+        "Exactly one containerApps/write on api-gateway occurred on 2026-09-11, and it falls inside the run's Update Container App step window (10:21:17-10:21:39).",
+        "The caller presented appidacr=2 (certificate or federated credential). The app registration holds 0 certificates, leaving GitHub OIDC federation as the only appidacr=2 path.",
+        "The run's own log captures the ACA response naming api-gateway--0000081 with the matching digest."
+      ],
+      "caveat": "No ARM 'Succeeded' event exists for correlation de41b631-8a26-471a-87dd-bd608d93693e; only Started and Accepted. Provisioning success is evidenced by the revision's Provisioned/Healthy state and the run's own poll, not by an ARM terminal event. The 2026-09-10 write does carry Succeeded, so the absence is specific to this correlation."
+    }
+  },
+  "acrManifest": {
+    "registry": "wealthprodacr",
+    "repository": "api-gateway",
+    "digest": "sha256:090ad3ba4b7ada20bca71781d4a1ce3ac81029b8a23a8a1d180dce2cff540d09",
+    "createdTime": "2026-09-11T10:21:12.8434022Z",
+    "tags": [
+      "006aa9e6877290a701fe2a124a056299956e7d0a"
+    ],
+    "mediaType": "application/vnd.docker.distribution.manifest.v2+json",
+    "architecture": "amd64",
+    "os": "linux",
+    "imageSizeBytes": 291811463,
+    "registryDiagnosticSettings": 0,
+    "pushActorNote": "ACR has no diagnostic settings, so no registry-side actor log exists. The push is attributed to the run's build step by the 10:21:12.84Z createdTime falling inside that step (10:19:24-10:21:17), not by a registry record."
+  },
+  "supersessionChain": [
+    {
+      "revision": "api-gateway--0000079",
+      "image": "wealthprodacr.azurecr.io/api-gateway@sha256:aee44edc12b03175379caf65546e04f5ca1e2cea0d8690c00190b01254f20aa1",
+      "attestedBy": "docs/evidence/b2-task-8-8/deployment-completion-20260910.json",
+      "supersededAtUtc": "2026-09-10T19:20:44Z",
+      "status": "purged"
+    },
+    {
+      "revision": "api-gateway--0000080",
+      "image": "wealthprodacr.azurecr.io/api-gateway@sha256:aee44edc12b03175379caf65546e04f5ca1e2cea0d8690c00190b01254f20aa1",
+      "createdBy": {
+        "workflow": "Terraform Azure Infrastructure",
+        "runId": 34519516769,
+        "runAttempt": 1,
+        "event": "workflow_dispatch",
+        "headSha": "526dd13b67203760e630ed37fe08102527865504",
+        "conclusion": "success",
+        "armCorrelationId": "51703b35-485e-b76f-022f-fe1f91c7050e"
+      },
+      "changeKind": "configuration only; image digest unchanged from 0079",
+      "supersededAtUtc": "2026-09-11T10:21:23Z",
+      "status": "purged",
+      "onlySurvivingRecord": "This deploy run's assert-scoped-non-interference BEFORE snapshot. maxInactiveRevisions=0 purged the revision itself."
+    },
+    {
+      "revision": "api-gateway--0000081",
+      "image": "wealthprodacr.azurecr.io/api-gateway@sha256:090ad3ba4b7ada20bca71781d4a1ce3ac81029b8a23a8a1d180dce2cff540d09",
+      "createdBy": {
+        "workflow": "Deploy",
+        "runId": 34588465283,
+        "runAttempt": 1
+      },
+      "status": "serving"
+    }
+  ],
+  "supersessionNote": "The 2026-09-10 provenance record was already stale on revision name before this deployment ran: 0079 had been superseded by 0080 on 2026-09-10 by a configuration-only Terraform change that left the image unchanged. Task 8.9's preflight compares both image and revision, so a config-only rollout is sufficient to invalidate an attestation.",
+  "nonInterference": {
+    "job": "deploy-azure / assert-scoped-non-interference",
+    "conclusion": "success",
+    "unchanged": {
+      "portfolio-service": {
+        "revision": "portfolio-service--0000096",
+        "image": "wealthprodacr.azurecr.io/portfolio-service@sha256:1cf372a39d17709f74aba427259548a531e3e1ba04dc64ec7750369bb8e82126",
+        "trafficPercent": 100
+      },
+      "market-data-service": {
+        "revision": "market-data-service--0000080",
+        "image": "wealthprodacr.azurecr.io/market-data-service@sha256:ad61144b2e747a5dd1b1fc9f5b5a091916559adf7c30117beae3563123aa2256",
+        "trafficPercent": 100
+      },
+      "insight-service": {
+        "revision": "insight-service--0000080",
+        "image": "wealthprodacr.azurecr.io/insight-service@sha256:f7db159d5b07085e471d784d50456a1eb384abe178a8fbcf7f4b5b17e916a46b",
+        "trafficPercent": 100
+      }
+    },
+    "consequence": "portfolio-service's 2026-09-09 attestation remains valid and needs no change."
+  },
+  "skippedByScope": [
+    "deploy-aws",
+    "deploy-frontend",
+    "seed",
+    "verify"
+  ],
+  "evidenceLimits": {
+    "proven": [
+      "The deploy job checked out exactly 006aa9e6877290a701fe2a124a056299956e7d0a (logged fetch).",
+      "That job built with -f api-gateway/Dockerfile.azure --push --no-cache and recorded the resulting digest in its metadata, artifacts, and the az containerapp update argument.",
+      "The ACR manifest for that digest exists and is content-addressed.",
+      "The serving revision's template image is digest-qualified to that same digest.",
+      "Exactly one authenticated ARM write created the revision, inside the run's update step."
+    ],
+    "assertedNotProven": [
+      "That the image BYTES correspond to source 006aa9e6877290a701fe2a124a056299956e7d0a. There is no --provenance or --sbom attestation, no OCI source labels, and the Gradle build is not reproducible (--no-cache).",
+      "The ACR tag equals github.sha because the workflow sets it; the tag is a label applied by the run, not a property of the content.",
+      "The ACR push actor, which is inferred from timing inside the build step rather than from a registry log."
+    ],
+    "characterization": "The binding chain source -> checkout -> build -> digest -> ACR -> ACA template is intact and adequate for this schema. It is not a cryptographic provenance attestation and must not be described as one."
+  },
+  "independentReview": {
+    "reviewer": "Fable 5.1",
+    "role": "non-operator; the operator did not review its own work",
+    "verdict": "ACCEPT WITH FINDINGS",
+    "blockingFindings": 0,
+    "correctionsAdopted": [
+      "Recorded the 0080 supersession the operator's first packet omitted.",
+      "Withdrew the operator's 'five mutually independent places' claim as double-counting; corroboration is two independent systems plus records derived from them.",
+      "Replaced proximity-based causality with the ARM single-write and appidacr=2 evidence."
+    ]
+  },
+  "followUps": {
+    "outOfScopeHygiene": [
+      "The deploy app registration holds 1 password credential (display name 'rbac', valid to 2027-03-12) while deploy-azure.yml's header states no client secret is stored - true of GitHub secrets, not of the app registration.",
+      "Federated subject repo:...:pull_request permits any pull_request-triggered workflow with id-token: write to mint tokens for the production service principal.",
+      "ACR has no diagnostic settings, so pushes are not independently logged by Azure."
+    ],
+    "verifierDefects": [
+      "verify_demo_reset_azure.py populates evidence['serving'] only after a service fully matches, so a mismatch cannot report the observed identity.",
+      "classify_task8_9 maps every pre-login failure to class_2a / retry_fresh_end_to_end; tasks.md assigns a manifest mismatch to Class 2d, and a fresh retry is deterministically futile.",
+      "validate_deployment_provenance checks evidencePath shape only and never checks the file exists."
+    ]
+  },
+  "closure": {
+    "task8_9": "STILL_OPEN_OWNER_GATED",
+    "thisRecordCertifies": "deployment identity of api-gateway--0000081 only",
+    "productionFeatureFlags": "UNCHANGED_DISABLED",
+    "wave10": "OPEN_SEPARATELY_OWNER_GATED"
+  }
+}
