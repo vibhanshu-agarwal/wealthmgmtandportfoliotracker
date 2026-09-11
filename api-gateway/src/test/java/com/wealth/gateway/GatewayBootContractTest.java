@@ -118,6 +118,39 @@ class GatewayBootContractTest {
                 .jsonPath("$.status").isEqualTo("UP");
     }
 
+    /**
+     * Sensitive actuator endpoints must never be reachable over the gateway's public ingress.
+     *
+     * <p>The gateway is internet-facing, and {@code SecurityConfig} previously permitted all of
+     * {@code /actuator/**} while {@code management.endpoints.web.exposure.include} was {@code "*"},
+     * so {@code env}, {@code beans}, {@code configprops}, {@code mappings} and {@code threaddump}
+     * were readable unauthenticated, and {@code loggers}/{@code refresh} were writable by POST.
+     *
+     * <p>Exposure alone is not a sufficient guard because it is env-overridable; this asserts the
+     * security layer, which is not. Only {@code /actuator/health} stays public — it is the only
+     * endpoint any consumer reads (CI readiness polls, synthetic monitoring, the Azure verify
+     * script and the B1 smoke harness).
+     */
+    @Test
+    void sensitiveActuatorEndpoints_areNotPubliclyReachable() {
+        for (String path : List.of(
+                "/actuator/env",
+                "/actuator/beans",
+                "/actuator/configprops",
+                "/actuator/mappings",
+                "/actuator/threaddump",
+                "/actuator/loggers",
+                "/actuator/conditions",
+                "/actuator/scheduledtasks")) {
+            webTestClient.get()
+                    .uri(path)
+                    .exchange()
+                    .expectStatus().value(status -> assertThat(status)
+                            .as("%s must not be readable over public ingress", path)
+                            .isNotEqualTo(200));
+        }
+    }
+
     @Test
     void protectedRoute_withoutJwt_returnsUnauthorized() {
         webTestClient.get()

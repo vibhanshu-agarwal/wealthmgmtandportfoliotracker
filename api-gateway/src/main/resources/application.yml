@@ -74,7 +74,13 @@ management:
   endpoints:
     web:
       exposure:
-        include: "*"
+        # Least exposure by default: /actuator/health is the only endpoint any consumer reads
+        # (CI readiness polls, synthetic monitoring, the Azure verification step, the B1 smoke
+        # harness). Wildcard exposure published env, beans, configprops, mappings, threaddump,
+        # conditions and scheduledtasks on the gateway public ingress, plus POST-writable
+        # loggers and refresh. Local development may widen this via the environment variable;
+        # SecurityConfig is the authoritative guard and is not overridable.
+        include: ${MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE:health}
   tracing:
     sampling:
       probability: ${MANAGEMENT_TRACING_SAMPLING_PROBABILITY:1.0}
