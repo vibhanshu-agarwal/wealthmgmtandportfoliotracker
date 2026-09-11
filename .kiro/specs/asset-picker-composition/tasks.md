@@ -9,10 +9,11 @@ revision. Wave 3 Task 3.7 is green on its recorded Azure evidence; Wave 6 Task 6
 Wave 8 source and Azure deployment-proof tooling are merged through
 [PR #233](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/233) at
 `main@a52ec1ef`. Tasks 8.3–8.7a were independently accepted, and Task 8.8/8.8b completed in
-owner-authorized production run `34433715705`: `api-gateway--0000079` serves immutable digest
-`sha256:aee44edc12b03175379caf65546e04f5ca1e2cea0d8690c00190b01254f20aa1` at 100%, with the
-  current-attempt manifest and scoped non-interference proof green. Task 8.9 live serving proof
-  remains open and separately owner-gated.
+owner-authorized production run `34433715705`: it deployed `api-gateway--0000079` at 100% with
+immutable digest `sha256:aee44edc12b03175379caf65546e04f5ca1e2cea0d8690c00190b01254f20aa1`, and
+the current-attempt manifest and scoped non-interference proof were green. That historical revision
+was subsequently superseded and purged; current `api-gateway--0000081` is separately attested below.
+Task 8.9 live serving proof remains open and separately owner-gated.
 
 Task 8.9's source-only provenance correction merged through PR #248 at
 `main@26148c4be75675613e28d89f713639a0376aaba7`. PR #262 then added the current immutable
@@ -21,7 +22,8 @@ at `main@45c1275ba306cde19cb344f2954c1a43c3ec4952`, while preserving the 2026-09
 history. Operators must pass the 2026-09-11 record explicitly through
 `--deployment-provenance`: it binds `api-gateway--0000081` to its own run `34588465283`, attempt,
 source SHA, digest, and evidence, while retaining `portfolio-service--0000096`'s independent
-attestation. The verifier rejects missing services and requires the current Azure serving image
+attestation from run `34328692256`. No common workflow identity is synthesized. The verifier rejects
+missing services and requires the current Azure serving image
 **and revision** to match these exact per-service records before any write can arm. This
 documentation reconciliation does not authorize or complete the Task 8.9 live proof.
 
@@ -31,7 +33,9 @@ discovery because the scale-to-zero gateway exposed no named replica for the non
 probe. It did not wake the gateway or reach exec, ACR login/pulls, KQL, HTTP, a write, cleanup, or
 rollback. A bounded gateway wake and rehearsal retry require a separate owner decision; the prior
 read-only baseline remains in the
-[`2026-09-10 rehearsal record`](../../../docs/evidence/b2-task-8-9/rehearsal-20260910.json).
+[`2026-09-11 re-preflight evidence`](../../../docs/evidence/b2-task-8-9/rehearsal-20260911.json);
+the [`2026-09-10 rehearsal record`](../../../docs/evidence/b2-task-8-9/rehearsal-20260910.json)
+remains historical evidence for its earlier gateway identity.
 
 Wave 9's source and disposable assembled-stack integration are complete through
 [PR #232](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/232) at
