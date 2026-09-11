@@ -7,14 +7,18 @@
 
 ---
 
-## OWNER APPROVAL CALLOUT
+## OWNER APPROVAL STATUS
 
-Two actions in this design are the owner's to authorize and are **not** taken by any agent:
+Two actions were the owner's to authorize. Both are now granted; the record is kept because §11
+must undo them.
 
-| Blocked action | Decision requested | Consequence |
-|---|---|---|
-| Push of the setup branch and creation of its PR | Authorize publication of the `process`-track setup bundle | Without it the loop exists only in the local worktree; Codex cannot see agent definitions, hooks, or ledgers, and the arrangement cannot be used across worktrees |
-| The three documentation edits in [§10](#10-documentation-changes-owned-by-codex) | Direct Codex to make them | `AGENTS.md` continues to describe Claude-implements/Codex-reviews, which this arrangement temporarily contradicts. The repo's stated protocol would disagree with its actual one |
+| Action | Status |
+|---|---|
+| Publication of this design as a `process`-track PR | **Authorized** 2026-09-11 |
+| The documentation edits in [§10](#10-documentation-changes-owned-by-codex) | **Authorized and completed** — Codex, PR #255, merged at `main@5a960db1` |
+
+**Still outstanding and NOT authorized by the above:** implementing the agent definitions, hooks
+and ledger described below. This document is a design; nothing in §9.1 has been built.
 
 A third item requires no approval but is recorded because it changes a tracked file outside the
 new subsystem: `.gitignore:103` must be narrowed (§9.2). Without it none of the subsystem is
@@ -304,9 +308,10 @@ re-inclusions:
 `.claude/launch.json` and `.claude/settings.local.json` stay ignored. Without this change nothing in
 §9.1 is committable, and Codex cannot see the arrangement at all.
 
-## 10. Documentation changes (owned by Codex)
+## 10. Documentation changes (owned by Codex) — completed
 
-Requires owner direction per the approval callout. None are made by Claude.
+All three landed in PR #255, merged 2026-09-11 at `main@5a960db1`. They are recorded here
+because the revert procedure (§11) must undo them. None were made by Claude.
 
 1. **`AGENTS.md`** — new `## Interim Review Arrangement` section: the Claude-internal
    orchestrator/implementer/reviewer roles, Codex's temporary scope (documentation, status
@@ -329,9 +334,24 @@ Requires owner direction per the approval callout. None are made by Claude.
 
    Final task reconciliation remains Codex's, unchanged.
 
-The setup PR body must carry `Master-plan impact: updated — process`, or `none:` with a same-line
-rationale, per `scripts/check_master_plan_status_propagation.py`. That guard is fail-closed and
-rejects bare `none`.
+### PR body declaration — exact syntax
+
+`scripts/check_master_plan_status_propagation.py` is fail-closed and matches on a **line-anchored**
+pattern. The declaration must therefore start its own line, and its value must be literally one of:
+
+```
+Master-plan impact: updated — <tracks>
+Master-plan impact: none: <same-line rationale>
+```
+
+A PR that edits the master plan must use `updated`; the guard rejects `none` alongside a concurrent
+master-plan edit. `process` is a *track*, not a value — the value is `updated — process`.
+
+PR #255 failed this guard on its first attempt for both reasons at once: the declaration sat
+mid-paragraph, so the anchor never matched and the guard reported it missing entirely, and the
+value read `process — coordination only`, which matches neither form. The PR had been validated
+by running the script's 33 unit tests, which cannot detect either fault: they exercise the
+parser, not the pull request. Run the guard against the live PR.
 
 ## 11. Revert procedure
 
