@@ -4253,16 +4253,16 @@ class, not by enumeration" through "operational signals only") deliberately keep
 
 ## Wave 10 — Production exposure gate · *Track 4, design.md D5 Stage 7*
 
-- [ ] **10.1 CI/CD wiring for both build-time flags (round-3 addition — Wave 10 previously assumed
-  a runtime "enable" action that this static-export frontend cannot perform).** Add
-  `ENABLE_ASSET_PICKER` and `ENABLE_DEMO_RESET_CONTROL` as GitHub Actions repository variables;
-  thread both into `deploy-azure.yml`'s `Build Next.js static export` step's `env:` block (alongside
-  the existing `NEXT_PUBLIC_API_BASE_URL`/`NEXT_PUBLIC_DEMO_EMAIL` pattern) as
-  `NEXT_PUBLIC_ENABLE_ASSET_PICKER`/`NEXT_PUBLIC_ENABLE_DEMO_RESET_CONTROL`. AWS workflow wiring is
-  explicitly deferred by the Azure-first scope note and is not part of this task's Azure completion
-  criterion. Both variables default unset — no workflow change is required to
-  keep both flags off; this task only makes flipping them *possible*, it does not flip either one.
-  _Requirements: 1.1_
+- [x] **10.1 CI/CD wiring for both build-time flags (round-3 addition — Wave 10 previously assumed
+  a runtime "enable" action that this static-export frontend cannot perform).** PR #259 merged at
+  `main@03ca63000a16f38484a37cc85ab938a0ad7874c2`: the Azure static-export build step sources
+  `NEXT_PUBLIC_ENABLE_ASSET_PICKER` and `NEXT_PUBLIC_ENABLE_DEMO_RESET_CONTROL` from the matching
+  GitHub Actions `vars` entries. The fail-closed structural contract rejects literals, secrets,
+  defaults, concatenated/folded YAML expressions, missing mappings, and duplicate build-step names.
+  CI run [34622304228](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/34622304228)
+  passed `static-guard`, `sanitizer-canary`, `deploy-workflow-contract`, `docker-build-verify`, and
+  `ci-required`. The merge left both repository variables unset; no workflow dispatch, deployment, or
+  exposure occurred. AWS workflow wiring remains deferred. _Requirements: 1.1_
 - [ ] **10.2 STOP/GO — production exposure.** **Corrected from the first draft, which could pass
   while Requirement 7's own mechanism was still unbuilt — round 21 made login-orchestration
   independently gated from the manual bundle; it did not make either optional for production.**
@@ -4380,8 +4380,8 @@ class, not by enumeration" through "operational signals only") deliberately keep
     follows would otherwise have nothing to point at). This step can run, and fail closed
     with nothing user-facing changed, entirely before Step B — the public route working is a
     precondition for exposure, not a consequence of it.
-  - **Step B — the actual exposure.** Only after Step A passes: set **both** `ENABLE_ASSET_PICKER`
-    and `ENABLE_DEMO_RESET_CONTROL` to `true` in the same change, then trigger a **new Azure frontend
+  - **Step B — the actual exposure.** Only after Step A passes: set **both repository-scoped**
+    `ENABLE_ASSET_PICKER` and `ENABLE_DEMO_RESET_CONTROL` to `true` in the same change, then trigger a **new Azure frontend
     build and deploy** — the flags are baked into the static export at `npm run build`, so nothing
     changes in already-served files until this new build ships. **Immediately after that deploy, a
     real browser-based smoke test against the live public URL** — not another API call: visit the
@@ -4397,8 +4397,9 @@ class, not by enumeration" through "operational signals only") deliberately keep
   (round-9 addition — a triggered rollback build is not the same fact as a finished, served
   rollback):** if **Step A** fails, abort with **no rollback deployment** — neither flag has moved
   yet, so there is nothing to undo, only something to fix before retrying Step A. If **Step B**'s
-  smoke test fails (or the decision is otherwise reversed after Step B), set both variables back to
-  `false`/unset and trigger **another** frontend build and deploy — rollback is itself a
+  smoke test fails (or the decision is otherwise reversed after Step B), set both repository-scoped
+  variables back to `false` (not unset, so an organization-level variable cannot become the effective
+  value) and trigger **another** frontend build and deploy — rollback is itself a
   build-and-deploy action here, never instant, since both flags' values are compiled into whichever
   static bundle is currently being served. **Wait for that rollback deploy to actually complete
   (not just dispatched), then verify from a fresh, uncached browser session that both controls are
