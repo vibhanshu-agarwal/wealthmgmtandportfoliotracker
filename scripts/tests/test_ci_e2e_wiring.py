@@ -29,6 +29,17 @@ REQUIRED_CI_ENV = {
 }
 
 
+# B2 Task 10.1 - the static export inlines NEXT_PUBLIC_* at build time, so the only
+# place these two flags can be set is the named `npm run build` step's own env mapping.
+# They must read GitHub Actions *repository variables*: an unset variable expands to the
+# empty string, which `parseFeatureFlag` treats as disabled.  That absence is the safety
+# property keeping both controls hidden in production.
+REQUIRED_AZURE_BUILD_ENV = {
+    "NEXT_PUBLIC_ENABLE_ASSET_PICKER": "${{ vars.ENABLE_ASSET_PICKER }}",
+    "NEXT_PUBLIC_ENABLE_DEMO_RESET_CONTROL": "${{ vars.ENABLE_DEMO_RESET_CONTROL }}",
+}
+
+
 def _named_block(text: str, name: str, indent: int) -> str:
     """Return one named YAML block, stopping at the next sibling item."""
     lines = text.splitlines(keepends=True)
@@ -108,6 +119,39 @@ def _env_value(mapping: str, name: str, key_indent: int) -> str:
     if not match:
         raise AssertionError(f"missing env value: {name}")
     return match.group(1).strip('"\'')
+
+
+def _env_expression(mapping: str, name: str, key_indent: int) -> str:
+    """Read one env value that is a GitHub Actions ``${{ }}`` expression.
+
+    ``_env_value`` matches a single whitespace-free token, so it structurally cannot
+    read ``${{ vars.X }}``.  This reader takes the whole value, which lets the caller
+    compare against the exact required expression -- a literal, a ``secrets``
+    reference, or a ``||`` default is read successfully and then fails the equality
+    assertion with a legible diff instead of a confusing "missing value" error.
+    """
+    match = re.search(
+        rf"(?m)^{key_indent * ' '}{re.escape(name)}:[ \t]*(\S.*?)[ \t]*$", mapping
+    )
+    if not match:
+        raise AssertionError(f"missing env value: {name}")
+
+    # The pattern is line-anchored, so on its own it would read only the first line of
+    # a YAML plain scalar that continues onto the next, more-indented line. That form
+    # folds to "<value> <continuation>", which is how an unset variable could still be
+    # made to expand to " true". A deeper-indented comment is safe: "#" terminates the
+    # scalar rather than continuing it.
+    for line in mapping[match.end() :].splitlines():
+        if not line.strip():
+            continue
+        indent = len(line) - len(line.lstrip(" "))
+        if indent > key_indent and not line.lstrip().startswith("#"):
+            raise AssertionError(
+                f"{name} continues onto a folded line; its value is not a single scalar"
+            )
+        break
+
+    return match.group(1)
 
 
 def _run_body(step: str) -> str:
@@ -245,6 +289,71 @@ class TestCiE2eWiring(unittest.TestCase):
         self.assertIn("DEMO_TEST_PASSWORD", credentials_fn)
         self.assertIn("throw new Error", credentials_fn)
         self.assertNotIn(".env.local", self.demo_auth)
+
+    def test_azure_static_export_build_maps_both_flags_from_repository_variables(self) -> None:
+        azure_env = _env_mapping(self.azure_build_step, 8)
+        for name, expression in REQUIRED_AZURE_BUILD_ENV.items():
+            self.assertEqual(
+                expression,
+                _env_expression(azure_env, name, key_indent=10),
+                f"{name} must be built from its repository variable inside the named "
+                "static-export build step",
+            )
+
+    def test_exactly_one_static_export_build_step_owns_the_flag_mappings(self) -> None:
+        # _named_block returns the FIRST match, so a decoy step with the same name
+        # could shadow the real one and leave the guard inspecting the wrong block.
+        headings = re.findall(
+            r"(?m)^      - name: Build Next\.js static export\s*$",
+            self.deploy_frontend_job,
+        )
+        self.assertEqual(
+            1, len(headings), "exactly one named static-export build step must exist"
+        )
+        self.assertIn("run: npm run build", self.azure_build_step)
+
+    def test_flag_wiring_cannot_be_satisfied_by_a_literal_secret_or_default(self) -> None:
+        original = self.azure_build_step
+        rejected = (
+            ("${{ vars.ENABLE_ASSET_PICKER }}", '"true"'),
+            ("${{ vars.ENABLE_ASSET_PICKER }}", "${{ secrets.ENABLE_ASSET_PICKER }}"),
+            (
+                "${{ vars.ENABLE_ASSET_PICKER }}",
+                "${{ vars.ENABLE_ASSET_PICKER || 'true' }}",
+            ),
+            ("NEXT_PUBLIC_ENABLE_ASSET_PICKER", "NEXT_PUBLIC_ASSET_PICKER"),
+            # A second expression concatenated onto the same line: with the variable
+            # unset this expands to "true" and enables the flag.
+            (
+                "${{ vars.ENABLE_ASSET_PICKER }}",
+                "${{ vars.ENABLE_ASSET_PICKER }}${{ 'true' }}",
+            ),
+            # The same attack spread over a YAML plain-scalar continuation line. YAML
+            # folds it to "<var> ${{ 'true' }}", which expands to " true" while the
+            # variable is unset -- and parseFeatureFlag trims before comparing.
+            (
+                "NEXT_PUBLIC_ENABLE_ASSET_PICKER: ${{ vars.ENABLE_ASSET_PICKER }}\n",
+                "NEXT_PUBLIC_ENABLE_ASSET_PICKER: ${{ vars.ENABLE_ASSET_PICKER }}\n"
+                "            ${{ 'true' }}\n",
+            ),
+        )
+        try:
+            for old, new in rejected:
+                self.azure_build_step = original.replace(old, new)
+                with self.assertRaises(AssertionError):
+                    self.test_azure_static_export_build_maps_both_flags_from_repository_variables()
+
+            # A mapping that is absent from the build step -- commented out, or moved to
+            # the job level or an upload step -- must fail closed, not pass by proximity.
+            self.azure_build_step = "\n".join(
+                line
+                for line in original.splitlines()
+                if "ENABLE_ASSET_PICKER" not in line
+            )
+            with self.assertRaises(AssertionError):
+                self.test_azure_static_export_build_maps_both_flags_from_repository_variables()
+        finally:
+            self.azure_build_step = original
 
 
 if __name__ == "__main__":

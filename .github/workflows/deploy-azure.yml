@@ -421,6 +421,16 @@ jobs:
           # synthetic E2E test suites, not the public-facing demo login.
           NEXT_PUBLIC_DEMO_EMAIL: demo@wealthtracker.dev
           NEXT_PUBLIC_DEMO_PASSWORD: demo-wealthtracker-2026
+          # B2 Wave 10 exposure controls. Sourced from repository *variables*, never
+          # secrets or literals: these are not confidential, and an unset variable must
+          # expand to the empty string so `parseFeatureFlag` leaves the control disabled.
+          # Both variables are intentionally absent today, which is what keeps the Asset
+          # Picker and the manual demo-reset control out of every production bundle.
+          # They belong on this step alone -- `output: "export"` inlines NEXT_PUBLIC_*
+          # at build time, so the later SWA upload steps (skip_app_build: true) cannot
+          # affect them.
+          NEXT_PUBLIC_ENABLE_ASSET_PICKER: ${{ vars.ENABLE_ASSET_PICKER }}
+          NEXT_PUBLIC_ENABLE_DEMO_RESET_CONTROL: ${{ vars.ENABLE_DEMO_RESET_CONTROL }}
         run: npm run build
 
       # staticwebapp.config.json lives in frontend/public/ so Next.js copies it to
