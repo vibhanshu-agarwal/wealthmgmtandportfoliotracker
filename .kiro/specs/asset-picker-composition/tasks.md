@@ -1,7 +1,7 @@
 # Implementation Plan
 
-**Current program status (reconciled through PR #257 on 2026-09-11 at
-`main@ae2959ad5a5adae78ac26fb42d778cbd4380d054`):** Waves 1–6 retain their recorded source and
+**Current program status (reconciled through PR #262 on 2026-09-11 at
+`main@45c1275ba306cde19cb344f2954c1a43c3ec4952`):** Waves 1–6 retain their recorded source and
 review evidence. Wave 5 Task 5.6 is GO and its gateway bundle is deployed hidden in the Task 8.8
 revision. Wave 3 Task 3.7 is green on its recorded Azure evidence; Wave 6 Task 6.3 is green on its recorded
 2026-09-11 gateway-read evidence. Production flags remain disabled.
@@ -14,21 +14,24 @@ owner-authorized production run `34433715705`: `api-gateway--0000079` serves imm
   current-attempt manifest and scoped non-interference proof green. Task 8.9 live serving proof
   remains open and separately owner-gated.
 
-Task 8.9's preflight provenance correction merged through PR #248 at
-`main@26148c4be75675613e28d89f713639a0376aaba7`. The verifier now
-consumes one immutable attestation per service from
-[`deployment-provenance-20260910.json`](../../../docs/evidence/b2-task-8-9/deployment-provenance-20260910.json),
-preserving each deployment's own workflow run, attempt, source SHA, digest, and revision. It rejects
-missing services and requires the current Azure serving image **and revision** to match those exact
-records before any write can arm. This source-only correction does not authorize or complete the
-Task 8.9 live proof.
+Task 8.9's source-only provenance correction merged through PR #248 at
+`main@26148c4be75675613e28d89f713639a0376aaba7`. PR #262 then added the current immutable
+[`deployment-provenance-20260911.json`](../../../docs/evidence/b2-task-8-9/deployment-provenance-20260911.json)
+at `main@45c1275ba306cde19cb344f2954c1a43c3ec4952`, while preserving the 2026-09-10 record as
+history. Operators must pass the 2026-09-11 record explicitly through
+`--deployment-provenance`: it binds `api-gateway--0000081` to its own run `34588465283`, attempt,
+source SHA, digest, and evidence, while retaining `portfolio-service--0000096`'s independent
+attestation. The verifier rejects missing services and requires the current Azure serving image
+**and revision** to match these exact per-service records before any write can arm. This
+documentation reconciliation does not authorize or complete the Task 8.9 live proof.
 
-The 2026-09-10 read-only rehearsal matched the explicit production subscription, ingress binding,
-workspace, and both attested serving image/revision pairs, then stopped fail-closed because the
-scale-to-zero gateway exposed no named replica for the non-disclosing exec probe. It issued zero
-HTTP requests and zero writes, and did not reach ACR login, image pulls, or KQL. A bounded gateway
-wake and rehearsal retry require a separate owner decision; see the
-[`rehearsal record`](../../../docs/evidence/b2-task-8-9/rehearsal-20260910.json).
+The 2026-09-11 read-only re-preflight matched the explicit production subscription, ingress binding,
+both attested serving image/revision pairs, and workspace, then stopped fail-closed at replica
+discovery because the scale-to-zero gateway exposed no named replica for the non-disclosing exec
+probe. It did not wake the gateway or reach exec, ACR login/pulls, KQL, HTTP, a write, cleanup, or
+rollback. A bounded gateway wake and rehearsal retry require a separate owner decision; the prior
+read-only baseline remains in the
+[`2026-09-10 rehearsal record`](../../../docs/evidence/b2-task-8-9/rehearsal-20260910.json).
 
 Wave 9's source and disposable assembled-stack integration are complete through
 [PR #232](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/232) at
