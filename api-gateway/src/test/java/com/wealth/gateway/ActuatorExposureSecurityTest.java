@@ -27,8 +27,10 @@ import java.util.List;
  * <p>Narrowing exposure fixes that, but exposure is environment-overridable: relaxed binding means
  * {@code MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=*} silently restores the hole. The durable guard
  * is therefore {@link SecurityConfig}, not the exposure list. This class forces exposure back to
- * {@code "*"} so every endpoint is registered, and asserts they are unreachable anyway — a test run
- * under narrowed exposure would pass on a 404 and prove nothing about security.
+ * {@code "*"} so every endpoint is actually registered, and asserts they are unreachable anyway.
+ * That pins the guard against the full worst-case surface rather than against endpoints that
+ * merely happen to be absent: with narrowed exposure a denial and a 404 are indistinguishable in
+ * effect, and the test would no longer describe what it protects.
  *
  * <p>Both halves of the security decision are pinned:
  * <ul>
@@ -150,11 +152,15 @@ class ActuatorExposureSecurityTest {
     }
 
     /**
-     * The permit set was widened to the whole {@code /actuator/health} subtree because real
-     * consumers read the group sub-paths: {@code docker-compose.yml} probes
-     * {@code /actuator/health/readiness} and the AWS compute module probes
-     * {@code /actuator/health/liveness}. Asserting only {@code /actuator/health} would leave that
+     * The permit set was widened to the whole {@code /actuator/health} subtree because a real
+     * consumer reads a group sub-path: {@code docker-compose.yml:248} healthchecks this gateway on
+     * {@code /actuator/health/readiness}. Asserting only {@code /actuator/health} would leave that
      * widening untested.
+     *
+     * <p>{@code /actuator/health/liveness} is asserted defensively rather than because the gateway
+     * has a liveness consumer. The repository's only {@code /liveness} reference is
+     * {@code AWS_LWA_READINESS_CHECK_PATH} in {@code infrastructure/terraform/aws/modules/compute/main.tf:311},
+     * which belongs to the {@code market_data} Lambda, not to this service.
      */
     @Test
     void healthSubtree_remainsPubliclyReadable() {
