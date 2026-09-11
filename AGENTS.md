@@ -32,11 +32,13 @@ callout is a review finding.
 
 Each agent has a persistent sibling worktree for normal work:
 
+**Canonical worktree root:** `C:\worktrees\wealthmgmtandportfoliotracker-worktrees`. This replaces the prior D:-drive locations, which caused avoidable I/O contention and system slowness.
+
 | Agent | Assigned worktree |
 |---|---|
-| Claude | `D:\Projects\Development\Java\Spring\wealthmgmtandportfoliotracker-claude` |
-| Codex | `D:\Projects\Development\Java\Spring\wealthmgmtandportfoliotracker-codex` |
-| Cursor | `D:\Projects\Development\Java\Spring\wealthmgmtandportfoliotracker-cursor` |
+| Claude | `C:\worktrees\wealthmgmtandportfoliotracker-worktrees\wealthmgmtandportfoliotracker-claude` |
+| Codex | `C:\worktrees\wealthmgmtandportfoliotracker-worktrees\wealthmgmtandportfoliotracker-codex` |
+| Cursor | `C:\worktrees\wealthmgmtandportfoliotracker-worktrees\wealthmgmtandportfoliotracker-cursor` |
 
 Before modifying repository state, run `git rev-parse --show-toplevel` and confirm that it resolves
 to the assigned worktree. If it does not, stop and switch or hand off to the correct worktree before
@@ -47,9 +49,10 @@ editing, committing, rebasing, or running any other mutating command.
 1. Use the assigned worktree for normal agent work.
 2. When durable parallel isolation is needed, create a sibling worktree named
    `wealthmgmtandportfoliotracker-<agent-name>-<id>` under
-   `D:\Projects\Development\Java\Spring`.
+   `C:\worktrees\wealthmgmtandportfoliotracker-worktrees`.
 3. For transient or time-sensitive work, use the same
-   `wealthmgmtandportfoliotracker-<agent-name>-<id>` naming pattern under `C:\worktrees`.
+   `wealthmgmtandportfoliotracker-<agent-name>-<id>` naming pattern under
+   `C:\worktrees\wealthmgmtandportfoliotracker-worktrees`.
 4. Always use sibling-folder worktrees. Do not create nested worktrees under this repository or any
    other worktree. Prohibited locations include `.claude/worktrees`, `.worktrees`, and `worktrees`
    beneath a checkout. This restriction is required for IntelliJ IDEA compatibility.
