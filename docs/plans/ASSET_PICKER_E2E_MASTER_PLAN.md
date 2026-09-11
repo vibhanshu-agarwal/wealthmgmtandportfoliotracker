@@ -1,7 +1,9 @@
 # Asset Picker — E2E Master Plan to Production
 
-**Last verified:** 2026-09-11 at `main@03ca63000a16f38484a37cc85ab938a0ad7874c2` for B2 Task 10.1's
-merged source-only Azure build-flag wiring (PR #259; no runtime/program-state baseline change);
+**Last verified:** 2026-09-11 at `main@45c1275ba306cde19cb344f2954c1a43c3ec4952` for B2 Task 8.9's
+current-provenance reconciliation (PR #262; no runtime/program-state baseline change); 2026-09-11 at
+`main@03ca63000a16f38484a37cc85ab938a0ad7874c2` for B2 Task 10.1's merged source-only Azure
+build-flag wiring (PR #259; no runtime/program-state baseline change);
 2026-09-11 for B2 Task 6.3's bounded gateway-read evidence;
 2026-09-10 at `main@26148c4be75675613e28d89f713639a0376aaba7` for the merged B2 Task 8.9 source-only provenance correction;
 2026-09-10 at `main@ea34c017514532977ce08d07be3344c1c2cb065a` for B2 Task 8.8 deployment evidence;
@@ -13,25 +15,35 @@ authorization, protected production
 [run 34433715705](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/34433715705)
 deployed only `api-gateway` from `main@ea34c017514532977ce08d07be3344c1c2cb065a` in scoped Azure
 mode. Immutable digest
-`sha256:aee44edc12b03175379caf65546e04f5ca1e2cea0d8690c00190b01254f20aa1` now serves as
+`sha256:aee44edc12b03175379caf65546e04f5ca1e2cea0d8690c00190b01254f20aa1` was deployed as
 `api-gateway--0000079` at 100% latest-revision traffic. The current-attempt manifest comparison and
 byte-identical non-interference proof passed; all unselected apps and the refresh Job remained
-unchanged. Task 8.8b is therefore complete with 8.8. Task 8.9 live serving proof and Wave 10 remain
-open and separately owner-gated, and both production feature flags remain disabled. See the
+unchanged. `0000079` was subsequently superseded and purged; its Task 8.8 deployment evidence remains
+valid history, while current `api-gateway--0000081` is separately attested below. Task 8.8b is
+therefore complete with 8.8. Task 8.9 live serving proof and Wave 10 remain open and separately
+owner-gated, and both production feature flags remain disabled. See the
 [completion evidence](../evidence/b2-task-8-8/deployment-completion-20260910.json) and
 [owner approval](../evidence/b2-task-8-8/owner-approval-20260910.json).
 
-**TASK 8.9 PREFLIGHT PROVENANCE CORRECTION — MERGED THROUGH PR #248; LIVE PROOF OPEN:** The verifier's
-source-only preflight now preserves separate immutable deployment provenance for `api-gateway`
-(Task 8.8 run `34433715705`) and `portfolio-service` (Task 7.9 run `34328692256`) and checks both
-the exact serving digest and revision before any mutation can arm. The normalized
-[provenance packet](../evidence/b2-task-8-9/deployment-provenance-20260910.json) retains each run's
-own attempt and source SHA; no common workflow identity is synthesized. Offline tests are green.
-This does not authorize the production login, write, KQL, cleanup, or Task 8.9 completion.
-The first read-only production rehearsal matched the subscription, ingress, workspace, and both
-exact serving image/revision pairs, then stopped safely at the scale-to-zero gateway's missing named
-replica before the exec probe. No HTTP request or write occurred. Retrying past that point requires
-a separately authorized bounded gateway wake; see the [rehearsal record](../evidence/b2-task-8-9/rehearsal-20260910.json).
+**TASK 8.9 PROVENANCE RECONCILIATION — PR #262 MERGED; LIVE PROOF OPEN:** PR #248's source-only
+preflight established separate immutable per-service attestations. PR #262, merged at
+`main@45c1275ba306cde19cb344f2954c1a43c3ec4952`, preserves the original 2026-09-10 packet as
+history and adds the current [2026-09-11 provenance packet](../evidence/b2-task-8-9/deployment-provenance-20260911.json).
+The latter binds the serving `api-gateway--0000081` identity to deployment run `34588465283` while
+retaining `portfolio-service--0000096`'s independent run `34328692256` attestation; no common
+workflow identity is synthesized. The verifier must receive that current packet through
+`--deployment-provenance` and still requires both exact serving digest and revision matches before
+any mutation can arm.
+
+The 2026-09-11 read-only re-preflight matched the production subscription, ingress, both attested
+serving image/revision pairs, and workspace; it then stopped fail-closed in replica discovery because
+the scale-to-zero gateway had no named replica for the non-disclosing exec probe. No gateway wake,
+exec, ACR authentication or pull, KQL query, HTTP request, write, cleanup, or rollback occurred.
+The bounded gateway wake remains a separate owner decision. This reconciliation does not authorize
+the production login, write, KQL, cleanup, or Task 8.9 completion; see the prior
+[2026-09-11 re-preflight evidence](../evidence/b2-task-8-9/rehearsal-20260911.json). The
+[2026-09-10 rehearsal record](../evidence/b2-task-8-9/rehearsal-20260910.json) remains historical
+evidence for its earlier gateway identity.
 
 **B2 TASK 10.1 SOURCE WIRING — MERGED THROUGH PR #259; EXPOSURE CLOSED:**
 PR #259 merged at `main@03ca63000a16f38484a37cc85ab938a0ad7874c2`. Its two-file Azure-only change
@@ -631,7 +643,7 @@ Wave 4 Tasks 4.1–4.4a merged via PR #180 at `main@63fc058`; that exact histori
 | 5 — manual-reset gateway bundle | ✅ Source Tasks 5.1–5.5 plus 5.1a/5.1b are merged, Task 5.6 owner GO is recorded, and the complete bundle was shipped hidden with the approved Task 8.8 scoped gateway deployment | Deployment run `34433715705` placed the bundle on `api-gateway--0000079` at `sha256:aee44edc…`; Task 6.3's current gateway-read evidence binds successor `api-gateway--0000081`. The frontend control remains disabled and Wave 10 exposure remains separate |
 | 6 — manual reset frontend | ✅ Tasks 6.1/6.2 merged via [PR #214](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/214) at `main@48d0aba8`, identical to CI-green head `b918ff09`; ACCEPT, R1–R4 closed | Committed flags off; the owner finalized the existing page-level placement on 2026-09-06. Task 6.3 is green on [bounded gateway-read evidence](../evidence/b2-task-6-3/backend-readiness-gateway-read-20260911.json); Wave 10 remains closed. The owner-deferred [sidebar backlog](../todos/backlog/responsive-dashboard-sidebar/README.md) remains open |
 | 7 — decimal rollout note | ℹ Informational | No independent release gate |
-| 8 — login-orchestrated reset | 🟡 Tasks 8.1–8.8 and 8.8b are complete for Azure. Run `34433715705` deployed `api-gateway--0000079` at `sha256:aee44edc…`; current-attempt and non-interference proofs passed. Task 8.9's per-service provenance correction merged through PR #248 at `main@26148c4be75675613e28d89f713639a0376aaba7`; it verifies the independently attested gateway and portfolio revisions before writes can arm. Its read-only rehearsal matched both pairs, then stopped safely at the scaled-to-zero gateway with zero HTTP requests and writes. [Decision record](../superpowers/plans/2026-09-06-b2-wave8-decision-record.md), [deployment evidence](../evidence/b2-task-8-8/deployment-completion-20260910.json), [provenance packet](../evidence/b2-task-8-9/deployment-provenance-20260910.json), and [rehearsal record](../evidence/b2-task-8-9/rehearsal-20260910.json). | Task 8.9 live login/reset/log-correlation proof remains open and separately gated. A bounded gateway wake requires a separate owner decision before rehearsal can continue past the exec probe. Task 8.8a remains AWS-only and does not apply to this Azure deployment. Production flags remain off |
+| 8 — login-orchestrated reset | 🟡 Tasks 8.1–8.8 and 8.8b are complete for Azure. Run `34433715705` deployed historical `api-gateway--0000079` at `sha256:aee44edc…`; current-attempt and non-interference proofs passed, and the revision was later superseded and purged. PR #262 reconciled Task 8.9's current [per-service provenance packet](../evidence/b2-task-8-9/deployment-provenance-20260911.json) to `api-gateway--0000081` / run `34588465283`, retaining the independent `portfolio-service--0000096` / run `34328692256` attestation with no common workflow identity. The explicit 2026-09-11 [re-preflight evidence](../evidence/b2-task-8-9/rehearsal-20260911.json) matched both identities and workspace, then stopped fail-closed at the scaled-to-zero gateway before exec, with no wake, HTTP, or write. [Decision record](../superpowers/plans/2026-09-06-b2-wave8-decision-record.md), [deployment evidence](../evidence/b2-task-8-8/deployment-completion-20260910.json), and [prior rehearsal record](../evidence/b2-task-8-9/rehearsal-20260910.json). | Task 8.9 live login/reset/log-correlation proof remains open and separately gated. A bounded gateway wake requires a separate owner decision before rehearsal can continue past the exec probe. Task 8.8a remains AWS-only and does not apply to this Azure deployment. Production flags remain off |
 | 9 — live integration | 🟡 Tasks 9.1, 9.3, 9.4, 9.5 (PR #231 at `main@b4c68253b99a796d6301ef79b5aa5a47d5cbd962`), and 9.6 have their recorded source/local evidence. Tasks 9.2/9.7/9.8/9.9 are source/assembled-stack complete: one disposable Compose real-browser run passed 5/5 across setup plus picker and demo-reset success/conflict; PR #232 merged at `main@318f28592da6ab2e3bd66bc738aa68d374b180fa`, with final CI run `34018608256` passing `docker-build-verify` and `ci-required`, and body-edit guard run `34020180243` passing | No deployment or Production E2E is claimed; the B2-specific Wave 10 convergence/exposure gate and Production E2E still gate exposure. This is not the already-proved B1 P11g-2 property; production flags remain off |
 | 10 — production exposure | 🟡 Task 10.1 source wiring complete; exposure blocked | PR #259 / `main@03ca6300` passed its CI contract without creating or changing either repository variable. Wave 10.2 still requires B2 live decimal fidelity, Task 8.9 serving proof, explicit owner approval, a new build/deploy, and Production E2E |
 
