@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "recordedDate": "2026-09-11",
+  "feature": "Asset Picker",
+  "task": "B2 Task 6.3",
+  "verdict": "GO",
+  "goConditions": {
+    "wave56": {
+      "status": "SATISFIED",
+      "basis": "B2 Task 5.6 is checked with Owner GO recorded 2026-09-10.",
+      "authorizationRecord": "docs/evidence/b2-task-8-8/owner-approval-20260910.json"
+    },
+    "b1Task51": {
+      "status": "SATISFIED",
+      "route": "GET /api/portfolio",
+      "transport": "authenticated production api-gateway route",
+      "loginStatus": 200,
+      "getStatus": 200,
+      "observedAtUtc": "2026-09-11T12:49:20.697Z",
+      "responseSchema": {
+        "firstPortfolioKeys": ["id", "userId", "createdAt", "updatedAt", "version", "holdings"],
+        "version": "present as an integer"
+      },
+      "servingBindings": {
+        "apiGateway": {
+          "revision": "api-gateway--0000081",
+          "imageDigestPrefix": "sha256:090ad3ba4b7a",
+          "trafficPercent": 100
+        },
+        "portfolioService": {
+          "revision": "portfolio-service--0000096",
+          "imageDigestPrefix": "sha256:1cf372a39d17",
+          "trafficPercent": 100
+        }
+      }
+    }
+  },
+  "probeBoundary": {
+    "requestCount": 2,
+    "requests": ["one normal login", "one authenticated GET /api/portfolio"],
+    "warmupRequests": 0,
+    "retries": 0,
+    "writes": 0,
+    "rawPayloadsRetained": false,
+    "identityOrTokenRetained": false,
+    "portfolioValuesRetained": false
+  },
+  "supersession": {
+    "task79RouteIdentity": "Task 7.9's beforeGet/afterGet statuses did not retain their GET URL.",
+    "rb2Binding": "The earlier R-B2 gateway-read proof was invalidated by later portfolio rollout.",
+    "task89": "Excluded: rehearsal recorded zero HTTP requests and zero logins."
+  },
+  "authorizationBoundary": "This backend-readiness GO does not enable either frontend flag, expose the control, close Wave 10, reconcile Task 3.7, or complete Task 8.9."
+}

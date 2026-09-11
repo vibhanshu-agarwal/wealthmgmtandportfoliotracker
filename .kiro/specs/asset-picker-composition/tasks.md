@@ -1734,7 +1734,7 @@ gates or attests a new deployment. The sidebar backlog remains open.
   `ConflictPanel` if 7.6 places the control inside the picker, a standalone draft-free notice
   otherwise — same envelope, same no-retry rule either way).
   _Requirements: 7.3b_
-- [ ] **6.3 Backend-readiness gate — not a deployment gate (round-3 reframe: 6.1's flag is what
+- [x] **6.3 Backend-readiness gate — not a deployment gate (round-3 reframe: 6.1's flag is what
   makes deployment safe regardless of this gate's state; this gate instead answers "does the hidden
   control have a working backend to call yet").** The `expectedVersion` 6.2 sends can only come from
   a real `GET /api/portfolio` response that actually carries `version` — `design.md`'s own
@@ -1742,9 +1742,14 @@ gates or attests a new deployment. The sidebar backlog remains open.
   task 5.1 ... lands," a B1 dependency independent of anything B2's own Wave 5 gates. **Go:** Wave
   5.6 green AND B1 task 5.1 (`version` on `GET /api/portfolio`) confirmed live in production. Once
   green, this control is *eligible* for Wave 10 to expose (by enabling its flag) whenever Wave 10's
-  own conditions are also met — this gate does not itself flip anything user-facing. **Not
-  satisfied:** the control stays hidden behind its flag; 6.1/6.2 remain deployed and inert, which
-  needs no abort action of its own.
+  own conditions are also met — this gate does not itself flip anything user-facing. **GO recorded
+  2026-09-11:** Wave 5.6's owner GO is recorded, and an owner-authorized two-request gateway probe
+  returned `200` for authenticated `GET /api/portfolio` with a numeric `version` field on current
+  gateway `api-gateway--0000081` and portfolio `portfolio-service--0000096`. The sanitized
+  [evidence record](../../../docs/evidence/b2-task-6-3/backend-readiness-gateway-read-20260911.json)
+  retains route, status, schema presence, and revision bindings only. **Boundary:** the control
+  remains hidden behind its flag; 6.1/6.2 remain deployed and inert until Wave 10's separate
+  exposure conditions are satisfied.
   _Requirements: 4.1; design.md D5 (sequencing)_
 
 **The deployed-path integration test moved to Wave 9 (round-6 correction — it depends on Task 9.6's

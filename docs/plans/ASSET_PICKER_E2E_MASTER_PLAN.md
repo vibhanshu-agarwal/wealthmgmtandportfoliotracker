@@ -1,6 +1,7 @@
 # Asset Picker — E2E Master Plan to Production
 
-**Last verified:** 2026-09-10 at `main@26148c4be75675613e28d89f713639a0376aaba7` for the merged B2 Task 8.9 source-only provenance correction;
+**Last verified:** 2026-09-11 for B2 Task 6.3's bounded gateway-read evidence;
+2026-09-10 at `main@26148c4be75675613e28d89f713639a0376aaba7` for the merged B2 Task 8.9 source-only provenance correction;
 2026-09-10 at `main@ea34c017514532977ce08d07be3344c1c2cb065a` for B2 Task 8.8 deployment evidence;
 2026-09-09 at runtime/program-state code baseline `main@5fd1dac6a37513916fd2b80ca3929c4e20ad0de7` for Task 7.9 serving proof;
 pre-merge Task 7.7 evidence baseline `main@108addca6d079b08d9d0822d87bfe43812cd5699`; candidate release cut `8f1e8a36f8baa594efa8079190f87b42139fcf10`
@@ -230,22 +231,22 @@ restoration, B2 gate decision or feature exposure follows from the 6.5 decision.
 `main@d8fa499de05fa1370a0271c4822230a6ea113695` on 2026-09-02 at 10:03:53Z.
 Its parents are the reviewed base `a2c402db` and final head `01917e16`; the merged tree is
 identical to that head. B2 Tasks 5.1, 5.2, 5.3, 5.3a, 5.4, and 5.5 are source-complete.
-Task 5.6's seven technical conditions are met; its separate owner GO decision remains pending.
-This reconciliation does not advance a runtime baseline or claim a new production read-back.
+Task 5.6's owner GO is recorded, and Task 6.3 is green on the 2026-09-11 gateway-read evidence.
+This backend-readiness GO does not advance exposure or claim any production action beyond its recorded bounded read.
 
 **B2 source completion:** [PR #214](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/214)
 merged at `main@48d0aba8468325b91e1bf9b84bd43cbeaacdf74a` on 2026-09-02 at 15:53:57Z.
 The merged tree is identical to final head `b918ff09`, whose CI is green. B2 Wave 6 Tasks
 6.1/6.2 are source-complete and checked; source/visual ACCEPT at `970b637b` and R1–R4 closure
-carry forward. Committed flags remain disabled; the page-level placement is final and Task 6.3 remains open,
+carry forward. Committed flags remain disabled; the page-level placement is final and Task 6.3 is green,
 and the owner-deferred [sidebar backlog](../todos/backlog/responsive-dashboard-sidebar/README.md)
-remains separate. No fresh runtime attestation is made.
+remains separate. The bounded gateway-read attestation is recorded only for Task 6.3.
 
 **Owner G5 close-out (2026-09-02):** “Please do the G5 close out.” B1 Task 5.7 / G5 is
 complete using the reviewed three-caller evidence below. This satisfies B1 Wave 6's G5
 prerequisite. Tasks 6.1–6.4 subsequently merged through PR #217, and Task 6.5 has its separate
 2026-09-03 owner GO. R-B3 deployment/proof and its separate owner close-out are now complete.
-Wave 7 activation and B2 Tasks 5.6/6.3 remain open.
+Wave 7 activation remains open; Task 5.6's GO and Task 6.3's backend-readiness GO do not authorize exposure.
 
 **Historical runtime lineage (latest tracked R-B3r portfolio binding is summarized above):** the cross-program baseline was
 `main@e221662b6c891639a56894289e150ee01fb537f6`; B2 Wave 4 then served the deliberately pinned
@@ -314,6 +315,8 @@ satisfied; no R-B3 deployment or public `PUT` activation is authorized here.
 
 **Historical cross-lane snapshot — pre Task 7.8 GO:**
 B2 Wave 1 (Tasks 1.1-1.19) and Wave 2 Tasks 2.1-2.5 are merged source-only through PR #178 at `main@38e3d95`; they remain entirely mock-backed and disabled by default. Wave 3 presence source Tasks 3.1–3.6 merged source-only via PR #179 at `main@cc97a209`; Task 3.7 deploy/live proof remains open (not deployed, not activated, not live-probed). Wave 4 Tasks 4.1–4.4a merged via PR #180 at `main@63fc058`; that exact cut is now deployed only to the internal portfolio-service endpoint, and Task 4.5 completed with a reviewed live GO on `portfolio-service--0000093` / `sha256:9a1d5533…` ([evidence](../runbooks/B2_TASK_4_5_DEMO_RESET_STOP_GO.md)). Tasks 5.1a and 5.1b merged source-only via PRs #202 and #208 at `main@64761dc2` and `main@f954b5a7`; Task 8.1 standalone PR #185 was source-only at merge, but its behavior is included in tracked cu4 source 6a171558 / digest sha256:2be727eaf4577699c783ae66073670d4984fe66c666af3e56422c934fdd0b023 / revision 0000094 (provenance only, not fresh read-back; no duplicate deployment needed); Task 8.2a standalone PR #203 remains source-only and not deployed. Tasks 2.6–2.7, 3.7, Task 5.6's owner decision, Wave 8 Tasks 8.8–8.9, Wave 6 Task 6.3, and Wave 10 remain open. B1 Wave 7 Tasks 7.1–7.2 are complete; R-C Tasks 7.3–7.6 (including 7.5a) are evidenced at cut `8f1e8a36`, while Task 7.7 is complete and Tasks 7.8–7.11 remain open. Wave 6 Tasks 6.1/6.2 merged source-only via PR #214 at `main@48d0aba8`. Wave 5 Tasks 5.1, 5.2, 5.3, 5.3a, 5.4, and 5.5 merged source-only via PR #212 at `main@d8fa499d`; they are not deployed. Wave 9 Task 9.6 (the demo-authenticated Playwright fixture) merged source-only via PR #226 at `main@c8fc407c`; it is not deployed. It is a reusable test helper that Task 9.8 imports, and it establishes no assembled-stack or Production E2E result. Task 9.1 catalog integration merged source-only via PR #228 at `main@3ea9578c`; it is not deployed and proves no Production E2E result. Task 9.3 drafted-price integration has local source evidence in PR #229 and is not deployed. Task 9.4 real presence integration carries local assembled-stack evidence (two independently issued demo logins against the real gateway and Redis, with no presence-route fulfillment) and a fixed duplicate-request defect; it is not deployed; merged CI wiring is covered by PR #232 final run 34018608256, and establishes no Production E2E result. Task 9.5 merged via PR #231 at `main@b4c68253b99a796d6301ef79b5aa5a47d5cbd962`. Wave 9 Tasks 9.2, 9.7, 9.8, and 9.9 are source/assembled-stack complete locally: the disposable Compose real-browser run passed 5/5 (setup plus picker and demo-reset success/conflict), and PR #232 final CI run 34018608256 passed docker-build-verify and ci-required. No deployment or Production E2E is claimed. B1 R-C deployment/convergence, Task 3.7, Task 6.3, Wave 8 Tasks 8.8–8.9, and Wave 10 remain open; production flags remain off.
+
+**Current-status correction (2026-09-11):** Task 5.6's owner GO is recorded and Task 6.3's backend-readiness gate is green; neither changes the historical snapshot's other statuses, enables a flag, exposes the control, reconciles Task 3.7, completes Task 8.9, or closes Wave 10.
 
 **User-visible state:** there is no production-exposed functional Asset Picker today.
 
@@ -595,8 +598,8 @@ All four artifacts are tracked. Wave 1 (1.1-1.19) and Wave 2 Tasks 2.1-2.5 merge
 | 2 — decimal adapter | 🟡 Task 2.7 historical audit complete — Astra ACCEPT 2026-09-10 | PR #178 / `main@38e3d954` is source provenance, not serving proof. The [Task 2.7 audit](../evidence/b2-task-2-7/historical-containment-audit-20260910.md) bounds containment only at the documented ACA path; impact remains unproven, not impossible, with frontend artifact, embedded-origin, cache, and rollback identities unresolved. Retain mandatory numeric compatibility; Wave 10.2 item 2 remains unsatisfied |
 | 3 — Redis-backed presence | 🟡 Tasks 3.1–3.6 source merged via PR #179 / `main@cc97a209`; Task 3.7 open | Default TTL **150s** via `APP_DEMO_PRESENCE_TTL`; not deployed/live-verified |
 | 4 — portfolio-service demo reset | ✅ Complete — Tasks 4.1–4.4a merged via PR #180 / `main@63fc058`; Task 4.5 live GO | Exact cut serves internally on `portfolio-service--0000093` / `sha256:9a1d5533…`; one authorized same-state reset returned `200`, exact golden 159/159, unchanged version `0` per B1; [evidence](../runbooks/B2_TASK_4_5_DEMO_RESET_STOP_GO.md) |
-| 5 — manual-reset gateway bundle | ✅ Source Tasks 5.1–5.5 plus 5.1a/5.1b are merged, Task 5.6 owner GO is recorded, and the complete bundle was shipped hidden with the approved Task 8.8 scoped gateway deployment | Serving in `api-gateway--0000079` at digest `sha256:aee44edc…`; deployment run `34433715705` and its non-interference proof passed. The frontend control remains disabled and Task 6.3 remains gated |
-| 6 — manual reset frontend | ✅ Tasks 6.1/6.2 merged via [PR #214](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/214) at `main@48d0aba8`, identical to CI-green head `b918ff09`; ACCEPT, R1–R4 closed | Committed flags off; the owner finalized the existing page-level placement on 2026-09-06. Task 6.3 remains gated; no new runtime attestation. The owner-deferred [sidebar backlog](../todos/backlog/responsive-dashboard-sidebar/README.md) remains open |
+| 5 — manual-reset gateway bundle | ✅ Source Tasks 5.1–5.5 plus 5.1a/5.1b are merged, Task 5.6 owner GO is recorded, and the complete bundle was shipped hidden with the approved Task 8.8 scoped gateway deployment | Deployment run `34433715705` placed the bundle on `api-gateway--0000079` at `sha256:aee44edc…`; Task 6.3's current gateway-read evidence binds successor `api-gateway--0000081`. The frontend control remains disabled and Wave 10 exposure remains separate |
+| 6 — manual reset frontend | ✅ Tasks 6.1/6.2 merged via [PR #214](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/214) at `main@48d0aba8`, identical to CI-green head `b918ff09`; ACCEPT, R1–R4 closed | Committed flags off; the owner finalized the existing page-level placement on 2026-09-06. Task 6.3 is green on [bounded gateway-read evidence](../evidence/b2-task-6-3/backend-readiness-gateway-read-20260911.json); Wave 10 remains closed. The owner-deferred [sidebar backlog](../todos/backlog/responsive-dashboard-sidebar/README.md) remains open |
 | 7 — decimal rollout note | ℹ Informational | No independent release gate |
 | 8 — login-orchestrated reset | 🟡 Tasks 8.1–8.8 and 8.8b are complete for Azure. Run `34433715705` deployed `api-gateway--0000079` at `sha256:aee44edc…`; current-attempt and non-interference proofs passed. Task 8.9's per-service provenance correction merged through PR #248 at `main@26148c4be75675613e28d89f713639a0376aaba7`; it verifies the independently attested gateway and portfolio revisions before writes can arm. Its read-only rehearsal matched both pairs, then stopped safely at the scaled-to-zero gateway with zero HTTP requests and writes. [Decision record](../superpowers/plans/2026-09-06-b2-wave8-decision-record.md), [deployment evidence](../evidence/b2-task-8-8/deployment-completion-20260910.json), [provenance packet](../evidence/b2-task-8-9/deployment-provenance-20260910.json), and [rehearsal record](../evidence/b2-task-8-9/rehearsal-20260910.json). | Task 8.9 live login/reset/log-correlation proof remains open and separately gated. A bounded gateway wake requires a separate owner decision before rehearsal can continue past the exec probe. Task 8.8a remains AWS-only and does not apply to this Azure deployment. Production flags remain off |
 | 9 — live integration | 🟡 Tasks 9.1, 9.3, 9.4, 9.5 (PR #231 at `main@b4c68253b99a796d6301ef79b5aa5a47d5cbd962`), and 9.6 have their recorded source/local evidence. Tasks 9.2/9.7/9.8/9.9 are source/assembled-stack complete: one disposable Compose real-browser run passed 5/5 across setup plus picker and demo-reset success/conflict; PR #232 merged at `main@318f28592da6ab2e3bd66bc738aa68d374b180fa`, with final CI run `34018608256` passing `docker-build-verify` and `ci-required`, and body-edit guard run `34020180243` passing | No deployment or Production E2E is claimed; the B2-specific Wave 10 convergence/exposure gate and Production E2E still gate exposure. This is not the already-proved B1 P11g-2 property; production flags remain off |
@@ -753,8 +756,8 @@ additional production operation or rollback occurred during Task 7.11.
    proof tooling merged through PR #233 at `main@a52ec1ef`. Wave 9 source and disposable-stack
    browser integration are complete through PR #232 at `main@318f2859`, whose run `34018608256`
    passed `docker-build-verify` and `ci-required`. Task 5.6 owner GO and Task 8.8/8.8b deployment
-   evidence completed on 2026-09-10 in run `34433715705`; Task 3.7 live proof, Task 6.3,
-   Task 8.9 live serving proof, and Wave 10 remain open. Both feature flags remain off, and no
+   evidence completed on 2026-09-10 in run `34433715705`; Task 6.3 backend readiness is green, while
+   Task 3.7 live proof, Task 8.9 live serving proof, and Wave 10 remain open. Both feature flags remain off, and no
    Production E2E or exposure is claimed.
 4. **Process lane:** keep the status-propagation CI guard healthy in required `static-guard`; it is
    process-control only and does not advance the runtime baseline.
