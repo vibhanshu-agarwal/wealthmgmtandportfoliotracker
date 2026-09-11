@@ -74,7 +74,19 @@ management:
   endpoints:
     web:
       exposure:
-        include: "*"
+        # Least exposure: the /actuator/health subtree is the only actuator surface any
+        # consumer reads (CI readiness polls, synthetic monitoring, the Azure verification step,
+        # the B1 smoke harness, the Dockerfile and compose healthchecks, and the AWS compute
+        # module probe). Wildcard exposure published env, beans, configprops, mappings,
+        # threaddump, conditions, scheduledtasks, heapdump and the Gateway routes endpoint on the
+        # public ingress, plus POST-writable loggers, refresh and route insertion.
+        #
+        # Hard-coded deliberately. Spring relaxed binding already lets
+        # MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE override this with or without a placeholder,
+        # so a placeholder adds no capability and only advertises the knob. Widening it locally
+        # would not help either: SecurityConfig carries no @Profile, so denial applies in every
+        # profile. SecurityConfig is the authoritative guard; this list is least-privilege only.
+        include: health
   tracing:
     sampling:
       probability: ${MANAGEMENT_TRACING_SAMPLING_PROBABILITY:1.0}

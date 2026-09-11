@@ -30,7 +30,15 @@ public class SecurityConfig {
                 .httpBasic(ServerHttpSecurity.HttpBasicSpec::disable)
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .authorizeExchange(exchanges -> exchanges
-                        .pathMatchers("/actuator/**").permitAll()
+                        // Only /actuator/health is public — the sole actuator endpoint any
+                        // consumer reads. Everything else under /actuator is denied outright
+                        // rather than merely authenticated: no signed-in demo user should be able
+                        // to read env, beans, configprops or mappings, and loggers/refresh accept
+                        // POST. This is the authoritative guard, because
+                        // management.endpoints.web.exposure is env-overridable and narrowing
+                        // exposure alone can be undone by configuration.
+                        .pathMatchers("/actuator/health", "/actuator/health/**").permitAll()
+                        .pathMatchers("/actuator/**").denyAll()
                         .pathMatchers("/api/auth/**").permitAll()
                         .pathMatchers("/api/portfolio/health").permitAll()
                         .pathMatchers("/api/market/health").permitAll()
