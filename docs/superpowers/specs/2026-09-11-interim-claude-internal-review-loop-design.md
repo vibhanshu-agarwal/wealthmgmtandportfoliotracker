@@ -50,6 +50,11 @@ Spec authoring. The production approval gate, which remains the owner's under `A
 § Owner Approval Callouts and is untouched by this design. The cross-tool worktree rules, which
 continue to apply as written.
 
+**Repository scope.** This arrangement applies to `wealthmgmtandportfoliotracker` **only**.
+Extension to any other repository requires explicit owner direction. This is enforced by placement,
+not convention: agent definitions live in project `.claude/agents/`, never user-level
+`~/.claude/agents/`, which would silently apply the loop to every project on the machine.
+
 **Non-goal.** This does not replace Codex review permanently and is not designed to. It is built to
 be reverted in one commit.
 
@@ -311,7 +316,18 @@ Requires owner direction per the approval callout. None are made by Claude.
    `## [N] <AGENT>` entry headers; note that a review ledger is a citable artifact whose
    fingerprint may be pinned like any other.
 3. **`docs/plans/ASSET_PICKER_E2E_MASTER_PLAN.md`** — record the interim arrangement under the
-   process track. Final task reconciliation remains Codex's, unchanged.
+   process track. **Keep it to a single short entry.** This is a coordination arrangement with no
+   feature, runtime or deployment impact, and it must not cost the owner review time. Exact
+   suggested wording, for Codex to paste rather than compose:
+
+   > **Interim review arrangement (process, 2026-09-11):** while Codex plan limits hold, code
+   > review runs inside Claude Code — Opus 5 orchestrates, Sonnet 5/Opus 5 implement, Fable 5.1
+   > reviews, and no model reviews its own work. Codex retains documentation, status tracking and
+   > final task reconciliation. Repository-scoped, reverts in one commit
+   > ([design](../superpowers/specs/2026-09-11-interim-claude-internal-review-loop-design.md)).
+   > No feature, runtime or deployment impact.
+
+   Final task reconciliation remains Codex's, unchanged.
 
 The setup PR body must carry `Master-plan impact: updated — process`, or `none:` with a same-line
 rationale, per `scripts/check_master_plan_status_propagation.py`. That guard is fail-closed and
