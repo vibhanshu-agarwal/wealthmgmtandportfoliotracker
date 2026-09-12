@@ -176,13 +176,21 @@ if ($LASTEXITCODE -ne 0) { Fail 'could not read the container app' 2 }
 if (-not $servingRevision) { Fail 'the container app read returned no revision name' 2 }
 $servingImage = & $AzCommand containerapp show --name $GatewayApp --resource-group $ResourceGroup --query 'properties.template.containers[0].image' -o tsv
 if ($LASTEXITCODE -ne 0) { Fail 'could not read the serving image' 2 }
-# Emptiness is checked SEPARATELY from the -like comparison below, and before
-# it. `az --query <path> -o tsv` exits 0 and prints nothing when the path does
-# not resolve, and a no-output native command assigns AutomationNull, against
-# which -notlike returns an empty collection -- i.e. FALSE. The digest guard is
-# therefore silently inert on an empty read unless emptiness is caught here
-# first. (-ne does not share this behaviour, which is why only the two -like
-# guards were affected.) Found by branch-removal mutation on 2026-09-12.
+# Emptiness is checked SEPARATELY from the comparison below, and before it.
+# `az --query <path> -o tsv` exits 0 and prints nothing when the path does not
+# resolve, and a no-output native command assigns AutomationNull.
+#
+# The operator families then diverge, and the split is wider than -like:
+#   PATTERN operators   -like -notlike -match -notmatch -replace
+#                       enumerate the left operand. AutomationNull enumerates
+#                       as empty, so they return an empty collection -- FALSE.
+#   COMPARISON operators -eq -ne -lt -le -gt -ge
+#                       unwrap it to $null first and return a scalar, so
+#                       `$x -ne 'value'` is True as expected.
+# So the digest guards were silently inert on an empty read while the revision
+# guards beside them were not. Any FUTURE guard written with -notmatch on child
+# output would reopen the same hole; catch emptiness explicitly, as here.
+# Found by branch-removal mutation on 2026-09-12.
 if (-not $servingImage) { Fail 'the container app read returned no image reference' 2 }
 
 if ($servingRevision -ne $attestedRevision) {

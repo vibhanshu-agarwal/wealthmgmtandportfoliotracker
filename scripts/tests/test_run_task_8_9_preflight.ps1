@@ -202,17 +202,51 @@ Check 'every external command has its exit code classified' {
         }
     }
 }
-Check 'the script exposes exactly one switch and reads only the two task credentials' {
+Check 'the script exposes exactly the pinned parameter surface and reads only the two task credentials' {
     # Asserting a single banned name would miss -ContinueOnNon200, -Force, or an
     # env-var backdoor. Parse the script instead and pin the whole surface.
+    #
+    # Pin NAMES AND TYPES, not just the switches. An earlier version filtered to
+    # StaticType -eq [switch], so it pinned only SkipWake and a non-switch
+    # override sailed past it: independent review demonstrated that adding
+    # [string]$ProceedOnNon200 and `-and -not $ProceedOnNon200` to the non-200
+    # check left the suite fully green, while a 503 wake with that flag reached
+    # "preflight passed" and started the verifier. The packet's non-200 stop is
+    # absolute and this test is what keeps it that way, so it has to see every
+    # parameter of every type. The mutation harness carries a matching mutant.
     $errs = $null
     $ast = [System.Management.Automation.Language.Parser]::ParseFile(
         (Join-Path $repo 'scripts/run_task_8_9_preflight.ps1'), [ref]$null, [ref]$errs)
     if ($errs) { throw "script does not parse: $($errs[0].Message)" }
-    $switches = $ast.ParamBlock.Parameters |
-        Where-Object { $_.StaticType -eq [switch] } |
-        ForEach-Object { $_.Name.VariablePath.UserPath } | Sort-Object
-    if (($switches -join ',') -ne 'SkipWake') { throw "switch surface is '$($switches -join ",")', expected only SkipWake" }
+    $expected = @(
+        'AzCommand:String'
+        'CurlCommand:String'
+        'DockerCommand:String'
+        'EvidenceOutput:String'
+        'GatewayApp:String'
+        'GatewayUrl:String'
+        'OperationTimeoutSeconds:Int32'
+        'PortfolioApp:String'
+        'ProvenancePath:String'
+        'PythonCommand:String'
+        'Registry:String'
+        'ReplicaPollSeconds:Int32'
+        'ReplicaWaitSeconds:Int32'
+        'ResourceGroup:String'
+        'SkipWake:SwitchParameter'
+        'SubscriptionId:String'
+        'SubscriptionSourcePath:String'
+        'Target:String'
+        'VerifierPath:String'
+        'WakePath:String'
+        'Workspace:String'
+    ) -join ','
+    $actual = ($ast.ParamBlock.Parameters |
+        ForEach-Object { '{0}:{1}' -f $_.Name.VariablePath.UserPath, $_.StaticType.Name } |
+        Sort-Object) -join ','
+    if ($actual -ne $expected) {
+        throw "parameter surface changed.`n  expected: $expected`n  actual:   $actual"
+    }
     $envReads = $ast.FindAll({
         param($n)
         $n -is [System.Management.Automation.Language.VariableExpressionAst] -and
