@@ -127,6 +127,14 @@ Check 'verifier never receives execute' {
 Check 'no credential env var is passed to the verifier' {
     if ($r.Capture -match 'TASK8_9_ACCESS_TOKEN|TASK8_9_DEMO_PASSWORD') { throw 'credential name leaked into argv' }
 }
+Check 'task credentials are scrubbed from the child environment' {
+    $e2 = $good.Clone()
+    $e2['TASK8_9_ACCESS_TOKEN'] = 'sentinel-token-value'
+    $e2['TASK8_9_DEMO_PASSWORD'] = 'sentinel-password-value'
+    $r2 = Invoke-Wrapper -Env $e2
+    if ($r2.Exit -ne 0) { throw "exit $($r2.Exit)" }
+    if ($r2.Capture -match 'sentinel-') { throw 'a credential value reached the child process argv' }
+}
 Check 'the wake is issued exactly once' {
     $n = ([regex]::Matches($r.Capture, '(?m)^curl ')).Count
     if ($n -ne 1) { throw "wake issued $n times" }
@@ -146,21 +154,22 @@ Check 'still only one wake request' {
     $n = ([regex]::Matches($r.Capture, '(?m)^curl ')).Count
     if ($n -ne 1) { throw "wake issued $n times" }
 }
-Check 'names the owner opt-in rather than deciding for them' {
-    if ($r.Output -notmatch 'ProceedOnNon200') { throw "did not name the opt-in:`n$($r.Output)" }
+Check 'offers no override -- continuing is a fresh owner decision' {
+    if ($r.Output -notmatch 'no override') { throw "did not state that there is no override:`n$($r.Output)" }
 }
-
-Write-Host 'Wake returns 503 with the owner opt-in'
-$e = $good.Clone(); $e['STUB_WAKE_STATUS'] = '503'
-$r = Invoke-Wrapper -Env $e -Extra @('-ProceedOnNon200')
-Check 'proceeds to the verifier and exits 0' { if ($r.Exit -ne 0) { throw "exit $($r.Exit); output: $($r.Output)" } }
+Check 'the script exposes no flag to proceed on a non-200' {
+    $src = Get-Content (Join-Path $repo 'scripts/run_task_8_9_preflight.ps1') -Raw
+    if ($src -match 'ProceedOnNon200') { throw 'an override switch is still present' }
+}
 
 Write-Host 'Wake transport failure after delivery'
 $e = $good.Clone(); $e['STUB_CURL_EXIT'] = '52'
 $r = Invoke-Wrapper -Env $e
-Check 'does not claim the wake was unconsumed' {
+Check 'does not claim the wake was unconsumed, exits 3, runs nothing further' {
     if ($r.Output -match 'probably NOT consumed') { throw 'claimed unconsumed for a post-delivery curl exit' }
     if ($r.Output -notmatch 'may be consumed') { throw "did not flag possible consumption:`n$($r.Output)" }
+    if ($r.Exit -ne 3) { throw "exit $($r.Exit)" }
+    if ($r.Capture -match '(?m)^python .*--mode ') { throw 'verifier ran after a transport failure' }
 }
 
 Write-Host 'No replica appears'
@@ -197,6 +206,26 @@ Check 'accepts on the first listed replica, as the verifier execs replicas[0]' {
     if ($r.Exit -ne 0) { throw "exit $($r.Exit) - the decoded list is probably being double-wrapped; output: $($r.Output)" }
 }
 
+Write-Host 'Two replicas, the first one NOT ready'
+$e = $good.Clone(); $e['STUB_REPLICA'] = 'multi-reversed'
+$r = Invoke-Wrapper -Env $e
+Check 'refuses even though a later replica is Running' {
+    # The mirror of the test above, and the one that pins selection rather than
+    # the gate's operator: any-of-many selection would accept here because
+    # rep-b is Running, but the verifier execs replicas[0] = rep-a.
+    if ($r.Exit -ne 3) { throw "exit $($r.Exit) - selection is probably any-of-many, not first; output: $($r.Output)" }
+    if ($r.Capture -match '(?m)^python .*--mode ') { throw 'verifier ran at a not-ready replicas[0]' }
+    if ($r.Output -notmatch 'never reached Running') { throw "did not report the not-ready replica:`n$($r.Output)" }
+}
+
+Write-Host 'Replica reports no runningState'
+$e = $good.Clone(); $e['STUB_REPLICA'] = 'stateless'
+$r = Invoke-Wrapper -Env $e
+Check 'accepts deliberately and says so' {
+    if ($r.Exit -ne 0) { throw "exit $($r.Exit); output: $($r.Output)" }
+    if ($r.Output -notmatch 'no runningState') { throw "fail-open not announced:`n$($r.Output)" }
+}
+
 Write-Host 'Replica is listed but not Running'
 $e = $good.Clone(); $e['STUB_REPLICA_STATE'] = 'Pending'
 $r = Invoke-Wrapper -Env $e
@@ -217,8 +246,10 @@ Check 'exits 3 and names the tooling fault rather than blaming scale-to-zero' {
 Write-Host 'Wake transport failure before delivery (DNS)'
 $e = $good.Clone(); $e['STUB_CURL_EXIT'] = '6'
 $r = Invoke-Wrapper -Env $e
-Check 'reports the wake as probably NOT consumed' {
+Check 'reports the wake as probably NOT consumed, exits 3, runs nothing further' {
     if ($r.Output -notmatch 'probably NOT consumed') { throw "output did not flag an unconsumed wake: $($r.Output)" }
+    if ($r.Exit -ne 3) { throw "exit $($r.Exit)" }
+    if ($r.Capture -match '(?m)^python .*--mode ') { throw 'verifier ran after a transport failure' }
 }
 
 Write-Host 'Unauthorized wake path is refused'

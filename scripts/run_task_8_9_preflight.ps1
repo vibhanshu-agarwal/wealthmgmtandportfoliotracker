@@ -2,6 +2,10 @@
 .SYNOPSIS
     Runs the B2 Task 8.9 bounded wake + read-only preflight as ONE sequence.
 
+    Written for and tested against Windows PowerShell 5.1. It has not been
+    exercised under PowerShell 7, whose ConvertFrom-Json array semantics differ
+    from the ones this script's replica poll depends on.
+
 .DESCRIPTION
     The Task 8.9 verifier cannot resolve a gateway replica while api-gateway is
     scaled to zero. A single inbound HTTP request activates the existing revision
@@ -25,8 +29,12 @@
     Exit codes:
       0  preflight passed
       2  a precondition failed BEFORE the wake (nothing was consumed)
-      3  the wake was issued but no replica appeared (wake consumed; a further
-         wake is a fresh owner decision)
+      3  the wake was issued and the run stopped after it -- no ready replica,
+         a non-200 response, or a transport failure. Treat the wake as consumed
+         unless the message says otherwise; a further wake is a fresh owner
+         decision. (For curl exits 6/7/35 the message says the request probably
+         never reached the ingress, so the wake was probably NOT consumed; the
+         exit code stays 3 because that is the conservative reading.)
       4  the verifier ran and did not pass (wake consumed)
 
 .PARAMETER SkipWake
@@ -59,7 +67,6 @@ param(
     [int]$ReplicaWaitSeconds = 90,
     [int]$ReplicaPollSeconds = 5,
     [switch]$SkipWake,
-    [switch]$ProceedOnNon200,
     [string]$AzCommand = 'az',
     [string]$DockerCommand = 'docker',
     [string]$CurlCommand = 'curl.exe',
@@ -220,18 +227,19 @@ if ($SkipWake) {
         }
         Fail "the wake failed in transport (curl exit $wakeCurlExit): $verdictText. Re-waking is a fresh owner decision." 3
     }
-    if ($wakeStatus -ne '200' -and -not $ProceedOnNon200) {
+    if ($wakeStatus -ne '200') {
         # The authorization packet is explicit: "On any non-200, stop and
-        # report -- do not re-issue the request." The custom-domain runbook does
-        # not authorize proceeding either; its warm-up tolerance sits inside a
-        # loop that still waits for three consecutive 200s. Continuing on a 503
-        # is therefore an owner decision, not this script's to make.
-        Fail "the wake returned HTTP $wakeStatus, not 200. The packet requires stopping here. The wake is consumed; continuing would need -ProceedOnNon200, which is an owner decision." 3
+        # report -- do not re-issue the request", and it carries no override
+        # clause. The custom-domain runbook does not authorize proceeding
+        # either; its warm-up tolerance sits inside a loop that still waits for
+        # three consecutive 200s.
+        #
+        # There is deliberately NO flag to continue anyway. This script cannot
+        # verify that an owner decided to proceed, so a switch here would turn a
+        # prohibition into an operator keystroke. Continuing requires a fresh
+        # owner decision and, if it is to become routine, an amended packet.
+        Fail "the wake returned HTTP $wakeStatus, not 200. The packet requires stopping here, and this script has no override. The wake is consumed; continuing is a fresh owner decision." 3
     }
-    # A 503 or 000 during activation is documented warm-up behaviour, not a
-    # failure (API_GATEWAY_CUSTOM_DOMAIN_RECOVERY.md). The authoritative signal
-    # is whether a replica appears below, not this status code. The request is
-    # never re-issued either way.
 }
 
 Write-Step "Waiting up to ${ReplicaWaitSeconds}s for a replica (read-only polling)"
@@ -295,6 +303,16 @@ Write-Step "  replica up: $replica"
 # Mode is fixed. --threshold-override is never passed. No credential env var is
 # set by this script, so execute mode could not run even if it were requested.
 
+# The verifier reads TASK8_9_ACCESS_TOKEN / TASK8_9_DEMO_PASSWORD from the
+# environment at parse time in every mode. They are unused in preflight, but
+# leaving them inherited makes "no credential inside the window" a property of
+# the verifier's early return rather than of this script. Clear them for the
+# child so it is true mechanically.
+$savedToken = $env:TASK8_9_ACCESS_TOKEN
+$savedPassword = $env:TASK8_9_DEMO_PASSWORD
+$env:TASK8_9_ACCESS_TOKEN = $null
+$env:TASK8_9_DEMO_PASSWORD = $null
+
 Write-Step 'Starting preflight'
 $verifierArgs = @(
     $VerifierPath,
@@ -311,8 +329,13 @@ $verifierArgs = @(
     '--evidence-output', $EvidenceOutput,
     '--operation-timeout-seconds', "$OperationTimeoutSeconds"
 )
-& $PythonCommand @verifierArgs
-$verifierExit = $LASTEXITCODE
+try {
+    & $PythonCommand @verifierArgs
+    $verifierExit = $LASTEXITCODE
+} finally {
+    $env:TASK8_9_ACCESS_TOKEN = $savedToken
+    $env:TASK8_9_DEMO_PASSWORD = $savedPassword
+}
 
 Write-Step "verifier exit $verifierExit; evidence at $EvidenceOutput"
 if ($verifierExit -ne 0) {

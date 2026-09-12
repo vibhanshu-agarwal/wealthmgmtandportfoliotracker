@@ -56,6 +56,11 @@ echo %*| findstr /C:"replica list" >nul && (
   rem NotRunning among them, so it refuses. That divergence is the only way to
   rem tell the two implementations apart from the outside.
   if "%STUB_REPLICA%"=="multi" (echo [{"name":"rep-a","properties":{"runningState":"Running"}},{"name":"rep-b","properties":{"runningState":"NotRunning"}}]& exit /b 0)
+  rem The mirror image: the FIRST replica is not ready. Correct code refuses,
+  rem because the verifier execs replicas[0]. Any-of-many selection accepts.
+  if "%STUB_REPLICA%"=="multi-reversed" (echo [{"name":"rep-a","properties":{"runningState":"NotRunning"}},{"name":"rep-b","properties":{"runningState":"Running"}}]& exit /b 0)
+  rem A replica the API has not given a runningState. Accepted deliberately.
+  if "%STUB_REPLICA%"=="stateless" (echo [{"name":"rep-nostate"}]& exit /b 0)
   if "%STUB_REPLICA_STATE%"=="" (
     echo [{"name":"api-gateway--0000081-stubreplica","properties":{"runningState":"Running"}}]
   ) else (
