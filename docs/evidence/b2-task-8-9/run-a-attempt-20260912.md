@@ -10,16 +10,21 @@ indistinguishable from the committed 2026-09-11 record except for a single confi
 
 ## Authorization
 
-One bounded wake and one bounded preflight, owner-authorized 2026-09-12 ("one wake and one bounded
-preflight; no execute or retries"), scoped to
+One bounded wake and one bounded preflight, owner-authorized 2026-09-12 **†** — the quoted wording
+("one wake and one bounded preflight; no execute or retries") comes from the owner's message in the
+operating session and is **preserved nowhere in this repository**, so it cannot be verified from
+git. The merged packet below is the *scope* of that authorization, not the decision itself. Scoped
+to
 [the readiness packet](../../superpowers/plans/2026-09-12-b2-task-8-9-live-proof-readiness-packet.md)
-merged at `main@02b944d6` (PR #264). Performed by the designated operator on a Windows host;
-baseline checkout `2fee0202`.
+merged at `main@02b944d6` (PR #264). Performed by the designated operator on a Windows host at
+baseline checkout `2fee0202` **†**. (That baseline has no bearing on the verifier's behaviour:
+`git diff 2fee0202 02b944d6 -- scripts/verify_demo_reset_azure.py` is empty.)
 
 ## What happened
 
-Rows marked **†** are **operator-reported and appear in no evidence file**. They are
-testimony, not capture, and nothing on disk corroborates them.
+**†** marks a claim **no committed artifact can corroborate** — whether it was reported by the
+operator, by the assisting agent, or spoken in the operating session. It is testimony, not capture.
+The marker is used in the prose below as well as in this table.
 
 | | |
 |---|---|
@@ -38,7 +43,8 @@ this evidence demonstrates** (see below). **The wake is consumed.**
 Exact wall-clock timestamps for the wake and the verifier start were not captured, and the file's
 write time was not preserved (git does not record mtime; the commit time is the only recoverable
 clock). The only timing figure is the 56.374 s wake latency from `curl -w`, itself
-operator-reported. That gap is a finding in its own right: any future attempt should record the
+operator-reported. The one clock git does preserve is this record's first commit, `0c308b49` at
+2026-09-12 08:26:53 +0530 — an upper bound on when the run finished, nothing more. That gap is a finding in its own right: any future attempt should record the
 wake and verifier-start times explicitly.
 
 ## Disclosure: the run deviated from the packet's own stop rule
@@ -47,7 +53,8 @@ The packet states: *"The wake request must be allowed to complete with a 200 bef
 starts… On any non-200, stop and report — do not re-issue the request."* The response was **503**,
 and the verifier was run anyway.
 
-That decision was **recommended by the assisting agent, not by the operator**, on the reasoning that
+That decision was **recommended by the assisting agent, not by the operator** **†** — an attribution
+drawn from the operating session, not from any artifact — on the reasoning that
 a named replica had been observed and therefore the wake had worked. That premise is itself
 operator-reported and uncaptured (see **†** above).
 
@@ -113,10 +120,11 @@ command was run by hand.**
 
 ## Likely cause, and what changed because of it
 
-The wake and the run were issued by hand, one paste at a time, and three of those pasted commands
-were defective — all the same fault: parentheses and nested quotes not surviving PowerShell → the
+The wake and the run were issued by hand, one paste at a time, and **four** of those pasted commands
+were defective **†** — two attempts at the verifier invocation and two at `az containerapp replica
+list`, matching the inventory above. All failed the same way: parentheses and nested quotes not surviving PowerShell → the
 `az` batch shim → cmd, so `--query "length(@)"` arrived as `length(@`. The minutes lost to those
-failures, plus paste latency, are the likeliest explanation for the window being spent -- the same
+failures, plus paste latency, are the likeliest explanation for the window being spent — the same
 inference noted above, not a demonstrated fact. The packet had specified the wake and the run as
 *one operator sequence in one window*; the step-by-step handover defeated that.
 
