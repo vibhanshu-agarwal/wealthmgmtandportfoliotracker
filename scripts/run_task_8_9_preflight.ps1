@@ -59,6 +59,7 @@ param(
     [int]$ReplicaWaitSeconds = 90,
     [int]$ReplicaPollSeconds = 5,
     [switch]$SkipWake,
+    [switch]$ProceedOnNon200,
     [string]$AzCommand = 'az',
     [string]$DockerCommand = 'docker',
     [string]$CurlCommand = 'curl.exe',
@@ -182,7 +183,7 @@ if ($LASTEXITCODE -ne 0 -or -not $wsId) { Fail 'could not read the Log Analytics
 Write-Step '  workspace readable'
 
 Write-Step 'Checking the verifier can start'
-& $PythonCommand $VerifierPath --help > $null 2>&1
+& $PythonCommand $VerifierPath --help > $null
 if ($LASTEXITCODE -ne 0) { Fail 'the verifier could not be started by this interpreter' 2 }
 $evidenceDir = Split-Path $EvidenceOutput -Parent
 if ($evidenceDir -and -not (Test-Path $evidenceDir)) { Fail "evidence directory does not exist: $evidenceDir" 2 }
@@ -208,10 +209,24 @@ if ($SkipWake) {
     $wakeCurlExit = $LASTEXITCODE
     Write-Step "  wake responded HTTP $wakeStatus (curl exit $wakeCurlExit)"
     if ($wakeCurlExit -ne 0) {
-        # A transport failure means the request very likely never reached the
-        # ingress, so the wake was probably NOT consumed -- say so rather than
-        # reporting a spent wake. Still no retry: that is the owner's call.
-        Fail "the wake request failed in transport (curl exit $wakeCurlExit); it likely never reached the ingress, so the wake was probably NOT consumed. Re-waking is still a fresh owner decision." 3
+        # Only DNS/connect/TLS-handshake failures imply the request never
+        # reached the ingress. 28/52/56/18 and friends all happen AFTER it was
+        # delivered, so the wake may well be spent -- do not claim otherwise.
+        $preDelivery = @(6, 7, 35)
+        $verdictText = if ($preDelivery -contains $wakeCurlExit) {
+            'the request did not reach the ingress, so the wake was probably NOT consumed'
+        } else {
+            'the request may already have been delivered, so the wake may be consumed'
+        }
+        Fail "the wake failed in transport (curl exit $wakeCurlExit): $verdictText. Re-waking is a fresh owner decision." 3
+    }
+    if ($wakeStatus -ne '200' -and -not $ProceedOnNon200) {
+        # The authorization packet is explicit: "On any non-200, stop and
+        # report -- do not re-issue the request." The custom-domain runbook does
+        # not authorize proceeding either; its warm-up tolerance sits inside a
+        # loop that still waits for three consecutive 200s. Continuing on a 503
+        # is therefore an owner decision, not this script's to make.
+        Fail "the wake returned HTTP $wakeStatus, not 200. The packet requires stopping here. The wake is consumed; continuing would need -ProceedOnNon200, which is an owner decision." 3
     }
     # A 503 or 000 during activation is documented warm-up behaviour, not a
     # failure (API_GATEWAY_CUSTOM_DOMAIN_RECOVERY.md). The authoritative signal
@@ -234,21 +249,35 @@ while ((Get-Date) -lt $deadline) {
         Start-Sleep -Seconds $ReplicaPollSeconds
         continue
     }
+    # Decode first, THEN wrap. @($raw | ConvertFrom-Json) does not do this:
+    # ConvertFrom-Json emits a JSON array as a single Object[], so @(...) wraps
+    # it again and element 0 is the whole array. An empty list then threw on
+    # .name under StrictMode and aborted the wait on its first poll -- which is
+    # the normal state in the seconds after a wake.
     $parsed = @()
-    if ($raw) { try { $parsed = @($raw | ConvertFrom-Json) } catch { $parsed = @() } }
-    foreach ($candidate in $parsed) {
-        if (-not $candidate.name) { continue }
+    if ($raw) {
+        try { $decoded = $raw | ConvertFrom-Json; $parsed = @($decoded) } catch { $parsed = @() }
+    }
+    # Only the FIRST listed replica matters: the verifier execs into
+    # replicas[0] (verify_demo_reset_azure.py), so readiness of any other
+    # replica is irrelevant to whether its exec will succeed.
+    foreach ($candidate in @($parsed | Select-Object -First 1)) {
+        $name = $null
+        try { $name = $candidate.name } catch { $name = $null }
+        if (-not $name) { continue }
         # A listed replica is not necessarily a usable one: the verifier's exec
         # has no readiness gate, so require Running here rather than accepting
         # the first name that appears.
-        # Read the state directly. Do NOT guard with
-        # $candidate.PSObject.Properties.Name -contains 'properties': that does
-        # not member-enumerate in Windows PowerShell 5.1, silently returns
-        # False, and leaves $state null -- which this gate reads as "ready".
         $state = $null
         try { $state = $candidate.properties.runningState } catch { $state = $null }
-        if (-not $state -or $state -eq 'Running') { $replica = $candidate.name; break }
-        $sawNotReady = $true
+        if ($state -and $state -ne 'Running') { $sawNotReady = $true; continue }
+        # A replica with no reported state is accepted deliberately: the
+        # verifier's exec will attempt it regardless, and refusing here would
+        # spend the wake on a field the API may simply not populate yet. A
+        # reported state that is not Running is refused.
+        if (-not $state) { Write-Step '  (replica reports no runningState; accepting)' }
+        $replica = $name
+        break
     }
     if ($replica) { break }
     Start-Sleep -Seconds $ReplicaPollSeconds

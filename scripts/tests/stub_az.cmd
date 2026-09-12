@@ -28,6 +28,9 @@ exit /b %ERRORLEVEL%
 :main
 if defined STUB_CAPTURE >>"%STUB_CAPTURE%" echo az %*
 
+rem STUB_POLL_EXIT fails only the replica-list poll, so the pre-wake checks
+rem still pass and the poll-error branch can actually be exercised.
+if defined STUB_POLL_EXIT echo %*| findstr /C:"replica list" >nul && exit /b %STUB_POLL_EXIT%
 if defined STUB_AZ_EXIT if not "%STUB_AZ_EXIT%"=="0" exit /b %STUB_AZ_EXIT%
 
 echo %*| findstr /C:"account show" >nul && (
@@ -48,6 +51,11 @@ echo %*| findstr /C:"containers[0].image" >nul && (
 echo %*| findstr /C:"log-analytics workspace show" >nul && (echo 83a9c3a2-0000-0000-0000-000000000000& exit /b 0)
 echo %*| findstr /C:"replica list" >nul && (
   if "%STUB_REPLICA%"=="none" (echo []& exit /b 0)
+  rem Two replicas, the FIRST ready. Correct code takes replicas[0] and accepts;
+  rem code that double-wraps the decoded array evaluates both at once and sees a
+  rem NotRunning among them, so it refuses. That divergence is the only way to
+  rem tell the two implementations apart from the outside.
+  if "%STUB_REPLICA%"=="multi" (echo [{"name":"rep-a","properties":{"runningState":"Running"}},{"name":"rep-b","properties":{"runningState":"NotRunning"}}]& exit /b 0)
   if "%STUB_REPLICA_STATE%"=="" (
     echo [{"name":"api-gateway--0000081-stubreplica","properties":{"runningState":"Running"}}]
   ) else (

@@ -135,19 +135,48 @@ Check 'the subscription id is not printed in output' {
     if ($r.Output -match 'ee625b3f') { throw 'subscription id was printed' }
 }
 
-Write-Host 'Wake returns 503 but a replica appears (documented warm-up)'
+Write-Host 'Wake returns 503'
 $e = $good.Clone(); $e['STUB_WAKE_STATUS'] = '503'
 $r = Invoke-Wrapper -Env $e
-Check 'proceeds to the verifier and exits 0' { if ($r.Exit -ne 0) { throw "exit $($r.Exit); output: $($r.Output)" } }
+Check 'stops, as the packet requires, and does not run the verifier' {
+    if ($r.Exit -ne 3) { throw "exit $($r.Exit); output: $($r.Output)" }
+    if ($r.Capture -match '(?m)^python .*--mode ') { throw 'verifier ran after a non-200 wake' }
+}
 Check 'still only one wake request' {
     $n = ([regex]::Matches($r.Capture, '(?m)^curl ')).Count
     if ($n -ne 1) { throw "wake issued $n times" }
+}
+Check 'names the owner opt-in rather than deciding for them' {
+    if ($r.Output -notmatch 'ProceedOnNon200') { throw "did not name the opt-in:`n$($r.Output)" }
+}
+
+Write-Host 'Wake returns 503 with the owner opt-in'
+$e = $good.Clone(); $e['STUB_WAKE_STATUS'] = '503'
+$r = Invoke-Wrapper -Env $e -Extra @('-ProceedOnNon200')
+Check 'proceeds to the verifier and exits 0' { if ($r.Exit -ne 0) { throw "exit $($r.Exit); output: $($r.Output)" } }
+
+Write-Host 'Wake transport failure after delivery'
+$e = $good.Clone(); $e['STUB_CURL_EXIT'] = '52'
+$r = Invoke-Wrapper -Env $e
+Check 'does not claim the wake was unconsumed' {
+    if ($r.Output -match 'probably NOT consumed') { throw 'claimed unconsumed for a post-delivery curl exit' }
+    if ($r.Output -notmatch 'may be consumed') { throw "did not flag possible consumption:`n$($r.Output)" }
 }
 
 Write-Host 'No replica appears'
 $e = $good.Clone(); $e['STUB_REPLICA'] = 'none'
 $r = Invoke-Wrapper -Env $e
 Check 'exits 3 (wake consumed)' { if ($r.Exit -ne 3) { throw "exit $($r.Exit); output: $($r.Output)" } }
+Check 'reaches exit 3 by the intended path, not by crashing into the trap' {
+    # An empty replica list used to throw on .name and hit the trap, which also
+    # exits 3 -- so exit code alone cannot tell a wait from a crash.
+    if ($r.Output -match 'FAIL \(unhandled\)') { throw "crashed into the trap:`n$($r.Output)" }
+    if ($r.Output -notmatch 'no ready replica appeared') { throw "did not reach the wait's own failure message:`n$($r.Output)" }
+}
+Check 'actually polls more than once before giving up' {
+    $n = ([regex]::Matches($r.Capture, 'replica list')).Count
+    if ($n -lt 2) { throw "polled $n time(s); the wait did not run" }
+}
 Check 'does not run the verifier' {
     # the pre-wake '--help' probe is also a python line; only --mode is a real run
     if ($r.Capture -match '(?m)^python .*--mode ') { throw 'verifier ran without a replica' }
@@ -155,6 +184,17 @@ Check 'does not run the verifier' {
 Check 'does not re-issue the wake' {
     $n = ([regex]::Matches($r.Capture, '(?m)^curl ')).Count
     if ($n -ne 1) { throw "wake issued $n times" }
+}
+
+Write-Host 'Two replicas, the first one ready'
+$e = $good.Clone(); $e['STUB_REPLICA'] = 'multi'
+$r = Invoke-Wrapper -Env $e
+Check 'accepts on the first listed replica, as the verifier execs replicas[0]' {
+    # This is the discriminating test for the ConvertFrom-Json wrapping bug.
+    # Correct code sees [rep-a, rep-b], takes rep-a (Running), and proceeds.
+    # Code that double-wraps sees one element containing both, evaluates their
+    # states together, finds a NotRunning among them, and refuses -- exit 3.
+    if ($r.Exit -ne 0) { throw "exit $($r.Exit) - the decoded list is probably being double-wrapped; output: $($r.Output)" }
 }
 
 Write-Host 'Replica is listed but not Running'
@@ -165,14 +205,16 @@ Check 'exits 3 rather than running the verifier at a not-ready replica' {
     if ($r.Capture -match '(?m)^python .*--mode ') { throw 'verifier ran against a not-ready replica' }
 }
 
-Write-Host 'az fails during the replica poll'
-$e = $good.Clone(); $e['STUB_REPLICA'] = 'none'; $e['STUB_AZ_EXIT'] = '0'
+Write-Host 'az actually fails during the replica poll'
+$e = $good.Clone(); $e['STUB_POLL_EXIT'] = '1'
 $r = Invoke-Wrapper -Env $e
-Check 'exit 3 message distinguishes scale-to-zero from a tooling fault' {
-    if ($r.Exit -ne 3) { throw "exit $($r.Exit)" }
+Check 'exits 3 and names the tooling fault rather than blaming scale-to-zero' {
+    if ($r.Exit -ne 3) { throw "exit $($r.Exit); output: $($r.Output)" }
+    if ($r.Output -notmatch 'failed to reach Azure') { throw "poll errors not reported:`n$($r.Output)" }
+    if ($r.Output -match 'FAIL \(unhandled\)') { throw 'crashed instead of reporting' }
 }
 
-Write-Host 'Wake transport failure'
+Write-Host 'Wake transport failure before delivery (DNS)'
 $e = $good.Clone(); $e['STUB_CURL_EXIT'] = '6'
 $r = Invoke-Wrapper -Env $e
 Check 'reports the wake as probably NOT consumed' {
