@@ -23,7 +23,10 @@
     Deliberately NOT supported, and refused rather than ignored:
       * execute mode          -- the mode is fixed to 'preflight'
       * --threshold-override  -- never passed; it forecloses GO and creates a revision
-      * credentials           -- none are read, stored, or written by this script
+      * credentials           -- never passed to any child process. The two
+                                 TASK8_9_* values ARE read and cleared for the
+                                 duration, then restored in the finally; they
+                                 are never logged, written to disk, or sent on
       * wake retries          -- exactly one HTTP request is ever issued
 
     Exit codes:
@@ -268,7 +271,10 @@ if ($SkipWake) {
         ($PythonCommand -eq 'python')
     )
     if ($defaults -contains $true) {
-        Fail '-SkipWake is for the offline tests. It refuses to run against real commands, because it would bypass the non-200 stop the packet requires. Override every one of -AzCommand, -DockerCommand, -CurlCommand and -PythonCommand to use it.' 2
+        # This checks the four LITERAL defaults and nothing more: a full path
+        # to a real tool, or 'curl' rather than 'curl.exe', passes it. It is a
+        # guard against the accidental case, not a sandbox.
+        Fail '-SkipWake is for the offline tests. Every one of -AzCommand, -DockerCommand, -CurlCommand and -PythonCommand must be overridden away from its default, because skipping the wake also skips the non-200 stop the packet requires. This check compares the literal defaults only and cannot tell a stub from a real tool.' 2
     }
     Write-Step 'SkipWake set: not issuing a wake request'
     Write-Host 'WARNING: -SkipWake bypasses the wake and its non-200 stop. If a wake was issued by hand and did not return 200, stop now: continuing is a fresh owner decision.' -ForegroundColor Yellow

@@ -41,10 +41,15 @@ function Invoke-Wrapper {
             '-DockerCommand', (Join-Path $stubs 'stub_docker.cmd'),
             '-CurlCommand', (Join-Path $stubs 'stub_curl.cmd'),
             '-PythonCommand', $(if ($PythonCommand) { $PythonCommand } else { Join-Path $stubs 'stub_python.cmd' }),
-            '-EvidenceOutput', $evidence,
-            '-ReplicaWaitSeconds', "$WaitSeconds",
-            '-ReplicaPollSeconds', '1'
-        ) + $Extra
+            '-EvidenceOutput', $evidence
+        )
+        # Defaults are omitted when -Extra supplies them, so a test can drive a
+        # parameter to a value the helper would otherwise fix. Passing the same
+        # parameter twice is a binding error, which would surface as exit 1 and
+        # look like a wrapper fault rather than a harness one.
+        if ($Extra -notcontains '-ReplicaWaitSeconds') { $argv += @('-ReplicaWaitSeconds', "$WaitSeconds") }
+        if ($Extra -notcontains '-ReplicaPollSeconds') { $argv += @('-ReplicaPollSeconds', '1') }
+        $argv += $Extra
         $out = & powershell @argv 2>&1 | Out-String
         $code = $LASTEXITCODE
         $cap = if (Test-Path $capture) { Get-Content $capture -Raw } else { '' }
@@ -185,6 +190,42 @@ Check 'still only one wake request' {
 Check 'offers no override -- continuing is a fresh owner decision' {
     if ($r.Output -notmatch 'no override') { throw "did not state that there is no override:`n$($r.Output)" }
 }
+# --- Only an exact 200 may reach the verifier --------------------------------
+# One 503 case is not a pin. Review demonstrated bypasses that keep the suite
+# fully green while a non-200 proceeds: widening the comparison
+# (-notin @('200','502')), pattern-matching the status (-like '5*'), or gating
+# on something other than a declared parameter. Those all survive a test that
+# only ever sends 503. This sweeps the classes and asserts the same three
+# things for each: exit 3, no verifier, exactly one wake.
+$nonOk = @(
+    @{ Name = '000 (curl transport sentinel)'; Env = @{ STUB_WAKE_STATUS = '000' } },
+    @{ Name = 'empty status';                  Env = @{ STUB_CURL_EMPTY = '1' } },
+    @{ Name = '100 informational';             Env = @{ STUB_WAKE_STATUS = '100' } },
+    @{ Name = '201 non-200 success';           Env = @{ STUB_WAKE_STATUS = '201' } },
+    @{ Name = '204 non-200 success';           Env = @{ STUB_WAKE_STATUS = '204' } },
+    @{ Name = '301 redirect';                  Env = @{ STUB_WAKE_STATUS = '301' } },
+    @{ Name = '302 redirect';                  Env = @{ STUB_WAKE_STATUS = '302' } },
+    @{ Name = '400 bad request';               Env = @{ STUB_WAKE_STATUS = '400' } },
+    @{ Name = '404 not found';                 Env = @{ STUB_WAKE_STATUS = '404' } },
+    @{ Name = '429 throttled';                 Env = @{ STUB_WAKE_STATUS = '429' } },
+    @{ Name = '500 server error';              Env = @{ STUB_WAKE_STATUS = '500' } },
+    @{ Name = '502 bad gateway';               Env = @{ STUB_WAKE_STATUS = '502' } },
+    @{ Name = '503 unavailable';               Env = @{ STUB_WAKE_STATUS = '503' } },
+    @{ Name = '504 gateway timeout';           Env = @{ STUB_WAKE_STATUS = '504' } }
+)
+Write-Host 'Only an exact 200 may reach the verifier'
+foreach ($case in $nonOk) {
+    $e = $good.Clone()
+    foreach ($k in $case.Env.Keys) { $e[$k] = $case.Env[$k] }
+    $r = Invoke-Wrapper -Env $e
+    Check "$($case.Name) => exit 3, no verifier, exactly one wake" {
+        if ($r.Exit -ne 3) { throw "exit $($r.Exit) (expected 3); output: $($r.Output)" }
+        if ($r.Capture -match '(?m)^python .*--mode ') { throw 'the verifier ran after a non-200 wake' }
+        $n = ([regex]::Matches($r.Capture, '(?m)^curl ')).Count
+        if ($n -ne 1) { throw "wake issued $n times, expected exactly 1" }
+    }
+}
+
 Check 'every external command has its exit code classified' {
     # $ErrorActionPreference is Continue, so a failing native no longer throws.
     # Explicit $LASTEXITCODE handling is the only thing standing between a
@@ -202,6 +243,95 @@ Check 'every external command has its exit code classified' {
         }
     }
 }
+# --- The non-200 stop, pinned structurally -----------------------------------
+# The behavioural sweep above covers status VALUES. It cannot see a backdoor
+# that leaves the comparison intact and gates on something else, so this pins
+# the shape of the condition itself and forbids the channels review used to
+# smuggle one in: $args (reachable once [CmdletBinding()] is dropped),
+# dynamicparam, $PSBoundParameters, and [Environment]::GetEnvironmentVariable
+# (which the $env:* check below cannot see).
+Check 'the non-200 condition is exactly $wakeStatus -ne 200 and fails with exit 3' {
+    $errs = $null
+    $ast = [System.Management.Automation.Language.Parser]::ParseFile(
+        (Join-Path $repo 'scripts/run_task_8_9_preflight.ps1'), [ref]$null, [ref]$errs)
+    if ($errs) { throw "script does not parse: $($errs[0].Message)" }
+
+    # Filter on the CONDITION, not the extent: FindAll is recursive, so the
+    # enclosing if ($SkipWake) {...} else {...} also contains this text.
+    $ifs = @($ast.FindAll({ param($n) $n -is [System.Management.Automation.Language.IfStatementAst] }, $true) |
+        Where-Object { $_.Clauses[0].Item1.Extent.Text -match '\$wakeStatus' })
+
+    # Pin the whole set, so a third condition on $wakeStatus cannot be added.
+    $conds = @($ifs | ForEach-Object { $_.Clauses[0].Item1.Extent.Text.Trim() } | Sort-Object)
+    $expected = @("-not `$wakeStatus", "`$wakeStatus -ne '200'") | Sort-Object
+    if (($conds -join ' | ') -ne ($expected -join ' | ')) {
+        throw "conditions on `$wakeStatus are:`n  $($conds -join "`n  ")`nexpected exactly:`n  $($expected -join "`n  ")"
+    }
+
+    # Index to a scalar deliberately: Where-Object returns a collection, and
+    # -match/-notmatch against a collection FILTER rather than test, so a
+    # regex assertion here would silently invert. This is the same
+    # operator-family trap the wrapper documents at its digest guards.
+    #
+    # The Fail call is then checked through the AST rather than by regex. An
+    # earlier version used a word-boundary escape, and it collapsed to a
+    # literal backspace somewhere in the tooling that wrote this file, so the
+    # pattern matched nothing and the assertion failed for a reason that had
+    # nothing to do with the script under test.
+    $failExit = {
+        param($clauseBody, $what)
+        $calls = @($clauseBody.FindAll({
+            param($n)
+            $n -is [System.Management.Automation.Language.CommandAst] -and
+            $n.GetCommandName() -eq 'Fail'
+        }, $true))
+        if ($calls.Count -ne 1) { throw "$what : expected exactly one Fail call, found $($calls.Count)" }
+        $args = @($calls[0].CommandElements)
+        $last = $args[$args.Count - 1].Extent.Text
+        if ($last -ne '3') { throw "$what : Fail exits with '$last', expected 3 (the wake was issued)" }
+    }
+
+    $stop = @($ifs | Where-Object { $_.Clauses[0].Item1.Extent.Text.Trim() -eq "`$wakeStatus -ne '200'" })[0]
+    & $failExit $stop.Clauses[0].Item2 'non-200 branch'
+
+    $empty = @($ifs | Where-Object { $_.Clauses[0].Item1.Extent.Text.Trim() -eq "-not `$wakeStatus" })[0]
+    & $failExit $empty.Clauses[0].Item2 'empty-status branch'
+}
+
+Check 'the script forbids the backdoor channels a parameter pin cannot see' {
+    $errs = $null
+    $ast = [System.Management.Automation.Language.Parser]::ParseFile(
+        (Join-Path $repo 'scripts/run_task_8_9_preflight.ps1'), [ref]$null, [ref]$errs)
+    if ($errs) { throw "script does not parse: $($errs[0].Message)" }
+
+    # [CmdletBinding()] is what makes an unknown -Flag a binding error rather
+    # than something readable from $args.
+    $attrs = @($ast.ParamBlock.Attributes | ForEach-Object { $_.TypeName.Name })
+    if ($attrs -notcontains 'CmdletBinding') {
+        throw "[CmdletBinding()] is absent, so unknown parameters would land in `$args instead of being rejected"
+    }
+    if ($ast.FindAll({ param($n) $n -is [System.Management.Automation.Language.DynamicKeywordStatementAst] }, $true).Count) {
+        throw 'dynamicparam block present'
+    }
+    if ($ast.Extent.Text -match '(?m)^\s*dynamicparam') { throw 'dynamicparam block present' }
+
+    $banned = @{
+        'args'             = '$args -- an undeclared-parameter channel'
+        'PSBoundParameters' = '$PSBoundParameters -- an undeclared-parameter channel'
+    }
+    foreach ($v in $ast.FindAll({ param($n) $n -is [System.Management.Automation.Language.VariableExpressionAst] }, $true)) {
+        $name = $v.VariablePath.UserPath
+        if ($banned.ContainsKey($name)) { throw "forbidden variable use: $($banned[$name])" }
+    }
+    # $env:* is pinned below, but GetEnvironmentVariable() reads the same values
+    # without ever producing an $env: variable node.
+    foreach ($m in $ast.FindAll({ param($n) $n -is [System.Management.Automation.Language.InvokeMemberExpressionAst] }, $true)) {
+        if ("$($m.Member.Extent.Text)" -match 'GetEnvironmentVariable') {
+            throw "forbidden call: $($m.Extent.Text) -- reads the environment without an `$env: node"
+        }
+    }
+}
+
 Check 'the script exposes exactly the pinned parameter surface and reads only the two task credentials' {
     # Asserting a single banned name would miss -ContinueOnNon200, -Force, or an
     # env-var backdoor. Parse the script instead and pin the whole surface.
@@ -562,6 +692,39 @@ $r = Invoke-Wrapper -Env $e
 Check 'wake with no status code => exit 3, no verifier' {
     if ($r.Exit -ne 3) { throw "exit $($r.Exit) (expected 3); output: $($r.Output)" }
     if ($r.Capture -match '(?m)^python .*--mode ') { throw 'the verifier ran on an unverified wake status' }
+}
+
+# --- the trap, and what it tells the operator about the wake -----------------
+# These two messages decide whether an operator believes their single
+# authorized wake was spent. Both were previously untested: deleting the trap,
+# or the $script:WakeIssued assignment, left the suite fully green while the
+# run reported the opposite of the truth about consumption.
+Write-Host 'An unhandled error reports wake consumption correctly'
+
+# Pre-wake: a provenance file that exists but is not JSON throws inside
+# ConvertFrom-Json, which reaches the trap before any wake.
+$e = $good.Clone()
+$r = Invoke-Wrapper -Env $e -Extra @('-ProvenancePath', (Join-Path $stubs 'stub_az.cmd'))
+Check 'an unhandled PRE-wake error exits 2 and states nothing was consumed' {
+    if ($r.Exit -ne 2) { throw "exit $($r.Exit) (expected 2); output: $($r.Output)" }
+    if ($r.Output -notmatch 'No wake had been issued') {
+        throw "did not state that nothing was consumed:`n$($r.Output)"
+    }
+    if ($r.Capture -match '(?m)^curl ') { throw 'a wake was issued before the failure' }
+}
+
+# Post-wake: a negative poll interval makes Start-Sleep throw on the first
+# not-ready poll, which reaches the trap after the wake has been issued.
+$e = $good.Clone(); $e['STUB_REPLICA'] = 'none'
+$r = Invoke-Wrapper -Env $e -Extra @('-ReplicaPollSeconds', '-1')
+Check 'an unhandled POST-wake error exits 3 and states the wake was consumed' {
+    if ($r.Exit -ne 3) { throw "exit $($r.Exit) (expected 3); output: $($r.Output)" }
+    if ($r.Output -notmatch 'THE WAKE WAS ISSUED') {
+        throw "did not state that the wake was consumed:`n$($r.Output)"
+    }
+    $n = ([regex]::Matches($r.Capture, '(?m)^curl ')).Count
+    if ($n -ne 1) { throw "wake issued $n times" }
+    if ($r.Capture -match '(?m)^python .*--mode ') { throw 'the verifier ran after an unhandled error' }
 }
 
 Write-Host 'Post-wake child failures stop before the next phase'
