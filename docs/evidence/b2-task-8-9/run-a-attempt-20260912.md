@@ -8,6 +8,11 @@ indistinguishable from the committed 2026-09-11 record except for a single confi
 
 **Task 8.9 remains OPEN.** Nothing here is progress toward a GO.
 
+**†** marks a claim **no committed artifact can corroborate** — whether it was reported by the
+operator, by the assisting agent, or spoken in the operating session. It is testimony, not capture.
+The marker is used throughout this document, in the prose as well as in the table.
+
+
 ## Authorization
 
 One bounded wake and one bounded preflight, owner-authorized 2026-09-12 **†** — the quoted wording
@@ -21,10 +26,6 @@ baseline checkout `2fee0202` **†**. (That baseline has no bearing on the verif
 `git diff 2fee0202 02b944d6 -- scripts/verify_demo_reset_azure.py` is empty.)
 
 ## What happened
-
-**†** marks a claim **no committed artifact can corroborate** — whether it was reported by the
-operator, by the assisting agent, or spoken in the operating session. It is testimony, not capture.
-The marker is used in the prose below as well as in this table.
 
 | | |
 |---|---|
@@ -58,7 +59,7 @@ drawn from the operating session, not from any artifact — on the reasoning tha
 a named replica had been observed and therefore the wake had worked. That premise is itself
 operator-reported and uncaptured (see **†** above).
 
-Part of that reasoning was wrong and should not be relied on again. It cited
+Part of that reasoning was wrong and should not be relied on again. It cited **†**
 [`API_GATEWAY_CUSTOM_DOMAIN_RECOVERY.md`](../../runbooks/API_GATEWAY_CUSTOM_DOMAIN_RECOVERY.md)
 item 5 — "timeout/`503`/`000` during warm-up alone is not a binding failure" — as licence to
 proceed. "Binding" there refers to the custom-domain *binding*, not to whether the result binds the
@@ -68,13 +69,14 @@ non-200 resetting the count. The runbook does not proceed on a 503 either. So th
 continuing after a non-200 wake.
 
 It is recorded as a deviation regardless. One consequence matters for reading the JSON: with a 503
-rather than a 200 there is no clean "started within ~2 minutes of the 200" anchor, so
+rather than a 200 there is no clean "Start the verifier within ~2 minutes of that 200" anchor, so
 *"the cool-down elapsed"* is an **inference** from the failure mode, not something the evidence
 demonstrates.
 
 ## No ACR cleanup is owed
 
-Re-derivable from the recorded operation list, and independently re-derived during review. The run stopped at operation
+Re-derivable from the recorded operation list — that is the load-bearing part, and anyone can
+check it. It was also re-derived during independent review **†**. The run stopped at operation
 6 (`replica list`), and `_preflight` reaches `az acr login` and the two `docker pull`s only *after*
 that point. The `operations` array contains six entries, all `kind: azure_cli`; there is no
 `local_cli` entry (how `docker` would be recorded), no `acr` argv, no `exec`, no `log-analytics
