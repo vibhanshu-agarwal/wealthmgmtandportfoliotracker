@@ -1,4 +1,5 @@
 @echo off
+setlocal enabledelayedexpansion
 rem Offline stub for the `az` CLI. Contacts nothing.
 rem
 rem It is a .cmd, and specifically one that expands %* INSIDE a parenthesised
@@ -50,21 +51,33 @@ echo %*| findstr /C:"containers[0].image" >nul && (
 )
 echo %*| findstr /C:"log-analytics workspace show" >nul && (echo 83a9c3a2-0000-0000-0000-000000000000& exit /b 0)
 echo %*| findstr /C:"replica list" >nul && (
+  rem Payloads use the shape the CLI actually returns, taken from the one real
+  rem replica record committed in this repo
+  rem (docs/evidence/b1-task-6-6/g2b-serving-proof-20260903.json):
+  rem   {"name":...,"containers":[{"ready":...,"runningState":...}]}
+  rem with NO "properties" wrapper. An earlier stub invented a properties
+  rem wrapper, so the readiness gate tested green while being inert against
+  rem real output. Names are deliberately NOT in alphabetical order, so a
+  rem Sort-Object-based selection diverges from first-listed.
   if "%STUB_REPLICA%"=="none" (echo []& exit /b 0)
-  rem Two replicas, the FIRST ready. Correct code takes replicas[0] and accepts;
-  rem code that double-wraps the decoded array evaluates both at once and sees a
-  rem NotRunning among them, so it refuses. That divergence is the only way to
-  rem tell the two implementations apart from the outside.
-  if "%STUB_REPLICA%"=="multi" (echo [{"name":"rep-a","properties":{"runningState":"Running"}},{"name":"rep-b","properties":{"runningState":"NotRunning"}}]& exit /b 0)
-  rem The mirror image: the FIRST replica is not ready. Correct code refuses,
-  rem because the verifier execs replicas[0]. Any-of-many selection accepts.
-  if "%STUB_REPLICA%"=="multi-reversed" (echo [{"name":"rep-a","properties":{"runningState":"NotRunning"}},{"name":"rep-b","properties":{"runningState":"Running"}}]& exit /b 0)
-  rem A replica the API has not given a runningState. Accepted deliberately.
+  if "%STUB_REPLICA%"=="multi" (echo [{"name":"zeta-9f2","containers":[{"ready":true,"runningState":"Running"}]},{"name":"alpha-3c1","containers":[{"ready":false,"runningState":"NotRunning"}]}]& exit /b 0)
+  if "%STUB_REPLICA%"=="multi-reversed" (echo [{"name":"zeta-9f2","containers":[{"ready":false,"runningState":"NotRunning"}]},{"name":"alpha-3c1","containers":[{"ready":true,"runningState":"Running"}]}]& exit /b 0)
   if "%STUB_REPLICA%"=="stateless" (echo [{"name":"rep-nostate"}]& exit /b 0)
+  if "%STUB_REPLICA%"=="armshape" (echo [{"name":"rep-arm","properties":{"runningState":"NotRunning"}}]& exit /b 0)
+  if "%STUB_REPLICA%"=="ripening" (
+    rem Stateful across polls: [] then NotRunning then Running. Without this,
+    rem any mutation that gives up after the first poll passes unnoticed.
+    if not defined STUB_STATE_FILE (echo []& exit /b 0)
+    if not exist "%STUB_STATE_FILE%" (>"%STUB_STATE_FILE%" echo 1& echo []& exit /b 0)
+    set /p _n=<"%STUB_STATE_FILE%"
+    if "!_n!"=="1" (>"%STUB_STATE_FILE%" echo 2& echo [{"name":"zeta-9f2","containers":[{"ready":false,"runningState":"NotRunning"}]}]& exit /b 0)
+    echo [{"name":"zeta-9f2","containers":[{"ready":true,"runningState":"Running"}]}]
+    exit /b 0
+  )
   if "%STUB_REPLICA_STATE%"=="" (
-    echo [{"name":"api-gateway--0000081-stubreplica","properties":{"runningState":"Running"}}]
+    echo [{"name":"zeta-9f2","containers":[{"ready":true,"runningState":"Running"}]}]
   ) else (
-    echo [{"name":"api-gateway--0000081-stubreplica","properties":{"runningState":"%STUB_REPLICA_STATE%"}}]
+    echo [{"name":"zeta-9f2","containers":[{"ready":false,"runningState":"%STUB_REPLICA_STATE%"}]}]
   )
   exit /b 0
 )

@@ -38,8 +38,11 @@
       4  the verifier ran and did not pass (wake consumed)
 
 .PARAMETER SkipWake
-    Runs the sequence without issuing the wake. For testing against stubs, and
-    for the case where a replica is already known to be up.
+    Runs the sequence without issuing the wake. Intended for the offline tests.
+    It is NOT a way to continue past a non-200: waking by hand, seeing a non-200
+    and then running with -SkipWake evades the stop this script exists to
+    enforce, and the script cannot detect that. Using it against production is an
+    owner decision.
 
 .PARAMETER AzCommand
 .PARAMETER CurlCommand
@@ -189,6 +192,14 @@ $wsId = & $AzCommand monitor log-analytics workspace show --workspace-name $Work
 if ($LASTEXITCODE -ne 0 -or -not $wsId) { Fail 'could not read the Log Analytics workspace; the verifier would fail post-wake' 2 }
 Write-Step '  workspace readable'
 
+# Scrub the task credentials BEFORE the first child process. The --help probe
+# below is also a python child, and it inherited them until this moved up.
+$savedToken = $env:TASK8_9_ACCESS_TOKEN
+$savedPassword = $env:TASK8_9_DEMO_PASSWORD
+$env:TASK8_9_ACCESS_TOKEN = $null
+$env:TASK8_9_DEMO_PASSWORD = $null
+try {
+
 Write-Step 'Checking the verifier can start'
 & $PythonCommand $VerifierPath --help > $null
 if ($LASTEXITCODE -ne 0) { Fail 'the verifier could not be started by this interpreter' 2 }
@@ -209,6 +220,7 @@ Write-Step "  $($revisions.Count) revision(s), none newer than $attestedRevision
 
 if ($SkipWake) {
     Write-Step 'SkipWake set: not issuing a wake request'
+    Write-Host 'WARNING: -SkipWake bypasses the wake and its non-200 stop. If a wake was issued by hand and did not return 200, stop now: continuing is a fresh owner decision.' -ForegroundColor Yellow
 } else {
     Write-Step "Waking: GET $GatewayUrl$WakePath (one request, no retry, no client timeout)"
     $script:WakeIssued = $true
@@ -276,14 +288,33 @@ while ((Get-Date) -lt $deadline) {
         # A listed replica is not necessarily a usable one: the verifier's exec
         # has no readiness gate, so require Running here rather than accepting
         # the first name that appears.
-        $state = $null
-        try { $state = $candidate.properties.runningState } catch { $state = $null }
-        if ($state -and $state -ne 'Running') { $sawNotReady = $true; continue }
-        # A replica with no reported state is accepted deliberately: the
-        # verifier's exec will attempt it regardless, and refusing here would
-        # spend the wake on a field the API may simply not populate yet. A
-        # reported state that is not Running is refused.
-        if (-not $state) { Write-Step '  (replica reports no runningState; accepting)' }
+        # Readiness, read from the shape the CLI actually returns.
+        #
+        # The only real replica record committed in this repo
+        # (docs/evidence/b1-task-6-6/g2b-serving-proof-20260903.json) is
+        #   { "name": ..., "containers": [ { "ready": true, "runningState": "Running", ... } ] }
+        # with NO "properties" wrapper. An earlier version of this gate read
+        # only $candidate.properties.runningState, which is null against that
+        # shape -- so it fell through to "no state, accept" every time and the
+        # gate was inert. Both shapes are read here, and a stated not-ready wins.
+        $containerReady = $null
+        $containerState = $null
+        $propState = $null
+        try { $containerReady = $candidate.containers[0].ready } catch { $containerReady = $null }
+        try { $containerState = $candidate.containers[0].runningState } catch { $containerState = $null }
+        try { $propState = $candidate.properties.runningState } catch { $propState = $null }
+
+        if ($containerReady -eq $false) { $sawNotReady = $true; continue }
+        if ($containerState -and $containerState -ne 'Running') { $sawNotReady = $true; continue }
+        if ($propState -and $propState -ne 'Running') { $sawNotReady = $true; continue }
+
+        if ($null -eq $containerReady -and -not $containerState -and -not $propState) {
+            # No readiness information of any kind. Accepted deliberately: the
+            # verifier's exec will attempt this replica regardless, and refusing
+            # on a field the API may not populate would spend the wake for
+            # nothing. Announced so it is visible in the transcript.
+            Write-Step '  (replica reports no runningState; accepting)'
+        }
         $replica = $name
         break
     }
@@ -303,16 +334,6 @@ Write-Step "  replica up: $replica"
 # Mode is fixed. --threshold-override is never passed. No credential env var is
 # set by this script, so execute mode could not run even if it were requested.
 
-# The verifier reads TASK8_9_ACCESS_TOKEN / TASK8_9_DEMO_PASSWORD from the
-# environment at parse time in every mode. They are unused in preflight, but
-# leaving them inherited makes "no credential inside the window" a property of
-# the verifier's early return rather than of this script. Clear them for the
-# child so it is true mechanically.
-$savedToken = $env:TASK8_9_ACCESS_TOKEN
-$savedPassword = $env:TASK8_9_DEMO_PASSWORD
-$env:TASK8_9_ACCESS_TOKEN = $null
-$env:TASK8_9_DEMO_PASSWORD = $null
-
 Write-Step 'Starting preflight'
 $verifierArgs = @(
     $VerifierPath,
@@ -329,9 +350,9 @@ $verifierArgs = @(
     '--evidence-output', $EvidenceOutput,
     '--operation-timeout-seconds', "$OperationTimeoutSeconds"
 )
-try {
-    & $PythonCommand @verifierArgs
-    $verifierExit = $LASTEXITCODE
+& $PythonCommand @verifierArgs
+$verifierExit = $LASTEXITCODE
+
 } finally {
     $env:TASK8_9_ACCESS_TOKEN = $savedToken
     $env:TASK8_9_DEMO_PASSWORD = $savedPassword

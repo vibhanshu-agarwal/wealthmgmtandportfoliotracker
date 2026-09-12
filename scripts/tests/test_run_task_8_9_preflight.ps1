@@ -23,11 +23,13 @@ $failures = 0
 $tests = 0
 
 function Invoke-Wrapper {
-    param([hashtable]$Env = @{}, [string[]]$Extra = @())
+    param([hashtable]$Env = @{}, [string[]]$Extra = @(), [int]$WaitSeconds = 2)
     $capture = Join-Path ([IO.Path]::GetTempPath()) "t89-capture-$([guid]::NewGuid()).txt"
     $evidence = Join-Path ([IO.Path]::GetTempPath()) "t89-evidence-$([guid]::NewGuid()).json"
     $saved = @{}
     $Env['STUB_CAPTURE'] = $capture
+    $stateFile = Join-Path ([IO.Path]::GetTempPath()) "t89-state-$([guid]::NewGuid()).txt"
+    $Env['STUB_STATE_FILE'] = $stateFile
     foreach ($k in $Env.Keys) {
         $saved[$k] = [Environment]::GetEnvironmentVariable($k)
         [Environment]::SetEnvironmentVariable($k, $Env[$k])
@@ -40,7 +42,7 @@ function Invoke-Wrapper {
             '-CurlCommand', (Join-Path $stubs 'stub_curl.cmd'),
             '-PythonCommand', (Join-Path $stubs 'stub_python.cmd'),
             '-EvidenceOutput', $evidence,
-            '-ReplicaWaitSeconds', '2',
+            '-ReplicaWaitSeconds', "$WaitSeconds",
             '-ReplicaPollSeconds', '1'
         ) + $Extra
         $out = & powershell @argv 2>&1 | Out-String
@@ -49,7 +51,7 @@ function Invoke-Wrapper {
         return [pscustomobject]@{ Exit = $code; Capture = $cap; Output = ($out -join "`n") }
     } finally {
         foreach ($k in $saved.Keys) { [Environment]::SetEnvironmentVariable($k, $saved[$k]) }
-        Remove-Item $capture, $evidence -ErrorAction SilentlyContinue
+        Remove-Item $capture, $evidence, $stateFile -ErrorAction SilentlyContinue
     }
 }
 
@@ -124,16 +126,26 @@ Check 'verifier never receives --threshold-override' {
 Check 'verifier never receives execute' {
     if ($r.Capture -match '--mode execute') { throw 'execute was requested' }
 }
-Check 'no credential env var is passed to the verifier' {
-    if ($r.Capture -match 'TASK8_9_ACCESS_TOKEN|TASK8_9_DEMO_PASSWORD') { throw 'credential name leaked into argv' }
+Check 'no credential env var is passed to the verifier on the command line' {
+    $argvLines = [regex]::Matches($r.Capture, '(?m)^python (?!-env).*$')
+    foreach ($m in $argvLines) {
+        if ($m.Value -match 'TASK8_9_ACCESS_TOKEN|TASK8_9_DEMO_PASSWORD') { throw "credential name in argv: $($m.Value)" }
+    }
 }
-Check 'task credentials are scrubbed from the child environment' {
+Check 'task credentials are scrubbed from every child process environment' {
     $e2 = $good.Clone()
     $e2['TASK8_9_ACCESS_TOKEN'] = 'sentinel-token-value'
     $e2['TASK8_9_DEMO_PASSWORD'] = 'sentinel-password-value'
     $r2 = Invoke-Wrapper -Env $e2
     if ($r2.Exit -ne 0) { throw "exit $($r2.Exit)" }
-    if ($r2.Capture -match 'sentinel-') { throw 'a credential value reached the child process argv' }
+    # The stub reports its inherited environment, so this fails if the scrub is
+    # removed. Asserting only that the sentinel is absent from argv would pass
+    # either way, which is what the previous version of this test did.
+    $envLines = [regex]::Matches($r2.Capture, '(?m)^python-env .*$')
+    if ($envLines.Count -lt 2) { throw "expected both the --help probe and the run to report their env; got $($envLines.Count)" }
+    foreach ($m in $envLines) {
+        if ($m.Value -match 'sentinel-') { throw "a credential value reached a child process: $($m.Value)" }
+    }
 }
 Check 'the wake is issued exactly once' {
     $n = ([regex]::Matches($r.Capture, '(?m)^curl ')).Count
@@ -157,9 +169,27 @@ Check 'still only one wake request' {
 Check 'offers no override -- continuing is a fresh owner decision' {
     if ($r.Output -notmatch 'no override') { throw "did not state that there is no override:`n$($r.Output)" }
 }
-Check 'the script exposes no flag to proceed on a non-200' {
-    $src = Get-Content (Join-Path $repo 'scripts/run_task_8_9_preflight.ps1') -Raw
-    if ($src -match 'ProceedOnNon200') { throw 'an override switch is still present' }
+Check 'the script exposes exactly one switch and reads only the two task credentials' {
+    # Asserting a single banned name would miss -ContinueOnNon200, -Force, or an
+    # env-var backdoor. Parse the script instead and pin the whole surface.
+    $errs = $null
+    $ast = [System.Management.Automation.Language.Parser]::ParseFile(
+        (Join-Path $repo 'scripts/run_task_8_9_preflight.ps1'), [ref]$null, [ref]$errs)
+    if ($errs) { throw "script does not parse: $($errs[0].Message)" }
+    $switches = $ast.ParamBlock.Parameters |
+        Where-Object { $_.StaticType -eq [switch] } |
+        ForEach-Object { $_.Name.VariablePath.UserPath } | Sort-Object
+    if (($switches -join ',') -ne 'SkipWake') { throw "switch surface is '$($switches -join ",")', expected only SkipWake" }
+    $envReads = $ast.FindAll({
+        param($n)
+        $n -is [System.Management.Automation.Language.VariableExpressionAst] -and
+        $n.VariablePath.UserPath -like 'env:*'
+    }, $true) | ForEach-Object { $_.VariablePath.UserPath } | Sort-Object -Unique
+    foreach ($e in $envReads) {
+        if ($e -notin @('env:TASK8_9_ACCESS_TOKEN','env:TASK8_9_DEMO_PASSWORD')) {
+            throw "unexpected environment read: $e"
+        }
+    }
 }
 
 Write-Host 'Wake transport failure after delivery'
@@ -199,11 +229,39 @@ Write-Host 'Two replicas, the first one ready'
 $e = $good.Clone(); $e['STUB_REPLICA'] = 'multi'
 $r = Invoke-Wrapper -Env $e
 Check 'accepts on the first listed replica, as the verifier execs replicas[0]' {
-    # This is the discriminating test for the ConvertFrom-Json wrapping bug.
-    # Correct code sees [rep-a, rep-b], takes rep-a (Running), and proceeds.
-    # Code that double-wraps sees one element containing both, evaluates their
-    # states together, finds a NotRunning among them, and refuses -- exit 3.
-    if ($r.Exit -ne 0) { throw "exit $($r.Exit) - the decoded list is probably being double-wrapped; output: $($r.Output)" }
+    if ($r.Exit -ne 0) { throw "exit $($r.Exit); output: $($r.Output)" }
+}
+Check 'selects exactly one replica name, not the whole decoded list' {
+    # THE discriminating test for the ConvertFrom-Json double-wrap. Exit code
+    # alone no longer distinguishes it: with the real container-shaped payloads,
+    # a double-wrapped element member-enumerates to the same accept/refuse
+    # answer on both multi fixtures. What it cannot fake is the identity of the
+    # chosen replica -- double-wrapping makes $replica the entire list, so the
+    # announcement carries both names.
+    $line = ([regex]::Match($r.Output, '(?m)^.*replica up:.*$')).Value
+    if (-not $line) { throw "no 'replica up:' announcement in output:`n$($r.Output)" }
+    if ($line -notmatch 'zeta-9f2') { throw "wrong replica selected: $line" }
+    if ($line -match 'alpha-3c1') { throw "selected more than one replica (decoded list is being double-wrapped): $line" }
+}
+
+Write-Host 'Replica ripens across polls: [] then NotRunning then Running'
+$e = $good.Clone(); $e['STUB_REPLICA'] = 'ripening'
+$r = Invoke-Wrapper -Env $e -WaitSeconds 20
+Check 'keeps polling until the replica is ready, rather than giving up early' {
+    # Stateless stubs cannot see this: a mutation that abandons the wait on the
+    # first empty or not-ready poll passes every other test while spending the
+    # wake for nothing against real Azure.
+    if ($r.Exit -ne 0) { throw "exit $($r.Exit); output: $($r.Output)" }
+    $n = ([regex]::Matches($r.Capture, 'replica list')).Count
+    if ($n -lt 3) { throw "polled $n time(s); expected at least 3 across the ripening sequence" }
+}
+
+Write-Host 'Replica reports only the ARM-style properties.runningState'
+$e = $good.Clone(); $e['STUB_REPLICA'] = 'armshape'
+$r = Invoke-Wrapper -Env $e
+Check 'refuses a not-Running replica in the ARM shape too' {
+    if ($r.Exit -ne 3) { throw "exit $($r.Exit); output: $($r.Output)" }
+    if ($r.Capture -match '(?m)^python .*--mode ') { throw 'verifier ran at a not-ready replica' }
 }
 
 Write-Host 'Two replicas, the first one NOT ready'
