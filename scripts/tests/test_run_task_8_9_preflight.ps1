@@ -23,7 +23,7 @@ $failures = 0
 $tests = 0
 
 function Invoke-Wrapper {
-    param([hashtable]$Env = @{}, [string[]]$Extra = @(), [int]$WaitSeconds = 2)
+    param([hashtable]$Env = @{}, [string[]]$Extra = @(), [int]$WaitSeconds = 2, [string]$PythonCommand)
     $capture = Join-Path ([IO.Path]::GetTempPath()) "t89-capture-$([guid]::NewGuid()).txt"
     $evidence = Join-Path ([IO.Path]::GetTempPath()) "t89-evidence-$([guid]::NewGuid()).json"
     $saved = @{}
@@ -40,7 +40,7 @@ function Invoke-Wrapper {
             '-AzCommand', (Join-Path $stubs 'stub_az.cmd'),
             '-DockerCommand', (Join-Path $stubs 'stub_docker.cmd'),
             '-CurlCommand', (Join-Path $stubs 'stub_curl.cmd'),
-            '-PythonCommand', (Join-Path $stubs 'stub_python.cmd'),
+            '-PythonCommand', $(if ($PythonCommand) { $PythonCommand } else { Join-Path $stubs 'stub_python.cmd' }),
             '-EvidenceOutput', $evidence,
             '-ReplicaWaitSeconds', "$WaitSeconds",
             '-ReplicaPollSeconds', '1'
@@ -141,10 +141,26 @@ Check 'task credentials are scrubbed from every child process environment' {
     # The stub reports its inherited environment, so this fails if the scrub is
     # removed. Asserting only that the sentinel is absent from argv would pass
     # either way, which is what the previous version of this test did.
-    $envLines = [regex]::Matches($r2.Capture, '(?m)^python-env .*$')
-    if ($envLines.Count -lt 2) { throw "expected both the --help probe and the run to report their env; got $($envLines.Count)" }
+    $envLines = [regex]::Matches($r2.Capture, '(?m)^\w+-env .*$')
+    $kinds = @($envLines | ForEach-Object { ($_.Value -split '-env')[0] } | Sort-Object -Unique)
+    foreach ($k in @('az','curl','docker','python')) {
+        if ($k -notin $kinds) { throw "no $k child reported its environment; the scrub is unproven for it" }
+    }
+    if ($envLines.Count -lt 10) { throw "expected every child to report its env; got $($envLines.Count)" }
     foreach ($m in $envLines) {
         if ($m.Value -match 'sentinel-') { throw "a credential value reached a child process: $($m.Value)" }
+    }
+}
+Check 'the replica-list call passes no --query, so the raw ARM shape is what the gate sees' {
+    # The production gate is only valid against raw output. `az containerapp
+    # replica list` is a passthrough, so a --query here would silently reshape
+    # what the readiness gate reads -- which is exactly how the fixtures came to
+    # be modelled on a projected record.
+    $lines = [regex]::Matches($r.Capture, '(?m)^az .*replica list.*$')
+    if ($lines.Count -lt 1) { throw 'no replica list call was captured' }
+    foreach ($m in $lines) {
+        if ($m.Value -match '--query') { throw "replica list passed --query, so the gate would see a projection: $($m.Value)" }
+        if ($m.Value -notmatch '-o json') { throw "replica list did not request json: $($m.Value)" }
     }
 }
 Check 'the wake is issued exactly once' {
@@ -168,6 +184,23 @@ Check 'still only one wake request' {
 }
 Check 'offers no override -- continuing is a fresh owner decision' {
     if ($r.Output -notmatch 'no override') { throw "did not state that there is no override:`n$($r.Output)" }
+}
+Check 'every external command has its exit code classified' {
+    # $ErrorActionPreference is Continue, so a failing native no longer throws.
+    # Explicit $LASTEXITCODE handling is the only thing standing between a
+    # failed az call and the script carrying on with an empty result.
+    $src = Get-Content (Join-Path $repo 'scripts/run_task_8_9_preflight.ps1')
+    $nativeLines = @()
+    for ($i = 0; $i -lt $src.Count; $i++) {
+        if ($src[$i] -match '&\s+\$(Az|Docker|Curl|Python)Command') { $nativeLines += $i }
+    }
+    if ($nativeLines.Count -lt 8) { throw "expected the native call sites to be found; got $($nativeLines.Count)" }
+    foreach ($n in $nativeLines) {
+        $window = ($src[$n..([Math]::Min($n + 4, $src.Count - 1))] -join "`n")
+        if ($window -notmatch 'LASTEXITCODE') {
+            throw "native call at line $($n + 1) has no exit-code check within 4 lines: $($src[$n].Trim())"
+        }
+    }
 }
 Check 'the script exposes exactly one switch and reads only the two task credentials' {
     # Asserting a single banned name would miss -ContinueOnNon200, -Force, or an
@@ -254,6 +287,29 @@ Check 'keeps polling until the replica is ready, rather than giving up early' {
     if ($r.Exit -ne 0) { throw "exit $($r.Exit); output: $($r.Output)" }
     $n = ([regex]::Matches($r.Capture, 'replica list')).Count
     if ($n -lt 3) { throw "polled $n time(s); expected at least 3 across the ripening sequence" }
+}
+
+Write-Host 'Only the container ready flag says not-ready'
+$e = $good.Clone(); $e['STUB_REPLICA'] = 'notready-only'
+$r = Invoke-Wrapper -Env $e
+Check 'refuses on containers[0].ready alone' {
+    if ($r.Exit -ne 3) { throw "exit $($r.Exit); output: $($r.Output)" }
+    if ($r.Capture -match '(?m)^python .*--mode ') { throw 'verifier ran at a not-ready container' }
+}
+
+Write-Host 'Only the container runningState says not-ready'
+$e = $good.Clone(); $e['STUB_REPLICA'] = 'badstate-only'
+$r = Invoke-Wrapper -Env $e
+Check 'refuses on containers[0].runningState alone' {
+    if ($r.Exit -ne 3) { throw "exit $($r.Exit); output: $($r.Output)" }
+    if ($r.Capture -match '(?m)^python .*--mode ') { throw 'verifier ran at a Waiting container' }
+}
+
+Write-Host 'A projected (flat) payload still works'
+$e = $good.Clone(); $e['STUB_REPLICA'] = 'flat'
+$r = Invoke-Wrapper -Env $e
+Check 'accepts a --query-projected replica record' {
+    if ($r.Exit -ne 0) { throw "exit $($r.Exit); output: $($r.Output)" }
 }
 
 Write-Host 'Replica reports only the ARM-style properties.runningState'
@@ -372,6 +428,121 @@ Check 'exits 4' { if ($r.Exit -ne 4) { throw "exit $($r.Exit); output: $($r.Outp
 Check 'does not retry the verifier' {
     $n = ([regex]::Matches($r.Capture, '(?m)^python .*--mode ')).Count
     if ($n -ne 1) { throw "verifier ran $n times" }
+}
+
+
+# --- Behavioural proof that every child's exit code is classified -----------
+# The structural scan above is only a completeness alarm: "a $LASTEXITCODE
+# within four lines" would accept a stale read, and a call-site count survives
+# deleting one child. These drive each phase to fail for real and assert both
+# the exit code AND the prohibited downstream action.
+
+$phases = @(
+    @{ Name = 'az account show (session)';      Env = @{ STUB_AZ_FAIL_MATCH = '--query name' } },
+    @{ Name = 'az account show (subscription)'; Env = @{ STUB_AZ_FAIL_MATCH = '--query id' } },
+    @{ Name = 'docker version';                 Env = @{ STUB_DOCKER_EXIT = '1' } },
+    @{ Name = 'gateway revision read';          Env = @{ STUB_AZ_FAIL_MATCH = 'latestReadyRevisionName'; STUB_AZ_FAIL_MATCH2 = 'api-gateway' } },
+    @{ Name = 'gateway image read';             Env = @{ STUB_AZ_FAIL_MATCH = 'containers[0].image'; STUB_AZ_FAIL_MATCH2 = 'api-gateway' } },
+    @{ Name = 'portfolio revision read';        Env = @{ STUB_AZ_FAIL_MATCH = 'latestReadyRevisionName'; STUB_AZ_FAIL_MATCH2 = 'portfolio-service' } },
+    @{ Name = 'portfolio image read';           Env = @{ STUB_AZ_FAIL_MATCH = 'containers[0].image'; STUB_AZ_FAIL_MATCH2 = 'portfolio-service' } },
+    @{ Name = 'log analytics workspace read';   Env = @{ STUB_AZ_FAIL_MATCH = 'log-analytics' } },
+    @{ Name = 'verifier --help probe';          Env = @{ STUB_PYTHON_HELP_EXIT = '2' } },
+    @{ Name = 'gateway revision list';          Env = @{ STUB_AZ_FAIL_MATCH = 'revision list' } }
+)
+Write-Host 'Each pre-wake child failure stops before the wake'
+foreach ($phase in $phases) {
+    $e = $good.Clone()
+    foreach ($k in $phase.Env.Keys) { $e[$k] = $phase.Env[$k] }
+    $r = Invoke-Wrapper -Env $e
+    Check "$($phase.Name) failing => exit 2, no wake, no verifier" {
+        if ($r.Exit -ne 2) { throw "exit $($r.Exit) (expected 2); output: $($r.Output)" }
+        if ($r.Capture -match '(?m)^curl ') { throw 'a wake was issued despite a failed precondition' }
+        if ($r.Capture -match '(?m)^python .*--mode ') { throw 'the verifier ran despite a failed precondition' }
+    }
+}
+
+# --- A read that succeeds but returns nothing --------------------------------
+# `az ... --query <path> -o tsv` exits 0 and prints an empty line whenever the
+# JMESPath does not resolve, so no exit-code branch sees it. Before 2026-09-12
+# the two digest guards were inert in exactly this case: a no-output native
+# command assigns AutomationNull, and -notlike against it yields an empty
+# collection, which is FALSE. The wrapper would have proceeded to wake
+# production with the serving digest unverified. Each case below asserts the
+# run stops, and that it stops BEFORE the wake and the verifier.
+
+$emptyPhases = @(
+    @{ Name = 'az account show (session)';      Env = @{ STUB_AZ_EMPTY_MATCH = '--query name' } },
+    @{ Name = 'az account show (subscription)'; Env = @{ STUB_AZ_EMPTY_MATCH = '--query id' } },
+    @{ Name = 'gateway revision read';          Env = @{ STUB_AZ_EMPTY_MATCH = 'latestReadyRevisionName'; STUB_AZ_EMPTY_MATCH2 = 'api-gateway' } },
+    @{ Name = 'gateway image read';             Env = @{ STUB_AZ_EMPTY_MATCH = 'containers[0].image'; STUB_AZ_EMPTY_MATCH2 = 'api-gateway' } },
+    @{ Name = 'portfolio revision read';        Env = @{ STUB_AZ_EMPTY_MATCH = 'latestReadyRevisionName'; STUB_AZ_EMPTY_MATCH2 = 'portfolio-service' } },
+    @{ Name = 'portfolio image read';           Env = @{ STUB_AZ_EMPTY_MATCH = 'containers[0].image'; STUB_AZ_EMPTY_MATCH2 = 'portfolio-service' } },
+    @{ Name = 'log analytics workspace read';   Env = @{ STUB_AZ_EMPTY_MATCH = 'log-analytics' } },
+    @{ Name = 'gateway revision list';          Env = @{ STUB_AZ_EMPTY_MATCH = 'revision list' } },
+    @{ Name = 'docker version';                 Env = @{ STUB_DOCKER_EMPTY = '1' } }
+)
+Write-Host 'A read that exits 0 with no output stops before the wake'
+foreach ($phase in $emptyPhases) {
+    $e = $good.Clone()
+    foreach ($k in $phase.Env.Keys) { $e[$k] = $phase.Env[$k] }
+    $r = Invoke-Wrapper -Env $e
+    Check "$($phase.Name) returning nothing => exit 2, no wake, no verifier" {
+        if ($r.Exit -ne 2) { throw "exit $($r.Exit) (expected 2); output: $($r.Output)" }
+        if ($r.Capture -match '(?m)^curl ') { throw 'a wake was issued on an empty precondition read' }
+        if ($r.Capture -match '(?m)^python .*--mode ') { throw 'the verifier ran on an empty precondition read' }
+    }
+}
+
+# --- A read that emits the right value and THEN fails ------------------------
+# Only the $LASTEXITCODE branch can catch this: every downstream value
+# comparison is satisfied by the payload. Branch-removal mutation showed that
+# without these fixtures the classifications behind a value guard could be
+# deleted with the suite still green.
+
+$failAfterPhases = @(
+    @{ Name = 'az account show (session)';      Env = @{ STUB_AZ_FAILAFTER_MATCH = '--query name' } },
+    @{ Name = 'az account show (subscription)'; Env = @{ STUB_AZ_FAILAFTER_MATCH = '--query id' } },
+    @{ Name = 'gateway revision read';          Env = @{ STUB_AZ_FAILAFTER_MATCH = 'latestReadyRevisionName'; STUB_AZ_FAILAFTER_MATCH2 = 'api-gateway' } },
+    @{ Name = 'gateway image read';             Env = @{ STUB_AZ_FAILAFTER_MATCH = 'containers[0].image'; STUB_AZ_FAILAFTER_MATCH2 = 'api-gateway' } },
+    @{ Name = 'portfolio revision read';        Env = @{ STUB_AZ_FAILAFTER_MATCH = 'latestReadyRevisionName'; STUB_AZ_FAILAFTER_MATCH2 = 'portfolio-service' } },
+    @{ Name = 'portfolio image read';           Env = @{ STUB_AZ_FAILAFTER_MATCH = 'containers[0].image'; STUB_AZ_FAILAFTER_MATCH2 = 'portfolio-service' } },
+    @{ Name = 'log analytics workspace read';   Env = @{ STUB_AZ_FAILAFTER_MATCH = 'log-analytics' } },
+    @{ Name = 'gateway revision list';          Env = @{ STUB_AZ_FAILAFTER_MATCH = 'revision list' } },
+    @{ Name = 'docker version';                 Env = @{ STUB_DOCKER_FAILAFTER = '1' } }
+)
+Write-Host 'A read that emits a plausible value and then fails stops before the wake'
+foreach ($phase in $failAfterPhases) {
+    $e = $good.Clone()
+    foreach ($k in $phase.Env.Keys) { $e[$k] = $phase.Env[$k] }
+    $r = Invoke-Wrapper -Env $e
+    Check "$($phase.Name) failing after output => exit 2, no wake, no verifier" {
+        if ($r.Exit -ne 2) { throw "exit $($r.Exit) (expected 2); output: $($r.Output)" }
+        if ($r.Capture -match '(?m)^curl ') { throw 'a wake was issued after a child reported failure' }
+        if ($r.Capture -match '(?m)^python .*--mode ') { throw 'the verifier ran after a child reported failure' }
+    }
+}
+
+Write-Host 'A wake that reports no status at all stops the run'
+$e = $good.Clone(); $e['STUB_CURL_EMPTY'] = '1'
+$r = Invoke-Wrapper -Env $e
+Check 'wake with no status code => exit 3, no verifier' {
+    if ($r.Exit -ne 3) { throw "exit $($r.Exit) (expected 3); output: $($r.Output)" }
+    if ($r.Capture -match '(?m)^python .*--mode ') { throw 'the verifier ran on an unverified wake status' }
+}
+
+Write-Host 'Post-wake child failures stop before the next phase'
+$e = $good.Clone(); $e['STUB_POLL_EXIT'] = '3'
+$r = Invoke-Wrapper -Env $e
+Check 'replica poll failing => exit 3, no verifier' {
+    if ($r.Exit -ne 3) { throw "exit $($r.Exit); output: $($r.Output)" }
+    if ($r.Capture -match '(?m)^python .*--mode ') { throw 'the verifier ran without a resolved replica' }
+}
+
+Write-Host 'SkipWake refuses to run against real commands'
+$r = Invoke-Wrapper -Env $good.Clone() -Extra @('-SkipWake') -PythonCommand 'python'
+Check 'exits 2 rather than bypassing the non-200 stop with real tools' {
+    if ($r.Exit -ne 2) { throw "exit $($r.Exit); output: $($r.Output)" }
+    if ($r.Output -notmatch 'offline tests') { throw "did not explain why:`n$($r.Output)" }
 }
 
 Write-Host 'SkipWake'
