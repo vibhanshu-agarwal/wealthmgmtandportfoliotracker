@@ -18,14 +18,17 @@ baseline checkout `2fee0202`.
 
 ## What happened
 
+Rows marked **†** are **operator-reported and appear in no evidence file**. They are
+testimony, not capture, and nothing on disk corroborates them.
+
 | | |
 |---|---|
-| Pre-wake state | `api-gateway--0000081` @ `sha256:090ad3ba…`, confirmed by live read against the 2026-09-11 provenance |
-| Wake request | `GET https://api.vibhanshu-ai-portfolio.dev/actuator/health`, one request, no client timeout |
-| Wake response | **HTTP 503 after 56.374 s** (operator-reported from `curl -w`; not captured in any evidence file) |
-| Replica observed | `api-gateway--0000081-6c469996fc-tgr88`, by a later hand-run `az containerapp replica list` returning one name. **Operator-reported: this command was outside the verifier, so it is not captured in any evidence file** |
+| Pre-wake state **†** | `api-gateway--0000081` @ `sha256:090ad3ba…`, from a hand-run live read against the 2026-09-11 provenance |
+| Wake request **†** | `GET https://api.vibhanshu-ai-portfolio.dev/actuator/health`, one request, no client timeout |
+| Wake response **†** | **HTTP 503 after 56.374 s**, from `curl -w` |
+| Replica observed **†** | `api-gateway--0000081-6c469996fc-tgr88`, from a hand-run `az containerapp replica list` returning one name. This identifier appears nowhere else in the repository |
 | Verifier outcome | stopped at `RBAC rehearsal could not resolve a gateway replica`; `class_2a`, `non_go`, exit 1, 6 operations |
-| Post-run state | `api-gateway--0000081` @ `sha256:090ad3ba…` unchanged; no `--0000082` |
+| Post-run state **†** | `api-gateway--0000081` @ `sha256:090ad3ba…` unchanged; no `--0000082`, from a hand-run read after the verifier exited. The JSON's `serving` block is an *in-run* read and does not speak to post-run state |
 
 A replica was observed after the wake, so the wake appears to have worked. When the verifier reached
 its own `replica list` call the replica was no longer resolvable; the likeliest cause is that the
@@ -45,7 +48,8 @@ starts… On any non-200, stop and report — do not re-issue the request."* The
 and the verifier was run anyway.
 
 That decision was **recommended by the assisting agent, not by the operator**, on the reasoning that
-a named replica had been observed and therefore the wake had worked.
+a named replica had been observed and therefore the wake had worked. That premise is itself
+operator-reported and uncaptured (see **†** above).
 
 Part of that reasoning was wrong and should not be relied on again. It cited
 [`API_GATEWAY_CUSTOM_DOMAIN_RECOVERY.md`](../../runbooks/API_GATEWAY_CUSTOM_DOMAIN_RECOVERY.md)
@@ -63,7 +67,7 @@ demonstrates.
 
 ## No ACR cleanup is owed
 
-Independently reviewed and confirmed from the recorded operation list. The run stopped at operation
+Re-derivable from the recorded operation list, and independently re-derived during review. The run stopped at operation
 6 (`replica list`), and `_preflight` reaches `az acr login` and the two `docker pull`s only *after*
 that point. The `operations` array contains six entries, all `kind: azure_cli`; there is no
 `local_cli` entry (how `docker` would be recorded), no `acr` argv, no `exec`, no `log-analytics
@@ -74,10 +78,10 @@ started would appear even if it failed.
 production image was pulled.** No `docker logout` and no image removal is needed.
 
 This covers the verifier only; it cannot speak to anything run by hand outside it. Starting Docker
-Desktop, which was required as a precondition, authenticates to no registry.
+Desktop, which was required as a precondition, performs no production-registry authentication.
 
 Corollary: the operator's **AcrPull permission on `wealthprodacr` is still untested**. The packet's
-"exercised for the first time" step was never reached. `preflight.rbacRehearsed: false` is accurate.
+step covering the first exercise of that permission was never reached. `preflight.rbacRehearsed: false` is accurate.
 
 ## Reading the JSON
 
@@ -99,19 +103,21 @@ Corollary: the operator's **AcrPull permission on `wealthprodacr` is still untes
 
 ## Hand-run commands outside the verifier
 
-The "no ACR cleanup" conclusion above covers the verifier process. For completeness, the commands
-run by hand during the window were: `az account show`, `az containerapp show` (twice, for the
+The "no ACR cleanup" conclusion above covers the verifier process. The list below is
+**operator-reported from session scrollback, not a captured shell transcript**; no artifact on disk
+corroborates it. With that caveat, the commands run by hand during the window were: `az account show`, `az containerapp show` (twice, for the
 serving revision and image), `az containerapp replica list` (three attempts, two of which failed on
 argument mangling), `docker version`, `git fetch`/`git checkout`, and the single `curl` wake. All
 are read-only or local. **No `az acr login`, `docker pull`, `docker login`, or any mutating Azure
 command was run by hand.**
 
-## Cause, and what changed because of it
+## Likely cause, and what changed because of it
 
 The wake and the run were issued by hand, one paste at a time, and three of those pasted commands
 were defective — all the same fault: parentheses and nested quotes not surviving PowerShell → the
 `az` batch shim → cmd, so `--query "length(@)"` arrived as `length(@`. The minutes lost to those
-failures, plus paste latency, spent the window. The packet had specified the wake and the run as
+failures, plus paste latency, are the likeliest explanation for the window being spent -- the same
+inference noted above, not a demonstrated fact. The packet had specified the wake and the run as
 *one operator sequence in one window*; the step-by-step handover defeated that.
 
 A wrapper is **proposed** in PR #266 as a result — `scripts/run_task_8_9_preflight.ps1`, not part of
