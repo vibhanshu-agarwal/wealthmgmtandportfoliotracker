@@ -93,6 +93,12 @@ subprojects {
     // Keep JVM timezone explicit to avoid PostgreSQL rejecting Asia/Calcutta from host defaults.
     tasks.withType(Test).configureEach {
         jvmArgs = ['-Duser.timezone=Asia/Kolkata']
+        // Hosted build containers set JAVA_TOOL_OPTIONS to point the JVM at a proxy
+        // CA. Every JVM started then prints "Picked up JAVA_TOOL_OPTIONS: ..." on
+        // stderr, so tests asserting that a spawned process emitted empty stderr fail
+        // on that line alone. Forked test JVMs do not need it; dependency resolution
+        // runs in the Gradle daemon, which keeps it.
+        environment.remove('JAVA_TOOL_OPTIONS')
     }
 
     tasks.withType(BootRun).configureEach {
