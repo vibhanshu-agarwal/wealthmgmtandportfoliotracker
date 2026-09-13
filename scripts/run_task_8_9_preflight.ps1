@@ -118,6 +118,92 @@ function Fail {
     exit $Code
 }
 
+# --- SAFETY-CRITICAL UNIT: the authorized wake and the decision after it ------
+#
+# The verifier may start only when exactly one invocation of this request, with
+# this fixed URL and this fixed argument vector, exited successfully and
+# returned exactly the scalar string '200'. Everything that decides that lives
+# in this function, and its structure keeps that decision self-contained and
+# hard to change by accident:
+#
+#   * the URL and every curl argument are literals. No parameter, environment
+#     value or configuration input feeds them;
+#   * -q is the first argument, so curl ignores any ambient config file
+#     (~/.curlrc, %APPDATA%\_curlrc): the single request cannot be given a
+#     retry, a redirect, or another URL by mutable machine configuration;
+#   * the status is a local variable and is never returned. The caller gets no
+#     value to branch on: if this function returns, the wake was an exact 200;
+#   * every failure ends in a direct `exit 3`. `exit` is a keyword, so no alias,
+#     function definition or trap can intercept it, and it never goes through
+#     Fail, which is ordinary code that could be redefined;
+#   * a single status must be a [string]. Multi-line output (an altered -w, or
+#     a retry that prints twice) becomes an array and is refused, not compared.
+#
+# The test suite adds targeted regression guards over this function's structure
+# (one definition, one call, one curl invocation with these arguments, three
+# direct exit-3 decisions, its decision variables read nowhere else). They catch
+# accidental structural drift; earlier guards that pinned only a condition's
+# shape were defeated by edits just outside it. These structural guards are not
+# proof against a deliberate in-unit rewrite -- that is a code-review
+# responsibility. The runtime guarantee is fail-closed: on anything but an exact
+# 200, the verifier does not run.
+function Invoke-AuthorizedWake {
+    param([Parameter(Mandatory = $true)][string]$Curl)
+    Write-Host '==> Waking: GET https://api.vibhanshu-ai-portfolio.dev/actuator/health (one request, no retry, no redirect, no client timeout, ambient curl config disabled)'
+    $script:WakeIssued = $true
+    $wakeStatus = & $Curl -q -sS -o NUL -w '%{http_code}' 'https://api.vibhanshu-ai-portfolio.dev/actuator/health'
+    $wakeCurlExit = $LASTEXITCODE
+    Write-Host "==>   wake responded HTTP $wakeStatus (curl exit $wakeCurlExit)"
+    if ($wakeCurlExit -ne 0) {
+        # Only DNS, connect and TLS-handshake failures (6, 7, 35) imply the
+        # request never reached the ingress. Anything later may already have
+        # been delivered, so the wake may well be spent.
+        if (@(6, 7, 35) -contains $wakeCurlExit) {
+            Write-Host "FAIL: the wake failed in transport (curl exit $wakeCurlExit): the request did not reach the ingress, so the wake was probably NOT consumed. Re-waking is a fresh owner decision." -ForegroundColor Red
+        } else {
+            Write-Host "FAIL: the wake failed in transport (curl exit $wakeCurlExit): the request may already have been delivered, so the wake may be consumed. Re-waking is a fresh owner decision." -ForegroundColor Red
+        }
+        exit 3
+    }
+    if (-not ($wakeStatus -is [string]) -or $wakeStatus.Length -eq 0) {
+        Write-Host 'FAIL: the wake did not return a single status value, so it cannot be shown to have been 200. The packet requires stopping here.' -ForegroundColor Red
+        exit 3
+    }
+    if ($wakeStatus -cne '200') {
+        # The packet: "On any non-200, stop and report -- do not re-issue the
+        # request." There is deliberately no flag to continue anyway: this
+        # script cannot verify that an owner decided to proceed, so a switch
+        # would turn a prohibition into an operator keystroke.
+        Write-Host "FAIL: the wake returned HTTP $wakeStatus, not 200. The packet requires stopping here, and this script has no override. The wake is consumed; continuing is a fresh owner decision." -ForegroundColor Red
+        exit 3
+    }
+}
+
+# -SkipWake is for the offline tests. Refuse it here, BEFORE any child process
+# runs, unless every external command has been overridden away from its
+# default. Checked this early deliberately: a later check ran only after the
+# pre-wake az and docker calls, so a test exercising a default -- or a mutant
+# that broke this guard -- would have reached a real tool first.
+#
+# It compares the four LITERAL defaults and nothing more: a full path to a real
+# tool, or `curl` instead of `curl.exe`, passes it. It guards the accidental
+# case and cannot tell a stub from a real tool.
+#
+# Each comparison is parenthesised: in PowerShell the comma binds tighter than
+# -eq, so @($a -eq 'x', $b -eq 'y') parses as $a -eq ('x', $b) -eq 'y' and
+# the guard would silently never fire.
+if ($SkipWake) {
+    $defaults = @(
+        ($AzCommand -eq 'az'),
+        ($DockerCommand -eq 'docker'),
+        ($CurlCommand -eq 'curl.exe'),
+        ($PythonCommand -eq 'python')
+    )
+    if ($defaults -contains $true) {
+        Fail '-SkipWake is for the offline tests. Every one of -AzCommand, -DockerCommand, -CurlCommand and -PythonCommand must be overridden away from its default, because skipping the wake also skips the non-200 stop the packet requires. This check compares the literal defaults only and cannot tell a stub from a real tool.' 2
+    }
+}
+
 # --- Inputs -----------------------------------------------------------------
 # JMESPath queries below never contain parentheses. A parenthesised --query does
 # not survive PowerShell -> az.bat -> cmd: 'length(@)' arrives as 'length(@'.
@@ -257,61 +343,10 @@ Write-Step "  $($revisions.Count) revision(s), none newer than $attestedRevision
 # --- The timing window starts here ------------------------------------------
 
 if ($SkipWake) {
-    # Test-only in effect, not just in the docstring: refuse unless every
-    # external command is a stub. Otherwise an operator could wake by hand,
-    # see a non-200, and run with -SkipWake to evade the stop this script
-    # exists to enforce -- which it cannot detect.
-    # Each comparison is parenthesised deliberately: in PowerShell the comma
-    # binds tighter than -eq, so @($a -eq 'x', $b -eq 'y') parses as
-    # $a -eq ('x', $b) -eq 'y' and the guard silently never fires.
-    $defaults = @(
-        ($AzCommand -eq 'az'),
-        ($DockerCommand -eq 'docker'),
-        ($CurlCommand -eq 'curl.exe'),
-        ($PythonCommand -eq 'python')
-    )
-    if ($defaults -contains $true) {
-        # This checks the four LITERAL defaults and nothing more: a full path
-        # to a real tool, or 'curl' rather than 'curl.exe', passes it. It is a
-        # guard against the accidental case, not a sandbox.
-        Fail '-SkipWake is for the offline tests. Every one of -AzCommand, -DockerCommand, -CurlCommand and -PythonCommand must be overridden away from its default, because skipping the wake also skips the non-200 stop the packet requires. This check compares the literal defaults only and cannot tell a stub from a real tool.' 2
-    }
     Write-Step 'SkipWake set: not issuing a wake request'
     Write-Host 'WARNING: -SkipWake bypasses the wake and its non-200 stop. If a wake was issued by hand and did not return 200, stop now: continuing is a fresh owner decision.' -ForegroundColor Yellow
 } else {
-    Write-Step "Waking: GET $GatewayUrl$WakePath (one request, no retry, no client timeout)"
-    $script:WakeIssued = $true
-    $wakeStatus = & $CurlCommand -sS -o NUL -w '%{http_code}' "$GatewayUrl$WakePath"
-    $wakeCurlExit = $LASTEXITCODE
-    Write-Step "  wake responded HTTP $wakeStatus (curl exit $wakeCurlExit)"
-    if ($wakeCurlExit -ne 0) {
-        # Only DNS/connect/TLS-handshake failures imply the request never
-        # reached the ingress. 28/52/56/18 and friends all happen AFTER it was
-        # delivered, so the wake may well be spent -- do not claim otherwise.
-        $preDelivery = @(6, 7, 35)
-        $verdictText = if ($preDelivery -contains $wakeCurlExit) {
-            'the request did not reach the ingress, so the wake was probably NOT consumed'
-        } else {
-            'the request may already have been delivered, so the wake may be consumed'
-        }
-        Fail "the wake failed in transport (curl exit $wakeCurlExit): $verdictText. Re-waking is a fresh owner decision." 3
-    }
-    if (-not $wakeStatus) {
-        Fail 'the wake returned no status code, so it cannot be shown to have been 200. The packet requires stopping here.' 3
-    }
-    if ($wakeStatus -ne '200') {
-        # The authorization packet is explicit: "On any non-200, stop and
-        # report -- do not re-issue the request", and it carries no override
-        # clause. The custom-domain runbook does not authorize proceeding
-        # either; its warm-up tolerance sits inside a loop that still waits for
-        # three consecutive 200s.
-        #
-        # There is deliberately NO flag to continue anyway. This script cannot
-        # verify that an owner decided to proceed, so a switch here would turn a
-        # prohibition into an operator keystroke. Continuing requires a fresh
-        # owner decision and, if it is to become routine, an amended packet.
-        Fail "the wake returned HTTP $wakeStatus, not 200. The packet requires stopping here, and this script has no override. The wake is consumed; continuing is a fresh owner decision." 3
-    }
+    Invoke-AuthorizedWake -Curl $CurlCommand
 }
 
 Write-Step "Waiting up to ${ReplicaWaitSeconds}s for a replica (read-only polling)"

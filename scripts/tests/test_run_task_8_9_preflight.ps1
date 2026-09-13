@@ -37,16 +37,18 @@ function Invoke-Wrapper {
     try {
         $argv = @(
             '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $script,
-            '-AzCommand', (Join-Path $stubs 'stub_az.cmd'),
-            '-DockerCommand', (Join-Path $stubs 'stub_docker.cmd'),
-            '-CurlCommand', (Join-Path $stubs 'stub_curl.cmd'),
-            '-PythonCommand', $(if ($PythonCommand) { $PythonCommand } else { Join-Path $stubs 'stub_python.cmd' }),
             '-EvidenceOutput', $evidence
         )
         # Defaults are omitted when -Extra supplies them, so a test can drive a
         # parameter to a value the helper would otherwise fix. Passing the same
         # parameter twice is a binding error, which would surface as exit 1 and
         # look like a wrapper fault rather than a harness one.
+        # Command overrides follow the same rule, so a test can leave one at its
+        # real default to prove the SkipWake guard refuses it.
+        if ($Extra -notcontains '-AzCommand') { $argv += @('-AzCommand', (Join-Path $stubs 'stub_az.cmd')) }
+        if ($Extra -notcontains '-DockerCommand') { $argv += @('-DockerCommand', (Join-Path $stubs 'stub_docker.cmd')) }
+        if ($Extra -notcontains '-CurlCommand') { $argv += @('-CurlCommand', (Join-Path $stubs 'stub_curl.cmd')) }
+        if ($Extra -notcontains '-PythonCommand') { $argv += @('-PythonCommand', $(if ($PythonCommand) { $PythonCommand } else { Join-Path $stubs 'stub_python.cmd' })) }
         if ($Extra -notcontains '-ReplicaWaitSeconds') { $argv += @('-ReplicaWaitSeconds', "$WaitSeconds") }
         if ($Extra -notcontains '-ReplicaPollSeconds') { $argv += @('-ReplicaPollSeconds', '1') }
         $argv += $Extra
@@ -113,6 +115,16 @@ Check 'a paren-free --query passes through the same stub' {
 Write-Host 'Happy path'
 $r = Invoke-Wrapper -Env $good.Clone()
 Check 'exits 0' { if ($r.Exit -ne 0) { throw "exit $($r.Exit); output: $($r.Output)" } }
+Check 'the wake uses exactly the authorized argument vector, once, with no stub violation' {
+    # Counting curl lines was not enough: --retry makes several HTTP requests
+    # from ONE invocation, and -L follows a redirect. Only the full vector says
+    # which request was actually made.
+    $lines = @($r.Capture -split "`r?`n" | Where-Object { $_ -match '^curl ' })
+    if ($lines.Count -ne 1) { throw "expected exactly one curl invocation, found $($lines.Count)" }
+    $want = 'curl -q -sS -o NUL -w %{http_code} https://api.vibhanshu-ai-portfolio.dev/actuator/health'
+    if ($lines[0].TrimEnd() -cne $want) { throw "curl was called as:`n  $($lines[0])`nexpected exactly:`n  $want" }
+    if ($r.Capture -match '(?m)^curl-violation') { throw 'the curl stub recorded an argument-vector violation' }
+}
 Check 'JMESPath [].name survives the cmd boundary intact' {
     if ($r.Capture -notmatch '\[\]\.name') { throw "no intact [].name in capture:`n$($r.Capture)" }
 }
@@ -211,7 +223,16 @@ $nonOk = @(
     @{ Name = '500 server error';              Env = @{ STUB_WAKE_STATUS = '500' } },
     @{ Name = '502 bad gateway';               Env = @{ STUB_WAKE_STATUS = '502' } },
     @{ Name = '503 unavailable';               Env = @{ STUB_WAKE_STATUS = '503' } },
-    @{ Name = '504 gateway timeout';           Env = @{ STUB_WAKE_STATUS = '504' } }
+    @{ Name = '504 gateway timeout';           Env = @{ STUB_WAKE_STATUS = '504' } },
+    @{ Name = '307 temporary redirect';        Env = @{ STUB_WAKE_STATUS = '307' } },
+    @{ Name = '308 permanent redirect';        Env = @{ STUB_WAKE_STATUS = '308' } },
+    @{ Name = '401 unauthorized';              Env = @{ STUB_WAKE_STATUS = '401' } },
+    @{ Name = '403 forbidden';                 Env = @{ STUB_WAKE_STATUS = '403' } },
+    @{ Name = '405 method not allowed';        Env = @{ STUB_WAKE_STATUS = '405' } },
+    @{ Name = '407 proxy auth required';       Env = @{ STUB_WAKE_STATUS = '407' } },
+    @{ Name = '408 request timeout';           Env = @{ STUB_WAKE_STATUS = '408' } },
+    @{ Name = '501 not implemented';           Env = @{ STUB_WAKE_STATUS = '501' } },
+    @{ Name = '505 http version not supported'; Env = @{ STUB_WAKE_STATUS = '505' } }
 )
 Write-Host 'Only an exact 200 may reach the verifier'
 foreach ($case in $nonOk) {
@@ -243,93 +264,246 @@ Check 'every external command has its exit code classified' {
         }
     }
 }
-# --- The non-200 stop, pinned structurally -----------------------------------
-# The behavioural sweep above covers status VALUES. It cannot see a backdoor
-# that leaves the comparison intact and gates on something else, so this pins
-# the shape of the condition itself and forbids the channels review used to
-# smuggle one in: $args (reachable once [CmdletBinding()] is dropped),
-# dynamicparam, $PSBoundParameters, and [Environment]::GetEnvironmentVariable
-# (which the $env:* check below cannot see).
-Check 'the non-200 condition is exactly $wakeStatus -ne 200 and fails with exit 3' {
-    $errs = $null
-    $ast = [System.Management.Automation.Language.Parser]::ParseFile(
-        (Join-Path $repo 'scripts/run_task_8_9_preflight.ps1'), [ref]$null, [ref]$errs)
-    if ($errs) { throw "script does not parse: $($errs[0].Message)" }
+# --- The wake decision, pinned through the AST --------------------------------
+# The invariant: the verifier may start only when exactly one invocation of the
+# authorized wake request used the fixed URL and fixed argument vector, exited
+# successfully, and returned exactly the scalar string '200'. No parameter,
+# environment value, configuration input, alternate function or surrounding
+# control flow may alter that decision.
+#
+# Earlier versions of these pins checked the SHAPE of one condition and were
+# defeated from just outside it: a variable pre-assigned before the check, the
+# Fail inside the branch wrapped in another if, Fail itself redefined, an
+# environment read through a provider path, curl's -w changed so every response
+# read 200, --retry, -L, a different URL. Pinning the literal text of the block
+# would not help either -- it fails on the same edits made one line outside the
+# pinned extent, and turns comment and formatting changes into security events.
+#
+# So the decision is built as one safety unit (see Invoke-AuthorizedWake in the
+# wrapper), and the checks below are targeted regression guards over its
+# structure, not its spelling: they catch accidental drift -- a stray variable
+# reference, a second curl call, a decision that no longer exits -- that the
+# behavioural tests above might not surface.
+#
+# They are NOT proof against a deliberate adversarial rewrite, and are not meant
+# to be. A determined author can still edit inside the unit to pass these guards
+# while misbehaving only in production (e.g. rewrite the status before the
+# comparison, or branch on whether $Curl is a test stub). Catching that is a
+# code-review responsibility; the acceptance bar here is fail-closed runtime
+# behaviour plus meaningful regression coverage, not malicious-author detection.
+$wrapperErrs = $null
+$wrapperAst = [System.Management.Automation.Language.Parser]::ParseFile(
+    (Join-Path $repo 'scripts/run_task_8_9_preflight.ps1'), [ref]$null, [ref]$wrapperErrs)
 
-    # Filter on the CONDITION, not the extent: FindAll is recursive, so the
-    # enclosing if ($SkipWake) {...} else {...} also contains this text.
-    $ifs = @($ast.FindAll({ param($n) $n -is [System.Management.Automation.Language.IfStatementAst] }, $true) |
-        Where-Object { $_.Clauses[0].Item1.Extent.Text -match '\$wakeStatus' })
-
-    # Pin the whole set, so a third condition on $wakeStatus cannot be added.
-    $conds = @($ifs | ForEach-Object { $_.Clauses[0].Item1.Extent.Text.Trim() } | Sort-Object)
-    $expected = @("-not `$wakeStatus", "`$wakeStatus -ne '200'") | Sort-Object
-    if (($conds -join ' | ') -ne ($expected -join ' | ')) {
-        throw "conditions on `$wakeStatus are:`n  $($conds -join "`n  ")`nexpected exactly:`n  $($expected -join "`n  ")"
-    }
-
-    # Index to a scalar deliberately: Where-Object returns a collection, and
-    # -match/-notmatch against a collection FILTER rather than test, so a
-    # regex assertion here would silently invert. This is the same
-    # operator-family trap the wrapper documents at its digest guards.
-    #
-    # The Fail call is then checked through the AST rather than by regex. An
-    # earlier version used a word-boundary escape, and it collapsed to a
-    # literal backspace somewhere in the tooling that wrote this file, so the
-    # pattern matched nothing and the assertion failed for a reason that had
-    # nothing to do with the script under test.
-    $failExit = {
-        param($clauseBody, $what)
-        $calls = @($clauseBody.FindAll({
-            param($n)
-            $n -is [System.Management.Automation.Language.CommandAst] -and
-            $n.GetCommandName() -eq 'Fail'
-        }, $true))
-        if ($calls.Count -ne 1) { throw "$what : expected exactly one Fail call, found $($calls.Count)" }
-        $args = @($calls[0].CommandElements)
-        $last = $args[$args.Count - 1].Extent.Text
-        if ($last -ne '3') { throw "$what : Fail exits with '$last', expected 3 (the wake was issued)" }
-    }
-
-    $stop = @($ifs | Where-Object { $_.Clauses[0].Item1.Extent.Text.Trim() -eq "`$wakeStatus -ne '200'" })[0]
-    & $failExit $stop.Clauses[0].Item2 'non-200 branch'
-
-    $empty = @($ifs | Where-Object { $_.Clauses[0].Item1.Extent.Text.Trim() -eq "-not `$wakeStatus" })[0]
-    & $failExit $empty.Clauses[0].Item2 'empty-status branch'
+function Find-Ast {
+    param($Root, [scriptblock]$Pred)
+    if ($null -eq $Root) { return @() }
+    @($Root.FindAll($Pred, $true))
+}
+function Norm { param([string]$T) ($T -replace '\s+', ' ').Trim() }
+function Target-Var {
+    # The variable an assignment writes, looking through a type conversion such
+    # as [string]$x = ..., which would otherwise hide the target.
+    param($Left)
+    while ($Left -is [System.Management.Automation.Language.ConvertExpressionAst]) { $Left = $Left.Child }
+    if ($Left -is [System.Management.Automation.Language.VariableExpressionAst]) { return $Left.VariablePath.UserPath }
+    return $null
 }
 
-Check 'the script forbids the backdoor channels a parameter pin cannot see' {
-    $errs = $null
-    $ast = [System.Management.Automation.Language.Parser]::ParseFile(
-        (Join-Path $repo 'scripts/run_task_8_9_preflight.ps1'), [ref]$null, [ref]$errs)
-    if ($errs) { throw "script does not parse: $($errs[0].Message)" }
+$unitDefs = @(Find-Ast $wrapperAst { param($n) $n -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -eq 'Invoke-AuthorizedWake' })
+$script:unit = if ($unitDefs.Count -eq 1) { $unitDefs[0] } else { $null }
+function Inside-Unit {
+    param($n)
+    if ($null -eq $script:unit) { return $false }
+    ($n.Extent.StartOffset -ge $script:unit.Extent.StartOffset) -and ($n.Extent.EndOffset -le $script:unit.Extent.EndOffset)
+}
+$wakeCalls = @(Find-Ast $wrapperAst { param($n) $n -is [System.Management.Automation.Language.CommandAst] -and $n.GetCommandName() -eq 'Invoke-AuthorizedWake' })
+$skipIfs = @(Find-Ast $wrapperAst { param($n) $n -is [System.Management.Automation.Language.IfStatementAst] -and (Norm $n.Clauses[0].Item1.Extent.Text) -eq '$SkipWake' })
+$wakeBranch = @($skipIfs | Where-Object { $null -ne $_.ElseClause })
+$skipGuard = @($skipIfs | Where-Object { $null -eq $_.ElseClause })
+$childCalls = @(Find-Ast $wrapperAst {
+    param($n)
+    $n -is [System.Management.Automation.Language.CommandAst] -and
+    $n.CommandElements[0] -is [System.Management.Automation.Language.VariableExpressionAst] -and
+    @('AzCommand', 'DockerCommand', 'PythonCommand', 'Curl', 'CurlCommand') -contains $n.CommandElements[0].VariablePath.UserPath
+})
 
-    # [CmdletBinding()] is what makes an unknown -Flag a binding error rather
-    # than something readable from $args.
-    $attrs = @($ast.ParamBlock.Attributes | ForEach-Object { $_.TypeName.Name })
-    if ($attrs -notcontains 'CmdletBinding') {
-        throw "[CmdletBinding()] is absent, so unknown parameters would land in `$args instead of being rejected"
+Check 'the wake decision lives in exactly one safety unit, called once and alone from the non-SkipWake branch' {
+    if ($wrapperErrs) { throw "wrapper does not parse: $($wrapperErrs[0].Message)" }
+    if ($unitDefs.Count -ne 1) { throw "expected exactly one Invoke-AuthorizedWake definition, found $($unitDefs.Count)" }
+    if ($wakeCalls.Count -ne 1) { throw "expected exactly one call to Invoke-AuthorizedWake, found $($wakeCalls.Count)" }
+    if ($skipIfs.Count -ne 2 -or $wakeBranch.Count -ne 1 -or $skipGuard.Count -ne 1) {
+        throw "expected exactly two if-statements on `$SkipWake (the early guard, and the wake branch with an else); found $($skipIfs.Count)"
     }
-    if ($ast.FindAll({ param($n) $n -is [System.Management.Automation.Language.DynamicKeywordStatementAst] }, $true).Count) {
-        throw 'dynamicparam block present'
+    $w = $wakeBranch[0]
+    if ($w.Clauses.Count -ne 1) { throw 'the wake branch has extra clauses' }
+    # Nothing may sit between the script body and the wake branch except the
+    # single top-level try/finally that restores credentials.
+    $p = $w.Parent; $tries = 0
+    while ($null -ne $p.Parent) {
+        foreach ($bad in @('IfStatementAst', 'LoopStatementAst', 'SwitchStatementAst', 'FunctionDefinitionAst', 'TrapStatementAst', 'CatchClauseAst', 'ScriptBlockExpressionAst')) {
+            if ($p -is [type]"System.Management.Automation.Language.$bad") { throw "the wake branch is nested inside a $bad" }
+        }
+        if ($p -is [System.Management.Automation.Language.TryStatementAst]) {
+            $tries++
+            if (@($p.CatchClauses).Count) { throw 'the wake branch is inside a try that has catch clauses' }
+        }
+        $p = $p.Parent
     }
-    if ($ast.Extent.Text -match '(?m)^\s*dynamicparam') { throw 'dynamicparam block present' }
+    if ($tries -gt 1) { throw "the wake branch is inside $tries try statements" }
+    $elseStmts = @($w.ElseClause.Statements)
+    if ($elseStmts.Count -ne 1) { throw "the else branch must contain only the wake call; it has $($elseStmts.Count) statements" }
+    $only = $elseStmts[0]
+    if (-not ($only -is [System.Management.Automation.Language.PipelineAst]) -or @($only.PipelineElements).Count -ne 1 -or -not [object]::ReferenceEquals($only.PipelineElements[0], $wakeCalls[0])) {
+        throw "the else branch's only statement is not the bare wake call: $($only.Extent.Text)"
+    }
+    if ((Norm $wakeCalls[0].Extent.Text) -cne 'Invoke-AuthorizedWake -Curl $CurlCommand') { throw "the wake call is '$($wakeCalls[0].Extent.Text)'" }
+}
 
-    $banned = @{
-        'args'             = '$args -- an undeclared-parameter channel'
-        'PSBoundParameters' = '$PSBoundParameters -- an undeclared-parameter channel'
+Check '-SkipWake is refused before any child process unless all four commands are overridden' {
+    if ($skipGuard.Count -ne 1) { throw 'no early SkipWake guard' }
+    $g = $skipGuard[0]
+    if (@($childCalls | Where-Object { $_.Extent.StartOffset -lt $g.Extent.StartOffset -and -not (Inside-Unit $_) }).Count) {
+        throw 'a child process can run before the SkipWake guard'
     }
-    foreach ($v in $ast.FindAll({ param($n) $n -is [System.Management.Automation.Language.VariableExpressionAst] }, $true)) {
-        $name = $v.VariablePath.UserPath
-        if ($banned.ContainsKey($name)) { throw "forbidden variable use: $($banned[$name])" }
+    $cmps = @(Find-Ast $g { param($n) $n -is [System.Management.Automation.Language.BinaryExpressionAst] -and $n.Operator -eq 'Ieq' } | ForEach-Object { Norm $_.Extent.Text } | Sort-Object)
+    $want = @("`$AzCommand -eq 'az'", "`$CurlCommand -eq 'curl.exe'", "`$DockerCommand -eq 'docker'", "`$PythonCommand -eq 'python'") | Sort-Object
+    if (($cmps -join ' | ') -cne ($want -join ' | ')) { throw "SkipWake guard compares:`n  $($cmps -join "`n  ")" }
+    $fails = @(Find-Ast $g { param($n) $n -is [System.Management.Automation.Language.CommandAst] -and $n.GetCommandName() -eq 'Fail' })
+    if ($fails.Count -ne 1 -or (Norm @($fails[0].CommandElements)[-1].Extent.Text) -ne '2') { throw 'the SkipWake guard must Fail with exit 2' }
+}
+
+Check 'the safety unit makes the only curl call, with exactly the fixed arguments and URL' {
+    $curlCalls = @(Find-Ast $wrapperAst {
+        param($n)
+        $n -is [System.Management.Automation.Language.CommandAst] -and (
+            ($n.CommandElements[0] -is [System.Management.Automation.Language.VariableExpressionAst] -and
+             @('Curl', 'CurlCommand') -contains $n.CommandElements[0].VariablePath.UserPath) -or
+            ("$($n.GetCommandName())" -match '(?i)^curl(\.exe)?$'))
+    })
+    if ($curlCalls.Count -ne 1) { throw "expected exactly one curl invocation in the script, found $($curlCalls.Count)" }
+    if (-not (Inside-Unit $curlCalls[0])) { throw 'the curl invocation is outside the safety unit' }
+    $actual = @($curlCalls[0].CommandElements | ForEach-Object { $_.Extent.Text })
+    $expected = @('$Curl', '-q', '-sS', '-o', 'NUL', '-w', "'%{http_code}'", "'https://api.vibhanshu-ai-portfolio.dev/actuator/health'")
+    if (($actual -join ' ') -cne ($expected -join ' ')) { throw "curl argument vector is: $($actual -join ' ')" }
+    $ps = @($script:unit.Body.ParamBlock.Parameters)
+    if ($ps.Count -ne 1 -or $ps[0].Name.VariablePath.UserPath -ne 'Curl' -or $ps[0].StaticType -ne [string]) {
+        throw 'the safety unit must take exactly one [string]$Curl parameter'
     }
-    # $env:* is pinned below, but GetEnvironmentVariable() reads the same values
-    # without ever producing an $env: variable node.
-    foreach ($m in $ast.FindAll({ param($n) $n -is [System.Management.Automation.Language.InvokeMemberExpressionAst] }, $true)) {
-        if ("$($m.Member.Extent.Text)" -match 'GetEnvironmentVariable') {
-            throw "forbidden call: $($m.Extent.Text) -- reads the environment without an `$env: node"
+}
+
+Check 'every decision in the safety unit ends in a direct exit 3 that nothing can intercept' {
+    $top = @($script:unit.Body.EndBlock.Statements | Where-Object { $_ -is [System.Management.Automation.Language.IfStatementAst] })
+    $conds = @($top | ForEach-Object { Norm $_.Clauses[0].Item1.Extent.Text })
+    $expected = @('$wakeCurlExit -ne 0', '-not ($wakeStatus -is [string]) -or $wakeStatus.Length -eq 0', "`$wakeStatus -cne '200'")
+    if (($conds -join ' | ') -cne ($expected -join ' | ')) {
+        throw "safety-unit decisions are, in order:`n  $($conds -join "`n  ")`nexpected exactly:`n  $($expected -join "`n  ")"
+    }
+    foreach ($i in $top) {
+        if ($i.Clauses.Count -ne 1 -or $null -ne $i.ElseClause) { throw "decision '$(Norm $i.Clauses[0].Item1.Extent.Text)' has extra clauses" }
+        $last = @($i.Clauses[0].Item2.Statements)[-1]
+        if (-not ($last -is [System.Management.Automation.Language.ExitStatementAst]) -or (Norm $last.Pipeline.Extent.Text) -ne '3') {
+            throw "decision '$(Norm $i.Clauses[0].Item1.Extent.Text)' does not end in a direct exit 3"
         }
     }
+    foreach ($kind in @('ReturnStatementAst', 'TrapStatementAst', 'TryStatementAst', 'FunctionDefinitionAst', 'BreakStatementAst', 'ContinueStatementAst', 'ScriptBlockExpressionAst')) {
+        $t = [type]"System.Management.Automation.Language.$kind"
+        if (@(Find-Ast $script:unit.Body { param($n) $n -is $t }.GetNewClosure()).Count) { throw "the safety unit contains a $kind" }
+    }
+    if (@(Find-Ast $script:unit { param($n) $n -is [System.Management.Automation.Language.CommandAst] -and $n.GetCommandName() -eq 'Fail' }).Count) {
+        throw 'the safety unit calls Fail, which is ordinary code that could be redefined'
+    }
+    $exits = @(Find-Ast $script:unit { param($n) $n -is [System.Management.Automation.Language.ExitStatementAst] })
+    if ($exits.Count -ne 3) { throw "expected exactly 3 exit statements in the safety unit, found $($exits.Count)" }
+}
+
+Check 'the safety unit reads only its own decision variables, each assigned once' {
+    $allowed = @('Curl', 'script:WakeIssued', 'wakeStatus', 'wakeCurlExit', 'LASTEXITCODE', 'true', 'false', 'null')
+    $vars = @(Find-Ast $script:unit { param($n) $n -is [System.Management.Automation.Language.VariableExpressionAst] } | ForEach-Object { $_.VariablePath.UserPath } | Sort-Object -Unique)
+    $stray = @($vars | Where-Object { $allowed -notcontains $_ })
+    if ($stray.Count) { throw "the safety unit reads variables outside its own decision: $($stray -join ', ')" }
+    foreach ($v in @('wakeStatus', 'wakeCurlExit')) {
+        $asg = @(Find-Ast $wrapperAst { param($n) $n -is [System.Management.Automation.Language.AssignmentStatementAst] -and (Target-Var $n.Left) -eq $v }.GetNewClosure())
+        if ($asg.Count -ne 1) { throw "`$$v must be assigned exactly once, found $($asg.Count)" }
+        if (-not (Inside-Unit $asg[0])) { throw "`$$v is assigned outside the safety unit" }
+    }
+}
+
+Check 'the decision variables and wake target are not referenced or reassigned outside the safety unit' {
+    foreach ($v in @('wakeStatus', 'wakeCurlExit')) {
+        $out = @(Find-Ast $wrapperAst { param($n) $n -is [System.Management.Automation.Language.VariableExpressionAst] -and $n.VariablePath.UserPath -eq $v }.GetNewClosure() | Where-Object { -not (Inside-Unit $_) })
+        if ($out.Count) { throw "`$$v is referenced outside the safety unit" }
+    }
+    if (@(Find-Ast $wrapperAst { param($n) $n -is [System.Management.Automation.Language.AssignmentStatementAst] -and (Target-Var $n.Left) -eq 'CurlCommand' }).Count) {
+        throw '$CurlCommand is reassigned after binding, which could redirect the wake'
+    }
+    $wi = @(Find-Ast $wrapperAst { param($n) $n -is [System.Management.Automation.Language.AssignmentStatementAst] -and (Target-Var $n.Left) -eq 'script:WakeIssued' })
+    $inUnit = @($wi | Where-Object { Inside-Unit $_ })
+    $outUnit = @($wi | Where-Object { -not (Inside-Unit $_) })
+    if ($inUnit.Count -ne 1 -or (Norm $inUnit[0].Right.Extent.Text) -ne '$true') { throw 'the safety unit must set $script:WakeIssued = $true exactly once' }
+    if ($outUnit.Count -ne 1 -or (Norm $outUnit[0].Right.Extent.Text) -ne '$false') { throw '$script:WakeIssued must be initialised to $false exactly once outside the unit and set nowhere else' }
+    $fns = @(Find-Ast $wrapperAst { param($n) $n -is [System.Management.Automation.Language.FunctionDefinitionAst] } | ForEach-Object { $_.Name } | Sort-Object)
+    if (($fns -join ',') -cne 'Fail,Invoke-AuthorizedWake,Write-Step') { throw "function definitions are '$($fns -join ',')'; any other definition could shadow a guarded one" }
+}
+
+Check 'Fail always exits with the code it is given' {
+    $f = @(Find-Ast $wrapperAst { param($n) $n -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -eq 'Fail' })
+    if ($f.Count -ne 1) { throw "expected exactly one Fail definition, found $($f.Count)" }
+    $last = @($f[0].Body.EndBlock.Statements)[-1]
+    if (-not ($last -is [System.Management.Automation.Language.ExitStatementAst]) -or (Norm $last.Pipeline.Extent.Text) -ne '$Code') { throw 'Fail does not end in exit $Code' }
+    foreach ($kind in @('IfStatementAst', 'ReturnStatementAst', 'TrapStatementAst', 'TryStatementAst', 'SwitchStatementAst', 'LoopStatementAst')) {
+        $t = [type]"System.Management.Automation.Language.$kind"
+        if (@(Find-Ast $f[0].Body { param($n) $n -is $t }.GetNewClosure()).Count) { throw "Fail contains a $kind, so it could return without exiting" }
+    }
+}
+
+Check 'the script forbids dynamic execution, alias or function replacement, and ambient input channels' {
+    if (@($wrapperAst.ParamBlock.Attributes | ForEach-Object { $_.TypeName.Name }) -notcontains 'CmdletBinding') {
+        throw '[CmdletBinding()] is absent, so unknown parameters would land in $args instead of being rejected'
+    }
+    if ($wrapperAst.Extent.Text -match '(?im)^\s*dynamicparam\b') { throw 'dynamicparam block present' }
+    $bannedCmds = @('Invoke-Expression', 'iex', 'Set-Alias', 'New-Alias', 'sal', 'nal', 'Import-Alias', 'Set-Item', 'si', 'New-Item', 'ni',
+                    'Set-Variable', 'sv', 'New-Variable', 'nv', 'Clear-Variable', 'clv', 'Remove-Variable', 'rv', 'Start-Process', 'saps', 'start',
+                    'Invoke-Command', 'icm', 'Add-Type', 'Import-Module', 'ipmo', 'Invoke-Item', 'ii', 'Get-Item', 'gi', 'Get-ChildItem', 'gci', 'ls', 'dir')
+    $allowedHeads = @('AzCommand', 'DockerCommand', 'PythonCommand', 'Curl', 'expr')
+    foreach ($c in (Find-Ast $wrapperAst { param($n) $n -is [System.Management.Automation.Language.CommandAst] })) {
+        $head = $c.CommandElements[0]
+        if ($head -is [System.Management.Automation.Language.VariableExpressionAst]) {
+            if ($allowedHeads -notcontains $head.VariablePath.UserPath) { throw "forbidden dynamic invocation: $($c.Extent.Text)" }
+        } elseif (-not ($head -is [System.Management.Automation.Language.StringConstantExpressionAst])) {
+            throw "forbidden computed command: $($c.Extent.Text)"
+        } elseif ($bannedCmds -contains "$($c.GetCommandName())") {
+            throw "forbidden command: $($c.GetCommandName())"
+        }
+    }
+    foreach ($s in (Find-Ast $wrapperAst { param($n) $n -is [System.Management.Automation.Language.StringConstantExpressionAst] -or $n -is [System.Management.Automation.Language.ExpandableStringExpressionAst] })) {
+        if ("$($s.Value)" -match '(?i)\b(env|alias|function|variable):') { throw "forbidden provider path in a string: $($s.Extent.Text)" }
+    }
+    foreach ($t in (Find-Ast $wrapperAst { param($n) $n -is [System.Management.Automation.Language.TypeExpressionAst] -or $n -is [System.Management.Automation.Language.TypeConstraintAst] })) {
+        if ("$($t.TypeName.FullName)" -match '(?i)(^|\.)(Environment|ScriptBlock|PowerShell|Runspace\w*|SessionState\w*|Process)$') { throw "forbidden type: [$($t.TypeName.FullName)]" }
+    }
+    foreach ($m in (Find-Ast $wrapperAst { param($n) $n -is [System.Management.Automation.Language.MemberExpressionAst] })) {
+        if ("$($m.Member.Extent.Text)" -match '(?i)^(InvokeScript|NewScriptBlock|Create|GetEnvironmentVariables?|ExpandEnvironmentVariables|SetEnvironmentVariable|Invoke|InvokeReturnAsIs|Start)$') {
+            throw "forbidden member: $($m.Extent.Text)"
+        }
+    }
+    $bannedVars = @('args', 'PSBoundParameters', 'ExecutionContext', 'input', 'MyInvocation', 'PSCmdlet')
+    foreach ($v in (Find-Ast $wrapperAst { param($n) $n -is [System.Management.Automation.Language.VariableExpressionAst] })) {
+        if ($bannedVars -contains $v.VariablePath.UserPath) { throw "forbidden variable: `$$($v.VariablePath.UserPath)" }
+        if ($v.VariablePath.UserPath -match '(?i)^env:' -and @('env:TASK8_9_ACCESS_TOKEN', 'env:TASK8_9_DEMO_PASSWORD') -notcontains $v.VariablePath.UserPath) {
+            throw "forbidden environment read: `$$($v.VariablePath.UserPath)"
+        }
+    }
+}
+
+Check 'the verifier starts exactly once, and only after the wake decision' {
+    $py = @($childCalls | Where-Object { $_.CommandElements[0].VariablePath.UserPath -eq 'PythonCommand' })
+    if ($py.Count -ne 2) { throw "expected exactly two python invocations (the --help probe and the verifier), found $($py.Count)" }
+    $w = $wakeBranch[0]
+    $probe = @($py | Where-Object { (Norm $_.Extent.Text) -match '--help' })
+    $run = @($py | Where-Object { (Norm $_.Extent.Text) -notmatch '--help' })
+    if ($probe.Count -ne 1 -or $probe[0].Extent.StartOffset -gt $w.Extent.StartOffset) { throw 'the --help probe must be the only python call before the wake' }
+    if ($run.Count -ne 1 -or $run[0].Extent.StartOffset -lt $w.Extent.EndOffset) { throw 'the verifier run must come after the wake decision' }
 }
 
 Check 'the script exposes exactly the pinned parameter surface and reads only the two task credentials' {
@@ -735,12 +909,77 @@ Check 'replica poll failing => exit 3, no verifier' {
     if ($r.Capture -match '(?m)^python .*--mode ') { throw 'the verifier ran without a resolved replica' }
 }
 
-Write-Host 'SkipWake refuses to run against real commands'
-$r = Invoke-Wrapper -Env $good.Clone() -Extra @('-SkipWake') -PythonCommand 'python'
-Check 'exits 2 rather than bypassing the non-200 stop with real tools' {
-    if ($r.Exit -ne 2) { throw "exit $($r.Exit); output: $($r.Output)" }
-    if ($r.Output -notmatch 'offline tests') { throw "did not explain why:`n$($r.Output)" }
+Write-Host 'The curl stub enforces the authorized argument vector'
+# The stub is part of the safety argument: if it answered any argument vector
+# with a status, the wrapper tests could not tell an authorized wake from one
+# that retried, followed a redirect, or hit another URL. So the stub's own
+# enforcement is tested directly, case by case.
+$stubCurl = Join-Path $stubs 'stub_curl.cmd'
+$authUrl = 'https://api.vibhanshu-ai-portfolio.dev/actuator/health'
+$stubCases = @(
+    @{ Name = 'the authorized vector';         Ok = $true;  Args = @('-q', '-sS', '-o', 'NUL', '-w', '%{http_code}', $authUrl) },
+    @{ Name = 'a retry';                       Ok = $false; Args = @('-q', '-sS', '-o', 'NUL', '-w', '%{http_code}', '--retry', '3', $authUrl) },
+    @{ Name = 'a retry on all errors';         Ok = $false; Args = @('-q', '-sS', '-o', 'NUL', '-w', '%{http_code}', '--retry', '2', '--retry-all-errors', $authUrl) },
+    @{ Name = 'a redirect follow';             Ok = $false; Args = @('-q', '-sS', '-L', '-o', 'NUL', '-w', '%{http_code}', $authUrl) },
+    @{ Name = 'an altered -w';                 Ok = $false; Args = @('-q', '-sS', '-o', 'NUL', '-w', '200', $authUrl) },
+    @{ Name = 'an alternate URL';              Ok = $false; Args = @('-q', '-sS', '-o', 'NUL', '-w', '%{http_code}', 'https://api.vibhanshu-ai-portfolio.dev/api/portfolio/holdings') },
+    @{ Name = 'a second request in one call';  Ok = $false; Args = @('-q', '-sS', '-o', 'NUL', '-w', '%{http_code}', $authUrl, $authUrl) },
+    # -q must be FIRST, not merely present: curl only honours it as the very
+    # first argument, so both "no -q at all" and "-q after another flag" must be
+    # refused -- otherwise an ambient curlrc could still inject retry/redirect.
+    @{ Name = 'no -q at all (ambient config enabled)'; Ok = $false; Args = @('-sS', '-o', 'NUL', '-w', '%{http_code}', $authUrl) },
+    @{ Name = '-q present but not first';      Ok = $false; Args = @('-sS', '-q', '-o', 'NUL', '-w', '%{http_code}', $authUrl) }
+)
+foreach ($sc in $stubCases) {
+    $capFile = Join-Path ([IO.Path]::GetTempPath()) "t89-stubcurl-$([guid]::NewGuid()).txt"
+    [Environment]::SetEnvironmentVariable('STUB_CAPTURE', $capFile)
+    $sout = @(& $stubCurl @($sc.Args) 2>$null)
+    $sexit = $LASTEXITCODE
+    $scap = if (Test-Path $capFile) { Get-Content $capFile -Raw } else { '' }
+    Remove-Item $capFile -ErrorAction SilentlyContinue
+    [Environment]::SetEnvironmentVariable('STUB_CAPTURE', $null)
+    Check "curl stub: $($sc.Name) is $(if ($sc.Ok) { 'accepted' } else { 'refused with no status' })" {
+        if ($sc.Ok) {
+            if ($sexit -ne 0 -or ($sout -join '') -ne '200' -or $scap -match 'curl-violation') {
+                throw "authorized vector rejected (exit $sexit, out '$($sout -join ',')')"
+            }
+        } else {
+            if ($sexit -ne 99) { throw "exit $sexit, expected 99" }
+            if (($sout -join '').Trim()) { throw "printed a status '$($sout -join ',')' for an unauthorized vector" }
+            if ($scap -notmatch 'curl-violation') { throw 'no violation was recorded' }
+        }
+    }
 }
+
+Write-Host 'SkipWake refuses every command left at its real default'
+# A regression in this guard would let a run continue to REAL tools. So every
+# default-value case runs with stub az, docker and python first on PATH and an
+# empty Azure config directory. If the guard ever breaks -- including in a
+# mutation run -- the name resolves to a stub, and no Azure call can be made.
+# curl.exe needs no shadow: -SkipWake never invokes it.
+$shadow = Join-Path ([IO.Path]::GetTempPath()) "t89-shadow-$([guid]::NewGuid())"
+$azCfg = Join-Path $shadow 'azure-config'
+New-Item -ItemType Directory -Path $azCfg -Force | Out-Null
+Copy-Item (Join-Path $stubs 'stub_az.cmd') (Join-Path $shadow 'az.cmd')
+Copy-Item (Join-Path $stubs 'stub_docker.cmd') (Join-Path $shadow 'docker.cmd')
+Copy-Item (Join-Path $stubs 'stub_python.cmd') (Join-Path $shadow 'python.cmd')
+foreach ($d in @(
+    @{ P = '-AzCommand';     V = 'az' },
+    @{ P = '-DockerCommand'; V = 'docker' },
+    @{ P = '-CurlCommand';   V = 'curl.exe' },
+    @{ P = '-PythonCommand'; V = 'python' }
+)) {
+    $e = $good.Clone()
+    $e['PATH'] = "$shadow;$env:PATH"
+    $e['AZURE_CONFIG_DIR'] = $azCfg
+    $r = Invoke-Wrapper -Env $e -Extra @('-SkipWake', $d.P, $d.V)
+    Check "SkipWake refuses $($d.P) left at its default '$($d.V)', before any child process runs" {
+        if ($r.Exit -ne 2) { throw "exit $($r.Exit) (expected 2); output: $($r.Output)" }
+        if ($r.Output -notmatch 'offline tests') { throw "did not explain why:`n$($r.Output)" }
+        if ($r.Capture -match '(?m)^(az|docker|python|curl) ') { throw "a child process ran before the guard:`n$($r.Capture)" }
+    }
+}
+Remove-Item $shadow -Recurse -Force -ErrorAction SilentlyContinue
 
 Write-Host 'SkipWake'
 $r = Invoke-Wrapper -Env $good.Clone() -Extra @('-SkipWake')
