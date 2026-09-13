@@ -49,17 +49,19 @@ predecessor wrapper exited `3` before replica wait or verifier start. No attempt
 exists. Neither attempt advances Task 8.9.
 
 PR #268 merged the accepted `400ac3c8adebd3dae7a9d085152e280a301ec637` cold-start preflight
-wrapper with an identical merge tree. It can make no more than five fixed direct health probes,
-each capped at 30 seconds and separated by five seconds; it accepts the first exact `200`, retries
-only `503` or curl `28`/`000`, and otherwise exits `3` without verifier invocation. It calls
-verifier mode `preflight` only. This is source-only hardening, not a wake or Task 8.9 evidence.
+wrapper with an identical merge tree. The governing activation-policy change supersedes that
+wrapper's five-probe/30-second limits: it permits no more than six fixed direct health probes, each
+capped at 90 seconds and separated by five seconds; it accepts the first exact `200`, retries only
+`503` or curl `28`/`000`, and otherwise exits `3` without verifier invocation. It calls verifier
+mode `preflight` only. This is source-only hardening, not a wake or Task 8.9 evidence.
 
-**Owner approval required before Run A attempt 3:** one activation sequence of at most five
-Production health probes followed by read-only preflight. That approval does not authorize a sixth
+**Owner approval required before Run A attempt 3:** one activation sequence of at most six
+Production health probes followed by read-only preflight. That approval does not authorize a seventh
 probe, execute mode, credentials, production login, portfolio mutation or cleanup, feature flag
 change, deployment, publication, merge, or Wave 10 exposure. Use an operator shell without unusual
 curl environment variables; if antivirus locks the temporary response file after a `200`, the
-wrapper exits `3` and consumes that wake. The accepted non-blocking follow-ups are consolidated in
+wrapper exits `3` and consumes that wake. The six-probe cap provides one probe of margin beyond the
+only recorded five-request success path. The accepted non-blocking follow-ups are consolidated in
 the [Task 8.9 wake-preflight hardening backlog](../../../docs/todos/backlog/task-8-9-wake-preflight-hardening/README.md).
 If preflight passes, the credential-using, Production-mutating execute run requires another
 separate owner approval; neither this preflight approval nor a green preflight can authorize it.
