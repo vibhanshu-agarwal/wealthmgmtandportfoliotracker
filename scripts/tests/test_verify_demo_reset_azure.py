@@ -698,12 +698,20 @@ class ProofStateMachineTest(unittest.TestCase):
         http = StatefulHttpRunner(commands)
         http.advance_setup = False
         clock = Clock()
-        calls = 0
+        calls_after_failed_setup = 0
 
         def jumping_monotonic() -> float:
-            nonlocal calls
-            calls += 1
-            return 0.0 if calls == 1 else 25.0
+            nonlocal calls_after_failed_setup
+            setup_write_issued = any(
+                request["url"].endswith("/api/portfolio/holdings")
+                for request in http.requests
+            )
+            if not setup_write_issued:
+                return 0.0
+            calls_after_failed_setup += 1
+            # First call finishes timing the failed setup write; second sets
+            # cleanup's absolute deadline; third observes it as expired.
+            return 0.0 if calls_after_failed_setup <= 2 else 25.0
 
         result = verifier.run_proof(
             config(), command_runner=commands, http_runner=http,
@@ -747,14 +755,32 @@ class ProofStateMachineTest(unittest.TestCase):
                 f"durationSeconds carries more precision than 3 decimal places: {entry}",
             )
 
-    def test_every_recorded_operation_has_a_duration_seconds_rounded_to_three_places(self) -> None:
-        # A successful run: az CLI calls (_record_command), HTTP calls
-        # (_record_http) and Log Analytics queries (_query_once) all
-        # contribute entries, so this exercises every one of the three
-        # call sites that append to evidence["operations"].
-        result, _commands, _http, _clock = run_case(event_mode="success")
+    def test_every_recorded_operation_uses_the_injected_monotonic_clock(self) -> None:
+        commands = StatefulCommandRunner(event_mode="success")
+        http = StatefulHttpRunner(commands)
+        clock = Clock()
+
+        def timed_command(command, *, timeout_seconds=None):
+            result = commands(command, timeout_seconds=timeout_seconds)
+            clock.monotonic_value += 0.125
+            return result
+
+        def timed_http(**kwargs):
+            result = http(**kwargs)
+            clock.monotonic_value += 0.25
+            return result
+
+        result = verifier.run_proof(
+            config(), command_runner=timed_command, http_runner=timed_http,
+            now=clock.now, monotonic=clock.monotonic, sleep=clock.sleep,
+            trace_factory=lambda: "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01",
+        )
         self.assertEqual(result.exit_code, 0)
-        self._assert_every_operation_has_a_rounded_duration(result.evidence["operations"])
+        operations = result.evidence["operations"]
+        self._assert_every_operation_has_a_rounded_duration(operations)
+        for entry in operations:
+            expected = 0.25 if entry["kind"] == "http" else 0.125
+            self.assertEqual(expected, entry["durationSeconds"], entry)
 
     def test_duration_seconds_is_still_recorded_on_the_operation_whose_http_runner_raised(self) -> None:
         # The login call is wrapped by run_proof in its own try/except, so a
@@ -769,11 +795,18 @@ class ProofStateMachineTest(unittest.TestCase):
         # authorized attempt, so a silent regression here would surface only
         # after another irreversible wake was spent.
         commands = StatefulCommandRunner()
-        http = StatefulHttpRunner(commands)
-        http.login_error = TimeoutError("response uncertain")
         clock = Clock()
+        base_http = StatefulHttpRunner(commands)
+        base_http.login_error = TimeoutError("response uncertain")
+
+        def timed_http(**kwargs):
+            try:
+                return base_http(**kwargs)
+            finally:
+                clock.monotonic_value += 0.375
+
         result = verifier.run_proof(
-            config(), command_runner=commands, http_runner=http,
+            config(), command_runner=commands, http_runner=timed_http,
             now=clock.now, monotonic=clock.monotonic, sleep=clock.sleep,
         )
         self.assertNotEqual(result.exit_code, 0)
@@ -786,6 +819,7 @@ class ProofStateMachineTest(unittest.TestCase):
         self.assertEqual(
             len(login_entries), 1, f"expected exactly one recorded login operation: {operations}"
         )
+        self.assertEqual(0.375, login_entries[0]["durationSeconds"])
         self._assert_every_operation_has_a_rounded_duration(operations)
 
     def test_every_cleanup_retry_uses_fresh_identity_version_and_any_409_is_permanent_failure(self) -> None:

@@ -47,8 +47,7 @@ larger ceiling does. The delegated D-2 technical decision raises the ceiling to 
 sequence one probe of margin beyond the only recorded success path.
 
 Worst-case activation duration at six probes, a 90 s cap, and the production 5 s interval:
-`6 × 90 + 5 × 5 = 565` seconds (9 m 25 s); `690` seconds (11 m 30 s) at the largest accepted
-interval (30 s). Both remain far inside the packet's 30-minute outer authorization window, so the
+`6 × 90 + 5 × 5 = 565` seconds (9 m 25 s). This remains far inside the packet's 30-minute outer authorization window, so the
 outer window continues not to discriminate between the raised and prior budgets.
 
 ## Operator-facing preconditions the wrapper also enforces
@@ -62,37 +61,25 @@ they belong here too rather than only in the wrapper's own comments:
   `$PSVersionTable.PSEdition -eq 'Desktop'` and `$PSVersionTable.PSVersion.Major
   -eq 5` — Windows PowerShell 5.1 specifically, not merely "PowerShell 7.x
   satisfies a >= 5.1 minimum" (`#Requires -Version 5.1` is deliberately not
-  used for exactly that reason). PowerShell 7 changes `ConvertFrom-Json` array
-  semantics that the post-wake replica poll depends on.
+  used for exactly that reason). The safety-critical wrapper has been written
+  and tested only for Windows PowerShell 5.1; no other edition is asserted safe.
 - **Live-run probe interval.** The five-second interval between probes is a
   parameter (`-WakeProbeIntervalSeconds`), defaulted to the production value.
-  A LIVE invocation — every one of `-AzCommand`, `-DockerCommand`,
+  A potentially LIVE invocation — at least one of `-AzCommand`, `-DockerCommand`,
   `-CurlCommand` and `-PythonCommand` still at its literal default — must omit
   the parameter or pass exactly `5`; any other value is refused (exit 2)
-  before any child process. Only the offline test suite, which overrides at
-  least one of those four to reach a stub, may use a different interval.
-- **Evidence-path externality.** For a live invocation (same definition as
+  before any child process. Only a fully stubbed invocation, which overrides
+  all four, may use a different interval.
+- **Evidence-path externality.** For a potentially live invocation (same definition as
   above), `-EvidenceOutput` must resolve outside the repository, checked
   before any child process. The wrapper's in-repo default (used when
   `-EvidenceOutput` is omitted) is therefore always rejected for a live run; a
   live invocation must pass an explicit out-of-repository path. Resolution
   uses PowerShell's own current location (`$PWD`), not the process's, and the
   comparison is lexical and case-insensitive — it does not resolve junctions
-  or symlinks, so it is a misuse guard, not a security boundary.
-
-### Known limitation: partial command overrides
-
-The "live invocation" test above requires ALL FOUR of `-AzCommand`,
-`-DockerCommand`, `-CurlCommand` and `-PythonCommand` to still be at their
-literal defaults. If only SOME are overridden — for example, stubbing
-`az`/`docker`/`python` for a rehearsal but leaving `-CurlCommand` at its real
-default — the wrapper treats the invocation as NOT live, and BOTH the interval
-rule and the evidence-path rule above are skipped entirely, even though the
-curl call that follows is still real and can still issue a genuine Production
-probe. This predicate guards the fully-default case; it cannot distinguish a
-deliberate partial override from a mistaken one. An operator relying on these
-two guards to catch a mistake must override either all four external commands
-or none of them.
+  or symlinks, so it is a misuse guard, not a security boundary. Ambiguous
+  Windows drive-relative (`C:x.json`) and root-relative (`\x.json`) spellings
+  are refused rather than resolved against process or drive state.
 
 ## What is unchanged
 

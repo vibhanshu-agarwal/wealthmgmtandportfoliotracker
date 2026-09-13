@@ -14,10 +14,10 @@
     one. No real curl ever reaches the network: almost every wrapper invocation
     below passes the stub outright, and the handful of tests that instead leave
     -CurlCommand at its literal default 'curl.exe' -- to prove a live-invocation
-    guard fires before any child process -- pair that with a controlled,
-    already-proven earlier failure (a stubbed `az` call made to fail on
-    purpose) so execution stops well before the wake, never reaching curl at
-    all even if the guard under test regressed completely.
+    guard fires before any child process -- use one shared shadow-PATH rig
+    that pairs a controlled, already-proven earlier `az` failure with a local
+    non-executable curl.exe placeholder. A regressed guard therefore cannot
+    reach a real Production client even if the earlier stop also misbehaves.
 
     Run:  powershell -NoProfile -ExecutionPolicy Bypass -File scripts/tests/test_run_task_8_9_preflight.ps1
 #>
@@ -175,6 +175,50 @@ function Check {
         Write-Host "  FAIL  $Name" -ForegroundColor Red
         Write-Host "        $($_.Exception.Message)" -ForegroundColor Red
     }
+}
+
+function New-ShadowPathRig {
+    # Return an isolated PATH prefix containing every external command name the
+    # wrapper can invoke. curl.exe is deliberately an invalid executable: it is
+    # the final network-safety net if a guard regression also bypasses the
+    # controlled first-az failure used by the live-configuration tests.
+    param([string]$Tag)
+    $root = Join-Path ([IO.Path]::GetTempPath()) "t89-shadow-$Tag-$([guid]::NewGuid())"
+    $azureConfig = Join-Path $root 'azure-config'
+    New-Item -ItemType Directory -Path $azureConfig -Force | Out-Null
+    Copy-Item (Join-Path $stubs 'stub_az.cmd') (Join-Path $root 'az.cmd')
+    Copy-Item (Join-Path $stubs 'stub_docker.cmd') (Join-Path $root 'docker.cmd')
+    Copy-Item (Join-Path $stubs 'stub_python.cmd') (Join-Path $root 'python.cmd')
+    Set-Content -LiteralPath (Join-Path $root 'curl.exe') -Value 'not an executable; network-safety placeholder' -Encoding ASCII
+    [pscustomobject]@{ Root = $root; AzureConfig = $azureConfig }
+}
+
+function New-ShadowEnvironment {
+    param($Rig)
+    $e = $good.Clone()
+    $e['PATH'] = "$($Rig.Root);$env:PATH"
+    $e['AZURE_CONFIG_DIR'] = $Rig.AzureConfig
+    $e['STUB_AZ_FAIL_MATCH'] = '--query name'
+    return $e
+}
+
+function Invoke-ShadowedPotentiallyLiveCase {
+    # Keep literal-default command values so the wrapper applies its live
+    # guards, while the shared PATH rig resolves every name locally. -Extra
+    # may override a command deliberately; unspecified commands retain their
+    # literal defaults without creating duplicate parameter bindings.
+    param($Rig, [string[]]$Extra = @())
+    $argv = @()
+    foreach ($pair in @(
+        @{ P = '-AzCommand'; V = 'az' },
+        @{ P = '-DockerCommand'; V = 'docker' },
+        @{ P = '-CurlCommand'; V = 'curl.exe' },
+        @{ P = '-PythonCommand'; V = 'python' }
+    )) {
+        if ($Extra -notcontains $pair.P) { $argv += @($pair.P, $pair.V) }
+    }
+    $argv += $Extra
+    Invoke-Wrapper -Env (New-ShadowEnvironment $Rig) -Extra $argv
 }
 
 $prov = Get-Content (Join-Path $repo 'docs/evidence/b2-task-8-9/deployment-provenance-20260911.json') -Raw | ConvertFrom-Json
@@ -868,7 +912,7 @@ Check '$isLiveRun reuses the same $commandsAtDefault predicate -- not a second, 
     if ($ca.Count -ne 1) { throw "`$commandsAtDefault must be assigned exactly once, found $($ca.Count)" }
     $live = @(Assignments-To $wrapperAst 'isLiveRun')
     if ($live.Count -ne 1) { throw "`$isLiveRun must be assigned exactly once, found $($live.Count)" }
-    if ((Norm $live[0].Right.Extent.Text) -cne '($commandsAtDefault -notcontains $false)') { throw "`$isLiveRun is assigned from '$((Norm $live[0].Right.Extent.Text))', not from the shared `$commandsAtDefault" }
+    if ((Norm $live[0].Right.Extent.Text) -cne '($commandsAtDefault -contains $true)') { throw "`$isLiveRun is assigned from '$((Norm $live[0].Right.Extent.Text))', not from the fail-closed shared `$commandsAtDefault" }
     if ($live[0].Extent.StartOffset -lt $ca[0].Extent.EndOffset) { throw '$isLiveRun must be assigned after $commandsAtDefault' }
     if (@($childCalls | Where-Object { $_.Extent.StartOffset -lt $live[0].Extent.StartOffset -and -not (Inside-Unit $_) }).Count) {
         throw 'a child process can run before $isLiveRun is computed'
@@ -1411,12 +1455,7 @@ if ($pwshCmd) {
 # The AST pin for the guard's exact shape lives with the other
 # WakeProbeIntervalSeconds AST checks above; these are its behavioral proof.
 Write-Host 'Live-run interval enforcement'
-$shadowLive = Join-Path ([IO.Path]::GetTempPath()) "t89-shadow-live-$([guid]::NewGuid())"
-$azCfgLive = Join-Path $shadowLive 'azure-config'
-New-Item -ItemType Directory -Path $azCfgLive -Force | Out-Null
-Copy-Item (Join-Path $stubs 'stub_az.cmd') (Join-Path $shadowLive 'az.cmd')
-Copy-Item (Join-Path $stubs 'stub_docker.cmd') (Join-Path $shadowLive 'docker.cmd')
-Copy-Item (Join-Path $stubs 'stub_python.cmd') (Join-Path $shadowLive 'python.cmd')
+$liveRig = New-ShadowPathRig 'live'
 try {
     # Every command left at its literal default (so $isLiveRun is true), but
     # shadowed on PATH with stubs first: a bug in the guard below must not be
@@ -1435,20 +1474,21 @@ try {
     #      executable: if it is ever invoked, Windows refuses to launch it and
     #      no network I/O occurs. This is belt-and-braces underneath net 1 --
     #      it does not depend on az failing first -- not a substitute for it.
-    $eLive = $good.Clone()
-    $eLive['PATH'] = "$shadowLive;$env:PATH"
-    $eLive['AZURE_CONFIG_DIR'] = $azCfgLive
-    $eLive['STUB_AZ_FAIL_MATCH'] = '--query name'
-    $curlRefuseStub = Join-Path $shadowLive 'curl.exe'
-    Set-Content -LiteralPath $curlRefuseStub -Value 'this is not a valid executable; it exists only so a regressed guard cannot fall through to the real curl.exe' -Encoding ASCII
-    $r = Invoke-Wrapper -Env $eLive -Extra @('-AzCommand', 'az', '-DockerCommand', 'docker', '-CurlCommand', 'curl.exe', '-PythonCommand', 'python', '-WakeProbeIntervalSeconds', '10')
+    $r = Invoke-ShadowedPotentiallyLiveCase $liveRig @('-WakeProbeIntervalSeconds', '10')
     Check 'a live configuration (every command at its default) with a non-5 interval fails closed before any child process' {
         if ($r.Exit -ne 2) { throw "exit $($r.Exit) (expected 2); output: $($r.Output)" }
         if ($r.Output -notmatch 'must be omitted or set to exactly 5 for a live run') { throw "did not name the live-interval rule:`n$($r.Output)" }
         if ($r.Capture -match '(?m)^(az|docker|python|curl) ') { throw "a child process ran before the live-interval guard:`n$($r.Capture)" }
     }
+
+    $r = Invoke-ShadowedPotentiallyLiveCase $liveRig @('-AzCommand', (Join-Path $stubs 'stub_az.cmd'), '-DockerCommand', (Join-Path $stubs 'stub_docker.cmd'), '-PythonCommand', (Join-Path $stubs 'stub_python.cmd'), '-WakeProbeIntervalSeconds', '10')
+    Check 'a partially overridden configuration with real curl.exe remains live and refuses a non-5 interval before any child process' {
+        if ($r.Exit -ne 2) { throw "exit $($r.Exit) (expected 2); output: $($r.Output)" }
+        if ($r.Output -notmatch 'must be omitted or set to exactly 5 for a live run') { throw "did not name the live-interval rule:`n$($r.Output)" }
+        if ($r.Capture -match '(?m)^(az|docker|python|curl) ') { throw "a child process ran before the partial-override live guard:`n$($r.Capture)" }
+    }
 } finally {
-    Remove-Item $shadowLive -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item $liveRig.Root -Recurse -Force -ErrorAction SilentlyContinue
 }
 $r = Invoke-Wrapper -Env $good.Clone()
 Check 'a non-live (stub) configuration with interval 0 is unaffected by the live-interval guard (as every other test in this suite already relies on)' {
@@ -1477,30 +1517,25 @@ Check 'the overwrite refusal is preserved unchanged, and a live run enforces evi
     if ($bodyText -notmatch 'OrdinalIgnoreCase') { throw 'the evidence-path check is not case-insensitive' }
     if ($bodyText -notmatch 'DirectorySeparatorChar') { throw 'the evidence-path check does not append a trailing separator before comparing (the prefix-sibling guard)' }
     $liveFails = @(Find-Ast $b { param($n) $n -is [System.Management.Automation.Language.CommandAst] -and $n.GetCommandName() -eq 'Fail' })
-    if ($liveFails.Count -ne 1 -or (Norm @($liveFails[0].CommandElements)[-1].Extent.Text) -ne '2') { throw 'the evidence-path check must Fail with exit 2' }
+    if ($liveFails.Count -ne 2) { throw "the evidence-path check must have exactly two refusal paths, found $($liveFails.Count)" }
+    foreach ($liveFail in $liveFails) {
+        if ((Norm @($liveFail.CommandElements)[-1].Extent.Text) -ne '2') { throw 'every evidence-path refusal must Fail with exit 2' }
+    }
+    if ($bodyText -notmatch 'drive-relative and root-relative Windows spellings are refused') { throw 'the evidence-path check does not explicitly refuse ambiguous Windows path forms' }
     if (@(Find-Ast $wrapperAst { param($n) $n -is [System.Management.Automation.Language.CommandAst] -and $n.GetCommandName() -eq 'git' }).Count) { throw 'the wrapper must not shell out to git' }
 }
 
 Write-Host 'Evidence-path externality (behavioral): in-repo rejected, prefix-sibling accepted, traversal both ways'
-$shadowEv = Join-Path ([IO.Path]::GetTempPath()) "t89-shadow-evpath-$([guid]::NewGuid())"
-$azCfgEv = Join-Path $shadowEv 'azure-config'
-New-Item -ItemType Directory -Path $azCfgEv -Force | Out-Null
-Copy-Item (Join-Path $stubs 'stub_az.cmd') (Join-Path $shadowEv 'az.cmd')
-Copy-Item (Join-Path $stubs 'stub_docker.cmd') (Join-Path $shadowEv 'docker.cmd')
-Copy-Item (Join-Path $stubs 'stub_python.cmd') (Join-Path $shadowEv 'python.cmd')
+$evidenceRig = New-ShadowPathRig 'evpath'
 function Invoke-LiveEvidenceCase {
-    # A "live" invocation (every one of Az/Docker/Curl/Python at its literal
-    # default, shadowed on PATH with stubs) whose FIRST az call is made to
+    # A potentially "live" invocation (all command parameters at their literal
+    # defaults, shadowed by the shared PATH rig) whose FIRST az call is made to
     # fail in a controlled, already-proven way (see the 'Each pre-wake child
     # failure' phases above). A path that passes the boundary check below
     # therefore proceeds to that known, safe stopping point -- never reaching
     # curl -- rather than this test needing a live wake to succeed.
-    param([string]$EvidenceOutput)
-    $e = $good.Clone()
-    $e['PATH'] = "$shadowEv;$env:PATH"
-    $e['AZURE_CONFIG_DIR'] = $azCfgEv
-    $e['STUB_AZ_FAIL_MATCH'] = '--query name'
-    Invoke-Wrapper -Env $e -Extra @('-AzCommand', 'az', '-DockerCommand', 'docker', '-CurlCommand', 'curl.exe', '-PythonCommand', 'python', '-WakeProbeIntervalSeconds', '5', '-EvidenceOutput', $EvidenceOutput)
+    param([string]$EvidenceOutput, [string[]]$Extra = @())
+    Invoke-ShadowedPotentiallyLiveCase $evidenceRig (@('-WakeProbeIntervalSeconds', '5', '-EvidenceOutput', $EvidenceOutput) + $Extra)
 }
 $repoLeaf = Split-Path $repo -Leaf
 $siblingDir = "$repo-backup-$([guid]::NewGuid().ToString('N'))"
@@ -1514,21 +1549,30 @@ try {
         if ($r.Capture -match '(?m)^(az|docker|python|curl) ') { throw "a child process ran before the evidence-path guard:`n$($r.Capture)" }
     }
 
-    # M1 regression: a RELATIVE path (no leading absolute drive, no '..'
-    # traversal at all) that resolves inside the repository. This is the exact
-    # shape a stale-[Environment]::CurrentDirectory bug would mis-canonicalize:
-    # GetFullPath resolves a relative path against the PROCESS current
-    # directory, which Set-Location does not always keep in sync with $PWD, so
-    # a guard built on it could canonicalize this same string against some
-    # other directory entirely and see it as outside the repository. The
-    # wrapper's own $PWD here is $repo (Invoke-Wrapper's Push-Location), so the
-    # correct canonicalization is unambiguous: this must be rejected.
+    # An ordinary relative path resolves against the wrapper's current
+    # filesystem location and must be rejected when that resolution is inside
+    # the repository. The traversal case below exercises the same branch with
+    # dot segments; the ambiguous drive/root-relative spellings have their own
+    # explicit refusal checks because they do not have ordinary relative-path
+    # semantics on Windows PowerShell 5.1.
     $insideRelative = "docs/evidence/b2-task-8-9/t89-boundary-relative-$([guid]::NewGuid().ToString('N')).json"
     $r = Invoke-LiveEvidenceCase -EvidenceOutput $insideRelative
     Check 'a live run with a RELATIVE -EvidenceOutput that resolves inside the repository is rejected before any child process' {
         if ($r.Exit -ne 2) { throw "exit $($r.Exit) (expected 2); output: $($r.Output)" }
         if ($r.Output -notmatch 'must resolve outside the repository') { throw "did not name the boundary rule:`n$($r.Output)" }
         if ($r.Capture -match '(?m)^(az|docker|python|curl) ') { throw "a child process ran before the evidence-path guard:`n$($r.Capture)" }
+    }
+
+    foreach ($ambiguous in @(
+        "C:t89-drive-relative-$([guid]::NewGuid().ToString('N')).json",
+        "\t89-root-relative-$([guid]::NewGuid().ToString('N')).json"
+    )) {
+        $r = Invoke-LiveEvidenceCase -EvidenceOutput $ambiguous
+        Check "a live run rejects ambiguous Windows evidence path spelling '$ambiguous' before any child process" {
+            if ($r.Exit -ne 2) { throw "exit $($r.Exit) (expected 2); output: $($r.Output)" }
+            if ($r.Output -notmatch 'must be fully qualified or an ordinary relative path') { throw "did not name the ambiguous-path rule:`n$($r.Output)" }
+            if ($r.Capture -match '(?m)^(az|docker|python|curl) ') { throw "a child process ran before the ambiguous-path guard:`n$($r.Capture)" }
+        }
     }
 
     $siblingPath = Join-Path $siblingDir 't89-sibling-evidence.json'
@@ -1557,7 +1601,7 @@ try {
         if ($r.Output -notmatch 'no authenticated az session') { throw "did not proceed to the az session check:`n$($r.Output)" }
     }
 } finally {
-    Remove-Item $shadowEv, $siblingDir -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item $evidenceRig.Root, $siblingDir -Recurse -Force -ErrorAction SilentlyContinue
 }
 
 Write-Host 'Evidence-output overwrite refusal is preserved'
@@ -2057,21 +2101,14 @@ Write-Host 'SkipWake refuses every command left at its real default'
 # empty Azure config directory. If the guard ever breaks -- including in a
 # mutation run -- the name resolves to a stub, and no Azure call can be made.
 # curl.exe needs no shadow: -SkipWake never invokes it.
-$shadow = Join-Path ([IO.Path]::GetTempPath()) "t89-shadow-$([guid]::NewGuid())"
-$azCfg = Join-Path $shadow 'azure-config'
-New-Item -ItemType Directory -Path $azCfg -Force | Out-Null
-Copy-Item (Join-Path $stubs 'stub_az.cmd') (Join-Path $shadow 'az.cmd')
-Copy-Item (Join-Path $stubs 'stub_docker.cmd') (Join-Path $shadow 'docker.cmd')
-Copy-Item (Join-Path $stubs 'stub_python.cmd') (Join-Path $shadow 'python.cmd')
+$skipRig = New-ShadowPathRig 'skip'
 foreach ($d in @(
     @{ P = '-AzCommand';     V = 'az' },
     @{ P = '-DockerCommand'; V = 'docker' },
     @{ P = '-CurlCommand';   V = 'curl.exe' },
     @{ P = '-PythonCommand'; V = 'python' }
 )) {
-    $e = $good.Clone()
-    $e['PATH'] = "$shadow;$env:PATH"
-    $e['AZURE_CONFIG_DIR'] = $azCfg
+    $e = New-ShadowEnvironment $skipRig
     $r = Invoke-Wrapper -Env $e -Extra @('-SkipWake', $d.P, $d.V)
     Check "SkipWake refuses $($d.P) left at its default '$($d.V)', before any child process runs" {
         if ($r.Exit -ne 2) { throw "exit $($r.Exit) (expected 2); output: $($r.Output)" }
@@ -2079,7 +2116,7 @@ foreach ($d in @(
         if ($r.Capture -match '(?m)^(az|docker|python|curl) ') { throw "a child process ran before the guard:`n$($r.Capture)" }
     }
 }
-Remove-Item $shadow -Recurse -Force -ErrorAction SilentlyContinue
+Remove-Item $skipRig.Root -Recurse -Force -ErrorAction SilentlyContinue
 
 Write-Host 'SkipWake'
 $r = Invoke-Wrapper -Env $good.Clone() -Extra @('-SkipWake')

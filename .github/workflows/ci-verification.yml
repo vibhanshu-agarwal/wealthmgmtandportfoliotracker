@@ -96,6 +96,9 @@ jobs:
       - name: Master-plan status propagation contract tests
         run: python scripts/tests/test_master_plan_status_propagation.py -v
 
+      - name: Task 8.9 Azure verifier contract tests
+        run: python scripts/tests/test_verify_demo_reset_azure.py -v
+
       - name: B2 demo golden-state oracle contract tests
         run: python scripts/tests/test_derive_demo_golden_state.py -v
 
@@ -104,6 +107,15 @@ jobs:
         # is a required check and never skips, so a broken classifier cannot
         # merge. deploy-workflow-contract is advisory and would not enforce this.
         run: python scripts/tests/test_classify_changed_paths.py -v
+
+  task-8-9-powershell-tests:
+    runs-on: windows-latest
+    needs: unit-tests
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Task 8.9 PowerShell 5.1 wrapper tests
+        run: powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/tests/test_run_task_8_9_preflight.ps1
 
   deploy-workflow-contract:
     runs-on: ubuntu-latest
@@ -672,6 +684,7 @@ jobs:
     needs:
       - changes
       - static-guard
+      - task-8-9-powershell-tests
       - sanitizer-canary
       - unit-tests
       - azure-image-smoke-test
@@ -715,6 +728,7 @@ jobs:
             | {
                 "changes": "success",
                 "static-guard": "success",
+                "task-8-9-powershell-tests": $chain,
                 "sanitizer-canary": "success",
                 "unit-tests": $chain,
                 "azure-image-smoke-test": $chain,

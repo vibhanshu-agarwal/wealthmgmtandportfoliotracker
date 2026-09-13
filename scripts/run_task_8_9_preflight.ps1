@@ -5,9 +5,8 @@
 
     Written for and tested against Windows PowerShell 5.1, which this script now
     enforces at startup: it refuses to run (exit 2, before any child process)
-    under any other PSEdition or major version, because PowerShell 7's
-    ConvertFrom-Json array semantics differ from the ones this script's replica
-    poll depends on.
+    under any other PSEdition or major version. Other editions have not been
+    validated for this safety-critical wrapper.
 
 .DESCRIPTION
     The Task 8.9 verifier cannot resolve a gateway replica while api-gateway is
@@ -35,8 +34,8 @@
       * curl exit 28 and status 000   -> recorded cold-start timeout; probe again
       * six such outcomes, no 200     -> stop, exit 3
       * anything else                 -> stop at once, exit 3
-    Worst case: six 90 s probes and five 5 s intervals, 565 s (690 s at the
-    largest accepted interval). These are upper bounds, not a claim that probes
+    Live-run worst case: six 90 s probes and five 5 s intervals, 565 s. This is
+    an upper bound, not a claim that probes
     normally run to the curl timeout. Every probe issued belongs to the
     sequence and is treated as consumed; any request beyond it is a fresh owner
     decision. The per-probe cap was raised from 30 s to 90 s, and the budget
@@ -94,9 +93,9 @@
 
 .PARAMETER WakeProbeIntervalSeconds
     Seconds between probes. Default '5', the production value; any live run
-    must omit it or pass exactly 5 -- enforced below (see $isLiveRun): a live
-    invocation (every one of -AzCommand, -DockerCommand, -CurlCommand and
-    -PythonCommand still at its literal default) that requests any other
+    must omit it or pass exactly 5 -- enforced below (see $isLiveRun): a
+    potentially live invocation (at least one of -AzCommand, -DockerCommand,
+    -CurlCommand and -PythonCommand still at its literal default) that requests any other
     interval exits 2 before any child process. Accepted only as a whole number
     0..30 written plainly (no sign, fraction, exponent, whitespace or leading
     zero), validated before any child process; anything else exits 2. It is a
@@ -110,8 +109,8 @@
     when omitted. Refused with exit 2 before any request if the resolved path
     already exists -- evidence is never overwritten.
 
-    For a live run ($isLiveRun: every one of -AzCommand, -DockerCommand,
-    -CurlCommand and -PythonCommand still at its literal default), the
+    For a potentially live run ($isLiveRun: at least one of -AzCommand,
+    -DockerCommand, -CurlCommand and -PythonCommand still at its literal default), the
     resolved path must also fall OUTSIDE the repository, checked before any
     request -- see the evidence-path externality comment further down for why.
     Consequently the in-repo default above is always rejected for a live run;
@@ -194,9 +193,8 @@ function Fail {
 
 # Windows PowerShell 5.1 gate, checked before any child process runs -- indeed,
 # before anything else in the script from this point on. This wrapper is
-# written for and tested against Windows PowerShell 5.1 only (see the header),
-# because PowerShell 7 changes ConvertFrom-Json array semantics that the
-# replica poll below depends on (see the comment at that decode step).
+# written for and tested against Windows PowerShell 5.1 only (see the header).
+# Other editions have not been validated for this safety-critical wrapper.
 # #Requires -Version 5.1 is deliberately NOT used: PowerShell 7 satisfies that
 # minimum version number and would pass the very gate it exists to block --
 # 5.1 is Windows PowerShell's own version, but "at least 5.1" is also true of
@@ -435,13 +433,11 @@ if ($SkipWake) {
     }
 }
 
-# True only when every one of the four external-command parameters is still at
-# its literal default: the shape of an actual invocation against the real
-# gateway, never of an offline test (which overrides at least one to reach a
-# stub). Read by the live-run interval check just below and the evidence-path
-# check further down -- both reuse this one shared predicate rather than a
-# second, divergent test for "live".
-$isLiveRun = ($commandsAtDefault -notcontains $false)
+# Fail-closed liveness predicate: if ANY external-command parameter remains at
+# its literal default, a real tool may still be reached. Only a fully stubbed
+# invocation may bypass the live interval and evidence-path guards. Read by
+# both guards so there is one shared definition of "potentially live".
+$isLiveRun = ($commandsAtDefault -contains $true)
 
 # -WakeProbeIntervalSeconds, validated before any child process for the same
 # reason as the guard above. It is a [string] so every invalid value reaches
@@ -461,7 +457,7 @@ $probeIntervalSeconds = [int]$WakeProbeIntervalSeconds
 # than a flat rule. Checked before any child process, same as the format check
 # just above.
 if ($isLiveRun -and $probeIntervalSeconds -ne 5) {
-    Fail '-WakeProbeIntervalSeconds must be omitted or set to exactly 5 for a live run: every one of -AzCommand, -DockerCommand, -CurlCommand and -PythonCommand is still at its literal default, so this is treated as a live invocation. This compares literal defaults only and cannot reliably distinguish a stub from a real tool.' 2
+    Fail '-WakeProbeIntervalSeconds must be omitted or set to exactly 5 for a live run: at least one of -AzCommand, -DockerCommand, -CurlCommand and -PythonCommand is still at its literal default, so this is treated as a potentially live invocation. This compares literal defaults only and cannot reliably distinguish a stub from a real tool.' 2
 }
 
 # --- Inputs -----------------------------------------------------------------
@@ -492,8 +488,11 @@ if (Test-Path $EvidenceOutput) {
 # parent is the repository root -- deliberately not a `git` call: this wrapper
 # shells out only to curl/az/python/docker, and adding a git dependency here
 # would be a new one. Both the repo root and -EvidenceOutput are canonicalized
-# with [IO.Path]::GetFullPath(). An absolute evidence path can be canonicalized
-# directly. A relative evidence path is first joined to $PWD.ProviderPath so
+# with [IO.Path]::GetFullPath(). A fully qualified drive or UNC evidence path
+# can be canonicalized directly. Ambiguous drive-relative (`C:x.json`) and
+# root-relative (`\x.json`) forms are refused: Windows PowerShell 5.1 reports
+# them as rooted even though their base depends on process/drive state. An
+# ordinary relative evidence path is first joined to $PWD.ProviderPath so
 # it resolves against PowerShell's current filesystem location, the same base
 # used by Test-Path and the verifier child process. Calling GetFullPath on the
 # relative value alone would instead use [Environment]::CurrentDirectory,
@@ -521,6 +520,11 @@ if ($isLiveRun) {
     $dirSep = [string][IO.Path]::DirectorySeparatorChar
     if (-not $repoRootWithSep.EndsWith($dirSep)) {
         $repoRootWithSep += $dirSep
+    }
+    $isDriveRelative = [regex]::IsMatch($EvidenceOutput, '\A[A-Za-z]:(?:\z|[^\\/])')
+    $isRootRelative = [regex]::IsMatch($EvidenceOutput, '\A[\\/](?![\\/])')
+    if ($isDriveRelative -or $isRootRelative) {
+        Fail "-EvidenceOutput must be fully qualified or an ordinary relative path for a live run; drive-relative and root-relative Windows spellings are refused: '$EvidenceOutput'." 2
     }
     if ([IO.Path]::IsPathRooted($EvidenceOutput)) {
         $evidenceFull = [IO.Path]::GetFullPath($EvidenceOutput)

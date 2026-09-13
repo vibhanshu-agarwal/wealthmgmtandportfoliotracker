@@ -310,12 +310,13 @@ class WorkflowWiringTests(unittest.TestCase):
         job = self._job(self.text, "static-guard:")
         self.assertIn("test_classify_changed_paths.py", job)
 
-    def test_aggregate_gate_uses_always_and_needs_exactly_the_eight(self):
+    def test_aggregate_gate_uses_always_and_needs_exactly_the_nine(self):
         job = self._job(self.text, "ci-required:")
         self.assertIn("if: always()", job)
         for dependency in (
             "changes",
             "static-guard",
+            "task-8-9-powershell-tests",
             "sanitizer-canary",
             "unit-tests",
             "azure-image-smoke-test",
@@ -334,6 +335,7 @@ class WorkflowWiringTests(unittest.TestCase):
         for heading in (
             "changes:",
             "static-guard:",
+            "task-8-9-powershell-tests:",
             "sanitizer-canary:",
             "unit-tests:",
             "azure-image-smoke-test:",
@@ -380,7 +382,12 @@ class WorkflowWiringTests(unittest.TestCase):
         )
         self.assertRegex(unit, r"(?m)^    needs: \[static-guard, changes\]$")
 
-        for heading in ("integration-tests:", "pact-consumer:", "docker-build-verify:"):
+        for heading in (
+            "task-8-9-powershell-tests:",
+            "integration-tests:",
+            "pact-consumer:",
+            "docker-build-verify:",
+        ):
             with self.subTest(job=heading):
                 self.assertNotRegex(
                     self._job(self.text, heading),
@@ -405,6 +412,7 @@ class WorkflowWiringTests(unittest.TestCase):
 ALL_JOBS = (
     "changes",
     "static-guard",
+    "task-8-9-powershell-tests",
     "sanitizer-canary",
     "unit-tests",
     "azure-image-smoke-test",
@@ -412,10 +420,11 @@ ALL_JOBS = (
     "pact-consumer",
     "docker-build-verify",
 )
-# The five that skip together on a docs-only PR, by needs-propagation from the
+# The six that skip together on a docs-only PR, by needs-propagation from the
 # single condition on unit-tests. Nothing outside this set may ever skip.
 CHAIN_JOBS = (
     "unit-tests",
+    "task-8-9-powershell-tests",
     "azure-image-smoke-test",
     "integration-tests",
     "pact-consumer",
