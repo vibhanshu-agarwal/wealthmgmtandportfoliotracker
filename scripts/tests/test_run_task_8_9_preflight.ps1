@@ -10,8 +10,14 @@
     The activation sequence is exercised through a curl stub that plays back a
     per-call script (status, curl exit, metadata, body bytes, content type), so
     a multi-probe cold start -- timeout, 503, 503, 200 -- is reproduced offline
-    call by call. No real curl ever runs: every wrapper invocation below passes
-    the stub, and the stub refuses any argument vector but the authorized one.
+    call by call, and the stub refuses any argument vector but the authorized
+    one. No real curl ever reaches the network: almost every wrapper invocation
+    below passes the stub outright, and the handful of tests that instead leave
+    -CurlCommand at its literal default 'curl.exe' -- to prove a live-invocation
+    guard fires before any child process -- pair that with a controlled,
+    already-proven earlier failure (a stubbed `az` call made to fail on
+    purpose) so execution stops well before the wake, never reaching curl at
+    all even if the guard under test regressed completely.
 
     Run:  powershell -NoProfile -ExecutionPolicy Bypass -File scripts/tests/test_run_task_8_9_preflight.ps1
 #>
@@ -1414,12 +1420,27 @@ Copy-Item (Join-Path $stubs 'stub_python.cmd') (Join-Path $shadowLive 'python.cm
 try {
     # Every command left at its literal default (so $isLiveRun is true), but
     # shadowed on PATH with stubs first: a bug in the guard below must not be
-    # able to reach a real az/docker/python. curl.exe is never shadowed
-    # because this case never reaches the wake -- it fails closed before any
-    # child process at all.
+    # able to reach a real az/docker/python. Two independent nets on top of
+    # that, in case the interval guard itself regresses and lets execution
+    # fall through to the pre-wake checks:
+    #   1. STUB_AZ_FAIL_MATCH makes the very FIRST az call in the wrapper
+    #      ("Checking Azure session", --query name) fail in the same
+    #      controlled, already-proven way Invoke-LiveEvidenceCase below relies
+    #      on -- so a regressed guard still stops at "no authenticated az
+    #      session" long before Invoke-AuthorizedWake, and this Check's own
+    #      assertions (which require exit 2 with the INTERVAL message, and no
+    #      child process at all) then fail loudly instead of silently letting
+    #      a real wake through.
+    #   2. curl.exe is ALSO shadowed, with a placeholder that is not a valid
+    #      executable: if it is ever invoked, Windows refuses to launch it and
+    #      no network I/O occurs. This is belt-and-braces underneath net 1 --
+    #      it does not depend on az failing first -- not a substitute for it.
     $eLive = $good.Clone()
     $eLive['PATH'] = "$shadowLive;$env:PATH"
     $eLive['AZURE_CONFIG_DIR'] = $azCfgLive
+    $eLive['STUB_AZ_FAIL_MATCH'] = '--query name'
+    $curlRefuseStub = Join-Path $shadowLive 'curl.exe'
+    Set-Content -LiteralPath $curlRefuseStub -Value 'this is not a valid executable; it exists only so a regressed guard cannot fall through to the real curl.exe' -Encoding ASCII
     $r = Invoke-Wrapper -Env $eLive -Extra @('-AzCommand', 'az', '-DockerCommand', 'docker', '-CurlCommand', 'curl.exe', '-PythonCommand', 'python', '-WakeProbeIntervalSeconds', '10')
     Check 'a live configuration (every command at its default) with a non-5 interval fails closed before any child process' {
         if ($r.Exit -ne 2) { throw "exit $($r.Exit) (expected 2); output: $($r.Output)" }
@@ -1449,7 +1470,8 @@ Check 'the overwrite refusal is preserved unchanged, and a live run enforces evi
         throw 'a child process can run before the evidence-path check'
     }
     $bodyText = $b.Extent.Text
-    if ($bodyText -notmatch '\[IO\.Path\]::GetFullPath') { throw 'the evidence-path check does not canonicalize with [IO.Path]::GetFullPath' }
+    if ($bodyText -notmatch '\$ExecutionContext\.SessionState\.Path\.GetUnresolvedProviderPathFromPSPath') { throw 'the evidence-path check does not canonicalize with $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath (resolves against $PWD, not the process current directory)' }
+    if ($bodyText -match '\[IO\.Path\]::GetFullPath') { throw 'the evidence-path check must not canonicalize with [IO.Path]::GetFullPath: it resolves a relative path against [Environment]::CurrentDirectory, which Set-Location does not keep in sync with $PWD' }
     if ($bodyText -notmatch '\$PSScriptRoot') { throw 'the evidence-path check does not derive the repo root from $PSScriptRoot' }
     if ($bodyText -notmatch 'OrdinalIgnoreCase') { throw 'the evidence-path check is not case-insensitive' }
     if ($bodyText -notmatch 'DirectorySeparatorChar') { throw 'the evidence-path check does not append a trailing separator before comparing (the prefix-sibling guard)' }
@@ -1486,6 +1508,23 @@ try {
     $insideAbs = Join-Path $repo "docs/evidence/b2-task-8-9/t89-boundary-inside-$([guid]::NewGuid().ToString('N')).json"
     $r = Invoke-LiveEvidenceCase -EvidenceOutput $insideAbs
     Check 'a live run with -EvidenceOutput inside the repository is rejected before any child process' {
+        if ($r.Exit -ne 2) { throw "exit $($r.Exit) (expected 2); output: $($r.Output)" }
+        if ($r.Output -notmatch 'must resolve outside the repository') { throw "did not name the boundary rule:`n$($r.Output)" }
+        if ($r.Capture -match '(?m)^(az|docker|python|curl) ') { throw "a child process ran before the evidence-path guard:`n$($r.Capture)" }
+    }
+
+    # M1 regression: a RELATIVE path (no leading absolute drive, no '..'
+    # traversal at all) that resolves inside the repository. This is the exact
+    # shape a stale-[Environment]::CurrentDirectory bug would mis-canonicalize:
+    # GetFullPath resolves a relative path against the PROCESS current
+    # directory, which Set-Location does not always keep in sync with $PWD, so
+    # a guard built on it could canonicalize this same string against some
+    # other directory entirely and see it as outside the repository. The
+    # wrapper's own $PWD here is $repo (Invoke-Wrapper's Push-Location), so the
+    # correct canonicalization is unambiguous: this must be rejected.
+    $insideRelative = "docs/evidence/b2-task-8-9/t89-boundary-relative-$([guid]::NewGuid().ToString('N')).json"
+    $r = Invoke-LiveEvidenceCase -EvidenceOutput $insideRelative
+    Check 'a live run with a RELATIVE -EvidenceOutput that resolves inside the repository is rejected before any child process' {
         if ($r.Exit -ne 2) { throw "exit $($r.Exit) (expected 2); output: $($r.Output)" }
         if ($r.Output -notmatch 'must resolve outside the repository') { throw "did not name the boundary rule:`n$($r.Output)" }
         if ($r.Capture -match '(?m)^(az|docker|python|curl) ') { throw "a child process ran before the evidence-path guard:`n$($r.Capture)" }

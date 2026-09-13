@@ -50,6 +50,49 @@ Worst-case activation duration at six probes, a 90 s cap, and the production 5 s
 interval (30 s). Both remain far inside the packet's 30-minute outer authorization window, so the
 outer window continues not to discriminate between the raised and prior budgets.
 
+## Operator-facing preconditions the wrapper also enforces
+
+These predate this policy revision, but this document is the one that claims
+to apply to "any operator procedure describing" the activation sequence, so
+they belong here too rather than only in the wrapper's own comments:
+
+- **PowerShell edition/version gate.** `scripts/run_task_8_9_preflight.ps1`
+  refuses to run at all (exit 2, before any child process) unless
+  `$PSVersionTable.PSEdition -eq 'Desktop'` and `$PSVersionTable.PSVersion.Major
+  -eq 5` — Windows PowerShell 5.1 specifically, not merely "PowerShell 7.x
+  satisfies a >= 5.1 minimum" (`#Requires -Version 5.1` is deliberately not
+  used for exactly that reason). PowerShell 7 changes `ConvertFrom-Json` array
+  semantics that the post-wake replica poll depends on.
+- **Live-run probe interval.** The five-second interval between probes is a
+  parameter (`-WakeProbeIntervalSeconds`), defaulted to the production value.
+  A LIVE invocation — every one of `-AzCommand`, `-DockerCommand`,
+  `-CurlCommand` and `-PythonCommand` still at its literal default — must omit
+  the parameter or pass exactly `5`; any other value is refused (exit 2)
+  before any child process. Only the offline test suite, which overrides at
+  least one of those four to reach a stub, may use a different interval.
+- **Evidence-path externality.** For a live invocation (same definition as
+  above), `-EvidenceOutput` must resolve outside the repository, checked
+  before any child process. The wrapper's in-repo default (used when
+  `-EvidenceOutput` is omitted) is therefore always rejected for a live run; a
+  live invocation must pass an explicit out-of-repository path. Resolution
+  uses PowerShell's own current location (`$PWD`), not the process's, and the
+  comparison is lexical and case-insensitive — it does not resolve junctions
+  or symlinks, so it is a misuse guard, not a security boundary.
+
+### Known limitation: partial command overrides
+
+The "live invocation" test above requires ALL FOUR of `-AzCommand`,
+`-DockerCommand`, `-CurlCommand` and `-PythonCommand` to still be at their
+literal defaults. If only SOME are overridden — for example, stubbing
+`az`/`docker`/`python` for a rehearsal but leaving `-CurlCommand` at its real
+default — the wrapper treats the invocation as NOT live, and BOTH the interval
+rule and the evidence-path rule above are skipped entirely, even though the
+curl call that follows is still real and can still issue a genuine Production
+probe. This predicate guards the fully-default case; it cannot distinguish a
+deliberate partial override from a mistaken one. An operator relying on these
+two guards to catch a mistake must override either all four external commands
+or none of them.
+
 ## What is unchanged
 
 - **`--operation-timeout-seconds` (600) is deliberately left as-is**, pending measurement of typical

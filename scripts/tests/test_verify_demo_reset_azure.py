@@ -727,6 +727,67 @@ class ProofStateMachineTest(unittest.TestCase):
         self.assertTrue(any(r["url"].endswith("/api/portfolio/demo-reset") for r in http.requests))
         self.assertTrue(result.evidence["cleanup"]["postCleanupGolden"])
 
+    def _assert_every_operation_has_a_rounded_duration(self, operations: list) -> None:
+        # Scoped to evidence["operations"] -- the array _record_command,
+        # _record_http and _query_once each append to, and the only one whose
+        # entries are actual timed runner calls. evidence["diagnostics"]["operations"]
+        # is a separate, differently-shaped list of diagnostic step markers
+        # (name/inputs) that were never timed and carry no durationSeconds.
+        self.assertGreater(len(operations), 0, "expected at least one recorded operation")
+        for entry in operations:
+            self.assertIn(
+                "durationSeconds", entry, f"operation is missing durationSeconds: {entry}"
+            )
+            value = entry["durationSeconds"]
+            self.assertIsInstance(
+                value, float, f"durationSeconds is not a float ({type(value).__name__}): {entry}"
+            )
+            self.assertEqual(
+                round(value, 3), value,
+                f"durationSeconds carries more precision than 3 decimal places: {entry}",
+            )
+
+    def test_every_recorded_operation_has_a_duration_seconds_rounded_to_three_places(self) -> None:
+        # A successful run: az CLI calls (_record_command), HTTP calls
+        # (_record_http) and Log Analytics queries (_query_once) all
+        # contribute entries, so this exercises every one of the three
+        # call sites that append to evidence["operations"].
+        result, _commands, _http, _clock = run_case(event_mode="success")
+        self.assertEqual(result.exit_code, 0)
+        self._assert_every_operation_has_a_rounded_duration(result.evidence["operations"])
+
+    def test_duration_seconds_is_still_recorded_on_the_operation_whose_http_runner_raised(self) -> None:
+        # The login call is wrapped by run_proof in its own try/except, so a
+        # raising http_runner does not abort the proof (it is recorded as
+        # evidence["login"]["error"] and the run proceeds to cleanup) -- but
+        # _record_http's duration measurement is in a `finally`, so the
+        # raising call's own operations entry must still carry a proper
+        # durationSeconds. A regression that moved the measurement out of the
+        # finally (e.g. to only run after a normal return) would silently
+        # drop this telemetry exactly on the calls where it is most useful:
+        # the value of durationSeconds is only realised on a later, separately
+        # authorized attempt, so a silent regression here would surface only
+        # after another irreversible wake was spent.
+        commands = StatefulCommandRunner()
+        http = StatefulHttpRunner(commands)
+        http.login_error = TimeoutError("response uncertain")
+        clock = Clock()
+        result = verifier.run_proof(
+            config(), command_runner=commands, http_runner=http,
+            now=clock.now, monotonic=clock.monotonic, sleep=clock.sleep,
+        )
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertEqual(result.evidence["login"]["error"], "response uncertain")
+        operations = result.evidence["operations"]
+        login_entries = [
+            op for op in operations
+            if op.get("kind") == "http" and str(op.get("url", "")).endswith("/api/auth/login")
+        ]
+        self.assertEqual(
+            len(login_entries), 1, f"expected exactly one recorded login operation: {operations}"
+        )
+        self._assert_every_operation_has_a_rounded_duration(operations)
+
     def test_every_cleanup_retry_uses_fresh_identity_version_and_any_409_is_permanent_failure(self) -> None:
         commands = StatefulCommandRunner(event_mode="success")
         http = StatefulHttpRunner(commands)

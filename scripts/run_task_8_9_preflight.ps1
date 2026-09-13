@@ -60,7 +60,9 @@
                                  duration, then restored in the finally; they
                                  are never logged, written to disk, or sent on
       * curl retries or redirects, or more than six probes -- the request budget
-                                 is a literal in the safety unit, not an input
+                                 ($script:ProbeBudget) is a literal, assigned
+                                 once outside the safety unit and read only
+                                 inside it; it is not an input
       * ambient curl configuration -- two separate controls, both literal:
                                  -q (first) makes curl skip its configuration
                                  files (.curlrc / _curlrc). It does NOT touch
@@ -101,6 +103,22 @@
     [string] so that invalid input reaches that validation instead of failing
     parameter binding (exit 1) or being rounded. The offline tests pass 0. It
     changes neither the six-probe budget nor the 90-second per-probe bound.
+
+.PARAMETER EvidenceOutput
+    Where the verifier writes its evidence document. Defaults to
+    docs/evidence/b2-task-8-9/rehearsal-<yyyyMMdd>.json (inside the repository)
+    when omitted. Refused with exit 2 before any request if the resolved path
+    already exists -- evidence is never overwritten.
+
+    For a live run ($isLiveRun: every one of -AzCommand, -DockerCommand,
+    -CurlCommand and -PythonCommand still at its literal default), the
+    resolved path must also fall OUTSIDE the repository, checked before any
+    request -- see the evidence-path externality comment further down for why.
+    Consequently the in-repo default above is always rejected for a live run;
+    a live invocation must pass an explicit -EvidenceOutput that resolves
+    outside the repository. Resolution uses PowerShell's own current location
+    ($PWD), not the process's, so a relative path is safe to reason about even
+    across a `cd` earlier in the same session.
 
 .PARAMETER AzCommand
 .PARAMETER CurlCommand
@@ -474,23 +492,43 @@ if (Test-Path $EvidenceOutput) {
 # parent is the repository root -- deliberately not a `git` call: this wrapper
 # shells out only to curl/az/python/docker, and adding a git dependency here
 # would be a new one. Both the repo root and -EvidenceOutput are canonicalized
-# with [IO.Path]::GetFullPath(), which resolves '..' segments and relative
-# paths against the current directory, and compared case-insensitively with a
-# trailing directory separator appended to the repo root so that a prefix
-# SIBLING (e.g. C:\repo-backup\x.json next to C:\repo) is not falsely rejected
-# -- without the trailing separator, 'C:\repo-backup' would wrongly appear to
-# start with 'C:\repo'.
+# with $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath(),
+# NOT [IO.Path]::GetFullPath(). GetFullPath resolves a relative path against
+# [Environment]::CurrentDirectory -- the PROCESS's current directory -- and
+# Windows PowerShell does not keep that in sync with $PWD (the POWERSHELL
+# location) on every Set-Location. Concretely: an operator opens PowerShell in
+# one directory, `cd`s into the repository, then passes a relative
+# -EvidenceOutput; [IO.Path]::GetFullPath would canonicalize it against the
+# stale process directory and this guard would see it as outside the
+# repository, while every other path check below (Test-Path on this same
+# value, Test-Path on $evidenceDir, and the verifier child process, which
+# inherits $PWD) resolves it against the repository -- so the guard would
+# pass exactly the misuse it exists to catch. GetUnresolvedProviderPathFromPSPath
+# resolves relative segments against $PWD instead, the same base every other
+# path operation in this script already uses, and it works for a path that
+# does not exist yet, which is the normal case here (unlike Resolve-Path). The
+# result is compared case-insensitively with a trailing directory separator
+# appended to the repo root so that a prefix SIBLING (e.g. C:\repo-backup\x.json
+# next to C:\repo) is not falsely rejected -- without the trailing separator,
+# 'C:\repo-backup' would wrongly appear to start with 'C:\repo'.
 #
-# GetFullPath is lexical only: it does NOT resolve junctions, symlinks or other
-# reparse points. So this is a misuse guard against an accidentally in-repo
-# evidence path, not a security boundary against a deliberately engineered one.
+# Like GetFullPath, this is lexical only: it does NOT resolve junctions,
+# symlinks or other reparse points. So this is a misuse guard against an
+# accidentally in-repo evidence path, not a security boundary against a
+# deliberately engineered one.
 if ($isLiveRun) {
-    $repoRoot = [IO.Path]::GetFullPath((Split-Path $PSScriptRoot -Parent))
+    $repoRoot = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath((Split-Path $PSScriptRoot -Parent))
     $repoRootWithSep = $repoRoot
-    if (-not $repoRootWithSep.EndsWith([IO.Path]::DirectorySeparatorChar)) {
-        $repoRootWithSep += [IO.Path]::DirectorySeparatorChar
+    # An explicit [string] cast, not a bare [IO.Path]::DirectorySeparatorChar:
+    # that property is a [char], and .NET Framework's String.EndsWith has no
+    # EndsWith(char) overload, so passing it relies on PowerShell's own
+    # char->string coercion at the method-binding boundary. Casting removes
+    # that doubt.
+    $dirSep = [string][IO.Path]::DirectorySeparatorChar
+    if (-not $repoRootWithSep.EndsWith($dirSep)) {
+        $repoRootWithSep += $dirSep
     }
-    $evidenceFull = [IO.Path]::GetFullPath($EvidenceOutput)
+    $evidenceFull = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($EvidenceOutput)
     if ($evidenceFull.Equals($repoRoot, [System.StringComparison]::OrdinalIgnoreCase) -or
         $evidenceFull.StartsWith($repoRootWithSep, [System.StringComparison]::OrdinalIgnoreCase)) {
         Fail "-EvidenceOutput must resolve outside the repository for a live run: '$EvidenceOutput' resolves to '$evidenceFull', inside '$repoRoot'. This is a lexical, case-insensitive comparison and does not resolve junctions or other reparse points, so it is a misuse guard, not a security boundary." 2
