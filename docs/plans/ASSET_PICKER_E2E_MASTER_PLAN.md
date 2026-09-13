@@ -482,8 +482,9 @@ an unmerged branch is described as **implemented but unmerged**, never as comple
   declared by that classifier. Probe PR #200 completed the docs-only path in 67 seconds with the
   original four expensive jobs skipped; PR #199 separately proved the full-suite path. PR #202
   added `azure-image-smoke-test` to the aggregate dependency graph, and docs-only PR #204 proved the
-  current five-job skip shape. This is process control only and does not advance any Asset Picker
-  task or runtime baseline.
+  then-current five-job skip shape. PR #271 adds `task-8-9-powershell-tests` (windows-latest) as a
+  sixth chain job; its docs-only skip shape has not yet been probe-proven. This is process control
+  only and does not advance any Asset Picker task or runtime baseline.
 
 ### 0.3 Update checklist
 
@@ -652,7 +653,7 @@ current-`main` portfolio deploy as a substitute for an authorized Artifact cut.*
 | Item | Current state | Required before relying on it |
 |---|---|---|
 | Status-propagation CI guard | Contract tests in `static-guard`; live PR-body check in dedicated `master-plan-status-propagation` workflow (`opened`/`synchronize`/`reopened`/`edited`) | Process-control only; does not advance the runtime baseline or create user-facing Asset Picker capability |
-| Docs-only CI fast path | **Complete** via PRs #198–#199 on `main@3396ec45`; `ci-required` is the eighth required context, while all seven previous contexts remain required. PR #202 added `azure-image-smoke-test` as an eighth `ci-required` dependency (transitive, not branch-protection); probe PR #200 proved the original four-job docs-only skip shape, PR #199 proved the full-suite shape, and PR #204 proved the current five-job docs-only shape | Keep the classifier fail-closed and preserve declared-versus-observed equality. DAG de-serialization and broader path selection stay deferred unless CI latency begins blocking delivery |
+| Docs-only CI fast path | **Complete** via PRs #198–#199 on `main@3396ec45`; `ci-required` is the eighth required context, while all seven previous contexts remain required. PR #202 added `azure-image-smoke-test` as an eighth `ci-required` dependency (transitive, not branch-protection); probe PR #200 proved the original four-job docs-only skip shape, PR #199 proved the full-suite shape, and PR #204 proved the five-job docs-only shape; PR #271 adds `task-8-9-powershell-tests` as a sixth chain job whose docs-only skip shape is not yet probe-proven | Keep the classifier fail-closed and preserve declared-versus-observed equality. DAG de-serialization and broader path selection stay deferred unless CI latency begins blocking delivery |
 
 The temporary product state is intentional but incomplete: the unsafe legacy writer is gone, and the
 safe versioned replacement now serves in Task 7.9's exact R-C digest and is publicly reachable

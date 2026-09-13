@@ -1651,7 +1651,7 @@ class ReviewFixContractTest(unittest.TestCase):
         )
         try:
             facts = verifier._diagnose_unconfigured_key(
-                cfg, evidence, command_runner, http_runner, event
+                cfg, evidence, command_runner, http_runner, event, monotonic=lambda: 0.0
             )
         except verifier.ProofError as error:
             self.fail(f"conclusive manual 200 must not invoke presence: {error}")
@@ -1666,7 +1666,7 @@ class ReviewFixContractTest(unittest.TestCase):
             self._key_diagnostic_boundaries(manual_status=503, presence_fails=True)
         )
         facts = verifier._collect_diagnostics(
-            cfg, evidence, command_runner, http_runner, event
+            cfg, evidence, command_runner, http_runner, event, monotonic=lambda: 0.0
         )
         self.assertTrue(any(command[:3] == ["az", "containerapp", "exec"]
                             for command in commands))
@@ -1704,7 +1704,8 @@ class ReviewFixContractTest(unittest.TestCase):
             verifier._diagnose_unconfigured_key(
                 cfg, evidence, template_runner,
                 lambda **_kwargs: verifier.HttpResponse(500, {}, {}),
-                skip_event(
+                monotonic=lambda: 0.0,
+                skip=skip_event(
                     reason="reset_key_not_configured", leg="reset", httpStatus=None,
                     timeoutScope=None, overallTimeoutPhase=None, attemptedTarget=None,
                     elapsedMillis=None, eligibilityDispatchAttempted=True,

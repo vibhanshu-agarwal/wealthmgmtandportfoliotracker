@@ -1517,11 +1517,25 @@ Check 'the overwrite refusal is preserved unchanged, and a live run enforces evi
     if ($bodyText -notmatch 'OrdinalIgnoreCase') { throw 'the evidence-path check is not case-insensitive' }
     if ($bodyText -notmatch 'DirectorySeparatorChar') { throw 'the evidence-path check does not append a trailing separator before comparing (the prefix-sibling guard)' }
     $liveFails = @(Find-Ast $b { param($n) $n -is [System.Management.Automation.Language.CommandAst] -and $n.GetCommandName() -eq 'Fail' })
-    if ($liveFails.Count -ne 2) { throw "the evidence-path check must have exactly two refusal paths, found $($liveFails.Count)" }
-    foreach ($liveFail in $liveFails) {
-        if ((Norm @($liveFail.CommandElements)[-1].Extent.Text) -ne '2') { throw 'every evidence-path refusal must Fail with exit 2' }
+    if ($liveFails.Count -ne 1) { throw "the evidence-path check must have exactly one refusal path, found $($liveFails.Count)" }
+    if ((Norm @($liveFails[0].CommandElements)[-1].Extent.Text) -ne '2') { throw 'the evidence-path refusal must Fail with exit 2' }
+    # The ambiguous/prefixed-spelling refusal is a separate, live-only guard
+    # that must run BEFORE the overwrite refusal (so 'already exists' cannot
+    # mask it) and must cover drive-relative, root-relative and any
+    # two-separator (UNC / \\?\ / \\.\) spelling.
+    $spellingPattern = '$isLiveRun -and ($isDriveRelative -or $isRootRelative -or $isDoubleSeparator)'
+    $spelling = @(Find-Ast $wrapperAst { param($n) $n -is [System.Management.Automation.Language.IfStatementAst] -and (Norm $n.Clauses[0].Item1.Extent.Text) -ceq $spellingPattern }.GetNewClosure())
+    if ($spelling.Count -ne 1) { throw "expected exactly one ambiguous-spelling guard reading exactly '$spellingPattern', found $($spelling.Count)" }
+    $s = $spelling[0]
+    if ($s.Extent.EndOffset -gt $overwrite[0].Extent.StartOffset) { throw 'the ambiguous-spelling guard must precede the overwrite refusal' }
+    if (@($childCalls | Where-Object { $_.Extent.StartOffset -lt $s.Extent.StartOffset -and -not (Inside-Unit $_) }).Count) {
+        throw 'a child process can run before the ambiguous-spelling guard'
     }
-    if ($bodyText -notmatch 'drive-relative and root-relative Windows spellings are refused') { throw 'the evidence-path check does not explicitly refuse ambiguous Windows path forms' }
+    $spellingFails = @(Find-Ast $s { param($n) $n -is [System.Management.Automation.Language.CommandAst] -and $n.GetCommandName() -eq 'Fail' })
+    if ($spellingFails.Count -ne 1 -or (Norm @($spellingFails[0].CommandElements)[-1].Extent.Text) -ne '2') { throw 'the ambiguous-spelling guard must Fail once with exit 2' }
+    if ($s.Extent.Text -notmatch 'drive-relative and root-relative Windows spellings are refused') { throw 'the ambiguous-spelling guard does not explicitly refuse ambiguous Windows path forms' }
+    $dblAsg = @(Assignments-To $wrapperAst 'isDoubleSeparator')
+    if ($dblAsg.Count -ne 1 -or (Norm $dblAsg[0].Right.Extent.Text) -cne "[regex]::IsMatch(`$EvidenceOutput, '\A[\\/]{2}')") { throw "`$isDoubleSeparator must be assigned exactly once from the two-separator regex; found $($dblAsg.Count)" }
     if (@(Find-Ast $wrapperAst { param($n) $n -is [System.Management.Automation.Language.CommandAst] -and $n.GetCommandName() -eq 'git' }).Count) { throw 'the wrapper must not shell out to git' }
 }
 
@@ -1563,14 +1577,23 @@ try {
         if ($r.Capture -match '(?m)^(az|docker|python|curl) ') { throw "a child process ran before the evidence-path guard:`n$($r.Capture)" }
     }
 
+    # The two-separator forms are the ones [IO.Path]::GetFullPath keeps intact
+    # on .NET Framework: an extended-length (\\?\) or device (\\.\) prefix in
+    # front of an IN-REPO path would otherwise pass the StartsWith comparison,
+    # and a plain UNC path is refused with them rather than special-cased.
     foreach ($ambiguous in @(
         "C:t89-drive-relative-$([guid]::NewGuid().ToString('N')).json",
-        "\t89-root-relative-$([guid]::NewGuid().ToString('N')).json"
+        "\t89-root-relative-$([guid]::NewGuid().ToString('N')).json",
+        ('\\?\' + (Join-Path $repo "docs\evidence\b2-task-8-9\t89-boundary-extended-$([guid]::NewGuid().ToString('N')).json")),
+        ('\\.\' + (Join-Path $repo "docs\evidence\b2-task-8-9\t89-boundary-device-$([guid]::NewGuid().ToString('N')).json")),
+        "\\\docs\evidence\b2-task-8-9\t89-boundary-triple-$([guid]::NewGuid().ToString('N')).json",
+        "\\srv\share\t89-boundary-unc-$([guid]::NewGuid().ToString('N')).json"
     )) {
         $r = Invoke-LiveEvidenceCase -EvidenceOutput $ambiguous
-        Check "a live run rejects ambiguous Windows evidence path spelling '$ambiguous' before any child process" {
+        Check "a live run rejects ambiguous or prefixed Windows evidence path spelling '$ambiguous' before any child process" {
             if ($r.Exit -ne 2) { throw "exit $($r.Exit) (expected 2); output: $($r.Output)" }
-            if ($r.Output -notmatch 'must be fully qualified or an ordinary relative path') { throw "did not name the ambiguous-path rule:`n$($r.Output)" }
+            if ($r.Output -notmatch 'drive-relative and root-relative Windows spellings are refused') { throw "did not name the ambiguous-path rule:`n$($r.Output)" }
+            if ($r.Output -match 'already exists, refusing to overwrite') { throw "the overwrite refusal masked the ambiguous-path rule:`n$($r.Output)" }
             if ($r.Capture -match '(?m)^(az|docker|python|curl) ') { throw "a child process ran before the ambiguous-path guard:`n$($r.Capture)" }
         }
     }

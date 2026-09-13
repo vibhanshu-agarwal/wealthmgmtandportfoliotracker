@@ -120,12 +120,19 @@
     across a `cd` earlier in the same session.
 
 .PARAMETER AzCommand
+.PARAMETER DockerCommand
 .PARAMETER CurlCommand
 .PARAMETER PythonCommand
     Injection points so the sequence can be exercised against local stubs that
     capture arguments. They exist because every hand-issued failure in this
     task's history was an argument-quoting fault at the PowerShell/az.bat
     boundary, not a logic error -- that boundary needs to be testable offline.
+    The live-run guards ($isLiveRun) compare these four values against their
+    LITERAL defaults only: a full path or an alternate spelling of a real tool
+    (C:\Windows\System32\curl.exe, curl) counts as overridden, so once all four
+    are spelled non-literally the interval and evidence-path guards no longer
+    apply. They catch the accidental fully-default case; they cannot tell a
+    stub from a real tool.
 #>
 [CmdletBinding()]
 param(
@@ -479,6 +486,23 @@ Write-Step "Attested: $attestedRevision @ $attestedDigest"
 if (-not $EvidenceOutput) {
     $EvidenceOutput = "docs/evidence/b2-task-8-9/rehearsal-$(Get-Date -Format 'yyyyMMdd').json"
 }
+
+# Ambiguous and prefixed spellings, refused for live runs BEFORE the overwrite
+# check below, so the refusal is not masked by a same-named file that Test-Path
+# happens to find in the drive's current directory. Drive-relative (`C:x.json`)
+# and root-relative (`\x.json`) forms: Windows PowerShell 5.1 reports them as
+# rooted even though their base depends on process/drive state, so the guard
+# further down would canonicalize them against a different base from the one
+# Test-Path and the verifier child use. Any path beginning with two separators
+# (UNC, or the `\\?\` and `\\.\` prefixes): GetFullPath keeps such prefixes
+# intact, so the repository comparison further down would not see through them.
+$isDriveRelative = [regex]::IsMatch($EvidenceOutput, '\A[A-Za-z]:(?:\z|[^\\/])')
+$isRootRelative = [regex]::IsMatch($EvidenceOutput, '\A[\\/](?![\\/])')
+$isDoubleSeparator = [regex]::IsMatch($EvidenceOutput, '\A[\\/]{2}')
+if ($isLiveRun -and ($isDriveRelative -or $isRootRelative -or $isDoubleSeparator)) {
+    Fail "-EvidenceOutput must be a fully qualified drive path or an ordinary relative path for a live run; drive-relative and root-relative Windows spellings are refused, as is any path beginning with two separators (UNC, or the \\?\ and \\.\ prefixes): '$EvidenceOutput'." 2
+}
+
 if (Test-Path $EvidenceOutput) {
     Fail "evidence output already exists, refusing to overwrite: $EvidenceOutput" 2
 }
@@ -488,10 +512,9 @@ if (Test-Path $EvidenceOutput) {
 # parent is the repository root -- deliberately not a `git` call: this wrapper
 # shells out only to curl/az/python/docker, and adding a git dependency here
 # would be a new one. Both the repo root and -EvidenceOutput are canonicalized
-# with [IO.Path]::GetFullPath(). A fully qualified drive or UNC evidence path
-# can be canonicalized directly. Ambiguous drive-relative (`C:x.json`) and
-# root-relative (`\x.json`) forms are refused: Windows PowerShell 5.1 reports
-# them as rooted even though their base depends on process/drive state. An
+# with [IO.Path]::GetFullPath(). A fully qualified drive evidence path can be
+# canonicalized directly (the ambiguous and prefixed spellings were refused
+# above, before the overwrite check). An
 # ordinary relative evidence path is first joined to $PWD.ProviderPath so
 # it resolves against PowerShell's current filesystem location, the same base
 # used by Test-Path and the verifier child process. Calling GetFullPath on the
@@ -520,11 +543,6 @@ if ($isLiveRun) {
     $dirSep = [string][IO.Path]::DirectorySeparatorChar
     if (-not $repoRootWithSep.EndsWith($dirSep)) {
         $repoRootWithSep += $dirSep
-    }
-    $isDriveRelative = [regex]::IsMatch($EvidenceOutput, '\A[A-Za-z]:(?:\z|[^\\/])')
-    $isRootRelative = [regex]::IsMatch($EvidenceOutput, '\A[\\/](?![\\/])')
-    if ($isDriveRelative -or $isRootRelative) {
-        Fail "-EvidenceOutput must be fully qualified or an ordinary relative path for a live run; drive-relative and root-relative Windows spellings are refused: '$EvidenceOutput'." 2
     }
     if ([IO.Path]::IsPathRooted($EvidenceOutput)) {
         $evidenceFull = [IO.Path]::GetFullPath($EvidenceOutput)

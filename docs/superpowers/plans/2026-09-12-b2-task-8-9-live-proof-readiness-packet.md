@@ -372,7 +372,9 @@ split between people and not performed by an agent.
    never passes `--threshold-override`. The evidence document is written unconditionally, pass or
    fail. After the wrapper exits, hash and copy the preserved external file to a new path under
    `docs/evidence/b2-task-8-9/`; review and commit the copy without deleting the original until the
-   review is complete.
+   review is complete. "Hash" means `Get-FileHash -Algorithm SHA256` (the same algorithm the wrapper
+   uses for probe bodies), recorded as lowercase hex in the PR body and in the prose that cites the
+   evidence; the same command run on the committed copy must produce the same digest.
 8. Post-run live read-back per §1.
 9. **Post-run hygiene.** The `az acr login` operation leaves a production-registry token in the
    operator's Docker credential store, and the two `docker pull`s leave both production images in
@@ -466,7 +468,10 @@ Read-only. Sources: `scripts/verify_demo_reset_azure.py`,
 scripts/assert_api_gateway_timeout_rollout_plan.py}`,
 `api-gateway/src/main/java/com/wealth/gateway/{SecurityConfig.java, JwtAuthenticationFilter.java}`,
 `api-gateway/src/main/resources/application.yml`, all at `main@2fee0202`. Line numbers are from
-that revision.
+that revision, with one exception: on 2026-09-13 the `scripts/verify_demo_reset_azure.py` line
+citations throughout this packet were re-pointed to the revision of that file carried by PR #271
+(the one that introduced the governing activation policy), which is 67 lines longer than the
+`2fee0202` copy. Check verifier line numbers against that revision, not against `2fee0202`.
 
 **Revisions 7-10 (2026-09-12) — narrowing, simplification, the timeout correction, and its
 provenance fix.** (These four revisions share one block rather than each taking a heading; a
@@ -543,7 +548,9 @@ mode, just never required or checked; a portfolio-service deploy also invalidate
 the 0080 template-change reading is an inference and now says so; `application.yml` is cited 73-90;
 the single-replica claim rested on `max_replicas` rather than the scale-up step. Added: the run must
 execute from a checkout at `2fee0202` (steps 6-7 read local `application.yml` and
-`config/seed-tickers.json`), and post-run hygiene for the ACR token and pulled production images.
+`config/seed-tickers.json`) — *historical; superseded on 2026-09-13 by step 5, which now requires
+the merged revision carrying the wrapper and policy* — and post-run hygiene for the ACR token and
+pulled production images.
 
 **Revision 3 (2026-09-12), after independent Fable review returned ACCEPT WITH CHANGES.** One
 critical and five further defects, all verified against source before editing: the default 15s

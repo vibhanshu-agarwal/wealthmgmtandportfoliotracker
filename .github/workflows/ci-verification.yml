@@ -775,7 +775,7 @@ jobs:
             echo
             echo "- classifier declared \`docs_only\`: **${DOCS_ONLY:-unset}**"
             if [ "${DOCS_ONLY:-}" = "true" ]; then
-              echo "- expected skipped: unit-tests, azure-image-smoke-test,"
+              echo "- expected skipped: unit-tests, task-8-9-powershell-tests, azure-image-smoke-test,"
               echo "  integration-tests, pact-consumer, docker-build-verify"
             else
               echo "- expected the full suite to run"

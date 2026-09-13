@@ -436,7 +436,7 @@ def _decode_json(result: CommandResult, label: str) -> Any:
 def _record_command(
     evidence: dict[str, Any], runner: CommandRunner, command: list[str], *, label: str,
     mutating: bool = False, timeout_seconds: float = 15.0,
-    monotonic: Callable[[], float] = time.monotonic,
+    monotonic: Callable[[], float],
 ) -> CommandResult:
     entry = {"kind": "azure_cli" if command[0] == "az" else "local_cli", "argv": command,
              "mutating": mutating, "timeoutSeconds": timeout_seconds}
@@ -459,7 +459,7 @@ def _record_http(
     evidence: dict[str, Any], runner: HttpRunner, *, method: str, url: str,
     headers: dict[str, str], json_body: Any = None, mutating: bool,
     timeout_seconds: float = 15.0,
-    monotonic: Callable[[], float] = time.monotonic,
+    monotonic: Callable[[], float],
 ) -> HttpResponse:
     safe: dict[str, Any] = {
         "kind": "http",
@@ -862,7 +862,7 @@ def _parse_instant(value: Any, label: str) -> datetime:
 def _read_portfolio(
     config: ProofConfig, evidence: dict[str, Any], runner: HttpRunner, token: str,
     *, timeout_seconds: float | None = None,
-    monotonic: Callable[[], float] = time.monotonic,
+    monotonic: Callable[[], float],
 ) -> dict[str, Any]:
     response = _record_http(
         evidence, runner, method="GET", url=config.gateway_url + "/api/portfolio",
@@ -1401,7 +1401,7 @@ def classify_task8_9(
 def _collect_diagnostics(
     config: ProofConfig, evidence: dict[str, Any], command_runner: CommandRunner,
     http_runner: HttpRunner, skip: dict[str, Any],
-    monotonic: Callable[[], float] = time.monotonic,
+    monotonic: Callable[[], float],
 ) -> dict[str, Any]:
     reason = str(skip.get("reason", "unknown"))
     combined: dict[str, Any] = {"available": True}
@@ -1567,7 +1567,7 @@ def _manual_reset_probe(
 def _diagnose_unconfigured_key(
     config: ProofConfig, evidence: dict[str, Any], command_runner: CommandRunner,
     http_runner: HttpRunner, skip: dict[str, Any],
-    monotonic: Callable[[], float] = time.monotonic,
+    monotonic: Callable[[], float],
 ) -> dict[str, Any]:
     last_good = config.last_known_good_gateway_revision
     if not isinstance(last_good, str) or not last_good:

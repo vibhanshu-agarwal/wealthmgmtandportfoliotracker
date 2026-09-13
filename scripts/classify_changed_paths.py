@@ -62,9 +62,19 @@ DOCS_ONLY_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"^\.kiro/specs/.+\.md$"),
 )
 
+# Paths under docs/ that are test fixtures, not documentation: the Task 8.9
+# wrapper and its PowerShell suite read these JSON records (deployment
+# provenance, rehearsal subscription source), so a change to them must run the
+# full chain rather than skip it.
+DOCS_ONLY_EXCLUSIONS: tuple[re.Pattern[str], ...] = (
+    re.compile(r"^docs/evidence/b2-task-8-9/.+\.json$"),
+)
+
 
 def is_docs_path(path: str) -> bool:
     """True when a single changed path is safe to skip the expensive chain for."""
+    if any(pattern.match(path) for pattern in DOCS_ONLY_EXCLUSIONS):
+        return False
     return any(pattern.match(path) for pattern in DOCS_ONLY_PATTERNS)
 
 

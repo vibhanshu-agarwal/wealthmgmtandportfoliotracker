@@ -83,7 +83,16 @@ set "_tmpdir=%TMP%"
 if not defined _tmpdir set "_tmpdir=%TEMP%"
 if not defined _tmpdir goto :violation
 if "%_tmpdir:~-1%"=="\" set "_tmpdir=%_tmpdir:~0,-1%"
-if /I not "%~dp6"=="%_tmpdir%\" goto :violation
+rem Compare the 8.3 short form of both directories, not their spelling. GitHub's
+rem windows-latest runners publish TMP as an 8.3 alias (C:\Users\RUNNER~1\...)
+rem while Windows PowerShell's [IO.Path]::GetTempPath() expands it to the long
+rem form, so a textual comparison refused the authorized vector there. %%~fs of
+rem an existing directory yields its short form on both sides; a directory that
+rem does not exist is left as spelled and still fails closed. (%% is a literal
+rem percent here: cmd expands %%~ even inside a rem line.)
+for %%I in ("%_tmpdir%\.") do set "_tmpshort=%%~fsI"
+for %%I in ("%~dp6.") do set "_bodyshort=%%~fsI"
+if /I not "%_bodyshort%"=="%_tmpshort%" goto :violation
 set "_name=%~n6"
 if not "%_name:~0,9%"=="t89-wake-" goto :violation
 if not "%~x6"==".body" goto :violation

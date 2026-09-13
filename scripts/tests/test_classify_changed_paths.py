@@ -187,6 +187,23 @@ class ClassifyTests(unittest.TestCase):
     def test_non_markdown_under_kiro_specs_runs_full_suite(self):
         self.assert_full_suite([".kiro/specs/supported-asset-integrity/hook.py"])
 
+    def test_task_8_9_evidence_json_fixtures_run_full_suite(self):
+        # docs/evidence/b2-task-8-9/*.json are read by the Task 8.9 wrapper
+        # (-ProvenancePath, -SubscriptionSourcePath) and by its PowerShell
+        # suite, so a change to them must reach task-8-9-powershell-tests
+        # rather than skip it by the docs-only chain.
+        for path in (
+            "docs/evidence/b2-task-8-9/deployment-provenance-20260911.json",
+            "docs/evidence/b2-task-8-9/rehearsal-20260911.json",
+        ):
+            with self.subTest(path=path):
+                self.assertFalse(classifier.is_docs_path(path))
+                self.assert_full_suite([path])
+        # The carve-out is scoped to that directory's JSON: its Markdown
+        # records, and JSON elsewhere under docs/, stay docs-only.
+        self.assertTrue(classifier.is_docs_path("docs/evidence/b2-task-8-9/run-a-attempt-20260913.md"))
+        self.assertTrue(classifier.is_docs_path("docs/evidence/b1-task-6-5/image-sizes.json"))
+
     # ── deletion and rename semantics ────────────────────────────────────────
     def test_deletion_only_of_docs_is_docs_only(self):
         # --no-renames reports deletions as plain paths; deleting docs is docs-only.

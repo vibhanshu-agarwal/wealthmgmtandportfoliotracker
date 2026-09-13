@@ -69,7 +69,13 @@ they belong here too rather than only in the wrapper's own comments:
   `-CurlCommand` and `-PythonCommand` still at its literal default — must omit
   the parameter or pass exactly `5`; any other value is refused (exit 2)
   before any child process. Only a fully stubbed invocation, which overrides
-  all four, may use a different interval.
+  all four, may use a different interval. "Overrides all four" is a
+  literal-string test against `az`, `docker`, `curl.exe` and `python`: a full
+  path or an alternate spelling of a *real* tool (`C:\Windows\System32\curl.exe`,
+  `curl`) also counts as overridden, so the wrapper cannot tell a stub from a
+  real tool and these two guards protect the accidental fully-default case
+  only. An operator who pins real tools by full path must supply the
+  production interval and an out-of-repository evidence path deliberately.
 - **Evidence-path externality.** For a potentially live invocation (same definition as
   above), `-EvidenceOutput` must resolve outside the repository, checked
   before any child process. The wrapper's in-repo default (used when
