@@ -342,9 +342,9 @@ function Invoke-AuthorizedWake {
             if ($probeExit -eq 0 -and $metaOk -and $httpStatus -ceq '200') {
                 $activated = $true
             } elseif ($probeExit -eq 0 -and $metaOk -and $httpStatus -ceq '503') {
-                Write-Host "==>   probe $probe/$script:ProbeBudget: HTTP 503 is a recorded cold-start outcome"
+                Write-Host "==>   probe $probe/$($script:ProbeBudget): HTTP 503 is a recorded cold-start outcome"
             } elseif ($probeExit -eq 28 -and $metaOk -and $httpStatus -ceq '000') {
-                Write-Host "==>   probe $probe/$script:ProbeBudget: a curl timeout (exit 28, status 000) is a recorded cold-start outcome"
+                Write-Host "==>   probe $probe/$($script:ProbeBudget): a curl timeout (exit 28, status 000) is a recorded cold-start outcome"
             } else {
                 $earlier = ''
                 if ($probe -gt 1) { $earlier = " The $($probe - 1) earlier probe(s) in this sequence were issued and are consumed." }
@@ -389,7 +389,7 @@ function Invoke-AuthorizedWake {
                 $cleanupFailed = $true
             }
             if ($cleanupFailed) {
-                Write-Host "FAIL: probe $probe/$script:ProbeBudget: its temporary response-body file could not be removed (location withheld). The run stops here, fail-closed." -ForegroundColor Red
+                Write-Host "FAIL: probe $probe/$($script:ProbeBudget): its temporary response-body file could not be removed (location withheld). The run stops here, fail-closed." -ForegroundColor Red
             }
         }
         if ($cleanupFailed) { exit 3 }
@@ -492,24 +492,18 @@ if (Test-Path $EvidenceOutput) {
 # parent is the repository root -- deliberately not a `git` call: this wrapper
 # shells out only to curl/az/python/docker, and adding a git dependency here
 # would be a new one. Both the repo root and -EvidenceOutput are canonicalized
-# with $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath(),
-# NOT [IO.Path]::GetFullPath(). GetFullPath resolves a relative path against
-# [Environment]::CurrentDirectory -- the PROCESS's current directory -- and
-# Windows PowerShell does not keep that in sync with $PWD (the POWERSHELL
-# location) on every Set-Location. Concretely: an operator opens PowerShell in
-# one directory, `cd`s into the repository, then passes a relative
-# -EvidenceOutput; [IO.Path]::GetFullPath would canonicalize it against the
-# stale process directory and this guard would see it as outside the
-# repository, while every other path check below (Test-Path on this same
-# value, Test-Path on $evidenceDir, and the verifier child process, which
-# inherits $PWD) resolves it against the repository -- so the guard would
-# pass exactly the misuse it exists to catch. GetUnresolvedProviderPathFromPSPath
-# resolves relative segments against $PWD instead, the same base every other
-# path operation in this script already uses, and it works for a path that
-# does not exist yet, which is the normal case here (unlike Resolve-Path). The
-# result is compared case-insensitively with a trailing directory separator
-# appended to the repo root so that a prefix SIBLING (e.g. C:\repo-backup\x.json
-# next to C:\repo) is not falsely rejected -- without the trailing separator,
+# with [IO.Path]::GetFullPath(). An absolute evidence path can be canonicalized
+# directly. A relative evidence path is first joined to $PWD.ProviderPath so
+# it resolves against PowerShell's current filesystem location, the same base
+# used by Test-Path and the verifier child process. Calling GetFullPath on the
+# relative value alone would instead use [Environment]::CurrentDirectory,
+# which Windows PowerShell does not keep synchronized with $PWD after every
+# Set-Location, and could make this guard inspect a different path from the
+# one the verifier writes. GetFullPath works for a path that does not exist
+# yet, which is the normal case here (unlike Resolve-Path). The result is
+# compared case-insensitively with a trailing directory separator appended to
+# the repo root so that a prefix SIBLING (e.g. C:\repo-backup\x.json next to
+# C:\repo) is not falsely rejected -- without the trailing separator,
 # 'C:\repo-backup' would wrongly appear to start with 'C:\repo'.
 #
 # Like GetFullPath, this is lexical only: it does NOT resolve junctions,
@@ -517,7 +511,7 @@ if (Test-Path $EvidenceOutput) {
 # accidentally in-repo evidence path, not a security boundary against a
 # deliberately engineered one.
 if ($isLiveRun) {
-    $repoRoot = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath((Split-Path $PSScriptRoot -Parent))
+    $repoRoot = [IO.Path]::GetFullPath((Split-Path $PSScriptRoot -Parent))
     $repoRootWithSep = $repoRoot
     # An explicit [string] cast, not a bare [IO.Path]::DirectorySeparatorChar:
     # that property is a [char], and .NET Framework's String.EndsWith has no
@@ -528,7 +522,11 @@ if ($isLiveRun) {
     if (-not $repoRootWithSep.EndsWith($dirSep)) {
         $repoRootWithSep += $dirSep
     }
-    $evidenceFull = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($EvidenceOutput)
+    if ([IO.Path]::IsPathRooted($EvidenceOutput)) {
+        $evidenceFull = [IO.Path]::GetFullPath($EvidenceOutput)
+    } else {
+        $evidenceFull = [IO.Path]::GetFullPath((Join-Path $PWD.ProviderPath $EvidenceOutput))
+    }
     if ($evidenceFull.Equals($repoRoot, [System.StringComparison]::OrdinalIgnoreCase) -or
         $evidenceFull.StartsWith($repoRootWithSep, [System.StringComparison]::OrdinalIgnoreCase)) {
         Fail "-EvidenceOutput must resolve outside the repository for a live run: '$EvidenceOutput' resolves to '$evidenceFull', inside '$repoRoot'. This is a lexical, case-insensitive comparison and does not resolve junctions or other reparse points, so it is a misuse guard, not a security boundary." 2

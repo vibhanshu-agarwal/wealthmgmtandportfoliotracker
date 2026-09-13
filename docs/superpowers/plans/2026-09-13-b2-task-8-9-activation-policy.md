@@ -1,16 +1,17 @@
 # B2 Task 8.9 — governing activation timeout/retry policy
 
 **Decision date:** 2026-09-13
-**Owner approval:** D-1 (per-probe cap) and D-2 (probe ceiling), both recorded as answered on this
-date — six probes, 90-second cap
+**Technical decision:** D-1 (per-probe cap) and D-2 (probe ceiling) were selected by Codex/Claude
+consensus under the owner's explicit delegation of technical decisions — six probes, 90-second cap.
+This decision does not authorize a Production run.
 **Applies to:** the Task 8.9 bounded activation sequence in `scripts/run_task_8_9_preflight.ps1`
 (`Invoke-AuthorizedWake`) and any operator procedure describing it
 **Supersedes:** the activation-timeout and retry instructions in
 `docs/superpowers/plans/2026-09-12-b2-task-8-9-live-proof-readiness-packet.md` (see the
 supersession annotation at the top of that file)
-**Basis:** `phase-a-activation-policy-analysis.md` (Claude, Opus 5, offline repository analysis;
-baseline `origin/main@94d5bba8`) — recommendation Option 1, with the probe ceiling raised from five
-to six per the owner's D-2 answer
+**Basis:** Claude's Phase A offline repository analysis at baseline `origin/main@94d5bba8`, relayed
+to the owner but not committed as a repository artifact — recommendation Option 1, with the probe
+ceiling raised from five to six by the delegated Codex/Claude technical consensus
 
 ---
 
@@ -42,8 +43,8 @@ The Phase A analysis flagged (D-2) that the five-probe budget had zero margin: t
 path to a `200` on this gateway consumed exactly five requests (timeout → `503` → `503` → `503` →
 `200`), so a single additional `503` would have exhausted the prior budget with no verdict. Raising
 the per-probe cap does not address this — E5's failures were fast `503`s, not timeouts — only a
-larger ceiling does. The owner's D-2 answer raises the ceiling to six, giving the sequence one
-probe of margin beyond the only recorded success path.
+larger ceiling does. The delegated D-2 technical decision raises the ceiling to six, giving the
+sequence one probe of margin beyond the only recorded success path.
 
 Worst-case activation duration at six probes, a 90 s cap, and the production 5 s interval:
 `6 × 90 + 5 × 5 = 565` seconds (9 m 25 s); `690` seconds (11 m 30 s) at the largest accepted

@@ -727,7 +727,7 @@ Check 'every external command has its exit code classified' {
 #
 # So the sequence is built as one safety unit (see Invoke-AuthorizedWake in the
 # wrapper), and the checks below are targeted regression guards over its
-# structure, not its spelling: they catch accidental drift -- a sixth probe, a
+# structure, not its spelling: they catch accidental drift -- a seventh probe, a
 # widened retry set, a loop that carries on past a 200, a stray variable read,
 # a second curl call, a raw value printed -- that the behavioural tests above
 # might not surface.
@@ -1470,8 +1470,9 @@ Check 'the overwrite refusal is preserved unchanged, and a live run enforces evi
         throw 'a child process can run before the evidence-path check'
     }
     $bodyText = $b.Extent.Text
-    if ($bodyText -notmatch '\$ExecutionContext\.SessionState\.Path\.GetUnresolvedProviderPathFromPSPath') { throw 'the evidence-path check does not canonicalize with $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath (resolves against $PWD, not the process current directory)' }
-    if ($bodyText -match '\[IO\.Path\]::GetFullPath') { throw 'the evidence-path check must not canonicalize with [IO.Path]::GetFullPath: it resolves a relative path against [Environment]::CurrentDirectory, which Set-Location does not keep in sync with $PWD' }
+    if ($bodyText -notmatch '\[IO\.Path\]::GetFullPath') { throw 'the evidence-path check does not canonicalize absolute paths with [IO.Path]::GetFullPath' }
+    if ($bodyText -notmatch '\$PWD\.ProviderPath') { throw 'the evidence-path check does not resolve relative paths against $PWD.ProviderPath before canonicalizing them' }
+    if ($bodyText -match '\$(?:ExecutionContext|PSCmdlet)\.SessionState\.Path') { throw 'the evidence-path check must not depend on a forbidden session object' }
     if ($bodyText -notmatch '\$PSScriptRoot') { throw 'the evidence-path check does not derive the repo root from $PSScriptRoot' }
     if ($bodyText -notmatch 'OrdinalIgnoreCase') { throw 'the evidence-path check is not case-insensitive' }
     if ($bodyText -notmatch 'DirectorySeparatorChar') { throw 'the evidence-path check does not append a trailing separator before comparing (the prefix-sibling guard)' }
