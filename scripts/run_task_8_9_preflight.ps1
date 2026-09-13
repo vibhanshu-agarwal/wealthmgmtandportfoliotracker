@@ -56,6 +56,14 @@
                                  are never logged, written to disk, or sent on
       * curl retries or redirects, or more than five probes -- the request budget
                                  is a literal in the safety unit, not an input
+      * ambient curl configuration -- two separate controls, both literal:
+                                 -q (first) makes curl skip its configuration
+                                 files (.curlrc / _curlrc). It does NOT touch
+                                 proxy environment variables (https_proxy,
+                                 HTTPS_PROXY, ALL_PROXY), so --noproxy '*'
+                                 follows it and makes curl bypass any proxy for
+                                 every host. Other environment inputs curl may
+                                 read are not neutralized by either
 
     Exit codes:
       0  preflight passed
@@ -171,9 +179,14 @@ function Fail {
 #   * the URL, every curl argument, the five-probe budget and the 30-second
 #     bound are literals. No parameter, environment value or configuration input
 #     feeds them; only the pause between probes is a (validated) parameter;
-#   * -q is the first argument, so curl ignores any ambient config file
+#   * -q is the first argument, so curl skips its configuration files
 #     (~/.curlrc, %APPDATA%\_curlrc): a probe cannot be given a retry, a
-#     redirect, or another URL by mutable machine configuration;
+#     redirect, or another URL by a config file. -q does NOT affect proxy
+#     environment variables (https_proxy, HTTPS_PROXY, ALL_PROXY), so
+#     --noproxy '*' comes immediately after it: '*' is curl's single wildcard
+#     for "every host", so no environment-configured proxy is used and the
+#     request goes directly to the literal URL. '*' is quoted so PowerShell
+#     passes the literal character;
 #   * the body goes to a fresh temporary file per probe, never to the
 #     transcript, and is removed in a finally. curl's own stderr is discarded
 #     because it names that file on a local write failure;
@@ -204,7 +217,7 @@ function Invoke-AuthorizedWake {
         [Parameter(Mandatory = $true)][string]$Curl,
         [Parameter(Mandatory = $true)][int]$IntervalSeconds
     )
-    Write-Host '==> Activation sequence: at most 5 probes of GET https://api.vibhanshu-ai-portfolio.dev/actuator/health, each bounded by --max-time 30 (no curl retry, no redirect, ambient curl config disabled). Only HTTP 503 or a curl timeout (exit 28, status 000) leads to another probe; the first HTTP 200 ends the sequence. Every probe issued belongs to this sequence and is consumed.'
+    Write-Host '==> Activation sequence: at most 5 probes of GET https://api.vibhanshu-ai-portfolio.dev/actuator/health, each bounded by --max-time 30 (no curl retry, no redirect; curl config files skipped via -q; environment proxies bypassed for every host via --noproxy ''*''). Only HTTP 503 or a curl timeout (exit 28, status 000) leads to another probe; the first HTTP 200 ends the sequence. Every probe issued belongs to this sequence and is consumed.'
     for ($probe = 1; $probe -le 5; $probe++) {
         if ($probe -gt 1) { Start-Sleep -Seconds $IntervalSeconds }
         $bodyPath = Join-Path ([IO.Path]::GetTempPath()) ('t89-wake-' + [guid]::NewGuid().ToString('N') + '.body')
@@ -213,7 +226,7 @@ function Invoke-AuthorizedWake {
         try {
             $startedUtc = (Get-Date).ToUniversalTime().ToString('o')
             $script:WakeIssued = $true
-            $probeMeta = & $Curl -q -sS -o $bodyPath -w 't89:%{http_code}:%{time_total}:%{content_type}' --max-time 30 'https://api.vibhanshu-ai-portfolio.dev/actuator/health' 2>$null
+            $probeMeta = & $Curl -q --noproxy '*' -sS -o $bodyPath -w 't89:%{http_code}:%{time_total}:%{content_type}' --max-time 30 'https://api.vibhanshu-ai-portfolio.dev/actuator/health' 2>$null
             $probeExit = $LASTEXITCODE
 
             # One record, exactly: t89:<3-digit status>:<seconds>:<content type>.
@@ -248,8 +261,11 @@ function Invoke-AuthorizedWake {
 
             # actuator-json only for a JSON object with a top-level scalar
             # "status" (exact key). A parse failure is 'unclassified', never a
-            # stop and never echoed: ConvertFrom-Json's error text quotes the
-            # body, so it is caught with -ErrorAction Stop and discarded.
+            # stop and never echoed: ConvertFrom-Json's error text can quote
+            # body content ("Invalid JSON primitive: <token>"), so the catch
+            # below discards it. In Windows PowerShell 5.1 a parse failure is a
+            # terminating error on its own; -ErrorAction Stop is not what makes
+            # it catchable, and is kept only as a defensive default.
             $bodyClass = 'unclassified'
             $statusToken = 'other'
             try {
@@ -285,10 +301,12 @@ function Invoke-AuthorizedWake {
                 if ($probe -gt 1) { $earlier = " The $($probe - 1) earlier probe(s) in this sequence were issued and are consumed." }
                 if ($probeExit -ne 0) {
                     # Only DNS, connect and TLS-handshake failures (6, 7, 35)
-                    # imply this request never reached the ingress. Anything
-                    # later may already have been delivered.
+                    # suggest this request never reached the ingress as an HTTP
+                    # request. Even that is hedged: a failed TLS handshake (35)
+                    # happens after a TCP connection to the TLS terminator was
+                    # made. Anything later may already have been delivered.
                     if (@(6, 7, 35) -contains $probeExit) {
-                        Write-Host "FAIL: probe $probe/5 failed in transport (curl exit $probeExit): this request did not reach the ingress, so it was probably NOT consumed.$earlier The sequence stops here; re-waking is a fresh owner decision." -ForegroundColor Red
+                        Write-Host "FAIL: probe $probe/5 failed in transport (curl exit $probeExit): a DNS, connect or TLS-handshake failure, so this request probably did not reach the ingress as an HTTP request and was probably NOT consumed.$earlier The sequence stops here; re-waking is a fresh owner decision." -ForegroundColor Red
                     } else {
                         Write-Host "FAIL: probe $probe/5 failed in transport (curl exit $probeExit): this request may already have been delivered, so it may be consumed.$earlier The sequence stops here; re-waking is a fresh owner decision." -ForegroundColor Red
                     }

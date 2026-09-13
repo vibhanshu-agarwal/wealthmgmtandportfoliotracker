@@ -66,8 +66,15 @@ function Invoke-Wrapper {
         if ($Extra -notcontains '-ReplicaPollSeconds') { $argv += @('-ReplicaPollSeconds', '1') }
         if (-not $DefaultInterval -and $Extra -notcontains '-WakeProbeIntervalSeconds') { $argv += @('-WakeProbeIntervalSeconds', '0') }
         $argv += $Extra
-        $out = & powershell @argv 2>&1 | Out-String
-        $code = $LASTEXITCODE
+        # The wrapper, and so every stub, runs with the repository root as its
+        # working directory: the wrapper's relative default paths need it, and
+        # it holds files, so a stub that globbed * would record file names
+        # (Assert-ProbesSound checks what arrived after --noproxy).
+        Push-Location -LiteralPath $repo
+        try {
+            $out = & powershell @argv 2>&1 | Out-String
+            $code = $LASTEXITCODE
+        } finally { Pop-Location }
         $cap = if (Test-Path $capture) { Get-Content $capture -Raw } else { '' }
         # One entry per probe the stub received, in order: its argv after 'curl '.
         $probes = @([regex]::Matches($cap, '(?m)^curl (.*)$') | ForEach-Object { $_.Groups[1].Value.TrimEnd() })
@@ -124,8 +131,17 @@ function Assert-ProbesSound {
     # probe went past the budget or consumed a never-to-be-issued call, and
     # every body file is gone.
     param($R)
-    $vector = '^-q -sS -o (?<body>\S+) -w t89:%\{http_code\}:%\{time_total\}:%\{content_type\} --max-time 30 https://api\.vibhanshu-ai-portfolio\.dev/actuator/health$'
+    $vector = '^-q --noproxy \* -sS -o (?<body>\S+) -w t89:%\{http_code\}:%\{time_total\}:%\{content_type\} --max-time 30 https://api\.vibhanshu-ai-portfolio\.dev/actuator/health$'
     foreach ($p in $R.Probes) { if ($p -cnotmatch $vector) { throw "a probe used an unauthorized vector: curl $p" } }
+    # What the stub actually received in positions 2, 3 and 4, read
+    # positionally (not from %*): exactly --noproxy, one literal *, then -sS.
+    # The runs start in a directory holding files, so an argument walk that
+    # globbed * would show file names here, or shift -sS out of position 4.
+    $argLines = @([regex]::Matches($R.Capture, '(?m)^curl-noproxy-arg .*$') | ForEach-Object { $_.Value.TrimEnd() })
+    if ($argLines.Count -ne $R.Probes.Count) { throw "expected one curl-noproxy-arg capture line per probe ($($R.Probes.Count)), found $($argLines.Count)" }
+    foreach ($l in $argLines) {
+        if ($l -cne 'curl-noproxy-arg [--noproxy] [*] [-sS]') { throw "the stub did not receive exactly one literal * after --noproxy: $l" }
+    }
     if ($R.Capture -match '(?m)^curl-violation') { throw 'the curl stub recorded an argument-vector violation' }
     if ($R.Capture -match '(?m)^curl-over-budget') { throw 'a probe beyond the five-request budget was issued' }
     if ($R.Capture -match '(?m)^curl-sentinel-consumed') { throw 'a probe the test marked as never-to-be-issued was issued' }
@@ -192,6 +208,13 @@ Check 'a paren-free --query passes through the same stub' {
     if ($e -ne 0 -or $cap -notmatch '\[\]\.name') { throw "paren-free query did not survive (exit $e): $cap" }
 }
 
+Check 'wrapper runs start in a directory that holds files, so a globbing stub would be visible' {
+    # Invoke-Wrapper runs from $repo. If it held no files, a stub that expanded
+    # * against the working directory would still see a bare *, and the
+    # curl-noproxy-arg assertions could not tell it apart from a correct one.
+    if (@(Get-ChildItem -LiteralPath $repo -File -Force).Count -lt 1) { throw "the wrapper's working directory $repo holds no files" }
+}
+
 Write-Host 'Happy path'
 $r = Invoke-Wrapper -Env $good.Clone()
 Check 'exits 0' { if ($r.Exit -ne 0) { throw "exit $($r.Exit); output: $($r.Output)" } }
@@ -200,7 +223,7 @@ Check 'a first-probe 200 uses exactly the authorized argument vector, once, with
     # from ONE invocation, and -L follows a redirect. Only the full vector says
     # which request was actually made. Only the body path may vary.
     Assert-ProbeCount $r 1
-    $want = '^curl -q -sS -o ' + [regex]::Escape([IO.Path]::GetTempPath()) + 't89-wake-[0-9a-f]{32}\.body -w t89:%\{http_code\}:%\{time_total\}:%\{content_type\} --max-time 30 https://api\.vibhanshu-ai-portfolio\.dev/actuator/health$'
+    $want = '^curl -q --noproxy \* -sS -o ' + [regex]::Escape([IO.Path]::GetTempPath()) + 't89-wake-[0-9a-f]{32}\.body -w t89:%\{http_code\}:%\{time_total\}:%\{content_type\} --max-time 30 https://api\.vibhanshu-ai-portfolio\.dev/actuator/health$'
     $line = "curl $($r.Probes[0])"
     if ($line -cnotmatch $want) { throw "curl was called as:`n  $line`nexpected to match:`n  $want" }
     Assert-ProbesSound $r
@@ -419,9 +442,12 @@ $nonRetryable = @(
     @{ Name = '502 bad gateway';                Why = 'no override';           Call = @{ STATUS = '502' } },
     @{ Name = '504 gateway timeout';            Why = 'no override';           Call = @{ STATUS = '504' } },
     @{ Name = '505 http version not supported'; Why = 'no override';           Call = @{ STATUS = '505' } },
-    @{ Name = 'curl 6 DNS failure';             Why = 'probably NOT consumed'; Call = @{ EXIT = '6'; STATUS = '000'; BODY = 'none'; CT = 'none' } },
-    @{ Name = 'curl 7 connect failure';         Why = 'probably NOT consumed'; Call = @{ EXIT = '7'; STATUS = '000'; BODY = 'none'; CT = 'none' } },
-    @{ Name = 'curl 35 TLS handshake failure';  Why = 'probably NOT consumed'; Call = @{ EXIT = '35'; STATUS = '000'; BODY = 'none'; CT = 'none' } },
+    # 6/7/35 are hedged: a TLS-handshake failure (35) happens after a TCP
+    # connection to the ingress's TLS terminator, so "did not reach" alone
+    # would overstate it.
+    @{ Name = 'curl 6 DNS failure';             Why = 'probably did not reach the ingress as an HTTP request and was probably NOT consumed'; Call = @{ EXIT = '6'; STATUS = '000'; BODY = 'none'; CT = 'none' } },
+    @{ Name = 'curl 7 connect failure';         Why = 'probably did not reach the ingress as an HTTP request and was probably NOT consumed'; Call = @{ EXIT = '7'; STATUS = '000'; BODY = 'none'; CT = 'none' } },
+    @{ Name = 'curl 35 TLS handshake failure';  Why = 'probably did not reach the ingress as an HTTP request and was probably NOT consumed'; Call = @{ EXIT = '35'; STATUS = '000'; BODY = 'none'; CT = 'none' } },
     @{ Name = 'curl 60 certificate failure';    Why = 'may be consumed';       Call = @{ EXIT = '60'; STATUS = '000'; BODY = 'none'; CT = 'none' } },
     @{ Name = 'curl 52 empty reply';            Why = 'may be consumed';       Call = @{ EXIT = '52'; STATUS = '000'; BODY = 'none'; CT = 'none' } },
     @{ Name = 'curl 56 receive failure';        Why = 'may be consumed';       Call = @{ EXIT = '56'; STATUS = '000' } },
@@ -454,6 +480,7 @@ foreach ($case in $nonRetryable) {
         Assert-NoReplicaWait $r
         Assert-NoVerifier $r
         if ($r.Output -notmatch [regex]::Escape($case.Why)) { throw "the stop message did not say '$($case.Why)':`n$($r.Output)" }
+        if ($r.Output -match '(?<!probably )(did not|never) reach(ed)? the ingress') { throw "a stop message states unhedged that the request did not reach the ingress:`n$($r.Output)" }
         if ($r.Output -match 'FAIL \(unhandled\)') { throw 'reached exit 3 through the trap, not the classified stop' }
         if (@(Get-Fingerprints $r).Count -ne 1) { throw "expected one fingerprint; output:`n$($r.Output)" }
     }
@@ -754,12 +781,15 @@ $childCalls = @(Find-Ast $wrapperAst {
     $n.CommandElements[0] -is [System.Management.Automation.Language.VariableExpressionAst] -and
     @('AzCommand', 'DockerCommand', 'PythonCommand', 'Curl', 'CurlCommand') -contains $n.CommandElements[0].VariablePath.UserPath
 })
+# Every HTTP-client command, not just curl by name: PowerShell's own web
+# cmdlets and their aliases are counted too, so any of them makes the "only
+# curl call" count wrong. The forbidden-construct check below bans them outright.
 $curlCalls = @(Find-Ast $wrapperAst {
     param($n)
     $n -is [System.Management.Automation.Language.CommandAst] -and (
         ($n.CommandElements[0] -is [System.Management.Automation.Language.VariableExpressionAst] -and
          @('Curl', 'CurlCommand') -contains $n.CommandElements[0].VariablePath.UserPath) -or
-        ("$($n.GetCommandName())" -match '(?i)^curl(\.exe)?$'))
+        ("$($n.GetCommandName())" -match '(?i)^((curl|wget)(\.exe)?|Invoke-WebRequest|iwr|Invoke-RestMethod|irm|Start-BitsTransfer)$'))
 })
 $unitLoops = @(Find-Ast $(if ($script:unit) { $script:unit.Body } else { $null }) { param($n) $n -is [System.Management.Automation.Language.LoopStatementAst] })
 $probeLoop = if ($unitLoops.Count -eq 1 -and $unitLoops[0] -is [System.Management.Automation.Language.ForStatementAst]) { $unitLoops[0] } else { $null }
@@ -845,13 +875,26 @@ Check 'WakeProbeIntervalSeconds defaults to 5, is validated before any child pro
     if ($null -eq $sleepIf -or (Norm $sleepIf.Clauses[0].Item1.Extent.Text) -cne '$probe -gt 1' -or -not (Is-Within $sleepIf $probeLoop)) { throw 'the interval must be slept only between probes, inside the probe loop' }
 }
 
-Check 'the safety unit makes the only curl call, with exactly the fixed arguments, URL and 30-second bound' {
-    if ($curlCalls.Count -ne 1) { throw "expected exactly one curl invocation in the script, found $($curlCalls.Count)" }
+Check 'the safety unit makes the only curl call, with exactly the fixed arguments, URL, proxy bypass and 30-second bound' {
+    if ($curlCalls.Count -ne 1) { throw "expected exactly one HTTP-client invocation (the curl call) in the script, found $($curlCalls.Count)" }
     $c = $curlCalls[0]
     if (-not (Inside-Unit $c)) { throw 'the curl invocation is outside the safety unit' }
     $actual = @($c.CommandElements | ForEach-Object { $_.Extent.Text })
-    $expected = @('$Curl', '-q', '-sS', '-o', '$bodyPath', '-w', "'t89:%{http_code}:%{time_total}:%{content_type}'", '--max-time', '30', "'https://api.vibhanshu-ai-portfolio.dev/actuator/health'")
+    $expected = @('$Curl', '-q', '--noproxy', "'*'", '-sS', '-o', '$bodyPath', '-w', "'t89:%{http_code}:%{time_total}:%{content_type}'", '--max-time', '30', "'https://api.vibhanshu-ai-portfolio.dev/actuator/health'")
     if (($actual -join ' ') -cne ($expected -join ' ')) { throw "curl argument vector is: $($actual -join ' ')" }
+    # -q first; --noproxy immediately after it; its value exactly one
+    # single-quoted literal '*' (a constant PowerShell passes as the character
+    # itself, not a variable, an expandable string or a host list).
+    $els = @($c.CommandElements)
+    if ($els.Count -lt 4) { throw 'the curl call has too few elements' }
+    if (-not ($els[1] -is [System.Management.Automation.Language.CommandParameterAst]) -or $els[1].Extent.Text -cne '-q') { throw "curl's first argument is not the literal -q: $($els[1].Extent.Text)" }
+    # PowerShell parses --noproxy as a bare-word string constant, not a parameter.
+    if (-not ($els[2] -is [System.Management.Automation.Language.StringConstantExpressionAst]) -or $els[2].StringConstantType -ne [System.Management.Automation.Language.StringConstantType]::BareWord -or $els[2].Value -cne '--noproxy') { throw "the argument after -q is not the literal --noproxy: $($els[2].Extent.Text)" }
+    $np = $els[3]
+    if (-not ($np -is [System.Management.Automation.Language.StringConstantExpressionAst]) -or $np.StringConstantType -ne [System.Management.Automation.Language.StringConstantType]::SingleQuoted -or $np.Value -cne '*') {
+        throw "the --noproxy value is not the single-quoted literal '*': $($np.Extent.Text)"
+    }
+    if (@($els | Where-Object { $_.Extent.Text -ceq '--noproxy' }).Count -ne 1) { throw '--noproxy appears more than once' }
     # curl's stderr is discarded: on a local write failure it names the body file.
     $redirs = @($c.Redirections | ForEach-Object { Norm $_.Extent.Text })
     if (($redirs -join ' | ') -cne '2>$null') { throw "curl redirections are: '$($redirs -join ' | ')'" }
@@ -1060,43 +1103,117 @@ Check 'Fail always exits with the code it is given' {
     }
 }
 
-Check 'the script forbids dynamic execution, alias or function replacement, and ambient input channels' {
+function Find-ForbiddenConstruct {
+    # The first forbidden construct under $Ast, as a message, or $null. A
+    # function rather than inline so the fidelity check below can prove it
+    # fires on each banned form, not merely that the wrapper has none.
+    #
+    # Network clients are banned alongside dynamic execution: the offline
+    # suite has no network sandbox, so a web cmdlet or .NET client added to the
+    # wrapper would reach the network unobserved. They are caught by command
+    # name, by type expression, and by type NAME in a string -- New-Object
+    # System.Net.WebClient, [type]'System.Net.WebClient', or a COM ProgID --
+    # plus the string-to-type routes ([type], [Activator], reflection). None of
+    # these is used by the wrapper.
+    param($Ast)
+    $bannedCmds = @('Invoke-Expression', 'iex', 'Set-Alias', 'New-Alias', 'sal', 'nal', 'Import-Alias', 'Set-Item', 'si', 'New-Item', 'ni',
+                    'Set-Variable', 'sv', 'New-Variable', 'nv', 'Clear-Variable', 'clv', 'Remove-Variable', 'rv', 'Start-Process', 'saps', 'start',
+                    'Invoke-Command', 'icm', 'Add-Type', 'Import-Module', 'ipmo', 'Invoke-Item', 'ii', 'Get-Item', 'gi', 'Get-ChildItem', 'gci', 'ls', 'dir',
+                    'Invoke-WebRequest', 'iwr', 'Invoke-RestMethod', 'irm', 'wget', 'curl', 'Start-BitsTransfer', 'Test-NetConnection', 'tnc',
+                    'Test-Connection', 'Resolve-DnsName', 'New-WebServiceProxy', 'Send-MailMessage', 'New-Object')
+    $allowedHeads = @('AzCommand', 'DockerCommand', 'PythonCommand', 'Curl', 'expr')
+    foreach ($c in (Find-Ast $Ast { param($n) $n -is [System.Management.Automation.Language.CommandAst] })) {
+        $head = $c.CommandElements[0]
+        if ($head -is [System.Management.Automation.Language.VariableExpressionAst]) {
+            if ($allowedHeads -notcontains $head.VariablePath.UserPath) { return "forbidden dynamic invocation: $($c.Extent.Text)" }
+        } elseif (-not ($head -is [System.Management.Automation.Language.StringConstantExpressionAst])) {
+            return "forbidden computed command: $($c.Extent.Text)"
+        } elseif ($bannedCmds -contains "$($c.GetCommandName())") {
+            return "forbidden command: $($c.GetCommandName())"
+        }
+    }
+    foreach ($s in (Find-Ast $Ast { param($n) $n -is [System.Management.Automation.Language.StringConstantExpressionAst] -or $n -is [System.Management.Automation.Language.ExpandableStringExpressionAst] })) {
+        if ("$($s.Value)" -match '(?i)\b(env|alias|function|variable):') { return "forbidden provider path in a string: $($s.Extent.Text)" }
+        if ("$($s.Value)" -match '(?i)((^|[^\w.])(System\.)?Net\.[a-z]|\b(WebClient|HttpClient|WebRequest|HttpWebRequest|TcpClient|UdpClient|XMLHTTP|ServerXMLHTTP|WinHttp\w*)\b)') { return "forbidden network type name in a string: $($s.Extent.Text)" }
+    }
+    foreach ($t in (Find-Ast $Ast { param($n) $n -is [System.Management.Automation.Language.TypeExpressionAst] -or $n -is [System.Management.Automation.Language.TypeConstraintAst] })) {
+        if ("$($t.TypeName.FullName)" -match '(?i)(^|\.)(Environment|ScriptBlock|PowerShell|Runspace\w*|SessionState\w*|Process)$') { return "forbidden type: [$($t.TypeName.FullName)]" }
+        if ("$($t.TypeName.FullName)" -match '(?i)(^|\.)(Net(\.\w+)*|WebClient|HttpClient|Sockets(\.\w+)*)$') { return "forbidden network type: [$($t.TypeName.FullName)]" }
+        if ("$($t.TypeName.FullName)" -match '(?i)(^|\.)(Type|Activator|Reflection(\.\w+)*)$') { return "forbidden string-to-type route: [$($t.TypeName.FullName)]" }
+    }
+    foreach ($m in (Find-Ast $Ast { param($n) $n -is [System.Management.Automation.Language.MemberExpressionAst] })) {
+        if ("$($m.Member.Extent.Text)" -match '(?i)^(InvokeScript|NewScriptBlock|Create|GetEnvironmentVariables?|ExpandEnvironmentVariables|SetEnvironmentVariable|Invoke|InvokeReturnAsIs|Start)$') {
+            return "forbidden member: $($m.Extent.Text)"
+        }
+    }
+    $bannedVars = @('args', 'PSBoundParameters', 'ExecutionContext', 'input', 'MyInvocation', 'PSCmdlet')
+    foreach ($v in (Find-Ast $Ast { param($n) $n -is [System.Management.Automation.Language.VariableExpressionAst] })) {
+        if ($bannedVars -contains $v.VariablePath.UserPath) { return "forbidden variable: `$$($v.VariablePath.UserPath)" }
+        if ($v.VariablePath.UserPath -match '(?i)^env:' -and @('env:TASK8_9_ACCESS_TOKEN', 'env:TASK8_9_DEMO_PASSWORD') -notcontains $v.VariablePath.UserPath) {
+            return "forbidden environment read: `$$($v.VariablePath.UserPath)"
+        }
+    }
+    return $null
+}
+
+Check 'the script forbids dynamic execution, alias or function replacement, network clients, and ambient input channels' {
     if (@($wrapperAst.ParamBlock.Attributes | ForEach-Object { $_.TypeName.Name }) -notcontains 'CmdletBinding') {
         throw '[CmdletBinding()] is absent, so unknown parameters would land in $args instead of being rejected'
     }
     if ($wrapperAst.Extent.Text -match '(?im)^\s*dynamicparam\b') { throw 'dynamicparam block present' }
-    $bannedCmds = @('Invoke-Expression', 'iex', 'Set-Alias', 'New-Alias', 'sal', 'nal', 'Import-Alias', 'Set-Item', 'si', 'New-Item', 'ni',
-                    'Set-Variable', 'sv', 'New-Variable', 'nv', 'Clear-Variable', 'clv', 'Remove-Variable', 'rv', 'Start-Process', 'saps', 'start',
-                    'Invoke-Command', 'icm', 'Add-Type', 'Import-Module', 'ipmo', 'Invoke-Item', 'ii', 'Get-Item', 'gi', 'Get-ChildItem', 'gci', 'ls', 'dir')
-    $allowedHeads = @('AzCommand', 'DockerCommand', 'PythonCommand', 'Curl', 'expr')
-    foreach ($c in (Find-Ast $wrapperAst { param($n) $n -is [System.Management.Automation.Language.CommandAst] })) {
-        $head = $c.CommandElements[0]
-        if ($head -is [System.Management.Automation.Language.VariableExpressionAst]) {
-            if ($allowedHeads -notcontains $head.VariablePath.UserPath) { throw "forbidden dynamic invocation: $($c.Extent.Text)" }
-        } elseif (-not ($head -is [System.Management.Automation.Language.StringConstantExpressionAst])) {
-            throw "forbidden computed command: $($c.Extent.Text)"
-        } elseif ($bannedCmds -contains "$($c.GetCommandName())") {
-            throw "forbidden command: $($c.GetCommandName())"
-        }
+    $found = Find-ForbiddenConstruct $wrapperAst
+    if ($found) { throw $found }
+}
+
+Check 'the forbidden-construct guard fires on every banned network form, and not on what the wrapper uses' {
+    # Fidelity for the guard above: a guard that never fires passes the wrapper
+    # just as well as one that works. Each snippet is only PARSED, never run.
+    # The fixtures use inert arguments -- no URL, nothing fetched or executed --
+    # because Windows Defender's AMSI scan blocks a script block that resembles
+    # a download cradle (an earlier draft of this list, with a download method
+    # call and an expression invoker, was blocked).
+    $banned = @(
+        "Invoke-WebRequest -Uri 'x'",
+        "iwr 'x'",
+        "Invoke-RestMethod 'x'",
+        "irm 'x'",
+        "wget 'x'",
+        "curl 'x'",
+        "Start-BitsTransfer -Source 'x' -Destination 'y'",
+        "Test-NetConnection 'example.invalid' -Port 443",
+        "Test-Connection 'example.invalid'",
+        "Resolve-DnsName 'example.invalid'",
+        "[System.Net.WebClient]::new()",
+        "[Net.WebClient]::new()",
+        "[System.Net.Http.HttpClient]::new()",
+        "[System.Net.Sockets.TcpClient]::new()",
+        "[Net.Dns]::GetHostName()",
+        "`$c = [System.Net.WebClient]`$null",
+        "New-Object System.Net.WebClient",
+        "New-Object -TypeName 'System.Net.WebClient'",
+        "([type]'System.Net.WebClient')::new()",
+        "'System.Net.WebClient' -as [type]",
+        "[Activator]::CreateInstance(`$t)",
+        "[System.Reflection.Assembly]::GetExecutingAssembly()",
+        "`$x = 'Net.WebClient'",
+        "New-Object -ComObject 'MSXML2.XMLHTTP'",
+        # Two of the pre-existing bans, so the refactor into a function is
+        # shown to have kept them.
+        "Set-Alias -Name x -Value y",
+        "[Environment]::GetEnvironmentVariable('X')"
+    )
+    foreach ($snippet in $banned) {
+        $e = $null
+        $snipAst = [System.Management.Automation.Language.Parser]::ParseInput($snippet, [ref]$null, [ref]$e)
+        if ($e) { throw "fixture does not parse: $snippet" }
+        if (-not (Find-ForbiddenConstruct $snipAst)) { throw "the guard did not fire on: $snippet" }
     }
-    foreach ($s in (Find-Ast $wrapperAst { param($n) $n -is [System.Management.Automation.Language.StringConstantExpressionAst] -or $n -is [System.Management.Automation.Language.ExpandableStringExpressionAst] })) {
-        if ("$($s.Value)" -match '(?i)\b(env|alias|function|variable):') { throw "forbidden provider path in a string: $($s.Extent.Text)" }
-    }
-    foreach ($t in (Find-Ast $wrapperAst { param($n) $n -is [System.Management.Automation.Language.TypeExpressionAst] -or $n -is [System.Management.Automation.Language.TypeConstraintAst] })) {
-        if ("$($t.TypeName.FullName)" -match '(?i)(^|\.)(Environment|ScriptBlock|PowerShell|Runspace\w*|SessionState\w*|Process)$') { throw "forbidden type: [$($t.TypeName.FullName)]" }
-    }
-    foreach ($m in (Find-Ast $wrapperAst { param($n) $n -is [System.Management.Automation.Language.MemberExpressionAst] })) {
-        if ("$($m.Member.Extent.Text)" -match '(?i)^(InvokeScript|NewScriptBlock|Create|GetEnvironmentVariables?|ExpandEnvironmentVariables|SetEnvironmentVariable|Invoke|InvokeReturnAsIs|Start)$') {
-            throw "forbidden member: $($m.Extent.Text)"
-        }
-    }
-    $bannedVars = @('args', 'PSBoundParameters', 'ExecutionContext', 'input', 'MyInvocation', 'PSCmdlet')
-    foreach ($v in (Find-Ast $wrapperAst { param($n) $n -is [System.Management.Automation.Language.VariableExpressionAst] })) {
-        if ($bannedVars -contains $v.VariablePath.UserPath) { throw "forbidden variable: `$$($v.VariablePath.UserPath)" }
-        if ($v.VariablePath.UserPath -match '(?i)^env:' -and @('env:TASK8_9_ACCESS_TOKEN', 'env:TASK8_9_DEMO_PASSWORD') -notcontains $v.VariablePath.UserPath) {
-            throw "forbidden environment read: `$$($v.VariablePath.UserPath)"
-        }
-    }
+    $allowed = "`$b = [IO.File]::ReadAllBytes('x'); `$h = (Get-FileHash -InputStream ([IO.MemoryStream]::new(`$b)) -Algorithm SHA256).Hash; `$t = [Text.UTF8Encoding]::new(`$false, `$true).GetString(`$b); `$d = ConvertFrom-Json -InputObject `$t -ErrorAction Stop; `$p = Join-Path ([IO.Path]::GetTempPath()) ('t89-wake-' + [guid]::NewGuid().ToString('N') + '.body'); Write-Host 'https://api.vibhanshu-ai-portfolio.dev/actuator/health'"
+    $e = $null
+    $okAst = [System.Management.Automation.Language.Parser]::ParseInput($allowed, [ref]$null, [ref]$e)
+    if ($e) { throw 'the allowed fixture does not parse' }
+    $found = Find-ForbiddenConstruct $okAst
+    if ($found) { throw "the guard fires on constructs the wrapper legitimately uses: $found" }
 }
 
 Check 'the verifier starts exactly once, and only after the wake decision' {
@@ -1528,58 +1645,121 @@ $wOut = 't89:%{http_code}:%{time_total}:%{content_type}'
 # Each case gets a fresh generated body path, exactly as the wrapper makes one.
 $fresh = '<fresh>'
 $stubCases = @(
-    @{ Name = 'the authorized vector';         Ok = $true;  Args = @('-q', '-sS', '-o', $fresh, '-w', $wOut, '--max-time', '30', $authUrl) },
-    @{ Name = 'a retry';                       Ok = $false; Args = @('-q', '-sS', '-o', $fresh, '-w', $wOut, '--max-time', '30', '--retry', '3', $authUrl) },
-    @{ Name = 'a retry on all errors';         Ok = $false; Args = @('-q', '-sS', '-o', $fresh, '-w', $wOut, '--max-time', '30', '--retry', '2', '--retry-all-errors', $authUrl) },
-    @{ Name = 'a redirect follow';             Ok = $false; Args = @('-q', '-sS', '-L', '-o', $fresh, '-w', $wOut, '--max-time', '30', $authUrl) },
-    @{ Name = 'a redirect follow (long form)'; Ok = $false; Args = @('-q', '-sS', '-o', $fresh, '-w', $wOut, '--max-time', '30', '--location', $authUrl) },
-    @{ Name = 'an altered -w';                 Ok = $false; Args = @('-q', '-sS', '-o', $fresh, '-w', 't89:200:0.1:application/json', '--max-time', '30', $authUrl) },
-    @{ Name = 'the retired -w';                Ok = $false; Args = @('-q', '-sS', '-o', $fresh, '-w', '%{http_code}', '--max-time', '30', $authUrl) },
-    @{ Name = 'no --max-time';                 Ok = $false; Args = @('-q', '-sS', '-o', $fresh, '-w', $wOut, $authUrl) },
-    @{ Name = 'a longer --max-time';           Ok = $false; Args = @('-q', '-sS', '-o', $fresh, '-w', $wOut, '--max-time', '60', $authUrl) },
-    @{ Name = 'a second --max-time';           Ok = $false; Args = @('-q', '-sS', '-o', $fresh, '-w', $wOut, '--max-time', '30', '--max-time', '300', $authUrl) },
-    @{ Name = 'an alternate URL';              Ok = $false; Args = @('-q', '-sS', '-o', $fresh, '-w', $wOut, '--max-time', '30', 'https://api.vibhanshu-ai-portfolio.dev/api/portfolio/holdings') },
-    @{ Name = 'a second request in one call';  Ok = $false; Args = @('-q', '-sS', '-o', $fresh, '-w', $wOut, '--max-time', '30', $authUrl, $authUrl) },
+    @{ Name = 'the authorized vector';         Ok = $true;  Args = @('-q', '--noproxy', '*', '-sS', '-o', $fresh, '-w', $wOut, '--max-time', '30', $authUrl) },
+    @{ Name = 'a retry';                       Ok = $false; Args = @('-q', '--noproxy', '*', '-sS', '-o', $fresh, '-w', $wOut, '--max-time', '30', '--retry', '3', $authUrl) },
+    @{ Name = 'a retry on all errors';         Ok = $false; Args = @('-q', '--noproxy', '*', '-sS', '-o', $fresh, '-w', $wOut, '--max-time', '30', '--retry', '2', '--retry-all-errors', $authUrl) },
+    @{ Name = 'a redirect follow';             Ok = $false; Args = @('-q', '--noproxy', '*', '-sS', '-L', '-o', $fresh, '-w', $wOut, '--max-time', '30', $authUrl) },
+    @{ Name = 'a redirect follow (long form)'; Ok = $false; Args = @('-q', '--noproxy', '*', '-sS', '-o', $fresh, '-w', $wOut, '--max-time', '30', '--location', $authUrl) },
+    @{ Name = 'an altered -w';                 Ok = $false; Args = @('-q', '--noproxy', '*', '-sS', '-o', $fresh, '-w', 't89:200:0.1:application/json', '--max-time', '30', $authUrl) },
+    @{ Name = 'the retired -w';                Ok = $false; Args = @('-q', '--noproxy', '*', '-sS', '-o', $fresh, '-w', '%{http_code}', '--max-time', '30', $authUrl) },
+    @{ Name = 'no --max-time';                 Ok = $false; Args = @('-q', '--noproxy', '*', '-sS', '-o', $fresh, '-w', $wOut, $authUrl) },
+    @{ Name = 'a longer --max-time';           Ok = $false; Args = @('-q', '--noproxy', '*', '-sS', '-o', $fresh, '-w', $wOut, '--max-time', '60', $authUrl) },
+    @{ Name = 'a second --max-time';           Ok = $false; Args = @('-q', '--noproxy', '*', '-sS', '-o', $fresh, '-w', $wOut, '--max-time', '30', '--max-time', '300', $authUrl) },
+    @{ Name = 'an alternate URL';              Ok = $false; Args = @('-q', '--noproxy', '*', '-sS', '-o', $fresh, '-w', $wOut, '--max-time', '30', 'https://api.vibhanshu-ai-portfolio.dev/api/portfolio/holdings') },
+    @{ Name = 'a second request in one call';  Ok = $false; Args = @('-q', '--noproxy', '*', '-sS', '-o', $fresh, '-w', $wOut, '--max-time', '30', $authUrl, $authUrl) },
     # -q must be FIRST, not merely present: curl only honours it as the very
     # first argument, so both "no -q at all" and "-q after another flag" must be
-    # refused -- otherwise an ambient curlrc could still inject retry/redirect.
-    @{ Name = 'no -q at all (ambient config enabled)'; Ok = $false; Args = @('-sS', '-o', $fresh, '-w', $wOut, '--max-time', '30', $authUrl) },
-    @{ Name = '-q present but not first';      Ok = $false; Args = @('-sS', '-q', '-o', $fresh, '-w', $wOut, '--max-time', '30', $authUrl) },
+    # refused -- otherwise a curl configuration file could still inject
+    # retry/redirect.
+    @{ Name = 'no -q at all (curl config files read)'; Ok = $false; Args = @('--noproxy', '*', '-sS', '-o', $fresh, '-w', $wOut, '--max-time', '30', $authUrl) },
+    @{ Name = '-q present but not first';      Ok = $false; Args = @('-sS', '-q', '--noproxy', '*', '-o', $fresh, '-w', $wOut, '--max-time', '30', $authUrl) },
     # The body path is the one position that varies, and only to a fresh
     # generated temp file.
-    @{ Name = 'the body sent to stdout (-o -)'; Ok = $false; Args = @('-q', '-sS', '-o', '-', '-w', $wOut, '--max-time', '30', $authUrl) },
-    @{ Name = 'no body capture (-o NUL)';      Ok = $false; Args = @('-q', '-sS', '-o', 'NUL', '-w', $wOut, '--max-time', '30', $authUrl) },
-    @{ Name = 'a body path outside the temp directory'; Ok = $false; Args = @('-q', '-sS', '-o', (Join-Path $repo "t89-wake-$([guid]::NewGuid().ToString('N')).body"), '-w', $wOut, '--max-time', '30', $authUrl) },
-    @{ Name = 'a body path with another name'; Ok = $false; Args = @('-q', '-sS', '-o', (Join-Path ([IO.Path]::GetTempPath()) "other-$([guid]::NewGuid().ToString('N')).body"), '-w', $wOut, '--max-time', '30', $authUrl) },
-    @{ Name = 'a body file that already exists'; Ok = $false; Existing = $true; Args = @('-q', '-sS', '-o', $fresh, '-w', $wOut, '--max-time', '30', $authUrl) }
+    @{ Name = 'the body sent to stdout (-o -)'; Ok = $false; Args = @('-q', '--noproxy', '*', '-sS', '-o', '-', '-w', $wOut, '--max-time', '30', $authUrl) },
+    @{ Name = 'no body capture (-o NUL)';      Ok = $false; Args = @('-q', '--noproxy', '*', '-sS', '-o', 'NUL', '-w', $wOut, '--max-time', '30', $authUrl) },
+    @{ Name = 'a body path outside the temp directory'; Ok = $false; Args = @('-q', '--noproxy', '*', '-sS', '-o', (Join-Path $repo "t89-wake-$([guid]::NewGuid().ToString('N')).body"), '-w', $wOut, '--max-time', '30', $authUrl) },
+    @{ Name = 'a body path with another name'; Ok = $false; Args = @('-q', '--noproxy', '*', '-sS', '-o', (Join-Path ([IO.Path]::GetTempPath()) "other-$([guid]::NewGuid().ToString('N')).body"), '-w', $wOut, '--max-time', '30', $authUrl) },
+    @{ Name = 'a body file that already exists'; Ok = $false; Existing = $true; Args = @('-q', '--noproxy', '*', '-sS', '-o', $fresh, '-w', $wOut, '--max-time', '30', $authUrl) },
+    # A TMP ending in a backslash. GetTempPath still returns exactly one
+    # trailing backslash, so the wrapper's generated path is unchanged and must
+    # be accepted -- and the directory comparison must not loosen into
+    # accepting another directory.
+    @{ Name = 'the authorized vector with a trailing-backslash TMP'; Ok = $true; TrailingTmp = $true; Args = @('-q', '--noproxy', '*', '-sS', '-o', $fresh, '-w', $wOut, '--max-time', '30', $authUrl) },
+    @{ Name = 'a body path outside the temp directory with a trailing-backslash TMP'; Ok = $false; TrailingTmp = $true; Args = @('-q', '--noproxy', '*', '-sS', '-o', (Join-Path $repo "t89-wake-$([guid]::NewGuid().ToString('N')).body"), '-w', $wOut, '--max-time', '30', $authUrl) },
+    @{ Name = 'a body path in a temp subdirectory with a trailing-backslash TMP'; Ok = $false; TrailingTmp = $true; Args = @('-q', '--noproxy', '*', '-sS', '-o', (Join-Path ([IO.Path]::GetTempPath()) "sub\t89-wake-$([guid]::NewGuid().ToString('N')).body"), '-w', $wOut, '--max-time', '30', $authUrl) },
+    # --noproxy '*' immediately after -q: -q skips curl's config files but not
+    # proxy environment variables, which only --noproxy '*' bypasses. Each
+    # removal, narrowing or move is refused under its own recorded reason.
+    @{ Name = '--noproxy removed';                     Ok = $false; Reason = 'noproxy'; Args = @('-q', '-sS', '-o', $fresh, '-w', $wOut, '--max-time', '30', $authUrl) },
+    @{ Name = '--noproxy narrowed to the gateway host'; Ok = $false; Reason = 'noproxy'; Args = @('-q', '--noproxy', 'api.vibhanshu-ai-portfolio.dev', '-sS', '-o', $fresh, '-w', $wOut, '--max-time', '30', $authUrl) },
+    @{ Name = '--noproxy narrowed to localhost';       Ok = $false; Reason = 'noproxy'; Args = @('-q', '--noproxy', 'localhost', '-sS', '-o', $fresh, '-w', $wOut, '--max-time', '30', $authUrl) },
+    @{ Name = '--noproxy with an empty list';          Ok = $false; Reason = 'noproxy'; Args = @('-q', '--noproxy', '""', '-sS', '-o', $fresh, '-w', $wOut, '--max-time', '30', $authUrl) },
+    @{ Name = '--noproxy *,x';                         Ok = $false; Reason = 'noproxy'; Args = @('-q', '--noproxy', '*,x', '-sS', '-o', $fresh, '-w', $wOut, '--max-time', '30', $authUrl) },
+    @{ Name = '--noproxy moved after -sS';             Ok = $false; Reason = 'noproxy'; Args = @('-q', '-sS', '--noproxy', '*', '-o', $fresh, '-w', $wOut, '--max-time', '30', $authUrl) },
+    @{ Name = '--noproxy moved to the end';            Ok = $false; Reason = 'noproxy'; Args = @('-q', '-sS', '-o', $fresh, '-w', $wOut, '--max-time', '30', $authUrl, '--noproxy', '*') },
+    @{ Name = 'a second --noproxy narrowing the first'; Ok = $false; Args = @('-q', '--noproxy', '*', '-sS', '--noproxy', 'localhost', '-o', $fresh, '-w', $wOut, '--max-time', '30', $authUrl) },
+    # Proxy and pre-proxy arguments, refused by name even with --noproxy '*' in
+    # place.
+    @{ Name = 'a proxy (-x)';                          Ok = $false; Reason = 'proxy argument'; Args = @('-q', '--noproxy', '*', '-sS', '-x', 'http://127.0.0.1:9', '-o', $fresh, '-w', $wOut, '--max-time', '30', $authUrl) },
+    @{ Name = 'a proxy in a short-option cluster (-sSx)'; Ok = $false; Reason = 'proxy argument'; Args = @('-q', '--noproxy', '*', '-sSx', 'http://127.0.0.1:9', '-o', $fresh, '-w', $wOut, '--max-time', '30', $authUrl) },
+    @{ Name = 'a proxy (--proxy)';                     Ok = $false; Reason = 'proxy argument'; Args = @('-q', '--noproxy', '*', '-sS', '--proxy', 'http://127.0.0.1:9', '-o', $fresh, '-w', $wOut, '--max-time', '30', $authUrl) },
+    @{ Name = 'a pre-proxy (--preproxy)';              Ok = $false; Reason = 'proxy argument'; Args = @('-q', '--noproxy', '*', '-sS', '--preproxy', 'socks5://127.0.0.1:9', '-o', $fresh, '-w', $wOut, '--max-time', '30', $authUrl) },
+    @{ Name = 'a SOCKS4 proxy (--socks4)';             Ok = $false; Reason = 'proxy argument'; Args = @('-q', '--noproxy', '*', '-sS', '--socks4', '127.0.0.1:9', '-o', $fresh, '-w', $wOut, '--max-time', '30', $authUrl) },
+    @{ Name = 'a SOCKS4a proxy (--socks4a)';           Ok = $false; Reason = 'proxy argument'; Args = @('-q', '--noproxy', '*', '-sS', '--socks4a', '127.0.0.1:9', '-o', $fresh, '-w', $wOut, '--max-time', '30', $authUrl) },
+    @{ Name = 'a SOCKS5 proxy (--socks5)';             Ok = $false; Reason = 'proxy argument'; Args = @('-q', '--noproxy', '*', '-sS', '--socks5', '127.0.0.1:9', '-o', $fresh, '-w', $wOut, '--max-time', '30', $authUrl) },
+    @{ Name = 'a SOCKS5 proxy (--socks5-hostname)';    Ok = $false; Reason = 'proxy argument'; Args = @('-q', '--noproxy', '*', '-sS', '--socks5-hostname', '127.0.0.1:9', '-o', $fresh, '-w', $wOut, '--max-time', '30', $authUrl) },
+    @{ Name = 'proxy credentials (-U)';                Ok = $false; Reason = 'proxy argument'; Args = @('-q', '--noproxy', '*', '-sS', '-U', 'u:p', '-o', $fresh, '-w', $wOut, '--max-time', '30', $authUrl) },
+    @{ Name = 'proxy credentials (--proxy-user)';      Ok = $false; Reason = 'proxy argument'; Args = @('-q', '--noproxy', '*', '-sS', '--proxy-user', 'u:p', '-o', $fresh, '-w', $wOut, '--max-time', '30', $authUrl) },
+    @{ Name = 'another --proxy-* option (--proxy-insecure)'; Ok = $false; Reason = 'proxy argument'; Args = @('-q', '--noproxy', '*', '-sS', '--proxy-insecure', '-o', $fresh, '-w', $wOut, '--max-time', '30', $authUrl) }
 )
+# Every case runs the stub from a directory holding a file, so a stub that
+# walked %* with `for` and expanded * against the working directory would record
+# that file's name in curl-noproxy-arg instead of *.
+$globCwd = Join-Path ([IO.Path]::GetTempPath()) "t89-globcwd-$([guid]::NewGuid().ToString('N'))"
+New-Item -ItemType Directory -Path $globCwd | Out-Null
+[IO.File]::WriteAllText((Join-Path $globCwd 't89-glob-canary.txt'), 'canary')
 foreach ($sc in $stubCases) {
     $capFile = Join-Path ([IO.Path]::GetTempPath()) "t89-stubcurl-$([guid]::NewGuid()).txt"
     $bodyFile = Join-Path ([IO.Path]::GetTempPath()) "t89-wake-$([guid]::NewGuid().ToString('N')).body"
     $callArgs = @($sc.Args | ForEach-Object { if ($_ -ceq $fresh) { $bodyFile } else { $_ } })
     if ($sc.ContainsKey('Existing')) { [IO.File]::WriteAllText($bodyFile, 'pre-existing') }
     [Environment]::SetEnvironmentVariable('STUB_CAPTURE', $capFile)
-    $sout = @(& $stubCurl @callArgs 2>$null)
-    $sexit = $LASTEXITCODE
+    $savedTmp = [Environment]::GetEnvironmentVariable('TMP')
+    $savedTemp = [Environment]::GetEnvironmentVariable('TEMP')
+    $tmpSeen = $null
+    if ($sc.ContainsKey('TrailingTmp')) {
+        $slashed = [IO.Path]::GetTempPath()
+        if (-not $slashed.EndsWith('\')) { $slashed += '\' }
+        [Environment]::SetEnvironmentVariable('TMP', $slashed)
+        [Environment]::SetEnvironmentVariable('TEMP', $slashed)
+        $tmpSeen = [Environment]::GetEnvironmentVariable('TMP')
+    }
+    Push-Location -LiteralPath $globCwd
+    try {
+        $sout = @(& $stubCurl @callArgs 2>$null)
+        $sexit = $LASTEXITCODE
+    } finally {
+        Pop-Location
+        [Environment]::SetEnvironmentVariable('TMP', $savedTmp)
+        [Environment]::SetEnvironmentVariable('TEMP', $savedTemp)
+    }
     $scap = if (Test-Path $capFile) { Get-Content $capFile -Raw } else { '' }
     $bodyAfter = if (Test-Path -LiteralPath $bodyFile) { [IO.File]::ReadAllText($bodyFile) } else { $null }
     Remove-Item $capFile -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $bodyFile -ErrorAction SilentlyContinue
     [Environment]::SetEnvironmentVariable('STUB_CAPTURE', $null)
     Check "curl stub: $($sc.Name) is $(if ($sc.Ok) { 'accepted' } else { 'refused with no metadata' })" {
+        if ($sc.ContainsKey('TrailingTmp') -and -not "$tmpSeen".EndsWith('\')) { throw "the fixture did not give the stub a TMP ending in a backslash ('$tmpSeen')" }
         if ($sc.Ok) {
             if ($sexit -ne 0 -or ($sout -join '|') -cne 't89:200:0.012345:application/json' -or $scap -match 'curl-violation') {
                 throw "authorized vector rejected (exit $sexit, out '$($sout -join '|')')"
             }
             if ($null -eq $bodyAfter) { throw 'the stub did not write the body file' }
+            # Exactly one literal * arrived after --noproxy, read positionally,
+            # although the working directory holds a file a glob would match.
+            $npLines = @([regex]::Matches($scap, '(?m)^curl-noproxy-arg .*$') | ForEach-Object { $_.Value.TrimEnd() })
+            if ($npLines.Count -ne 1 -or $npLines[0] -cne 'curl-noproxy-arg [--noproxy] [*] [-sS]') { throw "the stub did not record exactly one literal * after --noproxy: '$($npLines -join ' | ')'" }
+            if ($scap -match 't89-glob-canary') { throw 'a working-directory file name reached the stub arguments: * was globbed' }
         } else {
             if ($sexit -ne 99) { throw "exit $sexit, expected 99" }
             if (($sout -join '').Trim()) { throw "printed metadata '$($sout -join '|')' for an unauthorized vector" }
             if ($scap -notmatch 'curl-violation') { throw 'no violation was recorded' }
+            if ($sc.ContainsKey('Reason') -and $scap -notmatch "(?m)^curl-violation $([regex]::Escape($sc.Reason))") { throw "refused, but not for the reason '$($sc.Reason)': $($scap -replace '\s+', ' ')" }
             if ($sc.ContainsKey('Existing') -and $bodyAfter -cne 'pre-existing') { throw 'the stub overwrote a pre-existing body file' }
         }
     }
 }
+Remove-Item -LiteralPath $globCwd -Recurse -Force -ErrorAction SilentlyContinue
 
 Write-Host 'SkipWake refuses every command left at its real default'
 # A regression in this guard would let a run continue to REAL tools. So every
