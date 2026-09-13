@@ -1,7 +1,7 @@
 # Implementation Plan
 
-**Current program status (reconciled through PR #262 on 2026-09-11 at
-`main@45c1275ba306cde19cb344f2954c1a43c3ec4952`):** Waves 1–6 retain their recorded source and
+**Current program status (reconciled through PR #268 on 2026-09-13 at
+`main@80b881b5c461e1bebb210ebe1db4b911cf6a336d`):** Waves 1–6 retain their recorded source and
 review evidence. Wave 5 Task 5.6 is GO and its gateway bundle is deployed hidden in the Task 8.8
 revision. Wave 3 Task 3.7 is green on its recorded Azure evidence; Wave 6 Task 6.3 is green on its recorded
 2026-09-11 gateway-read evidence. Production flags remain disabled.
@@ -36,6 +36,33 @@ read-only baseline remains in the
 [`2026-09-11 re-preflight evidence`](../../../docs/evidence/b2-task-8-9/rehearsal-20260911.json);
 the [`2026-09-10 rehearsal record`](../../../docs/evidence/b2-task-8-9/rehearsal-20260910.json)
 remains historical evidence for its earlier gateway identity.
+
+Two owner-authorized Run A attempts have since been consumed. Attempt 1's
+[`2026-09-12 NON-GO record`](../../../docs/evidence/b2-task-8-9/run-a-attempt-20260912.md), merged
+through PR #265 at `main@e73ab8e9`, records one wake returning `503` after 56.374 seconds. The
+verifier was then run contrary to the readiness packet's non-`200` stop rule and ended `class_2a` /
+`non_go`, exit `1`. PR #266 merged the predecessor wrapper at `main@6b9c70f6`. Attempt 2's
+[`2026-09-13 NON-GO record`](../../../docs/evidence/b2-task-8-9/run-a-attempt-20260913.md) and
+[`transcript`](../../../docs/evidence/b2-task-8-9/run-a2-operator-transcript-20260913.txt), merged
+through PR #267 at `main@a4fa8d07`, record a second wake returning `503` with curl exit `0`; the
+predecessor wrapper exited `3` before replica wait or verifier start. No attempt-2 rehearsal JSON
+exists. Neither attempt advances Task 8.9.
+
+PR #268 merged the accepted `400ac3c8adebd3dae7a9d085152e280a301ec637` cold-start preflight
+wrapper with an identical merge tree. It can make no more than five fixed direct health probes,
+each capped at 30 seconds and separated by five seconds; it accepts the first exact `200`, retries
+only `503` or curl `28`/`000`, and otherwise exits `3` without verifier invocation. It calls
+verifier mode `preflight` only. This is source-only hardening, not a wake or Task 8.9 evidence.
+
+**Owner approval required before Run A attempt 3:** one activation sequence of at most five
+Production health probes followed by read-only preflight. That approval does not authorize a sixth
+probe, execute mode, credentials, production login, portfolio mutation or cleanup, feature flag
+change, deployment, publication, merge, or Wave 10 exposure. Use an operator shell without unusual
+curl environment variables; if antivirus locks the temporary response file after a `200`, the
+wrapper exits `3` and consumes that wake. The accepted non-blocking follow-ups are consolidated in
+the [Task 8.9 wake-preflight hardening backlog](../../../docs/todos/backlog/task-8-9-wake-preflight-hardening/README.md).
+If preflight passes, the credential-using, Production-mutating execute run requires another
+separate owner approval; neither this preflight approval nor a green preflight can authorize it.
 
 Wave 9's source and disposable assembled-stack integration are complete through
 [PR #232](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/232) at
