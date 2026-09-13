@@ -100,7 +100,11 @@ kafka-truststore.jks
 .junie/
 .junie./
 .bt/
-.claude/
+.claude/*
+# Share the session hooks and their registration; keep personal/local state out.
+!.claude/settings.json
+!.claude/hooks/
+.claude/settings.local.json
 .venv/
 
 ### Agent skills ###
