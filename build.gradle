@@ -99,6 +99,15 @@ subprojects {
         // on that line alone. Forked test JVMs do not need it; dependency resolution
         // runs in the Gradle daemon, which keeps it.
         environment.remove('JAVA_TOOL_OPTIONS')
+        // Containers commonly start with no LANG/LC_ALL, so the JVM resolves
+        // sun.jnu.encoding to ASCII. A test that passes a non-ASCII value through a
+        // child process environment then has it transcoded to '?' by THIS JVM as it
+        // builds the child's environment block -- the child never sees the original.
+        // InternalApiKeyPresenceProbeTest round-trips U+2003 EM SPACE and fails that
+        // way. Pin UTF-8 for the forked test JVM so such tests assert behaviour rather
+        // than the host's locale.
+        environment 'LANG', System.getenv('LANG') ?: 'C.UTF-8'
+        environment 'LC_ALL', System.getenv('LC_ALL') ?: 'C.UTF-8'
     }
 
     tasks.withType(BootRun).configureEach {

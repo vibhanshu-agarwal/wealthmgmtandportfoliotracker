@@ -16,6 +16,18 @@ fi
 # dependency resolution keeps the CA and test subprocesses get clean streams.
 # Nothing to do at session start; this note exists so the behaviour is findable.
 
+# --- Locale ------------------------------------------------------------------
+# The container starts with no LANG/LC_ALL, so the JVM resolves
+# sun.jnu.encoding to ANSI_X3.4-1968 (ASCII). Anything non-ASCII passed through
+# a child process environment is then transcoded to '?' -- which silently breaks
+# tests that round-trip Unicode through a subprocess. Pin UTF-8 for the session.
+if [ -n "${CLAUDE_ENV_FILE:-}" ] && [ -z "${LC_ALL:-}" ]; then
+  {
+    echo 'export LANG="${LANG:-C.UTF-8}"'
+    echo 'export LC_ALL="${LC_ALL:-C.UTF-8}"'
+  } >> "$CLAUDE_ENV_FILE"
+fi
+
 # --- Docker daemon -----------------------------------------------------------
 # Testcontainers-based tests need a running daemon. Docker is installed in the
 # image but not started.
