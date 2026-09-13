@@ -10,14 +10,14 @@ rem target's 200), an altered -w, and a different URL all passed the suite,
 rem because nothing ever looked at the argument vector.
 rem
 rem The only argument vector an activation probe may use is exactly:
-rem     -q --noproxy * -sS -o <body> -w t89:%{http_code}:%{time_total}:%{content_type} --max-time 30 https://api.vibhanshu-ai-portfolio.dev/actuator/health
+rem     -q --noproxy * -sS -o <body> -w t89:%{http_code}:%{time_total}:%{content_type} --max-time 90 https://api.vibhanshu-ai-portfolio.dev/actuator/health
 rem Two separate controls lead it, and each is checked on its own:
 rem   -q MUST be first: real curl then skips its configuration files (_curlrc /
 rem   .curlrc), so a config file cannot add a retry, redirect or alternate URL.
 rem   --noproxy * MUST come immediately after: -q does not touch proxy
 rem   environment variables (https_proxy, HTTPS_PROXY, ALL_PROXY), and * is
 rem   curl's wildcard for every host, so no environment proxy is used.
-rem --max-time 30 bounds each probe.
+rem --max-time 90 bounds each probe.
 rem
 rem <body> is the ONLY position allowed to vary, and only to a newly generated
 rem local temporary file: directly in the temp directory, named t89-wake-*.body,
@@ -74,7 +74,7 @@ if not "%~3"=="*" goto :noproxyviolation
 rem %% is a literal percent inside a batch file, so the right-hand side below is
 rem the single-percent vector curl actually receives. %6 is the body path, the
 rem one position allowed to vary; it is constrained separately below.
-if not "%*"=="-q --noproxy * -sS -o %6 -w t89:%%{http_code}:%%{time_total}:%%{content_type} --max-time 30 https://api.vibhanshu-ai-portfolio.dev/actuator/health" goto :violation
+if not "%*"=="-q --noproxy * -sS -o %6 -w t89:%%{http_code}:%%{time_total}:%%{content_type} --max-time 90 https://api.vibhanshu-ai-portfolio.dev/actuator/health" goto :violation
 rem GetTempPath resolves TMP first, then TEMP, and always returns exactly one
 rem trailing backslash -- so TMP=T:\probe\ gives T:\probe\ (one backslash, not two).
 rem Strip one trailing backslash from the variable before appending ours, or a
@@ -96,7 +96,7 @@ set /a _next=_n+1
 >"%STUB_STATE_FILE%.curl" echo %_next%
 :counted
 if defined STUB_CAPTURE >>"%STUB_CAPTURE%" echo curl-call %_n%
-if %_n% GTR 5 if defined STUB_CAPTURE >>"%STUB_CAPTURE%" echo curl-over-budget %_n%
+if %_n% GTR 6 if defined STUB_CAPTURE >>"%STUB_CAPTURE%" echo curl-over-budget %_n%
 
 call :pick EXIT
 call :pick STATUS

@@ -437,11 +437,18 @@ def _record_command(
     evidence: dict[str, Any], runner: CommandRunner, command: list[str], *, label: str,
     mutating: bool = False, timeout_seconds: float = 15.0,
 ) -> CommandResult:
-    evidence["operations"].append(
-        {"kind": "azure_cli" if command[0] == "az" else "local_cli", "argv": command,
-         "mutating": mutating, "timeoutSeconds": timeout_seconds}
-    )
-    result = runner(command, timeout_seconds=timeout_seconds)
+    entry = {"kind": "azure_cli" if command[0] == "az" else "local_cli", "argv": command,
+             "mutating": mutating, "timeoutSeconds": timeout_seconds}
+    evidence["operations"].append(entry)
+    # Observed wall-clock duration, additive telemetry alongside the
+    # already-recorded timeoutSeconds. Measured in a finally so it is recorded
+    # whether the runner returns normally or raises, and does not alter
+    # control flow: the ProofError below is raised exactly as before.
+    started = time.monotonic()
+    try:
+        result = runner(command, timeout_seconds=timeout_seconds)
+    finally:
+        entry["durationSeconds"] = round(time.monotonic() - started, 3)
     if result.returncode != 0:
         raise ProofError(f"{label} failed: {(result.stderr or result.stdout).strip()}")
     return result
@@ -474,10 +481,18 @@ def _record_http(
         evidence["requestCounts"]["logins"] += 1
     elif method == "PUT" and path.endswith("/api/portfolio/demo-reset"):
         evidence["requestCounts"]["cleanupResets"] += 1
-    return runner(
-        method=method, url=url, headers=headers, json_body=json_body,
-        timeout_seconds=timeout_seconds,
-    )
+    # Observed wall-clock duration, additive telemetry alongside the
+    # already-recorded timeoutSeconds; see _record_command for why a finally
+    # is used. Control flow (the returned HttpResponse, or a propagated
+    # exception) is unchanged.
+    started = time.monotonic()
+    try:
+        return runner(
+            method=method, url=url, headers=headers, json_body=json_body,
+            timeout_seconds=timeout_seconds,
+        )
+    finally:
+        safe["durationSeconds"] = round(time.monotonic() - started, 3)
 
 
 def _load_oracle(
@@ -927,14 +942,23 @@ def _query_once(
         "--timespan", evidence["trace"]["windowStart"] + "/" + evidence["trace"]["windowEnd"],
         "-o", "json",
     ]
-    evidence["operations"].append({
+    entry = {
         "kind": "azure_cli", "argv": command, "mutating": False,
         "timeoutSeconds": timeout_seconds,
-    })
+    }
+    evidence["operations"].append(entry)
+    # Observed wall-clock duration, additive telemetry alongside the
+    # already-recorded timeoutSeconds; see _record_command for why a finally
+    # is used. Control flow (the two-tuple return, in every branch below) is
+    # unchanged.
+    started = time.monotonic()
     try:
-        result = runner(command, timeout_seconds=timeout_seconds)
-    except Exception as error:
-        return None, f"{label} query runner error: {error}"
+        try:
+            result = runner(command, timeout_seconds=timeout_seconds)
+        except Exception as error:
+            return None, f"{label} query runner error: {error}"
+    finally:
+        entry["durationSeconds"] = round(time.monotonic() - started, 3)
     if result.returncode != 0:
         return None, (result.stderr or result.stdout).strip() or f"{label} query failed"
     try:

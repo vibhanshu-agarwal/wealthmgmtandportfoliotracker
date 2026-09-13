@@ -5,6 +5,14 @@ Current attested gateway revision: `api-gateway--0000081` @ `sha256:090ad3ba…`
 `34588465283`. This packet requests decisions only. Nothing here has been executed: no Azure call,
 no credential access, no verifier run, no wake, no push.
 
+> **Superseded, 2026-09-13 — activation instructions only.** The activation timeout and retry
+> instructions in this packet (notably §"Set no client-side timeout" and "on any non-`200`, stop and
+> report") are **historical** and must not be used as operator procedure. The governing policy is
+> `2026-09-13-b2-task-8-9-activation-policy.md`. The rest of this packet — the two-decision
+> separation, the attestation requirements, and the timing constraints in §"the 300-second
+> cool-down" — remains current. The original text below is preserved unchanged as the record of what
+> was believed on 2026-09-12.
+
 ---
 
 ## 0. The one structural fact that shapes both decisions
