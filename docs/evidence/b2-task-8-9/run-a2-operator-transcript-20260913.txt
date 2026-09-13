@@ -1,0 +1,28 @@
+operator-start-utc=2026-09-13T06:39:51Z
+==> Attested: api-gateway--0000081 @ sha256:090ad3ba4b7ada20bca71781d4a1ce3ac81029b8a23a8a1d180dce2cff540d09
+==> Subscription resolved (length 36)
+==> Checking the wake request is the authorized one
+==> Checking Azure session
+==>   az account: Azure subscription 1
+==> Checking Docker daemon
+==>   docker server os: linux
+==> Checking live serving revision against the attestation
+WARNING: The behavior of this command has been altered by the following extension: containerapp
+WARNING: The behavior of this command has been altered by the following extension: containerapp
+==>   serving api-gateway--0000081 at the attested digest
+==> Checking the active subscription matches the one the verifier will assert
+==> Checking portfolio-service against its attestation
+WARNING: The behavior of this command has been altered by the following extension: containerapp
+WARNING: The behavior of this command has been altered by the following extension: containerapp
+==>   portfolio-service--0000096 at the attested digest
+==> Checking the Log Analytics workspace is readable
+==>   workspace readable
+==> Checking the verifier can start
+==>   verifier starts and the evidence directory exists
+==> Checking no newer gateway revision exists
+==>   1 revision(s), none newer than api-gateway--0000081
+==> Waking: GET https://api.vibhanshu-ai-portfolio.dev/actuator/health (one request, no retry, no redirect, no client timeout, ambient curl config disabled)
+==>   wake responded HTTP 503 (curl exit 0)
+FAIL: the wake returned HTTP 503, not 200. The packet requires stopping here, and this script has no override. The wake is consumed; continuing is a fresh owner decision.
+operator-end-utc=2026-09-13T06:41:13Z
+wrapper-exit=3
