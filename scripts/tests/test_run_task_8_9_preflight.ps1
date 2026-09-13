@@ -638,27 +638,58 @@ foreach ($run in $fingerprintRuns) {
 # --- Temporary body files ---------------------------------------------------------
 # Removal on a first-200, on exhaustion and on an immediate stop is asserted by
 # Assert-ProbesSound in the runs above. The two cases below need a directory the
-# test controls, so each points the wrapper's TMP at one with a restricted ACL:
+# test controls, so each points the wrapper's TMP at one whose ACL injects the
+# fault through DENY entries for the current user:
 #   * no read-data: the body file exists but cannot be read, an unanticipated
 #     error inside the probe. It must still be removed, and exit 3.
 #   * no delete: the body file cannot be removed after a 200. That must stop
 #     the run with exit 3 before the replica wait -- a cleanup failure is never
 #     silently accepted -- and the path must not be printed.
+# DENY entries, not a trimmed allow list. On the GitHub windows-latest runner
+# the job runs as the built-in Administrator (elevated), and its Temp directory
+# carries SYSTEM and BUILTIN\Administrators full-control entries that a new
+# subdirectory receives as explicit, non-inherited ACEs; `icacls /inheritance:r`
+# only strips inherited ones, so a trimmed allow for the user alone restricted
+# nothing there and both cases exited 0. A DENY for the user's SID is evaluated
+# before every allow, whatever else the ACL carries. The no-delete case denies
+# the specific DE right (icacls's simple D is wider and also blocks the read,
+# which would stop the probe for the wrong reason) and DC on the directory
+# itself, since NTFS otherwise falls back to the parent's delete-child right.
+# Each restriction is then proven on a probe file, read and removed the way the
+# wrapper does it, so a host where it does not hold fails by name here rather
+# than as a wrong exit code.
 $me = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
 function New-RestrictedTemp {
     param([ValidateSet('NoReadData', 'NoDelete')][string]$Kind)
     $d = Join-Path ([IO.Path]::GetTempPath()) "t89-acl-$([guid]::NewGuid().ToString('N'))"
     New-Item -ItemType Directory -Path $d | Out-Null
-    $rights = if ($Kind -eq 'NoReadData') { '(OI)(CI)(WD,AD,REA,WEA,X,RA,WA,RC,WDAC,S,D,DC)' } else { '(OI)(CI)(RD,WD,AD,REA,WEA,X,RA,WA,RC,WDAC,S)' }
-    & icacls $d /inheritance:r /grant:r "*${me}:$rights" | Out-Null
-    if ($LASTEXITCODE -ne 0) { throw "icacls could not restrict $d (exit $LASTEXITCODE)" }
+    $steps = @(, @('/inheritance:r', '/grant:r', "*${me}:(OI)(CI)F"))
+    if ($Kind -eq 'NoReadData') { $steps += , @('/deny', "*${me}:(OI)(IO)(RD)") }
+    else { $steps += , @('/deny', "*${me}:(OI)(IO)(DE)"); $steps += , @('/deny', "*${me}:(DC)") }
+    foreach ($s in $steps) {
+        & icacls $d @s | Out-Null
+        if ($LASTEXITCODE -ne 0) { Remove-RestrictedTemp $d | Out-Null; throw "icacls could not restrict $d with '$($s -join ' ')' (exit $LASTEXITCODE)" }
+    }
+    $probeFile = Join-Path $d 'acl-selfcheck.tmp'
+    [IO.File]::WriteAllBytes($probeFile, [byte[]]@(0x7B, 0x7D))
+    $readable = $true
+    $removable = $true
+    try { [IO.File]::ReadAllBytes($probeFile) | Out-Null } catch { $readable = $false }
+    try { Remove-Item -LiteralPath $probeFile -Force -ErrorAction Stop } catch { $removable = $false }
+    if (Test-Path -LiteralPath $probeFile) { $removable = $false }
+    $expectReadable = ($Kind -eq 'NoDelete')
+    $expectRemovable = ($Kind -eq 'NoReadData')
+    if ($readable -ne $expectReadable -or $removable -ne $expectRemovable) {
+        Remove-RestrictedTemp $d | Out-Null
+        throw "the $Kind fault injection does not hold on this host: probe file readable=$readable (expected $expectReadable), removable=$removable (expected $expectRemovable)"
+    }
     return $d
 }
 function Remove-RestrictedTemp {
-    # Restores access, returns the names of anything still inside, then deletes
-    # the directory.
+    # Drops the DENY entries and restores access, returns the names of anything
+    # still inside, then deletes the directory.
     param([string]$Dir)
-    & icacls $Dir /grant "*${me}:(OI)(CI)F" | Out-Null
+    & icacls $Dir /remove:d "*${me}" /T /C | Out-Null
     & icacls $Dir /grant "*${me}:(OI)(CI)F" /T /C | Out-Null
     $inside = @(Get-ChildItem -LiteralPath $Dir -Force -ErrorAction SilentlyContinue | ForEach-Object { $_.Name })
     Remove-Item -LiteralPath $Dir -Recurse -Force -ErrorAction SilentlyContinue
@@ -666,12 +697,16 @@ function Remove-RestrictedTemp {
 }
 
 Write-Host 'An unanticipated error inside a probe still removes its body file'
-$aclDir = New-RestrictedTemp -Kind NoReadData
+$aclDir = $null
+$r = $null
+$setupError = $null
 $leftInDir = @('not-checked')
 try {
+    $aclDir = New-RestrictedTemp -Kind NoReadData
     $r = Invoke-Wrapper -Env (Probe-Env $good @(@{ STATUS = '503' }, @{ STATUS = '200'; SENTINEL = '1' })) -TempDir $aclDir
-} finally { $leftInDir = Remove-RestrictedTemp $aclDir }
+} catch { $setupError = $_ } finally { if ($aclDir) { $leftInDir = Remove-RestrictedTemp $aclDir } }
 Check 'an unreadable body file => exit 3 after one probe, file removed, details withheld' {
+    if ($setupError) { throw "the fault could not be injected: $setupError" }
     if ($r.Exit -ne 3) { throw "exit $($r.Exit) (expected 3); output: $($r.Output)" }
     Assert-ProbeCount $r 1
     Assert-NoReplicaWait $r
@@ -687,11 +722,15 @@ Check 'an unreadable body file => exit 3 after one probe, file removed, details 
 }
 
 Write-Host 'A body file that cannot be removed stops the run, even after a 200'
-$aclDir = New-RestrictedTemp -Kind NoDelete
+$aclDir = $null
+$r = $null
+$setupError = $null
 try {
+    $aclDir = New-RestrictedTemp -Kind NoDelete
     $r = Invoke-Wrapper -Env (Probe-Env $good @(@{ STATUS = '200' }, @{ STATUS = '200'; SENTINEL = '1' })) -TempDir $aclDir
-} finally { Remove-RestrictedTemp $aclDir | Out-Null }
+} catch { $setupError = $_ } finally { if ($aclDir) { Remove-RestrictedTemp $aclDir | Out-Null } }
 Check 'an unremovable body file after a 200 => exit 3, no replica wait, no verifier, path withheld' {
+    if ($setupError) { throw "the fault could not be injected: $setupError" }
     if ($r.Exit -ne 3) { throw "exit $($r.Exit) (expected 3); output: $($r.Output)" }
     Assert-ProbeCount $r 1
     Assert-NoReplicaWait $r
