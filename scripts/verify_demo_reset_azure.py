@@ -436,12 +436,20 @@ def _decode_json(result: CommandResult, label: str) -> Any:
 def _record_command(
     evidence: dict[str, Any], runner: CommandRunner, command: list[str], *, label: str,
     mutating: bool = False, timeout_seconds: float = 15.0,
+    monotonic: Callable[[], float],
 ) -> CommandResult:
-    evidence["operations"].append(
-        {"kind": "azure_cli" if command[0] == "az" else "local_cli", "argv": command,
-         "mutating": mutating, "timeoutSeconds": timeout_seconds}
-    )
-    result = runner(command, timeout_seconds=timeout_seconds)
+    entry = {"kind": "azure_cli" if command[0] == "az" else "local_cli", "argv": command,
+             "mutating": mutating, "timeoutSeconds": timeout_seconds}
+    evidence["operations"].append(entry)
+    # Observed wall-clock duration, additive telemetry alongside the
+    # already-recorded timeoutSeconds. Measured in a finally so it is recorded
+    # whether the runner returns normally or raises, and does not alter
+    # control flow: the ProofError below is raised exactly as before.
+    started = monotonic()
+    try:
+        result = runner(command, timeout_seconds=timeout_seconds)
+    finally:
+        entry["durationSeconds"] = round(monotonic() - started, 3)
     if result.returncode != 0:
         raise ProofError(f"{label} failed: {(result.stderr or result.stdout).strip()}")
     return result
@@ -451,6 +459,7 @@ def _record_http(
     evidence: dict[str, Any], runner: HttpRunner, *, method: str, url: str,
     headers: dict[str, str], json_body: Any = None, mutating: bool,
     timeout_seconds: float = 15.0,
+    monotonic: Callable[[], float],
 ) -> HttpResponse:
     safe: dict[str, Any] = {
         "kind": "http",
@@ -474,19 +483,27 @@ def _record_http(
         evidence["requestCounts"]["logins"] += 1
     elif method == "PUT" and path.endswith("/api/portfolio/demo-reset"):
         evidence["requestCounts"]["cleanupResets"] += 1
-    return runner(
-        method=method, url=url, headers=headers, json_body=json_body,
-        timeout_seconds=timeout_seconds,
-    )
+    # Observed wall-clock duration, additive telemetry alongside the
+    # already-recorded timeoutSeconds; see _record_command for why a finally
+    # is used. Control flow (the returned HttpResponse, or a propagated
+    # exception) is unchanged.
+    started = monotonic()
+    try:
+        return runner(
+            method=method, url=url, headers=headers, json_body=json_body,
+            timeout_seconds=timeout_seconds,
+        )
+    finally:
+        safe["durationSeconds"] = round(monotonic() - started, 3)
 
 
 def _load_oracle(
     evidence: dict[str, Any], runner: CommandRunner, expected_user_id: str, *,
-    timeout_seconds: float,
+    timeout_seconds: float, monotonic: Callable[[], float],
 ) -> list[dict[str, str]]:
     result = _record_command(
         evidence, runner, [sys.executable, "-B", str(ORACLE)], label="Task 4.4a golden oracle",
-        timeout_seconds=timeout_seconds,
+        timeout_seconds=timeout_seconds, monotonic=monotonic,
     )
     document = _decode_json(result, "Task 4.4a golden oracle")
     if document.get("metadata", {}).get("demoUserId") != expected_user_id:
@@ -533,13 +550,15 @@ def _authoritative_yaml_defaults() -> dict[str, str]:
 
 def _validate_gateway_ingress(
     config: ProofConfig, evidence: dict[str, Any], runner: CommandRunner,
+    monotonic: Callable[[], float],
 ) -> None:
     ingress = _decode_json(_record_command(
         evidence, runner,
         ["az", "containerapp", "show", "--name", config.gateway_app,
          "--resource-group", config.resource_group, "--query", "properties.configuration.ingress",
          "-o", "json"], label="gateway current ingress binding",
-        timeout_seconds=config.operation_timeout_seconds), "gateway current ingress binding")
+        timeout_seconds=config.operation_timeout_seconds, monotonic=monotonic),
+        "gateway current ingress binding")
     if not isinstance(ingress, dict) or ingress.get("external") is not True:
         raise ProofError("approved gateway has no external ingress")
     domains = [ingress.get("fqdn")]
@@ -556,17 +575,21 @@ def _validate_gateway_ingress(
     evidence["target"]["gatewayIngressHost"] = host
 
 
-def _preflight(config: ProofConfig, evidence: dict[str, Any], runner: CommandRunner) -> list[dict[str, str]]:
+def _preflight(
+    config: ProofConfig, evidence: dict[str, Any], runner: CommandRunner,
+    monotonic: Callable[[], float],
+) -> list[dict[str, str]]:
     provenance = validate_deployment_provenance(config.deployment_provenance)
     evidence["source"]["services"] = provenance["services"]
     account = _record_command(
         evidence, runner, ["az", "account", "show", "--query", "id", "-o", "tsv"],
         label="Azure subscription identity", timeout_seconds=config.operation_timeout_seconds,
+        monotonic=monotonic,
     ).stdout.strip()
     if account != config.subscription_id:
         raise ProofError("Azure subscription does not equal the explicitly approved subscription")
 
-    _validate_gateway_ingress(config, evidence, runner)
+    _validate_gateway_ingress(config, evidence, runner, monotonic)
 
     for service in SERVICES:
         command = [
@@ -578,7 +601,7 @@ def _preflight(config: ProofConfig, evidence: dict[str, Any], runner: CommandRun
         revisions = _decode_json(
             _record_command(
                 evidence, runner, command, label=f"{service} serving revisions",
-                timeout_seconds=config.operation_timeout_seconds,
+                timeout_seconds=config.operation_timeout_seconds, monotonic=monotonic,
             ),
             f"{service} serving revisions",
         )
@@ -602,7 +625,7 @@ def _preflight(config: ProofConfig, evidence: dict[str, Any], runner: CommandRun
         ["az", "monitor", "log-analytics", "workspace", "show", "--workspace-name", config.workspace_name,
          "--resource-group", config.resource_group, "--query", "customerId", "-o", "tsv"],
         label="Log Analytics workspace identity",
-        timeout_seconds=config.operation_timeout_seconds,
+        timeout_seconds=config.operation_timeout_seconds, monotonic=monotonic,
     ).stdout.strip()
     if not workspace_id:
         raise ProofError("Log Analytics workspace customerId is blank")
@@ -615,7 +638,7 @@ def _preflight(config: ProofConfig, evidence: dict[str, Any], runner: CommandRun
             ["az", "containerapp", "replica", "list", "--name", config.gateway_app,
              "--resource-group", config.resource_group, "--revision", gateway_revision, "-o", "json"],
             label="gateway replica read permission",
-            timeout_seconds=config.operation_timeout_seconds,
+            timeout_seconds=config.operation_timeout_seconds, monotonic=monotonic,
         ), "gateway replica read permission"
     )
     if not isinstance(replicas, list) or not replicas or not replicas[0].get("name"):
@@ -627,7 +650,7 @@ def _preflight(config: ProofConfig, evidence: dict[str, Any], runner: CommandRun
          "--replica", replicas[0]["name"], "--container", config.gateway_app,
          "--command", "java -jar /probe.jar"],
         label="non-disclosing presence probe RBAC rehearsal",
-        timeout_seconds=config.operation_timeout_seconds,
+        timeout_seconds=config.operation_timeout_seconds, monotonic=monotonic,
     )
     for service in SERVICES:
         identity = evidence["serving"][service]
@@ -637,27 +660,27 @@ def _preflight(config: ProofConfig, evidence: dict[str, Any], runner: CommandRun
              "--name", _acr_repository_name(identity["repository"], config.registry_name)
              + "@" + identity["digest"], "-o", "json"],
             label=f"{service} ACR pull-access rehearsal",
-            timeout_seconds=config.operation_timeout_seconds,
+            timeout_seconds=config.operation_timeout_seconds, monotonic=monotonic,
         )
     _record_command(
         evidence, runner,
         ["az", "acr", "login", "--name", config.registry_name],
         label="ACR authentication rehearsal",
-        timeout_seconds=config.operation_timeout_seconds,
+        timeout_seconds=config.operation_timeout_seconds, monotonic=monotonic,
     )
     for service in SERVICES:
         _record_command(
             evidence, runner,
             ["docker", "pull", evidence["serving"][service]["image"]],
             label=f"{service} immutable image pull rehearsal",
-            timeout_seconds=config.operation_timeout_seconds,
+            timeout_seconds=config.operation_timeout_seconds, monotonic=monotonic,
         )
     _record_command(
         evidence, runner,
         ["az", "monitor", "log-analytics", "query", "--workspace", workspace_id,
          "--analytics-query", "print task8_9_rbac_probe=1", "-o", "json"],
         label="Log Analytics query RBAC rehearsal",
-        timeout_seconds=config.operation_timeout_seconds,
+        timeout_seconds=config.operation_timeout_seconds, monotonic=monotonic,
     )
     gateway_revision = evidence["serving"][config.gateway_app]["revision"]
     env_rows = _decode_json(
@@ -668,7 +691,7 @@ def _preflight(config: ProofConfig, evidence: dict[str, Any], runner: CommandRun
              "--revision", gateway_revision,
              "--query", "properties.template.containers[0].env", "-o", "json"],
             label="Wave 8 decision readback",
-            timeout_seconds=config.operation_timeout_seconds,
+            timeout_seconds=config.operation_timeout_seconds, monotonic=monotonic,
         ),
         "Wave 8 decision readback",
     )
@@ -705,16 +728,17 @@ def _preflight(config: ProofConfig, evidence: dict[str, Any], runner: CommandRun
     evidence["preflight"] = {"passed": True, "rbacRehearsed": True}
     return _load_oracle(
         evidence, runner, config.expected_user_id,
-        timeout_seconds=config.operation_timeout_seconds,
+        timeout_seconds=config.operation_timeout_seconds, monotonic=monotonic,
     )
 
 
 def _revalidate_serving(
     config: ProofConfig, evidence: dict[str, Any], runner: CommandRunner, *, stage: str,
-    expected_idle: str, allow_revision_change: bool = False,
+    expected_idle: str, monotonic: Callable[[], float],
+    allow_revision_change: bool = False,
 ) -> None:
     snapshot: dict[str, Any] = {"matched": False, "services": {}}
-    _validate_gateway_ingress(config, evidence, runner)
+    _validate_gateway_ingress(config, evidence, runner, monotonic)
     for service in SERVICES:
         revisions = _decode_json(
             _record_command(
@@ -724,7 +748,7 @@ def _revalidate_serving(
                  "--query", "[?properties.active && properties.trafficWeight == `100`].{name:name,image:properties.template.containers[0].image}",
                  "-o", "json"],
                 label=f"{stage} {service} serving revalidation",
-                timeout_seconds=config.operation_timeout_seconds,
+                timeout_seconds=config.operation_timeout_seconds, monotonic=monotonic,
             ),
             f"{stage} {service} serving revalidation",
         )
@@ -749,7 +773,7 @@ def _revalidate_serving(
              "--resource-group", config.resource_group, "--revision", gateway_revision,
              "--query", "properties.template.containers[0].env", "-o", "json"],
             label=f"{stage} serving decision revalidation",
-            timeout_seconds=config.operation_timeout_seconds,
+            timeout_seconds=config.operation_timeout_seconds, monotonic=monotonic,
         ),
         f"{stage} serving decision revalidation",
     )
@@ -838,11 +862,13 @@ def _parse_instant(value: Any, label: str) -> datetime:
 def _read_portfolio(
     config: ProofConfig, evidence: dict[str, Any], runner: HttpRunner, token: str,
     *, timeout_seconds: float | None = None,
+    monotonic: Callable[[], float],
 ) -> dict[str, Any]:
     response = _record_http(
         evidence, runner, method="GET", url=config.gateway_url + "/api/portfolio",
         headers=_auth(token), mutating=False,
         timeout_seconds=timeout_seconds or config.operation_timeout_seconds,
+        monotonic=monotonic,
     )
     if response.status != 200:
         raise ProofError(f"portfolio read returned HTTP {response.status}")
@@ -919,7 +945,7 @@ def parse_event_rows(rows: Any, *, event: str, trace_id: str,
 
 def _query_once(
     config: ProofConfig, evidence: dict[str, Any], runner: CommandRunner, *, query: str,
-    label: str, timeout_seconds: float,
+    label: str, timeout_seconds: float, monotonic: Callable[[], float],
 ) -> tuple[Any | None, str | None]:
     command = [
         "az", "monitor", "log-analytics", "query", "--workspace",
@@ -927,14 +953,23 @@ def _query_once(
         "--timespan", evidence["trace"]["windowStart"] + "/" + evidence["trace"]["windowEnd"],
         "-o", "json",
     ]
-    evidence["operations"].append({
+    entry = {
         "kind": "azure_cli", "argv": command, "mutating": False,
         "timeoutSeconds": timeout_seconds,
-    })
+    }
+    evidence["operations"].append(entry)
+    # Observed wall-clock duration, additive telemetry alongside the
+    # already-recorded timeoutSeconds; see _record_command for why a finally
+    # is used. Control flow (the two-tuple return, in every branch below) is
+    # unchanged.
+    started = monotonic()
     try:
-        result = runner(command, timeout_seconds=timeout_seconds)
-    except Exception as error:
-        return None, f"{label} query runner error: {error}"
+        try:
+            result = runner(command, timeout_seconds=timeout_seconds)
+        except Exception as error:
+            return None, f"{label} query runner error: {error}"
+    finally:
+        entry["durationSeconds"] = round(monotonic() - started, 3)
     if result.returncode != 0:
         return None, (result.stderr or result.stdout).strip() or f"{label} query failed"
     try:
@@ -975,7 +1010,7 @@ def _poll_events(
         for kind in ("success", "skip"):
             rows, error = _query_once(
                 config, evidence, runner, query=queries[kind], label=kind,
-                timeout_seconds=pair_timeout,
+                timeout_seconds=pair_timeout, monotonic=monotonic,
             )
             if error:
                 errors.append(error)
@@ -1366,6 +1401,7 @@ def classify_task8_9(
 def _collect_diagnostics(
     config: ProofConfig, evidence: dict[str, Any], command_runner: CommandRunner,
     http_runner: HttpRunner, skip: dict[str, Any],
+    monotonic: Callable[[], float],
 ) -> dict[str, Any]:
     reason = str(skip.get("reason", "unknown"))
     combined: dict[str, Any] = {"available": True}
@@ -1373,12 +1409,14 @@ def _collect_diagnostics(
     try:
         if reason == "reset_key_not_configured":
             combined.update(_diagnose_unconfigured_key(
-                config, evidence, command_runner, http_runner, skip
+                config, evidence, command_runner, http_runner, skip, monotonic
             ))
         elif (reason == "reset_non_2xx_status" and skip.get("httpStatus") == 403
               and skip.get("internalApiKeyConfigured") is True
               and skip.get("internalApiKeyAttached") is True):
-            combined.update(_manual_reset_probe(config, evidence, http_runner))
+            combined.update(_manual_reset_probe(
+                config, evidence, http_runner, monotonic
+            ))
         elif reason == "overall_timeout" and skip.get("overallTimeoutPhase") in {
             "eligibility_pre_dispatch", "between_legs", "reset_post_response",
         }:
@@ -1421,6 +1459,7 @@ def _diagnostic_step(evidence: dict[str, Any], name: str, **inputs: Any) -> None
 
 def _template_key_reference(
     config: ProofConfig, evidence: dict[str, Any], runner: CommandRunner, revision: str,
+    monotonic: Callable[[], float],
 ) -> str | None:
     _diagnostic_step(evidence, "compare_revision_template", revision=revision)
     rows = _decode_json(
@@ -1430,7 +1469,7 @@ def _template_key_reference(
              "--resource-group", config.resource_group, "--revision", revision,
              "--query", "properties.template.containers[0].env", "-o", "json"],
             label=f"gateway environment variable identity for {revision}",
-            timeout_seconds=config.operation_timeout_seconds,
+            timeout_seconds=config.operation_timeout_seconds, monotonic=monotonic,
         ),
         f"gateway environment variable identity for {revision}",
     )
@@ -1448,7 +1487,7 @@ def _template_key_reference(
 
 def _recover_emitter_replica(
     config: ProofConfig, evidence: dict[str, Any], runner: CommandRunner,
-    event_token: str,
+    event_token: str, monotonic: Callable[[], float],
 ) -> tuple[str | None, list[str], bool]:
     revision = evidence["serving"][config.gateway_app]["revision"]
     image = evidence["serving"][config.gateway_app]["image"]
@@ -1460,7 +1499,7 @@ def _recover_emitter_replica(
             ["az", "containerapp", "replica", "list", "--name", config.gateway_app,
              "--resource-group", config.resource_group, "--revision", revision, "-o", "json"],
             label="diagnostic gateway replica list",
-            timeout_seconds=config.operation_timeout_seconds,
+            timeout_seconds=config.operation_timeout_seconds, monotonic=monotonic,
         ),
         "diagnostic gateway replica list",
     )
@@ -1476,7 +1515,7 @@ def _recover_emitter_replica(
         ]
         result = _record_command(
             evidence, runner, command, label=f"replica token tool for {name}",
-            timeout_seconds=config.operation_timeout_seconds,
+            timeout_seconds=config.operation_timeout_seconds, monotonic=monotonic,
         )
         if result.stderr != "" or re.fullmatch(r"[0-9a-f]{12}\n", result.stdout) is None:
             raise ProofError(f"replica token tool contract failed for {name}")
@@ -1496,18 +1535,20 @@ def _header(headers: dict[str, str], name: str) -> str | None:
 
 def _manual_reset_probe(
     config: ProofConfig, evidence: dict[str, Any], runner: HttpRunner,
+    monotonic: Callable[[], float],
 ) -> dict[str, Any]:
     _diagnostic_step(evidence, "manual_reset_probe")
     portfolio = _read_portfolio(
         config, evidence, runner, config.access_token,
         timeout_seconds=config.operation_timeout_seconds,
+        monotonic=monotonic,
     )
     response = _record_http(
         evidence, runner, method="PUT",
         url=config.gateway_url + "/api/portfolio/demo-reset",
         headers=_auth(config.access_token),
         json_body={"expectedVersion": portfolio["version"]}, mutating=True,
-        timeout_seconds=config.operation_timeout_seconds,
+        timeout_seconds=config.operation_timeout_seconds, monotonic=monotonic,
     )
     body = response.body if isinstance(response.body, dict) else {}
     emitter = None
@@ -1526,13 +1567,18 @@ def _manual_reset_probe(
 def _diagnose_unconfigured_key(
     config: ProofConfig, evidence: dict[str, Any], command_runner: CommandRunner,
     http_runner: HttpRunner, skip: dict[str, Any],
+    monotonic: Callable[[], float],
 ) -> dict[str, Any]:
     last_good = config.last_known_good_gateway_revision
     if not isinstance(last_good, str) or not last_good:
         raise ProofError("last-known-good gateway revision is required for key diagnosis")
     current = evidence["serving"][config.gateway_app]["revision"]
-    current_ref = _template_key_reference(config, evidence, command_runner, current)
-    previous_ref = _template_key_reference(config, evidence, command_runner, last_good)
+    current_ref = _template_key_reference(
+        config, evidence, command_runner, current, monotonic
+    )
+    previous_ref = _template_key_reference(
+        config, evidence, command_runner, last_good, monotonic
+    )
     if previous_ref is None:
         raise ProofError("last-known-good gateway template lacks an INTERNAL_API_KEY reference")
     if current_ref != previous_ref:
@@ -1547,7 +1593,7 @@ def _diagnose_unconfigured_key(
     if not isinstance(event_token, str) or re.fullmatch(r"[0-9a-f]{12}", event_token) is None:
         raise ProofError("skip event has no valid emitter replica token")
     raw_name, fleet, recovered = _recover_emitter_replica(
-        config, evidence, command_runner, event_token
+        config, evidence, command_runner, event_token, monotonic
     )
     result: dict[str, Any] = {
         "templateReference": "intact",
@@ -1562,7 +1608,7 @@ def _diagnose_unconfigured_key(
     evidence["diagnostics"].update(result)
     attempts: list[dict[str, Any]] = []
     for _ in range(max(1, min(6, 2 * len(fleet)))):
-        probe = _manual_reset_probe(config, evidence, http_runner)
+        probe = _manual_reset_probe(config, evidence, http_runner, monotonic)
         attempts.append(dict(probe))
         result.update(probe)
         result["manualResetAttempts"] = list(attempts)
@@ -1588,7 +1634,7 @@ def _diagnose_unconfigured_key(
              "--replica", raw_name, "--container", config.gateway_app,
              "--command", "java -jar /probe.jar"],
             label="same-replica internal key presence probe",
-            timeout_seconds=config.operation_timeout_seconds,
+            timeout_seconds=config.operation_timeout_seconds, monotonic=monotonic,
         ).stdout
         if presence not in {"blank\n", "nonblank\n"}:
             raise ProofError("same-replica presence probe returned an invalid category")
@@ -1598,7 +1644,8 @@ def _diagnose_unconfigured_key(
 
 
 def _set_threshold(
-    config: ProofConfig, evidence: dict[str, Any], runner: CommandRunner, value: str
+    config: ProofConfig, evidence: dict[str, Any], runner: CommandRunner, value: str,
+    monotonic: Callable[[], float],
 ) -> None:
     _record_command(
         evidence, runner,
@@ -1606,11 +1653,14 @@ def _set_threshold(
          "--resource-group", config.resource_group, "--set-env-vars",
          "APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD=" + value, "-o", "json"],
         label="idle-threshold update", mutating=True,
-        timeout_seconds=config.operation_timeout_seconds,
+        timeout_seconds=config.operation_timeout_seconds, monotonic=monotonic,
     )
 
 
-def _read_threshold(config: ProofConfig, evidence: dict[str, Any], runner: CommandRunner) -> str:
+def _read_threshold(
+    config: ProofConfig, evidence: dict[str, Any], runner: CommandRunner,
+    monotonic: Callable[[], float],
+) -> str:
     revisions = _decode_json(
         _record_command(
             evidence, runner,
@@ -1619,7 +1669,7 @@ def _read_threshold(config: ProofConfig, evidence: dict[str, Any], runner: Comma
              "--query", "[?properties.active && properties.trafficWeight == `100`].{name:name,image:properties.template.containers[0].image}",
              "-o", "json"],
             label="idle-threshold serving revision",
-            timeout_seconds=config.operation_timeout_seconds,
+            timeout_seconds=config.operation_timeout_seconds, monotonic=monotonic,
         ),
         "idle-threshold serving revision",
     )
@@ -1632,7 +1682,7 @@ def _read_threshold(config: ProofConfig, evidence: dict[str, Any], runner: Comma
              "--resource-group", config.resource_group, "--revision", revisions[0]["name"],
              "--query", "properties.template.containers[0].env", "-o", "json"],
             label="idle-threshold verification",
-            timeout_seconds=config.operation_timeout_seconds,
+            timeout_seconds=config.operation_timeout_seconds, monotonic=monotonic,
         ),
         "idle-threshold verification",
     )
@@ -1663,6 +1713,7 @@ def _cleanup(
             portfolio = _read_portfolio(
                 config, evidence, runner, config.access_token,
                 timeout_seconds=min(config.operation_timeout_seconds, remaining),
+                monotonic=monotonic,
             )
             attempt["observedVersion"] = portfolio["version"]
             remaining = deadline - monotonic()
@@ -1676,6 +1727,7 @@ def _cleanup(
                 headers=_auth(config.access_token),
                 json_body={"expectedVersion": portfolio["version"]}, mutating=True,
                 timeout_seconds=min(config.operation_timeout_seconds, remaining),
+                monotonic=monotonic,
             )
             attempt["status"] = response.status
             if monotonic() > deadline:
@@ -1698,6 +1750,7 @@ def _cleanup(
         final_portfolio = _read_portfolio(
             config, evidence, runner, config.access_token,
             timeout_seconds=min(config.operation_timeout_seconds, verification_remaining),
+            monotonic=monotonic,
         )
         if monotonic() > verification_deadline:
             raise ProofError("post-cleanup verification exceeded its bounded allowance")
@@ -1723,7 +1776,7 @@ def run_proof(
     secrets_to_remove = [config.access_token, config.demo_password]
     try:
         _validate_config(config)
-        golden = _preflight(config, evidence, command_runner)
+        golden = _preflight(config, evidence, command_runner, monotonic)
         if config.mode in {"preflight", "rehearsal"}:
             evidence["verdict"] = {
                 "go": None,
@@ -1737,6 +1790,7 @@ def run_proof(
         before = _read_portfolio(
             config, evidence, http_runner, config.access_token,
             timeout_seconds=config.operation_timeout_seconds,
+            monotonic=monotonic,
         )
         evidence["setup"]["beforeVersion"] = before["version"]
         evidence["cleanup"]["armed"] = True
@@ -1745,8 +1799,12 @@ def run_proof(
             # Restoration is owed as soon as the mutating request is issued: a transport
             # failure may hide an update that committed successfully.
             override_applied = True
-            _set_threshold(config, evidence, command_runner, config.threshold_override)
-            observed_override = _read_threshold(config, evidence, command_runner)
+            _set_threshold(
+                config, evidence, command_runner, config.threshold_override, monotonic
+            )
+            observed_override = _read_threshold(
+                config, evidence, command_runner, monotonic
+            )
             evidence["decisions"]["effectiveIdleThreshold"] = observed_override
             if observed_override != config.threshold_override:
                 raise ProofError("threshold override readback did not match requested value")
@@ -1759,6 +1817,7 @@ def run_proof(
             headers=_auth(config.access_token),
             json_body=_non_golden_write(before["version"], golden), mutating=True,
             timeout_seconds=config.operation_timeout_seconds,
+            monotonic=monotonic,
         )
         if write.status != 200:
             raise ProofError(f"deliberate non-golden write returned HTTP {write.status}")
@@ -1785,6 +1844,7 @@ def run_proof(
         _revalidate_serving(
             config, evidence, command_runner, stage="afterAge",
             expected_idle=(config.threshold_override or config.idle_threshold),
+            monotonic=monotonic,
             allow_revision_change=config.threshold_override is not None,
         )
 
@@ -1805,6 +1865,7 @@ def run_proof(
                 headers={"traceparent": traceparent},
                 json_body={"email": config.demo_email, "password": config.demo_password},
                 mutating=True, timeout_seconds=config.login_timeout_seconds,
+                monotonic=monotonic,
             )
             evidence["login"]["status"] = login_response.status
         except Exception as error:
@@ -1821,6 +1882,7 @@ def run_proof(
                     post = _read_portfolio(
                         config, evidence, http_runner, token,
                         timeout_seconds=config.operation_timeout_seconds,
+                        monotonic=monotonic,
                     )
                     evidence["observation"] = {
                         "postLoginVersion": post["version"],
@@ -1858,7 +1920,7 @@ def run_proof(
         diagnostics: dict[str, Any] = {}
         if isinstance(events.get("skip"), dict):
             diagnostics = _collect_diagnostics(
-                config, evidence, command_runner, http_runner, events["skip"]
+                config, evidence, command_runner, http_runner, events["skip"], monotonic
             )
         detail = classify_task8_9(
             events=events, observation=evidence["observation"],
@@ -1894,8 +1956,12 @@ def run_proof(
         if override_applied:
             evidence["thresholdRestore"]["attempted"] = True
             try:
-                _set_threshold(config, evidence, command_runner, config.idle_threshold)
-                restored = _read_threshold(config, evidence, command_runner)
+                _set_threshold(
+                    config, evidence, command_runner, config.idle_threshold, monotonic
+                )
+                restored = _read_threshold(
+                    config, evidence, command_runner, monotonic
+                )
                 evidence["thresholdRestore"]["readBack"] = restored
                 evidence["thresholdRestore"]["verified"] = restored == config.idle_threshold
             except Exception as error:
@@ -1906,6 +1972,7 @@ def run_proof(
                 _revalidate_serving(
                     config, evidence, command_runner, stage="final",
                     expected_idle=config.idle_threshold,
+                    monotonic=monotonic,
                     allow_revision_change=config.threshold_override is not None,
                 )
             except Exception as error:

@@ -12,9 +12,10 @@ All three items are non-blocking; this backlog does not block Task 8.9, Run A at
 
 ## Scope
 
-PR #268's merged wrapper is a preflight-only cold-start guard. It may issue no more than five
-fixed direct health probes, stops at the first exact `200`, and invokes verifier mode `preflight`
-only. The accepted findings below do not change that bound or authorize any live operation.
+The governing activation policy supersedes PR #268's activation limits. The preflight-only
+cold-start guard may issue no more than six fixed direct health probes, stops at the first exact
+`200`, and invokes verifier mode `preflight` only. The accepted findings below do not change that
+bound or authorize any live operation.
 
 ## Follow-ups
 
@@ -39,7 +40,7 @@ only. The accepted findings below do not change that bound or authorize any live
 ## Acceptance boundary
 
 Any future change belongs in a separately reviewed source/test/documentation change. It must retain
-the maximum-five-probe cap, the exact `200` success rule, fail-closed behavior, and preflight-only
+the maximum-six-probe cap, the exact `200` success rule, fail-closed behavior, and preflight-only
 verifier mode. It does not confer authority for a Production wake, credentials, execute mode,
 portfolio mutation, cleanup, flag change, deployment, publication, merge, or Task 8.9 completion.
 

@@ -698,12 +698,20 @@ class ProofStateMachineTest(unittest.TestCase):
         http = StatefulHttpRunner(commands)
         http.advance_setup = False
         clock = Clock()
-        calls = 0
+        calls_after_failed_setup = 0
 
         def jumping_monotonic() -> float:
-            nonlocal calls
-            calls += 1
-            return 0.0 if calls == 1 else 25.0
+            nonlocal calls_after_failed_setup
+            setup_write_issued = any(
+                request["url"].endswith("/api/portfolio/holdings")
+                for request in http.requests
+            )
+            if not setup_write_issued:
+                return 0.0
+            calls_after_failed_setup += 1
+            # First call finishes timing the failed setup write; second sets
+            # cleanup's absolute deadline; third observes it as expired.
+            return 0.0 if calls_after_failed_setup <= 2 else 25.0
 
         result = verifier.run_proof(
             config(), command_runner=commands, http_runner=http,
@@ -726,6 +734,93 @@ class ProofStateMachineTest(unittest.TestCase):
         self.assertNotEqual(result.exit_code, 0)
         self.assertTrue(any(r["url"].endswith("/api/portfolio/demo-reset") for r in http.requests))
         self.assertTrue(result.evidence["cleanup"]["postCleanupGolden"])
+
+    def _assert_every_operation_has_a_rounded_duration(self, operations: list) -> None:
+        # Scoped to evidence["operations"] -- the array _record_command,
+        # _record_http and _query_once each append to, and the only one whose
+        # entries are actual timed runner calls. evidence["diagnostics"]["operations"]
+        # is a separate, differently-shaped list of diagnostic step markers
+        # (name/inputs) that were never timed and carry no durationSeconds.
+        self.assertGreater(len(operations), 0, "expected at least one recorded operation")
+        for entry in operations:
+            self.assertIn(
+                "durationSeconds", entry, f"operation is missing durationSeconds: {entry}"
+            )
+            value = entry["durationSeconds"]
+            self.assertIsInstance(
+                value, float, f"durationSeconds is not a float ({type(value).__name__}): {entry}"
+            )
+            self.assertEqual(
+                round(value, 3), value,
+                f"durationSeconds carries more precision than 3 decimal places: {entry}",
+            )
+
+    def test_every_recorded_operation_uses_the_injected_monotonic_clock(self) -> None:
+        commands = StatefulCommandRunner(event_mode="success")
+        http = StatefulHttpRunner(commands)
+        clock = Clock()
+
+        def timed_command(command, *, timeout_seconds=None):
+            result = commands(command, timeout_seconds=timeout_seconds)
+            clock.monotonic_value += 0.125
+            return result
+
+        def timed_http(**kwargs):
+            result = http(**kwargs)
+            clock.monotonic_value += 0.25
+            return result
+
+        result = verifier.run_proof(
+            config(), command_runner=timed_command, http_runner=timed_http,
+            now=clock.now, monotonic=clock.monotonic, sleep=clock.sleep,
+            trace_factory=lambda: "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01",
+        )
+        self.assertEqual(result.exit_code, 0)
+        operations = result.evidence["operations"]
+        self._assert_every_operation_has_a_rounded_duration(operations)
+        for entry in operations:
+            expected = 0.25 if entry["kind"] == "http" else 0.125
+            self.assertEqual(expected, entry["durationSeconds"], entry)
+
+    def test_duration_seconds_is_still_recorded_on_the_operation_whose_http_runner_raised(self) -> None:
+        # The login call is wrapped by run_proof in its own try/except, so a
+        # raising http_runner does not abort the proof (it is recorded as
+        # evidence["login"]["error"] and the run proceeds to cleanup) -- but
+        # _record_http's duration measurement is in a `finally`, so the
+        # raising call's own operations entry must still carry a proper
+        # durationSeconds. A regression that moved the measurement out of the
+        # finally (e.g. to only run after a normal return) would silently
+        # drop this telemetry exactly on the calls where it is most useful:
+        # the value of durationSeconds is only realised on a later, separately
+        # authorized attempt, so a silent regression here would surface only
+        # after another irreversible wake was spent.
+        commands = StatefulCommandRunner()
+        clock = Clock()
+        base_http = StatefulHttpRunner(commands)
+        base_http.login_error = TimeoutError("response uncertain")
+
+        def timed_http(**kwargs):
+            try:
+                return base_http(**kwargs)
+            finally:
+                clock.monotonic_value += 0.375
+
+        result = verifier.run_proof(
+            config(), command_runner=commands, http_runner=timed_http,
+            now=clock.now, monotonic=clock.monotonic, sleep=clock.sleep,
+        )
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertEqual(result.evidence["login"]["error"], "response uncertain")
+        operations = result.evidence["operations"]
+        login_entries = [
+            op for op in operations
+            if op.get("kind") == "http" and str(op.get("url", "")).endswith("/api/auth/login")
+        ]
+        self.assertEqual(
+            len(login_entries), 1, f"expected exactly one recorded login operation: {operations}"
+        )
+        self.assertEqual(0.375, login_entries[0]["durationSeconds"])
+        self._assert_every_operation_has_a_rounded_duration(operations)
 
     def test_every_cleanup_retry_uses_fresh_identity_version_and_any_409_is_permanent_failure(self) -> None:
         commands = StatefulCommandRunner(event_mode="success")
@@ -1556,7 +1651,7 @@ class ReviewFixContractTest(unittest.TestCase):
         )
         try:
             facts = verifier._diagnose_unconfigured_key(
-                cfg, evidence, command_runner, http_runner, event
+                cfg, evidence, command_runner, http_runner, event, monotonic=lambda: 0.0
             )
         except verifier.ProofError as error:
             self.fail(f"conclusive manual 200 must not invoke presence: {error}")
@@ -1571,7 +1666,7 @@ class ReviewFixContractTest(unittest.TestCase):
             self._key_diagnostic_boundaries(manual_status=503, presence_fails=True)
         )
         facts = verifier._collect_diagnostics(
-            cfg, evidence, command_runner, http_runner, event
+            cfg, evidence, command_runner, http_runner, event, monotonic=lambda: 0.0
         )
         self.assertTrue(any(command[:3] == ["az", "containerapp", "exec"]
                             for command in commands))
@@ -1609,7 +1704,8 @@ class ReviewFixContractTest(unittest.TestCase):
             verifier._diagnose_unconfigured_key(
                 cfg, evidence, template_runner,
                 lambda **_kwargs: verifier.HttpResponse(500, {}, {}),
-                skip_event(
+                monotonic=lambda: 0.0,
+                skip=skip_event(
                     reason="reset_key_not_configured", leg="reset", httpStatus=None,
                     timeoutScope=None, overallTimeoutPhase=None, attemptedTarget=None,
                     elapsedMillis=None, eligibilityDispatchAttempted=True,

@@ -191,6 +191,40 @@ class TestCiE2eWiring(unittest.TestCase):
         self.assertNotIn("frontend-e2e-integration.yml", self.ci)
         self.assertNotIn(".env.local", self.ci)
 
+    def test_task_8_9_verifier_tests_run_in_required_static_guard(self) -> None:
+        static_guard = _job(self.ci, "static-guard")
+        step = _named_block(
+            static_guard, "Task 8.9 Azure verifier contract tests", 6
+        )
+        self.assertIn(
+            "python scripts/tests/test_verify_demo_reset_azure.py -v",
+            step,
+        )
+        self.assertNotRegex(step, r"(?m)^\s+continue-on-error\s*:")
+
+    def test_task_8_9_powershell_suite_is_a_required_windows_job(self) -> None:
+        job = _job(self.ci, "task-8-9-powershell-tests")
+        self.assertRegex(job, r'(?m)^    runs-on: windows-latest\s*$')
+        self.assertRegex(job, r'(?m)^    needs: unit-tests\s*$')
+        self.assertNotRegex(job, r"(?m)^    if: ")
+        step = _named_block(job, "Run Task 8.9 PowerShell 5.1 wrapper tests", 6)
+        self.assertIn(
+            "powershell.exe -NoProfile -ExecutionPolicy Bypass -File "
+            "scripts/tests/test_run_task_8_9_preflight.ps1",
+            step,
+        )
+        self.assertNotRegex(step, r"(?m)^\s+continue-on-error\s*:")
+
+        required = _job(self.ci, "ci-required")
+        self.assertRegex(
+            required,
+            r"(?m)^      - task-8-9-powershell-tests\s*$",
+        )
+        self.assertRegex(
+            required,
+            r'(?m)^\s+"task-8-9-powershell-tests": \$chain,\s*$',
+        )
+
     def test_required_values_are_job_level_env_on_active_docker_job(self) -> None:
         env = _job_env(self.job)
         for name, expected in REQUIRED_CI_ENV.items():

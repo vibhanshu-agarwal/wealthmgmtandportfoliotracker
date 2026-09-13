@@ -3,9 +3,10 @@
     Runs the B2 Task 8.9 bounded activation sequence + read-only preflight as
     ONE sequence.
 
-    Written for and tested against Windows PowerShell 5.1. It has not been
-    exercised under PowerShell 7, whose ConvertFrom-Json array semantics differ
-    from the ones this script's replica poll depends on.
+    Written for and tested against Windows PowerShell 5.1, which this script now
+    enforces at startup: it refuses to run (exit 2, before any child process)
+    under any other PSEdition or major version. Other editions have not been
+    validated for this safety-critical wrapper.
 
 .DESCRIPTION
     The Task 8.9 verifier cannot resolve a gateway replica while api-gateway is
@@ -26,18 +27,21 @@
     that request (the 2026-09-12 figure is operator-reported), and
     API_GATEWAY_CUSTOM_DOMAIN_RECOVERY.md records an earlier first contact with
     this gateway that timed out, then three 503s, then a 200 -- consistent with
-    a scale-from-zero cold start. So the sequence now issues AT MOST FIVE probes
-    of the same fixed GET, each bounded by --max-time 30, five seconds apart:
+    a scale-from-zero cold start. So the sequence now issues AT MOST SIX probes
+    of the same fixed GET, each bounded by --max-time 90, five seconds apart:
       * exit 0 and HTTP 200           -> activation confirmed; no further probe
       * exit 0 and HTTP 503           -> recorded cold-start outcome; probe again
       * curl exit 28 and status 000   -> recorded cold-start timeout; probe again
-      * five such outcomes, no 200    -> stop, exit 3
+      * six such outcomes, no 200     -> stop, exit 3
       * anything else                 -> stop at once, exit 3
-    Worst case: five 30 s probes and four 5 s intervals, 170 s (270 s at the
-    largest accepted interval). These are upper bounds, not a claim that probes
+    Live-run worst case: six 90 s probes and five 5 s intervals, 565 s. This is
+    an upper bound, not a claim that probes
     normally run to the curl timeout. Every probe issued belongs to the
     sequence and is treated as consumed; any request beyond it is a fresh owner
-    decision.
+    decision. The per-probe cap was raised from 30 s to 90 s, and the budget
+    from five probes to six, by the 2026-09-13 governing activation policy
+    (docs/superpowers/plans/2026-09-13-b2-task-8-9-activation-policy.md), which
+    supersedes the 2026-09-12 readiness packet's activation instructions.
 
     Each probe prints one bounded fingerprint line: probe number, UTC start,
     curl exit, HTTP status, curl's time_total, an allowlisted content-type
@@ -54,8 +58,10 @@
                                  TASK8_9_* values ARE read and cleared for the
                                  duration, then restored in the finally; they
                                  are never logged, written to disk, or sent on
-      * curl retries or redirects, or more than five probes -- the request budget
-                                 is a literal in the safety unit, not an input
+      * curl retries or redirects, or more than six probes -- the request budget
+                                 ($script:ProbeBudget) is a literal, assigned
+                                 once outside the safety unit and read only
+                                 inside it; it is not an input
       * ambient curl configuration -- two separate controls, both literal:
                                  -q (first) makes curl skip its configuration
                                  files (.curlrc / _curlrc). It does NOT touch
@@ -68,7 +74,7 @@
     Exit codes:
       0  preflight passed
       2  a precondition failed BEFORE any request (nothing was consumed)
-      3  the activation sequence started and the run stopped after it -- five
+      3  the activation sequence started and the run stopped after it -- six
          probes without a 200, any outcome other than 200/503/timeout, a
          malformed metadata record, a probe-internal or cleanup failure, or no
          ready replica. Treat every probe issued as consumed unless the message
@@ -87,20 +93,46 @@
 
 .PARAMETER WakeProbeIntervalSeconds
     Seconds between probes. Default '5', the production value; any live run
-    must omit it or pass exactly 5. Accepted only as a whole number 0..30
-    written plainly (no sign, fraction, exponent, whitespace or leading zero),
-    validated before any child process; anything else exits 2. It is a [string]
-    so that invalid input reaches that validation instead of failing parameter
-    binding (exit 1) or being rounded. The offline tests pass 0. It changes
-    neither the five-probe budget nor the 30-second per-probe bound.
+    must omit it or pass exactly 5 -- enforced below (see $isLiveRun): a
+    potentially live invocation (at least one of -AzCommand, -DockerCommand,
+    -CurlCommand and -PythonCommand still at its literal default) that requests any other
+    interval exits 2 before any child process. Accepted only as a whole number
+    0..30 written plainly (no sign, fraction, exponent, whitespace or leading
+    zero), validated before any child process; anything else exits 2. It is a
+    [string] so that invalid input reaches that validation instead of failing
+    parameter binding (exit 1) or being rounded. The offline tests pass 0. It
+    changes neither the six-probe budget nor the 90-second per-probe bound.
+
+.PARAMETER EvidenceOutput
+    Where the verifier writes its evidence document. Defaults to
+    docs/evidence/b2-task-8-9/rehearsal-<yyyyMMdd>.json (inside the repository)
+    when omitted. Refused with exit 2 before any request if the resolved path
+    already exists -- evidence is never overwritten.
+
+    For a potentially live run ($isLiveRun: at least one of -AzCommand,
+    -DockerCommand, -CurlCommand and -PythonCommand still at its literal default), the
+    resolved path must also fall OUTSIDE the repository, checked before any
+    request -- see the evidence-path externality comment further down for why.
+    Consequently the in-repo default above is always rejected for a live run;
+    a live invocation must pass an explicit -EvidenceOutput that resolves
+    outside the repository. Resolution uses PowerShell's own current location
+    ($PWD), not the process's, so a relative path is safe to reason about even
+    across a `cd` earlier in the same session.
 
 .PARAMETER AzCommand
+.PARAMETER DockerCommand
 .PARAMETER CurlCommand
 .PARAMETER PythonCommand
     Injection points so the sequence can be exercised against local stubs that
     capture arguments. They exist because every hand-issued failure in this
     task's history was an argument-quoting fault at the PowerShell/az.bat
     boundary, not a logic error -- that boundary needs to be testable offline.
+    The live-run guards ($isLiveRun) compare these four values against their
+    LITERAL defaults only: a full path or an alternate spelling of a real tool
+    (C:\Windows\System32\curl.exe, curl) counts as overridden, so once all four
+    are spelled non-literally the interval and evidence-path guards no longer
+    apply. They catch the accidental fully-default case; they cannot tell a
+    stub from a real tool.
 #>
 [CmdletBinding()]
 param(
@@ -166,19 +198,33 @@ function Fail {
     exit $Code
 }
 
+# Windows PowerShell 5.1 gate, checked before any child process runs -- indeed,
+# before anything else in the script from this point on. This wrapper is
+# written for and tested against Windows PowerShell 5.1 only (see the header).
+# Other editions have not been validated for this safety-critical wrapper.
+# #Requires -Version 5.1 is deliberately NOT used: PowerShell 7 satisfies that
+# minimum version number and would pass the very gate it exists to block --
+# 5.1 is Windows PowerShell's own version, but "at least 5.1" is also true of
+# 7.x.
+if ($PSVersionTable.PSEdition -ne 'Desktop' -or $PSVersionTable.PSVersion.Major -ne 5) {
+    Fail "this script requires Windows PowerShell 5.1 (PSEdition 'Desktop', major version 5); running under PSEdition '$($PSVersionTable.PSEdition)', version $($PSVersionTable.PSVersion)" 2
+}
+
 # --- SAFETY-CRITICAL UNIT: the activation sequence and the decision after it ---
 #
 # The verifier may start only after this function returns, and it returns only
 # when a probe -- one invocation of this fixed request, with this fixed URL and
 # argument vector -- exited 0 and reported exactly the scalar status '200'
-# within a sequence of at most five probes in which every earlier probe was an
+# within a sequence of at most six probes in which every earlier probe was an
 # exact 503 or a curl timeout. Everything that decides that lives in this
 # function, and its structure keeps the decision self-contained and hard to
 # change by accident:
 #
-#   * the URL, every curl argument, the five-probe budget and the 30-second
-#     bound are literals. No parameter, environment value or configuration input
-#     feeds them; only the pause between probes is a (validated) parameter;
+#   * the URL, every curl argument, the probe budget ($script:ProbeBudget, a
+#     literal 6 assigned once just below, outside the function) and the
+#     90-second bound are literals. No parameter, environment value or
+#     configuration input feeds them; only the pause between probes is a
+#     (validated) parameter;
 #   * -q is the first argument, so curl skips its configuration files
 #     (~/.curlrc, %APPDATA%\_curlrc): a probe cannot be given a retry, a
 #     redirect, or another URL by a config file. -q does NOT affect proxy
@@ -204,7 +250,8 @@ function Fail {
 #
 # The test suite adds targeted regression guards over this function's structure
 # (one definition, one call, one curl invocation with these arguments inside one
-# `for` bounded by a literal 5, the exact retryable set, four direct exit-3
+# `for` bounded by $script:ProbeBudget -- a literal 6, assigned once and read
+# nowhere else as a raw number -- the exact retryable set, four direct exit-3
 # stops, one return after a 200, its decision variables read nowhere else, and
 # only allowlisted values printed). They catch accidental structural drift;
 # earlier guards that pinned only a condition's shape were defeated by edits
@@ -212,13 +259,20 @@ function Fail {
 # in-unit rewrite -- that is a code-review responsibility. The runtime guarantee
 # is fail-closed: without an exact 200 inside the budget, the verifier does not
 # run.
+#
+# The probe budget. A literal, not a parameter -- see the "Deliberately NOT
+# supported" list above: the request budget must not become an input. Assigned
+# once here, outside the function, and read only inside it (the loop bound and
+# the progress strings below), so the announced ceiling and the actual loop
+# bound can never drift apart: they are the same variable.
+$script:ProbeBudget = 6
 function Invoke-AuthorizedWake {
     param(
         [Parameter(Mandatory = $true)][string]$Curl,
         [Parameter(Mandatory = $true)][int]$IntervalSeconds
     )
-    Write-Host '==> Activation sequence: at most 5 probes of GET https://api.vibhanshu-ai-portfolio.dev/actuator/health, each bounded by --max-time 30 (no curl retry, no redirect; curl config files skipped via -q; environment proxies bypassed for every host via --noproxy ''*''). Only HTTP 503 or a curl timeout (exit 28, status 000) leads to another probe; the first HTTP 200 ends the sequence. Every probe issued belongs to this sequence and is consumed.'
-    for ($probe = 1; $probe -le 5; $probe++) {
+    Write-Host "==> Activation sequence: at most $script:ProbeBudget probes of GET https://api.vibhanshu-ai-portfolio.dev/actuator/health, each bounded by --max-time 90 (no curl retry, no redirect; curl config files skipped via -q; environment proxies bypassed for every host via --noproxy '*'). Only HTTP 503 or a curl timeout (exit 28, status 000) leads to another probe; the first HTTP 200 ends the sequence. Every probe issued belongs to this sequence and is consumed."
+    for ($probe = 1; $probe -le $script:ProbeBudget; $probe++) {
         if ($probe -gt 1) { Start-Sleep -Seconds $IntervalSeconds }
         $bodyPath = Join-Path ([IO.Path]::GetTempPath()) ('t89-wake-' + [guid]::NewGuid().ToString('N') + '.body')
         $activated = $false
@@ -226,7 +280,7 @@ function Invoke-AuthorizedWake {
         try {
             $startedUtc = (Get-Date).ToUniversalTime().ToString('o')
             $script:WakeIssued = $true
-            $probeMeta = & $Curl -q --noproxy '*' -sS -o $bodyPath -w 't89:%{http_code}:%{time_total}:%{content_type}' --max-time 30 'https://api.vibhanshu-ai-portfolio.dev/actuator/health' 2>$null
+            $probeMeta = & $Curl -q --noproxy '*' -sS -o $bodyPath -w 't89:%{http_code}:%{time_total}:%{content_type}' --max-time 90 'https://api.vibhanshu-ai-portfolio.dev/actuator/health' 2>$null
             $probeExit = $LASTEXITCODE
 
             # One record, exactly: t89:<3-digit status>:<seconds>:<content type>.
@@ -286,16 +340,16 @@ function Invoke-AuthorizedWake {
                 $statusToken = 'other'
             }
 
-            $fingerprint = "==>   probe $probe/5 started-utc=$startedUtc curl-exit=$probeExit http=$httpStatus duration-s=$duration content-type=$typeLabel body-bytes=$($bodyBytes.Length) body-sha256=$bodySha body-class=$bodyClass"
+            $fingerprint = "==>   probe $probe/$script:ProbeBudget started-utc=$startedUtc curl-exit=$probeExit http=$httpStatus duration-s=$duration content-type=$typeLabel body-bytes=$($bodyBytes.Length) body-sha256=$bodySha body-class=$bodyClass"
             if ($bodyClass -ceq 'actuator-json') { $fingerprint += " actuator-status=$statusToken" }
             Write-Host $fingerprint
 
             if ($probeExit -eq 0 -and $metaOk -and $httpStatus -ceq '200') {
                 $activated = $true
             } elseif ($probeExit -eq 0 -and $metaOk -and $httpStatus -ceq '503') {
-                Write-Host "==>   probe $probe/5: HTTP 503 is a recorded cold-start outcome"
+                Write-Host "==>   probe $probe/$($script:ProbeBudget): HTTP 503 is a recorded cold-start outcome"
             } elseif ($probeExit -eq 28 -and $metaOk -and $httpStatus -ceq '000') {
-                Write-Host "==>   probe $probe/5: a curl timeout (exit 28, status 000) is a recorded cold-start outcome"
+                Write-Host "==>   probe $probe/$($script:ProbeBudget): a curl timeout (exit 28, status 000) is a recorded cold-start outcome"
             } else {
                 $earlier = ''
                 if ($probe -gt 1) { $earlier = " The $($probe - 1) earlier probe(s) in this sequence were issued and are consumed." }
@@ -306,22 +360,22 @@ function Invoke-AuthorizedWake {
                     # happens after a TCP connection to the TLS terminator was
                     # made. Anything later may already have been delivered.
                     if (@(6, 7, 35) -contains $probeExit) {
-                        Write-Host "FAIL: probe $probe/5 failed in transport (curl exit $probeExit): a DNS, connect or TLS-handshake failure, so this request probably did not reach the ingress as an HTTP request and was probably NOT consumed.$earlier The sequence stops here; re-waking is a fresh owner decision." -ForegroundColor Red
+                        Write-Host "FAIL: probe $probe/$script:ProbeBudget failed in transport (curl exit $probeExit): a DNS, connect or TLS-handshake failure, so this request probably did not reach the ingress as an HTTP request and was probably NOT consumed.$earlier The sequence stops here; re-waking is a fresh owner decision." -ForegroundColor Red
                     } else {
-                        Write-Host "FAIL: probe $probe/5 failed in transport (curl exit $probeExit): this request may already have been delivered, so it may be consumed.$earlier The sequence stops here; re-waking is a fresh owner decision." -ForegroundColor Red
+                        Write-Host "FAIL: probe $probe/$script:ProbeBudget failed in transport (curl exit $probeExit): this request may already have been delivered, so it may be consumed.$earlier The sequence stops here; re-waking is a fresh owner decision." -ForegroundColor Red
                     }
                 } elseif (-not $metaOk) {
-                    Write-Host "FAIL: probe $probe/5 did not report exactly one well-formed metadata record, so it cannot be shown to have been 200 or a recorded cold-start outcome. The request is consumed.$earlier The sequence stops here and this script has no override; continuing is a fresh owner decision." -ForegroundColor Red
+                    Write-Host "FAIL: probe $probe/$script:ProbeBudget did not report exactly one well-formed metadata record, so it cannot be shown to have been 200 or a recorded cold-start outcome. The request is consumed.$earlier The sequence stops here and this script has no override; continuing is a fresh owner decision." -ForegroundColor Red
                 } else {
                     # There is deliberately no flag to continue anyway: this
                     # script cannot verify that an owner decided to proceed, so
                     # a switch would turn a prohibition into an operator keystroke.
-                    Write-Host "FAIL: probe $probe/5 returned HTTP $httpStatus, which is neither 200 nor a recorded cold-start outcome (503, or a curl timeout). The request is consumed.$earlier The sequence stops here and this script has no override; continuing is a fresh owner decision." -ForegroundColor Red
+                    Write-Host "FAIL: probe $probe/$script:ProbeBudget returned HTTP $httpStatus, which is neither 200 nor a recorded cold-start outcome (503, or a curl timeout). The request is consumed.$earlier The sequence stops here and this script has no override; continuing is a fresh owner decision." -ForegroundColor Red
                 }
                 exit 3
             }
         } catch {
-            Write-Host "FAIL: probe $probe/5 hit an internal error ($($_.Exception.GetType().Name)); its details are withheld because they can name the temporary body file. Treat the request as consumed. The sequence stops here; a further request is a fresh owner decision." -ForegroundColor Red
+            Write-Host "FAIL: probe $probe/$script:ProbeBudget hit an internal error ($($_.Exception.GetType().Name)); its details are withheld because they can name the temporary body file. Treat the request as consumed. The sequence stops here; a further request is a fresh owner decision." -ForegroundColor Red
             exit 3
         } finally {
             # Runs on every path above, including the exits. A failure to remove
@@ -340,43 +394,57 @@ function Invoke-AuthorizedWake {
                 $cleanupFailed = $true
             }
             if ($cleanupFailed) {
-                Write-Host "FAIL: probe $probe/5: its temporary response-body file could not be removed (location withheld). The run stops here, fail-closed." -ForegroundColor Red
+                Write-Host "FAIL: probe $probe/$($script:ProbeBudget): its temporary response-body file could not be removed (location withheld). The run stops here, fail-closed." -ForegroundColor Red
             }
         }
         if ($cleanupFailed) { exit 3 }
         if ($activated) {
-            Write-Host "==>   probe $probe/5 returned HTTP 200: activation confirmed; no further probe will be issued"
+            Write-Host "==>   probe $probe/$script:ProbeBudget returned HTTP 200: activation confirmed; no further probe will be issued"
             return
         }
     }
-    Write-Host 'FAIL: 5 of 5 activation probes were issued and none returned HTTP 200 (each was HTTP 503 or a curl timeout). The request budget is spent, and this script has no override; any further request is a fresh owner decision.' -ForegroundColor Red
+    Write-Host "FAIL: $script:ProbeBudget of $script:ProbeBudget activation probes were issued and none returned HTTP 200 (each was HTTP 503 or a curl timeout). The request budget is spent, and this script has no override; any further request is a fresh owner decision." -ForegroundColor Red
     exit 3
 }
+
+# Whether each external-command parameter is still at its literal default,
+# computed once and shared by every guard below that needs to tell a live
+# invocation from an offline test or a stub-based run -- the -SkipWake guard
+# immediately below, and the live-run interval and evidence-path checks
+# further down. One definition, reused everywhere, so there is no second,
+# divergent notion of what "live" means.
+#
+# It compares the four LITERAL defaults and nothing more: a full path to a real
+# tool, or `curl` instead of `curl.exe`, is already "overridden" as far as this
+# is concerned. It guards the accidental case and cannot tell a stub from a
+# real tool.
+#
+# Each comparison is parenthesised: in PowerShell the comma binds tighter than
+# -eq, so @($a -eq 'x', $b -eq 'y') parses as $a -eq ('x', $b) -eq 'y' and
+# the guard would silently never fire.
+$commandsAtDefault = @(
+    ($AzCommand -eq 'az'),
+    ($DockerCommand -eq 'docker'),
+    ($CurlCommand -eq 'curl.exe'),
+    ($PythonCommand -eq 'python')
+)
 
 # -SkipWake is for the offline tests. Refuse it here, BEFORE any child process
 # runs, unless every external command has been overridden away from its
 # default. Checked this early deliberately: a later check ran only after the
 # pre-wake az and docker calls, so a test exercising a default -- or a mutant
 # that broke this guard -- would have reached a real tool first.
-#
-# It compares the four LITERAL defaults and nothing more: a full path to a real
-# tool, or `curl` instead of `curl.exe`, passes it. It guards the accidental
-# case and cannot tell a stub from a real tool.
-#
-# Each comparison is parenthesised: in PowerShell the comma binds tighter than
-# -eq, so @($a -eq 'x', $b -eq 'y') parses as $a -eq ('x', $b) -eq 'y' and
-# the guard would silently never fire.
 if ($SkipWake) {
-    $defaults = @(
-        ($AzCommand -eq 'az'),
-        ($DockerCommand -eq 'docker'),
-        ($CurlCommand -eq 'curl.exe'),
-        ($PythonCommand -eq 'python')
-    )
-    if ($defaults -contains $true) {
+    if ($commandsAtDefault -contains $true) {
         Fail '-SkipWake is for the offline tests. Every one of -AzCommand, -DockerCommand, -CurlCommand and -PythonCommand must be overridden away from its default, because skipping the wake also skips the activation sequence and its stop rules. This check compares the literal defaults only and cannot tell a stub from a real tool.' 2
     }
 }
+
+# Fail-closed liveness predicate: if ANY external-command parameter remains at
+# its literal default, a real tool may still be reached. Only a fully stubbed
+# invocation may bypass the live interval and evidence-path guards. Read by
+# both guards so there is one shared definition of "potentially live".
+$isLiveRun = ($commandsAtDefault -contains $true)
 
 # -WakeProbeIntervalSeconds, validated before any child process for the same
 # reason as the guard above. It is a [string] so every invalid value reaches
@@ -390,6 +458,14 @@ if (-not [regex]::IsMatch($WakeProbeIntervalSeconds, '\A(?:[0-9]|[12][0-9]|30)\z
     Fail '-WakeProbeIntervalSeconds must be a whole number of seconds from 0 to 30, written without sign, fraction, exponent, whitespace or leading zero. The production value is 5; a live run must omit the parameter or pass exactly 5.' 2
 }
 $probeIntervalSeconds = [int]$WakeProbeIntervalSeconds
+
+# A live run ($isLiveRun above) must use exactly the production interval; the
+# offline tests pass 0, which is why this is conditioned on liveness rather
+# than a flat rule. Checked before any child process, same as the format check
+# just above.
+if ($isLiveRun -and $probeIntervalSeconds -ne 5) {
+    Fail '-WakeProbeIntervalSeconds must be omitted or set to exactly 5 for a live run: at least one of -AzCommand, -DockerCommand, -CurlCommand and -PythonCommand is still at its literal default, so this is treated as a potentially live invocation. This compares literal defaults only and cannot reliably distinguish a stub from a real tool.' 2
+}
 
 # --- Inputs -----------------------------------------------------------------
 # JMESPath queries below never contain parentheses. A parenthesised --query does
@@ -410,8 +486,73 @@ Write-Step "Attested: $attestedRevision @ $attestedDigest"
 if (-not $EvidenceOutput) {
     $EvidenceOutput = "docs/evidence/b2-task-8-9/rehearsal-$(Get-Date -Format 'yyyyMMdd').json"
 }
+
+# Ambiguous and prefixed spellings, refused for live runs BEFORE the overwrite
+# check below, so the refusal is not masked by a same-named file that Test-Path
+# happens to find in the drive's current directory. Drive-relative (`C:x.json`)
+# and root-relative (`\x.json`) forms: Windows PowerShell 5.1 reports them as
+# rooted even though their base depends on process/drive state, so the guard
+# further down would canonicalize them against a different base from the one
+# Test-Path and the verifier child use. Any path beginning with two separators
+# (UNC, or the `\\?\` and `\\.\` prefixes): GetFullPath keeps such prefixes
+# intact, so the repository comparison further down would not see through them.
+$isDriveRelative = [regex]::IsMatch($EvidenceOutput, '\A[A-Za-z]:(?:\z|[^\\/])')
+$isRootRelative = [regex]::IsMatch($EvidenceOutput, '\A[\\/](?![\\/])')
+$isDoubleSeparator = [regex]::IsMatch($EvidenceOutput, '\A[\\/]{2}')
+if ($isLiveRun -and ($isDriveRelative -or $isRootRelative -or $isDoubleSeparator)) {
+    Fail "-EvidenceOutput must be a fully qualified drive path or an ordinary relative path for a live run; drive-relative and root-relative Windows spellings are refused, as is any path beginning with two separators (UNC, or the \\?\ and \\.\ prefixes): '$EvidenceOutput'." 2
+}
+
 if (Test-Path $EvidenceOutput) {
     Fail "evidence output already exists, refusing to overwrite: $EvidenceOutput" 2
+}
+
+# Evidence-path externality, live runs only ($isLiveRun above). The repo root
+# is this script's own parent directory -- $PSScriptRoot is scripts/, so its
+# parent is the repository root -- deliberately not a `git` call: this wrapper
+# shells out only to curl/az/python/docker, and adding a git dependency here
+# would be a new one. Both the repo root and -EvidenceOutput are canonicalized
+# with [IO.Path]::GetFullPath(). A fully qualified drive evidence path can be
+# canonicalized directly (the ambiguous and prefixed spellings were refused
+# above, before the overwrite check). An
+# ordinary relative evidence path is first joined to $PWD.ProviderPath so
+# it resolves against PowerShell's current filesystem location, the same base
+# used by Test-Path and the verifier child process. Calling GetFullPath on the
+# relative value alone would instead use [Environment]::CurrentDirectory,
+# which Windows PowerShell does not keep synchronized with $PWD after every
+# Set-Location, and could make this guard inspect a different path from the
+# one the verifier writes. GetFullPath works for a path that does not exist
+# yet, which is the normal case here (unlike Resolve-Path). The result is
+# compared case-insensitively with a trailing directory separator appended to
+# the repo root so that a prefix SIBLING (e.g. C:\repo-backup\x.json next to
+# C:\repo) is not falsely rejected -- without the trailing separator,
+# 'C:\repo-backup' would wrongly appear to start with 'C:\repo'.
+#
+# Like GetFullPath, this is lexical only: it does NOT resolve junctions,
+# symlinks or other reparse points. So this is a misuse guard against an
+# accidentally in-repo evidence path, not a security boundary against a
+# deliberately engineered one.
+if ($isLiveRun) {
+    $repoRoot = [IO.Path]::GetFullPath((Split-Path $PSScriptRoot -Parent))
+    $repoRootWithSep = $repoRoot
+    # An explicit [string] cast, not a bare [IO.Path]::DirectorySeparatorChar:
+    # that property is a [char], and .NET Framework's String.EndsWith has no
+    # EndsWith(char) overload, so passing it relies on PowerShell's own
+    # char->string coercion at the method-binding boundary. Casting removes
+    # that doubt.
+    $dirSep = [string][IO.Path]::DirectorySeparatorChar
+    if (-not $repoRootWithSep.EndsWith($dirSep)) {
+        $repoRootWithSep += $dirSep
+    }
+    if ([IO.Path]::IsPathRooted($EvidenceOutput)) {
+        $evidenceFull = [IO.Path]::GetFullPath($EvidenceOutput)
+    } else {
+        $evidenceFull = [IO.Path]::GetFullPath((Join-Path $PWD.ProviderPath $EvidenceOutput))
+    }
+    if ($evidenceFull.Equals($repoRoot, [System.StringComparison]::OrdinalIgnoreCase) -or
+        $evidenceFull.StartsWith($repoRootWithSep, [System.StringComparison]::OrdinalIgnoreCase)) {
+        Fail "-EvidenceOutput must resolve outside the repository for a live run: '$EvidenceOutput' resolves to '$evidenceFull', inside '$repoRoot'. This is a lexical, case-insensitive comparison and does not resolve junctions or other reparse points, so it is a misuse guard, not a security boundary." 2
+    }
 }
 
 if (-not $SubscriptionId) {

@@ -187,6 +187,23 @@ class ClassifyTests(unittest.TestCase):
     def test_non_markdown_under_kiro_specs_runs_full_suite(self):
         self.assert_full_suite([".kiro/specs/supported-asset-integrity/hook.py"])
 
+    def test_task_8_9_evidence_json_fixtures_run_full_suite(self):
+        # docs/evidence/b2-task-8-9/*.json are read by the Task 8.9 wrapper
+        # (-ProvenancePath, -SubscriptionSourcePath) and by its PowerShell
+        # suite, so a change to them must reach task-8-9-powershell-tests
+        # rather than skip it by the docs-only chain.
+        for path in (
+            "docs/evidence/b2-task-8-9/deployment-provenance-20260911.json",
+            "docs/evidence/b2-task-8-9/rehearsal-20260911.json",
+        ):
+            with self.subTest(path=path):
+                self.assertFalse(classifier.is_docs_path(path))
+                self.assert_full_suite([path])
+        # The carve-out is scoped to that directory's JSON: its Markdown
+        # records, and JSON elsewhere under docs/, stay docs-only.
+        self.assertTrue(classifier.is_docs_path("docs/evidence/b2-task-8-9/run-a-attempt-20260913.md"))
+        self.assertTrue(classifier.is_docs_path("docs/evidence/b1-task-6-5/image-sizes.json"))
+
     # ── deletion and rename semantics ────────────────────────────────────────
     def test_deletion_only_of_docs_is_docs_only(self):
         # --no-renames reports deletions as plain paths; deleting docs is docs-only.
@@ -310,12 +327,13 @@ class WorkflowWiringTests(unittest.TestCase):
         job = self._job(self.text, "static-guard:")
         self.assertIn("test_classify_changed_paths.py", job)
 
-    def test_aggregate_gate_uses_always_and_needs_exactly_the_eight(self):
+    def test_aggregate_gate_uses_always_and_needs_exactly_the_nine(self):
         job = self._job(self.text, "ci-required:")
         self.assertIn("if: always()", job)
         for dependency in (
             "changes",
             "static-guard",
+            "task-8-9-powershell-tests",
             "sanitizer-canary",
             "unit-tests",
             "azure-image-smoke-test",
@@ -334,6 +352,7 @@ class WorkflowWiringTests(unittest.TestCase):
         for heading in (
             "changes:",
             "static-guard:",
+            "task-8-9-powershell-tests:",
             "sanitizer-canary:",
             "unit-tests:",
             "azure-image-smoke-test:",
@@ -380,7 +399,12 @@ class WorkflowWiringTests(unittest.TestCase):
         )
         self.assertRegex(unit, r"(?m)^    needs: \[static-guard, changes\]$")
 
-        for heading in ("integration-tests:", "pact-consumer:", "docker-build-verify:"):
+        for heading in (
+            "task-8-9-powershell-tests:",
+            "integration-tests:",
+            "pact-consumer:",
+            "docker-build-verify:",
+        ):
             with self.subTest(job=heading):
                 self.assertNotRegex(
                     self._job(self.text, heading),
@@ -405,6 +429,7 @@ class WorkflowWiringTests(unittest.TestCase):
 ALL_JOBS = (
     "changes",
     "static-guard",
+    "task-8-9-powershell-tests",
     "sanitizer-canary",
     "unit-tests",
     "azure-image-smoke-test",
@@ -412,10 +437,11 @@ ALL_JOBS = (
     "pact-consumer",
     "docker-build-verify",
 )
-# The five that skip together on a docs-only PR, by needs-propagation from the
+# The six that skip together on a docs-only PR, by needs-propagation from the
 # single condition on unit-tests. Nothing outside this set may ever skip.
 CHAIN_JOBS = (
     "unit-tests",
+    "task-8-9-powershell-tests",
     "azure-image-smoke-test",
     "integration-tests",
     "pact-consumer",

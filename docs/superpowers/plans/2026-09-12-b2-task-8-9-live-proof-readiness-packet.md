@@ -5,6 +5,18 @@ Current attested gateway revision: `api-gateway--0000081` @ `sha256:090ad3ba…`
 `34588465283`. This packet requests decisions only. Nothing here has been executed: no Azure call,
 no credential access, no verifier run, no wake, no push.
 
+> **Superseded, 2026-09-13 — activation and live-evidence instructions.** In
+> `### ⏱ The wake has a ~5-minute useful life`, numbered item 1's single-request/no-timeout rule is
+> historical. So are the `Bounded duration and stop conditions` Window/Scope rows and Run A steps
+> 6–7 where they describe a manual wake or an in-repository live evidence output. The governing
+> procedure is `2026-09-13-b2-task-8-9-activation-policy.md` plus the wrapper
+> `scripts/run_task_8_9_preflight.ps1`: one bounded six-probe activation-and-preflight sequence,
+> with a unique live evidence path outside the repository. After the wrapper exits, copy that file
+> into `docs/evidence/b2-task-8-9/` for review and commit; never point the live wrapper there. The
+> two-decision separation, attestation requirements, and the recorded 300-second planning
+> assumption remain current. Historical wording below is labelled where an operator might otherwise
+> mistake it for procedure.
+
 ---
 
 ## 0. The one structural fact that shapes both decisions
@@ -13,11 +25,11 @@ no credential access, no verifier run, no wake, no push.
 `run_proof` calls `_preflight(...)`, and then:
 
 ```python
-if config.mode in {"preflight", "rehearsal"}:      # line 1727
+if config.mode in {"preflight", "rehearsal"}:      # line 1780
     evidence["verdict"] = {"go": None, "status": config.mode + "_passed", "errors": []}
     return ...                                      # returns here — nothing further runs
 if not config.access_token or not config.demo_password:
-    raise ProofError("execute mode requires injected setup token and demo password")   # line 1735
+    raise ProofError("execute mode requires injected setup token and demo password")   # line 1788
 ```
 
 Two consequences the two decisions hang on:
@@ -45,7 +57,7 @@ list, the sixth operation:
 ```
 az containerapp replica list --name api-gateway --resource-group wealth-azure-prod-rg \
   --revision api-gateway--0000081 -o json          # returned no replica
-→ ProofError("RBAC rehearsal could not resolve a gateway replica")   # lines 621-622
+→ ProofError("RBAC rehearsal could not resolve a gateway replica")   # line 645
 verdict: {go: false, status: non_go}   classification: class_2a   preflight.rbacRehearsed: false
 ```
 
@@ -75,7 +87,7 @@ After replica resolution, `_preflight` runs, in order:
 | 5 | `az monitor log-analytics query … "print task8_9_rbac_probe=1"` | fixed, constant query |
 | 6 | `az containerapp revision show` | Wave 8 decision / environment read-back |
 | | `evidence["preflight"] = {"passed": True, "rbacRehearsed": True}` | the flag is set **here**, before step 7 |
-| 7 | `python -B scripts/derive_demo_golden_state.py` | Task 4.4a golden oracle. **Local, no network** (no `urllib`/`requests`/`socket`/`subprocess` import); validates the demo identity. `_preflight` ends `return _load_oracle(...)` (line 706) |
+| 7 | `python -B scripts/derive_demo_golden_state.py` | Task 4.4a golden oracle. **Local, no network** (no `urllib`/`requests`/`socket`/`subprocess` import); validates the demo identity. `_preflight` ends `return _load_oracle(...)` (line 729) |
 
 **Count the operations correctly — the rows above are categories, not commands.** Rows 2 and 4
 each issue two commands (one per service), so the nine post-wake commands are: exec, two
@@ -85,9 +97,9 @@ oracle. The run *before* the wake already recorded **6** operations up to and in
 `replica list` — exactly the six in `rehearsal-20260911.json`).
 
 **So a fully passing run records 6 + 9 = 15 entries in `evidence["operations"]`, not seven.**
-Every command reaches that array via `_record_command` (verifier lines 436-447). Any rule phrased
+Every command reaches that array via `_record_command` (verifier lines 436-455). Any rule phrased
 against "the seven" would fire on `az account show` and disown a correct run — read the abort rule
-below as "any command not issued by `_preflight` (verifier lines 559-709)".
+below as "any command not issued by `_preflight` (verifier lines 578-732)".
 
 The `preflight.passed` flag is set *before* the final operation. If the oracle fails, the evidence
 will show `preflight.passed: true` alongside `verdict.status: non_go` — that combination is not a
@@ -113,7 +125,7 @@ permissions result — it is not evidence of a deployment defect, and must not b
 
 | Class | Examples | Status in this decision |
 |---|---|---|
-| **Task 8.9 application credentials** | `TASK8_9_ACCESS_TOKEN`, `TASK8_9_DEMO_PASSWORD` | **Forbidden.** Read from the environment at parse time in every mode (1999-2000) but never *required or checked* before line 1735, which the early return at 1727 precedes. Gated behind Decision 2. |
+| **Task 8.9 application credentials** | `TASK8_9_ACCESS_TOKEN`, `TASK8_9_DEMO_PASSWORD` | **Forbidden.** Read from the environment at parse time in every mode (2066-2067) but never *required or checked* before line 1788, which the early return at 1780 precedes. Gated behind Decision 2. |
 | **Azure / ACR authentication** | the operator's existing `az` session; the ACR token minted by `az acr login` at step 3 | **Required.** The preflight cannot complete without it. Already in use by every prior read-only run. |
 
 The earlier "no credential use" phrasing was wrong: it is the *application* credentials that stay
@@ -193,7 +205,8 @@ the source supports this candidate:
 It is an unauthenticated read requiring neither class of credential. The owner should confirm this
 route and method, or name a different one with equivalent source proof, as part of the decision.
 
-Issue it as a single `curl`-style GET, **not from a browser**: a browser also requests
+**Historical mechanism description — do not issue this request directly for the next run.** The
+original procedure said to issue it as a single `curl`-style GET, **not from a browser**: a browser also requests
 `/favicon.ico`, which falls through to `anyExchange().authenticated()` and logs a 401. Harmless in
 itself, but it is noise in exactly the logs a later Run B correlates. A single request activates one replica from zero,
 well inside the `max_replicas = 3` ceiling.
@@ -207,18 +220,21 @@ design — so nothing it does keeps the replica alive. The wake does not hold th
 
 Therefore:
 
-1. The wake request must be allowed to **complete with a 200** before the verifier starts. A cold
+1. **Historical activation instruction — do not follow for the next run.** The wake request must be allowed to **complete with a 200** before the verifier starts. A cold
    start can hold the request for tens of seconds while ACA activates the replica; a replica in
    a revision that is still `Activating` may list a replica whose container is not yet `Running`
    or ready, and `exec` has no readiness gate — the verifier accepts any listed replica with a
    name. **Set no client-side
    timeout** — note that `docs/runbooks/API_GATEWAY_CUSTOM_DOMAIN_RECOVERY.md:292` uses
    `curl --max-time 30`, which can expire during a cold start; do not copy it here. **On any
-   non-200, stop and report — do not re-issue the request.**
-2. **Start the verifier within ~2 minutes of that 200**, so that `replica list` — the *sixth*
-   command, after five `az` calls that each take seconds — lands comfortably inside the 300s
-   cool-down. The five-minute figure is the hard deadline for `replica list` — strictly, for the `exec` probe
-   that immediately follows it and also needs the replica — not slack for starting: an operator who starts at 4:30 has followed the wrong reading and loses the wake. Past
+   non-200, stop and report — do not re-issue the request.** The current procedure instead uses
+   the governing wrapper's six probes, 90-second cap, exact retry classification, and immediate
+   post-`200` replica wait/preflight handoff.
+2. **The wrapper must reach the replica wait promptly after that 200.** It does so automatically;
+   the operator does not start a separate verifier. The recorded model budgets roughly two minutes
+   for the five pre-replica `az` calls and wrapper wait, so that `replica list` — the *sixth*
+   verifier command — lands comfortably inside the 300s cool-down. The five-minute figure is the hard deadline for `replica list` — strictly, for the `exec` probe
+   that immediately follows it and also needs the replica. Past
    the cool-down the app is back at zero and the run fails at precisely the old stopping point,
    having consumed the authorization.
 3. If `replica list` fails anyway, **do not re-wake** — that needs a fresh owner decision.
@@ -235,11 +251,11 @@ not quietly absorbed.
 
 | | |
 |---|---|
-| Window | **A 30-minute outer authorization window**, inside which the verifier must **start within ~2 minutes** of the wake's 200 so `replica list` lands inside the 300s cool-down (see the timing section above). One run, no retry inside the window without a fresh decision. |
-| ⚠ Timeout | **`--operation-timeout-seconds` must be raised explicitly.** Its 15s default applies to *every* operation including both `docker pull`s (verifier lines 648-654), and the api-gateway image alone is 291,811,463 bytes — clearing that in 15s needs ~155 Mbit/s sustained. Left at the default, the run very likely fails at step 4 **after** the wake is spent. Note the flag raises the cap for all operations, not just the pulls. |
+| Window | **A 30-minute outer authorization window.** Historical wording said "One run, no retry." Current procedure authorizes one wrapper invocation containing at most six classified probes; no seventh request and no second wrapper invocation without a fresh decision. After the first `200`, the wrapper proceeds directly to its replica wait and preflight. |
+| ⚠ Timeout | The wrapper passes `--operation-timeout-seconds 600` by default. Confirm that bound before the run; it applies to *every* verifier operation including both `docker pull`s. Do not invoke the verifier separately with its 15s default. |
 | Preconditions | A running local **Docker daemon in Linux-containers mode**, with `docker` on the verifier process's PATH (steps 3-4 need it); an authenticated `az` session for the production subscription; the provenance path passed explicitly. Confirm all three *before* waking — each failure otherwise surfaces only after the wake is consumed. |
-| Scope | One wake, one preflight run. Not a standing change. |
-| Abort immediately if | the serving revision is anything other than `api-gateway--0000081`; the serving digest is not `sha256:090ad3ba…`; `replica list` still resolves nothing after the wake; any operation reports `mutating: true`; or any command appears that `_preflight` (verifier lines 559-709) does not issue. Compare the digest against the full value in `deployment-provenance-20260911.json`, not the truncated form quoted here. |
+| Scope | One bounded activation-and-preflight wrapper invocation. Not a standing change. |
+| Abort immediately if | the serving revision is anything other than `api-gateway--0000081`; the serving digest is not `sha256:090ad3ba…`; `replica list` still resolves nothing after the wake; any operation reports `mutating: true`; or any command appears that `_preflight` (verifier lines 578-732) does not issue. Compare the digest against the full value in `deployment-provenance-20260911.json`, not the truncated form quoted here. |
 | Never in this window | demo login, application write, KQL beyond the single fixed `print task8_9_rbac_probe=1` rehearsal, cleanup, rollback, deployment, flag exposure, and any use of the Task 8.9 application credentials. Azure/ACR authentication is expected and permitted — see the credential-class table above. |
 
 ### Mandatory restoration and read-back
@@ -284,8 +300,8 @@ that is the failure mode this section exists to prevent.
 | `TASK8_9_DEMO_PASSWORD` | process environment | demo login leg |
 
 Both names are the defaults of `--access-token-env` / `--demo-password-env`
-(`verify_demo_reset_azure.py:1955-1956`). The verifier reads them from the environment by name
-(`environ.get(args.access_token_env, "")`, lines 1999-2000). **Values never appear as command-line
+(`verify_demo_reset_azure.py:2022-2023`). The verifier reads them from the environment by name
+(`environ.get(args.access_token_env, "")`, lines 2066-2067). **Values never appear as command-line
 arguments**, so they are absent from shell history, `ps` output, and CI command echo.
 
 Both prior names are dead and must be reissued, not recovered.
@@ -300,7 +316,7 @@ Both prior names are dead and must be reissued, not recovered.
 4. **Owner-injected.** Delivered by the owner into the run environment. A prior attempt failed on
    credential process-inheritance; whatever method is chosen must be confirmed to reach the child
    process before the run is authorized — a wrong injection surfaces as `execute mode requires
-   injected setup token and demo password` (line 1735) only after the run has already started.
+   injected setup token and demo password` (line 1788) only after the run has already started.
 5. **Never surfaced to an agent.** No agent should be able to read the values, and no step in the
    procedure should print, log, or diff them.
 
@@ -329,8 +345,8 @@ split between people and not performed by an agent.
    of the process that runs the verifier (`_resolve_command_executable`, verifier 199-207, resolves
    via `shutil.which` on Windows).
 3. Confirm an authenticated `az` session for the production subscription.
-4. Have the full verifier command staged and ready to paste, including an explicit
-   `--operation-timeout-seconds`. The cap applies to **each command individually**, so size it for
+4. Confirm the wrapper's `-OperationTimeoutSeconds` value (default `600`). The wrapper passes it as
+   the verifier's `--operation-timeout-seconds`; the cap applies to **each command individually**, so size it for
    the larger of the two image pulls — which is portfolio-service, not api-gateway. api-gateway's
    attested image is 291,811,463 B (`deployment-completion-20260911.json`). The attested
    portfolio-service image's own size is not recorded, but three earlier builds of that service
@@ -339,25 +355,33 @@ split between people and not performed by an agent.
    (`docs/evidence/b1-r-c/task-7-7-authorized-execution-20260908.json:96`). Every recorded build of
    this service exceeds api-gateway's by ~22 MB, so **size the cap for at least 315 MB**. Choose generously — a large cap costs nothing on a passing run, it only
    lengthens a hang.
-5. **Run from a checkout at `2fee0202`.** Step 6 compares the live environment against the local
-   `application.yml` (`_authoritative_yaml_defaults`, verifier 512-531) and step 7 runs the oracle
-   over local `config/seed-tickers.json`. A checkout that differs in either file fails the run
-   *after* the wake is spent.
+5. **Run from the exact merged revision containing the governing wrapper and policy.** Do not use
+   the historical `2fee0202` checkout: it predates the wrapper. The verifier compares the live
+   environment against local `application.yml` and runs the oracle over local
+   `config/seed-tickers.json`, so verify those inputs and the deployment provenance before spending
+   the request budget.
 
 **Then, in one window:**
 
-6. Issue the named wake request; **wait for the 200**.
-7. Start the run **within ~2 minutes**: `--mode preflight`, with `--deployment-provenance
-   docs/evidence/b2-task-8-9/deployment-provenance-20260911.json` **passed explicitly** — the flag
-   is `required=True` with no default (line 1953), and the path is not the 09-10 one — plus
-   `--evidence-output` to a new path under `docs/evidence/b2-task-8-9/`. **No `--threshold-override`.**
-   The evidence document is written unconditionally, pass or fail.
+6. Invoke `scripts/run_task_8_9_preflight.ps1` once. Do **not** issue a separate manual wake. The
+   wrapper owns the bounded activation requests, requires the first exact `200`, waits for a ready
+   replica, and then starts `--mode preflight` in the same process sequence.
+7. Pass `-EvidenceOutput` as a unique, non-existing path **outside the repository**. The wrapper
+   refuses its in-repository default for a potentially live invocation. It passes the tracked
+   `docs/evidence/b2-task-8-9/deployment-provenance-20260911.json` explicitly to the verifier and
+   never passes `--threshold-override`. The evidence document is written unconditionally, pass or
+   fail. After the wrapper exits, hash and copy the preserved external file to a new path under
+   `docs/evidence/b2-task-8-9/`; review and commit the copy without deleting the original until the
+   review is complete. "Hash" means `Get-FileHash -Algorithm SHA256` (the same algorithm the wrapper
+   uses for probe bodies), recorded as lowercase hex in the PR body and in the prose that cites the
+   evidence; the same command run on the committed copy must produce the same digest.
 8. Post-run live read-back per §1.
 9. **Post-run hygiene.** The `az acr login` operation leaves a production-registry token in the
    operator's Docker credential store, and the two `docker pull`s leave both production images in
    the local image store. Log out of `wealthprodacr.azurecr.io` and remove the pulled images once
    the run is recorded.
-10. Commit the evidence in the same PR that cites it, and have it independently reviewed.
+10. Commit the copied in-repository evidence in the same PR that cites it, record its hash against
+    the preserved external original, and have it independently reviewed.
 
 If the run fails at step 4 on a pull timeout, that is a tooling result, not a deployment defect —
 and re-waking needs a fresh decision.
@@ -377,9 +401,10 @@ rollback. It requires its own owner decision after Run A's evidence is reviewed.
 
 - [ ] `--deployment-provenance` pointed at the **2026-09-11** record, explicitly
 - [ ] `--threshold-override` **absent** (see §5)
-- [ ] `--operation-timeout-seconds` raised explicitly for the image pulls
+- [ ] wrapper `-OperationTimeoutSeconds` confirmed (default `600`; passed to the verifier for every operation)
 - [ ] Docker daemon confirmed running before the wake
-- [ ] verifier started within ~2 minutes of the wake's 200; `replica list` inside 5
+- [ ] wrapper invoked once; after its first `200`, its replica wait and verifier handoff proceeded automatically
+- [ ] live `-EvidenceOutput` was unique and outside the repository; the preserved file was hashed and copied into `docs/evidence/b2-task-8-9/` only after the wrapper exited
 - [ ] evidence shows **15** operations, all `mutating: false`
 - [ ] Docker logged out of the production registry and pulled images removed afterwards
 - [ ] the new evidence file will, like `rehearsal-20260911.json`, carry `target.subscriptionId` and
@@ -387,7 +412,7 @@ rollback. It requires its own owner decision after Run A's evidence is reviewed.
 - [ ] serving revision/digest re-read **live** after the run and matching this packet
 - [ ] **live** revision-list read confirming no `--0000082` (not an inspection of the tracked JSON)
 - [ ] wake disclosed in the evidence: route and method, actor, timestamp, authorization
-- [ ] evidence file committed alongside the prose that cites it, links checked against *that* run
+- [ ] copied evidence file committed alongside the prose that cites it, links checked against *that* run, and hash matched to the preserved external original
 - [ ] Task 8.9 checkbox still `- [ ]`; Wave 8 🟡; Wave 10 still gated
 - [ ] independent review before any further authorization is acted on
 
@@ -407,7 +432,7 @@ pass; a proof cannot.
 
 **Without either:** Task 8.9 stays open exactly as it is now. Nothing degrades — the attested
 provenance remains valid indefinitely so long as nothing creates a new revision of **either**
-attested service — `_preflight` checks `portfolio-service` too (verifier 571-598), so a
+attested service — `_preflight` checks `portfolio-service` too (verifier 578-620), so a
 portfolio-service deploy invalidates it just as a gateway one does.
 
 **Blocked regardless of both:** Task 10.2, feature exposure, repository variables, deploy dispatch,
@@ -418,11 +443,11 @@ rollback, and AWS. None is touched by either decision.
 ## 5. Two hazards to state explicitly
 
 **`--threshold-override` must stay absent.** It is not a wake mechanism and must not be repurposed
-as one. It issues a mutating `containerapp update` (`mutating=True`, line 1608) — which by §1's
+as one. It issues a mutating `containerapp update` (`mutating=True`, lines 1646-1657) — which by §1's
 evidence creates a new revision; the code acknowledges exactly this with
 `allow_revision_change=config.threshold_override is not None`. It also **permanently forecloses
-GO**: `verdict.go` requires `config.threshold_override is None` (line 1930), and an otherwise-
-passing override run is downgraded to `diagnostic_only` (line 1936). An override-backed run can
+GO**: `verdict.go` requires `config.threshold_override is None` (line 1997), and an otherwise-
+passing override run is downgraded to `diagnostic_only` (line 2003). An override-backed run can
 never satisfy Wave 10.2.
 
 **`decisions.wave10Eligible` in the evidence does not mean what it says.** It is
@@ -443,7 +468,10 @@ Read-only. Sources: `scripts/verify_demo_reset_azure.py`,
 scripts/assert_api_gateway_timeout_rollout_plan.py}`,
 `api-gateway/src/main/java/com/wealth/gateway/{SecurityConfig.java, JwtAuthenticationFilter.java}`,
 `api-gateway/src/main/resources/application.yml`, all at `main@2fee0202`. Line numbers are from
-that revision.
+that revision, with one exception: on 2026-09-13 the `scripts/verify_demo_reset_azure.py` line
+citations throughout this packet were re-pointed to the revision of that file carried by PR #271
+(the one that introduced the governing activation policy), which is 67 lines longer than the
+`2fee0202` copy. Check verifier line numbers against that revision, not against `2fee0202`.
 
 **Revisions 7-10 (2026-09-12) — narrowing, simplification, the timeout correction, and its
 provenance fix.** (These four revisions share one block rather than each taking a heading; a
@@ -520,7 +548,9 @@ mode, just never required or checked; a portfolio-service deploy also invalidate
 the 0080 template-change reading is an inference and now says so; `application.yml` is cited 73-90;
 the single-replica claim rested on `max_replicas` rather than the scale-up step. Added: the run must
 execute from a checkout at `2fee0202` (steps 6-7 read local `application.yml` and
-`config/seed-tickers.json`), and post-run hygiene for the ACR token and pulled production images.
+`config/seed-tickers.json`) — *historical; superseded on 2026-09-13 by step 5, which now requires
+the merged revision carrying the wrapper and policy* — and post-run hygiene for the ACR token and
+pulled production images.
 
 **Revision 3 (2026-09-12), after independent Fable review returned ACCEPT WITH CHANGES.** One
 critical and five further defects, all verified against source before editing: the default 15s
