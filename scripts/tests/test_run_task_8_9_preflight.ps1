@@ -7,6 +7,12 @@
     the fault line that broke three hand-issued commands during the 2026-09-12
     attempt.
 
+    The activation sequence is exercised through a curl stub that plays back a
+    per-call script (status, curl exit, metadata, body bytes, content type), so
+    a multi-probe cold start -- timeout, 503, 503, 200 -- is reproduced offline
+    call by call. No real curl ever runs: every wrapper invocation below passes
+    the stub, and the stub refuses any argument vector but the authorized one.
+
     Run:  powershell -NoProfile -ExecutionPolicy Bypass -File scripts/tests/test_run_task_8_9_preflight.ps1
 #>
 Set-StrictMode -Version Latest
@@ -23,13 +29,20 @@ $failures = 0
 $tests = 0
 
 function Invoke-Wrapper {
-    param([hashtable]$Env = @{}, [string[]]$Extra = @(), [int]$WaitSeconds = 2, [string]$PythonCommand)
+    # -TempDir points the child's TMP/TEMP somewhere else, so the wrapper's
+    # generated body files land in a directory the test controls. That is the
+    # operating system's own temp resolution, not a wrapper input.
+    # -DefaultInterval omits -WakeProbeIntervalSeconds so the production default
+    # is what runs; otherwise every run passes 0 to keep the suite fast.
+    param([hashtable]$Env = @{}, [string[]]$Extra = @(), [int]$WaitSeconds = 2, [string]$PythonCommand, [string]$TempDir, [switch]$DefaultInterval)
     $capture = Join-Path ([IO.Path]::GetTempPath()) "t89-capture-$([guid]::NewGuid()).txt"
     $evidence = Join-Path ([IO.Path]::GetTempPath()) "t89-evidence-$([guid]::NewGuid()).json"
     $saved = @{}
     $Env['STUB_CAPTURE'] = $capture
     $stateFile = Join-Path ([IO.Path]::GetTempPath()) "t89-state-$([guid]::NewGuid()).txt"
     $Env['STUB_STATE_FILE'] = $stateFile
+    if ($TempDir) { $Env['TMP'] = $TempDir; $Env['TEMP'] = $TempDir }
+    $bodies = @()
     foreach ($k in $Env.Keys) {
         $saved[$k] = [Environment]::GetEnvironmentVariable($k)
         [Environment]::SetEnvironmentVariable($k, $Env[$k])
@@ -51,15 +64,98 @@ function Invoke-Wrapper {
         if ($Extra -notcontains '-PythonCommand') { $argv += @('-PythonCommand', $(if ($PythonCommand) { $PythonCommand } else { Join-Path $stubs 'stub_python.cmd' })) }
         if ($Extra -notcontains '-ReplicaWaitSeconds') { $argv += @('-ReplicaWaitSeconds', "$WaitSeconds") }
         if ($Extra -notcontains '-ReplicaPollSeconds') { $argv += @('-ReplicaPollSeconds', '1') }
+        if (-not $DefaultInterval -and $Extra -notcontains '-WakeProbeIntervalSeconds') { $argv += @('-WakeProbeIntervalSeconds', '0') }
         $argv += $Extra
-        $out = & powershell @argv 2>&1 | Out-String
-        $code = $LASTEXITCODE
+        # The wrapper, and so every stub, runs with the repository root as its
+        # working directory: the wrapper's relative default paths need it, and
+        # it holds files, so a stub that globbed * would record file names
+        # (Assert-ProbesSound checks what arrived after --noproxy).
+        Push-Location -LiteralPath $repo
+        try {
+            $out = & powershell @argv 2>&1 | Out-String
+            $code = $LASTEXITCODE
+        } finally { Pop-Location }
         $cap = if (Test-Path $capture) { Get-Content $capture -Raw } else { '' }
-        return [pscustomobject]@{ Exit = $code; Capture = $cap; Output = ($out -join "`n") }
+        # One entry per probe the stub received, in order: its argv after 'curl '.
+        $probes = @([regex]::Matches($cap, '(?m)^curl (.*)$') | ForEach-Object { $_.Groups[1].Value.TrimEnd() })
+        # The body file each probe was told to write, and which of them still
+        # exist now that the wrapper has exited. Checked before this helper's own
+        # cleanup below removes them.
+        $bodies = @($probes | ForEach-Object { if ($_ -match '(?:^| )-o (\S+)') { $Matches[1] } })
+        $left = @($bodies | Where-Object { Test-Path -LiteralPath $_ })
+        return [pscustomobject]@{ Exit = $code; Capture = $cap; Output = ($out -join "`n"); Probes = $probes; Bodies = $bodies; Leftovers = $left }
     } finally {
         foreach ($k in $saved.Keys) { [Environment]::SetEnvironmentVariable($k, $saved[$k]) }
-        Remove-Item $capture, $evidence, $stateFile -ErrorAction SilentlyContinue
+        Remove-Item $capture, $evidence, $stateFile, "$stateFile.curl" -ErrorAction SilentlyContinue
+        foreach ($b in $bodies) { Remove-Item -LiteralPath $b -Force -ErrorAction SilentlyContinue }
     }
+}
+
+# --- Helpers for the activation sequence ------------------------------------
+
+$script:fixtureFiles = @()
+function Utf8 { param([string]$Text) , ([Text.UTF8Encoding]::new($false).GetBytes($Text)) }
+function Sha256Hex { param([byte[]]$Bytes) (Get-FileHash -InputStream ([IO.MemoryStream]::new($Bytes)) -Algorithm SHA256).Hash.ToLowerInvariant() }
+function New-BodyFixture {
+    # Exact response bytes for the stub to copy into the wrapper's body file.
+    param([byte[]]$Bytes)
+    $f = Join-Path ([IO.Path]::GetTempPath()) "t89-fixture-$([guid]::NewGuid().ToString('N')).bin"
+    [IO.File]::WriteAllBytes($f, $Bytes)
+    $script:fixtureFiles += $f
+    return $f
+}
+function Get-Fingerprints {
+    # Parsed fingerprint lines, in output order. 'Rest' is everything after the
+    # timestamp, so a test can compare it exactly.
+    param($R)
+    $pattern = '^==>   probe (?<n>[1-5])/5 started-utc=(?<utc>[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{7}Z) (?<rest>curl-exit=.*)$'
+    @($R.Output -split "`r?`n" | ForEach-Object {
+        $m = [regex]::Match($_, $pattern)
+        if ($m.Success) {
+            [pscustomobject]@{
+                N    = [int]$m.Groups['n'].Value
+                Utc  = [DateTime]::Parse($m.Groups['utc'].Value, [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::RoundtripKind)
+                Rest = $m.Groups['rest'].Value
+            }
+        }
+    })
+}
+function Assert-NoVerifier { param($R) if ($R.Capture -match '(?m)^python .*--mode ') { throw "the verifier ran; output:`n$($R.Output)" } }
+function Assert-NoReplicaWait { param($R) if ($R.Capture -match 'replica list') { throw "the replica wait ran; output:`n$($R.Output)" } }
+function Assert-ProbeCount {
+    param($R, [int]$N)
+    if ($R.Probes.Count -ne $N) { throw "expected exactly $N probe(s), the stub received $($R.Probes.Count); output:`n$($R.Output)" }
+}
+function Assert-ProbesSound {
+    # Every probe used exactly the authorized vector with a fresh body path, no
+    # probe went past the budget or consumed a never-to-be-issued call, and
+    # every body file is gone.
+    param($R)
+    $vector = '^-q --noproxy \* -sS -o (?<body>\S+) -w t89:%\{http_code\}:%\{time_total\}:%\{content_type\} --max-time 30 https://api\.vibhanshu-ai-portfolio\.dev/actuator/health$'
+    foreach ($p in $R.Probes) { if ($p -cnotmatch $vector) { throw "a probe used an unauthorized vector: curl $p" } }
+    # What the stub actually received in positions 2, 3 and 4, read
+    # positionally (not from %*): exactly --noproxy, one literal *, then -sS.
+    # The runs start in a directory holding files, so an argument walk that
+    # globbed * would show file names here, or shift -sS out of position 4.
+    $argLines = @([regex]::Matches($R.Capture, '(?m)^curl-noproxy-arg .*$') | ForEach-Object { $_.Value.TrimEnd() })
+    if ($argLines.Count -ne $R.Probes.Count) { throw "expected one curl-noproxy-arg capture line per probe ($($R.Probes.Count)), found $($argLines.Count)" }
+    foreach ($l in $argLines) {
+        if ($l -cne 'curl-noproxy-arg [--noproxy] [*] [-sS]') { throw "the stub did not receive exactly one literal * after --noproxy: $l" }
+    }
+    if ($R.Capture -match '(?m)^curl-violation') { throw 'the curl stub recorded an argument-vector violation' }
+    if ($R.Capture -match '(?m)^curl-over-budget') { throw 'a probe beyond the five-request budget was issued' }
+    if ($R.Capture -match '(?m)^curl-sentinel-consumed') { throw 'a probe the test marked as never-to-be-issued was issued' }
+    if (@($R.Bodies | Sort-Object -Unique).Count -ne $R.Bodies.Count) { throw 'a body file path was reused across probes' }
+    if ($R.Leftovers.Count) { throw "$($R.Leftovers.Count) temporary body file(s) were left behind" }
+}
+function Probe-Env {
+    # @(@{STATUS='503'}, @{EXIT='28'; STATUS='000'}) -> STUB_CURL_1_STATUS=503, ...
+    param([hashtable]$Base, [object[]]$Calls)
+    $e = $Base.Clone()
+    for ($i = 0; $i -lt $Calls.Count; $i++) {
+        foreach ($k in $Calls[$i].Keys) { $e["STUB_CURL_$($i + 1)_$k"] = $Calls[$i][$k] }
+    }
+    return $e
 }
 
 function Check {
@@ -112,18 +208,41 @@ Check 'a paren-free --query passes through the same stub' {
     if ($e -ne 0 -or $cap -notmatch '\[\]\.name') { throw "paren-free query did not survive (exit $e): $cap" }
 }
 
+Check 'wrapper runs start in a directory that holds files, so a globbing stub would be visible' {
+    # Invoke-Wrapper runs from $repo. If it held no files, a stub that expanded
+    # * against the working directory would still see a bare *, and the
+    # curl-noproxy-arg assertions could not tell it apart from a correct one.
+    if (@(Get-ChildItem -LiteralPath $repo -File -Force).Count -lt 1) { throw "the wrapper's working directory $repo holds no files" }
+}
+
 Write-Host 'Happy path'
 $r = Invoke-Wrapper -Env $good.Clone()
 Check 'exits 0' { if ($r.Exit -ne 0) { throw "exit $($r.Exit); output: $($r.Output)" } }
-Check 'the wake uses exactly the authorized argument vector, once, with no stub violation' {
+Check 'a first-probe 200 uses exactly the authorized argument vector, once, with no stub violation' {
     # Counting curl lines was not enough: --retry makes several HTTP requests
     # from ONE invocation, and -L follows a redirect. Only the full vector says
-    # which request was actually made.
-    $lines = @($r.Capture -split "`r?`n" | Where-Object { $_ -match '^curl ' })
-    if ($lines.Count -ne 1) { throw "expected exactly one curl invocation, found $($lines.Count)" }
-    $want = 'curl -q -sS -o NUL -w %{http_code} https://api.vibhanshu-ai-portfolio.dev/actuator/health'
-    if ($lines[0].TrimEnd() -cne $want) { throw "curl was called as:`n  $($lines[0])`nexpected exactly:`n  $want" }
-    if ($r.Capture -match '(?m)^curl-violation') { throw 'the curl stub recorded an argument-vector violation' }
+    # which request was actually made. Only the body path may vary.
+    Assert-ProbeCount $r 1
+    $want = '^curl -q --noproxy \* -sS -o ' + [regex]::Escape([IO.Path]::GetTempPath()) + 't89-wake-[0-9a-f]{32}\.body -w t89:%\{http_code\}:%\{time_total\}:%\{content_type\} --max-time 30 https://api\.vibhanshu-ai-portfolio\.dev/actuator/health$'
+    $line = "curl $($r.Probes[0])"
+    if ($line -cnotmatch $want) { throw "curl was called as:`n  $line`nexpected to match:`n  $want" }
+    Assert-ProbesSound $r
+}
+Check 'a first-probe 200 goes on to the replica wait and exactly one verifier run' {
+    $cap = $r.Capture
+    $lastProbe = $cap.LastIndexOf('curl-call ')
+    $firstPoll = $cap.IndexOf('replica list')
+    if ($lastProbe -lt 0 -or $firstPoll -lt 0 -or $firstPoll -lt $lastProbe) { throw "the replica wait did not follow the probe:`n$cap" }
+    $n = ([regex]::Matches($cap, '(?m)^python .*--mode ')).Count
+    if ($n -ne 1) { throw "verifier ran $n times" }
+    if ($r.Output -notmatch 'probe 1/5 returned HTTP 200: activation confirmed') { throw "activation not announced:`n$($r.Output)" }
+}
+Check 'a first-probe 200 prints one fingerprint with only allowlisted fields' {
+    $fp = @(Get-Fingerprints $r)
+    if ($fp.Count -ne 1 -or $fp[0].N -ne 1) { throw "expected one fingerprint for probe 1; output:`n$($r.Output)" }
+    $body = Utf8 ('{"status":"UP"}' + "`r`n")
+    $want = "curl-exit=0 http=200 duration-s=0.012345 content-type=application/json body-bytes=$($body.Length) body-sha256=$(Sha256Hex $body) body-class=actuator-json actuator-status=UP"
+    if ($fp[0].Rest -cne $want) { throw "fingerprint is:`n  $($fp[0].Rest)`nexpected:`n  $want" }
 }
 Check 'JMESPath [].name survives the cmd boundary intact' {
     if ($r.Capture -notmatch '\[\]\.name') { throw "no intact [].name in capture:`n$($r.Capture)" }
@@ -180,71 +299,391 @@ Check 'the replica-list call passes no --query, so the raw ARM shape is what the
         if ($m.Value -notmatch '-o json') { throw "replica list did not request json: $($m.Value)" }
     }
 }
-Check 'the wake is issued exactly once' {
+Check 'a first-probe 200 issues no further probe and leaves no body file behind' {
     $n = ([regex]::Matches($r.Capture, '(?m)^curl ')).Count
-    if ($n -ne 1) { throw "wake issued $n times" }
+    if ($n -ne 1) { throw "probes issued $n times" }
+    if ($r.Bodies.Count -ne 1) { throw "expected one body path, found $($r.Bodies.Count)" }
+    if ($r.Leftovers.Count) { throw 'the first-200 body file was left behind' }
 }
 Check 'the subscription id is not printed in output' {
     if ($r.Output -match 'ee625b3f') { throw 'subscription id was printed' }
 }
 
-Write-Host 'Wake returns 503'
-$e = $good.Clone(); $e['STUB_WAKE_STATUS'] = '503'
-$r = Invoke-Wrapper -Env $e
-Check 'stops, as the packet requires, and does not run the verifier' {
-    if ($r.Exit -ne 3) { throw "exit $($r.Exit); output: $($r.Output)" }
-    if ($r.Capture -match '(?m)^python .*--mode ') { throw 'verifier ran after a non-200 wake' }
+# --- The activation sequence --------------------------------------------------
+# The gateway's recorded cold start (runbook, and both Run A attempts) is a
+# timeout and/or 503s before a 200. The sequence may issue at most five probes;
+# only an exact 503 (curl exit 0) or a curl timeout (exit 28, status 000) leads
+# to another probe, and the first exact 200 ends it. Each case asserts the
+# probe count from the stub's own record, not from the wrapper's output.
+
+Write-Host 'Activation: 503, 503, 200'
+$r = Invoke-Wrapper -Env (Probe-Env $good @(@{ STATUS = '503' }, @{ STATUS = '503' }, @{ STATUS = '200' }, @{ SENTINEL = '1' }))
+Check '503, 503, 200 => exactly three probes, then the replica wait and one verifier run' {
+    if ($r.Exit -ne 0) { throw "exit $($r.Exit); output: $($r.Output)" }
+    Assert-ProbeCount $r 3
+    Assert-ProbesSound $r
+    $cap = $r.Capture
+    if ($cap.IndexOf('replica list') -lt $cap.LastIndexOf('curl-call ')) { throw "the replica wait started before the sequence ended:`n$cap" }
+    $n = ([regex]::Matches($cap, '(?m)^python .*--mode ')).Count
+    if ($n -ne 1) { throw "verifier ran $n times" }
 }
-Check 'still only one wake request' {
-    $n = ([regex]::Matches($r.Capture, '(?m)^curl ')).Count
-    if ($n -ne 1) { throw "wake issued $n times" }
+Check '503, 503, 200 => one fingerprint per probe, in order, and activation on probe 3' {
+    $fp = @(Get-Fingerprints $r)
+    if ((($fp | ForEach-Object { $_.N }) -join ',') -ne '1,2,3') { throw "fingerprints for probes: $(($fp | ForEach-Object { $_.N }) -join ','); output:`n$($r.Output)" }
+    foreach ($i in 0, 1) { if ($fp[$i].Rest -notmatch '^curl-exit=0 http=503 ') { throw "probe $($i + 1) fingerprint: $($fp[$i].Rest)" } }
+    if ($fp[2].Rest -notmatch '^curl-exit=0 http=200 ') { throw "probe 3 fingerprint: $($fp[2].Rest)" }
+    if ($r.Output -notmatch 'probe 3/5 returned HTTP 200: activation confirmed') { throw "activation not announced on probe 3:`n$($r.Output)" }
+    # Tests pass -WakeProbeIntervalSeconds 0: two intervals of the production 5s
+    # would put at least 10s between probe 1 and probe 3.
+    if (($fp[2].Utc - $fp[0].Utc).TotalSeconds -ge 8) { throw "the interval did not honour 0: $(($fp[2].Utc - $fp[0].Utc).TotalSeconds)s between probes 1 and 3" }
 }
-Check 'offers no override -- continuing is a fresh owner decision' {
+
+Write-Host 'Activation: curl timeout, 503, 200'
+$r = Invoke-Wrapper -Env (Probe-Env $good @(@{ EXIT = '28'; STATUS = '000'; BODY = 'none'; CT = 'none' }, @{ STATUS = '503' }, @{ STATUS = '200' }, @{ SENTINEL = '1' }))
+Check 'timeout (28/000), 503, 200 => exactly three probes, then the success path' {
+    if ($r.Exit -ne 0) { throw "exit $($r.Exit); output: $($r.Output)" }
+    Assert-ProbeCount $r 3
+    Assert-ProbesSound $r
+    $n = ([regex]::Matches($r.Capture, '(?m)^python .*--mode ')).Count
+    if ($n -ne 1) { throw "verifier ran $n times" }
+    $fp = @(Get-Fingerprints $r)
+    if ($fp.Count -ne 3 -or $fp[0].Rest -notmatch '^curl-exit=28 http=000 ') { throw "probe 1 was not recorded as a timeout; output:`n$($r.Output)" }
+}
+
+Write-Host 'Activation: five 503s exhaust the budget'
+$five503 = @(1..5 | ForEach-Object { @{ STATUS = '503' } }) + @(@{ STATUS = '200'; SENTINEL = '1' })
+$r = Invoke-Wrapper -Env (Probe-Env $good $five503)
+Check 'five 503s => exit 3 after exactly five probes, no replica wait, no verifier' {
+    # Call 6 would answer 200: a sixth probe would reach the verifier, and the
+    # stub records it as over budget and as a consumed sentinel.
+    if ($r.Exit -ne 3) { throw "exit $($r.Exit) (expected 3); output: $($r.Output)" }
+    Assert-ProbeCount $r 5
+    Assert-ProbesSound $r
+    Assert-NoReplicaWait $r
+    Assert-NoVerifier $r
+}
+Check 'exhaustion says the budget is spent and offers no override' {
+    if ($r.Output -notmatch '5 of 5 activation probes') { throw "exhaustion not reported:`n$($r.Output)" }
     if ($r.Output -notmatch 'no override') { throw "did not state that there is no override:`n$($r.Output)" }
+    if ($r.Output -match 'FAIL \(unhandled\)') { throw 'reached exit 3 through the trap, not the sequence' }
+    if (@(Get-Fingerprints $r).Count -ne 5) { throw 'expected five fingerprints' }
 }
-# --- Only an exact 200 may reach the verifier --------------------------------
+
+Write-Host 'Activation: five curl timeouts exhaust the budget'
+$fiveTimeouts = @(1..5 | ForEach-Object { @{ EXIT = '28'; STATUS = '000'; BODY = 'none'; CT = 'none' } }) + @(@{ STATUS = '200'; SENTINEL = '1' })
+$r = Invoke-Wrapper -Env (Probe-Env $good $fiveTimeouts)
+Check 'five timeouts => exit 3 after exactly five probes, no replica wait, no verifier' {
+    if ($r.Exit -ne 3) { throw "exit $($r.Exit) (expected 3); output: $($r.Output)" }
+    Assert-ProbeCount $r 5
+    Assert-ProbesSound $r
+    Assert-NoReplicaWait $r
+    Assert-NoVerifier $r
+}
+
+Write-Host 'Activation: mixed timeouts and 503s exhaust the budget'
+$mixed = @(@{ STATUS = '503' }, @{ EXIT = '28'; STATUS = '000' }, @{ STATUS = '503' }, @{ EXIT = '28'; STATUS = '000' }, @{ STATUS = '503' }, @{ STATUS = '200'; SENTINEL = '1' })
+$r = Invoke-Wrapper -Env (Probe-Env $good $mixed)
+Check '503, timeout, 503, timeout, 503 => exit 3 after exactly five probes, no verifier' {
+    if ($r.Exit -ne 3) { throw "exit $($r.Exit) (expected 3); output: $($r.Output)" }
+    Assert-ProbeCount $r 5
+    Assert-ProbesSound $r
+    Assert-NoReplicaWait $r
+    Assert-NoVerifier $r
+}
+
+Write-Host 'Activation: the first 200 ends the sequence'
+$r = Invoke-Wrapper -Env (Probe-Env $good @(@{ STATUS = '503' }, @{ STATUS = '200' }, @{ STATUS = '200'; SENTINEL = '1' }))
+Check '503, 200, <sentinel> => exactly two probes; the sentinel is never consumed' {
+    if ($r.Exit -ne 0) { throw "exit $($r.Exit); output: $($r.Output)" }
+    Assert-ProbeCount $r 2
+    Assert-ProbesSound $r
+}
+
+Write-Host 'Activation: the production interval is five seconds'
+$r = Invoke-Wrapper -Env (Probe-Env $good @(@{ STATUS = '503' }, @{ STATUS = '200' })) -DefaultInterval
+Check 'with -WakeProbeIntervalSeconds omitted, the second probe starts at least 5s after the first' {
+    if ($r.Exit -ne 0) { throw "exit $($r.Exit); output: $($r.Output)" }
+    Assert-ProbeCount $r 2
+    $fp = @(Get-Fingerprints $r)
+    if ($fp.Count -ne 2) { throw "expected two fingerprints; output:`n$($r.Output)" }
+    $gap = ($fp[1].Utc - $fp[0].Utc).TotalSeconds
+    if ($gap -lt 5) { throw "only $gap s between probe 1 and probe 2" }
+}
+# --- Only the recorded cold-start outcomes may lead to another probe ----------
 # One 503 case is not a pin. Review demonstrated bypasses that keep the suite
 # fully green while a non-200 proceeds: widening the comparison
 # (-notin @('200','502')), pattern-matching the status (-like '5*'), or gating
-# on something other than a declared parameter. Those all survive a test that
-# only ever sends 503. This sweeps the classes and asserts the same three
-# things for each: exit 3, no verifier, exactly one wake.
-$nonOk = @(
-    @{ Name = '000 (curl transport sentinel)'; Env = @{ STUB_WAKE_STATUS = '000' } },
-    @{ Name = 'empty status';                  Env = @{ STUB_CURL_EMPTY = '1' } },
-    @{ Name = '100 informational';             Env = @{ STUB_WAKE_STATUS = '100' } },
-    @{ Name = '201 non-200 success';           Env = @{ STUB_WAKE_STATUS = '201' } },
-    @{ Name = '204 non-200 success';           Env = @{ STUB_WAKE_STATUS = '204' } },
-    @{ Name = '301 redirect';                  Env = @{ STUB_WAKE_STATUS = '301' } },
-    @{ Name = '302 redirect';                  Env = @{ STUB_WAKE_STATUS = '302' } },
-    @{ Name = '400 bad request';               Env = @{ STUB_WAKE_STATUS = '400' } },
-    @{ Name = '404 not found';                 Env = @{ STUB_WAKE_STATUS = '404' } },
-    @{ Name = '429 throttled';                 Env = @{ STUB_WAKE_STATUS = '429' } },
-    @{ Name = '500 server error';              Env = @{ STUB_WAKE_STATUS = '500' } },
-    @{ Name = '502 bad gateway';               Env = @{ STUB_WAKE_STATUS = '502' } },
-    @{ Name = '503 unavailable';               Env = @{ STUB_WAKE_STATUS = '503' } },
-    @{ Name = '504 gateway timeout';           Env = @{ STUB_WAKE_STATUS = '504' } },
-    @{ Name = '307 temporary redirect';        Env = @{ STUB_WAKE_STATUS = '307' } },
-    @{ Name = '308 permanent redirect';        Env = @{ STUB_WAKE_STATUS = '308' } },
-    @{ Name = '401 unauthorized';              Env = @{ STUB_WAKE_STATUS = '401' } },
-    @{ Name = '403 forbidden';                 Env = @{ STUB_WAKE_STATUS = '403' } },
-    @{ Name = '405 method not allowed';        Env = @{ STUB_WAKE_STATUS = '405' } },
-    @{ Name = '407 proxy auth required';       Env = @{ STUB_WAKE_STATUS = '407' } },
-    @{ Name = '408 request timeout';           Env = @{ STUB_WAKE_STATUS = '408' } },
-    @{ Name = '501 not implemented';           Env = @{ STUB_WAKE_STATUS = '501' } },
-    @{ Name = '505 http version not supported'; Env = @{ STUB_WAKE_STATUS = '505' } }
+# on something other than a declared parameter. This sweeps every other class
+# on probe 1 -- HTTP statuses, transport failures, and metadata the wrapper
+# must refuse rather than repair -- and asserts, for each: exit 3, exactly one
+# probe, no replica wait, no verifier, no body file left. Call 2 is marked
+# never-to-be-issued and would answer 200, so a wrapper that probed again
+# would visibly reach the verifier.
+$ok = '0.012345:application/json'
+$nonRetryable = @(
+    @{ Name = '000 with curl exit 0';           Why = 'no override';           Call = @{ STATUS = '000' } },
+    @{ Name = '100 informational';              Why = 'no override';           Call = @{ STATUS = '100' } },
+    @{ Name = '201 non-200 success';            Why = 'no override';           Call = @{ STATUS = '201' } },
+    @{ Name = '204 non-200 success';            Why = 'no override';           Call = @{ STATUS = '204' } },
+    @{ Name = '301 redirect';                   Why = 'no override';           Call = @{ STATUS = '301' } },
+    @{ Name = '302 redirect';                   Why = 'no override';           Call = @{ STATUS = '302' } },
+    @{ Name = '307 temporary redirect';         Why = 'no override';           Call = @{ STATUS = '307' } },
+    @{ Name = '308 permanent redirect';         Why = 'no override';           Call = @{ STATUS = '308' } },
+    @{ Name = '400 bad request';                Why = 'no override';           Call = @{ STATUS = '400' } },
+    @{ Name = '401 unauthorized';               Why = 'no override';           Call = @{ STATUS = '401' } },
+    @{ Name = '403 forbidden';                  Why = 'no override';           Call = @{ STATUS = '403' } },
+    @{ Name = '404 not found';                  Why = 'no override';           Call = @{ STATUS = '404' } },
+    @{ Name = '405 method not allowed';         Why = 'no override';           Call = @{ STATUS = '405' } },
+    @{ Name = '407 proxy auth required';        Why = 'no override';           Call = @{ STATUS = '407' } },
+    @{ Name = '408 request timeout';            Why = 'no override';           Call = @{ STATUS = '408' } },
+    @{ Name = '429 throttled';                  Why = 'no override';           Call = @{ STATUS = '429' } },
+    @{ Name = '500 server error';               Why = 'no override';           Call = @{ STATUS = '500' } },
+    @{ Name = '501 not implemented';            Why = 'no override';           Call = @{ STATUS = '501' } },
+    @{ Name = '502 bad gateway';                Why = 'no override';           Call = @{ STATUS = '502' } },
+    @{ Name = '504 gateway timeout';            Why = 'no override';           Call = @{ STATUS = '504' } },
+    @{ Name = '505 http version not supported'; Why = 'no override';           Call = @{ STATUS = '505' } },
+    # 6/7/35 are hedged: a TLS-handshake failure (35) happens after a TCP
+    # connection to the ingress's TLS terminator, so "did not reach" alone
+    # would overstate it.
+    @{ Name = 'curl 6 DNS failure';             Why = 'probably did not reach the ingress as an HTTP request and was probably NOT consumed'; Call = @{ EXIT = '6'; STATUS = '000'; BODY = 'none'; CT = 'none' } },
+    @{ Name = 'curl 7 connect failure';         Why = 'probably did not reach the ingress as an HTTP request and was probably NOT consumed'; Call = @{ EXIT = '7'; STATUS = '000'; BODY = 'none'; CT = 'none' } },
+    @{ Name = 'curl 35 TLS handshake failure';  Why = 'probably did not reach the ingress as an HTTP request and was probably NOT consumed'; Call = @{ EXIT = '35'; STATUS = '000'; BODY = 'none'; CT = 'none' } },
+    @{ Name = 'curl 60 certificate failure';    Why = 'may be consumed';       Call = @{ EXIT = '60'; STATUS = '000'; BODY = 'none'; CT = 'none' } },
+    @{ Name = 'curl 52 empty reply';            Why = 'may be consumed';       Call = @{ EXIT = '52'; STATUS = '000'; BODY = 'none'; CT = 'none' } },
+    @{ Name = 'curl 56 receive failure';        Why = 'may be consumed';       Call = @{ EXIT = '56'; STATUS = '000' } },
+    @{ Name = 'curl 28 after a 200 status';     Why = 'may be consumed';       Call = @{ EXIT = '28'; STATUS = '200' } },
+    @{ Name = 'curl 28 after a 503 status';     Why = 'may be consumed';       Call = @{ EXIT = '28'; STATUS = '503' } },
+    @{ Name = 'curl 6 with no metadata';        Why = 'probably NOT consumed'; Call = @{ EXIT = '6'; META = 'none'; BODY = 'none' } },
+    @{ Name = 'curl 28 with no metadata';       Why = 'may be consumed';       Call = @{ EXIT = '28'; META = 'none'; BODY = 'none' } },
+    @{ Name = 'empty metadata';                 Why = 'well-formed';           Call = @{ META = 'none' } },
+    @{ Name = 'garbage metadata';               Why = 'well-formed';           Call = @{ META = 'garbage' } },
+    @{ Name = 'bare status (retired format)';   Why = 'well-formed';           Call = @{ META = '200' } },
+    @{ Name = 'metadata missing fields';        Why = 'well-formed';           Call = @{ META = 't89:200' } },
+    @{ Name = 'non-digit status';               Why = 'well-formed';           Call = @{ META = "t89:2OO:$ok" } },
+    @{ Name = 'out-of-domain status 999';       Why = 'well-formed';           Call = @{ META = "t89:999:$ok" } },
+    @{ Name = 'out-of-domain status 099';       Why = 'well-formed';           Call = @{ META = "t89:099:$ok" } },
+    @{ Name = 'redirect-shaped doubled status'; Why = 'well-formed';           Call = @{ META = "t89:301200:$ok" } },
+    @{ Name = 'comma decimal time';             Why = 'well-formed';           Call = @{ META = 't89:200:0,012345:application/json' } },
+    @{ Name = 'empty time';                     Why = 'well-formed';           Call = @{ META = 't89:200::application/json' } },
+    @{ Name = 'wrong record prefix';            Why = 'well-formed';           Call = @{ META = "T89:200:$ok" } },
+    @{ Name = 'two identical 200 records';      Why = 'well-formed';           Call = @{ META = "t89:200:$ok"; META2 = "t89:200:$ok" } },
+    @{ Name = 'redirect then 200 records';      Why = 'well-formed';           Call = @{ META = 't89:301:0.012345:text/html'; META2 = "t89:200:$ok" } },
+    @{ Name = '503 then 200 records';           Why = 'well-formed';           Call = @{ META = "t89:503:$ok"; META2 = "t89:200:$ok" } }
 )
-Write-Host 'Only an exact 200 may reach the verifier'
-foreach ($case in $nonOk) {
-    $e = $good.Clone()
-    foreach ($k in $case.Env.Keys) { $e[$k] = $case.Env[$k] }
-    $r = Invoke-Wrapper -Env $e
-    Check "$($case.Name) => exit 3, no verifier, exactly one wake" {
+Write-Host 'Everything but a 200, a 503 or a curl timeout stops after one probe'
+foreach ($case in $nonRetryable) {
+    $r = Invoke-Wrapper -Env (Probe-Env $good @($case.Call, @{ STATUS = '200'; SENTINEL = '1' }))
+    Check "$($case.Name) => exit 3, exactly one probe, no replica wait, no verifier" {
         if ($r.Exit -ne 3) { throw "exit $($r.Exit) (expected 3); output: $($r.Output)" }
-        if ($r.Capture -match '(?m)^python .*--mode ') { throw 'the verifier ran after a non-200 wake' }
-        $n = ([regex]::Matches($r.Capture, '(?m)^curl ')).Count
-        if ($n -ne 1) { throw "wake issued $n times, expected exactly 1" }
+        Assert-ProbeCount $r 1
+        Assert-ProbesSound $r
+        Assert-NoReplicaWait $r
+        Assert-NoVerifier $r
+        if ($r.Output -notmatch [regex]::Escape($case.Why)) { throw "the stop message did not say '$($case.Why)':`n$($r.Output)" }
+        if ($r.Output -match '(?<!probably )(did not|never) reach(ed)? the ingress') { throw "a stop message states unhedged that the request did not reach the ingress:`n$($r.Output)" }
+        if ($r.Output -match 'FAIL \(unhandled\)') { throw 'reached exit 3 through the trap, not the classified stop' }
+        if (@(Get-Fingerprints $r).Count -ne 1) { throw "expected one fingerprint; output:`n$($r.Output)" }
     }
+}
+
+Write-Host 'A non-retryable outcome later in the sequence stops at once'
+$r = Invoke-Wrapper -Env (Probe-Env $good @(@{ STATUS = '503' }, @{ STATUS = '404' }, @{ STATUS = '200'; SENTINEL = '1' }))
+Check '503 then 404 => exit 3 after exactly two probes, naming the probe and the earlier one' {
+    if ($r.Exit -ne 3) { throw "exit $($r.Exit) (expected 3); output: $($r.Output)" }
+    Assert-ProbeCount $r 2
+    Assert-ProbesSound $r
+    Assert-NoReplicaWait $r
+    Assert-NoVerifier $r
+    if ($r.Output -notmatch 'probe 2/5 returned HTTP 404') { throw "the stop did not name probe 2:`n$($r.Output)" }
+    if ($r.Output -notmatch 'The 1 earlier probe') { throw "the stop did not state that the earlier probe was issued:`n$($r.Output)" }
+}
+$r = Invoke-Wrapper -Env (Probe-Env $good @(@{ EXIT = '28'; STATUS = '000' }, @{ EXIT = '6'; STATUS = '000'; BODY = 'none' }, @{ STATUS = '200'; SENTINEL = '1' }))
+Check 'timeout then DNS failure => exit 3 after two probes; this probe probably unconsumed, the earlier one issued' {
+    if ($r.Exit -ne 3) { throw "exit $($r.Exit) (expected 3); output: $($r.Output)" }
+    Assert-ProbeCount $r 2
+    Assert-ProbesSound $r
+    Assert-NoVerifier $r
+    if ($r.Output -notmatch 'probe 2/5 failed in transport \(curl exit 6\)') { throw "the stop did not name probe 2:`n$($r.Output)" }
+    if ($r.Output -notmatch 'probably NOT consumed') { throw "did not flag this probe as probably unconsumed:`n$($r.Output)" }
+    if ($r.Output -notmatch 'The 1 earlier probe') { throw "did not state that the earlier probe was issued:`n$($r.Output)" }
+}
+
+# --- The per-probe fingerprint --------------------------------------------------
+# Each probe prints one bounded line of allowlisted metadata: enough to tell an
+# actuator-shaped response from anything else, never the response itself. Each
+# run below plays five probes (four retryable, then a 200) with a different
+# body or content type per probe, and compares every fingerprint EXACTLY, with
+# the SHA-256 computed here from the fixture bytes.
+function New-FingerprintCase {
+    param([string]$Status = '503', [string]$Exit = '0', [string]$Time = '0.012345', [string]$Ct = 'application/json', $Body, [switch]$NoBody,
+          [string]$Label, [string]$Class, [string]$Token, [switch]$Stderr)
+    # Assigned in each branch, not through an if-expression, which would unroll
+    # the array (and turn an empty one into $null).
+    if ($NoBody) { $bytes = [byte[]]@() } elseif ($Body -is [byte[]]) { $bytes = $Body } else { $bytes = Utf8 $Body }
+    $call = @{ STATUS = $Status; EXIT = $Exit; TIME = $Time; CT = $Ct }
+    if ($NoBody) { $call['BODY'] = 'none' } else { $call['BODY'] = New-BodyFixture $bytes }
+    if ($Stderr) { $call['STDERR'] = '1' }
+    $rest = "curl-exit=$Exit http=$Status duration-s=$Time content-type=$Label body-bytes=$($bytes.Length) body-sha256=$(Sha256Hex $bytes) body-class=$Class"
+    if ($Token) { $rest += " actuator-status=$Token" }
+    [pscustomobject]@{ Call = $call; Rest = $rest }
+}
+$fingerprintRuns = @(
+    @{ Name = 'actuator shapes, HTML, a timeout, a lowercase status'; Cases = @(
+        (New-FingerprintCase -Ct 'application/vnd.spring-boot.actuator.v3+json' -Body '{"status":"DOWN"}' -Time '56.374000' -Label 'application/*+json' -Class 'actuator-json' -Token 'DOWN'),
+        (New-FingerprintCase -Ct 'text/html; charset=utf-8' -Body '<html><body>upstream connect error SENTINEL-BODY-HTML-5f1c</body></html>' -Label 'text/html' -Class 'unclassified'),
+        (New-FingerprintCase -Exit '28' -Status '000' -Ct 'none' -NoBody -Time '30.001234' -Label 'unknown' -Class 'unclassified'),
+        (New-FingerprintCase -Ct 'TEXT/PLAIN' -Body '{"status":"down-SENTINEL-LOWER-9a7e"}' -Label 'text/plain' -Class 'actuator-json' -Token 'other' -Stderr),
+        (New-FingerprintCase -Status '200' -Ct 'application/json;charset=UTF-8' -Body '{"status":"UP","components":{"db":{"status":"UP","details":{"token":"SENTINEL-NESTED-3b2d"}}}}' -Label 'application/json' -Class 'actuator-json' -Token 'UP')
+    ) },
+    @{ Name = 'null, array, object and number statuses; a case-variant key'; Cases = @(
+        (New-FingerprintCase -Ct 'application/xml' -Body '{"status":null}' -Label 'other' -Class 'unclassified'),
+        (New-FingerprintCase -Ct 'application/problem+json' -Body '[{"status":"UP"}]' -Label 'application/*+json' -Class 'unclassified'),
+        (New-FingerprintCase -Ct 'text/plain' -Body '{"status":{"code":"UP"}}' -Label 'text/plain' -Class 'unclassified'),
+        (New-FingerprintCase -Ct 'application/json' -Body '{"status":42}' -Label 'application/json' -Class 'actuator-json' -Token 'other'),
+        (New-FingerprintCase -Status '200' -Ct 'none' -Body '{"Status":"UP"}' -Label 'unknown' -Class 'unclassified')
+    ) },
+    @{ Name = 'trailing newline, oversize token, boolean, non-JSON, invalid UTF-8'; Cases = @(
+        (New-FingerprintCase -Body '{"status":"DOWN\n"}' -Label 'application/json' -Class 'actuator-json' -Token 'other'),
+        (New-FingerprintCase -Body '{"status":"ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456"}' -Label 'application/json' -Class 'actuator-json' -Token 'other'),
+        (New-FingerprintCase -Body '{"status":true}' -Label 'application/json' -Class 'actuator-json' -Token 'other'),
+        (New-FingerprintCase -Ct 'application/vnd.sentinel-ct-77d0+json' -Body 'not json SENTINEL-NOTJSON-c41e {' -Label 'application/*+json' -Class 'unclassified'),
+        (New-FingerprintCase -Status '200' -Ct 'application/sentinel-ct-other-e19b' -Body ([byte[]]@(0xFF, 0xFE, 0x53, 0x45, 0x4E)) -Label 'other' -Class 'unclassified')
+    ) },
+    @{ Name = 'an empty body file and a 32-character token'; Cases = @(
+        (New-FingerprintCase -Body ([byte[]]@()) -Label 'application/json' -Class 'unclassified'),
+        (New-FingerprintCase -Status '200' -Body '{"status":"ABCDEFGHIJKLMNOPQRSTUVWXYZ012345"}' -Label 'application/json' -Class 'actuator-json' -Token 'ABCDEFGHIJKLMNOPQRSTUVWXYZ012345')
+    ) }
+)
+Write-Host 'Each probe prints an exact, allowlisted fingerprint'
+foreach ($run in $fingerprintRuns) {
+    $e = Probe-Env $good @($run.Cases | ForEach-Object { $_.Call })
+    $e['TASK8_9_ACCESS_TOKEN'] = 'sentinel-token-value'
+    $e['TASK8_9_DEMO_PASSWORD'] = 'sentinel-password-value'
+    $r = Invoke-Wrapper -Env $e
+    Check "fingerprints: $($run.Name)" {
+        if ($r.Exit -ne 0) { throw "exit $($r.Exit); output: $($r.Output)" }
+        Assert-ProbeCount $r $run.Cases.Count
+        Assert-ProbesSound $r
+        $fp = @(Get-Fingerprints $r)
+        if ($fp.Count -ne $run.Cases.Count) { throw "expected $($run.Cases.Count) fingerprints, found $($fp.Count); output:`n$($r.Output)" }
+        for ($i = 0; $i -lt $fp.Count; $i++) {
+            if ($fp[$i].N -ne $i + 1) { throw "fingerprint $i is for probe $($fp[$i].N)" }
+            if ($fp[$i].Rest -cne $run.Cases[$i].Rest) { throw "probe $($i + 1) fingerprint is:`n  $($fp[$i].Rest)`nexpected:`n  $($run.Cases[$i].Rest)" }
+        }
+    }
+    Check "non-disclosure: $($run.Name)" {
+        # Nothing from a response may reach the transcript except the allowlisted
+        # labels: no body text, no raw content type, no temporary path (curl's
+        # own stderr names it), no credential.
+        if ($r.Probes.Count -ne $run.Cases.Count -or @(Get-Fingerprints $r).Count -ne $run.Cases.Count) { throw 'the run did not issue and fingerprint every probe, so non-disclosure is unproven' }
+        foreach ($t in @($r.Output, $r.Capture)) {
+            if ($t -match '(?i)sentinel-(body|lower|nested|notjson|ct|token-value|password-value)') { throw "a sentinel reached the output or capture: $($Matches[0])" }
+        }
+        if ($r.Output -match '(?i)charset|vnd\.|problem\+json|application/xml|stub-injected|t89-wake-') { throw "raw response metadata or a temp path reached the output: $($Matches[0])" }
+        foreach ($b in $r.Bodies) { if ($r.Output.Contains($b)) { throw 'a body file path reached the output' } }
+        if ($r.Output -match '\{"|"status"') { throw 'response JSON reached the output' }
+    }
+}
+
+# --- Temporary body files ---------------------------------------------------------
+# Removal on a first-200, on exhaustion and on an immediate stop is asserted by
+# Assert-ProbesSound in the runs above. The two cases below need a directory the
+# test controls, so each points the wrapper's TMP at one with a restricted ACL:
+#   * no read-data: the body file exists but cannot be read, an unanticipated
+#     error inside the probe. It must still be removed, and exit 3.
+#   * no delete: the body file cannot be removed after a 200. That must stop
+#     the run with exit 3 before the replica wait -- a cleanup failure is never
+#     silently accepted -- and the path must not be printed.
+$me = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+function New-RestrictedTemp {
+    param([ValidateSet('NoReadData', 'NoDelete')][string]$Kind)
+    $d = Join-Path ([IO.Path]::GetTempPath()) "t89-acl-$([guid]::NewGuid().ToString('N'))"
+    New-Item -ItemType Directory -Path $d | Out-Null
+    $rights = if ($Kind -eq 'NoReadData') { '(OI)(CI)(WD,AD,REA,WEA,X,RA,WA,RC,WDAC,S,D,DC)' } else { '(OI)(CI)(RD,WD,AD,REA,WEA,X,RA,WA,RC,WDAC,S)' }
+    & icacls $d /inheritance:r /grant:r "*${me}:$rights" | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "icacls could not restrict $d (exit $LASTEXITCODE)" }
+    return $d
+}
+function Remove-RestrictedTemp {
+    # Restores access, returns the names of anything still inside, then deletes
+    # the directory.
+    param([string]$Dir)
+    & icacls $Dir /grant "*${me}:(OI)(CI)F" | Out-Null
+    & icacls $Dir /grant "*${me}:(OI)(CI)F" /T /C | Out-Null
+    $inside = @(Get-ChildItem -LiteralPath $Dir -Force -ErrorAction SilentlyContinue | ForEach-Object { $_.Name })
+    Remove-Item -LiteralPath $Dir -Recurse -Force -ErrorAction SilentlyContinue
+    , $inside
+}
+
+Write-Host 'An unanticipated error inside a probe still removes its body file'
+$aclDir = New-RestrictedTemp -Kind NoReadData
+$leftInDir = @('not-checked')
+try {
+    $r = Invoke-Wrapper -Env (Probe-Env $good @(@{ STATUS = '503' }, @{ STATUS = '200'; SENTINEL = '1' })) -TempDir $aclDir
+} finally { $leftInDir = Remove-RestrictedTemp $aclDir }
+Check 'an unreadable body file => exit 3 after one probe, file removed, details withheld' {
+    if ($r.Exit -ne 3) { throw "exit $($r.Exit) (expected 3); output: $($r.Output)" }
+    Assert-ProbeCount $r 1
+    Assert-NoReplicaWait $r
+    Assert-NoVerifier $r
+    if ($r.Output -notmatch 'internal error') { throw "the error was not reported as an internal probe error:`n$($r.Output)" }
+    if ($r.Output -match 'FAIL \(unhandled\)') { throw 'the error escaped the probe to the trap' }
+    if ($r.Output -match '(?i)t89-acl-|t89-wake-|denied') { throw "the error details or path reached the output:`n$($r.Output)" }
+    # Only body files count: Windows PowerShell itself may drop other files in
+    # its TMP directory.
+    $leftBodies = @($leftInDir | Where-Object { $_ -like 't89-wake-*' })
+    if ($r.Leftovers.Count -or $leftBodies.Count) { throw "the body file was left behind ($($r.Leftovers.Count) by path; in the directory: $($leftInDir -join ', '))" }
+    if ($r.Bodies.Count -ne 1) { throw "expected one body path, found $($r.Bodies.Count)" }
+}
+
+Write-Host 'A body file that cannot be removed stops the run, even after a 200'
+$aclDir = New-RestrictedTemp -Kind NoDelete
+try {
+    $r = Invoke-Wrapper -Env (Probe-Env $good @(@{ STATUS = '200' }, @{ STATUS = '200'; SENTINEL = '1' })) -TempDir $aclDir
+} finally { Remove-RestrictedTemp $aclDir | Out-Null }
+Check 'an unremovable body file after a 200 => exit 3, no replica wait, no verifier, path withheld' {
+    if ($r.Exit -ne 3) { throw "exit $($r.Exit) (expected 3); output: $($r.Output)" }
+    Assert-ProbeCount $r 1
+    Assert-NoReplicaWait $r
+    Assert-NoVerifier $r
+    if ($r.Output -notmatch 'could not be removed') { throw "the cleanup failure was not reported:`n$($r.Output)" }
+    if ($r.Output -match '(?i)t89-acl-|t89-wake-') { throw "the path reached the output:`n$($r.Output)" }
+    if ($r.Output -match 'activation confirmed') { throw 'announced activation despite the cleanup failure' }
+}
+
+# --- WakeProbeIntervalSeconds -------------------------------------------------------
+# A [string] on purpose: an [int] parameter fails binding with exit 1 under
+# -File for non-numeric input, before the script runs, and rounds 29.5. Every
+# invalid value must exit 2 before ANY child process -- the capture stays empty.
+$badIntervals = @(
+    @{ Name = 'negative';          V = '-1' },
+    @{ Name = 'above 30';          V = '31' },
+    @{ Name = 'far above 30';      V = '100' },
+    @{ Name = 'non-numeric';       V = 'abc' },
+    @{ Name = 'empty';             V = '""' },
+    @{ Name = 'fraction 5.0';      V = '5.0' },
+    @{ Name = 'fraction 29.5';     V = '29.5' },
+    @{ Name = 'leading space';     V = ' 5' },
+    @{ Name = 'trailing tab';      V = "5`t" },
+    @{ Name = 'plus sign';         V = '+5' },
+    @{ Name = 'leading zero';      V = '05' },
+    @{ Name = 'double zero';       V = '00' },
+    @{ Name = 'exponent';          V = '1e1' },
+    @{ Name = 'hex';               V = '0x1' }
+)
+Write-Host 'An invalid -WakeProbeIntervalSeconds is refused before any child process'
+foreach ($b in $badIntervals) {
+    $r = Invoke-Wrapper -Env $good.Clone() -Extra @('-WakeProbeIntervalSeconds', $b.V)
+    Check "-WakeProbeIntervalSeconds $($b.Name) => exit 2, no child process" {
+        if ($r.Exit -ne 2) { throw "exit $($r.Exit) (expected 2); output: $($r.Output)" }
+        if ($r.Capture -match '(?m)^(az|docker|curl|python)') { throw "a child process ran:`n$($r.Capture)" }
+        if ($r.Output -notmatch 'WakeProbeIntervalSeconds') { throw "did not name the parameter:`n$($r.Output)" }
+    }
+}
+$r = Invoke-Wrapper -Env $good.Clone() -Extra @('-WakeProbeIntervalSeconds', '30')
+Check '-WakeProbeIntervalSeconds 30 (the upper bound) is accepted' {
+    if ($r.Exit -ne 0) { throw "exit $($r.Exit); output: $($r.Output)" }
+    Assert-ProbeCount $r 1
 }
 
 Check 'every external command has its exit code classified' {
@@ -264,12 +703,13 @@ Check 'every external command has its exit code classified' {
         }
     }
 }
-# --- The wake decision, pinned through the AST --------------------------------
-# The invariant: the verifier may start only when exactly one invocation of the
-# authorized wake request used the fixed URL and fixed argument vector, exited
-# successfully, and returned exactly the scalar string '200'. No parameter,
-# environment value, configuration input, alternate function or surrounding
-# control flow may alter that decision.
+# --- The activation sequence, pinned through the AST ------------------------------
+# The invariant: the verifier may start only after a sequence of at most five
+# probes -- each the one authorized request, with the fixed URL, argument vector
+# and 30-second bound -- in which only an exact 503 or a curl timeout led to
+# another probe, and a probe returned exactly the scalar status '200'. No
+# parameter, environment value, configuration input, alternate function or
+# surrounding control flow may alter that decision.
 #
 # Earlier versions of these pins checked the SHAPE of one condition and were
 # defeated from just outside it: a variable pre-assigned before the check, the
@@ -279,11 +719,12 @@ Check 'every external command has its exit code classified' {
 # would not help either -- it fails on the same edits made one line outside the
 # pinned extent, and turns comment and formatting changes into security events.
 #
-# So the decision is built as one safety unit (see Invoke-AuthorizedWake in the
+# So the sequence is built as one safety unit (see Invoke-AuthorizedWake in the
 # wrapper), and the checks below are targeted regression guards over its
-# structure, not its spelling: they catch accidental drift -- a stray variable
-# reference, a second curl call, a decision that no longer exits -- that the
-# behavioural tests above might not surface.
+# structure, not its spelling: they catch accidental drift -- a sixth probe, a
+# widened retry set, a loop that carries on past a 200, a stray variable read,
+# a second curl call, a raw value printed -- that the behavioural tests above
+# might not surface.
 #
 # They are NOT proof against a deliberate adversarial rewrite, and are not meant
 # to be. A determined author can still edit inside the unit to pass these guards
@@ -309,14 +750,27 @@ function Target-Var {
     if ($Left -is [System.Management.Automation.Language.VariableExpressionAst]) { return $Left.VariablePath.UserPath }
     return $null
 }
+function Assignments-To {
+    # Every assignment to $Name under $Root, in source order.
+    param($Root, [string]$Name)
+    @(Find-Ast $Root { param($n) $n -is [System.Management.Automation.Language.AssignmentStatementAst] -and (Target-Var $n.Left) -eq $Name }.GetNewClosure())
+}
+function Is-Within {
+    param($Node, $Container)
+    if ($null -eq $Container) { return $false }
+    ($Node.Extent.StartOffset -ge $Container.Extent.StartOffset) -and ($Node.Extent.EndOffset -le $Container.Extent.EndOffset)
+}
+function Enclosing-If {
+    # The nearest if-statement around $Node.
+    param($Node)
+    $p = $Node.Parent
+    while ($null -ne $p -and -not ($p -is [System.Management.Automation.Language.IfStatementAst])) { $p = $p.Parent }
+    return $p
+}
 
 $unitDefs = @(Find-Ast $wrapperAst { param($n) $n -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -eq 'Invoke-AuthorizedWake' })
 $script:unit = if ($unitDefs.Count -eq 1) { $unitDefs[0] } else { $null }
-function Inside-Unit {
-    param($n)
-    if ($null -eq $script:unit) { return $false }
-    ($n.Extent.StartOffset -ge $script:unit.Extent.StartOffset) -and ($n.Extent.EndOffset -le $script:unit.Extent.EndOffset)
-}
+function Inside-Unit { param($n) Is-Within $n $script:unit }
 $wakeCalls = @(Find-Ast $wrapperAst { param($n) $n -is [System.Management.Automation.Language.CommandAst] -and $n.GetCommandName() -eq 'Invoke-AuthorizedWake' })
 $skipIfs = @(Find-Ast $wrapperAst { param($n) $n -is [System.Management.Automation.Language.IfStatementAst] -and (Norm $n.Clauses[0].Item1.Extent.Text) -eq '$SkipWake' })
 $wakeBranch = @($skipIfs | Where-Object { $null -ne $_.ElseClause })
@@ -327,8 +781,24 @@ $childCalls = @(Find-Ast $wrapperAst {
     $n.CommandElements[0] -is [System.Management.Automation.Language.VariableExpressionAst] -and
     @('AzCommand', 'DockerCommand', 'PythonCommand', 'Curl', 'CurlCommand') -contains $n.CommandElements[0].VariablePath.UserPath
 })
+# Every HTTP-client command, not just curl by name: PowerShell's own web
+# cmdlets and their aliases are counted too, so any of them makes the "only
+# curl call" count wrong. The forbidden-construct check below bans them outright.
+$curlCalls = @(Find-Ast $wrapperAst {
+    param($n)
+    $n -is [System.Management.Automation.Language.CommandAst] -and (
+        ($n.CommandElements[0] -is [System.Management.Automation.Language.VariableExpressionAst] -and
+         @('Curl', 'CurlCommand') -contains $n.CommandElements[0].VariablePath.UserPath) -or
+        ("$($n.GetCommandName())" -match '(?i)^((curl|wget)(\.exe)?|Invoke-WebRequest|iwr|Invoke-RestMethod|irm|Start-BitsTransfer)$'))
+})
+$unitLoops = @(Find-Ast $(if ($script:unit) { $script:unit.Body } else { $null }) { param($n) $n -is [System.Management.Automation.Language.LoopStatementAst] })
+$probeLoop = if ($unitLoops.Count -eq 1 -and $unitLoops[0] -is [System.Management.Automation.Language.ForStatementAst]) { $unitLoops[0] } else { $null }
+$probeTry = $null
+if ($probeLoop -and $curlCalls.Count -eq 1) {
+    $probeTry = @(@($probeLoop.Body.Statements) | Where-Object { $_ -is [System.Management.Automation.Language.TryStatementAst] -and (Is-Within $curlCalls[0] $_.Body) }) | Select-Object -First 1
+}
 
-Check 'the wake decision lives in exactly one safety unit, called once and alone from the non-SkipWake branch' {
+Check 'the activation sequence lives in exactly one safety unit, called once and alone from the non-SkipWake branch' {
     if ($wrapperErrs) { throw "wrapper does not parse: $($wrapperErrs[0].Message)" }
     if ($unitDefs.Count -ne 1) { throw "expected exactly one Invoke-AuthorizedWake definition, found $($unitDefs.Count)" }
     if ($wakeCalls.Count -ne 1) { throw "expected exactly one call to Invoke-AuthorizedWake, found $($wakeCalls.Count)" }
@@ -357,7 +827,7 @@ Check 'the wake decision lives in exactly one safety unit, called once and alone
     if (-not ($only -is [System.Management.Automation.Language.PipelineAst]) -or @($only.PipelineElements).Count -ne 1 -or -not [object]::ReferenceEquals($only.PipelineElements[0], $wakeCalls[0])) {
         throw "the else branch's only statement is not the bare wake call: $($only.Extent.Text)"
     }
-    if ((Norm $wakeCalls[0].Extent.Text) -cne 'Invoke-AuthorizedWake -Curl $CurlCommand') { throw "the wake call is '$($wakeCalls[0].Extent.Text)'" }
+    if ((Norm $wakeCalls[0].Extent.Text) -cne 'Invoke-AuthorizedWake -Curl $CurlCommand -IntervalSeconds $probeIntervalSeconds') { throw "the wake call is '$($wakeCalls[0].Extent.Text)'" }
 }
 
 Check '-SkipWake is refused before any child process unless all four commands are overridden' {
@@ -373,74 +843,250 @@ Check '-SkipWake is refused before any child process unless all four commands ar
     if ($fails.Count -ne 1 -or (Norm @($fails[0].CommandElements)[-1].Extent.Text) -ne '2') { throw 'the SkipWake guard must Fail with exit 2' }
 }
 
-Check 'the safety unit makes the only curl call, with exactly the fixed arguments and URL' {
-    $curlCalls = @(Find-Ast $wrapperAst {
-        param($n)
-        $n -is [System.Management.Automation.Language.CommandAst] -and (
-            ($n.CommandElements[0] -is [System.Management.Automation.Language.VariableExpressionAst] -and
-             @('Curl', 'CurlCommand') -contains $n.CommandElements[0].VariablePath.UserPath) -or
-            ("$($n.GetCommandName())" -match '(?i)^curl(\.exe)?$'))
-    })
-    if ($curlCalls.Count -ne 1) { throw "expected exactly one curl invocation in the script, found $($curlCalls.Count)" }
-    if (-not (Inside-Unit $curlCalls[0])) { throw 'the curl invocation is outside the safety unit' }
-    $actual = @($curlCalls[0].CommandElements | ForEach-Object { $_.Extent.Text })
-    $expected = @('$Curl', '-q', '-sS', '-o', 'NUL', '-w', "'%{http_code}'", "'https://api.vibhanshu-ai-portfolio.dev/actuator/health'")
-    if (($actual -join ' ') -cne ($expected -join ' ')) { throw "curl argument vector is: $($actual -join ' ')" }
-    $ps = @($script:unit.Body.ParamBlock.Parameters)
-    if ($ps.Count -ne 1 -or $ps[0].Name.VariablePath.UserPath -ne 'Curl' -or $ps[0].StaticType -ne [string]) {
-        throw 'the safety unit must take exactly one [string]$Curl parameter'
+Check 'WakeProbeIntervalSeconds defaults to 5, is validated before any child process, and only the validated integer reaches the unit' {
+    $param = @($wrapperAst.ParamBlock.Parameters | Where-Object { $_.Name.VariablePath.UserPath -eq 'WakeProbeIntervalSeconds' })
+    if ($param.Count -ne 1) { throw 'no WakeProbeIntervalSeconds parameter' }
+    if ($null -eq $param[0].DefaultValue -or $param[0].DefaultValue.Extent.Text -cne "'5'") { throw "the default is not the literal '5'" }
+    $pattern = "-not [regex]::IsMatch(`$WakeProbeIntervalSeconds, '\A(?:[0-9]|[12][0-9]|30)\z')"
+    $guards = @(Find-Ast $wrapperAst { param($n) $n -is [System.Management.Automation.Language.IfStatementAst] -and (Norm $n.Clauses[0].Item1.Extent.Text) -ceq $pattern }.GetNewClosure())
+    if ($guards.Count -ne 1) { throw "expected exactly one interval validation reading exactly '$pattern', found $($guards.Count)" }
+    $g = $guards[0]
+    if ($g.Clauses.Count -ne 1 -or $null -ne $g.ElseClause) { throw 'the interval validation has extra clauses' }
+    $last = @($g.Clauses[0].Item2.Statements)[-1]
+    $failCall = if ($last -is [System.Management.Automation.Language.PipelineAst]) { @($last.PipelineElements)[0] } else { $null }
+    if (-not ($failCall -is [System.Management.Automation.Language.CommandAst]) -or $failCall.GetCommandName() -ne 'Fail' -or (Norm @($failCall.CommandElements)[-1].Extent.Text) -ne '2') {
+        throw 'the interval validation must end in Fail with exit 2'
     }
+    if (@($childCalls | Where-Object { $_.Extent.StartOffset -lt $g.Extent.StartOffset -and -not (Inside-Unit $_) }).Count) { throw 'a child process can run before the interval validation' }
+    if ($wakeBranch.Count -ne 1 -or $g.Extent.EndOffset -gt $wakeBranch[0].Extent.StartOffset) { throw 'the interval validation must precede the wake branch' }
+    $refs = @(Find-Ast $wrapperAst { param($n) $n -is [System.Management.Automation.Language.VariableExpressionAst] -and $n.VariablePath.UserPath -eq 'WakeProbeIntervalSeconds' })
+    if ($refs.Count -ne 3) { throw "`$WakeProbeIntervalSeconds must be read only by its declaration, the validation and the conversion; found $($refs.Count) references" }
+    $asg = @(Assignments-To $wrapperAst 'probeIntervalSeconds')
+    if ($asg.Count -ne 1 -or (Norm $asg[0].Right.Extent.Text) -cne '[int]$WakeProbeIntervalSeconds') { throw '$probeIntervalSeconds must be assigned exactly once, from [int]$WakeProbeIntervalSeconds' }
+    if ($asg[0].Extent.StartOffset -lt $g.Extent.EndOffset -or -not [object]::ReferenceEquals($asg[0].Parent, $g.Parent)) { throw 'the conversion must follow the validation, unconditionally, in the same block' }
+    $uses = @(Find-Ast $wrapperAst { param($n) $n -is [System.Management.Automation.Language.VariableExpressionAst] -and $n.VariablePath.UserPath -eq 'probeIntervalSeconds' })
+    if ($uses.Count -ne 2) { throw "`$probeIntervalSeconds must be assigned once and read only by the wake call; found $($uses.Count) references" }
+    if (@(Find-Ast $wrapperAst { param($n) $n -is [System.Management.Automation.Language.VariableExpressionAst] -and $n.VariablePath.UserPath -eq 'IntervalSeconds' } | Where-Object { -not (Inside-Unit $_) }).Count) {
+        throw '$IntervalSeconds is referenced outside the safety unit'
+    }
+    $sleeps = @(Find-Ast $script:unit { param($n) $n -is [System.Management.Automation.Language.CommandAst] -and $n.GetCommandName() -eq 'Start-Sleep' })
+    if ($sleeps.Count -ne 1 -or (Norm $sleeps[0].Extent.Text) -cne 'Start-Sleep -Seconds $IntervalSeconds') { throw 'the unit must contain exactly one Start-Sleep -Seconds $IntervalSeconds' }
+    $sleepIf = Enclosing-If $sleeps[0]
+    if ($null -eq $sleepIf -or (Norm $sleepIf.Clauses[0].Item1.Extent.Text) -cne '$probe -gt 1' -or -not (Is-Within $sleepIf $probeLoop)) { throw 'the interval must be slept only between probes, inside the probe loop' }
 }
 
-Check 'every decision in the safety unit ends in a direct exit 3 that nothing can intercept' {
-    $top = @($script:unit.Body.EndBlock.Statements | Where-Object { $_ -is [System.Management.Automation.Language.IfStatementAst] })
-    $conds = @($top | ForEach-Object { Norm $_.Clauses[0].Item1.Extent.Text })
-    $expected = @('$wakeCurlExit -ne 0', '-not ($wakeStatus -is [string]) -or $wakeStatus.Length -eq 0', "`$wakeStatus -cne '200'")
-    if (($conds -join ' | ') -cne ($expected -join ' | ')) {
-        throw "safety-unit decisions are, in order:`n  $($conds -join "`n  ")`nexpected exactly:`n  $($expected -join "`n  ")"
+Check 'the safety unit makes the only curl call, with exactly the fixed arguments, URL, proxy bypass and 30-second bound' {
+    if ($curlCalls.Count -ne 1) { throw "expected exactly one HTTP-client invocation (the curl call) in the script, found $($curlCalls.Count)" }
+    $c = $curlCalls[0]
+    if (-not (Inside-Unit $c)) { throw 'the curl invocation is outside the safety unit' }
+    $actual = @($c.CommandElements | ForEach-Object { $_.Extent.Text })
+    $expected = @('$Curl', '-q', '--noproxy', "'*'", '-sS', '-o', '$bodyPath', '-w', "'t89:%{http_code}:%{time_total}:%{content_type}'", '--max-time', '30', "'https://api.vibhanshu-ai-portfolio.dev/actuator/health'")
+    if (($actual -join ' ') -cne ($expected -join ' ')) { throw "curl argument vector is: $($actual -join ' ')" }
+    # -q first; --noproxy immediately after it; its value exactly one
+    # single-quoted literal '*' (a constant PowerShell passes as the character
+    # itself, not a variable, an expandable string or a host list).
+    $els = @($c.CommandElements)
+    if ($els.Count -lt 4) { throw 'the curl call has too few elements' }
+    if (-not ($els[1] -is [System.Management.Automation.Language.CommandParameterAst]) -or $els[1].Extent.Text -cne '-q') { throw "curl's first argument is not the literal -q: $($els[1].Extent.Text)" }
+    # PowerShell parses --noproxy as a bare-word string constant, not a parameter.
+    if (-not ($els[2] -is [System.Management.Automation.Language.StringConstantExpressionAst]) -or $els[2].StringConstantType -ne [System.Management.Automation.Language.StringConstantType]::BareWord -or $els[2].Value -cne '--noproxy') { throw "the argument after -q is not the literal --noproxy: $($els[2].Extent.Text)" }
+    $np = $els[3]
+    if (-not ($np -is [System.Management.Automation.Language.StringConstantExpressionAst]) -or $np.StringConstantType -ne [System.Management.Automation.Language.StringConstantType]::SingleQuoted -or $np.Value -cne '*') {
+        throw "the --noproxy value is not the single-quoted literal '*': $($np.Extent.Text)"
     }
-    foreach ($i in $top) {
-        if ($i.Clauses.Count -ne 1 -or $null -ne $i.ElseClause) { throw "decision '$(Norm $i.Clauses[0].Item1.Extent.Text)' has extra clauses" }
-        $last = @($i.Clauses[0].Item2.Statements)[-1]
-        if (-not ($last -is [System.Management.Automation.Language.ExitStatementAst]) -or (Norm $last.Pipeline.Extent.Text) -ne '3') {
-            throw "decision '$(Norm $i.Clauses[0].Item1.Extent.Text)' does not end in a direct exit 3"
-        }
-    }
-    foreach ($kind in @('ReturnStatementAst', 'TrapStatementAst', 'TryStatementAst', 'FunctionDefinitionAst', 'BreakStatementAst', 'ContinueStatementAst', 'ScriptBlockExpressionAst')) {
+    if (@($els | Where-Object { $_.Extent.Text -ceq '--noproxy' }).Count -ne 1) { throw '--noproxy appears more than once' }
+    # curl's stderr is discarded: on a local write failure it names the body file.
+    $redirs = @($c.Redirections | ForEach-Object { Norm $_.Extent.Text })
+    if (($redirs -join ' | ') -cne '2>$null') { throw "curl redirections are: '$($redirs -join ' | ')'" }
+    $ps = @($script:unit.Body.ParamBlock.Parameters | ForEach-Object { '{0}:{1}' -f $_.Name.VariablePath.UserPath, $_.StaticType.Name })
+    if (($ps -join ',') -cne 'Curl:String,IntervalSeconds:Int32') { throw "the safety unit parameters are '$($ps -join ',')', expected exactly [string]`$Curl and [int]`$IntervalSeconds" }
+    # The call's output is the metadata record, and its exit code is read on
+    # the very next statement.
+    $asg = $c.Parent.Parent
+    if (-not ($asg -is [System.Management.Automation.Language.AssignmentStatementAst]) -or (Target-Var $asg.Left) -ne 'probeMeta') { throw 'the curl output is not assigned directly to $probeMeta' }
+    $siblings = @($asg.Parent.Statements)
+    $idx = [array]::IndexOf($siblings, $asg)
+    if ($idx -lt 0 -or $idx + 1 -ge $siblings.Count -or (Norm $siblings[$idx + 1].Extent.Text) -cne '$probeExit = $LASTEXITCODE') { throw 'the curl exit code is not read on the statement after the call' }
+    $bp = @(Assignments-To $wrapperAst 'bodyPath')
+    $wantPath = "Join-Path ([IO.Path]::GetTempPath()) ('t89-wake-' + [guid]::NewGuid().ToString('N') + '.body')"
+    if ($bp.Count -ne 1 -or (Norm $bp[0].Right.Extent.Text) -cne $wantPath) { throw "`$bodyPath must be assigned exactly once, to a fresh generated temp path" }
+    if (-not (Is-Within $bp[0] $probeLoop) -or $bp[0].Extent.StartOffset -gt $c.Extent.StartOffset) { throw 'the body path must be generated inside the probe loop, before the call, so each probe gets a fresh file' }
+}
+
+Check 'the probe budget is a literal five, in one bounded loop holding the only curl call' {
+    if ($null -eq $probeLoop) { throw "the unit must contain exactly one loop, a for loop; found $($unitLoops.Count) loop(s)" }
+    $f = $probeLoop
+    $header = "for ($(Norm $f.Initializer.Extent.Text); $(Norm $f.Condition.Extent.Text); $(Norm $f.Iterator.Extent.Text))"
+    if ($header -cne 'for ($probe = 1; $probe -le 5; $probe++)') { throw "the loop header is '$header'" }
+    if (-not ([object]::ReferenceEquals($f.Parent, $script:unit.Body.EndBlock))) { throw 'the probe loop is not a top-level statement of the unit' }
+    if ($curlCalls.Count -ne 1 -or -not (Is-Within $curlCalls[0] $f.Body)) { throw 'the curl call is not inside the probe loop' }
+    $writes = @(Find-Ast $wrapperAst {
+        param($n)
+        ($n -is [System.Management.Automation.Language.AssignmentStatementAst] -and (Target-Var $n.Left) -eq 'probe') -or
+        ($n -is [System.Management.Automation.Language.UnaryExpressionAst] -and $n.Child -is [System.Management.Automation.Language.VariableExpressionAst] -and $n.Child.VariablePath.UserPath -eq 'probe')
+    })
+    if ($writes.Count -ne 2) { throw "`$probe must be written only by the loop header; found $($writes.Count) writes" }
+    foreach ($kind in @('BreakStatementAst', 'ContinueStatementAst', 'TrapStatementAst', 'FunctionDefinitionAst', 'ScriptBlockExpressionAst', 'SwitchStatementAst')) {
         $t = [type]"System.Management.Automation.Language.$kind"
         if (@(Find-Ast $script:unit.Body { param($n) $n -is $t }.GetNewClosure()).Count) { throw "the safety unit contains a $kind" }
     }
-    if (@(Find-Ast $script:unit { param($n) $n -is [System.Management.Automation.Language.CommandAst] -and $n.GetCommandName() -eq 'Fail' }).Count) {
-        throw 'the safety unit calls Fail, which is ordinary code that could be redefined'
+    foreach ($name in @('Invoke-AuthorizedWake', 'Fail')) {
+        if (@(Find-Ast $script:unit { param($n) $n -is [System.Management.Automation.Language.CommandAst] -and $n.GetCommandName() -eq $name }.GetNewClosure()).Count) { throw "the safety unit calls $name" }
     }
-    $exits = @(Find-Ast $script:unit { param($n) $n -is [System.Management.Automation.Language.ExitStatementAst] })
-    if ($exits.Count -ne 3) { throw "expected exactly 3 exit statements in the safety unit, found $($exits.Count)" }
 }
 
-Check 'the safety unit reads only its own decision variables, each assigned once' {
-    $allowed = @('Curl', 'script:WakeIssued', 'wakeStatus', 'wakeCurlExit', 'LASTEXITCODE', 'true', 'false', 'null')
+Check 'only an exact 200 activates, only an exact 503 or a curl timeout probes again, and every other outcome exits 3' {
+    $decisions = @(Find-Ast $script:unit { param($n) $n -is [System.Management.Automation.Language.IfStatementAst] -and (Norm $n.Clauses[0].Item1.Extent.Text) -like '$probeExit -eq *' })
+    if ($decisions.Count -ne 1) { throw "expected exactly one outcome decision in the unit, found $($decisions.Count)" }
+    $d = $decisions[0]
+    $conds = @($d.Clauses | ForEach-Object { Norm $_.Item1.Extent.Text })
+    $expected = @(
+        "`$probeExit -eq 0 -and `$metaOk -and `$httpStatus -ceq '200'",
+        "`$probeExit -eq 0 -and `$metaOk -and `$httpStatus -ceq '503'",
+        "`$probeExit -eq 28 -and `$metaOk -and `$httpStatus -ceq '000'"
+    )
+    if (($conds -join ' | ') -cne ($expected -join ' | ')) { throw "the outcome decision is, in order:`n  $($conds -join "`n  ")`nexpected exactly:`n  $($expected -join "`n  ")" }
+    if ($null -eq $d.ElseClause) { throw 'the outcome decision has no else' }
+    if (-not (Is-Within $d $probeTry.Body)) { throw 'the outcome decision is not inside the probe try block' }
+    $c1 = @($d.Clauses[0].Item2.Statements)
+    if ($c1.Count -ne 1 -or (Norm $c1[0].Extent.Text) -cne '$activated = $true') { throw 'the 200 branch must do exactly one thing: $activated = $true' }
+    foreach ($i in 1, 2) {
+        foreach ($s in @($d.Clauses[$i].Item2.Statements)) {
+            $cmd = if ($s -is [System.Management.Automation.Language.PipelineAst] -and @($s.PipelineElements).Count -eq 1) { $s.PipelineElements[0] } else { $null }
+            if (-not ($cmd -is [System.Management.Automation.Language.CommandAst]) -or $cmd.GetCommandName() -ne 'Write-Host') { throw "a retryable branch does more than report: $($s.Extent.Text)" }
+        }
+    }
+    $elseLast = @($d.ElseClause.Statements)[-1]
+    if (-not ($elseLast -is [System.Management.Automation.Language.ExitStatementAst]) -or (Norm $elseLast.Pipeline.Extent.Text) -ne '3') { throw 'the else branch does not end in a direct exit 3' }
+    # The decision inputs are assigned only where the metadata record is parsed.
+    $pinned = [ordered]@{
+        'probeExit'  = @('$LASTEXITCODE')
+        'metaOk'     = @('$false', '$true')
+        'httpStatus' = @("'invalid'", '$record.Groups[1].Value')
+        'activated'  = @('$false', '$true')
+        'record'     = @("[regex]::Match(`$probeMeta, '\At89:(000|[1-5][0-9][0-9]):([0-9]{1,6}\.[0-9]{1,6}):([^\r\n]*)\z')")
+    }
+    foreach ($v in $pinned.Keys) {
+        $rhs = @(Assignments-To $wrapperAst $v | ForEach-Object { Norm $_.Right.Extent.Text })
+        if (($rhs -join ' | ') -cne ($pinned[$v] -join ' | ')) { throw "`$$v is assigned: $($rhs -join ' | ')" }
+    }
+    $recordAsg = @(Assignments-To $wrapperAst 'record')[0]
+    $recordIf = Enclosing-If $recordAsg
+    if ($null -eq $recordIf -or (Norm $recordIf.Clauses[0].Item1.Extent.Text) -cne '$probeMeta -is [string]') { throw 'the record is parsed only from a single [string] of metadata' }
+    foreach ($v in 'metaOk', 'httpStatus') {
+        $a = @(Assignments-To $wrapperAst $v)[1]
+        $i1 = Enclosing-If $a
+        if ($null -eq $i1 -or (Norm $i1.Clauses[0].Item1.Extent.Text) -cne '$record.Success' -or -not (Is-Within $i1 $recordIf)) { throw "`$$v takes its parsed value outside if (`$record.Success)" }
+    }
+}
+
+Check 'the first 200 returns at once, exhaustion and every stop exit 3, so no verifier starts without an exact 200' {
+    if ($null -eq $probeLoop -or $null -eq $probeTry) { throw 'no probe loop with a try around the curl call' }
+    $end = @($script:unit.Body.EndBlock.Statements)
+    $last = $end[-1]
+    if (-not ($last -is [System.Management.Automation.Language.ExitStatementAst]) -or (Norm $last.Pipeline.Extent.Text) -ne '3') { throw 'the unit does not end in exit 3 after the probe loop' }
+    $loopIdx = [array]::IndexOf($end, $probeLoop)
+    for ($i = $loopIdx + 1; $i -lt $end.Count - 1; $i++) {
+        $s = $end[$i]
+        $cmd = if ($s -is [System.Management.Automation.Language.PipelineAst]) { @($s.PipelineElements)[0] } else { $null }
+        if (-not ($cmd -is [System.Management.Automation.Language.CommandAst]) -or $cmd.GetCommandName() -ne 'Write-Host') { throw "something other than a report runs between exhaustion and exit 3: $($s.Extent.Text)" }
+    }
+    $returns = @(Find-Ast $script:unit { param($n) $n -is [System.Management.Automation.Language.ReturnStatementAst] })
+    if ($returns.Count -ne 1 -or $null -ne $returns[0].Pipeline) { throw "expected exactly one bare return in the unit, found $($returns.Count)" }
+    $ifAct = Enclosing-If $returns[0]
+    if ($null -eq $ifAct -or (Norm $ifAct.Clauses[0].Item1.Extent.Text) -cne '$activated' -or $ifAct.Clauses.Count -ne 1 -or $null -ne $ifAct.ElseClause) { throw 'the return is not inside a plain if ($activated)' }
+    if (-not [object]::ReferenceEquals(@($ifAct.Clauses[0].Item2.Statements)[-1], $returns[0])) { throw 'the return is not the last statement of if ($activated)' }
+    $body = @($probeLoop.Body.Statements)
+    if (-not [object]::ReferenceEquals($body[-1], $ifAct)) { throw 'if ($activated) must be the last statement of the probe loop' }
+    $stop = $body[-2]
+    if (-not ($stop -is [System.Management.Automation.Language.IfStatementAst]) -or (Norm $stop.Clauses[0].Item1.Extent.Text) -cne '$cleanupFailed' -or (Norm $stop.Clauses[0].Item2.Extent.Text) -cne '{ exit 3 }') { throw 'a cleanup failure must exit 3 immediately before the activation return' }
+    if (-not [object]::ReferenceEquals($body[-3], $probeTry)) { throw 'the probe try must immediately precede the cleanup stop' }
+    if (@($probeTry.CatchClauses).Count -ne 1 -or @($probeTry.CatchClauses[0].CatchTypes).Count -ne 0) { throw 'the probe try must have exactly one catch-all' }
+    $catchLast = @($probeTry.CatchClauses[0].Body.Statements)[-1]
+    if (-not ($catchLast -is [System.Management.Automation.Language.ExitStatementAst]) -or (Norm $catchLast.Pipeline.Extent.Text) -ne '3') { throw 'the catch-all does not end in exit 3' }
+    if ($null -eq $probeTry.Finally) { throw 'the probe try has no finally to remove the body file' }
+    $exits = @(Find-Ast $script:unit { param($n) $n -is [System.Management.Automation.Language.ExitStatementAst] })
+    if ($exits.Count -ne 4) { throw "expected exactly 4 exit statements in the unit (stop, internal error, cleanup failure, exhaustion), found $($exits.Count)" }
+    foreach ($x in $exits) { if ((Norm $x.Pipeline.Extent.Text) -ne '3') { throw "an exit in the unit is not exit 3: $($x.Extent.Text)" } }
+    foreach ($v in 'activated', 'cleanupFailed') {
+        $reset = @(Assignments-To $wrapperAst $v | Where-Object { (Norm $_.Right.Extent.Text) -eq '$false' })
+        if ($reset.Count -ne 1 -or -not [object]::ReferenceEquals($reset[0].Parent, $probeLoop.Body) -or $reset[0].Extent.StartOffset -gt $probeTry.Extent.StartOffset) { throw "`$$v must be reset once per probe, before the try" }
+    }
+    foreach ($a in @(Assignments-To $wrapperAst 'cleanupFailed' | Where-Object { (Norm $_.Right.Extent.Text) -eq '$true' })) {
+        if (-not (Is-Within $a $probeTry.Finally)) { throw '$cleanupFailed is set outside the finally' }
+    }
+    $rm = @(Find-Ast $probeTry.Finally { param($n) $n -is [System.Management.Automation.Language.CommandAst] -and $n.GetCommandName() -eq 'Remove-Item' })
+    if ($rm.Count -ne 1 -or (Norm $rm[0].Extent.Text) -cne 'Remove-Item -LiteralPath $bodyPath -Force -ErrorAction Stop') { throw 'the finally must remove the body file with Remove-Item -LiteralPath $bodyPath -Force -ErrorAction Stop' }
+    if (@(Find-Ast $wrapperAst { param($n) $n -is [System.Management.Automation.Language.CommandAst] -and $n.GetCommandName() -eq 'Remove-Item' }).Count -ne 1) { throw 'Remove-Item appears outside the probe cleanup' }
+}
+
+Check 'the safety unit prints only allowlisted values' {
+    # The fingerprint is diagnostic, not a transcript of the response. Strings the
+    # unit prints may interpolate only validated or allowlisted values; the raw
+    # metadata, body text, JSON, content type and temp path never appear in one.
+    $printable = @('probe', 'startedUtc', 'probeExit', 'httpStatus', 'duration', 'typeLabel', 'bodyBytes', 'bodySha', 'bodyClass', 'statusToken', 'earlier', '_')
+    foreach ($s in (Find-Ast $script:unit { param($n) $n -is [System.Management.Automation.Language.ExpandableStringExpressionAst] })) {
+        foreach ($v in (Find-Ast $s { param($n) $n -is [System.Management.Automation.Language.VariableExpressionAst] })) {
+            $name = $v.VariablePath.UserPath
+            if ($printable -notcontains $name) { throw "an output string interpolates `$${name}: $($s.Extent.Text)" }
+            $top = $v
+            while ($top.Parent -is [System.Management.Automation.Language.MemberExpressionAst]) { $top = $top.Parent }
+            if ($name -eq 'bodyBytes' -and (Norm $top.Extent.Text) -cne '$bodyBytes.Length') { throw "`$bodyBytes is interpolated as more than its length: $($top.Extent.Text)" }
+            if ($name -eq '_' -and (Norm $top.Extent.Text) -cne '$_.Exception.GetType().Name') { throw "the caught error is interpolated as more than its type name: $($top.Extent.Text)" }
+        }
+    }
+    foreach ($c in (Find-Ast $script:unit { param($n) $n -is [System.Management.Automation.Language.CommandAst] -and $n.GetCommandName() -eq 'Write-Host' })) {
+        $arg = @($c.CommandElements)[1]
+        $okArg = ($arg -is [System.Management.Automation.Language.StringConstantExpressionAst]) -or
+                 ($arg -is [System.Management.Automation.Language.ExpandableStringExpressionAst]) -or
+                 ($arg -is [System.Management.Automation.Language.VariableExpressionAst] -and $arg.VariablePath.UserPath -eq 'fingerprint')
+        if (-not $okArg) { throw "Write-Host prints something other than a string or the fingerprint: $($c.Extent.Text)" }
+    }
+    foreach ($a in (Assignments-To $script:unit 'fingerprint')) {
+        $expr = if ($a.Right -is [System.Management.Automation.Language.PipelineAst]) { @($a.Right.PipelineElements)[0] } else { $a.Right }
+        if (-not ($expr -is [System.Management.Automation.Language.CommandExpressionAst]) -or -not ($expr.Expression -is [System.Management.Automation.Language.ExpandableStringExpressionAst])) { throw "the fingerprint is built from something other than an interpolated string: $($a.Extent.Text)" }
+    }
+    $outputs = @('Write-Output', 'echo', 'write', 'Write-Error', 'Write-Warning', 'Write-Verbose', 'Write-Debug', 'Write-Information', 'Out-Host', 'Out-File', 'Out-Default', 'Out-String', 'Set-Content', 'Add-Content', 'Tee-Object')
+    foreach ($c in (Find-Ast $script:unit { param($n) $n -is [System.Management.Automation.Language.CommandAst] })) {
+        if ($outputs -contains "$($c.GetCommandName())") { throw "the unit writes through $($c.GetCommandName())" }
+    }
+    # A bare expression statement would reach the success stream and the
+    # transcript. Every statement-level pipeline must be a command from this list.
+    # (The body of a $(...) or @(...) is not statement-level: its value is an
+    # operand of the expression around it, and that expression's own statement
+    # is what this check sees.)
+    $statementCommands = @('Write-Host', 'Start-Sleep', 'Remove-Item')
+    foreach ($p in (Find-Ast $script:unit {
+        param($n)
+        $n -is [System.Management.Automation.Language.PipelineAst] -and
+        ($n.Parent -is [System.Management.Automation.Language.StatementBlockAst] -or $n.Parent -is [System.Management.Automation.Language.NamedBlockAst]) -and
+        -not ($n.Parent.Parent -is [System.Management.Automation.Language.SubExpressionAst] -or $n.Parent.Parent -is [System.Management.Automation.Language.ArrayExpressionAst])
+    })) {
+        $head = @($p.PipelineElements)[0]
+        if (-not ($head -is [System.Management.Automation.Language.CommandAst]) -or $statementCommands -notcontains "$($head.GetCommandName())") { throw "a statement in the unit could write to the success stream: $($p.Extent.Text)" }
+    }
+    if (@(Find-Ast $script:unit { param($n) $n -is [System.Management.Automation.Language.TypeExpressionAst] -and "$($n.TypeName.FullName)" -match '(?i)console' }).Count) { throw 'the unit uses [Console]' }
+}
+
+Check 'the safety unit reads only its own variables, and its decision variables are not used outside it' {
+    $allowed = @('Curl', 'IntervalSeconds', 'probe', 'bodyPath', 'activated', 'cleanupFailed', 'startedUtc', 'script:WakeIssued', 'probeMeta', 'probeExit', 'LASTEXITCODE',
+                 'metaOk', 'httpStatus', 'duration', 'typeLabel', 'record', 'media', 'bodyBytes', 'bodySha', 'bodyClass', 'statusToken', 'bodyText', 'bodyDoc',
+                 'statusProp', 'statusValue', 'fingerprint', 'earlier', 'true', 'false', 'null', '_')
     $vars = @(Find-Ast $script:unit { param($n) $n -is [System.Management.Automation.Language.VariableExpressionAst] } | ForEach-Object { $_.VariablePath.UserPath } | Sort-Object -Unique)
     $stray = @($vars | Where-Object { $allowed -notcontains $_ })
-    if ($stray.Count) { throw "the safety unit reads variables outside its own decision: $($stray -join ', ')" }
-    foreach ($v in @('wakeStatus', 'wakeCurlExit')) {
-        $asg = @(Find-Ast $wrapperAst { param($n) $n -is [System.Management.Automation.Language.AssignmentStatementAst] -and (Target-Var $n.Left) -eq $v }.GetNewClosure())
-        if ($asg.Count -ne 1) { throw "`$$v must be assigned exactly once, found $($asg.Count)" }
-        if (-not (Inside-Unit $asg[0])) { throw "`$$v is assigned outside the safety unit" }
-    }
-}
-
-Check 'the decision variables and wake target are not referenced or reassigned outside the safety unit' {
-    foreach ($v in @('wakeStatus', 'wakeCurlExit')) {
+    if ($stray.Count) { throw "the safety unit reads variables outside its own sequence: $($stray -join ', ')" }
+    foreach ($v in @('probeMeta', 'probeExit', 'httpStatus', 'metaOk', 'activated', 'record', 'bodyPath', 'cleanupFailed', 'probe', 'statusToken', 'bodyClass')) {
         $out = @(Find-Ast $wrapperAst { param($n) $n -is [System.Management.Automation.Language.VariableExpressionAst] -and $n.VariablePath.UserPath -eq $v }.GetNewClosure() | Where-Object { -not (Inside-Unit $_) })
         if ($out.Count) { throw "`$$v is referenced outside the safety unit" }
     }
     if (@(Find-Ast $wrapperAst { param($n) $n -is [System.Management.Automation.Language.AssignmentStatementAst] -and (Target-Var $n.Left) -eq 'CurlCommand' }).Count) {
-        throw '$CurlCommand is reassigned after binding, which could redirect the wake'
+        throw '$CurlCommand is reassigned after binding, which could redirect the probes'
     }
     $wi = @(Find-Ast $wrapperAst { param($n) $n -is [System.Management.Automation.Language.AssignmentStatementAst] -and (Target-Var $n.Left) -eq 'script:WakeIssued' })
     $inUnit = @($wi | Where-Object { Inside-Unit $_ })
     $outUnit = @($wi | Where-Object { -not (Inside-Unit $_) })
     if ($inUnit.Count -ne 1 -or (Norm $inUnit[0].Right.Extent.Text) -ne '$true') { throw 'the safety unit must set $script:WakeIssued = $true exactly once' }
+    if ($null -eq $probeTry -or -not (Is-Within $inUnit[0] $probeTry.Body) -or $inUnit[0].Extent.StartOffset -gt $curlCalls[0].Extent.StartOffset) { throw '$script:WakeIssued must be set inside the probe try, before the curl call' }
     if ($outUnit.Count -ne 1 -or (Norm $outUnit[0].Right.Extent.Text) -ne '$false') { throw '$script:WakeIssued must be initialised to $false exactly once outside the unit and set nowhere else' }
     $fns = @(Find-Ast $wrapperAst { param($n) $n -is [System.Management.Automation.Language.FunctionDefinitionAst] } | ForEach-Object { $_.Name } | Sort-Object)
     if (($fns -join ',') -cne 'Fail,Invoke-AuthorizedWake,Write-Step') { throw "function definitions are '$($fns -join ',')'; any other definition could shadow a guarded one" }
@@ -457,43 +1103,117 @@ Check 'Fail always exits with the code it is given' {
     }
 }
 
-Check 'the script forbids dynamic execution, alias or function replacement, and ambient input channels' {
+function Find-ForbiddenConstruct {
+    # The first forbidden construct under $Ast, as a message, or $null. A
+    # function rather than inline so the fidelity check below can prove it
+    # fires on each banned form, not merely that the wrapper has none.
+    #
+    # Network clients are banned alongside dynamic execution: the offline
+    # suite has no network sandbox, so a web cmdlet or .NET client added to the
+    # wrapper would reach the network unobserved. They are caught by command
+    # name, by type expression, and by type NAME in a string -- New-Object
+    # System.Net.WebClient, [type]'System.Net.WebClient', or a COM ProgID --
+    # plus the string-to-type routes ([type], [Activator], reflection). None of
+    # these is used by the wrapper.
+    param($Ast)
+    $bannedCmds = @('Invoke-Expression', 'iex', 'Set-Alias', 'New-Alias', 'sal', 'nal', 'Import-Alias', 'Set-Item', 'si', 'New-Item', 'ni',
+                    'Set-Variable', 'sv', 'New-Variable', 'nv', 'Clear-Variable', 'clv', 'Remove-Variable', 'rv', 'Start-Process', 'saps', 'start',
+                    'Invoke-Command', 'icm', 'Add-Type', 'Import-Module', 'ipmo', 'Invoke-Item', 'ii', 'Get-Item', 'gi', 'Get-ChildItem', 'gci', 'ls', 'dir',
+                    'Invoke-WebRequest', 'iwr', 'Invoke-RestMethod', 'irm', 'wget', 'curl', 'Start-BitsTransfer', 'Test-NetConnection', 'tnc',
+                    'Test-Connection', 'Resolve-DnsName', 'New-WebServiceProxy', 'Send-MailMessage', 'New-Object')
+    $allowedHeads = @('AzCommand', 'DockerCommand', 'PythonCommand', 'Curl', 'expr')
+    foreach ($c in (Find-Ast $Ast { param($n) $n -is [System.Management.Automation.Language.CommandAst] })) {
+        $head = $c.CommandElements[0]
+        if ($head -is [System.Management.Automation.Language.VariableExpressionAst]) {
+            if ($allowedHeads -notcontains $head.VariablePath.UserPath) { return "forbidden dynamic invocation: $($c.Extent.Text)" }
+        } elseif (-not ($head -is [System.Management.Automation.Language.StringConstantExpressionAst])) {
+            return "forbidden computed command: $($c.Extent.Text)"
+        } elseif ($bannedCmds -contains "$($c.GetCommandName())") {
+            return "forbidden command: $($c.GetCommandName())"
+        }
+    }
+    foreach ($s in (Find-Ast $Ast { param($n) $n -is [System.Management.Automation.Language.StringConstantExpressionAst] -or $n -is [System.Management.Automation.Language.ExpandableStringExpressionAst] })) {
+        if ("$($s.Value)" -match '(?i)\b(env|alias|function|variable):') { return "forbidden provider path in a string: $($s.Extent.Text)" }
+        if ("$($s.Value)" -match '(?i)((^|[^\w.])(System\.)?Net\.[a-z]|\b(WebClient|HttpClient|WebRequest|HttpWebRequest|TcpClient|UdpClient|XMLHTTP|ServerXMLHTTP|WinHttp\w*)\b)') { return "forbidden network type name in a string: $($s.Extent.Text)" }
+    }
+    foreach ($t in (Find-Ast $Ast { param($n) $n -is [System.Management.Automation.Language.TypeExpressionAst] -or $n -is [System.Management.Automation.Language.TypeConstraintAst] })) {
+        if ("$($t.TypeName.FullName)" -match '(?i)(^|\.)(Environment|ScriptBlock|PowerShell|Runspace\w*|SessionState\w*|Process)$') { return "forbidden type: [$($t.TypeName.FullName)]" }
+        if ("$($t.TypeName.FullName)" -match '(?i)(^|\.)(Net(\.\w+)*|WebClient|HttpClient|Sockets(\.\w+)*)$') { return "forbidden network type: [$($t.TypeName.FullName)]" }
+        if ("$($t.TypeName.FullName)" -match '(?i)(^|\.)(Type|Activator|Reflection(\.\w+)*)$') { return "forbidden string-to-type route: [$($t.TypeName.FullName)]" }
+    }
+    foreach ($m in (Find-Ast $Ast { param($n) $n -is [System.Management.Automation.Language.MemberExpressionAst] })) {
+        if ("$($m.Member.Extent.Text)" -match '(?i)^(InvokeScript|NewScriptBlock|Create|GetEnvironmentVariables?|ExpandEnvironmentVariables|SetEnvironmentVariable|Invoke|InvokeReturnAsIs|Start)$') {
+            return "forbidden member: $($m.Extent.Text)"
+        }
+    }
+    $bannedVars = @('args', 'PSBoundParameters', 'ExecutionContext', 'input', 'MyInvocation', 'PSCmdlet')
+    foreach ($v in (Find-Ast $Ast { param($n) $n -is [System.Management.Automation.Language.VariableExpressionAst] })) {
+        if ($bannedVars -contains $v.VariablePath.UserPath) { return "forbidden variable: `$$($v.VariablePath.UserPath)" }
+        if ($v.VariablePath.UserPath -match '(?i)^env:' -and @('env:TASK8_9_ACCESS_TOKEN', 'env:TASK8_9_DEMO_PASSWORD') -notcontains $v.VariablePath.UserPath) {
+            return "forbidden environment read: `$$($v.VariablePath.UserPath)"
+        }
+    }
+    return $null
+}
+
+Check 'the script forbids dynamic execution, alias or function replacement, network clients, and ambient input channels' {
     if (@($wrapperAst.ParamBlock.Attributes | ForEach-Object { $_.TypeName.Name }) -notcontains 'CmdletBinding') {
         throw '[CmdletBinding()] is absent, so unknown parameters would land in $args instead of being rejected'
     }
     if ($wrapperAst.Extent.Text -match '(?im)^\s*dynamicparam\b') { throw 'dynamicparam block present' }
-    $bannedCmds = @('Invoke-Expression', 'iex', 'Set-Alias', 'New-Alias', 'sal', 'nal', 'Import-Alias', 'Set-Item', 'si', 'New-Item', 'ni',
-                    'Set-Variable', 'sv', 'New-Variable', 'nv', 'Clear-Variable', 'clv', 'Remove-Variable', 'rv', 'Start-Process', 'saps', 'start',
-                    'Invoke-Command', 'icm', 'Add-Type', 'Import-Module', 'ipmo', 'Invoke-Item', 'ii', 'Get-Item', 'gi', 'Get-ChildItem', 'gci', 'ls', 'dir')
-    $allowedHeads = @('AzCommand', 'DockerCommand', 'PythonCommand', 'Curl', 'expr')
-    foreach ($c in (Find-Ast $wrapperAst { param($n) $n -is [System.Management.Automation.Language.CommandAst] })) {
-        $head = $c.CommandElements[0]
-        if ($head -is [System.Management.Automation.Language.VariableExpressionAst]) {
-            if ($allowedHeads -notcontains $head.VariablePath.UserPath) { throw "forbidden dynamic invocation: $($c.Extent.Text)" }
-        } elseif (-not ($head -is [System.Management.Automation.Language.StringConstantExpressionAst])) {
-            throw "forbidden computed command: $($c.Extent.Text)"
-        } elseif ($bannedCmds -contains "$($c.GetCommandName())") {
-            throw "forbidden command: $($c.GetCommandName())"
-        }
+    $found = Find-ForbiddenConstruct $wrapperAst
+    if ($found) { throw $found }
+}
+
+Check 'the forbidden-construct guard fires on every banned network form, and not on what the wrapper uses' {
+    # Fidelity for the guard above: a guard that never fires passes the wrapper
+    # just as well as one that works. Each snippet is only PARSED, never run.
+    # The fixtures use inert arguments -- no URL, nothing fetched or executed --
+    # because Windows Defender's AMSI scan blocks a script block that resembles
+    # a download cradle (an earlier draft of this list, with a download method
+    # call and an expression invoker, was blocked).
+    $banned = @(
+        "Invoke-WebRequest -Uri 'x'",
+        "iwr 'x'",
+        "Invoke-RestMethod 'x'",
+        "irm 'x'",
+        "wget 'x'",
+        "curl 'x'",
+        "Start-BitsTransfer -Source 'x' -Destination 'y'",
+        "Test-NetConnection 'example.invalid' -Port 443",
+        "Test-Connection 'example.invalid'",
+        "Resolve-DnsName 'example.invalid'",
+        "[System.Net.WebClient]::new()",
+        "[Net.WebClient]::new()",
+        "[System.Net.Http.HttpClient]::new()",
+        "[System.Net.Sockets.TcpClient]::new()",
+        "[Net.Dns]::GetHostName()",
+        "`$c = [System.Net.WebClient]`$null",
+        "New-Object System.Net.WebClient",
+        "New-Object -TypeName 'System.Net.WebClient'",
+        "([type]'System.Net.WebClient')::new()",
+        "'System.Net.WebClient' -as [type]",
+        "[Activator]::CreateInstance(`$t)",
+        "[System.Reflection.Assembly]::GetExecutingAssembly()",
+        "`$x = 'Net.WebClient'",
+        "New-Object -ComObject 'MSXML2.XMLHTTP'",
+        # Two of the pre-existing bans, so the refactor into a function is
+        # shown to have kept them.
+        "Set-Alias -Name x -Value y",
+        "[Environment]::GetEnvironmentVariable('X')"
+    )
+    foreach ($snippet in $banned) {
+        $e = $null
+        $snipAst = [System.Management.Automation.Language.Parser]::ParseInput($snippet, [ref]$null, [ref]$e)
+        if ($e) { throw "fixture does not parse: $snippet" }
+        if (-not (Find-ForbiddenConstruct $snipAst)) { throw "the guard did not fire on: $snippet" }
     }
-    foreach ($s in (Find-Ast $wrapperAst { param($n) $n -is [System.Management.Automation.Language.StringConstantExpressionAst] -or $n -is [System.Management.Automation.Language.ExpandableStringExpressionAst] })) {
-        if ("$($s.Value)" -match '(?i)\b(env|alias|function|variable):') { throw "forbidden provider path in a string: $($s.Extent.Text)" }
-    }
-    foreach ($t in (Find-Ast $wrapperAst { param($n) $n -is [System.Management.Automation.Language.TypeExpressionAst] -or $n -is [System.Management.Automation.Language.TypeConstraintAst] })) {
-        if ("$($t.TypeName.FullName)" -match '(?i)(^|\.)(Environment|ScriptBlock|PowerShell|Runspace\w*|SessionState\w*|Process)$') { throw "forbidden type: [$($t.TypeName.FullName)]" }
-    }
-    foreach ($m in (Find-Ast $wrapperAst { param($n) $n -is [System.Management.Automation.Language.MemberExpressionAst] })) {
-        if ("$($m.Member.Extent.Text)" -match '(?i)^(InvokeScript|NewScriptBlock|Create|GetEnvironmentVariables?|ExpandEnvironmentVariables|SetEnvironmentVariable|Invoke|InvokeReturnAsIs|Start)$') {
-            throw "forbidden member: $($m.Extent.Text)"
-        }
-    }
-    $bannedVars = @('args', 'PSBoundParameters', 'ExecutionContext', 'input', 'MyInvocation', 'PSCmdlet')
-    foreach ($v in (Find-Ast $wrapperAst { param($n) $n -is [System.Management.Automation.Language.VariableExpressionAst] })) {
-        if ($bannedVars -contains $v.VariablePath.UserPath) { throw "forbidden variable: `$$($v.VariablePath.UserPath)" }
-        if ($v.VariablePath.UserPath -match '(?i)^env:' -and @('env:TASK8_9_ACCESS_TOKEN', 'env:TASK8_9_DEMO_PASSWORD') -notcontains $v.VariablePath.UserPath) {
-            throw "forbidden environment read: `$$($v.VariablePath.UserPath)"
-        }
-    }
+    $allowed = "`$b = [IO.File]::ReadAllBytes('x'); `$h = (Get-FileHash -InputStream ([IO.MemoryStream]::new(`$b)) -Algorithm SHA256).Hash; `$t = [Text.UTF8Encoding]::new(`$false, `$true).GetString(`$b); `$d = ConvertFrom-Json -InputObject `$t -ErrorAction Stop; `$p = Join-Path ([IO.Path]::GetTempPath()) ('t89-wake-' + [guid]::NewGuid().ToString('N') + '.body'); Write-Host 'https://api.vibhanshu-ai-portfolio.dev/actuator/health'"
+    $e = $null
+    $okAst = [System.Management.Automation.Language.Parser]::ParseInput($allowed, [ref]$null, [ref]$e)
+    if ($e) { throw 'the allowed fixture does not parse' }
+    $found = Find-ForbiddenConstruct $okAst
+    if ($found) { throw "the guard fires on constructs the wrapper legitimately uses: $found" }
 }
 
 Check 'the verifier starts exactly once, and only after the wake decision' {
@@ -543,6 +1263,7 @@ Check 'the script exposes exactly the pinned parameter surface and reads only th
         'Target:String'
         'VerifierPath:String'
         'WakePath:String'
+        'WakeProbeIntervalSeconds:String'
         'Workspace:String'
     ) -join ','
     $actual = ($ast.ParamBlock.Parameters |
@@ -563,14 +1284,16 @@ Check 'the script exposes exactly the pinned parameter surface and reads only th
     }
 }
 
-Write-Host 'Wake transport failure after delivery'
-$e = $good.Clone(); $e['STUB_CURL_EXIT'] = '52'
-$r = Invoke-Wrapper -Env $e
-Check 'does not claim the wake was unconsumed, exits 3, runs nothing further' {
+Write-Host 'Probe transport failure after delivery'
+$r = Invoke-Wrapper -Env (Probe-Env $good @(@{ EXIT = '52'; STATUS = '000'; BODY = 'none' }, @{ STATUS = '200'; SENTINEL = '1' }))
+Check 'does not claim the probe was unconsumed, exits 3, runs nothing further' {
     if ($r.Output -match 'probably NOT consumed') { throw 'claimed unconsumed for a post-delivery curl exit' }
     if ($r.Output -notmatch 'may be consumed') { throw "did not flag possible consumption:`n$($r.Output)" }
+    if ($r.Output -notmatch 'probe 1/5 failed in transport \(curl exit 52\)') { throw "did not name the probe:`n$($r.Output)" }
+    if ($r.Output -match 'earlier probe') { throw 'claimed earlier probes on the first probe' }
     if ($r.Exit -ne 3) { throw "exit $($r.Exit)" }
-    if ($r.Capture -match '(?m)^python .*--mode ') { throw 'verifier ran after a transport failure' }
+    Assert-ProbeCount $r 1
+    Assert-NoVerifier $r
 }
 
 Write-Host 'No replica appears'
@@ -591,9 +1314,9 @@ Check 'does not run the verifier' {
     # the pre-wake '--help' probe is also a python line; only --mode is a real run
     if ($r.Capture -match '(?m)^python .*--mode ') { throw 'verifier ran without a replica' }
 }
-Check 'does not re-issue the wake' {
+Check 'does not re-issue the wake after a 200' {
     $n = ([regex]::Matches($r.Capture, '(?m)^curl ')).Count
-    if ($n -ne 1) { throw "wake issued $n times" }
+    if ($n -ne 1) { throw "probes issued $n times" }
 }
 
 Write-Host 'Two replicas, the first one ready'
@@ -695,13 +1418,14 @@ Check 'exits 3 and names the tooling fault rather than blaming scale-to-zero' {
     if ($r.Output -match 'FAIL \(unhandled\)') { throw 'crashed instead of reporting' }
 }
 
-Write-Host 'Wake transport failure before delivery (DNS)'
-$e = $good.Clone(); $e['STUB_CURL_EXIT'] = '6'
-$r = Invoke-Wrapper -Env $e
-Check 'reports the wake as probably NOT consumed, exits 3, runs nothing further' {
-    if ($r.Output -notmatch 'probably NOT consumed') { throw "output did not flag an unconsumed wake: $($r.Output)" }
+Write-Host 'Probe transport failure before delivery (DNS)'
+$r = Invoke-Wrapper -Env (Probe-Env $good @(@{ EXIT = '6'; STATUS = '000'; BODY = 'none' }, @{ STATUS = '200'; SENTINEL = '1' }))
+Check 'reports the probe as probably NOT consumed, exits 3, runs nothing further' {
+    if ($r.Output -notmatch 'probably NOT consumed') { throw "output did not flag an unconsumed probe: $($r.Output)" }
+    if ($r.Output -match 'earlier probe') { throw 'claimed earlier probes on the first probe' }
     if ($r.Exit -ne 3) { throw "exit $($r.Exit)" }
-    if ($r.Capture -match '(?m)^python .*--mode ') { throw 'verifier ran after a transport failure' }
+    Assert-ProbeCount $r 1
+    Assert-NoVerifier $r
 }
 
 Write-Host 'Unauthorized wake path is refused'
@@ -860,12 +1584,12 @@ foreach ($phase in $failAfterPhases) {
     }
 }
 
-Write-Host 'A wake that reports no status at all stops the run'
-$e = $good.Clone(); $e['STUB_CURL_EMPTY'] = '1'
-$r = Invoke-Wrapper -Env $e
-Check 'wake with no status code => exit 3, no verifier' {
+Write-Host 'A probe that reports no metadata at all stops the run'
+$r = Invoke-Wrapper -Env (Probe-Env $good @(@{ META = 'none' }, @{ STATUS = '200'; SENTINEL = '1' }))
+Check 'probe with no metadata record => exit 3, one probe, no verifier' {
     if ($r.Exit -ne 3) { throw "exit $($r.Exit) (expected 3); output: $($r.Output)" }
-    if ($r.Capture -match '(?m)^python .*--mode ') { throw 'the verifier ran on an unverified wake status' }
+    Assert-ProbeCount $r 1
+    Assert-NoVerifier $r
 }
 
 # --- the trap, and what it tells the operator about the wake -----------------
@@ -896,8 +1620,9 @@ Check 'an unhandled POST-wake error exits 3 and states the wake was consumed' {
     if ($r.Output -notmatch 'THE WAKE WAS ISSUED') {
         throw "did not state that the wake was consumed:`n$($r.Output)"
     }
+    # The sequence ended on its first 200, so exactly one probe was issued.
     $n = ([regex]::Matches($r.Capture, '(?m)^curl ')).Count
-    if ($n -ne 1) { throw "wake issued $n times" }
+    if ($n -ne 1) { throw "probes issued $n times" }
     if ($r.Capture -match '(?m)^python .*--mode ') { throw 'the verifier ran after an unhandled error' }
 }
 
@@ -916,40 +1641,125 @@ Write-Host 'The curl stub enforces the authorized argument vector'
 # enforcement is tested directly, case by case.
 $stubCurl = Join-Path $stubs 'stub_curl.cmd'
 $authUrl = 'https://api.vibhanshu-ai-portfolio.dev/actuator/health'
+$wOut = 't89:%{http_code}:%{time_total}:%{content_type}'
+# Each case gets a fresh generated body path, exactly as the wrapper makes one.
+$fresh = '<fresh>'
 $stubCases = @(
-    @{ Name = 'the authorized vector';         Ok = $true;  Args = @('-q', '-sS', '-o', 'NUL', '-w', '%{http_code}', $authUrl) },
-    @{ Name = 'a retry';                       Ok = $false; Args = @('-q', '-sS', '-o', 'NUL', '-w', '%{http_code}', '--retry', '3', $authUrl) },
-    @{ Name = 'a retry on all errors';         Ok = $false; Args = @('-q', '-sS', '-o', 'NUL', '-w', '%{http_code}', '--retry', '2', '--retry-all-errors', $authUrl) },
-    @{ Name = 'a redirect follow';             Ok = $false; Args = @('-q', '-sS', '-L', '-o', 'NUL', '-w', '%{http_code}', $authUrl) },
-    @{ Name = 'an altered -w';                 Ok = $false; Args = @('-q', '-sS', '-o', 'NUL', '-w', '200', $authUrl) },
-    @{ Name = 'an alternate URL';              Ok = $false; Args = @('-q', '-sS', '-o', 'NUL', '-w', '%{http_code}', 'https://api.vibhanshu-ai-portfolio.dev/api/portfolio/holdings') },
-    @{ Name = 'a second request in one call';  Ok = $false; Args = @('-q', '-sS', '-o', 'NUL', '-w', '%{http_code}', $authUrl, $authUrl) },
+    @{ Name = 'the authorized vector';         Ok = $true;  Args = @('-q', '--noproxy', '*', '-sS', '-o', $fresh, '-w', $wOut, '--max-time', '30', $authUrl) },
+    @{ Name = 'a retry';                       Ok = $false; Args = @('-q', '--noproxy', '*', '-sS', '-o', $fresh, '-w', $wOut, '--max-time', '30', '--retry', '3', $authUrl) },
+    @{ Name = 'a retry on all errors';         Ok = $false; Args = @('-q', '--noproxy', '*', '-sS', '-o', $fresh, '-w', $wOut, '--max-time', '30', '--retry', '2', '--retry-all-errors', $authUrl) },
+    @{ Name = 'a redirect follow';             Ok = $false; Args = @('-q', '--noproxy', '*', '-sS', '-L', '-o', $fresh, '-w', $wOut, '--max-time', '30', $authUrl) },
+    @{ Name = 'a redirect follow (long form)'; Ok = $false; Args = @('-q', '--noproxy', '*', '-sS', '-o', $fresh, '-w', $wOut, '--max-time', '30', '--location', $authUrl) },
+    @{ Name = 'an altered -w';                 Ok = $false; Args = @('-q', '--noproxy', '*', '-sS', '-o', $fresh, '-w', 't89:200:0.1:application/json', '--max-time', '30', $authUrl) },
+    @{ Name = 'the retired -w';                Ok = $false; Args = @('-q', '--noproxy', '*', '-sS', '-o', $fresh, '-w', '%{http_code}', '--max-time', '30', $authUrl) },
+    @{ Name = 'no --max-time';                 Ok = $false; Args = @('-q', '--noproxy', '*', '-sS', '-o', $fresh, '-w', $wOut, $authUrl) },
+    @{ Name = 'a longer --max-time';           Ok = $false; Args = @('-q', '--noproxy', '*', '-sS', '-o', $fresh, '-w', $wOut, '--max-time', '60', $authUrl) },
+    @{ Name = 'a second --max-time';           Ok = $false; Args = @('-q', '--noproxy', '*', '-sS', '-o', $fresh, '-w', $wOut, '--max-time', '30', '--max-time', '300', $authUrl) },
+    @{ Name = 'an alternate URL';              Ok = $false; Args = @('-q', '--noproxy', '*', '-sS', '-o', $fresh, '-w', $wOut, '--max-time', '30', 'https://api.vibhanshu-ai-portfolio.dev/api/portfolio/holdings') },
+    @{ Name = 'a second request in one call';  Ok = $false; Args = @('-q', '--noproxy', '*', '-sS', '-o', $fresh, '-w', $wOut, '--max-time', '30', $authUrl, $authUrl) },
     # -q must be FIRST, not merely present: curl only honours it as the very
     # first argument, so both "no -q at all" and "-q after another flag" must be
-    # refused -- otherwise an ambient curlrc could still inject retry/redirect.
-    @{ Name = 'no -q at all (ambient config enabled)'; Ok = $false; Args = @('-sS', '-o', 'NUL', '-w', '%{http_code}', $authUrl) },
-    @{ Name = '-q present but not first';      Ok = $false; Args = @('-sS', '-q', '-o', 'NUL', '-w', '%{http_code}', $authUrl) }
+    # refused -- otherwise a curl configuration file could still inject
+    # retry/redirect.
+    @{ Name = 'no -q at all (curl config files read)'; Ok = $false; Args = @('--noproxy', '*', '-sS', '-o', $fresh, '-w', $wOut, '--max-time', '30', $authUrl) },
+    @{ Name = '-q present but not first';      Ok = $false; Args = @('-sS', '-q', '--noproxy', '*', '-o', $fresh, '-w', $wOut, '--max-time', '30', $authUrl) },
+    # The body path is the one position that varies, and only to a fresh
+    # generated temp file.
+    @{ Name = 'the body sent to stdout (-o -)'; Ok = $false; Args = @('-q', '--noproxy', '*', '-sS', '-o', '-', '-w', $wOut, '--max-time', '30', $authUrl) },
+    @{ Name = 'no body capture (-o NUL)';      Ok = $false; Args = @('-q', '--noproxy', '*', '-sS', '-o', 'NUL', '-w', $wOut, '--max-time', '30', $authUrl) },
+    @{ Name = 'a body path outside the temp directory'; Ok = $false; Args = @('-q', '--noproxy', '*', '-sS', '-o', (Join-Path $repo "t89-wake-$([guid]::NewGuid().ToString('N')).body"), '-w', $wOut, '--max-time', '30', $authUrl) },
+    @{ Name = 'a body path with another name'; Ok = $false; Args = @('-q', '--noproxy', '*', '-sS', '-o', (Join-Path ([IO.Path]::GetTempPath()) "other-$([guid]::NewGuid().ToString('N')).body"), '-w', $wOut, '--max-time', '30', $authUrl) },
+    @{ Name = 'a body file that already exists'; Ok = $false; Existing = $true; Args = @('-q', '--noproxy', '*', '-sS', '-o', $fresh, '-w', $wOut, '--max-time', '30', $authUrl) },
+    # A TMP ending in a backslash. GetTempPath still returns exactly one
+    # trailing backslash, so the wrapper's generated path is unchanged and must
+    # be accepted -- and the directory comparison must not loosen into
+    # accepting another directory.
+    @{ Name = 'the authorized vector with a trailing-backslash TMP'; Ok = $true; TrailingTmp = $true; Args = @('-q', '--noproxy', '*', '-sS', '-o', $fresh, '-w', $wOut, '--max-time', '30', $authUrl) },
+    @{ Name = 'a body path outside the temp directory with a trailing-backslash TMP'; Ok = $false; TrailingTmp = $true; Args = @('-q', '--noproxy', '*', '-sS', '-o', (Join-Path $repo "t89-wake-$([guid]::NewGuid().ToString('N')).body"), '-w', $wOut, '--max-time', '30', $authUrl) },
+    @{ Name = 'a body path in a temp subdirectory with a trailing-backslash TMP'; Ok = $false; TrailingTmp = $true; Args = @('-q', '--noproxy', '*', '-sS', '-o', (Join-Path ([IO.Path]::GetTempPath()) "sub\t89-wake-$([guid]::NewGuid().ToString('N')).body"), '-w', $wOut, '--max-time', '30', $authUrl) },
+    # --noproxy '*' immediately after -q: -q skips curl's config files but not
+    # proxy environment variables, which only --noproxy '*' bypasses. Each
+    # removal, narrowing or move is refused under its own recorded reason.
+    @{ Name = '--noproxy removed';                     Ok = $false; Reason = 'noproxy'; Args = @('-q', '-sS', '-o', $fresh, '-w', $wOut, '--max-time', '30', $authUrl) },
+    @{ Name = '--noproxy narrowed to the gateway host'; Ok = $false; Reason = 'noproxy'; Args = @('-q', '--noproxy', 'api.vibhanshu-ai-portfolio.dev', '-sS', '-o', $fresh, '-w', $wOut, '--max-time', '30', $authUrl) },
+    @{ Name = '--noproxy narrowed to localhost';       Ok = $false; Reason = 'noproxy'; Args = @('-q', '--noproxy', 'localhost', '-sS', '-o', $fresh, '-w', $wOut, '--max-time', '30', $authUrl) },
+    @{ Name = '--noproxy with an empty list';          Ok = $false; Reason = 'noproxy'; Args = @('-q', '--noproxy', '""', '-sS', '-o', $fresh, '-w', $wOut, '--max-time', '30', $authUrl) },
+    @{ Name = '--noproxy *,x';                         Ok = $false; Reason = 'noproxy'; Args = @('-q', '--noproxy', '*,x', '-sS', '-o', $fresh, '-w', $wOut, '--max-time', '30', $authUrl) },
+    @{ Name = '--noproxy moved after -sS';             Ok = $false; Reason = 'noproxy'; Args = @('-q', '-sS', '--noproxy', '*', '-o', $fresh, '-w', $wOut, '--max-time', '30', $authUrl) },
+    @{ Name = '--noproxy moved to the end';            Ok = $false; Reason = 'noproxy'; Args = @('-q', '-sS', '-o', $fresh, '-w', $wOut, '--max-time', '30', $authUrl, '--noproxy', '*') },
+    @{ Name = 'a second --noproxy narrowing the first'; Ok = $false; Args = @('-q', '--noproxy', '*', '-sS', '--noproxy', 'localhost', '-o', $fresh, '-w', $wOut, '--max-time', '30', $authUrl) },
+    # Proxy and pre-proxy arguments, refused by name even with --noproxy '*' in
+    # place.
+    @{ Name = 'a proxy (-x)';                          Ok = $false; Reason = 'proxy argument'; Args = @('-q', '--noproxy', '*', '-sS', '-x', 'http://127.0.0.1:9', '-o', $fresh, '-w', $wOut, '--max-time', '30', $authUrl) },
+    @{ Name = 'a proxy in a short-option cluster (-sSx)'; Ok = $false; Reason = 'proxy argument'; Args = @('-q', '--noproxy', '*', '-sSx', 'http://127.0.0.1:9', '-o', $fresh, '-w', $wOut, '--max-time', '30', $authUrl) },
+    @{ Name = 'a proxy (--proxy)';                     Ok = $false; Reason = 'proxy argument'; Args = @('-q', '--noproxy', '*', '-sS', '--proxy', 'http://127.0.0.1:9', '-o', $fresh, '-w', $wOut, '--max-time', '30', $authUrl) },
+    @{ Name = 'a pre-proxy (--preproxy)';              Ok = $false; Reason = 'proxy argument'; Args = @('-q', '--noproxy', '*', '-sS', '--preproxy', 'socks5://127.0.0.1:9', '-o', $fresh, '-w', $wOut, '--max-time', '30', $authUrl) },
+    @{ Name = 'a SOCKS4 proxy (--socks4)';             Ok = $false; Reason = 'proxy argument'; Args = @('-q', '--noproxy', '*', '-sS', '--socks4', '127.0.0.1:9', '-o', $fresh, '-w', $wOut, '--max-time', '30', $authUrl) },
+    @{ Name = 'a SOCKS4a proxy (--socks4a)';           Ok = $false; Reason = 'proxy argument'; Args = @('-q', '--noproxy', '*', '-sS', '--socks4a', '127.0.0.1:9', '-o', $fresh, '-w', $wOut, '--max-time', '30', $authUrl) },
+    @{ Name = 'a SOCKS5 proxy (--socks5)';             Ok = $false; Reason = 'proxy argument'; Args = @('-q', '--noproxy', '*', '-sS', '--socks5', '127.0.0.1:9', '-o', $fresh, '-w', $wOut, '--max-time', '30', $authUrl) },
+    @{ Name = 'a SOCKS5 proxy (--socks5-hostname)';    Ok = $false; Reason = 'proxy argument'; Args = @('-q', '--noproxy', '*', '-sS', '--socks5-hostname', '127.0.0.1:9', '-o', $fresh, '-w', $wOut, '--max-time', '30', $authUrl) },
+    @{ Name = 'proxy credentials (-U)';                Ok = $false; Reason = 'proxy argument'; Args = @('-q', '--noproxy', '*', '-sS', '-U', 'u:p', '-o', $fresh, '-w', $wOut, '--max-time', '30', $authUrl) },
+    @{ Name = 'proxy credentials (--proxy-user)';      Ok = $false; Reason = 'proxy argument'; Args = @('-q', '--noproxy', '*', '-sS', '--proxy-user', 'u:p', '-o', $fresh, '-w', $wOut, '--max-time', '30', $authUrl) },
+    @{ Name = 'another --proxy-* option (--proxy-insecure)'; Ok = $false; Reason = 'proxy argument'; Args = @('-q', '--noproxy', '*', '-sS', '--proxy-insecure', '-o', $fresh, '-w', $wOut, '--max-time', '30', $authUrl) }
 )
+# Every case runs the stub from a directory holding a file, so a stub that
+# walked %* with `for` and expanded * against the working directory would record
+# that file's name in curl-noproxy-arg instead of *.
+$globCwd = Join-Path ([IO.Path]::GetTempPath()) "t89-globcwd-$([guid]::NewGuid().ToString('N'))"
+New-Item -ItemType Directory -Path $globCwd | Out-Null
+[IO.File]::WriteAllText((Join-Path $globCwd 't89-glob-canary.txt'), 'canary')
 foreach ($sc in $stubCases) {
     $capFile = Join-Path ([IO.Path]::GetTempPath()) "t89-stubcurl-$([guid]::NewGuid()).txt"
+    $bodyFile = Join-Path ([IO.Path]::GetTempPath()) "t89-wake-$([guid]::NewGuid().ToString('N')).body"
+    $callArgs = @($sc.Args | ForEach-Object { if ($_ -ceq $fresh) { $bodyFile } else { $_ } })
+    if ($sc.ContainsKey('Existing')) { [IO.File]::WriteAllText($bodyFile, 'pre-existing') }
     [Environment]::SetEnvironmentVariable('STUB_CAPTURE', $capFile)
-    $sout = @(& $stubCurl @($sc.Args) 2>$null)
-    $sexit = $LASTEXITCODE
+    $savedTmp = [Environment]::GetEnvironmentVariable('TMP')
+    $savedTemp = [Environment]::GetEnvironmentVariable('TEMP')
+    $tmpSeen = $null
+    if ($sc.ContainsKey('TrailingTmp')) {
+        $slashed = [IO.Path]::GetTempPath()
+        if (-not $slashed.EndsWith('\')) { $slashed += '\' }
+        [Environment]::SetEnvironmentVariable('TMP', $slashed)
+        [Environment]::SetEnvironmentVariable('TEMP', $slashed)
+        $tmpSeen = [Environment]::GetEnvironmentVariable('TMP')
+    }
+    Push-Location -LiteralPath $globCwd
+    try {
+        $sout = @(& $stubCurl @callArgs 2>$null)
+        $sexit = $LASTEXITCODE
+    } finally {
+        Pop-Location
+        [Environment]::SetEnvironmentVariable('TMP', $savedTmp)
+        [Environment]::SetEnvironmentVariable('TEMP', $savedTemp)
+    }
     $scap = if (Test-Path $capFile) { Get-Content $capFile -Raw } else { '' }
+    $bodyAfter = if (Test-Path -LiteralPath $bodyFile) { [IO.File]::ReadAllText($bodyFile) } else { $null }
     Remove-Item $capFile -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $bodyFile -ErrorAction SilentlyContinue
     [Environment]::SetEnvironmentVariable('STUB_CAPTURE', $null)
-    Check "curl stub: $($sc.Name) is $(if ($sc.Ok) { 'accepted' } else { 'refused with no status' })" {
+    Check "curl stub: $($sc.Name) is $(if ($sc.Ok) { 'accepted' } else { 'refused with no metadata' })" {
+        if ($sc.ContainsKey('TrailingTmp') -and -not "$tmpSeen".EndsWith('\')) { throw "the fixture did not give the stub a TMP ending in a backslash ('$tmpSeen')" }
         if ($sc.Ok) {
-            if ($sexit -ne 0 -or ($sout -join '') -ne '200' -or $scap -match 'curl-violation') {
-                throw "authorized vector rejected (exit $sexit, out '$($sout -join ',')')"
+            if ($sexit -ne 0 -or ($sout -join '|') -cne 't89:200:0.012345:application/json' -or $scap -match 'curl-violation') {
+                throw "authorized vector rejected (exit $sexit, out '$($sout -join '|')')"
             }
+            if ($null -eq $bodyAfter) { throw 'the stub did not write the body file' }
+            # Exactly one literal * arrived after --noproxy, read positionally,
+            # although the working directory holds a file a glob would match.
+            $npLines = @([regex]::Matches($scap, '(?m)^curl-noproxy-arg .*$') | ForEach-Object { $_.Value.TrimEnd() })
+            if ($npLines.Count -ne 1 -or $npLines[0] -cne 'curl-noproxy-arg [--noproxy] [*] [-sS]') { throw "the stub did not record exactly one literal * after --noproxy: '$($npLines -join ' | ')'" }
+            if ($scap -match 't89-glob-canary') { throw 'a working-directory file name reached the stub arguments: * was globbed' }
         } else {
             if ($sexit -ne 99) { throw "exit $sexit, expected 99" }
-            if (($sout -join '').Trim()) { throw "printed a status '$($sout -join ',')' for an unauthorized vector" }
+            if (($sout -join '').Trim()) { throw "printed metadata '$($sout -join '|')' for an unauthorized vector" }
             if ($scap -notmatch 'curl-violation') { throw 'no violation was recorded' }
+            if ($sc.ContainsKey('Reason') -and $scap -notmatch "(?m)^curl-violation $([regex]::Escape($sc.Reason))") { throw "refused, but not for the reason '$($sc.Reason)': $($scap -replace '\s+', ' ')" }
+            if ($sc.ContainsKey('Existing') -and $bodyAfter -cne 'pre-existing') { throw 'the stub overwrote a pre-existing body file' }
         }
     }
 }
+Remove-Item -LiteralPath $globCwd -Recurse -Force -ErrorAction SilentlyContinue
 
 Write-Host 'SkipWake refuses every command left at its real default'
 # A regression in this guard would let a run continue to REAL tools. So every
@@ -987,6 +1797,8 @@ Check 'exits 0 without issuing a wake' {
     if ($r.Exit -ne 0) { throw "exit $($r.Exit); output: $($r.Output)" }
     if ($r.Capture -match '(?m)^curl ') { throw 'wake issued despite -SkipWake' }
 }
+
+foreach ($fx in $script:fixtureFiles) { Remove-Item -LiteralPath $fx -ErrorAction SilentlyContinue }
 
 Write-Host ''
 Write-Host "$($tests - $failures)/$tests passed"

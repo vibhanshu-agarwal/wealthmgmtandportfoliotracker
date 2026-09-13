@@ -1,6 +1,7 @@
 <#
 .SYNOPSIS
-    Runs the B2 Task 8.9 bounded wake + read-only preflight as ONE sequence.
+    Runs the B2 Task 8.9 bounded activation sequence + read-only preflight as
+    ONE sequence.
 
     Written for and tested against Windows PowerShell 5.1. It has not been
     exercised under PowerShell 7, whose ConvertFrom-Json array semantics differ
@@ -8,17 +9,43 @@
 
 .DESCRIPTION
     The Task 8.9 verifier cannot resolve a gateway replica while api-gateway is
-    scaled to zero. A single inbound HTTP request activates the existing revision
-    without creating a new one; the replica then idles out after roughly 300
-    seconds. The 2026-09-12 attempt failed because the checks and the run were
-    issued by hand, one paste at a time, and the window expired before the
-    verifier reached its replica-list call.
+    scaled to zero. Inbound HTTP activates the existing revision without
+    creating a new one; the replica then idles out after roughly 300 seconds.
+    The 2026-09-12 attempt failed because the checks and the run were issued by
+    hand, one paste at a time, and the window expired before the verifier
+    reached its replica-list call.
 
     This wrapper exists to take everything that does not need to be inside the
     window out of it. All preconditions -- Azure session, Docker, the live
-    revision/digest comparison against the attestation -- run BEFORE the wake.
-    Only the wake, a bounded read-only wait for the replica, and the verifier
-    itself happen after it.
+    revision/digest comparison against the attestation -- run BEFORE any
+    request. Only the activation sequence, a bounded read-only wait for the
+    replica, and the verifier itself happen after it.
+
+    The activation sequence. An earlier revision issued exactly one request and
+    stopped unless it returned 200. Both Run A attempts recorded HTTP 503 on
+    that request (the 2026-09-12 figure is operator-reported), and
+    API_GATEWAY_CUSTOM_DOMAIN_RECOVERY.md records an earlier first contact with
+    this gateway that timed out, then three 503s, then a 200 -- consistent with
+    a scale-from-zero cold start. So the sequence now issues AT MOST FIVE probes
+    of the same fixed GET, each bounded by --max-time 30, five seconds apart:
+      * exit 0 and HTTP 200           -> activation confirmed; no further probe
+      * exit 0 and HTTP 503           -> recorded cold-start outcome; probe again
+      * curl exit 28 and status 000   -> recorded cold-start timeout; probe again
+      * five such outcomes, no 200    -> stop, exit 3
+      * anything else                 -> stop at once, exit 3
+    Worst case: five 30 s probes and four 5 s intervals, 170 s (270 s at the
+    largest accepted interval). These are upper bounds, not a claim that probes
+    normally run to the curl timeout. Every probe issued belongs to the
+    sequence and is treated as consumed; any request beyond it is a fresh owner
+    decision.
+
+    Each probe prints one bounded fingerprint line: probe number, UTC start,
+    curl exit, HTTP status, curl's time_total, an allowlisted content-type
+    label, body length and SHA-256, and whether the body is actuator-shaped JSON
+    (a top-level scalar "status") with an allowlisted status token. The body,
+    headers, raw content type and the temporary body file's path are never
+    printed. An 'unclassified' body is not evidence of where a response came
+    from.
 
     Deliberately NOT supported, and refused rather than ignored:
       * execute mode          -- the mode is fixed to 'preflight'
@@ -27,25 +54,45 @@
                                  TASK8_9_* values ARE read and cleared for the
                                  duration, then restored in the finally; they
                                  are never logged, written to disk, or sent on
-      * wake retries          -- exactly one HTTP request is ever issued
+      * curl retries or redirects, or more than five probes -- the request budget
+                                 is a literal in the safety unit, not an input
+      * ambient curl configuration -- two separate controls, both literal:
+                                 -q (first) makes curl skip its configuration
+                                 files (.curlrc / _curlrc). It does NOT touch
+                                 proxy environment variables (https_proxy,
+                                 HTTPS_PROXY, ALL_PROXY), so --noproxy '*'
+                                 follows it and makes curl bypass any proxy for
+                                 every host. Other environment inputs curl may
+                                 read are not neutralized by either
 
     Exit codes:
       0  preflight passed
-      2  a precondition failed BEFORE the wake (nothing was consumed)
-      3  the wake was issued and the run stopped after it -- no ready replica,
-         a non-200 response, or a transport failure. Treat the wake as consumed
-         unless the message says otherwise; a further wake is a fresh owner
-         decision. (For curl exits 6/7/35 the message says the request probably
-         never reached the ingress, so the wake was probably NOT consumed; the
-         exit code stays 3 because that is the conservative reading.)
-      4  the verifier ran and did not pass (wake consumed)
+      2  a precondition failed BEFORE any request (nothing was consumed)
+      3  the activation sequence started and the run stopped after it -- five
+         probes without a 200, any outcome other than 200/503/timeout, a
+         malformed metadata record, a probe-internal or cleanup failure, or no
+         ready replica. Treat every probe issued as consumed unless the message
+         says otherwise; a further request is a fresh owner decision. (For curl
+         exits 6/7/35 the message says that probe probably never reached the
+         ingress; the exit code stays 3 because that is the conservative
+         reading, and any earlier probe in the sequence was issued.)
+      4  the verifier ran and did not pass (the sequence is consumed)
 
 .PARAMETER SkipWake
-    Runs the sequence without issuing the wake. Intended for the offline tests.
-    It is NOT a way to continue past a non-200: waking by hand, seeing a non-200
-    and then running with -SkipWake evades the stop this script exists to
-    enforce, and the script cannot detect that. Using it against production is an
-    owner decision.
+    Runs the sequence without issuing any probe. Intended for the offline tests.
+    It is NOT a way to continue past a failed activation sequence: probing by
+    hand, seeing it fail and then running with -SkipWake evades the stop this
+    script exists to enforce, and the script cannot detect that. Using it
+    against production is an owner decision.
+
+.PARAMETER WakeProbeIntervalSeconds
+    Seconds between probes. Default '5', the production value; any live run
+    must omit it or pass exactly 5. Accepted only as a whole number 0..30
+    written plainly (no sign, fraction, exponent, whitespace or leading zero),
+    validated before any child process; anything else exits 2. It is a [string]
+    so that invalid input reaches that validation instead of failing parameter
+    binding (exit 1) or being rounded. The offline tests pass 0. It changes
+    neither the five-probe budget nor the 30-second per-probe bound.
 
 .PARAMETER AzCommand
 .PARAMETER CurlCommand
@@ -65,6 +112,7 @@ param(
     [string]$GatewayUrl = 'https://api.vibhanshu-ai-portfolio.dev',
     [string]$Target = 'production-azure',
     [string]$WakePath = '/actuator/health',
+    [string]$WakeProbeIntervalSeconds = '5',
     [string]$ProvenancePath = 'docs/evidence/b2-task-8-9/deployment-provenance-20260911.json',
     [string]$SubscriptionSourcePath = 'docs/evidence/b2-task-8-9/rehearsal-20260911.json',
     [string]$SubscriptionId,
@@ -93,7 +141,7 @@ $ErrorActionPreference = 'Continue'
 
 $script:WakeIssued = $false
 trap {
-    $consumed = if ($script:WakeIssued) { 'THE WAKE WAS ISSUED and is consumed; a further wake is a fresh owner decision.' }
+    $consumed = if ($script:WakeIssued) { 'THE WAKE WAS ISSUED: at least one activation probe was sent, and every probe sent is consumed; a further request is a fresh owner decision.' }
                 else { 'No wake had been issued; nothing was consumed.' }
     Write-Host "FAIL (unhandled): $($_.Exception.Message)" -ForegroundColor Red
     Write-Host $consumed -ForegroundColor Yellow
@@ -118,65 +166,191 @@ function Fail {
     exit $Code
 }
 
-# --- SAFETY-CRITICAL UNIT: the authorized wake and the decision after it ------
+# --- SAFETY-CRITICAL UNIT: the activation sequence and the decision after it ---
 #
-# The verifier may start only when exactly one invocation of this request, with
-# this fixed URL and this fixed argument vector, exited successfully and
-# returned exactly the scalar string '200'. Everything that decides that lives
-# in this function, and its structure keeps that decision self-contained and
-# hard to change by accident:
+# The verifier may start only after this function returns, and it returns only
+# when a probe -- one invocation of this fixed request, with this fixed URL and
+# argument vector -- exited 0 and reported exactly the scalar status '200'
+# within a sequence of at most five probes in which every earlier probe was an
+# exact 503 or a curl timeout. Everything that decides that lives in this
+# function, and its structure keeps the decision self-contained and hard to
+# change by accident:
 #
-#   * the URL and every curl argument are literals. No parameter, environment
-#     value or configuration input feeds them;
-#   * -q is the first argument, so curl ignores any ambient config file
-#     (~/.curlrc, %APPDATA%\_curlrc): the single request cannot be given a
-#     retry, a redirect, or another URL by mutable machine configuration;
-#   * the status is a local variable and is never returned. The caller gets no
-#     value to branch on: if this function returns, the wake was an exact 200;
-#   * every failure ends in a direct `exit 3`. `exit` is a keyword, so no alias,
-#     function definition or trap can intercept it, and it never goes through
-#     Fail, which is ordinary code that could be redefined;
-#   * a single status must be a [string]. Multi-line output (an altered -w, or
-#     a retry that prints twice) becomes an array and is refused, not compared.
+#   * the URL, every curl argument, the five-probe budget and the 30-second
+#     bound are literals. No parameter, environment value or configuration input
+#     feeds them; only the pause between probes is a (validated) parameter;
+#   * -q is the first argument, so curl skips its configuration files
+#     (~/.curlrc, %APPDATA%\_curlrc): a probe cannot be given a retry, a
+#     redirect, or another URL by a config file. -q does NOT affect proxy
+#     environment variables (https_proxy, HTTPS_PROXY, ALL_PROXY), so
+#     --noproxy '*' comes immediately after it: '*' is curl's single wildcard
+#     for "every host", so no environment-configured proxy is used and the
+#     request goes directly to the literal URL. '*' is quoted so PowerShell
+#     passes the literal character;
+#   * the body goes to a fresh temporary file per probe, never to the
+#     transcript, and is removed in a finally. curl's own stderr is discarded
+#     because it names that file on a local write failure;
+#   * the metadata must be ONE [string] record matching an exact pattern.
+#     Nothing is repaired: an empty, multi-line (a redirect or retry printing
+#     twice) or malformed record stops the sequence;
+#   * the status is local and never returned. The caller gets no value to branch
+#     on: if this function returns, a probe was an exact 200;
+#   * every stop ends in a direct `exit 3` -- a non-retryable outcome, an
+#     internal error, a cleanup failure, exhaustion. `exit` is a keyword, so no
+#     alias, function definition or trap can intercept it, and it never goes
+#     through Fail, which is ordinary code that could be redefined. An exit
+#     inside the try still runs the finally (Windows PowerShell 5.1; the suite
+#     proves it by leftover-file checks on every stop path).
 #
 # The test suite adds targeted regression guards over this function's structure
-# (one definition, one call, one curl invocation with these arguments, three
-# direct exit-3 decisions, its decision variables read nowhere else). They catch
-# accidental structural drift; earlier guards that pinned only a condition's
-# shape were defeated by edits just outside it. These structural guards are not
-# proof against a deliberate in-unit rewrite -- that is a code-review
-# responsibility. The runtime guarantee is fail-closed: on anything but an exact
-# 200, the verifier does not run.
+# (one definition, one call, one curl invocation with these arguments inside one
+# `for` bounded by a literal 5, the exact retryable set, four direct exit-3
+# stops, one return after a 200, its decision variables read nowhere else, and
+# only allowlisted values printed). They catch accidental structural drift;
+# earlier guards that pinned only a condition's shape were defeated by edits
+# just outside it. These structural guards are not proof against a deliberate
+# in-unit rewrite -- that is a code-review responsibility. The runtime guarantee
+# is fail-closed: without an exact 200 inside the budget, the verifier does not
+# run.
 function Invoke-AuthorizedWake {
-    param([Parameter(Mandatory = $true)][string]$Curl)
-    Write-Host '==> Waking: GET https://api.vibhanshu-ai-portfolio.dev/actuator/health (one request, no retry, no redirect, no client timeout, ambient curl config disabled)'
-    $script:WakeIssued = $true
-    $wakeStatus = & $Curl -q -sS -o NUL -w '%{http_code}' 'https://api.vibhanshu-ai-portfolio.dev/actuator/health'
-    $wakeCurlExit = $LASTEXITCODE
-    Write-Host "==>   wake responded HTTP $wakeStatus (curl exit $wakeCurlExit)"
-    if ($wakeCurlExit -ne 0) {
-        # Only DNS, connect and TLS-handshake failures (6, 7, 35) imply the
-        # request never reached the ingress. Anything later may already have
-        # been delivered, so the wake may well be spent.
-        if (@(6, 7, 35) -contains $wakeCurlExit) {
-            Write-Host "FAIL: the wake failed in transport (curl exit $wakeCurlExit): the request did not reach the ingress, so the wake was probably NOT consumed. Re-waking is a fresh owner decision." -ForegroundColor Red
-        } else {
-            Write-Host "FAIL: the wake failed in transport (curl exit $wakeCurlExit): the request may already have been delivered, so the wake may be consumed. Re-waking is a fresh owner decision." -ForegroundColor Red
+    param(
+        [Parameter(Mandatory = $true)][string]$Curl,
+        [Parameter(Mandatory = $true)][int]$IntervalSeconds
+    )
+    Write-Host '==> Activation sequence: at most 5 probes of GET https://api.vibhanshu-ai-portfolio.dev/actuator/health, each bounded by --max-time 30 (no curl retry, no redirect; curl config files skipped via -q; environment proxies bypassed for every host via --noproxy ''*''). Only HTTP 503 or a curl timeout (exit 28, status 000) leads to another probe; the first HTTP 200 ends the sequence. Every probe issued belongs to this sequence and is consumed.'
+    for ($probe = 1; $probe -le 5; $probe++) {
+        if ($probe -gt 1) { Start-Sleep -Seconds $IntervalSeconds }
+        $bodyPath = Join-Path ([IO.Path]::GetTempPath()) ('t89-wake-' + [guid]::NewGuid().ToString('N') + '.body')
+        $activated = $false
+        $cleanupFailed = $false
+        try {
+            $startedUtc = (Get-Date).ToUniversalTime().ToString('o')
+            $script:WakeIssued = $true
+            $probeMeta = & $Curl -q --noproxy '*' -sS -o $bodyPath -w 't89:%{http_code}:%{time_total}:%{content_type}' --max-time 30 'https://api.vibhanshu-ai-portfolio.dev/actuator/health' 2>$null
+            $probeExit = $LASTEXITCODE
+
+            # One record, exactly: t89:<3-digit status>:<seconds>:<content type>.
+            # [0-9], not \d (which matches non-ASCII digits); \A..\z, not ^..$
+            # ($ also matches before a trailing newline). Case-sensitive.
+            $metaOk = $false
+            $httpStatus = 'invalid'
+            $duration = 'invalid'
+            $typeLabel = 'unknown'
+            if ($probeMeta -is [string]) {
+                $record = [regex]::Match($probeMeta, '\At89:(000|[1-5][0-9][0-9]):([0-9]{1,6}\.[0-9]{1,6}):([^\r\n]*)\z')
+                if ($record.Success) {
+                    $metaOk = $true
+                    $httpStatus = $record.Groups[1].Value
+                    $duration = $record.Groups[2].Value
+                    # The server's content type is classified, never printed.
+                    $media = ($record.Groups[3].Value -split ';', 2)[0].Trim().ToLowerInvariant()
+                    if ($media -ceq 'application/json') { $typeLabel = 'application/json' }
+                    elseif ([regex]::IsMatch($media, '\Aapplication/[a-z0-9!#$&^_.+-]+\+json\z')) { $typeLabel = 'application/*+json' }
+                    elseif ($media -ceq 'text/plain') { $typeLabel = 'text/plain' }
+                    elseif ($media -ceq 'text/html') { $typeLabel = 'text/html' }
+                    elseif ($media.Length -gt 0) { $typeLabel = 'other' }
+                }
+            }
+
+            # The exact captured bytes. A missing file is zero bytes: a DNS or
+            # connect failure leaves none. A read failure is not guessed around;
+            # it reaches the catch below and stops the sequence.
+            $bodyBytes = [byte[]]@()
+            if (Test-Path -LiteralPath $bodyPath) { $bodyBytes = [IO.File]::ReadAllBytes($bodyPath) }
+            $bodySha = (Get-FileHash -InputStream ([IO.MemoryStream]::new($bodyBytes)) -Algorithm SHA256).Hash.ToLowerInvariant()
+
+            # actuator-json only for a JSON object with a top-level scalar
+            # "status" (exact key). A parse failure is 'unclassified', never a
+            # stop and never echoed: ConvertFrom-Json's error text can quote
+            # body content ("Invalid JSON primitive: <token>"), so the catch
+            # below discards it. In Windows PowerShell 5.1 a parse failure is a
+            # terminating error on its own; -ErrorAction Stop is not what makes
+            # it catchable, and is kept only as a defensive default.
+            $bodyClass = 'unclassified'
+            $statusToken = 'other'
+            try {
+                $bodyText = [Text.UTF8Encoding]::new($false, $true).GetString($bodyBytes)
+                $bodyDoc = ConvertFrom-Json -InputObject $bodyText -ErrorAction Stop
+                if ($bodyDoc -is [System.Management.Automation.PSCustomObject]) {
+                    $statusProp = $bodyDoc.PSObject.Properties['status']
+                    if ($null -ne $statusProp -and $statusProp.Name -ceq 'status') {
+                        $statusValue = $statusProp.Value
+                        if ($null -ne $statusValue -and -not ($statusValue -is [System.Management.Automation.PSCustomObject]) -and -not ($statusValue -is [array])) {
+                            $bodyClass = 'actuator-json'
+                            if ($statusValue -is [string] -and [regex]::IsMatch($statusValue, '\A[A-Z][A-Z0-9_]{0,31}\z')) { $statusToken = $statusValue }
+                        }
+                    }
+                }
+            } catch {
+                $bodyClass = 'unclassified'
+                $statusToken = 'other'
+            }
+
+            $fingerprint = "==>   probe $probe/5 started-utc=$startedUtc curl-exit=$probeExit http=$httpStatus duration-s=$duration content-type=$typeLabel body-bytes=$($bodyBytes.Length) body-sha256=$bodySha body-class=$bodyClass"
+            if ($bodyClass -ceq 'actuator-json') { $fingerprint += " actuator-status=$statusToken" }
+            Write-Host $fingerprint
+
+            if ($probeExit -eq 0 -and $metaOk -and $httpStatus -ceq '200') {
+                $activated = $true
+            } elseif ($probeExit -eq 0 -and $metaOk -and $httpStatus -ceq '503') {
+                Write-Host "==>   probe $probe/5: HTTP 503 is a recorded cold-start outcome"
+            } elseif ($probeExit -eq 28 -and $metaOk -and $httpStatus -ceq '000') {
+                Write-Host "==>   probe $probe/5: a curl timeout (exit 28, status 000) is a recorded cold-start outcome"
+            } else {
+                $earlier = ''
+                if ($probe -gt 1) { $earlier = " The $($probe - 1) earlier probe(s) in this sequence were issued and are consumed." }
+                if ($probeExit -ne 0) {
+                    # Only DNS, connect and TLS-handshake failures (6, 7, 35)
+                    # suggest this request never reached the ingress as an HTTP
+                    # request. Even that is hedged: a failed TLS handshake (35)
+                    # happens after a TCP connection to the TLS terminator was
+                    # made. Anything later may already have been delivered.
+                    if (@(6, 7, 35) -contains $probeExit) {
+                        Write-Host "FAIL: probe $probe/5 failed in transport (curl exit $probeExit): a DNS, connect or TLS-handshake failure, so this request probably did not reach the ingress as an HTTP request and was probably NOT consumed.$earlier The sequence stops here; re-waking is a fresh owner decision." -ForegroundColor Red
+                    } else {
+                        Write-Host "FAIL: probe $probe/5 failed in transport (curl exit $probeExit): this request may already have been delivered, so it may be consumed.$earlier The sequence stops here; re-waking is a fresh owner decision." -ForegroundColor Red
+                    }
+                } elseif (-not $metaOk) {
+                    Write-Host "FAIL: probe $probe/5 did not report exactly one well-formed metadata record, so it cannot be shown to have been 200 or a recorded cold-start outcome. The request is consumed.$earlier The sequence stops here and this script has no override; continuing is a fresh owner decision." -ForegroundColor Red
+                } else {
+                    # There is deliberately no flag to continue anyway: this
+                    # script cannot verify that an owner decided to proceed, so
+                    # a switch would turn a prohibition into an operator keystroke.
+                    Write-Host "FAIL: probe $probe/5 returned HTTP $httpStatus, which is neither 200 nor a recorded cold-start outcome (503, or a curl timeout). The request is consumed.$earlier The sequence stops here and this script has no override; continuing is a fresh owner decision." -ForegroundColor Red
+                }
+                exit 3
+            }
+        } catch {
+            Write-Host "FAIL: probe $probe/5 hit an internal error ($($_.Exception.GetType().Name)); its details are withheld because they can name the temporary body file. Treat the request as consumed. The sequence stops here; a further request is a fresh owner decision." -ForegroundColor Red
+            exit 3
+        } finally {
+            # Runs on every path above, including the exits. A failure to remove
+            # the body file is never ignored: $ErrorActionPreference is Continue,
+            # so Remove-Item is made terminating and the file is checked again.
+            # A directory at the path is not something curl creates; it is left
+            # alone and reported rather than removed.
+            try {
+                if (Test-Path -LiteralPath $bodyPath -PathType Container) {
+                    $cleanupFailed = $true
+                } elseif (Test-Path -LiteralPath $bodyPath) {
+                    Remove-Item -LiteralPath $bodyPath -Force -ErrorAction Stop
+                }
+                if (Test-Path -LiteralPath $bodyPath) { $cleanupFailed = $true }
+            } catch {
+                $cleanupFailed = $true
+            }
+            if ($cleanupFailed) {
+                Write-Host "FAIL: probe $probe/5: its temporary response-body file could not be removed (location withheld). The run stops here, fail-closed." -ForegroundColor Red
+            }
         }
-        exit 3
+        if ($cleanupFailed) { exit 3 }
+        if ($activated) {
+            Write-Host "==>   probe $probe/5 returned HTTP 200: activation confirmed; no further probe will be issued"
+            return
+        }
     }
-    if (-not ($wakeStatus -is [string]) -or $wakeStatus.Length -eq 0) {
-        Write-Host 'FAIL: the wake did not return a single status value, so it cannot be shown to have been 200. The packet requires stopping here.' -ForegroundColor Red
-        exit 3
-    }
-    if ($wakeStatus -cne '200') {
-        # The packet: "On any non-200, stop and report -- do not re-issue the
-        # request." There is deliberately no flag to continue anyway: this
-        # script cannot verify that an owner decided to proceed, so a switch
-        # would turn a prohibition into an operator keystroke.
-        Write-Host "FAIL: the wake returned HTTP $wakeStatus, not 200. The packet requires stopping here, and this script has no override. The wake is consumed; continuing is a fresh owner decision." -ForegroundColor Red
-        exit 3
-    }
+    Write-Host 'FAIL: 5 of 5 activation probes were issued and none returned HTTP 200 (each was HTTP 503 or a curl timeout). The request budget is spent, and this script has no override; any further request is a fresh owner decision.' -ForegroundColor Red
+    exit 3
 }
 
 # -SkipWake is for the offline tests. Refuse it here, BEFORE any child process
@@ -200,9 +374,22 @@ if ($SkipWake) {
         ($PythonCommand -eq 'python')
     )
     if ($defaults -contains $true) {
-        Fail '-SkipWake is for the offline tests. Every one of -AzCommand, -DockerCommand, -CurlCommand and -PythonCommand must be overridden away from its default, because skipping the wake also skips the non-200 stop the packet requires. This check compares the literal defaults only and cannot tell a stub from a real tool.' 2
+        Fail '-SkipWake is for the offline tests. Every one of -AzCommand, -DockerCommand, -CurlCommand and -PythonCommand must be overridden away from its default, because skipping the wake also skips the activation sequence and its stop rules. This check compares the literal defaults only and cannot tell a stub from a real tool.' 2
     }
 }
+
+# -WakeProbeIntervalSeconds, validated before any child process for the same
+# reason as the guard above. It is a [string] so every invalid value reaches
+# this check: an [int] parameter fails binding with exit 1 under -File for
+# non-numeric input, before this script runs, and silently rounds 29.5. Only a
+# plain whole number 0..30 passes -- no sign, fraction, exponent, whitespace or
+# leading zero ('0' itself is accepted). [0-9] rather than \d, which also
+# matches non-ASCII digits; \z rather than $, which also matches before a
+# trailing newline. The value is not echoed back.
+if (-not [regex]::IsMatch($WakeProbeIntervalSeconds, '\A(?:[0-9]|[12][0-9]|30)\z')) {
+    Fail '-WakeProbeIntervalSeconds must be a whole number of seconds from 0 to 30, written without sign, fraction, exponent, whitespace or leading zero. The production value is 5; a live run must omit the parameter or pass exactly 5.' 2
+}
+$probeIntervalSeconds = [int]$WakeProbeIntervalSeconds
 
 # --- Inputs -----------------------------------------------------------------
 # JMESPath queries below never contain parentheses. A parenthesised --query does
@@ -343,10 +530,10 @@ Write-Step "  $($revisions.Count) revision(s), none newer than $attestedRevision
 # --- The timing window starts here ------------------------------------------
 
 if ($SkipWake) {
-    Write-Step 'SkipWake set: not issuing a wake request'
-    Write-Host 'WARNING: -SkipWake bypasses the wake and its non-200 stop. If a wake was issued by hand and did not return 200, stop now: continuing is a fresh owner decision.' -ForegroundColor Yellow
+    Write-Step 'SkipWake set: not issuing any activation probe'
+    Write-Host 'WARNING: -SkipWake bypasses the activation sequence and its stop rules. If probes were issued by hand and none returned 200, stop now: continuing is a fresh owner decision.' -ForegroundColor Yellow
 } else {
-    Invoke-AuthorizedWake -Curl $CurlCommand
+    Invoke-AuthorizedWake -Curl $CurlCommand -IntervalSeconds $probeIntervalSeconds
 }
 
 Write-Step "Waiting up to ${ReplicaWaitSeconds}s for a replica (read-only polling)"
