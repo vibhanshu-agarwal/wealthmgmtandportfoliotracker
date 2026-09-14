@@ -306,6 +306,16 @@ Check 'no truncated JMESPath (the length(@ bug class)' {
 Check 'verifier is invoked with --mode preflight' {
     if ($r.Capture -notmatch '--mode preflight') { throw "mode not preflight:`n$($r.Capture)" }
 }
+Check 'verifier is invoked with the ratified Azure timeout arguments' {
+    # Pins the four --eligibility-timeout/--reset-timeout/--overall-timeout/
+    # --login-timeout-seconds literals in the actual invocation, not just
+    # somewhere in the .ps1 text -- a Python regex over the file cannot tell
+    # $verifierArgs apart from a comment quoting the same values.
+    $want = '--eligibility-timeout 120s --reset-timeout 30s --overall-timeout 165s --login-timeout-seconds 225'
+    if ($r.Capture -notmatch [regex]::Escape($want)) {
+        throw "Azure timeout arguments missing, reordered, or altered:`n$($r.Capture)"
+    }
+}
 Check 'verifier never receives --threshold-override' {
     if ($r.Capture -match 'threshold-override') { throw 'threshold override was passed' }
 }

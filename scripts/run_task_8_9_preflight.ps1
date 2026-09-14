@@ -668,6 +668,82 @@ if ($newer.Count -gt 0) {
 }
 Write-Step "  $($revisions.Count) revision(s), none newer than $attestedRevision"
 
+Write-Step 'Checking the serving Azure demo-reset timeouts against the ratified attestation'
+# `az containerapp revision show` is a control-plane read on the revision
+# object itself (like the show/list calls above), not a call into a running
+# container, so it works at zero replicas -- no wake needed. Run A attempt 3
+# spent an irreversible wake only to learn that the serving
+# APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT did not equal the value this
+# wrapper asserts below; a mismatch of that class is checked here instead,
+# before any request. The three literals compared here MUST stay equal to the
+# --eligibility-timeout/--reset-timeout/--overall-timeout arguments passed to
+# the verifier further down: AzureTimeoutDriftGuardTest
+# (scripts/tests/test_verify_demo_reset_azure.py) pins those against
+# infrastructure/terraform/azure/main.tf, ratified in
+# docs/evidence/b2-task-8-9/2026-09-14-azure-timeout-ratification.md.
+$expectedAzureTimeoutNames = @(
+    'APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT',
+    'APP_DEMO_LOGIN_RESET_RESET_TIMEOUT',
+    'APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT'
+)
+$expectedAzureTimeoutValues = @{
+    'APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT' = '120s'
+    'APP_DEMO_LOGIN_RESET_RESET_TIMEOUT'       = '30s'
+    'APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT'     = '165s'
+}
+$envRaw = & $AzCommand containerapp revision show --name $GatewayApp --resource-group $ResourceGroup --revision $attestedRevision --query 'properties.template.containers[0].env' -o json
+if ($LASTEXITCODE -ne 0) { Fail 'could not read the serving revision environment; the verifier would fail post-wake' 2 }
+# Emptiness is checked separately from parsing, same as the digest/revision
+# guards above: a quiet `az --query` miss is not the same as a parse failure,
+# and each is reported distinctly rather than crashing or reading as a pass.
+if (-not $envRaw) { Fail 'the serving revision environment read returned no output' 2 }
+# Decode first, THEN wrap -- see the replica-list comment further down for why
+# @($envRaw | ConvertFrom-Json) is the wrong order: ConvertFrom-Json emits a
+# JSON array as a single Object[], so wrapping the raw string instead of the
+# already-decoded value double-wraps it and element 0 becomes the whole array.
+$envRows = @()
+try { $envRows = @($envRaw | ConvertFrom-Json) } catch { Fail 'the serving revision environment did not parse as JSON' 2 }
+$observedAzureTimeoutValues = @{}
+foreach ($row in $envRows) {
+    $rowName = $null
+    try { $rowName = $row.name } catch { $rowName = $null }
+    if (-not $rowName) { continue }
+    if ($observedAzureTimeoutValues.ContainsKey($rowName)) { continue }
+    # A row may carry `secretRef` instead of `value` (or `value` may be
+    # explicitly null); under StrictMode, referencing `.value` on a decoded
+    # object that has no such JSON key throws rather than returning $null, so
+    # this is wrapped like every other optional-field read in this script. A
+    # secretRef row is a mismatch, not a crash: the attested timeouts are
+    # plain values, never secret references.
+    $rowValue = $null
+    try { $rowValue = $row.value } catch { $rowValue = $null }
+    $observedAzureTimeoutValues[$rowName] = $rowValue
+}
+$timeoutMismatches = @()
+foreach ($name in $expectedAzureTimeoutNames) {
+    $expectedValue = $expectedAzureTimeoutValues[$name]
+    if (-not $observedAzureTimeoutValues.ContainsKey($name)) {
+        # Absent entirely: the container inherits application.yml's generic
+        # default, which is NOT the attested Azure override -- also a
+        # mismatch, not a pass.
+        $timeoutMismatches += "$name is absent from the serving revision (would inherit the application default); observed=<absent> expected='$expectedValue'"
+        continue
+    }
+    $observedValue = $observedAzureTimeoutValues[$name]
+    if ($null -eq $observedValue) {
+        $timeoutMismatches += "$name carries a secretRef or a null value instead of a plain string; observed=<no plain value> expected='$expectedValue'"
+        continue
+    }
+    if ([string]$observedValue -ne $expectedValue) {
+        $timeoutMismatches += "$name observed='$observedValue' expected='$expectedValue'"
+    }
+}
+if ($timeoutMismatches.Count -gt 0) {
+    $timeoutFailMessage = "serving Azure demo-reset timeouts do not match the ratified attestation -- no wake was consumed; reconcile the ratification (docs/evidence/b2-task-8-9/2026-09-14-azure-timeout-ratification.md) with the deployment before retrying: $($timeoutMismatches -join '; ')"
+    Fail $timeoutFailMessage 2
+}
+Write-Step "  serving Azure demo-reset timeouts match the ratified attestation ($($expectedAzureTimeoutNames -join ', '))"
+
 # --- The timing window starts here ------------------------------------------
 
 if ($SkipWake) {
@@ -797,7 +873,7 @@ $verifierArgs = @(
     # attested Azure Production gateway, which Terraform runs with wider,
     # Azure-specific overrides (infrastructure/terraform/azure/main.tf, PR #251),
     # ratified in
-    # docs/superpowers/plans/2026-09-14-b2-task-8-9-azure-timeout-ratification.md.
+    # docs/evidence/b2-task-8-9/2026-09-14-azure-timeout-ratification.md.
     # Literals, like the probe budget and the gateway URL above: not script
     # parameters, so this wrapper cannot silently drift onto an unratified value.
     '--eligibility-timeout', '120s',

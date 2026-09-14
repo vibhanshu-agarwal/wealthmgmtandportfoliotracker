@@ -2357,6 +2357,34 @@ class FinalReviewRegressionTest(unittest.TestCase):
                     self.assertNotIn(secret, surface)
 
 
+WRAPPER_PATH = REPO / "scripts" / "run_task_8_9_preflight.ps1"
+
+
+def _wrapper_azure_timeouts() -> dict[str, str]:
+    """Parse the Azure timeout literals scripts/run_task_8_9_preflight.ps1 passes
+    to the verifier: --eligibility-timeout, --reset-timeout, --overall-timeout,
+    and --login-timeout-seconds. Tests that pin behavior against these values
+    read them from the wrapper itself rather than duplicating them as
+    hard-coded constants that could silently drift from the script they claim
+    to verify."""
+    import re
+
+    text = WRAPPER_PATH.read_text(encoding="utf-8")
+    mapping = {
+        "eligibility": "--eligibility-timeout",
+        "reset": "--reset-timeout",
+        "overall": "--overall-timeout",
+        "login": "--login-timeout-seconds",
+    }
+    values: dict[str, str] = {}
+    for key, flag in mapping.items():
+        match = re.search(rf"'{re.escape(flag)}',\s*'([^']+)'", text)
+        if match is None:
+            raise AssertionError(f"{flag} literal not found in {WRAPPER_PATH}")
+        values[key] = match.group(1)
+    return values
+
+
 class AzureTimeoutEvidenceSemanticsTest(unittest.TestCase):
     """Task 8.9's 2026-09-14 NON-GO evidence recorded no observed value for the
     serving-timeout mismatch it found, and conflated 'RBAC unproven' with 'the
@@ -2368,22 +2396,25 @@ class AzureTimeoutEvidenceSemanticsTest(unittest.TestCase):
 
     def test_azure_override_values_propagate_to_serving_decisions(self) -> None:
         # What scripts/run_task_8_9_preflight.ps1 passes for the attested Azure
-        # Production target: --eligibility-timeout 120s --reset-timeout 30s
-        # --overall-timeout 165s. AzureTimeoutDriftGuardTest below pins those
-        # wrapper literals against infrastructure/terraform/azure/main.tf.
+        # Production target, read from the wrapper itself rather than
+        # duplicated here as constants, so this test cannot silently drift
+        # from the script it claims to verify. AzureTimeoutDriftGuardTest
+        # below pins those wrapper literals against
+        # infrastructure/terraform/azure/main.tf.
+        wrapper = _wrapper_azure_timeouts()
         cfg = config(mode="preflight")
-        cfg.eligibility_timeout = "120s"
-        cfg.reset_timeout = "30s"
-        cfg.overall_timeout = "165s"
+        cfg.eligibility_timeout = wrapper["eligibility"]
+        cfg.reset_timeout = wrapper["reset"]
+        cfg.overall_timeout = wrapper["overall"]
         # _validate_config requires login_timeout_seconds > overall_timeout
-        # regardless of mode; the wrapper passes --login-timeout-seconds 225
-        # for the same reason (see its comment above the verifier invocation).
-        cfg.login_timeout_seconds = 225.0
+        # regardless of mode; the wrapper passes --login-timeout-seconds for
+        # the same reason (see its comment above the verifier invocation).
+        cfg.login_timeout_seconds = float(wrapper["login"])
         commands = StatefulCommandRunner()
         commands.decision_values.update({
-            "APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT": "120s",
-            "APP_DEMO_LOGIN_RESET_RESET_TIMEOUT": "30s",
-            "APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT": "165s",
+            "APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT": wrapper["eligibility"],
+            "APP_DEMO_LOGIN_RESET_RESET_TIMEOUT": wrapper["reset"],
+            "APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT": wrapper["overall"],
         })
         http = StatefulHttpRunner(commands)
 
@@ -2392,9 +2423,9 @@ class AzureTimeoutEvidenceSemanticsTest(unittest.TestCase):
         self.assertEqual(result.exit_code, 0)
         self.assertEqual(result.evidence["decisions"]["serving"], {
             "idleThreshold": "30m",
-            "eligibilityTimeout": "120s",
-            "resetTimeout": "30s",
-            "overallTimeout": "165s",
+            "eligibilityTimeout": wrapper["eligibility"],
+            "resetTimeout": wrapper["reset"],
+            "overallTimeout": wrapper["overall"],
         })
         self.assertTrue(result.evidence["preflight"]["passed"])
         self.assertTrue(result.evidence["preflight"]["rbacRehearsed"])
@@ -2437,6 +2468,33 @@ class AzureTimeoutEvidenceSemanticsTest(unittest.TestCase):
         self.assertIn("APP_DEMO_LOGIN_RESET_RESET_TIMEOUT", error_text)
         self.assertIn("observed='3s'", error_text)
         self.assertIn("expected='10s'", error_text)
+
+    def test_observed_timeouts_withhold_non_string_values_under_allowlisted_names(self) -> None:
+        """The allowlist bounds by NAME; this exercises that it also bounds by
+        SHAPE. No realistic Azure readback puts a non-string value (a
+        secretRef object, say) under an allowlisted name, but the evidence
+        document is committed to the repository, so a value that is not a
+        plain string must never be copied into it verbatim."""
+        commands = StatefulCommandRunner()
+        commands.decision_values["SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT"] = {
+            "secretRef": "definitely-a-secret-reference"
+        }
+        http = StatefulHttpRunner(commands)
+
+        result = verifier.run_proof(
+            config(mode="preflight"), command_runner=commands, http_runner=http
+        )
+
+        self.assertEqual(result.exit_code, 0)
+        observed = result.evidence["decisions"]["observedTimeouts"]
+        self.assertEqual(
+            observed["SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT"],
+            "<non-string value withheld>",
+        )
+        import json
+
+        rendered = json.dumps(result.evidence)
+        self.assertNotIn("definitely-a-secret-reference", rendered)
 
     def test_rbac_rehearsed_true_after_successful_access_even_when_configuration_check_fails(
         self,
@@ -2485,7 +2543,7 @@ class AzureTimeoutDriftGuardTest(unittest.TestCase):
     update fails this offline test instead of burning a Production wake."""
 
     MAIN_TF = REPO / "infrastructure" / "terraform" / "azure" / "main.tf"
-    WRAPPER = REPO / "scripts" / "run_task_8_9_preflight.ps1"
+    WRAPPER = WRAPPER_PATH
 
     def _terraform_azure_timeouts(self) -> dict[str, str]:
         import re
@@ -2505,34 +2563,50 @@ class AzureTimeoutDriftGuardTest(unittest.TestCase):
             values[key] = match.group(1)
         return values
 
-    def _wrapper_azure_timeouts(self) -> dict[str, str]:
-        import re
-
-        text = self.WRAPPER.read_text(encoding="utf-8")
-        mapping = {
-            "eligibility": "--eligibility-timeout",
-            "reset": "--reset-timeout",
-            "overall": "--overall-timeout",
-        }
-        values: dict[str, str] = {}
-        for key, flag in mapping.items():
-            match = re.search(rf"'{re.escape(flag)}',\s*'([^']+)'", text)
-            self.assertIsNotNone(match, f"{flag} literal not found in {self.WRAPPER}")
-            values[key] = match.group(1)
-        return values
-
     def test_wrapper_azure_timeout_literals_match_terraform(self) -> None:
         terraform = self._terraform_azure_timeouts()
-        wrapper = self._wrapper_azure_timeouts()
+        # _wrapper_azure_timeouts() also returns "login" (--login-timeout-seconds),
+        # which has no Terraform counterpart -- see
+        # test_wrapper_login_timeout_satisfies_validate_config below for that one.
+        # Only the three keys Terraform actually attests are compared here.
+        wrapper = _wrapper_azure_timeouts()
         self.assertEqual(
-            wrapper,
+            {key: wrapper[key] for key in terraform},
             terraform,
             "scripts/run_task_8_9_preflight.ps1's --eligibility-timeout/--reset-timeout/"
             "--overall-timeout literals have drifted from infrastructure/terraform/azure/"
             "main.tf's APP_DEMO_LOGIN_RESET_* overrides. Update the wrapper's literals (and "
-            "the ratification in docs/superpowers/plans/) to match before running the live "
+            "the ratification in docs/evidence/b2-task-8-9/) to match before running the live "
             "preflight, or it will NON-GO exactly as it did on 2026-09-14.",
         )
+
+    def test_wrapper_login_timeout_satisfies_validate_config(self) -> None:
+        """The test above only pins wrapper-vs-Terraform equality for
+        eligibility/reset/overall. A COHERENT bump to all three in both files
+        (e.g. overall 120s -> 240s, kept equal in both) passes it cleanly while
+        leaving --login-timeout-seconds behind -- exactly the gap the reviewer
+        of the 2026-09-14 fix identified: the verifier's own cross-field guard
+        (_validate_config: login-timeout-seconds must exceed overall-timeout)
+        was never exercised against the wrapper's real literals, so that drift
+        would only surface after a Production wake. This builds a ProofConfig
+        from all four wrapper-derived literals and runs the real guard, so the
+        gap fails a test instead."""
+        wrapper = _wrapper_azure_timeouts()
+        cfg = config(mode="preflight")
+        cfg.eligibility_timeout = wrapper["eligibility"]
+        cfg.reset_timeout = wrapper["reset"]
+        cfg.overall_timeout = wrapper["overall"]
+        cfg.login_timeout_seconds = float(wrapper["login"])
+        try:
+            verifier._validate_config(cfg)
+        except verifier.ProofError as exc:
+            self.fail(
+                "scripts/run_task_8_9_preflight.ps1's --login-timeout-seconds literal no "
+                f"longer satisfies the verifier's own cross-field guard: {exc}. Update "
+                "--login-timeout-seconds to exceed --overall-timeout before running the "
+                "live preflight, or it will NON-GO after the wake exactly as it did on "
+                "2026-09-14."
+            )
 
 
 if __name__ == "__main__":

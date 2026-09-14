@@ -734,15 +734,33 @@ def _preflight(
         "APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT",
         "SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT",
     )
+
+    def _observed_timeout_value(name: str) -> str | None:
+        # The allowlist above bounds by NAME; this bounds by SHAPE too. No
+        # realistic Azure readback puts a non-string (e.g. a secretRef dict)
+        # under one of these names, but this document is committed to the
+        # repository, so a value that is not a plain string is never copied
+        # into it verbatim -- a clear marker is recorded instead.
+        value = names.get(name, yaml_defaults.get(name))
+        if value is None or isinstance(value, str):
+            return value
+        return "<non-string value withheld>"
+
     evidence["decisions"]["observedTimeouts"] = {
-        name: names.get(name, yaml_defaults.get(name)) for name in observed_timeout_names
+        name: _observed_timeout_value(name) for name in observed_timeout_names
     }
     for name, expected in approved.items():
         effective = names.get(name, yaml_defaults[name])
         if effective != expected:
+            # This message is written into evidence["verdict"]["errors"] and committed.
+            # redact_evidence only strips configured credential strings, so a non-string
+            # value (e.g. a secretRef row) would otherwise reach the repository verbatim.
+            observed_display = (
+                effective if isinstance(effective, str) else "<non-string value withheld>"
+            )
             raise ProofError(
                 f"serving {name} does not equal the approved value "
-                f"(observed={effective!r}, expected={expected!r})"
+                f"(observed={observed_display!r}, expected={expected!r})"
             )
         names[name] = effective
     provider = names.get("CLOUD_PROVIDER", "azure")
