@@ -2016,6 +2016,28 @@ Check 'the match emits exactly one canonical, allowlisted (names-only, no values
     # future edit could leak an observed value from.
     if ($lines[0] -match '\d') { throw "the canonical observation line carries a digit -- it must name checks, not values:`n  $($lines[0])" }
 }
+Check 'each env row is matched by its own name, not the whole decoded list as one row' {
+    # THE discriminating test for the ConvertFrom-Json double-wrap on THIS
+    # path, mirroring the replica-list discriminator further down ('selects
+    # exactly one replica name, not the whole decoded list'). Exit code
+    # alone is not quite enough to design this fixture around by accident,
+    # so it is pinned directly: $m2RatifiedJson above has four distinct
+    # rows. A double-wrapped decode makes $envRows a one-element array whose
+    # single element is the whole four-row array, so the loop in the wrapper
+    # runs once with that whole array bound to $row; $row.name and
+    # $row.value then member-enumerate across all four rows instead of
+    # reading one row at a time, producing an array of four names (never
+    # equal to any single expected name string) as the only hashtable key.
+    # Every ContainsKey($name) lookup for the three expected timeout names
+    # then misses, so a double-wrapped decode reports ALL THREE as absent --
+    # on this exact fixture, which is a byte-for-byte match. A correct
+    # decode-first-then-wrap stores one string-keyed entry per row and finds
+    # all three, so this fixture's correct-parse output (exit 0, no "absent"
+    # text) and its double-wrapped output (exit 2, three "absent" lines)
+    # cannot be confused for one another.
+    if ($r.Exit -ne 0) { throw "exit $($r.Exit) (expected 0 -- a double-wrapped decode reports every timeout absent even on a match); output: $($r.Output)" }
+    if ($r.Output -match 'is absent from the serving revision') { throw "a matching multi-row env was reported as having absent timeouts (the decode is double-wrapped):`n$($r.Output)" }
+}
 
 Write-Host 'Serving Azure demo-reset timeout precondition (M2): every failure mode exits 2, before curl, before evidence'
 # Every case below asserts the same three things the rest of this suite's
@@ -2035,9 +2057,15 @@ $m2MissingOverall = '[{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","value"
 # missing colon which some lenient parsers might still tolerate.
 $m2MalformedJson = '[{"name":"MALFORMED-MARKER-DO-NOT-LEAK","value":"120s"'
 $m2SecretRefJson = '[{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","secretRef":"kv-prod-root-password"},{"name":"APP_DEMO_LOGIN_RESET_RESET_TIMEOUT","value":"30s"},{"name":"APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT","value":"165s"}]'
+# The verifier (scripts/verify_demo_reset_azure.py) raises on a duplicated
+# serving environment name rather than keeping the first copy. Here the
+# FIRST copy of the eligibility timeout is correct (120s); a wrapper that
+# silently kept it would pass this boundary and only fail the verifier
+# post-wake -- the exact wake-costing class this boundary exists to remove.
+$m2DuplicateNameJson = '[{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","value":"120s"},{"name":"APP_DEMO_LOGIN_RESET_RESET_TIMEOUT","value":"30s"},{"name":"APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT","value":"165s"},{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","value":"999s"}]'
 # Hostile fixtures for the console-injection property below: each is a
 # genuine mismatch (so it exercises the one branch that interpolates the
-# observed value at all -- see run_task_8_9_preflight.ps1 L737-739) carrying
+# observed value at all -- see run_task_8_9_preflight.ps1 ~L746-776) carrying
 # a payload an attacker who controls the Container App's env could plant.
 # Both fixtures build their JSON-string escape sequences at runtime from
 # [char]92 (a backslash) concatenated with plain letters/digits, rather
@@ -2046,11 +2074,18 @@ $m2SecretRefJson = '[{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","secretR
 # either way, but building it from parts sidesteps any authoring tool
 # along the way that might decode it before it reaches the wrapper under
 # test. ConvertFrom-Json is the thing that is SUPPOSED to decode each
-# escape -- into a real line feed, and a real ESC byte, respectively --
-# once the wrapper reads this payload back from the (stubbed) az call.
+# escape -- into a real line feed, a real ESC byte, and a real bidi
+# override character, respectively -- once the wrapper reads this payload
+# back from the (stubbed) az call.
 $m2JsonEscN = [string][char]92 + 'n'
 $m2HostileNewlineJson = '[{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","value":"120s' + $m2JsonEscN + 'INJECTED-VIA-NEWLINE-MARKER"},{"name":"APP_DEMO_LOGIN_RESET_RESET_TIMEOUT","value":"30s"},{"name":"APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT","value":"165s"}]'
 $m2JsonEscEsc = [string][char]92 + 'u001b'
+# U+202E (RIGHT-TO-LEFT OVERRIDE) is a Unicode format character (\p{Cf}),
+# not a C0/C1 control byte, so it falls outside the old [\x00-\x1F\x7F-\x9F]
+# sanitizer range and inside the widened [\p{Cc}\p{Cf}\p{Zl}\p{Zp}] one. It
+# could visually reorder the marker that follows it in a rendered terminal.
+$m2JsonEscBidi = [string][char]92 + 'u202e'
+$m2HostileBidiJson = '[{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","value":"120s' + $m2JsonEscBidi + 'INJECTED-VIA-BIDI-MARKER"},{"name":"APP_DEMO_LOGIN_RESET_RESET_TIMEOUT","value":"30s"},{"name":"APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT","value":"165s"}]'
 $m2HostileAnsiJson = '[{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","value":"45s' + $m2JsonEscEsc + '[31mFAKE-ALERT' + $m2JsonEscEsc + '[0m"},{"name":"APP_DEMO_LOGIN_RESET_RESET_TIMEOUT","value":"30s"},{"name":"APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT","value":"165s"}]'
 
 $m2LongMarker = 'PWNED-' + ('Q' * 3000) + '-MARKEREND'
@@ -2058,11 +2093,19 @@ $m2HostileLongJson = '[{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","value
 
 $m2Cases = @(
     @{ Name = 'value mismatch (eligibility)'; Env = @{ STUB_SERVING_ENV_JSON = $m2MismatchEligibility }
-       ExpectSubstrings = @('do not match the ratified attestation', 'no wake was consumed', 'APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT', "observed='999s'", "expected='120s'"); ForbiddenSubstrings = @() },
+       # ForbiddenSubstrings here double as a double-wrap discriminator: a
+       # double-wrapped decode (see the dedicated Check above) reports EVERY
+       # expected name absent, so the two untouched, genuinely-matching
+       # names in this fixture must never show up as absent alongside the
+       # one that is really mismatched.
+       ExpectSubstrings = @('do not match the ratified attestation', 'no wake was consumed', 'APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT', "observed='999s'", "expected='120s'")
+       ForbiddenSubstrings = @('APP_DEMO_LOGIN_RESET_RESET_TIMEOUT is absent', 'APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT is absent') },
     @{ Name = 'value mismatch (reset)'; Env = @{ STUB_SERVING_ENV_JSON = $m2MismatchReset }
-       ExpectSubstrings = @('do not match the ratified attestation', 'APP_DEMO_LOGIN_RESET_RESET_TIMEOUT', "observed='999s'", "expected='30s'"); ForbiddenSubstrings = @() },
+       ExpectSubstrings = @('do not match the ratified attestation', 'APP_DEMO_LOGIN_RESET_RESET_TIMEOUT', "observed='999s'", "expected='30s'")
+       ForbiddenSubstrings = @('APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT is absent', 'APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT is absent') },
     @{ Name = 'value mismatch (overall)'; Env = @{ STUB_SERVING_ENV_JSON = $m2MismatchOverall }
-       ExpectSubstrings = @('do not match the ratified attestation', 'APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT', "observed='999s'", "expected='165s'"); ForbiddenSubstrings = @() },
+       ExpectSubstrings = @('do not match the ratified attestation', 'APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT', "observed='999s'", "expected='165s'")
+       ForbiddenSubstrings = @('APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT is absent', 'APP_DEMO_LOGIN_RESET_RESET_TIMEOUT is absent') },
     @{ Name = 'name missing entirely (eligibility)'; Env = @{ STUB_SERVING_ENV_JSON = $m2MissingEligibility }
        ExpectSubstrings = @('do not match the ratified attestation', 'is absent from the serving revision', 'APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT', "expected='120s'"); ForbiddenSubstrings = @() },
     @{ Name = 'name missing entirely (reset)'; Env = @{ STUB_SERVING_ENV_JSON = $m2MissingReset }
@@ -2073,6 +2116,13 @@ $m2Cases = @(
        ExpectSubstrings = @('did not parse as JSON'); ForbiddenSubstrings = @('MALFORMED-MARKER-DO-NOT-LEAK') },
     @{ Name = 'row carries secretRef instead of value'; Env = @{ STUB_SERVING_ENV_JSON = $m2SecretRefJson }
        ExpectSubstrings = @('do not match the ratified attestation', 'carries a secretRef or a null value', 'APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT', "expected='120s'"); ForbiddenSubstrings = @('kv-prod-root-password') },
+    @{ Name = 'duplicate serving environment name (first copy correct) is rejected, not silently kept'; Env = @{ STUB_SERVING_ENV_JSON = $m2DuplicateNameJson }
+       # Mirrors the verifier (scripts/verify_demo_reset_azure.py), which
+       # raises "duplicate serving environment value: <name>" on the same
+       # shape. Must exit 2 here even though the first copy alone would
+       # match -- silently keeping the first copy is exactly the
+       # pre-wake-pass/post-wake-fail gap this boundary exists to close.
+       ExpectSubstrings = @('duplicate serving environment value', 'APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT'); ForbiddenSubstrings = @() },
     @{ Name = 'the az call itself fails (non-zero exit)'; Env = @{ STUB_AZ_FAIL_MATCH = 'containers[0].env' }
        ExpectSubstrings = @('could not read the serving revision environment'); ForbiddenSubstrings = @() },
     @{ Name = 'the az call exits 0 with no output at all'; Env = @{ STUB_AZ_EMPTY_MATCH = 'containers[0].env' }
@@ -2104,28 +2154,31 @@ foreach ($m2Case in $m2Cases) {
 }
 
 Write-Host 'Serving Azure demo-reset timeout precondition (M2): console output must not reproduce untrusted content'
-# KNOWN FINDING (not fixed here; see the task report): run_task_8_9_preflight.ps1
-# L737-739 builds the mismatch line as
-#   "$name observed='$observedValue' expected='$expectedValue'"
-# with NO escaping, redaction, or length bound on $observedValue -- the one
-# field in this whole precondition that is genuinely attacker/deployment
-# controlled (it is read verbatim from the serving Container App's env by the
-# az call above). That string flows straight into Fail, i.e. straight into
-# Write-Host and the operator's transcript. The three cases below are
-# expected to FAIL against the current wrapper for exactly that reason: they
-# assert the safety property this precondition should have (no raw value,
-# secret name, control character, or injected line ever reaches the
-# console), not a property the code has been shown to already hold. Do not
-# "fix" these by loosening the assertions; the fix belongs in the wrapper's
-# mismatch-message construction, and is out of scope for this test-only
-# change (see AGENTS.md/CLAUDE.md task instructions: report, don't repair).
+# run_task_8_9_preflight.ps1's mismatch-message construction (~L746-776)
+# sanitizes $observedValue -- the one field in this whole precondition that
+# is genuinely attacker/deployment controlled, read verbatim from the
+# serving Container App's env by the az call above -- before it reaches
+# Fail, i.e. Write-Host, i.e. the operator's transcript: a value with a
+# control or Unicode format/separator character ([\p{Cc}\p{Cf}\p{Zl}\p{Zp}]),
+# or one over 80 characters, is replaced WHOLESALE by a fixed-shape
+# placeholder rather than shown even in part. The cases below assert that
+# safety property (no raw value, secret name, control character, injected
+# line, or bidi override ever reaches the console) and are expected to PASS
+# against the current wrapper -- the sanitizer above is what makes them
+# pass. Do not loosen these assertions; a future change that makes any of
+# them fail is a regression in the sanitizer, not a test to relax.
 $m2HostileCases = @(
     @{ Name = 'an embedded newline in the observed value is not reproduced in console output'; Env = @{ STUB_SERVING_ENV_JSON = $m2HostileNewlineJson }
        ForbiddenSubstrings = @('INJECTED-VIA-NEWLINE-MARKER') },
     @{ Name = 'an ANSI escape sequence in the observed value is not reproduced in console output'; Env = @{ STUB_SERVING_ENV_JSON = $m2HostileAnsiJson }
        ForbiddenSubstrings = @('FAKE-ALERT', [string][char]0x1B) },
     @{ Name = 'a very long observed value is not reproduced in console output'; Env = @{ STUB_SERVING_ENV_JSON = $m2HostileLongJson }
-       ForbiddenSubstrings = @('PWNED-', 'MARKEREND') }
+       ForbiddenSubstrings = @('PWNED-', 'MARKEREND') },
+    @{ Name = 'a bidi override character in the observed value is not reproduced in console output'; Env = @{ STUB_SERVING_ENV_JSON = $m2HostileBidiJson }
+       # Discriminates the widened sanitizer range: U+202E is \p{Cf}, not
+       # \p{Cc}, so the old [\x00-\x1F\x7F-\x9F] pattern would miss it and
+       # this case would fail against that narrower range.
+       ForbiddenSubstrings = @('INJECTED-VIA-BIDI-MARKER', [string][char]0x202E) }
 )
 foreach ($m2Hostile in $m2HostileCases) {
     $e = $good.Clone()

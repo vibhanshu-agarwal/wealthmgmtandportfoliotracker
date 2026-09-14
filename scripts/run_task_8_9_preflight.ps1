@@ -697,18 +697,27 @@ if ($LASTEXITCODE -ne 0) { Fail 'could not read the serving revision environment
 # guards above: a quiet `az --query` miss is not the same as a parse failure,
 # and each is reported distinctly rather than crashing or reading as a pass.
 if (-not $envRaw) { Fail 'the serving revision environment read returned no output' 2 }
-# Decode first, THEN wrap -- see the replica-list comment further down for why
-# @($envRaw | ConvertFrom-Json) is the wrong order: ConvertFrom-Json emits a
-# JSON array as a single Object[], so wrapping the raw string instead of the
-# already-decoded value double-wraps it and element 0 becomes the whole array.
+# Decode first, THEN wrap: the pipeline is decoded into a plain variable
+# ($envDecoded) first, and @() below wraps THAT variable, never the pipeline
+# itself. See the replica-list comment further down for why wrapping the
+# pipeline directly instead -- @($envRaw | ConvertFrom-Json) -- gets this
+# wrong: ConvertFrom-Json emits a JSON array as a single Object[], so @()
+# around the pipeline collects that one object and element 0 becomes the
+# whole row array instead of the first row.
 $envRows = @()
-try { $envRows = @($envRaw | ConvertFrom-Json) } catch { Fail 'the serving revision environment did not parse as JSON' 2 }
+try { $envDecoded = $envRaw | ConvertFrom-Json; $envRows = @($envDecoded) } catch { Fail 'the serving revision environment did not parse as JSON' 2 }
 $observedAzureTimeoutValues = @{}
 foreach ($row in $envRows) {
     $rowName = $null
     try { $rowName = $row.name } catch { $rowName = $null }
     if (-not $rowName) { continue }
-    if ($observedAzureTimeoutValues.ContainsKey($rowName)) { continue }
+    # A duplicated name is mirrored from the verifier
+    # (scripts/verify_demo_reset_azure.py), which raises on it rather than
+    # silently keeping the first copy. Keeping the first copy here would let
+    # a duplicated name whose first copy is correct pass this pre-wake
+    # boundary and then fail the verifier post-wake -- precisely the
+    # wake-costing class this boundary exists to remove.
+    if ($observedAzureTimeoutValues.ContainsKey($rowName)) { Fail "duplicate serving environment value: $rowName" 2 }
     # A row may carry `secretRef` instead of `value` (or `value` may be
     # explicitly null); under StrictMode, referencing `.value` on a decoded
     # object that has no such JSON key throws rather than returning $null, so
@@ -741,22 +750,24 @@ foreach ($name in $expectedAzureTimeoutNames) {
         # literals ($name, $expectedValue). It reaches Fail, i.e. Write-Host,
         # i.e. this operator's console transcript (captured as evidence
         # under docs/evidence/b2-task-8-9/), so it is never interpolated
-        # raw. Two things make it unsafe to show as-is: a control character
-        # (CR, LF, TAB and ESC among them -- 0x00-0x1F, 0x7F-0x9F) could
-        # inject a fake transcript line or a terminal escape sequence, and
-        # an unbounded length could blow the transcript up outright. Either
-        # one replaces the WHOLE value with a fixed-shape description below
-        # -- never a partial excerpt: a truncated PREFIX of a hostile value
-        # is still hostile content, so the only safe truncation is to none
-        # of it. The description is deliberately shaped so a reader cannot
-        # mistake it for a quoted excerpt of what was actually deployed. A
-        # plain value within the bound is unaffected and shown exactly as
-        # before.
+        # raw. Two things make it unsafe to show as-is: a control or Unicode
+        # format character (CR, LF, TAB and ESC among the controls; a bidi
+        # override, a line/paragraph separator (U+200E, U+202E, U+2028,
+        # U+2029) among the format/separator characters) could inject a
+        # fake transcript line, a terminal escape sequence, or visually
+        # reorder/break a rendered line, and an unbounded length could blow
+        # the transcript up outright. Either one replaces the WHOLE value
+        # with a fixed-shape description below -- never a partial excerpt: a
+        # truncated PREFIX of a hostile value is still hostile content, so
+        # the only safe truncation is to none of it. The description is
+        # deliberately shaped so a reader cannot mistake it for a quoted
+        # excerpt of what was actually deployed. A plain value within the
+        # bound is unaffected and shown exactly as before.
         $observedText = [string]$observedValue
-        $observedHasControlChars = [regex]::IsMatch($observedText, '[\x00-\x1F\x7F-\x9F]')
+        $observedHasControlChars = [regex]::IsMatch($observedText, '[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]')
         $observedTooLong = $observedText.Length -gt 80
         if ($observedHasControlChars -or $observedTooLong) {
-            $observedSanitizeReason = if ($observedHasControlChars) { 'control characters removed' } else { 'exceeds the 80-character display bound' }
+            $observedSanitizeReason = if ($observedHasControlChars) { 'withheld: contains control or bidi/format characters' } else { 'exceeds the 80-character display bound' }
             $observedDisplay = "<sanitized rendering, not the literal value -- $($observedText.Length) chars, $observedSanitizeReason>"
         } else {
             $observedDisplay = $observedText
