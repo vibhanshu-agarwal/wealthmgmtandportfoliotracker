@@ -1,7 +1,7 @@
 # Implementation Plan
 
-**Current program status (reconciled through PR #275 on 2026-09-15 at
-`main@8337d7e8b982245156088719d01f49b3ad1c1be9`):** Waves 1–6 retain their recorded source and
+**Current program status (reconciled through PR #276 on 2026-09-15 at
+`main@1f922a89643f5bb406dcdf471e8dc07a229960d6`):** Waves 1–6 retain their recorded source and
 review evidence. Wave 5 Task 5.6 is GO and its gateway bundle is deployed hidden in the Task 8.8
 revision. Wave 3 Task 3.7 is green on its recorded Azure evidence; Wave 6 Task 6.3 is green on its recorded
 2026-09-11 gateway-read evidence. Production flags remain disabled.
@@ -13,7 +13,8 @@ owner-authorized production run `34433715705`: it deployed `api-gateway--0000079
 immutable digest `sha256:aee44edc12b03175379caf65546e04f5ca1e2cea0d8690c00190b01254f20aa1`, and
 the current-attempt manifest and scoped non-interference proof were green. That historical revision
 was subsequently superseded and purged; current `api-gateway--0000081` is separately attested below.
-Task 8.9 live serving proof remains open and separately owner-gated.
+Task 8.9's read-only Run A preflight is accepted; the credential-using execute proof remains open,
+and Task 8.9 stays unchecked until that separately authorized proof succeeds and is accepted.
 
 Task 8.9's source-only provenance correction merged through PR #248 at
 `main@26148c4be75675613e28d89f713639a0376aaba7`. PR #262 then added the current immutable
@@ -37,7 +38,7 @@ read-only baseline remains in the
 the [`2026-09-10 rehearsal record`](../../../docs/evidence/b2-task-8-9/rehearsal-20260910.json)
 remains historical evidence for its earlier gateway identity.
 
-Three owner-authorized Run A attempts have since been consumed. Attempt 1's
+The first three owner-authorized Run A attempts were consumed without an accepted verdict. Attempt 1's
 [`2026-09-12 NON-GO record`](../../../docs/evidence/b2-task-8-9/run-a-attempt-20260912.md), merged
 through PR #265 at `main@e73ab8e9`, records one wake returning `503` after 56.374 seconds. The
 verifier was then run contrary to the readiness packet's non-`200` stop rule and ended `class_2a` /
@@ -72,14 +73,23 @@ comparison, key-case, and hostile-Unicode sanitisation gaps at
 green. Both PRs are source/test/documentation hardening only; neither performed or authorized a
 Production action.
 
-**Run A attempt 4 remains unauthorized and unstarted.** A future attempt still requires a fresh owner
-decision for one activation sequence of at most six Production health probes followed by read-only
-preflight. That decision cannot authorize a seventh probe, execute mode, credentials, production
-login, portfolio mutation or cleanup, feature-flag change, deployment, publication, merge, or Wave
-10 exposure. The six accepted non-blocking implementation follow-ups are consolidated in the
+**Run A attempt 4 passed its owner-authorized read-only preflight on 2026-09-15 (local date).** From
+clean `main@1f922a89643f5bb406dcdf471e8dc07a229960d6`, the Windows PowerShell 5.1 wrapper used two of
+six permitted health probes (`503`, then `200`), stopped probing at the first `200`, completed all
+15 preflight operations with `mutating:false`, and exited `0`. The accepted evidence records
+`verdict.status=preflight_passed`, `verdict.go=null`, no errors, and no application login, portfolio
+read/write/reset, threshold override, feature-flag change, deployment, or new revision. See the
+[attempt record](../../../docs/evidence/b2-task-8-9/run-a-attempt-20260915.md),
+[sanitized transcript](../../../docs/evidence/b2-task-8-9/run-a-attempt4-operator-transcript-20260915.txt),
+and [preflight JSON](../../../docs/evidence/b2-task-8-9/run-a-attempt4-preflight-20260915.json).
+The one separately authorized delayed replica read still found one Running replica, so the
+300-second scale-to-zero planning assumption remains unverified; that is not a preflight failure.
+The six accepted non-blocking implementation follow-ups remain consolidated in the
 [Task 8.9 wake-preflight hardening backlog](../../../docs/todos/backlog/task-8-9-wake-preflight-hardening/README.md).
-If preflight passes, the credential-using, Production-mutating execute run requires another separate
-owner approval; neither preflight approval nor a green preflight can authorize it.
+On 2026-09-15 the owner separately authorized the credential-using execute proof and publication of
+this evidence. The execute proof has not run: its two short-lived application credentials must still
+be injected by the owner without exposing their values to an agent. Task 8.9 remains OPEN / NON-GO,
+its checkbox remains unchecked, Wave 10 remains blocked, and both production flags remain disabled.
 
 Wave 9's source and disposable assembled-stack integration are complete through
 [PR #232](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/232) at

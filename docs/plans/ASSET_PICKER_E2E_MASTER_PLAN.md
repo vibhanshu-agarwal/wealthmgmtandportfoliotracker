@@ -1,8 +1,10 @@
 # Asset Picker — E2E Master Plan to Production
 
-**Last verified:** 2026-09-15 at `main@8337d7e8b982245156088719d01f49b3ad1c1be9` for B2 Task 8.9's
-merged pre-wake correctness hardening (PR #275; exact-head Windows PowerShell 5.1 suite 286/286 and
-required aggregate CI green; source/test/documentation only, no runtime/program-state baseline change);
+**Last verified:** 2026-09-15 against source baseline
+`main@1f922a89643f5bb406dcdf471e8dc07a229960d6` for B2 Task 8.9 Run A attempt 4's accepted
+read-only Production preflight (`preflight_passed`, `go:null`; execute proof still open);
+2026-09-15 at `main@8337d7e8b982245156088719d01f49b3ad1c1be9` for the merged pre-wake correctness hardening
+(PR #275; exact-head Windows PowerShell 5.1 suite 286/286 and required aggregate CI green);
 2026-09-14 at `main@a28c481a` for the Azure-specific timeout expectation, drift guard, and evidence
 corrections (PR #273; Windows PowerShell 5.1 suite 244/244);
 2026-09-13 at `main@80b881b5c461e1bebb210ebe1db4b911cf6a336d` for the predecessor cold-start
@@ -55,7 +57,7 @@ the production login, write, KQL, cleanup, or Task 8.9 completion; see the prior
 [2026-09-10 rehearsal record](../evidence/b2-task-8-9/rehearsal-20260910.json) remains historical
 evidence for its earlier gateway identity.
 
-**TASK 8.9 PREFLIGHT HARDENING — PRs #268, #273 AND #275 MERGED; LIVE PROOF OPEN:**
+**TASK 8.9 PREFLIGHT ACCEPTED; CREDENTIAL-USING EXECUTE PROOF OPEN:**
 [PR #268](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/268) merged at
 `main@80b881b5c461e1bebb210ebe1db4b911cf6a336d`. The accepted head
 `400ac3c8adebd3dae7a9d085152e280a301ec637` is its second parent and has the identical merge tree
@@ -106,14 +108,21 @@ under a `150s` route ceiling per the
 [ratification](../evidence/b2-task-8-9/2026-09-14-azure-timeout-ratification.md). This pointer changes no
 Task 8.9 status or Production authorization.
 
-**Run A attempt 4 remains unauthorized and unstarted.** A future attempt requires a fresh owner
-decision for no more than six Production health probes followed by the wrapper's read-only preflight.
-It cannot authorize a seventh probe, execute mode, credentials, a portfolio write or cleanup, flag
-change, deployment, publication, merge, or production exposure. Six accepted non-blocking
-implementation follow-ups are tracked in the
+**Run A attempt 4 — accepted preflight, still not Task 8.9 GO:** the owner-authorized Windows
+PowerShell 5.1 run used two bounded probes (`503`, then `200`) and stopped at the first `200`. The
+wrapper completed 15 operations, all `mutating:false`, and exited `0`; the evidence records
+`preflight_passed`, `go:null`, no errors, both attested serving revisions/digests, and the approved
+Azure timeout/response-ceiling/idle/provider values. It used no Task 8.9 application credentials,
+performed no login or portfolio mutation, created no revision, and changed no flag or deployment.
+See the [attempt record](../evidence/b2-task-8-9/run-a-attempt-20260915.md),
+[sanitized transcript](../evidence/b2-task-8-9/run-a-attempt4-operator-transcript-20260915.txt), and
+[preflight JSON](../evidence/b2-task-8-9/run-a-attempt4-preflight-20260915.json). The one delayed
+replica read still found one Running replica, so the 300-second scale-to-zero assumption remains
+unverified without invalidating the accepted preflight. Six accepted non-blocking follow-ups remain in the
 [Task 8.9 wake-preflight hardening backlog](../todos/backlog/task-8-9-wake-preflight-hardening/README.md).
-If that preflight passes, the credential-using, Production-mutating execute run remains a second,
-separate owner decision; preflight approval or success cannot authorize it.
+The owner separately authorized the credential-using execute proof and evidence publication on
+2026-09-15. The execute proof remains unrun pending owner-injected short-lived credentials. Task 8.9
+therefore remains OPEN / NON-GO, Wave 10 remains blocked, and both production flags remain disabled.
 
 **B2 TASK 10.1 SOURCE WIRING — MERGED THROUGH PR #259; EXPOSURE CLOSED:**
 PR #259 merged at `main@03ca63000a16f38484a37cc85ab938a0ad7874c2`. Its two-file Azure-only change
@@ -714,7 +723,7 @@ Wave 4 Tasks 4.1–4.4a merged via PR #180 at `main@63fc058`; that exact histori
 | 5 — manual-reset gateway bundle | ✅ Source Tasks 5.1–5.5 plus 5.1a/5.1b are merged, Task 5.6 owner GO is recorded, and the complete bundle was shipped hidden with the approved Task 8.8 scoped gateway deployment | Deployment run `34433715705` placed the bundle on `api-gateway--0000079` at `sha256:aee44edc…`; Task 6.3's current gateway-read evidence binds successor `api-gateway--0000081`. The frontend control remains disabled and Wave 10 exposure remains separate |
 | 6 — manual reset frontend | ✅ Tasks 6.1/6.2 merged via [PR #214](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/214) at `main@48d0aba8`, identical to CI-green head `b918ff09`; ACCEPT, R1–R4 closed | Committed flags off; the owner finalized the existing page-level placement on 2026-09-06. Task 6.3 is green on [bounded gateway-read evidence](../evidence/b2-task-6-3/backend-readiness-gateway-read-20260911.json); Wave 10 remains closed. The owner-deferred [sidebar backlog](../todos/backlog/responsive-dashboard-sidebar/README.md) remains open |
 | 7 — decimal rollout note | ℹ Informational | No independent release gate |
-| 8 — login-orchestrated reset | 🟡 Tasks 8.1–8.8 and 8.8b are complete for Azure. Run `34433715705` deployed historical `api-gateway--0000079` at `sha256:aee44edc…`; current-attempt and non-interference proofs passed, and the revision was later superseded and purged. PR #262 reconciled Task 8.9's current [per-service provenance packet](../evidence/b2-task-8-9/deployment-provenance-20260911.json) to `api-gateway--0000081` / run `34588465283`, retaining the independent `portfolio-service--0000096` / run `34328692256` attestation with no common workflow identity. The explicit 2026-09-11 [re-preflight evidence](../evidence/b2-task-8-9/rehearsal-20260911.json) matched both identities and workspace, then stopped before any wake. Run A [attempt 1](../evidence/b2-task-8-9/run-a-attempt-20260912.md), merged through PR #265, consumed one wake that returned `503` after 56.374 seconds; the verifier was then run contrary to the packet's stop rule and ended NON-GO. Run A [attempt 2](../evidence/b2-task-8-9/run-a-attempt-20260913.md), recorded through PR #267, consumed a second wake that returned `503`; the wrapper exited `3` before verifier start. Attempt 3 on 2026-09-14 consumed the third wake, completed all 14 read-only Azure operations, and then exited `4` on the stale generic timeout expectation; the [ratification](../evidence/b2-task-8-9/2026-09-14-azure-timeout-ratification.md) records the Azure-specific values and root cause. PRs #273 and #275 corrected the pre-wake contract through `main@8337d7e8`; the exact-head Windows PowerShell 5.1 suite passed 286/286 and required CI was green. [Decision record](../superpowers/plans/2026-09-06-b2-wave8-decision-record.md) and [deployment evidence](../evidence/b2-task-8-8/deployment-completion-20260910.json). | Task 8.9 live login/reset/log-correlation proof remains OPEN / NON-GO and separately gated: three wakes are consumed with zero accepted verdicts. Run A attempt 4 is unauthorized and unstarted; any future bounded preflight and any later credential-using execute run require separate owner decisions. Task 8.8a remains AWS-only and does not apply to this Azure deployment. Production flags remain off |
+| 8 — login-orchestrated reset | 🟡 Tasks 8.1–8.8 and 8.8b are complete for Azure. Run `34433715705` deployed historical `api-gateway--0000079` at `sha256:aee44edc…`; current-attempt and non-interference proofs passed, and the revision was later superseded and purged. PR #262 reconciled Task 8.9's current [per-service provenance packet](../evidence/b2-task-8-9/deployment-provenance-20260911.json) to `api-gateway--0000081` / run `34588465283`, retaining the independent `portfolio-service--0000096` / run `34328692256` attestation with no common workflow identity. Run A attempts 1–3 consumed three wakes without an accepted verdict; their records and the [timeout ratification](../evidence/b2-task-8-9/2026-09-14-azure-timeout-ratification.md) remain historical. Run A [attempt 4](../evidence/b2-task-8-9/run-a-attempt-20260915.md) then passed the accepted read-only Production preflight from `main@1f922a89`: two of six probes (`503`, then `200`), 15 nonmutating operations, `preflight_passed`, and `go:null`. The [sanitized transcript](../evidence/b2-task-8-9/run-a-attempt4-operator-transcript-20260915.txt) and [preflight JSON](../evidence/b2-task-8-9/run-a-attempt4-preflight-20260915.json) preserve the details. | Task 8.9 remains OPEN / NON-GO because the credential-using execute login/reset/log-correlation proof has not run. The owner authorized that execute proof and this evidence publication on 2026-09-15; execution is pending owner-injected short-lived credentials. Task 8.8a remains AWS-only. Production flags remain off and Wave 10 remains blocked. |
 | 9 — live integration | 🟡 Tasks 9.1, 9.3, 9.4, 9.5 (PR #231 at `main@b4c68253b99a796d6301ef79b5aa5a47d5cbd962`), and 9.6 have their recorded source/local evidence. Tasks 9.2/9.7/9.8/9.9 are source/assembled-stack complete: one disposable Compose real-browser run passed 5/5 across setup plus picker and demo-reset success/conflict; PR #232 merged at `main@318f28592da6ab2e3bd66bc738aa68d374b180fa`, with final CI run `34018608256` passing `docker-build-verify` and `ci-required`, and body-edit guard run `34020180243` passing | No deployment or Production E2E is claimed; the B2-specific Wave 10 convergence/exposure gate and Production E2E still gate exposure. This is not the already-proved B1 P11g-2 property; production flags remain off |
 | 10 — production exposure | 🟡 Task 10.1 source wiring complete; exposure blocked | PR #259 / `main@03ca6300` passed its CI contract without creating or changing either repository variable. Wave 10.2 still requires B2 live decimal fidelity, Task 8.9 serving proof, explicit owner approval, a new build/deploy, and Production E2E |
 

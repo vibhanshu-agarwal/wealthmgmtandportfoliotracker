@@ -3,3 +3,6 @@
 *.jar binary
 /docs/evidence/b1-r3-decision1/v21-r3-operational-query.sql text eol=lf
 /docs/evidence/b1-r3-decision1/v21-r3-operational-result.json text eol=lf
+/docs/evidence/b2-task-8-9/run-a-attempt-20260915.md -text
+/docs/evidence/b2-task-8-9/run-a-attempt4-preflight-20260915.json -text
+/docs/evidence/b2-task-8-9/run-a-attempt4-operator-transcript-20260915.txt -text
