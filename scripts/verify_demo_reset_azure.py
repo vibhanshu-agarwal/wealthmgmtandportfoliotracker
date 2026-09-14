@@ -703,6 +703,16 @@ def _preflight(
             if row["name"] in names:
                 raise ProofError(f"duplicate serving environment value: {row['name']}")
             names[row["name"]] = row.get("value")
+    # Every access/readback operation above -- replica resolution, the
+    # containerapp exec RBAC rehearsal, ACR pull-access and login, the
+    # immutable image pulls, the Log Analytics query, and this Wave 8 env
+    # readback -- has now succeeded. Record that independently of the
+    # configuration equality check below: that check validates *values*, not
+    # access, and its failure must not read back as "RBAC unproven". That
+    # conflation made the 2026-09-14 evidence indistinguishable from a genuine
+    # 2026-09-11-style RBAC failure at replica list, even though every
+    # access/readback step here had already succeeded.
+    evidence["preflight"]["rbacRehearsed"] = True
     approved = {
         "APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD": config.idle_threshold,
         "APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT": config.eligibility_timeout,
@@ -710,10 +720,30 @@ def _preflight(
         "APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT": config.overall_timeout,
     }
     yaml_defaults = _authoritative_yaml_defaults()
+    # Strict allowlist: only the three APP_DEMO_LOGIN_RESET_*_TIMEOUT names plus
+    # the gateway route response-timeout are ever written into the committed
+    # evidence document. `names` holds every serving environment variable the
+    # readback above returned; recording it wholesale would leak arbitrary
+    # deployment content into evidence that gets committed to the repository,
+    # so only these four names -- exactly what a future timeout-drift
+    # diagnosis needs -- are copied out, before the equality check below can
+    # raise.
+    observed_timeout_names = (
+        "APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT",
+        "APP_DEMO_LOGIN_RESET_RESET_TIMEOUT",
+        "APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT",
+        "SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT",
+    )
+    evidence["decisions"]["observedTimeouts"] = {
+        name: names.get(name, yaml_defaults.get(name)) for name in observed_timeout_names
+    }
     for name, expected in approved.items():
         effective = names.get(name, yaml_defaults[name])
         if effective != expected:
-            raise ProofError(f"serving {name} does not equal the approved value")
+            raise ProofError(
+                f"serving {name} does not equal the approved value "
+                f"(observed={effective!r}, expected={expected!r})"
+            )
         names[name] = effective
     provider = names.get("CLOUD_PROVIDER", "azure")
     if provider != "azure":
@@ -725,7 +755,7 @@ def _preflight(
         "resetTimeout": names["APP_DEMO_LOGIN_RESET_RESET_TIMEOUT"],
         "overallTimeout": names["APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT"],
     }
-    evidence["preflight"] = {"passed": True, "rbacRehearsed": True}
+    evidence["preflight"]["passed"] = True
     return _load_oracle(
         evidence, runner, config.expected_user_id,
         timeout_seconds=config.operation_timeout_seconds, monotonic=monotonic,

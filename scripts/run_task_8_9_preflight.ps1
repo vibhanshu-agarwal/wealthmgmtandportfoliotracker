@@ -789,7 +789,29 @@ $verifierArgs = @(
     '--gateway-url', $GatewayUrl,
     '--deployment-provenance', $ProvenancePath,
     '--evidence-output', $EvidenceOutput,
-    '--operation-timeout-seconds', "$OperationTimeoutSeconds"
+    '--operation-timeout-seconds', "$OperationTimeoutSeconds",
+    # The verifier's own --eligibility-timeout/--reset-timeout/--overall-timeout
+    # defaults (45s/10s/60s) are the generic, non-Azure values from the
+    # 2026-09-09 decision (docs/superpowers/plans/2026-09-06-b2-wave8-decision-record.md)
+    # -- correct for every deployment except this one. This wrapper targets the
+    # attested Azure Production gateway, which Terraform runs with wider,
+    # Azure-specific overrides (infrastructure/terraform/azure/main.tf, PR #251),
+    # ratified in
+    # docs/superpowers/plans/2026-09-14-b2-task-8-9-azure-timeout-ratification.md.
+    # Literals, like the probe budget and the gateway URL above: not script
+    # parameters, so this wrapper cannot silently drift onto an unratified value.
+    '--eligibility-timeout', '120s',
+    '--reset-timeout', '30s',
+    '--overall-timeout', '165s',
+    # The verifier's own cross-field guard (_validate_config) requires
+    # login-timeout-seconds to exceed overall-timeout regardless of mode,
+    # including preflight, where no login is ever attempted (this wrapper
+    # never requests execute mode -- see above). Its 120s default was sized
+    # for the generic 60s overall deadline (60s orchestration + 60s cold-start
+    # headroom); left unset here it would now be 120s <= 165s and this
+    # preflight would fail closed on that guard alone. 225s applies the same
+    # 60s cold-start headroom on top of the Azure 165s overall deadline.
+    '--login-timeout-seconds', '225'
 )
 & $PythonCommand @verifierArgs
 $verifierExit = $LASTEXITCODE

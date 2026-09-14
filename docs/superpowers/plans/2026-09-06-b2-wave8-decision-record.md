@@ -80,6 +80,11 @@
 
 Use one validated `DemoLoginResetProperties` binding with no duplicate constructor fallbacks:
 
+> **2026-09-14 Azure Production note:** The table below remains the application-wide
+> fallback contract. The attested Azure Production deployment overrides the three
+> timeouts to `120s / 30s / 165s` through Terraform introduced by PR #251; see the
+> [Azure timeout ratification](../../evidence/b2-task-8-9/2026-09-14-azure-timeout-ratification.md).
+
 | Property | Environment override | Value |
 |---|---|---|
 | `app.demo-login-reset.idle-threshold` | `APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD` | `30m` |
