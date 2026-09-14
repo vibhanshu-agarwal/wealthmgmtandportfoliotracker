@@ -2043,7 +2043,7 @@ Check 'each env row is matched by its own name, not the whole decoded list as on
     # on this exact fixture, which is a byte-for-byte match. A correct
     # decode-first-then-wrap stores one string-keyed entry per row and finds
     # all four, so this fixture's correct-parse output (exit 0, no "absent"
-    # text) and its double-wrapped output (exit 2, three "absent" lines)
+    # text) and its double-wrapped output (exit 2, four "absent" lines)
     # cannot be confused for one another.
     if ($r.Exit -ne 0) { throw "exit $($r.Exit) (expected 0 -- a double-wrapped decode reports every timeout absent even on a match); output: $($r.Output)" }
     if ($r.Output -match 'is absent from the serving revision') { throw "a matching multi-row env was reported as having absent timeouts (the decode is double-wrapped):`n$($r.Output)" }
@@ -2159,6 +2159,20 @@ $m2HostileLongJson = '[{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","value
 $m2DuplicateNameHostileMarker = 'INJECTED-VIA-DUPNAME-BIDI-MARKER'
 $m2HostileDuplicateNameJson = '[{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT' + $m2JsonEscBidi + $m2DuplicateNameHostileMarker + '","value":"120s"},{"name":"APP_DEMO_LOGIN_RESET_RESET_TIMEOUT","value":"30s"},{"name":"APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT","value":"165s"},{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT' + $m2JsonEscBidi + $m2DuplicateNameHostileMarker + '","value":"999s"}]'
 
+# Key-side M-1 (2026-09-14 review round, gap the value-side -cne fix missed):
+# PowerShell's @{} hashtable literal is case-INsensitive on KEYS, independent
+# of the -cne fix on the VALUE side above. Both fixtures below carry the
+# CORRECT value under a WRONGLY-CASED name, with no correctly-cased row
+# alongside it, so the only thing that can make the wrapper reject is the key
+# comparer, not the value comparison. Neither is vacuous: replayed against
+# 11e64ad (the case-insensitive @{} literal) both fixtures reach exit 0 --
+# ContainsKey matches the wrongly-cased name case-insensitively, and the
+# (identical) value then compares equal under -cne too -- and only reject
+# (exit 2) once the wrapper's hashtable is constructed with
+# [System.StringComparer]::Ordinal.
+$m2NameLowercaseEligibility = '[{"name":"APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD","value":"30m"},{"name":"app_demo_login_reset_eligibility_timeout","value":"120s"},{"name":"APP_DEMO_LOGIN_RESET_RESET_TIMEOUT","value":"30s"},{"name":"APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT","value":"165s"},{"name":"SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT","value":"150s"}]'
+$m2NameMixedCaseCeiling = '[{"name":"APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD","value":"30m"},{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","value":"120s"},{"name":"APP_DEMO_LOGIN_RESET_RESET_TIMEOUT","value":"30s"},{"name":"APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT","value":"165s"},{"name":"Spring_Cloud_Gateway_Server_Webflux_Httpclient_Responsetimeout","value":"150s"}]'
+
 $m2Cases = @(
     @{ Name = 'value mismatch (eligibility)'; Env = @{ STUB_SERVING_ENV_JSON = $m2MismatchEligibility }
        # ForbiddenSubstrings here double as a double-wrap discriminator: a
@@ -2213,6 +2227,18 @@ $m2Cases = @(
     @{ Name = 'm-1: CLOUD_PROVIDER mixed case (Azure) must reject, not pass case-insensitively'; Env = @{ STUB_SERVING_ENV_JSON = $m2ProviderMixedCase }
        ExpectSubstrings = @('do not match the ratified attestation', 'CLOUD_PROVIDER', "observed='Azure'", "expected='azure'")
        ForbiddenSubstrings = @('APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT is absent', 'APP_DEMO_LOGIN_RESET_RESET_TIMEOUT is absent', 'APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT is absent', 'SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT is absent') },
+    # --- Key side (2026-09-14 review round): a wrongly-cased NAME, not a
+    #     wrongly-cased VALUE. The verifier's `names` dict (a Python dict) is
+    #     exact-key case-sensitive, so a name spelled in any other case than
+    #     the ratified one must read as ABSENT here, exactly as it does post-
+    #     wake -- never as a case-insensitive match on an otherwise-correct
+    #     value.
+    @{ Name = 'm-1 (key side): a lowercase env-var NAME must read as absent, not match case-insensitively'; Env = @{ STUB_SERVING_ENV_JSON = $m2NameLowercaseEligibility }
+       ExpectSubstrings = @('do not match the ratified attestation', 'is absent from the serving revision', 'APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT', "expected='120s'")
+       ForbiddenSubstrings = @('APP_DEMO_LOGIN_RESET_RESET_TIMEOUT is absent', 'APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT is absent', 'SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT is absent') },
+    @{ Name = 'm-1 (key side): a mixed-case env-var NAME on the response ceiling must read as absent, not match case-insensitively'; Env = @{ STUB_SERVING_ENV_JSON = $m2NameMixedCaseCeiling }
+       ExpectSubstrings = @('do not match the ratified attestation', 'is absent from the serving revision', 'SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT', "expected='150s'")
+       ForbiddenSubstrings = @('APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT is absent', 'APP_DEMO_LOGIN_RESET_RESET_TIMEOUT is absent', 'APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT is absent') },
     @{ Name = 'malformed / unparseable JSON'; Env = @{ STUB_SERVING_ENV_JSON = $m2MalformedJson }
        ExpectSubstrings = @('did not parse as JSON'); ForbiddenSubstrings = @('MALFORMED-MARKER-DO-NOT-LEAK') },
     @{ Name = 'row carries secretRef instead of value'; Env = @{ STUB_SERVING_ENV_JSON = $m2SecretRefJson }

@@ -722,7 +722,22 @@ if (-not $envRaw) { Fail 'the serving revision environment read returned no outp
 # whole row array instead of the first row.
 $envRows = @()
 try { $envDecoded = $envRaw | ConvertFrom-Json; $envRows = @($envDecoded) } catch { Fail 'the serving revision environment did not parse as JSON' 2 }
-$observedAzureTimeoutValues = @{}
+# Ordinal, not the @{} literal's default comparer: a PowerShell @{} hashtable
+# is case-INsensitive on its KEYS (independent of the -cne fix on the VALUE
+# side just below), so a wrongly-cased name -- e.g. a lowercase twin of
+# APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT, or a mixed-case twin of
+# SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT, with no
+# correctly-cased row alongside it -- would satisfy every ContainsKey/indexer
+# lookup below by matching case-insensitively. The verifier's own lookup table
+# (`names: dict[str, Any]`, scripts/verify_demo_reset_azure.py:700, read via
+# `names.get(name, yaml_defaults[name])` at L753) is a Python dict: exact-key,
+# case-sensitive. So is the JVM env-var lookup the serving container actually
+# performs. A non-uppercase spelling of an expected name must therefore read
+# as ABSENT here, exactly as it does in both of those, not as a case-blind
+# match that only fails after the wake. [hashtable]::new(...) is a static
+# method call, not `New-Object`; matches the ::new idiom already used above
+# for [IO.MemoryStream] and [Text.UTF8Encoding].
+$observedAzureTimeoutValues = [hashtable]::new([System.StringComparer]::Ordinal)
 foreach ($row in $envRows) {
     $rowName = $null
     try { $rowName = $row.name } catch { $rowName = $null }

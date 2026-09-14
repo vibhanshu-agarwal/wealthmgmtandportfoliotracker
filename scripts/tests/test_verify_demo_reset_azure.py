@@ -2360,6 +2360,72 @@ class FinalReviewRegressionTest(unittest.TestCase):
 WRAPPER_PATH = REPO / "scripts" / "run_task_8_9_preflight.ps1"
 
 
+def _drop_commented_lines(text: str) -> str:
+    """Filter out every line whose lstrip() starts with '#' before a
+    drift-guard regex runs over what remains.
+
+    This is line-level filtering, not a '#'-to-end-of-line strip: a
+    '#'-to-end-of-line regex would also fire mid-line, and a PowerShell
+    single-quoted string literal containing a '#' character would have that
+    tail silently truncated by such a strip. Dropping only lines that are
+    ENTIRELY a comment (after leading whitespace) avoids that corruption
+    while still doing the one thing these two extraction sites need: a
+    commented-out copy of a literal they read (e.g.
+    `# 'SPRING_CLOUD_...RESPONSETIMEOUT' = '150s'`) must not satisfy a bare
+    re.search/re.findall over the raw text, which would otherwise keep
+    test_expected_timeout_names_array_includes_all_four_checked_names and
+    test_wrapper_azure_timeout_literals_match_terraform green while the
+    wrapper's own pre-wake loop silently stopped checking that name.
+    test_comment_filtering_actually_ignores_a_commented_out_name (below)
+    proves this by construction rather than by inspection."""
+    return "\n".join(
+        line for line in text.splitlines() if not line.lstrip().startswith("#")
+    )
+
+
+def _wrapper_expected_timeout_values_block_text(text: str) -> str:
+    """Return the interior of the $expectedAzureTimeoutValues = @{ ... }
+    hashtable literal (scripts/run_task_8_9_preflight.ps1:704-709), scoped
+    to just that block rather than the whole file. Scoping -- not only the
+    comment filtering _drop_commented_lines applies afterward -- is what
+    stops a stray, uncommented copy of the ceiling name/value ANYWHERE ELSE
+    in the wrapper from satisfying the ceiling drift guard below; the two
+    are independent fixes for two different ways a stray literal could
+    satisfy a regex that was never meant to see it."""
+    import re
+
+    match = re.search(
+        r"\$expectedAzureTimeoutValues\s*=\s*@\{\s*\n(.*?)\n\s*\}",
+        text,
+        re.DOTALL,
+    )
+    if match is None:
+        raise AssertionError(
+            "$expectedAzureTimeoutValues hashtable literal not found in wrapper text"
+        )
+    return match.group(1)
+
+
+def _wrapper_expected_timeout_names_array_text(text: str) -> str:
+    """Return the interior of the $expectedAzureTimeoutNames = @( ... )
+    array literal (scripts/run_task_8_9_preflight.ps1:698-703). Split out of
+    AzureTimeoutDriftGuardTest._wrapper_expected_timeout_names_array so the
+    negative test below can run it against an in-memory, modified copy of the
+    wrapper text without touching the file on disk."""
+    import re
+
+    match = re.search(
+        r"\$expectedAzureTimeoutNames\s*=\s*@\(\s*\n(.*?)\n\s*\)",
+        text,
+        re.DOTALL,
+    )
+    if match is None:
+        raise AssertionError(
+            "$expectedAzureTimeoutNames array literal not found in wrapper text"
+        )
+    return match.group(1)
+
+
 def _wrapper_azure_timeouts() -> dict[str, str]:
     """Parse the Azure timeout literals scripts/run_task_8_9_preflight.ps1 passes
     to the verifier: --eligibility-timeout, --reset-timeout, --overall-timeout,
@@ -2389,9 +2455,18 @@ def _wrapper_azure_timeouts() -> dict[str, str]:
     # are compared against, as an entry in the wrapper's own
     # $expectedAzureTimeoutValues hashtable. Extracted separately here since
     # it has no --flag counterpart to match on.
+    #
+    # Scoped to just that hashtable's block, then comment-filtered, rather
+    # than a bare re.search over the whole file: a commented-out copy of this
+    # literal, or an uncommented stray copy elsewhere in the file, would
+    # otherwise still satisfy a plain search. See _drop_commented_lines and
+    # _wrapper_expected_timeout_values_block_text above, and
+    # test_comment_filtering_actually_ignores_a_commented_out_name below,
+    # which proves both of those actually work rather than merely existing.
+    ceiling_block = _drop_commented_lines(_wrapper_expected_timeout_values_block_text(text))
     ceiling_match = re.search(
         r"'SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT'\s*=\s*'([^']+)'",
-        text,
+        ceiling_block,
     )
     if ceiling_match is None:
         raise AssertionError(
@@ -2617,19 +2692,17 @@ class AzureTimeoutDriftGuardTest(unittest.TestCase):
         reads the ceiling's VALUE from. A name pinned in the values
         hashtable but absent from this array is never checked by the loop
         at all; this reads the array on its own so a test can assert
-        membership in it directly rather than only in the hashtable."""
+        membership in it directly rather than only in the hashtable.
+
+        Comment-filtered before the names are pulled out (_drop_commented_lines)
+        so a commented-out name keeps this test failing instead of green --
+        see test_comment_filtering_actually_ignores_a_commented_out_name."""
         import re
 
         text = self.WRAPPER.read_text(encoding="utf-8")
-        match = re.search(
-            r"\$expectedAzureTimeoutNames\s*=\s*@\(\s*\n(.*?)\n\s*\)",
-            text,
-            re.DOTALL,
-        )
-        self.assertIsNotNone(
-            match, f"$expectedAzureTimeoutNames array literal not found in {self.WRAPPER}"
-        )
-        return re.findall(r"'([^']+)'", match.group(1))
+        array_text = _wrapper_expected_timeout_names_array_text(text)
+        filtered = _drop_commented_lines(array_text)
+        return re.findall(r"'([^']+)'", filtered)
 
     def test_expected_timeout_names_array_includes_all_four_checked_names(self) -> None:
         """m-1 (2026-09-14 review round): the wrapper's pre-wake loop
@@ -2662,18 +2735,148 @@ class AzureTimeoutDriftGuardTest(unittest.TestCase):
             "and still never be checked if it is absent from this array.",
         )
 
+    def test_comment_filtering_actually_ignores_a_commented_out_name(self) -> None:
+        """Negative test for _drop_commented_lines and the scoped ceiling
+        extraction (_wrapper_expected_timeout_values_block_text): proves the
+        filtering actually removes a commented-out literal, rather than
+        merely existing, unused, alongside a regex that would have matched
+        the raw text just as well. Built against an in-memory copy of the
+        real wrapper text with one line commented out at a time -- the
+        tracked wrapper file on disk is never modified.
+
+        Without this filtering, commenting out either literal in the real
+        wrapper -- `# 'SPRING_CLOUD_...RESPONSETIMEOUT'` in
+        $expectedAzureTimeoutNames, or
+        `# 'SPRING_CLOUD_...RESPONSETIMEOUT' = '150s'` in
+        $expectedAzureTimeoutValues -- would keep
+        test_expected_timeout_names_array_includes_all_four_checked_names and
+        test_wrapper_azure_timeout_literals_match_terraform green while the
+        wrapper's own pre-wake `foreach ($name in $expectedAzureTimeoutNames)`
+        loop silently stopped checking that name at all."""
+        import re
+
+        text = self.WRAPPER.read_text(encoding="utf-8")
+
+        # --- $expectedAzureTimeoutNames: comment out its ceiling entry ----
+        names_ceiling_line = (
+            "    'SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT'\n)"
+        )
+        commented_names_text = text.replace(
+            names_ceiling_line, "    # " + names_ceiling_line
+        )
+        self.assertNotEqual(
+            commented_names_text,
+            text,
+            "the $expectedAzureTimeoutNames ceiling line was not found verbatim to "
+            "comment out -- this negative test's fixture has drifted from the wrapper",
+        )
+        filtered_names = re.findall(
+            r"'([^']+)'",
+            _drop_commented_lines(
+                _wrapper_expected_timeout_names_array_text(commented_names_text)
+            ),
+        )
+        self.assertNotIn(
+            "SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT",
+            filtered_names,
+            "a commented-out name in $expectedAzureTimeoutNames was still found after "
+            "filtering -- the comment filter is not actually removing it",
+        )
+        # The other three names, untouched, must still be found -- proves
+        # this is targeted filtering, not an extraction that now finds
+        # nothing at all.
+        self.assertEqual(
+            set(filtered_names),
+            {
+                "APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT",
+                "APP_DEMO_LOGIN_RESET_RESET_TIMEOUT",
+                "APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT",
+            },
+        )
+
+        # --- $expectedAzureTimeoutValues: comment out its ceiling row -----
+        values_ceiling_line = (
+            "    'SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT' = '150s'"
+        )
+        commented_values_text = text.replace(
+            values_ceiling_line, "    # " + values_ceiling_line
+        )
+        self.assertNotEqual(
+            commented_values_text,
+            text,
+            "the $expectedAzureTimeoutValues ceiling row was not found verbatim to "
+            "comment out -- this negative test's fixture has drifted from the wrapper",
+        )
+        filtered_values_block = _drop_commented_lines(
+            _wrapper_expected_timeout_values_block_text(commented_values_text)
+        )
+        self.assertIsNone(
+            re.search(
+                r"'SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT'"
+                r"\s*=\s*'([^']+)'",
+                filtered_values_block,
+            ),
+            "a commented-out ceiling literal in $expectedAzureTimeoutValues was still "
+            "matched after filtering -- the comment filter is not actually removing it",
+        )
+        # The other three rows in the SAME hashtable, untouched, must still
+        # be found -- proves this is targeted filtering, not an extraction
+        # that now finds nothing at all.
+        self.assertIsNotNone(
+            re.search(
+                r"'APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT'\s*=\s*'([^']+)'",
+                filtered_values_block,
+            )
+        )
+
+        # --- Scoping: an uncommented, stray copy of the ceiling literal ---
+        # --- placed OUTSIDE the $expectedAzureTimeoutValues block must not
+        # --- be picked up either. This is the second half of "scoping is
+        # --- the more precise fix" -- proven directly, not only reasoned
+        # --- about. The stray copy is appended well after the block's own
+        # --- closing brace, so a correct (non-greedy, anchored) extraction
+        # --- never reaches it.
+        stray_text = (
+            text
+            + "\n# a stray, uncommented copy elsewhere in the file:\n"
+            + "'SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT' = '999s'\n"
+        )
+        stray_block = _wrapper_expected_timeout_values_block_text(stray_text)
+        self.assertNotIn(
+            "999s",
+            stray_block,
+            "a stray copy of the ceiling literal outside $expectedAzureTimeoutValues "
+            "leaked into the scoped block -- the extraction is not actually scoped",
+        )
+
     def test_idle_threshold_literal_matches_authoritative_yaml_default(self) -> None:
-        """m-2 (2026-09-14 review round): $idleThresholdExpectedValue = '30m'
-        in the wrapper is a third, unpinned copy of the same ratified value
-        -- application.yml:135's ${APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD:30m}
-        default, which scripts/verify_demo_reset_azure.py itself reads via
-        _authoritative_yaml_defaults() -- with nothing offline tying the
-        three copies together. If the yaml default moves and the wrapper's
-        literal does not, a PRESENT idle threshold matching the wrapper's
-        now-stale '30m' would pass this pre-wake gate and then fail the
-        verifier post-wake. This pins the wrapper's literal against the
-        verifier's own authoritative reader, not a hard-coded '30m' of its
-        own, so it fails the moment either one drifts from the other."""
+        """m-2 (2026-09-14 review round, extended in a later round to close a
+        gap the first pass left open): the ratified idle-threshold value
+        '30m' has THREE live copies, and this test ties all three together
+        offline. (1) the wrapper's own $idleThresholdExpectedValue literal --
+        compared pre-wake against the serving env, absent-is-a-pass. (2)
+        application.yml:135's ${APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD:30m}
+        default, read by scripts/verify_demo_reset_azure.py itself via
+        _authoritative_yaml_defaults() -- what an ABSENT override actually
+        resolves to inside the running JVM. (3) scripts/verify_demo_reset_azure.py's
+        own `--idle-threshold` CLI default (_parser(), currently '30m') --
+        what `config.idle_threshold` actually IS post-wake
+        (names.get(name, yaml_defaults[name]) at L753 only ever falls back to
+        yaml_defaults; config.idle_threshold itself, the `expected` value in
+        that same comparison, comes from the CLI default whenever
+        run_task_8_9_preflight.ps1 does not pass --idle-threshold -- and it
+        never does). The first pass here pinned only (1) against (2), missing
+        (3) -- the copy the post-wake comparison actually uses. Concretely: if
+        the yaml default moves to '45m' and the wrapper's literal is updated
+        to follow (keeping the assertion below green), but the verifier's CLI
+        default is left at '30m', an ABSENT idle threshold passes this
+        pre-wake gate (absent-is-a-pass, expecting '45m') and then fails the
+        verifier post-wake, which compares its own now-stale '30m' default
+        against application.yml's '45m' effective value. Pinning the
+        verifier's own authoritative reader and its own parser default
+        against each other and against the wrapper's literal, rather than a
+        hard-coded '30m' of this test's own, means all three fail together
+        the moment any one drifts from the others."""
         import re
 
         text = self.WRAPPER.read_text(encoding="utf-8")
@@ -2693,6 +2896,26 @@ class AzureTimeoutDriftGuardTest(unittest.TestCase):
             f"default ('{yaml_default}') that scripts/verify_demo_reset_azure.py itself "
             "reads -- a PRESENT idle threshold matching the wrapper's stale literal would "
             "pass this pre-wake gate and then fail the verifier post-wake.",
+        )
+        # The third copy: scripts/verify_demo_reset_azure.py's own
+        # --idle-threshold CLI default. The wrapper passes no --idle-threshold
+        # flag at all (unlike --eligibility-timeout/--reset-timeout/
+        # --overall-timeout, which it does pass explicitly), so THIS default
+        # is what config.idle_threshold actually is post-wake, and therefore
+        # the `expected` side of the L753 comparison the wrapper's own
+        # absent-is-a-pass rule is standing in for pre-wake.
+        cli_default = verifier._parser().get_default("idle_threshold")
+        self.assertEqual(
+            cli_default,
+            yaml_default,
+            "scripts/verify_demo_reset_azure.py's own --idle-threshold CLI default "
+            f"('{cli_default}') has drifted from application.yml's authoritative "
+            f"APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD default ('{yaml_default}'). "
+            f"{self.WRAPPER} passes no --idle-threshold flag, so this CLI default -- not "
+            "the wrapper's own literal alone -- is what config.idle_threshold actually is "
+            "post-wake: an absent idle threshold would pass this pre-wake gate (absent-is-"
+            "a-pass, expecting the yaml default) and then fail the verifier post-wake, "
+            "which would compare its own stale CLI default against the yaml value instead.",
         )
 
     def test_wrapper_login_timeout_satisfies_validate_config(self) -> None:
