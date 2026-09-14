@@ -735,7 +735,33 @@ foreach ($name in $expectedAzureTimeoutNames) {
         continue
     }
     if ([string]$observedValue -ne $expectedValue) {
-        $timeoutMismatches += "$name observed='$observedValue' expected='$expectedValue'"
+        # $observedValue is deployment-controlled -- read verbatim from the
+        # serving Container App's env by the az call above -- and is the
+        # only field in this message that is not one of the wrapper's own
+        # literals ($name, $expectedValue). It reaches Fail, i.e. Write-Host,
+        # i.e. this operator's console transcript (captured as evidence
+        # under docs/evidence/b2-task-8-9/), so it is never interpolated
+        # raw. Two things make it unsafe to show as-is: a control character
+        # (CR, LF, TAB and ESC among them -- 0x00-0x1F, 0x7F-0x9F) could
+        # inject a fake transcript line or a terminal escape sequence, and
+        # an unbounded length could blow the transcript up outright. Either
+        # one replaces the WHOLE value with a fixed-shape description below
+        # -- never a partial excerpt: a truncated PREFIX of a hostile value
+        # is still hostile content, so the only safe truncation is to none
+        # of it. The description is deliberately shaped so a reader cannot
+        # mistake it for a quoted excerpt of what was actually deployed. A
+        # plain value within the bound is unaffected and shown exactly as
+        # before.
+        $observedText = [string]$observedValue
+        $observedHasControlChars = [regex]::IsMatch($observedText, '[\x00-\x1F\x7F-\x9F]')
+        $observedTooLong = $observedText.Length -gt 80
+        if ($observedHasControlChars -or $observedTooLong) {
+            $observedSanitizeReason = if ($observedHasControlChars) { 'control characters removed' } else { 'exceeds the 80-character display bound' }
+            $observedDisplay = "<sanitized rendering, not the literal value -- $($observedText.Length) chars, $observedSanitizeReason>"
+        } else {
+            $observedDisplay = $observedText
+        }
+        $timeoutMismatches += "$name observed='$observedDisplay' expected='$expectedValue'"
     }
 }
 if ($timeoutMismatches.Count -gt 0) {

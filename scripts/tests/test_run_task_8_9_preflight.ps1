@@ -1990,6 +1990,157 @@ foreach ($phase in $failAfterPhases) {
     }
 }
 
+# --- Serving Azure demo-reset timeout precondition (boundary M2) -----------
+# scripts/run_task_8_9_preflight.ps1 ~L671-745: before any probe, the wrapper
+# reads the serving revision's container env (a control-plane read, zero
+# replicas needed) and compares APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT /
+# RESET_TIMEOUT / OVERALL_TIMEOUT against its own 120s/30s/165s literals. The
+# stub's "containers[0].env" branch defaults to that same ratified payload
+# (STUB_SERVING_ENV_JSON overrides it), so $good alone already exercises the
+# match; every case below drives a specific mismatch shape.
+Write-Host 'Serving Azure demo-reset timeout precondition (M2): match proceeds'
+$m2RatifiedJson = '[{"name":"APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD","value":"30m"},{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","value":"120s"},{"name":"APP_DEMO_LOGIN_RESET_RESET_TIMEOUT","value":"30s"},{"name":"APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT","value":"165s"}]'
+$m2E = $good.Clone(); $m2E['STUB_SERVING_ENV_JSON'] = $m2RatifiedJson
+$r = Invoke-Wrapper -Env $m2E
+Check 'a serving env matching the ratified attestation proceeds past the check and reaches the wake' {
+    if ($r.Exit -ne 0) { throw "exit $($r.Exit) (expected 0); output: $($r.Output)" }
+    Assert-ProbeCount $r 1
+}
+Check 'the match emits exactly one canonical, allowlisted (names-only, no values) observation line' {
+    $lines = @($r.Output -split "`r?`n" | Where-Object { $_ -match 'serving Azure demo-reset timeouts match the ratified attestation' })
+    if ($lines.Count -ne 1) { throw "expected exactly one canonical observation line, found $($lines.Count); output:`n$($r.Output)" }
+    $want = 'serving Azure demo-reset timeouts match the ratified attestation (APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT, APP_DEMO_LOGIN_RESET_RESET_TIMEOUT, APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT)'
+    if (-not $lines[0].Contains($want)) { throw "canonical line reads:`n  $($lines[0])`nexpected to contain:`n  $want" }
+    # Allowlisted means NAMES only -- the line must not also carry the values
+    # it just approved, which would make it a second, uncontrolled place a
+    # future edit could leak an observed value from.
+    if ($lines[0] -match '\d') { throw "the canonical observation line carries a digit -- it must name checks, not values:`n  $($lines[0])" }
+}
+
+Write-Host 'Serving Azure demo-reset timeout precondition (M2): every failure mode exits 2, before curl, before evidence'
+# Every case below asserts the same three things the rest of this suite's
+# phase tables assert (exit 2, no curl, no verifier) plus a fourth this
+# boundary specifically exists to guarantee: no verifier evidence file is
+# ever created on any of these paths (Invoke-Wrapper's own auto-generated
+# path is overridden per-case below so its absence can be asserted directly,
+# rather than relying on the shared table helpers, which do not expose it).
+$m2MismatchEligibility = '[{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","value":"999s"},{"name":"APP_DEMO_LOGIN_RESET_RESET_TIMEOUT","value":"30s"},{"name":"APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT","value":"165s"}]'
+$m2MismatchReset = '[{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","value":"120s"},{"name":"APP_DEMO_LOGIN_RESET_RESET_TIMEOUT","value":"999s"},{"name":"APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT","value":"165s"}]'
+$m2MismatchOverall = '[{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","value":"120s"},{"name":"APP_DEMO_LOGIN_RESET_RESET_TIMEOUT","value":"30s"},{"name":"APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT","value":"999s"}]'
+$m2MissingEligibility = '[{"name":"APP_DEMO_LOGIN_RESET_RESET_TIMEOUT","value":"30s"},{"name":"APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT","value":"165s"}]'
+$m2MissingReset = '[{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","value":"120s"},{"name":"APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT","value":"165s"}]'
+$m2MissingOverall = '[{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","value":"120s"},{"name":"APP_DEMO_LOGIN_RESET_RESET_TIMEOUT","value":"30s"}]'
+# Truncated mid-object: unbalanced brackets are an unambiguous parse failure
+# (unexpected end of input) regardless of JSON parser leniency, unlike a
+# missing colon which some lenient parsers might still tolerate.
+$m2MalformedJson = '[{"name":"MALFORMED-MARKER-DO-NOT-LEAK","value":"120s"'
+$m2SecretRefJson = '[{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","secretRef":"kv-prod-root-password"},{"name":"APP_DEMO_LOGIN_RESET_RESET_TIMEOUT","value":"30s"},{"name":"APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT","value":"165s"}]'
+# Hostile fixtures for the console-injection property below: each is a
+# genuine mismatch (so it exercises the one branch that interpolates the
+# observed value at all -- see run_task_8_9_preflight.ps1 L737-739) carrying
+# a payload an attacker who controls the Container App's env could plant.
+# Both fixtures build their JSON-string escape sequences at runtime from
+# [char]92 (a backslash) concatenated with plain letters/digits, rather
+# than typing a backslash-escape token directly in this source: a
+# single-quoted PowerShell string would not interpret such a token here
+# either way, but building it from parts sidesteps any authoring tool
+# along the way that might decode it before it reaches the wrapper under
+# test. ConvertFrom-Json is the thing that is SUPPOSED to decode each
+# escape -- into a real line feed, and a real ESC byte, respectively --
+# once the wrapper reads this payload back from the (stubbed) az call.
+$m2JsonEscN = [string][char]92 + 'n'
+$m2HostileNewlineJson = '[{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","value":"120s' + $m2JsonEscN + 'INJECTED-VIA-NEWLINE-MARKER"},{"name":"APP_DEMO_LOGIN_RESET_RESET_TIMEOUT","value":"30s"},{"name":"APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT","value":"165s"}]'
+$m2JsonEscEsc = [string][char]92 + 'u001b'
+$m2HostileAnsiJson = '[{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","value":"45s' + $m2JsonEscEsc + '[31mFAKE-ALERT' + $m2JsonEscEsc + '[0m"},{"name":"APP_DEMO_LOGIN_RESET_RESET_TIMEOUT","value":"30s"},{"name":"APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT","value":"165s"}]'
+
+$m2LongMarker = 'PWNED-' + ('Q' * 3000) + '-MARKEREND'
+$m2HostileLongJson = '[{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","value":"' + $m2LongMarker + '"},{"name":"APP_DEMO_LOGIN_RESET_RESET_TIMEOUT","value":"30s"},{"name":"APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT","value":"165s"}]'
+
+$m2Cases = @(
+    @{ Name = 'value mismatch (eligibility)'; Env = @{ STUB_SERVING_ENV_JSON = $m2MismatchEligibility }
+       ExpectSubstrings = @('do not match the ratified attestation', 'no wake was consumed', 'APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT', "observed='999s'", "expected='120s'"); ForbiddenSubstrings = @() },
+    @{ Name = 'value mismatch (reset)'; Env = @{ STUB_SERVING_ENV_JSON = $m2MismatchReset }
+       ExpectSubstrings = @('do not match the ratified attestation', 'APP_DEMO_LOGIN_RESET_RESET_TIMEOUT', "observed='999s'", "expected='30s'"); ForbiddenSubstrings = @() },
+    @{ Name = 'value mismatch (overall)'; Env = @{ STUB_SERVING_ENV_JSON = $m2MismatchOverall }
+       ExpectSubstrings = @('do not match the ratified attestation', 'APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT', "observed='999s'", "expected='165s'"); ForbiddenSubstrings = @() },
+    @{ Name = 'name missing entirely (eligibility)'; Env = @{ STUB_SERVING_ENV_JSON = $m2MissingEligibility }
+       ExpectSubstrings = @('do not match the ratified attestation', 'is absent from the serving revision', 'APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT', "expected='120s'"); ForbiddenSubstrings = @() },
+    @{ Name = 'name missing entirely (reset)'; Env = @{ STUB_SERVING_ENV_JSON = $m2MissingReset }
+       ExpectSubstrings = @('do not match the ratified attestation', 'is absent from the serving revision', 'APP_DEMO_LOGIN_RESET_RESET_TIMEOUT', "expected='30s'"); ForbiddenSubstrings = @() },
+    @{ Name = 'name missing entirely (overall)'; Env = @{ STUB_SERVING_ENV_JSON = $m2MissingOverall }
+       ExpectSubstrings = @('do not match the ratified attestation', 'is absent from the serving revision', 'APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT', "expected='165s'"); ForbiddenSubstrings = @() },
+    @{ Name = 'malformed / unparseable JSON'; Env = @{ STUB_SERVING_ENV_JSON = $m2MalformedJson }
+       ExpectSubstrings = @('did not parse as JSON'); ForbiddenSubstrings = @('MALFORMED-MARKER-DO-NOT-LEAK') },
+    @{ Name = 'row carries secretRef instead of value'; Env = @{ STUB_SERVING_ENV_JSON = $m2SecretRefJson }
+       ExpectSubstrings = @('do not match the ratified attestation', 'carries a secretRef or a null value', 'APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT', "expected='120s'"); ForbiddenSubstrings = @('kv-prod-root-password') },
+    @{ Name = 'the az call itself fails (non-zero exit)'; Env = @{ STUB_AZ_FAIL_MATCH = 'containers[0].env' }
+       ExpectSubstrings = @('could not read the serving revision environment'); ForbiddenSubstrings = @() },
+    @{ Name = 'the az call exits 0 with no output at all'; Env = @{ STUB_AZ_EMPTY_MATCH = 'containers[0].env' }
+       ExpectSubstrings = @('the serving revision environment read returned no output'); ForbiddenSubstrings = @() },
+    @{ Name = 'the az call emits a plausible payload and then fails'; Env = @{ STUB_AZ_FAILAFTER_MATCH = 'containers[0].env' }
+       ExpectSubstrings = @('could not read the serving revision environment'); ForbiddenSubstrings = @() }
+)
+foreach ($m2Case in $m2Cases) {
+    $e = $good.Clone()
+    foreach ($k in $m2Case.Env.Keys) { $e[$k] = $m2Case.Env[$k] }
+    $m2Evidence = Join-Path ([IO.Path]::GetTempPath()) "t89-m2-evidence-$([guid]::NewGuid()).json"
+    try {
+        $r = Invoke-Wrapper -Env $e -Extra @('-EvidenceOutput', $m2Evidence)
+        Check "$($m2Case.Name) => exit 2, no wake, no verifier, no evidence written" {
+            if ($r.Exit -ne 2) { throw "exit $($r.Exit) (expected 2); output: $($r.Output)" }
+            if ($r.Capture -match '(?m)^curl ') { throw 'a wake was issued despite the Azure timeout precondition failing' }
+            if ($r.Capture -match '(?m)^python .*--mode ') { throw 'the verifier ran despite the Azure timeout precondition failing' }
+            if (Test-Path -LiteralPath $m2Evidence) { throw 'verifier evidence was written despite the Azure timeout precondition failing' }
+            foreach ($want in $m2Case.ExpectSubstrings) {
+                if (-not $r.Output.Contains($want)) { throw "expected output to contain '$want'; output:`n$($r.Output)" }
+            }
+            foreach ($bad in $m2Case.ForbiddenSubstrings) {
+                if ($r.Output.Contains($bad)) { throw "output leaked untrusted/sensitive content '$bad':`n$($r.Output)" }
+            }
+        }
+    } finally {
+        Remove-Item -LiteralPath $m2Evidence -ErrorAction SilentlyContinue
+    }
+}
+
+Write-Host 'Serving Azure demo-reset timeout precondition (M2): console output must not reproduce untrusted content'
+# KNOWN FINDING (not fixed here; see the task report): run_task_8_9_preflight.ps1
+# L737-739 builds the mismatch line as
+#   "$name observed='$observedValue' expected='$expectedValue'"
+# with NO escaping, redaction, or length bound on $observedValue -- the one
+# field in this whole precondition that is genuinely attacker/deployment
+# controlled (it is read verbatim from the serving Container App's env by the
+# az call above). That string flows straight into Fail, i.e. straight into
+# Write-Host and the operator's transcript. The three cases below are
+# expected to FAIL against the current wrapper for exactly that reason: they
+# assert the safety property this precondition should have (no raw value,
+# secret name, control character, or injected line ever reaches the
+# console), not a property the code has been shown to already hold. Do not
+# "fix" these by loosening the assertions; the fix belongs in the wrapper's
+# mismatch-message construction, and is out of scope for this test-only
+# change (see AGENTS.md/CLAUDE.md task instructions: report, don't repair).
+$m2HostileCases = @(
+    @{ Name = 'an embedded newline in the observed value is not reproduced in console output'; Env = @{ STUB_SERVING_ENV_JSON = $m2HostileNewlineJson }
+       ForbiddenSubstrings = @('INJECTED-VIA-NEWLINE-MARKER') },
+    @{ Name = 'an ANSI escape sequence in the observed value is not reproduced in console output'; Env = @{ STUB_SERVING_ENV_JSON = $m2HostileAnsiJson }
+       ForbiddenSubstrings = @('FAKE-ALERT', [string][char]0x1B) },
+    @{ Name = 'a very long observed value is not reproduced in console output'; Env = @{ STUB_SERVING_ENV_JSON = $m2HostileLongJson }
+       ForbiddenSubstrings = @('PWNED-', 'MARKEREND') }
+)
+foreach ($m2Hostile in $m2HostileCases) {
+    $e = $good.Clone()
+    foreach ($k in $m2Hostile.Env.Keys) { $e[$k] = $m2Hostile.Env[$k] }
+    $r = Invoke-Wrapper -Env $e
+    Check "$($m2Hostile.Name)" {
+        if ($r.Exit -ne 2) { throw "exit $($r.Exit) (expected 2); output: $($r.Output)" }
+        if ($r.Capture -match '(?m)^curl ') { throw 'a wake was issued despite a hostile observed value' }
+        if ($r.Capture -match '(?m)^python .*--mode ') { throw 'the verifier ran despite a hostile observed value' }
+        foreach ($bad in $m2Hostile.ForbiddenSubstrings) {
+            if ($r.Output.Contains($bad)) { throw "the operator transcript reproduced untrusted content verbatim ('$bad'):`n$($r.Output)" }
+        }
+    }
+}
+
 Write-Host 'A probe that reports no metadata at all stops the run'
 $r = Invoke-Wrapper -Env (Probe-Env $good @(@{ META = 'none' }, @{ STATUS = '200'; SENTINEL = '1' }))
 Check 'probe with no metadata record => exit 3, one probe, no verifier' {
