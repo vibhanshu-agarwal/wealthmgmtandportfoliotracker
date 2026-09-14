@@ -2111,7 +2111,7 @@ $m2SecretRefJson = '[{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","secretR
 $m2DuplicateNameJson = '[{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","value":"120s"},{"name":"APP_DEMO_LOGIN_RESET_RESET_TIMEOUT","value":"30s"},{"name":"APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT","value":"165s"},{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","value":"999s"}]'
 # Hostile fixtures for the console-injection property below: each is a
 # genuine mismatch (so it exercises the one branch that interpolates the
-# observed value at all -- see run_task_8_9_preflight.ps1 ~L782-812) carrying
+# observed value at all -- see run_task_8_9_preflight.ps1 ~L827-876) carrying
 # a payload an attacker who controls the Container App's env could plant.
 # Both fixtures build their JSON-string escape sequences at runtime from
 # [char]92 (a backslash) concatenated with plain letters/digits, rather
@@ -2126,9 +2126,10 @@ $m2DuplicateNameJson = '[{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","val
 $m2JsonEscN = [string][char]92 + 'n'
 $m2HostileNewlineJson = '[{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","value":"120s' + $m2JsonEscN + 'INJECTED-VIA-NEWLINE-MARKER"},{"name":"APP_DEMO_LOGIN_RESET_RESET_TIMEOUT","value":"30s"},{"name":"APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT","value":"165s"}]'
 $m2JsonEscEsc = [string][char]92 + 'u001b'
-# U+202E (RIGHT-TO-LEFT OVERRIDE) is a Unicode format character (\p{Cf}),
-# not a C0/C1 control byte, so it falls outside the old [\x00-\x1F\x7F-\x9F]
-# sanitizer range and inside the widened [\p{Cc}\p{Cf}\p{Zl}\p{Zp}] one. It
+# U+202E (RIGHT-TO-LEFT OVERRIDE) is a Unicode format character (category
+# Cf), not a C0/C1 control byte, so it falls outside the old
+# [\x00-\x1F\x7F-\x9F] sanitizer range and inside the current printable-ASCII
+# allowlist ([^\x20-\x7E], run_task_8_9_preflight.ps1 ~L779/866/900/925). It
 # could visually reorder the marker that follows it in a rendered terminal.
 $m2JsonEscBidi = [string][char]92 + 'u202e'
 $m2HostileBidiJson = '[{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","value":"120s' + $m2JsonEscBidi + 'INJECTED-VIA-BIDI-MARKER"},{"name":"APP_DEMO_LOGIN_RESET_RESET_TIMEOUT","value":"30s"},{"name":"APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT","value":"165s"}]'
@@ -2186,17 +2187,38 @@ $m2NameMixedCaseCeiling = '[{"name":"APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD","value
 # instead of -cne) do these three fixtures exit 2. U+200B (ZERO WIDTH
 # SPACE), floated by an earlier review as an example of the same defect, is
 # deliberately NOT used here: the owner's reproduction found -cne already
-# rejects it, so a fixture built on U+200B would be vacuous -- it already
-# exits 2 at e57c71e and proves nothing about this change. U+00AD and U+FEFF
-# are both Unicode category Cf (format characters), so the wrapper's own
-# sanitizer ([\p{Cc}\p{Cf}\p{Zl}\p{Zp}], ~L845/877/902) fires on them just as
-# it does on a bidi override: the Fail message below carries the
-# fixed-shape "sanitized rendering, not the literal value" placeholder, not
-# the raw ratified value with the character appended, so the raw character
-# itself belongs in ForbiddenSubstrings, not ExpectSubstrings.
+# rejects it, so a fixture built on U+200B would be vacuous for THIS
+# property -- it already exits 2 at e57c71e and proves nothing about the
+# ordinal-vs-linguistic comparison. (A separate U+200B fixture appears
+# further below, as a coverage pin for the sanitizer -- a different property
+# -- see that comment.)
+#
+# These three fixtures are ALSO the regression tests for a second, distinct
+# property this round adds: whether the Fail message SANITIZES the
+# offending value rather than rendering it raw. That property is what CI
+# reported red at f548a80 for the eligibility and CLOUD_PROVIDER fixtures
+# below (both U+00AD) even though the wrapper still exited 2 correctly (no
+# wake consumed): U+00AD and U+FEFF are both Unicode category Cf per .NET's
+# own Unicode data (CharUnicodeInfo reports U+00AD as
+# UnicodeCategory.Format), but the .NET Framework REGEX ENGINE's own legacy
+# Unicode category table disagrees -- it matches U+00AD as category Pd
+# (dash punctuation), not Cf. The four-category sanitizer class in place at
+# f548a80 ([\p{Cc}\p{Cf}\p{Zl}\p{Zp}]) therefore did not fire on U+00AD and
+# let the raw ratified value (with the trailing soft hyphen) reach the
+# transcript; the same run's U+FEFF fixture passed, because that engine's
+# table does match U+FEFF as Cf. run_task_8_9_preflight.ps1 now sanitizes
+# against a printable-ASCII allowlist ([^\x20-\x7E],
+# ~L866/900/925) instead of a Unicode-category list, so all three fixtures
+# below must show the fixed-shape "sanitized rendering, not the literal
+# value" placeholder, never the raw ratified value with the character
+# appended -- the raw character itself belongs in ForbiddenSubstrings, not
+# ExpectSubstrings. Only the two U+00AD fixtures are non-vacuous regression
+# evidence for the allowlist (this property failed at f548a80 and passes
+# now); the U+FEFF fixture is a coverage pin that already held under the
+# old four-category class and continues to hold under the allowlist.
 $m2JsonEscSoftHyphen = [string][char]92 + 'u00ad'
 $m2JsonEscBom = [string][char]92 + 'ufeff'
-# Site 1 (the four-name loop, ~L824): APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT
+# Site 1 (the four-name loop, ~L841): APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT
 # carries the ratified '120s' with a trailing U+00AD. Every other name in
 # the loop (reset, overall, ceiling) plus idle threshold is correct, so only
 # the eligibility comparison should ever reach the mismatch list.
@@ -2205,10 +2227,33 @@ $m2IgnorableEligibilityJson = '[{"name":"APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD","v
 # carries the ratified '150s' with a trailing U+FEFF. Everything else in
 # this fixture is correct.
 $m2IgnorableCeilingJson = '[{"name":"APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD","value":"30m"},{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","value":"120s"},{"name":"APP_DEMO_LOGIN_RESET_RESET_TIMEOUT","value":"30s"},{"name":"APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT","value":"165s"},{"name":"SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT","value":"150s' + $m2JsonEscBom + '"}]'
-# Site 3 (CLOUD_PROVIDER's own comparison, ~L898) -- a site OTHER than the
+# Site 3 (CLOUD_PROVIDER's own comparison, ~L921) -- a site OTHER than the
 # four-name loop, per the brief: CLOUD_PROVIDER carries the ratified 'azure'
 # with a trailing U+00AD. Everything else in this fixture is correct.
 $m2IgnorableProviderJson = '[{"name":"APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD","value":"30m"},{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","value":"120s"},{"name":"APP_DEMO_LOGIN_RESET_RESET_TIMEOUT","value":"30s"},{"name":"APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT","value":"165s"},{"name":"SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT","value":"150s"},{"name":"CLOUD_PROVIDER","value":"azure' + $m2JsonEscSoftHyphen + '"}]'
+# Sanitizer coverage (this round): these two fixtures are about the
+# SANITIZER itself, not the ordinal-vs-linguistic comparison above, and use
+# the same runtime JSON-escape-sequence idiom as $m2JsonEscSoftHyphen/
+# $m2JsonEscBom.
+#   * U+034F (COMBINING GRAPHEME JOINER, category Mn) was never a member of
+#     the OLD four-category class ([\p{Cc}\p{Cf}\p{Zl}\p{Zp}]) at all --
+#     unlike U+00AD/U+FEFF above, there is no regex-engine-table subtlety
+#     here, it is simply outside that class by category. This is therefore
+#     also non-vacuous failing-before/passing-after evidence for the
+#     allowlist, exercised on the RESET_TIMEOUT member of the four-name loop
+#     (~L866) -- a site distinct from the eligibility/ceiling members
+#     already covered above.
+#   * U+200B (ZERO WIDTH SPACE) is category Cf, so the OLD class already
+#     sanitized it: this fixture passes both before and after the allowlist
+#     change. It is a coverage pin over the idle threshold's own sanitizer
+#     block (~L900) -- a site distinct from the four-name loop -- not
+#     evidence that the allowlist changed anything there. As noted above,
+#     -cne and ordinal equality both already reject U+200B in the
+#     comparison, so this fixture is solely about the sanitizer.
+$m2JsonEscCombiningGraphemeJoiner = [string][char]92 + 'u034f'
+$m2JsonEscZeroWidthSpace = [string][char]92 + 'u200b'
+$m2SanitizerOnlyResetJson = '[{"name":"APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD","value":"30m"},{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","value":"120s"},{"name":"APP_DEMO_LOGIN_RESET_RESET_TIMEOUT","value":"30s' + $m2JsonEscCombiningGraphemeJoiner + '"},{"name":"APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT","value":"165s"},{"name":"SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT","value":"150s"}]'
+$m2SanitizerOnlyIdleJson = '[{"name":"APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD","value":"30m' + $m2JsonEscZeroWidthSpace + '"},{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","value":"120s"},{"name":"APP_DEMO_LOGIN_RESET_RESET_TIMEOUT","value":"30s"},{"name":"APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT","value":"165s"},{"name":"SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT","value":"150s"}]'
 
 $m2Cases = @(
     @{ Name = 'value mismatch (eligibility)'; Env = @{ STUB_SERVING_ENV_JSON = $m2MismatchEligibility }
@@ -2278,28 +2323,45 @@ $m2Cases = @(
        ForbiddenSubstrings = @('APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT is absent', 'APP_DEMO_LOGIN_RESET_RESET_TIMEOUT is absent', 'APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT is absent') },
     # --- Ordinal-vs-linguistic (2026-09-14 review round, the gap the -cne
     #     fix left open): a ratified value with a trailing IGNORABLE
-    #     character (U+00AD / U+FEFF, both category Cf) compares EQUAL under
-    #     -cne's linguistic comparer but UNEQUAL under the verifier's
-    #     ordinal Python !=. These three exit 0 (vacuously proceed) at
-    #     e57c71e and exit 2 only once the comparison is
-    #     [string]::Equals(..., [System.StringComparison]::Ordinal). U+200B
-    #     is deliberately not used -- the owner's Windows PowerShell 5.1
-    #     reproduction found -cne already rejects it, so a fixture built on
-    #     it would be vacuous either way. Because U+00AD/U+FEFF are Cf, the
-    #     sanitizer at each site fires and withholds the raw value, so the
-    #     message carries the fixed-shape placeholder, not the literal
-    #     character -- expected below, with the raw character forbidden.
-    @{ Name = 'ordinal-vs-linguistic: eligibility timeout 120s + trailing U+00AD (soft hyphen) must reject, not compare equal linguistically'; Env = @{ STUB_SERVING_ENV_JSON = $m2IgnorableEligibilityJson }
-       ExpectSubstrings = @('do not match the ratified attestation', 'APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT', 'sanitized rendering, not the literal value', '-- 5 chars, withheld: contains control or bidi/format characters', "expected='120s'")
+    #     character (U+00AD / U+FEFF, both category Cf per .NET's own
+    #     Unicode data) compares EQUAL under -cne's linguistic comparer but
+    #     UNEQUAL under the verifier's ordinal Python !=. These three exit 0
+    #     (vacuously proceed) at e57c71e and exit 2 only once the comparison
+    #     is [string]::Equals(..., [System.StringComparison]::Ordinal).
+    #     U+200B is deliberately not used here -- the owner's Windows
+    #     PowerShell 5.1 reproduction found -cne already rejects it, so a
+    #     fixture built on it would be vacuous for this comparison property
+    #     either way (a separate U+200B fixture below covers the sanitizer
+    #     instead). Whether the message SANITIZES the value once it is
+    #     known unequal is a second, independent property (see the block
+    #     comment above): at f548a80 the sanitizer class
+    #     ([\p{Cc}\p{Cf}\p{Zl}\p{Zp}]) fired on U+FEFF but NOT on U+00AD --
+    #     the .NET Framework regex engine's own legacy category table
+    #     matches U+00AD as Pd, not Cf, unlike CharUnicodeInfo on the same
+    #     host -- so the eligibility and CLOUD_PROVIDER fixtures below were
+    #     the two CI failures this round fixes; the ceiling (U+FEFF) fixture
+    #     already passed and is a coverage pin. All three must now carry the
+    #     fixed-shape placeholder, never the literal character -- expected
+    #     below, with the raw character forbidden.
+    @{ Name = 'ordinal-vs-linguistic: eligibility timeout 120s + trailing U+00AD (soft hyphen) must reject and sanitize, not compare equal linguistically or render raw (fails at f548a80, the .NET Framework regex engine matches U+00AD as Pd, not Cf)'; Env = @{ STUB_SERVING_ENV_JSON = $m2IgnorableEligibilityJson }
+       ExpectSubstrings = @('do not match the ratified attestation', 'APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT', 'sanitized rendering, not the literal value', '-- 5 chars, withheld: contains a non-printable-ASCII character', "expected='120s'")
        ForbiddenSubstrings = @('APP_DEMO_LOGIN_RESET_RESET_TIMEOUT is absent', 'APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT is absent', 'SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT is absent', [string][char]0x00AD) },
-    @{ Name = 'ordinal-vs-linguistic: response ceiling 150s + trailing U+FEFF (BOM) must reject, not compare equal linguistically'; Env = @{ STUB_SERVING_ENV_JSON = $m2IgnorableCeilingJson }
-       ExpectSubstrings = @('do not match the ratified attestation', 'SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT', 'sanitized rendering, not the literal value', '-- 5 chars, withheld: contains control or bidi/format characters', "expected='150s'")
+    @{ Name = 'ordinal-vs-linguistic: response ceiling 150s + trailing U+FEFF (BOM) must reject and sanitize, not compare equal linguistically or render raw (already passed at f548a80 -- coverage pin, not new evidence)'; Env = @{ STUB_SERVING_ENV_JSON = $m2IgnorableCeilingJson }
+       ExpectSubstrings = @('do not match the ratified attestation', 'SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT', 'sanitized rendering, not the literal value', '-- 5 chars, withheld: contains a non-printable-ASCII character', "expected='150s'")
        ForbiddenSubstrings = @('APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT is absent', 'APP_DEMO_LOGIN_RESET_RESET_TIMEOUT is absent', 'APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT is absent', [string][char]0xFEFF) },
     # A site OTHER than the four-name loop, per the brief: CLOUD_PROVIDER's
-    # own comparison (~L898), independent code from the loop above.
-    @{ Name = 'ordinal-vs-linguistic: CLOUD_PROVIDER azure + trailing U+00AD (soft hyphen) must reject, not compare equal linguistically'; Env = @{ STUB_SERVING_ENV_JSON = $m2IgnorableProviderJson }
-       ExpectSubstrings = @('do not match the ratified attestation', 'CLOUD_PROVIDER', 'sanitized rendering, not the literal value', '-- 6 chars, withheld: contains control or bidi/format characters', "expected='azure'")
+    # own comparison (~L921), independent code from the loop above.
+    @{ Name = 'ordinal-vs-linguistic: CLOUD_PROVIDER azure + trailing U+00AD (soft hyphen) must reject and sanitize, not compare equal linguistically or render raw (fails at f548a80, same regex-engine category-table gap)'; Env = @{ STUB_SERVING_ENV_JSON = $m2IgnorableProviderJson }
+       ExpectSubstrings = @('do not match the ratified attestation', 'CLOUD_PROVIDER', 'sanitized rendering, not the literal value', '-- 6 chars, withheld: contains a non-printable-ASCII character', "expected='azure'")
        ForbiddenSubstrings = @('APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT is absent', 'APP_DEMO_LOGIN_RESET_RESET_TIMEOUT is absent', 'APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT is absent', 'SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT is absent', [string][char]0x00AD) },
+    # --- Sanitizer coverage (this round, not the comparison above): see the
+    #     block comment further up for the U+034F/U+200B classification.
+    @{ Name = 'sanitizer coverage: reset timeout 30s + trailing U+034F (combining grapheme joiner, Mn) must sanitize -- outside the OLD four-category class entirely, non-vacuous evidence for the allowlist'; Env = @{ STUB_SERVING_ENV_JSON = $m2SanitizerOnlyResetJson }
+       ExpectSubstrings = @('do not match the ratified attestation', 'APP_DEMO_LOGIN_RESET_RESET_TIMEOUT', 'sanitized rendering, not the literal value', '-- 4 chars, withheld: contains a non-printable-ASCII character', "expected='30s'")
+       ForbiddenSubstrings = @('APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT is absent', 'APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT is absent', 'SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT is absent', [string][char]0x034F) },
+    @{ Name = 'sanitizer coverage: idle threshold 30m + trailing U+200B (zero width space) must sanitize -- category Cf, already sanitized under the OLD class, a coverage pin rather than new evidence'; Env = @{ STUB_SERVING_ENV_JSON = $m2SanitizerOnlyIdleJson }
+       ExpectSubstrings = @('do not match the ratified attestation', 'APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD', 'sanitized rendering, not the literal value', '-- 4 chars, withheld: contains a non-printable-ASCII character', "expected='30m'")
+       ForbiddenSubstrings = @('APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT is absent', 'APP_DEMO_LOGIN_RESET_RESET_TIMEOUT is absent', 'APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT is absent', 'SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT is absent', [string][char]0x200B) },
     @{ Name = 'malformed / unparseable JSON'; Env = @{ STUB_SERVING_ENV_JSON = $m2MalformedJson }
        ExpectSubstrings = @('did not parse as JSON'); ForbiddenSubstrings = @('MALFORMED-MARKER-DO-NOT-LEAK') },
     @{ Name = 'row carries secretRef instead of value'; Env = @{ STUB_SERVING_ENV_JSON = $m2SecretRefJson }
@@ -2315,7 +2377,7 @@ $m2Cases = @(
        # The duplicated NAME itself (not the value) carries the bidi
        # override character built at runtime above. The Fail message must
        # still say "duplicate serving environment value" and use the same
-       # fixed-shape placeholder the value branch uses (~L782-812), but must
+       # fixed-shape placeholder the value branch uses (~L827-876), but must
        # never reproduce the marker text or the raw bidi character.
        ExpectSubstrings = @('duplicate serving environment value', 'sanitized rendering, not the literal value')
        ForbiddenSubstrings = @($m2DuplicateNameHostileMarker, [string][char]0x202E) },
@@ -2387,13 +2449,13 @@ foreach ($m2Proceed in $m2ProceedCases) {
 # ($m2RatifiedJson, asserted exit 0 above) and $m2IdleAbsent just above.
 
 Write-Host 'Serving Azure demo-reset timeout precondition (M2): console output must not reproduce untrusted content'
-# run_task_8_9_preflight.ps1's mismatch-message construction (~L782-812)
+# run_task_8_9_preflight.ps1's mismatch-message construction (~L827-876)
 # sanitizes $observedValue -- the one field in this whole precondition that
 # is genuinely attacker/deployment controlled, read verbatim from the
 # serving Container App's env by the az call above -- before it reaches
 # Fail, i.e. Write-Host, i.e. the operator's transcript: a value with a
-# control or Unicode format/separator character ([\p{Cc}\p{Cf}\p{Zl}\p{Zp}]),
-# or one over 80 characters, is replaced WHOLESALE by a fixed-shape
+# character outside the printable-ASCII allowlist ([^\x20-\x7E]), or one
+# over 80 characters, is replaced WHOLESALE by a fixed-shape
 # placeholder rather than shown even in part. The cases below assert that
 # safety property (no raw value, secret name, control character, injected
 # line, or bidi override ever reaches the console) and are expected to PASS
@@ -2408,9 +2470,13 @@ $m2HostileCases = @(
     @{ Name = 'a very long observed value is not reproduced in console output'; Env = @{ STUB_SERVING_ENV_JSON = $m2HostileLongJson }
        ForbiddenSubstrings = @('PWNED-', 'MARKEREND') },
     @{ Name = 'a bidi override character in the observed value is not reproduced in console output'; Env = @{ STUB_SERVING_ENV_JSON = $m2HostileBidiJson }
-       # Discriminates the widened sanitizer range: U+202E is \p{Cf}, not
-       # \p{Cc}, so the old [\x00-\x1F\x7F-\x9F] pattern would miss it and
-       # this case would fail against that narrower range.
+       # Discriminates the printable-ASCII allowlist from either narrower
+       # predecessor: U+202E is outside \x20-\x7E, but it is neither a
+       # C0/C1 control byte (so the original [\x00-\x1F\x7F-\x9F] pattern
+       # would miss it) nor, on the .NET Framework regex engine actually
+       # running this suite, reliably a member of any fixed Unicode-category
+       # list either (see the U+00AD gap documented above) -- this case
+       # would fail against either narrower range.
        ForbiddenSubstrings = @('INJECTED-VIA-BIDI-MARKER', [string][char]0x202E) },
     # Same bidi-override property, now under each of the three NEW names --
     # Gap 1's ceiling and Gap 2's idle threshold / CLOUD_PROVIDER route

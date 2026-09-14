@@ -754,15 +754,32 @@ foreach ($row in $envRows) {
         # $observedValue below -- and reaches Fail, i.e. Write-Host, i.e.
         # this operator's console transcript (captured as evidence under
         # docs/evidence/b2-task-8-9/), so it is sanitized with the exact same
-        # rule as $observedValue: a control or Unicode format/separator
-        # character, or a length over 80, replaces the WHOLE name with a
-        # fixed-shape description below -- never a partial excerpt, since a
-        # truncated prefix of a hostile name is still hostile content.
+        # rule as $observedValue.
+        #
+        # The rule is a printable-ASCII allowlist, [^\x20-\x7E], not a list of
+        # Unicode categories. An earlier revision matched on the four
+        # categories control (Cc), format (Cf), line separator (Zl) and
+        # paragraph separator (Zp), and missed U+00AD (SOFT HYPHEN): the .NET
+        # Framework regex engine's legacy Unicode category table matches
+        # U+00AD as category Pd (dash punctuation), not Cf -- a property of
+        # that regex engine's own category table, not of the .NET Framework's
+        # Unicode data generally, since CharUnicodeInfo on the same host
+        # reports U+00AD as UnicodeCategory.Format. The same run's U+FEFF
+        # fixture passed, because that engine does match U+FEFF as category
+        # Cf; U+034F (COMBINING GRAPHEME JOINER, category Mn) was never in
+        # the old class at all. Adding categories piecemeal chases this
+        # table one gap at a time. Every ratified name and value in this
+        # precondition is printable ASCII, so anything outside \x20-\x7E is
+        # by definition not an approved value and is safe to withhold
+        # outright: a length over 80, or any character outside that
+        # printable range, replaces the WHOLE name with a fixed-shape
+        # description below -- never a partial excerpt, since a truncated
+        # prefix of a hostile name is still hostile content.
         $rowNameText = [string]$rowName
-        $rowNameHasControlChars = [regex]::IsMatch($rowNameText, '[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]')
+        $rowNameHasControlChars = [regex]::IsMatch($rowNameText, '[^\x20-\x7E]')
         $rowNameTooLong = $rowNameText.Length -gt 80
         if ($rowNameHasControlChars -or $rowNameTooLong) {
-            $rowNameSanitizeReason = if ($rowNameHasControlChars) { 'withheld: contains control or bidi/format characters' } else { 'exceeds the 80-character display bound' }
+            $rowNameSanitizeReason = if ($rowNameHasControlChars) { 'withheld: contains a non-printable-ASCII character' } else { 'exceeds the 80-character display bound' }
             $rowNameDisplay = "<sanitized rendering, not the literal value -- $($rowNameText.Length) chars, $rowNameSanitizeReason>"
         } else {
             $rowNameDisplay = $rowNameText
@@ -828,11 +845,15 @@ foreach ($name in $expectedAzureTimeoutNames) {
         # literals ($name, $expectedValue). It reaches Fail, i.e. Write-Host,
         # i.e. this operator's console transcript (captured as evidence
         # under docs/evidence/b2-task-8-9/), so it is never interpolated
-        # raw. Two things make it unsafe to show as-is: a control or Unicode
-        # format character (CR, LF, TAB and ESC among the controls; a bidi
-        # override, a line/paragraph separator (U+200E, U+202E, U+2028,
-        # U+2029) among the format/separator characters) could inject a
-        # fake transcript line, a terminal escape sequence, or visually
+        # raw. It is sanitized against a printable-ASCII allowlist
+        # ([^\x20-\x7E]), not a list of Unicode categories -- see the
+        # $rowNameHasControlChars comment above for the ratified rationale
+        # and the .NET Framework regex engine's category-table gap that made
+        # the category-list approach unreliable. A control character (CR,
+        # LF, TAB, ESC), a bidi override, a line/paragraph separator
+        # (U+200E, U+202E, U+2028, U+2029), or any other character outside
+        # \x20-\x7E (U+00AD, U+FEFF and U+034F included) could inject a fake
+        # transcript line, a terminal escape sequence, or visually
         # reorder/break a rendered line, and an unbounded length could blow
         # the transcript up outright. Either one replaces the WHOLE value
         # with a fixed-shape description below -- never a partial excerpt: a
@@ -842,10 +863,10 @@ foreach ($name in $expectedAzureTimeoutNames) {
         # excerpt of what was actually deployed. A plain value within the
         # bound is unaffected and shown exactly as before.
         $observedText = [string]$observedValue
-        $observedHasControlChars = [regex]::IsMatch($observedText, '[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]')
+        $observedHasControlChars = [regex]::IsMatch($observedText, '[^\x20-\x7E]')
         $observedTooLong = $observedText.Length -gt 80
         if ($observedHasControlChars -or $observedTooLong) {
-            $observedSanitizeReason = if ($observedHasControlChars) { 'withheld: contains control or bidi/format characters' } else { 'exceeds the 80-character display bound' }
+            $observedSanitizeReason = if ($observedHasControlChars) { 'withheld: contains a non-printable-ASCII character' } else { 'exceeds the 80-character display bound' }
             $observedDisplay = "<sanitized rendering, not the literal value -- $($observedText.Length) chars, $observedSanitizeReason>"
         } else {
             $observedDisplay = $observedText
@@ -870,14 +891,16 @@ if ($observedAzureTimeoutValues.ContainsKey($idleThresholdName)) {
         # from the serving Container App's env by the same az call above --
         # same trust boundary as $observedValue in the loop above, so it is
         # sanitized with the exact same rule before it can reach Fail /
-        # Write-Host / the operator's evidence transcript: a control or
-        # Unicode format/separator character, or a length over 80, replaces
-        # the WHOLE value -- never a prefix -- with a fixed-shape description.
+        # Write-Host / the operator's evidence transcript: a printable-ASCII
+        # allowlist ([^\x20-\x7E]), not a list of Unicode categories -- see
+        # the comment above $rowNameHasControlChars for why. A length over
+        # 80, or any character outside \x20-\x7E, replaces the WHOLE value
+        # -- never a prefix -- with a fixed-shape description.
         $idleThresholdObservedText = [string]$idleThresholdObservedValue
-        $idleThresholdHasControlChars = [regex]::IsMatch($idleThresholdObservedText, '[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]')
+        $idleThresholdHasControlChars = [regex]::IsMatch($idleThresholdObservedText, '[^\x20-\x7E]')
         $idleThresholdTooLong = $idleThresholdObservedText.Length -gt 80
         if ($idleThresholdHasControlChars -or $idleThresholdTooLong) {
-            $idleThresholdSanitizeReason = if ($idleThresholdHasControlChars) { 'withheld: contains control or bidi/format characters' } else { 'exceeds the 80-character display bound' }
+            $idleThresholdSanitizeReason = if ($idleThresholdHasControlChars) { 'withheld: contains a non-printable-ASCII character' } else { 'exceeds the 80-character display bound' }
             $idleThresholdObservedDisplay = "<sanitized rendering, not the literal value -- $($idleThresholdObservedText.Length) chars, $idleThresholdSanitizeReason>"
         } else {
             $idleThresholdObservedDisplay = $idleThresholdObservedText
@@ -899,10 +922,10 @@ if ($observedAzureTimeoutValues.ContainsKey($cloudProviderName)) {
         # Same trust boundary, same sanitiser, as $idleThresholdObservedValue
         # and $observedValue above -- see those comments for the rule.
         $cloudProviderObservedText = [string]$cloudProviderObservedValue
-        $cloudProviderHasControlChars = [regex]::IsMatch($cloudProviderObservedText, '[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]')
+        $cloudProviderHasControlChars = [regex]::IsMatch($cloudProviderObservedText, '[^\x20-\x7E]')
         $cloudProviderTooLong = $cloudProviderObservedText.Length -gt 80
         if ($cloudProviderHasControlChars -or $cloudProviderTooLong) {
-            $cloudProviderSanitizeReason = if ($cloudProviderHasControlChars) { 'withheld: contains control or bidi/format characters' } else { 'exceeds the 80-character display bound' }
+            $cloudProviderSanitizeReason = if ($cloudProviderHasControlChars) { 'withheld: contains a non-printable-ASCII character' } else { 'exceeds the 80-character display bound' }
             $cloudProviderObservedDisplay = "<sanitized rendering, not the literal value -- $($cloudProviderObservedText.Length) chars, $cloudProviderSanitizeReason>"
         } else {
             $cloudProviderObservedDisplay = $cloudProviderObservedText
