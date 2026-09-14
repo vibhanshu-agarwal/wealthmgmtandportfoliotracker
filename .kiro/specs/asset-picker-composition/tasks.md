@@ -1,7 +1,7 @@
 # Implementation Plan
 
-**Current program status (reconciled through PR #268 on 2026-09-13 at
-`main@80b881b5c461e1bebb210ebe1db4b911cf6a336d`):** Waves 1–6 retain their recorded source and
+**Current program status (reconciled through PR #275 on 2026-09-15 at
+`main@8337d7e8b982245156088719d01f49b3ad1c1be9`):** Waves 1–6 retain their recorded source and
 review evidence. Wave 5 Task 5.6 is GO and its gateway bundle is deployed hidden in the Task 8.8
 revision. Wave 3 Task 3.7 is green on its recorded Azure evidence; Wave 6 Task 6.3 is green on its recorded
 2026-09-11 gateway-read evidence. Production flags remain disabled.
@@ -37,7 +37,7 @@ read-only baseline remains in the
 the [`2026-09-10 rehearsal record`](../../../docs/evidence/b2-task-8-9/rehearsal-20260910.json)
 remains historical evidence for its earlier gateway identity.
 
-Two owner-authorized Run A attempts have since been consumed. Attempt 1's
+Three owner-authorized Run A attempts have since been consumed. Attempt 1's
 [`2026-09-12 NON-GO record`](../../../docs/evidence/b2-task-8-9/run-a-attempt-20260912.md), merged
 through PR #265 at `main@e73ab8e9`, records one wake returning `503` after 56.374 seconds. The
 verifier was then run contrary to the readiness packet's non-`200` stop rule and ended `class_2a` /
@@ -53,18 +53,33 @@ wrapper with an identical merge tree. The governing activation-policy change sup
 wrapper's five-probe/30-second limits: it permits no more than six fixed direct health probes, each
 capped at 90 seconds and separated by five seconds; it accepts the first exact `200`, retries only
 `503` or curl `28`/`000`, and otherwise exits `3` without verifier invocation. It calls verifier
-mode `preflight` only. This is source-only hardening, not a wake or Task 8.9 evidence.
+mode `preflight` only.
 
-**Owner approval required before Run A attempt 3:** one activation sequence of at most six
-Production health probes followed by read-only preflight. That approval does not authorize a seventh
-probe, execute mode, credentials, production login, portfolio mutation or cleanup, feature flag
-change, deployment, publication, merge, or Wave 10 exposure. Use an operator shell without unusual
-curl environment variables; if antivirus locks the temporary response file after a `200`, the
-wrapper exits `3` and consumes that wake. The six-probe cap provides one probe of margin beyond the
-only recorded five-request success path. The accepted non-blocking follow-ups are consolidated in
-the [Task 8.9 wake-preflight hardening backlog](../../../docs/todos/backlog/task-8-9-wake-preflight-hardening/README.md).
-If preflight passes, the credential-using, Production-mutating execute run requires another
-separate owner approval; neither this preflight approval nor a green preflight can authorize it.
+Run A attempt 3 on 2026-09-14 consumed the third wake and reached every read-only Azure operation:
+the gateway activated, a replica was resolved and reached through `containerapp exec`, and the RBAC,
+ACR manifest/login/pull, and Log Analytics KQL paths completed. The verifier then exited `4` on the
+stale generic `45s` eligibility-timeout expectation while the attested Azure deployment carried its
+intentional `120s` override. The deployment was current and the proof expectation was stale; see the
+[Azure Production timeout ratification](../../../docs/evidence/b2-task-8-9/2026-09-14-azure-timeout-ratification.md).
+Attempt 3 produced no accepted preflight verdict and does not advance Task 8.9.
+
+PR #273 merged the Azure-specific `120s/30s/165s` expectation, pre-wake timeout read-back, drift
+guard, and evidence corrections at `main@a28c481a`; its Windows PowerShell 5.1 suite passed 244/244.
+PR #275 then closed the remaining pre-wake response-ceiling, idle-threshold, provider, ordinal
+comparison, key-case, and hostile-Unicode sanitisation gaps at
+`main@8337d7e8b982245156088719d01f49b3ad1c1be9`. Its exact-head Windows PowerShell 5.1 suite passed
+286/286, including all five pre-registered Unicode fixtures, and the required aggregate CI gate was
+green. Both PRs are source/test/documentation hardening only; neither performed or authorized a
+Production action.
+
+**Run A attempt 4 remains unauthorized and unstarted.** A future attempt still requires a fresh owner
+decision for one activation sequence of at most six Production health probes followed by read-only
+preflight. That decision cannot authorize a seventh probe, execute mode, credentials, production
+login, portfolio mutation or cleanup, feature-flag change, deployment, publication, merge, or Wave
+10 exposure. The six accepted non-blocking implementation follow-ups are consolidated in the
+[Task 8.9 wake-preflight hardening backlog](../../../docs/todos/backlog/task-8-9-wake-preflight-hardening/README.md).
+If preflight passes, the credential-using, Production-mutating execute run requires another separate
+owner approval; neither preflight approval nor a green preflight can authorize it.
 
 Wave 9's source and disposable assembled-stack integration are complete through
 [PR #232](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/232) at
@@ -78,8 +93,10 @@ exposure, so the Asset Picker is not exposed to production users. Task 2.7's his
 complete with Astra's 2026-09-10 ACCEPT: containment is only at the recorded ACA boundary and
 user-visible impact remains unproven, not impossible. Task 2.6 and Wave 10.2 item 2 remain open.
 
-The owner-resolved Wave 8 decisions remain: strict 30-minute idle age, 45s eligibility / 10s reset /
-60s overall timeouts, and page-level manual-reset placement. See the
+The owner-resolved generic Wave 8 decisions remain: strict 30-minute idle age, 45s eligibility / 10s
+reset / 60s overall timeouts, and page-level manual-reset placement. The attested Azure Production
+deployment instead carries the separately ratified `120s/30s/165s` overrides under a `150s` route
+ceiling. See the
 [decision record](../../../docs/superpowers/plans/2026-09-06-b2-wave8-decision-record.md) and the
 [`Asset Picker master plan`](../../../docs/plans/ASSET_PICKER_E2E_MASTER_PLAN.md) for the
 cross-program release sequence. The owner-deferred
