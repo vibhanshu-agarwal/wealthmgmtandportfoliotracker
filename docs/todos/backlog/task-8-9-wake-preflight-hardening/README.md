@@ -7,7 +7,8 @@
 **Owner:** unassigned
 **Tracked in:** [PR #268](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/268)
 and its [independent Fable review](../../../superpowers/plans/fable-review-task-8-9-postmerge-docs-20260913.md),
-plus [PR #275](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/275).
+[PR #273](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/273), and
+[PR #275](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/275).
 All items are non-blocking; this backlog does not block Task 8.9 or authorize or block a future Run
 A attempt. Task 8.9 remains independently blocked on its owner-authorized live serving proof.
 
@@ -68,9 +69,9 @@ portfolio mutation, cleanup, flag change, deployment, publication, merge, or Tas
 
 ## Non-claims
 
-- This backlog entry does not claim that Run A has run or passed.
-- It does not replace the separate owner approval required for the one bounded Production activation
-  sequence.
+- This backlog entry does not claim that any Run A attempt passed or advanced Task 8.9.
+- It does not authorize Run A attempt 4, which remains unstarted, or replace the separate owner
+  approval required for any future bounded Production activation sequence.
 - It does not alter the requirement for a real 30-minute threshold, a trace-correlated Production
   login, deliberately non-golden-to-golden serving proof, manifest, and cleanup before Task 8.9 can
   be complete.

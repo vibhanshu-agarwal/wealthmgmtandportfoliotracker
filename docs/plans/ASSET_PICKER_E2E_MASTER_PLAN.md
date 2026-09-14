@@ -1,7 +1,12 @@
 # Asset Picker — E2E Master Plan to Production
 
-**Last verified:** 2026-09-13 at `main@80b881b5c461e1bebb210ebe1db4b911cf6a336d` for B2 Task 8.9's
-merged cold-start preflight wrapper (PR #268; source-only, no runtime/program-state baseline change);
+**Last verified:** 2026-09-15 at `main@8337d7e8b982245156088719d01f49b3ad1c1be9` for B2 Task 8.9's
+merged pre-wake correctness hardening (PR #275; exact-head Windows PowerShell 5.1 suite 286/286 and
+required aggregate CI green; source/test/documentation only, no runtime/program-state baseline change);
+2026-09-14 at `main@a28c481a` for the Azure-specific timeout expectation, drift guard, and evidence
+corrections (PR #273; Windows PowerShell 5.1 suite 244/244);
+2026-09-13 at `main@80b881b5c461e1bebb210ebe1db4b911cf6a336d` for the predecessor cold-start
+preflight wrapper (PR #268);
 2026-09-13 at `main@a4fa8d076daabe73ce32a22179750e98d32f10bb` for Run A attempt 2's
 NON-GO evidence (PR #267), at `main@e73ab8e9fdf6303dd4730171c7d8f28187761a75` for Run A attempt 1's NON-GO evidence (PR #265),
 and at `main@6b9c70f6e4476e612d27bd1df320cf68e24dc76b` for the predecessor wrapper (PR #266);
@@ -50,7 +55,7 @@ the production login, write, KQL, cleanup, or Task 8.9 completion; see the prior
 [2026-09-10 rehearsal record](../evidence/b2-task-8-9/rehearsal-20260910.json) remains historical
 evidence for its earlier gateway identity.
 
-**TASK 8.9 COLD-START PREFLIGHT WRAPPER — PR #268 MERGED; LIVE PROOF OPEN:**
+**TASK 8.9 PREFLIGHT HARDENING — PRs #268, #273 AND #275 MERGED; LIVE PROOF OPEN:**
 [PR #268](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/268) merged at
 `main@80b881b5c461e1bebb210ebe1db4b911cf6a336d`. The accepted head
 `400ac3c8adebd3dae7a9d085152e280a301ec637` is its second parent and has the identical merge tree
@@ -68,7 +73,7 @@ and ended `class_2a` / `non_go`, exit `1`. PR #266 merged the predecessor wrappe
 and [captured transcript](../evidence/b2-task-8-9/run-a2-operator-transcript-20260913.txt) record one
 more wake returning `503` with curl exit `0`; that wrapper failed closed with exit `3` before its
 replica wait or verifier, and no rehearsal JSON was written. Both attempts are NON-GO and neither
-advances Task 8.9. PR #268's corrected wrapper has not run against Production.
+advances Task 8.9.
 
 The wrapper is a preflight-only cold-start guard: it can issue at most six fixed direct health
 probes, each limited to 90 seconds and separated by the production five-second interval. Its curl
@@ -78,15 +83,33 @@ exits `3` without invoking the verifier. It invokes only
 verifier mode `preflight`; it does not run Task 8.9, use credentials, alter flags, or establish
 live serving proof.
 
-**2026-09-14 Azure Production timeout note:** The application-wide `45s/10s/60s` generic contract remains unchanged; the attested Azure Production deployment uses `120s/30s/165s` Terraform overrides per the [ratification](../evidence/b2-task-8-9/2026-09-14-azure-timeout-ratification.md). This pointer changes no Task 8.9 status or Production authorization.
+**Run A attempt 3 — 2026-09-14, NON-GO:** the third authorized wake succeeded and all 14 read-only
+Azure operations completed, including replica resolution, `containerapp exec`, RBAC rehearsal, ACR
+manifest/login/pull access, and Log Analytics KQL. The verifier then exited `4` on the stale generic
+`45s` eligibility-timeout expectation while the attested Azure deployment carried its intentional
+`120s` override. The deployment was current and the verifier expectation was stale, as recorded in
+the [Azure Production timeout ratification](../evidence/b2-task-8-9/2026-09-14-azure-timeout-ratification.md).
+The attempt consumed the third wake but produced no accepted preflight verdict and does not advance
+Task 8.9.
 
-**Owner decision still required before Run A attempt 3:** authorize one activation sequence of no
-more than six Production health probes followed by the wrapper's read-only preflight. This does
-not authorize a seventh probe, execute mode, credentials, a portfolio write or cleanup, flag change,
-deployment, push, pull request, merge, or production exposure. The operator shell must not carry
-unusual curl environment variables. If antivirus locks the temporary response file after a `200`,
-the wrapper fails closed with exit `3` and that wake is consumed; the six-probe cap provides one
-probe of margin beyond the only recorded five-request success path. Three accepted non-blocking
+PR #273 merged the Azure-specific `120s/30s/165s` expectation, pre-wake timeout read-back, drift
+guard, and evidence corrections at `main@a28c481a`; its Windows PowerShell 5.1 suite passed 244/244.
+PR #275 merged the remaining pre-wake response-ceiling, idle-threshold, provider, ordinal comparison,
+key-case, and hostile-Unicode sanitisation corrections at
+`main@8337d7e8b982245156088719d01f49b3ad1c1be9`. Its exact-head Windows PowerShell 5.1 suite passed
+286/286, all five pre-registered Unicode fixtures ran and passed, and the required aggregate CI gate
+was green. These merges performed no Production action and granted no live-run authority.
+
+**2026-09-14 Azure Production timeout note:** The application-wide `45s/10s/60s` generic contract
+remains unchanged. The attested Azure Production deployment uses `120s/30s/165s` Terraform overrides
+under a `150s` route ceiling per the
+[ratification](../evidence/b2-task-8-9/2026-09-14-azure-timeout-ratification.md). This pointer changes no
+Task 8.9 status or Production authorization.
+
+**Run A attempt 4 remains unauthorized and unstarted.** A future attempt requires a fresh owner
+decision for no more than six Production health probes followed by the wrapper's read-only preflight.
+It cannot authorize a seventh probe, execute mode, credentials, a portfolio write or cleanup, flag
+change, deployment, publication, merge, or production exposure. Six accepted non-blocking
 implementation follow-ups are tracked in the
 [Task 8.9 wake-preflight hardening backlog](../todos/backlog/task-8-9-wake-preflight-hardening/README.md).
 If that preflight passes, the credential-using, Production-mutating execute run remains a second,
@@ -691,7 +714,7 @@ Wave 4 Tasks 4.1–4.4a merged via PR #180 at `main@63fc058`; that exact histori
 | 5 — manual-reset gateway bundle | ✅ Source Tasks 5.1–5.5 plus 5.1a/5.1b are merged, Task 5.6 owner GO is recorded, and the complete bundle was shipped hidden with the approved Task 8.8 scoped gateway deployment | Deployment run `34433715705` placed the bundle on `api-gateway--0000079` at `sha256:aee44edc…`; Task 6.3's current gateway-read evidence binds successor `api-gateway--0000081`. The frontend control remains disabled and Wave 10 exposure remains separate |
 | 6 — manual reset frontend | ✅ Tasks 6.1/6.2 merged via [PR #214](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/214) at `main@48d0aba8`, identical to CI-green head `b918ff09`; ACCEPT, R1–R4 closed | Committed flags off; the owner finalized the existing page-level placement on 2026-09-06. Task 6.3 is green on [bounded gateway-read evidence](../evidence/b2-task-6-3/backend-readiness-gateway-read-20260911.json); Wave 10 remains closed. The owner-deferred [sidebar backlog](../todos/backlog/responsive-dashboard-sidebar/README.md) remains open |
 | 7 — decimal rollout note | ℹ Informational | No independent release gate |
-| 8 — login-orchestrated reset | 🟡 Tasks 8.1–8.8 and 8.8b are complete for Azure. Run `34433715705` deployed historical `api-gateway--0000079` at `sha256:aee44edc…`; current-attempt and non-interference proofs passed, and the revision was later superseded and purged. PR #262 reconciled Task 8.9's current [per-service provenance packet](../evidence/b2-task-8-9/deployment-provenance-20260911.json) to `api-gateway--0000081` / run `34588465283`, retaining the independent `portfolio-service--0000096` / run `34328692256` attestation with no common workflow identity. The explicit 2026-09-11 [re-preflight evidence](../evidence/b2-task-8-9/rehearsal-20260911.json) matched both identities and workspace, then stopped before any wake. Run A [attempt 1](../evidence/b2-task-8-9/run-a-attempt-20260912.md), merged through PR #265, consumed one wake that returned `503` after 56.374 seconds; the verifier was then run contrary to the packet's stop rule and ended NON-GO. PR #266 merged the predecessor wrapper. Run A [attempt 2](../evidence/b2-task-8-9/run-a-attempt-20260913.md), recorded through PR #267, consumed a second wake that returned `503`; the wrapper exited `3` before verifier start. PR #268 then merged the corrected, bounded [cold-start preflight wrapper](../../scripts/run_task_8_9_preflight.ps1) at `main@80b881b5`; that PR #268 wrapper has no Production run. [Decision record](../superpowers/plans/2026-09-06-b2-wave8-decision-record.md) and [deployment evidence](../evidence/b2-task-8-8/deployment-completion-20260910.json). | Task 8.9 live login/reset/log-correlation proof remains open and separately gated. Run A attempt 3 requires a fresh owner decision for at most six health probes plus read-only preflight. Any later credential-using execute run is another separate owner decision. Task 8.8a remains AWS-only and does not apply to this Azure deployment. Production flags remain off |
+| 8 — login-orchestrated reset | 🟡 Tasks 8.1–8.8 and 8.8b are complete for Azure. Run `34433715705` deployed historical `api-gateway--0000079` at `sha256:aee44edc…`; current-attempt and non-interference proofs passed, and the revision was later superseded and purged. PR #262 reconciled Task 8.9's current [per-service provenance packet](../evidence/b2-task-8-9/deployment-provenance-20260911.json) to `api-gateway--0000081` / run `34588465283`, retaining the independent `portfolio-service--0000096` / run `34328692256` attestation with no common workflow identity. The explicit 2026-09-11 [re-preflight evidence](../evidence/b2-task-8-9/rehearsal-20260911.json) matched both identities and workspace, then stopped before any wake. Run A [attempt 1](../evidence/b2-task-8-9/run-a-attempt-20260912.md), merged through PR #265, consumed one wake that returned `503` after 56.374 seconds; the verifier was then run contrary to the packet's stop rule and ended NON-GO. Run A [attempt 2](../evidence/b2-task-8-9/run-a-attempt-20260913.md), recorded through PR #267, consumed a second wake that returned `503`; the wrapper exited `3` before verifier start. Attempt 3 on 2026-09-14 consumed the third wake, completed all 14 read-only Azure operations, and then exited `4` on the stale generic timeout expectation; the [ratification](../evidence/b2-task-8-9/2026-09-14-azure-timeout-ratification.md) records the Azure-specific values and root cause. PRs #273 and #275 corrected the pre-wake contract through `main@8337d7e8`; the exact-head Windows PowerShell 5.1 suite passed 286/286 and required CI was green. [Decision record](../superpowers/plans/2026-09-06-b2-wave8-decision-record.md) and [deployment evidence](../evidence/b2-task-8-8/deployment-completion-20260910.json). | Task 8.9 live login/reset/log-correlation proof remains OPEN / NON-GO and separately gated: three wakes are consumed with zero accepted verdicts. Run A attempt 4 is unauthorized and unstarted; any future bounded preflight and any later credential-using execute run require separate owner decisions. Task 8.8a remains AWS-only and does not apply to this Azure deployment. Production flags remain off |
 | 9 — live integration | 🟡 Tasks 9.1, 9.3, 9.4, 9.5 (PR #231 at `main@b4c68253b99a796d6301ef79b5aa5a47d5cbd962`), and 9.6 have their recorded source/local evidence. Tasks 9.2/9.7/9.8/9.9 are source/assembled-stack complete: one disposable Compose real-browser run passed 5/5 across setup plus picker and demo-reset success/conflict; PR #232 merged at `main@318f28592da6ab2e3bd66bc738aa68d374b180fa`, with final CI run `34018608256` passing `docker-build-verify` and `ci-required`, and body-edit guard run `34020180243` passing | No deployment or Production E2E is claimed; the B2-specific Wave 10 convergence/exposure gate and Production E2E still gate exposure. This is not the already-proved B1 P11g-2 property; production flags remain off |
 | 10 — production exposure | 🟡 Task 10.1 source wiring complete; exposure blocked | PR #259 / `main@03ca6300` passed its CI contract without creating or changing either repository variable. Wave 10.2 still requires B2 live decimal fidelity, Task 8.9 serving proof, explicit owner approval, a new build/deploy, and Production E2E |
 
