@@ -2382,6 +2382,23 @@ def _wrapper_azure_timeouts() -> dict[str, str]:
         if match is None:
             raise AssertionError(f"{flag} literal not found in {WRAPPER_PATH}")
         values[key] = match.group(1)
+    # The gateway response ceiling (SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_
+    # HTTPCLIENT_RESPONSETIMEOUT) is NOT passed to the verifier as a CLI flag
+    # the way the three timeouts above are -- it is compared entirely
+    # pre-wake, against the SAME serving-revision env read the three timeouts
+    # are compared against, as an entry in the wrapper's own
+    # $expectedAzureTimeoutValues hashtable. Extracted separately here since
+    # it has no --flag counterpart to match on.
+    ceiling_match = re.search(
+        r"'SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT'\s*=\s*'([^']+)'",
+        text,
+    )
+    if ceiling_match is None:
+        raise AssertionError(
+            "SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT literal not "
+            f"found in {WRAPPER_PATH}"
+        )
+    values["ceiling"] = ceiling_match.group(1)
     return values
 
 
@@ -2538,9 +2555,12 @@ class AzureTimeoutDriftGuardTest(unittest.TestCase):
     """Task 8.9's 2026-09-14 NON-GO was caused by drift between
     infrastructure/terraform/azure/main.tf's Azure timeout overrides and what
     scripts/run_task_8_9_preflight.ps1 asserted. This pins the wrapper's
-    literal --eligibility-timeout/--reset-timeout/--overall-timeout values
-    against main.tf, so a future Terraform change without a matching wrapper
-    update fails this offline test instead of burning a Production wake."""
+    literal --eligibility-timeout/--reset-timeout/--overall-timeout values,
+    and (Gap 1) the gateway response ceiling
+    SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT the wrapper
+    compares pre-wake, against main.tf, so a future Terraform change without a
+    matching wrapper update fails this offline test instead of burning a
+    Production wake."""
 
     MAIN_TF = REPO / "infrastructure" / "terraform" / "azure" / "main.tf"
     WRAPPER = WRAPPER_PATH
@@ -2553,6 +2573,12 @@ class AzureTimeoutDriftGuardTest(unittest.TestCase):
             "eligibility": "APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT",
             "reset": "APP_DEMO_LOGIN_RESET_RESET_TIMEOUT",
             "overall": "APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT",
+            # Gap 1: the gateway route's response ceiling. main.tf:255. Pinned
+            # exactly like the three timeouts above -- same mapping, same
+            # extraction, same comparison below -- so a Terraform-only change
+            # to this literal fails this test instead of silently invalidating
+            # the wrapper's `120s < 150s` ratified rationale.
+            "ceiling": "SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT",
         }
         values: dict[str, str] = {}
         for key, env_name in mapping.items():
@@ -2568,16 +2594,19 @@ class AzureTimeoutDriftGuardTest(unittest.TestCase):
         # _wrapper_azure_timeouts() also returns "login" (--login-timeout-seconds),
         # which has no Terraform counterpart -- see
         # test_wrapper_login_timeout_satisfies_validate_config below for that one.
-        # Only the three keys Terraform actually attests are compared here.
+        # Only the keys Terraform actually attests (the three timeouts, plus
+        # "ceiling" for Gap 1) are compared here.
         wrapper = _wrapper_azure_timeouts()
         self.assertEqual(
             {key: wrapper[key] for key in terraform},
             terraform,
             "scripts/run_task_8_9_preflight.ps1's --eligibility-timeout/--reset-timeout/"
-            "--overall-timeout literals have drifted from infrastructure/terraform/azure/"
-            "main.tf's APP_DEMO_LOGIN_RESET_* overrides. Update the wrapper's literals (and "
-            "the ratification in docs/evidence/b2-task-8-9/) to match before running the live "
-            "preflight, or it will NON-GO exactly as it did on 2026-09-14.",
+            "--overall-timeout literals, or its SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_"
+            "HTTPCLIENT_RESPONSETIMEOUT literal, have drifted from infrastructure/terraform/"
+            "azure/main.tf's APP_DEMO_LOGIN_RESET_* overrides / response-timeout ceiling. "
+            "Update the wrapper's literals (and the ratification in "
+            "docs/evidence/b2-task-8-9/) to match before running the live preflight, or it "
+            "will NON-GO exactly as it did on 2026-09-14.",
         )
 
     def test_wrapper_login_timeout_satisfies_validate_config(self) -> None:

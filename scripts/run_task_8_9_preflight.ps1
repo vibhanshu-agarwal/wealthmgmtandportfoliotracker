@@ -668,28 +668,44 @@ if ($newer.Count -gt 0) {
 }
 Write-Step "  $($revisions.Count) revision(s), none newer than $attestedRevision"
 
-Write-Step 'Checking the serving Azure demo-reset timeouts against the ratified attestation'
+Write-Step 'Checking the serving Azure demo-reset timeouts, gateway response ceiling, idle threshold and cloud provider against the ratified attestation'
 # `az containerapp revision show` is a control-plane read on the revision
 # object itself (like the show/list calls above), not a call into a running
 # container, so it works at zero replicas -- no wake needed. Run A attempt 3
 # spent an irreversible wake only to learn that the serving
 # APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT did not equal the value this
 # wrapper asserts below; a mismatch of that class is checked here instead,
-# before any request. The three literals compared here MUST stay equal to the
-# --eligibility-timeout/--reset-timeout/--overall-timeout arguments passed to
-# the verifier further down: AzureTimeoutDriftGuardTest
+# before any request. The three timeout literals compared here MUST stay
+# equal to the --eligibility-timeout/--reset-timeout/--overall-timeout
+# arguments passed to the verifier further down: AzureTimeoutDriftGuardTest
 # (scripts/tests/test_verify_demo_reset_azure.py) pins those against
 # infrastructure/terraform/azure/main.tf, ratified in
 # docs/evidence/b2-task-8-9/2026-09-14-azure-timeout-ratification.md.
+#
+# SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT (the gateway
+# route's response ceiling) is folded into this SAME expected-name/value
+# table, with the SAME absent-is-a-mismatch semantics as the three timeouts
+# above -- deliberately, not as an oversight: the ratified rationale for the
+# eligibility timeout is `120s < 150s`, i.e. eligibility strictly below the
+# route ceiling. api-gateway/src/main/resources/application-prod.yml:52 sets
+# `response-timeout: 55s`, so an ABSENT override here would mean the
+# effective ceiling is 55s, making `120s < 55s` FALSE and silently
+# invalidating the rationale a passing preflight is supposed to attest.
+# Absence is therefore a reject, exactly like the three timeouts, never a
+# pass. Its literal here MUST stay equal to
+# infrastructure/terraform/azure/main.tf:255; AzureTimeoutDriftGuardTest pins
+# that equality too.
 $expectedAzureTimeoutNames = @(
     'APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT',
     'APP_DEMO_LOGIN_RESET_RESET_TIMEOUT',
-    'APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT'
+    'APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT',
+    'SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT'
 )
 $expectedAzureTimeoutValues = @{
-    'APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT' = '120s'
-    'APP_DEMO_LOGIN_RESET_RESET_TIMEOUT'       = '30s'
-    'APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT'     = '165s'
+    'APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT'                       = '120s'
+    'APP_DEMO_LOGIN_RESET_RESET_TIMEOUT'                             = '30s'
+    'APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT'                           = '165s'
+    'SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT' = '150s'
 }
 $envRaw = & $AzCommand containerapp revision show --name $GatewayApp --resource-group $ResourceGroup --revision $attestedRevision --query 'properties.template.containers[0].env' -o json
 if ($LASTEXITCODE -ne 0) { Fail 'could not read the serving revision environment; the verifier would fail post-wake' 2 }
@@ -795,11 +811,69 @@ foreach ($name in $expectedAzureTimeoutNames) {
         $timeoutMismatches += "$name observed='$observedDisplay' expected='$expectedValue'"
     }
 }
+# APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD: DELIBERATELY NOT the same rule as the
+# four names in the loop above. application.yml:135 is
+# `${APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD:30m}`, so an ABSENT override
+# correctly falls back to the approved 30m default -- absence is a PASS here.
+# Terraform does not set this name, so absent is the expected live state.
+# Present-and-not-30m is still a reject: 30m is the only ratified value.
+$idleThresholdName = 'APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD'
+$idleThresholdExpectedValue = '30m'
+if ($observedAzureTimeoutValues.ContainsKey($idleThresholdName)) {
+    $idleThresholdObservedValue = $observedAzureTimeoutValues[$idleThresholdName]
+    if ($null -eq $idleThresholdObservedValue) {
+        $timeoutMismatches += "$idleThresholdName carries a secretRef or a null value instead of a plain string; observed=<no plain value> expected='$idleThresholdExpectedValue'"
+    } elseif ([string]$idleThresholdObservedValue -ne $idleThresholdExpectedValue) {
+        # $idleThresholdObservedValue is deployment-controlled, read verbatim
+        # from the serving Container App's env by the same az call above --
+        # same trust boundary as $observedValue in the loop above, so it is
+        # sanitized with the exact same rule before it can reach Fail /
+        # Write-Host / the operator's evidence transcript: a control or
+        # Unicode format/separator character, or a length over 80, replaces
+        # the WHOLE value -- never a prefix -- with a fixed-shape description.
+        $idleThresholdObservedText = [string]$idleThresholdObservedValue
+        $idleThresholdHasControlChars = [regex]::IsMatch($idleThresholdObservedText, '[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]')
+        $idleThresholdTooLong = $idleThresholdObservedText.Length -gt 80
+        if ($idleThresholdHasControlChars -or $idleThresholdTooLong) {
+            $idleThresholdSanitizeReason = if ($idleThresholdHasControlChars) { 'withheld: contains control or bidi/format characters' } else { 'exceeds the 80-character display bound' }
+            $idleThresholdObservedDisplay = "<sanitized rendering, not the literal value -- $($idleThresholdObservedText.Length) chars, $idleThresholdSanitizeReason>"
+        } else {
+            $idleThresholdObservedDisplay = $idleThresholdObservedText
+        }
+        $timeoutMismatches += "$idleThresholdName observed='$idleThresholdObservedDisplay' expected='$idleThresholdExpectedValue'"
+    }
+}
+# CLOUD_PROVIDER: also DELIBERATELY NOT the same rule as the four names in
+# the loop above. scripts/verify_demo_reset_azure.py defaults to 'azure' when
+# this name is absent (names.get("CLOUD_PROVIDER", "azure")), so absence is a
+# PASS here too. Present-and-not-'azure' is a reject.
+$cloudProviderName = 'CLOUD_PROVIDER'
+$cloudProviderExpectedValue = 'azure'
+if ($observedAzureTimeoutValues.ContainsKey($cloudProviderName)) {
+    $cloudProviderObservedValue = $observedAzureTimeoutValues[$cloudProviderName]
+    if ($null -eq $cloudProviderObservedValue) {
+        $timeoutMismatches += "$cloudProviderName carries a secretRef or a null value instead of a plain string; observed=<no plain value> expected='$cloudProviderExpectedValue'"
+    } elseif ([string]$cloudProviderObservedValue -ne $cloudProviderExpectedValue) {
+        # Same trust boundary, same sanitiser, as $idleThresholdObservedValue
+        # and $observedValue above -- see those comments for the rule.
+        $cloudProviderObservedText = [string]$cloudProviderObservedValue
+        $cloudProviderHasControlChars = [regex]::IsMatch($cloudProviderObservedText, '[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]')
+        $cloudProviderTooLong = $cloudProviderObservedText.Length -gt 80
+        if ($cloudProviderHasControlChars -or $cloudProviderTooLong) {
+            $cloudProviderSanitizeReason = if ($cloudProviderHasControlChars) { 'withheld: contains control or bidi/format characters' } else { 'exceeds the 80-character display bound' }
+            $cloudProviderObservedDisplay = "<sanitized rendering, not the literal value -- $($cloudProviderObservedText.Length) chars, $cloudProviderSanitizeReason>"
+        } else {
+            $cloudProviderObservedDisplay = $cloudProviderObservedText
+        }
+        $timeoutMismatches += "$cloudProviderName observed='$cloudProviderObservedDisplay' expected='$cloudProviderExpectedValue'"
+    }
+}
 if ($timeoutMismatches.Count -gt 0) {
     $timeoutFailMessage = "serving Azure demo-reset timeouts do not match the ratified attestation -- no wake was consumed; reconcile the ratification (docs/evidence/b2-task-8-9/2026-09-14-azure-timeout-ratification.md) with the deployment before retrying: $($timeoutMismatches -join '; ')"
     Fail $timeoutFailMessage 2
 }
 Write-Step "  serving Azure demo-reset timeouts match the ratified attestation ($($expectedAzureTimeoutNames -join ', '))"
+Write-Step "  serving APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD and CLOUD_PROVIDER are absent-safe or match their approved values (absent falls back to the approved default; present must equal it)"
 
 # --- The timing window starts here ------------------------------------------
 

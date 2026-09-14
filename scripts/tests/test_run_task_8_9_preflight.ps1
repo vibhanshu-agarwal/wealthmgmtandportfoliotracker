@@ -1991,30 +1991,40 @@ foreach ($phase in $failAfterPhases) {
 }
 
 # --- Serving Azure demo-reset timeout precondition (boundary M2) -----------
-# scripts/run_task_8_9_preflight.ps1 ~L671-745: before any probe, the wrapper
+# scripts/run_task_8_9_preflight.ps1 ~L671-876: before any probe, the wrapper
 # reads the serving revision's container env (a control-plane read, zero
 # replicas needed) and compares APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT /
-# RESET_TIMEOUT / OVERALL_TIMEOUT against its own 120s/30s/165s literals. The
-# stub's "containers[0].env" branch defaults to that same ratified payload
-# (STUB_SERVING_ENV_JSON overrides it), so $good alone already exercises the
-# match; every case below drives a specific mismatch shape.
+# RESET_TIMEOUT / OVERALL_TIMEOUT, plus the gateway response ceiling
+# SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT, against its
+# own 120s/30s/165s/150s literals -- all four with the SAME absent-is-a-
+# mismatch rule. It then separately checks APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD
+# (must be 30m if present; absent is a PASS) and CLOUD_PROVIDER (must be
+# 'azure' if present; absent is a PASS). The stub's "containers[0].env"
+# branch defaults to that same ratified payload (STUB_SERVING_ENV_JSON
+# overrides it), so $good alone already exercises the match; every case below
+# drives a specific mismatch shape.
 Write-Host 'Serving Azure demo-reset timeout precondition (M2): match proceeds'
-$m2RatifiedJson = '[{"name":"APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD","value":"30m"},{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","value":"120s"},{"name":"APP_DEMO_LOGIN_RESET_RESET_TIMEOUT","value":"30s"},{"name":"APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT","value":"165s"}]'
+$m2RatifiedJson = '[{"name":"APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD","value":"30m"},{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","value":"120s"},{"name":"APP_DEMO_LOGIN_RESET_RESET_TIMEOUT","value":"30s"},{"name":"APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT","value":"165s"},{"name":"SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT","value":"150s"}]'
 $m2E = $good.Clone(); $m2E['STUB_SERVING_ENV_JSON'] = $m2RatifiedJson
 $r = Invoke-Wrapper -Env $m2E
 Check 'a serving env matching the ratified attestation proceeds past the check and reaches the wake' {
     if ($r.Exit -ne 0) { throw "exit $($r.Exit) (expected 0); output: $($r.Output)" }
     Assert-ProbeCount $r 1
 }
-Check 'the match emits exactly one canonical, allowlisted (names-only, no values) observation line' {
+Check 'the match emits exactly one canonical, allowlisted (names-only, no values) observation line, now including the response ceiling' {
     $lines = @($r.Output -split "`r?`n" | Where-Object { $_ -match 'serving Azure demo-reset timeouts match the ratified attestation' })
     if ($lines.Count -ne 1) { throw "expected exactly one canonical observation line, found $($lines.Count); output:`n$($r.Output)" }
-    $want = 'serving Azure demo-reset timeouts match the ratified attestation (APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT, APP_DEMO_LOGIN_RESET_RESET_TIMEOUT, APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT)'
+    $want = 'serving Azure demo-reset timeouts match the ratified attestation (APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT, APP_DEMO_LOGIN_RESET_RESET_TIMEOUT, APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT, SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT)'
     if (-not $lines[0].Contains($want)) { throw "canonical line reads:`n  $($lines[0])`nexpected to contain:`n  $want" }
     # Allowlisted means NAMES only -- the line must not also carry the values
     # it just approved, which would make it a second, uncontrolled place a
     # future edit could leak an observed value from.
     if ($lines[0] -match '\d') { throw "the canonical observation line carries a digit -- it must name checks, not values:`n  $($lines[0])" }
+}
+Check 'idle threshold present-and-30m and CLOUD_PROVIDER absent both proceed, and the second canonical line confirms both were checked' {
+    if ($r.Exit -ne 0) { throw "exit $($r.Exit) (expected 0); output: $($r.Output)" }
+    $lines = @($r.Output -split "`r?`n" | Where-Object { $_ -match 'APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD and CLOUD_PROVIDER are absent-safe or match their approved values' })
+    if ($lines.Count -ne 1) { throw "expected exactly one idle-threshold/cloud-provider observation line, found $($lines.Count); output:`n$($r.Output)" }
 }
 Check 'each env row is matched by its own name, not the whole decoded list as one row' {
     # THE discriminating test for the ConvertFrom-Json double-wrap on THIS
@@ -2052,6 +2062,23 @@ $m2MismatchOverall = '[{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","value
 $m2MissingEligibility = '[{"name":"APP_DEMO_LOGIN_RESET_RESET_TIMEOUT","value":"30s"},{"name":"APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT","value":"165s"}]'
 $m2MissingReset = '[{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","value":"120s"},{"name":"APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT","value":"165s"}]'
 $m2MissingOverall = '[{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","value":"120s"},{"name":"APP_DEMO_LOGIN_RESET_RESET_TIMEOUT","value":"30s"}]'
+# Gap 1 (response ceiling): folded into the SAME expected-name loop as the
+# three timeouts above, so it gets the SAME absent-is-a-mismatch rule.
+$m2CeilingWrong = '[{"name":"APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD","value":"30m"},{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","value":"120s"},{"name":"APP_DEMO_LOGIN_RESET_RESET_TIMEOUT","value":"30s"},{"name":"APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT","value":"165s"},{"name":"SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT","value":"999s"}]'
+# Ceiling entirely absent, everything else ratified. This is deliberately the
+# EXACT shape that passed this boundary before Gap 1 closed (three timeouts +
+# idle threshold, no ceiling row) -- the case the background note calls out as
+# most likely to be implemented as a pass by mistake, so it is pinned as its
+# own fixture rather than only appearing incidentally inside another case.
+$m2CeilingAbsent = '[{"name":"APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD","value":"30m"},{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","value":"120s"},{"name":"APP_DEMO_LOGIN_RESET_RESET_TIMEOUT","value":"30s"},{"name":"APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT","value":"165s"}]'
+# Gap 2a (idle threshold): NOT the same rule -- present-and-wrong is a reject,
+# but (see the proceeds cases further below) absent is a pass.
+$m2IdleWrong = '[{"name":"APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD","value":"5m"},{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","value":"120s"},{"name":"APP_DEMO_LOGIN_RESET_RESET_TIMEOUT","value":"30s"},{"name":"APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT","value":"165s"},{"name":"SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT","value":"150s"}]'
+$m2IdleAbsent = '[{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","value":"120s"},{"name":"APP_DEMO_LOGIN_RESET_RESET_TIMEOUT","value":"30s"},{"name":"APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT","value":"165s"},{"name":"SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT","value":"150s"}]'
+# Gap 2b (CLOUD_PROVIDER): also NOT the same rule as the four-name loop --
+# present-and-wrong is a reject, absent is a pass (proceeds cases below).
+$m2ProviderWrong = '[{"name":"APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD","value":"30m"},{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","value":"120s"},{"name":"APP_DEMO_LOGIN_RESET_RESET_TIMEOUT","value":"30s"},{"name":"APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT","value":"165s"},{"name":"SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT","value":"150s"},{"name":"CLOUD_PROVIDER","value":"aws"}]'
+$m2ProviderAzure = '[{"name":"APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD","value":"30m"},{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","value":"120s"},{"name":"APP_DEMO_LOGIN_RESET_RESET_TIMEOUT","value":"30s"},{"name":"APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT","value":"165s"},{"name":"SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT","value":"150s"},{"name":"CLOUD_PROVIDER","value":"azure"}]'
 # Truncated mid-object: unbalanced brackets are an unambiguous parse failure
 # (unexpected end of input) regardless of JSON parser leniency, unlike a
 # missing colon which some lenient parsers might still tolerate.
@@ -2065,7 +2092,7 @@ $m2SecretRefJson = '[{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","secretR
 $m2DuplicateNameJson = '[{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","value":"120s"},{"name":"APP_DEMO_LOGIN_RESET_RESET_TIMEOUT","value":"30s"},{"name":"APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT","value":"165s"},{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","value":"999s"}]'
 # Hostile fixtures for the console-injection property below: each is a
 # genuine mismatch (so it exercises the one branch that interpolates the
-# observed value at all -- see run_task_8_9_preflight.ps1 ~L746-776) carrying
+# observed value at all -- see run_task_8_9_preflight.ps1 ~L782-812) carrying
 # a payload an attacker who controls the Container App's env could plant.
 # Both fixtures build their JSON-string escape sequences at runtime from
 # [char]92 (a backslash) concatenated with plain letters/digits, rather
@@ -2087,6 +2114,18 @@ $m2JsonEscEsc = [string][char]92 + 'u001b'
 $m2JsonEscBidi = [string][char]92 + 'u202e'
 $m2HostileBidiJson = '[{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","value":"120s' + $m2JsonEscBidi + 'INJECTED-VIA-BIDI-MARKER"},{"name":"APP_DEMO_LOGIN_RESET_RESET_TIMEOUT","value":"30s"},{"name":"APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT","value":"165s"}]'
 $m2HostileAnsiJson = '[{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","value":"45s' + $m2JsonEscEsc + '[31mFAKE-ALERT' + $m2JsonEscEsc + '[0m"},{"name":"APP_DEMO_LOGIN_RESET_RESET_TIMEOUT","value":"30s"},{"name":"APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT","value":"165s"}]'
+# Same hostile-value property, exercised under each of the three NEW names
+# (Gap 1's ceiling, and Gap 2's idle threshold / CLOUD_PROVIDER), each built
+# from the same runtime bidi escape as $m2HostileBidiJson above. Every other
+# field in each fixture matches so only the field under test takes the
+# mismatch branch that interpolates -- and therefore must sanitize -- an
+# observed value.
+$m2HostileCeilingMarker = 'INJECTED-VIA-CEILING-BIDI-MARKER'
+$m2HostileCeilingJson = '[{"name":"APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD","value":"30m"},{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","value":"120s"},{"name":"APP_DEMO_LOGIN_RESET_RESET_TIMEOUT","value":"30s"},{"name":"APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT","value":"165s"},{"name":"SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT","value":"150s' + $m2JsonEscBidi + $m2HostileCeilingMarker + '"}]'
+$m2HostileIdleMarker = 'INJECTED-VIA-IDLE-BIDI-MARKER'
+$m2HostileIdleJson = '[{"name":"APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD","value":"30m' + $m2JsonEscBidi + $m2HostileIdleMarker + '"},{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","value":"120s"},{"name":"APP_DEMO_LOGIN_RESET_RESET_TIMEOUT","value":"30s"},{"name":"APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT","value":"165s"},{"name":"SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT","value":"150s"}]'
+$m2HostileProviderMarker = 'INJECTED-VIA-PROVIDER-BIDI-MARKER'
+$m2HostileProviderJson = '[{"name":"APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD","value":"30m"},{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","value":"120s"},{"name":"APP_DEMO_LOGIN_RESET_RESET_TIMEOUT","value":"30s"},{"name":"APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT","value":"165s"},{"name":"SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT","value":"150s"},{"name":"CLOUD_PROVIDER","value":"azure' + $m2JsonEscBidi + $m2HostileProviderMarker + '"}]'
 
 $m2LongMarker = 'PWNED-' + ('Q' * 3000) + '-MARKEREND'
 $m2HostileLongJson = '[{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","value":"' + $m2LongMarker + '"},{"name":"APP_DEMO_LOGIN_RESET_RESET_TIMEOUT","value":"30s"},{"name":"APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT","value":"165s"}]'
@@ -2122,6 +2161,23 @@ $m2Cases = @(
        ExpectSubstrings = @('do not match the ratified attestation', 'is absent from the serving revision', 'APP_DEMO_LOGIN_RESET_RESET_TIMEOUT', "expected='30s'"); ForbiddenSubstrings = @() },
     @{ Name = 'name missing entirely (overall)'; Env = @{ STUB_SERVING_ENV_JSON = $m2MissingOverall }
        ExpectSubstrings = @('do not match the ratified attestation', 'is absent from the serving revision', 'APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT', "expected='165s'"); ForbiddenSubstrings = @() },
+    # --- Gap 1: response ceiling (folded into the loop above; same rule) ----
+    @{ Name = 'gap 1: response ceiling wrong value'; Env = @{ STUB_SERVING_ENV_JSON = $m2CeilingWrong }
+       ExpectSubstrings = @('do not match the ratified attestation', 'SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT', "observed='999s'", "expected='150s'")
+       ForbiddenSubstrings = @('APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT is absent', 'APP_DEMO_LOGIN_RESET_RESET_TIMEOUT is absent', 'APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT is absent') },
+    @{ Name = 'gap 1: response ceiling absent -- the shape that passed before this gap closed, must now reject'; Env = @{ STUB_SERVING_ENV_JSON = $m2CeilingAbsent }
+       ExpectSubstrings = @('do not match the ratified attestation', 'is absent from the serving revision', 'SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT', "expected='150s'")
+       ForbiddenSubstrings = @('APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT is absent', 'APP_DEMO_LOGIN_RESET_RESET_TIMEOUT is absent', 'APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT is absent') },
+    # --- Gap 2a: idle threshold (absent is a PASS -- see the proceeds checks
+    #     further below; only present-and-wrong belongs in this reject table) -
+    @{ Name = 'gap 2a: idle threshold present and wrong'; Env = @{ STUB_SERVING_ENV_JSON = $m2IdleWrong }
+       ExpectSubstrings = @('do not match the ratified attestation', 'APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD', "observed='5m'", "expected='30m'")
+       ForbiddenSubstrings = @('APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT is absent', 'APP_DEMO_LOGIN_RESET_RESET_TIMEOUT is absent', 'APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT is absent', 'SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT is absent') },
+    # --- Gap 2b: CLOUD_PROVIDER (absent is a PASS -- see the proceeds checks
+    #     further below; only present-and-wrong belongs in this reject table) -
+    @{ Name = 'gap 2b: CLOUD_PROVIDER present and not azure'; Env = @{ STUB_SERVING_ENV_JSON = $m2ProviderWrong }
+       ExpectSubstrings = @('do not match the ratified attestation', 'CLOUD_PROVIDER', "observed='aws'", "expected='azure'")
+       ForbiddenSubstrings = @('APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT is absent', 'APP_DEMO_LOGIN_RESET_RESET_TIMEOUT is absent', 'APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT is absent', 'SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT is absent') },
     @{ Name = 'malformed / unparseable JSON'; Env = @{ STUB_SERVING_ENV_JSON = $m2MalformedJson }
        ExpectSubstrings = @('did not parse as JSON'); ForbiddenSubstrings = @('MALFORMED-MARKER-DO-NOT-LEAK') },
     @{ Name = 'row carries secretRef instead of value'; Env = @{ STUB_SERVING_ENV_JSON = $m2SecretRefJson }
@@ -2137,7 +2193,7 @@ $m2Cases = @(
        # The duplicated NAME itself (not the value) carries the bidi
        # override character built at runtime above. The Fail message must
        # still say "duplicate serving environment value" and use the same
-       # fixed-shape placeholder the value branch uses (~L746-776), but must
+       # fixed-shape placeholder the value branch uses (~L782-812), but must
        # never reproduce the marker text or the raw bidi character.
        ExpectSubstrings = @('duplicate serving environment value', 'sanitized rendering, not the literal value')
        ForbiddenSubstrings = @($m2DuplicateNameHostileMarker, [string][char]0x202E) },
@@ -2171,8 +2227,31 @@ foreach ($m2Case in $m2Cases) {
     }
 }
 
+Write-Host 'Serving Azure demo-reset timeout precondition (M2): absent-is-a-pass proceeds for idle threshold and CLOUD_PROVIDER'
+# These are the deliberately-NOT-symmetric half of Gap 2: unlike the four
+# names in the loop above (and unlike ceiling absence, Gap 1), an ABSENT
+# APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD or CLOUD_PROVIDER must proceed, because
+# each falls back to the same value this wrapper approves (application.yml:135
+# for the idle threshold; the verifier's own names.get("CLOUD_PROVIDER",
+# "azure") default for the provider).
+$m2ProceedCases = @(
+    @{ Name = 'idle threshold absent proceeds (falls back to the approved 30m default)'; Json = $m2IdleAbsent },
+    @{ Name = 'CLOUD_PROVIDER = azure (present and correct) proceeds'; Json = $m2ProviderAzure }
+)
+foreach ($m2Proceed in $m2ProceedCases) {
+    $e = $good.Clone(); $e['STUB_SERVING_ENV_JSON'] = $m2Proceed.Json
+    $r = Invoke-Wrapper -Env $e
+    Check "$($m2Proceed.Name)" {
+        if ($r.Exit -ne 0) { throw "exit $($r.Exit) (expected 0); output: $($r.Output)" }
+        Assert-ProbeCount $r 1
+    }
+}
+# CLOUD_PROVIDER absent also proceeds -- covered by every case above that
+# does not set CLOUD_PROVIDER at all, including the baseline match check
+# ($m2RatifiedJson, asserted exit 0 above) and $m2IdleAbsent just above.
+
 Write-Host 'Serving Azure demo-reset timeout precondition (M2): console output must not reproduce untrusted content'
-# run_task_8_9_preflight.ps1's mismatch-message construction (~L746-776)
+# run_task_8_9_preflight.ps1's mismatch-message construction (~L782-812)
 # sanitizes $observedValue -- the one field in this whole precondition that
 # is genuinely attacker/deployment controlled, read verbatim from the
 # serving Container App's env by the az call above -- before it reaches
@@ -2196,7 +2275,18 @@ $m2HostileCases = @(
        # Discriminates the widened sanitizer range: U+202E is \p{Cf}, not
        # \p{Cc}, so the old [\x00-\x1F\x7F-\x9F] pattern would miss it and
        # this case would fail against that narrower range.
-       ForbiddenSubstrings = @('INJECTED-VIA-BIDI-MARKER', [string][char]0x202E) }
+       ForbiddenSubstrings = @('INJECTED-VIA-BIDI-MARKER', [string][char]0x202E) },
+    # Same bidi-override property, now under each of the three NEW names --
+    # Gap 1's ceiling and Gap 2's idle threshold / CLOUD_PROVIDER route
+    # through their own inlined sanitizer blocks (no shared function is
+    # permitted in this file), so each is exercised on its own rather than
+    # trusting that "the same rule" was actually copied correctly.
+    @{ Name = 'a bidi override character in the observed response-ceiling value is not reproduced in console output'; Env = @{ STUB_SERVING_ENV_JSON = $m2HostileCeilingJson }
+       ForbiddenSubstrings = @($m2HostileCeilingMarker, [string][char]0x202E) },
+    @{ Name = 'a bidi override character in the observed idle-threshold value is not reproduced in console output'; Env = @{ STUB_SERVING_ENV_JSON = $m2HostileIdleJson }
+       ForbiddenSubstrings = @($m2HostileIdleMarker, [string][char]0x202E) },
+    @{ Name = 'a bidi override character in the observed CLOUD_PROVIDER value is not reproduced in console output'; Env = @{ STUB_SERVING_ENV_JSON = $m2HostileProviderJson }
+       ForbiddenSubstrings = @($m2HostileProviderMarker, [string][char]0x202E) }
 )
 foreach ($m2Hostile in $m2HostileCases) {
     $e = $good.Clone()
