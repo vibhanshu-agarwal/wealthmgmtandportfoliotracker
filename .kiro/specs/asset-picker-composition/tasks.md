@@ -4362,6 +4362,8 @@ class, not by enumeration" through "operational signals only") deliberately keep
      The presence TTL is settled at 150 seconds; the 30-minute idle threshold and the
      45s/10s/60s self-call timeouts (2026-09-09, superseding 2s/2s/4s) are covered by item 4 above,
      since Wave 8 cannot deploy without them.
+     **2026-09-14 Azure Production note:** `45s/10s/60s` remains the application-wide generic contract.
+     The attested Azure Production deployment uses Terraform overrides `120s/30s/165s`; see the [ratification](../../../docs/evidence/b2-task-8-9/2026-09-14-azure-timeout-ratification.md).
   **Go action — a real deployment, not a configuration flip, and both flags together, not one
   independently of the other (round-4 correction: round 3's "independently" framing permitted
   launching the picker while requirements.md 7.5's manual control stayed hidden indefinitely — the
