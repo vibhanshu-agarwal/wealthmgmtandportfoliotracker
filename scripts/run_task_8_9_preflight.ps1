@@ -765,6 +765,12 @@ foreach ($row in $envRows) {
     $observedAzureTimeoutValues[$rowName] = $rowValue
 }
 $timeoutMismatches = @()
+# -cne, not -ne: PowerShell's -ne is case-INsensitive by default, but the
+# verifier compares these values with Python's != (case-sensitive) and
+# `_duration_seconds` only matches lowercase units. A case-insensitive
+# pre-wake check would let a mixed-case value (e.g. '150S') sail through
+# this gate and then fail the verifier post-wake -- the exact wake-costing
+# class this preflight exists to catch before the wake, not after it.
 foreach ($name in $expectedAzureTimeoutNames) {
     $expectedValue = $expectedAzureTimeoutValues[$name]
     if (-not $observedAzureTimeoutValues.ContainsKey($name)) {
@@ -779,7 +785,7 @@ foreach ($name in $expectedAzureTimeoutNames) {
         $timeoutMismatches += "$name carries a secretRef or a null value instead of a plain string; observed=<no plain value> expected='$expectedValue'"
         continue
     }
-    if ([string]$observedValue -ne $expectedValue) {
+    if ([string]$observedValue -cne $expectedValue) {
         # $observedValue is deployment-controlled -- read verbatim from the
         # serving Container App's env by the az call above -- and is the
         # only field in this message that is not one of the wrapper's own
@@ -823,7 +829,7 @@ if ($observedAzureTimeoutValues.ContainsKey($idleThresholdName)) {
     $idleThresholdObservedValue = $observedAzureTimeoutValues[$idleThresholdName]
     if ($null -eq $idleThresholdObservedValue) {
         $timeoutMismatches += "$idleThresholdName carries a secretRef or a null value instead of a plain string; observed=<no plain value> expected='$idleThresholdExpectedValue'"
-    } elseif ([string]$idleThresholdObservedValue -ne $idleThresholdExpectedValue) {
+    } elseif ([string]$idleThresholdObservedValue -cne $idleThresholdExpectedValue) {
         # $idleThresholdObservedValue is deployment-controlled, read verbatim
         # from the serving Container App's env by the same az call above --
         # same trust boundary as $observedValue in the loop above, so it is
@@ -853,7 +859,7 @@ if ($observedAzureTimeoutValues.ContainsKey($cloudProviderName)) {
     $cloudProviderObservedValue = $observedAzureTimeoutValues[$cloudProviderName]
     if ($null -eq $cloudProviderObservedValue) {
         $timeoutMismatches += "$cloudProviderName carries a secretRef or a null value instead of a plain string; observed=<no plain value> expected='$cloudProviderExpectedValue'"
-    } elseif ([string]$cloudProviderObservedValue -ne $cloudProviderExpectedValue) {
+    } elseif ([string]$cloudProviderObservedValue -cne $cloudProviderExpectedValue) {
         # Same trust boundary, same sanitiser, as $idleThresholdObservedValue
         # and $observedValue above -- see those comments for the rule.
         $cloudProviderObservedText = [string]$cloudProviderObservedValue

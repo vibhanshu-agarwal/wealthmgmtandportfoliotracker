@@ -2609,6 +2609,92 @@ class AzureTimeoutDriftGuardTest(unittest.TestCase):
             "will NON-GO exactly as it did on 2026-09-14.",
         )
 
+    def _wrapper_expected_timeout_names_array(self) -> list[str]:
+        """Parse the $expectedAzureTimeoutNames array literal itself -- the
+        set the wrapper's pre-wake loop (`foreach ($name in
+        $expectedAzureTimeoutNames)`) actually iterates -- as distinct from
+        the $expectedAzureTimeoutValues hashtable _wrapper_azure_timeouts()
+        reads the ceiling's VALUE from. A name pinned in the values
+        hashtable but absent from this array is never checked by the loop
+        at all; this reads the array on its own so a test can assert
+        membership in it directly rather than only in the hashtable."""
+        import re
+
+        text = self.WRAPPER.read_text(encoding="utf-8")
+        match = re.search(
+            r"\$expectedAzureTimeoutNames\s*=\s*@\(\s*\n(.*?)\n\s*\)",
+            text,
+            re.DOTALL,
+        )
+        self.assertIsNotNone(
+            match, f"$expectedAzureTimeoutNames array literal not found in {self.WRAPPER}"
+        )
+        return re.findall(r"'([^']+)'", match.group(1))
+
+    def test_expected_timeout_names_array_includes_all_four_checked_names(self) -> None:
+        """m-1 (2026-09-14 review round): the wrapper's pre-wake loop
+        iterates $expectedAzureTimeoutNames, the ARRAY -- not
+        $expectedAzureTimeoutValues, the hashtable
+        test_wrapper_azure_timeout_literals_match_terraform above (and
+        _wrapper_azure_timeouts()'s ceiling extraction) reads from. A name
+        removed from the array alone, with the hashtable and every --flag/
+        CLI literal left untouched, keeps that test -- and every other test
+        in this file -- green while the loop silently stops checking that
+        name at all: the same shape as the login > overall gap
+        (test_wrapper_login_timeout_satisfies_validate_config below), a
+        value pinned offline while its membership in the checked set is
+        not. This asserts all four names the loop is supposed to check (the
+        three timeouts plus Gap 1's response ceiling) are actual members of
+        the array, so dropping one out of the array -- not just out of the
+        hashtable -- fails this test directly."""
+        names = self._wrapper_expected_timeout_names_array()
+        self.assertEqual(
+            set(names),
+            {
+                "APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT",
+                "APP_DEMO_LOGIN_RESET_RESET_TIMEOUT",
+                "APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT",
+                "SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT",
+            },
+            f"{self.WRAPPER}'s $expectedAzureTimeoutNames array is missing one or more of "
+            "the four names its own pre-wake loop is supposed to check (or carries an "
+            "unexpected extra one) -- a name can be pinned in $expectedAzureTimeoutValues "
+            "and still never be checked if it is absent from this array.",
+        )
+
+    def test_idle_threshold_literal_matches_authoritative_yaml_default(self) -> None:
+        """m-2 (2026-09-14 review round): $idleThresholdExpectedValue = '30m'
+        in the wrapper is a third, unpinned copy of the same ratified value
+        -- application.yml:135's ${APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD:30m}
+        default, which scripts/verify_demo_reset_azure.py itself reads via
+        _authoritative_yaml_defaults() -- with nothing offline tying the
+        three copies together. If the yaml default moves and the wrapper's
+        literal does not, a PRESENT idle threshold matching the wrapper's
+        now-stale '30m' would pass this pre-wake gate and then fail the
+        verifier post-wake. This pins the wrapper's literal against the
+        verifier's own authoritative reader, not a hard-coded '30m' of its
+        own, so it fails the moment either one drifts from the other."""
+        import re
+
+        text = self.WRAPPER.read_text(encoding="utf-8")
+        match = re.search(r"\$idleThresholdExpectedValue\s*=\s*'([^']+)'", text)
+        self.assertIsNotNone(
+            match, f"$idleThresholdExpectedValue literal not found in {self.WRAPPER}"
+        )
+        wrapper_value = match.group(1)
+        yaml_default = verifier._authoritative_yaml_defaults()[
+            "APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD"
+        ]
+        self.assertEqual(
+            wrapper_value,
+            yaml_default,
+            f"{self.WRAPPER}'s $idleThresholdExpectedValue ('{wrapper_value}') has drifted "
+            "from application.yml's authoritative APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD "
+            f"default ('{yaml_default}') that scripts/verify_demo_reset_azure.py itself "
+            "reads -- a PRESENT idle threshold matching the wrapper's stale literal would "
+            "pass this pre-wake gate and then fail the verifier post-wake.",
+        )
+
     def test_wrapper_login_timeout_satisfies_validate_config(self) -> None:
         """The test above only pins wrapper-vs-Terraform equality for
         eligibility/reset/overall. A COHERENT bump to all three in both files
