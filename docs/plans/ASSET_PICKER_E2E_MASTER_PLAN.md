@@ -78,6 +78,8 @@ exits `3` without invoking the verifier. It invokes only
 verifier mode `preflight`; it does not run Task 8.9, use credentials, alter flags, or establish
 live serving proof.
 
+**2026-09-14 Azure Production timeout note:** The application-wide `45s/10s/60s` generic contract remains unchanged; the attested Azure Production deployment uses `120s/30s/165s` Terraform overrides per the [ratification](../evidence/b2-task-8-9/2026-09-14-azure-timeout-ratification.md). This pointer changes no Task 8.9 status or Production authorization.
+
 **Owner decision still required before Run A attempt 3:** authorize one activation sequence of no
 more than six Production health probes followed by the wrapper's read-only preflight. This does
 not authorize a seventh probe, execute mode, credentials, a portfolio write or cleanup, flag change,
