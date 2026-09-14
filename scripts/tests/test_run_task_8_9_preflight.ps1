@@ -2091,6 +2091,16 @@ $m2HostileAnsiJson = '[{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","value
 $m2LongMarker = 'PWNED-' + ('Q' * 3000) + '-MARKEREND'
 $m2HostileLongJson = '[{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","value":"' + $m2LongMarker + '"},{"name":"APP_DEMO_LOGIN_RESET_RESET_TIMEOUT","value":"30s"},{"name":"APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT","value":"165s"}]'
 
+# Hostile-NAME fixture for the duplicate-name Fail path itself (distinct from
+# $m2HostileBidiJson above, which puts the bidi override in a VALUE that
+# mismatches -- this one puts it in the NAME that is duplicated). Both rows
+# decode to the byte-identical hostile name, built from the same runtime
+# $m2JsonEscBidi escape sequence, so the second occurrence still hits
+# ContainsKey and reaches Fail; that message must sanitize the name with the
+# exact rule $observedValue gets above, never echo it raw.
+$m2DuplicateNameHostileMarker = 'INJECTED-VIA-DUPNAME-BIDI-MARKER'
+$m2HostileDuplicateNameJson = '[{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT' + $m2JsonEscBidi + $m2DuplicateNameHostileMarker + '","value":"120s"},{"name":"APP_DEMO_LOGIN_RESET_RESET_TIMEOUT","value":"30s"},{"name":"APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT","value":"165s"},{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT' + $m2JsonEscBidi + $m2DuplicateNameHostileMarker + '","value":"999s"}]'
+
 $m2Cases = @(
     @{ Name = 'value mismatch (eligibility)'; Env = @{ STUB_SERVING_ENV_JSON = $m2MismatchEligibility }
        # ForbiddenSubstrings here double as a double-wrap discriminator: a
@@ -2123,6 +2133,14 @@ $m2Cases = @(
        # match -- silently keeping the first copy is exactly the
        # pre-wake-pass/post-wake-fail gap this boundary exists to close.
        ExpectSubstrings = @('duplicate serving environment value', 'APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT'); ForbiddenSubstrings = @() },
+    @{ Name = 'duplicate serving environment name carrying a bidi override character is rejected without echoing it raw'; Env = @{ STUB_SERVING_ENV_JSON = $m2HostileDuplicateNameJson }
+       # The duplicated NAME itself (not the value) carries the bidi
+       # override character built at runtime above. The Fail message must
+       # still say "duplicate serving environment value" and use the same
+       # fixed-shape placeholder the value branch uses (~L746-776), but must
+       # never reproduce the marker text or the raw bidi character.
+       ExpectSubstrings = @('duplicate serving environment value', 'sanitized rendering, not the literal value')
+       ForbiddenSubstrings = @($m2DuplicateNameHostileMarker, [string][char]0x202E) },
     @{ Name = 'the az call itself fails (non-zero exit)'; Env = @{ STUB_AZ_FAIL_MATCH = 'containers[0].env' }
        ExpectSubstrings = @('could not read the serving revision environment'); ForbiddenSubstrings = @() },
     @{ Name = 'the az call exits 0 with no output at all'; Env = @{ STUB_AZ_EMPTY_MATCH = 'containers[0].env' }

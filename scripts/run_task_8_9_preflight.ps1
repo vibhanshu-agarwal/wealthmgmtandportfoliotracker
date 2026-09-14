@@ -717,7 +717,27 @@ foreach ($row in $envRows) {
     # a duplicated name whose first copy is correct pass this pre-wake
     # boundary and then fail the verifier post-wake -- precisely the
     # wake-costing class this boundary exists to remove.
-    if ($observedAzureTimeoutValues.ContainsKey($rowName)) { Fail "duplicate serving environment value: $rowName" 2 }
+    if ($observedAzureTimeoutValues.ContainsKey($rowName)) {
+        # $rowName is deployment-controlled -- read verbatim from the serving
+        # Container App's env by the az call above, same trust boundary as
+        # $observedValue below -- and reaches Fail, i.e. Write-Host, i.e.
+        # this operator's console transcript (captured as evidence under
+        # docs/evidence/b2-task-8-9/), so it is sanitized with the exact same
+        # rule as $observedValue: a control or Unicode format/separator
+        # character, or a length over 80, replaces the WHOLE name with a
+        # fixed-shape description below -- never a partial excerpt, since a
+        # truncated prefix of a hostile name is still hostile content.
+        $rowNameText = [string]$rowName
+        $rowNameHasControlChars = [regex]::IsMatch($rowNameText, '[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]')
+        $rowNameTooLong = $rowNameText.Length -gt 80
+        if ($rowNameHasControlChars -or $rowNameTooLong) {
+            $rowNameSanitizeReason = if ($rowNameHasControlChars) { 'withheld: contains control or bidi/format characters' } else { 'exceeds the 80-character display bound' }
+            $rowNameDisplay = "<sanitized rendering, not the literal value -- $($rowNameText.Length) chars, $rowNameSanitizeReason>"
+        } else {
+            $rowNameDisplay = $rowNameText
+        }
+        Fail "duplicate serving environment value: $rowNameDisplay" 2
+    }
     # A row may carry `secretRef` instead of `value` (or `value` may be
     # explicitly null); under StrictMode, referencing `.value` on a decoded
     # object that has no such JSON key throws rather than returning $null, so
