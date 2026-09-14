@@ -668,6 +668,139 @@ if ($newer.Count -gt 0) {
 }
 Write-Step "  $($revisions.Count) revision(s), none newer than $attestedRevision"
 
+Write-Step 'Checking the serving Azure demo-reset timeouts against the ratified attestation'
+# `az containerapp revision show` is a control-plane read on the revision
+# object itself (like the show/list calls above), not a call into a running
+# container, so it works at zero replicas -- no wake needed. Run A attempt 3
+# spent an irreversible wake only to learn that the serving
+# APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT did not equal the value this
+# wrapper asserts below; a mismatch of that class is checked here instead,
+# before any request. The three literals compared here MUST stay equal to the
+# --eligibility-timeout/--reset-timeout/--overall-timeout arguments passed to
+# the verifier further down: AzureTimeoutDriftGuardTest
+# (scripts/tests/test_verify_demo_reset_azure.py) pins those against
+# infrastructure/terraform/azure/main.tf, ratified in
+# docs/evidence/b2-task-8-9/2026-09-14-azure-timeout-ratification.md.
+$expectedAzureTimeoutNames = @(
+    'APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT',
+    'APP_DEMO_LOGIN_RESET_RESET_TIMEOUT',
+    'APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT'
+)
+$expectedAzureTimeoutValues = @{
+    'APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT' = '120s'
+    'APP_DEMO_LOGIN_RESET_RESET_TIMEOUT'       = '30s'
+    'APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT'     = '165s'
+}
+$envRaw = & $AzCommand containerapp revision show --name $GatewayApp --resource-group $ResourceGroup --revision $attestedRevision --query 'properties.template.containers[0].env' -o json
+if ($LASTEXITCODE -ne 0) { Fail 'could not read the serving revision environment; the verifier would fail post-wake' 2 }
+# Emptiness is checked separately from parsing, same as the digest/revision
+# guards above: a quiet `az --query` miss is not the same as a parse failure,
+# and each is reported distinctly rather than crashing or reading as a pass.
+if (-not $envRaw) { Fail 'the serving revision environment read returned no output' 2 }
+# Decode first, THEN wrap: the pipeline is decoded into a plain variable
+# ($envDecoded) first, and @() below wraps THAT variable, never the pipeline
+# itself. See the replica-list comment further down for why wrapping the
+# pipeline directly instead -- @($envRaw | ConvertFrom-Json) -- gets this
+# wrong: ConvertFrom-Json emits a JSON array as a single Object[], so @()
+# around the pipeline collects that one object and element 0 becomes the
+# whole row array instead of the first row.
+$envRows = @()
+try { $envDecoded = $envRaw | ConvertFrom-Json; $envRows = @($envDecoded) } catch { Fail 'the serving revision environment did not parse as JSON' 2 }
+$observedAzureTimeoutValues = @{}
+foreach ($row in $envRows) {
+    $rowName = $null
+    try { $rowName = $row.name } catch { $rowName = $null }
+    if (-not $rowName) { continue }
+    # A duplicated name is mirrored from the verifier
+    # (scripts/verify_demo_reset_azure.py), which raises on it rather than
+    # silently keeping the first copy. Keeping the first copy here would let
+    # a duplicated name whose first copy is correct pass this pre-wake
+    # boundary and then fail the verifier post-wake -- precisely the
+    # wake-costing class this boundary exists to remove.
+    if ($observedAzureTimeoutValues.ContainsKey($rowName)) {
+        # $rowName is deployment-controlled -- read verbatim from the serving
+        # Container App's env by the az call above, same trust boundary as
+        # $observedValue below -- and reaches Fail, i.e. Write-Host, i.e.
+        # this operator's console transcript (captured as evidence under
+        # docs/evidence/b2-task-8-9/), so it is sanitized with the exact same
+        # rule as $observedValue: a control or Unicode format/separator
+        # character, or a length over 80, replaces the WHOLE name with a
+        # fixed-shape description below -- never a partial excerpt, since a
+        # truncated prefix of a hostile name is still hostile content.
+        $rowNameText = [string]$rowName
+        $rowNameHasControlChars = [regex]::IsMatch($rowNameText, '[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]')
+        $rowNameTooLong = $rowNameText.Length -gt 80
+        if ($rowNameHasControlChars -or $rowNameTooLong) {
+            $rowNameSanitizeReason = if ($rowNameHasControlChars) { 'withheld: contains control or bidi/format characters' } else { 'exceeds the 80-character display bound' }
+            $rowNameDisplay = "<sanitized rendering, not the literal value -- $($rowNameText.Length) chars, $rowNameSanitizeReason>"
+        } else {
+            $rowNameDisplay = $rowNameText
+        }
+        Fail "duplicate serving environment value: $rowNameDisplay" 2
+    }
+    # A row may carry `secretRef` instead of `value` (or `value` may be
+    # explicitly null); under StrictMode, referencing `.value` on a decoded
+    # object that has no such JSON key throws rather than returning $null, so
+    # this is wrapped like every other optional-field read in this script. A
+    # secretRef row is a mismatch, not a crash: the attested timeouts are
+    # plain values, never secret references.
+    $rowValue = $null
+    try { $rowValue = $row.value } catch { $rowValue = $null }
+    $observedAzureTimeoutValues[$rowName] = $rowValue
+}
+$timeoutMismatches = @()
+foreach ($name in $expectedAzureTimeoutNames) {
+    $expectedValue = $expectedAzureTimeoutValues[$name]
+    if (-not $observedAzureTimeoutValues.ContainsKey($name)) {
+        # Absent entirely: the container inherits application.yml's generic
+        # default, which is NOT the attested Azure override -- also a
+        # mismatch, not a pass.
+        $timeoutMismatches += "$name is absent from the serving revision (would inherit the application default); observed=<absent> expected='$expectedValue'"
+        continue
+    }
+    $observedValue = $observedAzureTimeoutValues[$name]
+    if ($null -eq $observedValue) {
+        $timeoutMismatches += "$name carries a secretRef or a null value instead of a plain string; observed=<no plain value> expected='$expectedValue'"
+        continue
+    }
+    if ([string]$observedValue -ne $expectedValue) {
+        # $observedValue is deployment-controlled -- read verbatim from the
+        # serving Container App's env by the az call above -- and is the
+        # only field in this message that is not one of the wrapper's own
+        # literals ($name, $expectedValue). It reaches Fail, i.e. Write-Host,
+        # i.e. this operator's console transcript (captured as evidence
+        # under docs/evidence/b2-task-8-9/), so it is never interpolated
+        # raw. Two things make it unsafe to show as-is: a control or Unicode
+        # format character (CR, LF, TAB and ESC among the controls; a bidi
+        # override, a line/paragraph separator (U+200E, U+202E, U+2028,
+        # U+2029) among the format/separator characters) could inject a
+        # fake transcript line, a terminal escape sequence, or visually
+        # reorder/break a rendered line, and an unbounded length could blow
+        # the transcript up outright. Either one replaces the WHOLE value
+        # with a fixed-shape description below -- never a partial excerpt: a
+        # truncated PREFIX of a hostile value is still hostile content, so
+        # the only safe truncation is to none of it. The description is
+        # deliberately shaped so a reader cannot mistake it for a quoted
+        # excerpt of what was actually deployed. A plain value within the
+        # bound is unaffected and shown exactly as before.
+        $observedText = [string]$observedValue
+        $observedHasControlChars = [regex]::IsMatch($observedText, '[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]')
+        $observedTooLong = $observedText.Length -gt 80
+        if ($observedHasControlChars -or $observedTooLong) {
+            $observedSanitizeReason = if ($observedHasControlChars) { 'withheld: contains control or bidi/format characters' } else { 'exceeds the 80-character display bound' }
+            $observedDisplay = "<sanitized rendering, not the literal value -- $($observedText.Length) chars, $observedSanitizeReason>"
+        } else {
+            $observedDisplay = $observedText
+        }
+        $timeoutMismatches += "$name observed='$observedDisplay' expected='$expectedValue'"
+    }
+}
+if ($timeoutMismatches.Count -gt 0) {
+    $timeoutFailMessage = "serving Azure demo-reset timeouts do not match the ratified attestation -- no wake was consumed; reconcile the ratification (docs/evidence/b2-task-8-9/2026-09-14-azure-timeout-ratification.md) with the deployment before retrying: $($timeoutMismatches -join '; ')"
+    Fail $timeoutFailMessage 2
+}
+Write-Step "  serving Azure demo-reset timeouts match the ratified attestation ($($expectedAzureTimeoutNames -join ', '))"
+
 # --- The timing window starts here ------------------------------------------
 
 if ($SkipWake) {
@@ -789,7 +922,29 @@ $verifierArgs = @(
     '--gateway-url', $GatewayUrl,
     '--deployment-provenance', $ProvenancePath,
     '--evidence-output', $EvidenceOutput,
-    '--operation-timeout-seconds', "$OperationTimeoutSeconds"
+    '--operation-timeout-seconds', "$OperationTimeoutSeconds",
+    # The verifier's own --eligibility-timeout/--reset-timeout/--overall-timeout
+    # defaults (45s/10s/60s) are the generic, non-Azure values from the
+    # 2026-09-09 decision (docs/superpowers/plans/2026-09-06-b2-wave8-decision-record.md)
+    # -- correct for every deployment except this one. This wrapper targets the
+    # attested Azure Production gateway, which Terraform runs with wider,
+    # Azure-specific overrides (infrastructure/terraform/azure/main.tf, PR #251),
+    # ratified in
+    # docs/evidence/b2-task-8-9/2026-09-14-azure-timeout-ratification.md.
+    # Literals, like the probe budget and the gateway URL above: not script
+    # parameters, so this wrapper cannot silently drift onto an unratified value.
+    '--eligibility-timeout', '120s',
+    '--reset-timeout', '30s',
+    '--overall-timeout', '165s',
+    # The verifier's own cross-field guard (_validate_config) requires
+    # login-timeout-seconds to exceed overall-timeout regardless of mode,
+    # including preflight, where no login is ever attempted (this wrapper
+    # never requests execute mode -- see above). Its 120s default was sized
+    # for the generic 60s overall deadline (60s orchestration + 60s cold-start
+    # headroom); left unset here it would now be 120s <= 165s and this
+    # preflight would fail closed on that guard alone. 225s applies the same
+    # 60s cold-start headroom on top of the Azure 165s overall deadline.
+    '--login-timeout-seconds', '225'
 )
 & $PythonCommand @verifierArgs
 $verifierExit = $LASTEXITCODE
