@@ -723,8 +723,8 @@ if (-not $envRaw) { Fail 'the serving revision environment read returned no outp
 $envRows = @()
 try { $envDecoded = $envRaw | ConvertFrom-Json; $envRows = @($envDecoded) } catch { Fail 'the serving revision environment did not parse as JSON' 2 }
 # Ordinal, not the @{} literal's default comparer: a PowerShell @{} hashtable
-# is case-INsensitive on its KEYS (independent of the -cne fix on the VALUE
-# side just below), so a wrongly-cased name -- e.g. a lowercase twin of
+# is case-INsensitive on its KEYS (independent of the ordinal-equality fix on
+# the VALUE side just below), so a wrongly-cased name -- e.g. a lowercase twin of
 # APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT, or a mixed-case twin of
 # SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT, with no
 # correctly-cased row alongside it -- would satisfy every ContainsKey/indexer
@@ -780,12 +780,33 @@ foreach ($row in $envRows) {
     $observedAzureTimeoutValues[$rowName] = $rowValue
 }
 $timeoutMismatches = @()
-# -cne, not -ne: PowerShell's -ne is case-INsensitive by default, but the
-# verifier compares these values with Python's != (case-sensitive) and
-# `_duration_seconds` only matches lowercase units. A case-insensitive
-# pre-wake check would let a mixed-case value (e.g. '150S') sail through
-# this gate and then fail the verifier post-wake -- the exact wake-costing
-# class this preflight exists to catch before the wake, not after it.
+# [string]::Equals(..., [System.StringComparison]::Ordinal), not -cne: -cne
+# is case-sensitive, but it is still a LINGUISTIC (InvariantCulture)
+# comparison under the hood, not an ordinal, code-unit-for-code-unit one --
+# and the verifier compares these values with Python's != (`if observed !=
+# expected:`), which has no culture layer at all, so -cne and != can
+# disagree even when both sides already agree on case. The owner
+# reproduced this on real Windows PowerShell 5.1 Desktop: '120s' with a
+# trailing U+00AD (SOFT HYPHEN), U+FEFF (BOM / ZERO WIDTH NO-BREAK SPACE) or
+# U+034F (COMBINING GRAPHEME JOINER) each compares EQUAL to the bare '120s'
+# under -cne -- PowerShell's culture-aware comparer treats all three as
+# linguistically ignorable -- while both Python's != and .NET's
+# StringComparison.Ordinal correctly see them as unequal. (U+200B ZERO
+# WIDTH SPACE, raised by an earlier review as an example of the same
+# defect, does NOT reproduce: -cne already rejects it, so it is not a
+# member of this ignorable-under-linguistic-comparison class and is not
+# used in the regression fixtures below for that reason -- a fixture built
+# on it would be vacuous, since it already exits 2 without this change.) A
+# value carrying a trailing ignorable character -- plausible from a paste
+# into `az containerapp update --set-env-vars`, which the Terraform drift
+# guard below never sees -- would sail through a -cne gate and then fail
+# the verifier post-wake: the exact wake-costing class this preflight
+# exists to catch before the wake, not after it. [string]::Equals with
+# StringComparison.Ordinal matches Python's != exactly: no culture table,
+# no ignorable characters, code-unit-for-code-unit. It also still rejects a
+# merely mixed-case value (e.g. '150S'), since that is unequal under
+# Ordinal too -- so this subsumes the case-sensitivity rationale this
+# comment previously stated on its own.
 foreach ($name in $expectedAzureTimeoutNames) {
     $expectedValue = $expectedAzureTimeoutValues[$name]
     if (-not $observedAzureTimeoutValues.ContainsKey($name)) {
@@ -800,7 +821,7 @@ foreach ($name in $expectedAzureTimeoutNames) {
         $timeoutMismatches += "$name carries a secretRef or a null value instead of a plain string; observed=<no plain value> expected='$expectedValue'"
         continue
     }
-    if ([string]$observedValue -cne $expectedValue) {
+    if (-not [string]::Equals([string]$observedValue, $expectedValue, [System.StringComparison]::Ordinal)) {
         # $observedValue is deployment-controlled -- read verbatim from the
         # serving Container App's env by the az call above -- and is the
         # only field in this message that is not one of the wrapper's own
@@ -844,7 +865,7 @@ if ($observedAzureTimeoutValues.ContainsKey($idleThresholdName)) {
     $idleThresholdObservedValue = $observedAzureTimeoutValues[$idleThresholdName]
     if ($null -eq $idleThresholdObservedValue) {
         $timeoutMismatches += "$idleThresholdName carries a secretRef or a null value instead of a plain string; observed=<no plain value> expected='$idleThresholdExpectedValue'"
-    } elseif ([string]$idleThresholdObservedValue -cne $idleThresholdExpectedValue) {
+    } elseif (-not [string]::Equals([string]$idleThresholdObservedValue, $idleThresholdExpectedValue, [System.StringComparison]::Ordinal)) {
         # $idleThresholdObservedValue is deployment-controlled, read verbatim
         # from the serving Container App's env by the same az call above --
         # same trust boundary as $observedValue in the loop above, so it is
@@ -874,7 +895,7 @@ if ($observedAzureTimeoutValues.ContainsKey($cloudProviderName)) {
     $cloudProviderObservedValue = $observedAzureTimeoutValues[$cloudProviderName]
     if ($null -eq $cloudProviderObservedValue) {
         $timeoutMismatches += "$cloudProviderName carries a secretRef or a null value instead of a plain string; observed=<no plain value> expected='$cloudProviderExpectedValue'"
-    } elseif ([string]$cloudProviderObservedValue -cne $cloudProviderExpectedValue) {
+    } elseif (-not [string]::Equals([string]$cloudProviderObservedValue, $cloudProviderExpectedValue, [System.StringComparison]::Ordinal)) {
         # Same trust boundary, same sanitiser, as $idleThresholdObservedValue
         # and $observedValue above -- see those comments for the rule.
         $cloudProviderObservedText = [string]$cloudProviderObservedValue
