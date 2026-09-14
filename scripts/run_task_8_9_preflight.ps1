@@ -668,28 +668,44 @@ if ($newer.Count -gt 0) {
 }
 Write-Step "  $($revisions.Count) revision(s), none newer than $attestedRevision"
 
-Write-Step 'Checking the serving Azure demo-reset timeouts against the ratified attestation'
+Write-Step 'Checking the serving Azure demo-reset timeouts, gateway response ceiling, idle threshold and cloud provider against the ratified attestation'
 # `az containerapp revision show` is a control-plane read on the revision
 # object itself (like the show/list calls above), not a call into a running
 # container, so it works at zero replicas -- no wake needed. Run A attempt 3
 # spent an irreversible wake only to learn that the serving
 # APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT did not equal the value this
 # wrapper asserts below; a mismatch of that class is checked here instead,
-# before any request. The three literals compared here MUST stay equal to the
-# --eligibility-timeout/--reset-timeout/--overall-timeout arguments passed to
-# the verifier further down: AzureTimeoutDriftGuardTest
+# before any request. The three timeout literals compared here MUST stay
+# equal to the --eligibility-timeout/--reset-timeout/--overall-timeout
+# arguments passed to the verifier further down: AzureTimeoutDriftGuardTest
 # (scripts/tests/test_verify_demo_reset_azure.py) pins those against
 # infrastructure/terraform/azure/main.tf, ratified in
 # docs/evidence/b2-task-8-9/2026-09-14-azure-timeout-ratification.md.
+#
+# SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT (the gateway
+# route's response ceiling) is folded into this SAME expected-name/value
+# table, with the SAME absent-is-a-mismatch semantics as the three timeouts
+# above -- deliberately, not as an oversight: the ratified rationale for the
+# eligibility timeout is `120s < 150s`, i.e. eligibility strictly below the
+# route ceiling. api-gateway/src/main/resources/application-prod.yml:52 sets
+# `response-timeout: 55s`, so an ABSENT override here would mean the
+# effective ceiling is 55s, making `120s < 55s` FALSE and silently
+# invalidating the rationale a passing preflight is supposed to attest.
+# Absence is therefore a reject, exactly like the three timeouts, never a
+# pass. Its literal here MUST stay equal to
+# infrastructure/terraform/azure/main.tf:255; AzureTimeoutDriftGuardTest pins
+# that equality too.
 $expectedAzureTimeoutNames = @(
     'APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT',
     'APP_DEMO_LOGIN_RESET_RESET_TIMEOUT',
-    'APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT'
+    'APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT',
+    'SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT'
 )
 $expectedAzureTimeoutValues = @{
-    'APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT' = '120s'
-    'APP_DEMO_LOGIN_RESET_RESET_TIMEOUT'       = '30s'
-    'APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT'     = '165s'
+    'APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT'                       = '120s'
+    'APP_DEMO_LOGIN_RESET_RESET_TIMEOUT'                             = '30s'
+    'APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT'                           = '165s'
+    'SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT' = '150s'
 }
 $envRaw = & $AzCommand containerapp revision show --name $GatewayApp --resource-group $ResourceGroup --revision $attestedRevision --query 'properties.template.containers[0].env' -o json
 if ($LASTEXITCODE -ne 0) { Fail 'could not read the serving revision environment; the verifier would fail post-wake' 2 }
@@ -706,7 +722,22 @@ if (-not $envRaw) { Fail 'the serving revision environment read returned no outp
 # whole row array instead of the first row.
 $envRows = @()
 try { $envDecoded = $envRaw | ConvertFrom-Json; $envRows = @($envDecoded) } catch { Fail 'the serving revision environment did not parse as JSON' 2 }
-$observedAzureTimeoutValues = @{}
+# Ordinal, not the @{} literal's default comparer: a PowerShell @{} hashtable
+# is case-INsensitive on its KEYS (independent of the ordinal-equality fix on
+# the VALUE side just below), so a wrongly-cased name -- e.g. a lowercase twin of
+# APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT, or a mixed-case twin of
+# SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT, with no
+# correctly-cased row alongside it -- would satisfy every ContainsKey/indexer
+# lookup below by matching case-insensitively. The verifier's own lookup table
+# (`names: dict[str, Any]`, scripts/verify_demo_reset_azure.py:700, read via
+# `names.get(name, yaml_defaults[name])` at L753) is a Python dict: exact-key,
+# case-sensitive. So is the JVM env-var lookup the serving container actually
+# performs. A non-uppercase spelling of an expected name must therefore read
+# as ABSENT here, exactly as it does in both of those, not as a case-blind
+# match that only fails after the wake. [hashtable]::new(...) is a static
+# method call, not `New-Object`; matches the ::new idiom already used above
+# for [IO.MemoryStream] and [Text.UTF8Encoding].
+$observedAzureTimeoutValues = [hashtable]::new([System.StringComparer]::Ordinal)
 foreach ($row in $envRows) {
     $rowName = $null
     try { $rowName = $row.name } catch { $rowName = $null }
@@ -723,15 +754,32 @@ foreach ($row in $envRows) {
         # $observedValue below -- and reaches Fail, i.e. Write-Host, i.e.
         # this operator's console transcript (captured as evidence under
         # docs/evidence/b2-task-8-9/), so it is sanitized with the exact same
-        # rule as $observedValue: a control or Unicode format/separator
-        # character, or a length over 80, replaces the WHOLE name with a
-        # fixed-shape description below -- never a partial excerpt, since a
-        # truncated prefix of a hostile name is still hostile content.
+        # rule as $observedValue.
+        #
+        # The rule is a printable-ASCII allowlist, [^\x20-\x7E], not a list of
+        # Unicode categories. An earlier revision matched on the four
+        # categories control (Cc), format (Cf), line separator (Zl) and
+        # paragraph separator (Zp), and missed U+00AD (SOFT HYPHEN): the .NET
+        # Framework regex engine's legacy Unicode category table matches
+        # U+00AD as category Pd (dash punctuation), not Cf -- a property of
+        # that regex engine's own category table, not of the .NET Framework's
+        # Unicode data generally, since CharUnicodeInfo on the same host
+        # reports U+00AD as UnicodeCategory.Format. The same run's U+FEFF
+        # fixture passed, because that engine does match U+FEFF as category
+        # Cf; U+034F (COMBINING GRAPHEME JOINER, category Mn) was never in
+        # the old class at all. Adding categories piecemeal chases this
+        # table one gap at a time. Every ratified name and value in this
+        # precondition is printable ASCII, so anything outside \x20-\x7E is
+        # by definition not an approved value and is safe to withhold
+        # outright: a length over 80, or any character outside that
+        # printable range, replaces the WHOLE name with a fixed-shape
+        # description below -- never a partial excerpt, since a truncated
+        # prefix of a hostile name is still hostile content.
         $rowNameText = [string]$rowName
-        $rowNameHasControlChars = [regex]::IsMatch($rowNameText, '[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]')
+        $rowNameHasControlChars = [regex]::IsMatch($rowNameText, '[^\x20-\x7E]')
         $rowNameTooLong = $rowNameText.Length -gt 80
         if ($rowNameHasControlChars -or $rowNameTooLong) {
-            $rowNameSanitizeReason = if ($rowNameHasControlChars) { 'withheld: contains control or bidi/format characters' } else { 'exceeds the 80-character display bound' }
+            $rowNameSanitizeReason = if ($rowNameHasControlChars) { 'withheld: contains a non-printable-ASCII character' } else { 'exceeds the 80-character display bound' }
             $rowNameDisplay = "<sanitized rendering, not the literal value -- $($rowNameText.Length) chars, $rowNameSanitizeReason>"
         } else {
             $rowNameDisplay = $rowNameText
@@ -749,6 +797,33 @@ foreach ($row in $envRows) {
     $observedAzureTimeoutValues[$rowName] = $rowValue
 }
 $timeoutMismatches = @()
+# [string]::Equals(..., [System.StringComparison]::Ordinal), not -cne: -cne
+# is case-sensitive, but it is still a LINGUISTIC (InvariantCulture)
+# comparison under the hood, not an ordinal, code-unit-for-code-unit one --
+# and the verifier compares these values with Python's != (`if observed !=
+# expected:`), which has no culture layer at all, so -cne and != can
+# disagree even when both sides already agree on case. The owner
+# reproduced this on real Windows PowerShell 5.1 Desktop: '120s' with a
+# trailing U+00AD (SOFT HYPHEN), U+FEFF (BOM / ZERO WIDTH NO-BREAK SPACE) or
+# U+034F (COMBINING GRAPHEME JOINER) each compares EQUAL to the bare '120s'
+# under -cne -- PowerShell's culture-aware comparer treats all three as
+# linguistically ignorable -- while both Python's != and .NET's
+# StringComparison.Ordinal correctly see them as unequal. (U+200B ZERO
+# WIDTH SPACE, raised by an earlier review as an example of the same
+# defect, does NOT reproduce: -cne already rejects it, so it is not a
+# member of this ignorable-under-linguistic-comparison class and is not
+# used in the regression fixtures below for that reason -- a fixture built
+# on it would be vacuous, since it already exits 2 without this change.) A
+# value carrying a trailing ignorable character -- plausible from a paste
+# into `az containerapp update --set-env-vars`, which the Terraform drift
+# guard below never sees -- would sail through a -cne gate and then fail
+# the verifier post-wake: the exact wake-costing class this preflight
+# exists to catch before the wake, not after it. [string]::Equals with
+# StringComparison.Ordinal matches Python's != exactly: no culture table,
+# no ignorable characters, code-unit-for-code-unit. It also still rejects a
+# merely mixed-case value (e.g. '150S'), since that is unequal under
+# Ordinal too -- so this subsumes the case-sensitivity rationale this
+# comment previously stated on its own.
 foreach ($name in $expectedAzureTimeoutNames) {
     $expectedValue = $expectedAzureTimeoutValues[$name]
     if (-not $observedAzureTimeoutValues.ContainsKey($name)) {
@@ -763,18 +838,22 @@ foreach ($name in $expectedAzureTimeoutNames) {
         $timeoutMismatches += "$name carries a secretRef or a null value instead of a plain string; observed=<no plain value> expected='$expectedValue'"
         continue
     }
-    if ([string]$observedValue -ne $expectedValue) {
+    if (-not [string]::Equals([string]$observedValue, $expectedValue, [System.StringComparison]::Ordinal)) {
         # $observedValue is deployment-controlled -- read verbatim from the
         # serving Container App's env by the az call above -- and is the
         # only field in this message that is not one of the wrapper's own
         # literals ($name, $expectedValue). It reaches Fail, i.e. Write-Host,
         # i.e. this operator's console transcript (captured as evidence
         # under docs/evidence/b2-task-8-9/), so it is never interpolated
-        # raw. Two things make it unsafe to show as-is: a control or Unicode
-        # format character (CR, LF, TAB and ESC among the controls; a bidi
-        # override, a line/paragraph separator (U+200E, U+202E, U+2028,
-        # U+2029) among the format/separator characters) could inject a
-        # fake transcript line, a terminal escape sequence, or visually
+        # raw. It is sanitized against a printable-ASCII allowlist
+        # ([^\x20-\x7E]), not a list of Unicode categories -- see the
+        # $rowNameHasControlChars comment above for the ratified rationale
+        # and the .NET Framework regex engine's category-table gap that made
+        # the category-list approach unreliable. A control character (CR,
+        # LF, TAB, ESC), a bidi override, a line/paragraph separator
+        # (U+200E, U+202E, U+2028, U+2029), or any other character outside
+        # \x20-\x7E (U+00AD, U+FEFF and U+034F included) could inject a fake
+        # transcript line, a terminal escape sequence, or visually
         # reorder/break a rendered line, and an unbounded length could blow
         # the transcript up outright. Either one replaces the WHOLE value
         # with a fixed-shape description below -- never a partial excerpt: a
@@ -784,10 +863,10 @@ foreach ($name in $expectedAzureTimeoutNames) {
         # excerpt of what was actually deployed. A plain value within the
         # bound is unaffected and shown exactly as before.
         $observedText = [string]$observedValue
-        $observedHasControlChars = [regex]::IsMatch($observedText, '[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]')
+        $observedHasControlChars = [regex]::IsMatch($observedText, '[^\x20-\x7E]')
         $observedTooLong = $observedText.Length -gt 80
         if ($observedHasControlChars -or $observedTooLong) {
-            $observedSanitizeReason = if ($observedHasControlChars) { 'withheld: contains control or bidi/format characters' } else { 'exceeds the 80-character display bound' }
+            $observedSanitizeReason = if ($observedHasControlChars) { 'withheld: contains a non-printable-ASCII character' } else { 'exceeds the 80-character display bound' }
             $observedDisplay = "<sanitized rendering, not the literal value -- $($observedText.Length) chars, $observedSanitizeReason>"
         } else {
             $observedDisplay = $observedText
@@ -795,11 +874,71 @@ foreach ($name in $expectedAzureTimeoutNames) {
         $timeoutMismatches += "$name observed='$observedDisplay' expected='$expectedValue'"
     }
 }
+# APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD: DELIBERATELY NOT the same rule as the
+# four names in the loop above. application.yml:135 is
+# `${APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD:30m}`, so an ABSENT override
+# correctly falls back to the approved 30m default -- absence is a PASS here.
+# Terraform does not set this name, so absent is the expected live state.
+# Present-and-not-30m is still a reject: 30m is the only ratified value.
+$idleThresholdName = 'APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD'
+$idleThresholdExpectedValue = '30m'
+if ($observedAzureTimeoutValues.ContainsKey($idleThresholdName)) {
+    $idleThresholdObservedValue = $observedAzureTimeoutValues[$idleThresholdName]
+    if ($null -eq $idleThresholdObservedValue) {
+        $timeoutMismatches += "$idleThresholdName carries a secretRef or a null value instead of a plain string; observed=<no plain value> expected='$idleThresholdExpectedValue'"
+    } elseif (-not [string]::Equals([string]$idleThresholdObservedValue, $idleThresholdExpectedValue, [System.StringComparison]::Ordinal)) {
+        # $idleThresholdObservedValue is deployment-controlled, read verbatim
+        # from the serving Container App's env by the same az call above --
+        # same trust boundary as $observedValue in the loop above, so it is
+        # sanitized with the exact same rule before it can reach Fail /
+        # Write-Host / the operator's evidence transcript: a printable-ASCII
+        # allowlist ([^\x20-\x7E]), not a list of Unicode categories -- see
+        # the comment above $rowNameHasControlChars for why. A length over
+        # 80, or any character outside \x20-\x7E, replaces the WHOLE value
+        # -- never a prefix -- with a fixed-shape description.
+        $idleThresholdObservedText = [string]$idleThresholdObservedValue
+        $idleThresholdHasControlChars = [regex]::IsMatch($idleThresholdObservedText, '[^\x20-\x7E]')
+        $idleThresholdTooLong = $idleThresholdObservedText.Length -gt 80
+        if ($idleThresholdHasControlChars -or $idleThresholdTooLong) {
+            $idleThresholdSanitizeReason = if ($idleThresholdHasControlChars) { 'withheld: contains a non-printable-ASCII character' } else { 'exceeds the 80-character display bound' }
+            $idleThresholdObservedDisplay = "<sanitized rendering, not the literal value -- $($idleThresholdObservedText.Length) chars, $idleThresholdSanitizeReason>"
+        } else {
+            $idleThresholdObservedDisplay = $idleThresholdObservedText
+        }
+        $timeoutMismatches += "$idleThresholdName observed='$idleThresholdObservedDisplay' expected='$idleThresholdExpectedValue'"
+    }
+}
+# CLOUD_PROVIDER: also DELIBERATELY NOT the same rule as the four names in
+# the loop above. scripts/verify_demo_reset_azure.py defaults to 'azure' when
+# this name is absent (names.get("CLOUD_PROVIDER", "azure")), so absence is a
+# PASS here too. Present-and-not-'azure' is a reject.
+$cloudProviderName = 'CLOUD_PROVIDER'
+$cloudProviderExpectedValue = 'azure'
+if ($observedAzureTimeoutValues.ContainsKey($cloudProviderName)) {
+    $cloudProviderObservedValue = $observedAzureTimeoutValues[$cloudProviderName]
+    if ($null -eq $cloudProviderObservedValue) {
+        $timeoutMismatches += "$cloudProviderName carries a secretRef or a null value instead of a plain string; observed=<no plain value> expected='$cloudProviderExpectedValue'"
+    } elseif (-not [string]::Equals([string]$cloudProviderObservedValue, $cloudProviderExpectedValue, [System.StringComparison]::Ordinal)) {
+        # Same trust boundary, same sanitiser, as $idleThresholdObservedValue
+        # and $observedValue above -- see those comments for the rule.
+        $cloudProviderObservedText = [string]$cloudProviderObservedValue
+        $cloudProviderHasControlChars = [regex]::IsMatch($cloudProviderObservedText, '[^\x20-\x7E]')
+        $cloudProviderTooLong = $cloudProviderObservedText.Length -gt 80
+        if ($cloudProviderHasControlChars -or $cloudProviderTooLong) {
+            $cloudProviderSanitizeReason = if ($cloudProviderHasControlChars) { 'withheld: contains a non-printable-ASCII character' } else { 'exceeds the 80-character display bound' }
+            $cloudProviderObservedDisplay = "<sanitized rendering, not the literal value -- $($cloudProviderObservedText.Length) chars, $cloudProviderSanitizeReason>"
+        } else {
+            $cloudProviderObservedDisplay = $cloudProviderObservedText
+        }
+        $timeoutMismatches += "$cloudProviderName observed='$cloudProviderObservedDisplay' expected='$cloudProviderExpectedValue'"
+    }
+}
 if ($timeoutMismatches.Count -gt 0) {
     $timeoutFailMessage = "serving Azure demo-reset timeouts do not match the ratified attestation -- no wake was consumed; reconcile the ratification (docs/evidence/b2-task-8-9/2026-09-14-azure-timeout-ratification.md) with the deployment before retrying: $($timeoutMismatches -join '; ')"
     Fail $timeoutFailMessage 2
 }
 Write-Step "  serving Azure demo-reset timeouts match the ratified attestation ($($expectedAzureTimeoutNames -join ', '))"
+Write-Step "  serving APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD and CLOUD_PROVIDER are absent-safe or match their approved values (absent falls back to the approved default; present must equal it)"
 
 # --- The timing window starts here ------------------------------------------
 

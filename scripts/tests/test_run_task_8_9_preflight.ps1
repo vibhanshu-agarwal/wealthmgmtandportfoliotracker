@@ -1991,49 +1991,59 @@ foreach ($phase in $failAfterPhases) {
 }
 
 # --- Serving Azure demo-reset timeout precondition (boundary M2) -----------
-# scripts/run_task_8_9_preflight.ps1 ~L671-745: before any probe, the wrapper
+# scripts/run_task_8_9_preflight.ps1 ~L671-941: before any probe, the wrapper
 # reads the serving revision's container env (a control-plane read, zero
 # replicas needed) and compares APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT /
-# RESET_TIMEOUT / OVERALL_TIMEOUT against its own 120s/30s/165s literals. The
-# stub's "containers[0].env" branch defaults to that same ratified payload
-# (STUB_SERVING_ENV_JSON overrides it), so $good alone already exercises the
-# match; every case below drives a specific mismatch shape.
+# RESET_TIMEOUT / OVERALL_TIMEOUT, plus the gateway response ceiling
+# SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT, against its
+# own 120s/30s/165s/150s literals -- all four with the SAME absent-is-a-
+# mismatch rule. It then separately checks APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD
+# (must be 30m if present; absent is a PASS) and CLOUD_PROVIDER (must be
+# 'azure' if present; absent is a PASS). The stub's "containers[0].env"
+# branch defaults to that same ratified payload (STUB_SERVING_ENV_JSON
+# overrides it), so $good alone already exercises the match; every case below
+# drives a specific mismatch shape.
 Write-Host 'Serving Azure demo-reset timeout precondition (M2): match proceeds'
-$m2RatifiedJson = '[{"name":"APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD","value":"30m"},{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","value":"120s"},{"name":"APP_DEMO_LOGIN_RESET_RESET_TIMEOUT","value":"30s"},{"name":"APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT","value":"165s"}]'
+$m2RatifiedJson = '[{"name":"APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD","value":"30m"},{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","value":"120s"},{"name":"APP_DEMO_LOGIN_RESET_RESET_TIMEOUT","value":"30s"},{"name":"APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT","value":"165s"},{"name":"SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT","value":"150s"}]'
 $m2E = $good.Clone(); $m2E['STUB_SERVING_ENV_JSON'] = $m2RatifiedJson
 $r = Invoke-Wrapper -Env $m2E
 Check 'a serving env matching the ratified attestation proceeds past the check and reaches the wake' {
     if ($r.Exit -ne 0) { throw "exit $($r.Exit) (expected 0); output: $($r.Output)" }
     Assert-ProbeCount $r 1
 }
-Check 'the match emits exactly one canonical, allowlisted (names-only, no values) observation line' {
+Check 'the match emits exactly one canonical, allowlisted (names-only, no values) observation line, now including the response ceiling' {
     $lines = @($r.Output -split "`r?`n" | Where-Object { $_ -match 'serving Azure demo-reset timeouts match the ratified attestation' })
     if ($lines.Count -ne 1) { throw "expected exactly one canonical observation line, found $($lines.Count); output:`n$($r.Output)" }
-    $want = 'serving Azure demo-reset timeouts match the ratified attestation (APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT, APP_DEMO_LOGIN_RESET_RESET_TIMEOUT, APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT)'
+    $want = 'serving Azure demo-reset timeouts match the ratified attestation (APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT, APP_DEMO_LOGIN_RESET_RESET_TIMEOUT, APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT, SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT)'
     if (-not $lines[0].Contains($want)) { throw "canonical line reads:`n  $($lines[0])`nexpected to contain:`n  $want" }
     # Allowlisted means NAMES only -- the line must not also carry the values
     # it just approved, which would make it a second, uncontrolled place a
     # future edit could leak an observed value from.
     if ($lines[0] -match '\d') { throw "the canonical observation line carries a digit -- it must name checks, not values:`n  $($lines[0])" }
 }
+Check 'idle threshold present-and-30m and CLOUD_PROVIDER absent both proceed, and the second canonical line confirms both were checked' {
+    if ($r.Exit -ne 0) { throw "exit $($r.Exit) (expected 0); output: $($r.Output)" }
+    $lines = @($r.Output -split "`r?`n" | Where-Object { $_ -match 'APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD and CLOUD_PROVIDER are absent-safe or match their approved values' })
+    if ($lines.Count -ne 1) { throw "expected exactly one idle-threshold/cloud-provider observation line, found $($lines.Count); output:`n$($r.Output)" }
+}
 Check 'each env row is matched by its own name, not the whole decoded list as one row' {
     # THE discriminating test for the ConvertFrom-Json double-wrap on THIS
     # path, mirroring the replica-list discriminator further down ('selects
     # exactly one replica name, not the whole decoded list'). Exit code
     # alone is not quite enough to design this fixture around by accident,
-    # so it is pinned directly: $m2RatifiedJson above has four distinct
+    # so it is pinned directly: $m2RatifiedJson above has five distinct
     # rows. A double-wrapped decode makes $envRows a one-element array whose
-    # single element is the whole four-row array, so the loop in the wrapper
+    # single element is the whole five-row array, so the loop in the wrapper
     # runs once with that whole array bound to $row; $row.name and
-    # $row.value then member-enumerate across all four rows instead of
-    # reading one row at a time, producing an array of four names (never
+    # $row.value then member-enumerate across all five rows instead of
+    # reading one row at a time, producing an array of five names (never
     # equal to any single expected name string) as the only hashtable key.
-    # Every ContainsKey($name) lookup for the three expected timeout names
-    # then misses, so a double-wrapped decode reports ALL THREE as absent --
+    # Every ContainsKey($name) lookup for the four expected timeout names
+    # then misses, so a double-wrapped decode reports ALL FOUR as absent --
     # on this exact fixture, which is a byte-for-byte match. A correct
     # decode-first-then-wrap stores one string-keyed entry per row and finds
-    # all three, so this fixture's correct-parse output (exit 0, no "absent"
-    # text) and its double-wrapped output (exit 2, three "absent" lines)
+    # all four, so this fixture's correct-parse output (exit 0, no "absent"
+    # text) and its double-wrapped output (exit 2, four "absent" lines)
     # cannot be confused for one another.
     if ($r.Exit -ne 0) { throw "exit $($r.Exit) (expected 0 -- a double-wrapped decode reports every timeout absent even on a match); output: $($r.Output)" }
     if ($r.Output -match 'is absent from the serving revision') { throw "a matching multi-row env was reported as having absent timeouts (the decode is double-wrapped):`n$($r.Output)" }
@@ -2052,6 +2062,42 @@ $m2MismatchOverall = '[{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","value
 $m2MissingEligibility = '[{"name":"APP_DEMO_LOGIN_RESET_RESET_TIMEOUT","value":"30s"},{"name":"APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT","value":"165s"}]'
 $m2MissingReset = '[{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","value":"120s"},{"name":"APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT","value":"165s"}]'
 $m2MissingOverall = '[{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","value":"120s"},{"name":"APP_DEMO_LOGIN_RESET_RESET_TIMEOUT","value":"30s"}]'
+# Gap 1 (response ceiling): folded into the SAME expected-name loop as the
+# three timeouts above, so it gets the SAME absent-is-a-mismatch rule.
+$m2CeilingWrong = '[{"name":"APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD","value":"30m"},{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","value":"120s"},{"name":"APP_DEMO_LOGIN_RESET_RESET_TIMEOUT","value":"30s"},{"name":"APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT","value":"165s"},{"name":"SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT","value":"999s"}]'
+# M-1: PowerShell's -ne is case-INsensitive by default -- '150S' -ne '150s'
+# is FALSE, i.e. a case-differing value reads as a match. The verifier
+# compares with Python's != (case-sensitive) and `_duration_seconds` only
+# matches a lowercase unit suffix, so '150S' fails post-wake. Against -ne
+# this fixture would proceed past the gate (exit 0); with -cne it must
+# reject here, before the wake is spent. Same-length, different case only --
+# not a value this loop's -notlike/length-based sanitizer would touch.
+$m2CeilingMixedCase = '[{"name":"APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD","value":"30m"},{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","value":"120s"},{"name":"APP_DEMO_LOGIN_RESET_RESET_TIMEOUT","value":"30s"},{"name":"APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT","value":"165s"},{"name":"SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT","value":"150S"}]'
+# Ceiling entirely absent, everything else ratified. This is deliberately the
+# EXACT shape that passed this boundary before Gap 1 closed (three timeouts +
+# idle threshold, no ceiling row) -- the case the background note calls out as
+# most likely to be implemented as a pass by mistake, so it is pinned as its
+# own fixture rather than only appearing incidentally inside another case.
+$m2CeilingAbsent = '[{"name":"APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD","value":"30m"},{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","value":"120s"},{"name":"APP_DEMO_LOGIN_RESET_RESET_TIMEOUT","value":"30s"},{"name":"APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT","value":"165s"}]'
+# Gap 2a (idle threshold): NOT the same rule -- present-and-wrong is a reject,
+# but (see the proceeds cases further below) absent is a pass.
+$m2IdleWrong = '[{"name":"APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD","value":"5m"},{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","value":"120s"},{"name":"APP_DEMO_LOGIN_RESET_RESET_TIMEOUT","value":"30s"},{"name":"APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT","value":"165s"},{"name":"SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT","value":"150s"}]'
+# M-1: same case-sensitivity gap as the ceiling above, for the idle
+# threshold's own -ne comparison. '30M' -ne '30m' is FALSE under -ne (reads
+# as a match) but the verifier's _duration_seconds only accepts a lowercase
+# 'm' suffix, so '30M' fails post-wake. Must reject here under -cne.
+$m2IdleMixedCase = '[{"name":"APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD","value":"30M"},{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","value":"120s"},{"name":"APP_DEMO_LOGIN_RESET_RESET_TIMEOUT","value":"30s"},{"name":"APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT","value":"165s"},{"name":"SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT","value":"150s"}]'
+$m2IdleAbsent = '[{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","value":"120s"},{"name":"APP_DEMO_LOGIN_RESET_RESET_TIMEOUT","value":"30s"},{"name":"APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT","value":"165s"},{"name":"SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT","value":"150s"}]'
+# Gap 2b (CLOUD_PROVIDER): also NOT the same rule as the four-name loop --
+# present-and-wrong is a reject, absent is a pass (proceeds cases below).
+$m2ProviderWrong = '[{"name":"APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD","value":"30m"},{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","value":"120s"},{"name":"APP_DEMO_LOGIN_RESET_RESET_TIMEOUT","value":"30s"},{"name":"APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT","value":"165s"},{"name":"SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT","value":"150s"},{"name":"CLOUD_PROVIDER","value":"aws"}]'
+# M-1: same case-sensitivity gap, for CLOUD_PROVIDER's own -ne comparison.
+# 'Azure' -ne 'azure' is FALSE under -ne (reads as a match) but the
+# verifier's names.get("CLOUD_PROVIDER", "azure") == "azure" check in
+# scripts/verify_demo_reset_azure.py is a case-sensitive Python ==, so
+# 'Azure' fails post-wake. Must reject here under -cne.
+$m2ProviderMixedCase = '[{"name":"APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD","value":"30m"},{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","value":"120s"},{"name":"APP_DEMO_LOGIN_RESET_RESET_TIMEOUT","value":"30s"},{"name":"APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT","value":"165s"},{"name":"SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT","value":"150s"},{"name":"CLOUD_PROVIDER","value":"Azure"}]'
+$m2ProviderAzure = '[{"name":"APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD","value":"30m"},{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","value":"120s"},{"name":"APP_DEMO_LOGIN_RESET_RESET_TIMEOUT","value":"30s"},{"name":"APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT","value":"165s"},{"name":"SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT","value":"150s"},{"name":"CLOUD_PROVIDER","value":"azure"}]'
 # Truncated mid-object: unbalanced brackets are an unambiguous parse failure
 # (unexpected end of input) regardless of JSON parser leniency, unlike a
 # missing colon which some lenient parsers might still tolerate.
@@ -2065,7 +2111,7 @@ $m2SecretRefJson = '[{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","secretR
 $m2DuplicateNameJson = '[{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","value":"120s"},{"name":"APP_DEMO_LOGIN_RESET_RESET_TIMEOUT","value":"30s"},{"name":"APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT","value":"165s"},{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","value":"999s"}]'
 # Hostile fixtures for the console-injection property below: each is a
 # genuine mismatch (so it exercises the one branch that interpolates the
-# observed value at all -- see run_task_8_9_preflight.ps1 ~L746-776) carrying
+# observed value at all -- see run_task_8_9_preflight.ps1 ~L827-876) carrying
 # a payload an attacker who controls the Container App's env could plant.
 # Both fixtures build their JSON-string escape sequences at runtime from
 # [char]92 (a backslash) concatenated with plain letters/digits, rather
@@ -2080,13 +2126,26 @@ $m2DuplicateNameJson = '[{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","val
 $m2JsonEscN = [string][char]92 + 'n'
 $m2HostileNewlineJson = '[{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","value":"120s' + $m2JsonEscN + 'INJECTED-VIA-NEWLINE-MARKER"},{"name":"APP_DEMO_LOGIN_RESET_RESET_TIMEOUT","value":"30s"},{"name":"APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT","value":"165s"}]'
 $m2JsonEscEsc = [string][char]92 + 'u001b'
-# U+202E (RIGHT-TO-LEFT OVERRIDE) is a Unicode format character (\p{Cf}),
-# not a C0/C1 control byte, so it falls outside the old [\x00-\x1F\x7F-\x9F]
-# sanitizer range and inside the widened [\p{Cc}\p{Cf}\p{Zl}\p{Zp}] one. It
+# U+202E (RIGHT-TO-LEFT OVERRIDE) is a Unicode format character (category
+# Cf), not a C0/C1 control byte, so it falls outside the old
+# [\x00-\x1F\x7F-\x9F] sanitizer range and inside the current printable-ASCII
+# allowlist ([^\x20-\x7E], run_task_8_9_preflight.ps1 ~L779/866/900/925). It
 # could visually reorder the marker that follows it in a rendered terminal.
 $m2JsonEscBidi = [string][char]92 + 'u202e'
 $m2HostileBidiJson = '[{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","value":"120s' + $m2JsonEscBidi + 'INJECTED-VIA-BIDI-MARKER"},{"name":"APP_DEMO_LOGIN_RESET_RESET_TIMEOUT","value":"30s"},{"name":"APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT","value":"165s"}]'
 $m2HostileAnsiJson = '[{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","value":"45s' + $m2JsonEscEsc + '[31mFAKE-ALERT' + $m2JsonEscEsc + '[0m"},{"name":"APP_DEMO_LOGIN_RESET_RESET_TIMEOUT","value":"30s"},{"name":"APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT","value":"165s"}]'
+# Same hostile-value property, exercised under each of the three NEW names
+# (Gap 1's ceiling, and Gap 2's idle threshold / CLOUD_PROVIDER), each built
+# from the same runtime bidi escape as $m2HostileBidiJson above. Every other
+# field in each fixture matches so only the field under test takes the
+# mismatch branch that interpolates -- and therefore must sanitize -- an
+# observed value.
+$m2HostileCeilingMarker = 'INJECTED-VIA-CEILING-BIDI-MARKER'
+$m2HostileCeilingJson = '[{"name":"APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD","value":"30m"},{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","value":"120s"},{"name":"APP_DEMO_LOGIN_RESET_RESET_TIMEOUT","value":"30s"},{"name":"APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT","value":"165s"},{"name":"SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT","value":"150s' + $m2JsonEscBidi + $m2HostileCeilingMarker + '"}]'
+$m2HostileIdleMarker = 'INJECTED-VIA-IDLE-BIDI-MARKER'
+$m2HostileIdleJson = '[{"name":"APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD","value":"30m' + $m2JsonEscBidi + $m2HostileIdleMarker + '"},{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","value":"120s"},{"name":"APP_DEMO_LOGIN_RESET_RESET_TIMEOUT","value":"30s"},{"name":"APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT","value":"165s"},{"name":"SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT","value":"150s"}]'
+$m2HostileProviderMarker = 'INJECTED-VIA-PROVIDER-BIDI-MARKER'
+$m2HostileProviderJson = '[{"name":"APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD","value":"30m"},{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","value":"120s"},{"name":"APP_DEMO_LOGIN_RESET_RESET_TIMEOUT","value":"30s"},{"name":"APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT","value":"165s"},{"name":"SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT","value":"150s"},{"name":"CLOUD_PROVIDER","value":"azure' + $m2JsonEscBidi + $m2HostileProviderMarker + '"}]'
 
 $m2LongMarker = 'PWNED-' + ('Q' * 3000) + '-MARKEREND'
 $m2HostileLongJson = '[{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","value":"' + $m2LongMarker + '"},{"name":"APP_DEMO_LOGIN_RESET_RESET_TIMEOUT","value":"30s"},{"name":"APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT","value":"165s"}]'
@@ -2100,6 +2159,101 @@ $m2HostileLongJson = '[{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","value
 # exact rule $observedValue gets above, never echo it raw.
 $m2DuplicateNameHostileMarker = 'INJECTED-VIA-DUPNAME-BIDI-MARKER'
 $m2HostileDuplicateNameJson = '[{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT' + $m2JsonEscBidi + $m2DuplicateNameHostileMarker + '","value":"120s"},{"name":"APP_DEMO_LOGIN_RESET_RESET_TIMEOUT","value":"30s"},{"name":"APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT","value":"165s"},{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT' + $m2JsonEscBidi + $m2DuplicateNameHostileMarker + '","value":"999s"}]'
+
+# Key-side M-1 (2026-09-14 review round, gap the value-side -cne fix missed):
+# PowerShell's @{} hashtable literal is case-INsensitive on KEYS, independent
+# of the -cne fix on the VALUE side above. Both fixtures below carry the
+# CORRECT value under a WRONGLY-CASED name, with no correctly-cased row
+# alongside it, so the only thing that can make the wrapper reject is the key
+# comparer, not the value comparison. Neither is vacuous: replayed against
+# 11e64ad (the case-insensitive @{} literal) both fixtures reach exit 0 --
+# ContainsKey matches the wrongly-cased name case-insensitively, and the
+# (identical) value then compares equal under -cne too -- and only reject
+# (exit 2) once the wrapper's hashtable is constructed with
+# [System.StringComparer]::Ordinal.
+$m2NameLowercaseEligibility = '[{"name":"APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD","value":"30m"},{"name":"app_demo_login_reset_eligibility_timeout","value":"120s"},{"name":"APP_DEMO_LOGIN_RESET_RESET_TIMEOUT","value":"30s"},{"name":"APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT","value":"165s"},{"name":"SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT","value":"150s"}]'
+$m2NameMixedCaseCeiling = '[{"name":"APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD","value":"30m"},{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","value":"120s"},{"name":"APP_DEMO_LOGIN_RESET_RESET_TIMEOUT","value":"30s"},{"name":"APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT","value":"165s"},{"name":"Spring_Cloud_Gateway_Server_Webflux_Httpclient_Responsetimeout","value":"150s"}]'
+
+# Ordinal-vs-linguistic M-1 (2026-09-14 review round, the gap the -cne fix
+# above did not close): -cne is case-sensitive, but PowerShell's -cne is
+# still a LINGUISTIC (InvariantCulture) comparison, not an ordinal one, so a
+# ratified value with an otherwise-invisible IGNORABLE character appended
+# compares EQUAL under -cne to the bare ratified value -- a false pass here
+# that the verifier's ordinal Python != then rejects post-wake. The owner
+# reproduced this on real Windows PowerShell 5.1 Desktop: U+00AD (SOFT
+# HYPHEN) and U+FEFF (BOM / ZERO WIDTH NO-BREAK SPACE) both compare equal to
+# the bare string under -cne; only after run_task_8_9_preflight.ps1's fix
+# (comparing via [string]::Equals(..., [System.StringComparison]::Ordinal)
+# instead of -cne) do these three fixtures exit 2. U+200B (ZERO WIDTH
+# SPACE), floated by an earlier review as an example of the same defect, is
+# deliberately NOT used here: the owner's reproduction found -cne already
+# rejects it, so a fixture built on U+200B would be vacuous for THIS
+# property -- it already exits 2 at e57c71e and proves nothing about the
+# ordinal-vs-linguistic comparison. (A separate U+200B fixture appears
+# further below, as a coverage pin for the sanitizer -- a different property
+# -- see that comment.)
+#
+# These three fixtures are ALSO the regression tests for a second, distinct
+# property this round adds: whether the Fail message SANITIZES the
+# offending value rather than rendering it raw. That property is what CI
+# reported red at f548a80 for the eligibility and CLOUD_PROVIDER fixtures
+# below (both U+00AD) even though the wrapper still exited 2 correctly (no
+# wake consumed): U+00AD and U+FEFF are both Unicode category Cf per .NET's
+# own Unicode data (CharUnicodeInfo reports U+00AD as
+# UnicodeCategory.Format), but the .NET Framework REGEX ENGINE's own legacy
+# Unicode category table disagrees -- it matches U+00AD as category Pd
+# (dash punctuation), not Cf. The four-category sanitizer class in place at
+# f548a80 ([\p{Cc}\p{Cf}\p{Zl}\p{Zp}]) therefore did not fire on U+00AD and
+# let the raw ratified value (with the trailing soft hyphen) reach the
+# transcript; the same run's U+FEFF fixture passed, because that engine's
+# table does match U+FEFF as Cf. run_task_8_9_preflight.ps1 now sanitizes
+# against a printable-ASCII allowlist ([^\x20-\x7E],
+# ~L866/900/925) instead of a Unicode-category list, so all three fixtures
+# below must show the fixed-shape "sanitized rendering, not the literal
+# value" placeholder, never the raw ratified value with the character
+# appended -- the raw character itself belongs in ForbiddenSubstrings, not
+# ExpectSubstrings. Only the two U+00AD fixtures are non-vacuous regression
+# evidence for the allowlist (this property failed at f548a80 and passes
+# now); the U+FEFF fixture is a coverage pin that already held under the
+# old four-category class and continues to hold under the allowlist.
+$m2JsonEscSoftHyphen = [string][char]92 + 'u00ad'
+$m2JsonEscBom = [string][char]92 + 'ufeff'
+# Site 1 (the four-name loop, ~L841): APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT
+# carries the ratified '120s' with a trailing U+00AD. Every other name in
+# the loop (reset, overall, ceiling) plus idle threshold is correct, so only
+# the eligibility comparison should ever reach the mismatch list.
+$m2IgnorableEligibilityJson = '[{"name":"APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD","value":"30m"},{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","value":"120s' + $m2JsonEscSoftHyphen + '"},{"name":"APP_DEMO_LOGIN_RESET_RESET_TIMEOUT","value":"30s"},{"name":"APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT","value":"165s"},{"name":"SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT","value":"150s"}]'
+# Site 1 again, same loop, different member: the gateway response ceiling
+# carries the ratified '150s' with a trailing U+FEFF. Everything else in
+# this fixture is correct.
+$m2IgnorableCeilingJson = '[{"name":"APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD","value":"30m"},{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","value":"120s"},{"name":"APP_DEMO_LOGIN_RESET_RESET_TIMEOUT","value":"30s"},{"name":"APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT","value":"165s"},{"name":"SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT","value":"150s' + $m2JsonEscBom + '"}]'
+# Site 3 (CLOUD_PROVIDER's own comparison, ~L921) -- a site OTHER than the
+# four-name loop, per the brief: CLOUD_PROVIDER carries the ratified 'azure'
+# with a trailing U+00AD. Everything else in this fixture is correct.
+$m2IgnorableProviderJson = '[{"name":"APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD","value":"30m"},{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","value":"120s"},{"name":"APP_DEMO_LOGIN_RESET_RESET_TIMEOUT","value":"30s"},{"name":"APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT","value":"165s"},{"name":"SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT","value":"150s"},{"name":"CLOUD_PROVIDER","value":"azure' + $m2JsonEscSoftHyphen + '"}]'
+# Sanitizer coverage (this round): these two fixtures are about the
+# SANITIZER itself, not the ordinal-vs-linguistic comparison above, and use
+# the same runtime JSON-escape-sequence idiom as $m2JsonEscSoftHyphen/
+# $m2JsonEscBom.
+#   * U+034F (COMBINING GRAPHEME JOINER, category Mn) was never a member of
+#     the OLD four-category class ([\p{Cc}\p{Cf}\p{Zl}\p{Zp}]) at all --
+#     unlike U+00AD/U+FEFF above, there is no regex-engine-table subtlety
+#     here, it is simply outside that class by category. This is therefore
+#     also non-vacuous failing-before/passing-after evidence for the
+#     allowlist, exercised on the RESET_TIMEOUT member of the four-name loop
+#     (~L866) -- a site distinct from the eligibility/ceiling members
+#     already covered above.
+#   * U+200B (ZERO WIDTH SPACE) is category Cf, so the OLD class already
+#     sanitized it: this fixture passes both before and after the allowlist
+#     change. It is a coverage pin over the idle threshold's own sanitizer
+#     block (~L900) -- a site distinct from the four-name loop -- not
+#     evidence that the allowlist changed anything there. As noted above,
+#     -cne and ordinal equality both already reject U+200B in the
+#     comparison, so this fixture is solely about the sanitizer.
+$m2JsonEscCombiningGraphemeJoiner = [string][char]92 + 'u034f'
+$m2JsonEscZeroWidthSpace = [string][char]92 + 'u200b'
+$m2SanitizerOnlyResetJson = '[{"name":"APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD","value":"30m"},{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","value":"120s"},{"name":"APP_DEMO_LOGIN_RESET_RESET_TIMEOUT","value":"30s' + $m2JsonEscCombiningGraphemeJoiner + '"},{"name":"APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT","value":"165s"},{"name":"SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT","value":"150s"}]'
+$m2SanitizerOnlyIdleJson = '[{"name":"APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD","value":"30m' + $m2JsonEscZeroWidthSpace + '"},{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","value":"120s"},{"name":"APP_DEMO_LOGIN_RESET_RESET_TIMEOUT","value":"30s"},{"name":"APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT","value":"165s"},{"name":"SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT","value":"150s"}]'
 
 $m2Cases = @(
     @{ Name = 'value mismatch (eligibility)'; Env = @{ STUB_SERVING_ENV_JSON = $m2MismatchEligibility }
@@ -2122,6 +2276,92 @@ $m2Cases = @(
        ExpectSubstrings = @('do not match the ratified attestation', 'is absent from the serving revision', 'APP_DEMO_LOGIN_RESET_RESET_TIMEOUT', "expected='30s'"); ForbiddenSubstrings = @() },
     @{ Name = 'name missing entirely (overall)'; Env = @{ STUB_SERVING_ENV_JSON = $m2MissingOverall }
        ExpectSubstrings = @('do not match the ratified attestation', 'is absent from the serving revision', 'APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT', "expected='165s'"); ForbiddenSubstrings = @() },
+    # --- Gap 1: response ceiling (folded into the loop above; same rule) ----
+    @{ Name = 'gap 1: response ceiling wrong value'; Env = @{ STUB_SERVING_ENV_JSON = $m2CeilingWrong }
+       ExpectSubstrings = @('do not match the ratified attestation', 'SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT', "observed='999s'", "expected='150s'")
+       ForbiddenSubstrings = @('APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT is absent', 'APP_DEMO_LOGIN_RESET_RESET_TIMEOUT is absent', 'APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT is absent') },
+    @{ Name = 'gap 1: response ceiling absent -- the shape that passed before this gap closed, must now reject'; Env = @{ STUB_SERVING_ENV_JSON = $m2CeilingAbsent }
+       ExpectSubstrings = @('do not match the ratified attestation', 'is absent from the serving revision', 'SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT', "expected='150s'")
+       ForbiddenSubstrings = @('APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT is absent', 'APP_DEMO_LOGIN_RESET_RESET_TIMEOUT is absent', 'APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT is absent') },
+    # M-1: mixed-case ceiling value. Against a case-insensitive -ne this
+    # would proceed (a false pass here that fails the verifier post-wake);
+    # -cne must reject it.
+    @{ Name = 'm-1: response ceiling mixed case (150S) must reject, not pass case-insensitively'; Env = @{ STUB_SERVING_ENV_JSON = $m2CeilingMixedCase }
+       ExpectSubstrings = @('do not match the ratified attestation', 'SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT', "observed='150S'", "expected='150s'")
+       ForbiddenSubstrings = @('APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT is absent', 'APP_DEMO_LOGIN_RESET_RESET_TIMEOUT is absent', 'APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT is absent') },
+    # --- Gap 2a: idle threshold (absent is a PASS -- see the proceeds checks
+    #     further below; only present-and-wrong belongs in this reject table) -
+    @{ Name = 'gap 2a: idle threshold present and wrong'; Env = @{ STUB_SERVING_ENV_JSON = $m2IdleWrong }
+       ExpectSubstrings = @('do not match the ratified attestation', 'APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD', "observed='5m'", "expected='30m'")
+       ForbiddenSubstrings = @('APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT is absent', 'APP_DEMO_LOGIN_RESET_RESET_TIMEOUT is absent', 'APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT is absent', 'SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT is absent') },
+    # M-1: mixed-case idle threshold value -- same false-pass-under-ne shape
+    # as the ceiling case above, for the idle threshold's own comparison.
+    @{ Name = 'm-1: idle threshold mixed case (30M) must reject, not pass case-insensitively'; Env = @{ STUB_SERVING_ENV_JSON = $m2IdleMixedCase }
+       ExpectSubstrings = @('do not match the ratified attestation', 'APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD', "observed='30M'", "expected='30m'")
+       ForbiddenSubstrings = @('APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT is absent', 'APP_DEMO_LOGIN_RESET_RESET_TIMEOUT is absent', 'APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT is absent', 'SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT is absent') },
+    # --- Gap 2b: CLOUD_PROVIDER (absent is a PASS -- see the proceeds checks
+    #     further below; only present-and-wrong belongs in this reject table) -
+    @{ Name = 'gap 2b: CLOUD_PROVIDER present and not azure'; Env = @{ STUB_SERVING_ENV_JSON = $m2ProviderWrong }
+       ExpectSubstrings = @('do not match the ratified attestation', 'CLOUD_PROVIDER', "observed='aws'", "expected='azure'")
+       ForbiddenSubstrings = @('APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT is absent', 'APP_DEMO_LOGIN_RESET_RESET_TIMEOUT is absent', 'APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT is absent', 'SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT is absent') },
+    # M-1: mixed-case CLOUD_PROVIDER value -- same false-pass-under-ne shape,
+    # for CLOUD_PROVIDER's own comparison.
+    @{ Name = 'm-1: CLOUD_PROVIDER mixed case (Azure) must reject, not pass case-insensitively'; Env = @{ STUB_SERVING_ENV_JSON = $m2ProviderMixedCase }
+       ExpectSubstrings = @('do not match the ratified attestation', 'CLOUD_PROVIDER', "observed='Azure'", "expected='azure'")
+       ForbiddenSubstrings = @('APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT is absent', 'APP_DEMO_LOGIN_RESET_RESET_TIMEOUT is absent', 'APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT is absent', 'SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT is absent') },
+    # --- Key side (2026-09-14 review round): a wrongly-cased NAME, not a
+    #     wrongly-cased VALUE. The verifier's `names` dict (a Python dict) is
+    #     exact-key case-sensitive, so a name spelled in any other case than
+    #     the ratified one must read as ABSENT here, exactly as it does post-
+    #     wake -- never as a case-insensitive match on an otherwise-correct
+    #     value.
+    @{ Name = 'm-1 (key side): a lowercase env-var NAME must read as absent, not match case-insensitively'; Env = @{ STUB_SERVING_ENV_JSON = $m2NameLowercaseEligibility }
+       ExpectSubstrings = @('do not match the ratified attestation', 'is absent from the serving revision', 'APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT', "expected='120s'")
+       ForbiddenSubstrings = @('APP_DEMO_LOGIN_RESET_RESET_TIMEOUT is absent', 'APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT is absent', 'SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT is absent') },
+    @{ Name = 'm-1 (key side): a mixed-case env-var NAME on the response ceiling must read as absent, not match case-insensitively'; Env = @{ STUB_SERVING_ENV_JSON = $m2NameMixedCaseCeiling }
+       ExpectSubstrings = @('do not match the ratified attestation', 'is absent from the serving revision', 'SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT', "expected='150s'")
+       ForbiddenSubstrings = @('APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT is absent', 'APP_DEMO_LOGIN_RESET_RESET_TIMEOUT is absent', 'APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT is absent') },
+    # --- Ordinal-vs-linguistic (2026-09-14 review round, the gap the -cne
+    #     fix left open): a ratified value with a trailing IGNORABLE
+    #     character (U+00AD / U+FEFF, both category Cf per .NET's own
+    #     Unicode data) compares EQUAL under -cne's linguistic comparer but
+    #     UNEQUAL under the verifier's ordinal Python !=. These three exit 0
+    #     (vacuously proceed) at e57c71e and exit 2 only once the comparison
+    #     is [string]::Equals(..., [System.StringComparison]::Ordinal).
+    #     U+200B is deliberately not used here -- the owner's Windows
+    #     PowerShell 5.1 reproduction found -cne already rejects it, so a
+    #     fixture built on it would be vacuous for this comparison property
+    #     either way (a separate U+200B fixture below covers the sanitizer
+    #     instead). Whether the message SANITIZES the value once it is
+    #     known unequal is a second, independent property (see the block
+    #     comment above): at f548a80 the sanitizer class
+    #     ([\p{Cc}\p{Cf}\p{Zl}\p{Zp}]) fired on U+FEFF but NOT on U+00AD --
+    #     the .NET Framework regex engine's own legacy category table
+    #     matches U+00AD as Pd, not Cf, unlike CharUnicodeInfo on the same
+    #     host -- so the eligibility and CLOUD_PROVIDER fixtures below were
+    #     the two CI failures this round fixes; the ceiling (U+FEFF) fixture
+    #     already passed and is a coverage pin. All three must now carry the
+    #     fixed-shape placeholder, never the literal character -- expected
+    #     below, with the raw character forbidden.
+    @{ Name = 'ordinal-vs-linguistic: eligibility timeout 120s + trailing U+00AD (soft hyphen) must reject and sanitize, not compare equal linguistically or render raw (fails at f548a80, the .NET Framework regex engine matches U+00AD as Pd, not Cf)'; Env = @{ STUB_SERVING_ENV_JSON = $m2IgnorableEligibilityJson }
+       ExpectSubstrings = @('do not match the ratified attestation', 'APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT', 'sanitized rendering, not the literal value', '-- 5 chars, withheld: contains a non-printable-ASCII character', "expected='120s'")
+       ForbiddenSubstrings = @('APP_DEMO_LOGIN_RESET_RESET_TIMEOUT is absent', 'APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT is absent', 'SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT is absent', [string][char]0x00AD) },
+    @{ Name = 'ordinal-vs-linguistic: response ceiling 150s + trailing U+FEFF (BOM) must reject and sanitize, not compare equal linguistically or render raw (already passed at f548a80 -- coverage pin, not new evidence)'; Env = @{ STUB_SERVING_ENV_JSON = $m2IgnorableCeilingJson }
+       ExpectSubstrings = @('do not match the ratified attestation', 'SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT', 'sanitized rendering, not the literal value', '-- 5 chars, withheld: contains a non-printable-ASCII character', "expected='150s'")
+       ForbiddenSubstrings = @('APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT is absent', 'APP_DEMO_LOGIN_RESET_RESET_TIMEOUT is absent', 'APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT is absent', [string][char]0xFEFF) },
+    # A site OTHER than the four-name loop, per the brief: CLOUD_PROVIDER's
+    # own comparison (~L921), independent code from the loop above.
+    @{ Name = 'ordinal-vs-linguistic: CLOUD_PROVIDER azure + trailing U+00AD (soft hyphen) must reject and sanitize, not compare equal linguistically or render raw (fails at f548a80, same regex-engine category-table gap)'; Env = @{ STUB_SERVING_ENV_JSON = $m2IgnorableProviderJson }
+       ExpectSubstrings = @('do not match the ratified attestation', 'CLOUD_PROVIDER', 'sanitized rendering, not the literal value', '-- 6 chars, withheld: contains a non-printable-ASCII character', "expected='azure'")
+       ForbiddenSubstrings = @('APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT is absent', 'APP_DEMO_LOGIN_RESET_RESET_TIMEOUT is absent', 'APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT is absent', 'SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT is absent', [string][char]0x00AD) },
+    # --- Sanitizer coverage (this round, not the comparison above): see the
+    #     block comment further up for the U+034F/U+200B classification.
+    @{ Name = 'sanitizer coverage: reset timeout 30s + trailing U+034F (combining grapheme joiner, Mn) must sanitize -- outside the OLD four-category class entirely, non-vacuous evidence for the allowlist'; Env = @{ STUB_SERVING_ENV_JSON = $m2SanitizerOnlyResetJson }
+       ExpectSubstrings = @('do not match the ratified attestation', 'APP_DEMO_LOGIN_RESET_RESET_TIMEOUT', 'sanitized rendering, not the literal value', '-- 4 chars, withheld: contains a non-printable-ASCII character', "expected='30s'")
+       ForbiddenSubstrings = @('APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT is absent', 'APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT is absent', 'SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT is absent', [string][char]0x034F) },
+    @{ Name = 'sanitizer coverage: idle threshold 30m + trailing U+200B (zero width space) must sanitize -- category Cf, already sanitized under the OLD class, a coverage pin rather than new evidence'; Env = @{ STUB_SERVING_ENV_JSON = $m2SanitizerOnlyIdleJson }
+       ExpectSubstrings = @('do not match the ratified attestation', 'APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD', 'sanitized rendering, not the literal value', '-- 4 chars, withheld: contains a non-printable-ASCII character', "expected='30m'")
+       ForbiddenSubstrings = @('APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT is absent', 'APP_DEMO_LOGIN_RESET_RESET_TIMEOUT is absent', 'APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT is absent', 'SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT is absent', [string][char]0x200B) },
     @{ Name = 'malformed / unparseable JSON'; Env = @{ STUB_SERVING_ENV_JSON = $m2MalformedJson }
        ExpectSubstrings = @('did not parse as JSON'); ForbiddenSubstrings = @('MALFORMED-MARKER-DO-NOT-LEAK') },
     @{ Name = 'row carries secretRef instead of value'; Env = @{ STUB_SERVING_ENV_JSON = $m2SecretRefJson }
@@ -2137,7 +2377,7 @@ $m2Cases = @(
        # The duplicated NAME itself (not the value) carries the bidi
        # override character built at runtime above. The Fail message must
        # still say "duplicate serving environment value" and use the same
-       # fixed-shape placeholder the value branch uses (~L746-776), but must
+       # fixed-shape placeholder the value branch uses (~L827-876), but must
        # never reproduce the marker text or the raw bidi character.
        ExpectSubstrings = @('duplicate serving environment value', 'sanitized rendering, not the literal value')
        ForbiddenSubstrings = @($m2DuplicateNameHostileMarker, [string][char]0x202E) },
@@ -2171,14 +2411,51 @@ foreach ($m2Case in $m2Cases) {
     }
 }
 
+Write-Host 'Serving Azure demo-reset timeout precondition (M2): absent-is-a-pass proceeds for idle threshold and CLOUD_PROVIDER'
+# These are the deliberately-NOT-symmetric half of Gap 2: unlike the four
+# names in the loop above (and unlike ceiling absence, Gap 1), an ABSENT
+# APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD or CLOUD_PROVIDER must proceed, because
+# each falls back to the same value this wrapper approves (application.yml:135
+# for the idle threshold; the verifier's own names.get("CLOUD_PROVIDER",
+# "azure") default for the provider).
+# Case-sensitive duplicate semantics (2026-09-14 review round): the
+# wrapper's $observedAzureTimeoutValues hashtable is Ordinal (~L740),
+# matching the verifier's own `names: dict[str, Any]` -- a plain Python
+# dict, exact-key, case-sensitive (verify_demo_reset_azure.py:700-705).
+# APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT and its lowercase twin are
+# therefore DISTINCT keys to both, never a duplicate: the verifier's own
+# `if row["name"] in names:` (L703) is a Python dict membership test that
+# only raises on an EXACT repeat of the same key, and the wrapper's own
+# ContainsKey check (~L751) now agrees. This fixture must proceed (exit 0),
+# not be rejected as a duplicate -- and every other gate in it (idle
+# threshold, the four checked names, CLOUD_PROVIDER absent) is
+# independently correct, so exit 0 here isolates that one semantic.
+$m2CaseVariantNameNotADuplicate = '[{"name":"APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD","value":"30m"},{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","value":"120s"},{"name":"app_demo_login_reset_eligibility_timeout","value":"999s"},{"name":"APP_DEMO_LOGIN_RESET_RESET_TIMEOUT","value":"30s"},{"name":"APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT","value":"165s"},{"name":"SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT","value":"150s"}]'
+$m2ProceedCases = @(
+    @{ Name = 'idle threshold absent proceeds (falls back to the approved 30m default)'; Json = $m2IdleAbsent },
+    @{ Name = 'CLOUD_PROVIDER = azure (present and correct) proceeds'; Json = $m2ProviderAzure },
+    @{ Name = 'a case-variant twin of a checked name (APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT vs. its lowercase twin) is a distinct key under Ordinal, not a duplicate, and proceeds'; Json = $m2CaseVariantNameNotADuplicate }
+)
+foreach ($m2Proceed in $m2ProceedCases) {
+    $e = $good.Clone(); $e['STUB_SERVING_ENV_JSON'] = $m2Proceed.Json
+    $r = Invoke-Wrapper -Env $e
+    Check "$($m2Proceed.Name)" {
+        if ($r.Exit -ne 0) { throw "exit $($r.Exit) (expected 0); output: $($r.Output)" }
+        Assert-ProbeCount $r 1
+    }
+}
+# CLOUD_PROVIDER absent also proceeds -- covered by every case above that
+# does not set CLOUD_PROVIDER at all, including the baseline match check
+# ($m2RatifiedJson, asserted exit 0 above) and $m2IdleAbsent just above.
+
 Write-Host 'Serving Azure demo-reset timeout precondition (M2): console output must not reproduce untrusted content'
-# run_task_8_9_preflight.ps1's mismatch-message construction (~L746-776)
+# run_task_8_9_preflight.ps1's mismatch-message construction (~L827-876)
 # sanitizes $observedValue -- the one field in this whole precondition that
 # is genuinely attacker/deployment controlled, read verbatim from the
 # serving Container App's env by the az call above -- before it reaches
 # Fail, i.e. Write-Host, i.e. the operator's transcript: a value with a
-# control or Unicode format/separator character ([\p{Cc}\p{Cf}\p{Zl}\p{Zp}]),
-# or one over 80 characters, is replaced WHOLESALE by a fixed-shape
+# character outside the printable-ASCII allowlist ([^\x20-\x7E]), or one
+# over 80 characters, is replaced WHOLESALE by a fixed-shape
 # placeholder rather than shown even in part. The cases below assert that
 # safety property (no raw value, secret name, control character, injected
 # line, or bidi override ever reaches the console) and are expected to PASS
@@ -2193,10 +2470,28 @@ $m2HostileCases = @(
     @{ Name = 'a very long observed value is not reproduced in console output'; Env = @{ STUB_SERVING_ENV_JSON = $m2HostileLongJson }
        ForbiddenSubstrings = @('PWNED-', 'MARKEREND') },
     @{ Name = 'a bidi override character in the observed value is not reproduced in console output'; Env = @{ STUB_SERVING_ENV_JSON = $m2HostileBidiJson }
-       # Discriminates the widened sanitizer range: U+202E is \p{Cf}, not
-       # \p{Cc}, so the old [\x00-\x1F\x7F-\x9F] pattern would miss it and
-       # this case would fail against that narrower range.
-       ForbiddenSubstrings = @('INJECTED-VIA-BIDI-MARKER', [string][char]0x202E) }
+       # Discriminates the printable-ASCII allowlist from the ORIGINAL
+       # [\x00-\x1F\x7F-\x9F] range only: U+202E is outside \x20-\x7E but is
+       # not a C0/C1 control byte, so that pattern would miss it and this
+       # case would fail against it. Against the IMMEDIATELY PRECEDING
+       # four-category class this case is a COVERAGE PIN, not a
+       # discriminator: that engine does match U+202E as \p{Cf}, and this
+       # case PASSED on the f548a80 Windows run (282/284 -- the only two
+       # failures were the U+00AD fixtures, see the U+00AD gap documented
+       # above). It pins the property across the change; it is not evidence
+       # the change was needed.
+       ForbiddenSubstrings = @('INJECTED-VIA-BIDI-MARKER', [string][char]0x202E) },
+    # Same bidi-override property, now under each of the three NEW names --
+    # Gap 1's ceiling and Gap 2's idle threshold / CLOUD_PROVIDER route
+    # through their own inlined sanitizer blocks (no shared function is
+    # permitted in this file), so each is exercised on its own rather than
+    # trusting that "the same rule" was actually copied correctly.
+    @{ Name = 'a bidi override character in the observed response-ceiling value is not reproduced in console output'; Env = @{ STUB_SERVING_ENV_JSON = $m2HostileCeilingJson }
+       ForbiddenSubstrings = @($m2HostileCeilingMarker, [string][char]0x202E) },
+    @{ Name = 'a bidi override character in the observed idle-threshold value is not reproduced in console output'; Env = @{ STUB_SERVING_ENV_JSON = $m2HostileIdleJson }
+       ForbiddenSubstrings = @($m2HostileIdleMarker, [string][char]0x202E) },
+    @{ Name = 'a bidi override character in the observed CLOUD_PROVIDER value is not reproduced in console output'; Env = @{ STUB_SERVING_ENV_JSON = $m2HostileProviderJson }
+       ForbiddenSubstrings = @($m2HostileProviderMarker, [string][char]0x202E) }
 )
 foreach ($m2Hostile in $m2HostileCases) {
     $e = $good.Clone()

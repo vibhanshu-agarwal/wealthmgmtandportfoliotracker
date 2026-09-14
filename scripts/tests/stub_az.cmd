@@ -88,12 +88,17 @@ echo %*| findstr /C:"containers[0].image" >nul && (
 )
 rem The pre-wake Azure demo-reset timeout precondition (M2): reads the serving
 rem revision's environment. STUB_SERVING_ENV_JSON lets a test substitute a
-rem different payload (a mismatch, a secretRef row, a name entirely absent);
-rem the default below is the ratified 120s/30s/165s attestation, so every
-rem happy-path test that does not override it passes this check unchanged.
+rem different payload wholesale (a mismatch, a secretRef row, a name entirely
+rem absent, CLOUD_PROVIDER present or absent, ...) -- a fixture that wants one
+rem name omitted just leaves it out of its own STUB_SERVING_ENV_JSON string,
+rem so no separate per-name "omit" switch is needed here. The default below
+rem is the ratified 120s/30s/165s/150s attestation (idle threshold 30m,
+rem CLOUD_PROVIDER absent so it falls back to the verifier's own 'azure'
+rem default), so every happy-path test that does not override it passes the
+rem M2 precondition unchanged.
 echo %*| findstr /C:"containers[0].env" >nul && (
   if defined STUB_SERVING_ENV_JSON (echo %STUB_SERVING_ENV_JSON%& exit /b !_RC!)
-  echo [{"name":"APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD","value":"30m"},{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","value":"120s"},{"name":"APP_DEMO_LOGIN_RESET_RESET_TIMEOUT","value":"30s"},{"name":"APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT","value":"165s"}]
+  echo [{"name":"APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD","value":"30m"},{"name":"APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT","value":"120s"},{"name":"APP_DEMO_LOGIN_RESET_RESET_TIMEOUT","value":"30s"},{"name":"APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT","value":"165s"},{"name":"SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT","value":"150s"}]
   exit /b !_RC!
 )
 echo %*| findstr /C:"log-analytics workspace show" >nul && (echo 83a9c3a2-0000-0000-0000-000000000000& exit /b !_RC!)
