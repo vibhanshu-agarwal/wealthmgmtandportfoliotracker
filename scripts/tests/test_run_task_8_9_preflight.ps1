@@ -1991,7 +1991,7 @@ foreach ($phase in $failAfterPhases) {
 }
 
 # --- Serving Azure demo-reset timeout precondition (boundary M2) -----------
-# scripts/run_task_8_9_preflight.ps1 ~L671-876: before any probe, the wrapper
+# scripts/run_task_8_9_preflight.ps1 ~L671-941: before any probe, the wrapper
 # reads the serving revision's container env (a control-plane read, zero
 # replicas needed) and compares APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT /
 # RESET_TIMEOUT / OVERALL_TIMEOUT, plus the gateway response ceiling
@@ -2470,13 +2470,16 @@ $m2HostileCases = @(
     @{ Name = 'a very long observed value is not reproduced in console output'; Env = @{ STUB_SERVING_ENV_JSON = $m2HostileLongJson }
        ForbiddenSubstrings = @('PWNED-', 'MARKEREND') },
     @{ Name = 'a bidi override character in the observed value is not reproduced in console output'; Env = @{ STUB_SERVING_ENV_JSON = $m2HostileBidiJson }
-       # Discriminates the printable-ASCII allowlist from either narrower
-       # predecessor: U+202E is outside \x20-\x7E, but it is neither a
-       # C0/C1 control byte (so the original [\x00-\x1F\x7F-\x9F] pattern
-       # would miss it) nor, on the .NET Framework regex engine actually
-       # running this suite, reliably a member of any fixed Unicode-category
-       # list either (see the U+00AD gap documented above) -- this case
-       # would fail against either narrower range.
+       # Discriminates the printable-ASCII allowlist from the ORIGINAL
+       # [\x00-\x1F\x7F-\x9F] range only: U+202E is outside \x20-\x7E but is
+       # not a C0/C1 control byte, so that pattern would miss it and this
+       # case would fail against it. Against the IMMEDIATELY PRECEDING
+       # four-category class this case is a COVERAGE PIN, not a
+       # discriminator: that engine does match U+202E as \p{Cf}, and this
+       # case PASSED on the f548a80 Windows run (282/284 -- the only two
+       # failures were the U+00AD fixtures, see the U+00AD gap documented
+       # above). It pins the property across the change; it is not evidence
+       # the change was needed.
        ForbiddenSubstrings = @('INJECTED-VIA-BIDI-MARKER', [string][char]0x202E) },
     # Same bidi-override property, now under each of the three NEW names --
     # Gap 1's ceiling and Gap 2's idle threshold / CLOUD_PROVIDER route
