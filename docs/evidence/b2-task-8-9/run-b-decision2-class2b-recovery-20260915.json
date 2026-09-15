@@ -1,8 +1,8 @@
 {
-  "schemaVersion": 3,
+  "schemaVersion": 4,
   "recordedDate": "2026-09-15",
   "task": "B2 Task 8.9 Decision 2 Production execute proof",
-  "result": "CANDIDATE_GO_PENDING_INDEPENDENT_REVIEW",
+  "result": "ACCEPTED_GO_AT_8544D722_DOCUMENTATION_HEAD_CHECK_PENDING",
   "authority": {
     "ownerAuthorizedExecuteProof": true,
     "ownerAuthorizedEvidencePublication": true,
@@ -11,8 +11,19 @@
     "ownerAuthorizedGatewaySkipCorrectionReplay": true,
     "gatewaySkipCorrectionReplayScope": "exactly one byte-identical retained api-gateway skip query with the same workspace, trace, UTC window, transport, and raw capture; no retry, login, mutation, wake, deployment, cleanup, rollback, exposure, or merge",
     "gatewaySkipCorrectionAuthorizationQuote": "[Vibhanshu] Authorized per comments",
-    "gatewaySkipCorrectionAuthorizationReceivedUtc": "2026-09-15T03:54:50.0510297Z",
-    "independentReviewAcceptedCurrentEvidence": false,
+    "initialReplayAuthorizationQuote": "Approve, please go ahead.",
+    "initialReplayOwnerMessageSessionUtc": "2026-09-15T02:31:57.317Z",
+    "gatewaySkipCorrectionOwnerMessageSessionUtc": "2026-09-15T03:50:59.326Z",
+    "gatewaySkipCorrectionLauncherAuthorityRecordUtc": "2026-09-15T03:54:50.0510297Z",
+    "timestampProvenance": "Owner-message timestamps are retained local session response-item metadata, not server-side chat attestations. The gateway transcript's authorization-received label is launcher UtcNow, not approval receipt.",
+    "independentReviewAcceptedEvidence": true,
+    "acceptedEvidenceHead": "8544d722433108f0b71a164675271d2f81c7a6a8",
+    "newDocumentationHeadIndependentCheckPending": true,
+    "ownerAuthorizedRecordCommitAndPush": true,
+    "acceptanceRecord": {
+      "path": "docs/evidence/b2-task-8-9/run-b-decision2-fable-acceptance-20260915.md",
+      "sha256": "f1908d72a0d259f4e06f3e2c361596bd3e6b25503d170da8d4fa83113b1ce883"
+    },
     "mergeAuthorized": false,
     "featureExposureAuthorized": false
   },
@@ -105,20 +116,41 @@
       "defect": "The original verifier passed multiline KQL through az.cmd; only the first query line reached the intended CLI invocation and the trailing timespan/output arguments were dropped.",
       "replayChange": "Both recovery rounds bypassed az.cmd and invoked the same installed azure.cli module through its bundled python.exe. The accepted success query and the correction-round gateway skip query preserve the retained multiline KQL and every trailing argument.",
       "initialReplayDefect": "The initial replay launcher derived the skip query by replacing only demo_reset_succeeded with demo_reset_self_call_skipped, leaving the portfolio-service app filter. Its zero-row result is rejected and is not used by the recovered outcome.",
-      "semanticChange": false,
-      "nonWhitespaceQueryContentChanged": false,
+      "acceptedQueryPreservation": {
+        "successNonWhitespaceQueryContentChanged": false,
+        "gatewaySkipCorrectionNonWhitespaceQueryContentChanged": false,
+        "initialWrongAppSkipNonWhitespaceQueryContentChanged": true,
+        "scope": "Preservation applies only to the accepted success and corrected gateway skip inputs; no global unchanged-content claim applies to the initial wrong-app skip."
+      },
       "rawIsoUtcTimespanPreserved": true,
       "initialReplayQueryInvocationCount": 2,
       "gatewaySkipCorrectionQueryInvocationCount": 1,
-      "totalRecoveryQueryInvocationCount": 3,
-      "retryCount": 0
+      "earlierUncapturedManualQueryInvocationCount": 2,
+      "totalRecoveryQueryInvocationCount": 5,
+      "capturedRecoveryQueryInvocationCount": 3,
+      "acceptedCausalQueryInvocationCount": 2,
+      "totalExecuteAndRecoveryQueryInvocationCount": 7,
+      "queryAccountingScope": "Final Decision 2 execute RBAC probe (1), malformed execute success query (1), uncaptured manual success/skip (2), initial captured success/wrong-app skip (2), corrected gateway skip (1). Separate preflight/rehearsal queries and workspace metadata reads excluded. Wrong-app/uncaptured results excluded from outcome but counted as issued operations.",
+      "capturedReplayRetryCount": 0
     },
     "replayArtifacts": {
       "supersededInitialOperatorTranscript": {
         "path": "docs/evidence/b2-task-8-9/run-b-decision2-class2b-replay-operator-transcript-20260915.txt",
         "sha256": "674cd808ebb54824bf90dc45996b901e32e511332a1079deb7edc4b0ef383fd9",
+        "rawOriginalPath": "C:\\t89\\run-b-decision2-class2b-replay-operator-20260915.txt",
+        "rawOriginalSha256": "3ff181a1374fbdc58ed1b78a2a6564873bfaa88efbdb04572ac9f83108aa1756",
         "sanitization": "Only PowerShell transcript header host identity and user-specific host paths were replaced; CRLF line endings were preserved, and query argv, timestamps, stdout, stderr hashes, and results are unchanged.",
         "status": "success query accepted; wrong-app skip query rejected"
+      },
+      "initialReplayLauncher": {
+        "path": "docs/evidence/b2-task-8-9/run-b-decision2-initial-replay-launcher-20260915.ps1.txt",
+        "sha256": "1a3077feba7b52a4d71ceff88f56f6c99b114431551cd2f99dea3af2d3791c1b",
+        "status": "historical executed source, byte-identical archived text; wrong-app construction preserved; no execution authority"
+      },
+      "gatewaySkipCorrectionLauncher": {
+        "path": "docs/evidence/b2-task-8-9/run-b-decision2-gateway-skip-replay-launcher-20260915.ps1.txt",
+        "sha256": "a812dafb003dd919bc0f5d23c9b0df939e02e67335427038bfa19c3b40bc5ef7",
+        "status": "historical executed source, byte-identical archived text; launcher-clock authorization label preserved; no execution authority"
       },
       "successStdout": {
         "path": "docs/evidence/b2-task-8-9/run-b-decision2-class2b-replay-success-stdout-20260915.json",
@@ -244,7 +276,9 @@
     "substitutions": {
       "events": "accepted success raw rows plus corrected retained api-gateway skip raw rows replace the raw verifier's unfinished polling event object",
       "classificationDetail": "fresh local execution of the tracked parser and classifier against those published raw rows",
-      "bindingReviewGate": "independentReviewAcceptedCurrentEvidence=false keeps go=false until a fresh reviewer accepts this exact head"
+      "verdict.errors": "The immutable raw transport TypeError remains in source.verdict.errors. For accepted supplemental adjudication only, its event-query ambiguity is superseded by independently accepted retained historical-query evidence; the raw errors array is not cleared or rewritten.",
+      "keyAlignment.internalApiKeyProven": "The immutable raw keyAlignment=false was left by the exception before normal derivation. For supplemental adjudication only, the accepted trace-correlated demo_reset_succeeded row proves alignment, matching the verifier's bool(success) derivation; the raw field is not rewritten.",
+      "bindingReviewGate": "Fable ACCEPT applies to evidence head 8544d722433108f0b71a164675271d2f81c7a6a8. The new documentation head is not self-accepted and still requires a quick independent check."
     },
     "candidateGo": true,
     "cleanupOk": true,
@@ -253,13 +287,16 @@
     "finalServingRevalidated": true,
     "providerIsAzure": true,
     "internalApiKeyAlignmentProvenByTracedSuccess": true,
-    "independentReviewAcceptedCurrentEvidence": false,
-    "go": false,
-    "reason": "The evidence supports a candidate GO, but both prior independent review rounds were rejections and a fresh independent acceptance of the corrected exact head is still required."
+    "independentReviewAcceptedEvidence": true,
+    "acceptedEvidenceHead": "8544d722433108f0b71a164675271d2f81c7a6a8",
+    "newDocumentationHeadIndependentCheckPending": true,
+    "go": true,
+    "reason": "Fable independently accepted the supplemental Production-proof evidence at 8544d722. GO is that accepted adjudication, not raw verifier output or acceptance of this new documentation head."
   },
   "decision": {
-    "task8_9": "OPEN_CANDIDATE_GO_PENDING_INDEPENDENT_REVIEW",
-    "servingAction": "retain_serving_revision_candidate",
+    "task8_9": "COMPLETE_GO_AT_ACCEPTED_EVIDENCE_HEAD_8544D722",
+    "servingAction": "retain_serving_revision",
+    "newDocumentationHeadIndependentCheckPending": true,
     "rollbackAuthorized": false,
     "productionFlagsChanged": false,
     "wave10ExposureAuthorized": false,
@@ -275,13 +312,24 @@
       "reviewedPrHead": "deac8bb7b502ae20572561f31edaf38399f5933b",
       "verdict": "reject",
       "reason": "captured skip replay queried portfolio-service instead of the retained api-gateway target"
+    },
+    {
+      "reviewedPrHead": "8544d722433108f0b71a164675271d2f81c7a6a8",
+      "verdict": "accept",
+      "criticalFindings": 0,
+      "importantFindings": 0,
+      "minorFindings": 8,
+      "ownerRelayedAcceptanceSessionUtc": "2026-09-15T06:29:29.491Z",
+      "source": "owner-relayed fresh independent Fable review; no Production access; see run-b-decision2-fable-acceptance-20260915.md",
+      "newDocumentationHeadReviewPending": true
     }
   ],
   "nonClaims": [
     "The unchanged raw execute artifact remains NON-GO because its az.cmd transport did not issue the intended filtered, timed query.",
     "This supplemental record and the raw replay artifacts supply the mandated Class 2b historical-query evidence against the retained trace and UTC window; they do not self-approve that evidence.",
     "No fresh login, setup write, reset, deployment, revision, threshold override, feature-flag change, rollback, or merge was performed by the recovery.",
-    "Task 8.9 is OPEN; evidence classification is candidate GO / retain serving revisions pending fresh independent acceptance.",
-    "A future accepted GO would not by itself authorize Wave 10 exposure or satisfy the remaining Wave 10 prerequisites."
+    "Task 8.9 is COMPLETE / GO on independently accepted evidence head 8544d722; this new documentation head still needs the quick independent check.",
+    "Accepted GO does not authorize merge, Wave 10 exposure, flags, deployment, or satisfy the remaining Wave 10 prerequisites.",
+    "Archived launcher text is historical evidence, not repaired runtime tooling or fresh execution authority."
   ]
 }

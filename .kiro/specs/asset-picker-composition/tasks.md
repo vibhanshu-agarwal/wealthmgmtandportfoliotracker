@@ -22,8 +22,9 @@ captured replay preserved the exact success query and full `Log_s`, but its skip
 separately authorized read-only query replayed the retained `api-gateway` skip query byte-for-byte
 with the exact workspace, trace, UTC window, argv, timestamps, and raw process-stream capture; it
 returned zero rows. The combined evidence supports candidate `go` / `retain_serving_revision`.
-Task 8.9 is OPEN; evidence classification is candidate GO / retain serving revisions pending fresh
-independent acceptance at the exact PR head. Merge, feature exposure, and
+Fable independently ACCEPTed the evidence at `8544d722433108f0b71a164675271d2f81c7a6a8`:
+Task 8.9 Azure live proof is COMPLETE / GO; retain serving revisions, rollback false. The new
+documentation head still requires a quick independent check. Merge, feature exposure, and
 the remaining Wave 10 gates remain separate.
 
 Task 8.9's source-only provenance correction merged through PR #248 at
@@ -122,8 +123,9 @@ The verifier's own parser and classifier map the combined raw rows to candidate 
 [Decision 2 record](../../../docs/evidence/b2-task-8-9/run-b-decision2-20260915.md),
 [corrected recovery artifact](../../../docs/evidence/b2-task-8-9/run-b-decision2-class2b-recovery-20260915.json),
 and [corrected gateway-skip transcript](../../../docs/evidence/b2-task-8-9/run-b-decision2-class2b-replay-r2-gateway-skip-operator-transcript-20260915.txt).
-Task 8.9 is **OPEN; evidence classification is candidate GO / retain serving revisions pending fresh
-independent acceptance of the corrected exact PR head**. Wave 10
+Task 8.9 Azure live proof is **COMPLETE / GO at independently accepted evidence head `8544d722`**.
+See the [acceptance and eight-Minor reconciliation record](../../../docs/evidence/b2-task-8-9/run-b-decision2-fable-acceptance-20260915.md).
+The new documentation head still needs a quick independent check before an owner merge decision. Wave 10
 remains closed on its other prerequisites and owner exposure decision; both production flags remain
 disabled, and merge is not authorized.
 
@@ -134,8 +136,9 @@ success/conflict; CI run `34018608256` passed `docker-build-verify` and `ci-requ
 local/CI evidence, not Production E2E.
 
 B1's R3 and GC.5 blockers are closed, and Tasks 7.1–7.11 are locally complete with the Task 7.9
-exact-digest serving proof recorded. B2 Task 8.9 has candidate-GO evidence but remains open pending
-fresh independent acceptance; it and the remaining Wave 10 prerequisites block exposure, so the
+exact-digest serving proof recorded. B2 Task 8.9 is COMPLETE / GO at independently accepted
+evidence head `8544d722`; the new documentation head's quick check and remaining Wave 10 prerequisites
+still gate publication/exposure, so the
 Asset Picker is not exposed to production users. Task 2.7's historical audit is
 complete with Astra's 2026-09-10 ACCEPT: containment is only at the recorded ACA boundary and
 user-visible impact remains unproven, not impossible. Task 2.6 and Wave 10.2 item 2 remain open.
@@ -2448,7 +2451,8 @@ class, not by enumeration" through "operational signals only") deliberately keep
   frontend deploy, seed, and broad verification were skipped. This closes deployment gate 8.8
   only; Task 8.9's production login, portfolio write, causal log query, and cleanup remained open at
   this deployment boundary. The 2026-09-15 Decision 2 sequence and corrected historical-query
-  evidence support candidate GO, but Task 8.9 remains OPEN pending fresh independent acceptance.
+  evidence were independently accepted by Fable at `8544d722`; Task 8.9 Azure live proof is COMPLETE /
+  GO. The new documentation head still needs the quick independent check.
   See the
   [completion evidence](../../../docs/evidence/b2-task-8-8/deployment-completion-20260910.json) and
   [owner authorization record](../../../docs/evidence/b2-task-8-8/owner-approval-20260910.json).
@@ -2574,7 +2578,12 @@ class, not by enumeration" through "operational signals only") deliberately keep
   refresh Job when selected) are digest-qualified and the manifest comparison passes. Record the
   workflow run and revision images. **Abort:** 8.9 cannot start without this evidence.
   _Requirements: 7.3c; master plan Azure-first release evidence_
-- [ ] **8.9 STOP/GO — live serving proof, not merely "8.1-8.7 green" (round-12 addition, corrected
+**Task 8.9 completion evidence (Azure):** Fable ACCEPT at
+`8544d722433108f0b71a164675271d2f81c7a6a8`, GO / retain serving revisions, rollback false;
+see the [acceptance record](../../../docs/evidence/b2-task-8-9/run-b-decision2-fable-acceptance-20260915.md).
+The new documentation head still needs the quick independent check; merge and exposure remain separate.
+
+- [x] **8.9 STOP/GO — live serving proof, not merely "8.1-8.7 green" (round-12 addition, corrected
   round-13 on four separate points — dependency, causality, cleanup, and an overclaim; corrected
   again round-14 on four further points — the causal-proof mechanism, binding the evidence to the
   deployment it certifies, a missing Abort action, and cleanup's own postcondition verification;

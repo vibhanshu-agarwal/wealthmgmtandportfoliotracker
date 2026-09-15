@@ -7,8 +7,10 @@ KQL before its predicates, timespan, and JSON-output arguments. A first captured
 the correct success query but incorrectly queried `portfolio-service` for the gateway-owned skip
 event and was rejected. One later owner-authorized query replayed the retained, time-bounded
 `api-gateway` skip query byte-for-byte and returned zero rows. The combined raw rows reproduce
-candidate `go` / `retain_serving_revision`; Task 8.9 is OPEN, with evidence classification candidate
-GO / retain serving revisions pending fresh independent acceptance;
+`go` / `retain_serving_revision`; Fable independently accepted the evidence at
+`8544d722433108f0b71a164675271d2f81c7a6a8` (0 Critical, 0 Important, 8 Minor).
+Task 8.9 Azure live proof is COMPLETE / GO; the new documentation head requires a quick independent
+check before any separate owner merge decision;
 2026-09-15 at `main@8337d7e8b982245156088719d01f49b3ad1c1be9` for the merged pre-wake correctness hardening
 (PR #275; exact-head Windows PowerShell 5.1 suite 286/286 and required aggregate CI green);
 2026-09-14 at `main@a28c481a` for the Azure-specific timeout expectation, drift guard, and evidence
@@ -38,13 +40,14 @@ mode. Immutable digest
 byte-identical non-interference proof passed; all unselected apps and the refresh Job remained
 unchanged. `0000079` was subsequently superseded and purged; its Task 8.8 deployment evidence remains
 valid history, while current `api-gateway--0000081` is separately attested below. Task 8.8b is
-therefore complete with 8.8. Task 8.9 was open at that deployment boundary and remains OPEN pending
-fresh independent acceptance of the Decision 2 evidence below. Wave 10 remains separately owner-gated, and both production
+therefore complete with 8.8. Task 8.9 was open at that deployment boundary; its later Decision 2
+evidence is COMPLETE / GO at independently accepted head `8544d722`. The new documentation head
+still needs the quick independent check. Wave 10 remains separately owner-gated, and both production
 feature flags remain disabled. See the
 [completion evidence](../evidence/b2-task-8-8/deployment-completion-20260910.json) and
 [owner approval](../evidence/b2-task-8-8/owner-approval-20260910.json).
 
-**TASK 8.9 PROVENANCE RECONCILIATION — PR #262 MERGED; LIVE PROOF REMAINS OPEN BELOW:** PR #248's source-only
+**TASK 8.9 PROVENANCE RECONCILIATION — PR #262 MERGED; LIVE PROOF ACCEPTED AT `8544d722` BELOW:** PR #248's source-only
 preflight established separate immutable per-service attestations. PR #262, merged at
 `main@45c1275ba306cde19cb344f2954c1a43c3ec4952`, preserves the original 2026-09-10 packet as
 history and adds the current [2026-09-11 provenance packet](../evidence/b2-task-8-9/deployment-provenance-20260911.json).
@@ -64,8 +67,8 @@ the production login, write, KQL, cleanup, or Task 8.9 completion; see the prior
 [2026-09-10 rehearsal record](../evidence/b2-task-8-9/rehearsal-20260910.json) remains historical
 evidence for its earlier gateway identity.
 
-**TASK 8.9 OPEN — CORRECTED DECISION 2 EVIDENCE IS CANDIDATE GO PENDING FRESH INDEPENDENT REVIEW;
-MERGE NOT AUTHORIZED:**
+**TASK 8.9 AZURE LIVE PROOF COMPLETE / GO AT FABLE-ACCEPTED `8544d722`;
+NEW DOCUMENTATION HEAD QUICK CHECK PENDING; MERGE NOT AUTHORIZED:**
 [PR #268](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/268) merged at
 `main@80b881b5c461e1bebb210ebe1db4b911cf6a336d`. The accepted head
 `400ac3c8adebd3dae7a9d085152e280a301ec637` is its second parent and has the identical merge tree
@@ -164,8 +167,10 @@ wake, deployment, or cleanup. The tracked parser and classifier reproduce candid
 [corrected gateway-skip transcript](../evidence/b2-task-8-9/run-b-decision2-class2b-replay-r2-gateway-skip-operator-transcript-20260915.txt),
 [unchanged raw execute artifact](../evidence/b2-task-8-9/run-b-decision2-execute-raw-20260915.json),
 and [operator transcript](../evidence/b2-task-8-9/run-b-decision2-operator-transcript-20260915.txt).
-Task 8.9 is **OPEN; evidence classification is candidate GO / retain serving revisions pending
-fresh independent acceptance of the corrected exact PR head**. Wave 10
+Fable independently accepted this evidence at `8544d722`: **Task 8.9 Azure live proof is COMPLETE /
+GO; retain serving revisions, rollback false**. See the
+[acceptance and eight-Minor reconciliation record](../evidence/b2-task-8-9/run-b-decision2-fable-acceptance-20260915.md).
+The new documentation head still requires a quick independent check before an owner merge decision. Wave 10
 remains closed on its other prerequisites and owner exposure decision; both Production flags remain
 disabled. Merge is not authorized.
 
@@ -584,7 +589,7 @@ At every meaningful merge or live checkpoint:
 |---|---|---|---|
 | **A — Spec A catalog/data cutover** | Shared catalog, Postgres/Mongo repair, R4 rollout, enforcement, one reconciled controlled refresh, persisted refresh enablement, demo portfolio activation, and scale-to-zero restoration | **All 14 cutover checkpoints complete.** 9.13 completed on `portfolio-service--0000092`, `market-data-service--0000079`, and `insight-service--0000079`; B2 Task 4.5 later superseded only the portfolio revision with `portfolio-service--0000093`. 9.14 completed via apply [33331130603](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33331130603), reopening ACA external ingress on `api-gateway--0000077` with `allowInsecure=false` ([`SPEC_A_9_14_REOPEN_INGRESS.md`](../runbooks/SPEC_A_9_14_REOPEN_INGRESS.md)); the later custom-domain restore has independent `200` read-back, and PR #194 independently reviewed and merged that evidence ([`API_GATEWAY_CUSTOM_DOMAIN_RECOVERY.md`](../runbooks/API_GATEWAY_CUSTOM_DOMAIN_RECOVERY.md)); historical RCA remains `MECHANISM_REPRODUCED_SETTER_UNPROVEN` | Spec A's production cutover is done. B1 G5 closed by owner decision on 2026-09-02 using the reviewed three-caller run. B1 Wave 6 Tasks 6.1–6.4 are source-complete through PR #217; the four filed process follow-ups remain open |
 | **B — B1 portfolio composition backend** | Deployment prerequisites, fixture identity migration, legacy writer retirement, gateway provisioning, V20, version-bearing read, version-required seed, Wave 7 controller/tests, R-C preparation tooling, R3 closure, GC.5 source-governance closure, immutable candidate evidence through Task 7.6, accepted Task 7.7 serving evidence, Task 7.8 owner GO, Task 7.9 exact-digest serving proof, and Task 7.10 owner GO recorded locally | **Tasks 7.1–7.11 complete locally.** `portfolio-service--0000096` serves the exact R-C manifest at 100%; the single authenticated no-op PUT was `SAME_STATE`. P11g-1 is established for the transitional range; Writer_Convergence / P11g-2 is established only for the activated exact R-C artifact and rollback artifacts at or above R-B3r. The workflow comparator covered unselected app revision/image/traffic and refresh-job image; both Kafka groups were lag zero with DLT 80 | Publication remains separate until explicitly authorized; no additional production operation or rollback occurred during Task 7.11 |
-| **C — B2 Asset Picker product** | Requirements, design, task plan, five-screen visual mockup, Waves 1–6 source, Wave 8 source/tooling, Task 3.7's Azure presence GO, Task 8.8 scoped gateway deployment, Task 8.9 candidate serving evidence, Wave 9 local real-stack integration, Task 6.3's green backend-readiness evidence, Task 10.1's Azure build-flag wiring, and Task 2.7's independently ACCEPTed historical audit | Task 3.7's current Azure proof is complete on `api-gateway--0000081`; Task 8.8/8.8b deployment evidence passed on `api-gateway--0000079` in run `34433715705`; Task 8.9's corrected Decision 2 evidence on current `api-gateway--0000081` / `portfolio-service--0000096` supports candidate GO but remains OPEN pending fresh independent acceptance; Task 10.1 merged through PR #259 without creating or changing either variable. Wave 9 Tasks 9.1–9.9 carry their recorded source/local evidence; PR #232 at `main@318f2859` passed the disposable Compose real-browser run 5/5 and required CI wiring | The combined Wave 5/Wave 8 gateway artifact is deployed hidden; no Production E2E or exposure is claimed. Task 2.6, Task 8.9 independent acceptance, and Wave 10.2 remain open; production flags remain off |
+| **C — B2 Asset Picker product** | Requirements, design, task plan, five-screen visual mockup, Waves 1–6 source, Wave 8 source/tooling, Task 3.7's Azure presence GO, Task 8.8 scoped gateway deployment, Task 8.9 accepted serving proof, Wave 9 local real-stack integration, Task 6.3's green backend-readiness evidence, Task 10.1's Azure build-flag wiring, and Task 2.7's independently ACCEPTed historical audit | Task 3.7's current Azure proof is complete on `api-gateway--0000081`; Task 8.8/8.8b deployment evidence passed on `api-gateway--0000079` in run `34433715705`; Task 8.9's corrected Decision 2 evidence on current `api-gateway--0000081` / `portfolio-service--0000096` is COMPLETE / GO at independently accepted evidence head `8544d722`; the new documentation head's quick check remains pending; Task 10.1 merged through PR #259 without creating or changing either variable. Wave 9 Tasks 9.1–9.9 carry their recorded source/local evidence; PR #232 at `main@318f2859` passed the disposable Compose real-browser run 5/5 and required CI wiring | The combined Wave 5/Wave 8 gateway artifact is deployed hidden; no Production E2E or exposure is claimed. Task 2.6 and Wave 10.2 remain open; the new documentation head's quick check is pending; production flags remain off |
 | **D — Demo credibility** | Canonical prices refreshed and reconciled; demo initializer exists; authorized 9.12 retry activated the Active_Asset set | Demo portfolio holds the exact 159-holding golden set after Task 4.5's one-call live proof on `portfolio-service--0000093`; version remained `0` under the valid same-state no-op; both flags remain `false`; historical pooled-session setter remains unidentified | 9.14 and the custom-domain restore are complete; B1 G5 closed by owner decision on 2026-09-02 using run 33411410271. Operational 9.12 success does not close historical RCA |
 
 ### What is actually usable today
@@ -768,9 +773,9 @@ Wave 4 Tasks 4.1–4.4a merged via PR #180 at `main@63fc058`; that exact histori
 | 5 — manual-reset gateway bundle | ✅ Source Tasks 5.1–5.5 plus 5.1a/5.1b are merged, Task 5.6 owner GO is recorded, and the complete bundle was shipped hidden with the approved Task 8.8 scoped gateway deployment | Deployment run `34433715705` placed the bundle on `api-gateway--0000079` at `sha256:aee44edc…`; Task 6.3's current gateway-read evidence binds successor `api-gateway--0000081`. The frontend control remains disabled and Wave 10 exposure remains separate |
 | 6 — manual reset frontend | ✅ Tasks 6.1/6.2 merged via [PR #214](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/214) at `main@48d0aba8`, identical to CI-green head `b918ff09`; ACCEPT, R1–R4 closed | Committed flags off; the owner finalized the existing page-level placement on 2026-09-06. Task 6.3 is green on [bounded gateway-read evidence](../evidence/b2-task-6-3/backend-readiness-gateway-read-20260911.json); Wave 10 remains closed. The owner-deferred [sidebar backlog](../todos/backlog/responsive-dashboard-sidebar/README.md) remains open |
 | 7 — decimal rollout note | ℹ Informational | No independent release gate |
-| 8 — login-orchestrated reset | 🟡 Tasks 8.1–8.8 and 8.8b are complete for Azure; Task 8.9 remains open. Run `34433715705` deployed historical `api-gateway--0000079` at `sha256:aee44edc…`; current-attempt and non-interference proofs passed, and the revision was later superseded and purged. PR #262 reconciled Task 8.9's current [per-service provenance packet](../evidence/b2-task-8-9/deployment-provenance-20260911.json) to `api-gateway--0000081` / run `34588465283`, retaining the independent `portfolio-service--0000096` / run `34328692256` attestation with no common workflow identity. Run A attempts 1–3 remain historical NON-GO records; [attempt 4](../evidence/b2-task-8-9/run-a-attempt-20260915.md) passed the accepted read-only preflight. The owner-authorized [Decision 2 execute proof](../evidence/b2-task-8-9/run-b-decision2-20260915.md) used the real `30m` threshold; its raw verifier result remains Class 2b / NON-GO. The initial captured recovery supplies one complete trace-correlated success row but its wrong-app skip is rejected; a second owner-authorized, byte-identical retained `api-gateway` query supplies the accepted zero-row skip result. | Task 8.9 is OPEN; evidence classification is candidate GO / retain `api-gateway--0000081` and `portfolio-service--0000096` pending fresh independent acceptance of the corrected exact PR head, with no rollback. Task 8.8a remains AWS-only. Production flags remain off. Wave 10 remains closed on Task 8.9 acceptance, its other prerequisites, owner exposure decision, flag-bearing build/deployment, and Production E2E; merge is not authorized. |
+| 8 — login-orchestrated reset | ✅ Tasks 8.1–8.8, 8.8b, and Task 8.9 live proof are complete for Azure at independently accepted evidence head `8544d722`. Run `34433715705` deployed historical `api-gateway--0000079` at `sha256:aee44edc…`; current-attempt and non-interference proofs passed, and the revision was later superseded and purged. PR #262 reconciled Task 8.9's current [per-service provenance packet](../evidence/b2-task-8-9/deployment-provenance-20260911.json) to `api-gateway--0000081` / run `34588465283`, retaining the independent `portfolio-service--0000096` / run `34328692256` attestation with no common workflow identity. Run A attempts 1–3 remain historical NON-GO records; [attempt 4](../evidence/b2-task-8-9/run-a-attempt-20260915.md) passed the accepted read-only preflight. The owner-authorized [Decision 2 execute proof](../evidence/b2-task-8-9/run-b-decision2-20260915.md) used the real `30m` threshold; its raw verifier result remains Class 2b / NON-GO. The initial captured recovery supplies one complete trace-correlated success row but its wrong-app skip is rejected; a second owner-authorized, byte-identical retained `api-gateway` query supplies the accepted zero-row skip result. | Task 8.9 is COMPLETE / GO at accepted evidence head `8544d722`; retain `api-gateway--0000081` and `portfolio-service--0000096` with no rollback; the new documentation head still needs the quick independent check. Task 8.8a remains AWS-only. Production flags remain off. Wave 10 remains closed on its other prerequisites, owner exposure decision, flag-bearing build/deployment, and Production E2E; merge is not authorized. |
 | 9 — live integration | 🟡 Tasks 9.1, 9.3, 9.4, 9.5 (PR #231 at `main@b4c68253b99a796d6301ef79b5aa5a47d5cbd962`), and 9.6 have their recorded source/local evidence. Tasks 9.2/9.7/9.8/9.9 are source/assembled-stack complete: one disposable Compose real-browser run passed 5/5 across setup plus picker and demo-reset success/conflict; PR #232 merged at `main@318f28592da6ab2e3bd66bc738aa68d374b180fa`, with final CI run `34018608256` passing `docker-build-verify` and `ci-required`, and body-edit guard run `34020180243` passing | No deployment or Production E2E is claimed; the B2-specific Wave 10 convergence/exposure gate and Production E2E still gate exposure. This is not the already-proved B1 P11g-2 property; production flags remain off |
-| 10 — production exposure | 🟡 Task 10.1 source wiring complete; exposure blocked | PR #259 / `main@03ca6300` passed its CI contract without creating or changing either repository variable. Task 8.9 has candidate-GO evidence but remains open pending fresh independent acceptance. Wave 10.2 still requires B2 live decimal fidelity, explicit owner approval, a new build/deploy, and Production E2E |
+| 10 — production exposure | 🟡 Task 10.1 source wiring complete; exposure blocked | PR #259 / `main@03ca6300` passed its CI contract without creating or changing either repository variable. Task 8.9 is COMPLETE / GO at accepted evidence head `8544d722`; the new documentation head's quick check remains pending. Wave 10.2 still requires B2 live decimal fidelity, explicit owner approval, a new build/deploy, and Production E2E |
 
 **Wave 8 status correction (2026-09-07; superseded historical snapshot):** Task 8.1 provenance is source `6a171558`, cu4/revision
 `0000094`, digest `sha256:2be727eaf4577699c783ae66073670d4984fe66c666af3e56422c934fdd0b023`; this is
@@ -782,8 +787,8 @@ remained open. **Current status:** B1 R-C Tasks 7.1–7.11 are locally complete,
 Writer_Convergence / P11g-2 is proved only for the activated exact R-C artifact and rollback artifacts
 at or above R-B3r. Task 5.6 GO and Task 8.8/8.8b deployment evidence are now complete. The active
 B2 gates are live decimal-fidelity evidence, the B2-specific Wave 10 convergence/exposure gate,
-and Production E2E; Task 8.9's live serving evidence is candidate GO pending fresh independent
-acceptance, and production flags remain off.
+and Production E2E; Task 8.9's live serving evidence is COMPLETE / GO at independently accepted
+head `8544d722`, with the new documentation head's quick check pending. Production flags remain off.
 
 The aggregate `assetPriceFreshness` backend dependency is now **closed**: Spec A task 8.6 is
 complete and `PortfolioSummaryDto.assetPriceFreshness` exists. B2 Wave 1 delivered the mocked
@@ -883,8 +888,8 @@ Azure-only build-flag wiring is merged through PR #259 without creating or chang
 disposable Compose real-browser integration passed 5/5 through PR #232. These are source/local-CI
 claims, except for the separately evidenced Task 8.8 scoped gateway deployment. Task 5.6 owner GO
 and Task 8.8/8.8b deployment evidence completed on 2026-09-10 in run `34433715705`. Task 2.7's
-historical audit is independently ACCEPTed; Task 8.9 has candidate-GO evidence but remains open
-pending fresh independent acceptance, while Task 2.6 and Wave 10 also remain open;
+historical audit is independently ACCEPTed; Task 8.9 is COMPLETE / GO at independently accepted
+evidence head `8544d722`, with the new documentation head's quick check pending. Task 2.6 and Wave 10 remain open;
 both production feature flags remain disabled. The owner-deferred
 [sidebar issue](../todos/backlog/responsive-dashboard-sidebar/README.md) remains separate.
 
@@ -927,7 +932,8 @@ additional production operation or rollback occurred during Task 7.11.
    browser integration are complete through PR #232 at `main@318f2859`, whose run `34018608256`
    passed `docker-build-verify` and `ci-required`. Task 5.6 owner GO and Task 8.8/8.8b deployment
    evidence completed on 2026-09-10 in run `34433715705`; Task 6.3 backend readiness is green, while
-   Task 8.9 live serving evidence is candidate GO pending fresh independent acceptance and Wave 10
+   Task 8.9 live serving proof is COMPLETE / GO at independently accepted evidence head `8544d722`;
+   the new documentation head's quick check is pending and Wave 10
    remains open. Both feature flags remain off, and no
    Production E2E or exposure is claimed.
 4. **Process lane:** keep the status-propagation CI guard healthy in required `static-guard`; it is

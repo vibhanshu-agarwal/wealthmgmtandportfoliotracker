@@ -63,6 +63,7 @@ invocation. The installed shim used by the verifier has the same load-bearing fo
 ## Acceptance boundary
 
 Source tests and independent review may close this implementation backlog. The later evidence-only
-replays do not fix this source defect. Task 8.9 is **OPEN; evidence classification is candidate GO /
-retain serving revisions pending fresh independent acceptance**. The raw execute artifact remains
+replays do not fix this source defect. Task 8.9 Azure live proof is **COMPLETE / GO at independently
+accepted evidence head `8544d722`**; the new documentation head's quick check remains pending.
+This implementation backlog stays OPEN. The raw execute artifact remains
 Class 2b / NON-GO.
