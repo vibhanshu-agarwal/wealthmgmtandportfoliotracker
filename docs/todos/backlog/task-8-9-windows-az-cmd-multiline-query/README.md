@@ -48,6 +48,13 @@ invocation. The installed shim used by the verifier has the same load-bearing fo
   child invocation unchanged.
 - Make the runner fail closed if the query process raises a decoding error; preserve raw bytes or
   decode in a way that cannot turn malformed transport into ambiguous event evidence.
+- Make `_query_once` reject a non-string `stdout` before calling `json.loads`. The 2026-09-15
+  failure returned `stdout=None` after the decoder-thread error, so `json.loads(None)` raised an
+  uncaught `TypeError` and bypassed `_poll_events`' normal `d_query_error` finalization.
+- Make `classify_task8_9` reject every unrecognized or non-terminal event outcome explicitly,
+  including the internal initialization value `polling`. The raw execute artifact retained
+  `events.outcome=polling` after the exception; that value must never reach binding classification
+  as though polling had completed.
 - Record the child-visible query coordinates and raw query response required by Task 8.9, not only
   the intended pre-dispatch argv.
 - Keep the existing raw 2026-09-15 proof immutable; a fixed verifier cannot retrospectively change
@@ -55,6 +62,7 @@ invocation. The installed shim used by the verifier has the same load-bearing fo
 
 ## Acceptance boundary
 
-Source tests and independent review may close this implementation backlog. Task 8.9 itself remains
-OPEN / NON-GO until the authorized historical query is rerun with complete raw capture and that
-evidence is independently accepted.
+Source tests and independent review may close this implementation backlog. The later evidence-only
+replays do not fix this source defect. Task 8.9 is **OPEN; evidence classification is candidate GO /
+retain serving revisions pending fresh independent acceptance**. The raw execute artifact remains
+Class 2b / NON-GO.

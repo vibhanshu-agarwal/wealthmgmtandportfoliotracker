@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "recordedDate": "2026-09-15",
   "task": "B2 Task 8.9 Decision 2 Production execute proof",
   "result": "CANDIDATE_GO_PENDING_INDEPENDENT_REVIEW",
@@ -8,6 +8,10 @@
     "ownerAuthorizedEvidencePublication": true,
     "ownerAuthorizedHistoricalQueryReplay": true,
     "historicalQueryReplayScope": "exactly two retained read-only Log Analytics queries; no login, mutation, wake, deployment, cleanup, or retry",
+    "ownerAuthorizedGatewaySkipCorrectionReplay": true,
+    "gatewaySkipCorrectionReplayScope": "exactly one byte-identical retained api-gateway skip query with the same workspace, trace, UTC window, transport, and raw capture; no retry, login, mutation, wake, deployment, cleanup, rollback, exposure, or merge",
+    "gatewaySkipCorrectionAuthorizationQuote": "[Vibhanshu] Authorized per comments",
+    "gatewaySkipCorrectionAuthorizationReceivedUtc": "2026-09-15T03:54:50.0510297Z",
     "independentReviewAcceptedCurrentEvidence": false,
     "mergeAuthorized": false,
     "featureExposureAuthorized": false
@@ -68,7 +72,7 @@
       "conflictObserved": false,
       "postCleanupGolden": true,
       "postCleanupVersion": 6,
-      "eventExclusionNote": "Cleanup also emitted demo_reset_succeeded version=6. The recovered success row is the login-correlated row because both retained queries require trace 45097abc3f131da71b27d1b248b3e3c9 and the original login window; the cleanup event has a different trace and occurred outside that correlation."
+      "eventExclusionNote": "Cleanup also emitted demo_reset_succeeded version=6 inside the retained UTC window. The recovered success row is the login-correlated row because the query requires trace 45097abc3f131da71b27d1b248b3e3c9; cleanup used a different trace. The trace predicate, not time, excludes cleanup."
     },
     "thresholdRestore": {
       "required": false,
@@ -99,34 +103,61 @@
     "transportRepair": {
       "azureCommand": "az.cmd",
       "defect": "The original verifier passed multiline KQL through az.cmd; only the first query line reached the intended CLI invocation and the trailing timespan/output arguments were dropped.",
-      "replayChange": "The authorized replay bypassed az.cmd and invoked the same installed azure.cli module through its bundled python.exe, preserving each retained multiline KQL argument and every trailing argument.",
+      "replayChange": "Both recovery rounds bypassed az.cmd and invoked the same installed azure.cli module through its bundled python.exe. The accepted success query and the correction-round gateway skip query preserve the retained multiline KQL and every trailing argument.",
+      "initialReplayDefect": "The initial replay launcher derived the skip query by replacing only demo_reset_succeeded with demo_reset_self_call_skipped, leaving the portfolio-service app filter. Its zero-row result is rejected and is not used by the recovered outcome.",
       "semanticChange": false,
       "nonWhitespaceQueryContentChanged": false,
       "rawIsoUtcTimespanPreserved": true,
-      "queryInvocationCount": 2,
+      "initialReplayQueryInvocationCount": 2,
+      "gatewaySkipCorrectionQueryInvocationCount": 1,
+      "totalRecoveryQueryInvocationCount": 3,
       "retryCount": 0
     },
-    "rawReplayArtifacts": {
-      "operatorTranscript": {
+    "replayArtifacts": {
+      "supersededInitialOperatorTranscript": {
         "path": "docs/evidence/b2-task-8-9/run-b-decision2-class2b-replay-operator-transcript-20260915.txt",
-        "sha256": "54e5fa7792d0e238269c6e2bb44698eff65b63d03ca458e7cd732799c17d5d6d",
-        "sanitization": "Only PowerShell transcript header host identity and user-specific host paths were replaced; query argv, timestamps, stdout, stderr hashes, and results are unchanged."
+        "sha256": "674cd808ebb54824bf90dc45996b901e32e511332a1079deb7edc4b0ef383fd9",
+        "sanitization": "Only PowerShell transcript header host identity and user-specific host paths were replaced; CRLF line endings were preserved, and query argv, timestamps, stdout, stderr hashes, and results are unchanged.",
+        "status": "success query accepted; wrong-app skip query rejected"
       },
       "successStdout": {
         "path": "docs/evidence/b2-task-8-9/run-b-decision2-class2b-replay-success-stdout-20260915.json",
-        "sha256": "9ddcf5bfdad2c2c51e82851e86a905a778621977a56d4354d048ae76db4ea776"
+        "sha256": "9ddcf5bfdad2c2c51e82851e86a905a778621977a56d4354d048ae76db4ea776",
+        "captureMethod": "Initial Tee-Object text rewrite; accepted content but not claimed byte-raw"
       },
       "successStderr": {
         "path": "docs/evidence/b2-task-8-9/run-b-decision2-class2b-replay-success-stderr-20260915.txt",
-        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "captureMethod": "Initial Tee-Object text rewrite; accepted empty content but not claimed byte-raw"
       },
-      "skipStdout": {
+      "supersededWrongAppSkipStdout": {
         "path": "docs/evidence/b2-task-8-9/run-b-decision2-class2b-replay-skip-stdout-20260915.json",
-        "sha256": "a5338d955b09046ec0b16f3a9625b7955c763aae07dc722e474e6078745f932f"
+        "sha256": "a5338d955b09046ec0b16f3a9625b7955c763aae07dc722e474e6078745f932f",
+        "probativeForGatewaySkip": false,
+        "captureMethod": "Initial Tee-Object text rewrite; not claimed byte-raw"
       },
-      "skipStderr": {
+      "supersededWrongAppSkipStderr": {
         "path": "docs/evidence/b2-task-8-9/run-b-decision2-class2b-replay-skip-stderr-20260915.txt",
         "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "gatewaySkipCorrectionOperatorTranscript": {
+        "path": "docs/evidence/b2-task-8-9/run-b-decision2-class2b-replay-r2-gateway-skip-operator-transcript-20260915.txt",
+        "sha256": "af8aa122c1136bfa155d734f234c326ec0c94317bb7816a24d2464b0e353f297",
+        "rawOriginalPath": "C:\\t89\\run-b-decision2-class2b-replay-r2-gateway-skip-operator-20260915.txt",
+        "rawOriginalSha256": "19154646296f32854cb49d758e85abf6273620c5ae6e1451d917606d3ee5a41c",
+        "sanitization": "Only four PowerShell header lines were replaced; CRLF line endings were preserved and all query/evidence lines are unchanged."
+      },
+      "gatewaySkipCorrectionStdout": {
+        "path": "docs/evidence/b2-task-8-9/run-b-decision2-class2b-replay-r2-gateway-skip-stdout-20260915.json",
+        "sha256": "a5338d955b09046ec0b16f3a9625b7955c763aae07dc722e474e6078745f932f",
+        "rawOriginalPath": "C:\\t89\\run-b-decision2-class2b-replay-r2-gateway-skip-stdout-20260915.json",
+        "rawCaptureMethod": "Process.StandardOutput.BaseStream copied directly to a new file; no Tee-Object or text rewrite"
+      },
+      "gatewaySkipCorrectionStderr": {
+        "path": "docs/evidence/b2-task-8-9/run-b-decision2-class2b-replay-r2-gateway-skip-stderr-20260915.txt",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "rawOriginalPath": "C:\\t89\\run-b-decision2-class2b-replay-r2-gateway-skip-stderr-20260915.txt",
+        "rawCaptureMethod": "Process.StandardError.BaseStream copied directly to a new file; no text rewrite"
       }
     },
     "queries": {
@@ -148,16 +179,41 @@
       "skip": {
         "retainedMultilineSha256": "458a34237a22d2f860eba9afae7b209279580d1781460ccbfe70cf5337fdcf40",
         "priorUncapturedReplaySingleLineSha256": "4864e9eeb859557e9cd5a1a4ea97ce8cdd4757bdadbf69af8b5d8268eac34a97",
+        "initialCapturedReplayStatus": "rejected_wrong_app_filter_portfolio_service",
+        "acceptedReplayApp": "api-gateway",
+        "retainedQueryOrdinalMatch": true,
+        "workspace": "83a9c3a2-659e-40ca-9784-1ff871b9d5ea",
+        "timespan": "2026-09-15T01:02:27.089196Z/2026-09-15T01:05:51.164581Z",
         "exitCode": 0,
         "rowCount": 0,
-        "startedUtc": "2026-09-15T02:38:54.2804197Z",
-        "endedUtc": "2026-09-15T02:38:57.5495903Z"
+        "startedUtc": "2026-09-15T03:54:50.0982079Z",
+        "endedUtc": "2026-09-15T03:54:57.4846284Z",
+        "queryInvocationCount": 1,
+        "retryCount": 0
       }
     },
     "recoveredOutcome": "a_success_only"
   },
   "classification": {
+    "evaluationKind": "derived_reconstruction_from_published_raw_rows_not_raw_verifier_output",
+    "parserFunction": "scripts.verify_demo_reset_azure.parse_event_rows",
     "function": "scripts.verify_demo_reset_azure.classify_task8_9",
+    "rawInputs": {
+      "successRows": "docs/evidence/b2-task-8-9/run-b-decision2-class2b-replay-success-stdout-20260915.json",
+      "skipRows": "docs/evidence/b2-task-8-9/run-b-decision2-class2b-replay-r2-gateway-skip-stdout-20260915.json"
+    },
+    "parserOutput": {
+      "success": {
+        "event": "demo_reset_succeeded",
+        "version": 6,
+        "traceId": "45097abc3f131da71b27d1b248b3e3c9",
+        "timeGenerated": "2026-09-15T01:04:54.5818434Z",
+        "containerAppName": "portfolio-service",
+        "revisionName": "portfolio-service--0000096",
+        "rawLog": "2026-09-15T01:04:54.004Z INFO  [portfolio-service,45097abc3f131da71b27d1b248b3e3c9,abf3cc1f1b7479b8] c.w.portfolio.demo.DemoResetService - event=demo_reset_succeeded version=6"
+      },
+      "skip": null
+    },
     "input": {
       "events": {
         "outcome": "a_success_only",
@@ -184,6 +240,12 @@
     }
   },
   "finalGateEvaluation": {
+    "evaluationKind": "derived_supplemental_gate_reconstruction_not_raw_verifier_output",
+    "substitutions": {
+      "events": "accepted success raw rows plus corrected retained api-gateway skip raw rows replace the raw verifier's unfinished polling event object",
+      "classificationDetail": "fresh local execution of the tracked parser and classifier against those published raw rows",
+      "bindingReviewGate": "independentReviewAcceptedCurrentEvidence=false keeps go=false until a fresh reviewer accepts this exact head"
+    },
     "candidateGo": true,
     "cleanupOk": true,
     "thresholdRestoreOk": true,
@@ -193,7 +255,7 @@
     "internalApiKeyAlignmentProvenByTracedSuccess": true,
     "independentReviewAcceptedCurrentEvidence": false,
     "go": false,
-    "reason": "The evidence now supports a candidate GO, but the prior independent review was a rejection and a fresh independent acceptance is still required."
+    "reason": "The evidence supports a candidate GO, but both prior independent review rounds were rejections and a fresh independent acceptance of the corrected exact head is still required."
   },
   "decision": {
     "task8_9": "OPEN_CANDIDATE_GO_PENDING_INDEPENDENT_REVIEW",
@@ -203,11 +265,23 @@
     "wave10ExposureAuthorized": false,
     "mergeAuthorized": false
   },
+  "reviewHistory": [
+    {
+      "verdict": "reject",
+      "scope": "initial manual recovery summary",
+      "reason": "raw rows, full payload, effective argv, timespan, stdout, and timestamps were absent"
+    },
+    {
+      "reviewedPrHead": "deac8bb7b502ae20572561f31edaf38399f5933b",
+      "verdict": "reject",
+      "reason": "captured skip replay queried portfolio-service instead of the retained api-gateway target"
+    }
+  ],
   "nonClaims": [
     "The unchanged raw execute artifact remains NON-GO because its az.cmd transport did not issue the intended filtered, timed query.",
     "This supplemental record and the raw replay artifacts supply the mandated Class 2b historical-query evidence against the retained trace and UTC window; they do not self-approve that evidence.",
     "No fresh login, setup write, reset, deployment, revision, threshold override, feature-flag change, rollback, or merge was performed by the recovery.",
-    "Task 8.9 remains open until fresh independent review accepts the corrected evidence.",
+    "Task 8.9 is OPEN; evidence classification is candidate GO / retain serving revisions pending fresh independent acceptance.",
     "A future accepted GO would not by itself authorize Wave 10 exposure or satisfy the remaining Wave 10 prerequisites."
   ]
 }

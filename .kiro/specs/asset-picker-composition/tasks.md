@@ -16,10 +16,14 @@ was subsequently superseded and purged; current `api-gateway--0000081` is separa
 Task 8.9's read-only Run A preflight is accepted. Its separately owner-authorized credential-using
 execute proof completed on 2026-09-15, but the raw verifier ended `class_2b` / NON-GO because the
 Windows `az.cmd` boundary did not transport its multiline query intact. An earlier manual recovery
-summary was rejected because it lacked the full raw query evidence this task requires. One later,
-separately authorized read-only replay captured the exact argv, timespan, timestamps, raw stdout,
-full `Log_s`, and zero-row skip result. That corrected evidence supports a candidate GO, but Task 8.9
-remains open pending fresh independent acceptance at the exact PR head. Merge, feature exposure, and
+summary was rejected because it lacked the full raw query evidence this task requires. A later
+captured replay preserved the exact success query and full `Log_s`, but its skip query used
+`portfolio-service` instead of the retained gateway filter and was rejected. One further,
+separately authorized read-only query replayed the retained `api-gateway` skip query byte-for-byte
+with the exact workspace, trace, UTC window, argv, timestamps, and raw process-stream capture; it
+returned zero rows. The combined evidence supports candidate `go` / `retain_serving_revision`.
+Task 8.9 is OPEN; evidence classification is candidate GO / retain serving revisions pending fresh
+independent acceptance at the exact PR head. Merge, feature exposure, and
 the remaining Wave 10 gates remain separate.
 
 Task 8.9's source-only provenance correction merged through PR #248 at
@@ -105,16 +109,21 @@ dropped. The UTF-8 decoder exception was a downstream symptom. The defect is rec
 
 The first manual historical-query summary was not sufficient: it retained neither raw stdout nor
 the full matched payload and reproducibility coordinates required by this task. After fresh owner
-authorization, exactly two read-only historical queries were issued once each, with zero retries and
-no login, mutation, wake, deployment, or cleanup. The published transcript records effective argv,
-exact UTC timespan, and query timestamps; raw stdout contains one complete trace-correlated
-`demo_reset_succeeded version=6` row including full `Log_s`, while the raw skip stdout is `[]`.
-Cleanup's separate success event is excluded by the retained login trace and original UTC window.
-The tracked classifier maps that evidence to candidate `go` / `retain_serving_revision`. See the
+authorization, two read-only historical queries were issued once each with zero retries and no
+login, mutation, wake, deployment, or cleanup. The success query was byte-identical to the retained
+query and returned one complete trace-correlated `demo_reset_succeeded version=6` row including full
+`Log_s`. The skip query incorrectly retained the `portfolio-service` filter and its zero-row result
+was rejected. After a second explicit owner authorization, one further read-only query replayed the
+retained `api-gateway` skip query byte-for-byte with the same workspace, trace, UTC window, direct
+transport, and raw process-stream capture; it exited `0`, returned `[]`, and recorded one invocation
+with zero retries. Cleanup occurred inside the window and is excluded only by the trace-id filter.
+The verifier's own parser and classifier map the combined raw rows to candidate `go` /
+`retain_serving_revision`. See the
 [Decision 2 record](../../../docs/evidence/b2-task-8-9/run-b-decision2-20260915.md),
 [corrected recovery artifact](../../../docs/evidence/b2-task-8-9/run-b-decision2-class2b-recovery-20260915.json),
-and [raw replay transcript](../../../docs/evidence/b2-task-8-9/run-b-decision2-class2b-replay-operator-transcript-20260915.txt).
-Task 8.9 remains OPEN pending fresh independent acceptance of the corrected exact PR head. Wave 10
+and [corrected gateway-skip transcript](../../../docs/evidence/b2-task-8-9/run-b-decision2-class2b-replay-r2-gateway-skip-operator-transcript-20260915.txt).
+Task 8.9 is **OPEN; evidence classification is candidate GO / retain serving revisions pending fresh
+independent acceptance of the corrected exact PR head**. Wave 10
 remains closed on its other prerequisites and owner exposure decision; both production flags remain
 disabled, and merge is not authorized.
 
@@ -2438,7 +2447,9 @@ class, not by enumeration" through "operational signals only") deliberately keep
   `market-data-service`, `insight-service`, and `market-data-refresh-job` were unchanged. AWS,
   frontend deploy, seed, and broad verification were skipped. This closes deployment gate 8.8
   only; Task 8.9's production login, portfolio write, causal log query, and cleanup remained open at
-  this deployment boundary and are now closed by the 2026-09-15 Decision 2 evidence above. See the
+  this deployment boundary. The 2026-09-15 Decision 2 sequence and corrected historical-query
+  evidence support candidate GO, but Task 8.9 remains OPEN pending fresh independent acceptance.
+  See the
   [completion evidence](../../../docs/evidence/b2-task-8-8/deployment-completion-20260910.json) and
   [owner authorization record](../../../docs/evidence/b2-task-8-8/owner-approval-20260910.json).
 - [ ] **8.8a AWS-only: CloudFront forwards `traceparent` on `/api/*` (round-15 addition — verified
