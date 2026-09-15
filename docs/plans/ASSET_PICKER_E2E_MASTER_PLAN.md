@@ -173,7 +173,7 @@ GO; retain serving revisions, rollback false**. See the
 [acceptance and eight-Minor reconciliation record](../evidence/b2-task-8-9/run-b-decision2-fable-acceptance-20260915.md).
 Fable accepted documentation head `fab158cb`; PR #278 merged at `main@6e046741`. Wave 10
 remains closed on its other prerequisites and owner exposure decision; both Production flags remain
-disabled. Merge is not authorized.
+disabled. No further merge is authorized.
 
 **B2 TASK 10.1 SOURCE WIRING — MERGED THROUGH PR #259; EXPOSURE CLOSED:**
 PR #259 merged at `main@03ca63000a16f38484a37cc85ab938a0ad7874c2`. Its two-file Azure-only change

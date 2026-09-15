@@ -25,7 +25,7 @@
     "ownerAuthorizedRecordCommitAndPush": true,
     "acceptanceRecord": {
       "path": "docs/evidence/b2-task-8-9/run-b-decision2-fable-acceptance-20260915.md",
-      "sha256": "70392ae3e3de5ef9dd7f4abf24014161f071929989ef632ebed2357d83e2a5c8"
+      "sha256": "8f139bbcd422cb3acbd91c1dfde2b228f6f82ce127aaa7e90fad240fcb6ed224"
     },
     "furtherMergeAuthorized": false,
     "featureExposureAuthorized": false
@@ -286,7 +286,8 @@
         "taskPolicy": ".kiro/specs/asset-picker-composition/tasks.md — Task 8.9",
         "finalGoGate": "scripts/verify_demo_reset_azure.py:2041-2047 at fab158cb",
         "alignmentDerivation": "scripts/verify_demo_reset_azure.py:1986 at fab158cb",
-        "reviewerLocatorCaveat": "tasks.md:3905-3911 at fab158cb is secret-safe comparison procedure, not final GO gate"
+        "class2bHistoricalQueryRetryPolicy": ".kiro/specs/asset-picker-composition/tasks.md:3909-3925 at fab158cb — retry the same historical trace against the same time window before a fresh end-to-end run",
+        "reviewerLocatorCaveat": "tasks.md:3905-3911 at fab158cb begins the secret-safe comparison procedure; the immediately following Class 2b policy at 3909-3925 governs the historical-query retry"
       }
     },
     "candidateGo": true,

@@ -44,8 +44,10 @@ tests afresh. These live checks are separate from what Fable checked offline.
    and alignment derivation at
    [line 1986](../../../scripts/verify_demo_reset_azure.py#L1986), under
    [Task 8.9's governing policy](../../../.kiro/specs/asset-picker-composition/tasks.md).
-   The review's suggested `tasks.md:3905–3911` locator at `fab158cb` is the secret-safe
-   comparison procedure, not this final gate; it is not silently presented as a gate citation.
+   The review's `tasks.md:3905–3911` locator at `fab158cb` begins the secret-safe comparison
+   procedure; the immediately following [Class 2b historical-query retry policy]
+   (../../../.kiro/specs/asset-picker-composition/tasks.md#L3909) at lines 3909–3925 is the
+   applicable retry rule. Neither is presented as the verifier's final GO gate.
    The raw `verdict.errors` and `internalApiKeyProven=false` remain unchanged; acceptance
    applies to supplemental adjudication, not a successful raw verifier exit.
 3. **Attempt-4 banner:** both recovery rejections and the later corrected acceptance are now
