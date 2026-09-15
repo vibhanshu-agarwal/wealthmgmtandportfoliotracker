@@ -3,3 +3,21 @@
 *.jar binary
 /docs/evidence/b1-r3-decision1/v21-r3-operational-query.sql text eol=lf
 /docs/evidence/b1-r3-decision1/v21-r3-operational-result.json text eol=lf
+/docs/evidence/b2-task-8-9/run-a-attempt-20260915.md -text
+/docs/evidence/b2-task-8-9/run-a-attempt4-preflight-20260915.json -text
+/docs/evidence/b2-task-8-9/run-a-attempt4-operator-transcript-20260915.txt -text
+/docs/evidence/b2-task-8-9/run-b-decision2-preflight-20260915.json -text whitespace=cr-at-eol
+/docs/evidence/b2-task-8-9/run-b-decision2-execute-raw-20260915.json -text whitespace=cr-at-eol
+/docs/evidence/b2-task-8-9/run-b-decision2-operator-transcript-20260915.txt -text whitespace=-blank-at-eol,cr-at-eol
+/docs/evidence/b2-task-8-9/run-b-decision2-class2b-recovery-20260915.json -text whitespace=cr-at-eol
+/docs/evidence/b2-task-8-9/run-b-decision2-owner-authorizations-20260915.md -text
+/docs/evidence/b2-task-8-9/run-b-decision2-class2b-replay-operator-transcript-20260915.txt -text whitespace=-blank-at-eol,cr-at-eol
+/docs/evidence/b2-task-8-9/run-b-decision2-class2b-replay-success-stdout-20260915.json -text whitespace=cr-at-eol
+/docs/evidence/b2-task-8-9/run-b-decision2-class2b-replay-success-stderr-20260915.txt -text whitespace=cr-at-eol
+/docs/evidence/b2-task-8-9/run-b-decision2-class2b-replay-skip-stdout-20260915.json -text whitespace=cr-at-eol
+/docs/evidence/b2-task-8-9/run-b-decision2-class2b-replay-skip-stderr-20260915.txt -text whitespace=cr-at-eol
+/docs/evidence/b2-task-8-9/run-b-decision2-class2b-replay-r2-gateway-skip-operator-transcript-20260915.txt -text whitespace=-blank-at-eol,cr-at-eol
+/docs/evidence/b2-task-8-9/run-b-decision2-class2b-replay-r2-gateway-skip-stdout-20260915.json -text whitespace=cr-at-eol
+/docs/evidence/b2-task-8-9/run-b-decision2-class2b-replay-r2-gateway-skip-stderr-20260915.txt -text whitespace=cr-at-eol
+/docs/evidence/b2-task-8-9/run-b-decision2-initial-replay-launcher-20260915.ps1.txt -text
+/docs/evidence/b2-task-8-9/run-b-decision2-gateway-skip-replay-launcher-20260915.ps1.txt -text

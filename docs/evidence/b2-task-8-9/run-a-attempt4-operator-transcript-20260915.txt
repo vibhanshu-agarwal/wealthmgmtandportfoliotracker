@@ -1,0 +1,443 @@
+﻿**********************
+Windows PowerShell transcript start
+Start time: 20260915030345
+Username: [REDACTED: host identity]
+RunAs User: [REDACTED: host identity]
+Configuration Name: 
+Machine: [REDACTED: host identity]
+Host Application: [REDACTED: host identity]
+Process ID: [REDACTED: host identity]
+PSVersion: 5.1.26100.9444
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.9444
+BuildVersion: 10.0.26100.9444
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+Transcript started, output file is C:\t89\run-a-attempt4-20260915.transcript.txt
+operator-start-utc=2026-09-14T21:33:45.0703877Z
+operator=Claude (Opus 5) under owner authorization 2026-09-15; repo-head=1f922a89643f5bb406dcdf471e8dc07a229960d6; cwd=C:\worktrees\wealthmgmtandportfoliotracker-worktrees\t89-run-a-attempt4
+==> Attested: api-gateway--0000081 @ sha256:090ad3ba4b7ada20bca71781d4a1ce3ac81029b8a23a8a1d180dce2cff540d09
+==> Subscription resolved (length 36)
+==> Checking the wake request is the authorized one
+==> Checking Azure session
+==>   az account: Azure subscription 1
+==> Checking Docker daemon
+==>   docker server os: linux
+==> Checking live serving revision against the attestation
+WARNING: The behavior of this command has been altered by the following extension: containerapp
+WARNING: The behavior of this command has been altered by the following extension: containerapp
+==>   serving api-gateway--0000081 at the attested digest
+==> Checking the active subscription matches the one the verifier will assert
+==> Checking portfolio-service against its attestation
+WARNING: The behavior of this command has been altered by the following extension: containerapp
+WARNING: The behavior of this command has been altered by the following extension: containerapp
+==>   portfolio-service--0000096 at the attested digest
+==> Checking the Log Analytics workspace is readable
+==>   workspace readable
+==> Checking the verifier can start
+==>   verifier starts and the evidence directory exists
+==> Checking no newer gateway revision exists
+==>   1 revision(s), none newer than api-gateway--0000081
+==> Checking the serving Azure demo-reset timeouts, gateway response ceiling, idle threshold and cloud provider against the ratified attestation
+==>   serving Azure demo-reset timeouts match the ratified attestation (APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT, APP_DEMO_LOGIN_RESET_RESET_TIMEOUT, APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT, SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT)
+==>   serving APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD and CLOUD_PROVIDER are absent-safe or match their approved values (absent falls back to the approved default; present must equal it)
+==> Activation sequence: at most 6 probes of GET https://api.vibhanshu-ai-portfolio.dev/actuator/health, each bounded by --max-time 90 (no curl retry, no redirect; curl config files skipped via -q; environment proxies bypassed for every host via --noproxy '*'). Only HTTP 503 or a curl timeout (exit 28, status 000) leads to another probe; the first HTTP 200 ends the sequence. Every probe issued belongs to this sequence and is consumed.
+==>   probe 1/6 started-utc=2026-09-14T21:34:15.9825053Z curl-exit=0 http=503 duration-s=52.750547 content-type=application/*+json body-bytes=61 body-sha256=50957f5c0775f8bbf26fe5d5293a2b53763735c2f7774d689ec99e52906351b4 body-class=actuator-json actuator-status=OUT_OF_SERVICE
+==>   probe 1/6: HTTP 503 is a recorded cold-start outcome
+==>   probe 2/6 started-utc=2026-09-14T21:35:13.8778787Z curl-exit=0 http=200 duration-s=0.175918 content-type=application/*+json body-bytes=49 body-sha256=f5d81755935209a3ae596d4553d269cbbe8d08a27dd95b05fe0b7c544eb7ed71 body-class=actuator-json actuator-status=UP
+==>   probe 2/6 returned HTTP 200: activation confirmed; no further probe will be issued
+==> Waiting up to 90s for a replica (read-only polling)
+WARNING: The behavior of this command has been altered by the following extension: containerapp
+==>   replica up: api-gateway--0000081-6c469996fc-fj4pc
+==> Starting preflight
+{
+  "classification": "not_observed",
+  "classificationDetail": {},
+  "cleanup": {
+    "armed": false,
+    "attempts": [],
+    "conflictObserved": false,
+    "postCleanupGolden": false,
+    "succeeded": false
+  },
+  "decisions": {
+    "eligibilityTimeout": "120s",
+    "idleThreshold": "30m",
+    "observedTimeouts": {
+      "APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT": "120s",
+      "APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT": "165s",
+      "APP_DEMO_LOGIN_RESET_RESET_TIMEOUT": "30s",
+      "SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT": "150s"
+    },
+    "overallTimeout": "165s",
+    "overrideUsed": false,
+    "resetTimeout": "30s",
+    "serving": {
+      "eligibilityTimeout": "120s",
+      "idleThreshold": "30m",
+      "overallTimeout": "165s",
+      "resetTimeout": "30s"
+    },
+    "wave10Eligible": true
+  },
+  "diagnostics": {
+    "available": false,
+    "operations": []
+  },
+  "events": {},
+  "keyAlignment": {
+    "internalApiKeyProven": false,
+    "originVerification": "not_applicable_on_azure",
+    "proof": "not_observed"
+  },
+  "login": {},
+  "observation": {},
+  "operations": [
+    {
+      "argv": [
+        "az",
+        "account",
+        "show",
+        "--query",
+        "id",
+        "-o",
+        "tsv"
+      ],
+      "durationSeconds": 0.604,
+      "kind": "azure_cli",
+      "mutating": false,
+      "timeoutSeconds": 600.0
+    },
+    {
+      "argv": [
+        "az",
+        "containerapp",
+        "show",
+        "--name",
+        "api-gateway",
+        "--resource-group",
+        "wealth-azure-prod-rg",
+        "--query",
+        "properties.configuration.ingress",
+        "-o",
+        "json"
+      ],
+      "durationSeconds": 3.724,
+      "kind": "azure_cli",
+      "mutating": false,
+      "timeoutSeconds": 600.0
+    },
+    {
+      "argv": [
+        "az",
+        "containerapp",
+        "revision",
+        "list",
+        "--name",
+        "api-gateway",
+        "--resource-group",
+        "wealth-azure-prod-rg",
+        "--query",
+        "[?properties.active && properties.trafficWeight == `100`].{name:name,image:properties.template.containers[0].image}",
+        "-o",
+        "json"
+      ],
+      "durationSeconds": 2.58,
+      "kind": "azure_cli",
+      "mutating": false,
+      "timeoutSeconds": 600.0
+    },
+    {
+      "argv": [
+        "az",
+        "containerapp",
+        "revision",
+        "list",
+        "--name",
+        "portfolio-service",
+        "--resource-group",
+        "wealth-azure-prod-rg",
+        "--query",
+        "[?properties.active && properties.trafficWeight == `100`].{name:name,image:properties.template.containers[0].image}",
+        "-o",
+        "json"
+      ],
+      "durationSeconds": 3.085,
+      "kind": "azure_cli",
+      "mutating": false,
+      "timeoutSeconds": 600.0
+    },
+    {
+      "argv": [
+        "az",
+        "monitor",
+        "log-analytics",
+        "workspace",
+        "show",
+        "--workspace-name",
+        "wealth-prod-la",
+        "--resource-group",
+        "wealth-azure-prod-rg",
+        "--query",
+        "customerId",
+        "-o",
+        "tsv"
+      ],
+      "durationSeconds": 2.531,
+      "kind": "azure_cli",
+      "mutating": false,
+      "timeoutSeconds": 600.0
+    },
+    {
+      "argv": [
+        "az",
+        "containerapp",
+        "replica",
+        "list",
+        "--name",
+        "api-gateway",
+        "--resource-group",
+        "wealth-azure-prod-rg",
+        "--revision",
+        "api-gateway--0000081",
+        "-o",
+        "json"
+      ],
+      "durationSeconds": 4.167,
+      "kind": "azure_cli",
+      "mutating": false,
+      "timeoutSeconds": 600.0
+    },
+    {
+      "argv": [
+        "az",
+        "containerapp",
+        "exec",
+        "--name",
+        "api-gateway",
+        "--resource-group",
+        "wealth-azure-prod-rg",
+        "--revision",
+        "api-gateway--0000081",
+        "--replica",
+        "api-gateway--0000081-6c469996fc-fj4pc",
+        "--container",
+        "api-gateway",
+        "--command",
+        "java -jar /probe.jar"
+      ],
+      "durationSeconds": 11.15,
+      "kind": "azure_cli",
+      "mutating": false,
+      "timeoutSeconds": 600.0
+    },
+    {
+      "argv": [
+        "az",
+        "acr",
+        "manifest",
+        "show-metadata",
+        "--registry",
+        "wealthprodacr",
+        "--name",
+        "api-gateway@sha256:090ad3ba4b7ada20bca71781d4a1ce3ac81029b8a23a8a1d180dce2cff540d09",
+        "-o",
+        "json"
+      ],
+      "durationSeconds": 9.015,
+      "kind": "azure_cli",
+      "mutating": false,
+      "timeoutSeconds": 600.0
+    },
+    {
+      "argv": [
+        "az",
+        "acr",
+        "manifest",
+        "show-metadata",
+        "--registry",
+        "wealthprodacr",
+        "--name",
+        "portfolio-service@sha256:1cf372a39d17709f74aba427259548a531e3e1ba04dc64ec7750369bb8e82126",
+        "-o",
+        "json"
+      ],
+      "durationSeconds": 7.883,
+      "kind": "azure_cli",
+      "mutating": false,
+      "timeoutSeconds": 600.0
+    },
+    {
+      "argv": [
+        "az",
+        "acr",
+        "login",
+        "--name",
+        "wealthprodacr"
+      ],
+      "durationSeconds": 6.991,
+      "kind": "azure_cli",
+      "mutating": false,
+      "timeoutSeconds": 600.0
+    },
+    {
+      "argv": [
+        "docker",
+        "pull",
+        "wealthprodacr.azurecr.io/api-gateway@sha256:090ad3ba4b7ada20bca71781d4a1ce3ac81029b8a23a8a1d180dce2cff540d09"
+      ],
+      "durationSeconds": 0.632,
+      "kind": "local_cli",
+      "mutating": false,
+      "timeoutSeconds": 600.0
+    },
+    {
+      "argv": [
+        "docker",
+        "pull",
+        "wealthprodacr.azurecr.io/portfolio-service@sha256:1cf372a39d17709f74aba427259548a531e3e1ba04dc64ec7750369bb8e82126"
+      ],
+      "durationSeconds": 0.937,
+      "kind": "local_cli",
+      "mutating": false,
+      "timeoutSeconds": 600.0
+    },
+    {
+      "argv": [
+        "az",
+        "monitor",
+        "log-analytics",
+        "query",
+        "--workspace",
+        "83a9c3a2-659e-40ca-9784-1ff871b9d5ea",
+        "--analytics-query",
+        "print task8_9_rbac_probe=1",
+        "-o",
+        "json"
+      ],
+      "durationSeconds": 4.906,
+      "kind": "azure_cli",
+      "mutating": false,
+      "timeoutSeconds": 600.0
+    },
+    {
+      "argv": [
+        "az",
+        "containerapp",
+        "revision",
+        "show",
+        "--name",
+        "api-gateway",
+        "--resource-group",
+        "wealth-azure-prod-rg",
+        "--revision",
+        "api-gateway--0000081",
+        "--query",
+        "properties.template.containers[0].env",
+        "-o",
+        "json"
+      ],
+      "durationSeconds": 2.671,
+      "kind": "azure_cli",
+      "mutating": false,
+      "timeoutSeconds": 600.0
+    },
+    {
+      "argv": [
+        "C:\\Users\\pc\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe",
+        "-B",
+        "C:\\worktrees\\wealthmgmtandportfoliotracker-worktrees\\t89-run-a-attempt4\\scripts\\derive_demo_golden_state.py"
+      ],
+      "durationSeconds": 0.264,
+      "kind": "local_cli",
+      "mutating": false,
+      "timeoutSeconds": 600.0
+    }
+  ],
+  "preflight": {
+    "passed": true,
+    "rbacRehearsed": true
+  },
+  "provider": "azure",
+  "requestCounts": {
+    "cleanupResets": 0,
+    "compositionWrites": 0,
+    "logins": 0,
+    "portfolioReads": 0
+  },
+  "schemaVersion": 1,
+  "serving": {
+    "api-gateway": {
+      "digest": "sha256:090ad3ba4b7ada20bca71781d4a1ce3ac81029b8a23a8a1d180dce2cff540d09",
+      "image": "wealthprodacr.azurecr.io/api-gateway@sha256:090ad3ba4b7ada20bca71781d4a1ce3ac81029b8a23a8a1d180dce2cff540d09",
+      "repository": "wealthprodacr.azurecr.io/api-gateway",
+      "revision": "api-gateway--0000081"
+    },
+    "portfolio-service": {
+      "digest": "sha256:1cf372a39d17709f74aba427259548a531e3e1ba04dc64ec7750369bb8e82126",
+      "image": "wealthprodacr.azurecr.io/portfolio-service@sha256:1cf372a39d17709f74aba427259548a531e3e1ba04dc64ec7750369bb8e82126",
+      "repository": "wealthprodacr.azurecr.io/portfolio-service",
+      "revision": "portfolio-service--0000096"
+    }
+  },
+  "servingRevalidation": {},
+  "setup": {},
+  "source": {
+    "deploymentProvenanceShape": "per-service-immutable-attestation",
+    "services": {
+      "api-gateway": {
+        "digest": "sha256:090ad3ba4b7ada20bca71781d4a1ce3ac81029b8a23a8a1d180dce2cff540d09",
+        "evidencePath": "docs/evidence/b2-task-8-9/deployment-completion-20260911.json",
+        "repository": "wealthprodacr.azurecr.io/api-gateway",
+        "revision": "api-gateway--0000081",
+        "runAttempt": 1,
+        "sourceSha": "006aa9e6877290a701fe2a124a056299956e7d0a",
+        "workflowRunId": 34588465283
+      },
+      "portfolio-service": {
+        "digest": "sha256:1cf372a39d17709f74aba427259548a531e3e1ba04dc64ec7750369bb8e82126",
+        "evidencePath": "docs/evidence/b1-r-c/task-7-9-serving-proof-20260909.json",
+        "repository": "wealthprodacr.azurecr.io/portfolio-service",
+        "revision": "portfolio-service--0000096",
+        "runAttempt": 1,
+        "sourceSha": "5fd1dac6a37513916fd2b80ca3929c4e20ad0de7",
+        "workflowRunId": 34328692256
+      }
+    }
+  },
+  "target": {
+    "gatewayApp": "api-gateway",
+    "gatewayIngressHost": "api.vibhanshu-ai-portfolio.dev",
+    "gatewayUrl": "https://api.vibhanshu-ai-portfolio.dev",
+    "name": "production-azure",
+    "portfolioApp": "portfolio-service",
+    "registry": "wealthprodacr",
+    "resourceGroup": "wealth-azure-prod-rg",
+    "subscriptionId": "ee625b3f-7cb1-4482-be3c-4363c5d76d23",
+    "workspace": "wealth-prod-la",
+    "workspaceCustomerId": "83a9c3a2-659e-40ca-9784-1ff871b9d5ea"
+  },
+  "thresholdRestore": {
+    "attempted": false,
+    "required": false,
+    "verified": true
+  },
+  "trace": {},
+  "verdict": {
+    "errors": [],
+    "go": null,
+    "status": "preflight_passed"
+  }
+}
+==> verifier exit 0; evidence at C:\t89\run-a-attempt4-preflight-20260915.json
+==> preflight passed
+==> Reminder: this is preflight_passed / go=null. It is NOT a GO and does not close Task 8.9.
+operator-end-utc=2026-09-14T21:36:20.8391952Z
+TASK_8_9_WRAPPER_EXIT=0
+**********************
+Windows PowerShell transcript end
+End time: 20260915030620
+**********************

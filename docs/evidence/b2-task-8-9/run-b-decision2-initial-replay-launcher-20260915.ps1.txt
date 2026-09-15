@@ -1,0 +1,107 @@
+param(
+    [Parameter(Mandatory = $true)][string]$RepositoryRoot,
+    [Parameter(Mandatory = $true)][string]$OutputDirectory
+)
+
+$ErrorActionPreference = 'Stop'
+Set-StrictMode -Version Latest
+
+$transcriptPath = Join-Path $OutputDirectory 'run-b-decision2-class2b-replay-operator-20260915.txt'
+$successStdoutPath = Join-Path $OutputDirectory 'run-b-decision2-class2b-replay-success-stdout-20260915.json'
+$successStderrPath = Join-Path $OutputDirectory 'run-b-decision2-class2b-replay-success-stderr-20260915.txt'
+$skipStdoutPath = Join-Path $OutputDirectory 'run-b-decision2-class2b-replay-skip-stdout-20260915.json'
+$skipStderrPath = Join-Path $OutputDirectory 'run-b-decision2-class2b-replay-skip-stderr-20260915.txt'
+$allOutputs = @($transcriptPath, $successStdoutPath, $successStderrPath, $skipStdoutPath, $skipStderrPath)
+foreach ($path in $allOutputs) {
+    if (Test-Path -LiteralPath $path) { throw "Refusing to overwrite existing output: $path" }
+}
+
+$rawEvidencePath = Join-Path $RepositoryRoot 'docs\evidence\b2-task-8-9\run-b-decision2-execute-raw-20260915.json'
+$rawEvidence = Get-Content -Raw -LiteralPath $rawEvidencePath | ConvertFrom-Json -Depth 100
+$operation = @($rawEvidence.operations | Where-Object {
+    $_.PSObject.Properties.Name -contains 'argv' -and
+    $_.argv -contains '--analytics-query' -and $_.argv -contains '--timespan'
+})[-1]
+if ($null -eq $operation) { throw 'Retained event-query argv was not found in the raw execute evidence.' }
+
+$argv = [object[]]$operation.argv
+$queryIndex = [Array]::IndexOf($argv, '--analytics-query')
+$timespanIndex = [Array]::IndexOf($argv, '--timespan')
+$workspaceIndex = [Array]::IndexOf($argv, '--workspace')
+$successQuery = [string]$argv[$queryIndex + 1]
+$skipQuery = $successQuery.Replace('demo_reset_succeeded', 'demo_reset_self_call_skipped')
+$timespan = [string]$argv[$timespanIndex + 1]
+$workspace = [string]$argv[$workspaceIndex + 1]
+
+$azCommand = (Get-Command az -ErrorAction Stop).Source
+$azPython = [IO.Path]::GetFullPath((Join-Path (Split-Path -Parent $azCommand) '..\python.exe'))
+if (-not (Test-Path -LiteralPath $azPython -PathType Leaf)) {
+    throw "Azure CLI Python executable not found: $azPython"
+}
+
+$commonArguments = @('monitor', 'log-analytics', 'query', '--workspace', $workspace)
+$successArguments = $commonArguments + @('--analytics-query', $successQuery, '--timespan', $timespan, '-o', 'json')
+$skipArguments = $commonArguments + @('--analytics-query', $skipQuery, '--timespan', $timespan, '-o', 'json')
+
+$transcriptStarted = $false
+try {
+    Start-Transcript -LiteralPath $transcriptPath -NoClobber | Out-Null
+    $transcriptStarted = $true
+    Write-Host 'authority=owner-approved exactly two retained read-only Log Analytics queries; no login, mutation, wake, deployment, cleanup, or retry'
+    Write-Host 'query-invocations-authorized=2'
+    Write-Host 'retry-authorized=false'
+    Write-Host "raw-execute-evidence=$rawEvidencePath"
+    Write-Host "raw-execute-evidence-sha256=$((Get-FileHash -LiteralPath $rawEvidencePath -Algorithm SHA256).Hash.ToLowerInvariant())"
+    Write-Host "az-command-resolved=$azCommand"
+    Write-Host "direct-azure-cli-python=$azPython"
+    Write-Host "workspace=$workspace"
+    Write-Host "timespan=$timespan"
+    Write-Host "trace-id=$($rawEvidence.trace.traceId)"
+    Write-Host "window-start=$($rawEvidence.trace.windowStart)"
+    Write-Host "window-end=$($rawEvidence.trace.windowEnd)"
+    Write-Host 'transport=direct installed azure.cli Python module; az.cmd bypassed because its multiline argv transport is defective'
+
+    $successEffectiveArgv = @($azPython, '-IBm', 'azure.cli') + $successArguments
+    Write-Host "success-started-utc=$([DateTime]::UtcNow.ToString('o'))"
+    Write-Host ('success-effective-argv-json=' + ($successEffectiveArgv | ConvertTo-Json -Compress))
+    $global:LASTEXITCODE = 0
+    & $azPython -IBm azure.cli @successArguments 2> $successStderrPath | Tee-Object -FilePath $successStdoutPath
+    $successExit = $LASTEXITCODE
+    Write-Host "success-ended-utc=$([DateTime]::UtcNow.ToString('o'))"
+    Write-Host "success-exit=$successExit"
+    Write-Host "success-stdout=$successStdoutPath"
+    Write-Host "success-stdout-sha256=$((Get-FileHash -LiteralPath $successStdoutPath -Algorithm SHA256).Hash.ToLowerInvariant())"
+    Write-Host "success-stderr=$successStderrPath"
+    Write-Host "success-stderr-sha256=$((Get-FileHash -LiteralPath $successStderrPath -Algorithm SHA256).Hash.ToLowerInvariant())"
+
+    $skipEffectiveArgv = @($azPython, '-IBm', 'azure.cli') + $skipArguments
+    Write-Host "skip-started-utc=$([DateTime]::UtcNow.ToString('o'))"
+    Write-Host ('skip-effective-argv-json=' + ($skipEffectiveArgv | ConvertTo-Json -Compress))
+    $global:LASTEXITCODE = 0
+    & $azPython -IBm azure.cli @skipArguments 2> $skipStderrPath | Tee-Object -FilePath $skipStdoutPath
+    $skipExit = $LASTEXITCODE
+    Write-Host "skip-ended-utc=$([DateTime]::UtcNow.ToString('o'))"
+    Write-Host "skip-exit=$skipExit"
+    Write-Host "skip-stdout=$skipStdoutPath"
+    Write-Host "skip-stdout-sha256=$((Get-FileHash -LiteralPath $skipStdoutPath -Algorithm SHA256).Hash.ToLowerInvariant())"
+    Write-Host "skip-stderr=$skipStderrPath"
+    Write-Host "skip-stderr-sha256=$((Get-FileHash -LiteralPath $skipStderrPath -Algorithm SHA256).Hash.ToLowerInvariant())"
+    Write-Host 'query-invocations-performed=2'
+    Write-Host 'retry-count=0'
+} finally {
+    if ($transcriptStarted) { Stop-Transcript | Out-Null }
+}
+
+$successRows = @(Get-Content -Raw -LiteralPath $successStdoutPath | ConvertFrom-Json -Depth 100)
+$skipRows = @(Get-Content -Raw -LiteralPath $skipStdoutPath | ConvertFrom-Json -Depth 100)
+[pscustomobject]@{
+    Transcript = $transcriptPath
+    SuccessExit = $successExit
+    SuccessRows = $successRows.Count
+    SkipExit = $skipExit
+    SkipRows = $skipRows.Count
+    InvocationCount = 2
+    RetryCount = 0
+} | Format-List
+
+if ($successExit -ne 0 -or $skipExit -ne 0) { exit 1 }

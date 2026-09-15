@@ -1,0 +1,139 @@
+param(
+    [Parameter(Mandatory = $true)][string]$RepositoryRoot,
+    [Parameter(Mandatory = $true)][string]$OutputDirectory
+)
+
+$ErrorActionPreference = 'Stop'
+Set-StrictMode -Version Latest
+
+$transcriptPath = Join-Path $OutputDirectory 'run-b-decision2-class2b-replay-r2-gateway-skip-operator-20260915.txt'
+$stdoutPath = Join-Path $OutputDirectory 'run-b-decision2-class2b-replay-r2-gateway-skip-stdout-20260915.json'
+$stderrPath = Join-Path $OutputDirectory 'run-b-decision2-class2b-replay-r2-gateway-skip-stderr-20260915.txt'
+foreach ($path in @($transcriptPath, $stdoutPath, $stderrPath)) {
+    if (Test-Path -LiteralPath $path) { throw "Refusing to overwrite existing output: $path" }
+}
+
+$rawEvidencePath = Join-Path $RepositoryRoot 'docs\evidence\b2-task-8-9\run-b-decision2-execute-raw-20260915.json'
+$rawEvidenceText = Get-Content -Raw -LiteralPath $rawEvidencePath
+$rawEvidence = $rawEvidenceText | ConvertFrom-Json -Depth 100 -DateKind String
+$query = [string]$rawEvidence.events.queries.skip
+$workspace = [string]$rawEvidence.target.workspaceCustomerId
+$timespan = [string]$rawEvidence.trace.windowStart + '/' + [string]$rawEvidence.trace.windowEnd
+$traceId = [string]$rawEvidence.trace.traceId
+
+$expectedQuery = @(
+    'ContainerAppConsoleLogs_CL'
+    "| where TimeGenerated between (datetime($($rawEvidence.trace.windowStart)) .. datetime($($rawEvidence.trace.windowEnd)))"
+    "| where ContainerAppName_s == 'api-gateway'"
+    "| where tostring(Log_s) contains 'demo_reset_self_call_skipped'"
+    "| where tostring(Log_s) contains '$traceId'"
+    '| project TimeGenerated, ContainerAppName_s, RevisionName_s, Log_s'
+    '| order by TimeGenerated asc'
+) -join "`n"
+if ($query -cne $expectedQuery) {
+    throw 'Retained skip query is not the exact expected api-gateway query; no Azure process started.'
+}
+if ($workspace -cne '83a9c3a2-659e-40ca-9784-1ff871b9d5ea') {
+    throw 'Workspace differs from the retained proof target; no Azure process started.'
+}
+if ($timespan -cne '2026-09-15T01:02:27.089196Z/2026-09-15T01:05:51.164581Z') {
+    throw 'Timespan differs from the retained proof window; no Azure process started.'
+}
+
+$azCommand = (Get-Command az -ErrorAction Stop).Source
+$azPython = [IO.Path]::GetFullPath((Join-Path (Split-Path -Parent $azCommand) '..\python.exe'))
+if (-not (Test-Path -LiteralPath $azPython -PathType Leaf)) {
+    throw "Azure CLI Python executable not found: $azPython"
+}
+
+$arguments = @(
+    '-IBm', 'azure.cli', 'monitor', 'log-analytics', 'query',
+    '--workspace', $workspace,
+    '--analytics-query', $query,
+    '--timespan', $timespan,
+    '-o', 'json'
+)
+$effectiveArgv = @($azPython) + $arguments
+$authorizationReceivedUtc = [DateTime]::UtcNow.ToString('o')
+$transcriptStarted = $false
+$invocationCount = 0
+$retryCount = 0
+$exitCode = $null
+
+try {
+    Start-Transcript -LiteralPath $transcriptPath -NoClobber | Out-Null
+    $transcriptStarted = $true
+    Write-Host 'authority=owner-approved exactly one retained read-only api-gateway skip query; no login, mutation, wake, deployment, cleanup, or retry'
+    Write-Host 'owner-authorization-quote=[Vibhanshu] Authorized per comments'
+    Write-Host "authorization-received-by-operator-utc=$authorizationReceivedUtc"
+    Write-Host 'query-invocations-authorized=1'
+    Write-Host 'retry-authorized=false'
+    Write-Host "raw-execute-evidence=$rawEvidencePath"
+    Write-Host "raw-execute-evidence-sha256=$((Get-FileHash -LiteralPath $rawEvidencePath -Algorithm SHA256).Hash.ToLowerInvariant())"
+    Write-Host "query-source=events.queries.skip from immutable raw execute evidence"
+    Write-Host 'query-byte-comparison=exact ordinal match to retained api-gateway query'
+    Write-Host "az-command-resolved=$azCommand"
+    Write-Host "direct-azure-cli-python=$azPython"
+    Write-Host "workspace=$workspace"
+    Write-Host "timespan=$timespan"
+    Write-Host "trace-id=$traceId"
+    Write-Host "window-start=$($rawEvidence.trace.windowStart)"
+    Write-Host "window-end=$($rawEvidence.trace.windowEnd)"
+    Write-Host 'transport=direct installed azure.cli Python module with ProcessStartInfo.ArgumentList; az.cmd bypassed because its multiline argv transport is defective'
+    Write-Host 'capture=raw process stdout and stderr BaseStream bytes copied directly to files; no Tee-Object or text rewrite'
+    Write-Host "gateway-skip-started-utc=$([DateTime]::UtcNow.ToString('o'))"
+    Write-Host ('gateway-skip-effective-argv-json=' + ($effectiveArgv | ConvertTo-Json -Compress))
+
+    $startInfo = [Diagnostics.ProcessStartInfo]::new()
+    $startInfo.FileName = $azPython
+    $startInfo.UseShellExecute = $false
+    $startInfo.CreateNoWindow = $true
+    $startInfo.RedirectStandardOutput = $true
+    $startInfo.RedirectStandardError = $true
+    foreach ($argument in $arguments) { [void]$startInfo.ArgumentList.Add($argument) }
+
+    $process = [Diagnostics.Process]::new()
+    $process.StartInfo = $startInfo
+    $stdoutStream = $null
+    $stderrStream = $null
+    try {
+        if (-not $process.Start()) { throw 'Azure CLI process did not start.' }
+        $invocationCount = 1
+        $stdoutStream = [IO.File]::Open($stdoutPath, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::Read)
+        $stderrStream = [IO.File]::Open($stderrPath, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::Read)
+        $stdoutCopy = $process.StandardOutput.BaseStream.CopyToAsync($stdoutStream)
+        $stderrCopy = $process.StandardError.BaseStream.CopyToAsync($stderrStream)
+        $process.WaitForExit()
+        [Threading.Tasks.Task]::WaitAll([Threading.Tasks.Task[]]@($stdoutCopy, $stderrCopy))
+        $exitCode = $process.ExitCode
+    } finally {
+        if ($null -ne $stdoutStream) { $stdoutStream.Dispose() }
+        if ($null -ne $stderrStream) { $stderrStream.Dispose() }
+        $process.Dispose()
+    }
+
+    Write-Host "gateway-skip-ended-utc=$([DateTime]::UtcNow.ToString('o'))"
+    Write-Host "gateway-skip-exit=$exitCode"
+    Write-Host "gateway-skip-stdout=$stdoutPath"
+    Write-Host "gateway-skip-stdout-sha256=$((Get-FileHash -LiteralPath $stdoutPath -Algorithm SHA256).Hash.ToLowerInvariant())"
+    Write-Host "gateway-skip-stderr=$stderrPath"
+    Write-Host "gateway-skip-stderr-sha256=$((Get-FileHash -LiteralPath $stderrPath -Algorithm SHA256).Hash.ToLowerInvariant())"
+    Write-Host "query-invocations-performed=$invocationCount"
+    Write-Host "retry-count=$retryCount"
+    Write-Host 'gateway-skip-stdout-begin'
+    Write-Host (Get-Content -Raw -LiteralPath $stdoutPath)
+    Write-Host 'gateway-skip-stdout-end'
+} finally {
+    if ($transcriptStarted) { Stop-Transcript | Out-Null }
+}
+
+$rows = @(Get-Content -Raw -LiteralPath $stdoutPath | ConvertFrom-Json -Depth 100 -DateKind String)
+[pscustomobject]@{
+    Transcript = $transcriptPath
+    Exit = $exitCode
+    Rows = $rows.Count
+    InvocationCount = $invocationCount
+    RetryCount = $retryCount
+} | Format-List
+
+if ($exitCode -ne 0) { exit 1 }

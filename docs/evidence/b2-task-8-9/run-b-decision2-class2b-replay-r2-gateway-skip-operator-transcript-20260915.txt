@@ -1,0 +1,54 @@
+**********************
+PowerShell transcript start
+Start time: 20260915092450
+Username: [REDACTED: host identity]
+RunAs User: [REDACTED: host identity]
+Configuration Name: 
+Machine: [REDACTED: host identity]
+Host Application: [REDACTED: host path] -NoProfile -File [REDACTED: host path] -RepositoryRoot C:\worktrees\wealthmgmtandportfoliotracker-worktrees\wealthmgmtandportfoliotracker-codex-t89-attempt4-publication -OutputDirectory C:\t89
+Process ID: 39524
+PSVersion: 7.6.5
+PSEdition: Core
+GitCommitId: 7.6.5
+OS: Microsoft Windows 10.0.26200
+Platform: Win32NT
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1, 6.0, 7.0
+PSRemotingProtocolVersion: 2.4
+SerializationVersion: 1.1.0.1
+WSManStackVersion: 3.0
+**********************
+authority=owner-approved exactly one retained read-only api-gateway skip query; no login, mutation, wake, deployment, cleanup, or retry
+owner-authorization-quote=[Vibhanshu] Authorized per comments
+authorization-received-by-operator-utc=2026-09-15T03:54:50.0510297Z
+query-invocations-authorized=1
+retry-authorized=false
+raw-execute-evidence=C:\worktrees\wealthmgmtandportfoliotracker-worktrees\wealthmgmtandportfoliotracker-codex-t89-attempt4-publication\docs\evidence\b2-task-8-9\run-b-decision2-execute-raw-20260915.json
+raw-execute-evidence-sha256=7f236f98c506aa652fd7cffeb43df2fa43e92afee42f890eb21f05bd7f3968be
+query-source=events.queries.skip from immutable raw execute evidence
+query-byte-comparison=exact ordinal match to retained api-gateway query
+az-command-resolved=C:\Program Files\Microsoft SDKs\Azure\CLI2\wbin\az.cmd
+direct-azure-cli-python=C:\Program Files\Microsoft SDKs\Azure\CLI2\python.exe
+workspace=83a9c3a2-659e-40ca-9784-1ff871b9d5ea
+timespan=2026-09-15T01:02:27.089196Z/2026-09-15T01:05:51.164581Z
+trace-id=45097abc3f131da71b27d1b248b3e3c9
+window-start=2026-09-15T01:02:27.089196Z
+window-end=2026-09-15T01:05:51.164581Z
+transport=direct installed azure.cli Python module with ProcessStartInfo.ArgumentList; az.cmd bypassed because its multiline argv transport is defective
+capture=raw process stdout and stderr BaseStream bytes copied directly to files; no Tee-Object or text rewrite
+gateway-skip-started-utc=2026-09-15T03:54:50.0982079Z
+gateway-skip-effective-argv-json=["C:\\Program Files\\Microsoft SDKs\\Azure\\CLI2\\python.exe","-IBm","azure.cli","monitor","log-analytics","query","--workspace","83a9c3a2-659e-40ca-9784-1ff871b9d5ea","--analytics-query","ContainerAppConsoleLogs_CL\n| where TimeGenerated between (datetime(2026-09-15T01:02:27.089196Z) .. datetime(2026-09-15T01:05:51.164581Z))\n| where ContainerAppName_s == 'api-gateway'\n| where tostring(Log_s) contains 'demo_reset_self_call_skipped'\n| where tostring(Log_s) contains '45097abc3f131da71b27d1b248b3e3c9'\n| project TimeGenerated, ContainerAppName_s, RevisionName_s, Log_s\n| order by TimeGenerated asc","--timespan","2026-09-15T01:02:27.089196Z/2026-09-15T01:05:51.164581Z","-o","json"]
+gateway-skip-ended-utc=2026-09-15T03:54:57.4846284Z
+gateway-skip-exit=0
+gateway-skip-stdout=C:\t89\run-b-decision2-class2b-replay-r2-gateway-skip-stdout-20260915.json
+gateway-skip-stdout-sha256=a5338d955b09046ec0b16f3a9625b7955c763aae07dc722e474e6078745f932f
+gateway-skip-stderr=C:\t89\run-b-decision2-class2b-replay-r2-gateway-skip-stderr-20260915.txt
+gateway-skip-stderr-sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+query-invocations-performed=1
+retry-count=0
+gateway-skip-stdout-begin
+[]
+gateway-skip-stdout-end
+**********************
+PowerShell transcript end
+End time: 20260915092457
+**********************
