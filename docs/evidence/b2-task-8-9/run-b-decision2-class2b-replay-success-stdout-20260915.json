@@ -1,0 +1,9 @@
+[
+  {
+    "ContainerAppName_s": "portfolio-service",
+    "Log_s": "2026-09-15T01:04:54.004Z INFO  [portfolio-service,45097abc3f131da71b27d1b248b3e3c9,abf3cc1f1b7479b8] c.w.portfolio.demo.DemoResetService - event=demo_reset_succeeded version=6",
+    "RevisionName_s": "portfolio-service--0000096",
+    "TableName": "PrimaryResult",
+    "TimeGenerated": "2026-09-15T01:04:54.5818434Z"
+  }
+]

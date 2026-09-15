@@ -1,12 +1,20 @@
 # B2 Task 8.9 — Run A attempt 4, 2026-09-15 (preflight passed; Task 8.9 remains OPEN / NON-GO)
 
+> **SUPERSEDED AS A CURRENT-STATUS RECORD.** This document remains the immutable narrative for the
+> accepted read-only Run A preflight. The later Decision 2 execute sequence did run; its raw verifier
+> result is `class_2b` / NON-GO, and the subsequently published manual recovery summary was rejected
+> by independent review because it did not retain the raw query output required by Task 8.9. Current
+> status is recorded in
+> [`run-b-decision2-20260915.md`](run-b-decision2-20260915.md). This supersession does not alter any
+> Run A evidence or turn this preflight into an execute proof.
+
 This attempt ran `2026-09-14T21:33:45Z`–`2026-09-14T21:36:20Z` UTC (filenames use the local IST
 date, `2026-09-15`). It follows Run A attempt 3, also run on 2026-09-14 UTC; in-repo traces include
 the ratification addendum,
 [`2026-09-14-azure-timeout-ratification.md`](2026-09-14-azure-timeout-ratification.md),
-`.kiro/specs/asset-picker-composition/tasks.md` lines 58–64, and
-`docs/plans/ASSET_PICKER_E2E_MASTER_PLAN.md` lines 86–93 — no attempt-3 record exists in this
-directory.
+the Run A attempt 3 status in [the owning task plan](../../../.kiro/specs/asset-picker-composition/tasks.md),
+and the corresponding status in [the master plan](../../plans/ASSET_PICKER_E2E_MASTER_PLAN.md) — no
+attempt-3 record exists in this directory.
 
 Companion records for
 [`run-a-attempt4-preflight-20260915.json`](run-a-attempt4-preflight-20260915.json) and
@@ -51,8 +59,9 @@ The owner's fuller kickoff text arrived mid-session **after** the wrapper had al
 separately; sanitize the transcript before sharing or committing; preserve the raw original
 privately; do not commit any evidence until it is assessed and publication is separately approved.
 The owner then approved both evidence publication and the separate Decision 2 execute proof on
-2026-09-15. The raw originals at `C:\t89\` remain untouched; the execute proof remains unrun pending
-owner-injected credentials.
+2026-09-15. At this record's original publication boundary, the raw originals at `C:\t89\` remained
+untouched and the execute proof had not yet run. The later execute sequence and its NON-GO result are
+recorded separately in the superseding Decision 2 record linked above.
 
 ## Source and pre-run state
 
@@ -344,7 +353,7 @@ non-GO result and is reported as such, not as a GO.
 | live revision-list read confirming no `--0000082` | **Met (†)** — count 1, `api-gateway--0000081` only |
 | wake disclosed in the evidence: route and method, actor, timestamp, authorization | **Met, with a caveat** — route/method/timestamps are in the transcript (lines 47–51); the transcript's `operator=` line (21) names the actor and cites "owner authorization 2026-09-15"; the fuller three-question Decision detail lives only in the operating session (†), not inside the transcript itself |
 | copied evidence file committed alongside the prose that cites it, hash matched to the preserved external original | **Met by this publication** — the JSON copy is byte-identical to the preserved external original and its SHA-256 is reported above |
-| Task 8.9 checkbox still `- [ ]`; Wave 8 🟡; Wave 10 still gated | **Unchanged** — the checkbox itself is still unchecked at `tasks.md:2538` ("`- [ ] **8.9 STOP/GO — live serving proof...`"); Wave 10 gating is corroborated at `tasks.md:101–102` ("B2 Task 8.9 and the remaining Wave 10 prerequisites still block exposure, so the Asset Picker is not exposed to production users."). The "Wave 8 🟡" marker is the wave-status row `docs/plans/ASSET_PICKER_E2E_MASTER_PLAN.md:726` (`\| 8 — login-orchestrated reset \| 🟡 …`), which still reads 🟡. This publication reconciles the accepted preflight and owner decisions in prose without checking Task 8.9 complete, opening Wave 10, or changing either production flag |
+| Task 8.9 checkbox still `- [ ]`; Wave 8 🟡; Wave 10 still gated | **Met at this attempt's boundary and restored as current status after independent review** — see Task 8.9 in [the owning task plan](../../../.kiro/specs/asset-picker-composition/tasks.md) and the `8 — login-orchestrated reset` row in [the master plan](../../plans/ASSET_PICKER_E2E_MASTER_PLAN.md). This Run A publication did not check Task 8.9 complete, open Wave 10, or change either production flag. A later PR revision temporarily changed those statuses to GO; the superseding Decision 2 record explains why independent review rejected that closure and why the task is again OPEN / NON-GO. |
 | independent review before any further authorization is acted on | **Met** — Fable's round-3 review returned ACCEPT with no findings of any severity, and Codex independently accepted the preflight before publication |
 
 **§1 "Mandatory restoration and read-back" (lines 268–283), for completeness:**
@@ -356,14 +365,15 @@ non-GO result and is reported as such, not as a GO.
 | 3. Replica count returns to zero after the 300 s cool-down, confirmed by one later live read | **Not met** — the one authorized read found 1 running replica, 491–558 s after the relevant timestamps; see "Post-run read-backs" |
 | 4. Wake disclosed: route/method, mechanism, who, timestamp, owner-authorized | **Met** — transcript lines 21, 47–51 |
 
-## Status statement
+## Status statement at the Run A boundary
 
 > Task 8.9 remains OPEN / NON-GO. Run A attempt 4 preflight success is not Task 8.9 completion.
 
-`go: null` is expected and is not a GO. The credential-using `execute` proof requires a separate
-owner **Decision 2**; this record does not authorize it. Item 3 of the mandatory restoration
-read-back (replica returns to zero) is unverified by this attempt and is an open item, not a
-failure of the preflight itself.
+`go: null` is expected and is not a GO. The credential-using `execute` proof required a separate
+owner **Decision 2**; this record did not authorize it. That decision was later granted and the
+execute sequence ran, but its raw result was NON-GO; see the supersession callout. Item 3 of the
+mandatory restoration read-back (replica returns to zero) was unverified by this attempt and is an
+open item, not a failure of the preflight itself.
 
 ## Publication decision
 

@@ -14,9 +14,13 @@ immutable digest `sha256:aee44edc12b03175379caf65546e04f5ca1e2cea0d8690c00190b01
 the current-attempt manifest and scoped non-interference proof were green. That historical revision
 was subsequently superseded and purged; current `api-gateway--0000081` is separately attested below.
 Task 8.9's read-only Run A preflight is accepted. Its separately owner-authorized credential-using
-execute proof completed on 2026-09-15 and reached GO through the task's mandated Class 2b historical-
-query recovery; Task 8.9 is checked complete below. Merge, feature exposure, and the remaining Wave
-10 gates remain separate.
+execute proof completed on 2026-09-15, but the raw verifier ended `class_2b` / NON-GO because the
+Windows `az.cmd` boundary did not transport its multiline query intact. An earlier manual recovery
+summary was rejected because it lacked the full raw query evidence this task requires. One later,
+separately authorized read-only replay captured the exact argv, timespan, timestamps, raw stdout,
+full `Log_s`, and zero-row skip result. That corrected evidence supports a candidate GO, but Task 8.9
+remains open pending fresh independent acceptance at the exact PR head. Merge, feature exposure, and
+the remaining Wave 10 gates remain separate.
 
 Task 8.9's source-only provenance correction merged through PR #248 at
 `main@26148c4be75675613e28d89f713639a0376aaba7`. PR #262 then added the current immutable
@@ -91,16 +95,28 @@ The six accepted non-blocking implementation follow-ups remain consolidated in t
 On 2026-09-15 the owner separately authorized the credential-using execute proof and evidence
 publication. The final bounded sequence used the real `30m` threshold, advanced the demo portfolio
 from version `4` to a deliberate non-golden version `5`, and the traced login returned `200` before
-an identity-checked read observed exact golden state at version `6`. The raw verifier exited
-`class_2b` only because a Windows-encoded Azure CLI stream could not be decoded as UTF-8; its
-required read-only historical-query recovery found exactly one trace-correlated
-`demo_reset_succeeded version=6` event and no skip event. The tracked classifier therefore returns
-`go` / `retain_serving_revision`. Cleanup succeeded on its first reset and independently verified
-golden version `6`; final serving revalidation matched both attestations. See the
-[Decision 2 record](../../../docs/evidence/b2-task-8-9/run-b-decision2-20260915.md) and
-[supplemental recovery artifact](../../../docs/evidence/b2-task-8-9/run-b-decision2-class2b-recovery-20260915.json).
-Task 8.9 is COMPLETE / GO. Wave 10 remains closed on its other prerequisites and owner exposure
-decision; both production flags remain disabled, and merge is not authorized.
+an identity-checked read observed exact golden state at version `6`. Cleanup succeeded on its first
+reset and independently verified golden version `6`; final serving revalidation matched both
+attestations. The raw verifier nevertheless exited `class_2b` / NON-GO because it resolved `az` to
+`az.cmd` and passed multiline KQL through the shim's parenthesized `%*` expansion: only the first
+query line reached the intended invocation, while its predicates, `--timespan`, and `-o json` were
+dropped. The UTF-8 decoder exception was a downstream symptom. The defect is recorded in the
+[implementation backlog](../../../docs/todos/backlog/task-8-9-windows-az-cmd-multiline-query/README.md).
+
+The first manual historical-query summary was not sufficient: it retained neither raw stdout nor
+the full matched payload and reproducibility coordinates required by this task. After fresh owner
+authorization, exactly two read-only historical queries were issued once each, with zero retries and
+no login, mutation, wake, deployment, or cleanup. The published transcript records effective argv,
+exact UTC timespan, and query timestamps; raw stdout contains one complete trace-correlated
+`demo_reset_succeeded version=6` row including full `Log_s`, while the raw skip stdout is `[]`.
+Cleanup's separate success event is excluded by the retained login trace and original UTC window.
+The tracked classifier maps that evidence to candidate `go` / `retain_serving_revision`. See the
+[Decision 2 record](../../../docs/evidence/b2-task-8-9/run-b-decision2-20260915.md),
+[corrected recovery artifact](../../../docs/evidence/b2-task-8-9/run-b-decision2-class2b-recovery-20260915.json),
+and [raw replay transcript](../../../docs/evidence/b2-task-8-9/run-b-decision2-class2b-replay-operator-transcript-20260915.txt).
+Task 8.9 remains OPEN pending fresh independent acceptance of the corrected exact PR head. Wave 10
+remains closed on its other prerequisites and owner exposure decision; both production flags remain
+disabled, and merge is not authorized.
 
 Wave 9's source and disposable assembled-stack integration are complete through
 [PR #232](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/232) at
@@ -109,8 +125,9 @@ success/conflict; CI run `34018608256` passed `docker-build-verify` and `ci-requ
 local/CI evidence, not Production E2E.
 
 B1's R3 and GC.5 blockers are closed, and Tasks 7.1–7.11 are locally complete with the Task 7.9
-exact-digest serving proof recorded. B2 Task 8.9 is now GO; the remaining Wave 10 prerequisites still
-block exposure, so the Asset Picker is not exposed to production users. Task 2.7's historical audit is
+exact-digest serving proof recorded. B2 Task 8.9 has candidate-GO evidence but remains open pending
+fresh independent acceptance; it and the remaining Wave 10 prerequisites block exposure, so the
+Asset Picker is not exposed to production users. Task 2.7's historical audit is
 complete with Astra's 2026-09-10 ACCEPT: containment is only at the recorded ACA boundary and
 user-visible impact remains unproven, not impossible. Task 2.6 and Wave 10.2 item 2 remain open.
 
@@ -2546,7 +2563,7 @@ class, not by enumeration" through "operational signals only") deliberately keep
   refresh Job when selected) are digest-qualified and the manifest comparison passes. Record the
   workflow run and revision images. **Abort:** 8.9 cannot start without this evidence.
   _Requirements: 7.3c; master plan Azure-first release evidence_
-- [x] **8.9 STOP/GO — live serving proof, not merely "8.1-8.7 green" (round-12 addition, corrected
+- [ ] **8.9 STOP/GO — live serving proof, not merely "8.1-8.7 green" (round-12 addition, corrected
   round-13 on four separate points — dependency, causality, cleanup, and an overclaim; corrected
   again round-14 on four further points — the causal-proof mechanism, binding the evidence to the
   deployment it certifies, a missing Abort action, and cleanup's own postcondition verification;

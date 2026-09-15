@@ -1,0 +1,64 @@
+**********************
+PowerShell transcript start
+Start time: 20260915080848
+Username: [REDACTED: host identity]
+RunAs User: [REDACTED: host identity]
+Configuration Name: 
+Machine: [REDACTED: host identity]
+Host Application: [REDACTED: host path] -NoProfile -File [REDACTED: host path] -RepositoryRoot C:\worktrees\wealthmgmtandportfoliotracker-worktrees\wealthmgmtandportfoliotracker-codex-t89-attempt4-publication -OutputDirectory C:\t89
+Process ID: 65828
+PSVersion: 7.6.5
+PSEdition: Core
+GitCommitId: 7.6.5
+OS: Microsoft Windows 10.0.26200
+Platform: Win32NT
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1, 6.0, 7.0
+PSRemotingProtocolVersion: 2.4
+SerializationVersion: 1.1.0.1
+WSManStackVersion: 3.0
+**********************
+authority=owner-approved exactly two retained read-only Log Analytics queries; no login, mutation, wake, deployment, cleanup, or retry
+query-invocations-authorized=2
+retry-authorized=false
+raw-execute-evidence=C:\worktrees\wealthmgmtandportfoliotracker-worktrees\wealthmgmtandportfoliotracker-codex-t89-attempt4-publication\docs\evidence\b2-task-8-9\run-b-decision2-execute-raw-20260915.json
+raw-execute-evidence-sha256=7f236f98c506aa652fd7cffeb43df2fa43e92afee42f890eb21f05bd7f3968be
+az-command-resolved=C:\Program Files\Microsoft SDKs\Azure\CLI2\wbin\az.cmd
+direct-azure-cli-python=C:\Program Files\Microsoft SDKs\Azure\CLI2\python.exe
+workspace=83a9c3a2-659e-40ca-9784-1ff871b9d5ea
+timespan=2026-09-15T01:02:27.089196Z/2026-09-15T01:05:51.164581Z
+trace-id=45097abc3f131da71b27d1b248b3e3c9
+window-start=09/15/2026 01:02:27
+window-end=09/15/2026 01:05:51
+transport=direct installed azure.cli Python module; az.cmd bypassed because its multiline argv transport is defective
+success-started-utc=2026-09-15T02:38:48.9658764Z
+success-effective-argv-json=["C:\\Program Files\\Microsoft SDKs\\Azure\\CLI2\\python.exe","-IBm","azure.cli","monitor","log-analytics","query","--workspace","83a9c3a2-659e-40ca-9784-1ff871b9d5ea","--analytics-query","ContainerAppConsoleLogs_CL\n| where TimeGenerated between (datetime(2026-09-15T01:02:27.089196Z) .. datetime(2026-09-15T01:05:51.164581Z))\n| where ContainerAppName_s == 'portfolio-service'\n| where tostring(Log_s) contains 'demo_reset_succeeded'\n| where tostring(Log_s) contains '45097abc3f131da71b27d1b248b3e3c9'\n| project TimeGenerated, ContainerAppName_s, RevisionName_s, Log_s\n| order by TimeGenerated asc","--timespan","2026-09-15T01:02:27.089196Z/2026-09-15T01:05:51.164581Z","-o","json"]
+[
+  {
+    "ContainerAppName_s": "portfolio-service",
+    "Log_s": "2026-09-15T01:04:54.004Z INFO  [portfolio-service,45097abc3f131da71b27d1b248b3e3c9,abf3cc1f1b7479b8] c.w.portfolio.demo.DemoResetService - event=demo_reset_succeeded version=6",
+    "RevisionName_s": "portfolio-service--0000096",
+    "TableName": "PrimaryResult",
+    "TimeGenerated": "2026-09-15T01:04:54.5818434Z"
+  }
+]
+success-ended-utc=2026-09-15T02:38:54.2758394Z
+success-exit=0
+success-stdout=C:\t89\run-b-decision2-class2b-replay-success-stdout-20260915.json
+success-stdout-sha256=9ddcf5bfdad2c2c51e82851e86a905a778621977a56d4354d048ae76db4ea776
+success-stderr=C:\t89\run-b-decision2-class2b-replay-success-stderr-20260915.txt
+success-stderr-sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+skip-started-utc=2026-09-15T02:38:54.2804197Z
+skip-effective-argv-json=["C:\\Program Files\\Microsoft SDKs\\Azure\\CLI2\\python.exe","-IBm","azure.cli","monitor","log-analytics","query","--workspace","83a9c3a2-659e-40ca-9784-1ff871b9d5ea","--analytics-query","ContainerAppConsoleLogs_CL\n| where TimeGenerated between (datetime(2026-09-15T01:02:27.089196Z) .. datetime(2026-09-15T01:05:51.164581Z))\n| where ContainerAppName_s == 'portfolio-service'\n| where tostring(Log_s) contains 'demo_reset_self_call_skipped'\n| where tostring(Log_s) contains '45097abc3f131da71b27d1b248b3e3c9'\n| project TimeGenerated, ContainerAppName_s, RevisionName_s, Log_s\n| order by TimeGenerated asc","--timespan","2026-09-15T01:02:27.089196Z/2026-09-15T01:05:51.164581Z","-o","json"]
+[]
+skip-ended-utc=2026-09-15T02:38:57.5495903Z
+skip-exit=0
+skip-stdout=C:\t89\run-b-decision2-class2b-replay-skip-stdout-20260915.json
+skip-stdout-sha256=a5338d955b09046ec0b16f3a9625b7955c763aae07dc722e474e6078745f932f
+skip-stderr=C:\t89\run-b-decision2-class2b-replay-skip-stderr-20260915.txt
+skip-stderr-sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+query-invocations-performed=2
+retry-count=0
+**********************
+PowerShell transcript end
+End time: 20260915080857
+**********************
