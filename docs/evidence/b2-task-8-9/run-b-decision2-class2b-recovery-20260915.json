@@ -1,8 +1,8 @@
 {
-  "schemaVersion": 4,
+  "schemaVersion": 5,
   "recordedDate": "2026-09-15",
   "task": "B2 Task 8.9 Decision 2 Production execute proof",
-  "result": "ACCEPTED_GO_AT_8544D722_DOCUMENTATION_HEAD_CHECK_PENDING",
+  "result": "ACCEPTED_GO_AT_8544D722_DOCUMENTATION_FAB158CB_ACCEPTED_PR278_MERGED",
   "authority": {
     "ownerAuthorizedExecuteProof": true,
     "ownerAuthorizedEvidencePublication": true,
@@ -18,13 +18,16 @@
     "timestampProvenance": "Owner-message timestamps are retained local session response-item metadata, not server-side chat attestations. The gateway transcript's authorization-received label is launcher UtcNow, not approval receipt.",
     "independentReviewAcceptedEvidence": true,
     "acceptedEvidenceHead": "8544d722433108f0b71a164675271d2f81c7a6a8",
-    "newDocumentationHeadIndependentCheckPending": true,
+    "newDocumentationHeadIndependentCheckPending": false,
+    "reviewedDocumentationHead": "fab158cb377bb2f6e079dd151bab0f28174eb34e",
+    "pr278MergeAuthorityGrantedAndConsumed": true,
+    "earlyUncapturedReadsAuthorityProvenance": "Operator interpreted original Decision 2 execute/evidence approval and mandated Class 2b recovery as covering these reads; no separate replay-specific approval is retained. Later captured-replay approval does not apply retroactively.",
     "ownerAuthorizedRecordCommitAndPush": true,
     "acceptanceRecord": {
       "path": "docs/evidence/b2-task-8-9/run-b-decision2-fable-acceptance-20260915.md",
-      "sha256": "f1908d72a0d259f4e06f3e2c361596bd3e6b25503d170da8d4fa83113b1ce883"
+      "sha256": "8f139bbcd422cb3acbd91c1dfde2b228f6f82ce127aaa7e90fad240fcb6ed224"
     },
-    "mergeAuthorized": false,
+    "furtherMergeAuthorized": false,
     "featureExposureAuthorized": false
   },
   "source": {
@@ -278,7 +281,14 @@
       "classificationDetail": "fresh local execution of the tracked parser and classifier against those published raw rows",
       "verdict.errors": "The immutable raw transport TypeError remains in source.verdict.errors. For accepted supplemental adjudication only, its event-query ambiguity is superseded by independently accepted retained historical-query evidence; the raw errors array is not cleared or rewritten.",
       "keyAlignment.internalApiKeyProven": "The immutable raw keyAlignment=false was left by the exception before normal derivation. For supplemental adjudication only, the accepted trace-correlated demo_reset_succeeded row proves alignment, matching the verifier's bool(success) derivation; the raw field is not rewritten.",
-      "bindingReviewGate": "Fable ACCEPT applies to evidence head 8544d722433108f0b71a164675271d2f81c7a6a8. The new documentation head is not self-accepted and still requires a quick independent check."
+      "bindingReviewGate": "Fable ACCEPT applies to proof evidence at 8544d722 and separately to documentation delta fab158cb. PR #278 merged under subsequent explicit owner authority at 6e046741. This later docs-only follow-up is not self-accepted.",
+      "governingReferences": {
+        "taskPolicy": ".kiro/specs/asset-picker-composition/tasks.md — Task 8.9",
+        "finalGoGate": "scripts/verify_demo_reset_azure.py:2041-2047 at fab158cb",
+        "alignmentDerivation": "scripts/verify_demo_reset_azure.py:1986 at fab158cb",
+        "class2bHistoricalQueryRetryPolicy": ".kiro/specs/asset-picker-composition/tasks.md:3909-3925 at fab158cb — retry the same historical trace against the same time window before a fresh end-to-end run",
+        "reviewerLocatorCaveat": "tasks.md:3905-3911 at fab158cb begins the secret-safe comparison procedure; the immediately following Class 2b policy at 3909-3925 governs the historical-query retry"
+      }
     },
     "candidateGo": true,
     "cleanupOk": true,
@@ -289,18 +299,27 @@
     "internalApiKeyAlignmentProvenByTracedSuccess": true,
     "independentReviewAcceptedEvidence": true,
     "acceptedEvidenceHead": "8544d722433108f0b71a164675271d2f81c7a6a8",
-    "newDocumentationHeadIndependentCheckPending": true,
+    "newDocumentationHeadIndependentCheckPending": false,
     "go": true,
-    "reason": "Fable independently accepted the supplemental Production-proof evidence at 8544d722. GO is that accepted adjudication, not raw verifier output or acceptance of this new documentation head."
+    "reason": "Fable independently accepted the supplemental Production-proof evidence at 8544d722. GO is that accepted adjudication, not raw verifier output or acceptance of this new documentation head.",
+    "reviewedDocumentationHead": "fab158cb377bb2f6e079dd151bab0f28174eb34e"
   },
   "decision": {
     "task8_9": "COMPLETE_GO_AT_ACCEPTED_EVIDENCE_HEAD_8544D722",
     "servingAction": "retain_serving_revision",
-    "newDocumentationHeadIndependentCheckPending": true,
+    "newDocumentationHeadIndependentCheckPending": false,
     "rollbackAuthorized": false,
     "productionFlagsChanged": false,
     "wave10ExposureAuthorized": false,
-    "mergeAuthorized": false
+    "reviewedDocumentationHead": "fab158cb377bb2f6e079dd151bab0f28174eb34e",
+    "furtherMergeAuthorized": false,
+    "pr278Merge": {
+      "ownerAuthorized": true,
+      "authorityConsumed": true,
+      "mergeCommit": "6e0467419082de9dea8a1edbbbcb714fdd03b042",
+      "mergedAtUtc": "2026-09-15T08:05:15Z"
+    },
+    "followupDocumentationIndependentReviewRequired": true
   },
   "reviewHistory": [
     {
@@ -321,14 +340,27 @@
       "minorFindings": 8,
       "ownerRelayedAcceptanceSessionUtc": "2026-09-15T06:29:29.491Z",
       "source": "owner-relayed fresh independent Fable review; no Production access; see run-b-decision2-fable-acceptance-20260915.md",
-      "newDocumentationHeadReviewPending": true
+      "documentationDeltaReviewPendingAtThatHistoricalReview": true
+    },
+    {
+      "reviewedPrHead": "fab158cb377bb2f6e079dd151bab0f28174eb34e",
+      "verdict": "accept",
+      "criticalFindings": 0,
+      "importantFindings": 0,
+      "minorFindings": 5,
+      "source": "owner-relayed independent Fable delta review; no Production access",
+      "coverageCaveats": [
+        "Terminal CI and live PR body not independently checked offline",
+        "No committed Production api-gateway log-row sample"
+      ],
+      "followupIndependentReviewRequired": true
     }
   ],
   "nonClaims": [
     "The unchanged raw execute artifact remains NON-GO because its az.cmd transport did not issue the intended filtered, timed query.",
     "This supplemental record and the raw replay artifacts supply the mandated Class 2b historical-query evidence against the retained trace and UTC window; they do not self-approve that evidence.",
     "No fresh login, setup write, reset, deployment, revision, threshold override, feature-flag change, rollback, or merge was performed by the recovery.",
-    "Task 8.9 is COMPLETE / GO on independently accepted evidence head 8544d722; this new documentation head still needs the quick independent check.",
+    "Task 8.9 is COMPLETE / GO on independently accepted proof head 8544d722. Fable separately accepted documentation delta fab158cb; PR #278 then merged under explicit owner authority at 6e046741. This later follow-up requires independent review.",
     "Accepted GO does not authorize merge, Wave 10 exposure, flags, deployment, or satisfy the remaining Wave 10 prerequisites.",
     "Archived launcher text is historical evidence, not repaired runtime tooling or fresh execution authority."
   ]

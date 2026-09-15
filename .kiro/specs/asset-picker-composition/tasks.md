@@ -1,6 +1,7 @@
 # Implementation Plan
 
-**Current program status (reconciled through PR #276 on 2026-09-15 at
+**Current program status (reconciled through PR #278 on 2026-09-15 at
+`main@6e0467419082de9dea8a1edbbbcb714fdd03b042`; runtime proof baseline remains
 `main@1f922a89643f5bb406dcdf471e8dc07a229960d6`):** Waves 1–6 retain their recorded source and
 review evidence. Wave 5 Task 5.6 is GO and its gateway bundle is deployed hidden in the Task 8.8
 revision. Wave 3 Task 3.7 is green on its recorded Azure evidence; Wave 6 Task 6.3 is green on its recorded
@@ -23,9 +24,7 @@ separately authorized read-only query replayed the retained `api-gateway` skip q
 with the exact workspace, trace, UTC window, argv, timestamps, and raw process-stream capture; it
 returned zero rows. The combined evidence supports candidate `go` / `retain_serving_revision`.
 Fable independently ACCEPTed the evidence at `8544d722433108f0b71a164675271d2f81c7a6a8`:
-Task 8.9 Azure live proof is COMPLETE / GO; retain serving revisions, rollback false. The new
-documentation head still requires a quick independent check. Merge, feature exposure, and
-the remaining Wave 10 gates remain separate.
+Task 8.9 Azure live proof is COMPLETE / GO; retain serving revisions, rollback false. Fable accepted documentation head `fab158cb`; PR #278 merged at `main@6e046741`. Feature exposure and the remaining Wave 10 gates remain separate.
 
 Task 8.9's source-only provenance correction merged through PR #248 at
 `main@26148c4be75675613e28d89f713639a0376aaba7`. PR #262 then added the current immutable
@@ -125,9 +124,9 @@ The verifier's own parser and classifier map the combined raw rows to candidate 
 and [corrected gateway-skip transcript](../../../docs/evidence/b2-task-8-9/run-b-decision2-class2b-replay-r2-gateway-skip-operator-transcript-20260915.txt).
 Task 8.9 Azure live proof is **COMPLETE / GO at independently accepted evidence head `8544d722`**.
 See the [acceptance and eight-Minor reconciliation record](../../../docs/evidence/b2-task-8-9/run-b-decision2-fable-acceptance-20260915.md).
-The new documentation head still needs a quick independent check before an owner merge decision. Wave 10
+Fable accepted documentation head `fab158cb`; PR #278 merged at `main@6e046741`. Wave 10
 remains closed on its other prerequisites and owner exposure decision; both production flags remain
-disabled, and merge is not authorized.
+disabled. PR #278 merge authority was separately granted and consumed; no further merge or Production operation is authorized.
 
 Wave 9's source and disposable assembled-stack integration are complete through
 [PR #232](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/232) at
@@ -137,8 +136,7 @@ local/CI evidence, not Production E2E.
 
 B1's R3 and GC.5 blockers are closed, and Tasks 7.1–7.11 are locally complete with the Task 7.9
 exact-digest serving proof recorded. B2 Task 8.9 is COMPLETE / GO at independently accepted
-evidence head `8544d722`; the new documentation head's quick check and remaining Wave 10 prerequisites
-still gate publication/exposure, so the
+evidence head `8544d722`; documentation head `fab158cb` is independently accepted and PR #278 merged at `6e046741`; remaining Wave 10 prerequisites still gate exposure, so the
 Asset Picker is not exposed to production users. Task 2.7's historical audit is
 complete with Astra's 2026-09-10 ACCEPT: containment is only at the recorded ACA boundary and
 user-visible impact remains unproven, not impossible. Task 2.6 and Wave 10.2 item 2 remain open.
@@ -2452,7 +2450,7 @@ class, not by enumeration" through "operational signals only") deliberately keep
   only; Task 8.9's production login, portfolio write, causal log query, and cleanup remained open at
   this deployment boundary. The 2026-09-15 Decision 2 sequence and corrected historical-query
   evidence were independently accepted by Fable at `8544d722`; Task 8.9 Azure live proof is COMPLETE /
-  GO. The new documentation head still needs the quick independent check.
+  GO. Fable accepted documentation head `fab158cb`; PR #278 merged at `main@6e046741`.
   See the
   [completion evidence](../../../docs/evidence/b2-task-8-8/deployment-completion-20260910.json) and
   [owner authorization record](../../../docs/evidence/b2-task-8-8/owner-approval-20260910.json).
@@ -2581,7 +2579,7 @@ class, not by enumeration" through "operational signals only") deliberately keep
 **Task 8.9 completion evidence (Azure):** Fable ACCEPT at
 `8544d722433108f0b71a164675271d2f81c7a6a8`, GO / retain serving revisions, rollback false;
 see the [acceptance record](../../../docs/evidence/b2-task-8-9/run-b-decision2-fable-acceptance-20260915.md).
-The new documentation head still needs the quick independent check; merge and exposure remain separate.
+Fable accepted documentation head `fab158cb`; PR #278 merged at `main@6e046741`; exposure remains separately gated.
 
 - [x] **8.9 STOP/GO — live serving proof, not merely "8.1-8.7 green" (round-12 addition, corrected
   round-13 on four separate points — dependency, causality, cleanup, and an overclaim; corrected
