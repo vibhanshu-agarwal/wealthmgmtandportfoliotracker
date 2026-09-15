@@ -3,9 +3,11 @@
 > **SUPERSEDED AS A CURRENT-STATUS RECORD.** This document retains the historical narrative for the
 > accepted read-only Run A preflight. The later Decision 2 execute sequence did run; its raw verifier
 > result is `class_2b` / NON-GO, and the subsequently published manual recovery summary was rejected
-> by independent review because it did not retain the raw query output required by Task 8.9. Current
+> by independent review because it did not retain the raw query output required by Task 8.9. The first
+> captured replay was also rejected at `deac8bb7` because its skip query targeted the wrong app.
+> The corrected gateway replay was accepted at `8544d722`, and its documentation delta at `fab158cb`. Current
 > status is COMPLETE / GO on later Decision 2 evidence independently accepted at `8544d722`;
-> the new documentation head's quick check remains pending. Current status is recorded in
+> documentation head `fab158cb` is independently accepted and PR #278 merged at `6e046741`. Current status is recorded in
 > [`run-b-decision2-20260915.md`](run-b-decision2-20260915.md). This supersession does not alter any
 > Run A evidence or turn this preflight into an execute proof.
 
@@ -24,7 +26,7 @@ Companion records for
 
 **Historical Run A boundary: Task 8.9 was OPEN / NON-GO; preflight success was not completion.**
 Current status is COMPLETE / GO on later Fable-accepted Decision 2 evidence at `8544d722`;
-the new documentation head's quick check remains pending.
+documentation head `fab158cb` is independently accepted and PR #278 merged at `6e046741`.
 `go: null` is expected and is not a GO; the credential-using `execute` proof requires a separate
 owner **Decision 2**; this record does not authorize it.
 
@@ -356,7 +358,7 @@ non-GO result and is reported as such, not as a GO.
 | live revision-list read confirming no `--0000082` | **Met (†)** — count 1, `api-gateway--0000081` only |
 | wake disclosed in the evidence: route and method, actor, timestamp, authorization | **Met, with a caveat** — route/method/timestamps are in the transcript (lines 47–51); the transcript's `operator=` line (21) names the actor and cites "owner authorization 2026-09-15"; the fuller three-question Decision detail lives only in the operating session (†), not inside the transcript itself |
 | copied evidence file committed alongside the prose that cites it, hash matched to the preserved external original | **Met by this publication** — the JSON copy is byte-identical to the preserved external original and its SHA-256 is reported above |
-| Task 8.9 checkbox still `- [ ]`; Wave 8 🟡; Wave 10 still gated | **Met at this historical attempt's boundary** — this Run A preflight did not complete Task 8.9 or change either flag. The later Decision 2 evidence was independently accepted by Fable at `8544d722`, making current Task 8.9 Azure live proof COMPLETE / GO and its checkbox checked. The new documentation head's quick check and separate merge decision remain pending; Wave 10 remains gated. See [the acceptance record](run-b-decision2-fable-acceptance-20260915.md), [the owning task plan](../../../.kiro/specs/asset-picker-composition/tasks.md), and [the master plan](../../plans/ASSET_PICKER_E2E_MASTER_PLAN.md). |
+| Task 8.9 checkbox still `- [ ]`; Wave 8 🟡; Wave 10 still gated | **Met at this historical attempt's boundary** — this Run A preflight did not complete Task 8.9 or change either flag. Later Decision 2 evidence was independently accepted at `8544d722`, making current Task 8.9 Azure live proof COMPLETE / GO and its checkbox checked. Fable separately accepted documentation head `fab158cb`; PR #278 merged at `6e046741`. Wave 10 remains gated. See [the acceptance record](run-b-decision2-fable-acceptance-20260915.md), [the owning task plan](../../../.kiro/specs/asset-picker-composition/tasks.md), and [the master plan](../../plans/ASSET_PICKER_E2E_MASTER_PLAN.md). |
 | independent review before any further authorization is acted on | **Met** — Fable's round-3 review returned ACCEPT with no findings of any severity, and Codex independently accepted the preflight before publication |
 
 **§1 "Mandatory restoration and read-back" (lines 268–283), for completeness:**
@@ -373,7 +375,7 @@ non-GO result and is reported as such, not as a GO.
 > Historical Run A boundary: Task 8.9 was OPEN / NON-GO. Preflight success was not completion.
 
 The later Decision 2 supplemental evidence is COMPLETE / GO at independently accepted head
-`8544d722`; this new documentation head still needs the quick independent check.
+`8544d722`; documentation head `fab158cb` is independently accepted and PR #278 merged at `6e046741`.
 
 `go: null` is expected and is not a GO. The credential-using `execute` proof required a separate
 owner **Decision 2**; this record did not authorize it. That decision was later granted and the

@@ -1,10 +1,64 @@
 # B2 Task 8.9 — Fable acceptance and authorized record reconciliation
 
-> **QUICK INDEPENDENT CHECK OF THE NEW DOCUMENTATION HEAD IS REQUIRED BEFORE A MERGE DECISION.**
+> **PR #278 MERGED UNDER SEPARATE OWNER AUTHORITY; THIS DOCS-ONLY FOLLOW-UP REQUIRES INDEPENDENT REVIEW BEFORE ANY FURTHER MERGE.**
 > Fable accepted the Production-proof evidence at `8544d722433108f0b71a164675271d2f81c7a6a8`.
 > Task 8.9's Azure live proof is COMPLETE / GO on that accepted evidence. This record does not
-> represent acceptance of its own new publication head. Merge, flags, exposure, deployment,
-> rollback, and further Production access remain unauthorized.
+> represent acceptance of its own new publication head. Fable subsequently accepted the exact
+> `fab158cb` documentation delta, and PR #278 merged at `main@6e046741` under separate owner
+> authority. Flags, exposure, deployment, rollback, and further Production access remain unauthorized.
+
+## Subsequent delta acceptance and merge
+
+The owner later relayed Fable's independent **ACCEPT at exact documentation head
+`fab158cb377bb2f6e079dd151bab0f28174eb34e`: 0 Critical, 0 Important, 5 Minor**.
+This later review is distinct from the eight-Minor review at `8544d722` described above. It
+confirmed the acceptance record, archive/original byte identity, coherent COMPLETE / GO status,
+seven-read accounting, authorization-before-action ordering for the captured operations, and
+126 offline tests. Five record caveats remained and are addressed or explicitly bounded below.
+
+The owner then wrote **“[Vibhanshu] Please merge. The remaining minors go into a followup
+doc-only PR along with the Asset Picker master plan update and any others”**. That authorizes
+PR #278's merge and the related documentation-only follow-up, not runtime implementation,
+Production operations, flags, or exposure. GitHub records PR #278 merged at
+`2026-09-15T08:05:15Z`, merge commit `6e0467419082de9dea8a1edbbbcb714fdd03b042`.
+The accepted `fab158cb` head is the second parent; its proof/documentation files are preserved.
+The merge also retains the base branch's already merged PR #277 `LICENSE`; that is the only
+file difference from the accepted head, not a runtime change.
+This follow-up's own head is not covered by either earlier acceptance; independent review and
+a separate merge decision remain required.
+
+Before merging, Codex read the live PR head/checks: 17 SUCCESS checks, one NEUTRAL/skipped
+Qodana JVM check, `ci-required=SUCCESS`, merge state CLEAN. The owner relay counted 16 passing
+checks; the direct API snapshot contains 17 success check runs, including two status-propagation
+runs. This count difference does not change the required gate. Codex also ran the 126 offline
+tests afresh. These live checks are separate from what Fable checked offline.
+
+### Residual offline-review caveats and five Minor dispositions
+
+1. **Checkout hash:** this acceptance record is pinned `-text` in `.gitattributes`; its current
+   hash is rebound in the decision record. The earlier stated hash described committed blob
+   bytes, not every Windows checkout before that attribute existed.
+2. **Gate references:** the two supplemental substitutions are named and bound to the tracked
+   verifier's final gate at
+   [`scripts/verify_demo_reset_azure.py:2041–2047`](../../../scripts/verify_demo_reset_azure.py#L2041)
+   and alignment derivation at
+   [line 1986](../../../scripts/verify_demo_reset_azure.py#L1986), under
+   [Task 8.9's governing policy](../../../.kiro/specs/asset-picker-composition/tasks.md).
+   The review's suggested `tasks.md:3905–3911` locator at `fab158cb` is the secret-safe
+   comparison procedure, not this final gate; it is not silently presented as a gate citation.
+   The raw `verdict.errors` and `internalApiKeyProven=false` remain unchanged; acceptance
+   applies to supplemental adjudication, not a successful raw verifier exit.
+3. **Attempt-4 banner:** both recovery rejections and the later corrected acceptance are now
+   identified; the Run A preflight is still not relabeled an execute GO.
+4. **Early uncaptured reads:** the authorization chronology identifies the original Decision 2
+   approval and the operator's Class 2b recovery interpretation. No separate approval for those
+   two early reads is retained; this is a provenance limitation, not retroactive authority.
+   They remain counted and excluded from the accepted causal evidence.
+5. **Review coverage:** Fable's offline acceptance did not independently check terminal CI or
+   the live PR body. No committed Production api-gateway log-row sample exists. The meaningful
+   skip-result assessment relies on the reviewed logging implementation/test, common workspace,
+   exact trace-filtered query and portfolio-service success positive control, not an invented
+   gateway Production sample. No new Production read is authorized or needed by this docs PR.
 
 ## Acceptance provenance
 
@@ -90,7 +144,8 @@ not silently repaired. Runtime/verifier implementation backlogs remain open.
 ## Current boundary
 
 Task 8.9 Azure live proof is **COMPLETE / GO at accepted evidence head `8544d722`**; retain
-`api-gateway--0000081` and `portfolio-service--0000096`, with no rollback. This new
-documentation-only head still requires the quick independent check. PR #278 remains unmerged.
+`api-gateway--0000081` and `portfolio-service--0000096`, with no rollback. Fable accepted the
+`fab158cb` documentation delta and PR #278 merged at `main@6e046741`. This later docs-only
+follow-up still requires independent review and separate merge authority.
 Wave 10 still requires its other prerequisites, owner exposure approval, flag-bearing build/deploy,
 and Production E2E. Task 8.8a remains AWS-only. Both Production flags remain off.

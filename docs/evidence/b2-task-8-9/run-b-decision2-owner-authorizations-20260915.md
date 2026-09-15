@@ -30,7 +30,22 @@ re-arms are preserved in the correspondingly timestamped `C:\t89\run-b-retry-ope
 files. The final transcript is published as
 [`run-b-decision2-operator-transcript-20260915.txt`](run-b-decision2-operator-transcript-20260915.txt).
 
-## Current authority boundary
+## Early uncaptured manual recovery reads: authority provenance
+
+The two early uncaptured historical success/skip queries are included in the seven-query
+execute/recovery count, but excluded from the accepted causal outcome. The retained session
+records the operator at `2026-09-15T01:06:28.925Z` stating it would replay only the two retained
+queries as the Class 2b recovery action required. The operator treated the original Decision 2
+approval (“Yes, it covers decision to production execute proof evidence publication both.”)
+and the mandated historical-query recovery path as its authority.
+
+No separate owner approval for those two early reads is retained between the failed execute
+and that replay. This documents the operator's interpretation and a provenance limitation;
+it does not assert a independently timestamped replay-specific grant, retroactively expand the
+original bounded approval, or confer fresh authority. The later `02:31:57.317Z` captured-replay
+approval below did not authorize these already completed early reads retroactively.
+
+## Captured replay authority boundary
 
 The owner wrote **“Approve, please go ahead.”** in the retained session at
 `2026-09-15T02:31:57.317Z`, separately authorizing one read-only Log Analytics replay after independent review rejected
@@ -76,6 +91,20 @@ attestations. The first replay's invocation began later at `2026-09-15T02:38:48.
 Earlier re-arm timestamps remain transcript-bound because this record does not extract or
 attest their chat timestamps.
 
-This latest approval authorizes only the named commit/push, not any Production read, launcher
-execution, code behavior change, merge, deployment, flags, or exposure. A quick Fable check of
-the new documentation head remains required before any separate owner merge decision.
+That historical approval authorized only the named commit/push, not any Production read, launcher
+execution, code behavior change, merge, deployment, flags, or exposure.
+
+## Delta acceptance, separate merge approval, and consumed authority
+
+The owner subsequently relayed Fable ACCEPT of exact documentation delta `fab158cb`,
+with 0 Critical, 0 Important, and 5 Minor findings. It then explicitly wrote:
+**“[Vibhanshu] Please merge. The remaining minors go into a followup doc-only PR along with
+the Asset Picker master plan update and any others”**. This distinct approval covers PR #278's
+merge and the related documentation-only follow-up, not runtime changes or Production access.
+
+GitHub records the authorized merge at `2026-09-15T08:05:15Z`,
+commit `6e0467419082de9dea8a1edbbbcb714fdd03b042`, preserving accepted second parent
+`fab158cb377bb2f6e079dd151bab0f28174eb34e`. PR #278 merge authority is consumed.
+The later docs-only follow-up still requires independent Fable review and separate merge
+authority. No Production read, launcher execution, deployment, flag change, exposure,
+rollback, or future merge is authorized by this chronology.

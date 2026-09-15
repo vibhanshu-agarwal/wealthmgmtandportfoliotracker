@@ -64,6 +64,6 @@ invocation. The installed shim used by the verifier has the same load-bearing fo
 
 Source tests and independent review may close this implementation backlog. The later evidence-only
 replays do not fix this source defect. Task 8.9 Azure live proof is **COMPLETE / GO at independently
-accepted evidence head `8544d722`**; the new documentation head's quick check remains pending.
+accepted evidence head `8544d722`**; documentation head `fab158cb` is independently accepted and PR #278 merged at `6e046741`.
 This implementation backlog stays OPEN. The raw execute artifact remains
 Class 2b / NON-GO.
