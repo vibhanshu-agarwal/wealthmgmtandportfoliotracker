@@ -1,0 +1,171 @@
+{
+  "schemaVersion": 1,
+  "recordedDate": "2026-09-15",
+  "task": "B2 Task 8.9 Decision 2 Production execute proof",
+  "result": "GO_RECOVERED_FROM_CLASS_2B_HISTORICAL_QUERY",
+  "authority": {
+    "ownerAuthorizedExecuteProof": true,
+    "ownerAuthorizedEvidencePublication": true,
+    "mergeAuthorized": false,
+    "featureExposureAuthorized": false
+  },
+  "source": {
+    "repositoryHead": "1f922a89643f5bb406dcdf471e8dc07a229960d6",
+    "preflightEvidence": {
+      "path": "docs/evidence/b2-task-8-9/run-b-decision2-preflight-20260915.json",
+      "sha256": "2f4a5fd5105506ef1701bb78afe4841df0e0dc602ce1940bdaaac062ea639b8b"
+    },
+    "rawExecuteEvidence": {
+      "path": "docs/evidence/b2-task-8-9/run-b-decision2-execute-raw-20260915.json",
+      "sha256": "7f236f98c506aa652fd7cffeb43df2fa43e92afee42f890eb21f05bd7f3968be",
+      "preservedUnchanged": true,
+      "rawVerdict": "non_go",
+      "rawClassification": "class_2b"
+    },
+    "operatorTranscript": {
+      "path": "docs/evidence/b2-task-8-9/run-b-decision2-operator-transcript-20260915.txt",
+      "sha256": "f4aa2c895485c2b4f106c828c805cacc3b3f776acf1e2a0f5b892b96f26f4b83"
+    }
+  },
+  "execution": {
+    "provider": "azure",
+    "target": "production-azure",
+    "sequenceStartUtc": "2026-09-15T00:26:59.5961827Z",
+    "sequenceEndUtc": "2026-09-15T01:05:24.5283245Z",
+    "thresholdOverrideUsed": false,
+    "idleThreshold": "30m",
+    "ageWaitSeconds": 1800.001,
+    "setup": {
+      "beforeVersion": 4,
+      "writeVersion": 5,
+      "persistedUpdatedAt": "2026-09-15T00:31:57.308616Z",
+      "agedAt": "2026-09-15T01:02:13.518947Z",
+      "nonGoldenWriteProven": true
+    },
+    "login": {
+      "status": 200,
+      "traceId": "45097abc3f131da71b27d1b248b3e3c9"
+    },
+    "observation": {
+      "identityVerified": true,
+      "postLoginGolden": true,
+      "postLoginVersion": 6
+    },
+    "cleanup": {
+      "armed": true,
+      "attemptCount": 1,
+      "resetStatus": 200,
+      "succeeded": true,
+      "conflictObserved": false,
+      "postCleanupGolden": true,
+      "postCleanupVersion": 6
+    },
+    "thresholdRestore": {
+      "required": false,
+      "attempted": false,
+      "verified": true
+    },
+    "servingRevalidation": {
+      "afterAgeMatched": true,
+      "finalMatched": true,
+      "apiGatewayRevision": "api-gateway--0000081",
+      "apiGatewayDigest": "sha256:090ad3ba4b7ada20bca71781d4a1ce3ac81029b8a23a8a1d180dce2cff540d09",
+      "portfolioServiceRevision": "portfolio-service--0000096",
+      "portfolioServiceDigest": "sha256:1cf372a39d17709f74aba427259548a531e3e1ba04dc64ec7750369bb8e82126"
+    }
+  },
+  "class2bRecovery": {
+    "requiredAction": "retry_historical_query",
+    "freshLoginOrMutationPerformed": false,
+    "rawFailure": {
+      "message": "the JSON object must be str, bytes or bytearray, not NoneType",
+      "cause": "A Python subprocess reader decoded an Azure CLI child stream as UTF-8 and encountered byte 0x97, so the event payload was unavailable to the original classifier."
+    },
+    "trace": {
+      "traceId": "45097abc3f131da71b27d1b248b3e3c9",
+      "windowStart": "2026-09-15T01:02:27.089196Z",
+      "windowEnd": "2026-09-15T01:05:51.164581Z"
+    },
+    "transportRepair": {
+      "azureCommand": "az.cmd",
+      "change": "Line breaks were replaced with spaces before passing each retained KQL string through the Windows command shim.",
+      "semanticChange": false,
+      "nonWhitespaceQueryContentChanged": false,
+      "rawIsoUtcTimespanPreserved": true
+    },
+    "queries": {
+      "success": {
+        "retainedMultilineSha256": "5a817b0345ff88e4b6326a8fff9b0afd33760577c19b71d500462d19601fce1a",
+        "transportedSingleLineSha256": "f0362ea48d395c01fce19c20cef4519c4e8503e2636d7f0486622fdb62800d24",
+        "exitCode": 0,
+        "rowCount": 1,
+        "event": {
+          "timeGenerated": "2026-09-15T01:04:54.5818434Z",
+          "containerApp": "portfolio-service",
+          "revision": "portfolio-service--0000096",
+          "traceId": "45097abc3f131da71b27d1b248b3e3c9",
+          "event": "demo_reset_succeeded",
+          "version": 6
+        }
+      },
+      "skip": {
+        "retainedMultilineSha256": "458a34237a22d2f860eba9afae7b209279580d1781460ccbfe70cf5337fdcf40",
+        "transportedSingleLineSha256": "4864e9eeb859557e9cd5a1a4ea97ce8cdd4757bdadbf69af8b5d8268eac34a97",
+        "exitCode": 0,
+        "rowCount": 0
+      }
+    },
+    "recoveredOutcome": "a_success_only"
+  },
+  "classification": {
+    "function": "scripts.verify_demo_reset_azure.classify_task8_9",
+    "input": {
+      "events": {
+        "outcome": "a_success_only",
+        "successVersion": 6,
+        "skip": null,
+        "queryError": null
+      },
+      "observation": {
+        "golden": true,
+        "postLoginVersion": 6
+      },
+      "decisions": {
+        "eligibilityTimeout": "120s",
+        "resetTimeout": "30s",
+        "overallTimeout": "165s"
+      }
+    },
+    "output": {
+      "class": "go",
+      "action": "retain_serving_revision",
+      "rationale": "trace-correlated reset proven",
+      "resolved": true,
+      "rollbackAuthorized": false
+    }
+  },
+  "finalGateEvaluation": {
+    "candidateGo": true,
+    "cleanupOk": true,
+    "thresholdRestoreOk": true,
+    "eventQueryErrorResolvedByHistoricalReplay": true,
+    "finalServingRevalidated": true,
+    "providerIsAzure": true,
+    "internalApiKeyAlignmentProvenByTracedSuccess": true,
+    "go": true
+  },
+  "decision": {
+    "task8_9": "COMPLETE_GO",
+    "servingAction": "retain_serving_revision",
+    "rollbackAuthorized": false,
+    "productionFlagsChanged": false,
+    "wave10ExposureAuthorized": false,
+    "mergeAuthorized": false
+  },
+  "nonClaims": [
+    "The unchanged raw execute artifact remains NON-GO because the original process could not decode the event-query child stream.",
+    "This supplemental record resolves only the mandated Class 2b historical-query action against the retained trace and UTC window.",
+    "No fresh login, setup write, reset, deployment, revision, threshold override, feature-flag change, rollback, or merge was performed by the recovery.",
+    "Task 8.9 GO does not by itself authorize Wave 10 exposure or satisfy the remaining Wave 10 prerequisites."
+  ]
+}

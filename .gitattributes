@@ -6,3 +6,7 @@
 /docs/evidence/b2-task-8-9/run-a-attempt-20260915.md -text
 /docs/evidence/b2-task-8-9/run-a-attempt4-preflight-20260915.json -text
 /docs/evidence/b2-task-8-9/run-a-attempt4-operator-transcript-20260915.txt -text
+/docs/evidence/b2-task-8-9/run-b-decision2-preflight-20260915.json -text whitespace=cr-at-eol
+/docs/evidence/b2-task-8-9/run-b-decision2-execute-raw-20260915.json -text whitespace=cr-at-eol
+/docs/evidence/b2-task-8-9/run-b-decision2-operator-transcript-20260915.txt -text whitespace=-blank-at-eol,cr-at-eol
+/docs/evidence/b2-task-8-9/run-b-decision2-class2b-recovery-20260915.json -text whitespace=cr-at-eol

@@ -1,0 +1,2657 @@
+{
+  "classification": "class_2b",
+  "classificationDetail": {
+    "action": "retry_historical_query",
+    "class": "class_2b",
+    "rationale": "skip payload missing",
+    "resolved": true,
+    "rollbackAuthorized": false
+  },
+  "cleanup": {
+    "armed": true,
+    "attempts": [
+      {
+        "number": 1,
+        "observedVersion": 6,
+        "status": 200
+      }
+    ],
+    "conflictObserved": false,
+    "postCleanupGolden": true,
+    "postCleanupHoldings": [
+      {
+        "assetTicker": "AAPL",
+        "quantity": "37.00000000"
+      },
+      {
+        "assetTicker": "AAVE-USD",
+        "quantity": "7.00000000"
+      },
+      {
+        "assetTicker": "ABBV",
+        "quantity": "24.00000000"
+      },
+      {
+        "assetTicker": "ACN",
+        "quantity": "21.00000000"
+      },
+      {
+        "assetTicker": "ADA-USD",
+        "quantity": "26.00000000"
+      },
+      {
+        "assetTicker": "ADANIENT.NS",
+        "quantity": "42.00000000"
+      },
+      {
+        "assetTicker": "ADANIPORTS.NS",
+        "quantity": "9.00000000"
+      },
+      {
+        "assetTicker": "ADBE",
+        "quantity": "29.00000000"
+      },
+      {
+        "assetTicker": "ALGO-USD",
+        "quantity": "5.00000000"
+      },
+      {
+        "assetTicker": "AMD",
+        "quantity": "21.00000000"
+      },
+      {
+        "assetTicker": "AMZN",
+        "quantity": "31.00000000"
+      },
+      {
+        "assetTicker": "APOLLOHOSP.NS",
+        "quantity": "1.00000000"
+      },
+      {
+        "assetTicker": "APT-USD",
+        "quantity": "37.00000000"
+      },
+      {
+        "assetTicker": "ARB-USD",
+        "quantity": "11.00000000"
+      },
+      {
+        "assetTicker": "ASIANPAINT.NS",
+        "quantity": "16.00000000"
+      },
+      {
+        "assetTicker": "ATOM-USD",
+        "quantity": "23.00000000"
+      },
+      {
+        "assetTicker": "AUDUSD=X",
+        "quantity": "20.00000000"
+      },
+      {
+        "assetTicker": "AVAX-USD",
+        "quantity": "6.00000000"
+      },
+      {
+        "assetTicker": "AVGO",
+        "quantity": "42.00000000"
+      },
+      {
+        "assetTicker": "AXISBANK.NS",
+        "quantity": "7.00000000"
+      },
+      {
+        "assetTicker": "AXS-USD",
+        "quantity": "24.00000000"
+      },
+      {
+        "assetTicker": "BA",
+        "quantity": "12.00000000"
+      },
+      {
+        "assetTicker": "BAC",
+        "quantity": "9.00000000"
+      },
+      {
+        "assetTicker": "BAJAJ-AUTO.NS",
+        "quantity": "16.00000000"
+      },
+      {
+        "assetTicker": "BAJAJFINSV.NS",
+        "quantity": "42.00000000"
+      },
+      {
+        "assetTicker": "BAJFINANCE.NS",
+        "quantity": "37.00000000"
+      },
+      {
+        "assetTicker": "BCH-USD",
+        "quantity": "3.00000000"
+      },
+      {
+        "assetTicker": "BHARTIARTL.NS",
+        "quantity": "9.00000000"
+      },
+      {
+        "assetTicker": "BNB-USD",
+        "quantity": "38.00000000"
+      },
+      {
+        "assetTicker": "BPCL.NS",
+        "quantity": "13.00000000"
+      },
+      {
+        "assetTicker": "BRITANNIA.NS",
+        "quantity": "24.00000000"
+      },
+      {
+        "assetTicker": "BRK-B",
+        "quantity": "35.00000000"
+      },
+      {
+        "assetTicker": "BTC-USD",
+        "quantity": "15.00000000"
+      },
+      {
+        "assetTicker": "C",
+        "quantity": "18.00000000"
+      },
+      {
+        "assetTicker": "CHZ-USD",
+        "quantity": "17.00000000"
+      },
+      {
+        "assetTicker": "CIPLA.NS",
+        "quantity": "29.00000000"
+      },
+      {
+        "assetTicker": "COALINDIA.NS",
+        "quantity": "16.00000000"
+      },
+      {
+        "assetTicker": "COST",
+        "quantity": "24.00000000"
+      },
+      {
+        "assetTicker": "CRM",
+        "quantity": "7.00000000"
+      },
+      {
+        "assetTicker": "CSCO",
+        "quantity": "17.00000000"
+      },
+      {
+        "assetTicker": "CVX",
+        "quantity": "42.00000000"
+      },
+      {
+        "assetTicker": "DIS",
+        "quantity": "45.00000000"
+      },
+      {
+        "assetTicker": "DIVISLAB.NS",
+        "quantity": "4.00000000"
+      },
+      {
+        "assetTicker": "DOGE-USD",
+        "quantity": "47.00000000"
+      },
+      {
+        "assetTicker": "DOT-USD",
+        "quantity": "33.00000000"
+      },
+      {
+        "assetTicker": "DRREDDY.NS",
+        "quantity": "46.00000000"
+      },
+      {
+        "assetTicker": "EGLD-USD",
+        "quantity": "14.00000000"
+      },
+      {
+        "assetTicker": "EICHERMOT.NS",
+        "quantity": "14.00000000"
+      },
+      {
+        "assetTicker": "ETC-USD",
+        "quantity": "12.00000000"
+      },
+      {
+        "assetTicker": "ETH-USD",
+        "quantity": "17.00000000"
+      },
+      {
+        "assetTicker": "EURUSD=X",
+        "quantity": "32.00000000"
+      },
+      {
+        "assetTicker": "FIL-USD",
+        "quantity": "21.00000000"
+      },
+      {
+        "assetTicker": "FLOW-USD",
+        "quantity": "14.00000000"
+      },
+      {
+        "assetTicker": "FTM-USD",
+        "quantity": "3.00000000"
+      },
+      {
+        "assetTicker": "GALA-USD",
+        "quantity": "35.00000000"
+      },
+      {
+        "assetTicker": "GBPUSD=X",
+        "quantity": "49.00000000"
+      },
+      {
+        "assetTicker": "GE",
+        "quantity": "21.00000000"
+      },
+      {
+        "assetTicker": "GOOGL",
+        "quantity": "27.00000000"
+      },
+      {
+        "assetTicker": "GRASIM.NS",
+        "quantity": "11.00000000"
+      },
+      {
+        "assetTicker": "GRT-USD",
+        "quantity": "29.00000000"
+      },
+      {
+        "assetTicker": "GS",
+        "quantity": "35.00000000"
+      },
+      {
+        "assetTicker": "HBAR-USD",
+        "quantity": "47.00000000"
+      },
+      {
+        "assetTicker": "HCLTECH.NS",
+        "quantity": "37.00000000"
+      },
+      {
+        "assetTicker": "HD",
+        "quantity": "1.00000000"
+      },
+      {
+        "assetTicker": "HDFCBANK.NS",
+        "quantity": "45.00000000"
+      },
+      {
+        "assetTicker": "HDFCLIFE.NS",
+        "quantity": "7.00000000"
+      },
+      {
+        "assetTicker": "HEROMOTOCO.NS",
+        "quantity": "33.00000000"
+      },
+      {
+        "assetTicker": "HINDALCO.NS",
+        "quantity": "48.00000000"
+      },
+      {
+        "assetTicker": "HINDUNILVR.NS",
+        "quantity": "23.00000000"
+      },
+      {
+        "assetTicker": "IBM",
+        "quantity": "27.00000000"
+      },
+      {
+        "assetTicker": "ICICIBANK.NS",
+        "quantity": "29.00000000"
+      },
+      {
+        "assetTicker": "ICP-USD",
+        "quantity": "46.00000000"
+      },
+      {
+        "assetTicker": "IMX-USD",
+        "quantity": "24.00000000"
+      },
+      {
+        "assetTicker": "INDUSINDBK.NS",
+        "quantity": "19.00000000"
+      },
+      {
+        "assetTicker": "INFY.NS",
+        "quantity": "32.00000000"
+      },
+      {
+        "assetTicker": "INJ-USD",
+        "quantity": "31.00000000"
+      },
+      {
+        "assetTicker": "INTC",
+        "quantity": "23.00000000"
+      },
+      {
+        "assetTicker": "ITC.NS",
+        "quantity": "46.00000000"
+      },
+      {
+        "assetTicker": "JNJ",
+        "quantity": "7.00000000"
+      },
+      {
+        "assetTicker": "JPM",
+        "quantity": "22.00000000"
+      },
+      {
+        "assetTicker": "JSWSTEEL.NS",
+        "quantity": "9.00000000"
+      },
+      {
+        "assetTicker": "KAVA-USD",
+        "quantity": "39.00000000"
+      },
+      {
+        "assetTicker": "KO",
+        "quantity": "5.00000000"
+      },
+      {
+        "assetTicker": "KOTAKBANK.NS",
+        "quantity": "38.00000000"
+      },
+      {
+        "assetTicker": "LINK-USD",
+        "quantity": "32.00000000"
+      },
+      {
+        "assetTicker": "LLY",
+        "quantity": "32.00000000"
+      },
+      {
+        "assetTicker": "LT.NS",
+        "quantity": "48.00000000"
+      },
+      {
+        "assetTicker": "LTC-USD",
+        "quantity": "33.00000000"
+      },
+      {
+        "assetTicker": "M&M.NS",
+        "quantity": "44.00000000"
+      },
+      {
+        "assetTicker": "MA",
+        "quantity": "3.00000000"
+      },
+      {
+        "assetTicker": "MANA-USD",
+        "quantity": "5.00000000"
+      },
+      {
+        "assetTicker": "MARUTI.NS",
+        "quantity": "14.00000000"
+      },
+      {
+        "assetTicker": "MATIC-USD",
+        "quantity": "28.00000000"
+      },
+      {
+        "assetTicker": "MCD",
+        "quantity": "43.00000000"
+      },
+      {
+        "assetTicker": "META",
+        "quantity": "36.00000000"
+      },
+      {
+        "assetTicker": "MRK",
+        "quantity": "15.00000000"
+      },
+      {
+        "assetTicker": "MSFT",
+        "quantity": "25.00000000"
+      },
+      {
+        "assetTicker": "NEAR-USD",
+        "quantity": "12.00000000"
+      },
+      {
+        "assetTicker": "NEO-USD",
+        "quantity": "36.00000000"
+      },
+      {
+        "assetTicker": "NESTLEIND.NS",
+        "quantity": "30.00000000"
+      },
+      {
+        "assetTicker": "NFLX",
+        "quantity": "13.00000000"
+      },
+      {
+        "assetTicker": "NKE",
+        "quantity": "3.00000000"
+      },
+      {
+        "assetTicker": "NTPC.NS",
+        "quantity": "5.00000000"
+      },
+      {
+        "assetTicker": "NVDA",
+        "quantity": "18.00000000"
+      },
+      {
+        "assetTicker": "NZDUSD=X",
+        "quantity": "8.00000000"
+      },
+      {
+        "assetTicker": "ONGC.NS",
+        "quantity": "41.00000000"
+      },
+      {
+        "assetTicker": "OP-USD",
+        "quantity": "35.00000000"
+      },
+      {
+        "assetTicker": "ORCL",
+        "quantity": "45.00000000"
+      },
+      {
+        "assetTicker": "PEP",
+        "quantity": "50.00000000"
+      },
+      {
+        "assetTicker": "PFE",
+        "quantity": "20.00000000"
+      },
+      {
+        "assetTicker": "PG",
+        "quantity": "2.00000000"
+      },
+      {
+        "assetTicker": "POWERGRID.NS",
+        "quantity": "49.00000000"
+      },
+      {
+        "assetTicker": "PYPL",
+        "quantity": "16.00000000"
+      },
+      {
+        "assetTicker": "QCOM",
+        "quantity": "35.00000000"
+      },
+      {
+        "assetTicker": "RELIANCE.NS",
+        "quantity": "17.00000000"
+      },
+      {
+        "assetTicker": "ROSE-USD",
+        "quantity": "23.00000000"
+      },
+      {
+        "assetTicker": "RTX",
+        "quantity": "45.00000000"
+      },
+      {
+        "assetTicker": "RUNE-USD",
+        "quantity": "8.00000000"
+      },
+      {
+        "assetTicker": "SAND-USD",
+        "quantity": "40.00000000"
+      },
+      {
+        "assetTicker": "SBILIFE.NS",
+        "quantity": "24.00000000"
+      },
+      {
+        "assetTicker": "SBIN.NS",
+        "quantity": "50.00000000"
+      },
+      {
+        "assetTicker": "SBUX",
+        "quantity": "3.00000000"
+      },
+      {
+        "assetTicker": "SHIB-USD",
+        "quantity": "14.00000000"
+      },
+      {
+        "assetTicker": "SHREECEM.NS",
+        "quantity": "42.00000000"
+      },
+      {
+        "assetTicker": "SOL-USD",
+        "quantity": "42.00000000"
+      },
+      {
+        "assetTicker": "SUNPHARMA.NS",
+        "quantity": "31.00000000"
+      },
+      {
+        "assetTicker": "T",
+        "quantity": "35.00000000"
+      },
+      {
+        "assetTicker": "TATACONSUM.NS",
+        "quantity": "27.00000000"
+      },
+      {
+        "assetTicker": "TATASTEEL.NS",
+        "quantity": "31.00000000"
+      },
+      {
+        "assetTicker": "TCS.NS",
+        "quantity": "6.00000000"
+      },
+      {
+        "assetTicker": "TECHM.NS",
+        "quantity": "19.00000000"
+      },
+      {
+        "assetTicker": "THETA-USD",
+        "quantity": "24.00000000"
+      },
+      {
+        "assetTicker": "TITAN.NS",
+        "quantity": "8.00000000"
+      },
+      {
+        "assetTicker": "TMO",
+        "quantity": "41.00000000"
+      },
+      {
+        "assetTicker": "TON-USD",
+        "quantity": "15.00000000"
+      },
+      {
+        "assetTicker": "TRX-USD",
+        "quantity": "28.00000000"
+      },
+      {
+        "assetTicker": "TSLA",
+        "quantity": "29.00000000"
+      },
+      {
+        "assetTicker": "ULTRACEMCO.NS",
+        "quantity": "41.00000000"
+      },
+      {
+        "assetTicker": "UNH",
+        "quantity": "26.00000000"
+      },
+      {
+        "assetTicker": "UNI-USD",
+        "quantity": "40.00000000"
+      },
+      {
+        "assetTicker": "UPL.NS",
+        "quantity": "43.00000000"
+      },
+      {
+        "assetTicker": "USDC-USD",
+        "quantity": "3.00000000"
+      },
+      {
+        "assetTicker": "USDCAD=X",
+        "quantity": "24.00000000"
+      },
+      {
+        "assetTicker": "USDCHF=X",
+        "quantity": "33.00000000"
+      },
+      {
+        "assetTicker": "USDHKD=X",
+        "quantity": "39.00000000"
+      },
+      {
+        "assetTicker": "USDINR=X",
+        "quantity": "37.00000000"
+      },
+      {
+        "assetTicker": "USDJPY=X",
+        "quantity": "17.00000000"
+      },
+      {
+        "assetTicker": "USDSGD=X",
+        "quantity": "6.00000000"
+      },
+      {
+        "assetTicker": "V",
+        "quantity": "37.00000000"
+      },
+      {
+        "assetTicker": "VET-USD",
+        "quantity": "43.00000000"
+      },
+      {
+        "assetTicker": "VZ",
+        "quantity": "7.00000000"
+      },
+      {
+        "assetTicker": "WIPRO.NS",
+        "quantity": "11.00000000"
+      },
+      {
+        "assetTicker": "WMT",
+        "quantity": "29.00000000"
+      },
+      {
+        "assetTicker": "XLM-USD",
+        "quantity": "19.00000000"
+      },
+      {
+        "assetTicker": "XMR-USD",
+        "quantity": "25.00000000"
+      },
+      {
+        "assetTicker": "XOM",
+        "quantity": "45.00000000"
+      },
+      {
+        "assetTicker": "XRP-USD",
+        "quantity": "38.00000000"
+      },
+      {
+        "assetTicker": "XTZ-USD",
+        "quantity": "50.00000000"
+      },
+      {
+        "assetTicker": "ZEC-USD",
+        "quantity": "14.00000000"
+      }
+    ],
+    "postCleanupVersion": 6,
+    "succeeded": true
+  },
+  "decisions": {
+    "effectiveIdleThreshold": "30m",
+    "eligibilityTimeout": "120s",
+    "idleThreshold": "30m",
+    "observedTimeouts": {
+      "APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT": "120s",
+      "APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT": "165s",
+      "APP_DEMO_LOGIN_RESET_RESET_TIMEOUT": "30s",
+      "SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_RESPONSETIMEOUT": "150s"
+    },
+    "overallTimeout": "165s",
+    "overrideUsed": false,
+    "resetTimeout": "30s",
+    "serving": {
+      "eligibilityTimeout": "120s",
+      "idleThreshold": "30m",
+      "overallTimeout": "165s",
+      "resetTimeout": "30s"
+    },
+    "wave10Eligible": true
+  },
+  "diagnostics": {
+    "available": false,
+    "operations": []
+  },
+  "events": {
+    "outcome": "polling",
+    "pollDeadlineSeconds": 60.0,
+    "pollIntervalSeconds": 5.0,
+    "queries": {
+      "skip": "ContainerAppConsoleLogs_CL\n| where TimeGenerated between (datetime(2026-09-15T01:02:27.089196Z) .. datetime(2026-09-15T01:05:51.164581Z))\n| where ContainerAppName_s == 'api-gateway'\n| where tostring(Log_s) contains 'demo_reset_self_call_skipped'\n| where tostring(Log_s) contains '45097abc3f131da71b27d1b248b3e3c9'\n| project TimeGenerated, ContainerAppName_s, RevisionName_s, Log_s\n| order by TimeGenerated asc",
+      "success": "ContainerAppConsoleLogs_CL\n| where TimeGenerated between (datetime(2026-09-15T01:02:27.089196Z) .. datetime(2026-09-15T01:05:51.164581Z))\n| where ContainerAppName_s == 'portfolio-service'\n| where tostring(Log_s) contains 'demo_reset_succeeded'\n| where tostring(Log_s) contains '45097abc3f131da71b27d1b248b3e3c9'\n| project TimeGenerated, ContainerAppName_s, RevisionName_s, Log_s\n| order by TimeGenerated asc"
+    },
+    "queryError": null,
+    "skip": null,
+    "success": null,
+    "windowEnd": "2026-09-15T01:05:51.164581Z",
+    "windowStart": "2026-09-15T01:02:27.089196Z"
+  },
+  "keyAlignment": {
+    "internalApiKeyProven": false,
+    "originVerification": "not_applicable_on_azure",
+    "proof": "not_observed"
+  },
+  "login": {
+    "status": 200
+  },
+  "observation": {
+    "golden": true,
+    "holdings": [
+      {
+        "assetTicker": "AAPL",
+        "quantity": "37.00000000"
+      },
+      {
+        "assetTicker": "AAVE-USD",
+        "quantity": "7.00000000"
+      },
+      {
+        "assetTicker": "ABBV",
+        "quantity": "24.00000000"
+      },
+      {
+        "assetTicker": "ACN",
+        "quantity": "21.00000000"
+      },
+      {
+        "assetTicker": "ADA-USD",
+        "quantity": "26.00000000"
+      },
+      {
+        "assetTicker": "ADANIENT.NS",
+        "quantity": "42.00000000"
+      },
+      {
+        "assetTicker": "ADANIPORTS.NS",
+        "quantity": "9.00000000"
+      },
+      {
+        "assetTicker": "ADBE",
+        "quantity": "29.00000000"
+      },
+      {
+        "assetTicker": "ALGO-USD",
+        "quantity": "5.00000000"
+      },
+      {
+        "assetTicker": "AMD",
+        "quantity": "21.00000000"
+      },
+      {
+        "assetTicker": "AMZN",
+        "quantity": "31.00000000"
+      },
+      {
+        "assetTicker": "APOLLOHOSP.NS",
+        "quantity": "1.00000000"
+      },
+      {
+        "assetTicker": "APT-USD",
+        "quantity": "37.00000000"
+      },
+      {
+        "assetTicker": "ARB-USD",
+        "quantity": "11.00000000"
+      },
+      {
+        "assetTicker": "ASIANPAINT.NS",
+        "quantity": "16.00000000"
+      },
+      {
+        "assetTicker": "ATOM-USD",
+        "quantity": "23.00000000"
+      },
+      {
+        "assetTicker": "AUDUSD=X",
+        "quantity": "20.00000000"
+      },
+      {
+        "assetTicker": "AVAX-USD",
+        "quantity": "6.00000000"
+      },
+      {
+        "assetTicker": "AVGO",
+        "quantity": "42.00000000"
+      },
+      {
+        "assetTicker": "AXISBANK.NS",
+        "quantity": "7.00000000"
+      },
+      {
+        "assetTicker": "AXS-USD",
+        "quantity": "24.00000000"
+      },
+      {
+        "assetTicker": "BA",
+        "quantity": "12.00000000"
+      },
+      {
+        "assetTicker": "BAC",
+        "quantity": "9.00000000"
+      },
+      {
+        "assetTicker": "BAJAJ-AUTO.NS",
+        "quantity": "16.00000000"
+      },
+      {
+        "assetTicker": "BAJAJFINSV.NS",
+        "quantity": "42.00000000"
+      },
+      {
+        "assetTicker": "BAJFINANCE.NS",
+        "quantity": "37.00000000"
+      },
+      {
+        "assetTicker": "BCH-USD",
+        "quantity": "3.00000000"
+      },
+      {
+        "assetTicker": "BHARTIARTL.NS",
+        "quantity": "9.00000000"
+      },
+      {
+        "assetTicker": "BNB-USD",
+        "quantity": "38.00000000"
+      },
+      {
+        "assetTicker": "BPCL.NS",
+        "quantity": "13.00000000"
+      },
+      {
+        "assetTicker": "BRITANNIA.NS",
+        "quantity": "24.00000000"
+      },
+      {
+        "assetTicker": "BRK-B",
+        "quantity": "35.00000000"
+      },
+      {
+        "assetTicker": "BTC-USD",
+        "quantity": "15.00000000"
+      },
+      {
+        "assetTicker": "C",
+        "quantity": "18.00000000"
+      },
+      {
+        "assetTicker": "CHZ-USD",
+        "quantity": "17.00000000"
+      },
+      {
+        "assetTicker": "CIPLA.NS",
+        "quantity": "29.00000000"
+      },
+      {
+        "assetTicker": "COALINDIA.NS",
+        "quantity": "16.00000000"
+      },
+      {
+        "assetTicker": "COST",
+        "quantity": "24.00000000"
+      },
+      {
+        "assetTicker": "CRM",
+        "quantity": "7.00000000"
+      },
+      {
+        "assetTicker": "CSCO",
+        "quantity": "17.00000000"
+      },
+      {
+        "assetTicker": "CVX",
+        "quantity": "42.00000000"
+      },
+      {
+        "assetTicker": "DIS",
+        "quantity": "45.00000000"
+      },
+      {
+        "assetTicker": "DIVISLAB.NS",
+        "quantity": "4.00000000"
+      },
+      {
+        "assetTicker": "DOGE-USD",
+        "quantity": "47.00000000"
+      },
+      {
+        "assetTicker": "DOT-USD",
+        "quantity": "33.00000000"
+      },
+      {
+        "assetTicker": "DRREDDY.NS",
+        "quantity": "46.00000000"
+      },
+      {
+        "assetTicker": "EGLD-USD",
+        "quantity": "14.00000000"
+      },
+      {
+        "assetTicker": "EICHERMOT.NS",
+        "quantity": "14.00000000"
+      },
+      {
+        "assetTicker": "ETC-USD",
+        "quantity": "12.00000000"
+      },
+      {
+        "assetTicker": "ETH-USD",
+        "quantity": "17.00000000"
+      },
+      {
+        "assetTicker": "EURUSD=X",
+        "quantity": "32.00000000"
+      },
+      {
+        "assetTicker": "FIL-USD",
+        "quantity": "21.00000000"
+      },
+      {
+        "assetTicker": "FLOW-USD",
+        "quantity": "14.00000000"
+      },
+      {
+        "assetTicker": "FTM-USD",
+        "quantity": "3.00000000"
+      },
+      {
+        "assetTicker": "GALA-USD",
+        "quantity": "35.00000000"
+      },
+      {
+        "assetTicker": "GBPUSD=X",
+        "quantity": "49.00000000"
+      },
+      {
+        "assetTicker": "GE",
+        "quantity": "21.00000000"
+      },
+      {
+        "assetTicker": "GOOGL",
+        "quantity": "27.00000000"
+      },
+      {
+        "assetTicker": "GRASIM.NS",
+        "quantity": "11.00000000"
+      },
+      {
+        "assetTicker": "GRT-USD",
+        "quantity": "29.00000000"
+      },
+      {
+        "assetTicker": "GS",
+        "quantity": "35.00000000"
+      },
+      {
+        "assetTicker": "HBAR-USD",
+        "quantity": "47.00000000"
+      },
+      {
+        "assetTicker": "HCLTECH.NS",
+        "quantity": "37.00000000"
+      },
+      {
+        "assetTicker": "HD",
+        "quantity": "1.00000000"
+      },
+      {
+        "assetTicker": "HDFCBANK.NS",
+        "quantity": "45.00000000"
+      },
+      {
+        "assetTicker": "HDFCLIFE.NS",
+        "quantity": "7.00000000"
+      },
+      {
+        "assetTicker": "HEROMOTOCO.NS",
+        "quantity": "33.00000000"
+      },
+      {
+        "assetTicker": "HINDALCO.NS",
+        "quantity": "48.00000000"
+      },
+      {
+        "assetTicker": "HINDUNILVR.NS",
+        "quantity": "23.00000000"
+      },
+      {
+        "assetTicker": "IBM",
+        "quantity": "27.00000000"
+      },
+      {
+        "assetTicker": "ICICIBANK.NS",
+        "quantity": "29.00000000"
+      },
+      {
+        "assetTicker": "ICP-USD",
+        "quantity": "46.00000000"
+      },
+      {
+        "assetTicker": "IMX-USD",
+        "quantity": "24.00000000"
+      },
+      {
+        "assetTicker": "INDUSINDBK.NS",
+        "quantity": "19.00000000"
+      },
+      {
+        "assetTicker": "INFY.NS",
+        "quantity": "32.00000000"
+      },
+      {
+        "assetTicker": "INJ-USD",
+        "quantity": "31.00000000"
+      },
+      {
+        "assetTicker": "INTC",
+        "quantity": "23.00000000"
+      },
+      {
+        "assetTicker": "ITC.NS",
+        "quantity": "46.00000000"
+      },
+      {
+        "assetTicker": "JNJ",
+        "quantity": "7.00000000"
+      },
+      {
+        "assetTicker": "JPM",
+        "quantity": "22.00000000"
+      },
+      {
+        "assetTicker": "JSWSTEEL.NS",
+        "quantity": "9.00000000"
+      },
+      {
+        "assetTicker": "KAVA-USD",
+        "quantity": "39.00000000"
+      },
+      {
+        "assetTicker": "KO",
+        "quantity": "5.00000000"
+      },
+      {
+        "assetTicker": "KOTAKBANK.NS",
+        "quantity": "38.00000000"
+      },
+      {
+        "assetTicker": "LINK-USD",
+        "quantity": "32.00000000"
+      },
+      {
+        "assetTicker": "LLY",
+        "quantity": "32.00000000"
+      },
+      {
+        "assetTicker": "LT.NS",
+        "quantity": "48.00000000"
+      },
+      {
+        "assetTicker": "LTC-USD",
+        "quantity": "33.00000000"
+      },
+      {
+        "assetTicker": "M&M.NS",
+        "quantity": "44.00000000"
+      },
+      {
+        "assetTicker": "MA",
+        "quantity": "3.00000000"
+      },
+      {
+        "assetTicker": "MANA-USD",
+        "quantity": "5.00000000"
+      },
+      {
+        "assetTicker": "MARUTI.NS",
+        "quantity": "14.00000000"
+      },
+      {
+        "assetTicker": "MATIC-USD",
+        "quantity": "28.00000000"
+      },
+      {
+        "assetTicker": "MCD",
+        "quantity": "43.00000000"
+      },
+      {
+        "assetTicker": "META",
+        "quantity": "36.00000000"
+      },
+      {
+        "assetTicker": "MRK",
+        "quantity": "15.00000000"
+      },
+      {
+        "assetTicker": "MSFT",
+        "quantity": "25.00000000"
+      },
+      {
+        "assetTicker": "NEAR-USD",
+        "quantity": "12.00000000"
+      },
+      {
+        "assetTicker": "NEO-USD",
+        "quantity": "36.00000000"
+      },
+      {
+        "assetTicker": "NESTLEIND.NS",
+        "quantity": "30.00000000"
+      },
+      {
+        "assetTicker": "NFLX",
+        "quantity": "13.00000000"
+      },
+      {
+        "assetTicker": "NKE",
+        "quantity": "3.00000000"
+      },
+      {
+        "assetTicker": "NTPC.NS",
+        "quantity": "5.00000000"
+      },
+      {
+        "assetTicker": "NVDA",
+        "quantity": "18.00000000"
+      },
+      {
+        "assetTicker": "NZDUSD=X",
+        "quantity": "8.00000000"
+      },
+      {
+        "assetTicker": "ONGC.NS",
+        "quantity": "41.00000000"
+      },
+      {
+        "assetTicker": "OP-USD",
+        "quantity": "35.00000000"
+      },
+      {
+        "assetTicker": "ORCL",
+        "quantity": "45.00000000"
+      },
+      {
+        "assetTicker": "PEP",
+        "quantity": "50.00000000"
+      },
+      {
+        "assetTicker": "PFE",
+        "quantity": "20.00000000"
+      },
+      {
+        "assetTicker": "PG",
+        "quantity": "2.00000000"
+      },
+      {
+        "assetTicker": "POWERGRID.NS",
+        "quantity": "49.00000000"
+      },
+      {
+        "assetTicker": "PYPL",
+        "quantity": "16.00000000"
+      },
+      {
+        "assetTicker": "QCOM",
+        "quantity": "35.00000000"
+      },
+      {
+        "assetTicker": "RELIANCE.NS",
+        "quantity": "17.00000000"
+      },
+      {
+        "assetTicker": "ROSE-USD",
+        "quantity": "23.00000000"
+      },
+      {
+        "assetTicker": "RTX",
+        "quantity": "45.00000000"
+      },
+      {
+        "assetTicker": "RUNE-USD",
+        "quantity": "8.00000000"
+      },
+      {
+        "assetTicker": "SAND-USD",
+        "quantity": "40.00000000"
+      },
+      {
+        "assetTicker": "SBILIFE.NS",
+        "quantity": "24.00000000"
+      },
+      {
+        "assetTicker": "SBIN.NS",
+        "quantity": "50.00000000"
+      },
+      {
+        "assetTicker": "SBUX",
+        "quantity": "3.00000000"
+      },
+      {
+        "assetTicker": "SHIB-USD",
+        "quantity": "14.00000000"
+      },
+      {
+        "assetTicker": "SHREECEM.NS",
+        "quantity": "42.00000000"
+      },
+      {
+        "assetTicker": "SOL-USD",
+        "quantity": "42.00000000"
+      },
+      {
+        "assetTicker": "SUNPHARMA.NS",
+        "quantity": "31.00000000"
+      },
+      {
+        "assetTicker": "T",
+        "quantity": "35.00000000"
+      },
+      {
+        "assetTicker": "TATACONSUM.NS",
+        "quantity": "27.00000000"
+      },
+      {
+        "assetTicker": "TATASTEEL.NS",
+        "quantity": "31.00000000"
+      },
+      {
+        "assetTicker": "TCS.NS",
+        "quantity": "6.00000000"
+      },
+      {
+        "assetTicker": "TECHM.NS",
+        "quantity": "19.00000000"
+      },
+      {
+        "assetTicker": "THETA-USD",
+        "quantity": "24.00000000"
+      },
+      {
+        "assetTicker": "TITAN.NS",
+        "quantity": "8.00000000"
+      },
+      {
+        "assetTicker": "TMO",
+        "quantity": "41.00000000"
+      },
+      {
+        "assetTicker": "TON-USD",
+        "quantity": "15.00000000"
+      },
+      {
+        "assetTicker": "TRX-USD",
+        "quantity": "28.00000000"
+      },
+      {
+        "assetTicker": "TSLA",
+        "quantity": "29.00000000"
+      },
+      {
+        "assetTicker": "ULTRACEMCO.NS",
+        "quantity": "41.00000000"
+      },
+      {
+        "assetTicker": "UNH",
+        "quantity": "26.00000000"
+      },
+      {
+        "assetTicker": "UNI-USD",
+        "quantity": "40.00000000"
+      },
+      {
+        "assetTicker": "UPL.NS",
+        "quantity": "43.00000000"
+      },
+      {
+        "assetTicker": "USDC-USD",
+        "quantity": "3.00000000"
+      },
+      {
+        "assetTicker": "USDCAD=X",
+        "quantity": "24.00000000"
+      },
+      {
+        "assetTicker": "USDCHF=X",
+        "quantity": "33.00000000"
+      },
+      {
+        "assetTicker": "USDHKD=X",
+        "quantity": "39.00000000"
+      },
+      {
+        "assetTicker": "USDINR=X",
+        "quantity": "37.00000000"
+      },
+      {
+        "assetTicker": "USDJPY=X",
+        "quantity": "17.00000000"
+      },
+      {
+        "assetTicker": "USDSGD=X",
+        "quantity": "6.00000000"
+      },
+      {
+        "assetTicker": "V",
+        "quantity": "37.00000000"
+      },
+      {
+        "assetTicker": "VET-USD",
+        "quantity": "43.00000000"
+      },
+      {
+        "assetTicker": "VZ",
+        "quantity": "7.00000000"
+      },
+      {
+        "assetTicker": "WIPRO.NS",
+        "quantity": "11.00000000"
+      },
+      {
+        "assetTicker": "WMT",
+        "quantity": "29.00000000"
+      },
+      {
+        "assetTicker": "XLM-USD",
+        "quantity": "19.00000000"
+      },
+      {
+        "assetTicker": "XMR-USD",
+        "quantity": "25.00000000"
+      },
+      {
+        "assetTicker": "XOM",
+        "quantity": "45.00000000"
+      },
+      {
+        "assetTicker": "XRP-USD",
+        "quantity": "38.00000000"
+      },
+      {
+        "assetTicker": "XTZ-USD",
+        "quantity": "50.00000000"
+      },
+      {
+        "assetTicker": "ZEC-USD",
+        "quantity": "14.00000000"
+      }
+    ],
+    "identityVerified": true,
+    "postLoginVersion": 6
+  },
+  "operations": [
+    {
+      "argv": [
+        "az",
+        "account",
+        "show",
+        "--query",
+        "id",
+        "-o",
+        "tsv"
+      ],
+      "durationSeconds": 0.674,
+      "kind": "azure_cli",
+      "mutating": false,
+      "timeoutSeconds": 600.0
+    },
+    {
+      "argv": [
+        "az",
+        "containerapp",
+        "show",
+        "--name",
+        "api-gateway",
+        "--resource-group",
+        "wealth-azure-prod-rg",
+        "--query",
+        "properties.configuration.ingress",
+        "-o",
+        "json"
+      ],
+      "durationSeconds": 4.653,
+      "kind": "azure_cli",
+      "mutating": false,
+      "timeoutSeconds": 600.0
+    },
+    {
+      "argv": [
+        "az",
+        "containerapp",
+        "revision",
+        "list",
+        "--name",
+        "api-gateway",
+        "--resource-group",
+        "wealth-azure-prod-rg",
+        "--query",
+        "[?properties.active && properties.trafficWeight == `100`].{name:name,image:properties.template.containers[0].image}",
+        "-o",
+        "json"
+      ],
+      "durationSeconds": 2.057,
+      "kind": "azure_cli",
+      "mutating": false,
+      "timeoutSeconds": 600.0
+    },
+    {
+      "argv": [
+        "az",
+        "containerapp",
+        "revision",
+        "list",
+        "--name",
+        "portfolio-service",
+        "--resource-group",
+        "wealth-azure-prod-rg",
+        "--query",
+        "[?properties.active && properties.trafficWeight == `100`].{name:name,image:properties.template.containers[0].image}",
+        "-o",
+        "json"
+      ],
+      "durationSeconds": 2.581,
+      "kind": "azure_cli",
+      "mutating": false,
+      "timeoutSeconds": 600.0
+    },
+    {
+      "argv": [
+        "az",
+        "monitor",
+        "log-analytics",
+        "workspace",
+        "show",
+        "--workspace-name",
+        "wealth-prod-la",
+        "--resource-group",
+        "wealth-azure-prod-rg",
+        "--query",
+        "customerId",
+        "-o",
+        "tsv"
+      ],
+      "durationSeconds": 2.294,
+      "kind": "azure_cli",
+      "mutating": false,
+      "timeoutSeconds": 600.0
+    },
+    {
+      "argv": [
+        "az",
+        "containerapp",
+        "replica",
+        "list",
+        "--name",
+        "api-gateway",
+        "--resource-group",
+        "wealth-azure-prod-rg",
+        "--revision",
+        "api-gateway--0000081",
+        "-o",
+        "json"
+      ],
+      "durationSeconds": 3.971,
+      "kind": "azure_cli",
+      "mutating": false,
+      "timeoutSeconds": 600.0
+    },
+    {
+      "argv": [
+        "az",
+        "containerapp",
+        "exec",
+        "--name",
+        "api-gateway",
+        "--resource-group",
+        "wealth-azure-prod-rg",
+        "--revision",
+        "api-gateway--0000081",
+        "--replica",
+        "api-gateway--0000081-6c469996fc-lqxvj",
+        "--container",
+        "api-gateway",
+        "--command",
+        "java -jar /probe.jar"
+      ],
+      "durationSeconds": 9.352,
+      "kind": "azure_cli",
+      "mutating": false,
+      "timeoutSeconds": 600.0
+    },
+    {
+      "argv": [
+        "az",
+        "acr",
+        "manifest",
+        "show-metadata",
+        "--registry",
+        "wealthprodacr",
+        "--name",
+        "api-gateway@sha256:090ad3ba4b7ada20bca71781d4a1ce3ac81029b8a23a8a1d180dce2cff540d09",
+        "-o",
+        "json"
+      ],
+      "durationSeconds": 6.339,
+      "kind": "azure_cli",
+      "mutating": false,
+      "timeoutSeconds": 600.0
+    },
+    {
+      "argv": [
+        "az",
+        "acr",
+        "manifest",
+        "show-metadata",
+        "--registry",
+        "wealthprodacr",
+        "--name",
+        "portfolio-service@sha256:1cf372a39d17709f74aba427259548a531e3e1ba04dc64ec7750369bb8e82126",
+        "-o",
+        "json"
+      ],
+      "durationSeconds": 6.875,
+      "kind": "azure_cli",
+      "mutating": false,
+      "timeoutSeconds": 600.0
+    },
+    {
+      "argv": [
+        "az",
+        "acr",
+        "login",
+        "--name",
+        "wealthprodacr"
+      ],
+      "durationSeconds": 6.457,
+      "kind": "azure_cli",
+      "mutating": false,
+      "timeoutSeconds": 600.0
+    },
+    {
+      "argv": [
+        "docker",
+        "pull",
+        "wealthprodacr.azurecr.io/api-gateway@sha256:090ad3ba4b7ada20bca71781d4a1ce3ac81029b8a23a8a1d180dce2cff540d09"
+      ],
+      "durationSeconds": 0.647,
+      "kind": "local_cli",
+      "mutating": false,
+      "timeoutSeconds": 600.0
+    },
+    {
+      "argv": [
+        "docker",
+        "pull",
+        "wealthprodacr.azurecr.io/portfolio-service@sha256:1cf372a39d17709f74aba427259548a531e3e1ba04dc64ec7750369bb8e82126"
+      ],
+      "durationSeconds": 0.602,
+      "kind": "local_cli",
+      "mutating": false,
+      "timeoutSeconds": 600.0
+    },
+    {
+      "argv": [
+        "az",
+        "monitor",
+        "log-analytics",
+        "query",
+        "--workspace",
+        "83a9c3a2-659e-40ca-9784-1ff871b9d5ea",
+        "--analytics-query",
+        "print task8_9_rbac_probe=1",
+        "-o",
+        "json"
+      ],
+      "durationSeconds": 2.773,
+      "kind": "azure_cli",
+      "mutating": false,
+      "timeoutSeconds": 600.0
+    },
+    {
+      "argv": [
+        "az",
+        "containerapp",
+        "revision",
+        "show",
+        "--name",
+        "api-gateway",
+        "--resource-group",
+        "wealth-azure-prod-rg",
+        "--revision",
+        "api-gateway--0000081",
+        "--query",
+        "properties.template.containers[0].env",
+        "-o",
+        "json"
+      ],
+      "durationSeconds": 1.964,
+      "kind": "azure_cli",
+      "mutating": false,
+      "timeoutSeconds": 600.0
+    },
+    {
+      "argv": [
+        "C:\\Users\\pc\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe",
+        "-B",
+        "C:\\worktrees\\wealthmgmtandportfoliotracker-worktrees\\wealthmgmtandportfoliotracker-codex-t89-execute-20260915\\scripts\\derive_demo_golden_state.py"
+      ],
+      "durationSeconds": 0.215,
+      "kind": "local_cli",
+      "mutating": false,
+      "timeoutSeconds": 600.0
+    },
+    {
+      "durationSeconds": 1.017,
+      "headerNames": [
+        "Authorization"
+      ],
+      "kind": "http",
+      "method": "GET",
+      "mutating": false,
+      "timeoutSeconds": 600.0,
+      "url": "https://api.vibhanshu-ai-portfolio.dev/api/portfolio"
+    },
+    {
+      "bodyKeys": [
+        "expectedVersion",
+        "holdings"
+      ],
+      "durationSeconds": 21.162,
+      "expectedVersion": 4,
+      "headerNames": [
+        "Authorization"
+      ],
+      "kind": "http",
+      "method": "PUT",
+      "mutating": true,
+      "timeoutSeconds": 600.0,
+      "url": "https://api.vibhanshu-ai-portfolio.dev/api/portfolio/holdings"
+    },
+    {
+      "argv": [
+        "az",
+        "containerapp",
+        "show",
+        "--name",
+        "api-gateway",
+        "--resource-group",
+        "wealth-azure-prod-rg",
+        "--query",
+        "properties.configuration.ingress",
+        "-o",
+        "json"
+      ],
+      "durationSeconds": 5.594,
+      "kind": "azure_cli",
+      "mutating": false,
+      "timeoutSeconds": 600.0
+    },
+    {
+      "argv": [
+        "az",
+        "containerapp",
+        "revision",
+        "list",
+        "--name",
+        "api-gateway",
+        "--resource-group",
+        "wealth-azure-prod-rg",
+        "--query",
+        "[?properties.active && properties.trafficWeight == `100`].{name:name,image:properties.template.containers[0].image}",
+        "-o",
+        "json"
+      ],
+      "durationSeconds": 2.621,
+      "kind": "azure_cli",
+      "mutating": false,
+      "timeoutSeconds": 600.0
+    },
+    {
+      "argv": [
+        "az",
+        "containerapp",
+        "revision",
+        "list",
+        "--name",
+        "portfolio-service",
+        "--resource-group",
+        "wealth-azure-prod-rg",
+        "--query",
+        "[?properties.active && properties.trafficWeight == `100`].{name:name,image:properties.template.containers[0].image}",
+        "-o",
+        "json"
+      ],
+      "durationSeconds": 2.956,
+      "kind": "azure_cli",
+      "mutating": false,
+      "timeoutSeconds": 600.0
+    },
+    {
+      "argv": [
+        "az",
+        "containerapp",
+        "revision",
+        "show",
+        "--name",
+        "api-gateway",
+        "--resource-group",
+        "wealth-azure-prod-rg",
+        "--revision",
+        "api-gateway--0000081",
+        "--query",
+        "properties.template.containers[0].env",
+        "-o",
+        "json"
+      ],
+      "durationSeconds": 2.395,
+      "kind": "azure_cli",
+      "mutating": false,
+      "timeoutSeconds": 600.0
+    },
+    {
+      "bodyKeys": [
+        "email",
+        "password"
+      ],
+      "durationSeconds": 143.079,
+      "headerNames": [
+        "traceparent"
+      ],
+      "kind": "http",
+      "method": "POST",
+      "mutating": true,
+      "timeoutSeconds": 225.0,
+      "url": "https://api.vibhanshu-ai-portfolio.dev/api/auth/login"
+    },
+    {
+      "durationSeconds": 0.996,
+      "headerNames": [
+        "Authorization"
+      ],
+      "kind": "http",
+      "method": "GET",
+      "mutating": false,
+      "timeoutSeconds": 600.0,
+      "url": "https://api.vibhanshu-ai-portfolio.dev/api/portfolio"
+    },
+    {
+      "argv": [
+        "az",
+        "monitor",
+        "log-analytics",
+        "query",
+        "--workspace",
+        "83a9c3a2-659e-40ca-9784-1ff871b9d5ea",
+        "--analytics-query",
+        "ContainerAppConsoleLogs_CL\n| where TimeGenerated between (datetime(2026-09-15T01:02:27.089196Z) .. datetime(2026-09-15T01:05:51.164581Z))\n| where ContainerAppName_s == 'portfolio-service'\n| where tostring(Log_s) contains 'demo_reset_succeeded'\n| where tostring(Log_s) contains '45097abc3f131da71b27d1b248b3e3c9'\n| project TimeGenerated, ContainerAppName_s, RevisionName_s, Log_s\n| order by TimeGenerated asc",
+        "--timespan",
+        "2026-09-15T01:02:27.089196Z/2026-09-15T01:05:51.164581Z",
+        "-o",
+        "json"
+      ],
+      "durationSeconds": 17.791,
+      "kind": "azure_cli",
+      "mutating": false,
+      "timeoutSeconds": 29.999995200007106
+    },
+    {
+      "durationSeconds": 0.958,
+      "headerNames": [
+        "Authorization"
+      ],
+      "kind": "http",
+      "method": "GET",
+      "mutating": false,
+      "timeoutSeconds": 29.99999620000017,
+      "url": "https://api.vibhanshu-ai-portfolio.dev/api/portfolio"
+    },
+    {
+      "bodyKeys": [
+        "expectedVersion"
+      ],
+      "durationSeconds": 0.938,
+      "expectedVersion": 6,
+      "headerNames": [
+        "Authorization"
+      ],
+      "kind": "http",
+      "method": "PUT",
+      "mutating": true,
+      "timeoutSeconds": 29.04205310001271,
+      "url": "https://api.vibhanshu-ai-portfolio.dev/api/portfolio/demo-reset"
+    },
+    {
+      "durationSeconds": 0.923,
+      "headerNames": [
+        "Authorization"
+      ],
+      "kind": "http",
+      "method": "GET",
+      "mutating": false,
+      "timeoutSeconds": 4.99999700000626,
+      "url": "https://api.vibhanshu-ai-portfolio.dev/api/portfolio"
+    },
+    {
+      "argv": [
+        "az",
+        "containerapp",
+        "show",
+        "--name",
+        "api-gateway",
+        "--resource-group",
+        "wealth-azure-prod-rg",
+        "--query",
+        "properties.configuration.ingress",
+        "-o",
+        "json"
+      ],
+      "durationSeconds": 4.581,
+      "kind": "azure_cli",
+      "mutating": false,
+      "timeoutSeconds": 600.0
+    },
+    {
+      "argv": [
+        "az",
+        "containerapp",
+        "revision",
+        "list",
+        "--name",
+        "api-gateway",
+        "--resource-group",
+        "wealth-azure-prod-rg",
+        "--query",
+        "[?properties.active && properties.trafficWeight == `100`].{name:name,image:properties.template.containers[0].image}",
+        "-o",
+        "json"
+      ],
+      "durationSeconds": 2.614,
+      "kind": "azure_cli",
+      "mutating": false,
+      "timeoutSeconds": 600.0
+    },
+    {
+      "argv": [
+        "az",
+        "containerapp",
+        "revision",
+        "list",
+        "--name",
+        "portfolio-service",
+        "--resource-group",
+        "wealth-azure-prod-rg",
+        "--query",
+        "[?properties.active && properties.trafficWeight == `100`].{name:name,image:properties.template.containers[0].image}",
+        "-o",
+        "json"
+      ],
+      "durationSeconds": 2.479,
+      "kind": "azure_cli",
+      "mutating": false,
+      "timeoutSeconds": 600.0
+    },
+    {
+      "argv": [
+        "az",
+        "containerapp",
+        "revision",
+        "show",
+        "--name",
+        "api-gateway",
+        "--resource-group",
+        "wealth-azure-prod-rg",
+        "--revision",
+        "api-gateway--0000081",
+        "--query",
+        "properties.template.containers[0].env",
+        "-o",
+        "json"
+      ],
+      "durationSeconds": 2.654,
+      "kind": "azure_cli",
+      "mutating": false,
+      "timeoutSeconds": 600.0
+    }
+  ],
+  "preflight": {
+    "passed": true,
+    "rbacRehearsed": true
+  },
+  "provider": "azure",
+  "requestCounts": {
+    "cleanupResets": 1,
+    "compositionWrites": 1,
+    "logins": 1,
+    "portfolioReads": 4
+  },
+  "schemaVersion": 1,
+  "serving": {
+    "api-gateway": {
+      "digest": "sha256:090ad3ba4b7ada20bca71781d4a1ce3ac81029b8a23a8a1d180dce2cff540d09",
+      "image": "wealthprodacr.azurecr.io/api-gateway@sha256:090ad3ba4b7ada20bca71781d4a1ce3ac81029b8a23a8a1d180dce2cff540d09",
+      "repository": "wealthprodacr.azurecr.io/api-gateway",
+      "revision": "api-gateway--0000081"
+    },
+    "portfolio-service": {
+      "digest": "sha256:1cf372a39d17709f74aba427259548a531e3e1ba04dc64ec7750369bb8e82126",
+      "image": "wealthprodacr.azurecr.io/portfolio-service@sha256:1cf372a39d17709f74aba427259548a531e3e1ba04dc64ec7750369bb8e82126",
+      "repository": "wealthprodacr.azurecr.io/portfolio-service",
+      "revision": "portfolio-service--0000096"
+    }
+  },
+  "servingRevalidation": {
+    "afterAge": {
+      "decisions": {
+        "APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT": "120s",
+        "APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD": "30m",
+        "APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT": "165s",
+        "APP_DEMO_LOGIN_RESET_RESET_TIMEOUT": "30s"
+      },
+      "matched": true,
+      "provider": "azure",
+      "services": {
+        "api-gateway": {
+          "image": "wealthprodacr.azurecr.io/api-gateway@sha256:090ad3ba4b7ada20bca71781d4a1ce3ac81029b8a23a8a1d180dce2cff540d09",
+          "recordedRevision": "api-gateway--0000081",
+          "revision": "api-gateway--0000081"
+        },
+        "portfolio-service": {
+          "image": "wealthprodacr.azurecr.io/portfolio-service@sha256:1cf372a39d17709f74aba427259548a531e3e1ba04dc64ec7750369bb8e82126",
+          "recordedRevision": "portfolio-service--0000096",
+          "revision": "portfolio-service--0000096"
+        }
+      }
+    },
+    "final": {
+      "decisions": {
+        "APP_DEMO_LOGIN_RESET_ELIGIBILITY_TIMEOUT": "120s",
+        "APP_DEMO_LOGIN_RESET_IDLE_THRESHOLD": "30m",
+        "APP_DEMO_LOGIN_RESET_OVERALL_TIMEOUT": "165s",
+        "APP_DEMO_LOGIN_RESET_RESET_TIMEOUT": "30s"
+      },
+      "matched": true,
+      "provider": "azure",
+      "services": {
+        "api-gateway": {
+          "image": "wealthprodacr.azurecr.io/api-gateway@sha256:090ad3ba4b7ada20bca71781d4a1ce3ac81029b8a23a8a1d180dce2cff540d09",
+          "recordedRevision": "api-gateway--0000081",
+          "revision": "api-gateway--0000081"
+        },
+        "portfolio-service": {
+          "image": "wealthprodacr.azurecr.io/portfolio-service@sha256:1cf372a39d17709f74aba427259548a531e3e1ba04dc64ec7750369bb8e82126",
+          "recordedRevision": "portfolio-service--0000096",
+          "revision": "portfolio-service--0000096"
+        }
+      }
+    }
+  },
+  "setup": {
+    "ageWaitSeconds": 1800.001,
+    "agedAt": "2026-09-15T01:02:13.518947Z",
+    "beforeVersion": 4,
+    "nonGoldenHoldings": [
+      {
+        "assetTicker": "AAPL",
+        "quantity": "38.00000000"
+      },
+      {
+        "assetTicker": "AAVE-USD",
+        "quantity": "7.00000000"
+      },
+      {
+        "assetTicker": "ABBV",
+        "quantity": "24.00000000"
+      },
+      {
+        "assetTicker": "ACN",
+        "quantity": "21.00000000"
+      },
+      {
+        "assetTicker": "ADA-USD",
+        "quantity": "26.00000000"
+      },
+      {
+        "assetTicker": "ADANIENT.NS",
+        "quantity": "42.00000000"
+      },
+      {
+        "assetTicker": "ADANIPORTS.NS",
+        "quantity": "9.00000000"
+      },
+      {
+        "assetTicker": "ADBE",
+        "quantity": "29.00000000"
+      },
+      {
+        "assetTicker": "ALGO-USD",
+        "quantity": "5.00000000"
+      },
+      {
+        "assetTicker": "AMD",
+        "quantity": "21.00000000"
+      },
+      {
+        "assetTicker": "AMZN",
+        "quantity": "31.00000000"
+      },
+      {
+        "assetTicker": "APOLLOHOSP.NS",
+        "quantity": "1.00000000"
+      },
+      {
+        "assetTicker": "APT-USD",
+        "quantity": "37.00000000"
+      },
+      {
+        "assetTicker": "ARB-USD",
+        "quantity": "11.00000000"
+      },
+      {
+        "assetTicker": "ASIANPAINT.NS",
+        "quantity": "16.00000000"
+      },
+      {
+        "assetTicker": "ATOM-USD",
+        "quantity": "23.00000000"
+      },
+      {
+        "assetTicker": "AUDUSD=X",
+        "quantity": "20.00000000"
+      },
+      {
+        "assetTicker": "AVAX-USD",
+        "quantity": "6.00000000"
+      },
+      {
+        "assetTicker": "AVGO",
+        "quantity": "42.00000000"
+      },
+      {
+        "assetTicker": "AXISBANK.NS",
+        "quantity": "7.00000000"
+      },
+      {
+        "assetTicker": "AXS-USD",
+        "quantity": "24.00000000"
+      },
+      {
+        "assetTicker": "BA",
+        "quantity": "12.00000000"
+      },
+      {
+        "assetTicker": "BAC",
+        "quantity": "9.00000000"
+      },
+      {
+        "assetTicker": "BAJAJ-AUTO.NS",
+        "quantity": "16.00000000"
+      },
+      {
+        "assetTicker": "BAJAJFINSV.NS",
+        "quantity": "42.00000000"
+      },
+      {
+        "assetTicker": "BAJFINANCE.NS",
+        "quantity": "37.00000000"
+      },
+      {
+        "assetTicker": "BCH-USD",
+        "quantity": "3.00000000"
+      },
+      {
+        "assetTicker": "BHARTIARTL.NS",
+        "quantity": "9.00000000"
+      },
+      {
+        "assetTicker": "BNB-USD",
+        "quantity": "38.00000000"
+      },
+      {
+        "assetTicker": "BPCL.NS",
+        "quantity": "13.00000000"
+      },
+      {
+        "assetTicker": "BRITANNIA.NS",
+        "quantity": "24.00000000"
+      },
+      {
+        "assetTicker": "BRK-B",
+        "quantity": "35.00000000"
+      },
+      {
+        "assetTicker": "BTC-USD",
+        "quantity": "15.00000000"
+      },
+      {
+        "assetTicker": "C",
+        "quantity": "18.00000000"
+      },
+      {
+        "assetTicker": "CHZ-USD",
+        "quantity": "17.00000000"
+      },
+      {
+        "assetTicker": "CIPLA.NS",
+        "quantity": "29.00000000"
+      },
+      {
+        "assetTicker": "COALINDIA.NS",
+        "quantity": "16.00000000"
+      },
+      {
+        "assetTicker": "COST",
+        "quantity": "24.00000000"
+      },
+      {
+        "assetTicker": "CRM",
+        "quantity": "7.00000000"
+      },
+      {
+        "assetTicker": "CSCO",
+        "quantity": "17.00000000"
+      },
+      {
+        "assetTicker": "CVX",
+        "quantity": "42.00000000"
+      },
+      {
+        "assetTicker": "DIS",
+        "quantity": "45.00000000"
+      },
+      {
+        "assetTicker": "DIVISLAB.NS",
+        "quantity": "4.00000000"
+      },
+      {
+        "assetTicker": "DOGE-USD",
+        "quantity": "47.00000000"
+      },
+      {
+        "assetTicker": "DOT-USD",
+        "quantity": "33.00000000"
+      },
+      {
+        "assetTicker": "DRREDDY.NS",
+        "quantity": "46.00000000"
+      },
+      {
+        "assetTicker": "EGLD-USD",
+        "quantity": "14.00000000"
+      },
+      {
+        "assetTicker": "EICHERMOT.NS",
+        "quantity": "14.00000000"
+      },
+      {
+        "assetTicker": "ETC-USD",
+        "quantity": "12.00000000"
+      },
+      {
+        "assetTicker": "ETH-USD",
+        "quantity": "17.00000000"
+      },
+      {
+        "assetTicker": "EURUSD=X",
+        "quantity": "32.00000000"
+      },
+      {
+        "assetTicker": "FIL-USD",
+        "quantity": "21.00000000"
+      },
+      {
+        "assetTicker": "FLOW-USD",
+        "quantity": "14.00000000"
+      },
+      {
+        "assetTicker": "FTM-USD",
+        "quantity": "3.00000000"
+      },
+      {
+        "assetTicker": "GALA-USD",
+        "quantity": "35.00000000"
+      },
+      {
+        "assetTicker": "GBPUSD=X",
+        "quantity": "49.00000000"
+      },
+      {
+        "assetTicker": "GE",
+        "quantity": "21.00000000"
+      },
+      {
+        "assetTicker": "GOOGL",
+        "quantity": "27.00000000"
+      },
+      {
+        "assetTicker": "GRASIM.NS",
+        "quantity": "11.00000000"
+      },
+      {
+        "assetTicker": "GRT-USD",
+        "quantity": "29.00000000"
+      },
+      {
+        "assetTicker": "GS",
+        "quantity": "35.00000000"
+      },
+      {
+        "assetTicker": "HBAR-USD",
+        "quantity": "47.00000000"
+      },
+      {
+        "assetTicker": "HCLTECH.NS",
+        "quantity": "37.00000000"
+      },
+      {
+        "assetTicker": "HD",
+        "quantity": "1.00000000"
+      },
+      {
+        "assetTicker": "HDFCBANK.NS",
+        "quantity": "45.00000000"
+      },
+      {
+        "assetTicker": "HDFCLIFE.NS",
+        "quantity": "7.00000000"
+      },
+      {
+        "assetTicker": "HEROMOTOCO.NS",
+        "quantity": "33.00000000"
+      },
+      {
+        "assetTicker": "HINDALCO.NS",
+        "quantity": "48.00000000"
+      },
+      {
+        "assetTicker": "HINDUNILVR.NS",
+        "quantity": "23.00000000"
+      },
+      {
+        "assetTicker": "IBM",
+        "quantity": "27.00000000"
+      },
+      {
+        "assetTicker": "ICICIBANK.NS",
+        "quantity": "29.00000000"
+      },
+      {
+        "assetTicker": "ICP-USD",
+        "quantity": "46.00000000"
+      },
+      {
+        "assetTicker": "IMX-USD",
+        "quantity": "24.00000000"
+      },
+      {
+        "assetTicker": "INDUSINDBK.NS",
+        "quantity": "19.00000000"
+      },
+      {
+        "assetTicker": "INFY.NS",
+        "quantity": "32.00000000"
+      },
+      {
+        "assetTicker": "INJ-USD",
+        "quantity": "31.00000000"
+      },
+      {
+        "assetTicker": "INTC",
+        "quantity": "23.00000000"
+      },
+      {
+        "assetTicker": "ITC.NS",
+        "quantity": "46.00000000"
+      },
+      {
+        "assetTicker": "JNJ",
+        "quantity": "7.00000000"
+      },
+      {
+        "assetTicker": "JPM",
+        "quantity": "22.00000000"
+      },
+      {
+        "assetTicker": "JSWSTEEL.NS",
+        "quantity": "9.00000000"
+      },
+      {
+        "assetTicker": "KAVA-USD",
+        "quantity": "39.00000000"
+      },
+      {
+        "assetTicker": "KO",
+        "quantity": "5.00000000"
+      },
+      {
+        "assetTicker": "KOTAKBANK.NS",
+        "quantity": "38.00000000"
+      },
+      {
+        "assetTicker": "LINK-USD",
+        "quantity": "32.00000000"
+      },
+      {
+        "assetTicker": "LLY",
+        "quantity": "32.00000000"
+      },
+      {
+        "assetTicker": "LT.NS",
+        "quantity": "48.00000000"
+      },
+      {
+        "assetTicker": "LTC-USD",
+        "quantity": "33.00000000"
+      },
+      {
+        "assetTicker": "M&M.NS",
+        "quantity": "44.00000000"
+      },
+      {
+        "assetTicker": "MA",
+        "quantity": "3.00000000"
+      },
+      {
+        "assetTicker": "MANA-USD",
+        "quantity": "5.00000000"
+      },
+      {
+        "assetTicker": "MARUTI.NS",
+        "quantity": "14.00000000"
+      },
+      {
+        "assetTicker": "MATIC-USD",
+        "quantity": "28.00000000"
+      },
+      {
+        "assetTicker": "MCD",
+        "quantity": "43.00000000"
+      },
+      {
+        "assetTicker": "META",
+        "quantity": "36.00000000"
+      },
+      {
+        "assetTicker": "MRK",
+        "quantity": "15.00000000"
+      },
+      {
+        "assetTicker": "MSFT",
+        "quantity": "25.00000000"
+      },
+      {
+        "assetTicker": "NEAR-USD",
+        "quantity": "12.00000000"
+      },
+      {
+        "assetTicker": "NEO-USD",
+        "quantity": "36.00000000"
+      },
+      {
+        "assetTicker": "NESTLEIND.NS",
+        "quantity": "30.00000000"
+      },
+      {
+        "assetTicker": "NFLX",
+        "quantity": "13.00000000"
+      },
+      {
+        "assetTicker": "NKE",
+        "quantity": "3.00000000"
+      },
+      {
+        "assetTicker": "NTPC.NS",
+        "quantity": "5.00000000"
+      },
+      {
+        "assetTicker": "NVDA",
+        "quantity": "18.00000000"
+      },
+      {
+        "assetTicker": "NZDUSD=X",
+        "quantity": "8.00000000"
+      },
+      {
+        "assetTicker": "ONGC.NS",
+        "quantity": "41.00000000"
+      },
+      {
+        "assetTicker": "OP-USD",
+        "quantity": "35.00000000"
+      },
+      {
+        "assetTicker": "ORCL",
+        "quantity": "45.00000000"
+      },
+      {
+        "assetTicker": "PEP",
+        "quantity": "50.00000000"
+      },
+      {
+        "assetTicker": "PFE",
+        "quantity": "20.00000000"
+      },
+      {
+        "assetTicker": "PG",
+        "quantity": "2.00000000"
+      },
+      {
+        "assetTicker": "POWERGRID.NS",
+        "quantity": "49.00000000"
+      },
+      {
+        "assetTicker": "PYPL",
+        "quantity": "16.00000000"
+      },
+      {
+        "assetTicker": "QCOM",
+        "quantity": "35.00000000"
+      },
+      {
+        "assetTicker": "RELIANCE.NS",
+        "quantity": "17.00000000"
+      },
+      {
+        "assetTicker": "ROSE-USD",
+        "quantity": "23.00000000"
+      },
+      {
+        "assetTicker": "RTX",
+        "quantity": "45.00000000"
+      },
+      {
+        "assetTicker": "RUNE-USD",
+        "quantity": "8.00000000"
+      },
+      {
+        "assetTicker": "SAND-USD",
+        "quantity": "40.00000000"
+      },
+      {
+        "assetTicker": "SBILIFE.NS",
+        "quantity": "24.00000000"
+      },
+      {
+        "assetTicker": "SBIN.NS",
+        "quantity": "50.00000000"
+      },
+      {
+        "assetTicker": "SBUX",
+        "quantity": "3.00000000"
+      },
+      {
+        "assetTicker": "SHIB-USD",
+        "quantity": "14.00000000"
+      },
+      {
+        "assetTicker": "SHREECEM.NS",
+        "quantity": "42.00000000"
+      },
+      {
+        "assetTicker": "SOL-USD",
+        "quantity": "42.00000000"
+      },
+      {
+        "assetTicker": "SUNPHARMA.NS",
+        "quantity": "31.00000000"
+      },
+      {
+        "assetTicker": "T",
+        "quantity": "35.00000000"
+      },
+      {
+        "assetTicker": "TATACONSUM.NS",
+        "quantity": "27.00000000"
+      },
+      {
+        "assetTicker": "TATASTEEL.NS",
+        "quantity": "31.00000000"
+      },
+      {
+        "assetTicker": "TCS.NS",
+        "quantity": "6.00000000"
+      },
+      {
+        "assetTicker": "TECHM.NS",
+        "quantity": "19.00000000"
+      },
+      {
+        "assetTicker": "THETA-USD",
+        "quantity": "24.00000000"
+      },
+      {
+        "assetTicker": "TITAN.NS",
+        "quantity": "8.00000000"
+      },
+      {
+        "assetTicker": "TMO",
+        "quantity": "41.00000000"
+      },
+      {
+        "assetTicker": "TON-USD",
+        "quantity": "15.00000000"
+      },
+      {
+        "assetTicker": "TRX-USD",
+        "quantity": "28.00000000"
+      },
+      {
+        "assetTicker": "TSLA",
+        "quantity": "29.00000000"
+      },
+      {
+        "assetTicker": "ULTRACEMCO.NS",
+        "quantity": "41.00000000"
+      },
+      {
+        "assetTicker": "UNH",
+        "quantity": "26.00000000"
+      },
+      {
+        "assetTicker": "UNI-USD",
+        "quantity": "40.00000000"
+      },
+      {
+        "assetTicker": "UPL.NS",
+        "quantity": "43.00000000"
+      },
+      {
+        "assetTicker": "USDC-USD",
+        "quantity": "3.00000000"
+      },
+      {
+        "assetTicker": "USDCAD=X",
+        "quantity": "24.00000000"
+      },
+      {
+        "assetTicker": "USDCHF=X",
+        "quantity": "33.00000000"
+      },
+      {
+        "assetTicker": "USDHKD=X",
+        "quantity": "39.00000000"
+      },
+      {
+        "assetTicker": "USDINR=X",
+        "quantity": "37.00000000"
+      },
+      {
+        "assetTicker": "USDJPY=X",
+        "quantity": "17.00000000"
+      },
+      {
+        "assetTicker": "USDSGD=X",
+        "quantity": "6.00000000"
+      },
+      {
+        "assetTicker": "V",
+        "quantity": "37.00000000"
+      },
+      {
+        "assetTicker": "VET-USD",
+        "quantity": "43.00000000"
+      },
+      {
+        "assetTicker": "VZ",
+        "quantity": "7.00000000"
+      },
+      {
+        "assetTicker": "WIPRO.NS",
+        "quantity": "11.00000000"
+      },
+      {
+        "assetTicker": "WMT",
+        "quantity": "29.00000000"
+      },
+      {
+        "assetTicker": "XLM-USD",
+        "quantity": "19.00000000"
+      },
+      {
+        "assetTicker": "XMR-USD",
+        "quantity": "25.00000000"
+      },
+      {
+        "assetTicker": "XOM",
+        "quantity": "45.00000000"
+      },
+      {
+        "assetTicker": "XRP-USD",
+        "quantity": "38.00000000"
+      },
+      {
+        "assetTicker": "XTZ-USD",
+        "quantity": "50.00000000"
+      },
+      {
+        "assetTicker": "ZEC-USD",
+        "quantity": "14.00000000"
+      }
+    ],
+    "persistedUpdatedAt": "2026-09-15T00:31:57.308616Z",
+    "writeVersion": 5
+  },
+  "source": {
+    "deploymentProvenanceShape": "per-service-immutable-attestation",
+    "services": {
+      "api-gateway": {
+        "digest": "sha256:090ad3ba4b7ada20bca71781d4a1ce3ac81029b8a23a8a1d180dce2cff540d09",
+        "evidencePath": "docs/evidence/b2-task-8-9/deployment-completion-20260911.json",
+        "repository": "wealthprodacr.azurecr.io/api-gateway",
+        "revision": "api-gateway--0000081",
+        "runAttempt": 1,
+        "sourceSha": "006aa9e6877290a701fe2a124a056299956e7d0a",
+        "workflowRunId": 34588465283
+      },
+      "portfolio-service": {
+        "digest": "sha256:1cf372a39d17709f74aba427259548a531e3e1ba04dc64ec7750369bb8e82126",
+        "evidencePath": "docs/evidence/b1-r-c/task-7-9-serving-proof-20260909.json",
+        "repository": "wealthprodacr.azurecr.io/portfolio-service",
+        "revision": "portfolio-service--0000096",
+        "runAttempt": 1,
+        "sourceSha": "5fd1dac6a37513916fd2b80ca3929c4e20ad0de7",
+        "workflowRunId": 34328692256
+      }
+    }
+  },
+  "target": {
+    "gatewayApp": "api-gateway",
+    "gatewayIngressHost": "api.vibhanshu-ai-portfolio.dev",
+    "gatewayUrl": "https://api.vibhanshu-ai-portfolio.dev",
+    "name": "production-azure",
+    "portfolioApp": "portfolio-service",
+    "registry": "wealthprodacr",
+    "resourceGroup": "wealth-azure-prod-rg",
+    "subscriptionId": "ee625b3f-7cb1-4482-be3c-4363c5d76d23",
+    "workspace": "wealth-prod-la",
+    "workspaceCustomerId": "83a9c3a2-659e-40ca-9784-1ff871b9d5ea"
+  },
+  "thresholdRestore": {
+    "attempted": false,
+    "required": false,
+    "verified": true
+  },
+  "trace": {
+    "traceId": "45097abc3f131da71b27d1b248b3e3c9",
+    "traceparent": "00-45097abc3f131da71b27d1b248b3e3c9-48e0c6d044ae750b-01",
+    "windowEnd": "2026-09-15T01:05:51.164581Z",
+    "windowStart": "2026-09-15T01:02:27.089196Z"
+  },
+  "verdict": {
+    "errors": [
+      "the JSON object must be str, bytes or bytearray, not NoneType"
+    ],
+    "exitCode": 1,
+    "go": false,
+    "status": "non_go"
+  }
+}
