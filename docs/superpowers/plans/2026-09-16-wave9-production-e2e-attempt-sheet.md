@@ -1,5 +1,5 @@
 # Wave 9 Lane — Wave 10.2 Step A Backend-Route Verification
-# Sanitized Attempt Sheet (rev 9)
+# Sanitized Attempt Sheet (rev 10)
 
 > **OWNER APPROVAL REQUIRED — two stages (see authorization section below).**
 > Stage 1 (approve now): authorize authoring three deliverables —
@@ -12,6 +12,18 @@
 > Earlier Task 4.9, Task 8.9, deployment, documentation, or merge approvals
 > are NOT reusable authority for either stage.
 
+> **Rev 10 — 2026-09-17:** Fable eighth review of rev 9 returned REJECT (narrow
+> — M1/M2 fully confirmed; 0 Critical, 0 Important, 1 required Minor).
+> Changes applied:
+> - M-R1 (required): STOP/GO deliverables-gate row — added "to the merge commit"
+>   (was present in Stage 2 body and checklist but missing from the gate row)
+> - R1 (recommended): "blocked until that script exists" → names all three
+>   deliverables, merge, and re-pin
+> - R2 (recommended): section header "(pending script availability)" →
+>   "(pending all three Stage 1 deliverables)"
+> - R3 (recommended): deliverable 1 "Phase 3 bounded sequence" →
+>   "Phase 3-4 bounded sequence (execute, validate, cleanup)"
+>
 > **Rev 9 — 2026-09-17:** Fable seventh review of rev 8 returned REJECT (narrow
 > — all round-6 items verified; 0 Critical, 0 Important, 3 required Minors).
 > Changes applied (required only; no new content introduced):
@@ -207,7 +219,7 @@ fail-open). Consequences bound below under Phase 3.
 
 A Wave 9-specific execute script (Step A verifier) implementing the Step A
 sequence must be authored and independently reviewed before any execution.
-**Execution is blocked until that script exists and is reviewed.**
+**Execution is blocked until that script — with the other two Stage 1 deliverables — exists, is reviewed, and is merged with the baseline re-pinned (see Authorization, Stage 2).**
 The script must:
 - Authenticate and use the JWT returned from login (not a pre-minted token)
 - Make direct HTTP calls to `PUT /api/portfolio/holdings` and
@@ -233,8 +245,8 @@ Authorize Claude to write three deliverables (planning and coding only; no
 production action, credential access, cloud call, deployment, PR creation, or
 merge occurs in Stage 1):
 
-1. **Step A execute script and its tests** — implements the Phase 3 bounded
-   sequence and produces the sanitized evidence JSON.
+1. **Step A execute script and its tests** — implements the Phase 3-4 bounded
+   sequence (execute, validate, cleanup) and produces the sanitized evidence JSON.
 2. **Wrapper scrub-block edit** — add the Step A credential variable name to
    `run_task_8_9_preflight.ps1`'s null-out block (lines 188-191) and restore
    block (1092-1093), with new offline test coverage extending the argv-name
@@ -282,7 +294,7 @@ deliverables exist.
 
 ---
 
-## Attempt parameters (Stage 2 — pending script availability)
+## Attempt parameters (Stage 2 — pending all three Stage 1 deliverables)
 
 | Field | Value |
 |---|---|
@@ -512,7 +524,7 @@ No secret values, JWT-like patterns, `Authorization` header values, or
 | Condition | Required result |
 |---|---|
 | No fresh, exact owner authorization for Stage 1 (authoring three deliverables) | **STOP** — do not author the deliverables |
-| Stage 1 deliverables (Step A execute script, wrapper scrub edit, launcher) not all authored, tested, independently reviewed, merged, and the baseline commit re-pinned | **STOP** — execution (Stage 2) is blocked |
+| Stage 1 deliverables (Step A execute script, wrapper scrub edit, launcher) not all authored, tested, independently reviewed, merged, and the baseline commit re-pinned to the merge commit | **STOP** — execution (Stage 2) is blocked |
 | No fresh, exact owner authorization for Stage 2 naming "Wave 9 Step A" | **STOP** before any live action |
 | Operator preconditions not met (PS 5.1, Docker, Azure session, Log Analytics, network) | **STOP** before Phase 1 |
 | Serving identity or configuration mismatch vs provenance (including 120s/30s/165s timeout values) | **STOP** before any mutation; no workaround or deployment |
@@ -596,8 +608,12 @@ build/deploy, and fresh uncached browser proof that both controls are absent.
       0 Critical, 0 Important, 3 required Minors (M1: Docker precondition
       misattributed; M2: Stage 1 header/consequences still said "script";
       M3: STOP/GO deliverables gate missing merge + baseline re-pin)
-- [x] Rev 9 prepared (this document); all required round-7 corrections applied;
-      no production action taken
+- [x] Rev 9 prepared; all required round-7 corrections applied; no production
+      action taken
+- [x] Rev 9 reviewed by Fable; REJECT (narrow) — M1/M2 fully confirmed;
+      1 required Minor (M-R1: STOP/GO row missing "to the merge commit")
+- [x] Rev 10 prepared (this document); all corrections applied; no production
+      action taken
 - [ ] **Stage 1: Owner authorization (names all three deliverables)**
 - [ ] All three Stage 1 deliverables authored, tested, independently reviewed:
       (1) Step A execute script; (2) wrapper scrub edit + tests;
