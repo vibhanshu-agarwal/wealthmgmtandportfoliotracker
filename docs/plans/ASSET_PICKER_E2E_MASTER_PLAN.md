@@ -894,6 +894,12 @@ evidence head `8544d722`, with documentation head `fab158cb` independently accep
 both production feature flags remain disabled. The owner-deferred
 [sidebar issue](../todos/backlog/responsive-dashboard-sidebar/README.md) remains separate.
 
+**Task 4.9 decimal-fidelity preparation (2026-09-16):** the source-controlled kickoff requires
+the merged fixed-E2E complete wire-tuple verifier and a mandatory post-cleanup readback. It is a
+documentation/preparation prerequisite only: the Terra/Codex external gate and a separate explicit
+owner authorization remain required before any Azure request or Phase B proof. It closes neither
+B2 Wave 10.2 item 2 nor the separate production-exposure decision.
+
 The documentation fast path is sufficient for this status reconciliation. CI DAG optimization
 remains deferred unless delivery latency makes it a product blocker.
 

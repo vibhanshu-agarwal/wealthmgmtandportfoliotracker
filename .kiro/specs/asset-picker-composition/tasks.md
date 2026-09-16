@@ -1269,9 +1269,11 @@ until Wave 5 ships.
   Add
   `scripts/derive_demo_golden_state.py`, a stdlib-only test/operations tool that reads the raw active
   catalog, fixed demo UUID, and configured cost-basis anchor and independently reproduces B1's
-  frozen deterministic formulas. It SHALL NOT import or invoke production Java helpers. Its
-  canonical JSON output contains both the wire-visible `{assetTicker, quantity}` set and the full
-  persisted tuple used by 4.4. Task 4.4 tests this tool against fixed vectors and uses its output;
+  frozen deterministic formulas. Its wire-visible `{assetTicker, quantity}` set is also the exact
+  expected set for the fixed-E2E UUID: wire quantity is identity-independent, while the
+  identity-specific cost basis is not wire-visible. It SHALL NOT import or invoke production Java
+  helpers. Its canonical JSON output contains both the wire-visible set and the full persisted tuple
+  used by 4.4. Task 4.4 tests this tool against fixed vectors and uses its output;
   Tasks 8.9, 9.8, and 10.2 use the same executable for their wire-visible golden-set assertions.
   This is test tooling, not a production source of truth: production continues to derive golden
   state through `GoldenStateTuplePreparer`. CI fails if catalog evolution changes the expected set
