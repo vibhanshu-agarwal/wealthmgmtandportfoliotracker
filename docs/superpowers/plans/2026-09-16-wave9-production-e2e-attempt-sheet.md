@@ -1,5 +1,5 @@
 # Wave 9 Lane — Wave 10.2 Step A Backend-Route Verification
-# Sanitized Attempt Sheet (rev 6)
+# Sanitized Attempt Sheet (rev 7)
 
 > **OWNER APPROVAL REQUIRED — two stages (see authorization section below).**
 > Stage 1 (approve now): authorize authoring the Wave 9 Step A execute script
@@ -11,6 +11,20 @@
 > before any execution. Earlier Task 4.9, Task 8.9, deployment, documentation,
 > or merge approvals are NOT reusable authority for either stage.
 
+> **Rev 7 — 2026-09-17:** Fable fifth review of rev 6 returned REJECT (narrow
+> — all round-4 items verified against source; 0 Critical, 0 Important, 3
+> required Minors). Changes applied:
+> - M1: replaced stale "evidence row 401" self-reference with artifact name
+> - M2: replaced "stable/advancing" consequence 3 with the operational test
+>   (absent/null/non-integer OR ≥ 165 s); stated "no stability re-read";
+>   added version-guard backstop
+> - M3: Stage 1 scope now enumerates 3 deliverables (execute script; wrapper
+>   scrub edit + tests; launcher + offline secret test); Stage 2 precondition,
+>   STOP/GO row, and checklist updated accordingly; "defined in Stage 1" →
+>   "must define and test in Stage 1"
+> - R4 (recommended): Stage 2 precondition notes baseline re-pin
+> - R5 (recommended): "(fail-open: ... deadline fired)" → "may have fired"
+>
 > **Rev 6 — 2026-09-17:** Fable fourth review of rev 5 returned REJECT (narrow
 > — all round-3 items verified against source; 2 new Important introduced by
 > credential-injection edit, 1 required Minor). Changes applied:
@@ -188,12 +202,25 @@ The script must:
 
 ### Stage 1 (approve to proceed): author the Wave 9 Step A execute script
 
-Authorize Claude to write the Wave 9 Step A execute script, its tests, and the
-corresponding attempt-sheet update; and to add the Step A credential variable
-name to `run_task_8_9_preflight.ps1`'s scrub block (null-out at lines 188-191,
-restore at 1092-1093) with corresponding test coverage. No production action,
-credential access, cloud call, deployment, PR creation, or merge occurs in
-Stage 1.
+Authorize Claude to write three deliverables (planning and coding only; no
+production action, credential access, cloud call, deployment, PR creation, or
+merge occurs in Stage 1):
+
+1. **Step A execute script and its tests** — implements the Phase 3 bounded
+   sequence and produces the sanitized evidence JSON.
+2. **Wrapper scrub-block edit** — add the Step A credential variable name to
+   `run_task_8_9_preflight.ps1`'s null-out block (lines 188-191) and restore
+   block (1092-1093), with new offline test coverage citing the argv-name regex
+   (`test_run_task_8_9_preflight.ps1:328`) and the sentinel-injection pattern
+   (lines 333-334).
+3. **Launcher** — the PS 5.1 script that captures the credential via
+   `Read-Host -AsSecureString` before Phase 2 (outside the handoff window),
+   then on wrapper exit 0 starts the Step A child via
+   `[System.Diagnostics.ProcessStartInfo]` (`.EnvironmentVariables[<name>]`,
+   `UseShellExecute = $false`); includes an offline test proving the secret
+   never appears in argv or the parent `$env:`.
+
+Also: the corresponding attempt-sheet update with the exact execute invocation.
 
 **Consequence of approving Stage 1:** the script is authored and reviewed; the
 attempt sheet is updated with the exact execute invocation; Stage 2 can then
@@ -204,10 +231,11 @@ under any path until a script is otherwise provided.
 
 ### Stage 2 (separate future approval required): execution attempt
 
-**Not requested here.** Once the Step A script is authored, independently
-reviewed, and this sheet is updated with the exact invocation, a fresh owner
-authorization explicitly naming "Wave 9 Step A" is required before any
-execution.
+**Not requested here.** Once all three Stage 1 deliverables (Step A execute
+script, wrapper scrub edit, and launcher) are authored, independently reviewed,
+this sheet is updated with the exact invocation, and the baseline commit is
+re-pinned to the post-Stage-1 merged commit, a fresh owner authorization
+explicitly naming "Wave 9 Step A" is required before any execution.
 
 **Consequence of approving Stage 2:** the operator runs the bounded sequence in
 the specified UTC window; Wave 10.2 Step A evidence is collected; the
@@ -336,9 +364,9 @@ launch. The Step A credential env var must be injected **only** into the Step A
 child process's environment. **Hard rule: never place the secret value on a
 command line** — argv is visible via `Win32_Process.CommandLine`, is persisted
 to PSReadLine history, and would be captured by the operator transcript
-(evidence row 401); the wrapper test at line 325-329 fails even a credential
+(the `wave9-step-a-operator-transcript-<date>.txt` evidence artifact); the wrapper test at line 325-329 fails even a credential
 name in argv. Never put the value in the parent shell's `$env:` before the
-wrapper runs. The PS 5.1-valid mechanism is defined in Stage 1; requirements
+wrapper runs. The PS 5.1-valid mechanism must be defined and tested in Stage 1 (launcher deliverable); requirements
 are: capture the secret before Phase 2 begins (outside the handoff window, via
 `Read-Host -AsSecureString` or equivalent owner-operated path); inject at
 child-launch time via `[System.Diagnostics.ProcessStartInfo]` (set
@@ -359,15 +387,18 @@ UTC timestamp and the login-start UTC timestamp in the evidence ledger.
    login-triggered orchestration may reset the portfolio and advance `version`
    before the login response returns. The pre-write identity-checked read must
    be the first portfolio read issued **after login completes**, not before.
-3. After login and before the non-golden write, confirm a stable version from
-   the identity-checked `GET /api/portfolio` result. Do not write if the version
-   is advancing or uncertain.
+3. After login and before the non-golden write, verify the identity-checked
+   `GET /api/portfolio` result yields a non-null integer `version`. Stop (do
+   not write) if the version is absent, null, or non-integer, OR if the login
+   round-trip took ≥ 165 s — no stability re-read is permitted; the
+   composition write's version guard (`HoldingReplacementService.java:165`,
+   `WHERE id = ? AND version = ?`) closes any late-landing login reset.
 
 | Operation class | Cap |
 |---|---|
 | Authentication (demo login) | Exactly 1 call; require `HTTP 200`; login HTTP timeout ≥ 225s; JWT returned — never printed or recorded |
 | Non-golden composition write (`PUT /api/portfolio/holdings`) | Exactly 1 call using Task 4.4a's oracle-derived non-golden composition; require `HTTP 200` and strictly advanced version; an already-golden or no-op result is a hard stop |
-| Identity-checked portfolio read (`GET /api/portfolio`) — Phase 3 only | ≤ 4 total: (1) post-login pre-write stability read (required after login completion per I2 consequence 2; establishes version after any login-triggered orchestration), (2) pre-reset read after the composition write (required — the post-login read is stale after the write; each reset attempt must use the version from the immediately preceding read), (3) re-observation before reset attempt 2 (on `409`), (4) re-observation before reset attempt 3 (on `409`); if the post-login version is absent, null, or non-integer, OR the login round-trip took ≥ 165 s (fail-open: the login-reset overall deadline fired; the portfolio may still be in-flight), the attempt stops (STOP/GO matrix) — no additional read; the composition write's version guard (`HoldingReplacementService.java:165`, `WHERE id = ? AND version = ?`) closes any late-landing login reset; exactly one match on `userId == DEMO_USER_ID` required on every single read including re-observations; zero or multiple matches fail the attempt immediately |
+| Identity-checked portfolio read (`GET /api/portfolio`) — Phase 3 only | ≤ 4 total: (1) post-login pre-write stability read (required after login completion per I2 consequence 2; establishes version after any login-triggered orchestration), (2) pre-reset read after the composition write (required — the post-login read is stale after the write; each reset attempt must use the version from the immediately preceding read), (3) re-observation before reset attempt 2 (on `409`), (4) re-observation before reset attempt 3 (on `409`); if the post-login version is absent, null, or non-integer, OR the login round-trip took ≥ 165 s (fail-open: the overall deadline may have fired; the portfolio may still be in-flight), the attempt stops (STOP/GO matrix) — no stability re-read is permitted; the composition write's version guard (`HoldingReplacementService.java:165`, `WHERE id = ? AND version = ?`) closes any late-landing login reset; exactly one match on `userId == DEMO_USER_ID` required on every single read including re-observations; zero or multiple matches fail the attempt immediately |
 | Demo-reset call (`PUT /api/portfolio/demo-reset`) | ≤ 3 total attempts; each uses the exact `version` from the immediately preceding identity-checked read; a genuine `HTTP 200` is required — a `409` result does not satisfy the gate |
 | **Cleanup max attempts = 1 (script literal, not a CLI flag)** | The script MUST enforce `cleanup_max_attempts = 1` as a hardcoded constant; a cleanup conflict (`409`) is `NON_GO` and must not silently retry |
 | Total mutating calls (login + composition write + reset attempts + cleanup) | ≤ 6 |
@@ -442,14 +473,14 @@ No secret values, JWT-like patterns, `Authorization` header values, or
 | Condition | Required result |
 |---|---|
 | No fresh, exact owner authorization for Stage 1 (script authoring) | **STOP** — do not author the script |
-| Wave 9 Step A execute script not yet authored, tested, and independently reviewed | **STOP** — execution (Stage 2) is blocked |
+| Stage 1 deliverables (Step A execute script, wrapper scrub edit, launcher) not all authored, tested, and independently reviewed | **STOP** — execution (Stage 2) is blocked |
 | No fresh, exact owner authorization for Stage 2 naming "Wave 9 Step A" | **STOP** before any live action |
 | Operator preconditions not met (PS 5.1, Docker, Azure session, Log Analytics, network) | **STOP** before Phase 1 |
 | Serving identity or configuration mismatch vs provenance (including 120s/30s/165s timeout values) | **STOP** before any mutation; no workaround or deployment |
 | Activation — first 200 not achieved within 6 probes | **STOP** (exit 3); do not proceed to Phase 3 |
 | Preflight fails or Azure-attested timeout values do not match | **STOP**; do not proceed to Phase 3 |
 | Phase 2 → Phase 3 handoff exceeds ~300s idle-out window | **STOP**; treat warm replica as consumed; fresh Phase 2 requires new owner decision |
-| Post-login version absent, null, or non-integer; OR login round-trip ≥ 165 s (fail-open overall deadline fired) | **STOP** before composition write; do not write |
+| Post-login version absent, null, or non-integer; OR login round-trip ≥ 165 s (fail-open: the overall deadline may have fired) | **STOP** before composition write; do not write |
 | Non-golden composition write does not advance version or returns non-200 | **STOP** as `NON_GO`; mandatory cleanup if portfolio state was mutated |
 | Identity selection returns zero or multiple matches on any read (including 409-triggered re-observations) | **STOP** as `NON_GO`; mandatory cleanup if setup already ran |
 | Reset never produces genuine `HTTP 200` within 3 total attempts | **STOP** as `NON_GO`; mandatory cleanup |
@@ -511,11 +542,18 @@ build/deploy, and fresh uncached browser proof that both controls are absent.
 - [x] Rev 5 reviewed by Fable; REJECT (narrow) — all round-3 items verified
       against source; 2 new Important (I1: argv/history hazard in credential
       example; I2: wrapper scrub edit not in Stage 1 scope), 1 required Minor
-- [x] Rev 6 prepared (this document); all required round-4 corrections applied;
+- [x] Rev 6 prepared; all required round-4 corrections applied; no production
+      action taken
+- [x] Rev 6 reviewed by Fable; REJECT (narrow) — all round-4 items verified;
+      3 required Minors (M1: stale line-ref; M2: consequence 3 unstable wording;
+      M3: Stage 1 scope missing launcher deliverable)
+- [x] Rev 7 prepared (this document); all required round-5 corrections applied;
       no production action taken
-- [ ] **Stage 1: Owner authorization to author the Wave 9 Step A execute script**
-- [ ] Wave 9 Step A execute script authored, tested, independently reviewed
-- [ ] This attempt sheet updated with exact execute invocation from the script
+- [ ] **Stage 1: Owner authorization (names all three deliverables)**
+- [ ] All three Stage 1 deliverables authored, tested, independently reviewed:
+      (1) Step A execute script; (2) wrapper scrub edit + tests;
+      (3) launcher + offline secret test
+- [ ] This attempt sheet updated with exact execute invocation + baseline re-pinned
 - [ ] **Stage 2: Owner authorization naming "Wave 9 Step A" execution**
 - [ ] Execution window and operator confirmed
 - [ ] Evidence packet produced under `docs/evidence/b2-wave-9/`
