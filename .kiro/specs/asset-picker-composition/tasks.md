@@ -184,8 +184,9 @@ tests, `page.route` in the two new mocked Playwright specs
 the only build that ever sets the former to `"true"` is
 `playwright.asset-picker.mocked.config.ts`'s own local `webServer`, never a workflow or deployment
 environment. **This is a source-on-`main` claim only, not a deployment, live-integration, or
-production-exposure claim.** Task 2.7's later historical audit is independently ACCEPTed; Task 2.6
-remains mandatory and Wave 10.2 item 2 remains unsatisfied. Wave 3 source merged via PR #179 at
+production-exposure claim.** Task 2.7's later historical audit is independently ACCEPTed; the
+separate [B1 Task 4.9 live proof](../../../docs/evidence/b2-task-4-9/B1_TASK_4_9_LIVE_DECIMAL_FIDELITY_STOP_GO_2026-09-16.md)
+satisfies Wave 10.2 item 2, while Task 2.6 remains mandatory. Wave 3 source merged via PR #179 at
 `main@cc97a209`; Task 3.7's Azure deploy/live proof is complete on its recorded 2026-09-11 evidence. Wave 4 Tasks
 4.1–4.4a merged through PR #180 at `main@63fc058`; Task 4.5 completed with a reviewed live GO on
 2026-09-01. Waves 5–10 remain open per their own gates below.
@@ -1039,7 +1040,8 @@ field, and one hard rule about where each may be used:
   unproven, not impossible; contemporaneous frontend artifact, embedded-origin, cache, and rollback
   identities remain unresolved. `fd42df7` through PR #178 / `main@38e3d954` is source provenance,
   not serving proof. No fresh cloud access is authorized by this task. Task 2.6 compatibility
-  remains mandatory, and Wave 10.2 item 2 remains unsatisfied independently.
+  remains mandatory. The later [B1 Task 4.9 live proof](../../../docs/evidence/b2-task-4-9/B1_TASK_4_9_LIVE_DECIMAL_FIDELITY_STOP_GO_2026-09-16.md)
+  satisfies Wave 10.2 item 2 independently of the audit's historical limits.
   _Requirements: 8.3_
 
 ## Wave 3 — Presence (Redis-backed) · *B2-owned backend* · **Task 3.7 Azure STOP/GO green on 2026-09-11; source merged via PR #179 at `main@cc97a209`**
@@ -1959,8 +1961,8 @@ mechanism's actual runtime behavior does not).**
   and orchestration overhead can consume that margin and the overall deadline may pre-empt a leg.
   The idle threshold and the manual-reset placement are unchanged by that revision. The
   existing page-level manual-reset host is final for this release. Task 2.7's historical sequencing
-  audit is independently ACCEPTed; Task 2.6 numeric compatibility remains mandatory and Wave 10.2
-  item 2 remains unsatisfied. The authoritative rationale and frozen implementation contract are in
+  audit is independently ACCEPTed; the [B1 Task 4.9 live proof](../../../docs/evidence/b2-task-4-9/B1_TASK_4_9_LIVE_DECIMAL_FIDELITY_STOP_GO_2026-09-16.md)
+  satisfies Wave 10.2 item 2. Task 2.6 numeric compatibility remains mandatory. The authoritative rationale and frozen implementation contract are in
   `docs/superpowers/plans/2026-09-06-b2-wave8-decision-record.md`; do not start production behavior
   until its separately required gates, including Task 8.9, are complete.
   _Requirements: 7.4, 7.6, 7.7, 7.8; design.md D5_
@@ -4383,8 +4385,9 @@ Fable accepted documentation head `fab158cb`; PR #278 merged at `main@6e046741`;
      containment/frontend-artifact disposition. That audit bounds containment only at the recorded
      ACA path; impact remains unproven, not impossible, and its frontend evidence gaps remain
      explicit. Task 2.6 compatibility remains independently mandatory but non-blocking; its later
-     retirement is not a condition of this gate. The Task 2.7 audit does not establish live decimal
-     fidelity or itself satisfy Wave 10.2 item 2, which remains unsatisfied.
+     retirement is not a condition of this gate. The Task 2.7 audit does not itself establish live
+     decimal fidelity; the separate [B1 Task 4.9 live proof](../../../docs/evidence/b2-task-4-9/B1_TASK_4_9_LIVE_DECIMAL_FIDELITY_STOP_GO_2026-09-16.md)
+     is GO, so this item is satisfied without changing the audit's historical limits.
   3. Waves 3 (presence, **Task 3.7's Azure live probe green**) and 4 (portfolio-service endpoint, gate 4.5, itself
      requiring B1 task 5.1 per its own round-3 fix) **deployed to production and live-verified**, per
      their own STOP/GOs satisfied in the deployed environment — not merely green in CI. Wave 5
