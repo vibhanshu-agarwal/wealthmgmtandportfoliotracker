@@ -9,6 +9,26 @@
 > before any execution. Earlier Task 4.9, Task 8.9, deployment, documentation,
 > or merge approvals are NOT reusable authority for either stage.
 
+> **Rev 4 — 2026-09-17:** Fable second review of rev 3 returned REJECT (narrow
+> — all 10 round-1 corrections confirmed addressed; 2 new Important, 2 required
+> Minor, 8 recommended Minor). Changes applied:
+> - N-I1: raised Phase 3 read cap from ≤3 to ≤4 with enumerated read sequence;
+>   added cleanup observation read row to Phase 4
+> - N-I2: corrected post-reset version attribution — oracle defines holdings only;
+>   rule is B1 contract `version + 1` (`HoldingReplacementService.java:163`)
+> - N-M1: "back to `false` (explicitly `false`, not unset)" in rollback wording
+> - N-M2: dropped "Container App reader role"; listed attempt-4 RBAC operations
+>   explicitly (exec requires more than Reader)
+> - N-M5 (recommended): ~300s idle-out cited as planning figure, not fact;
+>   added single-launch + pre-pull recommendation
+> - N-M7 (recommended): Wave 9 wires paragraph reworded — served-bundle state
+>   not established here; PR #231/#232 dependency cited
+> - N-M8 (recommended): consequences of approving/declining each stage added
+> - N-M9 (recommended): cleanup on success path noted as no-op 200 per B1
+>   contract; does not count as gate-earning reset 200
+> - N-M10 (recommended): Step A GO bound to identities; must re-run if either
+>   service redeploys before Step B
+>
 > **Rev 3 — 2026-09-17:** Fable independent review of rev 2 returned REJECT
 > (1 Critical, 3 Important, 5 required Minors). All required and recommended
 > corrections applied:
@@ -49,10 +69,11 @@ and therefore cannot itself discharge condition 5 under the current spec.
 
 **Open owner/spec question:** What constitutes "Wave 9 actually completed"
 pre-exposure? Wave 9 wires five frontend routes (9.1-9.5) to real backend
-endpoints; those wires exist in the built source but are not deployed hidden or
-served because the frontend build has not been run with the flags enabled. A
-real-browser Production E2E is structurally impossible until Step B ships the
-flag-bearing bundle. This creates a tension between:
+endpoints. Whether the currently served frontend bundle contains those wires is
+not established here; it depends on when the last frontend deploy ran relative
+to PRs #231/#232. Either way, nothing user-visible exercises them until Step B
+ships a flag-on build. A real-browser Production E2E is therefore structurally
+impossible until Step B. This creates a tension between:
 - The spec's condition 5 ("actually completed, not merely unblocked")
 - The structural impossibility of a browser-level Wave 9 Production E2E before
   Step B
@@ -127,11 +148,25 @@ Authorize Claude to write the Wave 9 Step A execute script, its tests, and the
 corresponding attempt-sheet update. No production action, credential access,
 cloud call, deployment, PR creation, or merge occurs in Stage 1.
 
+**Consequence of approving Stage 1:** the script is authored and reviewed; the
+attempt sheet is updated with the exact execute invocation; Stage 2 can then
+be separately requested.
+**Consequence of declining Stage 1:** the script is not written; the attempt
+sheet remains in "execution blocked" state; Wave 10.2 Step A cannot proceed
+under any path until a script is otherwise provided.
+
 ### Stage 2 (separate future approval required): execution attempt
 
 **Not requested here.** Once the Step A script is authored, independently
-reviewed, and approved, a fresh owner authorization explicitly naming "Wave 9
-Step A" is required before any execution. The staged breakdown below (Phases
+reviewed, and this sheet is updated with the exact invocation, a fresh owner
+authorization explicitly naming "Wave 9 Step A" is required before any
+execution.
+
+**Consequence of approving Stage 2:** the operator runs the bounded sequence in
+the specified UTC window; Wave 10.2 Step A evidence is collected; the
+condition-5 question is surfaced for owner decision.
+**Consequence of declining Stage 2:** no production action occurs; Step A
+evidence is not collected; Wave 10.2 remains closed on Step A. The staged breakdown below (Phases
 1-5) describes what Stage 2 will do but cannot be approved until the Stage 1
 script exists.
 
@@ -180,8 +215,12 @@ is `docs/evidence/b2-task-8-9/deployment-completion-20260911.json` (0000081).
   digest-qualified images for the non-interference proof
 - **Azure session active with required RBAC** — subscription, resource group
   `wealth-azure-prod-rg`, workspace `wealth-prod-la`, registry `wealthprodacr`,
-  and the Container App reader role needed for the preflight's `az containerapp`
-  calls
+  and the RBAC required to run the 2026-09-14 attempt-4 preflight operations:
+  `az account show`, `az containerapp show` / `revision show` / `revision list` /
+  `replica list`, `az containerapp exec` (exec runs post-wake on a running
+  replica — an identity provisioned only as Reader passes all pre-wake checks
+  but fails at exec), `az acr manifest show-metadata`, `az acr login`,
+  `az monitor log-analytics workspace show` / `query`
 - **Log Analytics workspace readable** — the preflight RBAC rehearsal issues
   a KQL probe; this requires read access to workspace `wealth-prod-la`
 - **Network access to `--noproxy '*'`** — probes use `--noproxy '*'`
@@ -235,11 +274,21 @@ after the run.
 
 ### Phase 2 → Phase 3 handoff window
 
-The gateway replica idles out approximately 300 seconds after the last inbound
-request. Phase 3 (the execute sequence) must begin within approximately 300
-seconds of Phase 2's first `200` probe. If the execute invocation cannot start
-within this window, the attempt must stop and treat the warm replica as
-consumed; a fresh Phase 2 activation requires a new owner decision.
+The gateway replica idles out after the last inbound request. The wrapper
+DESCRIPTION records approximately 300 seconds (unverified planning figure;
+`run-a-attempt-20260915.md` found the replica still Running 558 s after probe 2).
+Phase 3 (the execute sequence) must begin within that window from Phase 2's
+first `200` probe. If the execute invocation cannot start within the window,
+the attempt must stop and treat the warm replica as consumed; a fresh Phase 2
+activation requires a new owner decision.
+
+**Strongly recommended:** pre-pull both attested digest-qualified images before
+Phase 2 so the wrapper's image-pull steps do not consume time inside the window.
+Structure the sequence so the wrapper's exit 0 starts the Step A script
+automatically (credential already injected in the environment), rather than
+requiring a manual hand-paste into a new window — that hand-paste gap was the
+immediate cause of Run A attempt 1's failure. Record both the first-200-probe
+UTC timestamp and the login-start UTC timestamp in the evidence ledger.
 
 ### Phase 3 — Execute sequence (Wave 9 Step A verifier — to be authored in Stage 1)
 
@@ -259,7 +308,7 @@ consumed; a fresh Phase 2 activation requires a new owner decision.
 |---|---|
 | Authentication (demo login) | Exactly 1 call; require `HTTP 200`; login HTTP timeout ≥ 225s; JWT returned — never printed or recorded |
 | Non-golden composition write (`PUT /api/portfolio/holdings`) | Exactly 1 call using Task 4.4a's oracle-derived non-golden composition; require `HTTP 200` and strictly advanced version; an already-golden or no-op result is a hard stop |
-| Identity-checked portfolio read (`GET /api/portfolio`) | ≤ 3 total across all reads (post-login, pre-write, and 409-triggered re-observations); exactly one match on `userId == DEMO_USER_ID` required on every single read, including retry re-observations; zero or multiple matches fail the attempt immediately |
+| Identity-checked portfolio read (`GET /api/portfolio`) — Phase 3 only | ≤ 4 total: (1) post-login pre-write stability read (required after login completion per I2 consequence 2; establishes version after any login-triggered orchestration), (2) pre-reset read after the composition write (required — the post-login read is stale after the write; each reset attempt must use the version from the immediately preceding read), (3) re-observation before reset attempt 2 (on `409`), (4) re-observation before reset attempt 3 (on `409`); a two-read stability check per I2 consequence 3 adds at most 1 more; exactly one match on `userId == DEMO_USER_ID` required on every single read including re-observations; zero or multiple matches fail the attempt immediately |
 | Demo-reset call (`PUT /api/portfolio/demo-reset`) | ≤ 3 total attempts; each uses the exact `version` from the immediately preceding identity-checked read; a genuine `HTTP 200` is required — a `409` result does not satisfy the gate |
 | **Cleanup max attempts = 1 (script literal, not a CLI flag)** | The script MUST enforce `cleanup_max_attempts = 1` as a hardcoded constant; a cleanup conflict (`409`) is `NON_GO` and must not silently retry |
 | Total mutating calls (login + composition write + reset attempts + cleanup) | ≤ 6 |
@@ -268,9 +317,10 @@ consumed; a fresh Phase 2 activation requires a new owner decision.
 
 | Operation class | Cap |
 |---|---|
-| Validate reset response | Response holdings must equal Task 4.4a's independently derived exact golden set; response `version` must be strictly greater than the non-golden write's version (the exact post-reset value is defined by Task 4.4a's oracle and must be stated in the Step A script before execution) |
+| Validate reset response | Response holdings must equal Task 4.4a's independently derived exact golden set (the oracle defines the holdings set only, not the version); response `version` must equal pre-reset observed `version` + 1 per B1's contract (`HoldingReplacementService.java:163` `SET version = version + 1`; Task 4.5: a changed-tuple reset returns `version + 1`; an already-golden no-op `200` returns `version` unchanged); the Step A script must assert this exact computed expected value |
 | Post-reset identity-checked read | Exactly 1 `GET /api/portfolio` with userId identity check; confirms golden state persisted; a failure here is `NON_GO` |
-| Cleanup | Armed before the non-golden composition write; executes unconditionally on every path after setup; uses `PUT /api/portfolio/demo-reset` with the then-current identity-checked observed version and real JWT; `cleanup_max_attempts = 1` (script literal) |
+| Cleanup observation read (`GET /api/portfolio`) | Exactly 1 identity-checked read before the cleanup reset call; counted separately from Phase 3 reads; must yield exactly one match on `userId == DEMO_USER_ID` |
+| Cleanup reset call | Armed before the non-golden composition write; executes unconditionally on every path after setup; uses `PUT /api/portfolio/demo-reset` with the then-current identity-checked observed version and real JWT; `cleanup_max_attempts = 1` (script literal); on the success path (portfolio already golden from the validated reset), this call returns `200` as a no-op (`version` unchanged per B1's contract — already-golden matching-version is a no-op); this no-op `200` does NOT count as the gate-earning genuine reset `200` |
 | Post-cleanup identity-checked read | Exactly 1 `GET /api/portfolio` with userId identity check |
 | Cleanup success requirement | `HTTP 200` on first attempt; a `409` or failure is `NON_GO`; do not claim restoration or Step A completion |
 | Cleanup NON_GO recovery | If cleanup returns `409` or fails, the demo portfolio is left non-golden. Recovery: the Wave 8 login-reset orchestration restores it on the next idle demo login (after ≥ 30 min idle), or the owner may run a manual reset. Record the incident precisely and do not claim restoration. |
@@ -365,12 +415,16 @@ No secret values, JWT-like patterns, `Authorization` header values, or
   in the decimal-fidelity proof; it is not a portfolio ID)
 - Step B or any advance past the Step A gate
 
-A Step A GO does not expose the picker. Step B requires a separate owner
-decision: pre-Step B backend-route confirmation, both repository flags set to
-`true` together in one change, a new Azure frontend build/deploy, and the
-real-browser post-deploy smoke. If the Step B smoke fails, rollback is both
-flags back to unset/false, another complete frontend build/deploy, and fresh
-uncached browser proof that both controls are absent.
+A Step A GO does not expose the picker. **Step A GO is also bound to the
+recorded serving identities (0081/0096): if either service is redeployed before
+Step B runs, Step A must be re-run against the new identities before Step B
+may proceed.** Step B requires a separate owner decision: pre-Step-B
+backend-route confirmation, both repository flags set to `true` together in one
+change, a new Azure frontend build/deploy, and the real-browser post-deploy
+smoke. If the Step B smoke fails, rollback is both
+flags back to `false` (explicitly `false`, not unset — so an organization-level
+variable cannot become the effective value), another complete frontend
+build/deploy, and fresh uncached browser proof that both controls are absent.
 
 ---
 
