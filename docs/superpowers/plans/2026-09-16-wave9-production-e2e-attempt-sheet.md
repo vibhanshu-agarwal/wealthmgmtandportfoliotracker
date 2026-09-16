@@ -1,16 +1,33 @@
 # Wave 9 Lane — Wave 10.2 Step A Backend-Route Verification
-# Sanitized Attempt Sheet (rev 7)
+# Sanitized Attempt Sheet (rev 8)
 
 > **OWNER APPROVAL REQUIRED — two stages (see authorization section below).**
-> Stage 1 (approve now): authorize authoring the Wave 9 Step A execute script
-> and tests, and adding the Step A credential variable to the scrub list of
-> `run_task_8_9_preflight.ps1` — planning and coding only; no production,
-> cloud, or credential action.
-> Stage 2 (future): once the script is authored and independently reviewed,
-> fresh owner authorization naming this "Wave 9 Step A" attempt is required
-> before any execution. Earlier Task 4.9, Task 8.9, deployment, documentation,
-> or merge approvals are NOT reusable authority for either stage.
+> Stage 1 (approve now): authorize authoring three deliverables —
+> (1) Step A execute script + tests; (2) wrapper scrub-list edit + tests;
+> (3) PS 5.1 launcher + offline secret test — planning and coding only; no
+> production, cloud, or credential action.
+> Stage 2 (future): once all three Stage 1 deliverables are authored,
+> independently reviewed, merged, and the baseline commit re-pinned, fresh
+> owner authorization naming "Wave 9 Step A" is required before any execution.
+> Earlier Task 4.9, Task 8.9, deployment, documentation, or merge approvals
+> are NOT reusable authority for either stage.
 
+> **Rev 8 — 2026-09-17:** Fable sixth review of rev 7 returned REJECT (narrow
+> — all round-5 items verified against source; 0 Critical, 1 Important, 2
+> required Minors). Changes applied:
+> - I1: updated authorization banner Stage 1 and Stage 2 text to name all
+>   three deliverables and baseline re-pin
+> - M1: launcher offline test spec strengthened with positive control (stub
+>   child shows sentinel present), injection seams, and negative assertion
+> - M2: "citing" → "extending" — adds new name to argv regex at :328 and a
+>   third sentinel at :333-334
+> - R1 (recommended): added checklist line for Stage 1 PR/merge + baseline re-pin
+> - R3 (recommended): attributed image pulls to the verifier (not the wrapper)
+> - R4 (recommended): renamed "stability read" → "baseline read" in cap row
+> - R5 (recommended): added non-200/409 reset outcome classification
+> - R6 (recommended): Phase 1 header "(before credentials or mutation)" →
+>   "(before any credential use or mutation)"
+>
 > **Rev 7 — 2026-09-17:** Fable fifth review of rev 6 returned REJECT (narrow
 > — all round-4 items verified against source; 0 Critical, 0 Important, 3
 > required Minors). Changes applied:
@@ -210,15 +227,23 @@ merge occurs in Stage 1):
    sequence and produces the sanitized evidence JSON.
 2. **Wrapper scrub-block edit** — add the Step A credential variable name to
    `run_task_8_9_preflight.ps1`'s null-out block (lines 188-191) and restore
-   block (1092-1093), with new offline test coverage citing the argv-name regex
-   (`test_run_task_8_9_preflight.ps1:328`) and the sentinel-injection pattern
-   (lines 333-334).
+   block (1092-1093), with new offline test coverage extending the argv-name
+   regex at `test_run_task_8_9_preflight.ps1:328` (add the new name to the
+   `TASK8_9_ACCESS_TOKEN|TASK8_9_DEMO_PASSWORD` pattern) and adding a third
+   sentinel at lines 333-334 (the existing sentinel assertion at 346-348 then
+   covers it).
 3. **Launcher** — the PS 5.1 script that captures the credential via
    `Read-Host -AsSecureString` before Phase 2 (outside the handoff window),
    then on wrapper exit 0 starts the Step A child via
    `[System.Diagnostics.ProcessStartInfo]` (`.EnvironmentVariables[<name>]`,
-   `UseShellExecute = $false`); includes an offline test proving the secret
-   never appears in argv or the parent `$env:`.
+   `UseShellExecute = $false`); the launcher must expose test-only injection
+   seams for the secret source and the child command (mirroring the wrapper's
+   `-AzCommand`-style stubs, with live defaults of `Read-Host -AsSecureString`
+   and the real Step A command); the offline test must (a) inject a sentinel
+   value — not a real credential — via the seam, (b) verify the sentinel is
+   present in the child's environment (stub child using the wrapper's
+   `<tool>-env` pattern, `test_run_task_8_9_preflight.ps1:340-348`), and (c)
+   verify the sentinel never appears in argv or the parent `$env:`.
 
 Also: the corresponding attempt-sheet update with the exact execute invocation.
 
@@ -306,7 +331,7 @@ is `docs/evidence/b2-task-8-9/deployment-completion-20260911.json` (0000081).
 
 ## Operation cap
 
-### Phase 1 — Read-only serving comparison (before credentials or mutation)
+### Phase 1 — Read-only serving comparison (before any credential use or mutation)
 
 | Operation class | Cap |
 |---|---|
@@ -358,7 +383,9 @@ the attempt must stop and treat the warm replica as consumed; a fresh Phase 2
 activation requires a new owner decision.
 
 **Strongly recommended:** pre-pull both attested digest-qualified images before
-Phase 2 so the wrapper's image-pull steps do not consume time inside the window.
+Phase 2 so the verifier's image-pull operations (`operations[10]`/`[11]` in
+attempt 4) do not consume time inside the window. (The wrapper itself runs only
+`docker version --format '{{.Server.Os}}'`; the pulls are the verifier's.)
 Structure the sequence so the wrapper's exit 0 triggers the Step A script
 launch. The Step A credential env var must be injected **only** into the Step A
 child process's environment. **Hard rule: never place the secret value on a
@@ -398,8 +425,8 @@ UTC timestamp and the login-start UTC timestamp in the evidence ledger.
 |---|---|
 | Authentication (demo login) | Exactly 1 call; require `HTTP 200`; login HTTP timeout ≥ 225s; JWT returned — never printed or recorded |
 | Non-golden composition write (`PUT /api/portfolio/holdings`) | Exactly 1 call using Task 4.4a's oracle-derived non-golden composition; require `HTTP 200` and strictly advanced version; an already-golden or no-op result is a hard stop |
-| Identity-checked portfolio read (`GET /api/portfolio`) — Phase 3 only | ≤ 4 total: (1) post-login pre-write stability read (required after login completion per I2 consequence 2; establishes version after any login-triggered orchestration), (2) pre-reset read after the composition write (required — the post-login read is stale after the write; each reset attempt must use the version from the immediately preceding read), (3) re-observation before reset attempt 2 (on `409`), (4) re-observation before reset attempt 3 (on `409`); if the post-login version is absent, null, or non-integer, OR the login round-trip took ≥ 165 s (fail-open: the overall deadline may have fired; the portfolio may still be in-flight), the attempt stops (STOP/GO matrix) — no stability re-read is permitted; the composition write's version guard (`HoldingReplacementService.java:165`, `WHERE id = ? AND version = ?`) closes any late-landing login reset; exactly one match on `userId == DEMO_USER_ID` required on every single read including re-observations; zero or multiple matches fail the attempt immediately |
-| Demo-reset call (`PUT /api/portfolio/demo-reset`) | ≤ 3 total attempts; each uses the exact `version` from the immediately preceding identity-checked read; a genuine `HTTP 200` is required — a `409` result does not satisfy the gate |
+| Identity-checked portfolio read (`GET /api/portfolio`) — Phase 3 only | ≤ 4 total: (1) post-login pre-write baseline read (required after login completion per I2 consequence 2; establishes version after any login-triggered orchestration), (2) pre-reset read after the composition write (required — the post-login read is stale after the write; each reset attempt must use the version from the immediately preceding read), (3) re-observation before reset attempt 2 (on `409`), (4) re-observation before reset attempt 3 (on `409`); if the post-login version is absent, null, or non-integer, OR the login round-trip took ≥ 165 s (fail-open: the overall deadline may have fired; the portfolio may still be in-flight), the attempt stops (STOP/GO matrix) — no stability re-read is permitted; the composition write's version guard (`HoldingReplacementService.java:165`, `WHERE id = ? AND version = ?`) closes any late-landing login reset; exactly one match on `userId == DEMO_USER_ID` required on every single read including re-observations; zero or multiple matches fail the attempt immediately |
+| Demo-reset call (`PUT /api/portfolio/demo-reset`) | ≤ 3 total attempts; each uses the exact `version` from the immediately preceding identity-checked read; a genuine `HTTP 200` is required — a `409` result does not satisfy the gate; any other outcome (429, 5xx, timeout) stops the attempt immediately as `NON_GO` with mandatory cleanup |
 | **Cleanup max attempts = 1 (script literal, not a CLI flag)** | The script MUST enforce `cleanup_max_attempts = 1` as a hardcoded constant; a cleanup conflict (`409`) is `NON_GO` and must not silently retry |
 | Total mutating calls (login + composition write + reset attempts + cleanup) | ≤ 6 |
 
@@ -547,13 +574,19 @@ build/deploy, and fresh uncached browser proof that both controls are absent.
 - [x] Rev 6 reviewed by Fable; REJECT (narrow) — all round-4 items verified;
       3 required Minors (M1: stale line-ref; M2: consequence 3 unstable wording;
       M3: Stage 1 scope missing launcher deliverable)
-- [x] Rev 7 prepared (this document); all required round-5 corrections applied;
+- [x] Rev 7 prepared; all required round-5 corrections applied; no production
+      action taken
+- [x] Rev 7 reviewed by Fable; REJECT (narrow) — all round-5 items verified;
+      0 Critical, 1 Important (banner still missing launcher), 2 required Minors
+- [x] Rev 8 prepared (this document); all required round-6 corrections applied;
       no production action taken
 - [ ] **Stage 1: Owner authorization (names all three deliverables)**
 - [ ] All three Stage 1 deliverables authored, tested, independently reviewed:
       (1) Step A execute script; (2) wrapper scrub edit + tests;
       (3) launcher + offline secret test
-- [ ] This attempt sheet updated with exact execute invocation + baseline re-pinned
+- [ ] Stage 1 deliverables PR'd and merged (separate owner authorizations);
+      baseline re-pinned to merge commit
+- [ ] This attempt sheet updated with exact execute invocation
 - [ ] **Stage 2: Owner authorization naming "Wave 9 Step A" execution**
 - [ ] Execution window and operator confirmed
 - [ ] Evidence packet produced under `docs/evidence/b2-wave-9/`
