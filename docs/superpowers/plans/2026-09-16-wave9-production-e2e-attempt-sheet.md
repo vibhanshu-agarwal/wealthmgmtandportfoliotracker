@@ -1,5 +1,5 @@
 # Wave 9 Lane — Wave 10.2 Step A Backend-Route Verification
-# Sanitized Attempt Sheet (rev 8)
+# Sanitized Attempt Sheet (rev 9)
 
 > **OWNER APPROVAL REQUIRED — two stages (see authorization section below).**
 > Stage 1 (approve now): authorize authoring three deliverables —
@@ -12,6 +12,16 @@
 > Earlier Task 4.9, Task 8.9, deployment, documentation, or merge approvals
 > are NOT reusable authority for either stage.
 
+> **Rev 9 — 2026-09-17:** Fable seventh review of rev 8 returned REJECT (narrow
+> — all round-6 items verified; 0 Critical, 0 Important, 3 required Minors).
+> Changes applied (required only; no new content introduced):
+> - M1: Docker precondition — attribute pulls to the verifier, not the wrapper
+>   ("wrapper checks daemon OS; verifier pulls for ACR rehearsal")
+> - M2: Stage 1 section header, consequence texts, Stage 2 blocked-until clause,
+>   and STOP/GO Stage-1-auth row all updated from "script" to "deliverables"
+> - M3: STOP/GO deliverables-gate row now includes "merged, and the baseline
+>   commit re-pinned to the merge commit"
+>
 > **Rev 8 — 2026-09-17:** Fable sixth review of rev 7 returned REJECT (narrow
 > — all round-5 items verified against source; 0 Critical, 1 Important, 2
 > required Minors). Changes applied:
@@ -217,7 +227,7 @@ The script must:
 
 ## Authorization — two stages
 
-### Stage 1 (approve to proceed): author the Wave 9 Step A execute script
+### Stage 1 (approve to proceed): author the three Stage 1 deliverables
 
 Authorize Claude to write three deliverables (planning and coding only; no
 production action, credential access, cloud call, deployment, PR creation, or
@@ -247,12 +257,12 @@ merge occurs in Stage 1):
 
 Also: the corresponding attempt-sheet update with the exact execute invocation.
 
-**Consequence of approving Stage 1:** the script is authored and reviewed; the
-attempt sheet is updated with the exact execute invocation; Stage 2 can then
+**Consequence of approving Stage 1:** the deliverables are authored and reviewed;
+the attempt sheet is updated with the exact execute invocation; Stage 2 can then
 be separately requested.
-**Consequence of declining Stage 1:** the script is not written; the attempt
+**Consequence of declining Stage 1:** the deliverables are not written; the attempt
 sheet remains in "execution blocked" state; Wave 10.2 Step A cannot proceed
-under any path until a script is otherwise provided.
+under any path until all three deliverables are otherwise provided.
 
 ### Stage 2 (separate future approval required): execution attempt
 
@@ -267,8 +277,8 @@ the specified UTC window; Wave 10.2 Step A evidence is collected; the
 condition-5 question is surfaced for owner decision.
 **Consequence of declining Stage 2:** no production action occurs; Step A
 evidence is not collected; Wave 10.2 remains closed on Step A. The staged breakdown below (Phases
-1-5) describes what Stage 2 will do but cannot be approved until the Stage 1
-script exists.
+1-5) describes what Stage 2 will do but cannot be approved until all three Stage 1
+deliverables exist.
 
 ---
 
@@ -311,8 +321,10 @@ is `docs/evidence/b2-task-8-9/deployment-completion-20260911.json` (0000081).
 
 - **Windows PowerShell 5.1 exactly** — the wrapper (`run_task_8_9_preflight.ps1`)
   refuses any other edition or major version (exits 2)
-- **Linux Docker daemon running and accessible** — the wrapper pulls
-  digest-qualified images for the non-interference proof
+- **Linux Docker daemon running and accessible** — the wrapper checks the daemon
+  OS (`docker version`); the preflight verifier then pulls both attested
+  digest-qualified images as an ACR pull-access rehearsal (`operations[10]/[11]`
+  in attempt 4)
 - **Azure session active with required RBAC** — subscription, resource group
   `wealth-azure-prod-rg`, workspace `wealth-prod-la`, registry `wealthprodacr`,
   and the RBAC required to run the 2026-09-14 attempt-4 preflight operations:
@@ -499,8 +511,8 @@ No secret values, JWT-like patterns, `Authorization` header values, or
 
 | Condition | Required result |
 |---|---|
-| No fresh, exact owner authorization for Stage 1 (script authoring) | **STOP** — do not author the script |
-| Stage 1 deliverables (Step A execute script, wrapper scrub edit, launcher) not all authored, tested, and independently reviewed | **STOP** — execution (Stage 2) is blocked |
+| No fresh, exact owner authorization for Stage 1 (authoring three deliverables) | **STOP** — do not author the deliverables |
+| Stage 1 deliverables (Step A execute script, wrapper scrub edit, launcher) not all authored, tested, independently reviewed, merged, and the baseline commit re-pinned | **STOP** — execution (Stage 2) is blocked |
 | No fresh, exact owner authorization for Stage 2 naming "Wave 9 Step A" | **STOP** before any live action |
 | Operator preconditions not met (PS 5.1, Docker, Azure session, Log Analytics, network) | **STOP** before Phase 1 |
 | Serving identity or configuration mismatch vs provenance (including 120s/30s/165s timeout values) | **STOP** before any mutation; no workaround or deployment |
@@ -578,7 +590,13 @@ build/deploy, and fresh uncached browser proof that both controls are absent.
       action taken
 - [x] Rev 7 reviewed by Fable; REJECT (narrow) — all round-5 items verified;
       0 Critical, 1 Important (banner still missing launcher), 2 required Minors
-- [x] Rev 8 prepared (this document); all required round-6 corrections applied;
+- [x] Rev 8 prepared; all required round-6 corrections applied; no production
+      action taken
+- [x] Rev 8 reviewed by Fable; REJECT (narrow) — all round-6 items verified;
+      0 Critical, 0 Important, 3 required Minors (M1: Docker precondition
+      misattributed; M2: Stage 1 header/consequences still said "script";
+      M3: STOP/GO deliverables gate missing merge + baseline re-pin)
+- [x] Rev 9 prepared (this document); all required round-7 corrections applied;
       no production action taken
 - [ ] **Stage 1: Owner authorization (names all three deliverables)**
 - [ ] All three Stage 1 deliverables authored, tested, independently reviewed:
