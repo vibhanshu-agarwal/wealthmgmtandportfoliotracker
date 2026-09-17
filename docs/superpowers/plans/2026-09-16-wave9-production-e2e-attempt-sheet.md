@@ -618,7 +618,7 @@ build/deploy, and fresh uncached browser proof that both controls are absent.
 - [x] **Stage 1: Owner authorization (names all three deliverables)**
       — authorized 2026-09-17 (chat prompt names all three deliverables,
       no production/cloud/credential/deployment/PR/merge)
-- [ ] All three Stage 1 deliverables authored, tested, independently reviewed:
+- [x] All three Stage 1 deliverables authored, tested, independently reviewed:
       (1) Step A execute script (`scripts/verify_wave9_step_a.py`) — authored;
       (2) wrapper scrub edit + tests (`run_task_8_9_preflight.ps1`, stubs,
           `test_run_task_8_9_preflight.ps1`) — authored;
@@ -627,10 +627,9 @@ build/deploy, and fresh uncached browser proof that both controls are absent.
       Fable ACCEPT at `2041579c` (Rd 5); two subsequent CI-fix commits
       (`40e9f7d` preflight scrub reverted then `c4e08568` both re-added
       with allowlist fixes) plus one doc commit (`e8283fea`) are on the
-      same PR. Independent merge review must explicitly bind exact head
-      `e8283fea`; substantive code analysis may focus on the
-      `40e9f7d → c4e08568` scrub/allowlist delta. CI must be green for
-      `e8283fea`; prior green checks at earlier SHAs are not sufficient.
+      same PR. Independent merge review bound to exact head `95363bd0`
+      (0C/0I/5M); substantive code analysis focused on the
+      `40e9f7d → c4e08568` scrub/allowlist delta. CI green at `95363bd0`.
 - [x] Stage 1 deliverables PR'd and merged — PR #283 merged to main at
       `e9801aef6565ce6fa9dc81b24506b13b419e003f` (2026-09-17); Fable ACCEPT
       bound to `95363bd0` (0C/0I/5M); baseline re-pinned to merge commit
