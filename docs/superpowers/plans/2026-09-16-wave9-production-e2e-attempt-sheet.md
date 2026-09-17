@@ -40,7 +40,7 @@
 > out-of-window **technical GO only**. It does not close Step A, advance Wave
 > 9 or Wave 10.2, authorize exposure, or authorize a retry. Future Stage 2
 > approvals use the authorization-validity rule below: a named operator may
-> begin exactly one bounded attempt at any time before the owner-specified
+> start one bounded attempt at any time before the owner-specified
 > latest permitted attempt-start UTC [formerly "latest-abort UTC"; renamed in
 > Rev 12]; a fixed start time is not a correctness requirement.
 
@@ -408,12 +408,22 @@ is `docs/evidence/b2-task-8-9/deployment-completion-20260911.json` (0000081).
 - **Network access to `--noproxy '*'`** — probes use `--noproxy '*'`
 - **Both `TASK8_9_*` env vars cleared from the parent shell** — the wrapper
   reads and scrubs them from its children; do not leave stale values
-- **`Start-Transcript` running before launcher invocation** — run
-  `Start-Transcript -LiteralPath <out-of-repo-path>` in the same Windows
-  PowerShell 5.1 session before invoking the launcher; confirm the
-  `probe 1/6 started-utc=` fingerprint line is present in the transcript
-  after the launcher exits; sanitize a copy by redacting all host paths
-  and operator identity information before publishing as evidence
+- **`Start-Transcript` running before launcher invocation** — the transcript
+  is captured by screen-buffer scrape; the probe-1 fingerprint line exceeds
+  120 characters, so set the console buffer width to ≥ 400 columns before
+  invoking (`$Host.UI.RawUI.BufferSize = New-Object System.Management.Automation.Host.Size(400, $Host.UI.RawUI.BufferSize.Height)`)
+  and confirm the line is a single unbroken entry after exit. Before
+  requesting Stage 2, run a rehearsal using the launcher's offline seams
+  (`-WrapperScript <stub that prints a ≥250-char fingerprint line>`,
+  `-SecretSource env:<NAME>`) to confirm `exact-line-count=1` in a stub
+  transcript. Then run `Start-Transcript -LiteralPath <out-of-repo-path>`
+  in the same PowerShell 5.1 session before the live launcher invocation.
+  The transcript will contain a masked password prompt
+  (`Wave 9 Step A password: ****…`); the asterisk count discloses the
+  password length — redact it along with all host paths and operator
+  identity information. The raw transcript is preserved at the out-of-repo
+  path; the sanitized copy is the tracked artifact published under
+  `docs/evidence/b2-wave-9/`.
 
 ---
 
@@ -715,9 +725,14 @@ build/deploy, and fresh uncached browser proof that both controls are absent.
       out-of-window technical GO and therefore has **no gate credit**
 - [ ] Fresh Stage 2 authorization for any new attempt — named operator, one
       attempt, and latest permitted attempt-start UTC
-- [ ] `Start-Transcript` running before launcher invocation; probe-1
-      `started-utc=...` fingerprint confirmed present after launcher exits;
-      sanitized copy preserved at out-of-repo path
+- [ ] Console buffer width ≥ 400 columns set before launcher invocation;
+      pre-Stage-2 rehearsal (offline seams) confirms probe-1 fingerprint
+      is a single unbroken line in a stub transcript
+- [ ] `Start-Transcript` running before live launcher invocation; probe-1
+      `started-utc=...` fingerprint confirmed intact (single unbroken line)
+      after launcher exits; raw transcript at out-of-repo path; sanitized
+      copy (password prompt, host paths, and operator identity redacted) is
+      the tracked artifact under `docs/evidence/b2-wave-9/`
 - [ ] Preflight artifact byte size and SHA-256 recorded in attempt record and
       decision document; reviewer has read access before packet acceptance
 - [ ] A Step A attempt with probe-1 `started-utc` before the latest permitted
