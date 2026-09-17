@@ -1,5 +1,5 @@
 # Wave 9 Lane — Wave 10.2 Step A Backend-Route Verification
-# Sanitized Attempt Sheet (rev 10)
+# Sanitized Attempt Sheet (rev 11)
 
 > **OWNER APPROVAL REQUIRED — two stages (see authorization section below).**
 > Stage 1 (approve now): authorize authoring three deliverables —
@@ -11,6 +11,13 @@
 > owner authorization naming "Wave 9 Step A" is required before any execution.
 > Earlier Task 4.9, Task 8.9, deployment, documentation, or merge approvals
 > are NOT reusable authority for either stage.
+
+> **Rev 11 owner decision — 2026-09-17:** Record Step A attempt 1 as an
+> out-of-window **technical GO only**. It does not close Step A, advance Wave
+> 9 or Wave 10.2, authorize exposure, or authorize a retry. Future Stage 2
+> approvals use the authorization-validity rule below: a named operator may
+> start one bounded attempt at any time before the owner-specified latest-abort
+> UTC; a fixed start time is not a correctness requirement.
 
 > **Rev 10 — 2026-09-17:** Fable eighth review of rev 9 returned REJECT (narrow
 > — M1/M2 fully confirmed; 0 Critical, 0 Important, 1 required Minor).
@@ -284,9 +291,11 @@ this sheet is updated with the exact invocation, and the baseline commit is
 re-pinned to the post-Stage-1 merged commit, a fresh owner authorization
 explicitly naming "Wave 9 Step A" is required before any execution.
 
-**Consequence of approving Stage 2:** the operator runs the bounded sequence in
-the specified UTC window; Wave 10.2 Step A evidence is collected; the
-condition-5 question is surfaced for owner decision.
+**Consequence of approving Stage 2:** the named operator may run one bounded
+sequence while the approval remains valid, ending no later than the
+owner-specified latest-abort UTC; actual UTC start and end are recorded in the
+evidence. Wave 10.2 Step A evidence is collected; the condition-5 question is
+surfaced for owner decision.
 **Consequence of declining Stage 2:** no production action occurs; Step A
 evidence is not collected; Wave 10.2 remains closed on Step A. The staged breakdown below (Phases
 1-5) describes what Stage 2 will do but cannot be approved until all three Stage 1
@@ -300,14 +309,35 @@ deliverables exist.
 |---|---|
 | Proposed operator | Owner (owner-operated credential injection only) |
 | Baseline commit | `main@e9801aef6565ce6fa9dc81b24506b13b419e003f` (PR #283 merge commit, 2026-09-17) |
-| UTC window | **TBD — owner to specify at Stage 2 approval** |
-| Hard stop if window expires | Yes — stop before any in-progress mutation; restore if setup already ran |
+| Authorization validity | Fresh Stage 2 approval names one operator, one attempt, and a latest-abort UTC. No fixed start UTC is required; Phase 1 may begin only before that latest-abort. Evidence records actual UTC start and end. |
+| Hard stop if authorization expires | Yes — do not begin a new live phase or mutation at/after latest-abort; if setup already ran, complete only the mandatory cleanup needed to restore the demo portfolio, then stop. |
 | Phase 1-2 serving comparison / preflight | `scripts/run_task_8_9_preflight.ps1` + `verify_demo_reset_azure.py --mode preflight` with Azure-attested timing params and login timeout (see Phase 1-2 below) |
 | Phase 3 execute script | `scripts/verify_wave9_step_a.py` (merged via PR #283 `e9801aef`; baseline re-pinned) |
 | Phase 3 launcher (exact invocation) | `powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts\launch_wave9_step_a.ps1` — prompts `Read-Host -AsSecureString`, runs `run_task_8_9_preflight.ps1`, then launches `verify_wave9_step_a.py` via `ProcessStartInfo` with the credential injected only into the child's environment; evidence JSON written to `docs/evidence/b2-wave-9/` |
 | Credential env vars for Phase 3 | Owner supplies the demo password interactively via the launcher's `Read-Host` prompt; the credential is stored as `WAVE9_STEP_A_PASSWORD` **in the child process env only** (never in `$env:` of the launcher or wrapper); `TASK8_9_ACCESS_TOKEN` is not used — Step A authenticates and uses the returned JWT; Claude never reads, prints, or records credential values |
 | Demo email | `demo@wealthtracker.dev` (intentionally public, in `ci-verification.yml`) |
 | Deployment provenance file | `docs/evidence/b2-task-8-9/deployment-provenance-20260911.json` |
+
+---
+
+## Attempt 1 record — technical GO, no gate credit
+
+**Owner decision:** preserve this attempt as an out-of-window technical GO with
+no advancement. Do not retry under the expired authorization, enable flags,
+deploy, run browser verification, publish evidence, or change Wave 9/Wave 10.2
+status from this record.
+
+| Field | Recorded fact |
+|---|---|
+| Authorization | One named `Wave 9 Step A` attempt by Vibhanshu Agarwal; start 2026-09-17 10:30 UTC, latest-abort 11:30 UTC |
+| Step A evidence | `docs/evidence/b2-wave-9/wave9-step-a-attempt1-20260917.json` (untracked; preserve unchanged) |
+| Actual live-operation interval | `2026-09-17T13:51:12Z` login through `2026-09-17T13:52:00Z` post-cleanup read |
+| Timing disposition | Started 2 h 21 m 12 s after latest-abort; non-credit regardless of its technical result |
+| Technical result | Verifier `outcome: GO`; baseline `main@e9801aef6565ce6fa9dc81b24506b13b419e003f`; 159 golden holdings; reset and cleanup each returned HTTP 200; all three golden-state assertions were true |
+| Preflight artifact | Remains outside the repository at the operator-selected temporary path. It is not imported, published, or reviewed by this amendment. |
+
+The JSON reports `condition_5_status: open_owner_question`; that field remains
+an owner decision and is neither resolved nor made less restrictive here.
 
 ---
 
@@ -527,6 +557,7 @@ No secret values, JWT-like patterns, `Authorization` header values, or
 | No fresh, exact owner authorization for Stage 1 (authoring three deliverables) | **STOP** — do not author the deliverables |
 | Stage 1 deliverables (Step A execute script, wrapper scrub edit, launcher) not all authored, tested, independently reviewed, merged, and the baseline commit re-pinned to the merge commit | **STOP** — execution (Stage 2) is blocked |
 | No fresh, exact owner authorization for Stage 2 naming "Wave 9 Step A" | **STOP** before any live action |
+| Authorization validity has expired before Phase 1 starts | **STOP** before any live action; do not run a late attempt. A completed late attempt is recorded as non-credit technical evidence only. |
 | Operator preconditions not met (PS 5.1, Docker, Azure session, Log Analytics, network) | **STOP** before Phase 1 |
 | Serving identity or configuration mismatch vs provenance (including 120s/30s/165s timeout values) | **STOP** before any mutation; no workaround or deployment |
 | Activation — first 200 not achieved within 6 probes | **STOP** (exit 3); do not proceed to Phase 3 |
@@ -539,7 +570,7 @@ No secret values, JWT-like patterns, `Authorization` header values, or
 | Reset response or post-reset identity-checked read does not match Task 4.4a golden state | **STOP** as `NON_GO`; mandatory cleanup |
 | Cleanup returns non-200 or post-cleanup identity check fails | **STOP** as `NON_GO`; record incident; see cleanup NON_GO recovery path |
 | Final serving comparison shows drift from Phase 1 | **STOP** as `NON_GO`; do not claim Step A complete |
-| All conditions pass and independent review accepts the packet | Wave 10.2 Go-action Step A complete; condition-5 gate effect is a separate owner decision; Wave 10.2 remains closed; Step B is a separately owner-gated decision |
+| All conditions pass, the attempt starts while its authorization remains valid, and independent review accepts the packet | Wave 10.2 Go-action Step A complete; condition-5 gate effect is a separate owner decision; Wave 10.2 remains closed; Step B is a separately owner-gated decision |
 
 ---
 
@@ -636,9 +667,12 @@ build/deploy, and fresh uncached browser proof that both controls are absent.
       bound to `95363bd0` (0C/0I/5M); baseline re-pinned to merge commit
 - [x] This attempt sheet updated with exact execute invocation
       (see "Phase 3 launcher" row in Attempt parameters table)
-- [ ] **Stage 2: Owner authorization naming "Wave 9 Step A" execution**
-- [ ] Execution window and operator confirmed
-- [ ] Evidence packet produced under `docs/evidence/b2-wave-9/`
+- [x] Stage 2 authorization naming `Wave 9 Step A` was issued for Vibhanshu
+      Agarwal, 2026-09-17 10:30 UTC through latest-abort 11:30 UTC
+- [x] Attempt 1 artifact produced under `docs/evidence/b2-wave-9/`; it is an
+      out-of-window technical GO and therefore has **no gate credit**
+- [ ] A Step A attempt that starts while its authorization remains valid is
+      independently reviewed and accepted for gate credit
 - [ ] Independent technical review of evidence packet requested and accepted
 - [ ] Status report: Step A outcome, condition-5 question surfaced to owner,
       documentation, PR, merge, and Step B each recorded as separate decisions
