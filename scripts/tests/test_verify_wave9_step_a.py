@@ -326,6 +326,7 @@ class StopConditionsTest(unittest.TestCase):
         ] + _cleanup_responses())
         self.assertEqual(evidence["outcome"], "NON_GO")
         self.assertIn("409", evidence["stop_reason"])
+        self.assertEqual(evidence["cleanup"]["result"], "200")  # C2: cleanup ran
 
     def test_stop_if_composition_write_did_not_advance_version(self) -> None:
         """Pre-reset version must be strictly greater than baseline."""
@@ -337,6 +338,7 @@ class StopConditionsTest(unittest.TestCase):
         ] + _cleanup_responses())
         self.assertEqual(evidence["outcome"], "NON_GO")
         self.assertIn("advance", evidence["stop_reason"].lower())
+        self.assertEqual(evidence["cleanup"]["result"], "200")
 
     def test_stop_if_all_3_reset_attempts_return_409(self) -> None:
         v = 5
@@ -352,6 +354,7 @@ class StopConditionsTest(unittest.TestCase):
             (409, None),                  # reset attempt 3 -> NON_GO
         ] + _cleanup_responses())
         self.assertEqual(evidence["outcome"], "NON_GO")
+        self.assertEqual(evidence["cleanup"]["result"], "200")
 
     def test_stop_if_reset_returns_unexpected_status(self) -> None:
         v = 5
@@ -364,6 +367,7 @@ class StopConditionsTest(unittest.TestCase):
         ] + _cleanup_responses())
         self.assertEqual(evidence["outcome"], "NON_GO")
         self.assertIn("500", evidence["stop_reason"])
+        self.assertEqual(evidence["cleanup"]["result"], "200")
 
     def test_stop_if_reset_response_version_wrong(self) -> None:
         v = 5
@@ -376,6 +380,7 @@ class StopConditionsTest(unittest.TestCase):
             (200, _portfolio(v + 3, _golden_holdings_as_response(GOLDEN_2))),
         ] + _cleanup_responses())
         self.assertEqual(evidence["outcome"], "NON_GO")
+        self.assertEqual(evidence["cleanup"]["result"], "200")
 
     def test_stop_if_reset_response_holdings_not_golden(self) -> None:
         v = 5
@@ -388,6 +393,7 @@ class StopConditionsTest(unittest.TestCase):
             (200, _portfolio(v + 2, bad_holdings)),   # wrong holdings
         ] + _cleanup_responses())
         self.assertEqual(evidence["outcome"], "NON_GO")
+        self.assertEqual(evidence["cleanup"]["result"], "200")
 
     def test_stop_if_post_reset_read_not_golden(self) -> None:
         v = 5
@@ -402,6 +408,7 @@ class StopConditionsTest(unittest.TestCase):
             (200, _portfolio(v_pr, bad_holdings)),                             # post-reset read: bad
         ] + _cleanup_responses())
         self.assertEqual(evidence["outcome"], "NON_GO")
+        self.assertEqual(evidence["cleanup"]["result"], "200")
 
     def test_stop_if_cleanup_returns_409(self) -> None:
         v = 5
@@ -475,12 +482,14 @@ class RetryLogicTest(unittest.TestCase):
 
     @unittest.mock.patch.object(subject, "RESET_MAX_ATTEMPTS", 4)
     def test_phase3_read_cap_enforced(self) -> None:
-        """Phase 3 read cap fires when a 4th 409 would require a 5th read.
+        """Phase 3 read cap fires before attempt 4 would need a 5th read.
 
-        With RESET_MAX_ATTEMPTS=4 patched in, attempts 1-3 each consume a
-        re-observe read (total: 1 baseline + 1 pre_reset + 2 re-observe = 4
-        reads). The 4th attempt's pre-read hits the cap (phase3_read_count==4
-        >= PHASE3_MAX_READS==4) before any further HTTP call is made.
+        With RESET_MAX_ATTEMPTS=4 patched in, attempts 1 and 2 each consume a
+        re-observe read (reads 3 and 4, read_count becomes 2→3→4). When attempt
+        3 returns 409, the code tries to read before attempt 4 but
+        phase3_read_count==4 >= PHASE3_MAX_READS==4 so the cap fires.
+        Total reads: 1 (baseline) + 1 (pre_reset) + 1 (re_obs_2) + 1 (re_obs_3)
+        = 4. Cap check triggers before re_obs_4 is issued.
         """
         v, vw = 5, 6
         try:
@@ -505,6 +514,7 @@ class RetryLogicTest(unittest.TestCase):
             evidence = exc.evidence
         self.assertEqual(evidence["outcome"], "NON_GO")
         self.assertIn("cap", evidence["stop_reason"].lower())
+        self.assertEqual(evidence["cleanup"]["result"], "200")  # C2: cleanup ran
 
 
 class LoginSlowTest(unittest.TestCase):

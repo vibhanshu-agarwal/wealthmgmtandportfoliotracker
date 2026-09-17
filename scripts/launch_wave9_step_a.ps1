@@ -56,6 +56,19 @@ if ($PSVersionTable.PSEdition -eq 'Core') {
     exit 2
 }
 
+# Pre-validate that $StepAArgs contains required flags before prompting for the
+# credential — gives immediate feedback if the caller forgot a flag.
+$_hasEvidenceOutput = [bool]($StepAArgs | Where-Object { $_ -eq '--evidence-output' -or $_ -like '--evidence-output=*' })
+if (-not $_hasEvidenceOutput) {
+    [Console]::Error.WriteLine("launch_wave9_step_a: -StepAArgs must include '--evidence-output' before the wrapper runs.")
+    exit 2
+}
+$_hasBaselineCommit = [bool]($StepAArgs | Where-Object { $_ -eq '--baseline-commit' -or $_ -like '--baseline-commit=*' })
+if (-not $_hasBaselineCommit) {
+    [Console]::Error.WriteLine("launch_wave9_step_a: -StepAArgs must include '--baseline-commit' before the wrapper runs.")
+    exit 2
+}
+
 # Capture credential into a local variable only.
 # Result is a plain string in memory; it never touches $env: or argv.
 [string]$plain = $null
@@ -69,7 +82,7 @@ if ($SecretSource -eq 'read-host') {
         [System.Runtime.InteropServices.Marshal]::ZeroFreeGlobalAllocUnicode($ptr)
     }
     if ([string]::IsNullOrEmpty($plain)) {
-        [Console]::Error.WriteLine('Read-Host returned an empty credential — aborting.')
+        [Console]::Error.WriteLine('Read-Host returned an empty credential -- aborting.')
         exit 2
     }
 } elseif ($SecretSource -like 'env:*') {
@@ -81,16 +94,6 @@ if ($SecretSource -eq 'read-host') {
     }
 } else {
     [Console]::Error.WriteLine("Unknown -SecretSource '$SecretSource'. Use 'read-host' or 'env:<NAME>'.")
-    exit 2
-}
-
-# Pre-validate that $StepAArgs contains required flags before consuming the wrapper wake.
-if ($StepAArgs -notcontains '--evidence-output') {
-    [Console]::Error.WriteLine("launch_wave9_step_a: -StepAArgs must include '--evidence-output' before the wrapper runs.")
-    exit 2
-}
-if ($StepAArgs -notcontains '--baseline-commit') {
-    [Console]::Error.WriteLine("launch_wave9_step_a: -StepAArgs must include '--baseline-commit' before the wrapper runs.")
     exit 2
 }
 

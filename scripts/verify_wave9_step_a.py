@@ -472,6 +472,8 @@ def run_step_a(
 
         except StopError as exc:
             _deferred = exc
+        except Exception as exc:
+            _deferred = StopError("STOP", f"unexpected error in post-ARM section: {type(exc).__name__}: {exc}")
 
         # === Cleanup: unconditional after ARM ===
         # Runs whether the deferred section succeeded or failed.
@@ -552,6 +554,11 @@ def run_step_a(
             evidence["cleanup"]["result"] = f"error: {cl_exc.reason}"
             if _deferred is None:
                 _deferred = cl_exc  # cleanup failure becomes the primary stop
+        except Exception as cl_exc:
+            msg = f"unexpected error in cleanup: {type(cl_exc).__name__}: {cl_exc}"
+            evidence["cleanup"]["result"] = f"error: {msg}"
+            if _deferred is None:
+                _deferred = StopError("STOP", msg)
 
         if _deferred is not None:
             raise _deferred  # caught by the outer except; evidence is attached there
@@ -562,6 +569,10 @@ def run_step_a(
         evidence["outcome"] = exc.verdict
         evidence["stop_reason"] = exc.reason
         raise StopError(exc.verdict, exc.reason, evidence, secrets) from exc
+    except Exception as exc:
+        evidence["outcome"] = "STOP"
+        evidence["stop_reason"] = f"unexpected error: {type(exc).__name__}: {exc}"
+        raise StopError("STOP", evidence["stop_reason"], evidence, secrets) from exc
 
     evidence["outcome"] = "GO"
     evidence["stop_reason"] = None

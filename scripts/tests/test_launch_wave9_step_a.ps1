@@ -16,6 +16,8 @@
           through; Step A is never launched.
       (e) UNKNOWN_SECRET_SOURCE_EXITS_2 -- an unsupported -SecretSource exits 2.
       (f) EMPTY_ENV_VAR_EXITS_2      -- an unset source env var exits 2.
+      (g) MISSING_STEPARGS_FLAGS_EXIT_2 -- absent --evidence-output or
+          --baseline-commit in -StepAArgs exits 2 before the wrapper runs.
 
 Run:
     powershell.exe -NoProfile -ExecutionPolicy Bypass `
@@ -98,6 +100,12 @@ function Invoke-Launcher {
     }
 }
 
+# Dummy StepAArgs that satisfy the launcher's pre-validation.
+# All test groups that need to exercise credential or wrapper behavior must
+# pass these; tests that specifically test the pre-validation (group g) use
+# @() or a partial list to trigger exit 2.
+$validStepAArgs = @('--evidence-output', 'out.json', '--baseline-commit', 'test-sha')
+
 # ---------------------------------------------------------------------------
 # Verify prerequisites
 # ---------------------------------------------------------------------------
@@ -105,15 +113,15 @@ Write-Host "`ntest_launch_wave9_step_a.ps1"
 Write-Host "-----------------------------"
 
 if (-not (Test-Path $launcher)) {
-    Write-Error "Launcher not found: $launcher"
+    [Console]::Error.WriteLine("Launcher not found: $launcher")
     exit 2
 }
 if (-not (Test-Path $wrapperStub)) {
-    Write-Error "Wrapper stub not found: $wrapperStub"
+    [Console]::Error.WriteLine("Wrapper stub not found: $wrapperStub")
     exit 2
 }
 if (-not (Test-Path $childStub)) {
-    Write-Error "Child stub not found: $childStub"
+    [Console]::Error.WriteLine("Child stub not found: $childStub")
     exit 2
 }
 
@@ -122,7 +130,7 @@ try {
     $pyVer = & python --version 2>&1
     Write-Host "  python: $pyVer"
 } catch {
-    Write-Error "Python not found on PATH -- tests cannot run."
+    [Console]::Error.WriteLine("Python not found on PATH -- tests cannot run.")
     exit 2
 }
 
@@ -140,6 +148,7 @@ $env:WAVE9_STEP_A_PASSWORD = $null
 try {
     $rc = Invoke-Launcher -ExtraParams @{
         SecretSource = 'env:STEP_A_TEST_SENTINEL'
+        StepAArgs    = $validStepAArgs
     } -ExtraEnv @{
         STEP_A_TEST_SENTINEL = $sentinel
         STUB_CAPTURE         = $capFile
@@ -147,10 +156,13 @@ try {
 
     $captureLines = Get-Content $capFile -ErrorAction SilentlyContinue
 
-    # (a) sentinel reached the child's env via ProcessStartInfo
+    # (a) sentinel reached the child's env via ProcessStartInfo.
+    # [bool] cast is required: when the child is not launched, $envLine is
+    # AutomationNull and -like returns an empty Object[] rather than $false,
+    # causing ParameterArgumentTransformationError under EAP=Stop.
     $envLine = $captureLines | Where-Object { $_ -like 'step-a-child-env*' }
     Assert-True (
-        $envLine -like "*WAVE9_STEP_A_PASSWORD=[$sentinel]*"
+        [bool]($envLine -like "*WAVE9_STEP_A_PASSWORD=[$sentinel]*")
     ) '(a) SENTINEL_IS_IN_CHILD_ENV'
 
     # (b) sentinel is NOT in the child's argv
@@ -185,6 +197,7 @@ try {
     $rc2 = Invoke-Launcher -ExtraParams @{
         WrapperScript = $wrapperFailStub
         SecretSource  = 'env:STEP_A_TEST_SENTINEL'
+        StepAArgs     = $validStepAArgs
     } -ExtraEnv @{
         STEP_A_TEST_SENTINEL = $sentinel
         STUB_CAPTURE         = $capFile2
@@ -210,6 +223,7 @@ $capFile3 = New-TempCapture
 try {
     $rc3 = Invoke-Launcher -ExtraParams @{
         SecretSource = 'bogus-source'
+        StepAArgs    = $validStepAArgs
     } -ExtraEnv @{
         STUB_CAPTURE = $capFile3
     }
@@ -227,6 +241,7 @@ try {
     [System.Environment]::SetEnvironmentVariable('STEP_A_MISSING_VAR', $null)
     $rc4 = Invoke-Launcher -ExtraParams @{
         SecretSource = 'env:STEP_A_MISSING_VAR'
+        StepAArgs    = $validStepAArgs
     } -ExtraEnv @{
         STUB_CAPTURE = $capFile4
     }
@@ -236,7 +251,8 @@ try {
 }
 
 # ---------------------------------------------------------------------------
-# (g) Pre-validation: missing --evidence-output exits 2 before wrapper runs
+# (g) Pre-validation: missing --evidence-output or --baseline-commit exits 2
+#     before the wrapper (and therefore the child) is ever launched.
 # ---------------------------------------------------------------------------
 Write-Host "`n[Group 4] Pre-validation of required StepAArgs flags"
 
@@ -244,8 +260,7 @@ $sentinel2 = 'sentinel-step-a-2'
 $capFile5   = New-TempCapture
 
 try {
-    # Omit --evidence-output from StepAArgs; --baseline-commit is also absent.
-    # The launcher must exit 2 before running the wrapper.
+    # No StepAArgs at all -- both flags are absent.
     $rc5 = Invoke-Launcher -ExtraParams @{
         SecretSource = 'env:STEP_A_TEST_SENTINEL2'
         StepAArgs    = @()
@@ -255,17 +270,19 @@ try {
     }
     Assert-True ($rc5 -eq 2) '(g) MISSING_EVIDENCE_OUTPUT_EXITS_2'
 
-    # Wrapper must NOT have been called (pre-validation happens before wrapper).
+    # stub_step_a_child.py writes 'step-a-child-env*' / 'step-a-child argv*' to
+    # STUB_CAPTURE when it runs.  Absence of those lines confirms the child was
+    # not launched (the pre-validation exits before the wrapper runs).
     $lines5 = Get-Content $capFile5 -ErrorAction SilentlyContinue
-    $wrapperCalled = [bool]($lines5 | Where-Object { $_ })
-    Assert-False $wrapperCalled '(g) wrapper NOT called when StepAArgs missing required flags'
+    $stepAChildCalled = [bool]($lines5 | Where-Object { $_ -like 'step-a-child*' })
+    Assert-False $stepAChildCalled '(g) step-a child NOT launched when StepAArgs missing required flags'
 } finally {
     Remove-Item $capFile5 -Force -ErrorAction SilentlyContinue
 }
 
 $capFile6 = New-TempCapture
 try {
-    # Provide --evidence-output but omit --baseline-commit -> still exits 2.
+    # Has --evidence-output but missing --baseline-commit -> still exits 2.
     $rc6 = Invoke-Launcher -ExtraParams @{
         SecretSource = 'env:STEP_A_TEST_SENTINEL2'
         StepAArgs    = @('--evidence-output', 'evidence.json')
