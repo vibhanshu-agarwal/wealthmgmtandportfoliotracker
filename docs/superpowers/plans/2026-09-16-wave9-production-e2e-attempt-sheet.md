@@ -14,8 +14,10 @@
 
 > **Rev 12 — 2026-09-17:** Clarify authorization-deadline terminology and
 > evidence eligibility. Changes are prospective; attempt 1 is not reclassified.
-> - "latest-abort UTC" → "latest permitted attempt-start UTC" (the wrapper's
->   activation probe 1 `started-utc` timestamp) throughout.
+> - "latest-abort UTC" → "latest permitted attempt-start UTC" throughout. The
+>   attempt's start is evidenced by the wrapper's activation probe 1
+>   `started-utc` timestamp; timing credit requires that timestamp to be before
+>   the deadline.
 > - Deadline governs attempt start only. Once the attempt has begun, the automated
 >   sequence (including mandatory cleanup) continues to completion even if it
 >   finishes after the deadline. No new attempt may begin at or after the deadline.
@@ -27,18 +29,20 @@
 >   timing credit only when that probe-1 timestamp is before the deadline. If the
 >   line is absent, malformed, or at or after the deadline, the result is
 >   technical evidence only with no gate credit.
-> - Both the external preflight JSON and the Step A JSON are preserved unchanged.
->   Preflight JSON validates serving identity, digests, and attested configuration.
->   Step A JSON validates mutation, reset, cleanup, and golden assertions.
+> - The out-of-repo preflight JSON is not imported to the repository (supersedes
+>   Rev 3 M3). Its byte size and SHA-256 must be recorded in the attempt record
+>   and decision document; reviewers must have read access to the file before
+>   accepting the evidence packet.
+> - Both the external preflight JSON and the Step A JSON are preserved unchanged
+>   from creation; neither is modified after the run.
 
 > **Rev 11 owner decision — 2026-09-17:** Record Step A attempt 1 as an
 > out-of-window **technical GO only**. It does not close Step A, advance Wave
 > 9 or Wave 10.2, authorize exposure, or authorize a retry. Future Stage 2
 > approvals use the authorization-validity rule below: a named operator may
-> begin exactly one attempt before the owner-specified latest permitted
-> attempt-start UTC; no fixed start time is required. Once the attempt has begun,
-> the automated sequence continues through mandatory cleanup even if it completes
-> after that deadline. No new attempt may begin at or after the deadline.
+> begin exactly one bounded attempt at any time before the owner-specified
+> latest permitted attempt-start UTC [formerly "latest-abort UTC"; renamed in
+> Rev 12]; a fixed start time is not a correctness requirement.
 
 > **Rev 10 — 2026-09-17:** Fable eighth review of rev 9 returned REJECT (narrow
 > — M1/M2 fully confirmed; 0 Critical, 0 Important, 1 required Minor).
@@ -314,10 +318,11 @@ explicitly naming "Wave 9 Step A" is required before any execution.
 
 **Consequence of approving Stage 2:** the named operator may begin exactly one
 attempt before the owner-specified latest permitted attempt-start UTC;
-the probe-1 `started-utc` timestamp is recorded in the evidence. Once the
-attempt has begun, the automated sequence continues through mandatory cleanup
-even if it completes after that deadline. Wave 10.2 Step A evidence is
-collected; the condition-5 question is surfaced for owner decision.
+the probe-1 `started-utc` timestamp is recorded in the sanitized operator
+transcript. Once the attempt has begun, the automated sequence continues
+through mandatory cleanup even if it completes after that deadline. Wave 10.2
+Step A evidence is collected; the condition-5 question is surfaced for owner
+decision.
 **Consequence of declining Stage 2:** no production action occurs; Step A
 evidence is not collected; Wave 10.2 remains closed on Step A. The staged breakdown below (Phases
 1-5) describes what Stage 2 will do but cannot be approved until all three Stage 1
@@ -331,8 +336,8 @@ deliverables exist.
 |---|---|
 | Proposed operator | Owner (owner-operated credential injection only) |
 | Baseline commit | `main@e9801aef6565ce6fa9dc81b24506b13b419e003f` (PR #283 merge commit, 2026-09-17) |
-| Authorization validity | Fresh Stage 2 approval names one operator, one attempt, and a **latest permitted attempt-start UTC** (defined as the wrapper's activation probe 1 `started-utc` timestamp; an attempt earns timing credit only when that probe-1 timestamp is before this deadline). No fixed start time is required; the attempt may begin at any time before that deadline. Evidence records the probe-1 `started-utc` timestamp. |
-| Phase 1 deadline | Do not begin the attempt at or after the latest permitted attempt-start UTC. Once the attempt has begun, the automated sequence (including mandatory cleanup) runs to completion. No new attempt may begin at or after the deadline. The launcher does not accept a deadline as an argument and does not enforce one; the deadline is an owner authorization record only. |
+| Authorization validity | Fresh Stage 2 approval names one operator, one attempt, and a **latest permitted attempt-start UTC** (an owner-set deadline). The attempt's start is evidenced by the wrapper's activation probe 1 `started-utc` timestamp; timing credit requires that timestamp to be before the deadline. No fixed start time is required; the attempt may begin at any time before that deadline. The sanitized operator transcript records the probe-1 `started-utc` timestamp. |
+| Attempt-start deadline | Do not begin the attempt at or after the latest permitted attempt-start UTC. Once the attempt has begun, the automated sequence (including mandatory cleanup) runs to completion. No new attempt may begin at or after the deadline. The launcher does not accept a deadline as an argument and does not enforce one; the deadline is an owner authorization record only. |
 | Phase 1-2 serving comparison / preflight | `scripts/run_task_8_9_preflight.ps1` + `verify_demo_reset_azure.py --mode preflight` with Azure-attested timing params and login timeout (see Phase 1-2 below) |
 | Phase 3 execute script | `scripts/verify_wave9_step_a.py` (merged via PR #283 `e9801aef`; baseline re-pinned) |
 | Phase 3 launcher (exact invocation) | `powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts\launch_wave9_step_a.ps1` — prompts `Read-Host -AsSecureString`, runs `run_task_8_9_preflight.ps1`, then launches `verify_wave9_step_a.py` via `ProcessStartInfo` with the credential injected only into the child's environment; evidence JSON written to `docs/evidence/b2-wave-9/` |
@@ -354,7 +359,7 @@ status from this record.
 | Authorization | One named `Wave 9 Step A` attempt by Vibhanshu Agarwal; authorized from 2026-09-17 10:30 UTC, latest permitted attempt-start UTC 11:30 UTC |
 | Step A evidence | `docs/evidence/b2-wave-9/wave9-step-a-attempt1-20260917.json` (untracked; preserve unchanged; 2,764 bytes; SHA-256 `DCBB25FDEC3F1FF3AF1D80DB19344B471AE974784F2378C56852A31FFE7D9466`) |
 | Actual live-operation interval | `2026-09-17T13:51:12Z` login through `2026-09-17T13:52:00Z` post-cleanup read |
-| Timing disposition | The first retained Step A operation completed at `2026-09-17T13:51:12Z`, after the former 11:30 UTC deadline. Probe-1 timing is not retained in the available sanitized artifacts. Attempt 1 remains prospective-rule-exempt, non-credit technical evidence. |
+| Timing disposition | The first retained Step A operation completed at `2026-09-17T13:51:12Z`, after that authorization's 11:30 UTC latest permitted attempt-start UTC. Probe-1 timing is not retained in the available sanitized artifacts. Attempt 1 is not reclassified under the Rev 12 rule; it remains non-credit technical evidence. |
 | Technical result | Verifier `outcome: GO`; baseline `main@e9801aef6565ce6fa9dc81b24506b13b419e003f`; 159 golden holdings; reset and cleanup each returned HTTP 200; all four boolean golden-state assertions were true |
 | Preflight artifact | Remains outside the repository at the operator-selected temporary path. It is not imported, published, or reviewed by this amendment. |
 
@@ -403,6 +408,12 @@ is `docs/evidence/b2-task-8-9/deployment-completion-20260911.json` (0000081).
 - **Network access to `--noproxy '*'`** — probes use `--noproxy '*'`
 - **Both `TASK8_9_*` env vars cleared from the parent shell** — the wrapper
   reads and scrubs them from its children; do not leave stale values
+- **`Start-Transcript` running before launcher invocation** — run
+  `Start-Transcript -LiteralPath <out-of-repo-path>` in the same Windows
+  PowerShell 5.1 session before invoking the launcher; confirm the
+  `probe 1/6 started-utc=` fingerprint line is present in the transcript
+  after the launcher exits; sanitize a copy by redacting all host paths
+  and operator identity information before publishing as evidence
 
 ---
 
@@ -567,7 +578,7 @@ outside the repository.
 | `wave9-step-a-attempt-sheet-<date>.md` | This document (final owner-authorized form) |
 | `wave9-step-a-raw-<date>.json` | Raw Step A execute output (sanitized; no secrets, JWTs, Authorization values) |
 | `wave9-step-a-operator-transcript-<date>.txt` | Sanitized operator transcript; **must contain the wrapper's exact probe-1 `started-utc=...` fingerprint line byte-for-byte** — this timestamp determines eligibility for gate credit. All other host paths and operator identity information redacted; no credential values. |
-| `wave9-step-a-preflight-<date>.json` | Preserved at its out-of-repo path unchanged; not imported to the repository. Validates: `preflight.passed: true`; attested serving revisions and digests (`api-gateway--0000081` / `portfolio-service--0000096`); `decisions.observedTimeouts` (120s/30s/165s/150s); `decisions.overrideUsed: false`. Timing params confirmed via wrapper literal `run_task_8_9_preflight.ps1:1086` (passes `--login-timeout-seconds 225`) and test pin `scripts/tests/test_run_task_8_9_preflight.ps1:314` at the recorded commit. |
+| `wave9-step-a-preflight-<date>.json` | Preserved at its out-of-repo path unchanged; not imported to the repository. Record byte size and SHA-256 in the attempt record and decision document; reviewers must have read access to this file before accepting the evidence packet. Validates: `preflight.passed: true`; attested serving revisions and digests (`api-gateway--0000081` / `portfolio-service--0000096`); `decisions.observedTimeouts` (120s/30s/165s/150s); `decisions.overrideUsed: false`. Timing params confirmed via wrapper literal `run_task_8_9_preflight.ps1:1086` (passes `--login-timeout-seconds 225`) and test pin `scripts/tests/test_run_task_8_9_preflight.ps1:314` at the recorded commit. |
 | `wave9-step-a-decision-<date>.md` | Evidence summary, serving comparison with provenance chain, operation ledger (identity checks, status codes, version progression, bounded retry count, golden-state assertions, cleanup result), gate map (Step A stated as Wave 10.2 Go-action Step A; condition-5 question surfaced but not resolved), and independent-review request |
 
 No secret values, JWT-like patterns, `Authorization` header values, or
@@ -582,7 +593,7 @@ No secret values, JWT-like patterns, `Authorization` header values, or
 | No fresh, exact owner authorization for Stage 1 (authoring three deliverables) | **STOP** — do not author the deliverables |
 | Stage 1 deliverables (Step A execute script, wrapper scrub edit, launcher) not all authored, tested, independently reviewed, merged, and the baseline commit re-pinned to the merge commit | **STOP** — execution (Stage 2) is blocked |
 | No fresh, exact owner authorization for Stage 2 naming "Wave 9 Step A" | **STOP** before any live action |
-| Pre-attempt UTC check and probe-1 fingerprint | Before issuing probe 1, the owner checks that current UTC is before the latest permitted attempt-start UTC; otherwise do not start. If the preserved probe-1 fingerprint shows a timestamp at or after that deadline, preserve the completed result as technical evidence only and do not claim gate credit. |
+| Pre-attempt UTC check and probe-1 fingerprint | Before invoking the launcher (which runs the read-only Phase 1 checks and then issues probe 1 itself), the owner checks that current UTC is before the latest permitted attempt-start UTC; otherwise do not start. If the preserved probe-1 fingerprint shows a timestamp at or after that deadline, preserve the completed result as technical evidence only and do not claim gate credit. |
 | Probe-1 `started-utc=...` fingerprint absent from operator transcript, malformed, or at or after the latest permitted attempt-start UTC | Preserve result as technical evidence only; do not claim gate credit |
 | Operator preconditions not met (PS 5.1, Docker, Azure session, Log Analytics, network) | **STOP** before Phase 1 |
 | Serving identity or configuration mismatch vs provenance (including 120s/30s/165s timeout values) | **STOP** before any mutation; no workaround or deployment |
@@ -704,6 +715,11 @@ build/deploy, and fresh uncached browser proof that both controls are absent.
       out-of-window technical GO and therefore has **no gate credit**
 - [ ] Fresh Stage 2 authorization for any new attempt — named operator, one
       attempt, and latest permitted attempt-start UTC
+- [ ] `Start-Transcript` running before launcher invocation; probe-1
+      `started-utc=...` fingerprint confirmed present after launcher exits;
+      sanitized copy preserved at out-of-repo path
+- [ ] Preflight artifact byte size and SHA-256 recorded in attempt record and
+      decision document; reviewer has read access before packet acceptance
 - [ ] A Step A attempt with probe-1 `started-utc` before the latest permitted
       attempt-start UTC — evidenced by the probe-1 `started-utc=...` fingerprint
       line in the operator transcript — is independently reviewed and accepted
