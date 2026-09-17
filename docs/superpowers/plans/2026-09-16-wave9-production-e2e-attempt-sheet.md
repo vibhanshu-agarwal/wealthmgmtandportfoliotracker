@@ -626,12 +626,15 @@ build/deploy, and fresh uncached browser proof that both controls are absent.
           `scripts/tests/test_launch_wave9_step_a.ps1`) — authored;
       Fable ACCEPT at `2041579c` (Rd 5); two subsequent CI-fix commits
       (`40e9f7d` preflight scrub reverted then `c4e08568` both re-added
-      with allowlist fixes) are on the same PR. Independent merge review
-      must cover exact head `c4e08568`; earlier Fable acceptance is not
-      sufficient for the delta in `run_task_8_9_preflight.ps1` and its test.
+      with allowlist fixes) plus one doc commit (`e8283fea`) are on the
+      same PR. Independent merge review must explicitly bind exact head
+      `e8283fea`; substantive code analysis may focus on the
+      `40e9f7d → c4e08568` scrub/allowlist delta. CI must be green for
+      `e8283fea`; prior green checks at earlier SHAs are not sufficient.
 - [ ] Stage 1 deliverables PR'd and merged (separate owner authorizations);
-      PR #283 is Draft at `c4e08568`, CI green, awaiting independent merge
-      review then owner merge; baseline re-pinned to merge commit
+      PR #283 is Draft at `e8283fea`, CI pending for this head, awaiting
+      independent merge review then owner merge; baseline re-pinned to
+      merge commit
 - [x] This attempt sheet updated with exact execute invocation
       (see "Phase 3 launcher" row in Attempt parameters table)
 - [ ] **Stage 2: Owner authorization naming "Wave 9 Step A" execution**
