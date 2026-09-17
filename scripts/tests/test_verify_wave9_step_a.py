@@ -16,6 +16,7 @@ from __future__ import annotations
 import sys
 import time
 import unittest
+import unittest.mock
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
@@ -64,6 +65,19 @@ def _non_golden_holdings_as_response() -> list[dict[str, Any]]:
     return [{"assetTicker": first["assetTicker"], "quantity": qty}]
 
 
+def _cleanup_responses() -> list[tuple[int, Any]]:
+    """Three-response cleanup sequence: obs read, reset, post-cleanup read.
+
+    Uses generic version numbers so these can be appended to any post-ARM
+    stop test regardless of the actual version in play.
+    """
+    return [
+        (200, _portfolio(99)),   # cleanup observation read (valid portfolio, any version)
+        (200, None),             # cleanup reset (body unused; only status matters)
+        (200, _portfolio(100)),  # post-cleanup read (golden by default)
+    ]
+
+
 def _base_config(password: str = "test-password") -> subject.StepAConfig:
     return subject.StepAConfig(
         gateway_url="https://gateway.test",
@@ -71,6 +85,7 @@ def _base_config(password: str = "test-password") -> subject.StepAConfig:
         evidence_output=Path("evidence.json"),
         demo_password=password,
         operation_timeout_seconds=5.0,
+        baseline_commit="test-commit-abc123",
     )
 
 
@@ -244,6 +259,10 @@ class HappyPathTest(unittest.TestCase):
         self.assertNotIn("test-password", sanitized)
         self.assertNotIn("test-jwt-token", sanitized)
 
+    def test_baseline_commit_in_evidence(self) -> None:
+        evidence, _, _ = self._run()
+        self.assertEqual(evidence["baseline_commit"], "test-commit-abc123")
+
 
 class StopConditionsTest(unittest.TestCase):
     def _run_with_responses(self, responses: list[tuple[int, Any]]) -> dict[str, Any]:
@@ -256,7 +275,9 @@ class StopConditionsTest(unittest.TestCase):
                 monotonic=time.monotonic,
             )
         except subject.StopError as exc:
-            evidence = {"outcome": exc.verdict, "stop_reason": exc.reason}
+            # Use exc.evidence so that post-ARM stops surface their full evidence,
+            # including cleanup result and the complete operations list.
+            evidence = exc.evidence
         return evidence
 
     def test_stop_if_login_not_200(self) -> None:
@@ -301,8 +322,8 @@ class StopConditionsTest(unittest.TestCase):
         evidence = self._run_with_responses([
             (200, {"token": "jwt"}),
             (200, _portfolio(5)),      # read 1
-            (409, None),               # composition write -> NON_GO
-        ])
+            (409, None),               # composition write -> NON_GO (deferred)
+        ] + _cleanup_responses())
         self.assertEqual(evidence["outcome"], "NON_GO")
         self.assertIn("409", evidence["stop_reason"])
 
@@ -313,7 +334,7 @@ class StopConditionsTest(unittest.TestCase):
             (200, _portfolio(5)),      # read 1: baseline v=5
             (200, _portfolio(5)),      # composition write 200 ok
             (200, _portfolio(5)),      # read 2: pre-reset — still v=5 (no advance)
-        ])
+        ] + _cleanup_responses())
         self.assertEqual(evidence["outcome"], "NON_GO")
         self.assertIn("advance", evidence["stop_reason"].lower())
 
@@ -329,7 +350,7 @@ class StopConditionsTest(unittest.TestCase):
             (409, None),                  # reset attempt 2
             (200, _portfolio(v + 1)),     # read 4 re-observe (last allowed)
             (409, None),                  # reset attempt 3 -> NON_GO
-        ])
+        ] + _cleanup_responses())
         self.assertEqual(evidence["outcome"], "NON_GO")
 
     def test_stop_if_reset_returns_unexpected_status(self) -> None:
@@ -340,7 +361,7 @@ class StopConditionsTest(unittest.TestCase):
             (200, _portfolio(v + 1)),
             (200, _portfolio(v + 1)),
             (500, None),                  # unexpected 5xx
-        ])
+        ] + _cleanup_responses())
         self.assertEqual(evidence["outcome"], "NON_GO")
         self.assertIn("500", evidence["stop_reason"])
 
@@ -351,9 +372,9 @@ class StopConditionsTest(unittest.TestCase):
             (200, _portfolio(v)),
             (200, _portfolio(v + 1)),
             (200, _portfolio(v + 1)),
-            # Reset 200 but version is wrong (v+2 instead of v+1+1)
+            # Reset 200 but version is wrong (v+3 instead of v+2)
             (200, _portfolio(v + 3, _golden_holdings_as_response(GOLDEN_2))),
-        ])
+        ] + _cleanup_responses())
         self.assertEqual(evidence["outcome"], "NON_GO")
 
     def test_stop_if_reset_response_holdings_not_golden(self) -> None:
@@ -365,7 +386,7 @@ class StopConditionsTest(unittest.TestCase):
             (200, _portfolio(v + 1)),
             (200, _portfolio(v + 1)),
             (200, _portfolio(v + 2, bad_holdings)),   # wrong holdings
-        ])
+        ] + _cleanup_responses())
         self.assertEqual(evidence["outcome"], "NON_GO")
 
     def test_stop_if_post_reset_read_not_golden(self) -> None:
@@ -379,7 +400,7 @@ class StopConditionsTest(unittest.TestCase):
             (200, _portfolio(v + 1)),
             (200, _portfolio(v_pr, _golden_holdings_as_response(GOLDEN_2))),  # reset ok
             (200, _portfolio(v_pr, bad_holdings)),                             # post-reset read: bad
-        ])
+        ] + _cleanup_responses())
         self.assertEqual(evidence["outcome"], "NON_GO")
 
     def test_stop_if_cleanup_returns_409(self) -> None:
@@ -452,33 +473,38 @@ class RetryLogicTest(unittest.TestCase):
         )
         self.assertEqual(evidence["outcome"], "GO")
 
+    @unittest.mock.patch.object(subject, "RESET_MAX_ATTEMPTS", 4)
     def test_phase3_read_cap_enforced(self) -> None:
-        """After 4 Phase 3 reads, further reads are refused even for 409 retry."""
-        # Phase 3 reads: 1 (baseline) + 1 (pre-reset) + 2 (re-observe) = 4 total
-        # The fourth 409 would need a fifth read -> STOP
-        v = 5
-        vw = v + 1
-        recorder = CallRecorder([
-            (200, {"token": "jwt"}),
-            (200, _portfolio(v)),     # read 1
-            (200, _portfolio(vw)),    # write ok
-            (200, _portfolio(vw)),    # read 2 pre-reset
-            (409, None),              # attempt 1
-            (200, _portfolio(vw)),    # read 3
-            (409, None),              # attempt 2
-            (200, _portfolio(vw)),    # read 4 (last allowed)
-            (409, None),              # attempt 3 -> but now reads exhausted
-        ])
+        """Phase 3 read cap fires when a 4th 409 would require a 5th read.
+
+        With RESET_MAX_ATTEMPTS=4 patched in, attempts 1-3 each consume a
+        re-observe read (total: 1 baseline + 1 pre_reset + 2 re-observe = 4
+        reads). The 4th attempt's pre-read hits the cap (phase3_read_count==4
+        >= PHASE3_MAX_READS==4) before any further HTTP call is made.
+        """
+        v, vw = 5, 6
         try:
-            evidence, _ = subject.run_step_a(
+            subject.run_step_a(
                 _base_config(),
-                http_call=recorder,
+                http_call=CallRecorder([
+                    (200, {"token": "jwt"}),
+                    (200, _portfolio(v)),     # read 1 (baseline)
+                    (200, _portfolio(vw)),    # write ok
+                    (200, _portfolio(vw)),    # read 2 pre-reset
+                    (409, None),              # attempt 1
+                    (200, _portfolio(vw)),    # read 3 re-observe (attempt 2)
+                    (409, None),              # attempt 2
+                    (200, _portfolio(vw)),    # read 4 re-observe (attempt 3)
+                    (409, None),              # attempt 3 -> tries re_observe_attempt_4 -> cap
+                ] + _cleanup_responses()),
                 load_golden=_fake_load_golden,
                 monotonic=time.monotonic,
             )
+            self.fail("expected StopError")
         except subject.StopError as exc:
-            evidence = {"outcome": exc.verdict, "stop_reason": exc.reason}
+            evidence = exc.evidence
         self.assertEqual(evidence["outcome"], "NON_GO")
+        self.assertIn("cap", evidence["stop_reason"].lower())
 
 
 class LoginSlowTest(unittest.TestCase):
@@ -512,26 +538,34 @@ class LoginSlowTest(unittest.TestCase):
 
 class EvidenceStructureTest(unittest.TestCase):
     def test_cleanup_armed_flag_set_before_write(self) -> None:
-        """cleanup.armed must be True even when the write fails."""
+        """cleanup.armed is True and cleanup runs even when the write fails (500).
+
+        This verifies C1 (StopError carries full evidence) and C2 (cleanup
+        runs unconditionally after ARM regardless of deferred stops).
+        """
         recorder = CallRecorder([
             (200, {"token": "jwt"}),
-            (200, _portfolio(5)),     # read 1
-            (500, None),              # composition write fails
+            (200, _portfolio(5)),   # read 1: baseline
+            (500, None),            # composition write fails -> deferred stop
+            # cleanup runs unconditionally after ARM:
+            (200, _portfolio(5)),   # cleanup observation read
+            (200, None),            # cleanup reset (body unused)
+            (200, _portfolio(6)),   # post-cleanup read (golden by default)
         ])
         try:
-            evidence, _ = subject.run_step_a(
+            subject.run_step_a(
                 _base_config(),
                 http_call=recorder,
                 load_golden=_fake_load_golden,
                 monotonic=time.monotonic,
             )
-        except subject.StopError:
-            pass
-        # Cleanup is armed immediately before the write so evidence.cleanup.armed
-        # is True whether or not the write succeeds.
-        # (The StopError propagates before evidence is returned; inspect via direct call.)
-        # This is primarily a design contract test — confirm armed appears in evidence.
-        # We rely on HappyPathTest.test_cleanup_always_runs for the positive case.
+            self.fail("expected StopError")
+        except subject.StopError as exc:
+            evidence = exc.evidence
+        self.assertTrue(evidence["cleanup"]["armed"])
+        self.assertEqual(evidence["cleanup"]["result"], "200")
+        self.assertEqual(evidence["outcome"], "NON_GO")
+        self.assertIn("gate_map", evidence)
 
     def test_schema_field_present(self) -> None:
         recorder = CallRecorder(_happy_path_responses())

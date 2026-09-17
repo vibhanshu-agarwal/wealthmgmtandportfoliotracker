@@ -77,10 +77,17 @@ function Invoke-Launcher {
         [System.Environment]::SetEnvironmentVariable($k, $ExtraEnv[$k])
     }
     try {
+        # Build base params then merge ExtraParams with a foreach loop.
+        # The hashtable '+' operator throws ArgumentException on duplicate keys
+        # (e.g. when $ExtraParams overrides WrapperScript), which under
+        # $ErrorActionPreference='Stop' aborts before any test summary is printed.
         $params = @{
             WrapperScript = $wrapperStub
             StepAScript   = $childStub
-        } + $ExtraParams
+        }
+        foreach ($k in $ExtraParams.Keys) {
+            $params[$k] = $ExtraParams[$k]
+        }
 
         & $launcher @params
         return $LASTEXITCODE
@@ -226,6 +233,49 @@ try {
     Assert-True ($rc4 -eq 2) '(f) EMPTY_ENV_VAR_EXITS_2'
 } finally {
     Remove-Item $capFile4 -Force -ErrorAction SilentlyContinue
+}
+
+# ---------------------------------------------------------------------------
+# (g) Pre-validation: missing --evidence-output exits 2 before wrapper runs
+# ---------------------------------------------------------------------------
+Write-Host "`n[Group 4] Pre-validation of required StepAArgs flags"
+
+$sentinel2 = 'sentinel-step-a-2'
+$capFile5   = New-TempCapture
+
+try {
+    # Omit --evidence-output from StepAArgs; --baseline-commit is also absent.
+    # The launcher must exit 2 before running the wrapper.
+    $rc5 = Invoke-Launcher -ExtraParams @{
+        SecretSource = 'env:STEP_A_TEST_SENTINEL2'
+        StepAArgs    = @()
+    } -ExtraEnv @{
+        STEP_A_TEST_SENTINEL2 = $sentinel2
+        STUB_CAPTURE          = $capFile5
+    }
+    Assert-True ($rc5 -eq 2) '(g) MISSING_EVIDENCE_OUTPUT_EXITS_2'
+
+    # Wrapper must NOT have been called (pre-validation happens before wrapper).
+    $lines5 = Get-Content $capFile5 -ErrorAction SilentlyContinue
+    $wrapperCalled = [bool]($lines5 | Where-Object { $_ })
+    Assert-False $wrapperCalled '(g) wrapper NOT called when StepAArgs missing required flags'
+} finally {
+    Remove-Item $capFile5 -Force -ErrorAction SilentlyContinue
+}
+
+$capFile6 = New-TempCapture
+try {
+    # Provide --evidence-output but omit --baseline-commit -> still exits 2.
+    $rc6 = Invoke-Launcher -ExtraParams @{
+        SecretSource = 'env:STEP_A_TEST_SENTINEL2'
+        StepAArgs    = @('--evidence-output', 'evidence.json')
+    } -ExtraEnv @{
+        STEP_A_TEST_SENTINEL2 = $sentinel2
+        STUB_CAPTURE          = $capFile6
+    }
+    Assert-True ($rc6 -eq 2) '(g) MISSING_BASELINE_COMMIT_EXITS_2'
+} finally {
+    Remove-Item $capFile6 -Force -ErrorAction SilentlyContinue
 }
 
 # ---------------------------------------------------------------------------

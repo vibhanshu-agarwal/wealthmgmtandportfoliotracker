@@ -52,12 +52,25 @@ DEFAULT_ORACLE = REPO / "scripts" / "derive_demo_golden_state.py"
 
 
 class StopError(Exception):
-    """Raised to stop the sequence at any STOP/GO gate."""
+    """Raised to stop the sequence at any STOP/GO gate.
 
-    def __init__(self, verdict: str, reason: str) -> None:
+    evidence and secrets are attached when re-raised from run_step_a's outer
+    handler, so main() can write a complete sanitised evidence document on every
+    exit path — including intermediate failures.
+    """
+
+    def __init__(
+        self,
+        verdict: str,
+        reason: str,
+        evidence: dict[str, Any] | None = None,
+        secrets: list[str] | None = None,
+    ) -> None:
         super().__init__(reason)
-        self.verdict = verdict  # "STOP" | "NON_GO"
+        self.verdict = verdict   # "STOP" | "NON_GO"
         self.reason = reason
+        self.evidence: dict[str, Any] = evidence if evidence is not None else {}
+        self.secrets: list[str] = secrets if secrets is not None else []
 
 
 @dataclass
@@ -68,6 +81,7 @@ class StepAConfig:
     demo_email: str = DEMO_EMAIL
     demo_password: str = ""
     operation_timeout_seconds: float = 30.0
+    baseline_commit: str = ""   # supplied at Stage 2 via --baseline-commit; stored in evidence
 
 
 # ---------------------------------------------------------------------------
@@ -224,12 +238,17 @@ def run_step_a(
 ) -> tuple[dict[str, Any], list[str]]:
     """Execute the Phase 3-4 Step A sequence.
 
-    Returns (evidence_dict, secrets_list). The caller must pass the secrets list
-    to _redact_evidence before writing the evidence document to disk.
+    Returns (evidence_dict, secrets_list) on GO. Raises StopError on any gate
+    failure; the exception carries evidence and secrets so main() can write a
+    complete sanitised document on every exit path.
 
-    Raises StopError on any hard STOP/GO gate failure. The caller should catch
-    StopError, record the verdict and reason in the evidence dict, and write the
-    sanitized evidence before exiting with code 1.
+    Structure:
+      [pre-ARM]  load oracle → login → baseline read
+      [ARM]      evidence["cleanup"]["armed"] = True
+      [deferred] write → resets → phase-4 validations (StopError → _deferred)
+      [cleanup]  always runs after ARM regardless of _deferred; a cleanup failure
+                 that is the sole failure becomes the stop reason
+      [exit]     raises StopError(evidence, secrets) if any stop; returns GO
     """
     secrets: list[str] = [config.demo_password]
 
@@ -237,7 +256,7 @@ def run_step_a(
         "schema": "wave9-step-a-v1",
         "outcome": "STOP",
         "stop_reason": "sequence did not complete",
-        "baseline_commit": "main@ccbc12472d9860f05c0858c3e22b58bf5fd5da79",
+        "baseline_commit": config.baseline_commit,
         "demo_email_public": config.demo_email,
         "gateway_url": config.gateway_url,
         "operations": [],
@@ -257,285 +276,292 @@ def run_step_a(
         op["seq"] = len(evidence["operations"]) + 1
         evidence["operations"].append(op)
 
-    # --- Load oracle (before any HTTP call) ---
-    golden, catalog_sha256 = load_golden(config.oracle_path)
-    evidence["golden_assertions"]["catalog_sha256"] = catalog_sha256
-    evidence["golden_assertions"]["golden_holdings_count"] = len(golden)
+    try:
+        # === Pre-ARM: oracle, login, baseline read ===
 
-    # === Phase 3: Login ===
-    login_start = monotonic()
-    status, body = http_call(
-        "POST",
-        config.gateway_url + "/api/auth/login",
-        {},
-        {"email": config.demo_email, "password": config.demo_password},
-        LOGIN_TIMEOUT_SECONDS,
-    )
-    login_duration = monotonic() - login_start
-    _append_op({
-        "phase": "phase3", "class": "login",
-        "utc": _utc(),
-        "status": status,
-        "login_round_trip_seconds": round(login_duration, 3),
-        "timeout_seconds": LOGIN_TIMEOUT_SECONDS,
-        # body_keys recorded but not body content (never log password or token)
-        "request_body_keys": ["email"],
-    })
+        golden, catalog_sha256 = load_golden(config.oracle_path)
+        evidence["golden_assertions"]["catalog_sha256"] = catalog_sha256
+        evidence["golden_assertions"]["golden_holdings_count"] = len(golden)
 
-    if status != 200:
-        raise StopError("STOP", f"login returned HTTP {status}; expected 200")
-
-    token = body.get("token") if isinstance(body, dict) else None
-    if not isinstance(token, str) or not token:
-        raise StopError("STOP", "login response did not contain a token field")
-
-    # JWT is a secret — add to redaction list before using it anywhere
-    secrets.append(token)
-
-    # STOP if login round-trip >= OVERALL_TIMEOUT_SECONDS (165s)
-    # The Wave 8 orchestration overall deadline may have fired; portfolio may be in-flight.
-    if login_duration >= OVERALL_TIMEOUT_SECONDS:
-        raise StopError(
-            "STOP",
-            f"login round-trip {login_duration:.1f}s >= {OVERALL_TIMEOUT_SECONDS}s overall deadline; "
-            "portfolio may be in-flight; not proceeding to write",
+        login_start = monotonic()
+        status, body = http_call(
+            "POST",
+            config.gateway_url + "/api/auth/login",
+            {},
+            {"email": config.demo_email, "password": config.demo_password},
+            LOGIN_TIMEOUT_SECONDS,
         )
+        login_duration = monotonic() - login_start
+        _append_op({
+            "phase": "phase3", "class": "login",
+            "utc": _utc(),
+            "status": status,
+            "login_round_trip_seconds": round(login_duration, 3),
+            "timeout_seconds": LOGIN_TIMEOUT_SECONDS,
+            "request_body_keys": ["email"],
+        })
 
-    # === Phase 3 Read 1: post-login baseline (REQUIRED after login completion) ===
-    r1_status, r1_body = http_call(
-        "GET",
-        config.gateway_url + "/api/portfolio",
-        _auth(token),
-        None,
-        config.operation_timeout_seconds,
-    )
-    _append_op({"phase": "phase3", "class": "portfolio_read", "read_seq": 1, "utc": _utc(), "status": r1_status})
-    if r1_status != 200:
-        raise StopError("STOP", f"post-login portfolio read returned HTTP {r1_status}")
-    portfolio_r1 = _select_portfolio(r1_body)  # raises StopError if version invalid or identity fails
-    v_baseline = portfolio_r1["version"]
-    evidence["version_progression"]["post_login_baseline"] = v_baseline
+        if status != 200:
+            raise StopError("STOP", f"login returned HTTP {status}; expected 200")
 
-    # === Arm cleanup BEFORE non-golden composition write ===
-    evidence["cleanup"]["armed"] = True
+        token = body.get("token") if isinstance(body, dict) else None
+        if not isinstance(token, str) or not token:
+            raise StopError("STOP", "login response did not contain a token field")
 
-    # === Phase 3: Non-golden composition write ===
-    write_body = _non_golden_composition(v_baseline, golden)
-    w_status, w_resp_body = http_call(
-        "PUT",
-        config.gateway_url + "/api/portfolio/holdings",
-        _auth(token),
-        write_body,
-        config.operation_timeout_seconds,
-    )
-    _append_op({
-        "phase": "phase3", "class": "composition_write",
-        "utc": _utc(), "status": w_status,
-        "expected_version": v_baseline,
-        "holdings_count": len(write_body["holdings"]),
-    })
-    if w_status != 200:
-        raise StopError("NON_GO", f"non-golden composition write returned HTTP {w_status}; expected 200")
+        # JWT is a secret — add before any subsequent raise so it is always redacted
+        secrets.append(token)
 
-    # === Phase 3 Read 2: pre-reset (REQUIRED — post-login read is stale after the write) ===
-    phase3_read_count = 1  # read 1 already done above
-
-    def _read_phase3(label: str) -> dict[str, Any]:
-        nonlocal phase3_read_count
-        if phase3_read_count >= PHASE3_MAX_READS:
+        if login_duration >= OVERALL_TIMEOUT_SECONDS:
             raise StopError(
-                "NON_GO",
-                f"Phase 3 read cap ({PHASE3_MAX_READS}) reached before completing {label}",
+                "STOP",
+                f"login round-trip {login_duration:.1f}s >= {OVERALL_TIMEOUT_SECONDS}s overall deadline; "
+                "portfolio may be in-flight; not proceeding to write",
             )
-        s, b = http_call(
+
+        r1_status, r1_body = http_call(
             "GET",
             config.gateway_url + "/api/portfolio",
             _auth(token),
             None,
             config.operation_timeout_seconds,
         )
-        phase3_read_count += 1
-        _append_op({
-            "phase": "phase3", "class": "portfolio_read",
-            "read_seq": phase3_read_count, "label": label,
-            "utc": _utc(), "status": s,
-        })
-        if s != 200:
-            raise StopError("NON_GO", f"Phase 3 portfolio read ({label}) returned HTTP {s}")
-        return _select_portfolio(b)
+        _append_op({"phase": "phase3", "class": "portfolio_read", "read_seq": 1, "utc": _utc(), "status": r1_status})
+        if r1_status != 200:
+            raise StopError("STOP", f"post-login portfolio read returned HTTP {r1_status}")
+        portfolio_r1 = _select_portfolio(r1_body)
+        v_baseline = portfolio_r1["version"]
+        evidence["version_progression"]["post_login_baseline"] = v_baseline
 
-    portfolio_pre = _read_phase3("pre_reset")
-    v_pre_reset = portfolio_pre["version"]
-    evidence["version_progression"]["pre_reset"] = v_pre_reset
+        # === ARM: cleanup runs unconditionally from this point forward ===
+        evidence["cleanup"]["armed"] = True
 
-    # Verify the composition write advanced the version (strictly greater than baseline)
-    if v_pre_reset <= v_baseline:
-        raise StopError(
-            "NON_GO",
-            f"composition write did not advance version: baseline={v_baseline}, pre_reset={v_pre_reset}",
-        )
+        # --- post-ARM deferred section ---
+        phase3_read_count = 1  # Read 1 already consumed above
 
-    # === Phase 3: Demo-reset (up to RESET_MAX_ATTEMPTS=3) ===
-    reset_attempts = 0
-    reset_status: Optional[int] = None
-    reset_resp_body: Any = None
-
-    while reset_attempts < RESET_MAX_ATTEMPTS:
-        reset_attempts += 1
-        r_status, r_body = http_call(
-            "PUT",
-            config.gateway_url + "/api/portfolio/demo-reset",
-            _auth(token),
-            {"expectedVersion": v_pre_reset},
-            config.operation_timeout_seconds,
-        )
-        _append_op({
-            "phase": "phase3", "class": "demo_reset",
-            "attempt": reset_attempts, "utc": _utc(),
-            "status": r_status,
-            "expected_version": v_pre_reset,
-        })
-        reset_status = r_status
-        reset_resp_body = r_body
-
-        if r_status == 200:
-            break
-        elif r_status == 409:
-            if reset_attempts >= RESET_MAX_ATTEMPTS:
+        def _read_phase3(label: str) -> dict[str, Any]:
+            nonlocal phase3_read_count
+            if phase3_read_count >= PHASE3_MAX_READS:
                 raise StopError(
                     "NON_GO",
-                    f"reset did not produce genuine HTTP 200 in {RESET_MAX_ATTEMPTS} attempts",
+                    f"Phase 3 read cap ({PHASE3_MAX_READS}) reached before completing {label}",
                 )
-            # Re-observe via identity-checked read before next attempt
-            portfolio_pre = _read_phase3(f"re_observe_attempt_{reset_attempts + 1}")
+            s, b = http_call(
+                "GET",
+                config.gateway_url + "/api/portfolio",
+                _auth(token),
+                None,
+                config.operation_timeout_seconds,
+            )
+            phase3_read_count += 1
+            _append_op({
+                "phase": "phase3", "class": "portfolio_read",
+                "read_seq": phase3_read_count, "label": label,
+                "utc": _utc(), "status": s,
+            })
+            if s != 200:
+                raise StopError("NON_GO", f"Phase 3 portfolio read ({label}) returned HTTP {s}")
+            return _select_portfolio(b)
+
+        _deferred: Optional[StopError] = None
+        try:
+            write_body = _non_golden_composition(v_baseline, golden)
+            w_status, w_resp_body = http_call(
+                "PUT",
+                config.gateway_url + "/api/portfolio/holdings",
+                _auth(token),
+                write_body,
+                config.operation_timeout_seconds,
+            )
+            _append_op({
+                "phase": "phase3", "class": "composition_write",
+                "utc": _utc(), "status": w_status,
+                "expected_version": v_baseline,
+                "holdings_count": len(write_body["holdings"]),
+            })
+            if w_status != 200:
+                raise StopError("NON_GO", f"non-golden composition write returned HTTP {w_status}; expected 200")
+
+            portfolio_pre = _read_phase3("pre_reset")
             v_pre_reset = portfolio_pre["version"]
-            evidence["version_progression"][f"pre_reset_retry_{reset_attempts + 1}"] = v_pre_reset
-        else:
-            raise StopError(
-                "NON_GO",
-                f"reset returned unexpected HTTP {r_status}; expected 200 or 409",
+            evidence["version_progression"]["pre_reset"] = v_pre_reset
+            if v_pre_reset <= v_baseline:
+                raise StopError(
+                    "NON_GO",
+                    f"composition write did not advance version: baseline={v_baseline}, pre_reset={v_pre_reset}",
+                )
+
+            reset_attempts = 0
+            reset_status: Optional[int] = None
+            reset_resp_body: Any = None
+
+            while reset_attempts < RESET_MAX_ATTEMPTS:
+                reset_attempts += 1
+                r_status, r_body = http_call(
+                    "PUT",
+                    config.gateway_url + "/api/portfolio/demo-reset",
+                    _auth(token),
+                    {"expectedVersion": v_pre_reset},
+                    config.operation_timeout_seconds,
+                )
+                _append_op({
+                    "phase": "phase3", "class": "demo_reset",
+                    "attempt": reset_attempts, "utc": _utc(),
+                    "status": r_status,
+                    "expected_version": v_pre_reset,
+                })
+                reset_status = r_status
+                reset_resp_body = r_body
+
+                if r_status == 200:
+                    break
+                elif r_status == 409:
+                    if reset_attempts >= RESET_MAX_ATTEMPTS:
+                        raise StopError(
+                            "NON_GO",
+                            f"reset did not produce genuine HTTP 200 in {RESET_MAX_ATTEMPTS} attempts",
+                        )
+                    portfolio_pre = _read_phase3(f"re_observe_attempt_{reset_attempts + 1}")
+                    v_pre_reset = portfolio_pre["version"]
+                    evidence["version_progression"][f"pre_reset_retry_{reset_attempts + 1}"] = v_pre_reset
+                else:
+                    raise StopError(
+                        "NON_GO",
+                        f"reset returned unexpected HTTP {r_status}; expected 200 or 409",
+                    )
+
+            if reset_status != 200:
+                raise StopError(
+                    "NON_GO",
+                    f"reset never returned genuine HTTP 200 (last status: {reset_status})",
+                )
+
+            expected_post_reset_version = v_pre_reset + 1
+            if isinstance(reset_resp_body, dict):
+                resp_version = reset_resp_body.get("version")
+                if resp_version != expected_post_reset_version:
+                    raise StopError(
+                        "NON_GO",
+                        f"reset response version {resp_version!r} != expected {expected_post_reset_version}",
+                    )
+                if not _is_golden(reset_resp_body, golden):
+                    raise StopError("NON_GO", "reset response holdings do not match Task 4.4a golden state")
+                resp_holdings_count = len(reset_resp_body.get("holdings", []))
+            else:
+                raise StopError("NON_GO", "reset response body is missing or not JSON")
+
+            evidence["version_progression"]["post_reset_response"] = resp_version
+            evidence["golden_assertions"]["reset_response_version_correct"] = True
+            evidence["golden_assertions"]["reset_response_holdings_match_golden"] = True
+            evidence["golden_assertions"]["reset_response_holdings_count"] = resp_holdings_count
+
+            pr_status, pr_body = http_call(
+                "GET",
+                config.gateway_url + "/api/portfolio",
+                _auth(token),
+                None,
+                config.operation_timeout_seconds,
             )
+            _append_op({"phase": "phase4", "class": "post_reset_read", "utc": _utc(), "status": pr_status})
+            if pr_status != 200:
+                raise StopError("NON_GO", f"post-reset read returned HTTP {pr_status}")
+            portfolio_post_reset = _select_portfolio(pr_body)
+            evidence["version_progression"]["post_reset_read"] = portfolio_post_reset["version"]
+            if not _is_golden(portfolio_post_reset, golden):
+                raise StopError("NON_GO", "post-reset read: holdings do not match golden state")
+            evidence["golden_assertions"]["post_reset_read_holdings_match"] = True
 
-    if reset_status != 200:
-        raise StopError(
-            "NON_GO",
-            f"reset never returned genuine HTTP 200 (last status: {reset_status})",
-        )
+        except StopError as exc:
+            _deferred = exc
 
-    # === Phase 4: Validate reset response ===
-    # Version must equal pre-reset observed version + 1 per B1 contract
-    # (HoldingReplacementService.java:163 SET version = version + 1)
-    expected_post_reset_version = v_pre_reset + 1
-
-    if isinstance(reset_resp_body, dict):
-        resp_version = reset_resp_body.get("version")
-        if resp_version != expected_post_reset_version:
-            raise StopError(
-                "NON_GO",
-                f"reset response version {resp_version!r} != expected {expected_post_reset_version}",
+        # === Cleanup: unconditional after ARM ===
+        # Runs whether the deferred section succeeded or failed.
+        # A cleanup failure becomes the stop reason only when there is no prior stop.
+        try:
+            cl_obs_status, cl_obs_body = http_call(
+                "GET",
+                config.gateway_url + "/api/portfolio",
+                _auth(token),
+                None,
+                config.operation_timeout_seconds,
             )
-        if not _is_golden(reset_resp_body, golden):
-            raise StopError("NON_GO", "reset response holdings do not match Task 4.4a golden state")
-        resp_holdings_count = len(reset_resp_body.get("holdings", []))
-    else:
-        raise StopError("NON_GO", "reset response body is missing or not JSON")
+            _append_op({
+                "phase": "phase4", "class": "cleanup_observation_read",
+                "utc": _utc(), "status": cl_obs_status,
+            })
+            if cl_obs_status != 200:
+                raise StopError("NON_GO", f"cleanup observation read returned HTTP {cl_obs_status}")
+            portfolio_cleanup_obs = _select_portfolio(cl_obs_body)
+            v_cleanup = portfolio_cleanup_obs["version"]
+            evidence["version_progression"]["pre_cleanup"] = v_cleanup
 
-    evidence["version_progression"]["post_reset_response"] = resp_version
-    evidence["golden_assertions"]["reset_response_version_correct"] = True
-    evidence["golden_assertions"]["reset_response_holdings_match_golden"] = True
-    evidence["golden_assertions"]["reset_response_holdings_count"] = resp_holdings_count
+            cl_reset_count = 0
+            cl_reset_status: Optional[int] = None
 
-    # === Phase 4: Post-reset identity-checked read ===
-    pr_status, pr_body = http_call(
-        "GET",
-        config.gateway_url + "/api/portfolio",
-        _auth(token),
-        None,
-        config.operation_timeout_seconds,
-    )
-    _append_op({"phase": "phase4", "class": "post_reset_read", "utc": _utc(), "status": pr_status})
-    if pr_status != 200:
-        raise StopError("NON_GO", f"post-reset read returned HTTP {pr_status}")
-    portfolio_post_reset = _select_portfolio(pr_body)
-    evidence["version_progression"]["post_reset_read"] = portfolio_post_reset["version"]
-    if not _is_golden(portfolio_post_reset, golden):
-        raise StopError("NON_GO", "post-reset read: holdings do not match golden state")
-    evidence["golden_assertions"]["post_reset_read_holdings_match"] = True
+            while cl_reset_count < CLEANUP_MAX_ATTEMPTS:
+                cl_reset_count += 1
+                cl_status, _cl_body = http_call(
+                    "PUT",
+                    config.gateway_url + "/api/portfolio/demo-reset",
+                    _auth(token),
+                    {"expectedVersion": v_cleanup},
+                    config.operation_timeout_seconds,
+                )
+                _append_op({
+                    "phase": "phase4", "class": "cleanup_reset",
+                    "attempt": cl_reset_count, "utc": _utc(),
+                    "status": cl_status,
+                    "expected_version": v_cleanup,
+                })
+                cl_reset_status = cl_status
+                if cl_status == 200:
+                    break
+                elif cl_status == 409:
+                    raise StopError(
+                        "NON_GO",
+                        "cleanup reset returned 409; portfolio left non-golden; "
+                        "see recovery path (Wave 8 login-reset on next idle demo login or manual reset)",
+                    )
+                else:
+                    raise StopError(
+                        "NON_GO",
+                        f"cleanup reset returned HTTP {cl_status}; portfolio state uncertain",
+                    )
 
-    # === Phase 4: Cleanup observation read (counted separately from Phase 3 reads) ===
-    cl_obs_status, cl_obs_body = http_call(
-        "GET",
-        config.gateway_url + "/api/portfolio",
-        _auth(token),
-        None,
-        config.operation_timeout_seconds,
-    )
-    _append_op({
-        "phase": "phase4", "class": "cleanup_observation_read",
-        "utc": _utc(), "status": cl_obs_status,
-    })
-    if cl_obs_status != 200:
-        raise StopError("NON_GO", f"cleanup observation read returned HTTP {cl_obs_status}")
-    portfolio_cleanup_obs = _select_portfolio(cl_obs_body)
-    v_cleanup = portfolio_cleanup_obs["version"]
-    evidence["version_progression"]["pre_cleanup"] = v_cleanup
+            if cl_reset_status != 200:
+                raise StopError("NON_GO", "cleanup did not return HTTP 200")
 
-    # === Phase 4: Cleanup reset (max CLEANUP_MAX_ATTEMPTS=1, literal constant) ===
-    cl_reset_count = 0
-    cl_reset_status: Optional[int] = None
+            evidence["cleanup"]["result"] = "200"
 
-    while cl_reset_count < CLEANUP_MAX_ATTEMPTS:
-        cl_reset_count += 1
-        cl_status, _cl_body = http_call(
-            "PUT",
-            config.gateway_url + "/api/portfolio/demo-reset",
-            _auth(token),
-            {"expectedVersion": v_cleanup},
-            config.operation_timeout_seconds,
-        )
-        _append_op({
-            "phase": "phase4", "class": "cleanup_reset",
-            "attempt": cl_reset_count, "utc": _utc(),
-            "status": cl_status,
-            "expected_version": v_cleanup,
-        })
-        cl_reset_status = cl_status
-        if cl_status == 200:
-            break
-        elif cl_status == 409:
-            # cleanup_max_attempts = 1 — fails closed on first conflict
-            raise StopError(
-                "NON_GO",
-                "cleanup reset returned 409; portfolio left non-golden; "
-                "see recovery path (Wave 8 login-reset on next idle demo login or manual reset)",
+            pcl_status, pcl_body = http_call(
+                "GET",
+                config.gateway_url + "/api/portfolio",
+                _auth(token),
+                None,
+                config.operation_timeout_seconds,
             )
-        else:
-            raise StopError(
-                "NON_GO",
-                f"cleanup reset returned HTTP {cl_status}; portfolio state uncertain",
-            )
+            _append_op({"phase": "phase4", "class": "post_cleanup_read", "utc": _utc(), "status": pcl_status})
+            if pcl_status != 200:
+                raise StopError("NON_GO", f"post-cleanup read returned HTTP {pcl_status}")
+            portfolio_post_cleanup = _select_portfolio(pcl_body)
+            evidence["version_progression"]["post_cleanup_read"] = portfolio_post_cleanup["version"]
+            if not _is_golden(portfolio_post_cleanup, golden):
+                raise StopError("NON_GO", "post-cleanup read: portfolio not in golden state")
+            evidence["golden_assertions"]["post_cleanup_holdings_match"] = True
 
-    if cl_reset_status != 200:
-        raise StopError("NON_GO", "cleanup did not return HTTP 200")
+        except StopError as cl_exc:
+            evidence["cleanup"]["result"] = f"error: {cl_exc.reason}"
+            if _deferred is None:
+                _deferred = cl_exc  # cleanup failure becomes the primary stop
 
-    evidence["cleanup"]["result"] = "200"
+        if _deferred is not None:
+            raise _deferred  # caught by the outer except; evidence is attached there
 
-    # === Phase 4: Post-cleanup identity-checked read ===
-    pcl_status, pcl_body = http_call(
-        "GET",
-        config.gateway_url + "/api/portfolio",
-        _auth(token),
-        None,
-        config.operation_timeout_seconds,
-    )
-    _append_op({"phase": "phase4", "class": "post_cleanup_read", "utc": _utc(), "status": pcl_status})
-    if pcl_status != 200:
-        raise StopError("NON_GO", f"post-cleanup read returned HTTP {pcl_status}")
-    portfolio_post_cleanup = _select_portfolio(pcl_body)
-    evidence["version_progression"]["post_cleanup_read"] = portfolio_post_cleanup["version"]
-    if not _is_golden(portfolio_post_cleanup, golden):
-        raise StopError("NON_GO", "post-cleanup read: portfolio not in golden state")
-    evidence["golden_assertions"]["post_cleanup_holdings_match"] = True
+    except StopError as exc:
+        # Attach the current (fully-populated) evidence and secrets to every StopError
+        # that leaves this function, so main() can write a complete document.
+        evidence["outcome"] = exc.verdict
+        evidence["stop_reason"] = exc.reason
+        raise StopError(exc.verdict, exc.reason, evidence, secrets) from exc
 
     evidence["outcome"] = "GO"
     evidence["stop_reason"] = None
@@ -566,6 +592,11 @@ def main(argv: list[str] | None = None) -> int:
         help="Where to write the sanitized evidence JSON (must not already exist)",
     )
     parser.add_argument(
+        "--baseline-commit",
+        required=True,
+        help="Git commit of the attempt's baseline (e.g. main@abc123...) for evidence traceability",
+    )
+    parser.add_argument(
         "--operation-timeout",
         type=float,
         default=30.0,
@@ -574,6 +605,16 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     evidence_path: Path = args.evidence_output
+
+    # Pre-flight: parent directory must already exist (never create directories)
+    if not evidence_path.parent.is_dir():
+        print(
+            f"ERROR: parent directory of evidence output path does not exist: {evidence_path.parent}\n"
+            "Create the directory first (e.g. docs/evidence/b2-wave-9/) before running.",
+            file=sys.stderr,
+        )
+        return 2
+
     if evidence_path.exists():
         print(
             f"ERROR: evidence output path already exists: {evidence_path}\n"
@@ -597,22 +638,28 @@ def main(argv: list[str] | None = None) -> int:
         evidence_output=evidence_path,
         demo_password=demo_password,
         operation_timeout_seconds=args.operation_timeout,
+        baseline_commit=args.baseline_commit,
     )
 
+    exit_code = 1
     evidence: dict[str, Any] = {}
     secrets: list[str] = [demo_password]
-    exit_code = 1
 
     try:
         evidence, secrets = run_step_a(config)
         exit_code = 0
     except StopError as exc:
-        evidence["outcome"] = exc.verdict
-        evidence["stop_reason"] = exc.reason
+        # exc.evidence is always the full dict (populated by run_step_a's outer handler)
+        evidence = exc.evidence if exc.evidence else {"outcome": exc.verdict, "stop_reason": exc.reason}
+        secrets = exc.secrets if exc.secrets else [demo_password]
         exit_code = 1
     except Exception as exc:
-        evidence["outcome"] = "STOP"
-        evidence["stop_reason"] = f"unexpected error: {type(exc).__name__}: {exc}"
+        evidence = {
+            "schema": "wave9-step-a-v1",
+            "outcome": "STOP",
+            "stop_reason": f"unexpected error: {type(exc).__name__}: {exc}",
+        }
+        secrets = [demo_password]
         exit_code = 1
 
     # Write sanitized evidence — redact all secrets before writing
@@ -623,6 +670,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Evidence written to: {evidence_path}", file=sys.stderr)
     except OSError as exc:
         print(f"ERROR: could not write evidence: {exc}", file=sys.stderr)
+        exit_code = 1  # fail-closed: GO without evidence is treated as STOP
 
     verdict = evidence.get("outcome", "STOP")
     print(f"Outcome: {verdict}", file=sys.stderr)

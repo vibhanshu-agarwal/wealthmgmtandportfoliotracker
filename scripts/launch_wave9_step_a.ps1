@@ -52,7 +52,7 @@ $ErrorActionPreference = 'Stop'
 
 # Guard: must run under Windows PowerShell 5.1 (powershell.exe), not pwsh.
 if ($PSVersionTable.PSEdition -eq 'Core') {
-    Write-Error 'launch_wave9_step_a.ps1 requires Windows PowerShell 5.1 (powershell.exe), not PowerShell Core (pwsh).'
+    [Console]::Error.WriteLine('launch_wave9_step_a.ps1 requires Windows PowerShell 5.1 (powershell.exe), not PowerShell Core (pwsh).')
     exit 2
 }
 
@@ -68,15 +68,29 @@ if ($SecretSource -eq 'read-host') {
     } finally {
         [System.Runtime.InteropServices.Marshal]::ZeroFreeGlobalAllocUnicode($ptr)
     }
+    if ([string]::IsNullOrEmpty($plain)) {
+        [Console]::Error.WriteLine('Read-Host returned an empty credential — aborting.')
+        exit 2
+    }
 } elseif ($SecretSource -like 'env:*') {
     $envVarName = $SecretSource.Substring(4)
     $plain = [System.Environment]::GetEnvironmentVariable($envVarName)
     if ([string]::IsNullOrEmpty($plain)) {
-        Write-Error "Secret source env var '$envVarName' is not set or is empty."
+        [Console]::Error.WriteLine("Secret source env var '$envVarName' is not set or is empty.")
         exit 2
     }
 } else {
-    Write-Error "Unknown -SecretSource '$SecretSource'. Use 'read-host' or 'env:<NAME>'."
+    [Console]::Error.WriteLine("Unknown -SecretSource '$SecretSource'. Use 'read-host' or 'env:<NAME>'.")
+    exit 2
+}
+
+# Pre-validate that $StepAArgs contains required flags before consuming the wrapper wake.
+if ($StepAArgs -notcontains '--evidence-output') {
+    [Console]::Error.WriteLine("launch_wave9_step_a: -StepAArgs must include '--evidence-output' before the wrapper runs.")
+    exit 2
+}
+if ($StepAArgs -notcontains '--baseline-commit') {
+    [Console]::Error.WriteLine("launch_wave9_step_a: -StepAArgs must include '--baseline-commit' before the wrapper runs.")
     exit 2
 }
 
