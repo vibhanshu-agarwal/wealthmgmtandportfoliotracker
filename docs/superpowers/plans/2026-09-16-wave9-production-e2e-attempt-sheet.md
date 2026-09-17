@@ -299,11 +299,11 @@ deliverables exist.
 | Field | Value |
 |---|---|
 | Proposed operator | Owner (owner-operated credential injection only) |
-| Baseline commit | `main@ccbc12472d9860f05c0858c3e22b58bf5fd5da79` |
+| Baseline commit | `main@e9801aef6565ce6fa9dc81b24506b13b419e003f` (PR #283 merge commit, 2026-09-17) |
 | UTC window | **TBD — owner to specify at Stage 2 approval** |
 | Hard stop if window expires | Yes — stop before any in-progress mutation; restore if setup already ran |
 | Phase 1-2 serving comparison / preflight | `scripts/run_task_8_9_preflight.ps1` + `verify_demo_reset_azure.py --mode preflight` with Azure-attested timing params and login timeout (see Phase 1-2 below) |
-| Phase 3 execute script | `scripts/verify_wave9_step_a.py` (authored; pending review + merge + baseline re-pin before Stage 2) |
+| Phase 3 execute script | `scripts/verify_wave9_step_a.py` (merged via PR #283 `e9801aef`; baseline re-pinned) |
 | Phase 3 launcher (exact invocation) | `powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts\launch_wave9_step_a.ps1` — prompts `Read-Host -AsSecureString`, runs `run_task_8_9_preflight.ps1`, then launches `verify_wave9_step_a.py` via `ProcessStartInfo` with the credential injected only into the child's environment; evidence JSON written to `docs/evidence/b2-wave-9/` |
 | Credential env vars for Phase 3 | Owner supplies the demo password interactively via the launcher's `Read-Host` prompt; the credential is stored as `WAVE9_STEP_A_PASSWORD` **in the child process env only** (never in `$env:` of the launcher or wrapper); `TASK8_9_ACCESS_TOKEN` is not used — Step A authenticates and uses the returned JWT; Claude never reads, prints, or records credential values |
 | Demo email | `demo@wealthtracker.dev` (intentionally public, in `ci-verification.yml`) |
@@ -631,10 +631,9 @@ build/deploy, and fresh uncached browser proof that both controls are absent.
       `e8283fea`; substantive code analysis may focus on the
       `40e9f7d → c4e08568` scrub/allowlist delta. CI must be green for
       `e8283fea`; prior green checks at earlier SHAs are not sufficient.
-- [ ] Stage 1 deliverables PR'd and merged (separate owner authorizations);
-      PR #283 is Draft at `e8283fea`, CI pending for this head, awaiting
-      independent merge review then owner merge; baseline re-pinned to
-      merge commit
+- [x] Stage 1 deliverables PR'd and merged — PR #283 merged to main at
+      `e9801aef6565ce6fa9dc81b24506b13b419e003f` (2026-09-17); Fable ACCEPT
+      bound to `95363bd0` (0C/0I/5M); baseline re-pinned to merge commit
 - [x] This attempt sheet updated with exact execute invocation
       (see "Phase 3 launcher" row in Attempt parameters table)
 - [ ] **Stage 2: Owner authorization naming "Wave 9 Step A" execution**
