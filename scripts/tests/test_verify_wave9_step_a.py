@@ -127,9 +127,6 @@ class CallRecorder:
         if not self.responses:
             raise _RecorderExhausted(f"unexpected HTTP call: {method} {url}")
         item = self.responses.pop(0)
-        if isinstance(item, BaseException):
-            raise item
-        status, body = item
         self.calls.append({
             "method": method,
             "url": url,
@@ -137,6 +134,9 @@ class CallRecorder:
             "body": json_body,
             "timeout": timeout,
         })
+        if isinstance(item, BaseException):
+            raise item
+        status, body = item
         return status, body
 
     @property
@@ -284,7 +284,7 @@ class HappyPathTest(unittest.TestCase):
 
 
 class StopConditionsTest(unittest.TestCase):
-    def _run_with_responses(self, responses: list[tuple[int, Any]]) -> dict[str, Any]:
+    def _run_with_responses(self, responses) -> dict[str, Any]:
         recorder = CallRecorder(responses)
         try:
             evidence, secrets = subject.run_step_a(
@@ -297,6 +297,7 @@ class StopConditionsTest(unittest.TestCase):
             # Use exc.evidence so that post-ARM stops surface their full evidence,
             # including cleanup result and the complete operations list.
             evidence = exc.evidence
+        recorder.assert_no_remaining()
         return evidence
 
     def test_stop_if_login_not_200(self) -> None:
@@ -547,7 +548,7 @@ class LoginSlowTest(unittest.TestCase):
             call_count[0] += 1
             if method == "POST" and url.endswith("/api/auth/login"):
                 return 200, {"token": "jwt"}
-            raise AssertionError(f"unexpected call after slow login: {method} {url}")
+            raise _RecorderExhausted(f"unexpected call after slow login: {method} {url}")
 
         # Monotonic that jumps 170s after login call
         times = iter([0.0, 170.0, 170.0])

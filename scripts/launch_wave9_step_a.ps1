@@ -114,6 +114,9 @@ if ($wrapperExit -ne 0) {
 # first access, then we append WAVE9_STEP_A_PASSWORD.  The parent process
 # environment is never modified.
 $psi = New-Object System.Diagnostics.ProcessStartInfo
+# Set WorkingDirectory from the PS location (not [Environment]::CurrentDirectory,
+# which diverges when the operator cd's to the repo without using -File invocation).
+$psi.WorkingDirectory = (Get-Location -PSProvider FileSystem).ProviderPath
 $psi.UseShellExecute = $false
 $psi.FileName        = $PythonCommand
 

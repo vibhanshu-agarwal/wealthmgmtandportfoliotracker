@@ -18,6 +18,10 @@
       (f) EMPTY_ENV_VAR_EXITS_2      -- an unset source env var exits 2.
       (g) MISSING_STEPARGS_FLAGS_EXIT_2 -- absent --evidence-output or
           --baseline-commit in -StepAArgs exits 2 before the wrapper runs.
+      (h) RELATIVE_STEPA_SCRIPT_RESOLVES_AGAINST_PS_LOCATION -- when the
+          process CWD differs from the PS location, a relative -StepAScript
+          must still resolve correctly (WorkingDirectory must track Get-Location,
+          not [Environment]::CurrentDirectory).
 
 Run:
     powershell.exe -NoProfile -ExecutionPolicy Bypass `
@@ -160,7 +164,7 @@ try {
     # Uses -contains (exact match) not -like: the literal [$sentinel] in a
     # -like pattern is parsed as a PS wildcard character class; when $sentinel
     # contains 'p-a' the range is invalid and WildcardPatternException fires
-    # under EAP=Stop.  @($envLine) coerces AutomationNull to a one-null array
+    # under EAP=Stop.  @($envLine) coerces AutomationNull to an empty array
     # so -contains returns $false instead of throwing.
     $envLine = $captureLines | Where-Object { $_ -like 'step-a-child-env*' }
     Assert-True (
@@ -191,7 +195,7 @@ try {
 # ---------------------------------------------------------------------------
 Write-Host "`n[Group 2] Wrapper failure propagation"
 
-$wrapperFailStub = Join-Path ([System.IO.Path]::GetTempPath()) 'stub_wrapper_fail.ps1'
+$wrapperFailStub = Join-Path ([System.IO.Path]::GetTempPath()) ("stub_wrapper_fail_$([System.Guid]::NewGuid().ToString('N')).ps1")
 [System.IO.File]::WriteAllText($wrapperFailStub, "#Requires -Version 5.1`nexit 7`n")
 
 $capFile2 = New-TempCapture
@@ -295,6 +299,47 @@ try {
     Assert-True ($rc6 -eq 2) '(g) MISSING_BASELINE_COMMIT_EXITS_2'
 } finally {
     Remove-Item $capFile6 -Force -ErrorAction SilentlyContinue
+}
+
+# ---------------------------------------------------------------------------
+# (h) Relative StepAScript resolves against PS location, not process CWD
+# ---------------------------------------------------------------------------
+Write-Host "`n[Group 5] Relative StepAScript resolves against Get-Location"
+
+$capFile7     = New-TempCapture
+$savedProcCwd = [System.Environment]::CurrentDirectory
+try {
+    # Force process CWD to a different directory (repo root) while the PS
+    # location is $PSScriptRoot (scripts\tests).  Without $psi.WorkingDirectory
+    # the launcher would pass 'stub_step_a_child.py' to Process.Start with the
+    # repo root as CWD and Python would fail to open the file.
+    [System.Environment]::CurrentDirectory = $repoRoot
+    Push-Location $PSScriptRoot
+
+    # Precondition: the two directories must actually differ for this test to mean anything.
+    Assert-True (
+        [System.Environment]::CurrentDirectory -ne (Get-Location -PSProvider FileSystem).ProviderPath
+    ) '(h) precondition: process CWD differs from PS location'
+
+    $rc7 = Invoke-Launcher -ExtraParams @{
+        WrapperScript = '.\stub_wrapper_noop.ps1'
+        StepAScript   = 'stub_step_a_child.py'
+        SecretSource  = 'env:STEP_A_TEST_SENTINEL'
+        StepAArgs     = $validStepAArgs
+    } -ExtraEnv @{
+        STEP_A_TEST_SENTINEL = $sentinel
+        STUB_CAPTURE         = $capFile7
+    }
+    Assert-True ($rc7 -eq 0) '(h) RELATIVE_STEPA_SCRIPT_RESOLVES_AGAINST_PS_LOCATION'
+
+    $lines7 = Get-Content $capFile7 -ErrorAction SilentlyContinue
+    Assert-True (
+        [bool](@($lines7) -contains "step-a-child-env WAVE9_STEP_A_PASSWORD=[$sentinel]")
+    ) '(h) child ran and received the credential'
+} finally {
+    Pop-Location
+    [System.Environment]::CurrentDirectory = $savedProcCwd
+    Remove-Item $capFile7 -Force -ErrorAction SilentlyContinue
 }
 
 # ---------------------------------------------------------------------------

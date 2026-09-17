@@ -222,6 +222,9 @@ def _redact_evidence(evidence_json: str, secrets: list[str]) -> str:
     for secret in secrets:
         if secret:
             evidence_json = evidence_json.replace(secret, "[REDACTED]")
+            json_escaped = json.dumps(secret)[1:-1]
+            if json_escaped != secret:
+                evidence_json = evidence_json.replace(json_escaped, "[REDACTED]")
     return evidence_json
 
 
