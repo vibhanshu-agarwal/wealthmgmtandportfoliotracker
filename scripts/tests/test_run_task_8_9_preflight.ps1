@@ -325,13 +325,14 @@ Check 'verifier never receives execute' {
 Check 'no credential env var is passed to the verifier on the command line' {
     $argvLines = [regex]::Matches($r.Capture, '(?m)^python (?!-env).*$')
     foreach ($m in $argvLines) {
-        if ($m.Value -match 'TASK8_9_ACCESS_TOKEN|TASK8_9_DEMO_PASSWORD') { throw "credential name in argv: $($m.Value)" }
+        if ($m.Value -match 'TASK8_9_ACCESS_TOKEN|TASK8_9_DEMO_PASSWORD|WAVE9_STEP_A_PASSWORD') { throw "credential name in argv: $($m.Value)" }
     }
 }
 Check 'task credentials are scrubbed from every child process environment' {
     $e2 = $good.Clone()
     $e2['TASK8_9_ACCESS_TOKEN'] = 'sentinel-token-value'
     $e2['TASK8_9_DEMO_PASSWORD'] = 'sentinel-password-value'
+    $e2['WAVE9_STEP_A_PASSWORD'] = 'sentinel-step-a-password'
     $r2 = Invoke-Wrapper -Env $e2
     if ($r2.Exit -ne 0) { throw "exit $($r2.Exit)" }
     # The stub reports its inherited environment, so this fails if the scrub is

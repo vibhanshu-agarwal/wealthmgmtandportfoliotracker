@@ -28,7 +28,7 @@ exit /b %ERRORLEVEL%
 
 :main
 if defined STUB_CAPTURE >>"%STUB_CAPTURE%" echo az %*
-if defined STUB_CAPTURE >>"%STUB_CAPTURE%" echo az-env TASK8_9_ACCESS_TOKEN=[%TASK8_9_ACCESS_TOKEN%] TASK8_9_DEMO_PASSWORD=[%TASK8_9_DEMO_PASSWORD%]
+if defined STUB_CAPTURE >>"%STUB_CAPTURE%" echo az-env TASK8_9_ACCESS_TOKEN=[%TASK8_9_ACCESS_TOKEN%] TASK8_9_DEMO_PASSWORD=[%TASK8_9_DEMO_PASSWORD%] WAVE9_STEP_A_PASSWORD=[%WAVE9_STEP_A_PASSWORD%]
 
 rem STUB_POLL_EXIT fails only the replica-list poll, so the pre-wake checks
 rem still pass and the poll-error branch can actually be exercised.

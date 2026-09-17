@@ -303,8 +303,9 @@ deliverables exist.
 | UTC window | **TBD — owner to specify at Stage 2 approval** |
 | Hard stop if window expires | Yes — stop before any in-progress mutation; restore if setup already ran |
 | Phase 1-2 serving comparison / preflight | `scripts/run_task_8_9_preflight.ps1` + `verify_demo_reset_azure.py --mode preflight` with Azure-attested timing params and login timeout (see Phase 1-2 below) |
-| Phase 3 execute script | **TBD — Wave 9 Step A verifier to be authored (Stage 1)** |
-| Credential env vars for Phase 3 | Owner injects the demo password env var (name TBD in the Step A script; will NOT be `TASK8_9_DEMO_PASSWORD`); `TASK8_9_ACCESS_TOKEN` is not used — Step A authenticates first and uses the returned JWT; Claude never reads, prints, or records credential values |
+| Phase 3 execute script | `scripts/verify_wave9_step_a.py` (authored; pending review + merge + baseline re-pin before Stage 2) |
+| Phase 3 launcher (exact invocation) | `powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts\launch_wave9_step_a.ps1` — prompts `Read-Host -AsSecureString`, runs `run_task_8_9_preflight.ps1`, then launches `verify_wave9_step_a.py` via `ProcessStartInfo` with the credential injected only into the child's environment; evidence JSON written to `docs/evidence/b2-wave-9/` |
+| Credential env vars for Phase 3 | Owner supplies the demo password interactively via the launcher's `Read-Host` prompt; the credential is stored as `WAVE9_STEP_A_PASSWORD` **in the child process env only** (never in `$env:` of the launcher or wrapper); `TASK8_9_ACCESS_TOKEN` is not used — Step A authenticates and uses the returned JWT; Claude never reads, prints, or records credential values |
 | Demo email | `demo@wealthtracker.dev` (intentionally public, in `ci-verification.yml`) |
 | Deployment provenance file | `docs/evidence/b2-task-8-9/deployment-provenance-20260911.json` |
 
@@ -614,13 +615,20 @@ build/deploy, and fresh uncached browser proof that both controls are absent.
       1 required Minor (M-R1: STOP/GO row missing "to the merge commit")
 - [x] Rev 10 prepared (this document); all corrections applied; no production
       action taken
-- [ ] **Stage 1: Owner authorization (names all three deliverables)**
+- [x] **Stage 1: Owner authorization (names all three deliverables)**
+      — authorized 2026-09-17 (chat prompt names all three deliverables,
+      no production/cloud/credential/deployment/PR/merge)
 - [ ] All three Stage 1 deliverables authored, tested, independently reviewed:
-      (1) Step A execute script; (2) wrapper scrub edit + tests;
-      (3) launcher + offline secret test
+      (1) Step A execute script (`scripts/verify_wave9_step_a.py`) — authored;
+      (2) wrapper scrub edit + tests (`run_task_8_9_preflight.ps1`, stubs,
+          `test_run_task_8_9_preflight.ps1`) — authored;
+      (3) launcher + offline secret test (`scripts/launch_wave9_step_a.ps1`,
+          `scripts/tests/test_launch_wave9_step_a.ps1`) — authored;
+      pending independent review
 - [ ] Stage 1 deliverables PR'd and merged (separate owner authorizations);
       baseline re-pinned to merge commit
-- [ ] This attempt sheet updated with exact execute invocation
+- [x] This attempt sheet updated with exact execute invocation
+      (see "Phase 3 launcher" row in Attempt parameters table)
 - [ ] **Stage 2: Owner authorization naming "Wave 9 Step A" execution**
 - [ ] Execution window and operator confirmed
 - [ ] Evidence packet produced under `docs/evidence/b2-wave-9/`
