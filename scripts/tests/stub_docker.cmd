@@ -1,7 +1,7 @@
 @echo off
 rem Offline stub for `docker`. Contacts nothing.
 if defined STUB_CAPTURE >>"%STUB_CAPTURE%" echo docker %*
-if defined STUB_CAPTURE >>"%STUB_CAPTURE%" echo docker-env TASK8_9_ACCESS_TOKEN=[%TASK8_9_ACCESS_TOKEN%] TASK8_9_DEMO_PASSWORD=[%TASK8_9_DEMO_PASSWORD%]
+if defined STUB_CAPTURE >>"%STUB_CAPTURE%" echo docker-env TASK8_9_ACCESS_TOKEN=[%TASK8_9_ACCESS_TOKEN%] TASK8_9_DEMO_PASSWORD=[%TASK8_9_DEMO_PASSWORD%] WAVE9_STEP_A_PASSWORD=[%WAVE9_STEP_A_PASSWORD%]
 if defined STUB_DOCKER_EXIT (>&2 echo cannot connect to the Docker daemon& exit /b %STUB_DOCKER_EXIT%)
 rem STUB_DOCKER_EMPTY: exit 0 having printed no server OS. STUB_DOCKER_OS
 rem cannot express this -- an empty value there is indistinguishable from unset.

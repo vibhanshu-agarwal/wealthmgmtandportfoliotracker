@@ -55,7 +55,7 @@ rem   STDERR    writes a curl-style warning naming <body> to stderr
 rem   SENTINEL  records `curl-sentinel-consumed`: the call must never be made
 rem Values are plain tokens; none of the fixtures needs & | < > ^ or %.
 if defined STUB_CAPTURE >>"%STUB_CAPTURE%" echo curl %*
-if defined STUB_CAPTURE >>"%STUB_CAPTURE%" echo curl-env TASK8_9_ACCESS_TOKEN=[%TASK8_9_ACCESS_TOKEN%] TASK8_9_DEMO_PASSWORD=[%TASK8_9_DEMO_PASSWORD%]
+if defined STUB_CAPTURE >>"%STUB_CAPTURE%" echo curl-env TASK8_9_ACCESS_TOKEN=[%TASK8_9_ACCESS_TOKEN%] TASK8_9_DEMO_PASSWORD=[%TASK8_9_DEMO_PASSWORD%] WAVE9_STEP_A_PASSWORD=[%WAVE9_STEP_A_PASSWORD%]
 if defined STUB_CAPTURE >>"%STUB_CAPTURE%" echo curl-noproxy-arg [%2] [%3] [%4]
 
 rem Proxy and pre-proxy arguments, refused by name: -x / --proxy and every
