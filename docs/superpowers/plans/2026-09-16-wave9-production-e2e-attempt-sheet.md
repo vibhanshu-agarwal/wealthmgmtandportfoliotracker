@@ -624,9 +624,14 @@ build/deploy, and fresh uncached browser proof that both controls are absent.
           `test_run_task_8_9_preflight.ps1`) — authored;
       (3) launcher + offline secret test (`scripts/launch_wave9_step_a.ps1`,
           `scripts/tests/test_launch_wave9_step_a.ps1`) — authored;
-      pending independent review
+      Fable ACCEPT at `2041579c` (Rd 5); two subsequent CI-fix commits
+      (`40e9f7d` preflight scrub reverted then `c4e08568` both re-added
+      with allowlist fixes) are on the same PR. Independent merge review
+      must cover exact head `c4e08568`; earlier Fable acceptance is not
+      sufficient for the delta in `run_task_8_9_preflight.ps1` and its test.
 - [ ] Stage 1 deliverables PR'd and merged (separate owner authorizations);
-      baseline re-pinned to merge commit
+      PR #283 is Draft at `c4e08568`, CI green, awaiting independent merge
+      review then owner merge; baseline re-pinned to merge commit
 - [x] This attempt sheet updated with exact execute invocation
       (see "Phase 3 launcher" row in Attempt parameters table)
 - [ ] **Stage 2: Owner authorization naming "Wave 9 Step A" execution**
