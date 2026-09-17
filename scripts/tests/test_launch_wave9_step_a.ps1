@@ -157,12 +157,14 @@ try {
     $captureLines = Get-Content $capFile -ErrorAction SilentlyContinue
 
     # (a) sentinel reached the child's env via ProcessStartInfo.
-    # [bool] cast is required: when the child is not launched, $envLine is
-    # AutomationNull and -like returns an empty Object[] rather than $false,
-    # causing ParameterArgumentTransformationError under EAP=Stop.
+    # Uses -contains (exact match) not -like: the literal [$sentinel] in a
+    # -like pattern is parsed as a PS wildcard character class; when $sentinel
+    # contains 'p-a' the range is invalid and WildcardPatternException fires
+    # under EAP=Stop.  @($envLine) coerces AutomationNull to a one-null array
+    # so -contains returns $false instead of throwing.
     $envLine = $captureLines | Where-Object { $_ -like 'step-a-child-env*' }
     Assert-True (
-        [bool]($envLine -like "*WAVE9_STEP_A_PASSWORD=[$sentinel]*")
+        [bool](@($envLine) -contains "step-a-child-env WAVE9_STEP_A_PASSWORD=[$sentinel]")
     ) '(a) SENTINEL_IS_IN_CHILD_ENV'
 
     # (b) sentinel is NOT in the child's argv

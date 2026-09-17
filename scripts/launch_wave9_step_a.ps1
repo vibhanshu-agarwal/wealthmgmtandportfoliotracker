@@ -57,7 +57,7 @@ if ($PSVersionTable.PSEdition -eq 'Core') {
 }
 
 # Pre-validate that $StepAArgs contains required flags before prompting for the
-# credential — gives immediate feedback if the caller forgot a flag.
+# credential -- gives immediate feedback if the caller forgot a flag.
 $_hasEvidenceOutput = [bool]($StepAArgs | Where-Object { $_ -eq '--evidence-output' -or $_ -like '--evidence-output=*' })
 if (-not $_hasEvidenceOutput) {
     [Console]::Error.WriteLine("launch_wave9_step_a: -StepAArgs must include '--evidence-output' before the wrapper runs.")

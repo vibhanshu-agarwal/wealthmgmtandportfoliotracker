@@ -17,6 +17,7 @@ import sys
 import time
 import unittest
 import unittest.mock
+import urllib.error
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
@@ -93,10 +94,25 @@ def _base_config(password: str = "test-password") -> subject.StepAConfig:
 # HTTP call recorder
 # ---------------------------------------------------------------------------
 
-class CallRecorder:
-    """Replays a scripted sequence of (status, body) pairs, in order."""
+class _RecorderExhausted(BaseException):
+    """Raised when CallRecorder runs out of scripted responses.
 
-    def __init__(self, responses: list[tuple[int, Any]]) -> None:
+    Inherits from BaseException (not Exception) so it propagates through
+    run_step_a's 'except Exception' catch-alls unchanged, surfacing as an
+    explicit test failure rather than being silently converted to a STOP.
+    """
+
+
+class CallRecorder:
+    """Replays a scripted sequence of (status, body) pairs or exceptions.
+
+    Each response entry is either a (status, body) tuple or a BaseException
+    instance.  When a BaseException is popped it is raised directly, allowing
+    tests to inject network errors (urllib.error.URLError, TimeoutError, etc.)
+    at any point in the call sequence.
+    """
+
+    def __init__(self, responses: list) -> None:
         self.responses = list(responses)
         self.calls: list[dict[str, Any]] = []
 
@@ -109,8 +125,11 @@ class CallRecorder:
         timeout: float = 30.0,
     ) -> tuple[int, Any]:
         if not self.responses:
-            raise AssertionError(f"unexpected HTTP call: {method} {url}")
-        status, body = self.responses.pop(0)
+            raise _RecorderExhausted(f"unexpected HTTP call: {method} {url}")
+        item = self.responses.pop(0)
+        if isinstance(item, BaseException):
+            raise item
+        status, body = item
         self.calls.append({
             "method": method,
             "url": url,
@@ -288,6 +307,7 @@ class StopConditionsTest(unittest.TestCase):
     def test_stop_if_login_no_token(self) -> None:
         evidence = self._run_with_responses([(200, {"other": "field"})])
         self.assertEqual(evidence["outcome"], "STOP")
+        self.assertIn("token", evidence["stop_reason"].lower())
 
     def test_stop_if_version_null_after_login(self) -> None:
         """Version absent/null after login -> STOP before write."""
@@ -296,6 +316,7 @@ class StopConditionsTest(unittest.TestCase):
             (200, {"userId": DEMO_USER_ID, "version": None, "holdings": []}),
         ])
         self.assertEqual(evidence["outcome"], "STOP")
+        self.assertIn("version", evidence["stop_reason"].lower())
 
     def test_stop_if_version_non_integer_after_login(self) -> None:
         evidence = self._run_with_responses([
@@ -303,6 +324,7 @@ class StopConditionsTest(unittest.TestCase):
             (200, {"userId": DEMO_USER_ID, "version": "not-an-int", "holdings": []}),
         ])
         self.assertEqual(evidence["outcome"], "STOP")
+        self.assertIn("version", evidence["stop_reason"].lower())
 
     def test_stop_if_zero_portfolio_matches(self) -> None:
         evidence = self._run_with_responses([
@@ -654,6 +676,77 @@ class VersionContractTest(unittest.TestCase):
         vp = evidence["version_progression"]
         self.assertEqual(vp["post_reset_response"], v_post_reset)
         self.assertEqual(v_post_reset - vp["pre_reset"], 1)
+
+
+class UnexpectedExceptionTest(unittest.TestCase):
+    """Regression tests for I-new-2: non-StopError exceptions after ARM must
+    still run cleanup and attach full evidence (via the except Exception clauses
+    added to the deferred section, cleanup section, and outer try).
+    """
+
+    def test_urlerror_pre_arm_exits_stop_with_evidence(self) -> None:
+        """URLError at login (pre-ARM) -> STOP; evidence populated, secrets has password."""
+        try:
+            subject.run_step_a(
+                _base_config(),
+                http_call=CallRecorder([urllib.error.URLError("network")]),
+                load_golden=_fake_load_golden,
+                monotonic=time.monotonic,
+            )
+            self.fail("expected StopError")
+        except subject.StopError as exc:
+            self.assertEqual(exc.verdict, "STOP")
+            self.assertIn("URLError", exc.evidence["stop_reason"])
+            self.assertFalse(exc.evidence["cleanup"]["armed"])
+            self.assertIn("test-password", exc.secrets)
+
+    def test_unexpected_error_post_arm_cleanup_still_runs(self) -> None:
+        """TimeoutError on composition write (post-ARM) -> cleanup runs; result==200."""
+        try:
+            subject.run_step_a(
+                _base_config(),
+                http_call=CallRecorder([
+                    (200, {"token": "jwt"}),
+                    (200, _portfolio(5)),            # read 1 baseline
+                    TimeoutError("write timed out"), # composition write raises
+                    # cleanup runs unconditionally:
+                    (200, _portfolio(5)),            # cleanup obs read
+                    (200, None),                     # cleanup reset
+                    (200, _portfolio(6)),            # post-cleanup read (golden)
+                ]),
+                load_golden=_fake_load_golden,
+                monotonic=time.monotonic,
+            )
+            self.fail("expected StopError")
+        except subject.StopError as exc:
+            self.assertEqual(exc.verdict, "STOP")
+            self.assertIn("post-arm", exc.evidence["stop_reason"].lower())
+            self.assertEqual(exc.evidence["cleanup"]["result"], "200")
+
+    def test_unexpected_error_in_cleanup_captured_in_result(self) -> None:
+        """URLError in cleanup obs read -> cleanup.result records the error."""
+        v = 5
+        v_pr = v + 2
+        try:
+            subject.run_step_a(
+                _base_config(),
+                http_call=CallRecorder([
+                    (200, {"token": "jwt"}),
+                    (200, _portfolio(v)),
+                    (200, _portfolio(v + 1)),    # composition write
+                    (200, _portfolio(v + 1)),    # read 2 pre-reset
+                    (200, _portfolio(v_pr, _golden_holdings_as_response(GOLDEN_2))),  # reset
+                    (200, _portfolio(v_pr)),     # post-reset read (golden)
+                    urllib.error.URLError("cleanup network"),  # cleanup obs read raises
+                ]),
+                load_golden=_fake_load_golden,
+                monotonic=time.monotonic,
+            )
+            self.fail("expected StopError")
+        except subject.StopError as exc:
+            self.assertEqual(exc.verdict, "STOP")
+            self.assertIn("URLError", exc.evidence["cleanup"]["result"])
+            self.assertIn("cleanup", exc.evidence["cleanup"]["result"].lower())
 
 
 if __name__ == "__main__":
