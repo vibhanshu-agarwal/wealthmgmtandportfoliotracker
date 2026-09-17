@@ -187,8 +187,10 @@ trap {
 # environment. Restored in the finally at the end of the script.
 $savedToken = $env:TASK8_9_ACCESS_TOKEN
 $savedPassword = $env:TASK8_9_DEMO_PASSWORD
+$savedStepAPassword = $env:WAVE9_STEP_A_PASSWORD
 $env:TASK8_9_ACCESS_TOKEN = $null
 $env:TASK8_9_DEMO_PASSWORD = $null
+$env:WAVE9_STEP_A_PASSWORD = $null
 try {
 
 function Write-Step { param([string]$Text) Write-Host "==> $Text" }
@@ -1091,6 +1093,7 @@ $verifierExit = $LASTEXITCODE
 } finally {
     $env:TASK8_9_ACCESS_TOKEN = $savedToken
     $env:TASK8_9_DEMO_PASSWORD = $savedPassword
+    $env:WAVE9_STEP_A_PASSWORD = $savedStepAPassword
 }
 
 Write-Step "verifier exit $verifierExit; evidence at $EvidenceOutput"

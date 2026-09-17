@@ -1319,7 +1319,7 @@ function Find-ForbiddenConstruct {
     $bannedVars = @('args', 'PSBoundParameters', 'ExecutionContext', 'input', 'MyInvocation', 'PSCmdlet')
     foreach ($v in (Find-Ast $Ast { param($n) $n -is [System.Management.Automation.Language.VariableExpressionAst] })) {
         if ($bannedVars -contains $v.VariablePath.UserPath) { return "forbidden variable: `$$($v.VariablePath.UserPath)" }
-        if ($v.VariablePath.UserPath -match '(?i)^env:' -and @('env:TASK8_9_ACCESS_TOKEN', 'env:TASK8_9_DEMO_PASSWORD') -notcontains $v.VariablePath.UserPath) {
+        if ($v.VariablePath.UserPath -match '(?i)^env:' -and @('env:TASK8_9_ACCESS_TOKEN', 'env:TASK8_9_DEMO_PASSWORD', 'env:WAVE9_STEP_A_PASSWORD') -notcontains $v.VariablePath.UserPath) {
             return "forbidden environment read: `$$($v.VariablePath.UserPath)"
         }
     }
@@ -1448,7 +1448,7 @@ Check 'the script exposes exactly the pinned parameter surface and reads only th
         $n.VariablePath.UserPath -like 'env:*'
     }, $true) | ForEach-Object { $_.VariablePath.UserPath } | Sort-Object -Unique
     foreach ($e in $envReads) {
-        if ($e -notin @('env:TASK8_9_ACCESS_TOKEN','env:TASK8_9_DEMO_PASSWORD')) {
+        if ($e -notin @('env:TASK8_9_ACCESS_TOKEN','env:TASK8_9_DEMO_PASSWORD','env:WAVE9_STEP_A_PASSWORD')) {
             throw "unexpected environment read: $e"
         }
     }
