@@ -340,7 +340,7 @@ deliverables exist.
 | Attempt-start deadline | Do not begin the attempt at or after the latest permitted attempt-start UTC. Once the attempt has begun, the automated sequence (including mandatory cleanup) runs to completion. No new attempt may begin at or after the deadline. The launcher does not accept a deadline as an argument and does not enforce one; the deadline is an owner authorization record only. |
 | Phase 1-2 serving comparison / preflight | `scripts/run_task_8_9_preflight.ps1` + `verify_demo_reset_azure.py --mode preflight` with Azure-attested timing params and login timeout (see Phase 1-2 below) |
 | Phase 3 execute script | `scripts/verify_wave9_step_a.py` (merged via PR #283 `e9801aef`; baseline re-pinned) |
-| Phase 3 launcher (exact invocation) | `powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts\launch_wave9_step_a.ps1` — prompts `Read-Host -AsSecureString`, runs `run_task_8_9_preflight.ps1`, then launches `verify_wave9_step_a.py` via `ProcessStartInfo` with the credential injected only into the child's environment; evidence JSON written to `docs/evidence/b2-wave-9/` |
+| Phase 3 launcher (exact invocation) | `powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts\launch_wave9_step_a.ps1 -StepAArgs '--evidence-output' 'docs\evidence\b2-wave-9\wave9-step-a-attempt2-<date>.json' '--baseline-commit' 'main@e9801aef6565ce6fa9dc81b24506b13b419e003f'` (add `-WrapperScript <shim>` if the splatting workaround is active) — prompts `Read-Host -AsSecureString`; launches `verify_wave9_step_a.py` via `ProcessStartInfo` with the credential injected only into the child's environment; launcher exits 2 before prompting if `--evidence-output` or `--baseline-commit` are absent from `-StepAArgs` |
 | Credential env vars for Phase 3 | Owner supplies the demo password interactively via the launcher's `Read-Host` prompt; the credential is stored as `WAVE9_STEP_A_PASSWORD` **in the child process env only** (never in `$env:` of the launcher or wrapper); `TASK8_9_ACCESS_TOKEN` is not used — Step A authenticates and uses the returned JWT; Claude never reads, prints, or records credential values |
 | Demo email | `demo@wealthtracker.dev` (intentionally public, in `ci-verification.yml`) |
 | Deployment provenance file | `docs/evidence/b2-task-8-9/deployment-provenance-20260911.json` |
@@ -408,22 +408,37 @@ is `docs/evidence/b2-task-8-9/deployment-completion-20260911.json` (0000081).
 - **Network access to `--noproxy '*'`** — probes use `--noproxy '*'`
 - **Both `TASK8_9_*` env vars cleared from the parent shell** — the wrapper
   reads and scrubs them from its children; do not leave stale values
-- **`Start-Transcript` running before launcher invocation** — the transcript
-  is captured by screen-buffer scrape; the probe-1 fingerprint line exceeds
-  120 characters, so set the console buffer width to ≥ 400 columns before
-  invoking (`$Host.UI.RawUI.BufferSize = New-Object System.Management.Automation.Host.Size(400, $Host.UI.RawUI.BufferSize.Height)`)
-  and confirm the line is a single unbroken entry after exit. Before
-  requesting Stage 2, run a rehearsal using the launcher's offline seams
-  (`-WrapperScript <stub that prints a ≥250-char fingerprint line>`,
-  `-SecretSource env:<NAME>`) to confirm `exact-line-count=1` in a stub
-  transcript. Then run `Start-Transcript -LiteralPath <out-of-repo-path>`
-  in the same PowerShell 5.1 session before the live launcher invocation.
-  The transcript will contain a masked password prompt
-  (`Wave 9 Step A password: ****…`); the asterisk count discloses the
-  password length — redact it along with all host paths and operator
-  identity information. The raw transcript is preserved at the out-of-repo
-  path; the sanitized copy is the tracked artifact published under
-  `docs/evidence/b2-wave-9/`.
+- **`Start-Transcript` running before launcher invocation** — use classic
+  conhost (recommended; Windows Terminal ties buffer width to window width
+  and its behaviour under PS 5.1 transcription is unverified). The probe-1
+  fingerprint line exceeds 120 characters; set `$Host.UI.RawUI.BufferSize`
+  width to ≥ 400 columns before invoking. Before requesting Stage 2,
+  complete two rehearsals using the exact child invocation form
+  (`powershell.exe -NoProfile -ExecutionPolicy Bypass -File
+  scripts\launch_wave9_step_a.ps1`):
+
+  *Rehearsal 1 — buffer width and fingerprint integrity:*
+  `Start-Transcript -LiteralPath <rehearsal-path>`, then invoke with all
+  three offline seams: `-WrapperScript <stub printing a ≥250-char Write-Host
+  fingerprint>`, `-StepAScript scripts\tests\stub_step_a_child.py`,
+  `-SecretSource env:<NAME>` (sentinel value — never the real credential),
+  `-StepAArgs '--evidence-output' '<out-of-repo-path>' '--baseline-commit' 'dummy'`.
+  Pass criteria: (a) transcript contains the stub fingerprint as one
+  unbroken line; (b) output shows `STUB_CAPTURE` with step-a-child argv;
+  (c) no network call. If (a) fails, widen the buffer and re-run.
+
+  *Rehearsal 2 — prompt behavior under transcription:*
+  same form but omit `-SecretSource` (uses the default `Read-Host` path);
+  type a dummy value at the `Wave 9 Step A password:` prompt. Observe how
+  the prompt renders — this is what the operator will see in the live run.
+
+  For the live run: `Start-Transcript -LiteralPath <out-of-repo-path>` in
+  the same PS 5.1 session before invoking the launcher. The transcript
+  will contain a masked password prompt (`Wave 9 Step A password: ****…`);
+  the asterisk count discloses the password length — redact it along with
+  all host paths and operator identity information. The raw transcript is
+  preserved at the out-of-repo path; the sanitized copy is the tracked
+  artifact published under `docs/evidence/b2-wave-9/`.
 
 ---
 
@@ -725,9 +740,14 @@ build/deploy, and fresh uncached browser proof that both controls are absent.
       out-of-window technical GO and therefore has **no gate credit**
 - [ ] Fresh Stage 2 authorization for any new attempt — named operator, one
       attempt, and latest permitted attempt-start UTC
-- [ ] Console buffer width ≥ 400 columns set before launcher invocation;
-      pre-Stage-2 rehearsal (offline seams) confirms probe-1 fingerprint
-      is a single unbroken line in a stub transcript
+- [ ] Console buffer width ≥ 400 cols confirmed in classic conhost;
+      Rehearsal 1 (all three seams: `-WrapperScript` stub,
+      `-StepAScript scripts\tests\stub_step_a_child.py`,
+      `-SecretSource env:<sentinel>`, dummy `-StepAArgs`) via exact
+      `powershell.exe -File` child form confirms fingerprint intact and
+      `STUB_CAPTURE` shows step-a-child argv with no network call;
+      Rehearsal 2 (default read-host, dummy password) observes prompt
+      behavior under transcription
 - [ ] `Start-Transcript` running before live launcher invocation; probe-1
       `started-utc=...` fingerprint confirmed intact (single unbroken line)
       after launcher exits; raw transcript at out-of-repo path; sanitized
