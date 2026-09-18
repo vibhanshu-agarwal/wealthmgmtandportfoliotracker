@@ -1,6 +1,6 @@
 #Requires -Version 5.1
 # Minimal wrapper stub used by launch_wave9_step_a.ps1 offline tests.
-# Advanced function with [CmdletBinding()] so named splatting via hashtable
+# Advanced script with [CmdletBinding()] so named splatting via hashtable
 # (@WrapperParameters) works correctly -- matching the real wrapper's signature.
 [CmdletBinding()]
 param(
