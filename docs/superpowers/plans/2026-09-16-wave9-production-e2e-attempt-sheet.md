@@ -1,16 +1,20 @@
 # Wave 9 Lane — Wave 10.2 Step A Backend-Route Verification
 # Sanitized Attempt Sheet (rev 12)
 
-> **OWNER APPROVAL REQUIRED — two stages (see authorization section below).**
-> Stage 1 (approve now): authorize authoring three deliverables —
-> (1) Step A execute script + tests; (2) wrapper scrub-list edit + tests;
-> (3) PS 5.1 launcher + offline secret test — planning and coding only; no
-> production, cloud, or credential action.
-> Stage 2 (future): once all three Stage 1 deliverables are authored,
-> independently reviewed, merged, and the baseline commit re-pinned, fresh
-> owner authorization naming "Wave 9 Step A" is required before any execution.
-> Earlier Task 4.9, Task 8.9, deployment, documentation, or merge approvals
-> are NOT reusable authority for either stage.
+> **Outcome update — 2026-09-18:** Owner-operated Attempt 3 is a
+> gate-credit **GO for the Wave 10.2 Go-action Step A technical result**.
+> Its probe-1 activation timestamp was within the controlling authorization
+> window. The immutable source artifacts remain outside the repository and
+> their verified integrity facts are recorded in
+> [`WAVE9_STEP_A_ATTEMPT3_GATE_CREDIT_GO_2026-09-18.md`](../../evidence/b2-wave-9/WAVE9_STEP_A_ATTEMPT3_GATE_CREDIT_GO_2026-09-18.md).
+> This does not decide Wave 10.2 condition 5, authorize Step B or exposure,
+> or change Task 8.9's already-complete status.
+
+> **Authorization history — consumed.** Stage 1 authorized authoring of the
+> Step A verifier, wrapper scrub edit, and PS 5.1 launcher. Stage 2 then
+> authorized exactly one Attempt 3 by the named owner-operator; that attempt
+> has completed. No prior authorization supplies authority for another live
+> attempt, Step B, a deployment, or flag exposure.
 
 > **Rev 12 — 2026-09-17:** Clarify authorization-deadline terminology and
 > evidence eligibility. Changes are prospective; attempt 1 is not reclassified.
@@ -330,7 +334,7 @@ deliverables exist.
 
 ---
 
-## Attempt parameters (Stage 2 — pending all three Stage 1 deliverables)
+## Historical attempt parameters (Stage 2 execution recipe)
 
 | Field | Value |
 |---|---|
@@ -365,6 +369,22 @@ status from this record.
 
 The JSON reports `condition_5_status: open_owner_question`; that field remains
 an owner decision and is neither resolved nor made less restrictive here.
+
+---
+
+## Attempt 3 record — gate-credit GO for Step A
+
+| Field | Recorded fact |
+|---|---|
+| Authorization | One named `Wave 9 Step A` attempt by Vibhanshu; authorized at `2026-09-18T13:06:58Z`, latest permitted attempt-start UTC `2026-09-18T13:36:58Z` |
+| Timing disposition | Wrapper probe 1 started at `2026-09-18T13:11:19.8478851Z`, 25 minutes 38.1521149 seconds before the controlling deadline. The earlier Attempt 2 authorization was separately consumed and does not govern this attempt. |
+| Step A result | Owner-controlled original, 2,769 bytes, SHA-256 `034B2E3058E7CAB622031033DD27AD3CA2DA76B77ABB9F5B4601ACD172D82C9F`; source result `outcome: GO` |
+| Technical result | All nine recorded operations returned HTTP 200; login completed within the 225-second timeout; the deliberate 159-holding composition write advanced version 8 to 9; first reset advanced 9 to 10; cleanup was armed and returned 200; all four golden-state assertions were true. |
+| Transcript and preflight | Owner-controlled originals: transcript SHA-256 `E7EC254F0F1097575248D77CC9FC6B9838ED60819855274CF48C178EC6129B7F`; preflight JSON 10,194 bytes, SHA-256 `55ACE23DFD0CB330142A225D09E5891305533287E4C1F779CB80A26EBCAE82FC`. |
+| Gate effect | Gate-credit GO for the API-only Wave 10.2 Go-action Step A technical result. It neither discharges condition 5 nor authorizes Step B, a flag change, deployment, or browser verification. |
+
+The sanitized integrity and result record is
+[`WAVE9_STEP_A_ATTEMPT3_GATE_CREDIT_GO_2026-09-18.md`](../../evidence/b2-wave-9/WAVE9_STEP_A_ATTEMPT3_GATE_CREDIT_GO_2026-09-18.md).
 
 ---
 
@@ -745,8 +765,10 @@ build/deploy, and fresh uncached browser proof that both controls are absent.
       attempt-start UTC 11:30 UTC
 - [x] Attempt 1 artifact produced under `docs/evidence/b2-wave-9/`; it is an
       out-of-window technical GO and therefore has **no gate credit**
-- [ ] Fresh Stage 2 authorization for any new attempt — named operator, one
-      attempt, and latest permitted attempt-start UTC
+- [x] Fresh Stage 2 authorization for Attempt 3 — named operator Vibhanshu,
+      one attempt, and latest permitted attempt-start UTC
+      `2026-09-18T13:36:58Z`; probe 1 began at
+      `2026-09-18T13:11:19.8478851Z`. This authorization is consumed.
 - [ ] Console buffer width ≥ 400 cols confirmed in classic conhost;
       Rehearsal 1 (driver `.ps1` invoked via `powershell.exe -File`, all
       three seams: `-WrapperScript` stub, `-StepAScript stub_step_a_child.py`,
