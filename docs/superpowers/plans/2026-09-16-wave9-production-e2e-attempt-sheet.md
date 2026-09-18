@@ -340,7 +340,7 @@ deliverables exist.
 | Attempt-start deadline | Do not begin the attempt at or after the latest permitted attempt-start UTC. Once the attempt has begun, the automated sequence (including mandatory cleanup) runs to completion. No new attempt may begin at or after the deadline. The launcher does not accept a deadline as an argument and does not enforce one; the deadline is an owner authorization record only. |
 | Phase 1-2 serving comparison / preflight | `scripts/run_task_8_9_preflight.ps1` + `verify_demo_reset_azure.py --mode preflight` with Azure-attested timing params and login timeout (see Phase 1-2 below) |
 | Phase 3 execute script | `scripts/verify_wave9_step_a.py` (merged via PR #283 `e9801aef`; baseline re-pinned) |
-| Phase 3 launcher (exact invocation) | `& .\scripts\launch_wave9_step_a.ps1 -WrapperArgs @('-EvidenceOutput', 'C:\<out-of-repo-dir>\wave9-preflight-attempt2-<date>.json') -StepAArgs @('--evidence-output', 'docs\evidence\b2-wave-9\wave9-step-a-attempt2-<date>.json', '--baseline-commit', 'main@e9801aef6565ce6fa9dc81b24506b13b419e003f')` — run **in-process** from the already-open PS 5.1 session (`powershell.exe -File` does not bind `[string[]]` parameters correctly from the command line; only in-process `&` is correct for the live run); add `-WrapperScript <shim>` if the splatting workaround is active; `-WrapperArgs -EvidenceOutput` is required — without it, the preflight wrapper defaults to an in-repo path and exits 2 before issuing any probe (see evidence output note below); prompts `Read-Host -AsSecureString`; runs `run_task_8_9_preflight.ps1` (Phase 1-2 preflight) via in-process `&`; on wrapper exit 0 launches `verify_wave9_step_a.py` via `ProcessStartInfo` with the credential injected only into the child's environment; launcher exits 2 before prompting if `--evidence-output` or `--baseline-commit` are absent from `-StepAArgs` |
+| Phase 3 launcher (exact invocation) | `& .\scripts\launch_wave9_step_a.ps1 -WrapperParameters @{ EvidenceOutput = 'C:\<out-of-repo-dir>\wave9-preflight-attempt2-<date>.json' } -StepAArgs @('--evidence-output', 'docs\evidence\b2-wave-9\wave9-step-a-attempt2-<date>.json', '--baseline-commit', 'main@e9801aef6565ce6fa9dc81b24506b13b419e003f')` — run **in-process** from the already-open PS 5.1 session (`powershell.exe -File` does not bind `[string[]]` parameters correctly from the command line; only in-process `&` is correct for the live run); add `-WrapperScript <shim>` if the splatting workaround is active; `-WrapperParameters EvidenceOutput` is required — without it, the preflight wrapper defaults to an in-repo path and exits 2 before issuing any probe (see evidence output note below); prompts `Read-Host -AsSecureString`; runs `run_task_8_9_preflight.ps1` (Phase 1-2 preflight) via in-process `&`; on wrapper exit 0 launches `verify_wave9_step_a.py` via `ProcessStartInfo` with the credential injected only into the child's environment; launcher exits 2 before prompting if `--evidence-output` or `--baseline-commit` are absent from `-StepAArgs` |
 | Credential env vars for Phase 3 | Owner supplies the demo password interactively via the launcher's `Read-Host` prompt; the credential is stored as `WAVE9_STEP_A_PASSWORD` **in the child process env only** (never in `$env:` of the launcher or wrapper); `TASK8_9_ACCESS_TOKEN` is not used — Step A authenticates and uses the returned JWT; Claude never reads, prints, or records credential values |
 | Demo email | `demo@wealthtracker.dev` (intentionally public, in `ci-verification.yml`) |
 | Deployment provenance file | `docs/evidence/b2-task-8-9/deployment-provenance-20260911.json` |
@@ -422,7 +422,7 @@ is `docs/evidence/b2-task-8-9/deployment-completion-20260911.json` (0000081).
   *Rehearsal 1 — buffer width and fingerprint integrity:*
   Write a driver `.ps1` at an out-of-repo temp path whose body is:
   `& .\scripts\launch_wave9_step_a.ps1 -WrapperScript <stub printing ≥250-char
-  Write-Host fingerprint> -WrapperArgs @('-EvidenceOutput', '<out-of-repo-path>')
+  Write-Host fingerprint> -WrapperParameters @{ EvidenceOutput = '<out-of-repo-path>' }
   -StepAScript scripts\tests\stub_step_a_child.py -SecretSource env:<NAME>
   -StepAArgs @('--evidence-output', '<out-of-repo-path>', '--baseline-commit',
   'dummy')` (sentinel in `<NAME>` — never the real credential). Then: `Start-Transcript -LiteralPath
@@ -434,8 +434,7 @@ is `docs/evidence/b2-task-8-9/deployment-completion-20260911.json` (0000081).
 
   *Rehearsal 2 — prompt behavior under transcription:*
   Same driver as Rehearsal 1 but omit `-SecretSource` from the driver body
-  (uses the default `Read-Host` path); retain `-WrapperArgs @('-EvidenceOutput',
-  '<out-of-repo-path>')`. Type a dummy value at the
+  (uses the default `Read-Host` path); retain `-WrapperParameters @{ EvidenceOutput = '<out-of-repo-path>' }`. Type a dummy value at the
   `Wave 9 Step A password:` prompt. Observe how the prompt renders — this
   is what the operator will see in the live run.
 

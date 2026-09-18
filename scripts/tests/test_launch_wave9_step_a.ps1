@@ -343,6 +343,35 @@ try {
 }
 
 # ---------------------------------------------------------------------------
+# (i) WrapperParameters hashtable splatting reaches wrapper's named parameter
+# ---------------------------------------------------------------------------
+Write-Host "`n[Group 6] WrapperParameters hashtable forwarding"
+
+$wrapperEvPath = Join-Path ([System.IO.Path]::GetTempPath()) "wave9-wrapper-preflight-$([System.Guid]::NewGuid().ToString('N')).json"
+$capFile8 = New-TempCapture
+try {
+    $rc8 = Invoke-Launcher -ExtraParams @{
+        WrapperParameters = @{ EvidenceOutput = $wrapperEvPath }
+        SecretSource      = 'env:STEP_A_TEST_SENTINEL'
+        StepAArgs         = $validStepAArgs
+    } -ExtraEnv @{
+        STEP_A_TEST_SENTINEL = $sentinel
+        STUB_CAPTURE         = $capFile8
+    }
+
+    Assert-True ($rc8 -eq 0) '(i) launcher exits 0 with WrapperParameters'
+
+    $lines8 = Get-Content $capFile8 -ErrorAction SilentlyContinue
+    $wrapperLine = $lines8 | Where-Object { $_ -like 'stub-wrapper-noop*' }
+    Assert-True (
+        [bool](@($wrapperLine) -contains "stub-wrapper-noop EvidenceOutput=[$wrapperEvPath]")
+    ) '(i) WrapperParameters EvidenceOutput reached wrapper named parameter'
+
+} finally {
+    Remove-Item $capFile8 -Force -ErrorAction SilentlyContinue
+}
+
+# ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
 Write-Host ''

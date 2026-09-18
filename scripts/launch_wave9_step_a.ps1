@@ -20,8 +20,9 @@
     Path to the preflight wrapper script to run before Step A.
     Default: scripts\run_task_8_9_preflight.ps1
 
-.PARAMETER WrapperArgs
-    Additional arguments forwarded to the wrapper script.
+.PARAMETER WrapperParameters
+    Named parameters forwarded to the wrapper script via hashtable splatting.
+    Keys must match the wrapper's declared parameter names exactly.
 
 .PARAMETER StepAScript
     Path to the Python verify script.
@@ -39,8 +40,8 @@
       'env:<NAME>'  -- read from the named env var (offline tests only)
 #>
 param(
-    [string]   $WrapperScript = 'scripts\run_task_8_9_preflight.ps1',
-    [string[]] $WrapperArgs   = @(),
+    [string]    $WrapperScript    = 'scripts\run_task_8_9_preflight.ps1',
+    [hashtable] $WrapperParameters = @{},
     [string]   $StepAScript   = 'scripts\verify_wave9_step_a.py',
     [string[]] $StepAArgs     = @(),
     [string]   $PythonCommand = 'python',
@@ -98,7 +99,7 @@ if ($SecretSource -eq 'read-host') {
 }
 
 # Step 1: run the wrapper script.
-& $WrapperScript @WrapperArgs
+& $WrapperScript @WrapperParameters
 $wrapperExit = $LASTEXITCODE
 if ($wrapperExit -ne 0) {
     Write-Warning "Wrapper '$WrapperScript' exited $wrapperExit."
