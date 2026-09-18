@@ -4379,6 +4379,14 @@ Fable accepted documentation head `fab158cb`; PR #278 merged at `main@6e046741`;
 - [ ] **10.2 STOP/GO — production exposure.** **Corrected from the first draft, which could pass
   while Requirement 7's own mechanism was still unbuilt — round 21 made login-orchestration
   independently gated from the manual bundle; it did not make either optional for production.**
+  **Recorded status (2026-09-18):** the owner-operated Wave 9 Step A Attempt 3 is
+  gate-credit **GO** for the Go-action's API-only Step A technical result. Its wrapper probe 1
+  began at `2026-09-18T13:11:19.8478851Z`, within the controlling authorization window ending
+  `2026-09-18T13:36:58Z`; all nine Step A operations returned HTTP 200 and mandatory cleanup
+  succeeded. The sanitized integrity record is
+  [`WAVE9_STEP_A_ATTEMPT3_GATE_CREDIT_GO_2026-09-18.md`](../../../docs/evidence/b2-wave-9/WAVE9_STEP_A_ATTEMPT3_GATE_CREDIT_GO_2026-09-18.md).
+  This does **not** mark 10.2 complete, resolve condition 5, authorize Step B, or enable either
+  production flag.
   **Go, all of:**
   1. B1/Spec A's own activation gates (B1's R-C and everything R-C depends on).
   2. B1 task 4.9 decimal fidelity confirmed live, plus Task 2.7's independently ACCEPTed historical

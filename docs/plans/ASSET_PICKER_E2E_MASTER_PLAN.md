@@ -893,8 +893,13 @@ claims, except for the separately evidenced Task 8.8 scoped gateway deployment. 
 and Task 8.8/8.8b deployment evidence completed on 2026-09-10 in run `34433715705`. Task 2.7's
 historical audit is independently ACCEPTed; Task 8.9 is COMPLETE / GO at independently accepted
 evidence head `8544d722`; B1 Task 4.9 is live GO at `main@cca7f0d9`, satisfying Wave 10.2
-condition 2 without changing Task 2.7's historical limits. Task 2.6 and the remaining Wave 10.2
-gates remain open; both production feature flags remain disabled. The owner-deferred
+condition 2 without changing Task 2.7's historical limits. The owner-operated
+[Wave 9 Step A Attempt 3](../evidence/b2-wave-9/WAVE9_STEP_A_ATTEMPT3_GATE_CREDIT_GO_2026-09-18.md)
+is gate-credit GO for the Go-action's API-only Step A technical result: its timely wrapper probe
+preceded the controlling deadline, all nine operations returned HTTP 200, and cleanup succeeded.
+Task 8.9 remains separately COMPLETE / GO. This Step A result does not resolve Wave 10.2
+condition 5, authorize Step B or exposure, or change either flag. Task 2.6 and the remaining
+Wave 10.2 gates remain open; both production feature flags remain disabled. The owner-deferred
 [sidebar issue](../todos/backlog/responsive-dashboard-sidebar/README.md) remains separate.
 
 **Task 4.9 decimal-fidelity live proof (2026-09-16):** the owner authorized and personally ran the
