@@ -109,6 +109,15 @@ approval covers final review and PR preparation only.
    separate owner decision on the deploy path (any frontend-only deploy mode would be a workflow change
    with its own review and authorization). The workflow text is verified; that a future full run replaces
    those exact revisions is inferred, not observed. No decision on this is recorded here.
+
+   **Post-decision status (PR #294, 2026-09-19).** The subsequently authorized and reviewed workflow
+   change merged the `frontend-only` dispatcher mode at reviewed head `f6556b54` via PR
+   [#294](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/294), merge commit
+   `main@e15d34ad9dfb7d4698776db0d1d7b33b69c191f1`. It supplies the dedicated frontend deployment path
+   contemplated above, so the deploy path is no longer an open design decision. This merge is not a
+   deployment, flag change, live read, or Step B authorization. Any production use of `frontend-only`
+   still requires a separately bounded owner authorization and must meet 5a's exact-`expected_main_sha`
+   evidence rule.
 2. **5b verifier.** It must be authored (no production contact), independently reviewed, and ACCEPTed
    before 5a can hold. Its contract is the linked spec.
 3. **Decision-time verification.** Before any Step B authorization request: serving revisions and digests
