@@ -1,0 +1,191 @@
+{
+  "schema": "wave10-5b-ledger-contract-v3",
+  "passFactRules": "A leg recorded as passed must carry EVERY key of legFacts[leg] and satisfy every rule in passFacts[leg]; keys without a rule are recorded but unconstrained. A rule is a literal (strict equality; booleans and integers are never coerced), {\"not\": v} (differs from v and has the type of v), {\"min\": n} (integer >= n), {\"type\": \"boolean\"} (must be true or false, never null), or {\"equalsFact\": key} (equals another fact of the same leg). failed and skipped legs are unconstrained. A table naming an unknown leg or fact, an unrecognised rule form, a type-mismatched literal, or an equalsFact across types is a contract error, never ignored.",
+  "commonFields": ["seq", "tUtc", "src", "event"],
+  "sources": ["spec", "orchestrator"],
+  "specEvents": ["leg", "armed"],
+  "orchestratorEvents": ["child_started", "child_done", "cleanup"],
+  "legs": ["L0", "L1", "L2", "L3", "L4", "L5", "L6", "L7", "L8", "L9"],
+  "statuses": ["passed", "failed", "skipped"],
+  "reasons": [
+    "OK",
+    "ASSERTION_FAILED",
+    "TIMEOUT",
+    "HTTP_STATUS_NOT_200",
+    "RATE_LIMITED",
+    "CONFLICT",
+    "REQUEST_FAILED",
+    "SKIPPED_PRIOR_FAILURE",
+    "SKIPPED_VISITOR_PRESENT",
+    "SKIPPED_BASELINE_NOT_GOLDEN",
+    "EXCEPTION"
+  ],
+  "methods": ["GET", "PUT"],
+  "paths": [
+    "/api/portfolio",
+    "/api/portfolio/summary",
+    "/api/assets",
+    "/api/presence/demo",
+    "/api/market/prices",
+    "/api/portfolio/holdings",
+    "/api/portfolio/demo-reset"
+  ],
+  "mutationSkippedReasons": ["NONE", "LEG_FAILED", "VISITOR_PRESENT", "BASELINE_NOT_GOLDEN"],
+  "freshnessStates": ["FRESH", "STALE", "UNKNOWN", "MISSING", "ABSENT"],
+  "passFacts": {
+    "L0": {
+      "finalPathIsPortfolio": true,
+      "headingPortfolio": true,
+      "redirectedToLogin": false,
+      "unauthorized401Seen": false
+    },
+    "L1": {
+      "editButtonVisible": true,
+      "resetButtonVisible": true,
+      "portfolioLoadStatus": 200
+    },
+    "L2": {
+      "freshnessState": { "not": "ABSENT" },
+      "countsValid": true,
+      "stripVisible": true
+    },
+    "L3": {
+      "dialogOpen": true,
+      "unavailableNoticeVisible": false
+    },
+    "L4": {
+      "catalogStatus": 200,
+      "noIfNoneMatch": true,
+      "etagPresent": true,
+      "assetsNonEmpty": true,
+      "rowsRendered": true,
+      "catalogParity": true,
+      "activeCount": { "min": 1 }
+    },
+    "L5": {
+      "presenceRequestsSinceOpen": 1,
+      "presenceStatus": 200,
+      "anotherSessionActive": { "type": "boolean" },
+      "requestFailed": false,
+      "corsConsoleError": false
+    },
+    "L6": {
+      "priceRequestsAfterUncheck": { "equalsFact": "predictedBatchCount" },
+      "allStatus200": true,
+      "arrayShaped": true,
+      "nonNullPriceSeen": true,
+      "disjointFromPageBatches": true,
+      "predictedBatchCount": { "min": 1 }
+    },
+    "L7": {
+      "pageWriteRequestsBeforeMutation": 0
+    },
+    "L8": {
+      "putCount": 1,
+      "putStatus": 200,
+      "expectedVersionMatchesObserved": true,
+      "bodyMatchesExpectedDraft": true,
+      "versionAdvanced": true,
+      "savedStatusVisible": true,
+      "independentReadVersionMatches": true,
+      "independentReadHoldingsMatch": true,
+      "mutationSkippedReason": "NONE"
+    },
+    "L9": {
+      "putCount": 1,
+      "putStatus": 200,
+      "noInternalKeyHeader": true,
+      "expectedVersionMatchesSaved": true,
+      "versionPlusOne": true,
+      "responseEqualsGolden": true,
+      "resetStatusVisible": true,
+      "independentReadEqualsGolden": true,
+      "mutationSkippedReason": "NONE"
+    }
+  },
+  "passHttpRules": "A leg recorded as passed must also have http entries consistent with its facts. 'entries' is \"none\" (http must be empty) or {\"method\": M, \"path\": P} (http must be non-empty and every entry must have that method and path). 'countFact' names an integer fact that must equal the number of http entries. 'statusFacts' maps a fact name to \"first\" or \"last\": the fact must equal the status of that http entry. 'firstStatus' and 'allStatus' require the first entry's status, or every entry's status, to equal the integer. failed and skipped legs are unconstrained. 'entries': \"none\" is exclusive: the rule then carries no other key. firstStatus and allStatus must be integers in 100..599. statusFacts, when present, must be non-empty. A table naming an unknown leg, fact or key, or a fact that is not an integer, is a contract error, never ignored.",
+  "passHttp": {
+    "L0": { "entries": "none" },
+    "L1": { "entries": { "method": "GET", "path": "/api/portfolio" }, "statusFacts": { "portfolioLoadStatus": "last" } },
+    "L2": { "entries": { "method": "GET", "path": "/api/portfolio/summary" }, "firstStatus": 200 },
+    "L3": { "entries": "none" },
+    "L4": { "entries": { "method": "GET", "path": "/api/assets" }, "statusFacts": { "catalogStatus": "first" } },
+    "L5": { "entries": { "method": "GET", "path": "/api/presence/demo" }, "countFact": "presenceRequestsSinceOpen", "statusFacts": { "presenceStatus": "first" } },
+    "L6": { "entries": { "method": "GET", "path": "/api/market/prices" }, "countFact": "priceRequestsAfterUncheck", "allStatus": 200 },
+    "L7": { "entries": "none" },
+    "L8": { "entries": { "method": "PUT", "path": "/api/portfolio/holdings" }, "countFact": "putCount", "statusFacts": { "putStatus": "first" } },
+    "L9": { "entries": { "method": "PUT", "path": "/api/portfolio/demo-reset" }, "countFact": "putCount", "statusFacts": { "putStatus": "first" } }
+  },
+  "legFacts": {
+    "L0": {
+      "finalPathIsPortfolio": "boolean",
+      "headingPortfolio": "boolean",
+      "redirectedToLogin": "boolean",
+      "unauthorized401Seen": "boolean"
+    },
+    "L1": {
+      "editButtonVisible": "boolean",
+      "resetButtonVisible": "boolean",
+      "portfolioLoadStatus": "integer",
+      "resetEnabled": "boolean"
+    },
+    "L2": {
+      "freshnessState": "freshnessState",
+      "countsValid": "boolean",
+      "stripVisible": "boolean"
+    },
+    "L3": {
+      "dialogOpen": "boolean",
+      "unavailableNoticeVisible": "boolean"
+    },
+    "L4": {
+      "catalogStatus": "integer",
+      "noIfNoneMatch": "boolean",
+      "etagPresent": "boolean",
+      "assetsNonEmpty": "boolean",
+      "rowsRendered": "boolean",
+      "catalogParity": "boolean",
+      "activeCount": "integer"
+    },
+    "L5": {
+      "presenceRequestsSinceOpen": "integer",
+      "presenceStatus": "integer",
+      "anotherSessionActive": "boolean|null",
+      "requestFailed": "boolean",
+      "corsConsoleError": "boolean"
+    },
+    "L6": {
+      "priceRequestsAfterUncheck": "integer",
+      "allStatus200": "boolean",
+      "arrayShaped": "boolean",
+      "nonNullPriceSeen": "boolean",
+      "disjointFromPageBatches": "boolean",
+      "predictedBatchCount": "integer"
+    },
+    "L7": {
+      "pageWriteRequestsBeforeMutation": "integer"
+    },
+    "L8": {
+      "putCount": "integer",
+      "putStatus": "integer",
+      "expectedVersionMatchesObserved": "boolean",
+      "bodyMatchesExpectedDraft": "boolean",
+      "versionAdvanced": "boolean",
+      "savedStatusVisible": "boolean",
+      "independentReadVersionMatches": "boolean",
+      "independentReadHoldingsMatch": "boolean",
+      "mutationSkippedReason": "mutationSkippedReason"
+    },
+    "L9": {
+      "putCount": "integer",
+      "putStatus": "integer",
+      "noInternalKeyHeader": "boolean",
+      "expectedVersionMatchesSaved": "boolean",
+      "versionPlusOne": "boolean",
+      "responseEqualsGolden": "boolean",
+      "resetStatusVisible": "boolean",
+      "independentReadEqualsGolden": "boolean",
+      "mutationSkippedReason": "mutationSkippedReason"
+    }
+  }
+}
