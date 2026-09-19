@@ -280,9 +280,13 @@ persistence rather than a store of its own.
    actual dependency is Waves 1-6 built and runnable, not production-deployed). Wave 8 remains
    unconditional at Wave 10 (production exposure), independent of this track.
 4. **Production exposure** — blocked on all of the above plus B1/Spec A's own activation gates and
-   the five open product/config/dependency items enumerated in this header. `updatedAt` and
-   `assetPriceFreshness` are not among them: Task 8.1 owns `updatedAt`, and Spec A task 8.6
-   delivered `assetPriceFreshness`.
+   the five open product/config/dependency items enumerated in this header. Track 3's part of that
+   exposure gate is Wave 10.2 item 5a (Wave 9 source and disposable-stack completion,
+   `docker-build-verify` at the dispatched SHA, and the accepted 5b verifier). Wave 9's production
+   browser proof is not a precondition of exposure: it is Wave 10.2's Step B exit criterion 5b, which
+   gates Wave 10.2 completion, not the decision to expose.
+   `updatedAt` and `assetPriceFreshness` are not among the open items: Task 8.1 owns `updatedAt`,
+   and Spec A task 8.6 delivered `assetPriceFreshness`.
 
 Stack: same as the rest of the monorepo — **Java 21 / Spring Boot 4.1** (api-gateway, WebFlux;
 portfolio-service, Spring MVC), **Next.js/TypeScript** frontend, Redis (presence only), JUnit 5 +
@@ -4385,8 +4389,8 @@ Fable accepted documentation head `fab158cb`; PR #278 merged at `main@6e046741`;
   `2026-09-18T13:36:58Z`; all nine Step A operations returned HTTP 200 and mandatory cleanup
   succeeded. The sanitized integrity record is
   [`WAVE9_STEP_A_ATTEMPT3_GATE_CREDIT_GO_2026-09-18.md`](../../../docs/evidence/b2-wave-9/WAVE9_STEP_A_ATTEMPT3_GATE_CREDIT_GO_2026-09-18.md).
-  This does **not** mark 10.2 complete, resolve condition 5, authorize Step B, or enable either
-  production flag.
+  This does **not** mark 10.2 complete, satisfy condition 5 (5a or 5b), authorize Step B, or enable
+  either production flag.
   **Go, all of:**
   1. B1/Spec A's own activation gates (B1's R-C and everything R-C depends on).
   2. B1 task 4.9 decimal fidelity confirmed live, plus Task 2.7's independently ACCEPTed historical
@@ -4443,7 +4447,17 @@ Fable accepted documentation head `fab158cb`; PR #278 merged at `main@6e046741`;
      distribution's) invalidates that manifest —
      8.9 SHALL be rerun (under the real threshold, no override) against the currently-serving
      deployment before this item is satisfied again.
-  5. Wave 9 (Live integration) actually completed, not merely unblocked.
+  5. Wave 9 (Live integration) actually completed, not merely unblocked — split in two (owner approval
+     2026-09-19: final review and PR preparation only; no production action) because production browser
+     proof of Wave 9 can exist only after Step B ships the flag-bearing frontend, so it cannot also
+     precede the action that produces it; see the
+     [decision record](../../../docs/evidence/b2-wave-10-2/WAVE_10_2_CONDITION_5_DECISION_2026-09-19.md).
+     **5a — Go precondition:** Tasks 9.1–9.9 are `[x]`; `docker-build-verify` concluded success (not
+     skipped) in the push-to-main CI run for the exact SHA the Step B dispatch names as
+     `expected_main_sha` (record the run ID); and the 5b verifier is merged and independently
+     ACCEPTed. This is source and disposable-stack evidence, not Production E2E. Wave 9's production
+     browser proof is Step B exit criterion 5b, defined once under Step B below; it is not a
+     precondition in this list. Step A is API-only and is credited to neither.
   6. The page-level manual-reset placement approved on 2026-09-06 remains the implemented control.
      The presence TTL is settled at 150 seconds; the 30-minute idle threshold and the
      45s/10s/60s self-call timeouts (2026-09-09, superseding 2s/2s/4s) are covered by item 4 above,
@@ -4516,12 +4530,30 @@ Fable accepted documentation head `fab158cb`; PR #278 merged at `main@6e046741`;
     frontend* specifically, not re-proving the conflict branch live). This is the one point in this
     document that verifies the deployed frontend, not just the API behind it — Task 9.8 covers the
     same UI-through-real-backend exercise in CI/docker-compose, this is its live-cloud counterpart.
+    **Step B exit criterion 5b — Wave 9 Production E2E (owner approval 2026-09-19: final review and PR
+    preparation only; no production action; the verifier's contract is owned by its
+    [spec](../../../docs/superpowers/plans/2026-09-18-wave10-2-step-b-5b-verifier-spec.md) and is not
+    restated here).** Wave 10.2 SHALL NOT be checked until ONE run of the accepted, owner-operated
+    verifier — started after the flag-bearing deploy completed, bound in its artifact to the served
+    frontend revision and the serving `api-gateway` / `portfolio-service` revisions — records every
+    item below passed AND independent cleanup confirmed to the golden set. It subsumes the smoke test
+    above. In a fresh uncached browser as the seeded demo account, read-only legs first (mutate only
+    if they pass): both controls render and Edit Holdings opens; 9.5 freshness from a `200` summary;
+    9.1 catalog `GET` `200`; 9.4 presence `GET` `200`; 9.3 the picker's own draft-price `GET` `200`;
+    then 9.2 save (`PUT` `200`, strictly advanced `version`, persisted holdings equal the edited draft
+    via an independent read) and reset from that non-golden state (`200`, golden set). The artifact
+    states each route's evidence level (production-browser / production-API-only / CI-only) and
+    claims no more. A failed item, a verifier that cannot start or finish, no complete artifact
+    within the time bound named in the owner's Step B authorization, an artifact bound to another
+    build, or unconfirmed cleanup is a Step B failure: Abort/rollback applies unchanged. A pass on an
+    earlier deploy never counts; any redeploy or flag change after a pass voids it. Step A is not
+    credited.
   **Abort/rollback — differentiated by which step failed (round-6 correction: a single rollback
   description conflated two different situations), and not considered complete until verified
   (round-9 addition — a triggered rollback build is not the same fact as a finished, served
   rollback):** if **Step A** fails, abort with **no rollback deployment** — neither flag has moved
   yet, so there is nothing to undo, only something to fix before retrying Step A. If **Step B**'s
-  smoke test fails (or the decision is otherwise reversed after Step B), set both repository-scoped
+  smoke test or exit criterion 5b fails (or the decision is otherwise reversed after Step B), set both repository-scoped
   variables back to `false` (not unset, so an organization-level variable cannot become the effective
   value) and trigger **another** frontend build and deploy — rollback is itself a
   build-and-deploy action here, never instant, since both flags' values are compiled into whichever

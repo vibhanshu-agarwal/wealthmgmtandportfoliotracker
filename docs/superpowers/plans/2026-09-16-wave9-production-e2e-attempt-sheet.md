@@ -16,6 +16,19 @@
 > has completed. No prior authorization supplies authority for another live
 > attempt, Step B, a deployment, or flag exposure.
 
+> **Owner approval — 2026-09-19 (Wave 10.2 condition 5; scope: final review and
+> PR preparation only; no production action).** The open owner/spec question in
+> "Scope and gate claims" below is answered by the amendment this approval
+> covers: condition 5 is split into 5a (Go precondition) and 5b (Step B exit
+> criterion: Wave 9's real-browser Production E2E); the normative text is
+> `tasks.md` 10.2, condition 5 and the Step B block. Step A stays API-only and
+> is credited to neither part; Wave 10.2 stays unchecked until 5b passes. The
+> history below is unchanged. See the
+> [decision record](../../evidence/b2-wave-10-2/WAVE_10_2_CONDITION_5_DECISION_2026-09-19.md).
+> The `tasks.md` line numbers cited in this sheet (4382-4438, 4445-4453,
+> 4491-4492) predate the 2026-09-18 status insertion and this amendment; cite
+> `tasks.md` 10.2 by label.
+
 > **Rev 12 — 2026-09-17:** Clarify authorization-deadline terminology and
 > evidence eligibility. Changes are prospective; attempt 1 is not reclassified.
 > - "latest-abort UTC" → "latest permitted attempt-start UTC" throughout. The
@@ -216,6 +229,10 @@ decide whether (a) the backend-route proof (Step A) is accepted as satisfying
 condition 5, (b) condition 5 is deferred to after Step B, or (c) another
 interpretation applies. The evidence directory uses the `b2-wave-9/` lane
 label and does not claim condition 5 satisfied.
+
+> *Approved 2026-09-19 (final review and PR preparation only; no production
+> action):* the owner approved the 5a/5b split rather than (a) or (b) as stated;
+> see the owner-approval banner at the top of this sheet and the decision record.
 
 **What Step A proves (independently of this question):**
 The public backend API routes (`PUT /api/portfolio/holdings` and
@@ -661,6 +678,11 @@ No secret values, JWT-like patterns, `Authorization` header values, or
 | Final serving comparison shows drift from Phase 1 | **STOP** as `NON_GO`; do not claim Step A complete |
 | All conditions pass, probe-1 `started-utc` is before the latest permitted attempt-start UTC (evidenced by the probe-1 `started-utc=...` fingerprint line in the operator transcript), and independent review accepts the packet | Wave 10.2 Go-action Step A complete; condition-5 gate effect is a separate owner decision; Wave 10.2 remains closed; Step B is a separately owner-gated decision |
 
+> *Approved 2026-09-19 (final review and PR preparation only; no production action):* the last row's
+> condition-5 gate effect is resolved by the amendment — condition 5 is split into 5a and 5b, Step A is
+> credited to neither, Wave 10.2 remains unchecked, and production exposure remains blocked. See the
+> owner-approval banner at the top of this sheet and the decision record.
+
 ---
 
 ## What this attempt does NOT authorize
@@ -687,6 +709,11 @@ smoke. If the Step B smoke fails, rollback is both
 flags back to `false` (explicitly `false`, not unset — so an organization-level
 variable cannot become the effective value), another complete frontend
 build/deploy, and fresh uncached browser proof that both controls are absent.
+
+> *Note (2026-09-19):* Step B's real-browser exit criterion 5b and the
+> deploy-path constraint (the only frontend deploy path is a full-mode deploy
+> that rebuilds the backend revisions this section binds Step A to) are recorded
+> in the decision record. This section is unchanged history.
 
 ---
 
@@ -790,3 +817,6 @@ build/deploy, and fresh uncached browser proof that both controls are absent.
 - [ ] Independent technical review of evidence packet requested and accepted
 - [ ] Status report: Step A outcome, condition-5 question surfaced to owner,
       documentation, PR, merge, and Step B each recorded as separate decisions
+      (2026-09-19: the owner approved the condition-5 amendment for final review and PR
+      preparation only, with no production action; see the decision record. PR, merge, and
+      Step B remain separate owner decisions.)
