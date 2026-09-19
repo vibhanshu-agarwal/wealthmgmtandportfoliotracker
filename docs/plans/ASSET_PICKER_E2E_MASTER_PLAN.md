@@ -1,10 +1,11 @@
 # Asset Picker — E2E Master Plan to Production
 
-**Last verified:** 2026-09-19 at `main@2bec6ac0a3e6b264763d5ffb2d5d7c504ee0c259` (PR #290) for the Wave 9
-Step A Attempt 3 gate-credit status and the Wave 10.2 condition-5 amendment text (the Wave 9 and Wave 10
-track rows and the B2 status, dependency-path and position paragraphs); since the runtime/program-state
-code baseline below, `main` changed only documentation, tooling and test-support files (`scripts/`,
-`frontend/tests/e2e/helpers/`, `.gitattributes`, `LICENSE`), so that baseline is not advanced by this check;
+**Last verified:** 2026-09-19 at `main@9a01846f51807dd50917669d8891f435befca88b` (PR #292) for the merged
+Wave 10.2 Step B 5b verifier's independent-acceptance record and its successful post-merge CI run
+`35416813684`; the prior Wave 9 Step A Attempt 3 gate-credit status and the Wave 10.2 condition-5 amendment
+text remain recorded. Since the runtime/program-state code baseline below, `main` changed only documentation,
+tooling and test-support files (`scripts/`, `frontend/tests/e2e/helpers/`, `.gitattributes`, `LICENSE`), so that
+baseline is not advanced by this check;
 2026-09-15 against runtime/program-state code baseline
 `main@1f922a89643f5bb406dcdf471e8dc07a229960d6` for B2 Task 8.9's owner-authorized Decision 2
 Production proof: the raw execute returned Class 2b because Windows `az.cmd` truncated multiline
@@ -916,10 +917,12 @@ becomes item 5a (source and disposable-stack completion, including the accepted 
 precondition, plus Wave 9's real-browser Production E2E as Step B exit criterion 5b, with Wave 10.2
 unchecked until it passes; Step A is credited to neither part
 ([decision record](../evidence/b2-wave-10-2/WAVE_10_2_CONDITION_5_DECISION_2026-09-19.md)). Step B
-stays unauthorized and is additionally blocked on the 5b verifier and on a still-open deploy-path
-decision (the only frontend deploy path is a full-mode deploy that rebuilds all four backend services
-and would supersede the revisions Step A and Task 8.9 attest; inferred from the workflow text, not
-observed). Task 2.6
+stays unauthorized and is additionally blocked on a still-open deploy-path decision (the only frontend
+deploy path is a full-mode deploy that rebuilds all four backend services and would supersede the revisions
+Step A and Task 8.9 attest; inferred from the workflow text, not observed). The merged 5b verifier's
+[independent-acceptance attestation](../evidence/b2-wave-10-2/WAVE_10_2_STEP_B_5B_VERIFIER_INDEPENDENT_ACCEPTANCE_2026-09-19.md)
+records the current-source review and CI result only; condition 5a must still bind a non-skipped
+`docker-build-verify` run to the future Step B dispatch's exact `expected_main_sha`. Task 2.6
 and the remaining Wave 10.2 gates remain open; both production feature flags remain disabled. The owner-deferred
 [sidebar issue](../todos/backlog/responsive-dashboard-sidebar/README.md) remains separate.
 
