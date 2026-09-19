@@ -4457,7 +4457,10 @@ Fable accepted documentation head `fab158cb`; PR #278 merged at `main@6e046741`;
      `expected_main_sha` (record the run ID); and the 5b verifier is merged and independently
      ACCEPTed. This is source and disposable-stack evidence, not Production E2E. Wave 9's production
      browser proof is Step B exit criterion 5b, defined once under Step B below; it is not a
-     precondition in this list. Step A is API-only and is credited to neither.
+     precondition in this list. The current verifier acceptance and CI evidence are filed in the
+     [2026-09-19 attestation](../../../docs/evidence/b2-wave-10-2/WAVE_10_2_STEP_B_5B_VERIFIER_INDEPENDENT_ACCEPTANCE_2026-09-19.md);
+     they do not assert the required future `expected_main_sha` binding. Step A is API-only and is
+     credited to neither.
   6. The page-level manual-reset placement approved on 2026-09-06 remains the implemented control.
      The presence TTL is settled at 150 seconds; the 30-minute idle threshold and the
      45s/10s/60s self-call timeouts (2026-09-09, superseding 2s/2s/4s) are covered by item 4 above,
