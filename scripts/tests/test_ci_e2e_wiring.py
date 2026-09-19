@@ -17,6 +17,7 @@ REPO = Path(__file__).resolve().parents[2]
 CI_WORKFLOW = REPO / ".github" / "workflows" / "ci-verification.yml"
 DISABLED_E2E_WORKFLOW = REPO / ".github" / "workflows" / "frontend-e2e-integration.yml"
 DEPLOY_AZURE = REPO / ".github" / "workflows" / "deploy-azure.yml"
+DEPLOY_AZURE_FRONTEND = REPO / ".github" / "workflows" / "deploy-azure-frontend.yml"
 V15 = REPO / "portfolio-service" / "src" / "main" / "resources" / "db" / "migration" / "V15__Reconcile_Auth_Seed_Users.sql"
 DEMO_AUTH = REPO / "frontend" / "tests" / "e2e" / "helpers" / "demo-auth.ts"
 
@@ -171,7 +172,83 @@ def _run_body(step: str) -> str:
     return "".join(body)
 
 
-class TestCiE2eWiring(unittest.TestCase):
+class _FlagWiringContract:
+    """The B2 Task 10.1 flag-wiring contract, shared by every workflow that builds the
+    Azure static export.
+
+    Subclasses provide ``azure_build_step``: the named ``Build Next.js static export``
+    step of the workflow under test.
+    """
+
+    azure_build_step: str
+
+    def test_azure_static_export_build_maps_both_flags_from_repository_variables(self) -> None:
+        azure_env = _env_mapping(self.azure_build_step, 8)
+        for name, expression in REQUIRED_AZURE_BUILD_ENV.items():
+            self.assertEqual(
+                expression,
+                _env_expression(azure_env, name, key_indent=10),
+                f"{name} must be built from its repository variable inside the named "
+                "static-export build step",
+            )
+
+    def test_exactly_one_static_export_build_step_owns_the_flag_mappings(self) -> None:
+        # _named_block returns the FIRST match, so a decoy step with the same name
+        # could shadow the real one and leave the guard inspecting the wrong block.
+        headings = re.findall(
+            r"(?m)^      - name: Build Next\.js static export\s*$",
+            self.deploy_frontend_job,
+        )
+        self.assertEqual(
+            1, len(headings), "exactly one named static-export build step must exist"
+        )
+        self.assertIn("run: npm run build", self.azure_build_step)
+
+    def test_flag_wiring_cannot_be_satisfied_by_a_literal_secret_or_default(self) -> None:
+        original = self.azure_build_step
+        rejected = (
+            ("${{ vars.ENABLE_ASSET_PICKER }}", '"true"'),
+            ("${{ vars.ENABLE_ASSET_PICKER }}", "${{ secrets.ENABLE_ASSET_PICKER }}"),
+            (
+                "${{ vars.ENABLE_ASSET_PICKER }}",
+                "${{ vars.ENABLE_ASSET_PICKER || 'true' }}",
+            ),
+            ("NEXT_PUBLIC_ENABLE_ASSET_PICKER", "NEXT_PUBLIC_ASSET_PICKER"),
+            # A second expression concatenated onto the same line: with the variable
+            # unset this expands to "true" and enables the flag.
+            (
+                "${{ vars.ENABLE_ASSET_PICKER }}",
+                "${{ vars.ENABLE_ASSET_PICKER }}${{ 'true' }}",
+            ),
+            # The same attack spread over a YAML plain-scalar continuation line. YAML
+            # folds it to "<var> ${{ 'true' }}", which expands to " true" while the
+            # variable is unset -- and parseFeatureFlag trims before comparing.
+            (
+                "NEXT_PUBLIC_ENABLE_ASSET_PICKER: ${{ vars.ENABLE_ASSET_PICKER }}\n",
+                "NEXT_PUBLIC_ENABLE_ASSET_PICKER: ${{ vars.ENABLE_ASSET_PICKER }}\n"
+                "            ${{ 'true' }}\n",
+            ),
+        )
+        try:
+            for old, new in rejected:
+                self.azure_build_step = original.replace(old, new)
+                with self.assertRaises(AssertionError):
+                    self.test_azure_static_export_build_maps_both_flags_from_repository_variables()
+
+            # A mapping that is absent from the build step -- commented out, or moved to
+            # the job level or an upload step -- must fail closed, not pass by proximity.
+            self.azure_build_step = "\n".join(
+                line
+                for line in original.splitlines()
+                if "ENABLE_ASSET_PICKER" not in line
+            )
+            with self.assertRaises(AssertionError):
+                self.test_azure_static_export_build_maps_both_flags_from_repository_variables()
+        finally:
+            self.azure_build_step = original
+
+
+class TestCiE2eWiring(_FlagWiringContract, unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.ci = CI_WORKFLOW.read_text(encoding="utf-8")
@@ -324,70 +401,23 @@ class TestCiE2eWiring(unittest.TestCase):
         self.assertIn("throw new Error", credentials_fn)
         self.assertNotIn(".env.local", self.demo_auth)
 
-    def test_azure_static_export_build_maps_both_flags_from_repository_variables(self) -> None:
-        azure_env = _env_mapping(self.azure_build_step, 8)
-        for name, expression in REQUIRED_AZURE_BUILD_ENV.items():
-            self.assertEqual(
-                expression,
-                _env_expression(azure_env, name, key_indent=10),
-                f"{name} must be built from its repository variable inside the named "
-                "static-export build step",
-            )
 
-    def test_exactly_one_static_export_build_step_owns_the_flag_mappings(self) -> None:
-        # _named_block returns the FIRST match, so a decoy step with the same name
-        # could shadow the real one and leave the guard inspecting the wrong block.
-        headings = re.findall(
-            r"(?m)^      - name: Build Next\.js static export\s*$",
-            self.deploy_frontend_job,
-        )
-        self.assertEqual(
-            1, len(headings), "exactly one named static-export build step must exist"
-        )
-        self.assertIn("run: npm run build", self.azure_build_step)
+class TestFrontendOnlyFlagWiring(_FlagWiringContract, unittest.TestCase):
+    """Wave 10.2 Step B: the frontend-only workflow's build owns the same flag mappings.
 
-    def test_flag_wiring_cannot_be_satisfied_by_a_literal_secret_or_default(self) -> None:
-        original = self.azure_build_step
-        rejected = (
-            ("${{ vars.ENABLE_ASSET_PICKER }}", '"true"'),
-            ("${{ vars.ENABLE_ASSET_PICKER }}", "${{ secrets.ENABLE_ASSET_PICKER }}"),
-            (
-                "${{ vars.ENABLE_ASSET_PICKER }}",
-                "${{ vars.ENABLE_ASSET_PICKER || 'true' }}",
-            ),
-            ("NEXT_PUBLIC_ENABLE_ASSET_PICKER", "NEXT_PUBLIC_ASSET_PICKER"),
-            # A second expression concatenated onto the same line: with the variable
-            # unset this expands to "true" and enables the flag.
-            (
-                "${{ vars.ENABLE_ASSET_PICKER }}",
-                "${{ vars.ENABLE_ASSET_PICKER }}${{ 'true' }}",
-            ),
-            # The same attack spread over a YAML plain-scalar continuation line. YAML
-            # folds it to "<var> ${{ 'true' }}", which expands to " true" while the
-            # variable is unset -- and parseFeatureFlag trims before comparing.
-            (
-                "NEXT_PUBLIC_ENABLE_ASSET_PICKER: ${{ vars.ENABLE_ASSET_PICKER }}\n",
-                "NEXT_PUBLIC_ENABLE_ASSET_PICKER: ${{ vars.ENABLE_ASSET_PICKER }}\n"
-                "            ${{ 'true' }}\n",
-            ),
-        )
-        try:
-            for old, new in rejected:
-                self.azure_build_step = original.replace(old, new)
-                with self.assertRaises(AssertionError):
-                    self.test_azure_static_export_build_maps_both_flags_from_repository_variables()
+    Step B exposes the controls through this build, so it is held to the same guard as
+    deploy-azure.yml's ``deploy-frontend``. The demo-credential literals are pinned to
+    deploy-azure.yml's by test_deploy_frontend_only_mode.py, which compares the two build
+    steps line for line.
+    """
 
-            # A mapping that is absent from the build step -- commented out, or moved to
-            # the job level or an upload step -- must fail closed, not pass by proximity.
-            self.azure_build_step = "\n".join(
-                line
-                for line in original.splitlines()
-                if "ENABLE_ASSET_PICKER" not in line
-            )
-            with self.assertRaises(AssertionError):
-                self.test_azure_static_export_build_maps_both_flags_from_repository_variables()
-        finally:
-            self.azure_build_step = original
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.workflow = DEPLOY_AZURE_FRONTEND.read_text(encoding="utf-8")
+        cls.deploy_frontend_job = _job(cls.workflow, "deploy-frontend")
+        cls.azure_build_step = _named_block(
+            cls.deploy_frontend_job, "Build Next.js static export", 6
+        )
 
 
 if __name__ == "__main__":

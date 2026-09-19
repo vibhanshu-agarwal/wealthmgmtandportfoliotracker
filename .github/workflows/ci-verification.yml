@@ -108,6 +108,12 @@ jobs:
         # merge. deploy-workflow-contract is advisory and would not enforce this.
         run: python scripts/tests/test_classify_changed_paths.py -v
 
+      - name: Wave 10.2 frontend-only deploy mode contract tests
+        # Required for the same reason: this pins the routing that stops a frontend-only
+        # dispatch from being run as a full deploy (which would replace the attested
+        # Container App revisions) and the no-backend-write shape of the new workflow.
+        run: python scripts/tests/test_deploy_frontend_only_mode.py -v
+
   task-8-9-powershell-tests:
     runs-on: windows-latest
     needs: unit-tests
@@ -168,7 +174,7 @@ jobs:
         # this PR doesn't touch. Confirmed locally that disabling it does not suppress
         # the schema check itself — re-verify with a deliberately reintroduced bug before
         # changing this flag.
-        run: ./actionlint -shellcheck= .github/workflows/deploy.yml .github/workflows/deploy-azure.yml .github/workflows/deploy-aws.yml .github/workflows/ci-verification.yml .github/workflows/terraform-azure.yml .github/workflows/master-plan-status-propagation.yml .github/workflows/synthetic-monitoring.yml
+        run: ./actionlint -shellcheck= .github/workflows/deploy.yml .github/workflows/deploy-azure.yml .github/workflows/deploy-azure-frontend.yml .github/workflows/deploy-aws.yml .github/workflows/ci-verification.yml .github/workflows/terraform-azure.yml .github/workflows/master-plan-status-propagation.yml .github/workflows/synthetic-monitoring.yml
 
   sanitizer-canary:
     runs-on: ubuntu-latest
