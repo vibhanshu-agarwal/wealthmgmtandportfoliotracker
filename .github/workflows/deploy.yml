@@ -9,23 +9,30 @@
 # Terraform-applied config change first. See
 # .kiro/specs/supported-asset-integrity/tasks.md checkpoint 9.8 for the incident record.
 # Every production deploy now requires a deliberate, validated dispatch:
-#   - deployment_mode must be explicitly chosen (full/scoped/digest) and must agree with
-#     the services/prebuilt_digest inputs — no empty-input-means-full-deploy inference.
-#     The first/default choice is a sentinel ("select-deployment-mode") that fails
-#     validation, so accepting the pre-filled dropdown without touching it cannot
+#   - deployment_mode must be explicitly chosen (full/scoped/digest/frontend-only) and must
+#     agree with the services/prebuilt_digest inputs — no empty-input-means-full-deploy
+#     inference. The first/default choice is a sentinel ("select-deployment-mode") that
+#     fails validation, so accepting the pre-filled dropdown without touching it cannot
 #     silently mean "full".
+#   - frontend-only (Wave 10.2 Step B) rebuilds and uploads the static frontend and writes
+#     to no Container App, image or infrastructure. It routes to deploy-azure-frontend.yml,
+#     never to deploy-azure.yml, where an empty `services` input means "full deploy".
+#     Every cloud-calling job below therefore gates on a positive allowlist of the modes
+#     it handles: a mode with no route of its own runs nothing instead of falling through
+#     to a full deploy.
 #   - expected_main_sha must match the commit actually being dispatched, AND the
 #     dispatch ref must be exactly refs/heads/main — a caller-selected branch/tag whose
 #     tip happens to match a given SHA is rejected, not just an SHA mismatch.
 #   - AWS does not yet support scoped/digest selection (deploy-aws.yml has no inputs to
 #     receive them) — deployment_mode must be "full" whenever CLOUD_PROVIDER=aws.
-#   - deploy-azure.yml/deploy-aws.yml are workflow_call-only (see those files) — this is
-#     their only entry point, so the guards below cover every path to production.
+#   - deploy-azure.yml/deploy-aws.yml/deploy-azure-frontend.yml are workflow_call-only (see
+#     those files) — this is their only entry point, so the guards below cover every path
+#     to production.
 #   - The `production` GitHub Environment gates the actual mutation behind a required
 #     reviewer approval (Settings → Environments → production). A job calling a reusable
 #     workflow with `uses:` cannot itself declare `environment:` (not a supported
 #     keyword — verified with actionlint, not assumed), so the gate lives on a separate
-#     `authorize-production` job that routing and both cloud jobs transitively depend on.
+#     `authorize-production` job that routing and every cloud job transitively depend on.
 #   - A non-cancelling concurrency group prevents two deploys from overlapping.
 #
 # Set the repo variable CLOUD_PROVIDER to "azure" or "aws" in:
@@ -45,6 +52,7 @@ on:
           - full
           - scoped
           - digest
+          - frontend-only
       expected_main_sha:
         description: >
           The full commit SHA on main you intend to deploy. Must match the SHA this
@@ -56,8 +64,9 @@ on:
         description: >
           Comma-separated backend services (api-gateway, portfolio-service,
           market-data-service, insight-service). Required (non-empty) for
-          deployment_mode=scoped; must be empty for deployment_mode=full; must be empty
-          or exactly "portfolio-service" for deployment_mode=digest.
+          deployment_mode=scoped; must be empty for deployment_mode=full and
+          deployment_mode=frontend-only; must be empty or exactly "portfolio-service" for
+          deployment_mode=digest.
         required: false
         type: string
         default: ""
@@ -65,7 +74,7 @@ on:
         description: >
           Required for deployment_mode=digest, exactly
           wealthprodacr.azurecr.io/portfolio-service@sha256:<64 hex>. Must be empty for
-          full/scoped.
+          full/scoped/frontend-only.
         required: false
         type: string
         default: ""
@@ -147,25 +156,49 @@ jobs:
           echo "Cloud provider: ${PROVIDER}"
 
       - name: Log routing decision
+        env:
+          MODE: ${{ inputs.deployment_mode }}
         run: |
           PROVIDER="${{ steps.check.outputs.provider }}"
-          if [ "$PROVIDER" = "azure" ]; then
+          if [ "$PROVIDER" = "azure" ] && [ "$MODE" = "frontend-only" ]; then
+            echo "::notice::Routing to deploy-azure-frontend.yml (deployment_mode=frontend-only: static frontend only, no Container App writes). deploy-azure.yml and deploy-aws.yml will NOT run."
+          elif [ "$PROVIDER" = "azure" ]; then
             echo "::notice::Routing to deploy-azure.yml. deploy-aws.yml will NOT run (CLOUD_PROVIDER=${PROVIDER})."
           elif [ "$PROVIDER" = "aws" ]; then
             echo "::notice::Routing to deploy-aws.yml. deploy-azure.yml will NOT run (CLOUD_PROVIDER=${PROVIDER})."
           fi
 
+  # Positive allowlist of modes, not just the provider: deploy-azure.yml receives only
+  # `services` and `prebuilt_digest`, and treats an empty `services` as a full deploy, so any
+  # mode without its own route (frontend-only, or one added later) must not reach it.
+  # scripts/tests/test_deploy_frontend_only_mode.py evaluates these conditions for every
+  # valid mode and requires exactly one job to run.
   deploy-azure:
     needs: route
-    if: needs.route.outputs.provider == 'azure'
+    if: needs.route.outputs.provider == 'azure' && (inputs.deployment_mode == 'full' || inputs.deployment_mode == 'scoped' || inputs.deployment_mode == 'digest')
     uses: ./.github/workflows/deploy-azure.yml
     with:
       services: ${{ inputs.services }}
       prebuilt_digest: ${{ inputs.prebuilt_digest }}
     secrets: inherit
 
+  # Wave 10.2 Step B. No `with:` on purpose: this path takes no backend selection, and the
+  # validator rejects any services/prebuilt_digest input for it. No `secrets: inherit`
+  # either: the new workflow declares exactly these four secrets under
+  # on.workflow_call.secrets, so it cannot see any other repository secret (E2E users, the
+  # internal API key, Terraform variables).
+  deploy-azure-frontend-only:
+    needs: route
+    if: needs.route.outputs.provider == 'azure' && inputs.deployment_mode == 'frontend-only'
+    uses: ./.github/workflows/deploy-azure-frontend.yml
+    secrets:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      SWA_DEPLOYMENT_TOKEN: ${{ secrets.SWA_DEPLOYMENT_TOKEN }}
+
   deploy-aws:
     needs: route
-    if: needs.route.outputs.provider == 'aws'
+    if: needs.route.outputs.provider == 'aws' && inputs.deployment_mode == 'full'
     uses: ./.github/workflows/deploy-aws.yml
     secrets: inherit

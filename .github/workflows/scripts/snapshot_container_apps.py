@@ -5,6 +5,11 @@ Captures revision name, image reference and ingress traffic for each backend
 app, plus the market-data-refresh-job image. Unselected targets must be
 byte-identical before and after a scoped deploy; selected targets must be
 updated to the committing SHA.
+
+A frontend-only deploy (Wave 10.2 Step B) selects no backend at all, so every target is
+unselected: ``snapshot --require-complete`` refuses a before-snapshot that does not
+positively describe all five targets, and ``assert-unchanged`` requires all five to be
+byte-identical afterwards. Both only ever issue ``containerapp [job] show`` reads.
 """
 
 from __future__ import annotations
@@ -25,6 +30,7 @@ KNOWN_SERVICES = (
     "insight-service",
 )
 REFRESH_JOB = "market-data-refresh-job"
+ALL_TARGETS = (*KNOWN_SERVICES, REFRESH_JOB)
 DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 
 def _validate_selected(selected: list[str]) -> None:
@@ -164,6 +170,90 @@ def compare(
     return errors
 
 
+def _traffic_problem(traffic: Any) -> str | None:
+    """Why an app's ingress traffic is not positively described, or None if it is.
+
+    Live single-revision apps report ``[{"latestRevision": true, "weight": 100}]`` with no
+    revision name, so an entry may select its revision either way. What is required is a
+    non-empty list of well-formed entries whose weights total exactly 100: anything absent,
+    null, malformed or partial says nothing about where requests are routed.
+    """
+    if not isinstance(traffic, list) or not traffic:
+        return "has no ingress traffic"
+    total = 0
+    for entry in traffic:
+        if not isinstance(entry, dict):
+            return "has a malformed traffic entry"
+        weight = entry.get("weight")
+        if isinstance(weight, bool) or not isinstance(weight, int) or not 0 <= weight <= 100:
+            return "has a traffic entry without an integer weight between 0 and 100"
+        revision = entry.get("revisionName")
+        names_revision = isinstance(revision, str) and bool(revision.strip())
+        if entry.get("latestRevision") is not True and not names_revision:
+            return "has a traffic entry that selects no revision"
+        total += weight
+    if total != 100:
+        return f"has traffic weights totalling {total}, not 100"
+    return None
+
+
+def _unproven_targets(snapshot: Any) -> dict[str, str]:
+    """{target: reason} for every target the snapshot does not positively describe.
+
+    An absent key, a ``missing`` payload (the app or job could not be read), a payload with
+    no image/revision (every field null, e.g. if the ``--query`` shape drifted) or an app
+    whose ingress traffic is not positively described proves nothing. It must not count as
+    "unchanged" merely because both sides are equally blank, which is what
+    ``before.get(name) != after.get(name)`` would conclude.
+    """
+    if not isinstance(snapshot, dict):
+        return {name: "snapshot is not a JSON object" for name in ALL_TARGETS}
+    problems: dict[str, str] = {}
+    for name in ALL_TARGETS:
+        entry = snapshot.get(name)
+        if not isinstance(entry, dict) or not entry:
+            problems[name] = "has no entry"
+        elif entry.get("missing"):
+            problems[name] = f"could not be read: {entry.get('error') or 'unknown error'}"
+        else:
+            # The refresh Job has no ingress and its query returns only its image; the apps
+            # also carry a revision and ingress traffic.
+            is_job = name == REFRESH_JOB
+            required = ("image",) if is_job else ("revision", "image")
+            reasons: list[str] = []
+            blank = [
+                field
+                for field in required
+                if not (isinstance(entry.get(field), str) and entry[field].strip())
+            ]
+            if blank:
+                reasons.append(f"has no usable {' or '.join(blank)}")
+            traffic_problem = None if is_job else _traffic_problem(entry.get("traffic"))
+            if traffic_problem:
+                reasons.append(traffic_problem)
+            if reasons:
+                problems[name] = "; ".join(reasons)
+    return problems
+
+
+def compare_unchanged(before: dict[str, Any], after: dict[str, Any]) -> list[str]:
+    """Every backend app and the refresh job must be byte-identical before and after."""
+    unproven = {"before": _unproven_targets(before), "after": _unproven_targets(after)}
+    errors = [
+        f"{label} snapshot: {name} {reason}"
+        for label, problems in unproven.items()
+        for name, reason in problems.items()
+    ]
+    unreadable = set(unproven["before"]) | set(unproven["after"])
+    for name in ALL_TARGETS:
+        if name not in unreadable and before[name] != after[name]:
+            errors.append(
+                f"{name} changed during a frontend-only deploy: "
+                f"{json.dumps(before[name])} -> {json.dumps(after[name])}"
+            )
+    return errors
+
+
 def aggregate_digests(digest_root: str, selected: list[str], output: str | None) -> dict[str, str]:
     root = os.path.abspath(digest_root)
     selected_set = set(selected)
@@ -256,8 +346,14 @@ def _write_output(name: str, value: str) -> None:
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
-    parser.add_argument("command", choices=("snapshot", "compare", "aggregate-digests", "normalize-artifacts"))
+    parser.add_argument(
+        "command",
+        choices=("snapshot", "compare", "assert-unchanged", "aggregate-digests", "normalize-artifacts"),
+    )
     parser.add_argument("--before", default="")
+    # snapshot only: fail unless all five targets were read. Off by default so scoped
+    # mode's existing snapshot step behaves exactly as before.
+    parser.add_argument("--require-complete", action="store_true")
     parser.add_argument("--selected", default="[]")
     # Empty default on purpose: do not inherit GITHUB_SHA from the environment.
     # Digest mode omits --git-sha; falling back to the commit SHA would let a
@@ -291,9 +387,33 @@ def main() -> int:
 
     if args.command == "snapshot":
         snapshot = capture(resource_group)
-        encoded = json.dumps(snapshot, separators=(",", ":"))
-        _write_output("snapshot", encoded)
         print(json.dumps(snapshot, indent=2))
+        if args.require_complete:
+            unproven = _unproven_targets(snapshot)
+            if unproven:
+                for name, reason in unproven.items():
+                    print(f"::error::snapshot: {name} {reason}", file=sys.stderr)
+                return 1
+        _write_output("snapshot", json.dumps(snapshot, separators=(",", ":")))
+        return 0
+
+    if args.command == "assert-unchanged":
+        try:
+            before_snapshot = json.loads(args.before)
+        except json.JSONDecodeError as exc:
+            print(f"::error::--before is not valid JSON: {exc}", file=sys.stderr)
+            return 1
+        if not isinstance(before_snapshot, dict):
+            print("::error::--before must be a JSON object snapshot", file=sys.stderr)
+            return 1
+        after_snapshot = capture(resource_group)
+        errors = compare_unchanged(before_snapshot, after_snapshot)
+        print(json.dumps({"after": after_snapshot, "errors": errors}, indent=2))
+        if errors:
+            for error in errors:
+                print(f"::error::{error}", file=sys.stderr)
+            return 1
+        print("Non-interference proof passed.")
         return 0
 
     before = json.loads(args.before)

@@ -15,10 +15,13 @@ Four independent guards, all fail-closed:
    required declaration of intent — an inconsistent combination fails fast instead of
    silently doing something other than what was intended. The sentinel default
    ("select-deployment-mode") is not a valid mode, so accepting the pre-filled dropdown
-   without touching it fails closed instead of silently meaning "full".
-4. AWS does not support scoped/digest selection today (deploy-aws.yml has no inputs to
-   receive them) — deployment_mode must be "full" whenever CLOUD_PROVIDER=aws, or a
-   scoped/digest intent would silently be dropped and AWS would do a full deploy anyway.
+   without touching it fails closed instead of silently meaning "full". Every mode in
+   VALID_MODES has its own explicit rule; the chain ends in a fail-closed `else`, so a mode
+   added without a rule cannot validate by falling through. `frontend-only` (Wave 10.2
+   Step B) deploys the static frontend alone and therefore takes neither input.
+4. AWS does not support scoped/digest/frontend-only selection today (deploy-aws.yml has no
+   inputs to receive them) — deployment_mode must be "full" whenever CLOUD_PROVIDER=aws, or
+   a non-full intent would silently be dropped and AWS would do a full deploy anyway.
 
 Downstream (deploy-azure.yml's resolve_deploy_selection.py) still does its own
 empty-means-full parsing of `services` — that contract is unchanged and still exercised
@@ -32,7 +35,7 @@ import os
 import sys
 from dataclasses import dataclass
 
-VALID_MODES = ("full", "scoped", "digest")
+VALID_MODES = ("full", "scoped", "digest", "frontend-only")
 MAIN_REF = "refs/heads/main"
 
 
@@ -116,6 +119,26 @@ def validate(inputs: DispatchInputs) -> None:
                 "deployment_mode=digest requires services to be empty or exactly "
                 f"'portfolio-service'; got {services!r}."
             )
+    elif mode == "frontend-only":
+        if services:
+            raise DispatchValidationError(
+                "deployment_mode=frontend-only requires an empty services input; got "
+                f"{services!r}. The frontend-only path has no backend selection; use "
+                "deployment_mode=scoped to deploy chosen backends."
+            )
+        if digest:
+            raise DispatchValidationError(
+                "deployment_mode=frontend-only requires an empty prebuilt_digest input; got "
+                f"{digest!r}. Use deployment_mode=digest for a prebuilt-digest deploy."
+            )
+    else:
+        # A mode listed in VALID_MODES must have an explicit rule above. Falling out of
+        # this chain would validate the dispatch with no input check at all, and a mode
+        # that reaches deploy-azure.yml with empty `services` is inferred as a full deploy.
+        raise DispatchValidationError(
+            f"deployment_mode={mode!r} is listed as valid but has no input rule in "
+            "validate_deploy_dispatch.py; add one before it can be dispatched."
+        )
 
     if provider == "aws" and mode != "full":
         raise DispatchValidationError(

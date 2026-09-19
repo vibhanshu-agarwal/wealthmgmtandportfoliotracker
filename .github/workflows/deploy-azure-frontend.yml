@@ -1,0 +1,229 @@
+# Azure Frontend-Only Deployment Workflow (Wave 10.2 Step B)
+#
+# Builds the Next.js static export and uploads it to Azure Static Web Apps, and nothing else.
+# It exists because the frontend inlines the B2 Wave 10 exposure flags at build time, so
+# exposing (or hiding) the Asset Picker and the demo-reset control is a frontend build and
+# deploy. Until this workflow existed, the only Azure frontend deploy was deploy-azure.yml's
+# full mode, which also rebuilds all four backends and the refresh Job and so replaces the
+# Container App revisions that the Wave 9 Step A / Task 8.9 production attestations name.
+#
+# What this workflow does NOT do (each is pinned by scripts/tests/test_deploy_frontend_only_mode.py):
+#   - Write to any Container App, the market-data-refresh Job, ACR or any infrastructure. It
+#     has no `az` command, no docker/buildx step and no Terraform. The Azure CLI is reached
+#     only through snapshot_container_apps.py, whose capture issues `containerapp show` and
+#     `containerapp job show` reads.
+#   - Give the job that builds and uploads the frontend an Azure token. That job has no
+#     azure/login and its permissions are `contents: read` only; it authenticates to Static
+#     Web Apps with SWA_DEPLOYMENT_TOKEN alone.
+#   - Seed or verify. Those write to the E2E subject and assert live API behaviour in full
+#     mode and are out of scope here. Nor does it assert that the served build changed: the
+#     Step B 5b verifier owns that (--pre-deploy-build-id).
+#
+# Scripts run as `python3 -I`: isolated mode keeps the script's own directory and PYTHON*
+# variables (PYTHONPATH) off sys.path, so a stdlib-named file dropped beside the scripts cannot
+# be imported in place of the standard library while an Azure session is open.
+#
+# How it shows the backends were untouched: `snapshot-before` records the revision name, image
+# and ingress traffic of all four backend apps and the refresh Job, and refuses to continue if
+# any of the five cannot be read. `assert-backends-unchanged` reads them again once the frontend
+# job has finished, whether or not it succeeded, and fails on any difference. That compares this
+# run with itself. Whether the revisions now serving are the ones the Task 8.9 / Step A
+# attestations name is a separate owner check, made before dispatch.
+#
+# The exposure flags are read as REPOSITORY variables (vars.ENABLE_ASSET_PICKER and
+# vars.ENABLE_DEMO_RESET_CONTROL). deploy-frontend declares no `environment:`, so a variable
+# defined only on the `production` Environment is not visible to it and would build a
+# flags-off bundle; check_exposure_flags.py reports such a flag as "(unset)". This matches
+# deploy-azure.yml's deploy-frontend.
+#
+# Rollback of an exposure is this same workflow: set both repository variables to `false`
+# (not deleted; see check_exposure_flags.py) and dispatch frontend-only again. That restores
+# flags-off *current main*, not the previous bundle, and it is a build and deploy, not an
+# instant switch.
+#
+# Reached only from deploy.yml (deployment_mode=frontend-only), behind its dispatch
+# validation, the production Environment approval and the production-deploy concurrency group.
+#
+# Secrets: declared explicitly below and mapped by name from deploy.yml, which does NOT use
+# `secrets: inherit` for this path. This workflow therefore cannot see any other repository
+# secret (E2E users, the internal API key, Terraform variables). GITHUB_TOKEN is not a
+# passed secret; it is always available and is used only as the SWA action's repo_token.
+#   AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID — the read-only snapshot jobs
+#     only (azure/login); the frontend job never reads them
+#   SWA_DEPLOYMENT_TOKEN — Azure Static Web Apps deployment token, frontend job only
+
+on:
+  workflow_call:
+    secrets:
+      AZURE_CLIENT_ID:
+        required: true
+      AZURE_TENANT_ID:
+        required: true
+      AZURE_SUBSCRIPTION_ID:
+        required: true
+      SWA_DEPLOYMENT_TOKEN:
+        required: true
+
+concurrency:
+  group: wealth-production-azure-deploy
+  cancel-in-progress: false
+
+env:
+  AZURE_RG: wealth-azure-prod-rg
+
+permissions:
+  contents: read
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Before-snapshot: read-only. The frontend job cannot start unless all five targets
+  # (four Container Apps and the refresh Job) were read, so the after-check has something
+  # to compare against.
+  # ---------------------------------------------------------------------------
+  snapshot-before:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    outputs:
+      snapshot: ${{ steps.snapshot.outputs.snapshot }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Snapshot Container Apps and refresh Job (read-only)
+        id: snapshot
+        run: python3 -I .github/workflows/scripts/snapshot_container_apps.py snapshot --require-complete
+
+  # ---------------------------------------------------------------------------
+  # Frontend: build the Next.js static export and upload it to Azure Static Web Apps.
+  # No azure/login and no id-token permission: this job holds no Azure token, so it cannot
+  # touch a Container App even by mistake. Every step below the flag report is the same
+  # step deploy-azure.yml's deploy-frontend runs; the contract test compares them line for
+  # line so the two copies cannot drift apart silently.
+  # ---------------------------------------------------------------------------
+  deploy-frontend:
+    runs-on: ubuntu-latest
+    needs: snapshot-before
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Fail before building on anything but unset/true/false: the bundle carries the value
+      # it is built with, and correcting one costs another build and deploy.
+      - name: Report and validate exposure flags
+        env:
+          ENABLE_ASSET_PICKER: ${{ vars.ENABLE_ASSET_PICKER }}
+          ENABLE_DEMO_RESET_CONTROL: ${{ vars.ENABLE_DEMO_RESET_CONTROL }}
+        run: python3 -I .github/workflows/scripts/check_exposure_flags.py
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build Next.js static export
+        working-directory: frontend
+        env:
+          # Identical to deploy-azure.yml's build step (pinned by the contract test).
+          # SOURCE OF TRUTH for the API origin: https://api.vibhanshu-ai-portfolio.dev.
+          NEXT_PUBLIC_API_BASE_URL: https://api.vibhanshu-ai-portfolio.dev
+          NEXT_PUBLIC_DEMO_EMAIL: demo@wealthtracker.dev
+          NEXT_PUBLIC_DEMO_PASSWORD: demo-wealthtracker-2026
+          # B2 Wave 10 exposure controls, from repository *variables* and never a literal,
+          # a secret or a default: an unset variable must expand to the empty string so
+          # `parseFeatureFlag` leaves the control disabled. They belong on this step alone
+          # because `output: "export"` inlines NEXT_PUBLIC_* at build time.
+          NEXT_PUBLIC_ENABLE_ASSET_PICKER: ${{ vars.ENABLE_ASSET_PICKER }}
+          NEXT_PUBLIC_ENABLE_DEMO_RESET_CONTROL: ${{ vars.ENABLE_DEMO_RESET_CONTROL }}
+        run: npm run build
+
+      - name: Deploy to Azure Static Web Apps
+        id: swa_deploy
+        continue-on-error: true
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.SWA_DEPLOYMENT_TOKEN }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          action: "upload"
+          # skip_app_build: true is REQUIRED: without it the SWA action rebuilds from source
+          # in its own container without NEXT_PUBLIC_API_BASE_URL or the exposure flags.
+          app_location: "frontend/out"
+          output_location: ""
+          skip_app_build: true
+          skip_api_build: true
+
+      # Azure SWA Free tier occasionally times out during deployment processing (~600 s
+      # limit): the upload completes and the server-side Succeeded poll stalls. Retry only
+      # when the first attempt reported failure or a timeout.
+      - name: Deploy to Azure Static Web Apps (retry)
+        if: steps.swa_deploy.outcome != 'success'
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.SWA_DEPLOYMENT_TOKEN }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          action: "upload"
+          app_location: "frontend/out"
+          output_location: ""
+          skip_app_build: true
+          skip_api_build: true
+
+  # ---------------------------------------------------------------------------
+  # After-check: always runs once a before-snapshot exists, even when the frontend job
+  # failed, because a failed run is exactly when you need to know whether a backend moved.
+  # GitHub paints a skipped job as a passing check, so the result vector is recorded and
+  # the job fails unless deploy-frontend concluded success. Read-only.
+  # ---------------------------------------------------------------------------
+  assert-backends-unchanged:
+    runs-on: ubuntu-latest
+    needs: [snapshot-before, deploy-frontend]
+    if: always() && needs.snapshot-before.result == 'success'
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Record the result vector and assert every backend is unchanged
+        env:
+          BEFORE: ${{ needs.snapshot-before.outputs.snapshot }}
+          SNAPSHOT_RESULT: ${{ needs.snapshot-before.result }}
+          FRONTEND_RESULT: ${{ needs.deploy-frontend.result }}
+        run: |
+          set -euo pipefail
+          fail=0
+          echo "snapshot-before.result=${SNAPSHOT_RESULT}"
+          echo "deploy-frontend.result=${FRONTEND_RESULT}"
+          if [ "$FRONTEND_RESULT" != "success" ]; then
+            echo "::error::deploy-frontend conclusion was '${FRONTEND_RESULT}', expected 'success'"
+            fail=1
+          fi
+          python3 -I .github/workflows/scripts/snapshot_container_apps.py assert-unchanged \
+            --before "$BEFORE" || fail=1
+          exit "$fail"
