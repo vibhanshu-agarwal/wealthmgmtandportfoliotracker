@@ -1,6 +1,11 @@
 # Asset Picker — E2E Master Plan to Production
 
-**Last verified:** 2026-09-15 against runtime/program-state code baseline
+**Last verified:** 2026-09-19 at `main@2bec6ac0a3e6b264763d5ffb2d5d7c504ee0c259` (PR #290) for the Wave 9
+Step A Attempt 3 gate-credit status and the Wave 10.2 condition-5 amendment text (the Wave 9 and Wave 10
+track rows and the B2 status, dependency-path and position paragraphs); since the runtime/program-state
+code baseline below, `main` changed only documentation, tooling and test-support files (`scripts/`,
+`frontend/tests/e2e/helpers/`, `.gitattributes`, `LICENSE`), so that baseline is not advanced by this check;
+2026-09-15 against runtime/program-state code baseline
 `main@1f922a89643f5bb406dcdf471e8dc07a229960d6` for B2 Task 8.9's owner-authorized Decision 2
 Production proof: the raw execute returned Class 2b because Windows `az.cmd` truncated multiline
 KQL before its predicates, timespan, and JSON-output arguments. A first captured recovery retained
@@ -183,8 +188,8 @@ CI run [34622304228](https://github.com/vibhanshu-agarwal/wealthmgmtandportfolio
 passed `static-guard`, `sanitizer-canary`, `deploy-workflow-contract`, `docker-build-verify`, and
 `ci-required`; the frontend checks and master-plan-status-propagation also passed. The merge did
 not create, read, or change either variable. No workflow dispatch, cloud/secret access, deployment, or feature
-exposure occurred. Task 10.1 enables a later owner-controlled build only; Task 8.9, Wave 10.2, and
-Production E2E remain separate gates.
+exposure occurred. Task 10.1 enables a later owner-controlled build only; Task 8.9 and Wave 10.2
+remain separate gates, and Wave 9's Production E2E is Wave 10.2's Step B exit criterion 5b.
 
 **Current delivery status — Tasks 7.1–7.11 locally complete:**
 The final authorized collection binds all four serving apps to exact immutable digests and passes
@@ -775,8 +780,8 @@ Wave 4 Tasks 4.1–4.4a merged via PR #180 at `main@63fc058`; that exact histori
 | 6 — manual reset frontend | ✅ Tasks 6.1/6.2 merged via [PR #214](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/214) at `main@48d0aba8`, identical to CI-green head `b918ff09`; ACCEPT, R1–R4 closed | Committed flags off; the owner finalized the existing page-level placement on 2026-09-06. Task 6.3 is green on [bounded gateway-read evidence](../evidence/b2-task-6-3/backend-readiness-gateway-read-20260911.json); Wave 10 remains closed. The owner-deferred [sidebar backlog](../todos/backlog/responsive-dashboard-sidebar/README.md) remains open |
 | 7 — decimal rollout note | ℹ Informational | No independent release gate |
 | 8 — login-orchestrated reset | ✅ Tasks 8.1–8.8, 8.8b, and Task 8.9 live proof are complete for Azure at independently accepted evidence head `8544d722`. Run `34433715705` deployed historical `api-gateway--0000079` at `sha256:aee44edc…`; current-attempt and non-interference proofs passed, and the revision was later superseded and purged. PR #262 reconciled Task 8.9's current [per-service provenance packet](../evidence/b2-task-8-9/deployment-provenance-20260911.json) to `api-gateway--0000081` / run `34588465283`, retaining the independent `portfolio-service--0000096` / run `34328692256` attestation with no common workflow identity. Run A attempts 1–3 remain historical NON-GO records; [attempt 4](../evidence/b2-task-8-9/run-a-attempt-20260915.md) passed the accepted read-only preflight. The owner-authorized [Decision 2 execute proof](../evidence/b2-task-8-9/run-b-decision2-20260915.md) used the real `30m` threshold; its raw verifier result remains Class 2b / NON-GO. The initial captured recovery supplies one complete trace-correlated success row but its wrong-app skip is rejected; a second owner-authorized, byte-identical retained `api-gateway` query supplies the accepted zero-row skip result. | Task 8.9 is COMPLETE / GO at accepted evidence head `8544d722`; retain `api-gateway--0000081` and `portfolio-service--0000096` with no rollback; documentation head `fab158cb` is independently accepted and PR #278 is merged at `6e046741`. Task 8.8a remains AWS-only. Production flags remain off. Wave 10 remains closed on its other prerequisites, owner exposure decision, flag-bearing build/deployment, and Production E2E; PR #278 merge authority was separately granted and consumed. |
-| 9 — live integration | 🟡 Tasks 9.1, 9.3, 9.4, 9.5 (PR #231 at `main@b4c68253b99a796d6301ef79b5aa5a47d5cbd962`), and 9.6 have their recorded source/local evidence. Tasks 9.2/9.7/9.8/9.9 are source/assembled-stack complete: one disposable Compose real-browser run passed 5/5 across setup plus picker and demo-reset success/conflict; PR #232 merged at `main@318f28592da6ab2e3bd66bc738aa68d374b180fa`, with final CI run `34018608256` passing `docker-build-verify` and `ci-required`, and body-edit guard run `34020180243` passing | No deployment or Production E2E is claimed; the B2-specific Wave 10 convergence/exposure gate and Production E2E still gate exposure. This is not the already-proved B1 P11g-2 property; production flags remain off |
-| 10 — production exposure | 🟡 Task 10.1 source wiring complete; exposure blocked | PR #259 / `main@03ca6300` passed its CI contract without creating or changing either repository variable. Wave 10.2 condition 2 is now complete through [B1 Task 4.9 live GO](../evidence/b2-task-4-9/B1_TASK_4_9_LIVE_DECIMAL_FIDELITY_STOP_GO_2026-09-16.md); the [remaining-gates audit](../evidence/b2-wave-10-2/WAVE_10_2_REMAINING_GATES_AUDIT_2026-09-16.md) records Wave 9 Production E2E, decision-time serving/configuration checks, explicit owner approval, a new flag-bearing build/deploy, and post-deploy browser verification as still required |
+| 9 — live integration | 🟡 Tasks 9.1, 9.3, 9.4, 9.5 (PR #231 at `main@b4c68253b99a796d6301ef79b5aa5a47d5cbd962`), and 9.6 have their recorded source/local evidence. Tasks 9.2/9.7/9.8/9.9 are source/assembled-stack complete: one disposable Compose real-browser run passed 5/5 across setup plus picker and demo-reset success/conflict; PR #232 merged at `main@318f28592da6ab2e3bd66bc738aa68d374b180fa`, with final CI run `34018608256` passing `docker-build-verify` and `ci-required`, and body-edit guard run `34020180243` passing | No deployment or Production E2E is claimed. Wave 10.2 item 5a (source and disposable-stack completion, re-evaluated at the Step B SHA) is the pre-exposure floor; Production E2E is Step B exit criterion 5b, which gates Wave 10.2 completion (a 5b failure triggers the Step B rollback) rather than the decision to run Step B (owner approval 2026-09-19: final review and PR preparation only; no production action). This is not the already-proved B1 P11g-2 property; production flags remain off |
+| 10 — production exposure | 🟡 Task 10.1 source wiring complete; exposure blocked | PR #259 / `main@03ca6300` passed its CI contract without creating or changing either repository variable. Wave 10.2 condition 2 is now complete through [B1 Task 4.9 live GO](../evidence/b2-task-4-9/B1_TASK_4_9_LIVE_DECIMAL_FIDELITY_STOP_GO_2026-09-16.md); the live Wave 10.2 gate list is `tasks.md` 10.2 as amended per the [2026-09-19 condition-5 decision record](../evidence/b2-wave-10-2/WAVE_10_2_CONDITION_5_DECISION_2026-09-19.md) (owner approval scope: final review and PR preparation only; no production action), which supersedes row 5 of the dated [remaining-gates audit](../evidence/b2-wave-10-2/WAVE_10_2_REMAINING_GATES_AUDIT_2026-09-16.md). Still required: item 5a (including the accepted 5b verifier), decision-time serving/configuration checks, explicit owner approval, a new flag-bearing build/deploy, and the post-deploy real-browser Wave 9 Production E2E (exit criterion 5b); Step B is additionally blocked on a still-open deploy-path decision (the full-mode-only frontend deploy constraint recorded in that decision record) |
 
 **Wave 8 status correction (2026-09-07; superseded historical snapshot):** Task 8.1 provenance is source `6a171558`, cu4/revision
 `0000094`, digest `sha256:2be727eaf4577699c783ae66073670d4984fe66c666af3e56422c934fdd0b023`; this is
@@ -788,7 +793,7 @@ remained open. **Current status:** B1 R-C Tasks 7.1–7.11 are locally complete,
 Writer_Convergence / P11g-2 is proved only for the activated exact R-C artifact and rollback artifacts
 at or above R-B3r. Task 5.6 GO and Task 8.8/8.8b deployment evidence are now complete. Wave 10.2
 condition 2 is complete through B1 Task 4.9; the active B2 gates are the B2-specific Wave 10
-convergence/exposure gate and Production E2E. Task 8.9's live serving evidence is COMPLETE / GO at independently accepted
+convergence/exposure gate, including its Step B Production E2E (exit criterion 5b). Task 8.9's live serving evidence is COMPLETE / GO at independently accepted
 head `8544d722`, with documentation head `fab158cb` independently accepted and PR #278 merged at `6e046741`. Production flags remain off.
 
 The aggregate `assetPriceFreshness` backend dependency is now **closed**: Spec A task 8.6 is
@@ -806,7 +811,11 @@ Task 2.7's historical backend-before-adapter containment/frontend-artifact audit
 Astra's 2026-09-10 ACCEPT, bounded only at the documented ACA path. The separately
 owner-operated [B1 Task 4.9 live proof](../evidence/b2-task-4-9/B1_TASK_4_9_LIVE_DECIMAL_FIDELITY_STOP_GO_2026-09-16.md)
 is GO, so Wave 10.2 condition 2 is satisfied. Numeric compatibility remains mandatory; the
-remaining Wave 10.2 gates are recorded in the [focused audit](../evidence/b2-wave-10-2/WAVE_10_2_REMAINING_GATES_AUDIT_2026-09-16.md).
+remaining Wave 10.2 gates are recorded in `tasks.md` 10.2, as amended per the
+[2026-09-19 condition-5 decision record](../evidence/b2-wave-10-2/WAVE_10_2_CONDITION_5_DECISION_2026-09-19.md)
+(owner approval scope: final review and PR preparation only; no production action);
+the [2026-09-16 audit](../evidence/b2-wave-10-2/WAVE_10_2_REMAINING_GATES_AUDIT_2026-09-16.md) is a dated inventory
+whose row 5 that decision supersedes.
 See the [decision record](../superpowers/plans/2026-09-06-b2-wave8-decision-record.md).
 
 ## 5. Dependency path to a production Asset Picker
@@ -828,6 +837,9 @@ Track C: Wave 1 mock UI + Wave 2 adapter + independent presence work
                                                    v
                                     Wave 10 production exposure
 ```
+
+The Wave 9 → Wave 10 edge means Wave 10.2 item 5a (source and disposable-stack completion). Wave 9's
+real-browser production proof runs inside Wave 10 as Step B exit criterion 5b, not before it.
 
 Remaining B1 and B2 source tasks may proceed according to their explicit dependency graphs; they do
 not need to be serialized with unrelated operational work. Production transitions retain their
@@ -898,8 +910,17 @@ condition 2 without changing Task 2.7's historical limits. The owner-operated
 is gate-credit GO for the Go-action's API-only Step A technical result: its timely wrapper probe
 preceded the controlling deadline, all nine operations returned HTTP 200, and cleanup succeeded.
 Task 8.9 remains separately COMPLETE / GO. This Step A result does not resolve Wave 10.2
-condition 5, authorize Step B or exposure, or change either flag. Task 2.6 and the remaining
-Wave 10.2 gates remain open; both production feature flags remain disabled. The owner-deferred
+condition 5, authorize Step B or exposure, or change either flag. On 2026-09-19 the owner approved the
+condition-5 amendment for final review and PR preparation only, with no production action: condition 5
+becomes item 5a (source and disposable-stack completion, including the accepted 5b verifier), a Go
+precondition, plus Wave 9's real-browser Production E2E as Step B exit criterion 5b, with Wave 10.2
+unchecked until it passes; Step A is credited to neither part
+([decision record](../evidence/b2-wave-10-2/WAVE_10_2_CONDITION_5_DECISION_2026-09-19.md)). Step B
+stays unauthorized and is additionally blocked on the 5b verifier and on a still-open deploy-path
+decision (the only frontend deploy path is a full-mode deploy that rebuilds all four backend services
+and would supersede the revisions Step A and Task 8.9 attest; inferred from the workflow text, not
+observed). Task 2.6
+and the remaining Wave 10.2 gates remain open; both production feature flags remain disabled. The owner-deferred
 [sidebar issue](../todos/backlog/responsive-dashboard-sidebar/README.md) remains separate.
 
 **Task 4.9 decimal-fidelity live proof (2026-09-16):** the owner authorized and personally ran the
