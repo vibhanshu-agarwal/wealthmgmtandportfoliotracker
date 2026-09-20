@@ -30,7 +30,7 @@ bounded production path. The earlier
 [offline-CI wiring kickoff](../superpowers/plans/2026-09-19-wave10-2-5b-ci-wiring-claude-kickoff.md)
 is retained as superseded decision history and is not an active task.
 
-## Status at filing
+## Current status
 
 **Phase 1 is complete. Asset Picker is deployed and demo-ready under the owner's stated acceptance
 criterion: live exposure plus successful Production E2E.**
@@ -54,6 +54,22 @@ The final accepted 5b contract supersedes the draft's illustrative two-save sequ
 non-golden composition save with independent persisted readback, followed by the deployed manual
 reset with independent golden-state confirmation, earned the Phase 1 live acceptance. Phases 2-6
 remain separate and must not be used to reopen Phase 1.
+
+**Phase 2 is in progress. Phase 2.1, the shared responsive dashboard shell, is source-complete on
+`main` through [PR #297](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/297)
+at merge commit `4f288c4a0e8393e78efd7f7449c114e25db78818`.** The accepted head
+`c2d3dc66a5995ea7aafff50c691df7c0f6889cd5` replaces the fixed 240px narrow-screen sidebar with a
+64px icon rail below `md`, preserves all five navigation links and their accessible names, and makes
+the outer shell a non-scrollable `relative` / `overflow-clip` boundary while leaving `<main>` and
+the chat transcript as the intentional scrollers.
+
+The Phase 2.1 proof covered four dashboard pages, five viewports, both themes, 18 focused tests, and
+130 browser assertions for the extended-chat and navigation defect paths. PR-head CI was green and
+the merge triggered no deployment. The screenshots and browser harness are not tracked in the
+repository; Firefox, Safari, real touch devices, and Production hosting remain untested. Portfolio
+still has horizontal overflow at 320px and 375px from the holdings action row, and Overview still
+has horizontal overflow at 320px from the performance range badges. Those are separate Phase 2
+slices, so neither Phase 2 nor whole-application technical readiness is complete.
 
 ## Owner approval callouts
 
@@ -117,16 +133,26 @@ its core write path and persistence.
 **Exit outcome:** The application shell is visually usable at supported demo viewports, and no known
 critical backlog defect blocks a demonstration.
 
-- [ ] Reproduce the recorded narrow-screen fixed-sidebar/clipping issue as the leading hypothesis.
-- [ ] Sweep Overview, Portfolio, Market Data, and AI Insights at mobile, tablet, and agreed
+**Status:** In progress. Phase 2.1 shared-shell stabilization is merged on `main`; the Portfolio and
+Overview horizontal-overflow slices and final demo-critical backlog triage remain open. No Phase 2
+source has been deployed or Production-verified.
+
+- [x] Reproduce the recorded narrow-screen fixed-sidebar/clipping issue as the leading hypothesis.
+- [x] Sweep Overview, Portfolio, Market Data, and AI Insights at mobile, tablet, and agreed
   demo-desktop viewports.
-- [ ] Capture screenshots and enumerate scrollable containers so a separate page-level
+- [x] Capture screenshots and enumerate scrollable containers so a separate page-level
   multiple-scrollbar defect cannot hide behind the existing backlog label.
-- [ ] Fix the confirmed root cause without removing navigation or breaking desktop behavior.
-- [ ] Allow intentional component scrolling, such as the chatbot transcript, but reject competing
+- [x] Fix the confirmed shell root cause without removing navigation or breaking desktop behavior.
+- [x] Allow intentional component scrolling, such as the chatbot transcript, but reject competing
   page/shell vertical scrollbars.
+- [ ] Fix or explicitly accept the Portfolio horizontal overflow caused by the holdings action row at
+  320px and 375px.
+- [ ] Fix or explicitly accept the Overview horizontal overflow caused by the performance range
+  badges at 320px.
 - [ ] Triage the remaining backlog and include only defects genuinely critical to the demo.
-- [ ] Obtain independent review and an uncontended visual/browser verification run.
+- [x] Obtain independent review and an uncontended visual/browser verification run for Phase 2.1.
+- [ ] After the remaining Phase 2 slices, run the final uncontended visual/browser verification and
+  obtain independent Phase 2 exit review.
 
 ---
 

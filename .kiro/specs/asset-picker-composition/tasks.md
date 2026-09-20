@@ -1,12 +1,15 @@
 # Implementation Plan
 
 **Current program status (reconciled 2026-09-20 at
-`main@91f40bd0126f15fc87a6d6beb2ffa6bcd01e76d4`):** Waves 1–9 retain their recorded source,
+`main@4f288c4a0e8393e78efd7f7449c114e25db78818`):** Waves 1–9 retain their recorded source,
 review, assembled-stack, deployment, and live-gate evidence. Wave 10.2 Step B completed through
 frontend-only deploy run `35489160653`; both repository-scoped flags are `true`. The accepted 5b
 verifier returned `GO` within the 1,800-second bound with all L0-L9 legs passed, exact persisted
 readback, golden-state cleanup, and unchanged backend revisions/digests. Task 10.2 and Asset Picker
-Demo Preparation Phase 1 are complete. See the
+Demo Preparation Phase 1 are complete. The later Phase 2.1 responsive-shell source merged through
+[PR #297](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/297) at this
+reconciliation baseline; it was post-delivery work, was not deployed, and does not reopen or advance
+any Asset Picker task. Portfolio and Overview horizontal-overflow slices remain open. See the
 [Production E2E record](../../../docs/evidence/b2-wave-10-2/WAVE_10_2_STEP_B_5B_PRODUCTION_E2E_GO_2026-09-20.md).
 
 Wave 8 source and Azure deployment-proof tooling are merged through
@@ -149,8 +152,9 @@ deployment instead carries the separately ratified `120s/30s/165s` overrides und
 ceiling. See the
 [decision record](../../../docs/superpowers/plans/2026-09-06-b2-wave8-decision-record.md) and the
 [`Asset Picker master plan`](../../../docs/plans/ASSET_PICKER_E2E_MASTER_PLAN.md) for the
-cross-program release sequence. The owner-deferred
-[sidebar issue](../../../docs/todos/backlog/responsive-dashboard-sidebar/README.md) remains separate.
+cross-program release sequence. The formerly owner-deferred
+[sidebar issue](../../../docs/todos/backlog/responsive-dashboard-sidebar/README.md) was resolved
+post-delivery by Phase 2.1 PR #297 and remains separate from the Asset Picker task ledger.
 
 Task 5.1b's ledger defined its provider, token formula, operator tool, packaging,
 and Azure image-smoke extension as one bounded deliverable shared by Tasks 5.1 and 8.7. Its
@@ -1788,7 +1792,7 @@ production read-back or feature-exposure approval.
 | R1 — conflict refresh | **Fixed.** Direct `fetchPortfolio` succeeds and updates the user-scoped cache before conflict clears. The offline/reconnect regression preserves conflict and prevents another PUT; a successful read need not return a larger version |
 | R2 — response reconciliation | **Fixed.** Awaited hook-level mutation callbacks retain busy-state and shared-cache behavior across delayed enrichment and unmount |
 | R3 — observed version | **Fixed.** `version != null` marks omitted/null fields unobserved; the actual-adapter regression covers wire null. The valid empty-GET zero sentinel remains accepted under Task 1.2/B1 |
-| R4 — visual acceptance | **Fixed and accepted within the owner-approved scope.** All PNG evidence is delivered; affected feedback screenshots were refreshed and an enabled-hover capture added. The local color choices meet normal-size text contrast. The owner-deferred sidebar issue remains separate |
+| R4 — visual acceptance | **Fixed and accepted within the owner-approved scope.** All PNG evidence is delivered; affected feedback screenshots were refreshed and an enabled-hover capture added. The local color choices meet normal-size text contrast. The then-deferred sidebar issue remained separate from Wave 6 and was later resolved by Phase 2.1 PR #297 |
 
 **Visual evidence reviewed:** [Screenshot index](../../../docs/evidence/b2-wave-6-manual-reset/README.md).
 Codex inspected all 11 original captures at `d0f86f5b`, then inspected refreshed
@@ -1825,9 +1829,10 @@ Prior independent behavior review passed 45 focused tests; the CSS-only fix pres
 Static smoke uses `SKIP_BACKEND_HEALTH_CHECK=true`, needs no backend, and is not Wave 9's
 assembled-stack reset proof.
 
-**Known limitation and packet:** the 375px images confirm shared-sidebar clipping, explicitly
+**Historical limitation and packet:** the 375px images confirmed shared-sidebar clipping, explicitly
 deferred by the owner to the [sidebar backlog](../../../docs/todos/backlog/responsive-dashboard-sidebar/README.md).
-It is not a Wave 6 merge blocker and is not counted as a passing narrow-screen layout.
+It was not a Wave 6 merge blocker and was not counted as a passing narrow-screen layout. Phase 2.1
+later resolved the shared-shell defect through PR #297 without changing this Wave 6 acceptance.
 The PR includes pinned PNG links and the correct version rule: a changed persisted tuple
 increments version; an already-golden same-state reset leaves it unchanged. Local-stack and
 mock evidence are distinguished. The worktree was clean at `970b637b`; temporary preview
@@ -1837,7 +1842,8 @@ scaffolding is absent from the source diff.
 completion. The owner finalized the existing page-level placement on 2026-09-06. Task 5.6's owner
 GO and Task 6.3's backend-readiness GO are recorded; feature exposure remains open.
 B1 G5 closed separately by owner decision on 2026-09-02. Neither decision closes those B2
-gates or attests a new deployment. The sidebar backlog remains open.
+gates or attests a new deployment. The sidebar backlog later closed through post-delivery Phase 2.1
+PR #297; that source-only merge likewise attests no deployment.
 
 - [x] **6.1 Manual reset control**, behind 1.1's `NEXT_PUBLIC_ENABLE_DEMO_RESET_CONTROL` flag —
   the existing page-level `PortfolioPageContent` host is final for this release. Moving it into the
