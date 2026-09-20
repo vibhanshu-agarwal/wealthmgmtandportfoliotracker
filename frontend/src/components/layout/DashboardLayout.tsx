@@ -15,7 +15,11 @@ interface DashboardLayoutProps {
 export function DashboardLayout({children}: DashboardLayoutProps) {
     return (
         <TooltipProvider delayDuration={300}>
-            <div className="flex h-screen overflow-hidden bg-background">
+            {/* `relative` makes this clipping wrapper the containing block for absolutely positioned
+                descendants (every `sr-only` span), so they are clipped here instead of growing the
+                document's scroll area. `overflow-clip`, not `-hidden`: hidden is still a scroll container,
+                so scrollIntoView() (chat auto-scroll, router navigation) would scroll the whole shell. */}
+            <div className="relative flex h-screen overflow-clip bg-background">
                 {/* Fixed sidebar */}
                 <Sidebar/>
 
