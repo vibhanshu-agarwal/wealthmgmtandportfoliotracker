@@ -1,4 +1,5 @@
 /gradlew text eol=lf
+/VERSION text eol=lf
 *.bat text eol=crlf
 *.jar binary
 /docs/evidence/b1-r3-decision1/v21-r3-operational-query.sql text eol=lf
