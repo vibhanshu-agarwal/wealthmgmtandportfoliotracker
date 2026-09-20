@@ -9,8 +9,17 @@ plugins {
     id("org.openrewrite.rewrite") version("7.39.0")
 }
 
+// Root VERSION is the single product-version authority (docs/release/SEMANTIC_VERSIONING_POLICY.md).
+// Read once here; the subprojects block below propagates the same value to every module, so the
+// product version can never be restated -- and drift -- in a second place.
+def productVersionFile = layout.projectDirectory.file('VERSION').asFile
+if (!productVersionFile.isFile()) {
+    throw new GradleException("Missing product VERSION at ${productVersionFile}")
+}
+def productVersion = productVersionFile.getText('UTF-8').trim()
+
 group = 'com.wealth'
-version = '0.0.1-SNAPSHOT'
+version = productVersion
 
 repositories {
     mavenCentral()
@@ -45,6 +54,9 @@ rewrite {
 }
 
 subprojects {
+    group = rootProject.group
+    version = rootProject.version
+
     apply plugin: 'java'
     apply plugin: 'io.spring.dependency-management'
 

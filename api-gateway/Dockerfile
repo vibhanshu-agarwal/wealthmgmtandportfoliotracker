@@ -39,6 +39,7 @@ COPY --from=gradle-dist /root/.gradle /root/.gradle
 COPY gradlew gradlew
 COPY gradle/ gradle/
 COPY build.gradle build.gradle
+COPY VERSION VERSION
 COPY settings.gradle settings.gradle
 
 # Copy source for common-dto and common-observability (dependencies) and api-gateway

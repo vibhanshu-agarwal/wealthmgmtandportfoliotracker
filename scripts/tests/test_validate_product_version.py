@@ -56,10 +56,31 @@ class ProductVersionCoreTest(unittest.TestCase):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(content)
 
+    # A conforming Gradle-evaluating build context: VERSION arrives after build.gradle and
+    # before Gradle ever runs. `validate_repository` composes every sub-check, so the fixture
+    # has to be a complete minimal repository -- the alternative, letting the sub-checks pass
+    # when their files are absent, would make the whole validator fail open.
+    GOOD_DOCKERFILE = (
+        "FROM eclipse-temurin:21-jdk AS builder\n"
+        "WORKDIR /workspace\n"
+        "COPY gradlew gradlew\n"
+        "COPY gradle/ gradle/\n"
+        "COPY build.gradle build.gradle\n"
+        "COPY VERSION VERSION\n"
+        "COPY settings.gradle settings.gradle\n"
+        "RUN chmod +x gradlew \\\n"
+        "    && ./gradlew :svc:bootJar --no-daemon\n"
+    )
+
+    def write_dockerfiles(self, body: str | None = None) -> None:
+        for relative in self.validator.GRADLE_DOCKERFILES:
+            self.write(relative, (body or self.GOOD_DOCKERFILE).encode("utf-8"))
+
     def valid_contract(self, version: str = "0.9.0", released: bool = False) -> None:
         self.write("VERSION", f"{version}\n".encode("ascii"))
         state = "2026-09-20" if released else "Unreleased"
         self.write("CHANGELOG.md", f"# Changelog\n\n## [{version}] - {state}\n".encode())
+        self.write_dockerfiles()
 
     def test_accepts_canonical_release(self):
         self.valid_contract()
@@ -87,6 +108,7 @@ class ProductVersionCoreTest(unittest.TestCase):
             with self.subTest(value=value):
                 self.write("VERSION", value)
                 self.write("CHANGELOG.md", b"# Changelog\n\n## [0.9.0] - Unreleased\n")
+                self.write_dockerfiles()
                 with self.assertRaisesRegex(self.validator.ContractError, expected):
                     self.validator.validate_repository(self.root, "branch")
 
@@ -177,6 +199,7 @@ class ProductVersionCoreTest(unittest.TestCase):
         # mode still passes on the real `Unreleased` entry, and tag mode still refuses it
         # for the right reason. This is the case the round-1 defect got wrong.
         self.write("VERSION", b"0.9.0\n")
+        self.write_dockerfiles()
         decoys = (
             "# Changelog\n\nFormat:\n\n```markdown\n## [0.9.0] - 2026-09-20\n```\n\n"
             "## [0.9.0] - Unreleased\n",
@@ -254,6 +277,7 @@ class ProductVersionCoreTest(unittest.TestCase):
     def test_a_multi_version_changelog_still_validates(self):
         # Guards the other direction: the strictness above must not reject a normal file.
         self.write("VERSION", b"0.9.0\n")
+        self.write_dockerfiles()
         self.write(
             "CHANGELOG.md",
             b"# Changelog\n\n## [Unreleased]\n\n## [0.9.0] - Unreleased\n\n"
@@ -262,6 +286,213 @@ class ProductVersionCoreTest(unittest.TestCase):
             b"## [0.8.0] - 2026-01-01\n\n[0.9.0]: https://example.invalid/compare/v0.8.0...HEAD\n",
         )
         self.assertEqual("0.9.0", self.validator.validate_repository(self.root, "branch"))
+
+    def test_every_gradle_building_dockerfile_in_this_repository_carries_version(self):
+        # Measured against the real tree, not a fixture: the point of the allowlist is that
+        # these exact eight images evaluate root build.gradle, so VERSION must reach their
+        # build contexts or Docker fails while Gradle is still configuring.
+        self.assertEqual(8, len(self.validator.GRADLE_DOCKERFILES))
+        self.validator.validate_gradle_docker_contexts(REPO)
+
+    def test_rejects_a_dockerfile_that_omits_the_version_copy(self):
+        self.valid_contract()
+        self.write_dockerfiles(self.GOOD_DOCKERFILE.replace("COPY VERSION VERSION\n", ""))
+        with self.assertRaisesRegex(self.validator.ContractError, "missing 'COPY VERSION"):
+            self.validator.validate_repository(self.root, "branch")
+
+    def test_rejects_version_copied_after_gradle_has_already_run(self):
+        # Ordering is the whole contract. A COPY that lands after the build step is present
+        # in the file and useless: Gradle has already configured without it. A check that
+        # only grepped for the line would call this correct.
+        self.valid_contract()
+        late = (
+            "FROM eclipse-temurin:21-jdk AS builder\n"
+            "WORKDIR /workspace\n"
+            "COPY build.gradle build.gradle\n"
+            "RUN chmod +x gradlew \\\n"
+            "    && ./gradlew :svc:bootJar --no-daemon\n"
+            "COPY VERSION VERSION\n"
+        )
+        self.write_dockerfiles(late)
+        with self.assertRaisesRegex(self.validator.ContractError, "after the .*gradlew"):
+            self.validator.validate_repository(self.root, "branch")
+
+    def test_rejects_version_copied_before_build_gradle(self):
+        self.valid_contract()
+        early = self.GOOD_DOCKERFILE.replace(
+            "COPY build.gradle build.gradle\nCOPY VERSION VERSION\n",
+            "COPY VERSION VERSION\nCOPY build.gradle build.gradle\n",
+        )
+        self.write_dockerfiles(early)
+        with self.assertRaisesRegex(self.validator.ContractError, "precedes"):
+            self.validator.validate_repository(self.root, "branch")
+
+    def test_names_every_offending_dockerfile_not_just_the_first(self):
+        self.valid_contract()
+        self.write_dockerfiles(self.GOOD_DOCKERFILE.replace("COPY VERSION VERSION\n", ""))
+        with self.assertRaises(self.validator.ContractError) as caught:
+            self.validator.validate_repository(self.root, "branch")
+        for relative in self.validator.GRADLE_DOCKERFILES:
+            self.assertIn(relative, str(caught.exception))
+
+    def test_rejects_a_missing_dockerfile_rather_than_skipping_it(self):
+        self.valid_contract()
+        (self.root / self.validator.GRADLE_DOCKERFILES[0]).unlink()
+        with self.assertRaisesRegex(self.validator.ContractError, "cannot read"):
+            self.validator.validate_repository(self.root, "branch")
+
+    def test_rejects_a_later_stage_that_runs_gradle_without_version(self):
+        # The file-level version of this check passed: stage 1 copies VERSION, so the line is
+        # present somewhere. Stage 2 is a fresh base that actually builds, and configures
+        # without VERSION. "Appears in the file" is not the property being claimed.
+        self.valid_contract()
+        self.write_dockerfiles(
+            "FROM base AS builder1\n"
+            "COPY build.gradle build.gradle\n"
+            "COPY VERSION VERSION\n"
+            "RUN ./gradlew test --no-daemon\n"
+            "\n"
+            "FROM base AS builder2\n"
+            "COPY build.gradle build.gradle\n"
+            "COPY settings.gradle settings.gradle\n"
+            "RUN ./gradlew :svc:bootJar --no-daemon\n"
+        )
+        with self.assertRaisesRegex(self.validator.ContractError, r"stage 2.*missing"):
+            self.validator.validate_repository(self.root, "branch")
+
+    def test_rejects_a_commented_out_version_copy(self):
+        self.valid_contract()
+        self.write_dockerfiles(
+            self.GOOD_DOCKERFILE.replace(
+                "COPY VERSION VERSION\n", "# COPY VERSION VERSION\n"
+            )
+        )
+        with self.assertRaisesRegex(self.validator.ContractError, "missing 'COPY VERSION"):
+            self.validator.validate_repository(self.root, "branch")
+
+    def test_rejects_a_dockerfile_with_no_gradlew_run_at_all(self):
+        self.valid_contract()
+        self.write_dockerfiles("FROM base\nCOPY build.gradle build.gradle\nCOPY VERSION VERSION\n")
+        with self.assertRaisesRegex(self.validator.ContractError, "no RUN block invoking"):
+            self.validator.validate_repository(self.root, "branch")
+
+    def test_rejects_a_stage_that_runs_gradle_without_copying_build_gradle(self):
+        self.valid_contract()
+        self.write_dockerfiles(
+            "FROM base AS builder\n"
+            "COPY --from=other /workspace /workspace\n"
+            "RUN ./gradlew :svc:bootJar --no-daemon\n"
+        )
+        with self.assertRaisesRegex(
+            self.validator.ContractError, "without 'COPY build.gradle"
+        ):
+            self.validator.validate_repository(self.root, "branch")
+
+    def test_rejects_a_non_utf8_dockerfile(self):
+        self.valid_contract()
+        self.write(self.validator.GRADLE_DOCKERFILES[0], b"FROM base\n# \xff\n")
+        with self.assertRaisesRegex(self.validator.ContractError, "must be UTF-8"):
+            self.validator.validate_repository(self.root, "branch")
+
+    def test_a_non_building_stage_without_version_is_not_flagged(self):
+        # Guards the other direction: only stages that actually configure Gradle are subject
+        # to the rule, so a runtime stage is not required to carry VERSION.
+        self.valid_contract()
+        self.write_dockerfiles(
+            self.GOOD_DOCKERFILE + "\nFROM base AS runtime\nCOPY --from=builder /x /x\n"
+        )
+        self.assertEqual("0.9.0", self.validator.validate_repository(self.root, "branch"))
+
+    def test_rejects_an_indented_stage_that_skips_version(self):
+        # Docker accepts indented instructions. Anchoring at column 0 made the whole stage
+        # invisible to the validator while Docker still ran Gradle in it.
+        self.valid_contract()
+        self.write_dockerfiles(
+            self.GOOD_DOCKERFILE
+            + "\n  FROM base AS builder2\n"
+            "  COPY build.gradle build.gradle\n"
+            "  RUN ./gradlew :svc:bootJar --no-daemon\n"
+        )
+        with self.assertRaisesRegex(self.validator.ContractError, r"stage 2.*missing"):
+            self.validator.validate_repository(self.root, "branch")
+
+    def test_instruction_keyword_case_is_free_but_argument_case_is_not(self):
+        self.valid_contract()
+        # Lowercase keywords are valid Docker and must validate.
+        self.write_dockerfiles(
+            self.GOOD_DOCKERFILE.replace("COPY", "copy")
+            .replace("FROM", "from")
+            .replace("RUN", "run")
+        )
+        self.assertEqual("0.9.0", self.validator.validate_repository(self.root, "branch"))
+        # A miscased ARGUMENT names a different file and must not satisfy the contract.
+        self.write_dockerfiles(
+            self.GOOD_DOCKERFILE.replace("COPY VERSION VERSION", "COPY version version")
+        )
+        with self.assertRaisesRegex(self.validator.ContractError, "missing 'COPY VERSION"):
+            self.validator.validate_repository(self.root, "branch")
+
+    def test_a_standalone_chmod_is_not_mistaken_for_the_build_step(self):
+        # `chmod +x gradlew` mentions gradlew and configures nothing. Treated as the build
+        # step it moves the ordering boundary and rejects a correct Dockerfile.
+        self.valid_contract()
+        self.write_dockerfiles(
+            "FROM base AS builder\n"
+            "COPY gradlew gradlew\n"
+            "RUN chmod +x gradlew\n"
+            "COPY build.gradle build.gradle\n"
+            "COPY VERSION VERSION\n"
+            "RUN ./gradlew :svc:bootJar --no-daemon\n"
+        )
+        self.assertEqual("0.9.0", self.validator.validate_repository(self.root, "branch"))
+
+    def test_recognises_other_gradlew_invocation_spellings(self):
+        self.valid_contract()
+        for invocation in (
+            "RUN bash gradlew :svc:bootJar\n",
+            "RUN sh -c './gradlew :svc:bootJar'\n",
+            "RUN /workspace/gradlew :svc:bootJar\n",
+        ):
+            with self.subTest(invocation=invocation.strip()):
+                self.write_dockerfiles(
+                    "FROM base AS builder\nCOPY build.gradle build.gradle\n" + invocation
+                )
+                with self.assertRaisesRegex(
+                    self.validator.ContractError, "missing 'COPY VERSION"
+                ):
+                    self.validator.validate_repository(self.root, "branch")
+
+    def test_a_commented_gradlew_line_inside_a_run_continuation_is_not_the_build_step(self):
+        # Docker strips comment lines even inside a backslash continuation. If the validator
+        # does not, this earlier RUN reads as the Gradle step, the ordering boundary moves
+        # above the COPYs, and a correct Dockerfile is rejected. A leading `# RUN ...` line
+        # would NOT exercise this -- the RUN anchor already skips it -- so the comment has to
+        # sit inside the continuation to measure anything.
+        self.valid_contract()
+        self.write_dockerfiles(
+            "FROM base AS builder\n"
+            "COPY gradlew gradlew\n"
+            "RUN chmod +x gradlew \\\n"
+            "    # && ./gradlew warmup \\\n"
+            "    && echo prepared\n"
+            "COPY build.gradle build.gradle\n"
+            "COPY VERSION VERSION\n"
+            "RUN ./gradlew :svc:bootJar --no-daemon\n"
+        )
+        self.assertEqual("0.9.0", self.validator.validate_repository(self.root, "branch"))
+
+    def test_rejects_build_gradle_copied_after_the_gradle_run(self):
+        self.valid_contract()
+        self.write_dockerfiles(
+            "FROM base AS builder\n"
+            "COPY VERSION VERSION\n"
+            "RUN ./gradlew :svc:bootJar --no-daemon\n"
+            "COPY build.gradle build.gradle\n"
+        )
+        with self.assertRaisesRegex(
+            self.validator.ContractError, "without 'COPY build.gradle"
+        ):
+            self.validator.validate_repository(self.root, "branch")
 
     def test_accepts_a_real_dated_entry_in_branch_mode(self):
         self.valid_contract(released=True)

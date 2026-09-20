@@ -62,11 +62,13 @@ The repository does not use `-SNAPSHOT`: it publishes no mutable development art
 repository, and source SHA plus image digest already distinguish builds.
 
 Because subprojects now inherit the product version, conventional archive names are versioned (for
-example `common-dto-0.9.0.jar`). API Gateway remains explicitly pinned to `app.jar`; portfolio,
-market-data, and insight services use Gradle's versioned default `bootJar` name, and their Docker
-builder stages invoke only that service's `bootJar` before copying the single resulting `*.jar` to
-runtime `app.jar`. Candidate and slim staging consume Gradle's `archiveFile` provider and rename the
-staged file to a fixed name, so they are unaffected by version changes.
+example `common-dto-0.9.0.jar`). API Gateway pins all three of its archives to fixed names —
+`bootJar` to `app.jar`, `probeJar` to `probe.jar`, and its replica-token jar to
+`replica-token.jar` — and its Azure image and the CI probe smoke cases copy the latter two by
+name. Portfolio, market-data, and insight services use Gradle's versioned default `bootJar` name,
+and their Docker builder stages invoke only that service's `bootJar` before copying the single
+resulting `*.jar` to runtime `app.jar`. Candidate and slim staging consume Gradle's `archiveFile`
+provider and rename the staged file to a fixed name, so they are unaffected by version changes.
 
 Every AWS and Azure service Dockerfile that copies root `build.gradle` must also copy root `VERSION`
 before invoking Gradle, or the build fails while Gradle configures. `Dockerfile.candidate` and
