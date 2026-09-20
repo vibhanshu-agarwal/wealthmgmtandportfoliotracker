@@ -89,8 +89,11 @@ The foundation is source-complete when:
 - all Docker builder contexts that consume root `build.gradle` also contain `VERSION`;
 - a stdlib-only validator and its tests cover bytes, SemVer, changelog, frontend drift, Docker
   context drift, branch builds, release tags, release candidates, and the historical tag;
-- required CI runs the validator on every pull request, configured branch push, and `v*` tag push;
-- no deploy workflow is tag- or release-triggered;
+- required CI runs the validator on every pull request targeting `main` or `architecture/**` and on
+  each configured branch push;
+- a dedicated validation-only workflow runs the same contract on every `v*` tag push;
+- each deployment or image-publishing workflow has an exact allowlisted trigger set and none is
+  tag- or release-triggered;
 - the versioning policy and demo-preparation plan agree on the desktop-only and Phase 3 sequence;
   and
 - implementation has independent review with no unresolved blocking finding.
@@ -167,6 +170,15 @@ The root build reads `VERSION` once. The root project and every subproject use t
 The repository drops `-SNAPSHOT` because it does not publish mutable development artifacts to a
 Maven repository; source SHA and image digest already distinguish builds.
 
+The subprojects currently inherit no explicit version, so this change also changes conventional
+archive names such as `common-dto.jar` to `common-dto-0.9.0.jar`. The current service Dockerfiles are
+not coupled to those names. Only API Gateway pins its `bootJar` to `app.jar`; portfolio,
+market-data, and insight use Gradle's versioned default archive name. Their clean Docker builder
+stages invoke only the service's `bootJar`, then copy the single resulting `*.jar` to runtime
+`app.jar`. Candidate/slim staging consumes Gradle's `archiveFile` provider and renames the staged
+file. CI must nevertheless build every Gradle-consuming Dockerfile so the conclusion is measured
+rather than inferred.
+
 Every AWS and Azure service Dockerfile that copies root `build.gradle` must also copy root
 `VERSION` before invoking Gradle. Candidate/slim Dockerfiles that package an already staged JAR do
 not read Gradle configuration and therefore do not copy `VERSION`.
@@ -226,28 +238,41 @@ When a release contains changes from more than one category, the highest categor
 
 ## 8. The `1.0.0` compatibility and acceptance boundary
 
-`1.0.0` is cut only when all of the following are true for one commit and one release set:
+`1.0.0` is cut only when all of the following are true for one final stable commit and one release
+set:
 
 1. Phase 3 broad Production E2E has run under explicit owner authorization at the agreed desktop
-   viewport(s), with all required scenarios collected and unskipped.
+   viewport(s), with all required scenarios collected and unskipped, against a functionally complete
+   `0.y.z` candidate.
 2. All Critical and High demo findings are closed. Every remaining finding has a written backlog
-   disposition and explicit owner acceptance.
-3. Final owner demo acceptance has been performed against the exact candidate artifacts.
-4. Required CI is green at the exact candidate commit.
-5. The supported 1.0 contract surface is recorded: HTTP contracts, event contracts, persisted-data
+   disposition and explicit owner acceptance before the stable-version transition.
+3. The stable-version transition changes exactly `VERSION`, `CHANGELOG.md`,
+   `frontend/package.json`, and `frontend/package-lock.json`: product version becomes `1.0.0`, the
+   changelog entry is dated, and the frontend mirror is updated. No application, infrastructure,
+   dependency, workflow, or other behavioral file may change in that transition.
+4. A machine-checked diff proves that exact four-file delta. If any other file changes, the Phase 3
+   evidence cannot be carried forward; the candidate returns to remediation and broad E2E.
+5. Phase 3 scenario evidence and finding dispositions may be carried forward across that proven
+   metadata-only transition. Required CI, the version contract, all eight Docker builds, artifact
+   provenance/digest capture, and the final desktop acceptance smoke must rerun against the exact
+   `VERSION=1.0.0` commit and its rebuilt artifacts.
+6. Final owner demo acceptance has been performed against those exact stable artifacts. A failure in
+   any rerun invalidates the carry-forward and returns the release to remediation.
+7. Required CI is green at the exact stable commit.
+8. The supported 1.0 contract surface is recorded: HTTP contracts, event contracts, persisted-data
    migration/rollback expectations, required configuration, deployment/upgrade expectations, and
    documented user workflows.
-6. `VERSION` and the changelog carry `1.0.0`.
-7. A release manifest records the frontend source SHA/deployment identity and every backend image
+9. `VERSION` and the changelog carry `1.0.0`.
+10. A release manifest records the frontend source SHA/deployment identity and every backend image
    digest/revision in the accepted set.
-8. The final `VERSION=1.0.0` commit is built and its exact artifacts receive final acceptance before
+11. The final `VERSION=1.0.0` commit is built and its exact artifacts receive final acceptance before
    the stable tag is created. The annotated `v1.0.0` tag then points to that same commit, and the
    GitHub Release names those same accepted artifacts. Tagging performs no rebuild.
-9. A prerelease such as `1.0.0-rc.1` is optional. When used, it is a distinct version and artifact
+12. A prerelease such as `1.0.0-rc.1` is optional. When used, it is a distinct version and artifact
    set; changing it to `1.0.0` requires rebuilding and final acceptance of the stable artifacts.
    Never claim that RC and stable artifacts are byte-identical after a version-changing rebuild.
-10. The owner separately authorizes tag creation and GitHub Release publication. Neither action
-    deploys anything.
+13. The owner separately authorizes tag creation and GitHub Release publication. Neither action
+     deploys anything.
 
 Feature completeness, zero known low-severity defects, mobile-width support, and an arbitrary
 coverage percentage are not implicit 1.0 requirements unless the owner later adds them explicitly.
@@ -297,13 +322,61 @@ The validator is stdlib-only and runs in the required, non-skipping `static-guar
 - `VERSION` availability in each Dockerfile that evaluates root Gradle configuration; and
 - on a tag event, exact equality between the tag and `v<VERSION>` plus a dated changelog entry.
 
-The CI workflow also listens to `v*` pushes so invalid release-looking tags fail visibly. This is a
-validation route, not a deployment route. Contract tests verify that deploy workflows remain
-`workflow_call`/manual-gate only and are not triggered by tags or GitHub Releases.
+The required branch/PR pipeline does not listen to tags. A dedicated
+`.github/workflows/release-tag-validation.yml` workflow listens to `v*` pushes and runs only the
+validator and its focused tests, with read-only contents permission. This gives release operators a
+clear tag-specific signal without routing a tag through unrelated integration, Pact, Docker Compose,
+Playwright, or GHCR-publish jobs.
 
-Validation fails closed on missing files, invalid encoding, malformed JSON, unknown ref type during
-a tag check, version drift, missing changelog entry, or an unmatched tag. Error messages name the
-file and expected value without printing secrets.
+The CI wiring contract compares the exact trigger shape for each deployment or image-publishing
+workflow:
+
+| Workflow | Permitted trigger shape |
+|---|---|
+| `deploy.yml` | exactly `workflow_dispatch` |
+| `deploy-azure.yml` | exactly `workflow_call` |
+| `deploy-azure-frontend.yml` | exactly `workflow_call` |
+| `deploy-aws.yml` | exactly `workflow_call` |
+| `frontend-cd.yml` | exactly `workflow_dispatch` |
+| `terraform-azure.yml` | exactly `workflow_dispatch` plus `pull_request.paths = [infrastructure/terraform/azure/**, .github/workflows/terraform-azure.yml]`; production apply remains dispatch-and-action gated |
+| `terraform.yml` | exactly `workflow_dispatch` |
+| `ci-verification.yml` | exactly `push.branches = [main, architecture/**, feature/**]` and `pull_request.branches = [main, architecture/**]`; no tag filter |
+
+Any added, removed, or substituted trigger key or branch/tag filter fails the contract; checking
+only for forbidden `tags` or `release` text is insufficient. The branch/PR pipeline also performs
+real builds of all
+eight Gradle-consuming Dockerfiles: the existing four Compose/AWS builds and full image builds for
+all four Azure service Dockerfiles. The Azure builds run as a four-service matrix so their wall-clock
+can benefit from available runner concurrency rather than requiring four sequential cold builds. The
+implementation records successful pre-change `main` CI durations before reporting the comparison
+and compares them with the first green post-change PR run. Post-change Azure wall-clock is
+`max(child completion) - min(child start)` across all four matrix children; the slowest individual
+child duration and the difference between that duration and the total span are reported beside it so
+runner queuing or serialization is visible. Total CI workflow duration is the primary acceptance
+metric because the Azure matrix can run outside the critical dependency chain; the Azure span is a
+diagnostic, not a substitute. Runner variance is reported, and no performance improvement is claimed
+from a single sample.
+
+The new tag workflow receives a slice-local schema check inside required, non-skipping
+`static-guard`: a pinned and SHA-256-verified `actionlint` binary is downloaded with bounded retry
+flags and runs only against `release-tag-validation.yml`. The existing `deploy-workflow-contract`
+job remains advisory; promoting its much broader deploy/Terraform suite into `ci-required` is
+separate backlog work because the current nine-job classifier contract intentionally excludes it and
+its Windows executable-gate test may skip when Bash or jq is unavailable.
+
+Tag validation is detective, not preventive: an invalid tag already exists when the tag workflow
+rejects it, and published tags are never deleted or moved. Prevention comes only from the separately
+owner-authorized repository ruleset restricting `v*` creation to the owner/release role. Until that
+ruleset is active, release-rehearsal evidence must state that invalid tag creation remains possible
+and must not describe green tag validation as proof of prevention.
+
+Every validator CLI call supplies `--ref-type branch` or `--ref-type tag` explicitly; there is no
+environment-derived default. Tag CI maps `github.ref_name` to `RELEASE_TAG` and supplies
+`--ref-name "$RELEASE_TAG"`. Empty or unknown ref type, missing tag name in tag mode, missing files,
+invalid encoding, malformed JSON, version
+drift, missing changelog entry, or an unmatched tag fails closed. The CI wiring contract pins branch
+mode in `static-guard` and tag mode in the tag workflow so the callers cannot silently swap modes.
+Error messages name the file and expected value without printing secrets.
 
 ## 12. Artifact and deployment identity
 
@@ -313,6 +386,44 @@ can be deployed independently. Release evidence therefore records:
 ```text
 productVersion + sourceSha + frontend deployment identity + backend image digests/revisions
 ```
+
+For `1.0.0` and later, that evidence is a JSON GitHub Release asset named
+`wealthmgmtandportfoliotracker-v<version>-release-manifest.json`. It is generated after the exact
+stable artifacts have been built and accepted, attached without changing the tagged commit, and its
+SHA-256 is written in the GitHub Release notes. It is not committed into the tagged source tree,
+which avoids a manifest-causes-rebuild cycle. Schema version 1 is:
+
+```json
+{
+  "schemaVersion": 1,
+  "productVersion": "1.0.0",
+  "releaseTag": "v1.0.0",
+  "sourceSha": "<40 lowercase hex>",
+  "frontend": {
+    "sourceSha": "<same 40 lowercase hex>",
+    "workflowRunId": 1234567890,
+    "runAttempt": 1,
+    "buildId": "<provider build/deployment identifier>"
+  },
+  "services": {
+    "api-gateway": {"image": "<registry/repository>@sha256:<64 hex>", "revision": "<serving revision>"},
+    "portfolio-service": {"image": "<registry/repository>@sha256:<64 hex>", "revision": "<serving revision>"},
+    "market-data-service": {"image": "<registry/repository>@sha256:<64 hex>", "revision": "<serving revision>"},
+    "insight-service": {"image": "<registry/repository>@sha256:<64 hex>", "revision": "<serving revision>"}
+  },
+  "marketDataRefreshJob": {"image": "<registry/repository>@sha256:<64 hex>", "revision": "<serving revision>"},
+  "marketDataRepairJob": {"image": "<registry/repository>@sha256:<64 hex>", "revision": "<serving revision>"}
+}
+```
+
+Every named component is required. `productVersion` must equal `VERSION`, `releaseTag` must equal
+`v<productVersion>`, every source SHA must equal the tagged commit, and every image reference must be
+digest-pinned. `workflowRunId` and `runAttempt` are positive JSON integers.
+`marketDataRefreshJob.image` must equal `services["market-data-service"].image` because the refresh
+Job reuses that service image. `marketDataRepairJob.image` must equal the same service image for the
+same reason. The two separate Job entries record their serving identities, not fifth and sixth image
+builds. The source-only `v0.9.0` pre-demo rehearsal has no accepted deployed release set and
+therefore does not publish this manifest; its Release notes state that explicitly.
 
 The existing `SERVICE_VERSION` remains unchanged and continues to carry the deployed image tag in
 the current infrastructure. Its known drift is handled by its existing backlog item. This SemVer
@@ -328,7 +439,7 @@ decisions.
 
 The governed flow is:
 
-1. Release PR changes version/changelog only as required and passes CI.
+1. A stable release PR changes only the permitted version-metadata set defined in §8 and passes CI.
 2. Owner separately approves merge.
 3. When release artifacts must be deployed for final acceptance, the owner separately authorizes
    that gated deployment and acceptance run before tagging.

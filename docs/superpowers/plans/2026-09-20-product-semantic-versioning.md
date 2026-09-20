@@ -9,7 +9,7 @@
 
 **Goal:** Establish one governed product SemVer at `0.9.0`, make version drift fail CI, safely rehearse a non-deploying pre-release, and leave the repository ready to enter Phase 3.
 
-**Architecture:** A root `VERSION` file is the product-version authority. Gradle consumes it, the private frontend package mirrors it, a stdlib-only validator enforces bytes/SemVer/changelog/build-context/package/tag contracts, and the existing required `static-guard` runs that validator. Product SemVer labels a release set; Git SHA, frontend deployment identity, container digest, and serving revision remain the exact artifact identity.
+**Architecture:** A root `VERSION` file is the product-version authority. Gradle consumes it, the private frontend package mirrors it, a stdlib-only validator enforces bytes/SemVer/changelog/build-context/package/tag contracts, and the existing required `static-guard` runs that validator. A focused tag-only workflow re-runs only the version contract, while required CI performs real builds of all eight Gradle-consuming Dockerfiles. Product SemVer labels a release set; Git SHA, frontend deployment identity, container digest, and serving revision remain the exact artifact identity.
 
 **Tech Stack:** Git, Semantic Versioning 2.0 policy subset, Gradle/Groovy, Python 3.12 stdlib `unittest`, npm/package-lock v3, Docker/BuildKit, GitHub Actions, Markdown.
 
@@ -28,6 +28,8 @@
 - No tag or GitHub Release may trigger deployment.
 - The demonstration is desktop-only; the known 320px/375px overflows remain backlog items and do not block Phase 3 or `1.0.0`.
 - Release PR, merge, tag, GitHub Release, Phase 3, deployment, and Production acceptance are separate owner decisions.
+- For every validation command in this plan, any `skipped` line in the suite output means that
+  portion is UNRUN, not PASS; record the missing evidence regardless of why or where the skip occurs.
 
 ## Review Focus
 
@@ -53,8 +55,8 @@
 - Produces: `read_product_version(root: Path) -> str`
 - Produces: `validate_changelog(root: Path, version: str, require_released: bool) -> None`
 - Produces: `validate_release_ref(version: str, ref_type: str, ref_name: str) -> None`
-- Produces: `validate_repository(root: Path, ref_type: str = "", ref_name: str = "") -> str`
-- Produces: CLI `python scripts/validate_product_version.py [--root PATH] [--ref-type TYPE] [--ref-name NAME]`
+- Produces: `validate_repository(root: Path, ref_type: str, ref_name: str = "") -> str`
+- Produces: CLI `python scripts/validate_product_version.py [--root PATH] --ref-type {branch,tag} [--ref-name NAME]`
 
 - [ ] **Step 1: Write core contract tests before creating `VERSION`**
 
@@ -109,11 +111,13 @@ class ProductVersionCoreTest(unittest.TestCase):
 
     def test_accepts_canonical_release(self):
         self.valid_contract()
-        self.assertEqual("0.9.0", self.validator.validate_repository(self.root))
+        self.assertEqual("0.9.0", self.validator.validate_repository(self.root, "branch"))
 
     def test_accepts_release_candidate(self):
         self.valid_contract("1.0.0-rc.1")
-        self.assertEqual("1.0.0-rc.1", self.validator.validate_repository(self.root))
+        self.assertEqual(
+            "1.0.0-rc.1", self.validator.validate_repository(self.root, "branch")
+        )
 
     def test_rejects_crlf_bom_missing_lf_and_extra_line(self):
         bad_values = (b"0.9.0\r\n", b"\xef\xbb\xbf0.9.0\n", b"0.9.0", b"0.9.0\nextra\n")
@@ -122,14 +126,14 @@ class ProductVersionCoreTest(unittest.TestCase):
                 self.write("VERSION", value)
                 self.write("CHANGELOG.md", b"# Changelog\n\n## [0.9.0] - Unreleased\n")
                 with self.assertRaises(self.validator.ContractError):
-                    self.validator.validate_repository(self.root)
+                    self.validator.validate_repository(self.root, "branch")
 
     def test_rejects_noncanonical_versions_and_build_metadata(self):
         for version in ("01.0.0", "1.00.0", "1.0", "1.0.0+sha", "1.0.0-01"):
             with self.subTest(version=version):
                 self.valid_contract(version)
                 with self.assertRaises(self.validator.ContractError):
-                    self.validator.validate_repository(self.root)
+                    self.validator.validate_repository(self.root, "branch")
 
     def test_tag_requires_exact_version_and_released_changelog(self):
         self.valid_contract(released=True)
@@ -145,6 +149,16 @@ class ProductVersionCoreTest(unittest.TestCase):
         self.valid_contract(released=False)
         with self.assertRaises(self.validator.ContractError):
             self.validator.validate_repository(self.root, "tag", "v0.9.0")
+
+    def test_rejects_empty_or_unknown_ref_type_and_missing_tag_name(self):
+        self.valid_contract(released=True)
+        for ref_type in ("", "release", "TAG"):
+            with self.subTest(ref_type=ref_type), self.assertRaises(
+                self.validator.ContractError
+            ):
+                self.validator.validate_repository(self.root, ref_type)
+        with self.assertRaises(self.validator.ContractError):
+            self.validator.validate_repository(self.root, "tag")
 
 
 if __name__ == "__main__":
@@ -206,7 +220,6 @@ Create `scripts/validate_product_version.py` with these contracts. Keep it stdli
 from __future__ import annotations
 
 import argparse
-import os
 import re
 import sys
 from pathlib import Path
@@ -263,12 +276,16 @@ def validate_changelog(root: Path, version: str, require_released: bool) -> None
 
 
 def validate_release_ref(version: str, ref_type: str, ref_name: str) -> None:
+    if ref_type not in {"branch", "tag"}:
+        raise ContractError(f"ref type must be exactly 'branch' or 'tag', got {ref_type!r}")
+    if ref_type == "tag" and not ref_name:
+        raise ContractError("tag validation requires a non-empty ref name")
     if ref_type == "tag" and ref_name != f"v{version}":
         raise ContractError(f"release tag must be exactly v{version}, got {ref_name!r}")
 
 
 def validate_repository(
-    root: Path, ref_type: str = "", ref_name: str = ""
+    root: Path, ref_type: str, ref_name: str = ""
 ) -> str:
     version = read_product_version(root)
     validate_release_ref(version, ref_type, ref_name)
@@ -279,8 +296,8 @@ def validate_repository(
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", type=Path, default=REPO)
-    parser.add_argument("--ref-type", default=os.environ.get("GITHUB_REF_TYPE", ""))
-    parser.add_argument("--ref-name", default=os.environ.get("GITHUB_REF_NAME", ""))
+    parser.add_argument("--ref-type", choices=("branch", "tag"), required=True)
+    parser.add_argument("--ref-name", default="")
     args = parser.parse_args(argv)
     try:
         version = validate_repository(args.root.resolve(), args.ref_type, args.ref_name)
@@ -299,8 +316,9 @@ if __name__ == "__main__":
 
 Create `docs/release/SEMANTIC_VERSIONING_POLICY.md`. Copy the normative rules from design §§5–13:
 the version domains, pre/post-1.0 bump table, `1.0.0` gate, source/digest distinction, changelog
-contract, historical-tag disposition, owner gates, and the rule that tags never deploy. Do not copy
-the design alternatives or brainstorming history into the operational policy.
+contract, historical-tag disposition, exact stable-transition delta and rerun/carry-forward rules,
+release-manifest asset name/schema, owner gates, and the rule that tags never deploy. Do not copy the
+design alternatives or brainstorming history into the operational policy.
 
 - [ ] **Step 6: Run the core contract and byte checks**
 
@@ -308,7 +326,7 @@ Run:
 
 ```powershell
 python scripts/tests/test_validate_product_version.py -v
-python scripts/validate_product_version.py
+python scripts/validate_product_version.py --ref-type branch
 $bytes = [IO.File]::ReadAllBytes((Resolve-Path VERSION))
 [Convert]::ToHexString($bytes)
 git diff --check
@@ -383,6 +401,14 @@ At the beginning of the existing `subprojects` block, add:
 
 Do not add `-SNAPSHOT` and do not change dependency versions.
 
+This makes the previously unversioned subprojects inherit `0.9.0`, so conventional archive names
+such as `common-dto.jar` become `common-dto-0.9.0.jar`. Confirm the actual asymmetric service
+contract: API Gateway remains explicitly pinned to `app.jar`; portfolio, market-data, and insight
+produce their versioned default `bootJar`; each clean Docker builder invokes only that service's
+`bootJar` and its `*.jar` copy resolves to exactly one file. Confirm candidate/slim staging still
+uses Gradle's `archiveFile` provider and explicit rename. Do not add compatibility copies or rename
+unrelated artifacts.
+
 - [ ] **Step 4: Put `VERSION` into every Gradle-building Docker context**
 
 In each of the eight AWS/Azure service Dockerfiles, add this line immediately after
@@ -406,16 +432,30 @@ the allowlist documents which images consume the root build.
 
 ```powershell
 python scripts/tests/test_validate_product_version.py -v
-python scripts/validate_product_version.py
-./gradlew.bat -q properties | Select-String '^version: 0.9.0$'
-./gradlew.bat -q :api-gateway:properties | Select-String '^version: 0.9.0$'
-./gradlew.bat -q :portfolio-service:properties | Select-String '^version: 0.9.0$'
-./gradlew.bat :api-gateway:bootJar --no-daemon
+python scripts/validate_product_version.py --ref-type branch
+./gradlew.bat -q properties --no-daemon | Select-String '^version: 0.9.0$'
+./gradlew.bat -q :api-gateway:properties --no-daemon | Select-String '^version: 0.9.0$'
+./gradlew.bat -q :portfolio-service:properties --no-daemon | Select-String '^version: 0.9.0$'
+./gradlew.bat clean :api-gateway:bootJar :portfolio-service:bootJar :market-data-service:bootJar :insight-service:bootJar --no-daemon
+$productVersion = (Get-Content -LiteralPath VERSION -Raw).Trim()
+$expectedJars = @{
+  'api-gateway/build/libs' = 'app.jar'
+  'portfolio-service/build/libs' = "portfolio-service-$productVersion.jar"
+  'market-data-service/build/libs' = "market-data-service-$productVersion.jar"
+  'insight-service/build/libs' = "insight-service-$productVersion.jar"
+}
+foreach ($directory in $expectedJars.Keys) {
+  $jars = @(Get-ChildItem -LiteralPath $directory -File -Filter '*.jar')
+  if ($jars.Count -ne 1 -or $jars[0].Name -ne $expectedJars[$directory]) {
+    throw "$directory expected only $($expectedJars[$directory]); observed $($jars.Name -join ', ')"
+  }
+}
 git diff --check
 ```
 
-Expected: validator/tests PASS; all three property checks return `version: 0.9.0`; `bootJar` succeeds
-and still produces `api-gateway/build/libs/app.jar`; whitespace check is silent.
+Expected: validator/tests PASS; all three property checks return `version: 0.9.0`; all four
+`bootJar` tasks succeed; API Gateway contains `app.jar`; each other listed service directory contains
+exactly one versioned service JAR after the clean targeted build; whitespace check is silent.
 
 - [ ] **Step 7: Commit Task 2 after its independent review**
 
@@ -448,8 +488,10 @@ package-lock.json packages[""] version != VERSION
 malformed JSON or missing packages[""]
 ```
 
-Each failure must name the exact file/field. Add a repository test that calls
-`validate_frontend_versions(REPO, "0.9.0")`; it initially fails on the current `0.1.0` values.
+Each failure must name the exact file/field. Add a repository test that derives its expectation from
+`read_product_version(REPO)` and passes that value to `validate_frontend_versions(REPO, version)`;
+it initially fails because root `VERSION` is `0.9.0` while the frontend remains `0.1.0`. Never pin a
+permanent repository-consistency test to literal `0.9.0`; it must remain green after a valid bump.
 
 - [ ] **Step 2: Run the test and confirm current frontend drift**
 
@@ -487,7 +529,7 @@ in `frontend/package-lock.json` changed. Do not update dependencies.
 
 ```powershell
 python scripts/tests/test_validate_product_version.py -v
-python scripts/validate_product_version.py
+python scripts/validate_product_version.py --ref-type branch
 Set-Location frontend
 npm ci
 npm test
@@ -506,88 +548,237 @@ git add frontend/package.json frontend/package-lock.json scripts/validate_produc
 git commit -m "build(frontend): align product version metadata"
 ```
 
-### Task 4: Make release-tag validation required without enabling deployment
+### Task 4: Add focused tag validation and measured Docker/trigger contracts
 
 **Files:**
 - Create: `scripts/tests/test_product_version_ci_wiring.py`
-- Modify: `.github/workflows/ci-verification.yml:3-7`
+- Create: `.github/workflows/release-tag-validation.yml`
+- Create: `docs/todos/backlog/required-deploy-workflow-contract/README.md`
 - Modify: `.github/workflows/ci-verification.yml:59-116`
+- Modify: `.github/workflows/ci-verification.yml:314-365`
 
 **Interfaces:**
-- Consumes: validator CLI and GitHub-provided `GITHUB_REF_TYPE`/`GITHUB_REF_NAME`
-- Produces: required validation on PRs, configured branch pushes, and `v*` tag pushes
-- Preserves: deploy workflows have no `push.tags` or `release` trigger
+- Consumes: validator CLI plus GitHub `github.ref_name`, mapped exactly to step-local `RELEASE_TAG`
+- Produces: required validation on configured PRs/branch pushes and a focused signal on `v*` tags
+- Produces: real CI builds for all eight Gradle-consuming Dockerfiles
+- Preserves: exact trigger sets for deployment/image-publishing workflows
 
 - [ ] **Step 1: Write a failing CI-wiring contract test**
 
 Create a stdlib `unittest` file that:
 
-1. extracts the top-level `on:` block from YAML text without PyYAML;
-2. requires `ci-verification.yml` to contain `tags: ["v*"]` under `on.push`;
+1. imports and reuses `_without_comments()` from the sibling
+   `test_deploy_frontend_only_mode.py`, strips full-line YAML comments, and only then extracts the
+   top-level `on:` block without PyYAML; before extracting, asserts every inspected workflow contains
+   exactly one unindented `^on:` key;
+2. requires `ci-verification.yml` to retain its current branch/PR trigger sets and to have no tag
+   trigger;
 3. requires a `Product version contract` step in `static-guard` running both the validator tests and
-   validator CLI; and
-4. extracts the top-level `on:` block from `deploy.yml`, `deploy-azure.yml`,
-   `deploy-azure-frontend.yml`, and `deploy-aws.yml`, rejecting `tags:` and `release:` there.
+   validator CLI with exact `--ref-type branch`;
+4. requires `release-tag-validation.yml` to have exactly `push.tags: ["v*"]`, read-only contents
+   permission, and one job that runs only checkout, Python setup, the focused validator tests, and the
+   validator CLI; it requires step-local `RELEASE_TAG: ${{ github.ref_name }}` and exact
+   `--ref-type tag --ref-name "$RELEASE_TAG"`, so a hard-coded tag cannot satisfy the contract;
+5. compares the exact trigger shape, by equality, for this allowlist:
+   - `deploy.yml` -> `workflow_dispatch`;
+   - `deploy-azure.yml` -> `workflow_call`;
+   - `deploy-azure-frontend.yml` -> `workflow_call`;
+   - `deploy-aws.yml` -> `workflow_call`; and
+   - `frontend-cd.yml` and `terraform.yml` -> `workflow_dispatch`;
+   - `terraform-azure.yml` -> `workflow_dispatch` plus
+     `pull_request.paths = [infrastructure/terraform/azure/**,
+     .github/workflows/terraform-azure.yml]`; also assert its `apply` job remains gated by
+     `github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'`;
+   - `ci-verification.yml` -> exactly `push.branches = [main, architecture/**, feature/**]` and
+     `pull_request.branches = [main, architecture/**]`, with no tag filter; and
+6. requires the existing `azure-image-smoke-test` job to use a four-entry matrix containing exactly
+   the API Gateway, portfolio, market-data, and insight Azure Dockerfiles, with full image builds for
+   every entry and the existing probe cases conditional on the API Gateway entry; and
+7. requires a `static-guard` step that downloads exactly actionlint `v1.7.12`, verifies SHA-256
+   `8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8`, uses `curl --retry`
+   plus fail/timeout flags, and invokes actionlint only on
+   `.github/workflows/release-tag-validation.yml`; and
+8. extracts the actionlint version and SHA-256 from both the new `static-guard` step and the existing
+   `deploy-workflow-contract` install step, then asserts the two version/checksum pairs are equal.
 
-The extractor must stop at the next unindented YAML key so `frontend-cd.yml`-style action output
-`tags:` cannot be confused with an event trigger.
+The extractor must stop at the next unindented YAML key. It must compare parsed top-level trigger
+keys and nested filters, not search for forbidden text. Stripping comments first is mandatory because
+the existing workflow comments themselves contain trigger names such as `workflow_dispatch`.
 
-- [ ] **Step 2: Run the wiring test and confirm the missing tag route fails**
+- [ ] **Step 2: Capture the recoverable pre-change CI timing baseline**
+
+Before reporting the timing comparison, record the URLs and timestamps of the latest three
+successful pre-change `main` runs in which `azure-image-smoke-test` actually executed, plus each
+run's Azure-job duration. This read may happen after the workflow edit because historical runs
+persist; select only runs whose `headSha` predates the matrix change:
+
+```powershell
+gh run list --workflow ci-verification.yml --branch main --status success --limit 20 --json databaseId,headSha,url,createdAt,updatedAt
+gh run view <run-id> --json jobs,url,createdAt,updatedAt
+```
+
+Calculate and record the median full-workflow duration and median Azure-job duration. If fewer than
+three comparable runs exist, record the available samples and the limitation; do not invent a
+baseline or claim a future improvement from a single observation.
+
+- [ ] **Step 3: Run the wiring test and confirm the missing contracts fail**
 
 ```powershell
 python scripts/tests/test_product_version_ci_wiring.py -v
 ```
 
-Expected: FAIL because CI does not yet listen to `v*` tags and has no product-version step.
+Expected: FAIL because the focused tag workflow, product-version step, and three Azure image
+builds do not yet exist.
 
-- [ ] **Step 3: Add validation-only tag routing**
-
-Change the CI trigger to:
-
-```yaml
-on:
-  push:
-    branches: ["main", "architecture/**", "feature/**"]
-    tags: ["v*"]
-  pull_request:
-    branches: ["main", "architecture/**"]
-```
-
-Do not edit any deploy workflow trigger.
-
-- [ ] **Step 4: Add the required static-guard step**
+- [ ] **Step 4: Add the required branch/PR static-guard step**
 
 Under `static-guard`, after Python setup and before unrelated guards, add:
 
 ```yaml
+      - name: Validate release-tag workflow schema
+        run: |
+          set -euo pipefail
+          curl --fail --location --show-error --silent \
+            --retry 5 --retry-all-errors --retry-delay 2 \
+            --connect-timeout 15 --max-time 120 \
+            --output actionlint_1.7.12_linux_amd64.tar.gz \
+            https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz
+          echo "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8  actionlint_1.7.12_linux_amd64.tar.gz" | sha256sum -c -
+          tar -xzf actionlint_1.7.12_linux_amd64.tar.gz actionlint
+          ./actionlint -shellcheck= .github/workflows/release-tag-validation.yml
+
       - name: Product version contract
         run: |
           python scripts/tests/test_validate_product_version.py -v
           python scripts/tests/test_product_version_ci_wiring.py -v
-          python scripts/validate_product_version.py
+          python scripts/validate_product_version.py --ref-type branch
 ```
 
-The CLI reads `GITHUB_REF_TYPE` and `GITHUB_REF_NAME` from the runner. On branches and pull
-requests it validates source state; on tags it additionally requires exact tag equality and a dated
-changelog.
+Do not add a tag trigger to `ci-verification.yml`; its full integration graph is branch/PR evidence, not
+a focused release-tag signal. Do not alter `ci-required.needs`, its nine-entry expected-results map,
+or the existing advisory `deploy-workflow-contract` job in this slice. The focused actionlint step is
+required because it runs inside `static-guard`; its bounded retry avoids turning one transient
+release-asset response into an immediate merge failure.
 
-- [ ] **Step 5: Run local workflow contracts**
+- [ ] **Step 5: Add the focused validation-only tag workflow**
+
+Create `.github/workflows/release-tag-validation.yml` with this shape:
+
+```yaml
+name: Release Tag Validation
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  product-version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Validate product release tag
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          python scripts/tests/test_validate_product_version.py -v
+          python scripts/validate_product_version.py --ref-type tag --ref-name "$RELEASE_TAG"
+```
+
+The command supplies tag mode explicitly and passes the GitHub tag name through `env`, so an empty or
+renamed `GITHUB_REF_TYPE` cannot silently downgrade the check. The validator requires exact tag
+equality plus a dated changelog. Do not add integration, Pact, Docker, Playwright, package-publish,
+deploy, or write-permission steps to this workflow.
+
+- [ ] **Step 6: Refactor Azure image verification into a parallel matrix**
+
+Refactor the existing job to this shape while preserving the current probe script verbatim in the
+conditional probe step:
+
+```yaml
+  azure-image-smoke-test:
+    needs: unit-tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: api-gateway
+            dockerfile: api-gateway/Dockerfile.azure
+            image: probe-smoke-test
+            run_probe: true
+          - service: portfolio-service
+            dockerfile: portfolio-service/Dockerfile.azure
+            image: semver-portfolio-azure
+            run_probe: false
+          - service: market-data-service
+            dockerfile: market-data-service/Dockerfile.azure
+            image: semver-market-data-azure
+            run_probe: false
+          - service: insight-service
+            dockerfile: insight-service/Dockerfile.azure
+            image: semver-insight-azure
+            run_probe: false
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Azure service image
+        run: docker build -f "${{ matrix.dockerfile }}" -t "${{ matrix.image }}" .
+      - name: Run API Gateway probe smoke cases
+        if: matrix.run_probe
+        run: |
+          # Move the existing run_case and replica-token script here unchanged.
+```
+
+The matrix entries are build-only checks: do not log in, push, tag, dispatch, or deploy. The existing
+`ci-required` dependency on `azure-image-smoke-test` observes the aggregate matrix result, so any
+failed service build fails the required gate. Together with the existing Compose/AWS builds, the
+matrix executes all eight Docker build definitions affected by `COPY VERSION VERSION` while avoiding
+the sum of four sequential cold-build durations.
+
+- [ ] **Step 7: Run local workflow contracts**
 
 ```powershell
 python scripts/tests/test_validate_product_version.py -v
 python scripts/tests/test_product_version_ci_wiring.py -v
-python scripts/validate_product_version.py
+python scripts/validate_product_version.py --ref-type branch
 python scripts/tests/test_classify_changed_paths.py -v
 python scripts/tests/test_deploy_frontend_only_mode.py -v
+python scripts/tests/test_deploy_pipeline_hardening.py
 git diff --check
 ```
 
-Expected: all tests and validator PASS; no deploy workflow acquires a tag/release trigger.
+Expected: all executed tests and the validator PASS; workflow triggers equal the allowlist; the tag workflow has
+one read-only validation job; its schema is checked inside required `static-guard`; all eight
+Dockerfile build routes are measured by required CI. Apply the global skipped-output rule to every
+suite: any skipped portion is UNRUN, not PASS.
 
-- [ ] **Step 6: Commit Task 4 after its independent review**
+- [ ] **Step 8: Record the broader advisory-job gap as separate backlog debt**
+
+Create `docs/todos/backlog/required-deploy-workflow-contract/README.md` with status `Open — outside
+the Semantic Versioning slice`. Record:
+
+- `deploy-workflow-contract` is advisory and intentionally absent from the current nine-job
+  `ci-required` contract;
+- `test_classify_changed_paths.py` pins that nine-job set and its executable Bash/jq gate class skips
+  when either tool is unavailable, including some Windows hosts;
+- the job currently combines Wave P, deploy hardening, Terraform-script tests, and a network-fetched
+  actionlint binary, so promoting it changes merge-gate scope and failure modes; and
+- acceptance requires an independently reviewed design that updates the classifier test and
+  `ALL_JOBS`, reconciles advisory comments, hardens network download/retry behavior, measures CI
+  duration/reliability, and then deliberately adds the job to `ci-required` if approved.
+
+Do not treat this backlog record as authority to perform that promotion.
+
+- [ ] **Step 9: Commit Task 4 after its independent review**
 
 ```powershell
-git add .github/workflows/ci-verification.yml scripts/tests/test_product_version_ci_wiring.py
+git add .github/workflows/ci-verification.yml .github/workflows/release-tag-validation.yml scripts/tests/test_product_version_ci_wiring.py docs/todos/backlog/required-deploy-workflow-contract/README.md
 git commit -m "ci: enforce product version contract"
 ```
 
@@ -638,7 +829,7 @@ alignment, and required CI/tag validation. Do not date the entry or claim the ta
 
 ```powershell
 rg -n "0\.9\.0|1\.0\.0|desktop-only|responsive-dashboard-narrow-width-overflow" VERSION CHANGELOG.md docs/release/SEMANTIC_VERSIONING_POLICY.md docs/plans/ASSET_PICKER_DEMO_PREPARATION_PLAN.md docs/todos/backlog/responsive-dashboard-narrow-width-overflow/README.md
-python scripts/validate_product_version.py
+python scripts/validate_product_version.py --ref-type branch
 git diff --check
 ```
 
@@ -678,7 +869,7 @@ Expected: isolated SemVer branch/worktree; intended base; only planned files; no
 ```powershell
 python scripts/tests/test_validate_product_version.py -v
 python scripts/tests/test_product_version_ci_wiring.py -v
-python scripts/validate_product_version.py
+python scripts/validate_product_version.py --ref-type branch
 ```
 
 Expected: all tests PASS and validator reports `0.9.0`.
@@ -696,17 +887,25 @@ python scripts/tests/test_classify_changed_paths.py -v
 python scripts/tests/test_deploy_frontend_only_mode.py -v
 ```
 
-Expected: all commands PASS. Report any unavailable Docker/host prerequisite as UNRUN, never PASS.
+Expected: all executed commands PASS. Apply the global skipped-output rule to every suite; report
+any unavailable Docker/host prerequisite as UNRUN, never PASS.
 
-- [ ] **Step 4: Validate representative container configuration**
+- [ ] **Step 4: Validate every Azure container build affected by the version change**
 
 ```powershell
 docker build -f api-gateway/Dockerfile.azure -t wealth-semver-api-gateway:local .
+docker build -f portfolio-service/Dockerfile.azure -t wealth-semver-portfolio:local .
+docker build -f market-data-service/Dockerfile.azure -t wealth-semver-market-data:local .
+docker build -f insight-service/Dockerfile.azure -t wealth-semver-insight:local .
 docker image inspect wealth-semver-api-gateway:local --format '{{json .Config.Labels}}'
 ```
 
-Expected: image builds successfully from the root context. This slice does not require new OCI
-version labels, so the label inspection is evidence that no unplanned label claim was introduced.
+Expected: all four full Azure images build successfully from the root context. The four AWS variants
+are exercised by the existing
+`docker compose build` CI path. This slice does not require new OCI version labels, so the label
+inspection is evidence that no unplanned label claim was introduced. If Docker is unavailable,
+report these commands as UNRUN and do not call the source-completion gate complete until required CI
+has supplied the missing real-build evidence.
 
 - [ ] **Step 5: Obtain independent review**
 
@@ -717,16 +916,38 @@ and the Docker result. Review focus is:
 - no `SERVICE_VERSION`, Terraform, registry, or deployment expansion;
 - exact SemVer/parser correctness;
 - tag validation without tag-triggered deployment;
-- Docker-context completeness; and
+- measurement rather than textual inference for Docker-context and trigger completeness;
+- focused tag-workflow signal quality; and
 - truthful desktop-only plan reconciliation.
 
-No model reviews its own work. Resolve every blocking finding and rerun affected checks.
+No model reviews its own work. Give Fable an explicit measurement-vs-claim review lens for Tasks 2
+and 4. Resolve every blocking finding and rerun affected checks.
 
 - [ ] **Step 6: Commit review-driven corrections and stop at the publication gate**
 
 Use one focused fix commit per accepted review round. Report exact HEAD, diff summary, validations,
 review outcome, and any UNRUN check. Do not push or create a pull request without explicit owner
 authorization.
+
+### Post-publication CI-duration measurement gate
+
+This gate applies only after the owner separately authorizes the implementation branch push and pull
+request. It does not grant either authorization.
+
+1. Wait for the first uncontended green PR run of `CI Verification Pipeline`.
+2. Record its URL, total duration, and the start/completion times for all four
+   `azure-image-smoke-test` matrix children. Define post-change Azure wall-clock as
+   `max(child completion) - min(child start)` across the four children. Also report the slowest
+   individual child duration and the serialization gap (`wall-clock span - slowest child duration`).
+   A material positive gap indicates runner queuing or serialization; do not sum child durations.
+3. Compare total workflow duration with Task 4's pre-change median as the primary acceptance metric.
+   The Azure span, slowest child, serialization gap, and runner-minute change are diagnostics: report
+   them separately and identify whether the Azure matrix was on the observed critical dependency
+   path. A shorter Azure span does not establish a faster workflow when another chain dominates.
+   Report runner/cache limitations and do not claim improvement from one post-change sample.
+4. Give the evidence to the independent reviewer before technical acceptance. Any material
+   wall-clock regression or unexpected serialization is a review finding to resolve or explicitly
+   accept before merge; a green result alone does not close the performance question.
 
 ### Task 7: Owner-gated `v0.9.0` pre-release rehearsal
 
@@ -741,6 +962,11 @@ authorization.
 > **OWNER GATE:** Do not begin this task without explicit authorization for the release PR, its
 > push/merge, annotated tag publication, and GitHub pre-release. That authorization does not permit
 > deployment or Production access.
+
+Before tag publication, record whether the separately owner-controlled `v*` creation ruleset is
+active. The tag-validation workflow is detective only: if the ruleset is absent, obtain explicit
+owner acceptance of that residual risk and state in the rehearsal evidence that invalid tag creation
+was possible. Never present the validator as a preventive control.
 
 - [ ] **Step 1: Prepare the release-only changelog PR**
 
@@ -776,20 +1002,54 @@ Do not move or recreate the tag after publication.
 - [ ] **Step 4: Create the GitHub pre-release only after owner approval**
 
 ```powershell
-gh release create v0.9.0 --verify-tag --prerelease --title "0.9.0 — SemVer foundation" --notes "Pre-demo-certification release. Establishes governed product Semantic Versioning; Phase 3 and 1.0.0 acceptance remain pending. No deployment is included."
+gh release create v0.9.0 --verify-tag --prerelease --title "0.9.0 — SemVer foundation" --notes "Pre-demo-certification release. Establishes governed product Semantic Versioning; Phase 3 and 1.0.0 acceptance remain pending. No deployment is included, and no deployed release-manifest asset is published."
 ```
+
+This source-only rehearsal does not have an accepted deployed artifact set, so it does not publish a
+release-manifest asset. State that explicitly in the Release notes.
 
 - [ ] **Step 5: Prove validation ran and deployment did not**
 
-Inspect Actions for the tag SHA. Require the product-version CI run to finish green. Confirm no run
-of `deploy.yml`, `deploy-azure.yml`, `deploy-azure-frontend.yml`, or `deploy-aws.yml` was triggered by
-the tag or Release. Record URLs and conclusions in the handoff; do not dispatch anything.
+Inspect Actions for the tag SHA. Require `Release Tag Validation` to finish green. Confirm no run of
+`deploy.yml`, `deploy-azure.yml`, `deploy-azure-frontend.yml`, `deploy-aws.yml`, `frontend-cd.yml`,
+`terraform-azure.yml`, `terraform.yml`, or `ci-verification.yml` was triggered by the tag or Release.
+If the tag was pushed but no `Release Tag Validation` run was created, record the rehearsal as not
+demonstrated and route to the owner for a superseding pre-release under design §16; never move or
+reuse the published tag. Record URLs and conclusions in the handoff; do not dispatch anything.
 
 - [ ] **Step 6: Handoff to Phase 3**
 
 Report `v0.9.0`, tag object/commit, GitHub Release URL, CI result, and no-deploy evidence. State that
 Phase 3 still needs its own owner authorization and that `1.0.0` remains gated by the design’s §8
 acceptance boundary.
+
+## Future owner-gated `1.0.0` promotion contract
+
+This section is a runbook constraint, not authorization to execute Phase 3, deploy, tag, or publish a
+stable release.
+
+1. Complete Phase 3 broad desktop E2E and disposition its findings on a functionally complete
+   `0.y.z` commit.
+2. Prepare a stable-transition PR whose diff contains exactly `VERSION`, `CHANGELOG.md`,
+   `frontend/package.json`, and `frontend/package-lock.json`. Set all version fields to `1.0.0` and
+   date the changelog. A machine check must compare the accepted Phase 3 commit with the proposed
+   stable commit and fail on any fifth path or behavioral change.
+3. Carry forward only the broad Phase 3 scenario evidence and accepted finding dispositions. Rerun
+   required CI, version/tag contracts, all eight Docker builds, artifact provenance/digest capture,
+   and final desktop acceptance smoke on the rebuilt `1.0.0` artifacts. Any failure or extra source
+   change invalidates carry-forward and returns the release to remediation and broad E2E.
+4. After exact stable-artifact acceptance, generate
+   `wealthmgmtandportfoliotracker-v1.0.0-release-manifest.json` using the schema in design §12. Every
+   component is mandatory, all source SHAs equal the stable commit, and all image references are
+   digest-pinned. Require positive JSON integers for `workflowRunId` and `runAttempt`, and require
+   both `marketDataRefreshJob.image` and `marketDataRepairJob.image` to equal
+   `services["market-data-service"].image`; the two Jobs record separate serving identities, not
+   fifth and sixth image builds. Compute the asset SHA-256 for the Release notes; do not commit the
+   generated manifest into the tagged tree.
+5. Under separate owner authority, create annotated tag `v1.0.0` at that exact stable commit, wait
+   for `Release Tag Validation` to pass, publish the GitHub Release and manifest asset, record the
+   manifest SHA-256 in the notes, and verify that no deployment/image-publishing workflow ran because
+   of the tag or Release. Tagging performs no rebuild and grants no deployment authority.
 
 ## Self-review record
 
