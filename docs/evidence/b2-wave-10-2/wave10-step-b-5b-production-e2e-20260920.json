@@ -1,0 +1,382 @@
+{
+  "schema": "wave10-5b-evidence-v1",
+  "verdict": "GO",
+  "stop_reason": {
+    "code": "NONE",
+    "text": "all exit criterion 5b conditions held",
+    "failed_criteria": []
+  },
+  "start_utc": "2026-09-20T04:34:26Z",
+  "end_utc": "2026-09-20T04:40:54Z",
+  "baseline_commit": "91f40bd0126f15fc87a6d6beb2ffa6bcd01e76d4",
+  "tree_clean": true,
+  "verifier_script_sha256": "8aefe27318c4d3e0f7783cf16f54687697941881ba6a4acc2d6b2b5b58002d7f",
+  "oracle": {
+    "catalogSha256": "CFA5E6B7317E922C07452359B851E55EE0A2A5AE9014224665244F9C2264DE8B",
+    "holding_count": 159
+  },
+  "targets": {
+    "frontend": "https://vibhanshu-ai-portfolio.dev",
+    "api": "https://api.vibhanshu-ai-portfolio.dev"
+  },
+  "deploy_completed_utc": "2026-09-20T04:30:28Z",
+  "deploy_completed_utc_source": "owner_attested",
+  "bound_seconds": 1800,
+  "elapsed_since_deploy_seconds": 626.404,
+  "within_bound": true,
+  "run_seconds": 388.139,
+  "login": {
+    "state": "ok",
+    "status": 200,
+    "duration_seconds": 134.527,
+    "within_timeout": true,
+    "within_guard": true,
+    "failure_code": null
+  },
+  "baseline": {
+    "state": "golden",
+    "golden": true,
+    "holdings_count": 159
+  },
+  "warmup": {
+    "probes": 1,
+    "last_status": 200,
+    "seconds": 58.603
+  },
+  "presence": {
+    "allow_active_presence": false,
+    "another_session_active": false
+  },
+  "binding": {
+    "frontend": {
+      "build_id": "mE3_OA6woqSxKOZS4H13q",
+      "differs_from_pre_deploy": true,
+      "stable_fetch_count": 3,
+      "root_html_sha256": "80206729b4bf985a61723147dd307869a3abb2c2917aa3c7fafcf1d598590069",
+      "asset_names_sha256": "cf733fab05e27ca227f308313004586adccdca0d3e06cb502e1fafe058e1cd8e",
+      "asset_name_count": 11,
+      "post_state": "match",
+      "controls_rendered": true,
+      "claim": "observed served build; source commit not observable from the site"
+    },
+    "backend": {
+      "pre": {
+        "read_at_utc": "2026-09-20T04:31:09Z",
+        "services": {
+          "api-gateway": {
+            "revision": "api-gateway--0000081",
+            "digest": "sha256:090ad3ba4b7ada20bca71781d4a1ce3ac81029b8a23a8a1d180dce2cff540d09"
+          },
+          "portfolio-service": {
+            "revision": "portfolio-service--0000096",
+            "digest": "sha256:1cf372a39d17709f74aba427259548a531e3e1ba04dc64ec7750369bb8e82126"
+          }
+        },
+        "file_bytes": 442,
+        "file_sha256": "c46c510c6b31338e520222e39f3c6789c511edb94f472c0109a99fabebae8a23"
+      },
+      "post": {
+        "read_at_utc": "2026-09-20T04:40:07Z",
+        "services": {
+          "api-gateway": {
+            "revision": "api-gateway--0000081",
+            "digest": "sha256:090ad3ba4b7ada20bca71781d4a1ce3ac81029b8a23a8a1d180dce2cff540d09"
+          },
+          "portfolio-service": {
+            "revision": "portfolio-service--0000096",
+            "digest": "sha256:1cf372a39d17709f74aba427259548a531e3e1ba04dc64ec7750369bb8e82126"
+          }
+        },
+        "file_bytes": 442,
+        "file_sha256": "ac037e0b62ee4fac8bc98915737886df37a2e095c2da4869b4951ee8f2c3c7c1"
+      },
+      "post_state": "valid_equal",
+      "pre_equals_post": true,
+      "claim": "owner-attested management-plane read"
+    }
+  },
+  "owner_attested": {
+    "deploy_run_id": "35489160653",
+    "source_head_sha": "91f40bd0126f15fc87a6d6beb2ffa6bcd01e76d4"
+  },
+  "legs": [
+    {
+      "id": "L0",
+      "route": null,
+      "evidence_level": "production-browser",
+      "status": "passed",
+      "reason_code": "OK",
+      "http": [],
+      "facts": {
+        "finalPathIsPortfolio": true,
+        "headingPortfolio": true,
+        "redirectedToLogin": false,
+        "unauthorized401Seen": false
+      }
+    },
+    {
+      "id": "L1",
+      "route": "controls",
+      "evidence_level": "production-browser",
+      "status": "passed",
+      "reason_code": "OK",
+      "http": [
+        {
+          "method": "GET",
+          "path": "/api/portfolio",
+          "status": 200
+        }
+      ],
+      "facts": {
+        "editButtonVisible": true,
+        "resetButtonVisible": true,
+        "portfolioLoadStatus": 200,
+        "resetEnabled": true
+      }
+    },
+    {
+      "id": "L2",
+      "route": "9.5",
+      "evidence_level": "production-browser",
+      "status": "passed",
+      "reason_code": "OK",
+      "http": [
+        {
+          "method": "GET",
+          "path": "/api/portfolio/summary",
+          "status": 200
+        }
+      ],
+      "facts": {
+        "freshnessState": "FRESH",
+        "countsValid": true,
+        "stripVisible": true
+      }
+    },
+    {
+      "id": "L3",
+      "route": null,
+      "evidence_level": "production-browser",
+      "status": "passed",
+      "reason_code": "OK",
+      "http": [],
+      "facts": {
+        "dialogOpen": true,
+        "unavailableNoticeVisible": false
+      }
+    },
+    {
+      "id": "L4",
+      "route": "9.1",
+      "evidence_level": "production-browser",
+      "status": "passed",
+      "reason_code": "OK",
+      "http": [
+        {
+          "method": "GET",
+          "path": "/api/assets",
+          "status": 200
+        }
+      ],
+      "facts": {
+        "catalogStatus": 200,
+        "noIfNoneMatch": true,
+        "etagPresent": true,
+        "assetsNonEmpty": true,
+        "rowsRendered": true,
+        "catalogParity": true,
+        "activeCount": 159
+      }
+    },
+    {
+      "id": "L5",
+      "route": "9.4",
+      "evidence_level": "production-browser (network status and boolean)",
+      "status": "passed",
+      "reason_code": "OK",
+      "http": [
+        {
+          "method": "GET",
+          "path": "/api/presence/demo",
+          "status": 200
+        }
+      ],
+      "facts": {
+        "presenceRequestsSinceOpen": 1,
+        "presenceStatus": 200,
+        "anotherSessionActive": false,
+        "requestFailed": false,
+        "corsConsoleError": false
+      }
+    },
+    {
+      "id": "L6",
+      "route": "9.3",
+      "evidence_level": "production-browser",
+      "status": "passed",
+      "reason_code": "OK",
+      "http": [
+        {
+          "method": "GET",
+          "path": "/api/market/prices",
+          "status": 200
+        },
+        {
+          "method": "GET",
+          "path": "/api/market/prices",
+          "status": 200
+        },
+        {
+          "method": "GET",
+          "path": "/api/market/prices",
+          "status": 200
+        },
+        {
+          "method": "GET",
+          "path": "/api/market/prices",
+          "status": 200
+        },
+        {
+          "method": "GET",
+          "path": "/api/market/prices",
+          "status": 200
+        },
+        {
+          "method": "GET",
+          "path": "/api/market/prices",
+          "status": 200
+        },
+        {
+          "method": "GET",
+          "path": "/api/market/prices",
+          "status": 200
+        }
+      ],
+      "facts": {
+        "priceRequestsAfterUncheck": 7,
+        "allStatus200": true,
+        "arrayShaped": true,
+        "nonNullPriceSeen": true,
+        "disjointFromPageBatches": true,
+        "predictedBatchCount": 7
+      }
+    },
+    {
+      "id": "L7",
+      "route": null,
+      "evidence_level": "production-browser",
+      "status": "passed",
+      "reason_code": "OK",
+      "http": [],
+      "facts": {
+        "pageWriteRequestsBeforeMutation": 0
+      }
+    },
+    {
+      "id": "L8",
+      "route": "9.2",
+      "evidence_level": "production-browser; independent read production-API-only",
+      "status": "passed",
+      "reason_code": "OK",
+      "http": [
+        {
+          "method": "PUT",
+          "path": "/api/portfolio/holdings",
+          "status": 200
+        }
+      ],
+      "facts": {
+        "putCount": 1,
+        "putStatus": 200,
+        "expectedVersionMatchesObserved": true,
+        "bodyMatchesExpectedDraft": true,
+        "versionAdvanced": true,
+        "savedStatusVisible": true,
+        "independentReadVersionMatches": true,
+        "independentReadHoldingsMatch": true,
+        "mutationSkippedReason": "NONE"
+      }
+    },
+    {
+      "id": "L9",
+      "route": "reset",
+      "evidence_level": "production-browser; independent read production-API-only",
+      "status": "passed",
+      "reason_code": "OK",
+      "http": [
+        {
+          "method": "PUT",
+          "path": "/api/portfolio/demo-reset",
+          "status": 200
+        }
+      ],
+      "facts": {
+        "putCount": 1,
+        "putStatus": 200,
+        "noInternalKeyHeader": true,
+        "expectedVersionMatchesSaved": true,
+        "versionPlusOne": true,
+        "responseEqualsGolden": true,
+        "resetStatusVisible": true,
+        "independentReadEqualsGolden": true,
+        "mutationSkippedReason": "NONE"
+      }
+    }
+  ],
+  "routes": {
+    "9.1": {
+      "evidence_level": "production-browser",
+      "leg": "L4",
+      "status": "passed",
+      "ci_only_not_covered": "304/If-None-Match revalidation"
+    },
+    "9.2": {
+      "evidence_level": "production-browser; independent read production-API-only",
+      "leg": "L8",
+      "status": "passed",
+      "ci_only_not_covered": "409 conflict UI"
+    },
+    "9.3": {
+      "evidence_level": "production-browser",
+      "leg": "L6",
+      "status": "passed",
+      "ci_only_not_covered": "picker price fail-soft paths"
+    },
+    "9.4": {
+      "evidence_level": "production-browser (network status and boolean)",
+      "leg": "L5",
+      "status": "passed",
+      "ci_only_not_covered": "presence expiry, fail-open UI"
+    },
+    "9.5": {
+      "evidence_level": "production-browser",
+      "leg": "L2",
+      "status": "passed",
+      "ci_only_not_covered": "STALE/UNKNOWN/MISSING variants"
+    },
+    "reset": {
+      "evidence_level": "production-browser; independent read production-API-only",
+      "leg": "L9",
+      "status": "passed",
+      "ci_only_not_covered": "409 conflict branch"
+    }
+  },
+  "child": {
+    "state": "exit_zero",
+    "exit_code": 0,
+    "overall_deadline_seconds": 2700.0
+  },
+  "cleanup": {
+    "armed": true,
+    "attempts": 0,
+    "transport": "saved_jwt",
+    "result": "not_needed",
+    "golden_confirmed": true,
+    "break_glass_used": false,
+    "detail_code": null
+  },
+  "gate_map": {
+    "step_a_credited": false,
+    "run_result": "all_items_passed"
+  }
+}

@@ -1,11 +1,13 @@
 # Implementation Plan
 
-**Current program status (reconciled through PR #278 on 2026-09-15 at
-`main@6e0467419082de9dea8a1edbbbcb714fdd03b042`; runtime proof baseline remains
-`main@1f922a89643f5bb406dcdf471e8dc07a229960d6`):** Waves 1–6 retain their recorded source and
-review evidence. Wave 5 Task 5.6 is GO and its gateway bundle is deployed hidden in the Task 8.8
-revision. Wave 3 Task 3.7 is green on its recorded Azure evidence; Wave 6 Task 6.3 is green on its recorded
-2026-09-11 gateway-read evidence. Production flags remain disabled.
+**Current program status (reconciled 2026-09-20 at
+`main@91f40bd0126f15fc87a6d6beb2ffa6bcd01e76d4`):** Waves 1–9 retain their recorded source,
+review, assembled-stack, deployment, and live-gate evidence. Wave 10.2 Step B completed through
+frontend-only deploy run `35489160653`; both repository-scoped flags are `true`. The accepted 5b
+verifier returned `GO` within the 1,800-second bound with all L0-L9 legs passed, exact persisted
+readback, golden-state cleanup, and unchanged backend revisions/digests. Task 10.2 and Asset Picker
+Demo Preparation Phase 1 are complete. See the
+[Production E2E record](../../../docs/evidence/b2-wave-10-2/WAVE_10_2_STEP_B_5B_PRODUCTION_E2E_GO_2026-09-20.md).
 
 Wave 8 source and Azure deployment-proof tooling are merged through
 [PR #233](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/233) at
@@ -136,10 +138,10 @@ local/CI evidence, not Production E2E.
 
 B1's R3 and GC.5 blockers are closed, and Tasks 7.1–7.11 are locally complete with the Task 7.9
 exact-digest serving proof recorded. B2 Task 8.9 is COMPLETE / GO at independently accepted
-evidence head `8544d722`; documentation head `fab158cb` is independently accepted and PR #278 merged at `6e046741`; remaining Wave 10 prerequisites still gate exposure, so the
-Asset Picker is not exposed to production users. Task 2.7's historical audit is
-complete with Astra's 2026-09-10 ACCEPT: containment is only at the recorded ACA boundary and
-user-visible impact remains unproven, not impossible. Task 2.6 and Wave 10.2 item 2 remain open.
+evidence head `8544d722`; documentation head `fab158cb` is independently accepted and PR #278
+merged at `6e046741`. The later Step B deployment and Production browser `GO` expose the Asset
+Picker and close Wave 10.2. Task 2.7's historical audit remains bounded to its recorded ACA boundary;
+Task 2.6 remains mandatory compatibility debt but is non-blocking for the delivered feature.
 
 The owner-resolved generic Wave 8 decisions remain: strict 30-minute idle age, 45s eligibility / 10s
 reset / 60s overall timeouts, and page-level manual-reset placement. The attested Azure Production
@@ -4380,7 +4382,15 @@ Fable accepted documentation head `fab158cb`; PR #278 merged at `main@6e046741`;
   passed `static-guard`, `sanitizer-canary`, `deploy-workflow-contract`, `docker-build-verify`, and
   `ci-required`. The merge left both repository variables unset; no workflow dispatch, deployment, or
   exposure occurred. AWS workflow wiring remains deferred. _Requirements: 1.1_
-- [ ] **10.2 STOP/GO — production exposure.** **Corrected from the first draft, which could pass
+- [x] **10.2 STOP/GO — production exposure.** **Completed 2026-09-20.** Frontend-only deploy run
+  [35489160653](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/35489160653)
+  completed successfully from exact `main@91f40bd0126f15fc87a6d6beb2ffa6bcd01e76d4`; both
+  repository-scoped flags are `true`. The served build changed to `mE3_OA6woqSxKOZS4H13q`. The
+  accepted Step B verifier returned `GO` within the authorized 1,800-second bound, all L0-L9 legs
+  passed, independent cleanup confirmed the exact 159-holding golden set, pre/post backend
+  attestations matched, and rollback was not required. See the
+  [Production E2E record](../../../docs/evidence/b2-wave-10-2/WAVE_10_2_STEP_B_5B_PRODUCTION_E2E_GO_2026-09-20.md).
+  The contract below is retained as the gate that this run satisfied. **Corrected from the first draft, which could pass
   while Requirement 7's own mechanism was still unbuilt — round 21 made login-orchestration
   independently gated from the manual bundle; it did not make either optional for production.**
   **Recorded status (2026-09-18):** the owner-operated Wave 9 Step A Attempt 3 is
