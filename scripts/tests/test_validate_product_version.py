@@ -20,6 +20,7 @@ package.
 from __future__ import annotations
 
 import importlib.util
+import json
 import sys
 import tempfile
 import unittest
@@ -76,11 +77,41 @@ class ProductVersionCoreTest(unittest.TestCase):
         for relative in self.validator.GRADLE_DOCKERFILES:
             self.write(relative, (body or self.GOOD_DOCKERFILE).encode("utf-8"))
 
+    def write_frontend(
+        self,
+        package_version: str = "0.9.0",
+        lock_version: str | None = None,
+        lock_root_version: str | None = None,
+    ) -> None:
+        self.write(
+            "frontend/package.json",
+            json.dumps(
+                {"name": "wealth-mgmt-frontend", "version": package_version, "private": True}
+            ).encode("utf-8"),
+        )
+        self.write(
+            "frontend/package-lock.json",
+            json.dumps(
+                {
+                    "name": "wealth-mgmt-frontend",
+                    "version": lock_version or package_version,
+                    "lockfileVersion": 3,
+                    "packages": {
+                        "": {
+                            "name": "wealth-mgmt-frontend",
+                            "version": lock_root_version or package_version,
+                        }
+                    },
+                }
+            ).encode("utf-8"),
+        )
+
     def valid_contract(self, version: str = "0.9.0", released: bool = False) -> None:
         self.write("VERSION", f"{version}\n".encode("ascii"))
         state = "2026-09-20" if released else "Unreleased"
         self.write("CHANGELOG.md", f"# Changelog\n\n## [{version}] - {state}\n".encode())
         self.write_dockerfiles()
+        self.write_frontend(version)
 
     def test_accepts_canonical_release(self):
         self.valid_contract()
@@ -109,6 +140,7 @@ class ProductVersionCoreTest(unittest.TestCase):
                 self.write("VERSION", value)
                 self.write("CHANGELOG.md", b"# Changelog\n\n## [0.9.0] - Unreleased\n")
                 self.write_dockerfiles()
+                self.write_frontend()
                 with self.assertRaisesRegex(self.validator.ContractError, expected):
                     self.validator.validate_repository(self.root, "branch")
 
@@ -200,6 +232,7 @@ class ProductVersionCoreTest(unittest.TestCase):
         # for the right reason. This is the case the round-1 defect got wrong.
         self.write("VERSION", b"0.9.0\n")
         self.write_dockerfiles()
+        self.write_frontend()
         decoys = (
             "# Changelog\n\nFormat:\n\n```markdown\n## [0.9.0] - 2026-09-20\n```\n\n"
             "## [0.9.0] - Unreleased\n",
@@ -278,6 +311,7 @@ class ProductVersionCoreTest(unittest.TestCase):
         # Guards the other direction: the strictness above must not reject a normal file.
         self.write("VERSION", b"0.9.0\n")
         self.write_dockerfiles()
+        self.write_frontend()
         self.write(
             "CHANGELOG.md",
             b"# Changelog\n\n## [Unreleased]\n\n## [0.9.0] - Unreleased\n\n"
@@ -493,6 +527,132 @@ class ProductVersionCoreTest(unittest.TestCase):
             self.validator.ContractError, "without 'COPY build.gradle"
         ):
             self.validator.validate_repository(self.root, "branch")
+
+    def test_this_repository_frontend_mirrors_the_root_version(self):
+        # Derived from VERSION, never pinned to a literal: a permanent consistency test that
+        # hard-coded 0.9.0 would start failing the first time someone bumps the product
+        # correctly, and would teach the next person to edit the test instead of the mirror.
+        version = self.validator.read_product_version(REPO)
+        self.validator.validate_frontend_versions(REPO, version)
+
+    def test_rejects_package_json_drift(self):
+        self.valid_contract()
+        self.write_frontend(package_version="0.1.0")
+        with self.assertRaisesRegex(self.validator.ContractError, "package.json"):
+            self.validator.validate_repository(self.root, "branch")
+
+    def test_rejects_lockfile_top_level_drift(self):
+        self.valid_contract()
+        self.write_frontend(lock_version="0.1.0")
+        with self.assertRaisesRegex(
+            self.validator.ContractError, "top-level version"
+        ):
+            self.validator.validate_repository(self.root, "branch")
+
+    def test_rejects_lockfile_root_package_drift(self):
+        self.valid_contract()
+        self.write_frontend(lock_root_version="0.1.0")
+        with self.assertRaisesRegex(self.validator.ContractError, "packages"):
+            self.validator.validate_repository(self.root, "branch")
+
+    def test_names_the_exact_drifted_field(self):
+        # Three fields can drift independently; "frontend version drift" would leave the
+        # reader to find which one.
+        self.valid_contract()
+        for setter, expected in (
+            ({"package_version": "0.1.0"}, "package.json"),
+            ({"lock_version": "0.1.0"}, "top-level version"),
+            ({"lock_root_version": "0.1.0"}, "packages"),
+        ):
+            with self.subTest(field=expected):
+                self.write_frontend(**setter)
+                with self.assertRaises(self.validator.ContractError) as caught:
+                    self.validator.validate_repository(self.root, "branch")
+                message = str(caught.exception)
+                self.assertIn(expected, message)
+                self.assertIn("0.1.0", message)
+                self.assertIn("0.9.0", message)
+
+    def test_rejects_malformed_or_incomplete_frontend_json(self):
+        self.valid_contract()
+        cases = (
+            ("frontend/package.json", b"{not json", "is not valid JSON"),
+            ("frontend/package-lock.json", b"{not json", "is not valid JSON"),
+            (
+                "frontend/package-lock.json",
+                b'{"name": "x", "version": "0.9.0", "packages": {}}',
+                "root package record",
+            ),
+            ("frontend/package.json", b'{"name": "x"}', "missing a version field"),
+            ("frontend/package.json", b"[]", "expected a JSON object"),
+            (
+                "frontend/package-lock.json",
+                b'{"name": "x", "packages": {"": {"version": "0.9.0"}}}',
+                "missing a top-level version field",
+            ),
+            (
+                "frontend/package-lock.json",
+                b'{"name": "x", "version": "0.9.0", "packages": {"": null}}',
+                "has no version field",
+            ),
+            (
+                "frontend/package-lock.json",
+                b'{"name": "x", "version": "0.9.0", "packages": {"": {"name": "x"}}}',
+                "has no version field",
+            ),
+        )
+        for relative, body, expected in cases:
+            with self.subTest(relative=relative, body=body):
+                self.write_frontend()
+                self.write(relative, body)
+                with self.assertRaisesRegex(self.validator.ContractError, expected):
+                    self.validator.validate_repository(self.root, "branch")
+
+    def test_rejects_a_missing_frontend_package_rather_than_skipping_it(self):
+        self.valid_contract()
+        (self.root / "frontend" / "package.json").unlink()
+        with self.assertRaisesRegex(self.validator.ContractError, "cannot read"):
+            self.validator.validate_repository(self.root, "branch")
+
+    def test_version_comparison_is_exact_not_trimmed(self):
+        # A stray space is drift, not a formatting nicety: it means something wrote the field
+        # by hand rather than through npm.
+        self.valid_contract()
+        self.write_frontend(package_version="0.9.0 ")
+        with self.assertRaisesRegex(self.validator.ContractError, "package.json"):
+            self.validator.validate_repository(self.root, "branch")
+
+    def test_reports_every_drifted_field_in_one_run(self):
+        # The motivating case is a merge that resolved part of a bump. Being told about one
+        # field per run turns one fix into three round trips.
+        self.valid_contract()
+        self.write_frontend(
+            package_version="0.1.0", lock_version="0.2.0", lock_root_version="0.3.0"
+        )
+        with self.assertRaises(self.validator.ContractError) as caught:
+            self.validator.validate_repository(self.root, "branch")
+        message = str(caught.exception)
+        for fragment in ("0.1.0", "0.2.0", "0.3.0"):
+            self.assertIn(fragment, message)
+
+    def test_frontend_messages_are_repo_relative(self):
+        # CI and a developer's absolute --root must produce the same message.
+        self.valid_contract()
+        self.write_frontend(package_version="0.1.0")
+        with self.assertRaises(self.validator.ContractError) as caught:
+            self.validator.validate_repository(self.root, "branch")
+        message = str(caught.exception)
+        self.assertIn("frontend/package.json", message)
+        self.assertNotIn(str(self.root), message)
+
+    def test_does_not_inspect_tooling_package_versions(self):
+        # infrastructure/ and scripts/ are tools with their own lifecycles. An allowlist,
+        # not a repo-wide scan: a scan would rewrite or reject versions the product does not
+        # own.
+        self.valid_contract()
+        self.write("infrastructure/package.json", b'{"name": "infra", "version": "0.1.0"}')
+        self.write("scripts/package.json", b'{"name": "scripts", "version": "1.0.0"}')
+        self.assertEqual("0.9.0", self.validator.validate_repository(self.root, "branch"))
 
     def test_accepts_a_real_dated_entry_in_branch_mode(self):
         self.valid_contract(released=True)

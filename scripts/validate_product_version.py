@@ -19,6 +19,7 @@ Stdlib only, so it runs on a bare `actions/setup-python` step with no install.
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import sys
 from datetime import date
@@ -330,11 +331,86 @@ def validate_release_ref(version: str, ref_type: str, ref_name: str) -> None:
         raise ContractError(f"release tag must be exactly v{version}, got {ref_name!r}")
 
 
+def _load_json(path: Path, label: str) -> dict:
+    try:
+        raw = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise ContractError(f"{label}: cannot read: {exc}") from exc
+    except UnicodeDecodeError as exc:
+        raise ContractError(f"{label}: must be UTF-8: {exc}") from exc
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise ContractError(f"{label}: is not valid JSON: {exc}") from exc
+    if not isinstance(data, dict):
+        raise ContractError(f"{label}: expected a JSON object at the top level")
+    return data
+
+
+def validate_frontend_versions(root: Path, version: str) -> None:
+    """Require the private frontend package and its lockfile to mirror root VERSION.
+
+    Three fields, each named individually on failure, and all three reported in one run.
+    `npm version` writes all three together, so a mismatch means someone hand-edited one or a
+    merge resolved only part of a bump -- exactly the case where being told about one field
+    per run costs the most time.
+
+    Only these two files. infrastructure/package.json and scripts/package.json are tooling
+    with their own lifecycles: an allowlist keeps the product version from leaking into
+    packages the product does not own.
+
+    Paths are reported repo-relative, matching the Dockerfile contract, so a message is the
+    same whether it came from a developer's absolute --root or from CI.
+    """
+    package_label = "frontend/package.json"
+    lock_label = "frontend/package-lock.json"
+    package = _load_json(root / "frontend" / "package.json", package_label)
+    lock = _load_json(root / "frontend" / "package-lock.json", lock_label)
+
+    problems: list[str] = []
+
+    if "version" not in package:
+        problems.append(f"{package_label}: missing a version field")
+    elif package["version"] != version:
+        problems.append(
+            f"{package_label}: version is {package['version']!r}, expected {version!r} "
+            f"to match root VERSION"
+        )
+
+    if "version" not in lock:
+        problems.append(f"{lock_label}: missing a top-level version field")
+    elif lock["version"] != version:
+        problems.append(
+            f"{lock_label}: top-level version is {lock['version']!r}, expected {version!r} "
+            f"to match root VERSION"
+        )
+
+    packages = lock.get("packages")
+    if not isinstance(packages, dict) or "" not in packages:
+        problems.append(f'{lock_label}: missing packages[""] root package record')
+    else:
+        root_package = packages[""]
+        if not isinstance(root_package, dict) or "version" not in root_package:
+            problems.append(f'{lock_label}: packages[""] has no version field')
+        elif root_package["version"] != version:
+            problems.append(
+                f'{lock_label}: packages[""] version is {root_package["version"]!r}, '
+                f"expected {version!r} to match root VERSION"
+            )
+
+    if problems:
+        raise ContractError(
+            "frontend package metadata does not mirror root VERSION:\n  "
+            + "\n  ".join(problems)
+        )
+
+
 def validate_repository(root: Path, ref_type: str, ref_name: str = "") -> str:
     version = read_product_version(root)
     validate_release_ref(version, ref_type, ref_name)
     validate_changelog(root, version, require_released=ref_type == "tag")
     validate_gradle_docker_contexts(root)
+    validate_frontend_versions(root, version)
     return version
 
 
