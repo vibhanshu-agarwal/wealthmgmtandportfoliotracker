@@ -24,6 +24,12 @@ Container Apps, Azure frontend deployment, and GitHub Actions.
 `.kiro/specs/asset-picker-composition/design.md`, `.kiro/specs/asset-picker-composition/tasks.md`,
 and [`ASSET_PICKER_E2E_MASTER_PLAN.md`](ASSET_PICKER_E2E_MASTER_PLAN.md).
 
+**Execution record:** The completed
+[Step B kickoff](../superpowers/plans/2026-09-20-asset-picker-step-b-claude-kickoff.md) records the
+bounded production path. The earlier
+[offline-CI wiring kickoff](../superpowers/plans/2026-09-19-wave10-2-5b-ci-wiring-claude-kickoff.md)
+is retained as superseded decision history and is not an active task.
+
 ## Status at filing
 
 **Phase 1 is complete. Asset Picker is deployed and demo-ready under the owner's stated acceptance
