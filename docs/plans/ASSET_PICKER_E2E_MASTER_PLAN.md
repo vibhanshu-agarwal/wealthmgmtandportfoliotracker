@@ -1,7 +1,15 @@
 # Asset Picker — E2E Master Plan to Production
 
-**Last verified:** 2026-09-20 at `main@91f40bd0126f15fc87a6d6beb2ffa6bcd01e76d4` for the
-completed Wave 10.2 Step B exposure. Frontend-only deploy run
+**Last verified:** 2026-09-20 at `main@4f288c4a0e8393e78efd7f7449c114e25db78818` for Demo
+Preparation Phase 2.1 source completion. [PR #297](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/297)
+merged the independently accepted `c2d3dc66a5995ea7aafff50c691df7c0f6889cd5` responsive-shell
+head after all PR checks passed. It adds the narrow-screen icon rail and prevents document/shell
+vertical scrolling while retaining `<main>` and chat scrolling. This merge did not deploy the
+frontend; Portfolio and Overview horizontal overflows remain separate Phase 2 slices.
+
+**Current Production/runtime program-state code baseline:** 2026-09-20 at
+`main@91f40bd0126f15fc87a6d6beb2ffa6bcd01e76d4` for the completed Wave 10.2 Step B exposure.
+Frontend-only deploy run
 [35489160653](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/35489160653)
 completed at `2026-09-20T04:30:28Z`; both repository-scoped flags are `true`. The accepted 5b
 verifier returned `GO` at `2026-09-20T04:40:54Z`, within the 1,800-second bound, with all L0-L9
@@ -411,8 +419,9 @@ merged at `main@48d0aba8468325b91e1bf9b84bd43cbeaacdf74a` on 2026-09-02 at 15:53
 The merged tree is identical to final head `b918ff09`, whose CI is green. B2 Wave 6 Tasks
 6.1/6.2 are source-complete and checked; source/visual ACCEPT at `970b637b` and R1–R4 closure
 carry forward. Committed flags remain disabled; the page-level placement is final and Task 6.3 is green,
-and the owner-deferred [sidebar backlog](../todos/backlog/responsive-dashboard-sidebar/README.md)
-remains separate. The bounded gateway-read attestation is recorded only for Task 6.3.
+and the then-deferred [sidebar backlog](../todos/backlog/responsive-dashboard-sidebar/README.md)
+remained separate from that delivery. It was later resolved as Demo Preparation Phase 2.1 through
+PR #297 without reopening Wave 6. The bounded gateway-read attestation is recorded only for Task 6.3.
 
 **Owner G5 close-out (2026-09-02):** “Please do the G5 close out.” B1 Task 5.7 / G5 is
 complete using the reviewed three-caller evidence below. This satisfies B1 Wave 6's G5
@@ -609,8 +618,8 @@ At every meaningful merge or live checkpoint:
 |---|---|---|---|
 | **A — Spec A catalog/data cutover** | Shared catalog, Postgres/Mongo repair, R4 rollout, enforcement, one reconciled controlled refresh, persisted refresh enablement, demo portfolio activation, and scale-to-zero restoration | **All 14 cutover checkpoints complete.** 9.13 completed on `portfolio-service--0000092`, `market-data-service--0000079`, and `insight-service--0000079`; B2 Task 4.5 later superseded only the portfolio revision with `portfolio-service--0000093`. 9.14 completed via apply [33331130603](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33331130603), reopening ACA external ingress on `api-gateway--0000077` with `allowInsecure=false` ([`SPEC_A_9_14_REOPEN_INGRESS.md`](../runbooks/SPEC_A_9_14_REOPEN_INGRESS.md)); the later custom-domain restore has independent `200` read-back, and PR #194 independently reviewed and merged that evidence ([`API_GATEWAY_CUSTOM_DOMAIN_RECOVERY.md`](../runbooks/API_GATEWAY_CUSTOM_DOMAIN_RECOVERY.md)); historical RCA remains `MECHANISM_REPRODUCED_SETTER_UNPROVEN` | Spec A's production cutover is done. B1 G5 closed by owner decision on 2026-09-02 using the reviewed three-caller run. B1 Wave 6 Tasks 6.1–6.4 are source-complete through PR #217; the four filed process follow-ups remain open |
 | **B — B1 portfolio composition backend** | Deployment prerequisites, fixture identity migration, legacy writer retirement, gateway provisioning, V20, version-bearing read, version-required seed, Wave 7 controller/tests, R-C preparation tooling, R3 closure, GC.5 source-governance closure, immutable candidate evidence through Task 7.6, accepted Task 7.7 serving evidence, Task 7.8 owner GO, Task 7.9 exact-digest serving proof, and Task 7.10 owner GO recorded locally | **Tasks 7.1–7.11 complete locally.** `portfolio-service--0000096` serves the exact R-C manifest at 100%; the single authenticated no-op PUT was `SAME_STATE`. P11g-1 is established for the transitional range; Writer_Convergence / P11g-2 is established only for the activated exact R-C artifact and rollback artifacts at or above R-B3r. The workflow comparator covered unselected app revision/image/traffic and refresh-job image; both Kafka groups were lag zero with DLT 80 | Publication remains separate until explicitly authorized; no additional production operation or rollback occurred during Task 7.11 |
-| **C — B2 Asset Picker product** | Requirements, design, task plan, five-screen visual mockup, Waves 1–9 implementation/integration evidence, Tasks 3.7/4.5/5.6/6.3/8.8/8.9 live gates, Task 10.1 build-flag wiring, Task 2.7 audit, B1 Task 4.9 decimal-fidelity proof, and Wave 10.2 production exposure | **Delivered and exposed.** Frontend-only run [35489160653](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/35489160653) deployed `main@91f40bd0`; both flags are `true`. The served build changed to `mE3_OA6woqSxKOZS4H13q`. Step B exit criterion 5b returned `GO` with all L0-L9 legs passed, exact persisted readback, golden-state reset, and unchanged backends | Task 10.2 and Demo Preparation Phase 1 are complete. Task 2.6 remains mandatory compatibility debt but does not block the delivered feature. The next demo-preparation work is Phase 2 UI/critical-backlog stabilization, not more Asset Picker delivery gating |
-| **D — Demo credibility** | Canonical prices refreshed and reconciled; demo initializer exists; Asset Picker is exposed; the deployed picker/save/reset journey passed Production browser E2E | Demo portfolio is back at the exact 159-holding golden set; both controls render in the served frontend; both flags are `true`; backend revisions/digests were unchanged by the frontend-only deployment | Asset Picker is ready for demonstration. Whole-application technical certification remains Phases 2–4 of the demo preparation plan; documentation/media packaging remains Phases 5–6 |
+| **C — B2 Asset Picker product** | Requirements, design, task plan, five-screen visual mockup, Waves 1–9 implementation/integration evidence, Tasks 3.7/4.5/5.6/6.3/8.8/8.9 live gates, Task 10.1 build-flag wiring, Task 2.7 audit, B1 Task 4.9 decimal-fidelity proof, Wave 10.2 production exposure, and post-delivery Phase 2.1 responsive-shell source | **Delivered and exposed.** Frontend-only run [35489160653](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/35489160653) deployed `main@91f40bd0`; both flags are `true`. The served build changed to `mE3_OA6woqSxKOZS4H13q`. Step B exit criterion 5b returned `GO` with all L0-L9 legs passed, exact persisted readback, golden-state reset, and unchanged backends. PR #297 later merged Phase 2.1 source at `main@4f288c4a`; it is not deployed | Task 10.2 and Demo Preparation Phase 1 are complete. Task 2.6 remains mandatory compatibility debt but does not block the delivered feature. Phase 2 remains open for Portfolio and Overview horizontal overflow plus final critical-backlog triage; no Asset Picker delivery gate is reopened |
+| **D — Demo credibility** | Canonical prices refreshed and reconciled; demo initializer exists; Asset Picker is exposed; the deployed picker/save/reset journey passed Production browser E2E; Phase 2.1 shared-shell source is merged | Demo portfolio is back at the exact 159-holding golden set; both controls render in the served frontend; both flags are `true`; backend revisions/digests were unchanged by the frontend-only deployment. The responsive shell is verified locally and in CI but is not yet Production-served | Asset Picker is ready for demonstration. Phase 2 is in progress; whole-application technical certification still requires Phases 2–4, and documentation/media packaging remains Phases 5–6 |
 
 ### What is actually usable today
 
@@ -625,6 +634,7 @@ At every meaningful merge or live checkpoint:
 | Asset Picker button/modal/browse/review/conflict UI | ✅ Served in Production with both controls rendered; CI retains deterministic conflict coverage |
 | Asset Picker full-stack E2E proof | ✅ Disposable Compose proof plus bounded Production browser verifier `GO` on 2026-09-20 |
 | Asset Picker exposed to production users | ✅ Frontend-only deploy run `35489160653`; both repository-scoped flags `true` |
+| Responsive shared dashboard shell | ✅ Source merged through PR #297 at `main@4f288c4a`; local Chromium matrix and PR CI green; not deployed or Production-verified |
 
 The production data, catalog, enforcement, and deployment-safety foundation now supports the
 user-facing picker. The accepted live browser run closes the feature-delivery boundary; broader
@@ -791,7 +801,7 @@ Wave 4 Tasks 4.1–4.4a merged via PR #180 at `main@63fc058`; that exact histori
 | 3 — Redis-backed presence | ✅ Tasks 3.1–3.7 complete; Azure proof recorded on 2026-09-11 | `api-gateway--0000081` / `sha256:090ad3ba4b7a…`; default TTL **150s**, live key TTL 178–180s |
 | 4 — portfolio-service demo reset | ✅ Complete — Tasks 4.1–4.4a merged via PR #180 / `main@63fc058`; Task 4.5 live GO | Exact cut serves internally on `portfolio-service--0000093` / `sha256:9a1d5533…`; one authorized same-state reset returned `200`, exact golden 159/159, unchanged version `0` per B1; [evidence](../runbooks/B2_TASK_4_5_DEMO_RESET_STOP_GO.md) |
 | 5 — manual-reset gateway bundle | ✅ Source Tasks 5.1–5.5 plus 5.1a/5.1b are merged, Task 5.6 owner GO is recorded, and the complete bundle was shipped with the approved Task 8.8 scoped gateway deployment | Deployment run `34433715705` placed the bundle on historical `api-gateway--0000079`; Task 6.3 and the Step B pre/post reads bind successor `api-gateway--0000081`. The deployed frontend control returned `200` in the accepted 2026-09-20 browser run |
-| 6 — manual reset frontend | ✅ Tasks 6.1–6.3 complete; source merged through PR #214 and the page-level control is now live-verified | Both production flags are `true`; the control rendered and successfully restored the exact golden state in the [Step B Production E2E](../evidence/b2-wave-10-2/WAVE_10_2_STEP_B_5B_PRODUCTION_E2E_GO_2026-09-20.md). The owner-deferred [sidebar backlog](../todos/backlog/responsive-dashboard-sidebar/README.md) remains Phase 2 work |
+| 6 — manual reset frontend | ✅ Tasks 6.1–6.3 complete; source merged through PR #214 and the page-level control is now live-verified | Both production flags are `true`; the control rendered and successfully restored the exact golden state in the [Step B Production E2E](../evidence/b2-wave-10-2/WAVE_10_2_STEP_B_5B_PRODUCTION_E2E_GO_2026-09-20.md). The separately deferred [sidebar backlog](../todos/backlog/responsive-dashboard-sidebar/README.md) was resolved later by Phase 2.1 PR #297 without changing Wave 6 evidence |
 | 7 — decimal rollout note | ℹ Informational | No independent release gate |
 | 8 — login-orchestrated reset | ✅ Tasks 8.1–8.9 complete for Azure at independently accepted evidence head `8544d722`; current provenance binds `api-gateway--0000081` and `portfolio-service--0000096` | Step B pre/post reads reconfirmed both exact revisions and digests with no intervening backend deployment. No rollback was required. Task 8.8a remains AWS-only |
 | 9 — live integration | ✅ Source, disposable-stack, and Production browser evidence complete | PR #232 supplied the 5/5 disposable Compose run. Exact-SHA CI run `35450636358` supplied condition 5a; the accepted Step B verifier supplied Production browser exit criterion 5b with all L0-L9 legs passed and golden-state cleanup confirmed |
@@ -873,8 +883,11 @@ the exact 159-holding golden state.
 
 - Wave 10.2 / Task 10.2 is complete; no rollback was required.
 - Asset Picker Demo Preparation Phase 1 is complete.
+- Demo Preparation Phase 2.1 responsive-shell source is complete on `main@4f288c4a`; it has not
+  been deployed. Portfolio and Overview horizontal-overflow slices remain open, so Phase 2 is not
+  complete.
 - Task 2.6 remains mandatory compatibility debt but does not block current exposure.
-- The known sidebar/multiple-scrollbar work is Phase 2 and must not reopen Phase 1.
+- The resolved sidebar/shell work and remaining Phase 2 slices must not reopen Phase 1.
 - Broader multi-user application certification remains Phases 3–4; README/ROADMAP and media work
   remain Phases 5–6.
 
@@ -912,9 +925,10 @@ provided the dedicated `frontend-only` route; run
 [35489160653](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/35489160653)
 used it at exact SHA `91f40bd0`. The resulting Production browser evidence is `GO`, both feature
 flags remain enabled, cleanup restored the golden portfolio, and no backend redeploy or rollback
-occurred. Task 2.6 remains mandatory compatibility debt. The owner-deferred
-[sidebar issue](../todos/backlog/responsive-dashboard-sidebar/README.md) is the first Phase 2 demo
-stabilization item, not an Asset Picker delivery blocker.
+occurred. Task 2.6 remains mandatory compatibility debt. The formerly owner-deferred
+[sidebar issue](../todos/backlog/responsive-dashboard-sidebar/README.md) is resolved on `main` by
+Phase 2.1 PR #297. That source-only merge does not alter the served Production baseline or any Asset
+Picker delivery gate; Portfolio and Overview horizontal overflow remain the next Phase 2 slices.
 
 **Task 4.9 decimal-fidelity live proof (2026-09-16):** the owner authorized and personally ran the
 unchanged, attested operator harness at `main@cca7f0d9`. The bounded composition write, exact
@@ -960,7 +974,9 @@ additional production operation or rollback occurred during Task 7.11.
    gate evidence. Wave 10.2 completed on 2026-09-20: exact-SHA frontend-only deployment
    `35489160653` succeeded, both flags are `true`, and the accepted Production browser verifier
    passed every L0-L9 leg with persisted readback and golden-state cleanup. Asset Picker delivery is
-   complete; the next work follows Phases 2–6 of the demo preparation plan.
+   complete. Phase 2.1 responsive-shell source is also complete through PR #297; the next work is
+   the remaining Phase 2 overflow/critical-backlog slices, followed by Phases 3–6 of the demo
+   preparation plan.
 4. **Process lane:** keep the status-propagation CI guard healthy in required `static-guard`; it is
    process-control only and does not advance the runtime baseline.
 5. **Interim review arrangement (process, 2026-09-11):** while Codex plan limits hold, code review
