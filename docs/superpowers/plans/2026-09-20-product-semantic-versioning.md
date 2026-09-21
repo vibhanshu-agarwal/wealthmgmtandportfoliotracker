@@ -2,10 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-> **OWNER APPROVAL CALLOUT — implementation and publication are not authorized by this plan.**
-> Drafting this plan does not authorize repository edits beyond the planning artifacts, a commit,
-> push, pull request, merge, tag, GitHub Release, ruleset change, Phase 3 execution, deployment, or
-> Production contact. Stop at each named owner gate.
+> **OWNER APPROVAL CALLOUT — at the 2026-09-21 reconciliation, publication was the next decision.**
+> The owner approved local implementation of Tasks 1-6, which is source-complete and independently
+> accepted at local candidate `19fb82d552c57fe8b619a34fe7fb8b1f526797ea`. Push, pull request,
+> merge, the post-merge Phase 2 exit review, Task 7, tag, GitHub Release, ruleset change, Phase 3
+> execution, deployment, and Production contact remain separate gates. Stop at each named gate.
 
 **Goal:** Establish one governed product SemVer at `0.9.0`, make version drift fail CI, safely rehearse a non-deploying pre-release, and leave the repository ready to enter Phase 3.
 
@@ -14,6 +15,20 @@
 **Tech Stack:** Git, Semantic Versioning 2.0 policy subset, Gradle/Groovy, Python 3.12 stdlib `unittest`, npm/package-lock v3, Docker/BuildKit, GitHub Actions, Markdown.
 
 **Spec:** `docs/superpowers/specs/2026-09-20-product-semantic-versioning-design.md`
+
+## Execution status
+
+- Tasks 1-6 are locally implemented and independently accepted at `19fb82d5`; as of the 2026-09-21
+  reconciliation, the candidate remained local.
+- The local validation packet has one known pre-existing Windows CRLF-sensitive frontend test
+  failure and explicitly records locally unavailable/skipped checks as UNRUN. Green Linux pull-
+  request CI remains a merge prerequisite.
+- The final uncontended Phase 2 visual/browser verification and independent exit review remain
+  required after merge and before Task 7.
+- As of the 2026-09-21 reconciliation, Task 7 had not started and no `v0.9.0` tag or GitHub
+  pre-release existed. Neither is authorized by the completed Tasks 1-6 work.
+- The detailed checkboxes below preserve the approved execution recipe. This section is the current
+  status ledger; Task 7 remains future work behind its named owner gate.
 
 ## Global Constraints
 
@@ -27,7 +42,8 @@
 - `infrastructure/package.json` and `scripts/package.json` retain independent tool versions and are excluded by allowlist.
 - No tag or GitHub Release may trigger deployment.
 - The demonstration is desktop-only; the known 320px/375px overflows remain backlog items and do not block Phase 3 or `1.0.0`.
-- Release PR, merge, tag, GitHub Release, Phase 3, deployment, and Production acceptance are separate owner decisions.
+- Release PR, merge, Phase 2 exit review, tag, GitHub Release, Phase 3, deployment, and Production
+  acceptance are separate gates; each owner-controlled action requires its own authorization.
 - For every validation command in this plan, any `skipped` line in the suite output means that
   portion is UNRUN, not PASS; record the missing evidence regardless of why or where the skip occurs.
 
@@ -791,7 +807,8 @@ git commit -m "ci: enforce product version contract"
 
 **Interfaces:**
 - Consumes: approved desktop-only decision and SemVer source-complete evidence
-- Produces: one current next-step sequence: SemVer rehearsal, then Phase 3 desktop E2E
+- Produces: one current next-step sequence: SemVer publication/merge, Phase 2 exit
+  verification/review, SemVer rehearsal, then Phase 3 desktop E2E
 
 - [ ] **Step 1: Record the two deferred responsive defects in one bounded backlog item**
 
@@ -834,7 +851,8 @@ git diff --check
 ```
 
 Expected: `0.9.0` is current and unreleased; `1.0.0` is future and gated; mobile overflows are open
-backlog debt; Phase 3 is the next product phase after the release rehearsal.
+backlog debt; the Phase 2 exit verification/review precedes the release rehearsal, and Phase 3 is
+the next product phase after that rehearsal.
 
 - [ ] **Step 5: Commit Task 5 after its independent review**
 
@@ -956,12 +974,14 @@ request. It does not grant either authorization.
 - No application, workflow, infrastructure, or deployment files
 
 **Interfaces:**
-- Consumes: merged source-complete implementation and separate owner authorization
+- Consumes: merged source-complete implementation, completed Phase 2 exit verification/review, and
+  separate owner authorization
 - Produces: annotated `v0.9.0`, GitHub pre-release, green tag validation, and proof that no deploy ran
 
 > **OWNER GATE:** Do not begin this task without explicit authorization for the release PR, its
 > push/merge, annotated tag publication, and GitHub pre-release. That authorization does not permit
-> deployment or Production access.
+> deployment or Production access. The Phase 2 exit verification and independent review must already
+> be complete; Task 7 authority cannot waive or substitute for that gate.
 
 Before tag publication, record whether the separately owner-controlled `v*` creation ruleset is
 active. The tag-validation workflow is detective only: if the ruleset is absent, obtain explicit

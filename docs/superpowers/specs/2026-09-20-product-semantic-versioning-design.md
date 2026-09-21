@@ -1,6 +1,8 @@
 # Product Semantic Versioning Foundation — Design
 
-**Status:** draft for owner review
+**Status:** approved; Tasks 1-6 are source-complete and independently accepted at local candidate
+`19fb82d552c57fe8b619a34fe7fb8b1f526797ea`; at the 2026-09-21 reconciliation, publication was
+pending
 **Date:** 2026-09-20
 **Track:** release governance and build metadata
 **Current product version selected by this design:** `0.9.0`
@@ -10,18 +12,22 @@
 
 ## OWNER APPROVAL STATUS
 
-The owner authorized drafting this design and its implementation plan. That authority does **not**
-authorize implementation, a commit, push, pull request, merge, tag, GitHub Release, deployment,
-Production probe, repository-ruleset change, or the start of Phase 3.
+The owner approved this design, its implementation plan, and local implementation of Tasks 1-6.
+The final complete-diff review of the resulting candidate ended with no open Critical or Important
+findings. That completed authority does **not** carry forward to a push, pull request, merge, Phase 2
+exit review, tag, GitHub Release, deployment, Production probe, repository-ruleset change, or the
+start of Phase 3.
 
 Those decisions remain separate:
 
-1. approve the design and implementation plan;
-2. authorize implementation;
-3. accept the independently reviewed implementation;
-4. authorize publication and merge;
-5. authorize the `v0.9.0` tag and pre-release rehearsal; and
-6. after the rehearsal is verified, authorize Phase 3.
+1. design and implementation-plan approval — complete;
+2. local implementation authorization — complete for Tasks 1-6;
+3. independent technical acceptance — complete at `19fb82d5`;
+4. publication and merge — pending separate owner authorization and green pull-request CI;
+5. final uncontended Phase 2 visual/browser verification and independent exit review — pending after
+   merge;
+6. the `v0.9.0` tag and pre-release rehearsal — pending a later, separate owner authorization; and
+7. Phase 3 — pending completion and verification of the rehearsal plus separate owner authorization.
 
 No tag or GitHub Release may trigger deployment. Deployment remains a separately approved action
 through the existing gated dispatch path.
@@ -45,10 +51,10 @@ unreleased changelog on a tag, or a tag that does not equal `v<VERSION>`.
 
 ## 2. Context and intent
 
-The repository currently carries several unrelated version-like values:
+Before this design, the repository carried several unrelated version-like values:
 
-- root Gradle version `0.0.1-SNAPSHOT`;
-- private frontend package version `0.1.0`;
+- root Gradle version `0.0.1-SNAPSHOT`, replaced by the candidate's root `VERSION` contract;
+- private frontend package version `0.1.0`, replaced by the candidate's `0.9.0` mirror;
 - infrastructure package version `0.1.0`;
 - sanitizer/static-guard package version `1.0.0`;
 - per-service source-SHA image tags and immutable image digests; and
@@ -61,10 +67,12 @@ The owner has also narrowed the demonstration contract to desktop only. The know
 Portfolio and Overview overflows therefore remain responsive-polish backlog items rather than
 demo blockers. The next delivery sequence is:
 
-1. establish and rehearse this SemVer foundation at `0.9.0`;
-2. enter Phase 3 broad Production browser E2E at the agreed desktop viewport(s);
-3. remediate or explicitly accept Phase 3 findings; and
-4. promote the exact accepted release set to `1.0.0`.
+1. establish and merge this SemVer foundation at `0.9.0`;
+2. complete the final uncontended Phase 2 visual/browser verification and independent exit review;
+3. rehearse the non-deploying `v0.9.0` pre-release under separate owner authorization;
+4. enter Phase 3 broad Production browser E2E at the agreed desktop viewport(s);
+5. remediate or explicitly accept Phase 3 findings; and
+6. promote the exact accepted release set to `1.0.0`.
 
 ## 3. Goals and success criteria
 
@@ -98,8 +106,9 @@ The foundation is source-complete when:
   and
 - implementation has independent review with no unresolved blocking finding.
 
-The release mechanism is rehearsed only after a separately authorized annotated `v0.9.0` tag and
-GitHub pre-release are created, validation is green, and no deployment workflow starts.
+After the Phase 2 exit verification and independent review pass, the release mechanism is rehearsed
+only under separate authorization for the annotated `v0.9.0` tag and GitHub pre-release. Validation
+must be green, and no deployment workflow may start.
 
 ## 4. Scope
 
@@ -503,5 +512,5 @@ their SHA/digest and are unaffected by product-version documentation.
 
 The accompanying implementation plan may implement only the source, build, validation, and
 documentation scope described here. It must stop for owner approval before push, PR creation,
-merge, tag creation, GitHub Release creation, repository-ruleset changes, Phase 3, deployment, or
-Production contact.
+merge, the Phase 2 exit review, tag creation, GitHub Release creation, repository-ruleset changes,
+Phase 3, deployment, or Production contact.

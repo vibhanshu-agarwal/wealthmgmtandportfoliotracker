@@ -55,9 +55,10 @@ non-golden composition save with independent persisted readback, followed by the
 reset with independent golden-state confirmation, earned the Phase 1 live acceptance. Phases 2-6
 remain separate and must not be used to reopen Phase 1.
 
-**Phase 2 is in progress. Phase 2.1, the shared responsive dashboard shell, is source-complete on
-`main` through [PR #297](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/297)
-at merge commit `4f288c4a0e8393e78efd7f7449c114e25db78818`.** The accepted head
+**Phase 2 is at its publication boundary. Phase 2.1, the shared responsive dashboard shell, is
+source-complete on `main` through
+[PR #297](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/297) at merge
+commit `4f288c4a0e8393e78efd7f7449c114e25db78818`.** The accepted head
 `c2d3dc66a5995ea7aafff50c691df7c0f6889cd5` replaces the fixed 240px narrow-screen sidebar with a
 64px icon rail below `md`, preserves all five navigation links and their accessible names, and makes
 the outer shell a non-scrollable `relative` / `overflow-clip` boundary while leaving `<main>` and
@@ -66,10 +67,18 @@ the chat transcript as the intentional scrollers.
 The Phase 2.1 proof covered four dashboard pages, five viewports, both themes, 18 focused tests, and
 130 browser assertions for the extended-chat and navigation defect paths. PR-head CI was green and
 the merge triggered no deployment. The screenshots and browser harness are not tracked in the
-repository; Firefox, Safari, real touch devices, and Production hosting remain untested. Portfolio
-still has horizontal overflow at 320px and 375px from the holdings action row, and Overview still
-has horizontal overflow at 320px from the performance range badges. Those are separate Phase 2
-slices, so neither Phase 2 nor whole-application technical readiness is complete.
+repository; Firefox, Safari, real touch devices, and Production hosting remain untested. The owner
+subsequently fixed the demonstration contract at desktop-only and explicitly accepted the Portfolio
+and Overview narrow-width overflows as open, non-demo-critical backlog debt.
+
+The remaining Phase 2 enhancement is also source-complete: the product Semantic Versioning
+foundation for `0.9.0` was independently accepted at local candidate
+`19fb82d552c57fe8b619a34fe7fb8b1f526797ea`, based on `main@07faf2c6`. As of the 2026-09-21
+reconciliation, it remained local. Publication and merge require separate owner authorization and
+green pull-request CI. After merge, the final uncontended Phase 2 visual/browser verification and
+independent exit review must pass before the separately authorized `v0.9.0` tag and non-deploying
+GitHub pre-release rehearsal. Phase 3 remains closed until that rehearsal is verified and separately
+authorized.
 
 ## Owner approval callouts
 
@@ -77,6 +86,9 @@ The original plan kept merge, production operations, test-user creation, cleanup
 publication as separate owner decisions. The owner subsequently authorized and completed the Phase 1
 deployment and verification actions recorded above. That consumed authorization does not authorize
 future deployments, production mutations, creation of additional users, or external publication.
+For the SemVer candidate, push, pull-request creation, merge, the post-merge Phase 2 exit review,
+Task 7, and Phase 3 remain distinct gates. This reconciliation records status only and grants none
+of those authorities.
 
 ## Global constraints
 
@@ -133,11 +145,15 @@ its core write path and persistence.
 **Exit outcome:** The application shell is visually usable at supported demo viewports, and no known
 critical backlog defect blocks a demonstration.
 
-**Status:** In progress. Phase 2.1 shared-shell stabilization is merged on `main`. The Portfolio and
-Overview narrow-width horizontal overflows are explicitly accepted and deferred for the
-desktop-only demonstration; they are **not fixed** and remain open backlog debt. Final
-demo-critical backlog triage, the product Semantic Versioning foundation, and the Phase 2 exit
-verification remain open. No Phase 2 source has been deployed or Production-verified.
+**Status at the 2026-09-21 reconciliation:** Source-complete candidate awaiting publication. Phase
+2.1 shared-shell stabilization is merged on `main`. The Portfolio and Overview narrow-width
+horizontal overflows are explicitly accepted and deferred for the desktop-only demonstration; they
+are **not fixed** and remain open backlog debt. The approved SemVer design records the owner-selected
+final pre-Phase-3 enhancement.
+That enhancement is independently accepted at local candidate `19fb82d5`; as of the 2026-09-21
+reconciliation it remained local. Publication/merge, the final Phase 2 exit verification and review,
+and the later Task 7 release rehearsal remain separate gates. No Phase 2 source has been deployed or
+Production-verified.
 
 - [x] Reproduce the recorded narrow-screen fixed-sidebar/clipping issue as the leading hypothesis.
 - [x] Sweep Overview, Portfolio, Market Data, and AI Insights at mobile, tablet, and agreed
@@ -154,7 +170,10 @@ verification remain open. No Phase 2 source has been deployed or Production-veri
 - [x] Fix or explicitly accept the Overview horizontal overflow caused by the performance range
   badges at 320px. **Explicitly accepted and deferred for desktop-only demonstration** — not fixed;
   tracked in the same backlog entry.
-- [ ] Triage the remaining backlog and include only defects genuinely critical to the demo.
+- [x] Record the owner-selected final pre-Phase-3 slice. The approved SemVer
+  [design §2](../superpowers/specs/2026-09-20-product-semantic-versioning-design.md#2-context-and-intent)
+  sequences the SemVer foundation before Phase 3; this item does not claim a separate exhaustive
+  backlog-triage record.
 - [x] Obtain independent review and an uncontended visual/browser verification run for Phase 2.1.
 - [ ] After the remaining Phase 2 slices, run the final uncontended visual/browser verification and
   obtain independent Phase 2 exit review.
@@ -166,8 +185,11 @@ verification remain open. No Phase 2 source has been deployed or Production-veri
   `scripts/validate_product_version.py` and its contract tests, which required `static-guard` runs
   in branch mode. `.github/workflows/release-tag-validation.yml` re-runs the validator in tag mode
   only once a `v*` tag exists, so no tag-mode evidence exists before plan Task 7. The source
-  foundation lands with the SemVer implementation PR; the `v0.9.0` tag and GitHub pre-release
-  rehearsal (plan Task 7) each await separate owner authorization, and neither deploys anything.
+  foundation is source-complete and independently accepted at local candidate `19fb82d5`; the
+  combined item remains unchecked until that source is published/merged, the preceding Phase 2 exit
+  verification/review passes, and the `v0.9.0` tag plus GitHub pre-release rehearsal (plan Task 7)
+  complete under separate owner authorization. Neither publication nor the rehearsal deploys
+  anything.
 
 ---
 
