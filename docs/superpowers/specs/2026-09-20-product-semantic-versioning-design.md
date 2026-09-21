@@ -1,8 +1,8 @@
 # Product Semantic Versioning Foundation — Design
 
-**Status:** approved; Tasks 1-6 are source-complete and independently accepted at local candidate
-`19fb82d552c57fe8b619a34fe7fb8b1f526797ea`; at the 2026-09-21 reconciliation, publication was
-pending
+**Status:** approved; amended 2026-09-21 to record the retained Phase 2 exit-verification gate;
+Tasks 1-6 are source-complete and independently accepted at local candidate
+`19fb82d552c57fe8b619a34fe7fb8b1f526797ea`; at the 2026-09-21 reconciliation, publication was pending
 **Date:** 2026-09-20
 **Track:** release governance and build metadata
 **Current product version selected by this design:** `0.9.0`
@@ -66,9 +66,10 @@ artifact promotion, and the future `1.0.0` milestone.
 
 The owner has also narrowed the demonstration contract to desktop only. The known 320px/375px
 Portfolio and Overview overflows therefore remain responsive-polish backlog items rather than
-demo blockers. The sequence below was amended on 2026-09-21 during status reconciliation to restore
-the Phase 2 exit-review gate. The owner then explicitly confirmed keeping that gate in response to
-Codex's direct keep-or-waive question. The next delivery sequence is:
+demo blockers. The sequence below was amended on 2026-09-21 during status reconciliation to add to
+this design the Phase 2 exit-review gate that already existed in the demo-preparation plan. The owner
+then explicitly confirmed keeping that gate in response to Codex's direct keep-or-waive question.
+The next delivery sequence is:
 
 1. establish and merge this SemVer foundation at `0.9.0`;
 2. complete the final uncontended Phase 2 visual/browser verification and independent exit review;
@@ -78,6 +79,9 @@ Codex's direct keep-or-waive question. The next delivery sequence is:
 6. promote the exact accepted release set to `1.0.0`.
 
 ## 3. Goals and success criteria
+
+**Amended 2026-09-21:** the success path explicitly retains the final Phase 2 exit verification and
+independent review before the release rehearsal.
 
 ### 3.1 Goals
 
@@ -512,6 +516,9 @@ pre-release under explicit owner direction. Already deployed artifacts continue 
 their SHA/digest and are unaffected by product-version documentation.
 
 ## 17. Implementation boundary
+
+**Amended 2026-09-21:** this section classifies the retained Phase 2 exit review as a verification
+gate and keeps the surrounding publication, release, Phase 3, and Production actions owner-gated.
 
 The accompanying implementation plan may implement only the source, build, validation, and
 documentation scope described here. It must stop for owner approval before push, PR creation,

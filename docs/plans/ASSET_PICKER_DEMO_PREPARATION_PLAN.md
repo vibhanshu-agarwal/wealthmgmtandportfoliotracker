@@ -58,7 +58,7 @@ remain separate and must not be used to reopen Phase 1.
 **Phase 2 status at the 2026-09-21 reconciliation:** at its publication boundary. Phase 2.1, the
 shared responsive dashboard shell, is source-complete on `main` through
 [PR #297](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/297) at merge
-commit `4f288c4a0e8393e78efd7f7449c114e25db78818`.** The accepted head
+commit `4f288c4a0e8393e78efd7f7449c114e25db78818`. The accepted head
 `c2d3dc66a5995ea7aafff50c691df7c0f6889cd5` replaces the fixed 240px narrow-screen sidebar with a
 64px icon rail below `md`, preserves all five navigation links and their accessible names, and makes
 the outer shell a non-scrollable `relative` / `overflow-clip` boundary while leaving `<main>` and
@@ -149,12 +149,11 @@ critical backlog defect blocks a demonstration.
 **Status at the 2026-09-21 reconciliation:** Source-complete candidate awaiting publication. Phase
 2.1 shared-shell stabilization is merged on `main`. The Portfolio and Overview narrow-width
 horizontal overflows are explicitly accepted and deferred for the desktop-only demonstration; they
-are **not fixed** and remain open backlog debt. The approved SemVer design records the owner-selected
-final pre-Phase-3 enhancement.
-That enhancement is independently accepted at local candidate `19fb82d5`; as of the 2026-09-21
-reconciliation it remained local. Publication/merge, the final Phase 2 exit verification and review,
-and the later Task 7 release rehearsal remain separate gates. No Phase 2 source has been deployed or
-Production-verified.
+are **not fixed** and remain open backlog debt. The approved SemVer design records the
+owner-selected final pre-Phase-3 enhancement. That enhancement is independently accepted at local
+candidate `19fb82d5`; as of the 2026-09-21 reconciliation it remained local. Publication/merge, the
+final Phase 2 exit verification and review, and the later Task 7 release rehearsal remain separate
+gates. No Phase 2 source has been deployed or Production-verified.
 
 - [x] Reproduce the recorded narrow-screen fixed-sidebar/clipping issue as the leading hypothesis.
 - [x] Sweep Overview, Portfolio, Market Data, and AI Insights at mobile, tablet, and agreed
