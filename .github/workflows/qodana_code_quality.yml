@@ -32,7 +32,8 @@ jobs:
         with:
           # When pr-mode is set to true, Qodana analyzes only the files that have been changed
           pr-mode: false
-          use-caches: true
+          # Off: each run saved a new ~830 MB per-commit cache, crowding out other Actions caches
+          use-caches: false
           post-pr-comment: true
           use-annotations: true
           # Upload Qodana results (SARIF, other artifacts, logs) as an artifact to the job
