@@ -1,7 +1,7 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { vi, describe, it, expect, beforeEach } from "vitest";
 import { MarketDataPageContent } from "./MarketDataPageContent";
-import type { AssetHoldingDTO } from "@/types/portfolio";
+import type { AssetHoldingDTO, HoldingAnalyticsDTO } from "@/types/portfolio";
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
@@ -17,8 +17,10 @@ vi.mock("@/lib/auth/session", () => ({
 }));
 
 const mockUsePortfolio = vi.fn();
+const mockUsePortfolioAnalytics = vi.fn();
 vi.mock("@/lib/hooks/usePortfolio", () => ({
   usePortfolio: () => mockUsePortfolio(),
+  usePortfolioAnalytics: () => mockUsePortfolioAnalytics(),
 }));
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
@@ -35,6 +37,8 @@ const authenticatedSession = {
 const pendingSession = { data: null, isPending: true };
 const unauthenticatedSession = { data: null, isPending: false };
 
+// Base holdings as fetchPortfolio produces them: the 24h fields are always null
+// placeholders there; the real values only come from the analytics response.
 const sampleHoldings: AssetHoldingDTO[] = [
   {
     id: "h1",
@@ -44,11 +48,11 @@ const sampleHoldings: AssetHoldingDTO[] = [
     quantity: "10",
     currentPrice: 178.5,
     totalValue: 1785,
-    avgCostBasis: 150,
-    unrealizedPnL: 285,
-    unrealizedPnLPercent: 19.0,
-    change24hPercent: 1.25,
-    change24hAbsolute: 2.2,
+    avgCostBasis: null,
+    unrealizedPnL: null,
+    unrealizedPnLPercent: null,
+    change24hPercent: null,
+    change24hAbsolute: null,
     portfolioWeight: 60,
     lastUpdatedAt: "2026-04-10T12:00:00Z",
   },
@@ -60,15 +64,49 @@ const sampleHoldings: AssetHoldingDTO[] = [
     quantity: "0.5",
     currentPrice: 65000,
     totalValue: 32500,
-    avgCostBasis: 60000,
-    unrealizedPnL: 2500,
-    unrealizedPnLPercent: 4.17,
-    change24hPercent: -2.1,
-    change24hAbsolute: -1400,
+    avgCostBasis: null,
+    unrealizedPnL: null,
+    unrealizedPnLPercent: null,
+    change24hPercent: null,
+    change24hAbsolute: null,
     portfolioWeight: 40,
     lastUpdatedAt: "2026-04-10T14:30:00Z",
   },
 ];
+
+function holdingAnalytics(
+  ticker: string,
+  change24hPercent: number | null,
+  change24hAbsolute: number | null,
+): HoldingAnalyticsDTO {
+  return {
+    ticker,
+    quantity: 1,
+    currentPrice: 1,
+    currentValueBase: 1,
+    avgCostBasis: null,
+    costBasisCurrency: null,
+    unrealizedPnL: null,
+    unrealizedPnLPercent: null,
+    change24hAbsolute,
+    change24hPercent,
+    change24hReferenceAt: change24hPercent == null ? null : "2026-04-09T14:30:00Z",
+    changeBasis: change24hPercent == null ? null : "WITHIN_24H_WINDOW",
+    quoteCurrency: "USD",
+    displayAssetClass: "STOCK",
+  };
+}
+
+function analyticsResult(holdings: HoldingAnalyticsDTO[]) {
+  return { data: { holdings }, isLoading: false, isError: false };
+}
+
+const analyticsWithChanges = analyticsResult([
+  holdingAnalytics("AAPL", 1.25, 2.2),
+  holdingAnalytics("BTC", -2.1, -1400),
+]);
+const analyticsLoading = { data: undefined, isLoading: true, isError: false };
+const analyticsError = { data: undefined, isLoading: false, isError: true };
 
 const portfolioWithData = {
   data: {
@@ -92,14 +130,21 @@ const portfolioEmpty = {
 };
 const portfolioError = { data: undefined, isLoading: false, isError: true };
 
+/** The 24h Change cell is the third column. */
+function changeCellFor(ticker: string): HTMLTableCellElement {
+  const row = screen.getByText(ticker).closest("tr")!;
+  return row.querySelectorAll("td")[2] as HTMLTableCellElement;
+}
+
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe("MarketDataPageContent", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    // Default: authenticated + data loaded
+    // Default: authenticated + portfolio and analytics loaded
     mockUseAuthSession.mockReturnValue(authenticatedSession);
     mockUsePortfolio.mockReturnValue(portfolioWithData);
+    mockUsePortfolioAnalytics.mockReturnValue(analyticsWithChanges);
   });
 
   // ── Session gate ──────────────────────────────────────────────────────────
@@ -168,19 +213,85 @@ describe("MarketDataPageContent", () => {
     expect(rows).toHaveLength(3);
   });
 
-  it("applies green styling for positive change24hPercent", () => {
+  // ── 24h change from analytics ─────────────────────────────────────────────
+
+  it("shows the analytics 24h change in place of the base holding's null placeholder", () => {
     render(<MarketDataPageContent />);
-    // AAPL has +1.25%
-    const aaplRow = screen.getByText("AAPL").closest("tr")!;
-    const changeCell = aaplRow.querySelector(".text-green-600");
-    expect(changeCell).toBeInTheDocument();
+    const cell = changeCellFor("AAPL");
+    expect(cell.textContent).toContain("+1.25%");
+    expect(cell.textContent).toContain("+$2.20");
+    expect(cell.textContent).not.toContain("—");
   });
 
-  it("applies red styling for negative change24hPercent", () => {
+  it("applies green styling for a positive analytics change", () => {
     render(<MarketDataPageContent />);
-    // BTC has -2.1%
-    const btcRow = screen.getByText("BTC").closest("tr")!;
-    const changeCell = btcRow.querySelector(".text-red-600");
-    expect(changeCell).toBeInTheDocument();
+    const cell = changeCellFor("AAPL");
+    // A dash cell also carries the green class, so require the value as well.
+    expect(cell.textContent).toContain("+1.25%");
+    expect(cell.className).toContain("text-green-600");
+  });
+
+  it("applies red styling and a signed amount for a negative analytics change", () => {
+    render(<MarketDataPageContent />);
+    const cell = changeCellFor("BTC");
+    expect(cell.className).toContain("text-red-600");
+    expect(cell.textContent).toContain("-2.10%");
+    expect(cell.textContent).toContain("-$1,400.00");
+  });
+
+  it("renders a dash when analytics has the holding but no 24h reference", () => {
+    mockUsePortfolioAnalytics.mockReturnValue(
+      analyticsResult([
+        holdingAnalytics("AAPL", null, null),
+        holdingAnalytics("BTC", -2.1, -1400),
+      ]),
+    );
+    render(<MarketDataPageContent />);
+    expect(changeCellFor("AAPL").textContent).toBe("—");
+    expect(changeCellFor("BTC").textContent).toContain("-2.10%");
+  });
+
+  it("renders a dash for a holding with no matching analytics record", () => {
+    mockUsePortfolioAnalytics.mockReturnValue(
+      analyticsResult([holdingAnalytics("BTC", -2.1, -1400)]),
+    );
+    render(<MarketDataPageContent />);
+    expect(changeCellFor("AAPL").textContent).toBe("—");
+    expect(changeCellFor("BTC").textContent).toContain("-2.10%");
+  });
+
+  it("does not invent a $0.00 amount when only the percentage is present", () => {
+    mockUsePortfolioAnalytics.mockReturnValue(
+      analyticsResult([
+        holdingAnalytics("AAPL", 1.25, null),
+        holdingAnalytics("BTC", -2.1, -1400),
+      ]),
+    );
+    render(<MarketDataPageContent />);
+    const cell = changeCellFor("AAPL");
+    expect(cell.textContent).toContain("+1.25%");
+    expect(cell.textContent).not.toContain("$0.00");
+  });
+
+  it("keeps price rows visible while analytics is still loading", () => {
+    mockUsePortfolioAnalytics.mockReturnValue(analyticsLoading);
+    render(<MarketDataPageContent />);
+
+    expect(screen.getByText("$178.50")).toBeInTheDocument();
+    expect(screen.getByText("$65,000.00")).toBeInTheDocument();
+    // Pending is not "unavailable": show a placeholder, not a dash.
+    const cell = changeCellFor("AAPL");
+    expect(within(cell).getByTestId("change24h-loading")).toBeInTheDocument();
+    expect(cell.textContent).not.toContain("—");
+  });
+
+  it("keeps price rows visible and shows dashes when analytics fails", () => {
+    mockUsePortfolioAnalytics.mockReturnValue(analyticsError);
+    render(<MarketDataPageContent />);
+
+    expect(screen.getByText("$178.50")).toBeInTheDocument();
+    expect(screen.getByText("$65,000.00")).toBeInTheDocument();
+    expect(changeCellFor("AAPL").textContent).toBe("—");
+    expect(changeCellFor("BTC").textContent).toBe("—");
   });
 });
