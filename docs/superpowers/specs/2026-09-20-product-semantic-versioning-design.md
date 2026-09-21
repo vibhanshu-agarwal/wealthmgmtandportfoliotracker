@@ -13,19 +13,20 @@ pending
 ## OWNER APPROVAL STATUS
 
 The owner approved this design, its implementation plan, and local implementation of Tasks 1-6.
-The final complete-diff review of the resulting candidate ended with no open Critical or Important
-findings. That completed authority does **not** carry forward to a push, pull request, merge, Phase 2
-exit review, tag, GitHub Release, deployment, Production probe, repository-ruleset change, or the
-start of Phase 3.
+The final complete-diff implementation review by Fable 5.1 ended with no open Critical or Important
+findings. That completed authority does **not** carry forward to a push, pull request, merge, tag,
+GitHub Release, deployment, Production probe, repository-ruleset change, or the start of Phase 3;
+nor does it satisfy the still-required Phase 2 exit verification and independent review.
 
-Those decisions remain separate:
+Those decisions and verification gates remain separate:
 
 1. design and implementation-plan approval — complete;
 2. local implementation authorization — complete for Tasks 1-6;
 3. independent technical acceptance — complete at `19fb82d5`;
 4. publication and merge — pending separate owner authorization and green pull-request CI;
-5. final uncontended Phase 2 visual/browser verification and independent exit review — pending after
-   merge;
+5. final uncontended Phase 2 visual/browser verification and independent exit review — required
+   after merge as a verification gate, with its result reported to the owner before Task 7; it does
+   not require a separate owner authorization merely to run;
 6. the `v0.9.0` tag and pre-release rehearsal — pending a later, separate owner authorization; and
 7. Phase 3 — pending completion and verification of the rehearsal plus separate owner authorization.
 
@@ -65,7 +66,9 @@ artifact promotion, and the future `1.0.0` milestone.
 
 The owner has also narrowed the demonstration contract to desktop only. The known 320px/375px
 Portfolio and Overview overflows therefore remain responsive-polish backlog items rather than
-demo blockers. The next delivery sequence is:
+demo blockers. The sequence below was amended on 2026-09-21 during status reconciliation to restore
+the Phase 2 exit-review gate. The owner then explicitly confirmed keeping that gate in response to
+Codex's direct keep-or-waive question. The next delivery sequence is:
 
 1. establish and merge this SemVer foundation at `0.9.0`;
 2. complete the final uncontended Phase 2 visual/browser verification and independent exit review;
@@ -179,9 +182,9 @@ The root build reads `VERSION` once. The root project and every subproject use t
 The repository drops `-SNAPSHOT` because it does not publish mutable development artifacts to a
 Maven repository; source SHA and image digest already distinguish builds.
 
-The subprojects currently inherit no explicit version, so this change also changes conventional
-archive names such as `common-dto.jar` to `common-dto-0.9.0.jar`. The current service Dockerfiles are
-not coupled to those names. Only API Gateway pins its `bootJar` to `app.jar`; portfolio,
+Before the candidate, the subprojects inherited no explicit version, so the change also changes
+conventional archive names such as `common-dto.jar` to `common-dto-0.9.0.jar`. The service
+Dockerfiles are not coupled to those names. Only API Gateway pins its `bootJar` to `app.jar`; portfolio,
 market-data, and insight use Gradle's versioned default archive name. Their clean Docker builder
 stages invoke only the service's `bootJar`, then copy the single resulting `*.jar` to runtime
 `app.jar`. Candidate/slim staging consumes Gradle's `archiveFile` provider and renames the staged
@@ -512,5 +515,7 @@ their SHA/digest and are unaffected by product-version documentation.
 
 The accompanying implementation plan may implement only the source, build, validation, and
 documentation scope described here. It must stop for owner approval before push, PR creation,
-merge, the Phase 2 exit review, tag creation, GitHub Release creation, repository-ruleset changes,
-Phase 3, deployment, or Production contact.
+merge, tag creation, GitHub Release creation, repository-ruleset changes, Phase 3, deployment, or
+Production contact. After merge, the local Phase 2 exit verification and independent review are a
+required verification gate rather than an owner-authorization gate; report their result to the owner
+before requesting Task 7 authority.

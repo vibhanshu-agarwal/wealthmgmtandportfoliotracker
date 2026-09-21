@@ -55,8 +55,8 @@ non-golden composition save with independent persisted readback, followed by the
 reset with independent golden-state confirmation, earned the Phase 1 live acceptance. Phases 2-6
 remain separate and must not be used to reopen Phase 1.
 
-**Phase 2 is at its publication boundary. Phase 2.1, the shared responsive dashboard shell, is
-source-complete on `main` through
+**Phase 2 status at the 2026-09-21 reconciliation:** at its publication boundary. Phase 2.1, the
+shared responsive dashboard shell, is source-complete on `main` through
 [PR #297](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/297) at merge
 commit `4f288c4a0e8393e78efd7f7449c114e25db78818`.** The accepted head
 `c2d3dc66a5995ea7aafff50c691df7c0f6889cd5` replaces the fixed 240px narrow-screen sidebar with a
@@ -87,8 +87,9 @@ publication as separate owner decisions. The owner subsequently authorized and c
 deployment and verification actions recorded above. That consumed authorization does not authorize
 future deployments, production mutations, creation of additional users, or external publication.
 For the SemVer candidate, push, pull-request creation, merge, the post-merge Phase 2 exit review,
-Task 7, and Phase 3 remain distinct gates. This reconciliation records status only and grants none
-of those authorities.
+Task 7, and Phase 3 remain distinct gates. The exit review is a required verification gate whose
+result is reported to the owner before Task 7; it does not require separate authorization merely to
+run. This reconciliation records status only and grants none of the owner-controlled authorities.
 
 ## Global constraints
 
@@ -170,10 +171,12 @@ Production-verified.
 - [x] Fix or explicitly accept the Overview horizontal overflow caused by the performance range
   badges at 320px. **Explicitly accepted and deferred for desktop-only demonstration** — not fixed;
   tracked in the same backlog entry.
-- [x] Record the owner-selected final pre-Phase-3 slice. The approved SemVer
+- [x] Triage the remaining backlog and include only defects genuinely critical to the demo.
+  **Disposition:** approved SemVer
   [design §2](../superpowers/specs/2026-09-20-product-semantic-versioning-design.md#2-context-and-intent)
-  sequences the SemVer foundation before Phase 3; this item does not claim a separate exhaustive
-  backlog-triage record.
+  selects the SemVer foundation as the final pre-Phase-3 slice and classifies the known narrow-width
+  overflows as non-blocking backlog debt. This records the governing disposition rather than
+  claiming a separate exhaustive triage artifact.
 - [x] Obtain independent review and an uncontended visual/browser verification run for Phase 2.1.
 - [ ] After the remaining Phase 2 slices, run the final uncontended visual/browser verification and
   obtain independent Phase 2 exit review.

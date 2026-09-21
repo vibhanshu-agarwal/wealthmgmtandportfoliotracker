@@ -1005,7 +1005,8 @@ additional production operation or rollback occurred during Task 7.11.
 4. **Process lane:** keep the status-propagation CI guard healthy in required `static-guard`; it is
    process-control only and does not advance the runtime baseline. Product SemVer publication,
    merge, Phase 2 exit review, tag/pre-release rehearsal, Phase 3, and deployment remain separate
-   gates; each owner-controlled action requires its own authorization.
+   gates. The exit review is a verification gate whose result is reported to the owner; each
+   owner-controlled action requires its own authorization.
 5. **Interim review arrangement (process, 2026-09-11):** while Codex plan limits hold, code review
    runs inside Claude Code — Opus 5 orchestrates, Sonnet 5/Opus 5 implement, Fable 5.1 reviews,
    and no model reviews its own work. Codex retains documentation, status tracking and final task

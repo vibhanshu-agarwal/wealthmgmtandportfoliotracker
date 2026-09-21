@@ -6,7 +6,9 @@
 > The owner approved local implementation of Tasks 1-6, which is source-complete and independently
 > accepted at local candidate `19fb82d552c57fe8b619a34fe7fb8b1f526797ea`. Push, pull request,
 > merge, the post-merge Phase 2 exit review, Task 7, tag, GitHub Release, ruleset change, Phase 3
-> execution, deployment, and Production contact remain separate gates. Stop at each named gate.
+> execution, deployment, and Production contact remain separate gates. The Phase 2 exit review is a
+> required verification gate whose result is reported to the owner; the other listed owner-controlled
+> actions require separate authorization. Stop at each named gate.
 
 **Goal:** Establish one governed product SemVer at `0.9.0`, make version drift fail CI, safely rehearse a non-deploying pre-release, and leave the repository ready to enter Phase 3.
 
@@ -20,9 +22,10 @@
 
 - Tasks 1-6 are locally implemented and independently accepted at `19fb82d5`; as of the 2026-09-21
   reconciliation, the candidate remained local.
-- The local validation packet has one known pre-existing Windows CRLF-sensitive frontend test
-  failure and explicitly records locally unavailable/skipped checks as UNRUN. Green Linux pull-
-  request CI remains a merge prerequisite.
+- The implementation handoff recorded in the Claude task conversation—not in a tracked repository
+  artifact—reports one known pre-existing Windows CRLF-sensitive frontend test failure and records
+  locally unavailable/skipped checks as UNRUN. Green Linux pull-request CI remains a merge
+  prerequisite.
 - The final uncontended Phase 2 visual/browser verification and independent exit review remain
   required after merge and before Task 7.
 - As of the 2026-09-21 reconciliation, Task 7 had not started and no `v0.9.0` tag or GitHub
@@ -43,7 +46,8 @@
 - No tag or GitHub Release may trigger deployment.
 - The demonstration is desktop-only; the known 320px/375px overflows remain backlog items and do not block Phase 3 or `1.0.0`.
 - Release PR, merge, Phase 2 exit review, tag, GitHub Release, Phase 3, deployment, and Production
-  acceptance are separate gates; each owner-controlled action requires its own authorization.
+  acceptance are separate gates. The exit review is a verification gate; each owner-controlled
+  action requires its own authorization.
 - For every validation command in this plan, any `skipped` line in the suite output means that
   portion is UNRUN, not PASS; record the missing evidence regardless of why or where the skip occurs.
 
