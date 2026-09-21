@@ -105,10 +105,17 @@ The adjacent contracts are:
   Playwright verification; and
 - required ci-required compares every declared result with every observed dependency result.
 
-The candidate change is to remove only the unnecessary integration-tests-to-pact-consumer
-serialization edge by re-parenting pact-consumer to its earliest verified safe prerequisite.
-Do not assume that prerequisite is static-guard or unit-tests; prove it from current inputs and
-desired fail-fast policy.
+The candidate design makes pact-consumer a second classifier-gated root:
+
+- pact-consumer needs static-guard and changes;
+- pact-consumer runs only when needs.changes.outputs.docs_only is not true; and
+- docker-build-verify remains dependent only on pact-consumer.
+
+This explicit second docs-only condition is the minimum exception required to satisfy both goals:
+the Pact/Docker branch remains skipped for docs-only pull requests, but it can still run when
+unit-tests fails. Do not retain unit-tests or integration-tests in pact-consumer ancestry, because
+either edge would suppress the deliberate negative case. Do not add a new classifier or alter
+classification policy; both gated roots must consume the existing changes output.
 
 ## 4. Evidence refresh
 
@@ -155,13 +162,17 @@ Report separately:
 
 Use test-first workflow:
 
-1. Add or tighten a contract test for the intended pact-consumer needs relationship.
+1. Replace the contract that unit-tests is the only job carrying the docs-only condition with a
+   contract proving that unit-tests and pact-consumer are the only two gated roots, both consume
+   the existing changes output, and every downstream skip still propagates from one of them.
 2. Run the focused test and confirm it fails on the old graph for the expected reason.
-3. Change only the necessary needs edge in
+3. Change pact-consumer to need static-guard and changes, and give it the same existing docs-only
+   predicate used by unit-tests in
    [.github/workflows/ci-verification.yml](../../.github/workflows/ci-verification.yml).
 4. Update only the evidence wording or expected result maps that genuinely change.
 5. Rerun the focused test, the complete classifier/aggregate suite, master-plan propagation tests,
-   and repository-pinned Actionlint.
+   reuse the deploy-workflow-contract job's pinned Actionlint setup and explicitly target
+   ci-verification.yml.
 6. Verify that the docs-only, full-suite, missing-job, unexpected-skip, failure, cancellation, and
    unknown-result matrices remain fail closed.
 
@@ -193,6 +204,8 @@ this live experiment require separate owner authorization.
 ## 7. Safety invariants
 
 - Preserve the legitimate docs-only skip shape.
+- The only classifier-gated roots are unit-tests and pact-consumer; integration-tests,
+  azure-image-smoke-test, task-8-9-powershell-tests, and docker-build-verify skip by propagation.
 - Preserve full-suite behavior for push to main and manual dispatch.
 - Preserve every required job and the complete ci-required dependency/result matrix.
 - Only the final aggregate may use job-level always().
@@ -210,7 +223,8 @@ Run from repository root:
 ~~~text
 python scripts/tests/test_classify_changed_paths.py -v
 python scripts/tests/test_master_plan_status_propagation.py -v
-repository-pinned actionlint invocation used by static-guard
+reuse deploy-workflow-contract's pinned Actionlint setup, then run:
+./actionlint -shellcheck= .github/workflows/ci-verification.yml
 git diff --check
 ~~~
 
@@ -222,7 +236,8 @@ Before requesting publication approval, verify:
 - the diff contains only the authorized files;
 - no existing required job or aggregate dependency disappeared;
 - the docs-only expected result map remains exact;
-- no job other than ci-required gained always();
+- no job other than ci-required gained always(); pact-consumer uses the existing docs-only
+  predicate without always();
 - no workflow trigger, deployment file, or branch-protection setting changed; and
 - the task still fits the one-day boundary.
 

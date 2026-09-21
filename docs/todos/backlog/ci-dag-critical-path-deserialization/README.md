@@ -89,12 +89,15 @@ categories alone.
 
 If the evidence supports proceeding within the one-day timebox, use Cursor's assigned worktree:
 
-1. Re-parent `pact-consumer` to the earliest verified safe prerequisite.
-2. Leave `docker-build-verify` dependent on `pact-consumer`.
-3. Preserve the docs-only skip shape and fail-closed `ci-required` declared-versus-observed
-   enforcement.
+1. Make `pact-consumer` a second classifier-gated root with
+   `needs: [static-guard, changes]` and the existing
+   `needs.changes.outputs.docs_only != 'true'` predicate.
+2. Leave `docker-build-verify` dependent only on `pact-consumer`.
+3. Keep `unit-tests` as the other classifier-gated root. Preserve the exact docs-only skip shape:
+   the jobs downstream of each root must continue to skip by propagation.
 4. Update workflow contract tests before changing the workflow so the old graph fails the new
-   assertion.
+   assertion. Replace the old single-gated-root assertion with one that permits exactly
+   `unit-tests` and `pact-consumer`, both consuming the existing classifier output.
 5. Make no classifier-policy, branch-protection, deployment, or production changes.
 6. Confirm the required jobs retain their existing failure behavior.
 7. Measure successful-run latency and failing-run runner consumption.
@@ -107,6 +110,7 @@ If the evidence supports proceeding within the one-day timebox, use Cursor's ass
 - Unknown or missing job results fail closed.
 - `ci-required` remains the stable required aggregate; do not weaken its exact-result matrix.
 - Docs-only pull requests retain their exact legitimate skip set.
+- Do not add a new classifier or change classifier policy; both gated roots consume `changes`.
 - Pushes to `main` and manual dispatches retain full-suite behavior.
 - No required check is removed, renamed, or made advisory.
 - No deployment workflow, schedule, secret, cloud resource, or Production system is touched.
@@ -119,7 +123,8 @@ At minimum:
 ```text
 python scripts/tests/test_classify_changed_paths.py -v
 python scripts/tests/test_master_plan_status_propagation.py -v
-repository-pinned actionlint invocation used by static-guard
+reuse `deploy-workflow-contract`'s pinned Actionlint setup, then run:
+./actionlint -shellcheck= .github/workflows/ci-verification.yml
 git diff --check
 ```
 
