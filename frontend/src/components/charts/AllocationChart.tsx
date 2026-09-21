@@ -46,7 +46,8 @@ function AllocationTooltip({
 function AllocationLegend({ slices }: { slices: AllocationSliceDTO[] }) {
   return (
     <ul className="space-y-2 mt-4">
-      {slices
+      {/* Sort a copy: the donut's <Cell> fills are bound to the caller's array order. */}
+      {[...slices]
         .sort((a, b) => b.percentage - a.percentage)
         .map((slice) => (
           <li
