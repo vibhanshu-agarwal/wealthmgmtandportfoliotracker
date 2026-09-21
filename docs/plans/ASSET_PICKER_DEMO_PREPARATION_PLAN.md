@@ -8,6 +8,8 @@
 
 **Filed and reconciled:** 2026-09-20
 
+**Latest reconciliation:** 2026-09-22
+
 **Goal:** Deliver the Asset Picker to Production quickly, then stabilize the UI, certify the broader
 application through multi-user browser E2E, repair discovered defects, reconcile documentation, and
 prepare demo material.
@@ -55,8 +57,8 @@ non-golden composition save with independent persisted readback, followed by the
 reset with independent golden-state confirmation, earned the Phase 1 live acceptance. Phases 2-6
 remain separate and must not be used to reopen Phase 1.
 
-**Phase 2 status at the 2026-09-21 reconciliation:** at its publication boundary. Phase 2.1, the
-shared responsive dashboard shell, is source-complete on `main` through
+**Phase 2 status at the 2026-09-22 reconciliation:** complete at its local/browser exit gate. Phase
+2.1, the shared responsive dashboard shell, is merged on `main` through
 [PR #297](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/297) at merge
 commit `4f288c4a0e8393e78efd7f7449c114e25db78818`. The accepted head
 `c2d3dc66a5995ea7aafff50c691df7c0f6889cd5` replaces the fixed 240px narrow-screen sidebar with a
@@ -71,25 +73,38 @@ repository; Firefox, Safari, real touch devices, and Production hosting remain u
 subsequently fixed the demonstration contract at desktop-only and explicitly accepted the Portfolio
 and Overview narrow-width overflows as open, non-demo-critical backlog debt.
 
-The remaining Phase 2 enhancement is also source-complete: the product Semantic Versioning
-foundation for `0.9.0` was independently accepted at local candidate
-`19fb82d552c57fe8b619a34fe7fb8b1f526797ea`, based on `main@07faf2c6`. As of the 2026-09-21
-reconciliation, it remained local. Publication and merge require separate owner authorization and
-green pull-request CI. After merge, the final uncontended Phase 2 visual/browser verification and
-independent exit review must pass before the separately authorized `v0.9.0` tag and non-deploying
-GitHub pre-release rehearsal. Phase 3 remains closed until that rehearsal is verified and separately
-authorized.
+The product Semantic Versioning foundation for `0.9.0` subsequently merged through
+[PR #300](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/300) at
+`3eca669ccc53be4d56d9d55b79be0b83e4e6b60b`. The remaining demo-correctness fixes merged through
+[PR #301](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/301) at exact merge
+commit `8f2c4cf7947cad316e3d063b5f322b4d78dc64d5`: allocation colors, the summary-pill truncation,
+the Market Data 24-hour change join, and the single AI Insights recommendation badge. Pull-request
+CI passed. Post-merge `main` runs CI Verification `35636266318`, Frontend CI `35636266278`, Qodana
+`35636266303`, and Gitleaks `35636266381` all succeeded, and no deployment workflow ran.
+
+After post-merge CI was green, a fresh flagged build of that exact merge commit produced build ID
+`Qnf6UaWRVM2Df_wgpmuVs`. Negative-control run `negative-controls-20260921-184547Z` made all 21
+target oracles fail. In final uncontended run `final-20260921-184656Z`, every functional and visual
+oracle passed across 24 page/viewport/theme combinations and six chat/scrolled-navigation scenarios;
+the only recorded page-error class was the known signed-in React hydration error #418. An independent
+Fable 5.1 exit review returned **ACCEPT WITH MINORS** with zero Critical, zero Important, and four
+Minor findings.
+
+React #418 remains a binding Phase 3 blocker and was not suppressed. The accepted 320px/375px
+overflows remain open backlog. The review also left two Low-priority presentation/data-consistency
+items open for later work: mocked 24-hour/freshness values are not fully consistent across pages, and
+the 1280px header ticker's first letter can sit under the fade edge. Phase 2 source has not been
+deployed or Production-verified. Task 7 and Phase 3 remain closed pending separate owner authority.
 
 ## Owner approval callouts
 
 The original plan kept merge, production operations, test-user creation, cleanup, and external
-publication as separate owner decisions. The owner subsequently authorized and completed the Phase 1
-deployment and verification actions recorded above. That consumed authorization does not authorize
-future deployments, production mutations, creation of additional users, or external publication.
-For the SemVer candidate, push, pull-request creation, merge, the post-merge Phase 2 exit review,
-Task 7, and Phase 3 remain distinct gates. The exit review is a required verification gate whose
-result is reported to the owner before Task 7; it does not require separate authorization merely to
-run. This reconciliation records status only and grants none of the owner-controlled authorities.
+publication as separate owner decisions. The owner separately authorized the actions that produced
+the Phase 1 outcome, the Phase 2 source merges, and the post-merge Phase 2 exit review recorded above.
+Those consumed authorizations do not authorize future deployments, production mutations, creation of
+additional users, cleanup, or external publication. Task 7 (`v0.9.0` tag and non-deploying GitHub
+pre-release rehearsal), Phase 3, and any future deployment or Production operation remain distinct
+owner gates. This reconciliation records status only and grants none of those authorities.
 
 ## Global constraints
 
@@ -146,14 +161,14 @@ its core write path and persistence.
 **Exit outcome:** The application shell is visually usable at supported demo viewports, and no known
 critical backlog defect blocks a demonstration.
 
-**Status at the 2026-09-21 reconciliation:** Source-complete candidate awaiting publication. Phase
-2.1 shared-shell stabilization is merged on `main`. The Portfolio and Overview narrow-width
-horizontal overflows are explicitly accepted and deferred for the desktop-only demonstration; they
-are **not fixed** and remain open backlog debt. The approved SemVer design records the
-owner-selected final pre-Phase-3 enhancement. That enhancement is independently accepted at local
-candidate `19fb82d5`; as of the 2026-09-21 reconciliation it remained local. Publication/merge, the
-final Phase 2 exit verification and review, and the later Task 7 release rehearsal remain separate
-gates. No Phase 2 source has been deployed or Production-verified.
+**Status at the 2026-09-22 reconciliation:** Exit met at
+`main@8f2c4cf7947cad316e3d063b5f322b4d78dc64d5`. Phase 2.1 is merged through PR #297, the SemVer
+foundation through PR #300, and the final demo-correctness fixes through PR #301. Post-merge CI was
+green; the exact-merge flagged build, 21 negative controls, 24-capture matrix, six interaction
+scenarios, and independent exit review passed at the level recorded above. React #418 remains an
+unsuppressed, binding Phase 3 blocker. The explicitly accepted narrow-width overflows and the two
+Low-priority exit-review presentation/data-consistency findings remain open backlog. No Phase 2
+source has been deployed or Production-verified.
 
 - [x] Reproduce the recorded narrow-screen fixed-sidebar/clipping issue as the leading hypothesis.
 - [x] Sweep Overview, Portfolio, Market Data, and AI Insights at mobile, tablet, and agreed
@@ -177,8 +192,11 @@ gates. No Phase 2 source has been deployed or Production-verified.
   overflows as non-blocking backlog debt. This records the governing disposition rather than
   claiming a separate exhaustive triage artifact.
 - [x] Obtain independent review and an uncontended visual/browser verification run for Phase 2.1.
-- [ ] After the remaining Phase 2 slices, run the final uncontended visual/browser verification and
-  obtain independent Phase 2 exit review.
+- [x] After the remaining Phase 2 slices, run the final uncontended visual/browser verification and
+  obtain independent Phase 2 exit review. Completed against exact merge commit `8f2c4cf7` with
+  negative-control run `negative-controls-20260921-184547Z`, final run
+  `final-20260921-184656Z`, and an independent **ACCEPT WITH MINORS** verdict (0 Critical,
+  0 Important).
 - [ ] Establish the product Semantic Versioning foundation at `0.9.0` and rehearse the
   non-deploying `v0.9.0` pre-release. Governed by the
   [design](../superpowers/specs/2026-09-20-product-semantic-versioning-design.md), the
@@ -187,11 +205,10 @@ gates. No Phase 2 source has been deployed or Production-verified.
   `scripts/validate_product_version.py` and its contract tests, which required `static-guard` runs
   in branch mode. `.github/workflows/release-tag-validation.yml` re-runs the validator in tag mode
   only once a `v*` tag exists, so no tag-mode evidence exists before plan Task 7. The source
-  foundation is source-complete and independently accepted at local candidate `19fb82d5`; the
-  combined item remains unchecked until that source is published/merged, the preceding Phase 2 exit
-  verification/review passes, and the `v0.9.0` tag plus GitHub pre-release rehearsal (plan Task 7)
-  complete under separate owner authorization. Neither publication nor the rehearsal deploys
-  anything.
+  foundation merged through PR #300 at `3eca669c`, and the Phase 2 exit passed at `8f2c4cf7`. The
+  combined item remains unchecked solely until the `v0.9.0` tag plus GitHub pre-release rehearsal
+  (plan Task 7) complete under separate owner authorization. Neither publication nor the rehearsal
+  deploys anything.
 
 ---
 
@@ -208,6 +225,10 @@ persistence, conflict, freshness, evidence, and uncontended-run requirement belo
 **Product version:** Phase 3 runs against a functionally complete `0.y.z` candidate. `1.0.0` stays
 blocked until Phase 3 and the remediation or explicit acceptance of its findings are complete; the
 full gate is the `1.0.0` boundary in the [versioning policy](../release/SEMANTIC_VERSIONING_POLICY.md).
+
+**Open blocker:** the signed-in React hydration error #418 is binding for Phase 3 and must be fixed
+and reverified before Phase 3 can pass. The cross-page 24-hour/freshness presentation must also be
+checked against real data rather than inferred from the Phase 2 mock-only discrepancy.
 
 - [ ] Before Production mutation, declare the identity lifecycle: retained named certification
   accounts or an explicitly approved cleanup mechanism.
