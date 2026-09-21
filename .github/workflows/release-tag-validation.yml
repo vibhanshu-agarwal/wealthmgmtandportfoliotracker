@@ -1,0 +1,39 @@
+name: Release Tag Validation
+
+# Validation only. A product release tag must equal v<VERSION> exactly and its changelog
+# entry must be dated. This workflow checks that and does nothing else: no build, no image,
+# no publish, no deployment. A tag or GitHub Release never deploys anything; deployment runs
+# only through the separately approved dispatch path.
+#
+# The trigger routes candidate tags into the strict validator; it is not proof that a tag is
+# a release. The retained architecture marker v1.0-modular-monolith also matches it, and the
+# validator rejects it as a product release.
+#
+# Detective, not preventive: by the time this runs, the tag already exists. Prevention needs
+# a repository ruleset restricting who may create these tags, which is a separate owner action.
+#
+# The tag name reaches the validator only through the step-local RELEASE_TAG variable. It is
+# attacker-chosen text, so it is never interpolated into the script directly, and tag mode is
+# passed explicitly rather than inferred from the event.
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  product-version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Validate product release tag
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          python scripts/tests/test_validate_product_version.py -v
+          python scripts/validate_product_version.py --ref-type tag --ref-name "$RELEASE_TAG"
