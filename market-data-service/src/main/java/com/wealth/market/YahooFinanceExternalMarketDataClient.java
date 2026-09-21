@@ -45,7 +45,7 @@ class YahooFinanceExternalMarketDataClient implements ExternalMarketDataClient {
         Duration timeout = Duration.ofMillis(timeoutMs);
         HttpClient httpClient = HttpClient.create()
                 .responseTimeout(timeout)
-                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, Math.min(timeoutMs, Integer.MAX_VALUE));
+                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, timeoutMs);
         this.webClient = WebClient.builder()
                 .baseUrl(props.getBaseUrl())
                 // A browser-like User-Agent is mandatory: Yahoo rejects the default Java/Netty

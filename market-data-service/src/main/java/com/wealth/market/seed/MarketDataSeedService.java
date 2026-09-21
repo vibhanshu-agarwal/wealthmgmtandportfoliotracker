@@ -73,19 +73,15 @@ public class MarketDataSeedService {
                     .set("updatedAt", now);
             bulk.upsert(q, u);
 
-            // Mirror StartupHydrationService: skip tickers with a null computed price.
-            if (seededPrice != null) {
-                BigDecimal historyPrice = DeterministicPriceCalculator.computeHistory(
-                        seededPrice, t.ticker(), userId);
-                // History observation first (25h ago), then current — gives insight-service ≥2
-                // distinct observedAt values for trend calculation.
-                pendingEvents.add(new PriceUpdatedEvent(
-                        t.ticker(), historyPrice, t.quoteCurrency(), historyObservedAt, null, null));
-                pendingEvents.add(new PriceUpdatedEvent(
-                        t.ticker(), seededPrice, t.quoteCurrency(), now, null, null));
-            } else {
-                log.debug("seed: skipping Kafka publish for ticker {} with null computed price", t.ticker());
-            }
+            // compute() never returns null: SeedTickerRegistry rejects a missing basePrice.
+            BigDecimal historyPrice = DeterministicPriceCalculator.computeHistory(
+                    seededPrice, t.ticker(), userId);
+            // History observation first (25h ago), then current — gives insight-service ≥2
+            // distinct observedAt values for trend calculation.
+            pendingEvents.add(new PriceUpdatedEvent(
+                    t.ticker(), historyPrice, t.quoteCurrency(), historyObservedAt, null, null));
+            pendingEvents.add(new PriceUpdatedEvent(
+                    t.ticker(), seededPrice, t.quoteCurrency(), now, null, null));
         }
 
         BulkWriteResult result = bulk.execute();
