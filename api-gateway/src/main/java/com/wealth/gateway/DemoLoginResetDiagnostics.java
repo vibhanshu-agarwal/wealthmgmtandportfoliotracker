@@ -47,7 +47,9 @@ public final class DemoLoginResetDiagnostics {
 
     private void emit(Map<String, Object> fields) {
         var event = log.atInfo();
-        fields.forEach(event::addKeyValue);
+        for (var entry : fields.entrySet()) {
+            event = event.addKeyValue(entry.getKey(), entry.getValue());
+        }
         // The existing console pattern renders %msg, not %kvp. Keep the structured evidence
         // in the rendered message as well so Azure log consumers receive every field.
         event.log(fields.entrySet().stream().map(field -> field.getKey() + "="

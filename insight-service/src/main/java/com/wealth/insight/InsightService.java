@@ -65,12 +65,12 @@ public class InsightService {
             if (e.getStatusCode() == HttpStatus.NOT_FOUND) {
                 throw new PortfolioNotFoundException(userId);
             }
-            log.error("Failed to fetch portfolio for user {}: {}", userId, e.getMessage());
+            log.error("Portfolio-service returned a client error for user {}: {}", userId, e.getMessage());
             throw new AdvisorUnavailableException("Portfolio service unavailable", e);
         } catch (PortfolioNotFoundException e) {
             throw e;
         } catch (Exception e) {
-            log.error("Failed to fetch portfolio for user {}: {}", userId, e.getMessage());
+            log.error("Portfolio-service call failed for user {}: {}", userId, e.getMessage());
             throw new AdvisorUnavailableException("Portfolio service unavailable", e);
         }
     }
