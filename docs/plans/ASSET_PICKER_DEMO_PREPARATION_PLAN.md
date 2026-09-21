@@ -133,9 +133,11 @@ its core write path and persistence.
 **Exit outcome:** The application shell is visually usable at supported demo viewports, and no known
 critical backlog defect blocks a demonstration.
 
-**Status:** In progress. Phase 2.1 shared-shell stabilization is merged on `main`; the Portfolio and
-Overview horizontal-overflow slices and final demo-critical backlog triage remain open. No Phase 2
-source has been deployed or Production-verified.
+**Status:** In progress. Phase 2.1 shared-shell stabilization is merged on `main`. The Portfolio and
+Overview narrow-width horizontal overflows are explicitly accepted and deferred for the
+desktop-only demonstration; they are **not fixed** and remain open backlog debt. Final
+demo-critical backlog triage, the product Semantic Versioning foundation, and the Phase 2 exit
+verification remain open. No Phase 2 source has been deployed or Production-verified.
 
 - [x] Reproduce the recorded narrow-screen fixed-sidebar/clipping issue as the leading hypothesis.
 - [x] Sweep Overview, Portfolio, Market Data, and AI Insights at mobile, tablet, and agreed
@@ -145,14 +147,27 @@ source has been deployed or Production-verified.
 - [x] Fix the confirmed shell root cause without removing navigation or breaking desktop behavior.
 - [x] Allow intentional component scrolling, such as the chatbot transcript, but reject competing
   page/shell vertical scrollbars.
-- [ ] Fix or explicitly accept the Portfolio horizontal overflow caused by the holdings action row at
-  320px and 375px.
-- [ ] Fix or explicitly accept the Overview horizontal overflow caused by the performance range
-  badges at 320px.
+- [x] Fix or explicitly accept the Portfolio horizontal overflow caused by the holdings action row at
+  320px and 375px. **Explicitly accepted and deferred for desktop-only demonstration** — not fixed;
+  tracked in
+  [`responsive-dashboard-narrow-width-overflow`](../todos/backlog/responsive-dashboard-narrow-width-overflow/README.md).
+- [x] Fix or explicitly accept the Overview horizontal overflow caused by the performance range
+  badges at 320px. **Explicitly accepted and deferred for desktop-only demonstration** — not fixed;
+  tracked in the same backlog entry.
 - [ ] Triage the remaining backlog and include only defects genuinely critical to the demo.
 - [x] Obtain independent review and an uncontended visual/browser verification run for Phase 2.1.
 - [ ] After the remaining Phase 2 slices, run the final uncontended visual/browser verification and
   obtain independent Phase 2 exit review.
+- [ ] Establish the product Semantic Versioning foundation at `0.9.0` and rehearse the
+  non-deploying `v0.9.0` pre-release. Governed by the
+  [design](../superpowers/specs/2026-09-20-product-semantic-versioning-design.md), the
+  [implementation plan](../superpowers/plans/2026-09-20-product-semantic-versioning.md), and the
+  [versioning policy](../release/SEMANTIC_VERSIONING_POLICY.md). The `0.9.0` validation is
+  `scripts/validate_product_version.py` and its contract tests, which required `static-guard` runs
+  in branch mode. `.github/workflows/release-tag-validation.yml` re-runs the validator in tag mode
+  only once a `v*` tag exists, so no tag-mode evidence exists before plan Task 7. The source
+  foundation lands with the SemVer implementation PR; the `v0.9.0` tag and GitHub pre-release
+  rehearsal (plan Task 7) each await separate owner authorization, and neither deploys anything.
 
 ---
 
@@ -160,6 +175,15 @@ source has been deployed or Production-verified.
 
 **Exit outcome:** A reviewed browser suite has exercised the application across multiple Production
 users and materially different portfolios.
+
+**Browser matrix:** desktop only, at the agreed demo viewport(s). The owner narrowed the
+demonstration contract to desktop, so the deferred narrow-width overflows are backlog debt rather
+than Phase 3 scope. That narrows the viewports and nothing else: every multi-user, isolation,
+persistence, conflict, freshness, evidence, and uncontended-run requirement below applies in full.
+
+**Product version:** Phase 3 runs against a functionally complete `0.y.z` candidate. `1.0.0` stays
+blocked until Phase 3 and the remediation or explicit acceptance of its findings are complete; the
+full gate is the `1.0.0` boundary in the [versioning policy](../release/SEMANTIC_VERSIONING_POLICY.md).
 
 - [ ] Before Production mutation, declare the identity lifecycle: retained named certification
   accounts or an explicitly approved cleanup mechanism.
