@@ -345,9 +345,10 @@ jobs:
   #
   # Every Azure service Dockerfile copies root VERSION into its Gradle build context, so
   # all four are really built here rather than inferred from one of them. A parallel
-  # matrix rather than four sequential cold builds, so the wall-clock cost is the slowest
-  # child, not the sum. Build-only: nothing is logged in to, tagged for a registry, pushed
-  # or deployed. ci-required observes the aggregate matrix result, so any failed build
+  # matrix rather than four sequential cold builds, so that given runner concurrency the
+  # wall-clock cost can approach the slowest child rather than the sum -- an expectation,
+  # to be measured on real PR runs, not a measured result. Build-only: nothing is logged in
+  # to, tagged for a registry, pushed or deployed. ci-required observes the aggregate matrix result, so any failed build
   # fails the required gate.
   # ──────────────────────────────────────────────
   azure-image-smoke-test:
