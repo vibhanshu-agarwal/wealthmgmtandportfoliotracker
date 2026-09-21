@@ -102,11 +102,6 @@ export function Sidebar() {
                 </p>
                 <NavLink item={NAV_ITEMS[4]}/>
             </nav>
-
-            {/* Footer version tag */}
-            <div className="hidden px-4 py-3 border-t border-sidebar-border md:block">
-                <p className="text-[10px] text-white/25 text-center">Phase 1 · v0.1.0</p>
-            </div>
         </aside>
     );
 }

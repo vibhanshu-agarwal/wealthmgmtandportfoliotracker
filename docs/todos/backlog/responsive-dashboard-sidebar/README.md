@@ -27,8 +27,10 @@ Linux. The merge did not deploy the frontend. Firefox, Safari, real touch device
 hosting remain untested; the browser harness and screenshots are not tracked in the repository.
 
 This closure does not cover the separately observed Portfolio horizontal overflow at 320px and
-375px or the Overview horizontal overflow at 320px. Those remain explicit Phase 2 slices in the
-[demo preparation plan](../../../plans/ASSET_PICKER_DEMO_PREPARATION_PLAN.md).
+375px or the Overview horizontal overflow at 320px. The owner explicitly accepted and deferred
+those defects for the desktop-only demonstration. They remain open backlog debt in
+[`responsive-dashboard-narrow-width-overflow`](../responsive-dashboard-narrow-width-overflow/README.md),
+but they are no longer active Phase 2 implementation slices or blockers to Phase 3.
 
 ## Problem and evidence
 

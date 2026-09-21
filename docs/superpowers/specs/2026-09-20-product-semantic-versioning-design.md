@@ -1,6 +1,8 @@
 # Product Semantic Versioning Foundation — Design
 
-**Status:** draft for owner review
+**Status:** approved; amended 2026-09-21 to record the retained Phase 2 exit-verification gate;
+Tasks 1-6 are source-complete and independently accepted at local candidate
+`19fb82d552c57fe8b619a34fe7fb8b1f526797ea`; at the 2026-09-21 reconciliation, publication was pending
 **Date:** 2026-09-20
 **Track:** release governance and build metadata
 **Current product version selected by this design:** `0.9.0`
@@ -10,18 +12,23 @@
 
 ## OWNER APPROVAL STATUS
 
-The owner authorized drafting this design and its implementation plan. That authority does **not**
-authorize implementation, a commit, push, pull request, merge, tag, GitHub Release, deployment,
-Production probe, repository-ruleset change, or the start of Phase 3.
+The owner approved this design, its implementation plan, and local implementation of Tasks 1-6.
+The final complete-diff implementation review by Fable 5.1 ended with no open Critical or Important
+findings. That completed authority does **not** carry forward to a push, pull request, merge, tag,
+GitHub Release, deployment, Production probe, repository-ruleset change, or the start of Phase 3;
+nor does it satisfy the still-required Phase 2 exit verification and independent review.
 
-Those decisions remain separate:
+Those decisions and verification gates remain separate:
 
-1. approve the design and implementation plan;
-2. authorize implementation;
-3. accept the independently reviewed implementation;
-4. authorize publication and merge;
-5. authorize the `v0.9.0` tag and pre-release rehearsal; and
-6. after the rehearsal is verified, authorize Phase 3.
+1. design and implementation-plan approval — complete;
+2. local implementation authorization — complete for Tasks 1-6;
+3. independent technical acceptance — complete at `19fb82d5`;
+4. publication and merge — pending separate owner authorization and green pull-request CI;
+5. final uncontended Phase 2 visual/browser verification and independent exit review — required
+   after merge as a verification gate, with its result reported to the owner before Task 7; it does
+   not require a separate owner authorization merely to run;
+6. the `v0.9.0` tag and pre-release rehearsal — pending a later, separate owner authorization; and
+7. Phase 3 — pending completion and verification of the rehearsal plus separate owner authorization.
 
 No tag or GitHub Release may trigger deployment. Deployment remains a separately approved action
 through the existing gated dispatch path.
@@ -45,10 +52,10 @@ unreleased changelog on a tag, or a tag that does not equal `v<VERSION>`.
 
 ## 2. Context and intent
 
-The repository currently carries several unrelated version-like values:
+Before this design, the repository carried several unrelated version-like values:
 
-- root Gradle version `0.0.1-SNAPSHOT`;
-- private frontend package version `0.1.0`;
+- root Gradle version `0.0.1-SNAPSHOT`, replaced by the candidate's root `VERSION` contract;
+- private frontend package version `0.1.0`, replaced by the candidate's `0.9.0` mirror;
 - infrastructure package version `0.1.0`;
 - sanitizer/static-guard package version `1.0.0`;
 - per-service source-SHA image tags and immutable image digests; and
@@ -59,14 +66,22 @@ artifact promotion, and the future `1.0.0` milestone.
 
 The owner has also narrowed the demonstration contract to desktop only. The known 320px/375px
 Portfolio and Overview overflows therefore remain responsive-polish backlog items rather than
-demo blockers. The next delivery sequence is:
+demo blockers. The sequence below was amended on 2026-09-21 during status reconciliation to add to
+this design the Phase 2 exit-review gate that already existed in the demo-preparation plan. The owner
+then explicitly confirmed keeping that gate in response to Codex's direct keep-or-waive question.
+The next delivery sequence is:
 
-1. establish and rehearse this SemVer foundation at `0.9.0`;
-2. enter Phase 3 broad Production browser E2E at the agreed desktop viewport(s);
-3. remediate or explicitly accept Phase 3 findings; and
-4. promote the exact accepted release set to `1.0.0`.
+1. establish and merge this SemVer foundation at `0.9.0`;
+2. complete the final uncontended Phase 2 visual/browser verification and independent exit review;
+3. rehearse the non-deploying `v0.9.0` pre-release under separate owner authorization;
+4. enter Phase 3 broad Production browser E2E at the agreed desktop viewport(s);
+5. remediate or explicitly accept Phase 3 findings; and
+6. promote the exact accepted release set to `1.0.0`.
 
 ## 3. Goals and success criteria
+
+**Amended 2026-09-21:** the success path explicitly retains the final Phase 2 exit verification and
+independent review before the release rehearsal.
 
 ### 3.1 Goals
 
@@ -98,8 +113,9 @@ The foundation is source-complete when:
   and
 - implementation has independent review with no unresolved blocking finding.
 
-The release mechanism is rehearsed only after a separately authorized annotated `v0.9.0` tag and
-GitHub pre-release are created, validation is green, and no deployment workflow starts.
+After the Phase 2 exit verification and independent review pass, the release mechanism is rehearsed
+only under separate authorization for the annotated `v0.9.0` tag and GitHub pre-release. Validation
+must be green, and no deployment workflow may start.
 
 ## 4. Scope
 
@@ -170,9 +186,9 @@ The root build reads `VERSION` once. The root project and every subproject use t
 The repository drops `-SNAPSHOT` because it does not publish mutable development artifacts to a
 Maven repository; source SHA and image digest already distinguish builds.
 
-The subprojects currently inherit no explicit version, so this change also changes conventional
-archive names such as `common-dto.jar` to `common-dto-0.9.0.jar`. The current service Dockerfiles are
-not coupled to those names. Only API Gateway pins its `bootJar` to `app.jar`; portfolio,
+Before the candidate, the subprojects inherited no explicit version, so the change also changes
+conventional archive names such as `common-dto.jar` to `common-dto-0.9.0.jar`. The service
+Dockerfiles are not coupled to those names. Only API Gateway pins its `bootJar` to `app.jar`; portfolio,
 market-data, and insight use Gradle's versioned default archive name. Their clean Docker builder
 stages invoke only the service's `bootJar`, then copy the single resulting `*.jar` to runtime
 `app.jar`. Candidate/slim staging consumes Gradle's `archiveFile` provider and renames the staged
@@ -501,7 +517,12 @@ their SHA/digest and are unaffected by product-version documentation.
 
 ## 17. Implementation boundary
 
+**Amended 2026-09-21:** this section classifies the retained Phase 2 exit review as a verification
+gate and keeps the surrounding publication, release, Phase 3, and Production actions owner-gated.
+
 The accompanying implementation plan may implement only the source, build, validation, and
 documentation scope described here. It must stop for owner approval before push, PR creation,
 merge, tag creation, GitHub Release creation, repository-ruleset changes, Phase 3, deployment, or
-Production contact.
+Production contact. After merge, the local Phase 2 exit verification and independent review are a
+required verification gate rather than an owner-authorization gate; report their result to the owner
+before requesting Task 7 authority.

@@ -14,6 +14,16 @@ artifacts at or above R-B3r only. Publication remains separate until explicitly 
 additional production operation or rollback occurred during Task 7.11. R-C is portfolio-only but
 not dark because the existing gateway wildcard makes the public composition controller reachable.
 
+**Open B1 source-envelope follow-up (recorded 2026-09-21):** the `0.9.0` SemVer candidate makes root
+`VERSION` a Gradle build input and embeds it in packaged JAR metadata, but
+`scripts/check_b1_candidate_source.py` does not include `VERSION` in `_UNIVERSAL_ROOTS`. A future
+version-only change could therefore change deployable bytes without appearing in the B1 source-
+envelope membership. This does not alter or re-attest the existing R-C records. The separate
+[high-priority backlog item](../../../docs/todos/backlog/b1-candidate-envelope-product-version-root/README.md)
+must be resolved, independently reviewed, and used to re-attest all affected policy records before
+the next `VERSION` change or any new B1 candidate-envelope reliance; it cannot be folded into the
+contractually exact four-file `1.0.0` transition.
+
 **Historical R-C status — reconciled 2026-09-08 at `main@7e752b41`:**
 [PR #222](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/222)
 merged the candidate verification, copy-only packaging, GC.5 and exact-image smoke tooling.

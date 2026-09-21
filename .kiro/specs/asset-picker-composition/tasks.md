@@ -1,15 +1,21 @@
 # Implementation Plan
 
-**Current program status (reconciled 2026-09-20 at
-`main@4f288c4a0e8393e78efd7f7449c114e25db78818`):** Waves 1–9 retain their recorded source,
-review, assembled-stack, deployment, and live-gate evidence. Wave 10.2 Step B completed through
+**Current program status (reconciled 2026-09-21 at local candidate
+`19fb82d552c57fe8b619a34fe7fb8b1f526797ea`, based on `main@07faf2c6`):** Waves 1–9 retain their
+recorded source, review, assembled-stack, deployment, and live-gate evidence. Wave 10.2 Step B completed through
 frontend-only deploy run `35489160653`; both repository-scoped flags are `true`. The accepted 5b
 verifier returned `GO` within the 1,800-second bound with all L0-L9 legs passed, exact persisted
 readback, golden-state cleanup, and unchanged backend revisions/digests. Task 10.2 and Asset Picker
 Demo Preparation Phase 1 are complete. The later Phase 2.1 responsive-shell source merged through
-[PR #297](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/297) at this
-reconciliation baseline; it was post-delivery work, was not deployed, and does not reopen or advance
-any Asset Picker task. Portfolio and Overview horizontal-overflow slices remain open. See the
+[PR #297](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/297) earlier at
+`main@4f288c4a`; it was post-delivery work, was not deployed, and does not reopen or advance any
+Asset Picker task. The owner accepted the Portfolio and Overview narrow-width overflows as open
+backlog debt outside the desktop-only demo path. The `0.9.0` product SemVer foundation is
+source-complete and independently accepted at this local candidate. As of the 2026-09-21
+reconciliation it remained local. Publication/merge, the final uncontended Phase 2 visual/browser
+verification and independent exit review, and the later `v0.9.0` pre-release rehearsal remain
+separate gates. After the rehearsal is verified, Phase 3 remains a separately authorized desktop
+Production E2E step. See the
 [Production E2E record](../../../docs/evidence/b2-wave-10-2/WAVE_10_2_STEP_B_5B_PRODUCTION_E2E_GO_2026-09-20.md).
 
 Wave 8 source and Azure deployment-proof tooling are merged through

@@ -69,6 +69,36 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Validate release-tag workflow schema
+        # Schema-checks the one new workflow here, in the required job, rather than folding
+        # it into the advisory deploy-workflow-contract actionlint run: a malformed tag
+        # workflow must not be mergeable. Same pinned version and checksum as that job (a
+        # contract test keeps them equal), plus bounded retries so one transient
+        # release-asset response cannot fail a merge on its own.
+        run: |
+          set -euo pipefail
+          curl --fail --location --show-error --silent \
+            --retry 5 --retry-all-errors --retry-delay 2 \
+            --connect-timeout 15 --max-time 120 \
+            --output actionlint_1.7.12_linux_amd64.tar.gz \
+            https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz
+          echo "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8  actionlint_1.7.12_linux_amd64.tar.gz" | sha256sum -c -
+          tar -xzf actionlint_1.7.12_linux_amd64.tar.gz actionlint
+          ./actionlint -shellcheck= .github/workflows/release-tag-validation.yml
+
+      - name: Product version contract
+        # Root VERSION is the single product-version authority. Required, never-skipping job,
+        # so version drift, a stale Gradle or Docker build context, or a broken tag-workflow
+        # wiring contract cannot merge. Branch mode is explicit: there is no
+        # environment-derived default for the validator to fall back on. `set -e` is stated
+        # rather than inherited from the runner's default shell, so a later `defaults.run.shell`
+        # change cannot make only the last command's exit status count.
+        run: |
+          set -euo pipefail
+          python scripts/tests/test_validate_product_version.py -v
+          python scripts/tests/test_product_version_ci_wiring.py -v
+          python scripts/validate_product_version.py --ref-type branch
+
       - name: Run static sanitizer wiring guard
         run: |
           cd scripts && npm ci --ignore-scripts && npm audit --omit=dev --audit-level=low && node check-sanitizer-secret-wiring.js
@@ -311,18 +341,50 @@ jobs:
           path: "**/build/reports/tests/"
 
   # ──────────────────────────────────────────────
-  # Job 1b: Azure image probe smoke (packaging only)
+  # Job 1b: Azure image builds + API Gateway probe smoke (packaging only)
+  #
+  # Every Azure service Dockerfile copies root VERSION into its Gradle build context, so
+  # all four are really built here rather than inferred from one of them. A parallel
+  # matrix rather than four sequential cold builds, so that given runner concurrency the
+  # wall-clock cost can approach the slowest child rather than the sum -- an expectation,
+  # to be measured on real PR runs, not a measured result. Build-only: nothing is logged in
+  # to, tagged for a registry, pushed or deployed. ci-required observes the aggregate matrix result, so any failed build
+  # fails the required gate.
   # ──────────────────────────────────────────────
   azure-image-smoke-test:
     runs-on: ubuntu-latest
     needs: unit-tests
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: api-gateway
+            dockerfile: api-gateway/Dockerfile.azure
+            image: probe-smoke-test
+            run_probe: true
+          - service: portfolio-service
+            dockerfile: portfolio-service/Dockerfile.azure
+            image: semver-portfolio-azure
+            run_probe: false
+          - service: market-data-service
+            dockerfile: market-data-service/Dockerfile.azure
+            image: semver-market-data-azure
+            run_probe: false
+          - service: insight-service
+            dockerfile: insight-service/Dockerfile.azure
+            image: semver-insight-azure
+            run_probe: false
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build Azure image and run probe smoke cases
+      - name: Build Azure service image
+        run: docker build -f "${{ matrix.dockerfile }}" -t "${{ matrix.image }}" .
+
+      - name: Run API Gateway probe smoke cases
+        if: matrix.run_probe
         run: |
           set -euo pipefail
-          docker build -f api-gateway/Dockerfile.azure -t probe-smoke-test .
 
           run_case() {
             local label="$1"
