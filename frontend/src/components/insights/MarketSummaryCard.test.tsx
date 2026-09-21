@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { beforeAll, describe, expect, it } from "vitest";
 import { MarketSummaryCard } from "./MarketSummaryCard";
 import type { TickerSummary } from "@/types/insights";
@@ -81,6 +81,28 @@ describe("MarketSummaryCard — Sentiment badge", () => {
     expect(
       screen.queryByTestId("sentiment-unavailable"),
     ).not.toBeInTheDocument();
+  });
+
+  it("truncates a long summary on an inner text element and keeps the full text available", () => {
+    const longSummary =
+      "AAPL is Bullish. Prices are rising on strong services revenue, record buybacks and a widening lead in on-device AI.";
+    render(
+      <MarketSummaryCard summary={{ ...baseSummary, aiSummary: longSummary }} />,
+    );
+
+    const badge = screen.getByTestId("sentiment-badge");
+    // The badge is inline-flex, where text-overflow has no effect, so the ellipsis must be
+    // produced by a shrinkable block-level child rather than by the badge itself.
+    expect(badge.className).toContain("max-w-full");
+    expect(badge.className).not.toContain("truncate");
+
+    const text = within(badge).getByTestId("sentiment-text");
+    expect(text.className).toContain("truncate");
+    expect(text.className).toContain("min-w-0");
+    expect(text.textContent).toBe(longSummary);
+
+    // Full summary stays reachable when the visible text is cut short.
+    expect(badge).toHaveAttribute("title", longSummary);
   });
 
   it("hides sentiment badge and shows unavailable icon when aiSummary is null", () => {

@@ -217,3 +217,43 @@ describe("PerformanceChart — Task 9.6: partial coverage labelling", () => {
     expect(screen.getByText(/day return/i)).toBeInTheDocument();
   });
 });
+
+describe("PerformanceChart — period badges", () => {
+  const seriesOfLength = (n: number) =>
+    Array.from({ length: n }, (_, i) => ({
+      date: daysAgo(n - 1 - i),
+      value: 44000 + i * 10,
+      change: i === 0 ? 0 : 10,
+    }));
+
+  /** Labels of the badges drawn in the active (default) variant. */
+  const activeBadges = () =>
+    ["7D", "30D", "50D"].filter((label) =>
+      screen.getByText(label).className.includes("bg-primary"),
+    );
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockUsePortfolioPerformance.mockReturnValue(performanceFallback);
+  });
+
+  // The badges are informational: the backend controls the series length, and the one
+  // highlighted badge is the smallest period that covers it.
+  it.each([
+    [1, ["7D"]],
+    [7, ["7D"]],
+    [8, ["30D"]],
+    [30, ["30D"]],
+    [31, ["50D"]],
+    [50, ["50D"]],
+    [51, []],
+  ])("a %i-point series highlights %j", (length, expected) => {
+    mockUsePortfolioAnalytics.mockReturnValue({
+      data: { ...analyticsComplete.data, performanceSeries: seriesOfLength(length) },
+      isLoading: false,
+    });
+    render(<PerformanceChart />);
+
+    expect(activeBadges()).toEqual(expected);
+  });
+});

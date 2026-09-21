@@ -2,8 +2,8 @@
 
 import { useAuthSession } from "@/lib/auth/session";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
-import { usePortfolio } from "@/lib/hooks/usePortfolio";
+import { useEffect, useMemo } from "react";
+import { usePortfolio, usePortfolioAnalytics } from "@/lib/hooks/usePortfolio";
 import {
   Card,
   CardContent,
@@ -109,6 +109,16 @@ export function MarketDataPageContent() {
 
 function MarketDataTable() {
   const { data, isLoading, isError } = usePortfolio();
+  // fetchPortfolio leaves the 24h fields as null placeholders; the real values come from
+  // the analytics response, joined by ticker as HoldingsTable does.
+  const { data: analytics, isLoading: isAnalyticsLoading } =
+    usePortfolioAnalytics();
+  const isAnalyticsPending = isAnalyticsLoading && analytics == null;
+
+  const analyticsByTicker = useMemo(
+    () => new Map((analytics?.holdings ?? []).map((h) => [h.ticker, h])),
+    [analytics?.holdings],
+  );
 
   if (isLoading) {
     return <MarketDataTableSkeleton />;
@@ -157,42 +167,58 @@ function MarketDataTable() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {holdings.map((holding) => (
-              <TableRow key={holding.id}>
-                <TableCell>
-                  <Badge variant="secondary" className="font-mono">
-                    {holding.ticker}
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-right">
-                  {formatCurrency(holding.currentPrice)}
-                </TableCell>
-                <TableCell
-                  className={cn(
-                    "text-right",
-                    (holding.change24hPercent ?? 0) >= 0
-                      ? "text-green-600"
-                      : "text-red-600",
-                  )}
-                >
-                  {holding.change24hPercent != null
-                    ? <>{formatPercent(holding.change24hPercent)}{" "}
-                        <span className="text-xs">({formatSignedCurrency(holding.change24hAbsolute ?? 0)})</span>
-                      </>
-                    : <span className="text-muted-foreground">—</span>
-                  }
-                </TableCell>
-                <TableCell className="text-right text-muted-foreground">
-                  <span
-                    title={holding.lastUpdatedAt !== new Date(0).toISOString() ? holding.lastUpdatedAt : undefined}
+            {holdings.map((holding) => {
+              // A matching analytics record is authoritative, including its nulls
+              // ("no 24h reference"), which must never be coerced to 0.
+              const holdingAnalytics = analyticsByTicker.get(holding.ticker);
+              const change24hPercent = holdingAnalytics
+                ? holdingAnalytics.change24hPercent
+                : holding.change24hPercent;
+              const change24hAbsolute = holdingAnalytics
+                ? holdingAnalytics.change24hAbsolute
+                : holding.change24hAbsolute;
+
+              return (
+                <TableRow key={holding.id}>
+                  <TableCell>
+                    <Badge variant="secondary" className="font-mono">
+                      {holding.ticker}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {formatCurrency(holding.currentPrice)}
+                  </TableCell>
+                  <TableCell
+                    className={cn(
+                      "text-right",
+                      (change24hPercent ?? 0) >= 0
+                        ? "text-green-600"
+                        : "text-red-600",
+                    )}
                   >
-                    {holding.lastUpdatedAt === new Date(0).toISOString()
-                      ? "—"
-                      : formatRelativeAge(holding.lastUpdatedAt)}
-                  </span>
-                </TableCell>
-              </TableRow>
-            ))}
+                    {change24hPercent != null
+                      ? <>{formatPercent(change24hPercent)}
+                          {change24hAbsolute != null && (
+                            <>{" "}<span className="text-xs">({formatSignedCurrency(change24hAbsolute)})</span></>
+                          )}
+                        </>
+                      : isAnalyticsPending
+                        ? <Skeleton className="ml-auto h-4 w-16" data-testid="change24h-loading" />
+                        : <span className="text-muted-foreground">—</span>
+                    }
+                  </TableCell>
+                  <TableCell className="text-right text-muted-foreground">
+                    <span
+                      title={holding.lastUpdatedAt !== new Date(0).toISOString() ? holding.lastUpdatedAt : undefined}
+                    >
+                      {holding.lastUpdatedAt === new Date(0).toISOString()
+                        ? "—"
+                        : formatRelativeAge(holding.lastUpdatedAt)}
+                    </span>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
       </CardContent>

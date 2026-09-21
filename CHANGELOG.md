@@ -29,6 +29,17 @@ under `docs/changes/`.
 - The sidebar footer's hard-coded "Phase 1 · v0.1.0" label, which contradicted the product version
   once it moved to `0.9.0`.
 
+### Fixed
+
+- The Overview asset-allocation donut no longer paints a slice in another asset class's colour when
+  the chart re-draws; every slice now matches its legend.
+- AI Insights summary pills end long text with an ellipsis instead of cutting it off mid-word, and
+  the full summary is available on hover.
+- Market Data's 24h Change column shows each holding's 24-hour change from portfolio analytics
+  instead of always showing "—". It still shows "—" when no 24-hour reference exists.
+- The Overview performance chart highlights one period badge, the smallest period that covers the
+  series, instead of both 30D and 50D.
+
 ### Status
 
 - Pre-demo-certification release line. Phase 3 Production E2E and final `1.0.0` acceptance remain

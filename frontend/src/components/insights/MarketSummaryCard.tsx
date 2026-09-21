@@ -144,10 +144,14 @@ function SentimentSection({ aiSummary }: { aiSummary: string | null }) {
     return (
       <Badge
         variant="secondary"
-        className="text-xs font-normal truncate max-w-full"
+        className="text-xs font-normal max-w-full"
+        title={aiSummary}
         data-testid="sentiment-badge"
       >
-        {aiSummary}
+        {/* text-overflow has no effect on the inline-flex badge; truncate a shrinkable child. */}
+        <span className="min-w-0 truncate" data-testid="sentiment-text">
+          {aiSummary}
+        </span>
       </Badge>
     );
   }

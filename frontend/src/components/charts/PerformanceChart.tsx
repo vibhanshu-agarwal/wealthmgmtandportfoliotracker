@@ -125,6 +125,9 @@ export function PerformanceChart() {
   const holdingsWithHistory = coverage?.holdingsWithHistory ?? 0;
   const totalHoldings = coverage?.totalHoldings ?? 0;
 
+  // One informational badge: the smallest period covering the series (PERIODS is ascending).
+  const activePeriod = PERIODS.find((p) => renderablePoints.length <= p.days);
+
   const firstValue = renderablePoints[0]?.value ?? 0;
   const lastValue = renderablePoints.at(-1)?.value ?? 0;
   const periodReturn = lastValue - firstValue;
@@ -181,7 +184,7 @@ export function PerformanceChart() {
             {PERIODS.map((p) => (
               <Badge
                 key={p.label}
-                variant={renderablePoints.length <= p.days ? "default" : "secondary"}
+                variant={p === activePeriod ? "default" : "secondary"}
                 className="cursor-default text-xs"
               >
                 {p.label}
