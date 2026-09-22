@@ -9,6 +9,8 @@ described in the reconciliation." The reconciliation is on an unpublished Codex 
 standing instruction this design does not read or depend on it. Codex should confirm the contract
 below matches it.
 **Not authorized:** publication, merge, deployment, workflow dispatch, Production access.
+**Status:** implemented at `3db6321e`; evidence and review dispositions are in
+`docs/superpowers/plans/2026-09-22-d11-24h-position-value-packet.md`.
 
 ## 1. The defect (F13)
 
