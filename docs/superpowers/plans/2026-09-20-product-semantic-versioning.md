@@ -2,13 +2,12 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-> **OWNER APPROVAL CALLOUT — at the 2026-09-21 reconciliation, publication was the next decision.**
-> The owner approved local implementation of Tasks 1-6, which is source-complete and independently
-> accepted at local candidate `19fb82d552c57fe8b619a34fe7fb8b1f526797ea`. Push, pull request,
-> merge, the post-merge Phase 2 exit review, Task 7, tag, GitHub Release, ruleset change, Phase 3
-> execution, deployment, and Production contact remain separate gates. The Phase 2 exit review is a
-> required verification gate whose result is reported to the owner; the other listed owner-controlled
-> actions require separate authorization. Stop at each named gate.
+> **OWNER APPROVAL CALLOUT — Task 7 publication authority was consumed on 2026-09-22.**
+> The owner authorized the release-only pull request, merge, annotated `v0.9.0` tag, and GitHub
+> pre-release, then explicitly accepted the residual risk from the absent `v*` creation ruleset.
+> Those actions completed through PR #308 and the `v0.9.0` pre-release without deployment or
+> Production contact. Phase 3, any deployment or Production operation, ruleset changes, cleanup,
+> and future publication remain separate owner gates. This reconciliation grants none of them.
 
 **Goal:** Establish one governed product SemVer at `0.9.0`, make version drift fail CI, safely rehearse a non-deploying pre-release, and leave the repository ready to enter Phase 3.
 
@@ -20,18 +19,25 @@
 
 ## Execution status
 
-- Tasks 1-6 are locally implemented and independently accepted at `19fb82d5`; as of the 2026-09-21
-  reconciliation, the candidate remained local.
-- The implementation handoff recorded in the Claude task conversation—not in a tracked repository
-  artifact—reports one known pre-existing Windows CRLF-sensitive frontend test failure and records
-  locally unavailable/skipped checks as UNRUN. Green Linux pull-request CI remains a merge
-  prerequisite.
-- The final uncontended Phase 2 visual/browser verification and independent exit review remain
-  required after merge and before Task 7.
-- As of the 2026-09-21 reconciliation, Task 7 had not started and no `v0.9.0` tag or GitHub
-  pre-release existed. Neither is authorized by the completed Tasks 1-6 work.
-- The detailed checkboxes below preserve the approved execution recipe. This section is the current
-  status ledger; Task 7 remains future work behind its named owner gate.
+- Tasks 1-6 merged through [PR #300](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/300)
+  at `main@3eca669ccc53be4d56d9d55b79be0b83e4e6b60b`; the final Phase 2 browser verification and
+  independent exit review subsequently completed against `main@8f2c4cf7947cad316e3d063b5f322b4d78dc64d5`.
+- Task 7 completed through the `CHANGELOG.md`-only
+  [PR #308](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/308), merged at
+  `57910b09f408e819537ca875b51ee150d56d5ea7`. Full exact-merge
+  [CI Verification](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/35679165460)
+  passed with all 14 jobs successful.
+- Annotated tag object `50dba1f42229c448381fc22ddf7758452e703932` names `v0.9.0` and points
+  to `57910b09f408e819537ca875b51ee150d56d5ea7`. The
+  [`0.9.0` GitHub pre-release](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/releases/tag/v0.9.0)
+  has no assets, and
+  [Release Tag Validation run 35680891236](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/35680891236)
+  passed. No deployment workflow was triggered by the tag or Release; the execution handoff records
+  that no Production access occurred.
+- No repository ruleset protects `v*` creation. The owner explicitly accepted that residual risk
+  before publication; tag validation remains detective rather than preventive.
+- The detailed checkboxes below retain the execution recipe and record Task 7 complete. Phase 3,
+  `1.0.0`, deployment, and Production operations remain separately owner-gated.
 
 ## Global Constraints
 
@@ -971,7 +977,7 @@ request. It does not grant either authorization.
    wall-clock regression or unexpected serialization is a review finding to resolve or explicitly
    accept before merge; a green result alone does not close the performance question.
 
-### Task 7: Owner-gated `v0.9.0` pre-release rehearsal
+### Task 7: Owner-gated `v0.9.0` pre-release rehearsal — COMPLETE
 
 **Files:**
 - Modify in a release PR: `CHANGELOG.md`
@@ -992,7 +998,7 @@ active. The tag-validation workflow is detective only: if the ruleset is absent,
 owner acceptance of that residual risk and state in the rehearsal evidence that invalid tag creation
 was possible. Never present the validator as a preventive control.
 
-- [ ] **Step 1: Prepare the release-only changelog PR**
+- [x] **Step 1: Prepare the release-only changelog PR**
 
 Replace `## [0.9.0] - Unreleased` with the actual release date, run the full validator/tests, obtain
 independent review, and request separate push/PR/merge authority. The PR must state:
@@ -1002,7 +1008,7 @@ independent review, and request separate push/PR/merge authority. The PR must st
 It is not 1.0.0, does not claim Phase 3 completion, and does not deploy anything.
 ```
 
-- [ ] **Step 2: Re-observe the accepted release commit**
+- [x] **Step 2: Re-observe the accepted release commit**
 
 After merge, record the exact `main` SHA and run:
 
@@ -1014,7 +1020,7 @@ git tag -l v0.9.0
 
 Expected: validator PASS; the tag does not already exist. Stop on any mismatch.
 
-- [ ] **Step 3: Create and publish the annotated tag only after owner approval**
+- [x] **Step 3: Create and publish the annotated tag only after owner approval**
 
 ```powershell
 git tag -a v0.9.0 <accepted-main-sha> -m "Release 0.9.0 (pre-demo certification)"
@@ -1023,7 +1029,7 @@ git push origin v0.9.0
 
 Do not move or recreate the tag after publication.
 
-- [ ] **Step 4: Create the GitHub pre-release only after owner approval**
+- [x] **Step 4: Create the GitHub pre-release only after owner approval**
 
 ```powershell
 gh release create v0.9.0 --verify-tag --prerelease --title "0.9.0 — SemVer foundation" --notes "Pre-demo-certification release. Establishes governed product Semantic Versioning; Phase 3 and 1.0.0 acceptance remain pending. No deployment is included, and no deployed release-manifest asset is published."
@@ -1032,7 +1038,7 @@ gh release create v0.9.0 --verify-tag --prerelease --title "0.9.0 — SemVer fou
 This source-only rehearsal does not have an accepted deployed artifact set, so it does not publish a
 release-manifest asset. State that explicitly in the Release notes.
 
-- [ ] **Step 5: Prove validation ran and deployment did not**
+- [x] **Step 5: Prove validation ran and deployment did not**
 
 Inspect Actions for the tag SHA. Require `Release Tag Validation` to finish green. Confirm no run of
 `deploy.yml`, `deploy-azure.yml`, `deploy-azure-frontend.yml`, `deploy-aws.yml`, `frontend-cd.yml`,
@@ -1041,7 +1047,7 @@ If the tag was pushed but no `Release Tag Validation` run was created, record th
 demonstrated and route to the owner for a superseding pre-release under design §16; never move or
 reuse the published tag. Record URLs and conclusions in the handoff; do not dispatch anything.
 
-- [ ] **Step 6: Handoff to Phase 3**
+- [x] **Step 6: Handoff to Phase 3**
 
 Report `v0.9.0`, tag object/commit, GitHub Release URL, CI result, and no-deploy evidence. State that
 Phase 3 still needs its own owner authorization and that `1.0.0` remains gated by the design’s §8
