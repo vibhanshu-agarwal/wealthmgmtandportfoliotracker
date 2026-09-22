@@ -124,6 +124,25 @@ describe("HoldingsTable — F1: unpriced holding", () => {
     expect(rowOrder()).toEqual(["BTC-USD", "AAPL", "SOL-USD"]);
   });
 
+  it("sorts a holding with no unrealised P&L last, in both directions", () => {
+    mockUsePortfolioAnalytics.mockReturnValue({
+      data: {
+        totalValue: 32000,
+        holdings: [
+          { ...analyticsHolding("AAPL", 200, 2000), unrealizedPnL: 150 },
+          { ...analyticsHolding("BTC-USD", 60000, 30000), unrealizedPnL: -400 },
+          analyticsHolding("SOL-USD", null, null),
+        ],
+      },
+      isLoading: false,
+    });
+    render(<HoldingsTable />);
+    fireEvent.click(screen.getByRole("button", { name: /^Unr\. P&L/ }));
+    expect(rowOrder()).toEqual(["AAPL", "BTC-USD", "SOL-USD"]);
+    fireEvent.click(screen.getByRole("button", { name: /^Unr\. P&L/ }));
+    expect(rowOrder()).toEqual(["BTC-USD", "AAPL", "SOL-USD"]);
+  });
+
   it("sorts the unpriced holding last by value and by price, in both directions", () => {
     render(<HoldingsTable />);
     expect(rowOrder()).toEqual(["BTC-USD", "AAPL", "SOL-USD"]);
