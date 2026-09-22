@@ -105,6 +105,25 @@ describe("HoldingsTable — F1: unpriced holding", () => {
     expect(screen.getByText("$32,000.00")).toBeInTheDocument();
   });
 
+  it("sorts a holding with no 24h change last, in both directions", () => {
+    mockUsePortfolioAnalytics.mockReturnValue({
+      data: {
+        totalValue: 32000,
+        holdings: [
+          { ...analyticsHolding("AAPL", 200, 2000), change24hPercent: 1.5, change24hAbsolute: 3 },
+          { ...analyticsHolding("BTC-USD", 60000, 30000), change24hPercent: -2, change24hAbsolute: -1200 },
+          analyticsHolding("SOL-USD", null, null),
+        ],
+      },
+      isLoading: false,
+    });
+    render(<HoldingsTable />);
+    fireEvent.click(screen.getByRole("button", { name: /^24h Change/ }));
+    expect(rowOrder()).toEqual(["AAPL", "BTC-USD", "SOL-USD"]);
+    fireEvent.click(screen.getByRole("button", { name: /^24h Change/ }));
+    expect(rowOrder()).toEqual(["BTC-USD", "AAPL", "SOL-USD"]);
+  });
+
   it("sorts the unpriced holding last by value and by price, in both directions", () => {
     render(<HoldingsTable />);
     expect(rowOrder()).toEqual(["BTC-USD", "AAPL", "SOL-USD"]);
@@ -114,5 +133,47 @@ describe("HoldingsTable — F1: unpriced holding", () => {
     expect(rowOrder()).toEqual(["BTC-USD", "AAPL", "SOL-USD"]);
     fireEvent.click(screen.getByRole("button", { name: /^Price/ }));
     expect(rowOrder()).toEqual(["AAPL", "BTC-USD", "SOL-USD"]);
+  });
+});
+
+// A matching analytics record is authoritative for value and weight, including its nulls:
+// the enriched quantity × quote-currency price is neither FX-converted nor part of the
+// analytics total the Overview shows (review M1).
+describe("HoldingsTable — analytics null value with an enriched price", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  function setup(unvalued: HoldingAnalyticsDTO, enriched: AssetHoldingDTO) {
+    mockUsePortfolio.mockReturnValue({
+      data: { portfolioId: "p1", ownerId: "u1", holdings: [holding("AAPL", 200, 2000, 7.5), enriched] },
+      isLoading: false,
+    });
+    mockUsePortfolioAnalytics.mockReturnValue({
+      data: { totalValue: 2000, holdings: [analyticsHolding("AAPL", 200, 2000), unvalued] },
+      isLoading: false,
+    });
+    render(<HoldingsTable />);
+  }
+
+  it("FX unavailable: shows the quote price but no value or weight, and keeps it out of the total", () => {
+    setup(
+      { ...analyticsHolding("SOL-USD", 1242.3, null), quoteCurrency: "INR" },
+      holding("SOL-USD", 1242.3, 24846, 92.5),
+    );
+    const [, , price, value] = cellsOf("SOL-USD");
+    expect(price.textContent).toBe("$1,242.30");
+    expect(value.textContent).toBe("—");
+    expect(within(value.closest("tr")!).queryByText(/%$/)).not.toBeInTheDocument();
+    expect(cellsOf("AAPL")[3].textContent).toBe("$2,000.00100.0%");
+    expect(screen.getByText("Total (2 assets)").parentElement!.textContent).toContain("$2,000.00");
+  });
+
+  it("price missing from portfolio-service only: keeps the market-data price, but no value", () => {
+    setup(analyticsHolding("SOL-USD", null, null), holding("SOL-USD", 12.9, 64.5, 3.1));
+    const [, , price, value] = cellsOf("SOL-USD");
+    expect(price.textContent).toBe("$12.90");
+    expect(value.textContent).toBe("—");
+    expect(screen.getByText("Total (2 assets)").parentElement!.textContent).toContain("$2,000.00");
   });
 });

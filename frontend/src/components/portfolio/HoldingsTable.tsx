@@ -282,18 +282,25 @@ export function HoldingsTable() {
           ? h.assetClass
           : (backendClass as AssetClass);
 
+      // A matching analytics record is authoritative for value and weight, including its null
+      // (price or FX unavailable): the enriched quantity × quote-currency price is neither
+      // FX-converted nor part of the analytics total the Overview shows. A null value's weight
+      // is not shown.
       const valueBase = analyticsHolding.currentValueBase;
       const portfolioWeight =
-        valueBase != null && analyticsTotalValue > 0
-          ? (valueBase / analyticsTotalValue) * 100
-          : h.portfolioWeight;
+        valueBase == null
+          ? 0
+          : analyticsTotalValue > 0
+            ? (valueBase / analyticsTotalValue) * 100
+            : h.portfolioWeight;
 
       return {
         ...h,
         assetClass: compatClass,
-        // FX-converted base-currency value from analytics — not qty × quote-currency price.
+        // A market-data price is still a real price when portfolio-service has none.
         currentPrice: analyticsHolding.currentPrice ?? h.currentPrice,
-        totalValue: valueBase ?? h.totalValue,
+        // FX-converted base-currency value from analytics — not qty × quote-currency price.
+        totalValue: valueBase,
         portfolioWeight,
         unrealizedPnL: analyticsHolding.unrealizedPnL,
         // Issue #3 fix: merge backend-provided percent directly — do NOT recompute client-side

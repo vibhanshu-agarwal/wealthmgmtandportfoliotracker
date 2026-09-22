@@ -987,6 +987,11 @@ test("S11 Overview, Portfolio, Market Data, AI Insights and navigation for every
           const sum = legendPercents.reduce((acc, p) => acc + p, 0);
           evidence.verify("S11", `${tag}: allocation percentages sum to 100`, Math.abs(sum - 100) <= 0.05 * legendPercents.length + 0.01, { sum });
         }
+      } else if (overviewAnalytics.holdings.length > 0) {
+        evidence.verify("S11", `${tag}: allocation shows no slice when no holding has a value`, legendPercents.length === 0 && allocationTotal === null, {
+          slices: legendPercents.length,
+          allocationTotal,
+        });
       }
       const coverage = overviewAnalytics.performanceCoverage;
       const expectPartial = Boolean(coverage?.partial) && (coverage?.totalHoldings ?? 0) > 0;

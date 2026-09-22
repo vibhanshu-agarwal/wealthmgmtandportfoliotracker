@@ -13,6 +13,10 @@
  *
  * Runs stack-less via playwright.mocked.config.ts, and in CI through the main
  * config's chromium project (mocks take precedence over the network either way).
+ *
+ * The "no $0.00" assertions are sound only under these mocks: real market data has
+ * sub-cent prices (e.g. SHIB-USD) that formatCurrency rounds to "$0.00" (finding F10),
+ * so do not lift them into a real-data suite as they stand.
  */
 
 import { expect, test, type Page } from "@playwright/test";
