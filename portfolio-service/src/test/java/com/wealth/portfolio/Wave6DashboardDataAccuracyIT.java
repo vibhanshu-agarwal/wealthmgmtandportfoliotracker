@@ -207,6 +207,10 @@ class Wave6DashboardDataAccuracyIT {
         assertThat(holding.change24hReferenceAt()).isNotNull();
         assertThat(holding.changeBasis()).isEqualTo("WITHIN_24H_WINDOW");
 
+        // D11 (finding F13): the position's 24h change in base currency, 10 × (110 − 100) = 100,
+        // while change24hAbsolute above stays the per-unit change.
+        assertThat(holding.change24hValueBase()).isEqualByComparingTo("100.0000");
+
         // Task 5.4: canonical display asset class (unknown ticker → OTHER)
         assertThat(holding.displayAssetClass()).isEqualTo("OTHER");
 
@@ -216,6 +220,15 @@ class Wave6DashboardDataAccuracyIT {
                 .filter(v -> v != null)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         assertThat(dto.totalValue()).isEqualByComparingTo(sumOfHoldings);
+
+        // D11: totalChange24hBase == Σ change24hValueBase over the same counted holdings
+        BigDecimal sumOfChanges = dto.holdings().stream()
+                .filter(h -> h.currentValueBase() != null)
+                .map(HoldingAnalyticsDto::change24hValueBase)
+                .filter(v -> v != null)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        assertThat(dto.totalChange24hBase()).isEqualByComparingTo(sumOfChanges);
+        assertThat(dto.totalChange24hPercent()).isNotNull();
 
         // Property 2: P&L identity when basis is present
         if (dto.totalUnrealizedPnL() != null) {

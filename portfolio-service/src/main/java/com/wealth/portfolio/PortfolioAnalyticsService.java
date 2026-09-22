@@ -293,6 +293,16 @@ public class PortfolioAnalyticsService {
                     : null;
             String changeBasis = row.refLabel();
 
+            // D11 (finding F13): the position's 24h change in base currency. Computed from the
+            // unrounded prices and rounded once, like currentValueBase; the current FX rate converts
+            // both endpoints. Null when the change or the FX rate is unavailable (currentValueBase
+            // is non-null only when the price and the rate both are).
+            BigDecimal change24hValueBase = (currentValueBase != null && row.price24hAgo() != null)
+                    ? row.quantity().multiply(row.currentPrice().subtract(row.price24hAgo()))
+                            .multiply(quoteRate)
+                            .setScale(4, RoundingMode.HALF_UP)
+                    : null;
+
             // Task 5.4: canonical display asset class from seed registry
             String displayAssetClass = resolveDisplayAssetClass(row.assetTicker());
 
@@ -307,6 +317,7 @@ public class PortfolioAnalyticsService {
                     unrealizedPnLPercent,
                     change24hAbs,
                     change24hPct,
+                    change24hValueBase,
                     referenceAt,
                     changeBasis,
                     row.quoteCurrency(),
@@ -340,12 +351,18 @@ public class PortfolioAnalyticsService {
             }
         }
 
-        BigDecimal totalValue = holdingDtos.stream()
+        List<HoldingAnalyticsDto> countedHoldings = holdingDtos.stream()
                 .filter(h -> !unavailableCurrencies.contains(h.quoteCurrency()))
                 .filter(h -> !unavailableCostBasisTickers.contains(h.ticker()))
                 .filter(h -> h.currentValueBase() != null)   // null = price/FX unavailable
+                .toList();
+
+        BigDecimal totalValue = countedHoldings.stream()
                 .map(HoldingAnalyticsDto::currentValueBase)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        // D11 (finding F13): the 24h totals describe exactly the holdings counted in totalValue.
+        Change24hTotals change24hTotals = computeChange24hTotals(countedHoldings);
 
         // Task 5.1: aggregate cost basis — only include holdings whose value is also counted
         // (symmetric with totalValue). Problem A fix: add currentValueBase != null filter so
@@ -406,6 +423,8 @@ public class PortfolioAnalyticsService {
                 totalCostBasis,
                 totalPnL,
                 totalPnLPct,
+                change24hTotals.amount(),
+                change24hTotals.percent(),
                 baseCurrency,
                 !unavailableCurrencies.isEmpty(),
                 best,
@@ -435,13 +454,46 @@ public class PortfolioAnalyticsService {
     }
 
     /**
-     * Returns null when no reference exists.
+     * Returns null when no reference exists. A per-unit price change in the quote currency; the
+     * position amount in base currency is {@code change24hValueBase} (D11).
      */
     BigDecimal computeChange24hAbsolute(BigDecimal currentPrice, BigDecimal price24hAgo) {
         if (price24hAgo == null) {
             return null;
         }
         return currentPrice.subtract(price24hAgo).setScale(4, RoundingMode.HALF_UP);
+    }
+
+    /** Portfolio-level 24h change in base currency (D11); both components nullable. */
+    record Change24hTotals(BigDecimal amount, BigDecimal percent) {}
+
+    /**
+     * D11 (finding F13): sums {@code change24hValueBase} over the counted holdings that have one.
+     * A counted holding without a reference contributes to neither the amount nor the percent's
+     * denominator, so an unknown change is never treated as zero. The percent is the amount over
+     * those holdings' value at the reference ({@code Σ currentValueBase − change24hValueBase}).
+     *
+     * @param countedHoldings the holdings counted in {@code totalValue}
+     */
+    Change24hTotals computeChange24hTotals(List<HoldingAnalyticsDto> countedHoldings) {
+        List<HoldingAnalyticsDto> withChange = countedHoldings.stream()
+                .filter(h -> h.change24hValueBase() != null)
+                .toList();
+        if (withChange.isEmpty()) {
+            return new Change24hTotals(null, null);
+        }
+        BigDecimal amount = withChange.stream()
+                .map(HoldingAnalyticsDto::change24hValueBase)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal priorValue = withChange.stream()
+                .map(h -> h.currentValueBase().subtract(h.change24hValueBase()))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal percent = priorValue.compareTo(BigDecimal.ZERO) > 0
+                ? amount.divide(priorValue, new MathContext(10, RoundingMode.HALF_UP))
+                        .multiply(HUNDRED)
+                        .setScale(4, RoundingMode.HALF_UP)
+                : null;
+        return new Change24hTotals(amount, percent);
     }
 
     /**
@@ -655,6 +707,8 @@ public class PortfolioAnalyticsService {
         return new PortfolioAnalyticsDto(
                 BigDecimal.ZERO,
                 BigDecimal.ZERO,
+                null,
+                null,
                 null,
                 null,
                 baseCurrency,

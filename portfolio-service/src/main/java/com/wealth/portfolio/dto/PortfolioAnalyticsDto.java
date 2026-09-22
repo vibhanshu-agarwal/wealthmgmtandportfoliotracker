@@ -14,10 +14,18 @@ import java.util.List;
  *   <li>{@code performanceCoverage} — coverage metadata for the performance series.</li>
  * </ul>
  *
+ * <p>D11 additions (finding F13): {@code totalChange24hBase} / {@code totalChange24hPercent} and
+ * the per-holding {@code change24hValueBase} — the 24h change as a position amount in
+ * {@code baseCurrency}. {@code change24hAbsolute} stays a per-unit, quote-currency price change.
+ *
  * @param partialValuation true when one or more holdings were excluded from aggregates because
  *                         their FX rate was unavailable. Consumers should label totals as partial.
  * @param totalUnrealizedPnL nullable; null means cost basis data is absent for all holdings
  * @param totalUnrealizedPnLPercent nullable; null when totalUnrealizedPnL is null
+ * @param totalChange24hBase nullable; Σ {@code change24hValueBase} over the holdings counted in
+ *                           {@code totalValue}; null when none of them has a 24h change
+ * @param totalChange24hPercent nullable; {@code totalChange24hBase} as a percentage of those
+ *                              holdings' value at the reference; null when that value is not positive
  * @param performanceCoverage coverage metadata for the performance series; never null
  */
 public record PortfolioAnalyticsDto(
@@ -25,6 +33,8 @@ public record PortfolioAnalyticsDto(
         BigDecimal totalCostBasis,
         BigDecimal totalUnrealizedPnL,
         BigDecimal totalUnrealizedPnLPercent,
+        BigDecimal totalChange24hBase,
+        BigDecimal totalChange24hPercent,
         String baseCurrency,
         boolean partialValuation,
         PerformerDto bestPerformer,
@@ -80,6 +90,11 @@ public record PortfolioAnalyticsDto(
             BigDecimal change24hAbsolute,
             /** Percentage change from reference; null = no reference. */
             BigDecimal change24hPercent,
+            /**
+             * D11: the position's 24h change in baseCurrency, {@code quantity × (currentPrice −
+             * reference) × current FX rate}; null when the change or the FX rate is unavailable.
+             */
+            BigDecimal change24hValueBase,
             /**
              * ISO-8601 timestamp of the reference price used for change calculation; null = no reference.
              * Use this to label the change basis accurately in the UI.
