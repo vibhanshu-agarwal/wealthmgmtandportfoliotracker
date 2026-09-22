@@ -171,6 +171,23 @@ export async function rowCellsByTicker(page: Page, tickerSelector: string): Prom
   return out;
 }
 
+/**
+ * D11: the Portfolio footer's 24h total as displayed ("—" when unavailable) and its partial-coverage
+ * label, if any. `labels` counts the matching labels, so a missing or duplicated footer is reported
+ * rather than read as "no total".
+ */
+export async function readFooter24h(page: Page): Promise<{ labels: number; text: string | null; coverage: string | null }> {
+  const label = page.locator("main p").filter({ hasText: /^24h$/ });
+  const labels = await label.count();
+  if (labels !== 1) return { labels, text: null, coverage: null };
+  const coverage = page.getByTestId("footer-24h-coverage");
+  return {
+    labels,
+    text: ((await label.locator("xpath=following-sibling::p[1]").textContent()) ?? "").trim(),
+    coverage: (await coverage.count()) === 1 ? ((await coverage.textContent()) ?? "").trim() : null,
+  };
+}
+
 const PERCENT = /([+-]?\d+(?:\.\d+)?)%/;
 
 /** Parses the first percentage in a cell; null for the unavailable dash. */

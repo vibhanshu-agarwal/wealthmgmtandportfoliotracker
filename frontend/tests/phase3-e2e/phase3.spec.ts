@@ -13,6 +13,14 @@ import path from "node:path";
 import { expect, test, type Browser, type BrowserContext, type Request, type Route, type TestInfo, type Video } from "@playwright/test";
 import { ApiClient, type AnalyticsReadback, type AuthSession, type SummaryReadback } from "./lib/api";
 import { msSinceLastWriteBefore, staleAnalyticsExpiresBy, withinAnalyticsCacheWindow } from "./lib/cache-window";
+import {
+  expectedCardCoverageLabel,
+  expectedChange24hCoverage,
+  expectedFooterCoverageLabel,
+  parseChangeCellMoney,
+  recomputeTotalChange24h,
+  sumPositionChanges,
+} from "./lib/change24h";
 import { provenanceEnvironment, scanArtifactsForSecrets } from "./lib/artifacts";
 import { fileStore, paceAuthRequest } from "./lib/auth-pacer";
 import { resolveRunConfig } from "./lib/config";
@@ -40,6 +48,7 @@ import {
   portfolioTableTickers,
   quantityBox,
   readAgainstLatest,
+  readFooter24h,
   removeAsset,
   requestsAfterRetryWindow,
   reviewCounts,
@@ -913,18 +922,21 @@ test("S11 Overview, Portfolio, Market Data, AI Insights and navigation for every
         shown: totalRead.rendered,
         api: pageSummary.totalValue,
       });
-      const overviewRead = await readAgainstLatest<AnalyticsReadback, { shown24h: number | null; legendPercents: number[]; partialShown: boolean; allocationTotal: number | null }>(page, analyticsCalls, async () => ({
+      const overviewRead = await readAgainstLatest<AnalyticsReadback, { shown24h: number | null; shownCoverage: string | null; legendPercents: number[]; partialShown: boolean; allocationTotal: number | null }>(page, analyticsCalls, async () => ({
         allocationTotal: (await page.getByText(/^\$[\d,]+\.\d{2} total$/).count()) === 1
           ? parseDisplayedMoney(((await page.getByText(/^\$[\d,]+\.\d{2} total$/).textContent()) ?? "").replace(/ total$/, ""))
           : null,
         shown24h: parseDisplayedMoney(((await page.getByTestId("24h-pnl").textContent()) ?? "").trim()),
+        shownCoverage: (await page.getByTestId("24h-coverage").count()) === 1
+          ? ((await page.getByTestId("24h-coverage").textContent()) ?? "").trim()
+          : null,
         legendPercents: (await page.locator("main li").filter({ hasText: /\d+\.\d%\s*$/ }).allTextContents()).map((t) =>
           Number(/(\d+\.\d)%\s*$/.exec(t)?.[1] ?? "NaN"),
         ),
         partialShown: await page.getByText(/^Partial \(\d+\/\d+ holdings\)$/).isVisible().catch(() => false),
       }));
       const overviewAnalytics = overviewRead.data;
-      const { shown24h, legendPercents, partialShown, allocationTotal } = overviewRead.rendered;
+      const { shown24h, shownCoverage, legendPercents, partialShown, allocationTotal } = overviewRead.rendered;
       // The Overview shows the summary total (uncached) beside analytics-driven cards. Analytics
       // is cached per user for 30 s and no holdings write evicts it (finding F9, D10), so right
       // after a write the two can disagree. A write inside the TTL only makes that the possible
@@ -968,11 +980,40 @@ test("S11 Overview, Portfolio, Market Data, AI Insights and navigation for every
           analytics: overviewAnalytics.totalValue,
         });
       }
-      const withChange = overviewAnalytics.holdings.filter((h) => h.change24hAbsolute !== null);
-      const expected24h = withChange.length === 0 ? null : withChange.reduce((sum, h) => sum + (h.change24hAbsolute ?? 0), 0);
-      evidence.verify("S11", `${tag}: Overview 24h card equals the analytics sum`, expected24h === null ? shown24h === null : shown24h !== null && Math.abs(shown24h - expected24h) <= MONEY_TOLERANCE, {
+      // D11 (finding F13): the card shows the position-level total, and that total must match an
+      // independent recomputation from per-unit changes, values and prices. An older backend omits
+      // the total, so the card shows "—" and the recomputation check fails.
+      const backend24h = overviewAnalytics.totalChange24hBase ?? null;
+      evidence.verify("S11", `${tag}: Overview 24h card equals the analytics position-level total`, backend24h === null ? shown24h === null : shown24h !== null && Math.abs(shown24h - backend24h) <= MONEY_TOLERANCE, {
         shown: shown24h,
-        expected: expected24h,
+        expected: backend24h,
+      });
+      // D11 coverage: the payload must say which holdings the total covers (counted independently
+      // here from its holdings), and the card must disclose a partial total, and only a partial one.
+      const coverage24h = overviewAnalytics.change24hCoverage ?? null;
+      const expectedCoverage24h = expectedChange24hCoverage(overviewAnalytics.holdings);
+      evidence.verify("S11", `${tag}: analytics 24h coverage matches the holdings`, coverage24h !== null && coverage24h.holdingsWithChange === expectedCoverage24h.holdingsWithChange && coverage24h.totalHoldings === expectedCoverage24h.totalHoldings && coverage24h.partial === expectedCoverage24h.partial, {
+        coverage: coverage24h,
+        expected: expectedCoverage24h,
+      });
+      const expectedCardLabel = expectedCardCoverageLabel(backend24h, coverage24h);
+      evidence.verify("S11", `${tag}: Overview 24h card discloses partial coverage exactly when it is partial`, shownCoverage === expectedCardLabel, {
+        shown: shownCoverage,
+        expected: expectedCardLabel,
+      });
+      const recomputed24h = recomputeTotalChange24h(overviewAnalytics.holdings);
+      evidence.verify("S11", `${tag}: analytics 24h total equals quantity × per-unit change × FX, recomputed`, recomputed24h.expected === null ? backend24h === null : backend24h !== null && Math.abs(backend24h - recomputed24h.expected) <= recomputed24h.tolerance + MONEY_TOLERANCE, {
+        backend: backend24h,
+        recomputed: recomputed24h.expected,
+        tolerance: recomputed24h.tolerance,
+        // The primitives, so the recomputation can be re-derived from the ledger alone.
+        holdings: overviewAnalytics.holdings.map((h) => ({
+          ticker: h.ticker,
+          currentPrice: h.currentPrice,
+          currentValueBase: h.currentValueBase,
+          change24hAbsolute: h.change24hAbsolute,
+          change24hValueBase: h.change24hValueBase ?? null,
+        })),
       });
       // Only valued holdings get a slice: an unpriced holding is excluded from the allocation,
       // as it is from the analytics total (finding F1).
@@ -1035,19 +1076,45 @@ test("S11 Overview, Portfolio, Market Data, AI Insights and navigation for every
         });
         await page.keyboard.press("Escape");
       }
-      const portfolioRead = await readAgainstLatest<AnalyticsReadback, Map<string, string[]>>(page, analyticsCalls, () =>
-        rowCellsByTicker(page, "td:first-child span.font-mono"),
-      );
+      const portfolioRead = await readAgainstLatest<AnalyticsReadback, { rows: Map<string, string[]>; footer24h: { labels: number; text: string | null; coverage: string | null } }>(page, analyticsCalls, async () => ({
+        rows: await rowCellsByTicker(page, "td:first-child span.font-mono"),
+        footer24h: await readFooter24h(page),
+      }));
       const portfolioByTicker = new Map(portfolioRead.data.holdings.map((h) => [h.ticker, h]));
       const portfolio24h = new Map<string, number | null>();
-      for (const [ticker, cells] of portfolioRead.rendered) {
+      for (const [ticker, cells] of portfolioRead.rendered.rows) {
         const shown = parseDisplayedPercent(cells[5] ?? "");
         portfolio24h.set(ticker, shown);
         const h = portfolioByTicker.get(ticker);
-        const expected = h && h.change24hPercent !== null && h.change24hAbsolute !== null ? h.change24hPercent : null;
+        // D11: the percent shows whenever it exists, with or without a position-level sub-line.
+        const expected = h ? h.change24hPercent : null;
         evidence.verify("S11", `${tag}: Portfolio 24h for ${ticker} matches analytics`, expected === null ? shown === null : shown !== null && Math.abs(shown - expected) <= PERCENT_TOLERANCE, {
           shown,
           expected,
+        });
+        // D11: the sub-line is the position's base-currency change, never the per-unit change.
+        const shownValue = parseChangeCellMoney(cells[5] ?? "");
+        const expectedValue = h?.change24hValueBase ?? null;
+        evidence.verify("S11", `${tag}: Portfolio 24h value for ${ticker} is the position-level change`, expectedValue === null ? shownValue === null : shownValue !== null && Math.abs(shownValue - expectedValue) <= MONEY_TOLERANCE, {
+          shown: shownValue,
+          expected: expectedValue,
+        });
+      }
+      // D11: the footer totals the rows' position-level changes (every holding is shown: no filter).
+      if (portfolioRead.rendered.rows.size > 0) {
+        const footer = portfolioRead.rendered.footer24h;
+        evidence.verify("S11", `${tag}: Portfolio footer shows exactly one 24h total`, footer.labels === 1, { labels: footer.labels });
+        const shownFooter24h = parseDisplayedMoney(footer.text ?? "");
+        const expectedFooter24h = sumPositionChanges(portfolioRead.data.holdings.filter((h) => portfolioRead.rendered.rows.has(h.ticker)));
+        evidence.verify("S11", `${tag}: Portfolio footer 24h totals the position-level changes`, expectedFooter24h === null ? shownFooter24h === null : shownFooter24h !== null && Math.abs(shownFooter24h - expectedFooter24h) <= MONEY_TOLERANCE, {
+          shown: shownFooter24h,
+          expected: expectedFooter24h,
+        });
+        const rowsWithChange = [...portfolioRead.rendered.rows.keys()].filter((ticker) => portfolioByTicker.get(ticker)?.change24hValueBase != null).length;
+        const expectedFooterLabel = expectedFooterCoverageLabel(rowsWithChange, portfolioRead.rendered.rows.size);
+        evidence.verify("S11", `${tag}: Portfolio footer discloses partial 24h coverage exactly when a visible row lacks a change`, footer.coverage === expectedFooterLabel, {
+          shown: footer.coverage,
+          expected: expectedFooterLabel,
         });
       }
       evidence.verify("S11", `${tag}: Portfolio has no horizontal overflow`, await hasNoHorizontalOverflow(page));

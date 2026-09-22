@@ -473,6 +473,211 @@ class PortfolioAnalyticsServiceTest {
         assertThat(service.computeChange24hPercent(new BigDecimal("200"), null)).isNull();
     }
 
+    // ── D11 (finding F13): position-level 24h value in base currency ────────
+    // Expected values are worked by hand in each comment; none is derived from the code under test.
+
+    @Test
+    void d11_positionValue_isQuantityTimesPerUnitChange() {
+        // 12 × (1126.48 − 1000.00) = 12 × 126.48 = 1517.76; the per-unit field keeps its meaning.
+        Instant refAt = Instant.now().minus(24, ChronoUnit.HOURS);
+        stubQuery(List.of(holdingRow("AAPL", "12", "1126.48", "USD", "1000.00", refAt, "WITHIN_24H_WINDOW", null, null)));
+
+        HoldingAnalyticsDto h = service.getAnalytics(USER_ID).holdings().getFirst();
+
+        assertThat(h.change24hAbsolute()).isEqualByComparingTo("126.4800");
+        assertThat(h.change24hValueBase()).isEqualByComparingTo("1517.7600");
+    }
+
+    @Test
+    void d11_positionValue_isConvertedToBaseCurrency() {
+        // 5 × (1242.30 − 1200.00) INR × 0.012 USD/INR = 5 × 42.30 × 0.012 = 2.538 USD.
+        when(fxRateProvider.getRate("INR", "USD")).thenReturn(new BigDecimal("0.012"));
+        Instant refAt = Instant.now().minus(24, ChronoUnit.HOURS);
+        stubQuery(List.of(holdingRow("RELIANCE.NS", "5", "1242.30", "INR", "1200.00", refAt, "WITHIN_24H_WINDOW", null, null)));
+
+        HoldingAnalyticsDto h = service.getAnalytics(USER_ID).holdings().getFirst();
+
+        assertThat(h.change24hAbsolute()).isEqualByComparingTo("42.3000");
+        assertThat(h.change24hValueBase()).isEqualByComparingTo("2.5380");
+    }
+
+    @Test
+    void d11_positionValue_isRoundedOnceFromUnroundedPrices() {
+        // 3 × (1.23456 − 1.23450) = 3 × 0.00006 = 0.00018 → 0.0002 (HALF_UP, scale 4).
+        // Multiplying the rounded per-unit change (0.0001) would give 0.0003 instead.
+        Instant refAt = Instant.now().minus(24, ChronoUnit.HOURS);
+        stubQuery(List.of(holdingRow("DOGE-USD", "3", "1.23456", "USD", "1.23450", refAt, "WITHIN_24H_WINDOW", null, null)));
+
+        HoldingAnalyticsDto h = service.getAnalytics(USER_ID).holdings().getFirst();
+
+        assertThat(h.change24hAbsolute()).isEqualByComparingTo("0.0001");
+        assertThat(h.change24hValueBase()).isEqualByComparingTo("0.0002");
+    }
+
+    @Test
+    void d11_positionValue_nullWithoutReference_withoutPrice_orWithoutFx() {
+        when(fxRateProvider.getRate("INR", "USD"))
+                .thenThrow(new FxRateUnavailableException("INR", "USD", null));
+        Instant refAt = Instant.now().minus(24, ChronoUnit.HOURS);
+        stubQuery(List.of(
+                holdingRow("AAPL", "10", "200.00", "USD", null, null, null, null, null),
+                holdingRow("SOL-USD", "40", null, "USD", "150.00", refAt, "WITHIN_24H_WINDOW", null, null),
+                holdingRow("INFY.NS", "5", "1500.00", "INR", "1450.00", refAt, "WITHIN_24H_WINDOW", null, null)));
+
+        Map<String, HoldingAnalyticsDto> byTicker = byTicker(service.getAnalytics(USER_ID));
+
+        assertThat(byTicker.get("AAPL").change24hValueBase()).isNull();
+        assertThat(byTicker.get("SOL-USD").change24hValueBase()).isNull();
+        // The per-unit change is known in INR, but its base-currency value is not.
+        assertThat(byTicker.get("INFY.NS").change24hAbsolute()).isEqualByComparingTo("50.0000");
+        assertThat(byTicker.get("INFY.NS").change24hValueBase()).isNull();
+    }
+
+    @Test
+    void d11_totals_mixedPortfolio_subsetTotalIsMarkedPartial() {
+        // AAPL    12 @ 1126.48, ref 1000.00 → value 13517.76, change +1517.76
+        // BTC-USD 0.5 @ 60000, ref 62000    → value 30000.00, change −1000.00
+        // ETH-USD 2 @ 3000, no reference     → value  6000.00, change unknown: in totalValue only
+        // SOL-USD 40, no price               → excluded from everything
+        // total change = 1517.76 − 1000.00 = 517.76
+        // prior value of the covered holdings = (13517.76 − 1517.76) + (30000 + 1000) = 43000
+        // percent = 517.76 / 43000 × 100 = 1.204093… → 1.2041
+        Instant refAt = Instant.now().minus(24, ChronoUnit.HOURS);
+        stubQuery(List.of(
+                holdingRow("AAPL", "12", "1126.48", "USD", "1000.00", refAt, "WITHIN_24H_WINDOW", null, null),
+                holdingRow("BTC-USD", "0.5", "60000.00", "USD", "62000.00", refAt, "WITHIN_24H_WINDOW", null, null),
+                holdingRow("ETH-USD", "2", "3000.00", "USD", null, null, null, null, null),
+                holdingRow("SOL-USD", "40", null, null, null, null, null, null, null)));
+
+        PortfolioAnalyticsDto result = service.getAnalytics(USER_ID);
+
+        assertThat(result.totalValue()).isEqualByComparingTo("49517.7600");
+        assertThat(result.totalChange24hBase()).isEqualByComparingTo("517.7600");
+        assertThat(result.totalChange24hPercent()).isEqualByComparingTo("1.2041");
+        // Coverage: AAPL and BTC-USD contribute (2); AAPL, BTC-USD and ETH-USD are counted in
+        // totalValue (3); the portfolio holds 4. The subset total must say so.
+        assertCoverage(result, 2, 3, 4, true);
+    }
+
+    @Test
+    void d11_totals_excludeHoldingWithoutFx() {
+        // AAPL 10 @ 200, ref 190 → change 100, value 2000. INFY.NS has no INR rate → excluded.
+        // percent = 100 / (2000 − 100) × 100 = 5.263157… → 5.2632
+        when(fxRateProvider.getRate("INR", "USD"))
+                .thenThrow(new FxRateUnavailableException("INR", "USD", null));
+        Instant refAt = Instant.now().minus(24, ChronoUnit.HOURS);
+        stubQuery(List.of(
+                holdingRow("AAPL", "10", "200.00", "USD", "190.00", refAt, "WITHIN_24H_WINDOW", null, null),
+                holdingRow("INFY.NS", "5", "1500.00", "INR", "1450.00", refAt, "WITHIN_24H_WINDOW", null, null)));
+
+        PortfolioAnalyticsDto result = service.getAnalytics(USER_ID);
+
+        assertThat(result.totalChange24hBase()).isEqualByComparingTo("100.0000");
+        assertThat(result.totalChange24hPercent()).isEqualByComparingTo("5.2632");
+        // Missing FX: only AAPL contributes and is counted; the portfolio holds 2.
+        assertCoverage(result, 1, 1, 2, true);
+    }
+
+    @Test
+    void d11_coverage_missingPriceIsPartial_evenThoughTheCountedHoldingsAllContribute() {
+        // SOL-USD has no price, so it is not counted in totalValue. Counting only the counted
+        // holdings would call this complete (1 of 1); against every holding it is 1 of 2.
+        Instant refAt = Instant.now().minus(24, ChronoUnit.HOURS);
+        stubQuery(List.of(
+                holdingRow("AAPL", "10", "200.00", "USD", "190.00", refAt, "WITHIN_24H_WINDOW", null, null),
+                holdingRow("SOL-USD", "40", null, null, null, null, null, null, null)));
+
+        PortfolioAnalyticsDto result = service.getAnalytics(USER_ID);
+
+        assertThat(result.totalChange24hBase()).isEqualByComparingTo("100.0000");
+        assertCoverage(result, 1, 1, 2, true);
+    }
+
+    @Test
+    void d11_coverage_missingHistoryIsPartial() {
+        // ETH-USD is priced and counted, but has no reference: 1 contributing of 2 counted, 2 held.
+        Instant refAt = Instant.now().minus(24, ChronoUnit.HOURS);
+        stubQuery(List.of(
+                holdingRow("AAPL", "10", "200.00", "USD", "190.00", refAt, "WITHIN_24H_WINDOW", null, null),
+                holdingRow("ETH-USD", "2", "3000.00", "USD", null, null, null, null, null)));
+
+        assertCoverage(service.getAnalytics(USER_ID), 1, 2, 2, true);
+    }
+
+    @Test
+    void d11_coverage_completeWhenEveryHoldingContributes() {
+        // AAPL 10 × (200 − 190) = 100 and BTC-USD 0.5 × (60000 − 62000) = −1000 → −900; 2 of 2 of 2.
+        Instant refAt = Instant.now().minus(24, ChronoUnit.HOURS);
+        stubQuery(List.of(
+                holdingRow("AAPL", "10", "200.00", "USD", "190.00", refAt, "WITHIN_24H_WINDOW", null, null),
+                holdingRow("BTC-USD", "0.5", "60000.00", "USD", "62000.00", refAt, "WITHIN_24H_WINDOW", null, null)));
+
+        PortfolioAnalyticsDto result = service.getAnalytics(USER_ID);
+
+        assertThat(result.totalChange24hBase()).isEqualByComparingTo("-900.0000");
+        assertCoverage(result, 2, 2, 2, false);
+    }
+
+    @Test
+    void d11_totals_excludeHoldingThatTotalValueExcludesForCostBasisFx() {
+        // SAP is quoted in USD, so its own 24h value is known: 4 × (150 − 140) = 40.
+        // Its EUR cost basis has no rate, so totalValue excludes it; the 24h totals must too.
+        // Totals therefore come from AAPL alone: change 100, percent 5.2632 (as above).
+        when(fxRateProvider.getRate("EUR", "USD"))
+                .thenThrow(new FxRateUnavailableException("EUR", "USD", null));
+        Instant refAt = Instant.now().minus(24, ChronoUnit.HOURS);
+        stubQuery(List.of(
+                holdingRow("AAPL", "10", "200.00", "USD", "190.00", refAt, "WITHIN_24H_WINDOW", null, null),
+                holdingRow("SAP", "4", "150.00", "USD", "140.00", refAt, "WITHIN_24H_WINDOW", "120.00", "EUR")));
+
+        PortfolioAnalyticsDto result = service.getAnalytics(USER_ID);
+
+        assertThat(byTicker(result).get("SAP").change24hValueBase()).isEqualByComparingTo("40.0000");
+        assertThat(result.totalValue()).isEqualByComparingTo("2000.0000");
+        assertThat(result.totalChange24hBase()).isEqualByComparingTo("100.0000");
+        assertThat(result.totalChange24hPercent()).isEqualByComparingTo("5.2632");
+        // SAP has its own 24h value but is not counted, so it does not contribute: 1 of 1 of 2.
+        assertCoverage(result, 1, 1, 2, true);
+    }
+
+    @Test
+    void d11_totals_nullWhenNoCountedHoldingHasAChange() {
+        stubQuery(List.of(
+                holdingRow("AAPL", "10", "200.00", "USD", null, null, null, null, null),
+                holdingRow("SOL-USD", "40", null, null, null, null, null, null, null)));
+
+        PortfolioAnalyticsDto result = service.getAnalytics(USER_ID);
+
+        assertThat(result.totalChange24hBase()).isNull();
+        assertThat(result.totalChange24hPercent()).isNull();
+        // AAPL is counted without a reference; SOL-USD has no price: 0 of 1 of 2.
+        assertCoverage(result, 0, 1, 2, true);
+    }
+
+    @Test
+    void d11_totals_nullForAnEmptyPortfolio() {
+        stubQuery(List.of());
+
+        PortfolioAnalyticsDto result = service.getAnalytics(USER_ID);
+
+        assertThat(result.totalChange24hBase()).isNull();
+        assertThat(result.totalChange24hPercent()).isNull();
+        // Nothing held, so nothing is missing.
+        assertCoverage(result, 0, 0, 0, false);
+    }
+
+    @Test
+    void d11_percent_nullWhenThePriorValueIsZero() {
+        // 1 × (10 − 0) = 10 change on a prior value of 10 − 10 = 0: the amount exists, the percent does not.
+        Instant refAt = Instant.now().minus(24, ChronoUnit.HOURS);
+        stubQuery(List.of(holdingRow("NEW", "1", "10.00", "USD", "0.00", refAt, "WITHIN_24H_WINDOW", null, null)));
+
+        PortfolioAnalyticsDto result = service.getAnalytics(USER_ID);
+
+        assertThat(result.totalChange24hBase()).isEqualByComparingTo("10.0000");
+        assertThat(result.totalChange24hPercent()).isNull();
+    }
+
     @Test
     void task52_change24hPercent_zeroWhenRefIsZero() {
         assertThat(service.computeChange24hPercent(new BigDecimal("200"), BigDecimal.ZERO))
@@ -846,6 +1051,21 @@ class PortfolioAnalyticsServiceTest {
         return new AnalyticsQueryRow(
                 "HISTORY", ticker, null, null, currency, null, null, null, null, null,
                 date, new BigDecimal(price));
+    }
+
+    private static void assertCoverage(PortfolioAnalyticsDto result,
+                                       int holdingsWithChange, int countedHoldings, int totalHoldings, boolean partial) {
+        assertThat(result.change24hCoverage()).isNotNull();
+        assertThat(result.change24hCoverage().holdingsWithChange()).as("holdingsWithChange").isEqualTo(holdingsWithChange);
+        assertThat(result.change24hCoverage().countedHoldings()).as("countedHoldings").isEqualTo(countedHoldings);
+        assertThat(result.change24hCoverage().totalHoldings()).as("totalHoldings").isEqualTo(totalHoldings);
+        assertThat(result.change24hCoverage().partial()).as("partial").isEqualTo(partial);
+    }
+
+    private static Map<String, HoldingAnalyticsDto> byTicker(PortfolioAnalyticsDto result) {
+        Map<String, HoldingAnalyticsDto> map = new HashMap<>();
+        result.holdings().forEach(h -> map.put(h.ticker(), h));
+        return map;
     }
 
     private static String daysAgo(int days) {

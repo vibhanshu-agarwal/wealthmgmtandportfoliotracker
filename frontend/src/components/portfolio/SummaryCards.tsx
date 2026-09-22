@@ -2,6 +2,7 @@
 
 import {
   Activity,
+  AlertCircle,
   Minus,
   Star,
   TrendingDown,
@@ -24,6 +25,7 @@ import {
   formatDate,
 } from "@/lib/utils/format";
 import { cn } from "@/lib/utils/cn";
+import type { Change24hCoverage } from "@/types/portfolio";
 import React from "react";
 
 // ── Individual card components ────────────────────────────────────────────────
@@ -110,6 +112,28 @@ function SummaryCardsSkeleton() {
   );
 }
 
+function isCount(n: unknown): n is number {
+  return Number.isSafeInteger(n) && (n as number) >= 0;
+}
+
+/**
+ * D11: only a complete, self-consistent coverage object may unlock the 24h totals. The backend
+ * counts contributors within the counted holdings within all holdings, and partial is exactly
+ * "some holding does not contribute"; anything else fails closed.
+ */
+function isChange24hCoverage(value: unknown): value is Change24hCoverage {
+  if (value == null || typeof value !== "object") return false;
+  const { holdingsWithChange, countedHoldings, totalHoldings, partial } = value as Record<string, unknown>;
+  return (
+    isCount(holdingsWithChange) &&
+    isCount(countedHoldings) &&
+    isCount(totalHoldings) &&
+    holdingsWithChange <= countedHoldings &&
+    countedHoldings <= totalHoldings &&
+    partial === (holdingsWithChange < totalHoldings)
+  );
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function SummaryCards() {
@@ -140,23 +164,14 @@ export function SummaryCards() {
   // Do NOT use the synthetic fetchPortfolio summary which is hardcoded to 0.
   const unrealizedPnLPercent = analytics?.totalUnrealizedPnLPercent ?? null;
 
-  // 24h aggregate: sum change24hAbsolute across holdings where available
-  const change24hAbsolute = (() => {
-    if (!analytics?.holdings?.length) return null;
-    const holdingsWithChange = analytics.holdings.filter(
-      (h) => h.change24hAbsolute != null,
-    );
-    if (holdingsWithChange.length === 0) return null;
-    return holdingsWithChange.reduce((sum, h) => sum + (h.change24hAbsolute ?? 0), 0);
-  })();
-
-  // 24h percent: analytics.totalValue as denominator
-  const change24hPercent = (() => {
-    if (change24hAbsolute == null || !analytics?.totalValue) return null;
-    const priorValue = analytics.totalValue - change24hAbsolute;
-    if (priorValue <= 0) return null;
-    return (change24hAbsolute / priorValue) * 100;
-  })();
+  // D11 (finding F13): the backend's position-level 24h totals in base currency. Never a sum of
+  // holdings' change24hAbsolute, which is a per-unit, quote-currency price change. The totals are
+  // shown only with well-formed coverage: without it (an older backend, or a malformed object)
+  // they fail closed to "—", and a partial total is labelled as such.
+  const rawCoverage = analytics?.change24hCoverage;
+  const change24hCoverage = isChange24hCoverage(rawCoverage) ? rawCoverage : null;
+  const change24hAbsolute = change24hCoverage ? (analytics?.totalChange24hBase ?? null) : null;
+  const change24hPercent = change24hCoverage ? (analytics?.totalChange24hPercent ?? null) : null;
 
   const isFlat24h = change24hAbsolute === 0;
   const pnlIsPositive = (change24hAbsolute ?? 0) > 0;
@@ -236,6 +251,16 @@ export function SummaryCards() {
                     ? `unchanged since ${formatDate(changeReferenceAt)} snapshot`
                     : "since previous snapshot"}
                 </span>
+                {change24hCoverage?.partial && (
+                  <span
+                    className="inline-flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400"
+                    data-testid="24h-coverage"
+                    title={`24h change available for ${change24hCoverage.holdingsWithChange} of ${change24hCoverage.totalHoldings} holdings`}
+                  >
+                    <AlertCircle className="h-3 w-3 shrink-0" aria-hidden />
+                    Partial: {change24hCoverage.holdingsWithChange} of {change24hCoverage.totalHoldings} holdings
+                  </span>
+                )}
               </div>
             </>
           ) : (
@@ -247,7 +272,9 @@ export function SummaryCards() {
                 —
               </p>
               <span className="text-xs text-muted-foreground">
-                no reference data available
+                {analytics && !change24hCoverage
+                  ? "24h coverage unavailable"
+                  : "no reference data available"}
               </span>
             </>
           )}
