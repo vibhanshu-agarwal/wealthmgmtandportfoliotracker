@@ -4,7 +4,8 @@
 **Worktree:** `C:\worktrees\wealthmgmtandportfoliotracker-worktrees\wealthmgmtandportfoliotracker-claude-phase3`
 **Branch:** `claude/phase3-hydration-and-prod-e2e`, created from verified
 `origin/main@26a07fe048d9950c5b7268b9763eaca543b7b7ef`. **Published** as
-[PR #310](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/310) (A1); not merged.
+[PR #310](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/310) (A1), then
+merged at `9a4603c245529b93942d3a6b9b85e886be08b5e0`.
 **Evidence:** the folders named below (`final-run-*`, `negative-controls-*` and so on) are in the
 local handoff folder `C:\worktrees\wealthmgmtandportfoliotracker-worktrees\_handoff\2026-09-22-phase3-prep\`.
 They are not committed: they hold screenshots, network logs and account identifiers.
@@ -25,14 +26,16 @@ They are not committed: they hold screenshots, network logs and account identifi
 | `776516b8` | F1 scoped-review follow-up: P&L null-last sorting pinned (test only). **Final code head** |
 | `58a1a1e8` | F1 record in design §16 and packet §6 (docs only). Published as PR #310 (A1) |
 | Amendment on `58a1a1e8` | Owner-approved packet update (docs only): A1 complete, D11 approved and held, Production account creation stated |
+| `3743bd28` / `b27fcd07` | D11/F13 accepted PR head / PR #311 merge commit; post-merge CI green, not deployed |
 
 ## OWNER APPROVAL CALLOUT: read first
 
-**Status.** The branch is published as
-[PR #310](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/310). Nothing has been
-merged, deployed or run against Production, and no workflow was dispatched. No cloud resource, secret
-or Production account was touched. All testing ran on a local docker stack and a locally served
-static export.
+**Status amendment, 2026-09-22.** PR #310 and the separate D11/F13
+[PR #311](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/311) are merged on
+`main`; the current merge is `b27fcd077925e1afc5040dd2ff85aaeb787977e1`. PR #311's approved head
+was `3743bd28fd58b2f4aa9048d3e807e449afea10bb`, and the merge tree is identical. Its four
+push-triggered post-merge workflows passed. No deploy workflow ran, nothing has run against
+Production, and no cloud resource, secret or Production account was touched.
 
 **A1 is done.** You approved it: "A1: Push claude/phase3-hydration-and-prod-e2e at exact head
 58a1a1e8 and open a pull request for the reviewed Phase 3/F1 bundle. [...] This authorizes
@@ -44,29 +47,44 @@ Qodana for JVM check was skipped.
 **A2 is done.** You approved it ("A2 is approved; A1/A3/A4/A5 remain closed"). F1 is fixed at
 `776516b8`, and two independent reviews found 0 Critical and 0 Important.
 
-**D11 is approved and held.** You approved it "as the next separate bounded change for F13", with
-implementation held "until the Phase 3/F1 PR is independently accepted, separately approved for
-merge, merged, and main is updated". It is not part of PR #310 and has not been started.
+**D11 is complete in source.** The separately approved position-level 24-hour value and coverage
+contract was implemented, independently accepted and merged through PR #311. It remains undeployed
+and has no Production acceptance.
 
-**Still closed:** merging PR #310, A3 (deploy), A4 (Production run), A5 (Azure capture), workflow
-dispatch, and every other Production activity. Each needs a separate owner decision.
+**Still closed:** B3/A3 (deploy), A4 (Production run), A5 (Azure capture), workflow dispatch, and
+every other Production activity. Each needs a separate owner decision.
 
 The actions below are blocked on your decisions. Everything that did not depend on them is done.
 
 | # | Blocked action | Decision requested | If yes | If no |
 |---|---|---|---|---|
-| A1 | ~~Push `claude/phase3-hydration-and-prod-e2e` and open a PR against `main`~~ | **Approved and done.** Published at exact head `58a1a1e8` as PR #310; CI passed. Publication only: merging remains a separate decision | — | — |
+| A1 | ~~Push `claude/phase3-hydration-and-prod-e2e` and open a PR against `main`~~ | **Approved and done.** Published in PR #310 and separately approved for merge; merged at `9a4603c2` | — | — |
 | A2 | ~~Fix finding F1 before the Production run~~ | **Approved and done.** Fixed in `b1f8d778`, `6dec0001` and `776516b8`; see §6 | — | — |
-| A3 | Deploy the Phase 2/3 candidate (Phase 2, the #418 fix and the F1 fix) | Frontend-only or full deploy (D3). The backend has small Java changes since its last build (Qodana cleanups in insight- and market-data-service, stated as behaviour-neutral) | Production serves the candidate; its build ID feeds `P3_EXPECTED_BUILD_ID` | Phase 3 cannot pass: Production still serves the pre-#418 frontend |
-| A4 | Run the suite against Production (owner-operated, D8) | Decisions D1, D2, D4, D5, D6, D7, D9, D10 and D11 below | The owner runs the runbook in §7 | Phase 3 stays open |
-| A5 | Read-only Azure revision and digest capture before and after the run | Owner runs `az containerapp revision list/show` | The served revision is attested | Only the frontend build ID is attested |
+| A3 / B3 | Deploy the merged Phase 2/3 candidate, including #418, F1 and D11/F13 | Deploy portfolio-service **before or together with** the frontend. Frontend-only is invalid: without the D11 backend fields, the 24-hour card fails closed to "—" and S11 cannot pass | Production serves a compatible backend/frontend candidate; record the backend revision and frontend build ID for A4 | Phase 3 cannot pass against the currently served pre-fix candidate |
+| A4 | Run the suite against Production (owner-operated, D8) | Decisions D1, D2, D4, D5, D6, D7, D9 and D10 below, after A3/B3 proves the D11 backend is serving | The owner runs the runbook in §7 | Phase 3 stays open |
+| A5 | Read-only Azure revision and digest capture before and after the run | Owner runs `az containerapp revision list/show` | The served revision is independently attested before and after A4 | No independent Azure before/after attestation; B3 still needs its own serving proof |
+
+Before B3 approval, prepare the exact `deploy.yml` dispatch inputs, including mode, services and
+`expected_main_sha`, and a way to establish that the D11 portfolio-service is serving before A4.
+That proof cannot depend on `CERT_A` or `CERT_B` before their separately approved creation. The
+earlier A3 note also identified undeployed, behaviour-neutral Java cleanups in insight-service and
+market-data-service; B3 preparation must account for them when choosing which services to deploy.
+One combined deployment may briefly show "—" if the frontend updates before portfolio-service;
+A4 waits for the compatible backend and frontend to be serving. Dispatch and Production access still
+require explicit owner approval.
 
 **Decisions the Production run needs** (details in the design, §10):
+
+Design §10 records the decisions as they stood before PRs #310 and #311. The D3 and D11 status
+amendments below supersede its earlier frontend-only option and its earlier description of the 24-hour
+defect. The [D11 execution packet](2026-09-22-d11-24h-position-value-packet.md) defines the current
+24-hour contract and S11 assertions.
 
 | Id | Decision |
 |---|---|
 | D1 | Create retained `CERT_A` and `CERT_B` in Production before the run. **Production mode never provisions `CERT_A` or `CERT_B`:** it only logs them in, and if either login returns 401 the run stops ("production never provisions"). **S02, however, creates one permanent `FRESH` account on every Production run**, through the Production signup page, as `p3-fresh-<run id>@<P3_EMAIL_DOMAIN>`. No deletion path exists. A run that stops before S02's signup creates none. Decision: accept this |
 | D2 | Email domain and names. They appear in screenshots |
+| D3 | **Earlier frontend-only option withdrawn.** Design §10 offered frontend-only or full deployment before D11 existed. A3/B3 now requires the D11 portfolio-service before or together with the frontend. Deployment mode, included services and serving proof are for the separately approved B3 preparation; no deployment or dispatch is authorized here |
 | D4 | One real chat request per run, or skip it (the verdict becomes INCOMPLETE) |
 | D5 | Non-demo reset control: defect (recommended) or intended |
 | D6 | Handling of `pw-output/`, which holds bearer tokens and the typed `FRESH` password. Never publish it |
@@ -74,7 +92,7 @@ The actions below are blocked on your decisions. Everything that did not depend 
 | D8 | Operator: the owner, on the owner's machine |
 | D9 | Partial valuation has no UI presentation: defect (recommended) or intended |
 | D10 | Analytics is stale for up to 30 s after a holdings save (F9): defect (recommended: evict the user's analytics cache on write) or accepted. Either way, schedule the run away from 05:50–06:10 UTC (FX eviction) and from 07:50 UTC until that day's `market-data-refresh-job` has finished |
-| D11 | **Approved 2026-09-22; held.** The 24h profit/loss figures are wrong for any quantity other than 1 (F13, Important). The fix is the next separate bounded change, not part of PR #310: an additive backend contract (a position-level 24h value) with independent arithmetic and coverage tests, prepared from updated `main`. Implementation is held until PR #310 is independently accepted, separately approved for merge and merged, and `main` is updated. S11's 24h check currently passes on the defect |
+| D11 | **Complete in source; merged in PR #311 at `b27fcd07`, not serving in Production.** The additive backend contract reports position-level 24-hour values, totals and explicit coverage; Overview and Portfolio consume it, and S11 independently checks arithmetic and coverage. The design's earlier S11 per-unit sum and §10 D11 defect description are historical. A4 must wait until the D11 portfolio-service is confirmed serving |
 
 ## 1. What was done, in the requested order
 
@@ -193,7 +211,7 @@ FAIL, because the new summary/analytics cross-check caught F9 for the first time
 | F10 | Low | Sub-cent prices render as "$0.00", because `formatCurrency` shows 2 decimals. The AI Insights cards show it, for example SHIB-USD at 0.00000596 | `f1-fix-776516b8/real-stack-proof/` (first run's AI Insights check) |
 | F11 | Resolved in `6dec0001` | When portfolio-service lacked a price that market-data had, or the FX rate was missing, Portfolio showed the enriched value (quantity × quote price as "$") and a weight the Overview total did not use. Locally, RELIANCE.NS showed $24,846.00 at 85.9%, and the footer read $28,913.76 beside a $4,067.76 total | `f1-fx-probe-final.txt` (after) and the `6dec0001` commit message (before) |
 | F12 | Low (local data) | The local refresh stores implausible prices for UNI-USD, APT-USD, ARB-USD and IMX-USD (about $0.0001 to $0.004). Check the Yahoo symbol mapping before trusting them in Production | market-summary and Mongo reads during F1 validation |
-| F13 | **Important** | The 24h profit/loss figures sum `change24hAbsolute`, which is a **per-unit, quote-currency** price change, as a portfolio amount in dollars: the Overview 24h card, its percentage and the Portfolio footer. 12 AAPL up $126.48 each shows +$126.48, not +$1,517.76. S11's 24h check passes on the defect. Pre-existing; needs a contract change (D11) | `PortfolioAnalyticsService.computeChange24hAbsolute`, `Wave6DashboardDataAccuracyIT.java:205`, `SummaryCards.tsx:145-158`, `HoldingsTable.tsx` footer |
+| F13 | **Important, corrected and merged; not deployed** | PR #311 adds the position-level base-currency value, portfolio totals and explicit coverage; the card, rows, footer and S11 use the corrected contract. Production still serves the pre-fix candidate until A3/B3 | PR #311 accepted head `3743bd28`; merge `b27fcd07`; D11 packet |
 | F14 | Low | Quote-currency prices are labelled "$" in the Portfolio price column, Market Data and the header ticker. For example, RELIANCE.NS at ₹1,242.30 shows as $1,242.30 | `f1-fx-probe-final.txt` |
 
 ## 4. Harness notes and residual limits
@@ -213,8 +231,10 @@ FAIL, because the new summary/analytics cross-check caught F9 for the first time
     once the entry expires and leaves the summary unchanged is still recorded as F9. A user cannot
     tell it from D10's accepted impact. An exact-equality tightening is described in design §5 but
     not implemented.
-  - The S11 24h check compares the card with the sum of `change24hAbsolute`. That sum is defect F13,
-    so the check confirms presentation consistency, not correctness.
+  - In the original PR #310 local runs, S11 compared the card with the sum of
+    `change24hAbsolute`. That was defect F13 and proved only presentation consistency. PR #311
+    replaced this check with independent position-level arithmetic and coverage assertions; see D11
+    above and its execution packet.
   - The summary-unchanged half of the convergence check has no dedicated negative control (R5 M4).
 
   An earlier note blamed the observed 24h-card mismatch on a price refresh; in hindsight it matches
@@ -342,7 +362,9 @@ design §16; this is the summary.
 
 ## 7. Production runbook (owner-operated; only after A3, A4 and the decisions above)
 
-1. **Deploy** the approved candidate, and note the served build ID. It appears in `/login` as
+1. **Deploy** the approved candidate with portfolio-service first or together with the frontend;
+   never use the former frontend-only A3 option. Apply the serving proof defined at B3 before A4,
+   record the portfolio-service revision/digest, and note the frontend build ID from `/login` as
    `"b":"<id>"`.
 2. **Create** `CERT_A` and `CERT_B` through the Production signup page, using names and addresses
    per D2. The suite never creates them in Production (D1).
