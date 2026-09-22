@@ -112,14 +112,25 @@ function SummaryCardsSkeleton() {
   );
 }
 
-/** D11: only a complete coverage object may unlock the 24h totals. */
+function isCount(n: unknown): n is number {
+  return Number.isSafeInteger(n) && (n as number) >= 0;
+}
+
+/**
+ * D11: only a complete, self-consistent coverage object may unlock the 24h totals. The backend
+ * counts contributors within the counted holdings within all holdings, and partial is exactly
+ * "some holding does not contribute"; anything else fails closed.
+ */
 function isChange24hCoverage(value: unknown): value is Change24hCoverage {
-  const c = value as Partial<Change24hCoverage> | null | undefined;
+  if (value == null || typeof value !== "object") return false;
+  const { holdingsWithChange, countedHoldings, totalHoldings, partial } = value as Record<string, unknown>;
   return (
-    c != null &&
-    typeof c.partial === "boolean" &&
-    typeof c.holdingsWithChange === "number" &&
-    typeof c.totalHoldings === "number"
+    isCount(holdingsWithChange) &&
+    isCount(countedHoldings) &&
+    isCount(totalHoldings) &&
+    holdingsWithChange <= countedHoldings &&
+    countedHoldings <= totalHoldings &&
+    partial === (holdingsWithChange < totalHoldings)
   );
 }
 

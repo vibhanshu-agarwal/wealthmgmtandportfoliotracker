@@ -290,10 +290,52 @@ describe("SummaryCards — D11: 24h card shows the position-level totals", () =>
     expect(screen.queryByTestId("24h-coverage")).not.toBeInTheDocument();
   });
 
+  it("discloses a partial total when the missing holding is outside the counted set", () => {
+    // The third holding has no price or FX rate, so it is neither counted nor contributing.
+    mockUsePortfolioAnalytics.mockReturnValue(
+      withTotals({
+        totalChange24hBase: 517.76,
+        totalChange24hPercent: 1.2041,
+        change24hCoverage: { holdingsWithChange: 2, countedHoldings: 2, totalHoldings: 3, partial: true },
+      }),
+    );
+    render(<SummaryCards />);
+
+    expect(screen.getByTestId("24h-pnl").textContent).toBe("+$517.76");
+    expect(screen.getByTestId("24h-coverage").textContent).toBe("Partial: 2 of 3 holdings");
+  });
+
+  it("accepts the empty-portfolio coverage (0 of 0, complete)", () => {
+    mockUsePortfolioAnalytics.mockReturnValue(
+      withTotals({
+        totalChange24hBase: null,
+        totalChange24hPercent: null,
+        change24hCoverage: { holdingsWithChange: 0, countedHoldings: 0, totalHoldings: 0, partial: false },
+      }),
+    );
+    render(<SummaryCards />);
+
+    expect(screen.getByTestId("24h-pnl").textContent).toBe("—");
+    expect(card24h().textContent).toContain("no reference data available");
+  });
+
   it.each([
     ["an empty object", {}],
     ["no partial flag", { holdingsWithChange: 2, countedHoldings: 2, totalHoldings: 2 }],
     ["a non-boolean partial flag", { holdingsWithChange: 2, countedHoldings: 2, totalHoldings: 2, partial: "false" }],
+    ["no countedHoldings", { holdingsWithChange: 2, totalHoldings: 3, partial: true }],
+    ["no countedHoldings and a false partial flag", { holdingsWithChange: 2, totalHoldings: 3, partial: false }],
+    // Each count case keeps the ordering and the partial flag consistent, so only the count check can reject it.
+    ["a numeric-string holdingsWithChange", { holdingsWithChange: "2", countedHoldings: 2, totalHoldings: 2, partial: false }],
+    ["a negative holdingsWithChange", { holdingsWithChange: -1, countedHoldings: 2, totalHoldings: 2, partial: true }],
+    ["a fractional holdingsWithChange", { holdingsWithChange: 1.5, countedHoldings: 2, totalHoldings: 2, partial: true }],
+    ["a fractional countedHoldings", { holdingsWithChange: 1, countedHoldings: 1.5, totalHoldings: 2, partial: true }],
+    ["a non-finite totalHoldings", { holdingsWithChange: 2, countedHoldings: 2, totalHoldings: Infinity, partial: true }],
+    ["more contributing than counted holdings", { holdingsWithChange: 3, countedHoldings: 2, totalHoldings: 3, partial: false }],
+    ["more counted than total holdings", { holdingsWithChange: 2, countedHoldings: 4, totalHoldings: 3, partial: true }],
+    ["a subset claimed complete", { holdingsWithChange: 2, countedHoldings: 3, totalHoldings: 3, partial: false }],
+    ["an uncounted holding claimed complete", { holdingsWithChange: 2, countedHoldings: 2, totalHoldings: 3, partial: false }],
+    ["full coverage claimed partial", { holdingsWithChange: 3, countedHoldings: 3, totalHoldings: 3, partial: true }],
   ])('fails closed to "—" when the coverage metadata is malformed: %s', (_label, coverage) => {
     mockUsePortfolioAnalytics.mockReturnValue(
       withTotals({ totalChange24hBase: 517.76, totalChange24hPercent: 1.2041, change24hCoverage: coverage }),
@@ -301,6 +343,8 @@ describe("SummaryCards — D11: 24h card shows the position-level totals", () =>
     render(<SummaryCards />);
 
     expect(screen.getByTestId("24h-pnl").textContent).toBe("—");
+    expect(card24h().textContent).toContain("24h coverage unavailable");
+    expect(screen.queryByTestId("24h-coverage")).not.toBeInTheDocument();
   });
 
   it("shows the amount without a percent when totalChange24hPercent is null", () => {
