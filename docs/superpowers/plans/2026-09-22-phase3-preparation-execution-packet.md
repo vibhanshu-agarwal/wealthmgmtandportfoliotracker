@@ -2,8 +2,9 @@
 
 **Prepared by:** Claude (Opus 5), 2026-09-22
 **Worktree:** `C:\worktrees\wealthmgmtandportfoliotracker-worktrees\wealthmgmtandportfoliotracker-claude-phase3`
-**Branch:** `claude/phase3-hydration-and-prod-e2e`, **local only**, created from verified
-`origin/main@26a07fe048d9950c5b7268b9763eaca543b7b7ef`
+**Branch:** `claude/phase3-hydration-and-prod-e2e`, created from verified
+`origin/main@26a07fe048d9950c5b7268b9763eaca543b7b7ef`. **Published** as
+[PR #310](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/310) (A1); not merged.
 **Evidence:** the folders named below (`final-run-*`, `negative-controls-*` and so on) are in the
 local handoff folder `C:\worktrees\wealthmgmtandportfoliotracker-worktrees\_handoff\2026-09-22-phase3-prep\`.
 They are not committed: they hold screenshots, network logs and account identifiers.
@@ -22,22 +23,39 @@ They are not committed: they hold screenshots, network logs and account identifi
 | `b1f8d778` | **F1 fix** (owner approval A2): nullable wire contract, ticker, "—" cells, durable tests |
 | `6dec0001` | F1 review follow-up: a matching analytics record decides value and weight |
 | `776516b8` | F1 scoped-review follow-up: P&L null-last sorting pinned (test only). **Final code head** |
+| `58a1a1e8` | F1 record in design §16 and packet §6 (docs only). Published as PR #310 (A1) |
+| Amendment on `58a1a1e8` | Owner-approved packet update (docs only): A1 complete, D11 approved and held, Production account creation stated |
 
 ## OWNER APPROVAL CALLOUT: read first
 
-**Status.** Nothing in this packet has been pushed, published, deployed or run against Production.
-No cloud resource, secret or Production account was touched. All testing ran on a local docker
-stack and a locally served static export.
+**Status.** The branch is published as
+[PR #310](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/310). Nothing has been
+merged, deployed or run against Production, and no workflow was dispatched. No cloud resource, secret
+or Production account was touched. All testing ran on a local docker stack and a locally served
+static export.
 
-**A2 is done.** You approved it ("A2 is approved; A1/A3/A4/A5 remain closed"). F1 is fixed locally at
-`776516b8`, and two independent reviews found 0 Critical and 0 Important. A1, A3, A4 and A5 remain
-closed. A new decision, **D11** (finding F13), needs you before the Production run.
+**A1 is done.** You approved it: "A1: Push claude/phase3-hydration-and-prod-e2e at exact head
+58a1a1e8 and open a pull request for the reviewed Phase 3/F1 bundle. [...] This authorizes
+publication only." The branch was pushed at exact head `58a1a1e8` and opened as PR #310 against
+`main@26a07fe0`. CI at `58a1a1e8` passed: CI Verification Pipeline (run 35709199715), Frontend CI
+(run 35709199617), Qodana, Gitleaks and Master-plan status propagation all succeeded, and only the
+Qodana for JVM check was skipped.
+
+**A2 is done.** You approved it ("A2 is approved; A1/A3/A4/A5 remain closed"). F1 is fixed at
+`776516b8`, and two independent reviews found 0 Critical and 0 Important.
+
+**D11 is approved and held.** You approved it "as the next separate bounded change for F13", with
+implementation held "until the Phase 3/F1 PR is independently accepted, separately approved for
+merge, merged, and main is updated". It is not part of PR #310 and has not been started.
+
+**Still closed:** merging PR #310, A3 (deploy), A4 (Production run), A5 (Azure capture), workflow
+dispatch, and every other Production activity. Each needs a separate owner decision.
 
 The actions below are blocked on your decisions. Everything that did not depend on them is done.
 
 | # | Blocked action | Decision requested | If yes | If no |
 |---|---|---|---|---|
-| A1 | Push `claude/phase3-hydration-and-prod-e2e` and open a PR against `main` | Authorize publication | PR carries the #418 fix, the F1 fix, the suite, the design and this packet, plus a one-line addition to `ci-verification.yml`'s Playwright list (the new mocked spec); CI runs; merge remains a separate decision | Branch stays local; nothing reaches `main` |
+| A1 | ~~Push `claude/phase3-hydration-and-prod-e2e` and open a PR against `main`~~ | **Approved and done.** Published at exact head `58a1a1e8` as PR #310; CI passed. Publication only: merging remains a separate decision | — | — |
 | A2 | ~~Fix finding F1 before the Production run~~ | **Approved and done.** Fixed in `b1f8d778`, `6dec0001` and `776516b8`; see §6 | — | — |
 | A3 | Deploy the Phase 2/3 candidate (Phase 2, the #418 fix and the F1 fix) | Frontend-only or full deploy (D3). The backend has small Java changes since its last build (Qodana cleanups in insight- and market-data-service, stated as behaviour-neutral) | Production serves the candidate; its build ID feeds `P3_EXPECTED_BUILD_ID` | Phase 3 cannot pass: Production still serves the pre-#418 frontend |
 | A4 | Run the suite against Production (owner-operated, D8) | Decisions D1, D2, D4, D5, D6, D7, D9, D10 and D11 below | The owner runs the runbook in §7 | Phase 3 stays open |
@@ -47,7 +65,7 @@ The actions below are blocked on your decisions. Everything that did not depend 
 
 | Id | Decision |
 |---|---|
-| D1 | Create retained `CERT_A` and `CERT_B` in Production (the suite never provisions there), and accept one permanent `FRESH` account per run (no deletion path exists) |
+| D1 | Create retained `CERT_A` and `CERT_B` in Production before the run. **Production mode never provisions `CERT_A` or `CERT_B`:** it only logs them in, and if either login returns 401 the run stops ("production never provisions"). **S02, however, creates one permanent `FRESH` account on every Production run**, through the Production signup page, as `p3-fresh-<run id>@<P3_EMAIL_DOMAIN>`. No deletion path exists. A run that stops before S02's signup creates none. Decision: accept this |
 | D2 | Email domain and names. They appear in screenshots |
 | D4 | One real chat request per run, or skip it (the verdict becomes INCOMPLETE) |
 | D5 | Non-demo reset control: defect (recommended) or intended |
@@ -56,7 +74,7 @@ The actions below are blocked on your decisions. Everything that did not depend 
 | D8 | Operator: the owner, on the owner's machine |
 | D9 | Partial valuation has no UI presentation: defect (recommended) or intended |
 | D10 | Analytics is stale for up to 30 s after a holdings save (F9): defect (recommended: evict the user's analytics cache on write) or accepted. Either way, schedule the run away from 05:50–06:10 UTC (FX eviction) and from 07:50 UTC until that day's `market-data-refresh-job` has finished |
-| D11 | **New.** The 24h profit/loss figures are wrong for any quantity other than 1 (F13, Important). Fix before the Production run as a separate approved change (a backend position-level 24h value plus the S11 check), or accept as Phase 4. S11's 24h check currently passes on the defect |
+| D11 | **Approved 2026-09-22; held.** The 24h profit/loss figures are wrong for any quantity other than 1 (F13, Important). The fix is the next separate bounded change, not part of PR #310: an additive backend contract (a position-level 24h value) with independent arithmetic and coverage tests, prepared from updated `main`. Implementation is held until PR #310 is independently accepted, separately approved for merge and merged, and `main` is updated. S11's 24h check currently passes on the defect |
 
 ## 1. What was done, in the requested order
 
@@ -89,6 +107,9 @@ The actions below are blocked on your decisions. Everything that did not depend 
 5. **Stopped before every Production operation.**
 6. **F1 fixed after your A2 approval**, with failing tests first, real-stack proof and two independent
    reviews. See §6.
+7. **Published after your A1 approval** as PR #310 at `58a1a1e8`, publication only. With your
+   approval, this packet was then amended (docs only) to record A1, D11 and the Production account
+   rule in D1.
 
 ## 2. Local validation results
 
@@ -324,7 +345,7 @@ design §16; this is the summary.
 1. **Deploy** the approved candidate, and note the served build ID. It appears in `/login` as
    `"b":"<id>"`.
 2. **Create** `CERT_A` and `CERT_B` through the Production signup page, using names and addresses
-   per D2.
+   per D2. The suite never creates them in Production (D1).
 3. **Capture** the backend revisions and digests (read-only `az containerapp revision list/show`).
    **Schedule** the run outside 05:50–06:10 UTC (FX eviction), and not from 07:50 UTC until that
    day's `market-data-refresh-job` execution has finished (D10).
@@ -358,4 +379,4 @@ design §16; this is the summary.
    - S13 recorded as an expected defect while the reset flag stays on;
    - F9 recorded as an expected defect only if S11 reads analytics within 30 s of S08's or S09's
      save and analytics converges once the entry expires; that adds one wait of up to about 35 s;
-   - one new retained `FRESH` account.
+   - one new permanent `FRESH` account, created by S02 (D1).
