@@ -9,7 +9,8 @@ described in the reconciliation." The reconciliation is on an unpublished Codex 
 standing instruction this design does not read or depend on it. Codex should confirm the contract
 below matches it.
 **Not authorized:** publication, merge, deployment, workflow dispatch, Production access.
-**Status:** implemented at `4fb60e5f` (coverage added after Codex review of `c4144070`); evidence and
+**Status:** implemented at `6296e20b` (coverage added after Codex review of `c4144070`; the card's
+coverage check made strict after Codex re-review of `84957ca5`); evidence and
 review dispositions are in
 `docs/superpowers/plans/2026-09-22-d11-24h-position-value-packet.md`.
 
@@ -69,10 +70,12 @@ Decisions:
 - Types: the new fields are **optional**. An older backend omits them, and the frontend treats absent
   as unavailable.
 - Overview 24h card: amount = `totalChange24hBase`, percent = `totalChange24hPercent`. No client-side
-  summing. The totals are shown **only with their coverage**: absent coverage (an older backend) fails
-  closed to "—" ("24h coverage unavailable"), and a partial total carries a visible label,
-  "Partial: n of m holdings". The wording differs from the Performance chart's history label,
-  "Partial (n/m holdings)", so the two cannot be confused.
+  summing. The totals are shown **only with valid coverage**: all four fields present, the counts
+  non-negative integers with `holdingsWithChange ≤ countedHoldings ≤ totalHoldings` (as the backend
+  builds them), and `partial` equal to `holdingsWithChange < totalHoldings`. Absent coverage (an older
+  backend) or any other object fails closed to "—" ("24h coverage unavailable"). A partial total
+  carries a visible label, "Partial: n of m holdings". The wording differs from the Performance
+  chart's history label, "Partial (n/m holdings)", so the two cannot be confused.
 - Portfolio rows: the sub-line under the percent shows the position's `change24hValueBase`. When it is
   unavailable, the row still shows the percent, without a sub-line. When the percent is unavailable,
   the cell shows "—" as today.

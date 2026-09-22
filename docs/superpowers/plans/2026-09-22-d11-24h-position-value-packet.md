@@ -4,7 +4,7 @@
 **Worktree:** `C:\worktrees\wealthmgmtandportfoliotracker-worktrees\wealthmgmtandportfoliotracker-claude-d11`
 **Branch:** `claude/d11-24h-position-value`, **local only**, from
 `main@9a4603c245529b93942d3a6b9b85e886be08b5e0` (the merge of PR #310)
-**Final code head:** `4fb60e5f` (this packet is the only later commit, docs only)
+**Final code head:** `6296e20b` (this packet revision is the only later commit, docs only)
 **Design:** `docs/superpowers/specs/2026-09-22-d11-24h-position-value-design.md`
 **Evidence:** `C:\worktrees\wealthmgmtandportfoliotracker-worktrees\_handoff\2026-09-22-d11-24h\`. Not
 committed: the run folders hold account identifiers. `pw-output/`, which holds bearer tokens and the
@@ -13,11 +13,15 @@ typed `FRESH` password, was not copied.
 ## OWNER APPROVAL CALLOUT: read first
 
 **Status.** Codex held B1 at `c4144070` on one Important finding: a subset 24h total had no coverage
-metadata, so a partial value read as complete. That is corrected at `4fb60e5f` under the existing D11
-authorization (Codex: "no new scope approval is required"). Codex confirmed the field names and
-arithmetic (`change24hValueBase`, `totalChange24hBase`, `totalChange24hPercent`), which are unchanged.
-Nothing has been pushed, published, merged, deployed or dispatched. No Production or cloud resource
-was touched. **Return for Codex re-review at the exact local head.**
+metadata, so a partial value read as complete. That was corrected at `4fb60e5f` under the existing D11
+authorization (Codex: "no new scope approval is required"). Codex's re-review of `84957ca5` confirmed
+that correction and found no backend arithmetic issue, but held B1 on one more Important finding: the
+Overview card accepted incomplete or contradictory coverage (for example `{ holdingsWithChange: 2,
+totalHoldings: 3, partial: false }` showed an unlabelled total). That is corrected at `6296e20b`, under
+the same authority. The field names and arithmetic (`change24hValueBase`, `totalChange24hBase`,
+`totalChange24hPercent`) are unchanged. Nothing has been pushed, published, merged, deployed or
+dispatched. No Production or cloud resource was touched. **Return for Codex re-review at the exact
+local head.**
 
 | # | Blocked action | Decision requested | If yes | If no |
 |---|---|---|---|---|
@@ -48,7 +52,9 @@ Still closed: A3, A4, A5, workflow dispatch and all Production activity.
 | `c4144070` | Packet (superseded by this revision) |
 | `5d3b37fd` | **Codex correction, backend:** `change24hCoverage` |
 | `3d0740d8` | **Codex correction, frontend:** card and footer disclose partial coverage; S11 coverage checks; design |
-| `4fb60e5f` | Fable R3 minor: the card fails closed on a malformed coverage object. **Final code head** |
+| `4fb60e5f` | Fable R3 minor: the card fails closed on a malformed coverage object |
+| `84957ca5` | Packet revision 2 and design status (docs only; superseded by this revision) |
+| `6296e20b` | **Codex re-review:** the card accepts only complete, self-consistent coverage. **Final code head** |
 | (this packet) | Docs only |
 
 ## 2. What changed
@@ -65,10 +71,13 @@ Still closed: A3, A4, A5, workflow dispatch and all Production activity.
   `totalValue`, so a counted-only comparison would call such a portfolio complete and break
   requirement 2. `countedHoldings` is reported as well. Missing history, a missing price, a missing FX
   rate or a cost-basis-FX exclusion therefore all mark the totals partial.
-- **Frontend.** The Overview 24h card shows the totals only with well-formed coverage: absent or
-  malformed coverage (an older backend) fails closed to "—" ("24h coverage unavailable"); a partial total carries
-  "Partial: n of m holdings", worded apart from the Performance chart's "Partial (n/m holdings)",
-  which an existing S11 locator matches. Portfolio rows show each position's change under the
+- **Frontend.** The Overview 24h card shows the totals only with valid coverage: all four fields
+  present, the counts non-negative safe integers with `holdingsWithChange ≤ countedHoldings ≤
+  totalHoldings` (the backend takes each set from the one before), and `partial` equal to
+  `holdingsWithChange < totalHoldings`. Absent coverage (an older backend) or any other object fails
+  closed to "—" ("24h coverage unavailable"). A partial total carries "Partial: n of m holdings",
+  worded apart from the Performance chart's "Partial (n/m holdings)", which an existing S11 locator
+  matches. Portfolio rows show each position's change under the
   percent; the footer sums the visible rows and shows "Partial: n of m" when some, but not all,
   visible rows have a position change. Market Data keeps the per-unit price change.
 - **Phase 3 suite (S11).** The card equals `totalChange24hBase`, which equals an independent
@@ -124,6 +133,25 @@ All local: a docker stack (`wmpt-phase3`) whose portfolio-service was rebuilt fr
 
   NC-D11d's first attempt did not build (the mutation broke TypeScript narrowing); the type-safe
   rerun bit. The older-backend failure of S11 was confirmed by review, not by a run.
+- **Coverage check at `6296e20b` (Codex re-review).** This commit changes only the card's coverage
+  check (`SummaryCards.tsx`) and its tests.
+  - Failing first: the new rejection cases failed on the `4fb60e5f` check (the card showed +$517.76),
+    among them missing `countedHoldings`, both impossible orderings, and contradictory `partial` in both
+    directions, including the Codex example. Against the final test file, 11 fail on the `4fb60e5f`
+    check (`mutations/coverage-guard/red-final-tests-vs-4fb60e5f.log`); the twelfth, a numeric-string
+    count, was already rejected and guards the rewrite. Two acceptance tests (a holding outside the
+    counted set; the empty portfolio's 0 of 0) guard against over-rejecting.
+  - Mutations, asserted: **9 of 9 caught** by their declared tests (`mutations/coverage-guard/summary.txt`).
+    Each clause is load-bearing: a count check per field, both orderings, `partial` only type-checked
+    (the `4fb60e5f` behaviour), `partial` derived from `countedHoldings` instead of `totalHoldings`,
+    non-integer counts, and negative counts. The redundant `typeof partial === "boolean"` clause was
+    dropped, since comparing `partial` with a boolean already requires one.
+  - vitest **1,823 passed** (the 1,809 above plus the 14 new tests) plus the same known CRLF failure;
+    `tsc` clean; `eslint` clean on both files.
+  - **No new Phase 3 run or negative-control run at `6296e20b`.** Instead, every coverage object the
+    backend returned in the `3d0740d8` and `4fb60e5f` runs (9 per run, 3 distinct, including CERT_A's
+    `{3, 3, 4, partial}`, where a holding is outside the counted set) passes the new check
+    (`mutations/coverage-guard/replay-real-payloads.txt`). The negative-control anchors are unchanged.
 
 ## 4. Reviews
 
@@ -133,6 +161,7 @@ All local: a docker stack (`wmpt-phase3`) whose portfolio-service was rebuilt fr
 | R2 | Fable | `9f01ccad..29bbbda2` | **ACCEPT WITH MINORS** (0 Critical, 0 Important, 5 Minor) |
 | C1 | Codex | `c4144070` | **B1 held:** 1 Important (no 24h coverage contract); field names and arithmetic confirmed |
 | R3 | Fable | `c4144070..3d0740d8` (exact code head at the time) | **ACCEPT WITH MINORS** (0 Critical, 1 Important, 5 Minor) |
+| C2 | Codex | `84957ca5` | **B1 held:** coverage correction confirmed, no backend arithmetic issue; 1 Important (the card's coverage check accepted incomplete or contradictory coverage) |
 
 R1 and R2 dispositions are unchanged from the previous revision: the deploy ordering and Phase 3
 dependency are in design §3 and above; S11 checks the row sub-lines and footer; the mutation harness
@@ -158,6 +187,13 @@ confirmed the CERT_B-1280 footer attribution to F9 from the ledger. Dispositions
   that dropped a holding from both; unreachable today (the analytics query starts from
   `asset_holdings` with LEFT JOINs). Recorded, not changed.
 
+**C2 disposition:** Codex's five steps are done in `6296e20b` and this revision. All four fields are
+required; `holdingsWithChange ≤ countedHoldings ≤ totalHoldings` is enforced; `partial` is validated
+against the counts rather than derived, so a contradiction fails closed instead of being silently
+re-labelled (a derived flag would hide a backend that claims partial on full coverage). The focused
+tests, typecheck and packet are above. No Fable round was run on `6296e20b`: it is one predicate and
+its tests, and Codex's exact-head review is the independent review.
+
 **Cost.** Fable R1, R2 and R3 used about 193k, 151k and 179k subagent tokens (9, 8 and 10 minutes).
 
 ## 5. Known limits
@@ -166,6 +202,9 @@ confirmed the CERT_B-1280 footer attribution to F9 from the ledger. Dispositions
 - A reference older than the 36 h window (`SINCE_PREVIOUS_SNAPSHOT`) is still counted, as before.
 - The S11 recomputation, the S11 coverage count and the IT identity cannot see the backend's
   cost-basis-FX exclusion (it is not on the wire); such a holding would make them fail, never pass.
+- The card checks that coverage is complete and consistent with itself, not with the totals or the
+  holdings list (for example, a non-null total with `holdingsWithChange` 0 would show, labelled
+  partial). S11 cross-checks the coverage against the holdings end to end.
 - The Portfolio footer's coverage is judged over the visible rows. It can differ from the backend's
   coverage when a filter hides rows, or while analytics is stale after a save (F9).
 - Local seed data produces implausible 24h moves (for example GOOGL +99%); these are data artifacts
