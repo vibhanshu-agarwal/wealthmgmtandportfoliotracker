@@ -25,6 +25,7 @@ import {
   formatDate,
 } from "@/lib/utils/format";
 import { cn } from "@/lib/utils/cn";
+import type { Change24hCoverage } from "@/types/portfolio";
 import React from "react";
 
 // ── Individual card components ────────────────────────────────────────────────
@@ -111,6 +112,17 @@ function SummaryCardsSkeleton() {
   );
 }
 
+/** D11: only a complete coverage object may unlock the 24h totals. */
+function isChange24hCoverage(value: unknown): value is Change24hCoverage {
+  const c = value as Partial<Change24hCoverage> | null | undefined;
+  return (
+    c != null &&
+    typeof c.partial === "boolean" &&
+    typeof c.holdingsWithChange === "number" &&
+    typeof c.totalHoldings === "number"
+  );
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function SummaryCards() {
@@ -143,9 +155,10 @@ export function SummaryCards() {
 
   // D11 (finding F13): the backend's position-level 24h totals in base currency. Never a sum of
   // holdings' change24hAbsolute, which is a per-unit, quote-currency price change. The totals are
-  // shown only with their coverage: without it (an older backend) they fail closed to "—", and a
-  // partial total is labelled as such.
-  const change24hCoverage = analytics?.change24hCoverage ?? null;
+  // shown only with well-formed coverage: without it (an older backend, or a malformed object)
+  // they fail closed to "—", and a partial total is labelled as such.
+  const rawCoverage = analytics?.change24hCoverage;
+  const change24hCoverage = isChange24hCoverage(rawCoverage) ? rawCoverage : null;
   const change24hAbsolute = change24hCoverage ? (analytics?.totalChange24hBase ?? null) : null;
   const change24hPercent = change24hCoverage ? (analytics?.totalChange24hPercent ?? null) : null;
 

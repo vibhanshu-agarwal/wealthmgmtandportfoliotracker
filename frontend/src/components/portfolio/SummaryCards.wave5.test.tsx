@@ -290,6 +290,19 @@ describe("SummaryCards — D11: 24h card shows the position-level totals", () =>
     expect(screen.queryByTestId("24h-coverage")).not.toBeInTheDocument();
   });
 
+  it.each([
+    ["an empty object", {}],
+    ["no partial flag", { holdingsWithChange: 2, countedHoldings: 2, totalHoldings: 2 }],
+    ["a non-boolean partial flag", { holdingsWithChange: 2, countedHoldings: 2, totalHoldings: 2, partial: "false" }],
+  ])('fails closed to "—" when the coverage metadata is malformed: %s', (_label, coverage) => {
+    mockUsePortfolioAnalytics.mockReturnValue(
+      withTotals({ totalChange24hBase: 517.76, totalChange24hPercent: 1.2041, change24hCoverage: coverage }),
+    );
+    render(<SummaryCards />);
+
+    expect(screen.getByTestId("24h-pnl").textContent).toBe("—");
+  });
+
   it("shows the amount without a percent when totalChange24hPercent is null", () => {
     mockUsePortfolioAnalytics.mockReturnValue(withTotals({ totalChange24hBase: 10, totalChange24hPercent: null }));
     render(<SummaryCards />);
