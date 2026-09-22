@@ -13,6 +13,7 @@ import path from "node:path";
 import { expect, test, type Browser, type BrowserContext, type Request, type Route, type TestInfo, type Video } from "@playwright/test";
 import { ApiClient, type AnalyticsReadback, type AuthSession, type SummaryReadback } from "./lib/api";
 import { msSinceLastWriteBefore, staleAnalyticsExpiresBy, withinAnalyticsCacheWindow } from "./lib/cache-window";
+import { recomputeTotalChange24h } from "./lib/change24h";
 import { provenanceEnvironment, scanArtifactsForSecrets } from "./lib/artifacts";
 import { fileStore, paceAuthRequest } from "./lib/auth-pacer";
 import { resolveRunConfig } from "./lib/config";
@@ -968,11 +969,19 @@ test("S11 Overview, Portfolio, Market Data, AI Insights and navigation for every
           analytics: overviewAnalytics.totalValue,
         });
       }
-      const withChange = overviewAnalytics.holdings.filter((h) => h.change24hAbsolute !== null);
-      const expected24h = withChange.length === 0 ? null : withChange.reduce((sum, h) => sum + (h.change24hAbsolute ?? 0), 0);
-      evidence.verify("S11", `${tag}: Overview 24h card equals the analytics sum`, expected24h === null ? shown24h === null : shown24h !== null && Math.abs(shown24h - expected24h) <= MONEY_TOLERANCE, {
+      // D11 (finding F13): the card shows the position-level total, and that total must match an
+      // independent recomputation from per-unit changes, values and prices. An older backend omits
+      // the total, so the card shows "—" and the recomputation check fails.
+      const backend24h = overviewAnalytics.totalChange24hBase ?? null;
+      evidence.verify("S11", `${tag}: Overview 24h card equals the analytics position-level total`, backend24h === null ? shown24h === null : shown24h !== null && Math.abs(shown24h - backend24h) <= MONEY_TOLERANCE, {
         shown: shown24h,
-        expected: expected24h,
+        expected: backend24h,
+      });
+      const recomputed24h = recomputeTotalChange24h(overviewAnalytics.holdings);
+      evidence.verify("S11", `${tag}: analytics 24h total equals quantity × per-unit change × FX, recomputed`, recomputed24h.expected === null ? backend24h === null : backend24h !== null && Math.abs(backend24h - recomputed24h.expected) <= recomputed24h.tolerance + MONEY_TOLERANCE, {
+        backend: backend24h,
+        recomputed: recomputed24h.expected,
+        tolerance: recomputed24h.tolerance,
       });
       // Only valued holdings get a slice: an unpriced holding is excluded from the allocation,
       // as it is from the analytics total (finding F1).
@@ -1044,7 +1053,8 @@ test("S11 Overview, Portfolio, Market Data, AI Insights and navigation for every
         const shown = parseDisplayedPercent(cells[5] ?? "");
         portfolio24h.set(ticker, shown);
         const h = portfolioByTicker.get(ticker);
-        const expected = h && h.change24hPercent !== null && h.change24hAbsolute !== null ? h.change24hPercent : null;
+        // D11: the percent shows whenever it exists, with or without a position-level sub-line.
+        const expected = h ? h.change24hPercent : null;
         evidence.verify("S11", `${tag}: Portfolio 24h for ${ticker} matches analytics`, expected === null ? shown === null : shown !== null && Math.abs(shown - expected) <= PERCENT_TOLERANCE, {
           shown,
           expected,

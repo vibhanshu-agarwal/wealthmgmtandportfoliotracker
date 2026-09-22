@@ -47,8 +47,13 @@ export interface AssetHoldingDTO {
   unrealizedPnLPercent: number | null;
   /** 24-hour price change as a percentage; null when no reference exists */
   change24hPercent: number | null;
-  /** 24-hour price change in absolute USD; null when no reference exists */
+  /** 24-hour price change per unit, in the quote currency; null when no reference exists */
   change24hAbsolute: number | null;
+  /**
+   * D11: the position's 24h change in base currency, from analytics. Absent or null when
+   * unavailable (no analytics record, no reference, no FX rate, or an older backend).
+   */
+  change24hValueBase?: number | null;
   /** Portfolio weight as a percentage (0-100) */
   portfolioWeight: number;
   /** ISO-8601 timestamp of last price update */
@@ -152,10 +157,15 @@ export interface HoldingAnalyticsDTO {
   unrealizedPnL: number | null;
   /** Unrealised return as a percentage; null when basis unavailable */
   unrealizedPnLPercent: number | null;
-  /** Absolute price change from reference in quoteCurrency; null when no reference exists */
+  /** Per-unit price change from reference in quoteCurrency; null when no reference exists */
   change24hAbsolute: number | null;
   /** Percentage change from reference; null when no reference exists — never 0.00% for missing data */
   change24hPercent: number | null;
+  /**
+   * D11: the position's 24h change in baseCurrency, quantity × per-unit change × current FX rate.
+   * Null when the change or the FX rate is unavailable; absent from an older backend.
+   */
+  change24hValueBase?: number | null;
   /** ISO-8601 timestamp of the reference price; null when no reference */
   change24hReferenceAt: string | null;
   /** "WITHIN_24H_WINDOW" | "SINCE_PREVIOUS_SNAPSHOT" | null */
@@ -175,6 +185,13 @@ export interface PortfolioAnalyticsDTO {
   totalUnrealizedPnL: number | null;
   /** (totalUnrealizedPnL / totalCostBasis) × 100; null when totalUnrealizedPnL is null */
   totalUnrealizedPnLPercent: number | null;
+  /**
+   * D11: Σ change24hValueBase over the holdings counted in totalValue. Null when none has a 24h
+   * change; absent from an older backend. Either way the UI shows "—".
+   */
+  totalChange24hBase?: number | null;
+  /** D11: totalChange24hBase as a percentage of those holdings' value at the reference; nullable */
+  totalChange24hPercent?: number | null;
   /** ISO 4217 base currency for all monetary aggregates */
   baseCurrency: string;
   /** true when one or more holdings were excluded because their FX rate was unavailable */

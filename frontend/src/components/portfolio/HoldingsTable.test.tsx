@@ -196,3 +196,86 @@ describe("HoldingsTable — analytics null value with an enriched price", () => 
     expect(screen.getByText("Total (2 assets)").parentElement!.textContent).toContain("$2,000.00");
   });
 });
+
+// D11 (finding F13): change24hAbsolute is a per-unit, quote-currency price change. The row sub-line
+// and the footer show the position's base-currency change, so the rows add up to the footer.
+describe("HoldingsTable — D11: position-level 24h values", () => {
+  // 12 AAPL up 126.48 each → +1,517.76; 0.5 BTC down 2,000 each → −1,000.00.
+  // SOL-USD's percent is known, but it has no FX rate, so neither its value nor its 24h value is.
+  const aapl: HoldingAnalyticsDTO = {
+    ...analyticsHolding("AAPL", 1126.48, 13517.76),
+    quantity: 12,
+    change24hPercent: 12.648,
+    change24hAbsolute: 126.48,
+    change24hValueBase: 1517.76,
+  };
+  const btc: HoldingAnalyticsDTO = {
+    ...analyticsHolding("BTC-USD", 60000, 30000),
+    quantity: 0.5,
+    change24hPercent: -3.2258,
+    change24hAbsolute: -2000,
+    change24hValueBase: -1000,
+  };
+  const sol: HoldingAnalyticsDTO = {
+    ...analyticsHolding("SOL-USD", 150, null),
+    change24hPercent: 1.5,
+    change24hAbsolute: 2.25,
+    change24hValueBase: null,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  function setup(analyticsHoldings: HoldingAnalyticsDTO[]) {
+    mockUsePortfolio.mockReturnValue({
+      data: {
+        portfolioId: "p1",
+        ownerId: "u1",
+        holdings: [holding("AAPL", 1126.48, 13517.76, 31), holding("BTC-USD", 60000, 30000, 69), holding("SOL-USD", 150, 6000, 0)],
+      },
+      isLoading: false,
+    });
+    mockUsePortfolioAnalytics.mockReturnValue({
+      data: { totalValue: 43517.76, holdings: analyticsHoldings },
+      isLoading: false,
+    });
+    render(<HoldingsTable />);
+  }
+
+  function cell24h(ticker: string): HTMLTableCellElement {
+    const cells = cellsOf(ticker);
+    return cells[cells.length - 1];
+  }
+
+  function footer24h(): string | null {
+    return screen.getByText("24h", { selector: "p" }).nextElementSibling!.textContent;
+  }
+
+  it("shows each row's position-level change under its percent", () => {
+    setup([aapl, btc, sol]);
+    expect(cell24h("AAPL").textContent).toBe("+12.65%+$1,517.76");
+    expect(cell24h("BTC-USD").textContent).toBe("-3.23%-$1,000.00");
+  });
+
+  it("shows the percent without a sub-line when the position value is unavailable", () => {
+    setup([aapl, btc, sol]);
+    expect(cell24h("SOL-USD").textContent).toBe("+1.50%");
+  });
+
+  it("totals the position-level changes in the footer", () => {
+    // 1,517.76 − 1,000.00 = +517.76; SOL-USD has no base-currency change and is left out.
+    setup([aapl, btc, sol]);
+    expect(footer24h()).toBe("+$517.76");
+  });
+
+  it('shows "—" in the footer when no row has a position-level change (an older backend)', () => {
+    const older = [aapl, btc, sol].map((h) => {
+      const copy: HoldingAnalyticsDTO = { ...h };
+      delete copy.change24hValueBase;
+      return copy;
+    });
+    setup(older);
+    expect(footer24h()).toBe("—");
+  });
+});

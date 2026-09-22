@@ -140,23 +140,11 @@ export function SummaryCards() {
   // Do NOT use the synthetic fetchPortfolio summary which is hardcoded to 0.
   const unrealizedPnLPercent = analytics?.totalUnrealizedPnLPercent ?? null;
 
-  // 24h aggregate: sum change24hAbsolute across holdings where available
-  const change24hAbsolute = (() => {
-    if (!analytics?.holdings?.length) return null;
-    const holdingsWithChange = analytics.holdings.filter(
-      (h) => h.change24hAbsolute != null,
-    );
-    if (holdingsWithChange.length === 0) return null;
-    return holdingsWithChange.reduce((sum, h) => sum + (h.change24hAbsolute ?? 0), 0);
-  })();
-
-  // 24h percent: analytics.totalValue as denominator
-  const change24hPercent = (() => {
-    if (change24hAbsolute == null || !analytics?.totalValue) return null;
-    const priorValue = analytics.totalValue - change24hAbsolute;
-    if (priorValue <= 0) return null;
-    return (change24hAbsolute / priorValue) * 100;
-  })();
+  // D11 (finding F13): the backend's position-level 24h totals in base currency. Never a sum of
+  // holdings' change24hAbsolute, which is a per-unit, quote-currency price change. An older backend
+  // omits the fields; absent and null both render "—".
+  const change24hAbsolute = analytics?.totalChange24hBase ?? null;
+  const change24hPercent = analytics?.totalChange24hPercent ?? null;
 
   const isFlat24h = change24hAbsolute === 0;
   const pnlIsPositive = (change24hAbsolute ?? 0) > 0;

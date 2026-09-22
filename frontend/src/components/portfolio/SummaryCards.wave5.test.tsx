@@ -59,6 +59,9 @@ const analyticsWithChange = {
     totalCostBasis: 44000.0,
     totalUnrealizedPnL: 4250.0,
     totalUnrealizedPnLPercent: 9.66,
+    // D11: 10 × 10.6 − 0.65 × 1543.5 = 106 − 1003.275 = −897.275
+    totalChange24hBase: -897.275,
+    totalChange24hPercent: -1.8302,
     baseCurrency: "USD",
     partialValuation: false,
     bestPerformer: { ticker: "AAPL", change24hPercent: 5.26 },
@@ -75,6 +78,7 @@ const analyticsWithChange = {
         unrealizedPnLPercent: 11.84,
         change24hAbsolute: 10.6,
         change24hPercent: 5.26,
+        change24hValueBase: 106.0,
         change24hReferenceAt: new Date(Date.now() - 24 * 3600_000).toISOString(),
         changeBasis: "WITHIN_24H_WINDOW",
         quoteCurrency: "USD",
@@ -91,6 +95,7 @@ const analyticsWithChange = {
         unrealizedPnLPercent: 10.58,
         change24hAbsolute: -1543.5,
         change24hPercent: -2.14,
+        change24hValueBase: -1003.275,
         change24hReferenceAt: new Date(Date.now() - 24 * 3600_000).toISOString(),
         changeBasis: "WITHIN_24H_WINDOW",
         quoteCurrency: "USD",
@@ -109,7 +114,10 @@ const analyticsWithNullChange = {
       ...h,
       change24hAbsolute: null,
       change24hPercent: null,
+      change24hValueBase: null,
     })),
+    totalChange24hBase: null,
+    totalChange24hPercent: null,
     totalUnrealizedPnL: null,
     totalUnrealizedPnLPercent: null,
     bestPerformer: { ticker: "AAPL", change24hPercent: null },
@@ -192,5 +200,63 @@ describe("SummaryCards — Task 9.4: 24h Profit/Loss bound to analytics", () => 
     mockUsePortfolioAnalytics.mockReturnValue(analyticsWithNullChange);
     render(<SummaryCards />);
     expect(screen.queryByText("+$0.00")).not.toBeInTheDocument();
+  });
+});
+
+// D11 (finding F13): change24hAbsolute is a per-unit, quote-currency price change. The card must show
+// the backend's position-level totals, never a client-side sum of per-unit changes.
+describe("SummaryCards — D11: 24h card shows the position-level totals", () => {
+  // 12 AAPL up $126.48 each and 0.5 BTC down $2,000 each. The per-unit changes sum to
+  // 126.48 − 2000 = −1,873.52; the positions moved 12 × 126.48 − 0.5 × 2000 = +517.76.
+  const holdings = [
+    { ...analyticsWithChange.data.holdings[0], quantity: 12, change24hAbsolute: 126.48, change24hPercent: 12.648, change24hValueBase: 1517.76 },
+    { ...analyticsWithChange.data.holdings[1], quantity: 0.5, change24hAbsolute: -2000, change24hPercent: -3.2258, change24hValueBase: -1000 },
+  ];
+
+  function withTotals(totals: Record<string, number | null | undefined>) {
+    return { data: { ...analyticsWithChange.data, holdings, ...totals } };
+  }
+
+  function card24h() {
+    return screen.getByTestId("24h-pnl").parentElement!;
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockUsePortfolio.mockReturnValue(portfolioData);
+    mockUsePortfolioSummary.mockReturnValue(summaryData);
+  });
+
+  it("shows totalChange24hBase and totalChange24hPercent, not the sum of per-unit changes", () => {
+    mockUsePortfolioAnalytics.mockReturnValue(withTotals({ totalChange24hBase: 517.76, totalChange24hPercent: 1.2041 }));
+    render(<SummaryCards />);
+
+    expect(screen.getByTestId("24h-pnl").textContent).toBe("+$517.76");
+    expect(card24h().textContent).toContain("+1.20%");
+  });
+
+  it('shows "—" when the backend omits the totals (an older backend), even with per-unit changes present', () => {
+    const older: Record<string, unknown> = { ...withTotals({}).data };
+    delete older.totalChange24hBase;
+    delete older.totalChange24hPercent;
+    mockUsePortfolioAnalytics.mockReturnValue({ data: older });
+    render(<SummaryCards />);
+
+    expect(screen.getByTestId("24h-pnl").textContent).toBe("—");
+  });
+
+  it('shows "—" when totalChange24hBase is null', () => {
+    mockUsePortfolioAnalytics.mockReturnValue(withTotals({ totalChange24hBase: null, totalChange24hPercent: null }));
+    render(<SummaryCards />);
+
+    expect(screen.getByTestId("24h-pnl").textContent).toBe("—");
+  });
+
+  it("shows the amount without a percent when totalChange24hPercent is null", () => {
+    mockUsePortfolioAnalytics.mockReturnValue(withTotals({ totalChange24hBase: 10, totalChange24hPercent: null }));
+    render(<SummaryCards />);
+
+    expect(screen.getByTestId("24h-pnl").textContent).toBe("+$10.00");
+    expect(card24h().textContent).not.toContain("%");
   });
 });

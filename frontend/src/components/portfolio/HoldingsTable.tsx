@@ -105,13 +105,14 @@ const ALL_ASSET_CLASSES = Object.keys(ASSET_CLASS_CONFIG) as AssetClass[];
 
 function ChangeCell({
   percent,
-  absolute,
+  positionChange,
 }: {
   percent: number | null;
-  absolute: number | null;
+  /** D11: the position's 24h change in base currency; the sub-line is omitted when unavailable. */
+  positionChange: number | null;
 }) {
   // null means "no reference data" — render "—" not "+0.00%"
-  if (percent == null || absolute == null) {
+  if (percent == null) {
     return (
       <span className="text-sm text-muted-foreground tabular-nums">—</span>
     );
@@ -134,16 +135,18 @@ function ChangeCell({
         {isPositive ? "+" : ""}
         {percent.toFixed(2)}%
       </span>
-      <span
-        className={cn(
-          "text-xs tabular-nums",
-          isNeutral && "text-muted-foreground",
-          isPositive && "text-profit/70",
-          !isPositive && !isNeutral && "text-loss/70",
-        )}
-      >
-        {formatSignedCurrency(absolute)}
-      </span>
+      {positionChange != null && (
+        <span
+          className={cn(
+            "text-xs tabular-nums",
+            isNeutral && "text-muted-foreground",
+            isPositive && "text-profit/70",
+            !isPositive && !isNeutral && "text-loss/70",
+          )}
+        >
+          {formatSignedCurrency(positionChange)}
+        </span>
+      )}
     </div>
   );
 }
@@ -309,6 +312,8 @@ export function HoldingsTable() {
         unrealizedPnLPercent: analyticsHolding.unrealizedPnLPercent,
         change24hPercent: analyticsHolding.change24hPercent,
         change24hAbsolute: analyticsHolding.change24hAbsolute,
+        // D11: the position's base-currency 24h change; absent from an older backend.
+        change24hValueBase: analyticsHolding.change24hValueBase ?? null,
       };
     });
 
@@ -373,8 +378,9 @@ export function HoldingsTable() {
       // Only add when non-null; null means "basis/reference unavailable"
       pnl: h.unrealizedPnL != null ? acc.pnl + h.unrealizedPnL : acc.pnl,
       pnlAvailable: acc.pnlAvailable || h.unrealizedPnL != null,
-      abs24h: h.change24hAbsolute != null ? acc.abs24h + h.change24hAbsolute : acc.abs24h,
-      abs24hAvailable: acc.abs24hAvailable || h.change24hAbsolute != null,
+      // D11: position-level base-currency changes, never the per-unit change24hAbsolute
+      abs24h: h.change24hValueBase != null ? acc.abs24h + h.change24hValueBase : acc.abs24h,
+      abs24hAvailable: acc.abs24hAvailable || h.change24hValueBase != null,
     }),
     { value: 0, pnl: 0, pnlAvailable: false, abs24h: 0, abs24hAvailable: false },
   );
@@ -611,7 +617,7 @@ export function HoldingsTable() {
                       <TableCell className="text-right pr-6">
                         <ChangeCell
                           percent={holding.change24hPercent}
-                          absolute={holding.change24hAbsolute}
+                          positionChange={holding.change24hValueBase ?? null}
                         />
                       </TableCell>
                     </TableRow>

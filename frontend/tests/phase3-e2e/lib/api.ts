@@ -38,17 +38,24 @@ export interface SummaryReadback {
 
 export interface AnalyticsHolding {
   readonly ticker: string;
+  /** Per-unit price in the quote currency; null when the ticker has no price (finding F1). */
+  readonly currentPrice: number | null;
   /** Null when the price or FX rate is unavailable (finding F1). */
   readonly currentValueBase: number | null;
   readonly displayAssetClass?: string | null;
   readonly change24hPercent: number | null;
+  /** Per-unit, quote-currency price change (finding F13). */
   readonly change24hAbsolute: number | null;
+  /** D11: the position's 24h change in base currency; absent from an older backend. */
+  readonly change24hValueBase?: number | null;
 }
 
 export interface AnalyticsReadback {
   readonly totalValue: number;
   readonly holdings: AnalyticsHolding[];
   readonly partialValuation: boolean;
+  /** D11: the portfolio's 24h change in base currency; absent from an older backend. */
+  readonly totalChange24hBase?: number | null;
   readonly performanceCoverage?: { partial?: boolean; holdingsWithHistory?: number; totalHoldings?: number } | null;
 }
 
