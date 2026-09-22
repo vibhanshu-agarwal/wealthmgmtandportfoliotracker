@@ -102,12 +102,19 @@ has no assets, and
 passed. No deployment workflow was triggered by the tag or Release. The `v*` creation ruleset was
 absent, and the owner explicitly accepted that residual risk before publication.
 
-React #418 remains a binding Phase 3 blocker and was not suppressed. The accepted 320px/375px
-overflows remain open backlog. The review also left two Low-priority presentation/data-consistency
-items open for later work: mocked 24-hour/freshness values are not fully consistent across pages, and
-the 1280px header ticker's first letter can sit under the fade edge. Phase 2 source has not been
-deployed or Production-verified. Task 7 is complete; Phase 3 remains closed pending separate owner
-authority.
+React #418 and F1 were corrected and merged through
+[PR #310](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/310) at merge commit
+`9a4603c245529b93942d3a6b9b85e886be08b5e0`. D11/F13 was then independently accepted and merged
+through [PR #311](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/311) at
+merge commit `b27fcd077925e1afc5040dd2ff85aaeb787977e1`; its tree is identical to accepted head
+`3743bd28fd58b2f4aa9048d3e807e449afea10bb`. All four push-triggered post-merge workflows passed on
+that merge SHA, and no deploy workflow ran. These fixes are merged but not deployed or
+Production-accepted, so they remain Phase 3 serving blockers.
+
+The accepted 320px/375px overflows remain open backlog. F10 and F14 remain separate presentation
+issues, and F2/F3/F5/F9 still require remediation or explicit owner acceptance before the Production
+run. Task 7 is complete; Phase 3 remains closed pending separate B3 deployment, A4 run, A5 capture
+and identity/evidence decisions.
 
 ## Owner approval callouts
 
@@ -117,6 +124,13 @@ the Phase 1 outcome, the Phase 2 source merges and exit review, and the complete
 rehearsal recorded above. Those consumed authorizations do not authorize Phase 3, future deployments,
 Production mutations, creation of additional users, cleanup, ruleset changes, or future publication.
 This reconciliation records status only and grants none of those authorities.
+
+The owner subsequently consumed the separate publication and merge approvals for PRs #310 and #311.
+Those actions do not authorize B3, A4 or A5. Before A4, B3 must deploy the D11 portfolio-service
+before or together with the frontend; a frontend-only deployment is no longer a valid Phase 3
+candidate because the card fails closed without the D11 backend fields. Workflow dispatch,
+Production access, cloud access and certification-account creation remain closed until separately
+approved.
 
 ## Global constraints
 
