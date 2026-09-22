@@ -18,6 +18,10 @@ They are not committed: they hold screenshots, network logs and account identifi
 | `3849e47d` | F9 root cause corrected (analytics cache); deterministic classifier; NC10 |
 | `8b2c3825` | R4 fixes: the cache classification is confirmed after the TTL expires; NC11 |
 | `a451fa60` | R5 minors: 5 s wait slack; NC11 wording; residual limits documented |
+| `42319bf5`, `cb48c8a4` | This packet committed; evidence path fixed |
+| `b1f8d778` | **F1 fix** (owner approval A2): nullable wire contract, ticker, "—" cells, durable tests |
+| `6dec0001` | F1 review follow-up: a matching analytics record decides value and weight |
+| `776516b8` | F1 scoped-review follow-up: P&L null-last sorting pinned (test only). **Final code head** |
 
 ## OWNER APPROVAL CALLOUT: read first
 
@@ -25,14 +29,18 @@ They are not committed: they hold screenshots, network logs and account identifi
 No cloud resource, secret or Production account was touched. All testing ran on a local docker
 stack and a locally served static export.
 
+**A2 is done.** You approved it ("A2 is approved; A1/A3/A4/A5 remain closed"). F1 is fixed locally at
+`776516b8`, and two independent reviews found 0 Critical and 0 Important. A1, A3, A4 and A5 remain
+closed. A new decision, **D11** (finding F13), needs you before the Production run.
+
 The actions below are blocked on your decisions. Everything that did not depend on them is done.
 
 | # | Blocked action | Decision requested | If yes | If no |
 |---|---|---|---|---|
-| A1 | Push `claude/phase3-hydration-and-prod-e2e` and open a PR against `main` | Authorize publication | PR carries the #418 fix, the suite, the design and this packet; CI runs; merge remains a separate decision | Branch stays local; nothing reaches `main` |
-| A2 | **Fix finding F1 before the Production run** (any unpriced holding crashes every dashboard page) | Expand this bundle to a bounded fix: null-guard `PortfolioTicker`, make `HoldingAnalyticsDTO.currentPrice` and `currentValueBase` nullable, failing regression test first, independent review | Crash fixed before demo and Production E2E. **Recommended:** a price-feed gap on any single holding takes down Overview, Portfolio, Market Data and AI Insights | F1 goes to Phase 4. The Production run may pass without exposing it if every certification holding happens to be priced |
-| A3 | Deploy the Phase 2/3 candidate (Phase 2 plus the #418 fix; plus F1 if A2) | Frontend-only or full deploy (D3). The backend has small Java changes since its last build (Qodana cleanups in insight- and market-data-service, stated as behaviour-neutral) | Production serves the candidate; its build ID feeds `P3_EXPECTED_BUILD_ID` | Phase 3 cannot pass: Production still serves the pre-#418 frontend |
-| A4 | Run the suite against Production (owner-operated, D8) | Decisions D1, D2, D4, D5, D6, D7, D9 and D10 below | The owner runs the runbook in §6 | Phase 3 stays open |
+| A1 | Push `claude/phase3-hydration-and-prod-e2e` and open a PR against `main` | Authorize publication | PR carries the #418 fix, the F1 fix, the suite, the design and this packet, plus a one-line addition to `ci-verification.yml`'s Playwright list (the new mocked spec); CI runs; merge remains a separate decision | Branch stays local; nothing reaches `main` |
+| A2 | ~~Fix finding F1 before the Production run~~ | **Approved and done.** Fixed in `b1f8d778`, `6dec0001` and `776516b8`; see §6 | — | — |
+| A3 | Deploy the Phase 2/3 candidate (Phase 2, the #418 fix and the F1 fix) | Frontend-only or full deploy (D3). The backend has small Java changes since its last build (Qodana cleanups in insight- and market-data-service, stated as behaviour-neutral) | Production serves the candidate; its build ID feeds `P3_EXPECTED_BUILD_ID` | Phase 3 cannot pass: Production still serves the pre-#418 frontend |
+| A4 | Run the suite against Production (owner-operated, D8) | Decisions D1, D2, D4, D5, D6, D7, D9, D10 and D11 below | The owner runs the runbook in §7 | Phase 3 stays open |
 | A5 | Read-only Azure revision and digest capture before and after the run | Owner runs `az containerapp revision list/show` | The served revision is attested | Only the frontend build ID is attested |
 
 **Decisions the Production run needs** (details in the design, §10):
@@ -48,6 +56,7 @@ The actions below are blocked on your decisions. Everything that did not depend 
 | D8 | Operator: the owner, on the owner's machine |
 | D9 | Partial valuation has no UI presentation: defect (recommended) or intended |
 | D10 | Analytics is stale for up to 30 s after a holdings save (F9): defect (recommended: evict the user's analytics cache on write) or accepted. Either way, schedule the run away from 05:50–06:10 UTC (FX eviction) and from 07:50 UTC until that day's `market-data-refresh-job` has finished |
+| D11 | **New.** The 24h profit/loss figures are wrong for any quantity other than 1 (F13, Important). Fix before the Production run as a separate approved change (a backend position-level 24h value plus the S11 check), or accept as Phase 4. S11's 24h check currently passes on the defect |
 
 ## 1. What was done, in the requested order
 
@@ -78,6 +87,8 @@ The actions below are blocked on your decisions. Everything that did not depend 
    - It is not wired into any workflow.
 4. **Local, non-Production validation and independent review.** See §2 and §4.
 5. **Stopped before every Production operation.**
+6. **F1 fixed after your A2 approval**, with failing tests first, real-stack proof and two independent
+   reviews. See §6.
 
 ## 2. Local validation results
 
@@ -87,24 +98,27 @@ The actions below are blocked on your decisions. Everything that did not depend 
 - Market prices seeded locally, because only six fixture tickers are priced out of the box. This
   used a throwaway, locally generated internal key.
 
-**Final uncontended run `p3-20260922T071432Z-272f`** (`final-run-a451fa60/`).
-- Suite SHA `a451fa60` (the branch head), clean tree; served build `P1DI-PFaM5-R4jM_MjSz8`, matched
-  with `P3_EXPECTED_BUILD_ID`. The frontend source is identical to `3849e47d`'s.
+**Final uncontended run `p3-20260922T083117Z-4877`** (`f1-fix-776516b8/final-run-776516b8/`).
+- Suite SHA `776516b8` (the final code head), clean tree; served build `vWPoXAj5HkPqr86nWtuE7` (built from
+  `776516b8`), matched with `P3_EXPECTED_BUILD_ID`.
 - **15/15 scenarios passed, 451 ledger checks, 0 failed.**
 - Verdict **PASS_WITH_EXPECTED_DEFECTS**, with three expected defects:
   - `partial-valuation-not-presented` (F2);
   - `analytics-cache-stale-after-holdings-write` (F9);
   - `non-demo-reset-control-visible` (F3).
-- **F9 detail.** S11 read `CERT_B`'s analytics 20,418 ms after S09's save. The page showed $42,115.87
-  (summary) beside analytics built from the pre-save composition ($44,307.22), and an immediate Node
-  re-read still returned the cached analytics. The suite then waited 14,107 ms for the cache entry to
-  expire. Both endpoints then returned $42,115.87, so the known defect was recorded.
-  `CERT_B`'s 1440 and 1920 reads agreed. The totals differ slightly from earlier runs because the
-  07:00 local price refresh moved prices; they were constant within the run.
+- **F9 detail.** As in every full run, S11 read `CERT_B`'s analytics about 20 s after S09's save. The
+  page showed the current summary beside analytics built from the pre-save composition. The suite
+  waited for the cache entry to expire, both endpoints then agreed at the summary's value, and the
+  known defect was recorded. `CERT_B`'s 1440 and 1920 reads agreed. The exact figures are in the
+  run's ledger; totals move slightly between runs because the hourly local price refresh moves
+  prices, but they were constant within the run.
 - Both certification accounts restored to their baselines; `FRESH` retained with GOOGL 7 and
   DOGE-USD 1500.5.
 
-**Previous final runs**, both with the same verdict and 0 failed:
+**Previous final runs**, all with the same verdict and 0 failed:
+- `p3-20260922T082211Z-dc3e` at `6dec0001` (`f1-fix-6dec0001/`) and `p3-20260922T080325Z-e619` at
+  `b1f8d778` (`f1-fix-b1f8d778/`): the F1 commits, 451 checks each.
+- `p3-20260922T071432Z-272f` at `a451fa60` (`final-run-a451fa60/`): 451 checks, before F1.
 - `p3-20260922T065708Z-c19a` at `8b2c3825` (`final-run-8b2c3825/`): 451 checks, with a 1 s wait slack.
 - `p3-20260922T063142Z-d14a` at `3849e47d` (`final-run-3849e47d/`): 450 checks. Its F9 record rested on
   the write window alone, which R4 showed was not enough.
@@ -146,7 +160,7 @@ FAIL, because the new summary/analytics cross-check caught F9 for the first time
 
 | Id | Severity | Finding | Evidence |
 |---|---|---|---|
-| F1 | **Critical** | Any holding without a current price crashes **every dashboard page** ("This page couldn't load"). Analytics returns `currentPrice: null`; `PortfolioTicker.formatValue(null)` calls `null.toFixed(2)`; `HoldingAnalyticsDTO` types the field as a non-null `number` | `run1-unpriced-crash/` (11/15 scenarios failed); `repro-crash.mjs`: priced-only renders, a single unpriced holding crashes, and seeding its price removes the crash |
+| F1 | **Critical — FIXED** at `776516b8` (A2) | Any holding without a current price crashed **every dashboard page** ("This page couldn't load"). Analytics returns `currentPrice: null`; `PortfolioTicker.formatValue(null)` called `null.toFixed(2)`; `HoldingAnalyticsDTO` typed the field as a non-null `number`. See §6 | `run1-unpriced-crash/`, `repro-crash.mjs`; fix evidence in `f1-fix-776516b8/` |
 | F2 | Medium | Partial valuation, such as a holding with no FX rate, is excluded from totals with **no UI indication** anywhere. The freshness strip correctly says "All prices fresh" | Final run, S11 observation; API `partialValuation: true` |
 | F3 | Medium | "Reset Demo Portfolio" is shown to every signed-in user when its flag is on, and the gateway returns 403 to non-demo users | Final run, S13; source `PortfolioPageContent.tsx:123` |
 | F4 | Low | A new user's empty Portfolio reads "No holdings match your filter." (the filter-empty string) | Final run, S02 observation |
@@ -155,6 +169,11 @@ FAIL, because the new summary/analytics cross-check caught F9 for the first time
 | F7 | Positive | The frontend rejects a portfolio payload whose `userId` does not match the session (the first NC3 variant never rendered **Edit Holdings**) | NC3 development run |
 | F8 | Note | The picker shows no error UI for save failures other than 409. Noted from source; not exercised | `AssetPicker.tsx` |
 | F9 | Medium | **Analytics is stale for up to 30 s after any holdings save.** `PortfolioAnalyticsService.getAnalytics` is `@Cacheable` per user (Caffeine, 30 s, local and azure profiles), and no holdings write evicts it; the summary is uncached. For 30 s after a save, the allocation donut, 24h card, holding values and 24h cells, Market Data 24h and header ticker can show pre-save numbers beside a current Overview total. Observed: $42,147.14 (summary, current) against $44,349.79 (analytics, pre-save composition), 20–26 s after the writes, converging once the entry expired. A price refresh or the daily FX eviction opens the same window without a save. Likely fix: evict on write | `f9-divergence-run/`; `PortfolioAnalyticsService.java:188`, `CacheConfig.java` |
+| F10 | Low | Sub-cent prices render as "$0.00", because `formatCurrency` shows 2 decimals. The AI Insights cards show it, for example SHIB-USD at 0.00000596 | `f1-fix-776516b8/real-stack-proof/` (first run's AI Insights check) |
+| F11 | Resolved in `6dec0001` | When portfolio-service lacked a price that market-data had, or the FX rate was missing, Portfolio showed the enriched value (quantity × quote price as "$") and a weight the Overview total did not use. Locally, RELIANCE.NS showed $24,846.00 at 85.9%, and the footer read $28,913.76 beside a $4,067.76 total | `f1-fx-probe-final.txt` (after) and the `6dec0001` commit message (before) |
+| F12 | Low (local data) | The local refresh stores implausible prices for UNI-USD, APT-USD, ARB-USD and IMX-USD (about $0.0001 to $0.004). Check the Yahoo symbol mapping before trusting them in Production | market-summary and Mongo reads during F1 validation |
+| F13 | **Important** | The 24h profit/loss figures sum `change24hAbsolute`, which is a **per-unit, quote-currency** price change, as a portfolio amount in dollars: the Overview 24h card, its percentage and the Portfolio footer. 12 AAPL up $126.48 each shows +$126.48, not +$1,517.76. S11's 24h check passes on the defect. Pre-existing; needs a contract change (D11) | `PortfolioAnalyticsService.computeChange24hAbsolute`, `Wave6DashboardDataAccuracyIT.java:205`, `SummaryCards.tsx:145-158`, `HoldingsTable.tsx` footer |
+| F14 | Low | Quote-currency prices are labelled "$" in the Portfolio price column, Market Data and the header ticker. For example, RELIANCE.NS at ₹1,242.30 shows as $1,242.30 | `f1-fx-probe-final.txt` |
 
 ## 4. Harness notes and residual limits
 
@@ -173,6 +192,8 @@ FAIL, because the new summary/analytics cross-check caught F9 for the first time
     once the entry expires and leaves the summary unchanged is still recorded as F9. A user cannot
     tell it from D10's accepted impact. An exact-equality tightening is described in design §5 but
     not implemented.
+  - The S11 24h check compares the card with the sum of `change24hAbsolute`. That sum is defect F13,
+    so the check confirms presentation consistency, not correctness.
   - The summary-unchanged half of the convergence check has no dedicated negative control (R5 M4).
 
   An earlier note blamed the observed 24h-card mismatch on a price refresh; in hindsight it matches
@@ -244,7 +265,61 @@ FAIL, because the new summary/analytics cross-check caught F9 for the first time
 - The review loop is closed: five rounds on the suite, and every Critical and Important is
   resolved.
 
-## 6. Production runbook (owner-operated; only after A3, A4 and the decisions above)
+## 6. F1 fix (owner approval A2)
+
+You approved A2 in these words: "A2 is approved; A1/A3/A4/A5 remain closed." The full record is in
+design §16; this is the summary.
+
+**What changed** (`b1f8d778`, `6dec0001` and `776516b8`, on `cb48c8a4`):
+- The frontend types now match portfolio-service's nullable contract: analytics `currentPrice`,
+  `currentValueBase` and `quoteCurrency`; enriched `currentPrice` and `totalValue`; market-summary
+  `latestPrice`.
+- The header ticker omits unpriced holdings. When none is priced, it falls back to the market
+  summary, skipping entries without a price, and hides if nothing is left.
+- Portfolio, Market Data and the AI Insights card show "—" for an unavailable price or value, never
+  an invented $0.00, and no weight for an unavailable value. Unavailable values sort last and are
+  left out of totals and allocation slices.
+- A matching analytics record decides a holding's value and weight, including its null (this also
+  resolves F11). A market-data price is still shown when portfolio-service has none.
+- Suite: S11's allocation oracle counts only valued holdings.
+
+**Durable coverage.**
+- Component tests, and a property test whose generator includes null prices.
+- A fully mocked browser spec across all four pages, `tests/e2e/unpriced-holding.spec.ts`, wired into
+  the mocked config and CI's Playwright list.
+
+**Evidence** (`f1-fix-776516b8/`):
+- **RED.** Every new unit test failed first, for its stated reason. The browser spec failed 4/4 on
+  the unfixed build with the original `null.toFixed` error.
+- **GREEN at `776516b8`.** vitest 1,780 passed plus the one known unrelated failure; `tsc` clean;
+  mocked specs 6/6.
+- **Real-stack proof** (local only).
+  - LINK-USD's price rows were removed from both stores and restored exactly afterwards. The live
+    analytics returned null, and all four pages were usable with 0 page errors: "—" cells, the
+    ticker omitted LINK-USD, and the allocation read "Stocks 100.0%".
+  - The FX probe (RELIANCE.NS) showed value and weight "—", and a footer equal to the total card.
+- **Complete Phase 3 suite at `776516b8`:** `p3-20260922T083117Z-4877` on build `vWPoXAj5HkPqr86nWtuE7`, PASS_WITH_EXPECTED_DEFECTS,
+  451 checks, 0 failed.
+
+**Reviews** (independent, Fable):
+
+| Round | Scope | Verdict |
+|---|---|---|
+| F1-R1 | `cb48c8a4..b1f8d778` | **ACCEPT WITH MINORS** (0 Critical, 0 Important, 4 Minor) |
+| F1-R2 | `b1f8d778..6dec0001` | **ACCEPT WITH MINORS** (0 Critical, 0 Important, 4 Minor) |
+
+- **Dispositions.**
+  - Analytics authority for value and weight applied.
+  - Null-last sorting pinned for 24h and P&L.
+  - The S11 empty-allocation branch added (unexercised locally).
+  - The mocked spec's $0.00 oracle marked as mock-only.
+  - F13 raised to Important, with D11 added.
+  - The "$" label on non-USD prices recorded as F14.
+- **Residual (R1 M4).** When every holding is unpriced, the Portfolio Total reads $0.00, the backend's
+  exclusion aggregate. This belongs to F2 and D9.
+- **Cost.** The two F1 reviews used about 166k and 141k subagent tokens, taking 8 and 4 minutes.
+
+## 7. Production runbook (owner-operated; only after A3, A4 and the decisions above)
 
 1. **Deploy** the approved candidate, and note the served build ID. It appears in `/login` as
    `"b":"<id>"`.

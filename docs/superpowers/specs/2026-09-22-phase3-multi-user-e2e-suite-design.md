@@ -1,11 +1,12 @@
 # Phase 3 multi-user browser E2E suite — design
 
-**Date:** 2026-09-22 (revision 5, same day)
+**Date:** 2026-09-22 (revision 6, same day)
 **Status:** Revision 2 answered the independent design review (R1 REJECT: 1 Critical, 10 Important,
 10 Minor; see §12). Revision 3 answers the implementation review (R2 bounded REJECT: 0 Critical,
 2 Important, 12 Minor; see §13). Revision 4 answers the scoped R3 diff review (bounded REJECT:
 0 Critical, 1 Important, 3 Minor; see §14). Revision 5 answers the scoped R4 review (bounded
-REJECT: 0 Critical, 1 Important, 5 Minor; see §15). This document authorizes nothing. The suite runs locally. It may run
+REJECT: 0 Critical, 1 Important, 5 Minor; see §15). Revision 6 records the owner-approved fix for
+finding F1 (approval A2) and its two reviews (§16). This document authorizes nothing. The suite runs locally. It may run
 against Production only after separate owner approval (§10).
 **Governing plan:** [`ASSET_PICKER_DEMO_PREPARATION_PLAN.md` Phase 3](../../plans/ASSET_PICKER_DEMO_PREPARATION_PLAN.md#phase-3-run-broad-production-browser-e2e)
 **Base:** `main@26a07fe048d9950c5b7268b9763eaca543b7b7ef`, plus the React #418 fix on
@@ -203,9 +204,12 @@ unpriced locally, so `CERT_A` exercises partial valuation there.
       too. That case is not attributed and FAILs. It fails safe and is rare: the local price refresh
       runs hourly at :00, Production's `market-data-refresh-job` daily at 08:00 UTC, and the FX
       cache is evicted daily at 06:00. D10 covers scheduling the Production run away from them.
-  - The 24h card equals the independently summed analytics `change24hAbsolute`.
-  - The allocation legend has one slice per `displayAssetClass`, and its percentages sum to 100
-    within rounding when the total is above 0.
+  - The 24h card equals the independently summed analytics `change24hAbsolute`. This checks that
+    the card matches its payload, not that the figure is right: the field is a per-unit,
+    quote-currency change, so the sum is itself defect F13 (D11). A fix changes this check.
+  - The allocation legend has one slice per `displayAssetClass` among holdings with a value; a
+    holding without a price or FX rate gets none (F1). Its percentages sum to 100 within rounding
+    when the total is above 0. With holdings but none valued, the card shows no slice and no total.
   - The performance-coverage label is shown if and only if `performanceCoverage.partial` holds (review
     I2: this is the only "Partial" label in the UI).
   - No horizontal overflow.
@@ -364,6 +368,17 @@ Skips never count as passes, and an expected defect never softens FAIL or INCOMP
   - Either way, schedule the Production run away from the refresh jobs: not between 05:50 and 06:10
     UTC (FX eviction), and not from 07:50 UTC until that day's `market-data-refresh-job` execution
     has finished.
+- **D11 — The 24h profit/loss figures are wrong for any quantity other than 1 (finding F13).**
+  - `change24hAbsolute` is a per-unit price change in the quote currency
+    (`PortfolioAnalyticsService.computeChange24hAbsolute`; the backend's own IT expects 10.0000 for
+    ten units moving from 100 to 110).
+  - The Overview 24h card, its percentage and the Portfolio footer sum it as a portfolio amount in
+    dollars. Locally, 12 AAPL up $126.48 each shows +$126.48, not +$1,517.76, and an INR holding's
+    per-share change is added as dollars.
+  - S11's 24h check verifies the card against that same sum (§5), so it passes on the defect.
+  - Fix before the Production run (a backend `change24hValueBase` of quantity × change × FX that the
+    UI sums, plus the S11 check) or accept it as a Phase 4 defect. Either needs a separate approval:
+    it is a contract change outside the F1 fix.
 
 ## 11. Local validation plan
 
@@ -465,3 +480,111 @@ items were confirmed resolved. Its minors, applied without a further review roun
 | M3 a transient, self-healing analytics-only divergence inside the window is still excusable | Recorded as a residual limit in §5; the exact-equality tightening is not implemented |
 | M4 the summary-unchanged conjunct has no negative control | Recorded as untested in §5 |
 | M5 nits | "Always" replaced by the observation it is; the slack pinned exactly; the NC11 row notes where the run stops |
+
+## 16. Revision 6 — the F1 fix (owner approval A2)
+
+Owner decision, quoted: "A2 is approved; A1/A3/A4/A5 remain closed."
+
+**Defect.** Finding F1 (Critical): any holding without a current price crashed every dashboard
+page. portfolio-service returns `currentPrice`, `currentValueBase` and `quoteCurrency` as null for
+such a holding; the frontend typed them as numbers, and the header ticker, which renders on every
+page, called `null.toFixed(2)`.
+
+**Fix** (`b1f8d778`, `6dec0001` and `776516b8`, on `cb48c8a4`):
+- The frontend types follow the wire contract:
+  - `HoldingAnalyticsDTO.currentPrice`, `currentValueBase` and `quoteCurrency`;
+  - `AssetHoldingDTO.currentPrice` and `totalValue`;
+  - `TickerSummary.latestPrice`.
+- **Header ticker.**
+  - It omits holdings without a price and sorts unvalued holdings last.
+  - When no holding is priced (including when all are unpriced), it falls back to the market
+    summary, skipping entries without a latest price.
+  - It hides when nothing is left.
+- **Portfolio, Market Data and the AI Insights card.**
+  - An unavailable price or value reads "—", never an invented $0.00, and an unavailable value
+    shows no weight.
+  - Unavailable values sort last and are excluded from totals and allocation slices.
+  - `enrichWireHoldings` emits null, not 0.
+- **Analytics authority.** A matching analytics record decides a holding's value and weight,
+  including its null.
+  - So a holding whose FX rate is unavailable no longer shows quantity × quote-currency price as
+    dollars, and the Portfolio footer equals the Overview total.
+  - A market-data price is still shown when portfolio-service has none; the Market Data page shows
+    the same price.
+
+**Suite changes.**
+- S11's allocation oracle counts only valued holdings, and checks for no slice when holdings exist
+  but none is valued. That branch is unexercised locally, because every local certification holding
+  has a value.
+- `AnalyticsHolding` carries `currentValueBase`.
+
+**Durable coverage.**
+- Component tests for:
+  - the ticker (priced plus unpriced, all unpriced with and without a market summary, summary
+    entries without a price, FX-unavailable ordering);
+  - the Portfolio table (cells, weight, totals, null-last sorting for value, price, 24h and P&L,
+    analytics authority);
+  - Market Data, the allocation builders, enrichment and the AI Insights card.
+- A Market Data property test whose generator includes null prices.
+- `tests/e2e/unpriced-holding.spec.ts`: a fully mocked browser spec across the four pages. It is
+  wired into `playwright.mocked.config.ts` and the CI Playwright list in `ci-verification.yml`. Its
+  "no $0.00" assertions hold only under mocks (F10).
+
+**Evidence** (handoff folder `f1-fix-776516b8/`):
+- **RED.**
+  - Each new unit test failed before the fix for its stated reason: the `null.toFixed` crash,
+    "$0.00", empty slices, null sorted first, enrichment returning 0.
+  - The browser spec against an export of the unfixed source (`KtbucLZBroiALbMyy7uQi`) failed 4/4
+    with `Cannot read properties of null (reading 'toFixed')`.
+  - The two tests that already passed are declared guards: ticker FX ordering and table totals.
+  - The widened property test was mutation-checked against the old cell.
+- **GREEN at `776516b8`.**
+  - vitest: 1,780 passed, plus one known unrelated failure (the Step B 5b CRLF guard).
+  - `tsc` clean; eslint 0 errors; the workflow guard tests pass.
+  - Mocked browser specs: 6/6 (default build `vcc8w2jWsWd_hOFzhkO0l`).
+- **Real stack (local only).**
+  - LINK-USD's price rows were removed from portfolio-service Postgres and market-data Mongo, then
+    restored exactly.
+  - The live analytics returned null for `currentPrice`, `currentValueBase` and `quoteCurrency`.
+  - All four pages were usable with 0 page errors: the cells read "—", the ticker omitted LINK-USD,
+    and the allocation showed "Stocks 100.0%".
+  - An FX probe (RELIANCE.NS; INR FX is unavailable locally) showed value and weight "—", and a
+    footer of $4,067.76 equal to the total card. Before `6dec0001` it showed $24,846.00 at 85.9%,
+    with a footer of $28,913.76.
+- **Complete Phase 3 suite at `776516b8`** against flagged build `vWPoXAj5HkPqr86nWtuE7`: run `p3-20260922T083117Z-4877`,
+  PASS_WITH_EXPECTED_DEFECTS, 451 checks, 0 failed, with the same three expected defects.
+
+**Reviews** (independent, Fable):
+
+| Round | Scope | Verdict | Disposition |
+|---|---|---|---|
+| F1-R1 | `cb48c8a4..b1f8d778` | **ACCEPT WITH MINORS** (0 Critical, 0 Important, 4 Minor) | See the four minors below |
+| F1-R2 | `b1f8d778..6dec0001` | **ACCEPT WITH MINORS** (0 Critical, 0 Important, 4 Minor) | See the four minors below |
+
+F1-R1 minors:
+- **M1:** applied in `6dec0001`. Value and weight follow analytics, including its null. The price
+  fallback is kept on purpose.
+- **M2:** null-last sorting pinned for 24h (`6dec0001`) and P&L (`776516b8`).
+- **M3:** applied. S11 gained the empty-allocation branch, and the spec notes that its $0.00 oracle
+  holds only under mocks.
+- **M4:** recorded. With every holding unpriced, the Portfolio Total reads $0.00, the backend's
+  exclusion aggregate. This belongs to F2 and D9.
+
+F1-R2 minors:
+- **1:** F13 recorded as per-unit and quote-currency, severity Important. D11 added, and the S11 24h
+  check labelled.
+- **2:** the "$" label on non-USD prices recorded as F14.
+- **3:** P&L null-last pinned in `776516b8`.
+- **4:** the S11 empty-allocation branch recorded as unexercised.
+
+**New findings, not fixed here** (the execution packet has the evidence):
+- **F10 (Low):** sub-cent prices render as "$0.00", because `formatCurrency` shows 2 decimals. The
+  AI Insights cards show it, for example SHIB-USD at 0.00000596.
+- **F11 (resolved in `6dec0001`):** when portfolio-service lacked a price that market-data had,
+  Portfolio showed the market-data value and a weight the Overview total did not use.
+- **F12 (Low, local data):** the local refresh stores implausible prices for UNI-USD, APT-USD,
+  ARB-USD and IMX-USD (about $0.0001 to $0.004). Check the Yahoo symbol mapping before trusting
+  them anywhere.
+- **F13 (Important):** the 24h profit/loss figures sum per-unit, quote-currency changes (D11).
+- **F14 (Low):** quote-currency prices are labelled "$" in the Portfolio price column, Market Data
+  and the header ticker. For example, RELIANCE.NS at ₹1,242.30 shows as $1,242.30.
