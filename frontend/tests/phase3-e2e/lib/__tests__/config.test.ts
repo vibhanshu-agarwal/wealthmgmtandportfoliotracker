@@ -126,11 +126,11 @@ describe("resolveRunConfig — local defaults", () => {
       ok: true,
       config: { negativeControl: "NC3" },
     });
-    for (const id of ["NC1", "NC2", "NC3", "NC4", "NC7", "NC8", "NC9", "NC10"]) {
+    for (const id of ["NC1", "NC2", "NC3", "NC4", "NC7", "NC8", "NC9", "NC10", "NC11"]) {
       expect(resolve({ P3_TARGET: "local", P3_WORK_DIR: OUTSIDE, P3_NEGATIVE_CONTROL: id })).toMatchObject({ ok: true });
     }
     // NC5 (filtered run) and NC6 (unfixed build) are run-level controls, not env faults.
-    for (const id of ["NC5", "NC6", "NC11", "nc1"]) {
+    for (const id of ["NC5", "NC6", "NC12", "nc1"]) {
       expect(problemsOf(resolve({ P3_TARGET: "local", P3_WORK_DIR: OUTSIDE, P3_NEGATIVE_CONTROL: id }))).toContain(
         "NEGATIVE_CONTROL_UNKNOWN",
       );

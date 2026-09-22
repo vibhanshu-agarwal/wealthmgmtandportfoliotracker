@@ -1,10 +1,11 @@
 # Phase 3 multi-user browser E2E suite — design
 
-**Date:** 2026-09-22 (revision 4, same day)
+**Date:** 2026-09-22 (revision 5, same day)
 **Status:** Revision 2 answered the independent design review (R1 REJECT: 1 Critical, 10 Important,
 10 Minor; see §12). Revision 3 answers the implementation review (R2 bounded REJECT: 0 Critical,
 2 Important, 12 Minor; see §13). Revision 4 answers the scoped R3 diff review (bounded REJECT:
-0 Critical, 1 Important, 3 Minor; see §14). This document authorizes nothing. The suite runs locally. It may run
+0 Critical, 1 Important, 3 Minor; see §14). Revision 5 answers the scoped R4 review (bounded
+REJECT: 0 Critical, 1 Important, 5 Minor; see §15). This document authorizes nothing. The suite runs locally. It may run
 against Production only after separate owner approval (§10).
 **Governing plan:** [`ASSET_PICKER_DEMO_PREPARATION_PLAN.md` Phase 3](../../plans/ASSET_PICKER_DEMO_PREPARATION_PLAN.md#phase-3-run-broad-production-browser-e2e)
 **Base:** `main@26a07fe048d9950c5b7268b9763eaca543b7b7ef`, plus the React #418 fix on
@@ -177,10 +178,19 @@ unpriced locally, so `CERT_A` exercises partial valuation there.
       summary is current (finding F9, owner decision D10).
     - The run logs every successful holdings write in `holdings-writes.jsonl`: Node setup writes,
       and browser saves identified by the token's `sub`.
-    - A disagreement is recorded as the known defect `analytics-cache-stale-after-holdings-write` only
-      if that log shows a write for the user within the TTL before the page's analytics request.
-    - Any other disagreement fails. Either way, an immediate Node re-read of both endpoints is
-      ledgered.
+    - A write within the TTL before the page's analytics request only makes the cache a possible
+      cause. `CERT_B`'s reads always follow S09's save by less than 30 s, so the window alone would
+      excuse any `CERT_B` divergence (review R4 I-4).
+    - So inside the window the suite waits until every pre-write cache entry has expired (at most
+      31 s after the write), then re-reads both endpoints from Node. The disagreement is recorded as
+      the known defect `analytics-cache-stale-after-holdings-write` only if analytics has converged
+      on the summary total the page showed. Otherwise it FAILs.
+    - With no write inside the window, a disagreement FAILs at once. Either way, an immediate Node
+      re-read of both endpoints is ledgered.
+    - A price or FX refresh changes valuation inputs without a write, so the same cache can lag it
+      too. That case is not attributed and FAILs. It fails safe and is rare: the local price refresh
+      runs hourly at :00, Production's `market-data-refresh-job` daily at 08:00 UTC, and the FX
+      cache is evicted daily at 06:00. D10 covers scheduling the Production run away from them.
   - The 24h card equals the independently summed analytics `change24hAbsolute`.
   - The allocation legend has one slice per `displayAssetClass`, and its percentages sum to 100
     within rounding when the total is above 0.
@@ -207,8 +217,9 @@ unpriced locally, so `CERT_A` exercises partial valuation there.
 - **Screenshots:** full-page, per user, viewport and page.
 - **Data source for presentation oracles.** Each check compares the UI with the summary, analytics
   or market-summary payload that the page itself received. It waits for the response body and a
-  render frame, and re-reads if a refetch lands in between. Prices can legitimately move between
-  reads because of the background price refresh.
+  render frame, and re-reads if a refetch lands in between. Separate reads can legitimately differ:
+  analytics can lag a holdings write by up to 30 s (F9), and a price or FX refresh can land between
+  reads.
   - Persisted state stays independent: exact API readback in S05, S08, S09 and S99.
   - S11's ticker sets come from an independent readback, and any movement between the independent
     read and the page's read is ledgered.
@@ -259,8 +270,9 @@ unpriced locally, so `CERT_A` exercises partial valuation there.
   JWT shapes and email shapes are all rejected.
 - S99 then greps every text artifact outside `pw-output/` for every registered secret.
 - Two files are appended directly without the registry check, because their content is constant or
-  numeric: the global teardown's line in `auth-requests.jsonl`, and `holdings-writes.jsonl` (epoch
-  ms, user UUID, scenario id). The S99 scan still covers both.
+  numeric: every line of `auth-requests.jsonl` (timestamp, scenario, source and path, from the suite
+  and the global teardown alike), and `holdings-writes.jsonl` (epoch ms, user UUID, scenario id).
+  The S99 scan still covers both.
 
 **Verdict** (`lib/verdict.ts`, written by `lib/verdict-reporter.ts`):
 - **FAIL** if any scenario failed or timed out, or if a scenario recorded an expected-defect id
@@ -272,7 +284,8 @@ unpriced locally, so `CERT_A` exercises partial valuation there.
   - `non-demo-reset-control-visible` (S13, D5);
   - `partial-valuation-not-presented` (S11, D9);
   - `analytics-cache-stale-after-holdings-write` (S11, D10; only when the run's own write log places
-    the analytics read inside the cache TTL).
+    the analytics read inside the cache TTL and analytics converges on the summary total once the
+    TTL has passed).
 - **PASS** otherwise.
 
 Skips never count as passes, and an expected defect never softens FAIL or INCOMPLETE.
@@ -332,8 +345,13 @@ Skips never count as passes, and an expected defect never softens FAIL or INCOMP
     Overview total card. Those views are the allocation donut, the 24h card, the Portfolio holding
     values and 24h cells, Market Data's 24h column and the header ticker.
   - Observed locally: $42,147.14 (summary, current) against $44,349.79 (analytics, pre-save).
+  - Any valuation-input change opens the same window: a price refresh or the FX cache eviction as
+    well as a save. The suite classifies only the save case; the others FAIL.
   - Treat it as a Phase 4 defect (the recommendation: evict the user's analytics cache on a holdings
     write) or accept it.
+  - Either way, schedule the Production run away from the refresh jobs: not between 05:50 and 06:10
+    UTC (FX eviction), and not from 07:50 UTC until that day's `market-data-refresh-job` execution
+    has finished.
 
 ## 11. Local validation plan
 
@@ -344,8 +362,8 @@ Skips never count as passes, and an expected defect never softens FAIL or INCOMP
    `NEXT_PUBLIC_ENABLE_DEMO_RESET_CONTROL=true`, `NEXT_PUBLIC_API_BASE_URL=http://localhost:8080`).
    The config's local-only `webServer` serves it on `localhost:3000`.
 3. Run the full suite with `P3_TARGET=local`, uncontended.
-4. **Negative controls.** Each must make its oracle fail. NC1–NC4 and NC7–NC9 are set with
-   `P3_NEGATIVE_CONTROL`, local only (NC10 as well); NC5 and NC6 are run-level.
+4. **Negative controls.** Each must make its oracle fail. NC1–NC4 and NC7–NC11 are set with
+   `P3_NEGATIVE_CONTROL`, local only; NC5 and NC6 are run-level.
 
    | Control | Fault | Oracle that must fail |
    |---|---|---|
@@ -359,6 +377,7 @@ Skips never count as passes, and an expected defect never softens FAIL or INCOMP
    | NC8 | A `CERT_A` ticker injected into `FRESH`'s page in S10 | Leak observer |
    | NC9 | A second PUT injected from context 2 in S09 | No-retry counter |
    | NC10 | `FRESH`'s analytics total raised by 1000 in S11, with no holdings write inside the cache TTL (the control waits the TTL out first) | Summary/analytics agreement (must FAIL, not be recorded as the known defect) |
+   | NC11 | A real, unchanged holdings write for `FRESH` just before S11, so the cache window is open; `FRESH`'s analytics total raised by 1000 in the page and in the Node re-reads | Post-expiry convergence (must FAIL, not be recorded as the known defect) |
 
    An NC3 variant that returned `CERT_A`'s body unchanged never rendered **Edit Holdings**: the
    frontend rejects a portfolio whose `userId` does not match the session. That is a real
@@ -411,3 +430,15 @@ Skips never count as passes, and an expected defect never softens FAIL or INCOMP
 | M-a known-id acceptance untested | Unit test accepts all three known ids |
 | M-b teardown append outside the registry | Documented in §7: constant content, covered by the S99 scan |
 | M-c allocation total with an all-unpriced portfolio | Guarded on analytics total above 0 |
+
+## 15. Revision 5 — disposition of the scoped R4 review
+
+| Finding | Disposition |
+|---|---|
+| I-4 the classifier is disarmed for `CERT_B` on every full run | Fixed with the review's option (a), which keeps D10 observable. Inside the window the suite waits until every pre-write entry has expired, re-reads both endpoints from Node, and records the known defect only if analytics converges on the summary total the page showed. It also requires the summary to be unchanged, so a transiently wrong summary is not excused. NC11 opens the window with a real write and injects the divergence into both the page and the Node re-reads; it must FAIL on the convergence check |
+| M-d price- and FX-triggered staleness FAILs | Documented in §5 and D10, with the refresh schedules. D10 adds the Production scheduling constraint |
+| M-e `CLOCK_MARGIN_MS` covers no clock | Removed. The attribution window is the bare TTL, with the reasoning in `lib/cache-window.ts`. A 1 s slack remains on waits only, where longer is safe |
+| M-f the analytics read time came from a possibly newer response | `readAgainstLatest` returns the response whose body was compared, and S11 times that one |
+| M-g every `auth-requests.jsonl` line bypasses the registry | §7 wording corrected |
+| M-h `msSinceLastWrite` was `null` when every write postdated the read | `msSinceLastWriteBefore` returns `null` only when no write precedes the read, and is unit-tested |
+| Rationale | The presentation-oracle note in §5 and the S11 spec comment no longer blame a background price refresh. The observed cause was the analytics cache |

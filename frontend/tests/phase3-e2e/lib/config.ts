@@ -24,7 +24,7 @@ export const PRODUCTION_MIN_AUTH_INTERVAL_MS = 13_000;
 /** Production strict bucket (insights, chat): burst 30, 6 tokens per request, 1 token/s, per user. */
 export const PRODUCTION_STRICT_INTERVAL_MS = 6_500;
 /** In-suite fault injections (local only). NC5 (filtered run) and NC6 (unfixed build) are run-level. */
-export const NEGATIVE_CONTROLS = ["NC1", "NC2", "NC3", "NC4", "NC7", "NC8", "NC9", "NC10"] as const;
+export const NEGATIVE_CONTROLS = ["NC1", "NC2", "NC3", "NC4", "NC7", "NC8", "NC9", "NC10", "NC11"] as const;
 export type NegativeControl = (typeof NEGATIVE_CONTROLS)[number];
 
 export interface Credentials {

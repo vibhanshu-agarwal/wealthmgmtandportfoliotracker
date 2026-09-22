@@ -12,7 +12,7 @@ import { appendFileSync, existsSync, readFileSync, writeFileSync } from "node:fs
 import path from "node:path";
 import { expect, test, type Browser, type BrowserContext, type Request, type Route, type TestInfo, type Video } from "@playwright/test";
 import { ApiClient, type AnalyticsReadback, type AuthSession, type SummaryReadback } from "./lib/api";
-import { ANALYTICS_CACHE_TTL_MS, withinAnalyticsCacheWindow } from "./lib/cache-window";
+import { msSinceLastWriteBefore, staleAnalyticsExpiresBy, withinAnalyticsCacheWindow } from "./lib/cache-window";
 import { provenanceEnvironment, scanArtifactsForSecrets } from "./lib/artifacts";
 import { fileStore, paceAuthRequest } from "./lib/auth-pacer";
 import { resolveRunConfig } from "./lib/config";
@@ -34,7 +34,6 @@ import {
   captureCalls,
   hasNoHorizontalOverflow,
   installLeakObserver,
-  latestOk,
   marketTableTickers,
   openPicker,
   parseDisplayedPercent,
@@ -103,6 +102,13 @@ function holdingsWriteTimes(userId: string): number[] {
     .map((line) => JSON.parse(line) as { at: number; userId: string })
     .filter((entry) => entry.userId === userId)
     .map((entry) => entry.at);
+}
+/** Waits until every analytics entry cached before the user's latest write (at or before `readAtMs`) has expired. */
+async function waitOutStaleAnalytics(userId: string, readAtMs = Date.now()): Promise<number> {
+  const expiry = staleAnalyticsExpiresBy(holdingsWriteTimes(userId), readAtMs);
+  const waitMs = expiry === null ? 0 : Math.max(0, expiry - Date.now());
+  if (waitMs > 0) await new Promise((resolve) => setTimeout(resolve, waitMs));
+  return waitMs;
 }
 async function ensure(session: AuthSession, desired: Parameters<typeof ensureHoldings>[2]) {
   const result = await ensureHoldings(api, session, desired);
@@ -841,18 +847,31 @@ test("S11 Overview, Portfolio, Market Data, AI Insights and navigation for every
     { role: "CERT_B", session: await certSession("CERT_B") },
     { role: "FRESH", session: await freshSession() },
   ];
+  // NC10 and NC11 raise FRESH's analytics total by 1000. NC11 models a persistent divergence,
+  // so it must also reach the Node re-reads that follow a disagreement.
+  const injectsDivergence = (role: Role) => (run.negativeControl === "NC10" || run.negativeControl === "NC11") && role === "FRESH";
+  const readAnalytics = async (role: Role, session: AuthSession) => {
+    const body = await api.analytics(session);
+    return run.negativeControl === "NC11" && role === "FRESH" ? { ...body, totalValue: body.totalValue + 1000 } : body;
+  };
   for (const { role, session } of roles) {
     const readback = await api.portfolio(session);
     const independentSummary = await api.summary(session);
     let partialValuation = independentSummary.partialValuation;
+    if (run.negativeControl === "NC11" && role === "FRESH") {
+      // A real (unchanged) write opens the cache window, so the injected divergence is first
+      // classified as possibly the known cache defect; only the post-expiry re-read can expose it.
+      const put = await api.putHoldings(session, readback.version, readback.holdings);
+      if (put.status !== 200) throw new Error(`NC11 setup PUT returned HTTP ${put.status}`);
+      recordHoldingsWrite(session.userId);
+    }
 
     for (const viewport of DESKTOP_VIEWPORTS) {
       const tag = `${role}-${viewport.width}`;
       let routeHook: RouteHook | undefined;
-      if (run.negativeControl === "NC10" && role === "FRESH") {
-        const writes = holdingsWriteTimes(session.userId);
-        const sinceLastWrite = writes.length === 0 ? Infinity : Date.now() - Math.max(...writes);
-        if (sinceLastWrite <= ANALYTICS_CACHE_TTL_MS + 2_000) await new Promise((r) => setTimeout(r, ANALYTICS_CACHE_TTL_MS + 2_000 - sinceLastWrite));
+      if (injectsDivergence(role)) {
+        // NC10 must not be excused by the cache window: let every pre-write entry expire first.
+        if (run.negativeControl === "NC10") await waitOutStaleAnalytics(session.userId);
         routeHook = async (route, request) => {
           if (!isApi(request, "GET", "/api/portfolio/analytics")) return false;
           const real = await route.fetch();
@@ -864,8 +883,9 @@ test("S11 Overview, Portfolio, Market Data, AI Insights and navigation for every
       const monitored = await monitoredContext(browser, role, { viewport, routeHook });
       const { context, monitor } = monitored;
       const page = await context.newPage();
-      // Prices can move between reads (background refresh), so presentation oracles compare
-      // the UI with the payload this page itself rendered; persisted state is checked separately.
+      // Separate reads can differ (the 30 s analytics cache after a write, F9; or a price or FX
+      // refresh), so presentation oracles compare the UI with the payload this page itself
+      // rendered; persisted state is checked separately.
       const summaryCalls = captureCalls(context, "GET", "/api/portfolio/summary");
       const analyticsCalls = captureCalls(context, "GET", "/api/portfolio/analytics");
       const marketSummaryCalls = captureCalls(context, "GET", "/api/insights/market-summary");
@@ -905,28 +925,37 @@ test("S11 Overview, Portfolio, Market Data, AI Insights and navigation for every
       const { shown24h, legendPercents, partialShown, allocationTotal } = overviewRead.rendered;
       // The Overview shows the summary total (uncached) beside analytics-driven cards. Analytics
       // is cached per user for 30 s and no holdings write evicts it (finding F9, D10), so right
-      // after a write the two can disagree. Only that case, proven from this run's own write log,
-      // is recorded as the known defect; any other disagreement is a real divergence and fails.
+      // after a write the two can disagree. A write inside the TTL only makes that the possible
+      // cause (CERT_B's reads always follow S09's save by less than 30 s), so the known defect is
+      // recorded only once analytics, re-read after every pre-write entry has expired, converges
+      // on the summary total the page showed. Any other disagreement is a real divergence.
       const totalsAgree = Math.abs(pageSummary.totalValue - overviewAnalytics.totalValue) <= MONEY_TOLERANCE;
       if (totalsAgree) {
         evidence.record("S11", `${tag}: summary and analytics endpoints agree on the total`, true, { total: pageSummary.totalValue });
       } else {
-        const latestAnalytics = latestOk(analyticsCalls);
-        const analyticsReadAt = latestAnalytics ? analyticsCalls.startedAt.get(latestAnalytics.request()) ?? Date.now() : Date.now();
+        const analyticsReadAt = analyticsCalls.startedAt.get(overviewRead.response.request()) ?? Date.now();
         const writes = holdingsWriteTimes(session.userId);
-        const cacheExplained = withinAnalyticsCacheWindow(writes, analyticsReadAt);
-        const [nodeSummary, nodeAnalytics] = await Promise.all([api.summary(session), api.analytics(session)]);
+        const [nodeSummary, nodeAnalytics] = await Promise.all([api.summary(session), readAnalytics(role, session)]);
         const detail = {
           tag,
           summary: pageSummary.totalValue,
           analytics: overviewAnalytics.totalValue,
-          msSinceLastWrite: writes.length === 0 ? null : analyticsReadAt - Math.max(...writes.filter((t) => t <= analyticsReadAt), -Infinity),
+          msSinceLastWrite: msSinceLastWriteBefore(writes, analyticsReadAt),
           nodeRereadSummary: nodeSummary.totalValue,
           nodeRereadAnalytics: nodeAnalytics.totalValue,
         };
-        if (cacheExplained) {
-          evidence.observe("S11", "Overview shows two different totals: analytics cache stale after a holdings write", detail);
-          testInfo.annotations.push({ type: "expected-defect", description: "analytics-cache-stale-after-holdings-write" });
+        if (withinAnalyticsCacheWindow(writes, analyticsReadAt)) {
+          const waitedMs = await waitOutStaleAnalytics(session.userId, analyticsReadAt);
+          const [afterSummary, afterAnalytics] = await Promise.all([api.summary(session), readAnalytics(role, session)]);
+          const converged =
+            Math.abs(afterAnalytics.totalValue - afterSummary.totalValue) <= MONEY_TOLERANCE &&
+            Math.abs(afterSummary.totalValue - pageSummary.totalValue) <= MONEY_TOLERANCE;
+          const expiryDetail = { ...detail, waitedMs, afterExpirySummary: afterSummary.totalValue, afterExpiryAnalytics: afterAnalytics.totalValue };
+          evidence.verify("S11", `${tag}: after the cache TTL, analytics converges on the summary total`, converged, expiryDetail);
+          if (converged) {
+            evidence.observe("S11", "Overview shows two different totals: analytics cache stale after a holdings write", expiryDetail);
+            testInfo.annotations.push({ type: "expected-defect", description: "analytics-cache-stale-after-holdings-write" });
+          }
         } else {
           evidence.verify("S11", `${tag}: summary and analytics endpoints agree on the total`, false, detail);
         }
