@@ -18,7 +18,8 @@ jobs:
   # ──────────────────────────────────────────────
   # Changed-path classification
   #
-  # Publishes `docs_only`, which `unit-tests` consumes as its skip condition.
+  # Publishes `docs_only`, which `unit-tests` and `pact-consumer` consume as
+  # their skip condition.
   # The classifier is a SKIP allowlist: anything unrecognised forces the full
   # suite, so a new module can only ever over-test. It fails closed on empty
   # diffs, missing SHAs, git failure, and every non-pull_request event.
@@ -293,11 +294,12 @@ jobs:
   unit-tests:
     runs-on: ubuntu-latest
     needs: [static-guard, changes]
-    # Stage B: the only skip condition in the graph. integration-tests,
-    # pact-consumer and docker-build-verify carry no condition of their own —
-    # they skip by needs-propagation from here. That keeps the skip set
-    # downward-closed over the DAG by construction, so no job can be skipped
-    # while something downstream of it still runs, and nothing needs always().
+    # One of the two classifier-gated roots. integration-tests,
+    # azure-image-smoke-test, and task-8-9-powershell-tests carry no condition
+    # of their own and skip by needs-propagation from here. pact-consumer is
+    # the other root and uses this same predicate; docker-build-verify skips
+    # by propagation from pact-consumer. Nothing else may add a skip condition,
+    # and nothing except ci-required may use job-level always().
     if: needs.changes.outputs.docs_only != 'true'
     steps:
       - uses: actions/checkout@v4
@@ -492,7 +494,12 @@ jobs:
   # ──────────────────────────────────────────────
   pact-consumer:
     runs-on: ubuntu-latest
-    needs: integration-tests
+    needs: [static-guard, changes]
+    # Second classifier-gated root. Same existing docs-only predicate as
+    # unit-tests, and no dependency on unit-tests or integration-tests, so a
+    # failure there does not suppress this branch. docker-build-verify still
+    # needs only this job.
+    if: needs.changes.outputs.docs_only != 'true'
     steps:
       - uses: actions/checkout@v4
 

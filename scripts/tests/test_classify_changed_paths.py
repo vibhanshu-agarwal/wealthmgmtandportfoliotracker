@@ -38,10 +38,12 @@ blocks extracted from the workflow rather than Python re-implementations:
 
 Stage B skip topology:
 
-  - `unit-tests` carries the only skip condition in the graph. integration-tests,
-    pact-consumer and docker-build-verify stay unconditional and skip by
-    needs-propagation, which keeps the skip set downward-closed over the DAG by
-    construction -- no job can be skipped while something downstream still runs.
+  - `unit-tests` and `pact-consumer` are the only classifier-gated roots. Both
+    consume the existing `changes` output and the same docs-only predicate.
+    integration-tests, azure-image-smoke-test, and task-8-9-powershell-tests
+    skip by propagation from unit-tests. docker-build-verify skips by
+    propagation from pact-consumer. No other job carries its own skip condition,
+    so the skip set stays downward-closed over each branch.
 """
 
 from __future__ import annotations
@@ -387,22 +389,23 @@ class WorkflowWiringTests(unittest.TestCase):
         )
 
     # ── Stage B: the skip is live ────────────────────────────────────────────
-    def test_unit_tests_is_the_only_job_carrying_the_skip_condition(self):
-        # The whole safety argument rests on this: one condition, at the top of
-        # the chain. integration-tests, pact-consumer and docker-build-verify
-        # must stay unconditional so they skip by needs-propagation, which keeps
-        # the skip set downward-closed over the DAG by construction. A condition
-        # on any of them could skip a job while something downstream still ran.
-        unit = self._job(self.text, "unit-tests:")
-        self.assertRegex(
-            unit, r"(?m)^    if: needs\.changes\.outputs\.docs_only != 'true'$"
-        )
-        self.assertRegex(unit, r"(?m)^    needs: \[static-guard, changes\]$")
+    def test_unit_tests_and_pact_consumer_are_the_only_gated_roots(self):
+        # Two roots, one existing classifier output. pact-consumer must not
+        # remain downstream of unit-tests or integration-tests: either edge
+        # would suppress the branch when those jobs fail. Downstream jobs stay
+        # unconditional so each branch skips only by needs-propagation.
+        predicate = r"(?m)^    if: needs\.changes\.outputs\.docs_only != 'true'$"
+        needs = r"(?m)^    needs: \[static-guard, changes\]$"
+        for heading in ("unit-tests:", "pact-consumer:"):
+            with self.subTest(job=heading):
+                job = self._job(self.text, heading)
+                self.assertRegex(job, predicate)
+                self.assertRegex(job, needs)
 
         for heading in (
             "task-8-9-powershell-tests:",
+            "azure-image-smoke-test:",
             "integration-tests:",
-            "pact-consumer:",
             "docker-build-verify:",
         ):
             with self.subTest(job=heading):
@@ -411,6 +414,19 @@ class WorkflowWiringTests(unittest.TestCase):
                     r"(?m)^    if: ",
                     "downstream jobs must skip by propagation, not their own condition",
                 )
+
+        self.assertRegex(
+            self._job(self.text, "integration-tests:"),
+            r"(?m)^    needs: unit-tests$",
+        )
+        self.assertRegex(
+            self._job(self.text, "task-8-9-powershell-tests:"),
+            r"(?m)^    needs: unit-tests$",
+        )
+        self.assertRegex(
+            self._job(self.text, "docker-build-verify:"),
+            r"(?m)^    needs: pact-consumer$",
+        )
 
     def test_azure_image_smoke_test_needs_only_unit_tests_without_condition(self):
         job = self._job(self.text, "azure-image-smoke-test:")
@@ -437,8 +453,9 @@ ALL_JOBS = (
     "pact-consumer",
     "docker-build-verify",
 )
-# The six that skip together on a docs-only PR, by needs-propagation from the
-# single condition on unit-tests. Nothing outside this set may ever skip.
+# The six that skip together on a docs-only PR. unit-tests and pact-consumer
+# carry the predicate; the other four skip by needs-propagation. Nothing
+# outside this set may ever skip.
 CHAIN_JOBS = (
     "unit-tests",
     "task-8-9-powershell-tests",
