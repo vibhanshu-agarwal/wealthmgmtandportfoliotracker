@@ -118,6 +118,50 @@ describe("PortfolioPageContent — Asset Picker entry point", () => {
   });
 });
 
+describe("PortfolioPageContent — session gate", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.clearAllMocks();
+  });
+
+  // useAuthSession starts pending on every mount (static-export hydration), so the
+  // gate must show the skeleton and must not redirect or render controls meanwhile.
+  it("shows the skeleton and neither redirects nor renders controls while the session is pending", () => {
+    vi.stubEnv("NEXT_PUBLIC_ENABLE_ASSET_PICKER", "true");
+    vi.stubEnv("NEXT_PUBLIC_ENABLE_DEMO_RESET_CONTROL", "true");
+    mockUseAuthSession.mockReturnValue({ data: null, isPending: true });
+    mockUseAuthenticatedUserId.mockReturnValue({ userId: "", token: "", status: "loading", error: null });
+    stubPortfolio();
+
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const { container } = render(
+      <QueryClientProvider client={client}>
+        <PortfolioPageContent />
+      </QueryClientProvider>,
+    );
+
+    expect(container.querySelector(".animate-pulse")).toBeInTheDocument();
+    expect(mockReplace).not.toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: "Edit Holdings" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /reset demo portfolio/i })).not.toBeInTheDocument();
+  });
+
+  it("redirects to /login once the session resolves as signed out", () => {
+    mockUseAuthSession.mockReturnValue({ data: null, isPending: false });
+    mockUseAuthenticatedUserId.mockReturnValue({ userId: "", token: "", status: "unauthenticated", error: null });
+    stubPortfolio();
+
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <PortfolioPageContent />
+      </QueryClientProvider>,
+    );
+
+    expect(mockReplace).toHaveBeenCalledWith("/login");
+  });
+});
+
 describe("PortfolioPageContent — manual reset control (Tasks 6.1/6.2, independent flag)", () => {
   afterEach(() => {
     vi.unstubAllEnvs();

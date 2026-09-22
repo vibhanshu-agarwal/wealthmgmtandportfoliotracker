@@ -288,17 +288,17 @@ export async function enrichWireHoldings(
     const meta = getTickerMeta(h.assetTicker);
     const price = pricesByTicker.get(h.assetTicker);
 
-    // Never coerce unavailable price to 0 — null = "price unavailable"
+    // Never coerce unavailable price to 0 — null = "price unavailable" (finding F1)
     const currentPrice = (price && !price.priceUnavailable && price.currentPrice != null)
       ? price.currentPrice
-      : 0;
+      : null;
 
     // Task 2.1 ingestion boundary: quantity enters the domain as a string.
     const { quantity, quantityFidelityUnverified } = parseWireQuantity(h.quantity);
     // GC.2: the only arithmetic on a quantity goes through the display boundary, and the
     // converted number never flows back into domain state.
     const quantityValue = quantityToDisplayNumber(quantity) ?? 0;
-    const totalValue = Number((quantityValue * currentPrice).toFixed(2));
+    const totalValue = currentPrice == null ? null : Number((quantityValue * currentPrice).toFixed(2));
 
     // Use true observation timestamp; never fabricate now() for missing prices.
     const lastUpdatedAt = price?.observedAt ?? price?.updatedAt ?? null;
@@ -323,10 +323,12 @@ export async function enrichWireHoldings(
     };
   });
 
-  const totalValue = holdings.reduce((sum, h) => sum + h.totalValue, 0);
+  // Holdings without a value are excluded from the total, as portfolio-service does. Their
+  // weight is 0 and the UI does not show it (the value reads as unavailable).
+  const totalValue = holdings.reduce((sum, h) => sum + (h.totalValue ?? 0), 0);
   const holdingsWithWeight = holdings.map((h) => ({
     ...h,
-    portfolioWeight: totalValue > 0 ? (h.totalValue / totalValue) * 100 : 0,
+    portfolioWeight: h.totalValue != null && totalValue > 0 ? (h.totalValue / totalValue) * 100 : 0,
   }));
 
   return { holdings: holdingsWithWeight, totalValue };
@@ -470,7 +472,9 @@ export function buildPerformanceDtoFromPortfolio(
 export function buildAllocationDtoFromPortfolio(
   portfolio: PortfolioResponseDTO,
 ): AssetAllocationDTO {
+  // A holding without a value adds nothing and must not create an empty slice.
   const byClass = portfolio.holdings.reduce<Record<string, number>>((acc, h) => {
+    if (h.totalValue == null) return acc;
     acc[h.assetClass] = (acc[h.assetClass] ?? 0) + h.totalValue;
     return acc;
   }, {});
@@ -544,8 +548,11 @@ export function buildAllocationDtoFromAnalytics(
     OTHER: "Other",
   };
 
-  // Group by canonical display asset class using FX-converted base-currency values
+  // Group by canonical display asset class using FX-converted base-currency values.
+  // A holding whose value is unavailable is excluded, as it is from analytics.totalValue,
+  // and must not create an empty slice (finding F1).
   const byClass = analytics.holdings.reduce<Record<string, number>>((acc, h) => {
+    if (h.currentValueBase == null) return acc;
     // Unknown displayAssetClass → "OTHER" bucket (Requirement 4.3)
     const cls: string = h.displayAssetClass ?? "OTHER";
     acc[cls] = (acc[cls] ?? 0) + h.currentValueBase;

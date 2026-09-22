@@ -173,3 +173,81 @@ describe("PortfolioTicker — Task 9.7: no mock data", () => {
     expect(screen.getByRole("generic", { name: "Market ticker" })).toBeInTheDocument();
   });
 });
+
+// ── F1: unpriced holdings (analytics currentPrice / currentValueBase are nullable) ──
+
+const unpricedHolding = {
+  ticker: "SOL-USD",
+  quantity: 40,
+  currentPrice: null,
+  currentValueBase: null,
+  avgCostBasis: null,
+  costBasisCurrency: null,
+  unrealizedPnL: null,
+  unrealizedPnLPercent: null,
+  change24hAbsolute: null,
+  change24hPercent: null,
+  change24hReferenceAt: null,
+  changeBasis: null,
+  quoteCurrency: null,
+  displayAssetClass: "CRYPTO",
+};
+
+function analyticsWith(holdings: unknown[]) {
+  return { data: { ...analyticsWithHoldings.data, holdings } };
+}
+
+describe("PortfolioTicker — F1: holdings without a current price", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("renders the priced holdings and omits an unpriced one instead of crashing", () => {
+    mockUsePortfolioAnalytics.mockReturnValue(analyticsWith([...analyticsWithHoldings.data.holdings, unpricedHolding]));
+    mockUseMarketSummary.mockReturnValue(noData);
+    render(<PortfolioTicker />);
+    expect(screen.getAllByText("AAPL").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("BTC-USD").length).toBeGreaterThanOrEqual(1);
+    expect(screen.queryByText("SOL-USD")).not.toBeInTheDocument();
+    expect(screen.queryByText("$0.00")).not.toBeInTheDocument();
+  });
+
+  it("keeps a priced holding whose base value is unavailable, after the valued holdings", () => {
+    const fxUnavailable = { ...unpricedHolding, ticker: "RELIANCE.NS", currentPrice: 2950.5, quoteCurrency: "INR", displayAssetClass: "STOCK" };
+    mockUsePortfolioAnalytics.mockReturnValue(analyticsWith([fxUnavailable, ...analyticsWithHoldings.data.holdings]));
+    mockUseMarketSummary.mockReturnValue(noData);
+    render(<PortfolioTicker />);
+    const labels = screen.getAllByText(/^(AAPL|BTC-USD|RELIANCE\.NS)$/).map((el) => el.textContent);
+    expect(labels.slice(0, 3)).toEqual(["BTC-USD", "AAPL", "RELIANCE.NS"]);
+    expect(screen.getAllByText("$2,950.50").length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("falls back to the market summary when every holding is unpriced", () => {
+    mockUsePortfolioAnalytics.mockReturnValue(analyticsWith([unpricedHolding]));
+    mockUseMarketSummary.mockReturnValue(marketSummaryData);
+    render(<PortfolioTicker />);
+    expect(screen.getAllByText("MSFT").length).toBeGreaterThanOrEqual(1);
+    expect(screen.queryByText("SOL-USD")).not.toBeInTheDocument();
+  });
+
+  it("renders nothing when every holding is unpriced and there is no market summary", () => {
+    mockUsePortfolioAnalytics.mockReturnValue(analyticsWith([unpricedHolding]));
+    mockUseMarketSummary.mockReturnValue(noData);
+    const { container } = render(<PortfolioTicker />);
+    expect(container.innerHTML).toBe("");
+  });
+
+  it("skips market-summary entries without a latest price", () => {
+    mockUsePortfolioAnalytics.mockReturnValue(noData);
+    mockUseMarketSummary.mockReturnValue({
+      data: {
+        ...marketSummaryData.data,
+        NVDA: { ticker: "NVDA", latestPrice: null, priceHistory: [], trendPercent: null, aiSummary: null },
+      },
+    });
+    render(<PortfolioTicker />);
+    expect(screen.getAllByText("MSFT").length).toBeGreaterThanOrEqual(1);
+    expect(screen.queryByText("NVDA")).not.toBeInTheDocument();
+    expect(screen.queryByText("$0.00")).not.toBeInTheDocument();
+  });
+});

@@ -116,7 +116,8 @@ describe("Wave 6 — dashboard data accuracy end-to-end contract", () => {
 
     const analytics = await fetchPortfolioAnalytics("test-token");
     const holdingSum = analytics.holdings.reduce(
-      (sum, h) => sum + h.currentValueBase,
+      // portfolio-service excludes an unvalued (null) holding from totalValue too.
+      (sum, h) => sum + (h.currentValueBase ?? 0),
       0,
     );
 

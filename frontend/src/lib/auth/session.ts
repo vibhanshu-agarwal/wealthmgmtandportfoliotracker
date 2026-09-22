@@ -202,14 +202,17 @@ function subscribeToAuthSession(onStoreChange: () => void): () => void {
 }
 
 /**
- * LocalStorage-backed session. Uses client-first state + layout effect instead of
- * useSyncExternalStore so static-export hydration does not race with the first paint
- * (which previously left session null and triggered /login redirects before data loaded).
+ * LocalStorage-backed session.
+ *
+ * `undefined` means "not read yet". The static-export prerender has no localStorage, so
+ * the first client render must start pending too, or hydration mismatches (React #418).
+ * Until the bundle hydrates, the browser shows the prerendered pending skeleton; the
+ * layout effect then resolves the session before the first post-hydration paint. Gates
+ * only redirect once `isPending` is false, so a stored session never triggers a /login
+ * redirect race.
  */
 export function useAuthSession() {
-  const [session, setSession] = React.useState<AuthSession | null>(() =>
-    typeof window === "undefined" ? null : loadAuthSession(),
-  );
+  const [session, setSession] = React.useState<AuthSession | null | undefined>(undefined);
 
   React.useLayoutEffect(() => {
     setSession(loadAuthSession());
@@ -219,8 +222,8 @@ export function useAuthSession() {
   }, []);
 
   return {
-    data: session,
-    isPending: false,
+    data: session ?? null,
+    isPending: session === undefined,
     isAuthenticated: !!session,
     setSession: (nextSession: AuthSession | null) => {
       if (nextSession) {

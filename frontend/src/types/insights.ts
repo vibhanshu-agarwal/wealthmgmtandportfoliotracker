@@ -11,14 +11,14 @@
  * Mirrors {@code com.wealth.insight.dto.TickerSummary}.
  *
  * @field ticker       asset ticker symbol (e.g. "AAPL")
- * @field latestPrice  most recent price (BigDecimal → number)
+ * @field latestPrice  most recent price (BigDecimal → number); null when the ticker has no data
  * @field priceHistory last N price points, newest first (List<BigDecimal> → number[])
  * @field trendPercent percentage change oldest→newest, null when < 2 data points
  * @field aiSummary    2-sentence AI sentiment, null when AI unavailable
  */
 export interface TickerSummary {
   ticker: string;
-  latestPrice: number;
+  latestPrice: number | null;
   priceHistory: number[];
   trendPercent: number | null;
   aiSummary: string | null;

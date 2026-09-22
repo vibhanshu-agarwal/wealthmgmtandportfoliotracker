@@ -68,34 +68,45 @@ function TickerCell({ item }: { item: TickerItem }) {
 
 // ── Data builders ─────────────────────────────────────────────────────────────
 
+/** Descending by FX-converted value; a holding whose value is unavailable sorts last. */
+function compareByValueDesc(a: HoldingAnalyticsDTO, b: HoldingAnalyticsDTO): number {
+  if (a.currentValueBase == null) return b.currentValueBase == null ? 0 : 1;
+  if (b.currentValueBase == null) return -1;
+  return b.currentValueBase - a.currentValueBase;
+}
+
 /**
  * Build ticker items from analytics holdings — top 8 by FX-converted value.
- * Uses real change24hPercent (or null when unavailable).
+ * A holding without a current price is omitted: the strip shows prices, and inventing
+ * $0.00 would misstate it (finding F1). Uses real change24hPercent (or null when unavailable).
  */
 function buildTickerItemsFromAnalytics(
   holdings: HoldingAnalyticsDTO[],
 ): TickerItem[] {
-  return [...holdings]
-    .sort((a, b) => b.currentValueBase - a.currentValueBase)
+  return holdings
+    .filter((h) => h.currentPrice != null)
+    .sort(compareByValueDesc)
     .slice(0, 8)
     .map((h) => ({
       label: h.ticker,
-      value: h.currentPrice,
+      value: h.currentPrice as number,
       change: h.change24hPercent ?? null,
     }));
 }
 
 /**
  * Build ticker items from insight market summary (trend = insight trend, not 24h price change).
+ * Entries without a latest price are omitted.
  */
 function buildTickerItemsFromInsights(
   summary: Record<string, TickerSummary>,
 ): TickerItem[] {
   return Object.values(summary)
+    .filter((s) => s.latestPrice != null)
     .slice(0, 8)
     .map((s) => ({
       label: s.ticker,
-      value: s.latestPrice,
+      value: s.latestPrice as number,
       change: s.trendPercent ?? null,
     }));
 }
@@ -105,21 +116,22 @@ function buildTickerItemsFromInsights(
 /**
  * Horizontally scrolling ticker strip showing real portfolio/market data.
  *
- * Task 9.7: MOCK_TICKER removed. Prefers analytics holdings (by FX-converted
- * value); falls back to insight market summary. Hides gracefully when no real
- * data is available — never shows mock financial values.
+ * Task 9.7: MOCK_TICKER removed. Prefers analytics holdings that have a current
+ * price (by FX-converted value); falls back to insight market summary when there
+ * are none, including when every holding is unpriced. Hides gracefully when no
+ * real data is available — never shows mock financial values.
  */
 export function PortfolioTicker() {
   const [isPaused, setIsPaused] = useState(false);
   const { data: analytics } = usePortfolioAnalytics();
   const { data: marketSummary } = useMarketSummary();
 
-  // Build ticker items from real data; prefer analytics holdings
-  let items: TickerItem[] = [];
+  // Build ticker items from real data; prefer priced analytics holdings
+  let items: TickerItem[] = analytics?.holdings
+    ? buildTickerItemsFromAnalytics(analytics.holdings)
+    : [];
 
-  if (analytics?.holdings && analytics.holdings.length > 0) {
-    items = buildTickerItemsFromAnalytics(analytics.holdings);
-  } else if (marketSummary && Object.keys(marketSummary).length > 0) {
+  if (items.length === 0 && marketSummary) {
     items = buildTickerItemsFromInsights(marketSummary);
   }
 

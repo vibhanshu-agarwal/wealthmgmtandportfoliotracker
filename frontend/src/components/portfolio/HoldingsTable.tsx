@@ -282,18 +282,25 @@ export function HoldingsTable() {
           ? h.assetClass
           : (backendClass as AssetClass);
 
+      // A matching analytics record is authoritative for value and weight, including its null
+      // (price or FX unavailable): the enriched quantity × quote-currency price is neither
+      // FX-converted nor part of the analytics total the Overview shows. A null value's weight
+      // is not shown.
       const valueBase = analyticsHolding.currentValueBase;
       const portfolioWeight =
-        valueBase != null && analyticsTotalValue > 0
-          ? (valueBase / analyticsTotalValue) * 100
-          : h.portfolioWeight;
+        valueBase == null
+          ? 0
+          : analyticsTotalValue > 0
+            ? (valueBase / analyticsTotalValue) * 100
+            : h.portfolioWeight;
 
       return {
         ...h,
         assetClass: compatClass,
-        // FX-converted base-currency value from analytics — not qty × quote-currency price.
+        // A market-data price is still a real price when portfolio-service has none.
         currentPrice: analyticsHolding.currentPrice ?? h.currentPrice,
-        totalValue: valueBase ?? h.totalValue,
+        // FX-converted base-currency value from analytics — not qty × quote-currency price.
+        totalValue: valueBase,
         portfolioWeight,
         unrealizedPnL: analyticsHolding.unrealizedPnL,
         // Issue #3 fix: merge backend-provided percent directly — do NOT recompute client-side
@@ -329,8 +336,12 @@ export function HoldingsTable() {
         const cmp = compareQuantityStrings(a.quantity, b.quantity);
         return sortDir === "asc" ? cmp : -cmp;
       }
-      const aVal = a[sortKey as keyof AssetHoldingDTO] as number | string;
-      const bVal = b[sortKey as keyof AssetHoldingDTO] as number | string;
+      const aVal = a[sortKey as keyof AssetHoldingDTO] as number | string | null;
+      const bVal = b[sortKey as keyof AssetHoldingDTO] as number | string | null;
+      // An unavailable value (null) sorts last in either direction, never as 0.
+      if (aVal == null || bVal == null) {
+        return aVal == null ? (bVal == null ? 0 : 1) : -1;
+      }
       const cmp = aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
       return sortDir === "asc" ? cmp : -cmp;
     });
@@ -358,7 +369,7 @@ export function HoldingsTable() {
   // Total row values — null fields are excluded from the sum (not coerced to 0)
   const totals = rows.reduce(
     (acc, h) => ({
-      value: acc.value + h.totalValue,
+      value: h.totalValue != null ? acc.value + h.totalValue : acc.value,
       // Only add when non-null; null means "basis/reference unavailable"
       pnl: h.unrealizedPnL != null ? acc.pnl + h.unrealizedPnL : acc.pnl,
       pnlAvailable: acc.pnlAvailable || h.unrealizedPnL != null,
@@ -540,22 +551,30 @@ export function HoldingsTable() {
 
                       {/* ── Price ── */}
                       <TableCell className="text-right tabular-nums text-sm font-medium">
-                        {formatCurrency(holding.currentPrice)}
+                        {holding.currentPrice == null ? (
+                          <span className="text-muted-foreground">—</span>
+                        ) : (
+                          formatCurrency(holding.currentPrice)
+                        )}
                       </TableCell>
 
-                      {/* ── Value ── */}
+                      {/* ── Value ── (no weight when the value is unavailable) */}
                       <TableCell className="text-right">
-                        <div className="flex flex-col items-end gap-0.5">
-                          <span className="tabular-nums text-sm font-semibold">
-                            {formatCurrency(holding.totalValue)}
-                          </span>
-                          <Badge
-                            variant="secondary"
-                            className="text-[10px] h-4 px-1.5 font-normal"
-                          >
-                            {holding.portfolioWeight.toFixed(1)}%
-                          </Badge>
-                        </div>
+                        {holding.totalValue == null ? (
+                          <span className="text-sm text-muted-foreground tabular-nums">—</span>
+                        ) : (
+                          <div className="flex flex-col items-end gap-0.5">
+                            <span className="tabular-nums text-sm font-semibold">
+                              {formatCurrency(holding.totalValue)}
+                            </span>
+                            <Badge
+                              variant="secondary"
+                              className="text-[10px] h-4 px-1.5 font-normal"
+                            >
+                              {holding.portfolioWeight.toFixed(1)}%
+                            </Badge>
+                          </div>
+                        )}
                       </TableCell>
 
                       {/* ── Unrealized P&L ── */}

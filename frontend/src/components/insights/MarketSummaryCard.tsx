@@ -61,7 +61,11 @@ export function MarketSummaryCard({ summary }: MarketSummaryCardProps) {
       <CardContent className="space-y-3">
         {/* Price */}
         <p className="text-2xl font-bold tracking-tight tabular-nums">
-          {formatCurrency(latestPrice)}
+          {latestPrice == null ? (
+            <span className="text-muted-foreground">—</span>
+          ) : (
+            formatCurrency(latestPrice)
+          )}
         </p>
 
         {/* Sparkline — hidden when fewer than 2 data points */}

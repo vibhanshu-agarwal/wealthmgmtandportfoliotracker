@@ -10,6 +10,7 @@ export default defineConfig({
       "src/**/*.test.ts",
       "src/**/*.test.tsx",
       "tests/e2e/helpers/__tests__/**/*.test.ts",
+      "tests/phase3-e2e/lib/__tests__/**/*.test.ts",
     ],
   },
   resolve: {

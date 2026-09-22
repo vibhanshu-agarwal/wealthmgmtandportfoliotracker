@@ -35,10 +35,10 @@ export interface AssetHoldingDTO {
    * string and is byte-faithful.
    */
   quantityFidelityUnverified?: boolean;
-  /** Current market price per unit (USD) */
-  currentPrice: number;
-  /** quantity × currentPrice */
-  totalValue: number;
+  /** Current market price per unit (USD); null when no price is available — never $0.00 */
+  currentPrice: number | null;
+  /** quantity × currentPrice; null when currentPrice is null */
+  totalValue: number | null;
   /** Average cost per unit at time of purchase; null when basis unavailable */
   avgCostBasis: number | null;
   /** totalValue - (quantity × avgCostBasis); null when basis unavailable */
@@ -126,7 +126,10 @@ export interface PortfolioPerformanceDTO {
 /**
  * Per-holding analytics snapshot, all monetary values FX-converted to baseCurrency.
  *
- * Task 5 semantics — nullable fields carry | null to reflect typed-unavailable:
+ * Task 5 semantics — nullable fields carry | null to reflect typed-unavailable
+ * (the wire contract is PortfolioAnalyticsDto.HoldingAnalyticsDto in portfolio-service):
+ * - currentPrice and quoteCurrency: null when the ticker has no market price
+ * - currentValueBase: null when the price or the quote-currency FX rate is unavailable
  * - unrealizedPnL / unrealizedPnLPercent: null when no cost basis recorded
  * - change24hAbsolute / change24hPercent: null when no reference in history window
  * - change24hReferenceAt / changeBasis: null when no change reference
@@ -137,10 +140,10 @@ export interface HoldingAnalyticsDTO {
   ticker: string;
   /** Number of units held */
   quantity: number;
-  /** Current market price per unit in quoteCurrency */
-  currentPrice: number;
-  /** FX-converted total value in baseCurrency */
-  currentValueBase: number;
+  /** Current market price per unit in quoteCurrency; null when the ticker has no price */
+  currentPrice: number | null;
+  /** FX-converted total value in baseCurrency; null when the price or FX rate is unavailable */
+  currentValueBase: number | null;
   /** Average cost per unit in costBasisCurrency; null when basis unavailable */
   avgCostBasis: number | null;
   /** ISO currency of avgCostBasis (may differ from quoteCurrency); null when basis absent */
@@ -157,8 +160,8 @@ export interface HoldingAnalyticsDTO {
   change24hReferenceAt: string | null;
   /** "WITHIN_24H_WINDOW" | "SINCE_PREVIOUS_SNAPSHOT" | null */
   changeBasis: string | null;
-  /** ISO 4217 currency code in which currentPrice is denominated */
-  quoteCurrency: string;
+  /** ISO 4217 currency code in which currentPrice is denominated; null when there is no price */
+  quoteCurrency: string | null;
   /** Canonical display asset class: "STOCK" | "CRYPTO" | "BOND" | "CASH" | "COMMODITY" | "OTHER" */
   displayAssetClass: DisplayAssetClass;
 }
