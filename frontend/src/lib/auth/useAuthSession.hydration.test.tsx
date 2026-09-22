@@ -1,7 +1,7 @@
 import { act, useEffect } from "react";
 import { hydrateRoot, type Root } from "react-dom/client";
 import { renderToString } from "react-dom/server";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { clearAuthSession, saveAuthSession, useAuthSession } from "./session";
 
 // The dashboard is a static export: its HTML is prerendered once, with no browser and
@@ -40,6 +40,8 @@ const STORED_SESSION = {
 let container: HTMLDivElement;
 let root: Root | undefined;
 const storage = new Map<string, string>();
+const originalLocalStorage = Object.getOwnPropertyDescriptor(window, "localStorage");
+const originalActEnvironment = globalThis.IS_REACT_ACT_ENVIRONMENT;
 
 // Node's own experimental localStorage global shadows jsdom's and is undefined without
 // --localstorage-file, so install a Map-backed store (as session.test.ts does).
@@ -86,7 +88,8 @@ describe("useAuthSession static-export hydration", () => {
     root = undefined;
     container.remove();
     storage.clear();
-    vi.restoreAllMocks();
+    if (originalLocalStorage) Object.defineProperty(window, "localStorage", originalLocalStorage);
+    globalThis.IS_REACT_ACT_ENVIRONMENT = originalActEnvironment;
   });
 
   it("hydrates a stored session without a server/client mismatch", async () => {
