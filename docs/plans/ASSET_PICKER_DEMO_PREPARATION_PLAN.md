@@ -90,21 +90,33 @@ the only recorded page-error class was the known signed-in React hydration error
 Fable 5.1 exit review returned **ACCEPT WITH MINORS** with zero Critical, zero Important, and four
 Minor findings.
 
+Task 7 subsequently completed through the `CHANGELOG.md`-only
+[PR #308](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/308), merged at
+`main@57910b09f408e819537ca875b51ee150d56d5ea7`. Full exact-merge
+[CI Verification](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/35679165460)
+passed with all 14 jobs successful. Annotated tag object
+`50dba1f42229c448381fc22ddf7758452e703932` names `v0.9.0` and points to that merge commit; the
+[`0.9.0` GitHub pre-release](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/releases/tag/v0.9.0)
+has no assets, and
+[Release Tag Validation run 35680891236](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/35680891236)
+passed. No deployment workflow was triggered by the tag or Release. The `v*` creation ruleset was
+absent, and the owner explicitly accepted that residual risk before publication.
+
 React #418 remains a binding Phase 3 blocker and was not suppressed. The accepted 320px/375px
 overflows remain open backlog. The review also left two Low-priority presentation/data-consistency
 items open for later work: mocked 24-hour/freshness values are not fully consistent across pages, and
 the 1280px header ticker's first letter can sit under the fade edge. Phase 2 source has not been
-deployed or Production-verified. Task 7 and Phase 3 remain closed pending separate owner authority.
+deployed or Production-verified. Task 7 is complete; Phase 3 remains closed pending separate owner
+authority.
 
 ## Owner approval callouts
 
 The original plan kept merge, production operations, test-user creation, cleanup, and external
 publication as separate owner decisions. The owner separately authorized the actions that produced
-the Phase 1 outcome, the Phase 2 source merges, and the post-merge Phase 2 exit review recorded above.
-Those consumed authorizations do not authorize future deployments, production mutations, creation of
-additional users, cleanup, or external publication. Task 7 (`v0.9.0` tag and non-deploying GitHub
-pre-release rehearsal), Phase 3, and any future deployment or Production operation remain distinct
-owner gates. This reconciliation records status only and grants none of those authorities.
+the Phase 1 outcome, the Phase 2 source merges and exit review, and the completed Task 7 release-only
+rehearsal recorded above. Those consumed authorizations do not authorize Phase 3, future deployments,
+Production mutations, creation of additional users, cleanup, ruleset changes, or future publication.
+This reconciliation records status only and grants none of those authorities.
 
 ## Global constraints
 
@@ -197,18 +209,15 @@ source has been deployed or Production-verified.
   negative-control run `negative-controls-20260921-184547Z`, final run
   `final-20260921-184656Z`, and an independent **ACCEPT WITH MINORS** verdict (0 Critical,
   0 Important).
-- [ ] Establish the product Semantic Versioning foundation at `0.9.0` and rehearse the
+- [x] Establish the product Semantic Versioning foundation at `0.9.0` and rehearse the
   non-deploying `v0.9.0` pre-release. Governed by the
   [design](../superpowers/specs/2026-09-20-product-semantic-versioning-design.md), the
   [implementation plan](../superpowers/plans/2026-09-20-product-semantic-versioning.md), and the
   [versioning policy](../release/SEMANTIC_VERSIONING_POLICY.md). The `0.9.0` validation is
-  `scripts/validate_product_version.py` and its contract tests, which required `static-guard` runs
-  in branch mode. `.github/workflows/release-tag-validation.yml` re-runs the validator in tag mode
-  only once a `v*` tag exists, so no tag-mode evidence exists before plan Task 7. The source
-  foundation merged through PR #300 at `3eca669c`, and the Phase 2 exit passed at `8f2c4cf7`. The
-  combined item remains unchecked solely until the `v0.9.0` tag plus GitHub pre-release rehearsal
-  (plan Task 7) complete under separate owner authorization. Neither publication nor the rehearsal
-  deploys anything.
+  `scripts/validate_product_version.py` and its contract tests. The source foundation merged through
+  PR #300 at `3eca669c`, and the Phase 2 exit passed at `8f2c4cf7`. Task 7 completed through PR #308
+  at `57910b09`: annotated tag `v0.9.0` points to that commit, the GitHub pre-release has no assets,
+  tag validation passed in run `35680891236`, and neither the tag nor Release triggered deployment.
 
 ---
 
