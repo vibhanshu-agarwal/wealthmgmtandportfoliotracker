@@ -191,8 +191,9 @@ critical backlog defect blocks a demonstration.
 `main@8f2c4cf7947cad316e3d063b5f322b4d78dc64d5`. Phase 2.1 is merged through PR #297, the SemVer
 foundation through PR #300, and the final demo-correctness fixes through PR #301. Post-merge CI was
 green; the exact-merge flagged build, 21 negative controls, 24-capture matrix, six interaction
-scenarios, and independent exit review passed at the level recorded above. React #418 remains an
-unsuppressed, binding Phase 3 blocker. The explicitly accepted narrow-width overflows and the two
+scenarios, and independent exit review passed at the level recorded above. At that exit, React #418
+remained an unsuppressed Phase 3 blocker; it was later fixed and merged in PR #310 and still requires
+Production deployment and re-verification. The explicitly accepted narrow-width overflows and the two
 Low-priority exit-review presentation/data-consistency findings remain open backlog. No Phase 2
 source has been deployed or Production-verified.
 
@@ -249,9 +250,11 @@ persistence, conflict, freshness, evidence, and uncontended-run requirement belo
 blocked until Phase 3 and the remediation or explicit acceptance of its findings are complete; the
 full gate is the `1.0.0` boundary in the [versioning policy](../release/SEMANTIC_VERSIONING_POLICY.md).
 
-**Open blocker:** the signed-in React hydration error #418 is binding for Phase 3 and must be fixed
-and reverified before Phase 3 can pass. The cross-page 24-hour/freshness presentation must also be
-checked against real data rather than inferred from the Phase 2 mock-only discrepancy.
+**Open serving blocker:** the signed-in React hydration error #418 is fixed in merged source but must
+be deployed and reverified in Production before Phase 3 can pass. The merged D11/F13 24-hour fix
+likewise requires the D11 portfolio-service to serve before or with the frontend. Cross-page
+24-hour/freshness presentation must be checked against real data rather than inferred from the Phase
+2 mock-only discrepancy.
 
 - [ ] Before Production mutation, declare the identity lifecycle: retained named certification
   accounts or an explicitly approved cleanup mechanism.
