@@ -534,7 +534,7 @@ class PortfolioAnalyticsServiceTest {
     }
 
     @Test
-    void d11_totals_mixedPortfolio_coverOnlyHoldingsWithAReference() {
+    void d11_totals_mixedPortfolio_subsetTotalIsMarkedPartial() {
         // AAPL    12 @ 1126.48, ref 1000.00 → value 13517.76, change +1517.76
         // BTC-USD 0.5 @ 60000, ref 62000    → value 30000.00, change −1000.00
         // ETH-USD 2 @ 3000, no reference     → value  6000.00, change unknown: in totalValue only
@@ -554,6 +554,9 @@ class PortfolioAnalyticsServiceTest {
         assertThat(result.totalValue()).isEqualByComparingTo("49517.7600");
         assertThat(result.totalChange24hBase()).isEqualByComparingTo("517.7600");
         assertThat(result.totalChange24hPercent()).isEqualByComparingTo("1.2041");
+        // Coverage: AAPL and BTC-USD contribute (2); AAPL, BTC-USD and ETH-USD are counted in
+        // totalValue (3); the portfolio holds 4. The subset total must say so.
+        assertCoverage(result, 2, 3, 4, true);
     }
 
     @Test
@@ -571,6 +574,48 @@ class PortfolioAnalyticsServiceTest {
 
         assertThat(result.totalChange24hBase()).isEqualByComparingTo("100.0000");
         assertThat(result.totalChange24hPercent()).isEqualByComparingTo("5.2632");
+        // Missing FX: only AAPL contributes and is counted; the portfolio holds 2.
+        assertCoverage(result, 1, 1, 2, true);
+    }
+
+    @Test
+    void d11_coverage_missingPriceIsPartial_evenThoughTheCountedHoldingsAllContribute() {
+        // SOL-USD has no price, so it is not counted in totalValue. Counting only the counted
+        // holdings would call this complete (1 of 1); against every holding it is 1 of 2.
+        Instant refAt = Instant.now().minus(24, ChronoUnit.HOURS);
+        stubQuery(List.of(
+                holdingRow("AAPL", "10", "200.00", "USD", "190.00", refAt, "WITHIN_24H_WINDOW", null, null),
+                holdingRow("SOL-USD", "40", null, null, null, null, null, null, null)));
+
+        PortfolioAnalyticsDto result = service.getAnalytics(USER_ID);
+
+        assertThat(result.totalChange24hBase()).isEqualByComparingTo("100.0000");
+        assertCoverage(result, 1, 1, 2, true);
+    }
+
+    @Test
+    void d11_coverage_missingHistoryIsPartial() {
+        // ETH-USD is priced and counted, but has no reference: 1 contributing of 2 counted, 2 held.
+        Instant refAt = Instant.now().minus(24, ChronoUnit.HOURS);
+        stubQuery(List.of(
+                holdingRow("AAPL", "10", "200.00", "USD", "190.00", refAt, "WITHIN_24H_WINDOW", null, null),
+                holdingRow("ETH-USD", "2", "3000.00", "USD", null, null, null, null, null)));
+
+        assertCoverage(service.getAnalytics(USER_ID), 1, 2, 2, true);
+    }
+
+    @Test
+    void d11_coverage_completeWhenEveryHoldingContributes() {
+        // AAPL 10 × (200 − 190) = 100 and BTC-USD 0.5 × (60000 − 62000) = −1000 → −900; 2 of 2 of 2.
+        Instant refAt = Instant.now().minus(24, ChronoUnit.HOURS);
+        stubQuery(List.of(
+                holdingRow("AAPL", "10", "200.00", "USD", "190.00", refAt, "WITHIN_24H_WINDOW", null, null),
+                holdingRow("BTC-USD", "0.5", "60000.00", "USD", "62000.00", refAt, "WITHIN_24H_WINDOW", null, null)));
+
+        PortfolioAnalyticsDto result = service.getAnalytics(USER_ID);
+
+        assertThat(result.totalChange24hBase()).isEqualByComparingTo("-900.0000");
+        assertCoverage(result, 2, 2, 2, false);
     }
 
     @Test
@@ -591,6 +636,8 @@ class PortfolioAnalyticsServiceTest {
         assertThat(result.totalValue()).isEqualByComparingTo("2000.0000");
         assertThat(result.totalChange24hBase()).isEqualByComparingTo("100.0000");
         assertThat(result.totalChange24hPercent()).isEqualByComparingTo("5.2632");
+        // SAP has its own 24h value but is not counted, so it does not contribute: 1 of 1 of 2.
+        assertCoverage(result, 1, 1, 2, true);
     }
 
     @Test
@@ -603,6 +650,8 @@ class PortfolioAnalyticsServiceTest {
 
         assertThat(result.totalChange24hBase()).isNull();
         assertThat(result.totalChange24hPercent()).isNull();
+        // AAPL is counted without a reference; SOL-USD has no price: 0 of 1 of 2.
+        assertCoverage(result, 0, 1, 2, true);
     }
 
     @Test
@@ -613,6 +662,8 @@ class PortfolioAnalyticsServiceTest {
 
         assertThat(result.totalChange24hBase()).isNull();
         assertThat(result.totalChange24hPercent()).isNull();
+        // Nothing held, so nothing is missing.
+        assertCoverage(result, 0, 0, 0, false);
     }
 
     @Test
@@ -1000,6 +1051,15 @@ class PortfolioAnalyticsServiceTest {
         return new AnalyticsQueryRow(
                 "HISTORY", ticker, null, null, currency, null, null, null, null, null,
                 date, new BigDecimal(price));
+    }
+
+    private static void assertCoverage(PortfolioAnalyticsDto result,
+                                       int holdingsWithChange, int countedHoldings, int totalHoldings, boolean partial) {
+        assertThat(result.change24hCoverage()).isNotNull();
+        assertThat(result.change24hCoverage().holdingsWithChange()).as("holdingsWithChange").isEqualTo(holdingsWithChange);
+        assertThat(result.change24hCoverage().countedHoldings()).as("countedHoldings").isEqualTo(countedHoldings);
+        assertThat(result.change24hCoverage().totalHoldings()).as("totalHoldings").isEqualTo(totalHoldings);
+        assertThat(result.change24hCoverage().partial()).as("partial").isEqualTo(partial);
     }
 
     private static Map<String, HoldingAnalyticsDto> byTicker(PortfolioAnalyticsDto result) {

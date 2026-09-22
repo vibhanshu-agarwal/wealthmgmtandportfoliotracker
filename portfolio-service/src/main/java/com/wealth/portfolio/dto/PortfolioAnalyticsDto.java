@@ -26,6 +26,8 @@ import java.util.List;
  *                           {@code totalValue}; null when none of them has a 24h change
  * @param totalChange24hPercent nullable; {@code totalChange24hBase} as a percentage of those
  *                              holdings' value at the reference; null when that value is not positive
+ * @param change24hCoverage which holdings the 24h totals cover; never null. Consumers must disclose
+ *                          a partial total rather than present it as the whole portfolio's change.
  * @param performanceCoverage coverage metadata for the performance series; never null
  */
 public record PortfolioAnalyticsDto(
@@ -35,6 +37,7 @@ public record PortfolioAnalyticsDto(
         BigDecimal totalUnrealizedPnLPercent,
         BigDecimal totalChange24hBase,
         BigDecimal totalChange24hPercent,
+        Change24hCoverageDto change24hCoverage,
         String baseCurrency,
         boolean partialValuation,
         PerformerDto bestPerformer,
@@ -43,6 +46,22 @@ public record PortfolioAnalyticsDto(
         List<PerformancePointDto> performanceSeries,
         PerformanceCoverageDto performanceCoverage
 ) {
+
+    /**
+     * D11: coverage of {@code totalChange24hBase} / {@code totalChange24hPercent}.
+     *
+     * @param holdingsWithChange holdings that contribute a position-level 24h change to the totals
+     * @param countedHoldings    holdings counted in {@code totalValue}
+     * @param totalHoldings      every holding in the portfolio, including those without a price or
+     *                           FX rate, so a missing price, FX rate or history always shows
+     * @param partial            {@code holdingsWithChange < totalHoldings}
+     */
+    public record Change24hCoverageDto(
+            int holdingsWithChange,
+            int countedHoldings,
+            int totalHoldings,
+            boolean partial
+    ) {}
 
     /**
      * Identifies the best or worst performing holding by 24h price change.

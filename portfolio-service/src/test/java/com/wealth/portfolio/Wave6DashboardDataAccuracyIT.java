@@ -232,6 +232,15 @@ class Wave6DashboardDataAccuracyIT {
         assertThat(dto.totalChange24hBase()).isEqualByComparingTo(sumOfChanges);
         assertThat(dto.totalChange24hPercent()).isNotNull();
 
+        // D11 coverage: counted against every holding, partial when any holding does not contribute.
+        long contributing = dto.holdings().stream()
+                .filter(h -> h.currentValueBase() != null && h.change24hValueBase() != null)
+                .count();
+        assertThat(dto.change24hCoverage().holdingsWithChange()).isEqualTo((int) contributing);
+        assertThat(dto.change24hCoverage().totalHoldings()).isEqualTo(dto.holdings().size());
+        assertThat(dto.change24hCoverage().partial())
+                .isEqualTo(contributing < dto.holdings().size());
+
         // Property 2: P&L identity when basis is present
         if (dto.totalUnrealizedPnL() != null) {
             BigDecimal expectedPnL = dto.totalValue().subtract(dto.totalCostBasis());

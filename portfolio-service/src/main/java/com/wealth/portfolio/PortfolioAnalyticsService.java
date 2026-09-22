@@ -1,6 +1,7 @@
 package com.wealth.portfolio;
 
 import com.wealth.portfolio.dto.PortfolioAnalyticsDto;
+import com.wealth.portfolio.dto.PortfolioAnalyticsDto.Change24hCoverageDto;
 import com.wealth.portfolio.dto.PortfolioAnalyticsDto.HoldingAnalyticsDto;
 import com.wealth.portfolio.dto.PortfolioAnalyticsDto.PerformerDto;
 import com.wealth.portfolio.dto.PortfolioAnalyticsDto.PerformanceCoverageDto;
@@ -361,8 +362,9 @@ public class PortfolioAnalyticsService {
                 .map(HoldingAnalyticsDto::currentValueBase)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        // D11 (finding F13): the 24h totals describe exactly the holdings counted in totalValue.
-        Change24hTotals change24hTotals = computeChange24hTotals(countedHoldings);
+        // D11 (finding F13): the 24h totals describe exactly the holdings counted in totalValue, and
+        // their coverage is measured against every holding.
+        Change24hTotals change24hTotals = computeChange24hTotals(countedHoldings, holdingDtos.size());
 
         // Task 5.1: aggregate cost basis — only include holdings whose value is also counted
         // (symmetric with totalValue). Problem A fix: add currentValueBase != null filter so
@@ -425,6 +427,7 @@ public class PortfolioAnalyticsService {
                 totalPnLPct,
                 change24hTotals.amount(),
                 change24hTotals.percent(),
+                change24hTotals.coverage(),
                 baseCurrency,
                 !unavailableCurrencies.isEmpty(),
                 best,
@@ -464,8 +467,8 @@ public class PortfolioAnalyticsService {
         return currentPrice.subtract(price24hAgo).setScale(4, RoundingMode.HALF_UP);
     }
 
-    /** Portfolio-level 24h change in base currency (D11); both components nullable. */
-    record Change24hTotals(BigDecimal amount, BigDecimal percent) {}
+    /** Portfolio-level 24h change in base currency (D11); amount and percent nullable. */
+    record Change24hTotals(BigDecimal amount, BigDecimal percent, Change24hCoverageDto coverage) {}
 
     /**
      * D11 (finding F13): sums {@code change24hValueBase} over the counted holdings that have one.
@@ -473,14 +476,20 @@ public class PortfolioAnalyticsService {
      * denominator, so an unknown change is never treated as zero. The percent is the amount over
      * those holdings' value at the reference ({@code Σ currentValueBase − change24hValueBase}).
      *
+     * <p>Coverage counts against every holding, not only the counted ones, so a holding missing its
+     * price, FX rate or history always marks the totals partial.
+     *
      * @param countedHoldings the holdings counted in {@code totalValue}
+     * @param totalHoldings   every holding in the portfolio
      */
-    Change24hTotals computeChange24hTotals(List<HoldingAnalyticsDto> countedHoldings) {
+    Change24hTotals computeChange24hTotals(List<HoldingAnalyticsDto> countedHoldings, int totalHoldings) {
         List<HoldingAnalyticsDto> withChange = countedHoldings.stream()
                 .filter(h -> h.change24hValueBase() != null)
                 .toList();
+        Change24hCoverageDto coverage = new Change24hCoverageDto(
+                withChange.size(), countedHoldings.size(), totalHoldings, withChange.size() < totalHoldings);
         if (withChange.isEmpty()) {
-            return new Change24hTotals(null, null);
+            return new Change24hTotals(null, null, coverage);
         }
         BigDecimal amount = withChange.stream()
                 .map(HoldingAnalyticsDto::change24hValueBase)
@@ -493,7 +502,7 @@ public class PortfolioAnalyticsService {
                         .multiply(HUNDRED)
                         .setScale(4, RoundingMode.HALF_UP)
                 : null;
-        return new Change24hTotals(amount, percent);
+        return new Change24hTotals(amount, percent, coverage);
     }
 
     /**
@@ -711,6 +720,7 @@ public class PortfolioAnalyticsService {
                 null,
                 null,
                 null,
+                new Change24hCoverageDto(0, 0, 0, false),
                 baseCurrency,
                 false,
                 SENTINEL_PERFORMER,
