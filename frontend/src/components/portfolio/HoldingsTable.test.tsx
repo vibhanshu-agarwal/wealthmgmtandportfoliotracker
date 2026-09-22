@@ -252,6 +252,10 @@ describe("HoldingsTable — D11: position-level 24h values", () => {
     return screen.getByText("24h", { selector: "p" }).nextElementSibling!.textContent;
   }
 
+  function search(text: string) {
+    fireEvent.change(screen.getByPlaceholderText("Search ticker or name…"), { target: { value: text } });
+  }
+
   it("shows each row's position-level change under its percent", () => {
     setup([aapl, btc, sol]);
     expect(cell24h("AAPL").textContent).toBe("+12.65%+$1,517.76");
@@ -263,10 +267,21 @@ describe("HoldingsTable — D11: position-level 24h values", () => {
     expect(cell24h("SOL-USD").textContent).toBe("+1.50%");
   });
 
-  it("totals the position-level changes in the footer", () => {
-    // 1,517.76 − 1,000.00 = +517.76; SOL-USD has no base-currency change and is left out.
+  it("totals the position-level changes in the footer and marks it partial", () => {
+    // 1,517.76 − 1,000.00 = +517.76; SOL-USD has no base-currency change, so 2 of the 3 visible rows.
     setup([aapl, btc, sol]);
     expect(footer24h()).toBe("+$517.76");
+    expect(screen.getByTestId("footer-24h-coverage").textContent).toBe("Partial: 2 of 3");
+  });
+
+  it("judges coverage over the visible rows only", () => {
+    setup([aapl, btc, sol]);
+    search("AAPL");
+    expect(footer24h()).toBe("+$1,517.76");
+    expect(screen.queryByTestId("footer-24h-coverage")).not.toBeInTheDocument();
+    search("SOL");
+    expect(footer24h()).toBe("—");
+    expect(screen.queryByTestId("footer-24h-coverage")).not.toBeInTheDocument();
   });
 
   it('shows "—" in the footer when no row has a position-level change (an older backend)', () => {

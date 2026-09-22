@@ -381,9 +381,12 @@ export function HoldingsTable() {
       // D11: position-level base-currency changes, never the per-unit change24hAbsolute
       abs24h: h.change24hValueBase != null ? acc.abs24h + h.change24hValueBase : acc.abs24h,
       abs24hAvailable: acc.abs24hAvailable || h.change24hValueBase != null,
+      rowsWith24h: h.change24hValueBase != null ? acc.rowsWith24h + 1 : acc.rowsWith24h,
     }),
-    { value: 0, pnl: 0, pnlAvailable: false, abs24h: 0, abs24hAvailable: false },
+    { value: 0, pnl: 0, pnlAvailable: false, abs24h: 0, abs24hAvailable: false, rowsWith24h: 0 },
   );
+  // D11: the 24h total covers only the visible rows that have a position-level change; say so.
+  const footer24hPartial = totals.abs24hAvailable && totals.rowsWith24h < rows.length;
 
   return (
     <Card>
@@ -676,6 +679,15 @@ export function HoldingsTable() {
                 >
                   {totals.abs24hAvailable ? formatSignedCurrency(totals.abs24h) : "—"}
                 </p>
+                {footer24hPartial && (
+                  <p
+                    className="text-[10px] tabular-nums text-amber-600 dark:text-amber-400"
+                    data-testid="footer-24h-coverage"
+                    title={`24h change available for ${totals.rowsWith24h} of ${rows.length} holdings shown`}
+                  >
+                    Partial: {totals.rowsWith24h} of {rows.length}
+                  </p>
+                )}
               </div>
             </div>
           </div>

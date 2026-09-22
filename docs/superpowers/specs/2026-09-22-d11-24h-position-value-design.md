@@ -30,13 +30,14 @@ ticker's price move. That stays.
 
 ## 2. Contract (additive, portfolio-service)
 
-Existing fields keep their meaning. Three fields are added:
+Existing fields keep their meaning. Three values and their coverage are added:
 
 | Field | Where | Definition | Null when |
 |---|---|---|---|
 | `change24hValueBase` | each holding | `quantity × (currentPrice − price24hAgo) × fxRate(quoteCurrency → base)`, scale 4, HALF_UP | no reference price, no current price, or the FX rate is unavailable |
 | `totalChange24hBase` | top level | `Σ change24hValueBase` over the holdings counted in `totalValue` | no counted holding has a `change24hValueBase` |
 | `totalChange24hPercent` | top level | `totalChange24hBase / Σ(currentValueBase − change24hValueBase) × 100` over those same holdings, scale 4 | `totalChange24hBase` is null, or that prior value is ≤ 0 |
+| `change24hCoverage` | top level | `{ holdingsWithChange, countedHoldings, totalHoldings, partial }`: the holdings that contribute to the totals, the holdings counted in `totalValue`, every holding, and `partial = holdingsWithChange < totalHoldings` | never (an empty portfolio is 0, 0, 0, not partial) |
 
 Decisions:
 - **Same inclusion set as `totalValue`.** A holding excluded from `totalValue` (missing price, quote
@@ -46,6 +47,12 @@ Decisions:
   percent's denominator. The percent is the 24h return of the holdings that have a reference, not
   a figure diluted by holdings whose change is unknown. (Treating an unknown change as zero is the
   "invented zero" F1 removed.)
+- **A subset total is always marked partial** (Codex review of `c4144070`). `partial` compares the
+  contributing holdings with **every** holding, not only the counted ones: a holding without a price
+  or FX rate is not counted in `totalValue`, so a counted-only comparison would call such a portfolio
+  complete. Missing history, a missing price, a missing FX rate or a cost-basis-FX exclusion therefore
+  all mark the totals partial. `countedHoldings` is reported alongside for the Portfolio Total's
+  scope.
 - **FX.** The current rate converts both endpoints, so the value reflects the price move only, not
   the FX move over the window. No historical FX rates exist to do better.
 - **Reference basis.** Unchanged: a holding whose reference is older than the 36 h window
@@ -58,14 +65,18 @@ Decisions:
 
 ## 3. Frontend
 
-- Types: the three fields are **optional** (`?: number | null`). An older backend omits them, and the
-  frontend treats absent as unavailable.
+- Types: the new fields are **optional**. An older backend omits them, and the frontend treats absent
+  as unavailable.
 - Overview 24h card: amount = `totalChange24hBase`, percent = `totalChange24hPercent`. No client-side
-  summing. Absent or null → "—".
+  summing. The totals are shown **only with their coverage**: absent coverage (an older backend) fails
+  closed to "—" ("24h coverage unavailable"), and a partial total carries a visible label,
+  "Partial: n of m holdings". The wording differs from the Performance chart's history label,
+  "Partial (n/m holdings)", so the two cannot be confused.
 - Portfolio rows: the sub-line under the percent shows the position's `change24hValueBase`. When it is
   unavailable, the row still shows the percent, without a sub-line. When the percent is unavailable,
   the cell shows "—" as today.
-- Portfolio footer "24h": `Σ change24hValueBase` over the visible rows; "—" when none is available.
+- Portfolio footer "24h": `Σ change24hValueBase` over the visible rows; "—" when none is available;
+  and "Partial: n of m" when some, but not all, visible rows have a position change.
 - Market Data: unchanged (per-unit price change).
 
 **Deploy consequence (for the owner, A3/D3).** The frontend needs the new backend fields.
@@ -90,13 +101,20 @@ under test or re-implementing its formula over its own output.
   - A mixed portfolio with a holding that has no reference: totals and percent from hand arithmetic.
   - A holding excluded from `totalValue` by cost-basis FX is excluded from the 24h totals.
   - No counted holding with a change, and an empty portfolio → both totals null.
+  - Coverage, hand-counted: the mixed portfolio (2 contributing, 3 counted, 4 held, partial); missing
+    FX (1, 1, 2, partial); missing price (1, 1, 2, partial, where a counted-only comparison would say
+    complete); missing history (1, 2, 2, partial); cost-basis FX (1, 1, 2, partial); none contributing
+    (0, 1, 2, partial); every holding contributing (2, 2, 2, complete); empty (0, 0, 0, complete).
 - **Backend integration** (`Wave6DashboardDataAccuracyIT`, real Postgres): 10 units, 100 → 110 →
   `change24hValueBase` 100.0000, and `totalChange24hBase` equals the sum of every counted holding's
   `change24hValueBase` (the dev user can hold other seeded holdings, so not 100 alone). Like the
-  existing `totalValue` identity beside it, that sum cannot see the cost-basis-FX exclusion.
+  existing `totalValue` identity beside it, that sum cannot see the cost-basis-FX exclusion. The
+  coverage counts and flag must agree with the holdings.
 - **Frontend component:** the card shows the backend totals where they differ from the per-unit sum;
   "—" when the fields are absent (older backend) or null; row sub-lines and the footer from
-  hand-computed position values; percent without a sub-line when the position value is unavailable.
+  hand-computed position values; percent without a sub-line when the position value is unavailable;
+  the card's partial label, its absence when complete, and "—" when coverage metadata is absent;
+  the footer's partial label, judged over the visible rows only.
 - **Phase 3 suite (S11):**
   - the card must equal `totalChange24hBase`, and `totalChange24hBase` must equal an independent
     recomputation from primitive fields,
@@ -104,7 +122,11 @@ under test or re-implementing its formula over its own output.
     wire rounding of the per-unit change; the ledger records those primitives;
   - each Portfolio row's sub-line must equal its `change24hValueBase` (none when null), and the
     footer must equal their sum;
-  - the Portfolio row percent check no longer requires a non-null per-unit change.
+  - the Portfolio row percent check no longer requires a non-null per-unit change;
+  - the payload's coverage must match a count made from its holdings, the card must show the partial
+    label exactly when coverage is partial, and the footer must show its label exactly when a visible
+    row lacks a position change;
+  - negative controls suppress each label, and show the card label on a complete portfolio.
 
 ## 5. Out of scope
 

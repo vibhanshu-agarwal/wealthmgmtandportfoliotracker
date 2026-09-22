@@ -176,6 +176,18 @@ export interface HoldingAnalyticsDTO {
   displayAssetClass: DisplayAssetClass;
 }
 
+/** D11: coverage of the analytics 24h totals. */
+export interface Change24hCoverage {
+  /** Holdings contributing a position-level 24h change to the totals */
+  holdingsWithChange: number;
+  /** Holdings counted in totalValue */
+  countedHoldings: number;
+  /** Every holding, including those without a price or FX rate */
+  totalHoldings: number;
+  /** holdingsWithChange < totalHoldings: the totals describe only part of the portfolio */
+  partial: boolean;
+}
+
 export interface PortfolioAnalyticsDTO {
   /** Sum of all HoldingAnalyticsDTO.currentValueBase in baseCurrency */
   totalValue: number;
@@ -192,6 +204,11 @@ export interface PortfolioAnalyticsDTO {
   totalChange24hBase?: number | null;
   /** D11: totalChange24hBase as a percentage of those holdings' value at the reference; nullable */
   totalChange24hPercent?: number | null;
+  /**
+   * D11: which holdings the 24h totals cover. Absent from an older backend, in which case the UI
+   * shows no 24h total at all rather than imply a complete one.
+   */
+  change24hCoverage?: Change24hCoverage | null;
   /** ISO 4217 base currency for all monetary aggregates */
   baseCurrency: string;
   /** true when one or more holdings were excluded because their FX rate was unavailable */

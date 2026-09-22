@@ -26,6 +26,7 @@ const analyticsFixture = {
   // D11: 10 × 10.6 − 0.65 × 1543.5 = −897.275, over a reference value of 49,026.025
   totalChange24hBase: -897.275,
   totalChange24hPercent: -1.8302,
+  change24hCoverage: { holdingsWithChange: 2, countedHoldings: 2, totalHoldings: 2, partial: false },
   baseCurrency: "USD",
   partialValuation: false,
   bestPerformer: { ticker: "AAPL", change24hPercent: 5.26 },

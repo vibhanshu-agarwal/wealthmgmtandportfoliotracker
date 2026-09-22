@@ -62,6 +62,7 @@ const analyticsWithChange = {
     // D11: 10 × 10.6 − 0.65 × 1543.5 = 106 − 1003.275 = −897.275
     totalChange24hBase: -897.275,
     totalChange24hPercent: -1.8302,
+    change24hCoverage: { holdingsWithChange: 2, countedHoldings: 2, totalHoldings: 2, partial: false },
     baseCurrency: "USD",
     partialValuation: false,
     bestPerformer: { ticker: "AAPL", change24hPercent: 5.26 },
@@ -118,6 +119,7 @@ const analyticsWithNullChange = {
     })),
     totalChange24hBase: null,
     totalChange24hPercent: null,
+    change24hCoverage: { holdingsWithChange: 0, countedHoldings: 2, totalHoldings: 2, partial: true },
     totalUnrealizedPnL: null,
     totalUnrealizedPnLPercent: null,
     bestPerformer: { ticker: "AAPL", change24hPercent: null },
@@ -213,8 +215,10 @@ describe("SummaryCards — D11: 24h card shows the position-level totals", () =>
     { ...analyticsWithChange.data.holdings[1], quantity: 0.5, change24hAbsolute: -2000, change24hPercent: -3.2258, change24hValueBase: -1000 },
   ];
 
-  function withTotals(totals: Record<string, number | null | undefined>) {
-    return { data: { ...analyticsWithChange.data, holdings, ...totals } };
+  const complete = { holdingsWithChange: 2, countedHoldings: 2, totalHoldings: 2, partial: false };
+
+  function withTotals(totals: Record<string, unknown>) {
+    return { data: { ...analyticsWithChange.data, holdings, change24hCoverage: complete, ...totals } };
   }
 
   function card24h() {
@@ -239,6 +243,7 @@ describe("SummaryCards — D11: 24h card shows the position-level totals", () =>
     const older: Record<string, unknown> = { ...withTotals({}).data };
     delete older.totalChange24hBase;
     delete older.totalChange24hPercent;
+    delete older.change24hCoverage;
     mockUsePortfolioAnalytics.mockReturnValue({ data: older });
     render(<SummaryCards />);
 
@@ -250,6 +255,39 @@ describe("SummaryCards — D11: 24h card shows the position-level totals", () =>
     render(<SummaryCards />);
 
     expect(screen.getByTestId("24h-pnl").textContent).toBe("—");
+  });
+
+  it("discloses a partial total with its coverage", () => {
+    // 2 of 3 holdings contribute (the third lacks a reference, a price or an FX rate).
+    mockUsePortfolioAnalytics.mockReturnValue(
+      withTotals({
+        totalChange24hBase: 517.76,
+        totalChange24hPercent: 1.2041,
+        change24hCoverage: { holdingsWithChange: 2, countedHoldings: 3, totalHoldings: 3, partial: true },
+      }),
+    );
+    render(<SummaryCards />);
+
+    expect(screen.getByTestId("24h-pnl").textContent).toBe("+$517.76");
+    // Distinct from the Performance chart's "Partial (n/m holdings)" history label.
+    expect(screen.getByTestId("24h-coverage").textContent).toBe("Partial: 2 of 3 holdings");
+  });
+
+  it("shows no partial marker when every holding contributes", () => {
+    mockUsePortfolioAnalytics.mockReturnValue(withTotals({ totalChange24hBase: 517.76, totalChange24hPercent: 1.2041 }));
+    render(<SummaryCards />);
+
+    expect(screen.queryByTestId("24h-coverage")).not.toBeInTheDocument();
+  });
+
+  it('fails closed to "—" when the totals come without coverage metadata', () => {
+    mockUsePortfolioAnalytics.mockReturnValue(
+      withTotals({ totalChange24hBase: 517.76, totalChange24hPercent: 1.2041, change24hCoverage: undefined }),
+    );
+    render(<SummaryCards />);
+
+    expect(screen.getByTestId("24h-pnl").textContent).toBe("—");
+    expect(screen.queryByTestId("24h-coverage")).not.toBeInTheDocument();
   });
 
   it("shows the amount without a percent when totalChange24hPercent is null", () => {

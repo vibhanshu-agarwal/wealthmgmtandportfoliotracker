@@ -1,5 +1,59 @@
 import { describe, expect, it } from "vitest";
-import { parseChangeCellMoney, recomputeTotalChange24h, sumPositionChanges } from "../change24h";
+import {
+  cardCoverageLabel,
+  expectedCardCoverageLabel,
+  expectedChange24hCoverage,
+  expectedFooterCoverageLabel,
+  parseChangeCellMoney,
+  recomputeTotalChange24h,
+  sumPositionChanges,
+} from "../change24h";
+
+describe("expectedChange24hCoverage (counted from the holdings, not read from coverage)", () => {
+  it("counts holdings with a value and a position change against every holding", () => {
+    // CERT_A locally: three priced with a change, RELIANCE.NS without an FX rate → 3 of 4, partial.
+    expect(
+      expectedChange24hCoverage([
+        { currentValueBase: 13517.76, change24hValueBase: 1517.76 },
+        { currentValueBase: 1900, change24hValueBase: 360 },
+        { currentValueBase: 5000, change24hValueBase: -2119.54 },
+        { currentValueBase: null, change24hValueBase: null },
+      ]),
+    ).toEqual({ holdingsWithChange: 3, totalHoldings: 4, partial: true });
+  });
+
+  it("treats a missing history, price or older-backend field as not contributing", () => {
+    expect(
+      expectedChange24hCoverage([
+        { currentValueBase: 6000, change24hValueBase: null },
+        { currentValueBase: 6000 },
+        { currentValueBase: 100, change24hValueBase: 10 },
+      ]),
+    ).toEqual({ holdingsWithChange: 1, totalHoldings: 3, partial: true });
+  });
+
+  it("is complete only when every holding contributes, and for an empty portfolio", () => {
+    expect(expectedChange24hCoverage([{ currentValueBase: 100, change24hValueBase: 10 }])).toEqual({ holdingsWithChange: 1, totalHoldings: 1, partial: false });
+    expect(expectedChange24hCoverage([])).toEqual({ holdingsWithChange: 0, totalHoldings: 0, partial: false });
+  });
+});
+
+describe("coverage labels", () => {
+  it("expects the card label only for a partial total that is shown", () => {
+    const partial = { holdingsWithChange: 3, countedHoldings: 3, totalHoldings: 4, partial: true };
+    expect(cardCoverageLabel(3, 4)).toBe("Partial: 3 of 4 holdings");
+    expect(expectedCardCoverageLabel(-241.8078, partial)).toBe("Partial: 3 of 4 holdings");
+    expect(expectedCardCoverageLabel(null, partial)).toBeNull();
+    expect(expectedCardCoverageLabel(10, { ...partial, holdingsWithChange: 4, partial: false })).toBeNull();
+    expect(expectedCardCoverageLabel(10, null)).toBeNull();
+  });
+
+  it("expects the footer label only when some, not all or none, of the visible rows contribute", () => {
+    expect(expectedFooterCoverageLabel(2, 3)).toBe("Partial: 2 of 3");
+    expect(expectedFooterCoverageLabel(3, 3)).toBeNull();
+    expect(expectedFooterCoverageLabel(0, 3)).toBeNull();
+  });
+});
 
 describe("parseChangeCellMoney (Portfolio 24h cell)", () => {
   it("reads the position-level sub-line after the percent", () => {

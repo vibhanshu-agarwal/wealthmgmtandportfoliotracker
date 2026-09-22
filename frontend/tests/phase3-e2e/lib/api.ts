@@ -56,6 +56,13 @@ export interface AnalyticsReadback {
   readonly partialValuation: boolean;
   /** D11: the portfolio's 24h change in base currency; absent from an older backend. */
   readonly totalChange24hBase?: number | null;
+  /** D11: which holdings the 24h totals cover; absent from an older backend. */
+  readonly change24hCoverage?: {
+    readonly holdingsWithChange: number;
+    readonly countedHoldings: number;
+    readonly totalHoldings: number;
+    readonly partial: boolean;
+  } | null;
   readonly performanceCoverage?: { partial?: boolean; holdingsWithHistory?: number; totalHoldings?: number } | null;
 }
 

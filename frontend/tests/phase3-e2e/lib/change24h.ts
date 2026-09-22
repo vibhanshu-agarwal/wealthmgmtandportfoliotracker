@@ -61,6 +61,43 @@ export function parseChangeCellMoney(cellText: string): number | null {
   return subLine === "" ? null : parseDisplayedMoney(subLine);
 }
 
+export interface Change24hCoverageCounts {
+  readonly holdingsWithChange: number;
+  readonly totalHoldings: number;
+  readonly partial: boolean;
+}
+
+/**
+ * The 24h coverage the analytics payload must report, counted from its holdings rather than read
+ * from its coverage field: a holding contributes when it has both a value and a position change.
+ * The backend also leaves out a holding excluded for its cost-basis FX; the payload does not mark
+ * that, so such a holding makes this disagree and the check fail, never pass.
+ */
+export function expectedChange24hCoverage(
+  holdings: readonly { readonly currentValueBase: number | null; readonly change24hValueBase?: number | null }[],
+): Change24hCoverageCounts {
+  const holdingsWithChange = holdings.filter((h) => h.currentValueBase != null && h.change24hValueBase != null).length;
+  return { holdingsWithChange, totalHoldings: holdings.length, partial: holdingsWithChange < holdings.length };
+}
+
+/** The Overview card's partial-coverage label. */
+export function cardCoverageLabel(holdingsWithChange: number, totalHoldings: number): string {
+  return `Partial: ${holdingsWithChange} of ${totalHoldings} holdings`;
+}
+
+/** The card label to expect: only for a shown total whose coverage is partial. */
+export function expectedCardCoverageLabel(
+  shownTotal: number | null,
+  coverage: { readonly holdingsWithChange: number; readonly totalHoldings: number; readonly partial: boolean } | null | undefined,
+): string | null {
+  return shownTotal !== null && coverage?.partial ? cardCoverageLabel(coverage.holdingsWithChange, coverage.totalHoldings) : null;
+}
+
+/** The footer label to expect: only when some, but not all, visible rows have a position change. */
+export function expectedFooterCoverageLabel(rowsWithChange: number, visibleRows: number): string | null {
+  return rowsWithChange > 0 && rowsWithChange < visibleRows ? `Partial: ${rowsWithChange} of ${visibleRows}` : null;
+}
+
 /** The Portfolio footer's expected 24h total: Σ change24hValueBase, or null when none exists. */
 export function sumPositionChanges(holdings: readonly { readonly change24hValueBase?: number | null }[]): number | null {
   const values = holdings.map((h) => h.change24hValueBase).filter((v): v is number => v != null);
