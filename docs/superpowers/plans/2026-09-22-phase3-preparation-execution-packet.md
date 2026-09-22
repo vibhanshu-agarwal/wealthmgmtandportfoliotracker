@@ -5,7 +5,7 @@
 **Branch:** `claude/phase3-hydration-and-prod-e2e`, **local only**, created from verified
 `origin/main@26a07fe048d9950c5b7268b9763eaca543b7b7ef`
 **Evidence:** the folders named below (`final-run-*`, `negative-controls-*` and so on) are in the
-local handoff folder `C:\worktrees\wealthmgmtandportfoliotracker-worktrees\_handoff6-09-22-phase3-prep\`.
+local handoff folder `C:\worktrees\wealthmgmtandportfoliotracker-worktrees\_handoff\2026-09-22-phase3-prep\`.
 They are not committed: they hold screenshots, network logs and account identifiers.
 
 | Commit | Change |
