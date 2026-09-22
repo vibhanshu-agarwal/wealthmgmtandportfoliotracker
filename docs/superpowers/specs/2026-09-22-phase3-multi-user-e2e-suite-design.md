@@ -167,8 +167,13 @@ unpriced locally, so `CERT_A` exercises partial valuation there.
 
 - **Overview** (review I10):
   - The total equals the summary total to the cent.
-  - The summary and analytics endpoints agree on the total, and the allocation card's "$X total"
-    equals the analytics total. The Overview shows both numbers, so they must not disagree.
+  - The allocation card's "$X total" equals the analytics total.
+  - The summary and analytics totals are compared. The Overview shows both numbers side by side.
+    - They can disagree after a price refresh: it lands as per-ticker events over seconds, and the
+      summary query has no refetch interval while analytics refetches every 60 s. The summary card
+      then stays stale while the page is open.
+    - A disagreement is recorded as the expected defect `overview-totals-diverge-after-price-refresh`
+      (finding F9, owner decision D10), with both values. It is intermittent by nature.
   - The 24h card equals the independently summed analytics `change24hAbsolute`.
   - The allocation legend has one slice per `displayAssetClass`, and its percentages sum to 100
     within rounding when the total is above 0.
@@ -255,7 +260,8 @@ unpriced locally, so `CERT_A` exercises partial valuation there.
 - **PASS_WITH_EXPECTED_DEFECTS** if everything passed and the only recorded expected defects are the
   known ids (`KNOWN_EXPECTED_DEFECTS` in `lib/verdict.ts`):
   - `non-demo-reset-control-visible` (S13, D5);
-  - `partial-valuation-not-presented` (S11, D9).
+  - `partial-valuation-not-presented` (S11, D9);
+  - `overview-totals-diverge-after-price-refresh` (S11, D10; intermittent).
 - **PASS** otherwise.
 
 Skips never count as passes, and an expected defect never softens FAIL or INCOMPLETE.
@@ -309,6 +315,10 @@ Skips never count as passes, and an expected defect never softens FAIL or INCOMP
 - **D9 — Partial valuation has no UI presentation.** When a holding cannot be valued (for example, no
   FX rate), totals silently exclude it. Treat it as a Phase 4 defect (the recommendation) or accept it
   as intended.
+- **D10 — The Overview can show two different totals after a price refresh.** The total card comes
+  from the summary, which is never refetched on an interval; the allocation and 24h cards come from
+  analytics, refetched every 60 s. Observed locally: $42,147.14 against $44,349.79. Treat it as a
+  Phase 4 defect (the recommendation) or accept it.
 
 ## 11. Local validation plan
 
@@ -374,3 +384,4 @@ Skips never count as passes, and an expected defect never softens FAIL or INCOMP
 | M10 auth waits shorter than the pacer hold | Auth-related waits use the pacer interval plus 20 s |
 | M11 teardown auth requests unlogged | Logged with source `teardown` |
 | M12 strict-key mis-keying; weak oracles | Strict pacing keyed by JWT `sub`; heartbeats ≥ 2; AI Insights cards compared with the page's payload; summary/analytics and allocation totals cross-checked |
+| Post-R2 | The new summary/analytics cross-check caught a real divergence in the final run (F9: summary $42,147.14 against analytics $44,349.79 after a background price refresh). Root cause: per-ticker price events plus no summary refetch interval. Recorded as the known expected defect `overview-totals-diverge-after-price-refresh` (D10) instead of a timing-dependent hard failure |

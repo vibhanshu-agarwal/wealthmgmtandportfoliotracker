@@ -10,10 +10,14 @@ export const EXPECTED_SCENARIOS = [
 
 /**
  * The only product defects a scenario may record as expected instead of failing. Each has
- * a pending owner decision (design section 10: D5, D9). Any other id makes the run FAIL,
+ * a pending owner decision (design section 10: D5, D9, D10). Any other id makes the run FAIL,
  * so a failing check cannot be quietly converted into an "expected defect".
  */
-export const KNOWN_EXPECTED_DEFECTS = ["non-demo-reset-control-visible", "partial-valuation-not-presented"] as const;
+export const KNOWN_EXPECTED_DEFECTS = [
+  "non-demo-reset-control-visible",
+  "partial-valuation-not-presented",
+  "overview-totals-diverge-after-price-refresh",
+] as const;
 
 export type ScenarioOutcome = "passed" | "failed" | "timedOut" | "skipped" | "interrupted";
 
