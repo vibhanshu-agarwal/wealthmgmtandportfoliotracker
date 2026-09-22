@@ -73,6 +73,19 @@ interface MonitorEvent {
 export type RouteHook = (route: Route, request: Request) => Promise<boolean>;
 
 export const DEMO_ACCOUNT_EMAIL = "demo@wealthtracker.dev";
+
+/** The `sub` claim of a bearer token (the Production rate-limit key), or null. Never logged. */
+function jwtSubject(authorization: string | undefined): string | null {
+  const token = authorization?.startsWith("Bearer ") ? authorization.slice(7) : null;
+  const payload = token?.split(".")[1];
+  if (!payload) return null;
+  try {
+    const sub = (JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as { sub?: unknown }).sub;
+    return typeof sub === "string" ? sub : null;
+  } catch {
+    return null;
+  }
+}
 const AUTH_PATHS = new Set(["/api/auth/login", "/api/auth/signup"]);
 const STRICT_PATH = /^\/api\/(insights(\/|$)|chat(\/|$))/;
 
@@ -86,8 +99,8 @@ export interface MonitorOptions {
   readonly allowedAuthEmails: ReadonlySet<string>;
   /** Spaces every auth request (shared, file-backed pacer). */
   readonly paceAuth: () => Promise<void>;
-  /** Spaces strict-bucket requests (insights, chat) for this role's user. */
-  readonly paceStrict: () => Promise<void>;
+  /** Spaces strict-bucket requests (insights, chat) per user; keyed like Production (JWT sub). */
+  readonly paceStrict: (userKey: string) => Promise<void>;
   /** Called once per browser auth request that is allowed through. */
   readonly onAuthRequest: (pathname: string) => void;
   /** Negative-control fault injection (local only). Returns true when it handled the request. */
@@ -165,7 +178,9 @@ export class ContextMonitor {
         await this.options.paceAuth();
         this.options.onAuthRequest(pathname);
       }
-      if (origin === this.options.api && STRICT_PATH.test(pathname)) await this.options.paceStrict();
+      if (origin === this.options.api && STRICT_PATH.test(pathname)) {
+        await this.options.paceStrict(jwtSubject(request.headers().authorization) ?? this.options.role);
+      }
       if (this.options.routeHook && (await this.options.routeHook(route, request))) return;
       await route.continue();
     });

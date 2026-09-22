@@ -71,8 +71,9 @@ const DESKTOP_VIEWPORTS = [
   { width: 1440, height: 900 },
   { width: 1920, height: 1080 },
 ] as const;
-const PARTIAL_VALUATION_SIGNAL = /partial valuation|excluded from (the )?total|not included in (the )?total|not (yet )?valued/i;
 const MONEY_TOLERANCE = 0.005 + 1e-9;
+/** Auth requests are held by the pacer (>= 13 s in Production) before they leave the browser. */
+const AUTH_WAIT_MS = run.authMinIntervalMs + 20_000;
 const PERCENT_TOLERANCE = 0.005 + 1e-9;
 
 const pacerStore = fileStore(path.join(RUN_DIR, "auth-pacer.json"));
@@ -160,11 +161,17 @@ async function finalizeContext(monitored: Monitored, testInfo: TestInfo): Promis
   if (index >= 0) openContexts.splice(index, 1);
   const { context, label } = monitored;
   const videos = context.pages().map((page) => page.video()).filter((video): video is Video => video !== null);
-  await context.tracing.stop({ path: path.join(PW_OUTPUT, "traces", `${label}.zip`) }).catch(() => undefined);
+  await context.tracing.stop({ path: path.join(PW_OUTPUT, "traces", `${label}.zip`) }).catch((error: unknown) => {
+    evidence.observe(currentScenario, "trace could not be saved", { context: label, error: String(error).slice(0, 160) });
+  });
   await context.close().catch(() => undefined);
   const failed = testInfo.status !== testInfo.expectedStatus;
   for (const [i, video] of videos.entries()) {
-    if (failed) await video.saveAs(path.join(PW_OUTPUT, "videos", `${label}-${i + 1}.webm`)).catch(() => undefined);
+    if (failed) {
+      await video.saveAs(path.join(PW_OUTPUT, "videos", `${label}-${i + 1}.webm`)).catch((error: unknown) => {
+        evidence.observe(currentScenario, "failure video could not be saved", { context: label, error: String(error).slice(0, 160) });
+      });
+    }
     await video.delete().catch(() => undefined);
   }
 }
@@ -172,7 +179,7 @@ async function finalizeContext(monitored: Monitored, testInfo: TestInfo): Promis
 async function monitoredContext(
   browser: Browser,
   role: string,
-  options: { viewport?: { width: number; height: number }; routeHook?: RouteHook; strictKey?: string } = {},
+  options: { viewport?: { width: number; height: number }; routeHook?: RouteHook } = {},
 ): Promise<Monitored> {
   const context = await browser.newContext({
     baseURL: run.frontend,
@@ -182,29 +189,34 @@ async function monitoredContext(
   });
   contextCounter += 1;
   const label = `${currentScenario}-${String(contextCounter).padStart(2, "0")}-${role.replace(/[^A-Za-z0-9_-]/g, "_")}`;
-  await context.tracing.start({ screenshots: true, snapshots: true, title: label });
-  if (run.negativeControl === "NC1" && currentScenario === "S02") {
-    await context.addInitScript(() => {
-      setTimeout(() => {
-        throw new Error("P3-NC1 injected page error");
-      }, 0);
+  try {
+    await context.tracing.start({ screenshots: true, snapshots: true, title: label });
+    if (run.negativeControl === "NC1" && currentScenario === "S02") {
+      await context.addInitScript(() => {
+        setTimeout(() => {
+          throw new Error("P3-NC1 injected page error");
+        }, 0);
+      });
+    }
+    const monitor = await ContextMonitor.attach(context, {
+      role,
+      frontend: run.frontend,
+      api: run.api,
+      evidence,
+      currentScenario: () => currentScenario,
+      allowedAuthEmails,
+      paceAuth,
+      paceStrict,
+      onAuthRequest: (pathname) => recordAuth("browser", pathname),
+      routeHook: options.routeHook,
     });
+    const monitored = { context, monitor, label };
+    openContexts.push(monitored);
+    return monitored;
+  } catch (error) {
+    await context.close().catch(() => undefined);
+    throw error;
   }
-  const monitor = await ContextMonitor.attach(context, {
-    role,
-    frontend: run.frontend,
-    api: run.api,
-    evidence,
-    currentScenario: () => currentScenario,
-    allowedAuthEmails,
-    paceAuth,
-    paceStrict: () => paceStrict(options.strictKey ?? role),
-    onAuthRequest: (pathname) => recordAuth("browser", pathname),
-    routeHook: options.routeHook,
-  });
-  const monitored = { context, monitor, label };
-  openContexts.push(monitored);
-  return monitored;
 }
 
 test.afterEach(async ({}, testInfo) => {
@@ -306,11 +318,12 @@ test("S02 successful signup lands on an empty portfolio", async ({ browser }) =>
   await page.getByLabel("Name", { exact: true }).fill(DISPLAY_NAMES.FRESH);
   await page.getByLabel("Email", { exact: true }).fill(run.fresh.email);
   await page.getByLabel("Password", { exact: true }).fill(run.fresh.password);
+  evidence.verify("S02", "email field holds FRESH's email before submit", (await page.getByLabel("Email", { exact: true }).inputValue()) === run.fresh.email);
   await page.getByRole("button", { name: "Create account" }).click();
 
-  const response = await singleResponse(signups);
+  const response = await singleResponse(signups, AUTH_WAIT_MS);
   evidence.verify("S02", "exactly one signup request, answered 201", response.status() === 201, { status: response.status() });
-  await expect(page).toHaveURL(/\/overview$/);
+  await expect(page).toHaveURL(/\/overview$/, { timeout: AUTH_WAIT_MS });
   const stored = await storedSession(page);
   rememberFresh(stored);
   evidence.verify("S02", "the browser stored FRESH's session", stored !== null && stored.email.toLowerCase() === run.fresh.email && stored.name === DISPLAY_NAMES.FRESH);
@@ -357,10 +370,11 @@ test("S03 duplicate signup with different email case is rejected", async ({ brow
   await page.getByLabel("Name", { exact: true }).fill(DISPLAY_NAMES.FRESH);
   await page.getByLabel("Email", { exact: true }).fill(run.fresh.email.toUpperCase());
   await page.getByLabel("Password", { exact: true }).fill(run.fresh.password);
+  evidence.verify("S03", "email field holds FRESH's email (other case) before submit", (await page.getByLabel("Email", { exact: true }).inputValue()) === run.fresh.email.toUpperCase());
   monitor.declare({ method: "POST", pathname: "/api/auth/signup", status: 409 });
   await page.getByRole("button", { name: "Create account" }).click();
 
-  const response = await singleResponse(signups);
+  const response = await singleResponse(signups, AUTH_WAIT_MS);
   evidence.verify("S03", "exactly one signup request, answered 409", response.status() === 409, { status: response.status() });
   await expect(page.getByText("An account with this email already exists.", { exact: true })).toBeVisible();
   evidence.verify("S03", "duplicate-account message shown", true);
@@ -383,7 +397,7 @@ test("S04 login, logout and re-login", async ({ browser }) => {
   evidence.verify("S04", "email field holds FRESH's email before submit", (await email.inputValue()) === run.fresh.email);
   monitor.declare({ method: "POST", pathname: "/api/auth/login", status: 401 });
   await page.getByRole("button", { name: "Sign in" }).click();
-  const wrong = await singleResponse(logins);
+  const wrong = await singleResponse(logins, AUTH_WAIT_MS);
   evidence.verify("S04", "wrong password answered 401", wrong.status() === 401, { status: wrong.status() });
   await expect(page.getByText("Invalid username or password.", { exact: true })).toBeVisible();
   evidence.verify("S04", "invalid-credentials message shown; no session", (await storedSession(page)) === null);
@@ -391,7 +405,7 @@ test("S04 login, logout and re-login", async ({ browser }) => {
   await password.fill(run.fresh.password);
   evidence.verify("S04", "email field still holds FRESH's email", (await email.inputValue()) === run.fresh.email);
   await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page).toHaveURL(/\/overview$/);
+  await expect(page).toHaveURL(/\/overview$/, { timeout: AUTH_WAIT_MS });
   const first = await storedSession(page);
   rememberFresh(first);
   evidence.verify("S04", "login stored FRESH's session", first !== null && first.email.toLowerCase() === run.fresh.email);
@@ -414,7 +428,7 @@ test("S04 login, logout and re-login", async ({ browser }) => {
   await email.fill(run.fresh.email);
   await password.fill(run.fresh.password);
   await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page).toHaveURL(/\/overview$/);
+  await expect(page).toHaveURL(/\/overview$/, { timeout: AUTH_WAIT_MS });
   const second = await storedSession(page);
   rememberFresh(second);
   evidence.verify("S04", "re-login restores the same user", second !== null && second.userId === first!.userId);
@@ -620,8 +634,8 @@ test("S09 conflicting save from a second session is rejected without retry or ov
   const certA = await certSession("CERT_A");
   const certABefore = await api.portfolio(certA);
 
-  const first = await monitoredContext(browser, "CERT_B#1", { strictKey: "CERT_B" });
-  const second = await monitoredContext(browser, "CERT_B#2", { strictKey: "CERT_B" });
+  const first = await monitoredContext(browser, "CERT_B#1");
+  const second = await monitoredContext(browser, "CERT_B#2");
   const page1 = await first.context.newPage();
   const page2 = await second.context.newPage();
   await page2.clock.install();
@@ -759,7 +773,7 @@ test("S10 user and session isolation", async ({ browser }) => {
   evidence.verify("S10", "a spoofed X-User-Id header is ignored in favour of the token", spoofed.userId === certA.userId && holdingsEqual(spoofed.holdings, readA.holdings));
 
   // Same-tab switch: CERT_A signs out, FRESH signs in; no CERT_A ticker may ever show in FRESH's session.
-  const s = await monitoredContext(browser, "SWITCH", { strictKey: "FRESH" });
+  const s = await monitoredContext(browser, "SWITCH");
   const leaks = await installLeakObserver(s.context, tickersA, certA.userId);
   const pageS = await s.context.newPage();
   await signInByStorage(pageS, certA, "/portfolio");
@@ -773,7 +787,7 @@ test("S10 user and session isolation", async ({ browser }) => {
   await pageS.getByLabel("Password", { exact: true }).fill(run.fresh.password);
   evidence.verify("S10", "email field holds FRESH's email before submit", (await email.inputValue()) === run.fresh.email);
   await pageS.getByRole("button", { name: "Sign in" }).click();
-  await expect(pageS).toHaveURL(/\/overview$/);
+  await expect(pageS).toHaveURL(/\/overview$/, { timeout: AUTH_WAIT_MS });
   rememberFresh(await storedSession(pageS));
   await pageS.getByRole("link", { name: "Portfolio", exact: true }).click();
   await expect.poll(() => portfolioTableTickers(pageS)).toEqual(tickersOf(FRESH_TARGET));
@@ -787,7 +801,7 @@ test("S10 user and session isolation", async ({ browser }) => {
   }
   await pageS.getByRole("link", { name: "Market Data", exact: true }).click();
   await expect.poll(() => marketTableTickers(pageS)).toEqual(tickersOf(FRESH_TARGET));
-  evidence.verify("S10", "the leak observer ran in every document", leaks.heartbeats.length >= 1, { heartbeats: leaks.heartbeats.length });
+  evidence.verify("S10", "the leak observer ran in every document", leaks.heartbeats.length >= 2, { heartbeats: leaks.heartbeats.length });
   evidence.verify("S10", "no CERT_A ticker appeared at any time in FRESH's session", leaks.leaks.length === 0, { leaks: leaks.leaks });
   await evidence.screenshot(pageS, "S10", "fresh-after-switch");
   a.monitor.assertClean("S10");
@@ -808,24 +822,24 @@ test("S11 Overview, Portfolio, Market Data, AI Insights and navigation for every
     const readback = await api.portfolio(session);
     const independentSummary = await api.summary(session);
     let partialValuation = independentSummary.partialValuation;
-    let partialSignalled = false;
 
     for (const viewport of DESKTOP_VIEWPORTS) {
       const tag = `${role}-${viewport.width}`;
-      const monitored = await monitoredContext(browser, role, { viewport, strictKey: role });
+      const monitored = await monitoredContext(browser, role, { viewport });
       const { context, monitor } = monitored;
       const page = await context.newPage();
       // Prices can move between reads (background refresh), so presentation oracles compare
       // the UI with the payload this page itself rendered; persisted state is checked separately.
       const summaryCalls = captureCalls(context, "GET", "/api/portfolio/summary");
       const analyticsCalls = captureCalls(context, "GET", "/api/portfolio/analytics");
+      const marketSummaryCalls = captureCalls(context, "GET", "/api/insights/market-summary");
       await signInByStorage(page, session, "/overview");
 
       // Overview
       const total = page.getByTestId("total-value");
       await expect(total).toBeVisible({ timeout: 45_000 });
       await expect(page.getByText(/^\$[\d,]+\.\d{2} total$/).or(page.getByText("No allocation data available."))).toBeVisible({ timeout: 45_000 });
-      const totalRead = await readAgainstLatest<SummaryReadback, number | null>(summaryCalls, async () =>
+      const totalRead = await readAgainstLatest<SummaryReadback, number | null>(page, summaryCalls, async () =>
         parseDisplayedMoney((await total.textContent()) ?? ""),
       );
       const pageSummary = totalRead.data;
@@ -841,7 +855,10 @@ test("S11 Overview, Portfolio, Market Data, AI Insights and navigation for every
         shown: totalRead.rendered,
         api: pageSummary.totalValue,
       });
-      const overviewRead = await readAgainstLatest<AnalyticsReadback, { shown24h: number | null; legendPercents: number[]; partialShown: boolean }>(analyticsCalls, async () => ({
+      const overviewRead = await readAgainstLatest<AnalyticsReadback, { shown24h: number | null; legendPercents: number[]; partialShown: boolean; allocationTotal: number | null }>(page, analyticsCalls, async () => ({
+        allocationTotal: (await page.getByText(/^\$[\d,]+\.\d{2} total$/).count()) === 1
+          ? parseDisplayedMoney(((await page.getByText(/^\$[\d,]+\.\d{2} total$/).textContent()) ?? "").replace(/ total$/, ""))
+          : null,
         shown24h: parseDisplayedMoney(((await page.getByTestId("24h-pnl").textContent()) ?? "").trim()),
         legendPercents: (await page.locator("main li").filter({ hasText: /\d+\.\d%\s*$/ }).allTextContents()).map((t) =>
           Number(/(\d+\.\d)%\s*$/.exec(t)?.[1] ?? "NaN"),
@@ -849,7 +866,17 @@ test("S11 Overview, Portfolio, Market Data, AI Insights and navigation for every
         partialShown: await page.getByText(/^Partial \(\d+\/\d+ holdings\)$/).isVisible().catch(() => false),
       }));
       const overviewAnalytics = overviewRead.data;
-      const { shown24h, legendPercents, partialShown } = overviewRead.rendered;
+      const { shown24h, legendPercents, partialShown, allocationTotal } = overviewRead.rendered;
+      evidence.verify("S11", `${tag}: summary and analytics endpoints agree on the total`, Math.abs(pageSummary.totalValue - overviewAnalytics.totalValue) <= MONEY_TOLERANCE, {
+        summary: pageSummary.totalValue,
+        analytics: overviewAnalytics.totalValue,
+      });
+      if (overviewAnalytics.holdings.length > 0) {
+        evidence.verify("S11", `${tag}: allocation card total equals the analytics total`, allocationTotal !== null && Math.abs(allocationTotal - overviewAnalytics.totalValue) <= MONEY_TOLERANCE, {
+          shown: allocationTotal,
+          analytics: overviewAnalytics.totalValue,
+        });
+      }
       const withChange = overviewAnalytics.holdings.filter((h) => h.change24hAbsolute !== null);
       const expected24h = withChange.length === 0 ? null : withChange.reduce((sum, h) => sum + (h.change24hAbsolute ?? 0), 0);
       evidence.verify("S11", `${tag}: Overview 24h card equals the analytics sum`, expected24h === null ? shown24h === null : shown24h !== null && Math.abs(shown24h - expected24h) <= MONEY_TOLERANCE, {
@@ -870,7 +897,6 @@ test("S11 Overview, Portfolio, Market Data, AI Insights and navigation for every
       const coverage = overviewAnalytics.performanceCoverage;
       const expectPartial = Boolean(coverage?.partial) && (coverage?.totalHoldings ?? 0) > 0;
       evidence.verify("S11", `${tag}: performance-coverage label shown iff coverage is partial`, partialShown === expectPartial, { expectPartial, partialShown });
-      if (partialValuation && (await page.getByText(PARTIAL_VALUATION_SIGNAL).count()) > 0) partialSignalled = true;
       evidence.verify("S11", `${tag}: Overview has no horizontal overflow`, await hasNoHorizontalOverflow(page));
       await evidence.screenshot(page, "S11", `${tag}-overview`);
 
@@ -883,7 +909,7 @@ test("S11 Overview, Portfolio, Market Data, AI Insights and navigation for every
       const strip = page.getByText(/^Prices as of/);
       if (readback.holdings.length > 0) {
         await expect(strip).toBeVisible();
-        const stripRead = await readAgainstLatest<SummaryReadback, string>(summaryCalls, async () =>
+        const stripRead = await readAgainstLatest<SummaryReadback, string>(page, summaryCalls, async () =>
           ((await strip.textContent()) ?? "").replace(/\s+/g, " "),
         );
         const freshness = stripRead.data.assetPriceFreshness;
@@ -891,7 +917,6 @@ test("S11 Overview, Portfolio, Market Data, AI Insights and navigation for every
         const expectedSummary = freshness.state === "FRESH" ? "All prices fresh" : `${affected} holding${affected === 1 ? "" : "s"} ${freshness.state.toLowerCase()}`;
         const stripText = stripRead.rendered;
         evidence.verify("S11", `${tag}: freshness strip states the API freshness`, stripText.endsWith(`— ${expectedSummary}`), { stripText, expectedSummary });
-        if (partialValuation && (await page.getByText(PARTIAL_VALUATION_SIGNAL).count()) > 0) partialSignalled = true;
         await page.getByRole("button", { name: "Details" }).click();
         const popover = page.getByRole("dialog", { name: "Price freshness details" });
         await expect(popover).toBeVisible();
@@ -911,7 +936,7 @@ test("S11 Overview, Portfolio, Market Data, AI Insights and navigation for every
         });
         await page.keyboard.press("Escape");
       }
-      const portfolioRead = await readAgainstLatest<AnalyticsReadback, Map<string, string[]>>(analyticsCalls, () =>
+      const portfolioRead = await readAgainstLatest<AnalyticsReadback, Map<string, string[]>>(page, analyticsCalls, () =>
         rowCellsByTicker(page, "td:first-child span.font-mono"),
       );
       const portfolioByTicker = new Map(portfolioRead.data.holdings.map((h) => [h.ticker, h]));
@@ -935,7 +960,7 @@ test("S11 Overview, Portfolio, Market Data, AI Insights and navigation for every
       if (expectedTickers.length > 0) {
         await expect.poll(() => marketTableTickers(page), { timeout: 45_000 }).toEqual(expectedTickers);
         await expect(page.getByTestId("change24h-loading")).toHaveCount(0, { timeout: 30_000 });
-        const marketRead = await readAgainstLatest<AnalyticsReadback, Map<string, string[]>>(analyticsCalls, () =>
+        const marketRead = await readAgainstLatest<AnalyticsReadback, Map<string, string[]>>(page, analyticsCalls, () =>
           rowCellsByTicker(page, "td:first-child"),
         );
         const marketByTicker = new Map(marketRead.data.holdings.map((h) => [h.ticker, h]));
@@ -961,7 +986,17 @@ test("S11 Overview, Portfolio, Market Data, AI Insights and navigation for every
       await page.getByRole("link", { name: "AI Insights", exact: true }).click();
       await expect(page).toHaveURL(/\/ai-insights$/);
       await expect(page.getByTestId("market-summary-grid")).toBeVisible({ timeout: 45_000 });
-      evidence.verify("S11", `${tag}: AI Insights market summary rendered`, true);
+      const gridRead = await readAgainstLatest<Record<string, { ticker?: unknown } | null>, string[]>(page, marketSummaryCalls, async () =>
+        (await page.getByTestId("market-summary-grid").locator(".font-mono").allTextContents()).map((t) => t.trim()).sort(),
+      );
+      const payloadTickers = Object.values(gridRead.data)
+        .filter((entry): entry is { ticker: string } => entry !== null && typeof entry?.ticker === "string")
+        .map((entry) => entry.ticker)
+        .sort();
+      evidence.verify("S11", `${tag}: AI Insights cards equal the page's market-summary tickers`, payloadTickers.length > 0 && JSON.stringify(gridRead.rendered) === JSON.stringify(payloadTickers), {
+        cards: gridRead.rendered.length,
+        payload: payloadTickers.length,
+      });
       evidence.verify("S11", `${tag}: AI Insights has no horizontal overflow`, await hasNoHorizontalOverflow(page));
       await evidence.screenshot(page, "S11", `${tag}-ai-insights`);
 
@@ -983,10 +1018,11 @@ test("S11 Overview, Portfolio, Market Data, AI Insights and navigation for every
       await finalizeContext(monitored, testInfo);
     }
     if (partialValuation) {
-      // The API excludes unvalued holdings (e.g. no FX rate) from the total. Nothing in the UI
-      // currently says so; recorded as an expected defect pending owner decision D9.
-      evidence.observe("S11", "partial valuation presentation", { role, partialValuation: true, signalled: partialSignalled });
-      if (!partialSignalled) testInfo.annotations.push({ type: "expected-defect", description: "partial-valuation-not-presented" });
+      // The API excludes unvalued holdings (e.g. no FX rate) from the total, and no component
+      // reads partialValuation. Recorded as the expected defect partial-valuation-not-presented
+      // (owner decision D9); a fix must replace this with an assertion on its own presentation.
+      evidence.observe("S11", "partial valuation presentation", { role, partialValuation: true, signalled: false });
+      testInfo.annotations.push({ type: "expected-defect", description: "partial-valuation-not-presented" });
     }
   }
 });
@@ -996,7 +1032,7 @@ test("S11 Overview, Portfolio, Market Data, AI Insights and navigation for every
 test("S12 AI Insights chat answers one question", async ({ browser }) => {
   test.skip(run.skipChat, "D4: chat disabled for this run; recorded as UNRUN");
   const certA = await certSession("CERT_A");
-  const { context, monitor } = await monitoredContext(browser, "CERT_A", { strictKey: "CERT_A" });
+  const { context, monitor } = await monitoredContext(browser, "CERT_A");
   const page = await context.newPage();
   const chats = captureCalls(context, "POST", "/api/chat");
   await signInByStorage(page, certA, "/ai-insights");
@@ -1031,6 +1067,9 @@ test("S13 non-demo users are not offered the demo reset", async ({ browser }, te
   evidence.observe("S13", "reset control visible to a non-demo user", {
     visible,
     expectation: "hidden (defect unless owner decision D5 accepts it)",
+    caveat: visible
+      ? null
+      : "not visible: either the defect is fixed or NEXT_PUBLIC_ENABLE_DEMO_RESET_CONTROL is off in this build; confirm the repository variable before reading this as fixed",
   });
   if (visible) {
     // Recorded as an expected defect (never clicked: the gateway answers 403 for non-demo users).

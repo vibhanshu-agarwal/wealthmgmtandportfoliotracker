@@ -57,7 +57,7 @@ export default class VerdictReporter implements Reporter {
       writeFileSync(path.join(runDir, "verdict.json"), `${JSON.stringify(record, null, 2)}\n`);
     }
     process.stdout.write(
-      `\nPHASE3 VERDICT: ${verdict.verdict}  failed=[${verdict.failed.join(",")}] unrun=[${verdict.unrun.join(",")}] unexpected=[${verdict.unexpected.join(",")}] filtered=${verdict.filtered} expectedDefects=[${verdict.expectedDefects.join(",")}]\n`,
+      `\nPHASE3 VERDICT: ${verdict.verdict}  failed=[${verdict.failed.join(",")}] unrun=[${verdict.unrun.join(",")}] unexpected=[${verdict.unexpected.join(",")}] filtered=${verdict.filtered} expectedDefects=[${verdict.expectedDefects.join(",")}] unknownDefects=[${verdict.unknownDefects.join(",")}]\n`,
     );
   }
 }

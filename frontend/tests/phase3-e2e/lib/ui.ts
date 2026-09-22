@@ -41,10 +41,11 @@ export function captureCalls(context: BrowserContext, method: string, pathname: 
   return { requests, responses };
 }
 
-export async function singleResponse(calls: CapturedCalls): Promise<Response> {
-  await expect.poll(() => calls.requests.length, { timeout: 20_000 }).toBe(1);
+/** Waits for exactly one matching request and its response. Auth waits pass a longer timeout (the pacer holds). */
+export async function singleResponse(calls: CapturedCalls, timeout = 20_000): Promise<Response> {
+  await expect.poll(() => calls.requests.length, { timeout }).toBe(1);
   const request = calls.requests[0];
-  await expect.poll(() => calls.responses.has(request), { timeout: 20_000 }).toBe(true);
+  await expect.poll(() => calls.responses.has(request), { timeout }).toBe(true);
   return calls.responses.get(request)!;
 }
 
@@ -59,10 +60,13 @@ export function latestOk(calls: CapturedCalls): Response | null {
  * runs `read`, and repeats if a newer response (a refetch) arrived meanwhile, so the
  * expectation and the rendered value come from the same payload.
  */
-export async function readAgainstLatest<T, R>(calls: CapturedCalls, read: () => Promise<R>): Promise<{ data: T; rendered: R }> {
+export async function readAgainstLatest<T, R>(page: Page, calls: CapturedCalls, read: () => Promise<R>): Promise<{ data: T; rendered: R }> {
   await expect.poll(() => latestOk(calls) !== null, { timeout: 30_000 }).toBe(true);
   for (let attempt = 0; attempt < 3; attempt += 1) {
     const before = latestOk(calls)!;
+    // Node sees the response at headers time; let the page consume the body and re-render first.
+    await before.finished();
+    await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
     const rendered = await read();
     if (latestOk(calls) === before) return { data: (await before.json()) as T, rendered };
   }

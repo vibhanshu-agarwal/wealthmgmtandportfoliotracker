@@ -8,6 +8,13 @@ export const EXPECTED_SCENARIOS = [
   "S08", "S09", "S10", "S11", "S12", "S13", "S99",
 ] as const;
 
+/**
+ * The only product defects a scenario may record as expected instead of failing. Each has
+ * a pending owner decision (design section 10: D5, D9). Any other id makes the run FAIL,
+ * so a failing check cannot be quietly converted into an "expected defect".
+ */
+export const KNOWN_EXPECTED_DEFECTS = ["non-demo-reset-control-visible", "partial-valuation-not-presented"] as const;
+
 export type ScenarioOutcome = "passed" | "failed" | "timedOut" | "skipped" | "interrupted";
 
 export interface CollectedScenario {
@@ -22,6 +29,7 @@ export interface Verdict {
   readonly unexpected: string[];
   readonly filtered: boolean;
   readonly expectedDefects: string[];
+  readonly unknownDefects: string[];
 }
 
 export function scenarioIdOf(title: string): string | null {
@@ -38,7 +46,10 @@ export function computeVerdict(
   collected: readonly CollectedScenario[],
   options: { filtered: boolean; expectedDefects?: readonly string[] },
 ): Verdict {
-  const expectedDefects = [...(options.expectedDefects ?? [])];
+  const known = new Set<string>(KNOWN_EXPECTED_DEFECTS);
+  const recorded = [...(options.expectedDefects ?? [])];
+  const expectedDefects = recorded.filter((id) => known.has(id));
+  const unknownDefects = recorded.filter((id) => !known.has(id));
   const expected = new Set<string>(EXPECTED_SCENARIOS);
   const seen = new Map<string, ScenarioOutcome>();
   const unexpected: string[] = [];
@@ -60,8 +71,8 @@ export function computeVerdict(
   }
 
   let verdict: Verdict["verdict"] = expectedDefects.length > 0 ? "PASS_WITH_EXPECTED_DEFECTS" : "PASS";
-  if (failed.length > 0) verdict = "FAIL";
+  if (failed.length > 0 || unknownDefects.length > 0) verdict = "FAIL";
   else if (unrun.length > 0 || unexpected.length > 0 || options.filtered) verdict = "INCOMPLETE";
 
-  return { verdict, failed, unrun, unexpected, filtered: options.filtered, expectedDefects };
+  return { verdict, failed, unrun, unexpected, filtered: options.filtered, expectedDefects, unknownDefects };
 }

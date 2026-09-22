@@ -4,7 +4,7 @@
  * interrupted), this teardown attempts the same restoration and records the outcome
  * in restoration-teardown.json as restored | not_needed | unconfirmed.
  */
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { ApiClient } from "./lib/api";
 import { fileStore, paceAuthRequest } from "./lib/auth-pacer";
@@ -32,6 +32,10 @@ export default async function globalTeardown(): Promise<void> {
     const pacer = fileStore(path.join(runDir, "auth-pacer.json"));
     const api = new ApiClient(run.api, async () => {
       await paceAuthRequest(pacer, run.authMinIntervalMs);
+      appendFileSync(
+        path.join(runDir, "auth-requests.jsonl"),
+        `${JSON.stringify({ at: new Date().toISOString(), scenario: "teardown", source: "teardown", pathname: "/api/auth/*" })}\n`,
+      );
     });
     for (const role of ["CERT_A", "CERT_B"] as const) {
       try {

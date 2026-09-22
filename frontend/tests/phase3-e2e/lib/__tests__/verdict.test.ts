@@ -53,9 +53,15 @@ describe("computeVerdict", () => {
 
   it("never lets an expected defect soften a failure or an incomplete run", () => {
     const failed = allPassed().map((s) => (s.id === "S05" ? { ...s, outcome: "failed" as const } : s));
-    expect(computeVerdict(failed, { filtered: false, expectedDefects: ["x"] })).toMatchObject({ verdict: "FAIL" });
+    expect(computeVerdict(failed, { filtered: false, expectedDefects: ["non-demo-reset-control-visible"] })).toMatchObject({ verdict: "FAIL" });
     const skipped = allPassed().filter((s) => s.id !== "S05");
-    expect(computeVerdict(skipped, { filtered: false, expectedDefects: ["x"] })).toMatchObject({ verdict: "INCOMPLETE" });
+    expect(computeVerdict(skipped, { filtered: false, expectedDefects: ["non-demo-reset-control-visible"] })).toMatchObject({ verdict: "INCOMPLETE" });
+  });
+
+  it("fails on an expected-defect id that is not in the known, owner-visible list", () => {
+    expect(
+      computeVerdict(allPassed(), { filtered: false, expectedDefects: ["partial-valuation-not-presented", "24h-card-mismatch"] }),
+    ).toMatchObject({ verdict: "FAIL", unknownDefects: ["24h-card-mismatch"], expectedDefects: ["partial-valuation-not-presented"] });
   });
 
   it("is incomplete when an unexpected or duplicate scenario id appears", () => {

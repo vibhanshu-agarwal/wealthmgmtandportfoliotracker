@@ -1,8 +1,9 @@
 # Phase 3 multi-user browser E2E suite — design
 
-**Date:** 2026-09-22 (revision 2, same day)
-**Status:** Revision 2 answers the independent design review, which was a REJECT: 1 Critical, 10
-Important, 10 Minor (see §12). This document authorizes nothing. The suite runs locally. It may run
+**Date:** 2026-09-22 (revision 3, same day)
+**Status:** Revision 2 answered the independent design review (R1 REJECT: 1 Critical, 10 Important,
+10 Minor; see §12). Revision 3 answers the implementation review (R2 bounded REJECT: 0 Critical,
+2 Important, 12 Minor; see §13). This document authorizes nothing. The suite runs locally. It may run
 against Production only after separate owner approval (§10).
 **Governing plan:** [`ASSET_PICKER_DEMO_PREPARATION_PLAN.md` Phase 3](../../plans/ASSET_PICKER_DEMO_PREPARATION_PLAN.md#phase-3-run-broad-production-browser-e2e)
 **Base:** `main@26a07fe048d9950c5b7268b9763eaca543b7b7ef`, plus the React #418 fix on
@@ -150,18 +151,24 @@ unpriced locally, so `CERT_A` exercises partial valuation there.
 - **Same-tab switch:** `CERT_A` signs out, then `FRESH` logs in through the UI.
   - An observer installed with `context.addInitScript` reports through `exposeBinding` any `CERT_A`
     ticker shown in `main`, the user-scoped region, while a different user's session is stored.
-  - The header is excluded. While a user's analytics loads, its ticker strip falls back to the
-    **global** market summary, which is the same for every user. A ticker name there cannot
-    distinguish a leak from global data (observed locally as AAPL/MSFT in the header in every run
-    after price seeding).
+  - The header is excluded, for two reasons:
+    - While a user's analytics loads, its ticker strip falls back to the **global** market summary,
+      which returns every priced ticker for every user. A ticker name there cannot distinguish a
+      leak from global data (observed locally as AAPL/MSFT in the header in every run after price
+      seeding).
+    - The client-cache leak path is closed by construction: the header's queries use per-user keys
+      (`portfolioKeys.analytics(userId)`, `insightKeys.marketSummary(userId)`). A server-side
+      analytics leak would still surface in `main`, through the Overview best/worst-performer cards.
   - Each report reaches Node immediately, so it survives a document swap, and every document sends a
     heartbeat (review I6).
-  - The oracle is zero reports and at least one heartbeat.
+  - The oracle is zero reports and at least two heartbeats: the switch loads two documents.
 
 **S11 — pages, navigation, presentation.** Runs for each user at 1280×800, 1440×900 and 1920×1080.
 
 - **Overview** (review I10):
   - The total equals the summary total to the cent.
+  - The summary and analytics endpoints agree on the total, and the allocation card's "$X total"
+    equals the analytics total. The Overview shows both numbers, so they must not disagree.
   - The 24h card equals the independently summed analytics `change24hAbsolute`.
   - The allocation legend has one slice per `displayAssetClass`, and its percentages sum to 100
     within rounding when the total is above 0.
@@ -174,17 +181,27 @@ unpriced locally, so `CERT_A` exercises partial valuation there.
     "N holdings missing/stale/unknown").
   - The **Details** popover shows the API timestamp, formatted in the browser with the popover's
     documented format, plus the per-state counts (review I8).
-  - When `partialValuation` holds, the strip must signal it.
+  - No component reads `partialValuation`, so nothing in the UI signals it. The strip reports price
+    freshness only. When the API reports partial valuation, S11 records the expected defect
+    `partial-valuation-not-presented` (owner decision D9). A fix must replace that record with an
+    assertion on its own presentation.
   - Each row's 24h cell matches analytics.
 - **Market Data:**
   - Rows equal the readback tickers.
   - Each 24h cell matches analytics **and** equals the Portfolio cell for the same ticker. This is the
     plan's cross-page 24h check against real data.
-- **AI Insights:** the market-summary grid renders.
+- **AI Insights:** the grid shows one card per ticker in the page's own market-summary payload.
 - **Navigation:** at 1440 every sidebar link reaches its route.
 - **Screenshots:** full-page, per user, viewport and page.
-- **Finding:** partial valuation has no UI presentation on the Overview total. It is recorded as a
-  finding whenever the API reports partial valuation.
+- **Data source for presentation oracles.** Each check compares the UI with the summary, analytics
+  or market-summary payload that the page itself received. It waits for the response body and a
+  render frame, and re-reads if a refetch lands in between. Prices can legitimately move between
+  reads because of the background price refresh.
+  - Persisted state stays independent: exact API readback in S05, S08, S09 and S99.
+  - S11's ticker sets come from an independent readback, and any movement between the independent
+    read and the page's read is ledgered.
+- **Finding (F2, D9):** partial valuation has no UI presentation anywhere. It is recorded as the
+  expected defect `partial-valuation-not-presented` whenever the API reports partial valuation.
 
 ## 6. Common oracles (every context, every scenario)
 
@@ -210,11 +227,20 @@ unpriced locally, so `CERT_A` exercises partial valuation there.
 | `network.jsonl` | Method, origin, path, query **keys**, status, resource type, scenario, role | Shareable |
 | `final-state.json`, `restoration.json` | Per-user version and holdings; restoration status | Shareable |
 | `provenance.json` | Target, run id, served build ID, `VERSION`, suite SHA and dirty flag, viewports, Node version, **allowlisted** environment values plus presence-only booleans for every secret-bearing variable (review C1) | Shareable |
-| `auth-requests.jsonl` | Timestamp, scenario, source (api/browser), path | Shareable |
+| `auth-requests.jsonl` | Timestamp, scenario, source (api/browser/teardown), path | Shareable |
 | `screenshots/` | Named checkpoints | Shows holdings and, in the header, the certification users' **names and emails** (D2) |
-| `pw-output/` | Traces (always on), videos (kept on failure) | **Sensitive**: bearer tokens, and the `FRESH` password as typed. Never commit or publish; delete after review (D6) |
+| `pw-output/` | A trace for every context in `traces/`, and failure videos in `videos/` (see below) | **Sensitive**: bearer tokens, and the `FRESH` password as typed. Never commit or publish; delete after review (D6) |
 | `verdict.json` | Written by the reporter | Shareable |
 | `restoration-teardown.json` | Only if the safety net ran | Shareable |
+
+**Traces and videos.**
+- Recorded explicitly per context: `context.tracing` plus `recordVideo`, in `finalizeContext`.
+- The runner's own `trace` and `video` options are off. Its implicit tracing of
+  `browser.newContext()` contexts hung at teardown whenever a context ended on a live dashboard:
+  a truncated `trace.zip` and a test timeout, bisected locally.
+- A failure to save a trace or video is ledgered, never silent.
+- Contexts that S11 finalizes mid-test delete their video because the test has not failed yet. Only a
+  failing context's video is kept.
 
 **Controls on shareable files.**
 - Every write to a shareable file passes a `SecretRegistry` check: registered passwords and tokens,
@@ -222,10 +248,14 @@ unpriced locally, so `CERT_A` exercises partial valuation there.
 - S99 then greps every text artifact outside `pw-output/` for every registered secret.
 
 **Verdict** (`lib/verdict.ts`, written by `lib/verdict-reporter.ts`):
-- **FAIL** if any scenario failed or timed out.
+- **FAIL** if any scenario failed or timed out, or if a scenario recorded an expected-defect id
+  outside the known list (review R2 I-2).
 - **INCOMPLETE** if any expected scenario (S00–S13, S99) was skipped, uncollected or interrupted, if
   an unexpected id appeared, or if any grep, project or shard filter was active.
-- **PASS_WITH_EXPECTED_DEFECTS** if everything passed but an expected defect (S13) was recorded.
+- **PASS_WITH_EXPECTED_DEFECTS** if everything passed and the only recorded expected defects are the
+  known ids (`KNOWN_EXPECTED_DEFECTS` in `lib/verdict.ts`):
+  - `non-demo-reset-control-visible` (S13, D5);
+  - `partial-valuation-not-presented` (S11, D9).
 - **PASS** otherwise.
 
 Skips never count as passes, and an expected defect never softens FAIL or INCOMPLETE.
@@ -234,8 +264,8 @@ Skips never count as passes, and an expected defect never softens FAIL or INCOMP
 
 | Bucket | Keyed by | Limits | Pacing |
 |---|---|---|---|
-| Auth (login + signup) | IP | burst 60, 12 tokens per request, refill 1/s, which is about 5 attempts then 1 per 12 s | Every auth request, browser and Node, passes one file-backed pacer, ≥13 s apart in Production. Browser requests are held in the route handler until the pacer allows them |
-| Strict (insights, chat) | user | burst 30, 6 tokens per request, refill 1/s | Per-user route-level pacing, ≥6.5 s apart in Production (review I5). Contexts close at scenario end |
+| Auth (login + signup) | IP | burst 60, 12 tokens per request, refill 1/s, which is about 5 attempts then 1 per 12 s | Every auth request, browser and Node, passes one file-backed pacer, ≥13 s apart in Production. Browser requests are held in the route handler until the pacer allows them; UI waits for auth responses allow that hold plus 20 s |
+| Strict (insights, chat, and the header's market summary on every dashboard load) | user (JWT `sub`) | burst 30, 6 tokens per request, refill 1/s | Route-level pacing keyed by the bearer token's `sub`, as Production keys it, so it follows the signed-in user even across S10's switch. ≥6.5 s apart in Production (review I5). Contexts close at scenario end |
 | Standard (portfolio, assets, market) | user | 10/s, burst 20 | Headroom is ample at one user action at a time |
 
 - **Auth requests in an uninterrupted Production run: 9.** They are:
@@ -245,8 +275,8 @@ Skips never count as passes, and an expected defect never softens FAIL or INCOMP
   - S04: 3 logins;
   - S09: 1 second login;
   - S10: 1 UI login.
-- Each worker restart after a failure adds up to 3 logins; the teardown safety net adds 2. The exact
-  count is ledgered in S99.
+- Each worker restart after a failure adds up to 3 logins; the teardown safety net adds 2, logged
+  with source `teardown`. S99 ledgers the count.
 - A full Production run should take well under the 1-hour JWT lifetime. If a token expired mid-run, it
   would surface as a failure, not a silent re-login.
 
@@ -276,6 +306,9 @@ Skips never count as passes, and an expected defect never softens FAIL or INCOMP
   - The owner enters the certification credentials into their own shell session, for example with a
     masked `Read-Host` in PowerShell.
   - The implementer never sees them.
+- **D9 — Partial valuation has no UI presentation.** When a holding cannot be valued (for example, no
+  FX rate), totals silently exclude it. Treat it as a Phase 4 defect (the recommendation) or accept it
+  as intended.
 
 ## 11. Local validation plan
 
@@ -293,7 +326,7 @@ Skips never count as passes, and an expected defect never softens FAIL or INCOMP
    |---|---|---|
    | NC1 | Init script throws in S02 | Page-error oracle |
    | NC2 | S05's PUT fulfilled with a fake 200 and never forwarded | Readback oracle |
-   | NC3 | `CERT_B`'s GET `/api/portfolio` answered with `CERT_A`'s body in S10 | Isolation oracle |
+   | NC3 | `CERT_B`'s GET `/api/portfolio` answered with `CERT_A`'s holdings labelled with `CERT_B`'s user id, in S10 | Isolation oracle |
    | NC4 | First summary GET in S06 answered 500 | Unexpected-HTTP oracle |
    | NC5 | A `--grep`-filtered run | Verdict INCOMPLETE |
    | NC6 | Served against the unfixed `8f2c4cf7` export | Page-error oracle, with #418 |
@@ -301,6 +334,9 @@ Skips never count as passes, and an expected defect never softens FAIL or INCOMP
    | NC8 | A `CERT_A` ticker injected into `FRESH`'s page in S10 | Leak observer |
    | NC9 | A second PUT injected from context 2 in S09 | No-retry counter |
 
+   An NC3 variant that returned `CERT_A`'s body unchanged never rendered **Edit Holdings**: the
+   frontend rejects a portfolio whose `userId` does not match the session. That is a real
+   client-side isolation guard. The control therefore simulates the leak that would pass it.
 5. Independent review of the suite and the local evidence.
 
 ## 12. Revision 2 — disposition of the design review
@@ -309,9 +345,9 @@ Skips never count as passes, and an expected defect never softens FAIL or INCOMP
 |---|---|
 | C1 provenance environment leak | Allowlisted values plus presence booleans; per-write registry; post-run secret scan; NC7 |
 | I1 wrong S02 empty-state string | S02 asserts zero rows and records the filter-empty copy as a UX finding |
-| I2 non-existent partial-valuation label | Coverage label tied to `performanceCoverage.partial`; partial valuation signalled by the freshness strip; the missing Overview presentation recorded as a finding |
+| I2 non-existent partial-valuation label | Coverage label tied to `performanceCoverage.partial`. No UI signals `partialValuation` (the freshness strip does not), so it is recorded as the expected defect `partial-valuation-not-presented`, pending owner decision D9 |
 | I3 restoration skipped on failure | Non-serial execution, so S99 still runs, plus the global-teardown safety net with a restoration status |
-| I4 demo account unguarded | Route-level identity guard, email-field assertions, role-only ledger |
+| I4 demo account unguarded | Route-level identity guard, email-field assertions before every UI submit (S02, S03, S04, S10), role-only ledger |
 | I5 strict bucket unbudgeted | Per-user strict pacing, contexts closed per scenario, exact auth count 9 |
 | I6 DOM observer lying-harness risk | `addInitScript` plus `exposeBinding` reports and heartbeats; NC8 positive control; NC9 for the no-retry counter |
 | I7 S13 makes PASS impossible | Expected-defect annotation and the `PASS_WITH_EXPECTED_DEFECTS` verdict |
@@ -319,3 +355,22 @@ Skips never count as passes, and an expected defect never softens FAIL or INCOMP
 | I9 operator unstated | D8 |
 | I10 Overview visibility-only | Total, 24h, allocation and coverage oracles |
 | M1–M10 | Addressed in §5, §3, §2, §6, §8, §7, §10, §11 and S12 respectively |
+
+## 13. Revision 3 — disposition of the implementation review (R2)
+
+| Finding | Disposition |
+|---|---|
+| I-1 doc claimed the strip signals partial valuation; no D9 | §5 and §12 corrected; D9 added to §10; defect ids listed in §7 |
+| I-2 expected-defect escape hatch open-ended | `KNOWN_EXPECTED_DEFECTS`; any other id makes the verdict FAIL (`unknownDefects`); unit-tested |
+| M1 traces "always on" vs `trace: "off"` | §7 documents the explicit mechanism, the bisected hang and S11's mid-test video deletion |
+| M2 swallowed trace/video failures | Ledgered as observations |
+| M3 context leak on setup failure | Setup wrapped; the context is closed if tracing, the init script or the monitor fails |
+| M4 `readAgainstLatest` DOM-lag race | Waits for `response.finished()` and two animation frames before reading |
+| M5 speculative partial-valuation copy detection | Removed; `signalled: false` recorded until a fix provides its own presentation |
+| M6 S13 ambiguous when the flag is off | Observation carries an explicit caveat that "not visible" may mean the flag is off |
+| M7 email-field assertion missing in S02/S03 | Added |
+| M8 stale NC3 wording | §11 updated, including the observed client-side userId guard |
+| M9 header exclusion half-explained | Second reason added in §5 |
+| M10 auth waits shorter than the pacer hold | Auth-related waits use the pacer interval plus 20 s |
+| M11 teardown auth requests unlogged | Logged with source `teardown` |
+| M12 strict-key mis-keying; weak oracles | Strict pacing keyed by JWT `sub`; heartbeats ≥ 2; AI Insights cards compared with the page's payload; summary/analytics and allocation totals cross-checked |
