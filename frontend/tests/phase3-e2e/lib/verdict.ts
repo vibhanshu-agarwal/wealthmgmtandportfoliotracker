@@ -16,7 +16,7 @@ export const EXPECTED_SCENARIOS = [
 export const KNOWN_EXPECTED_DEFECTS = [
   "non-demo-reset-control-visible",
   "partial-valuation-not-presented",
-  "overview-totals-diverge-after-price-refresh",
+  "analytics-cache-stale-after-holdings-write",
 ] as const;
 
 export type ScenarioOutcome = "passed" | "failed" | "timedOut" | "skipped" | "interrupted";

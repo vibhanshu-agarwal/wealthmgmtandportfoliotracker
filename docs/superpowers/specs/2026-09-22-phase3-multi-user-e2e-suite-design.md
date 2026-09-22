@@ -1,9 +1,10 @@
 # Phase 3 multi-user browser E2E suite — design
 
-**Date:** 2026-09-22 (revision 3, same day)
+**Date:** 2026-09-22 (revision 4, same day)
 **Status:** Revision 2 answered the independent design review (R1 REJECT: 1 Critical, 10 Important,
 10 Minor; see §12). Revision 3 answers the implementation review (R2 bounded REJECT: 0 Critical,
-2 Important, 12 Minor; see §13). This document authorizes nothing. The suite runs locally. It may run
+2 Important, 12 Minor; see §13). Revision 4 answers the scoped R3 diff review (bounded REJECT:
+0 Critical, 1 Important, 3 Minor; see §14). This document authorizes nothing. The suite runs locally. It may run
 against Production only after separate owner approval (§10).
 **Governing plan:** [`ASSET_PICKER_DEMO_PREPARATION_PLAN.md` Phase 3](../../plans/ASSET_PICKER_DEMO_PREPARATION_PLAN.md#phase-3-run-broad-production-browser-e2e)
 **Base:** `main@26a07fe048d9950c5b7268b9763eaca543b7b7ef`, plus the React #418 fix on
@@ -167,13 +168,19 @@ unpriced locally, so `CERT_A` exercises partial valuation there.
 
 - **Overview** (review I10):
   - The total equals the summary total to the cent.
-  - The allocation card's "$X total" equals the analytics total.
+  - The allocation card's "$X total" equals the analytics total, when that total is above 0.
   - The summary and analytics totals are compared. The Overview shows both numbers side by side.
-    - They can disagree after a price refresh: it lands as per-ticker events over seconds, and the
-      summary query has no refetch interval while analytics refetches every 60 s. The summary card
-      then stays stale while the page is open.
-    - A disagreement is recorded as the expected defect `overview-totals-diverge-after-price-refresh`
-      (finding F9, owner decision D10), with both values. It is intermittent by nature.
+    - `PortfolioAnalyticsService.getAnalytics` is `@Cacheable("portfolio-analytics", key =
+      "#userId")`, with a 30 s Caffeine TTL on the local, default and azure profiles, and no holdings
+      write evicts it. The summary is an uncached SQL read.
+    - So for up to 30 s after a holdings write, analytics can return the pre-write result while the
+      summary is current (finding F9, owner decision D10).
+    - The run logs every successful holdings write in `holdings-writes.jsonl`: Node setup writes,
+      and browser saves identified by the token's `sub`.
+    - A disagreement is recorded as the known defect `analytics-cache-stale-after-holdings-write` only
+      if that log shows a write for the user within the TTL before the page's analytics request.
+    - Any other disagreement fails. Either way, an immediate Node re-read of both endpoints is
+      ledgered.
   - The 24h card equals the independently summed analytics `change24hAbsolute`.
   - The allocation legend has one slice per `displayAssetClass`, and its percentages sum to 100
     within rounding when the total is above 0.
@@ -251,6 +258,9 @@ unpriced locally, so `CERT_A` exercises partial valuation there.
 - Every write to a shareable file passes a `SecretRegistry` check: registered passwords and tokens,
   JWT shapes and email shapes are all rejected.
 - S99 then greps every text artifact outside `pw-output/` for every registered secret.
+- Two files are appended directly without the registry check, because their content is constant or
+  numeric: the global teardown's line in `auth-requests.jsonl`, and `holdings-writes.jsonl` (epoch
+  ms, user UUID, scenario id). The S99 scan still covers both.
 
 **Verdict** (`lib/verdict.ts`, written by `lib/verdict-reporter.ts`):
 - **FAIL** if any scenario failed or timed out, or if a scenario recorded an expected-defect id
@@ -261,7 +271,8 @@ unpriced locally, so `CERT_A` exercises partial valuation there.
   known ids (`KNOWN_EXPECTED_DEFECTS` in `lib/verdict.ts`):
   - `non-demo-reset-control-visible` (S13, D5);
   - `partial-valuation-not-presented` (S11, D9);
-  - `overview-totals-diverge-after-price-refresh` (S11, D10; intermittent).
+  - `analytics-cache-stale-after-holdings-write` (S11, D10; only when the run's own write log places
+    the analytics read inside the cache TTL).
 - **PASS** otherwise.
 
 Skips never count as passes, and an expected defect never softens FAIL or INCOMPLETE.
@@ -315,10 +326,14 @@ Skips never count as passes, and an expected defect never softens FAIL or INCOMP
 - **D9 — Partial valuation has no UI presentation.** When a holding cannot be valued (for example, no
   FX rate), totals silently exclude it. Treat it as a Phase 4 defect (the recommendation) or accept it
   as intended.
-- **D10 — The Overview can show two different totals after a price refresh.** The total card comes
-  from the summary, which is never refetched on an interval; the allocation and 24h cards come from
-  analytics, refetched every 60 s. Observed locally: $42,147.14 against $44,349.79. Treat it as a
-  Phase 4 defect (the recommendation) or accept it.
+- **D10 — Analytics can be stale for up to 30 s after a holdings save.** portfolio-service caches
+  analytics per user for 30 s, and no holdings write evicts it; the summary is uncached.
+  - For up to 30 s after any save, analytics-driven views can show pre-save numbers beside a current
+    Overview total card. Those views are the allocation donut, the 24h card, the Portfolio holding
+    values and 24h cells, Market Data's 24h column and the header ticker.
+  - Observed locally: $42,147.14 (summary, current) against $44,349.79 (analytics, pre-save).
+  - Treat it as a Phase 4 defect (the recommendation: evict the user's analytics cache on a holdings
+    write) or accept it.
 
 ## 11. Local validation plan
 
@@ -330,7 +345,7 @@ Skips never count as passes, and an expected defect never softens FAIL or INCOMP
    The config's local-only `webServer` serves it on `localhost:3000`.
 3. Run the full suite with `P3_TARGET=local`, uncontended.
 4. **Negative controls.** Each must make its oracle fail. NC1–NC4 and NC7–NC9 are set with
-   `P3_NEGATIVE_CONTROL`, local only; NC5 and NC6 are run-level.
+   `P3_NEGATIVE_CONTROL`, local only (NC10 as well); NC5 and NC6 are run-level.
 
    | Control | Fault | Oracle that must fail |
    |---|---|---|
@@ -343,6 +358,7 @@ Skips never count as passes, and an expected defect never softens FAIL or INCOMP
    | NC7 | A registered secret written to a shareable file, bypassing the registry, in S99 | Secret-scan oracle |
    | NC8 | A `CERT_A` ticker injected into `FRESH`'s page in S10 | Leak observer |
    | NC9 | A second PUT injected from context 2 in S09 | No-retry counter |
+   | NC10 | `FRESH`'s analytics total raised by 1000 in S11, with no holdings write inside the cache TTL (the control waits the TTL out first) | Summary/analytics agreement (must FAIL, not be recorded as the known defect) |
 
    An NC3 variant that returned `CERT_A`'s body unchanged never rendered **Edit Holdings**: the
    frontend rejects a portfolio whose `userId` does not match the session. That is a real
@@ -384,4 +400,14 @@ Skips never count as passes, and an expected defect never softens FAIL or INCOMP
 | M10 auth waits shorter than the pacer hold | Auth-related waits use the pacer interval plus 20 s |
 | M11 teardown auth requests unlogged | Logged with source `teardown` |
 | M12 strict-key mis-keying; weak oracles | Strict pacing keyed by JWT `sub`; heartbeats ≥ 2; AI Insights cards compared with the page's payload; summary/analytics and allocation totals cross-checked |
-| Post-R2 | The new summary/analytics cross-check caught a real divergence in the final run (F9: summary $42,147.14 against analytics $44,349.79 after a background price refresh). Root cause: per-ticker price events plus no summary refetch interval. Recorded as the known expected defect `overview-totals-diverge-after-price-refresh` (D10) instead of a timing-dependent hard failure |
+| Post-R2 | The new summary/analytics cross-check caught a real divergence in the final run (F9). The root cause first recorded here was wrong; R3 corrected it (see §14) |
+
+## 14. Revision 4 — disposition of the scoped R3 review
+
+| Finding | Disposition |
+|---|---|
+| I-3 F9/D10 root cause reversed | Corrected. Analytics is `@Cacheable` for 30 s with no eviction on holdings writes, so analytics was stale (pre-write $44,349.79) and the summary was current ($42,147.14). The failed run's S08/S09 writes were 20–26 s before the S11 read. Id renamed `analytics-cache-stale-after-holdings-write`. §5, §7, §10 D10 and the spec comment rewritten |
+| I-3 non-deterministic classifier | A disagreement is recorded as the known defect only when `holdings-writes.jsonl` shows a write for that user within the TTL before the page's analytics request. Otherwise it FAILs. Node re-reads of both endpoints are ledgered. NC10 proves an unexplained disagreement fails. `lib/cache-window.ts` is unit-tested |
+| M-a known-id acceptance untested | Unit test accepts all three known ids |
+| M-b teardown append outside the registry | Documented in §7: constant content, covered by the S99 scan |
+| M-c allocation total with an all-unpriced portfolio | Guarded on analytics total above 0 |

@@ -8,10 +8,11 @@
  */
 import { execSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { expect, test, type Browser, type BrowserContext, type Request, type Route, type TestInfo, type Video } from "@playwright/test";
 import { ApiClient, type AnalyticsReadback, type AuthSession, type SummaryReadback } from "./lib/api";
+import { ANALYTICS_CACHE_TTL_MS, withinAnalyticsCacheWindow } from "./lib/cache-window";
 import { provenanceEnvironment, scanArtifactsForSecrets } from "./lib/artifacts";
 import { fileStore, paceAuthRequest } from "./lib/auth-pacer";
 import { resolveRunConfig } from "./lib/config";
@@ -33,6 +34,7 @@ import {
   captureCalls,
   hasNoHorizontalOverflow,
   installLeakObserver,
+  latestOk,
   marketTableTickers,
   openPicker,
   parseDisplayedPercent,
@@ -87,6 +89,26 @@ const api = new ApiClient(run.api, async () => {
   await paceAuth();
   recordAuth("api", "/api/auth/*");
 });
+
+// Every successful holdings write (Node setup and browser saves), so S11 can tell the known
+// analytics-cache staleness (writes within its 30 s TTL) from a real divergence.
+const HOLDINGS_WRITES = path.join(RUN_DIR, "holdings-writes.jsonl");
+const recordHoldingsWrite = (userId: string) =>
+  appendFileSync(HOLDINGS_WRITES, `${JSON.stringify({ at: Date.now(), userId, scenario: currentScenario })}\n`);
+function holdingsWriteTimes(userId: string): number[] {
+  if (!existsSync(HOLDINGS_WRITES)) return [];
+  return readFileSync(HOLDINGS_WRITES, "utf8")
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => JSON.parse(line) as { at: number; userId: string })
+    .filter((entry) => entry.userId === userId)
+    .map((entry) => entry.at);
+}
+async function ensure(session: AuthSession, desired: Parameters<typeof ensureHoldings>[2]) {
+  const result = await ensureHoldings(api, session, desired);
+  if (result.outcome === "written") recordHoldingsWrite(session.userId);
+  return result;
+}
 
 const lastStrictRequest = new Map<string, number>();
 async function paceStrict(userKey: string): Promise<void> {
@@ -208,6 +230,7 @@ async function monitoredContext(
       paceAuth,
       paceStrict,
       onAuthRequest: (pathname) => recordAuth("browser", pathname),
+      onHoldingsWrite: recordHoldingsWrite,
       routeHook: options.routeHook,
     });
     const monitored = { context, monitor, label };
@@ -248,7 +271,7 @@ test("S00 preflight: served build, identities, declared baselines", async () => 
 
   for (const role of ["CERT_A", "CERT_B"] as const) {
     const session = await certSession(role);
-    const result = await ensureHoldings(api, session, BASELINES[role]);
+    const result = await ensure(session, BASELINES[role]);
     evidence.observe("S00", "prior state before normalization", {
       role,
       priorVersion: result.before.version,
@@ -497,7 +520,7 @@ test("S05 empty portfolio → add first holdings, save, persisted readback", asy
 
 test("S06 cancellation discards the draft without writing", async ({ browser }) => {
   const certA = await certSession("CERT_A");
-  await ensureHoldings(api, certA, CERT_A_BASELINE);
+  await ensure(certA, CERT_A_BASELINE);
   const before = await api.portfolio(certA);
 
   let summaryFaulted = false;
@@ -543,7 +566,7 @@ test("S06 cancellation discards the draft without writing", async ({ browser }) 
 
 test("S07 invalid quantities block review and are announced", async ({ browser }) => {
   const certA = await certSession("CERT_A");
-  await ensureHoldings(api, certA, CERT_A_BASELINE);
+  await ensure(certA, CERT_A_BASELINE);
   const before = await api.portfolio(certA);
   const { context, monitor } = await monitoredContext(browser, "CERT_A");
   const page = await context.newPage();
@@ -585,7 +608,7 @@ test("S07 invalid quantities block review and are announced", async ({ browser }
 
 test("S08 update, remove and add in one reviewed save", async ({ browser }) => {
   const certB = await certSession("CERT_B");
-  await ensureHoldings(api, certB, CERT_B_BASELINE);
+  await ensure(certB, CERT_B_BASELINE);
   const before = await api.portfolio(certB);
   const { context, monitor } = await monitoredContext(browser, "CERT_B");
   const page = await context.newPage();
@@ -625,7 +648,7 @@ test("S08 update, remove and add in one reviewed save", async ({ browser }) => {
 
 test("S09 conflicting save from a second session is rejected without retry or overwrite", async ({ browser }) => {
   const session1 = await certSession("CERT_B");
-  await ensureHoldings(api, session1, CERT_B_AFTER_S08);
+  await ensure(session1, CERT_B_AFTER_S08);
   const before = await api.portfolio(session1);
   const session2 = await api.login(run.certB);
   if (!session2) throw new Error("CERT_B second login failed");
@@ -730,7 +753,7 @@ test("S09 conflicting save from a second session is rejected without retry or ov
 test("S10 user and session isolation", async ({ browser }) => {
   const certA = await certSession("CERT_A");
   const certB = await certSession("CERT_B");
-  await ensureHoldings(api, certA, CERT_A_BASELINE);
+  await ensure(certA, CERT_A_BASELINE);
   const readA = await api.portfolio(certA);
   const readB = await api.portfolio(certB);
   const tickersA = tickersOf(readA.holdings);
@@ -825,7 +848,20 @@ test("S11 Overview, Portfolio, Market Data, AI Insights and navigation for every
 
     for (const viewport of DESKTOP_VIEWPORTS) {
       const tag = `${role}-${viewport.width}`;
-      const monitored = await monitoredContext(browser, role, { viewport });
+      let routeHook: RouteHook | undefined;
+      if (run.negativeControl === "NC10" && role === "FRESH") {
+        const writes = holdingsWriteTimes(session.userId);
+        const sinceLastWrite = writes.length === 0 ? Infinity : Date.now() - Math.max(...writes);
+        if (sinceLastWrite <= ANALYTICS_CACHE_TTL_MS + 2_000) await new Promise((r) => setTimeout(r, ANALYTICS_CACHE_TTL_MS + 2_000 - sinceLastWrite));
+        routeHook = async (route, request) => {
+          if (!isApi(request, "GET", "/api/portfolio/analytics")) return false;
+          const real = await route.fetch();
+          const body = (await real.json()) as { totalValue: number };
+          await route.fulfill({ response: real, json: { ...body, totalValue: body.totalValue + 1000 } });
+          return true;
+        };
+      }
+      const monitored = await monitoredContext(browser, role, { viewport, routeHook });
       const { context, monitor } = monitored;
       const page = await context.newPage();
       // Prices can move between reads (background refresh), so presentation oracles compare
@@ -867,21 +903,35 @@ test("S11 Overview, Portfolio, Market Data, AI Insights and navigation for every
       }));
       const overviewAnalytics = overviewRead.data;
       const { shown24h, legendPercents, partialShown, allocationTotal } = overviewRead.rendered;
-      // The Overview shows the summary total (no refetch interval) beside analytics-driven cards
-      // (60 s refetch). A price refresh lands as per-ticker events over seconds, so the two can
-      // disagree, and the summary card then stays stale while the page is open (finding F9, D10).
+      // The Overview shows the summary total (uncached) beside analytics-driven cards. Analytics
+      // is cached per user for 30 s and no holdings write evicts it (finding F9, D10), so right
+      // after a write the two can disagree. Only that case, proven from this run's own write log,
+      // is recorded as the known defect; any other disagreement is a real divergence and fails.
       const totalsAgree = Math.abs(pageSummary.totalValue - overviewAnalytics.totalValue) <= MONEY_TOLERANCE;
       if (totalsAgree) {
         evidence.record("S11", `${tag}: summary and analytics endpoints agree on the total`, true, { total: pageSummary.totalValue });
       } else {
-        evidence.observe("S11", "Overview shows two different totals (summary vs analytics)", {
+        const latestAnalytics = latestOk(analyticsCalls);
+        const analyticsReadAt = latestAnalytics ? analyticsCalls.startedAt.get(latestAnalytics.request()) ?? Date.now() : Date.now();
+        const writes = holdingsWriteTimes(session.userId);
+        const cacheExplained = withinAnalyticsCacheWindow(writes, analyticsReadAt);
+        const [nodeSummary, nodeAnalytics] = await Promise.all([api.summary(session), api.analytics(session)]);
+        const detail = {
           tag,
           summary: pageSummary.totalValue,
           analytics: overviewAnalytics.totalValue,
-        });
-        testInfo.annotations.push({ type: "expected-defect", description: "overview-totals-diverge-after-price-refresh" });
+          msSinceLastWrite: writes.length === 0 ? null : analyticsReadAt - Math.max(...writes.filter((t) => t <= analyticsReadAt), -Infinity),
+          nodeRereadSummary: nodeSummary.totalValue,
+          nodeRereadAnalytics: nodeAnalytics.totalValue,
+        };
+        if (cacheExplained) {
+          evidence.observe("S11", "Overview shows two different totals: analytics cache stale after a holdings write", detail);
+          testInfo.annotations.push({ type: "expected-defect", description: "analytics-cache-stale-after-holdings-write" });
+        } else {
+          evidence.verify("S11", `${tag}: summary and analytics endpoints agree on the total`, false, detail);
+        }
       }
-      if (overviewAnalytics.holdings.length > 0) {
+      if (overviewAnalytics.holdings.length > 0 && overviewAnalytics.totalValue > 0) {
         evidence.verify("S11", `${tag}: allocation card total equals the analytics total`, allocationTotal !== null && Math.abs(allocationTotal - overviewAnalytics.totalValue) <= MONEY_TOLERANCE, {
           shown: allocationTotal,
           analytics: overviewAnalytics.totalValue,
@@ -1095,7 +1145,7 @@ test("S99 restore declared baselines and record final state", async () => {
   const finalState: Array<Record<string, unknown>> = [];
   for (const role of ["CERT_A", "CERT_B"] as const) {
     const session = await certSession(role);
-    const result = await ensureHoldings(api, session, BASELINES[role]);
+    const result = await ensure(session, BASELINES[role]);
     const restored = holdingsEqual(result.after.holdings, BASELINES[role]);
     evidence.verify("S99", `${role} restored to its declared baseline`, restored, { outcome: result.outcome, version: result.after.version });
     finalState.push({ role, version: result.after.version, holdings: normalizeHoldings(result.after.holdings), restoration: result.outcome === "written" ? "restored" : "not_needed" });

@@ -25,20 +25,25 @@ export async function storedSession(page: Page): Promise<AuthSession | null> {
 export interface CapturedCalls {
   readonly requests: Request[];
   readonly responses: Map<Request, Response>;
+  /** Epoch ms at which each request started (the server-side read happens right after). */
+  readonly startedAt: Map<Request, number>;
 }
 
 /** Counts request starts synchronously, so a delayed or failed retry cannot hide. */
 export function captureCalls(context: BrowserContext, method: string, pathname: string): CapturedCalls {
   const requests: Request[] = [];
   const responses = new Map<Request, Response>();
+  const startedAt = new Map<Request, number>();
   const matches = (request: Request) => request.method() === method && new URL(request.url()).pathname === pathname;
   context.on("request", (request) => {
-    if (matches(request)) requests.push(request);
+    if (!matches(request)) return;
+    requests.push(request);
+    startedAt.set(request, Date.now());
   });
   context.on("response", (response) => {
     if (matches(response.request())) responses.set(response.request(), response);
   });
-  return { requests, responses };
+  return { requests, responses, startedAt };
 }
 
 /** Waits for exactly one matching request and its response. Auth waits pass a longer timeout (the pacer holds). */

@@ -58,6 +58,15 @@ describe("computeVerdict", () => {
     expect(computeVerdict(skipped, { filtered: false, expectedDefects: ["non-demo-reset-control-visible"] })).toMatchObject({ verdict: "INCOMPLETE" });
   });
 
+  it("accepts every known expected-defect id", () => {
+    const known = ["non-demo-reset-control-visible", "partial-valuation-not-presented", "analytics-cache-stale-after-holdings-write"];
+    expect(computeVerdict(allPassed(), { filtered: false, expectedDefects: known })).toMatchObject({
+      verdict: "PASS_WITH_EXPECTED_DEFECTS",
+      expectedDefects: known,
+      unknownDefects: [],
+    });
+  });
+
   it("fails on an expected-defect id that is not in the known, owner-visible list", () => {
     expect(
       computeVerdict(allPassed(), { filtered: false, expectedDefects: ["partial-valuation-not-presented", "24h-card-mismatch"] }),

@@ -103,6 +103,8 @@ export interface MonitorOptions {
   readonly paceStrict: (userKey: string) => Promise<void>;
   /** Called once per browser auth request that is allowed through. */
   readonly onAuthRequest: (pathname: string) => void;
+  /** Called for every successful browser holdings write, with the writer's user id (JWT sub). */
+  readonly onHoldingsWrite: (userId: string) => void;
   /** Negative-control fault injection (local only). Returns true when it handled the request. */
   readonly routeHook?: RouteHook;
 }
@@ -223,6 +225,14 @@ export class ContextMonitor {
           status,
           resourceType: request.resourceType(),
         });
+        if (
+          request.method() === "PUT" &&
+          url.path === "/api/portfolio/holdings" &&
+          (status === 200 || status === 201)
+        ) {
+          const writer = jwtSubject(request.headers().authorization);
+          if (writer) this.options.onHoldingsWrite(writer);
+        }
         if (status < 400) return;
         if (classifyHttpFailure(response.url(), status, this.options.frontend) === "next-segment-prefetch-404") {
           this.events.push({ scenario, kind: "noise", detail: { class: "next-segment-prefetch-404", source: "http" }, url: response.url() });
