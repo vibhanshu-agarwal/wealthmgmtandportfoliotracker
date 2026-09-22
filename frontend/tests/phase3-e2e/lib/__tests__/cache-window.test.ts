@@ -40,11 +40,9 @@ describe("withinAnalyticsCacheWindow", () => {
 });
 
 describe("staleAnalyticsExpiresBy", () => {
-  it("is later than the TTL after the most recent write before the read", () => {
-    const expiry = staleAnalyticsExpiresBy([WRITE - 120_000, WRITE, WRITE + 60_000], WRITE + 5_000);
-    expect(expiry).not.toBeNull();
-    expect(expiry!).toBeGreaterThan(WRITE + ANALYTICS_CACHE_TTL_MS);
-    expect(expiry!).toBeLessThanOrEqual(WRITE + ANALYTICS_CACHE_TTL_MS + 2_000);
+  it("is the TTL plus a 5 s slack after the most recent write before the read", () => {
+    // The slack covers an analytics computation that read pre-write data but was cached after the write.
+    expect(staleAnalyticsExpiresBy([WRITE - 120_000, WRITE, WRITE + 60_000], WRITE + 5_000)).toBe(WRITE + ANALYTICS_CACHE_TTL_MS + 5_000);
   });
 
   it("is null when no write precedes the read", () => {

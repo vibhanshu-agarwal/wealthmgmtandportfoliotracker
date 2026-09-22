@@ -859,8 +859,10 @@ test("S11 Overview, Portfolio, Market Data, AI Insights and navigation for every
     const independentSummary = await api.summary(session);
     let partialValuation = independentSummary.partialValuation;
     if (run.negativeControl === "NC11" && role === "FRESH") {
-      // A real (unchanged) write opens the cache window, so the injected divergence is first
-      // classified as possibly the known cache defect; only the post-expiry re-read can expose it.
+      // An unchanged PUT returns 200 and is logged as a write (the server treats it as a no-op
+      // and keeps the version), which opens the suite's cache window. The injected divergence is
+      // then first classified as possibly the known cache defect; only the post-expiry re-read
+      // can expose it.
       const put = await api.putHoldings(session, readback.version, readback.holdings);
       if (put.status !== 200) throw new Error(`NC11 setup PUT returned HTTP ${put.status}`);
       recordHoldingsWrite(session.userId);
@@ -926,7 +928,7 @@ test("S11 Overview, Portfolio, Market Data, AI Insights and navigation for every
       // The Overview shows the summary total (uncached) beside analytics-driven cards. Analytics
       // is cached per user for 30 s and no holdings write evicts it (finding F9, D10), so right
       // after a write the two can disagree. A write inside the TTL only makes that the possible
-      // cause (CERT_B's reads always follow S09's save by less than 30 s), so the known defect is
+      // cause (every local full run has read CERT_B within 30 s of S09's save), so the known defect is
       // recorded only once analytics, re-read after every pre-write entry has expired, converges
       // on the summary total the page showed. Any other disagreement is a real divergence.
       const totalsAgree = Math.abs(pageSummary.totalValue - overviewAnalytics.totalValue) <= MONEY_TOLERANCE;

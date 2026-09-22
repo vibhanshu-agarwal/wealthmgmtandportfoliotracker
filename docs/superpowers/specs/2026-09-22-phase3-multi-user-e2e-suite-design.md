@@ -179,12 +179,24 @@ unpriced locally, so `CERT_A` exercises partial valuation there.
     - The run logs every successful holdings write in `holdings-writes.jsonl`: Node setup writes,
       and browser saves identified by the token's `sub`.
     - A write within the TTL before the page's analytics request only makes the cache a possible
-      cause. `CERT_B`'s reads always follow S09's save by less than 30 s, so the window alone would
-      excuse any `CERT_B` divergence (review R4 I-4).
-    - So inside the window the suite waits until every pre-write cache entry has expired (at most
-      31 s after the write), then re-reads both endpoints from Node. The disagreement is recorded as
+      cause. Every local full run has read `CERT_B` within 30 s of S09's save, so the window alone
+      would excuse any `CERT_B` divergence (review R4 I-4). In Production, auth pacing can push S11
+      past 30 s, and then this path is simply not exercised.
+    - So inside the window the suite waits until every pre-write cache entry has expired, then
+      re-reads both endpoints from Node. The wait is 35 s after the write: the TTL counts from when
+      the result is stored, so an analytics computation that read pre-write data and finished after
+      the save can outlive 30 s by its own duration (review R5 M1). The disagreement is recorded as
       the known defect `analytics-cache-stale-after-holdings-write` only if analytics has converged
       on the summary total the page showed. Otherwise it FAILs.
+    - Residual limits (review R5 M3, M4):
+      - The rule still excuses an analytics-only divergence that follows a write within 30 s, heals
+        once the entry expires and leaves the summary unchanged. An example is a wrong first
+        computation that is cached and then expires. A user cannot tell it from D10's accepted
+        impact. A tighter rule would record the user's last analytics total before each write and
+        require the stale value to equal it exactly; that is not implemented.
+      - The summary-unchanged half of the convergence check has no dedicated negative control. Only
+        the contaminated first NC11 run exercised it, by accident, when a price refresh moved the
+        summary.
     - With no write inside the window, a disagreement FAILs at once. Either way, an immediate Node
       re-read of both endpoints is ledgered.
     - A price or FX refresh changes valuation inputs without a write, so the same cache can lag it
@@ -377,7 +389,7 @@ Skips never count as passes, and an expected defect never softens FAIL or INCOMP
    | NC8 | A `CERT_A` ticker injected into `FRESH`'s page in S10 | Leak observer |
    | NC9 | A second PUT injected from context 2 in S09 | No-retry counter |
    | NC10 | `FRESH`'s analytics total raised by 1000 in S11, with no holdings write inside the cache TTL (the control waits the TTL out first) | Summary/analytics agreement (must FAIL, not be recorded as the known defect) |
-   | NC11 | A real, unchanged holdings write for `FRESH` just before S11, so the cache window is open; `FRESH`'s analytics total raised by 1000 in the page and in the Node re-reads | Post-expiry convergence (must FAIL, not be recorded as the known defect) |
+   | NC11 | An unchanged holdings PUT for `FRESH` just before S11. It returns 200 and is logged as a write, which opens the suite's cache window; the server treats it as a no-op. `FRESH`'s analytics total raised by 1000 in the page and in the Node re-reads | Post-expiry convergence (must FAIL, not be recorded as the known defect). The check hard-asserts, so the run stops at `FRESH-1280` and the 1440 and 1920 injections never run |
 
    An NC3 variant that returned `CERT_A`'s body unchanged never rendered **Edit Holdings**: the
    frontend rejects a portfolio whose `userId` does not match the session. That is a real
@@ -435,10 +447,21 @@ Skips never count as passes, and an expected defect never softens FAIL or INCOMP
 
 | Finding | Disposition |
 |---|---|
-| I-4 the classifier is disarmed for `CERT_B` on every full run | Fixed with the review's option (a), which keeps D10 observable. Inside the window the suite waits until every pre-write entry has expired, re-reads both endpoints from Node, and records the known defect only if analytics converges on the summary total the page showed. It also requires the summary to be unchanged, so a transiently wrong summary is not excused. NC11 opens the window with a real write and injects the divergence into both the page and the Node re-reads; it must FAIL on the convergence check |
+| I-4 the classifier is disarmed for `CERT_B` on every full run | Fixed with the review's option (a), which keeps D10 observable. Inside the window the suite waits until every pre-write entry has expired, re-reads both endpoints from Node, and records the known defect only if analytics converges on the summary total the page showed. It also requires the summary to be unchanged, so a transiently wrong summary is not excused. NC11 opens the window with a logged 200 PUT and injects the divergence into both the page and the Node re-reads; it must FAIL on the convergence check |
 | M-d price- and FX-triggered staleness FAILs | Documented in §5 and D10, with the refresh schedules. D10 adds the Production scheduling constraint |
-| M-e `CLOCK_MARGIN_MS` covers no clock | Removed. The attribution window is the bare TTL, with the reasoning in `lib/cache-window.ts`. A 1 s slack remains on waits only, where longer is safe |
+| M-e `CLOCK_MARGIN_MS` covers no clock | Removed. The attribution window is the bare TTL, with the reasoning in `lib/cache-window.ts`. A slack remains on waits only, where longer is safe (raised to 5 s after R5) |
 | M-f the analytics read time came from a possibly newer response | `readAgainstLatest` returns the response whose body was compared, and S11 times that one |
 | M-g every `auth-requests.jsonl` line bypasses the registry | §7 wording corrected |
 | M-h `msSinceLastWrite` was `null` when every write postdated the read | `msSinceLastWriteBefore` returns `null` only when no write precedes the read, and is unit-tested |
 | Rationale | The presentation-oracle note in §5 and the S11 spec comment no longer blame a background price refresh. The observed cause was the analytics cache |
+
+**Scoped R5 review of the fix: ACCEPT WITH MINORS** (0 Critical, 0 Important, 5 Minor). All R4
+items were confirmed resolved. Its minors, applied without a further review round:
+
+| Finding | Disposition |
+|---|---|
+| M1 the wait assumed analytics finishes within 1 s of the save | Wait slack raised to 5 s and pinned by a unit test; the "bare TTL covers every stale read" wording softened (a read in the tail FAILs, the safe direction) |
+| M2 NC11's "real, unchanged write" is a server no-op | Wording corrected in the spec comment, §11 and above: the control relies on the suite's write log, not on a server write |
+| M3 a transient, self-healing analytics-only divergence inside the window is still excusable | Recorded as a residual limit in §5; the exact-equality tightening is not implemented |
+| M4 the summary-unchanged conjunct has no negative control | Recorded as untested in §5 |
+| M5 nits | "Always" replaced by the observation it is; the slack pinned exactly; the NC11 row notes where the run stops |

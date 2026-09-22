@@ -11,11 +11,14 @@ export const ANALYTICS_CACHE_TTL_MS = 30_000;
 
 /**
  * Both stamps come from this process's clock: a write is logged once its response has arrived
- * (at or after the server's write) and a read is stamped when its request starts (at or before
- * the server's read). So the bare TTL already covers every stale read, and a margin would only
- * widen misattribution. The slack below applies to waits only, where longer is always safe.
+ * (at or after the server's commit) and a read is stamped when its request starts (at or before
+ * the server's read). The attribution window is the bare TTL; a margin would only widen
+ * misattribution. An entry's TTL starts when its result is stored, after the computation, so an
+ * analytics call that read pre-write data and finished after the commit can outlive the TTL by
+ * its computation time. A read in that tail is not attributed and FAILs (the safe direction).
+ * The wait adds a slack for it; a longer wait is always safe (review R5 M1).
  */
-const EXPIRY_WAIT_SLACK_MS = 1_000;
+const EXPIRY_WAIT_SLACK_MS = 5_000;
 
 /** Milliseconds from the user's latest write at or before `readAtMs`; null when there is none. */
 export function msSinceLastWriteBefore(writeTimesMs: readonly number[], readAtMs: number): number | null {
