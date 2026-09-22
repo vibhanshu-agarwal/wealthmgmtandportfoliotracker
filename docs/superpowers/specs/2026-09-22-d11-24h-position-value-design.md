@@ -50,6 +50,9 @@ Decisions:
   (`changeBasis: SINCE_PREVIOUS_SNAPSHOT`) is still included, as it is today.
 - **Totals equal the rows.** The totals sum the rounded per-holding values, so
   `totalChange24hBase == Σ change24hValueBase` exactly, as `totalValue == Σ currentValueBase`.
+- **A zero reference price.** The existing per-holding `change24hPercent` reports 0 when the
+  reference price is 0; `totalChange24hPercent` is null when the reference value is not positive.
+  The per-holding behaviour predates D11 and is left unchanged.
 
 ## 3. Frontend
 
@@ -63,10 +66,14 @@ Decisions:
 - Portfolio footer "24h": `Σ change24hValueBase` over the visible rows; "—" when none is available.
 - Market Data: unchanged (per-unit price change).
 
-**Deploy consequence (for the owner, A3/D3).** The frontend needs the new backend fields. A
-frontend-only deploy of this change without the portfolio-service deploy shows "—" for the Overview
-24h card, the Portfolio footer and the row sub-lines, instead of today's wrong figures. Row
-percentages are unaffected.
+**Deploy consequence (for the owner, A3/D3).** The frontend needs the new backend fields.
+- **Deploy portfolio-service first, or together with the frontend.** A frontend-only deploy of this
+  change shows "—" for the Overview 24h card, the Portfolio footer and the row sub-lines, instead of
+  today's wrong figures. Row percentages are unaffected.
+- **The Phase 3 suite now requires the D11 backend.** From this change on, S11 fails against any
+  backend that omits `totalChange24hBase`: the independent recomputation has a value and the backend
+  has none. This is deliberate (fail-closed), but it means the owner-operated Production run must not
+  start until the D11 portfolio-service is serving in Production.
 
 ## 4. Tests
 
@@ -82,14 +89,20 @@ under test or re-implementing its formula over its own output.
   - A holding excluded from `totalValue` by cost-basis FX is excluded from the 24h totals.
   - No counted holding with a change, and an empty portfolio → both totals null.
 - **Backend integration** (`Wave6DashboardDataAccuracyIT`, real Postgres): 10 units, 100 → 110 →
-  `change24hValueBase` 100.0000, and the totals equal it.
+  `change24hValueBase` 100.0000, and `totalChange24hBase` equals the sum of every counted holding's
+  `change24hValueBase` (the dev user can hold other seeded holdings, so not 100 alone). Like the
+  existing `totalValue` identity beside it, that sum cannot see the cost-basis-FX exclusion.
 - **Frontend component:** the card shows the backend totals where they differ from the per-unit sum;
   "—" when the fields are absent (older backend) or null; row sub-lines and the footer from
   hand-computed position values; percent without a sub-line when the position value is unavailable.
-- **Phase 3 suite (S11):** the card must equal `totalChange24hBase`, and `totalChange24hBase` must
-  equal an independent recomputation from primitive fields:
-  `Σ quantity × change24hAbsolute × (currentValueBase / (quantity × currentPrice))`. The Portfolio row
-  percent check no longer requires a non-null per-unit change.
+- **Phase 3 suite (S11):**
+  - the card must equal `totalChange24hBase`, and `totalChange24hBase` must equal an independent
+    recomputation from primitive fields,
+    `Σ quantity × change24hAbsolute × (currentValueBase / (quantity × currentPrice))`, within the
+    wire rounding of the per-unit change; the ledger records those primitives;
+  - each Portfolio row's sub-line must equal its `change24hValueBase` (none when null), and the
+    footer must equal their sum;
+  - the Portfolio row percent check no longer requires a non-null per-unit change.
 
 ## 5. Out of scope
 

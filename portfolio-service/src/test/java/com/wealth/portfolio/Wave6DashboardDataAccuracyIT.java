@@ -221,7 +221,9 @@ class Wave6DashboardDataAccuracyIT {
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         assertThat(dto.totalValue()).isEqualByComparingTo(sumOfHoldings);
 
-        // D11: totalChange24hBase == Σ change24hValueBase over the same counted holdings
+        // D11: totalChange24hBase == Σ change24hValueBase over the counted holdings. Like the
+        // totalValue identity above, this cannot see the cost-basis-FX exclusion; it holds while no
+        // dev holding has a cost basis in a currency without an FX rate.
         BigDecimal sumOfChanges = dto.holdings().stream()
                 .filter(h -> h.currentValueBase() != null)
                 .map(HoldingAnalyticsDto::change24hValueBase)

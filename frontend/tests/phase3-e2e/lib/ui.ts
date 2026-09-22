@@ -171,6 +171,13 @@ export async function rowCellsByTicker(page: Page, tickerSelector: string): Prom
   return out;
 }
 
+/** D11: the Portfolio footer's displayed 24h total ("—" when unavailable); null when there is no footer. */
+export async function footer24hText(page: Page): Promise<string | null> {
+  const label = page.locator("main p").filter({ hasText: /^24h$/ });
+  if ((await label.count()) === 0) return null;
+  return ((await label.first().locator("xpath=following-sibling::p[1]").textContent()) ?? "").trim();
+}
+
 const PERCENT = /([+-]?\d+(?:\.\d+)?)%/;
 
 /** Parses the first percentage in a cell; null for the unavailable dash. */

@@ -13,7 +13,7 @@ import path from "node:path";
 import { expect, test, type Browser, type BrowserContext, type Request, type Route, type TestInfo, type Video } from "@playwright/test";
 import { ApiClient, type AnalyticsReadback, type AuthSession, type SummaryReadback } from "./lib/api";
 import { msSinceLastWriteBefore, staleAnalyticsExpiresBy, withinAnalyticsCacheWindow } from "./lib/cache-window";
-import { recomputeTotalChange24h } from "./lib/change24h";
+import { parseChangeCellMoney, recomputeTotalChange24h, sumPositionChanges } from "./lib/change24h";
 import { provenanceEnvironment, scanArtifactsForSecrets } from "./lib/artifacts";
 import { fileStore, paceAuthRequest } from "./lib/auth-pacer";
 import { resolveRunConfig } from "./lib/config";
@@ -33,6 +33,7 @@ import {
 import {
   addAsset,
   captureCalls,
+  footer24hText,
   hasNoHorizontalOverflow,
   installLeakObserver,
   marketTableTickers,
@@ -982,6 +983,14 @@ test("S11 Overview, Portfolio, Market Data, AI Insights and navigation for every
         backend: backend24h,
         recomputed: recomputed24h.expected,
         tolerance: recomputed24h.tolerance,
+        // The primitives, so the recomputation can be re-derived from the ledger alone.
+        holdings: overviewAnalytics.holdings.map((h) => ({
+          ticker: h.ticker,
+          currentPrice: h.currentPrice,
+          currentValueBase: h.currentValueBase,
+          change24hAbsolute: h.change24hAbsolute,
+          change24hValueBase: h.change24hValueBase ?? null,
+        })),
       });
       // Only valued holdings get a slice: an unpriced holding is excluded from the allocation,
       // as it is from the analytics total (finding F1).
@@ -1044,12 +1053,13 @@ test("S11 Overview, Portfolio, Market Data, AI Insights and navigation for every
         });
         await page.keyboard.press("Escape");
       }
-      const portfolioRead = await readAgainstLatest<AnalyticsReadback, Map<string, string[]>>(page, analyticsCalls, () =>
-        rowCellsByTicker(page, "td:first-child span.font-mono"),
-      );
+      const portfolioRead = await readAgainstLatest<AnalyticsReadback, { rows: Map<string, string[]>; footer24h: string | null }>(page, analyticsCalls, async () => ({
+        rows: await rowCellsByTicker(page, "td:first-child span.font-mono"),
+        footer24h: await footer24hText(page),
+      }));
       const portfolioByTicker = new Map(portfolioRead.data.holdings.map((h) => [h.ticker, h]));
       const portfolio24h = new Map<string, number | null>();
-      for (const [ticker, cells] of portfolioRead.rendered) {
+      for (const [ticker, cells] of portfolioRead.rendered.rows) {
         const shown = parseDisplayedPercent(cells[5] ?? "");
         portfolio24h.set(ticker, shown);
         const h = portfolioByTicker.get(ticker);
@@ -1058,6 +1068,22 @@ test("S11 Overview, Portfolio, Market Data, AI Insights and navigation for every
         evidence.verify("S11", `${tag}: Portfolio 24h for ${ticker} matches analytics`, expected === null ? shown === null : shown !== null && Math.abs(shown - expected) <= PERCENT_TOLERANCE, {
           shown,
           expected,
+        });
+        // D11: the sub-line is the position's base-currency change, never the per-unit change.
+        const shownValue = parseChangeCellMoney(cells[5] ?? "");
+        const expectedValue = h?.change24hValueBase ?? null;
+        evidence.verify("S11", `${tag}: Portfolio 24h value for ${ticker} is the position-level change`, expectedValue === null ? shownValue === null : shownValue !== null && Math.abs(shownValue - expectedValue) <= MONEY_TOLERANCE, {
+          shown: shownValue,
+          expected: expectedValue,
+        });
+      }
+      // D11: the footer totals the rows' position-level changes (every holding is shown: no filter).
+      const shownFooter24h = portfolioRead.rendered.footer24h === null ? null : parseDisplayedMoney(portfolioRead.rendered.footer24h);
+      const expectedFooter24h = sumPositionChanges(portfolioRead.data.holdings.filter((h) => portfolioRead.rendered.rows.has(h.ticker)));
+      if (portfolioRead.rendered.rows.size > 0) {
+        evidence.verify("S11", `${tag}: Portfolio footer 24h totals the position-level changes`, expectedFooter24h === null ? shownFooter24h === null : shownFooter24h !== null && Math.abs(shownFooter24h - expectedFooter24h) <= MONEY_TOLERANCE, {
+          shown: shownFooter24h,
+          expected: expectedFooter24h,
         });
       }
       evidence.verify("S11", `${tag}: Portfolio has no horizontal overflow`, await hasNoHorizontalOverflow(page));

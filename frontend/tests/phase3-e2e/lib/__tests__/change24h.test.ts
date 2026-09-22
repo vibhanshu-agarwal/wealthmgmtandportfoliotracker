@@ -1,5 +1,33 @@
 import { describe, expect, it } from "vitest";
-import { recomputeTotalChange24h } from "../change24h";
+import { parseChangeCellMoney, recomputeTotalChange24h, sumPositionChanges } from "../change24h";
+
+describe("parseChangeCellMoney (Portfolio 24h cell)", () => {
+  it("reads the position-level sub-line after the percent", () => {
+    expect(parseChangeCellMoney("+12.65%+$1,517.76")).toBeCloseTo(1517.76, 10);
+    expect(parseChangeCellMoney("-3.23%-$1,000.00")).toBeCloseTo(-1000, 10);
+    expect(parseChangeCellMoney("0.00% +$0.00")).toBe(0);
+  });
+
+  it("returns null when the cell has no sub-line, or no change at all", () => {
+    expect(parseChangeCellMoney("+1.50%")).toBeNull();
+    expect(parseChangeCellMoney("—")).toBeNull();
+  });
+
+  it("rejects a sub-line that is not a displayed amount", () => {
+    expect(() => parseChangeCellMoney("+1.50%abc")).toThrow();
+  });
+});
+
+describe("sumPositionChanges (Portfolio footer)", () => {
+  it("sums the available position-level changes: 1,517.76 − 1,000.00 = 517.76", () => {
+    expect(sumPositionChanges([{ change24hValueBase: 1517.76 }, { change24hValueBase: -1000 }, { change24hValueBase: null }, {}])).toBeCloseTo(517.76, 10);
+  });
+
+  it("returns null when no holding has one", () => {
+    expect(sumPositionChanges([{ change24hValueBase: null }, {}])).toBeNull();
+    expect(sumPositionChanges([])).toBeNull();
+  });
+});
 
 // Expected values are worked by hand; the recomputation must not read change24hValueBase.
 describe("recomputeTotalChange24h (D11 oracle)", () => {

@@ -12,7 +12,14 @@
  * the recomputation disagree and the check fail, never pass.
  */
 
-/** Half a unit in the 4th decimal: the wire rounding of `change24hAbsolute`, per unit held. */
+import { parseDisplayedMoney } from "./values";
+
+/**
+ * Half a unit in the 4th decimal: the wire rounding of `change24hAbsolute`, per unit held.
+ * `currentValueBase` is also rounded to 4 decimals, which moves each holding's recomputed change
+ * by at most 0.00005 × |change24hPercent| / 100; the caller's extra cent of tolerance absorbs that
+ * for any realistic number of holdings.
+ */
 const PER_UNIT_ROUNDING = 0.00005;
 
 export interface Change24hInputs {
@@ -40,4 +47,22 @@ export function recomputeTotalChange24h(holdings: readonly Change24hInputs[]): R
     counted += 1;
   }
   return { expected: counted === 0 ? null : expected, tolerance };
+}
+
+/**
+ * Reads the position-level sub-line of a Portfolio 24h cell ("+12.65%+$1,517.76" → 1517.76).
+ * Null when the cell shows only a percent, or the unavailable dash.
+ */
+export function parseChangeCellMoney(cellText: string): number | null {
+  const text = cellText.trim();
+  const percentEnd = text.indexOf("%");
+  if (text === "—" || percentEnd === -1) return null;
+  const subLine = text.slice(percentEnd + 1).trim();
+  return subLine === "" ? null : parseDisplayedMoney(subLine);
+}
+
+/** The Portfolio footer's expected 24h total: Σ change24hValueBase, or null when none exists. */
+export function sumPositionChanges(holdings: readonly { readonly change24hValueBase?: number | null }[]): number | null {
+  const values = holdings.map((h) => h.change24hValueBase).filter((v): v is number => v != null);
+  return values.length === 0 ? null : values.reduce((sum, v) => sum + v, 0);
 }
