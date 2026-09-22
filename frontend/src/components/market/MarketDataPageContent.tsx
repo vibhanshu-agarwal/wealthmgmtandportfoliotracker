@@ -186,7 +186,11 @@ function MarketDataTable() {
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right">
-                    {formatCurrency(holding.currentPrice)}
+                    {holding.currentPrice == null ? (
+                      <span className="text-muted-foreground">—</span>
+                    ) : (
+                      formatCurrency(holding.currentPrice)
+                    )}
                   </TableCell>
                   <TableCell
                     className={cn(

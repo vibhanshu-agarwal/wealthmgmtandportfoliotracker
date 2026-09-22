@@ -38,6 +38,8 @@ export interface SummaryReadback {
 
 export interface AnalyticsHolding {
   readonly ticker: string;
+  /** Null when the price or FX rate is unavailable (finding F1). */
+  readonly currentValueBase: number | null;
   readonly displayAssetClass?: string | null;
   readonly change24hPercent: number | null;
   readonly change24hAbsolute: number | null;

@@ -974,8 +974,11 @@ test("S11 Overview, Portfolio, Market Data, AI Insights and navigation for every
         shown: shown24h,
         expected: expected24h,
       });
-      const classes = new Set(overviewAnalytics.holdings.map((h) => h.displayAssetClass ?? "OTHER"));
-      if (overviewAnalytics.holdings.length > 0) {
+      // Only valued holdings get a slice: an unpriced holding is excluded from the allocation,
+      // as it is from the analytics total (finding F1).
+      const valued = overviewAnalytics.holdings.filter((h) => h.currentValueBase != null);
+      const classes = new Set(valued.map((h) => h.displayAssetClass ?? "OTHER"));
+      if (valued.length > 0) {
         evidence.verify("S11", `${tag}: allocation legend has one slice per asset class`, legendPercents.length === classes.size, {
           slices: legendPercents.length,
           classes: classes.size,

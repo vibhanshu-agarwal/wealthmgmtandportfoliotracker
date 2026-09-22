@@ -61,8 +61,9 @@ const arbBaseHolding = fc.record({
   quantity: fc
     .double({ min: 0.001, max: 100000, noNaN: true })
     .map((value: number) => String(value)),
-  currentPrice: fc.double({ min: 0.01, max: 999999, noNaN: true }),
-  totalValue: fc.double({ min: 0, max: 999999999, noNaN: true }),
+  // null = no market price (finding F1): the cell must read "—", never $0.00.
+  currentPrice: fc.option(fc.double({ min: 0.01, max: 999999, noNaN: true }), { nil: null }),
+  totalValue: fc.option(fc.double({ min: 0, max: 999999999, noNaN: true }), { nil: null }),
   avgCostBasis: fc.constant(null),
   unrealizedPnL: fc.constant(null),
   unrealizedPnLPercent: fc.constant(null),
@@ -196,7 +197,10 @@ describe("MarketDataPageContent — Property-Based Tests", () => {
           cases.forEach((c: Case, i: number) => {
             const row = rows[i];
             expect(row.textContent).toContain(c.holding.ticker);
-            expect(row.textContent).toContain(formatCurrency(c.holding.currentPrice));
+            const priceCell = row.querySelectorAll("td")[1] as HTMLTableCellElement;
+            expect(priceCell.textContent).toBe(
+              c.holding.currentPrice == null ? "—" : formatCurrency(c.holding.currentPrice),
+            );
             expectJoinedChange(row.querySelectorAll("td")[2] as HTMLTableCellElement, c);
           });
         } finally {

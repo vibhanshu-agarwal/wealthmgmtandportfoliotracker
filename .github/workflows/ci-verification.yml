@@ -662,6 +662,7 @@ jobs:
             tests/e2e/mocked-chaos.spec.ts \
             tests/e2e/live-contract.spec.ts \
             tests/e2e/portfolio-deep-link.spec.ts \
+            tests/e2e/unpriced-holding.spec.ts \
             tests/e2e/asset-picker.spec.ts \
             tests/e2e/demo-reset.spec.ts \
             --project=chromium \

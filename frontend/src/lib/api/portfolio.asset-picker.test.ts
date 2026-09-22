@@ -307,19 +307,41 @@ describe("enrichWireHoldings", () => {
     expect(holdings[0].quantityFidelityUnverified).toBe(true);
   });
 
+  // F1: this test's name always said "never coerces to 0" while it asserted 0.
   it("never coerces an unavailable price to 0", async () => {
     server.use(
       http.get("/api/market/prices", () =>
-        HttpResponse.json([{ ticker: "ZZZZ", currentPrice: null, priceUnavailable: true }]),
+        HttpResponse.json([
+          { ticker: "AAPL", currentPrice: 100, observedAt: "2026-08-01T00:00:00Z", priceUnavailable: false },
+          { ticker: "ZZZZ", currentPrice: null, priceUnavailable: true },
+        ]),
       ),
     );
 
-    const { holdings } = await enrichWireHoldings(
+    const { holdings, totalValue } = await enrichWireHoldings(
+      [
+        { id: "h1", assetTicker: "AAPL", quantity: "10" },
+        { id: "h2", assetTicker: "ZZZZ", quantity: "5" },
+      ],
+      TOKEN,
+    );
+    const unpriced = holdings.find((h) => h.ticker === "ZZZZ")!;
+    expect(unpriced.currentPrice).toBeNull();
+    expect(unpriced.totalValue).toBeNull();
+    expect(totalValue).toBe(1000);
+    expect(holdings.find((h) => h.ticker === "AAPL")!.portfolioWeight).toBe(100);
+  });
+
+  it("treats a ticker missing from the prices response as unavailable, not $0", async () => {
+    server.use(http.get("/api/market/prices", () => HttpResponse.json([])));
+
+    const { holdings, totalValue } = await enrichWireHoldings(
       [{ id: "h2", assetTicker: "ZZZZ", quantity: "5" }],
       TOKEN,
     );
-    expect(holdings[0].currentPrice).toBe(0);
-    expect(holdings[0].totalValue).toBe(0);
+    expect(holdings[0].currentPrice).toBeNull();
+    expect(holdings[0].totalValue).toBeNull();
+    expect(totalValue).toBe(0);
   });
 
   it("returns zero holdings and zero totalValue for an empty list, without a price fetch", async () => {

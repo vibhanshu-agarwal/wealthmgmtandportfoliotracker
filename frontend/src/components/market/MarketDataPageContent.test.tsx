@@ -295,3 +295,48 @@ describe("MarketDataPageContent", () => {
     expect(changeCellFor("BTC").textContent).toBe("—");
   });
 });
+
+// ── F1: a holding without a current price ────────────────────────────────────
+
+describe("MarketDataPageContent — F1: unpriced holding", () => {
+  const unpricedHolding: AssetHoldingDTO = {
+    ...sampleHoldings[1],
+    id: "h3",
+    ticker: "SOL-USD",
+    name: "Solana",
+    currentPrice: null,
+    totalValue: null,
+    portfolioWeight: 0,
+    lastUpdatedAt: new Date(0).toISOString(),
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockUseAuthSession.mockReturnValue(authenticatedSession);
+    mockUsePortfolio.mockReturnValue({
+      ...portfolioWithData,
+      data: { ...portfolioWithData.data, holdings: [...sampleHoldings, unpricedHolding] },
+    });
+    mockUsePortfolioAnalytics.mockReturnValue(
+      analyticsResult([
+        holdingAnalytics("AAPL", 1.25, 2.2),
+        holdingAnalytics("BTC", -2.1, -1400),
+        { ...holdingAnalytics("SOL-USD", null, null), currentPrice: null, currentValueBase: null, quoteCurrency: null },
+      ]),
+    );
+  });
+
+  it("shows an explicit dash for the unpriced holding's price, never $0.00", () => {
+    render(<MarketDataPageContent />);
+    const row = screen.getByText("SOL-USD").closest("tr")!;
+    const priceCell = row.querySelectorAll("td")[1] as HTMLTableCellElement;
+    expect(priceCell.textContent).toBe("—");
+    expect(within(row).queryByText("$0.00")).not.toBeInTheDocument();
+  });
+
+  it("still renders the priced holdings' prices", () => {
+    render(<MarketDataPageContent />);
+    expect(screen.getByText("$178.50")).toBeInTheDocument();
+    expect(screen.getByText("$65,000.00")).toBeInTheDocument();
+  });
+});

@@ -153,3 +153,13 @@ describe("MarketSummaryCard — Basic rendering", () => {
     expect(screen.getByText("$178.50")).toBeInTheDocument();
   });
 });
+
+// ── F1 follow-through: the wire's latestPrice is null for a ticker with no data ──
+
+describe("MarketSummaryCard — unavailable latest price", () => {
+  it("shows a dash instead of an invented $0.00", () => {
+    render(<MarketSummaryCard summary={{ ...baseSummary, latestPrice: null }} />);
+    expect(screen.queryByText("$0.00")).not.toBeInTheDocument();
+    expect(screen.getByText("—")).toBeInTheDocument();
+  });
+});

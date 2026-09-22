@@ -329,8 +329,12 @@ export function HoldingsTable() {
         const cmp = compareQuantityStrings(a.quantity, b.quantity);
         return sortDir === "asc" ? cmp : -cmp;
       }
-      const aVal = a[sortKey as keyof AssetHoldingDTO] as number | string;
-      const bVal = b[sortKey as keyof AssetHoldingDTO] as number | string;
+      const aVal = a[sortKey as keyof AssetHoldingDTO] as number | string | null;
+      const bVal = b[sortKey as keyof AssetHoldingDTO] as number | string | null;
+      // An unavailable value (null) sorts last in either direction, never as 0.
+      if (aVal == null || bVal == null) {
+        return aVal == null ? (bVal == null ? 0 : 1) : -1;
+      }
       const cmp = aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
       return sortDir === "asc" ? cmp : -cmp;
     });
@@ -358,7 +362,7 @@ export function HoldingsTable() {
   // Total row values — null fields are excluded from the sum (not coerced to 0)
   const totals = rows.reduce(
     (acc, h) => ({
-      value: acc.value + h.totalValue,
+      value: h.totalValue != null ? acc.value + h.totalValue : acc.value,
       // Only add when non-null; null means "basis/reference unavailable"
       pnl: h.unrealizedPnL != null ? acc.pnl + h.unrealizedPnL : acc.pnl,
       pnlAvailable: acc.pnlAvailable || h.unrealizedPnL != null,
@@ -540,22 +544,30 @@ export function HoldingsTable() {
 
                       {/* ── Price ── */}
                       <TableCell className="text-right tabular-nums text-sm font-medium">
-                        {formatCurrency(holding.currentPrice)}
+                        {holding.currentPrice == null ? (
+                          <span className="text-muted-foreground">—</span>
+                        ) : (
+                          formatCurrency(holding.currentPrice)
+                        )}
                       </TableCell>
 
-                      {/* ── Value ── */}
+                      {/* ── Value ── (no weight when the value is unavailable) */}
                       <TableCell className="text-right">
-                        <div className="flex flex-col items-end gap-0.5">
-                          <span className="tabular-nums text-sm font-semibold">
-                            {formatCurrency(holding.totalValue)}
-                          </span>
-                          <Badge
-                            variant="secondary"
-                            className="text-[10px] h-4 px-1.5 font-normal"
-                          >
-                            {holding.portfolioWeight.toFixed(1)}%
-                          </Badge>
-                        </div>
+                        {holding.totalValue == null ? (
+                          <span className="text-sm text-muted-foreground tabular-nums">—</span>
+                        ) : (
+                          <div className="flex flex-col items-end gap-0.5">
+                            <span className="tabular-nums text-sm font-semibold">
+                              {formatCurrency(holding.totalValue)}
+                            </span>
+                            <Badge
+                              variant="secondary"
+                              className="text-[10px] h-4 px-1.5 font-normal"
+                            >
+                              {holding.portfolioWeight.toFixed(1)}%
+                            </Badge>
+                          </div>
+                        )}
                       </TableCell>
 
                       {/* ── Unrealized P&L ── */}

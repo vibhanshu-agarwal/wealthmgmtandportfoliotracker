@@ -17,8 +17,9 @@ export default defineConfig({
   // spec's whole point is verifying the DEFAULT build (no flags set — same build this
   // config already produces) has no reachable picker entry point, so it belongs on
   // this config's own webServer, not the picker-enabled one in
-  // playwright.asset-picker.mocked.config.ts.
-  testMatch: /(portfolio-deep-link|asset-picker-disabled-by-default)\.spec\.ts$/,
+  // playwright.asset-picker.mocked.config.ts. unpriced-holding.spec.ts (finding F1) is
+  // fully mocked like the deep-link spec.
+  testMatch: /(portfolio-deep-link|asset-picker-disabled-by-default|unpriced-holding)\.spec\.ts$/,
   timeout: 60_000,
   retries: 0,
   workers: 1,

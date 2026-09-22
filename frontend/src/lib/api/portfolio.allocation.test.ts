@@ -248,3 +248,76 @@ describe("buildAllocationDtoFromPortfolio", () => {
     expect(result.totalValue).toBe(3125.0);
   });
 });
+
+// ── F1: holdings whose value is unavailable ───────────────────────────────────
+
+describe("allocation — F1: holdings without a current value", () => {
+  it("analytics: leaves unvalued holdings out, adding no slice for a class with no valued holding", () => {
+    const base = makeSampleAnalytics();
+    const unvalued = (ticker: string, displayAssetClass: "CRYPTO" | "BOND") => ({
+      ...base.holdings[1],
+      ticker,
+      currentPrice: null,
+      currentValueBase: null,
+      unrealizedPnL: null,
+      unrealizedPnLPercent: null,
+      change24hAbsolute: null,
+      change24hPercent: null,
+      quoteCurrency: null,
+      displayAssetClass,
+    });
+    const analytics = makeSampleAnalytics({
+      holdings: [...base.holdings, unvalued("SOL-USD", "CRYPTO"), unvalued("TLT", "BOND")],
+    });
+
+    const result = buildAllocationDtoFromAnalytics(analytics, "p1");
+
+    expect(result.slices.map((s) => s.assetClass).sort()).toEqual(["CRYPTO", "STOCK"]);
+    expect(result.slices.find((s) => s.assetClass === "CRYPTO")!.value).toBe(46003.75);
+    const percentSum = result.slices.reduce((sum, s) => sum + s.percentage, 0);
+    expect(percentSum).toBeCloseTo(100, 1);
+  });
+
+  it("portfolio fallback: leaves holdings with no total value out", () => {
+    const priced = {
+      id: "h1",
+      ticker: "AAPL",
+      name: "Apple",
+      assetClass: "STOCK" as const,
+      quantity: "10",
+      currentPrice: 212.5,
+      totalValue: 2125.0,
+      avgCostBasis: null,
+      unrealizedPnL: null,
+      unrealizedPnLPercent: null,
+      change24hPercent: null,
+      change24hAbsolute: null,
+      portfolioWeight: 100,
+      lastUpdatedAt: new Date(0).toISOString(),
+    };
+    const portfolio: PortfolioResponseDTO = {
+      portfolioId: "p1",
+      ownerId: "u1",
+      name: "My Portfolio",
+      currency: "USD",
+      summary: {
+        totalValue: 2125.0,
+        totalCostBasis: 0,
+        totalUnrealizedPnL: 0,
+        totalUnrealizedPnLPercent: 0,
+        change24hAbsolute: 0,
+        change24hPercent: 0,
+        bestPerformer: { ticker: "AAPL", name: "Apple", change24hPercent: 0 },
+        worstPerformer: { ticker: "AAPL", name: "Apple", change24hPercent: 0 },
+      },
+      holdings: [priced, { ...priced, id: "h2", ticker: "SOL-USD", assetClass: "CRYPTO", currentPrice: null, totalValue: null, portfolioWeight: 0 }],
+      version: 1,
+      asOfDate: new Date().toISOString(),
+    };
+
+    const result = buildAllocationDtoFromPortfolio(portfolio);
+
+    expect(result.slices.map((s) => s.assetClass)).toEqual(["STOCK"]);
+    expect(result.slices[0].percentage).toBe(100);
+  });
+});
