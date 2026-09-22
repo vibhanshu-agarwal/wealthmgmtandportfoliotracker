@@ -17,8 +17,8 @@ import { parseDisplayedMoney } from "./values";
 /**
  * Half a unit in the 4th decimal: the wire rounding of `change24hAbsolute`, per unit held.
  * `currentValueBase` is also rounded to 4 decimals, which moves each holding's recomputed change
- * by at most 0.00005 × |change24hPercent| / 100; the caller's extra cent of tolerance absorbs that
- * for any realistic number of holdings.
+ * by at most 0.00005 × |change24hAbsolute| / currentPrice (larger than 0.00005 × |change24hPercent| / 100
+ * when the price fell); the caller's extra cent of tolerance absorbs that for any realistic portfolio.
  */
 const PER_UNIT_ROUNDING = 0.00005;
 

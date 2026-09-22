@@ -33,7 +33,6 @@ import {
 import {
   addAsset,
   captureCalls,
-  footer24hText,
   hasNoHorizontalOverflow,
   installLeakObserver,
   marketTableTickers,
@@ -42,6 +41,7 @@ import {
   portfolioTableTickers,
   quantityBox,
   readAgainstLatest,
+  readFooter24h,
   removeAsset,
   requestsAfterRetryWindow,
   reviewCounts,
@@ -1053,9 +1053,9 @@ test("S11 Overview, Portfolio, Market Data, AI Insights and navigation for every
         });
         await page.keyboard.press("Escape");
       }
-      const portfolioRead = await readAgainstLatest<AnalyticsReadback, { rows: Map<string, string[]>; footer24h: string | null }>(page, analyticsCalls, async () => ({
+      const portfolioRead = await readAgainstLatest<AnalyticsReadback, { rows: Map<string, string[]>; footer24h: { labels: number; text: string | null } }>(page, analyticsCalls, async () => ({
         rows: await rowCellsByTicker(page, "td:first-child span.font-mono"),
-        footer24h: await footer24hText(page),
+        footer24h: await readFooter24h(page),
       }));
       const portfolioByTicker = new Map(portfolioRead.data.holdings.map((h) => [h.ticker, h]));
       const portfolio24h = new Map<string, number | null>();
@@ -1078,9 +1078,11 @@ test("S11 Overview, Portfolio, Market Data, AI Insights and navigation for every
         });
       }
       // D11: the footer totals the rows' position-level changes (every holding is shown: no filter).
-      const shownFooter24h = portfolioRead.rendered.footer24h === null ? null : parseDisplayedMoney(portfolioRead.rendered.footer24h);
-      const expectedFooter24h = sumPositionChanges(portfolioRead.data.holdings.filter((h) => portfolioRead.rendered.rows.has(h.ticker)));
       if (portfolioRead.rendered.rows.size > 0) {
+        const footer = portfolioRead.rendered.footer24h;
+        evidence.verify("S11", `${tag}: Portfolio footer shows exactly one 24h total`, footer.labels === 1, { labels: footer.labels });
+        const shownFooter24h = parseDisplayedMoney(footer.text ?? "");
+        const expectedFooter24h = sumPositionChanges(portfolioRead.data.holdings.filter((h) => portfolioRead.rendered.rows.has(h.ticker)));
         evidence.verify("S11", `${tag}: Portfolio footer 24h totals the position-level changes`, expectedFooter24h === null ? shownFooter24h === null : shownFooter24h !== null && Math.abs(shownFooter24h - expectedFooter24h) <= MONEY_TOLERANCE, {
           shown: shownFooter24h,
           expected: expectedFooter24h,
