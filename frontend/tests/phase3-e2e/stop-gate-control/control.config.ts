@@ -9,6 +9,7 @@
 import { defineConfig } from "@playwright/test";
 
 const maxFailures = Number(process.env.CONTROL_MAX_FAILURES ?? "0");
+const jsonOut = process.env.CONTROL_JSON_OUT;
 
 export default defineConfig({
   testDir: __dirname,
@@ -18,6 +19,8 @@ export default defineConfig({
   retries: 0,
   // 0 means "no limit" to Playwright, which is the ungated arm.
   maxFailures,
-  reporter: [["list"]],
+  // JSON alongside list: the runner decides the verdict from structured per-scenario
+  // outcomes and the process exit status, never from reporter prose.
+  reporter: jsonOut ? [["list"], ["json", { outputFile: jsonOut }]] : [["list"]],
   use: { trace: "off", video: "off", screenshot: "off" },
 });

@@ -26,4 +26,10 @@ test("S02 successful signup lands on an empty portfolio", async () => {
   // Stands in for the signup that creates a PERMANENT Production account. Reaching this
   // line at all, after S00 has failed, is the exposure the stop gate exists to close.
   fs.writeFileSync(MARKER, "S02 started\n", "utf-8");
+  // Fault injection for the runner's own negative control: a scenario that starts, leaves
+  // its side effect behind, and THEN fails. An oracle that only looked for the marker would
+  // call this a pass.
+  if (process.env.CONTROL_FAIL_S02_AFTER_MARKER === "1") {
+    throw new Error("injected S02 failure after the side effect");
+  }
 });
