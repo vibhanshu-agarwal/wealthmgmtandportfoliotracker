@@ -308,6 +308,7 @@ jobs:
             --repo-root .
 
       - name: Upload the build-id evidence
+        id: upload-build-id-evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:

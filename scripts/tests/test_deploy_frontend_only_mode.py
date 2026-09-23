@@ -1264,6 +1264,9 @@ class TestFrontendOnlyWorkflow(unittest.TestCase):
 
     def test_the_build_id_evidence_is_bound_to_the_run_attempt_and_sha(self):
         step = _named_block(self.jobs["verify-served-build"], "Upload the build-id evidence")
+        # Every upload site must carry an id and be classified in
+        # scripts/playwright-upload-manifest.json (check-sanitizer-secret-wiring.js).
+        self.assertIn("id: upload-build-id-evidence", step)
         self.assertIn("name: frontend-build-id-${{ github.run_id }}-${{ github.run_attempt }}", step)
         self.assertIn("if-no-files-found: error", step)
         # github.sha is recorded inside the JSON record by the script; the env must reach it.
