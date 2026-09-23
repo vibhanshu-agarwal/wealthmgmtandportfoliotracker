@@ -17,10 +17,16 @@
  * an oracle looking only for the marker would call a pass. The fourth arm injects exactly
  * that and requires this runner to reject it.
  *
+ * Four arms:
+ *
  *   ungated   maxFailures off, ids differ  -> S00 fails, S02 RUNS AND PASSES  (the exposure)
  *   gated     maxFailures 1,  ids differ   -> S00 fails, S02 NEVER STARTS     (the gate)
  *   matching  maxFailures 1,  ids equal    -> both pass, exit 0               (no false stop)
  *   oracle    S02 writes its marker then FAILS -> the matching expectations must be violated
+ *
+ * What each assertion is worth: the per-scenario status/result checks are the load-bearing
+ * ones — they are what the mutation runs fail on. The exit-status check in `checkArm` is an
+ * intentional redundant cross-check that no arm currently depends on; see the comment there.
  *
  * Contacts nothing but 127.0.0.1, launches no browser, and always stops its server.
  */
@@ -121,6 +127,14 @@ function checkArm(label, actual, expected) {
     faults.push(`${label}: no JSON report was produced, so nothing can be asserted`);
     return faults;
   }
+  // INTENTIONAL REDUNDANT CROSS-CHECK. With the current four arms this assertion is not
+  // load-bearing: the per-scenario checks below already discriminate every arm, so deleting
+  // this block does not make any arm fail — a mutation run confirmed it survives. It is kept
+  // deliberately, for two reasons. It catches a run that fails for a reason the per-scenario
+  // outcomes cannot show (a config error, a global setup or teardown fault, no tests
+  // matching), and it keeps the arms honest if one is later added whose scenario outcomes
+  // alone would not distinguish it. Treat it as a belt-and-braces check that no test covers,
+  // not as evidence of anything on its own.
   if ((actual.exitCode === 0) !== expected.exitZero) {
     faults.push(
       `${label}: expected playwright to exit ${expected.exitZero ? "0" : "non-zero"}, got ${actual.exitCode}`,

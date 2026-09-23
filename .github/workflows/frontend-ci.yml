@@ -41,7 +41,8 @@ jobs:
 
       # Proves the Phase 3 Production stop gate has an EFFECT, not just the configured
       # value the static guards pin: a build-id mismatch must stop the run before the
-      # scenario that creates a permanent account. Three arms, local origin only, no
+      # scenario that creates a permanent account. Four arms — the exposure, the gate, no
+      # false stop, and a check on the control's own oracle — local origin only, no
       # browser, no network beyond 127.0.0.1.
       - name: Phase 3 Production stop-gate control
         run: node tests/phase3-e2e/stop-gate-control/run-control.mjs

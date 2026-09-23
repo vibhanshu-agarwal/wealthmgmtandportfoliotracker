@@ -3,9 +3,10 @@
  * check first, then the S02 signup. S02 here creates nothing — it only records that it
  * STARTED, because "did this scenario run at all?" is the question the control answers.
  *
- * Driven by run-control.mjs, which runs this file three times and decides the verdict. It
- * is not part of the Phase 3 suite: playwright.phase3.config.ts matches only
- * phase3.spec.ts, and vitest's include list does not cover this directory.
+ * Driven by run-control.mjs, which runs this file four times and decides the verdict — the
+ * fourth run injects a failure into S02 *after* it has written its marker, to check the
+ * control's own oracle. It is not part of the Phase 3 suite: playwright.phase3.config.ts
+ * matches only phase3.spec.ts, and vitest's include list does not cover this directory.
  */
 import fs from "node:fs";
 import { expect, test } from "@playwright/test";
