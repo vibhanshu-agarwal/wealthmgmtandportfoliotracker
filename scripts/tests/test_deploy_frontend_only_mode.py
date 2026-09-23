@@ -1040,9 +1040,13 @@ class TestFrontendOnlyWorkflow(unittest.TestCase):
 
     def test_each_job_can_read_only_the_secrets_it_needs(self):
         expected = {
+            # The two served-build jobs reach the public site and nothing else: no secret
+            # of any kind, so neither can authenticate anywhere.
+            "served-build-before": set(),
             "snapshot-before": set(AZURE_SNAPSHOT_SECRETS),
             "deploy-frontend": {"SWA_DEPLOYMENT_TOKEN", "GITHUB_TOKEN"},
             "assert-backends-unchanged": set(AZURE_SNAPSHOT_SECRETS),
+            "verify-served-build": set(),
         }
         self.assertEqual(set(self.jobs), set(expected))
         for name, job in self.jobs.items():
@@ -1064,7 +1068,14 @@ class TestFrontendOnlyWorkflow(unittest.TestCase):
 
     def test_has_exactly_the_expected_jobs(self):
         self.assertEqual(
-            list(self.jobs), ["snapshot-before", "deploy-frontend", "assert-backends-unchanged"]
+            list(self.jobs),
+            [
+                "served-build-before",
+                "snapshot-before",
+                "deploy-frontend",
+                "assert-backends-unchanged",
+                "verify-served-build",
+            ],
         )
 
     # -- no backend write surface --------------------------------------------------------
@@ -1092,6 +1103,7 @@ class TestFrontendOnlyWorkflow(unittest.TestCase):
                 "azure/login@v2",
                 "actions/setup-node@v4",
                 "Azure/static-web-apps-deploy@v1",
+                "actions/upload-artifact@v4",
             },
         )
 
@@ -1102,10 +1114,19 @@ class TestFrontendOnlyWorkflow(unittest.TestCase):
         # The two jobs that hold an Azure token may not gain a step. Pinning the inventory
         # (and that every step is named) is what makes an extra `run:` in them visible.
         expected = {
+            "served-build-before": [
+                "Checkout code",
+                "Read the build id the origin serves now",
+            ],
             "snapshot-before": [
                 "Checkout code",
                 "Azure login (OIDC)",
                 "Snapshot Container Apps and refresh Job (read-only)",
+            ],
+            "verify-served-build": [
+                "Checkout code",
+                "Assert the origin serves the build this run uploaded",
+                "Upload the build-id evidence",
             ],
             "deploy-frontend": [
                 "Checkout code",
@@ -1136,8 +1157,9 @@ class TestFrontendOnlyWorkflow(unittest.TestCase):
         # the standard library: the pins on the script's own text cannot see that. `-I` keeps
         # the script directory and PYTHON* variables (PYTHONPATH) out of sys.path.
         commands = re.findall(r"python3[ \t]+(?:-\S+[ \t]+)*\S+", self.code)
-        # snapshot, exposure flags, build id, assert-unchanged.
-        self.assertEqual(len(commands), 4, commands)
+        # pre-deploy served read, snapshot, exposure flags, built build id,
+        # assert-unchanged, post-deploy served verify.
+        self.assertEqual(len(commands), 6, commands)
         for command in commands:
             self.assertRegex(command, r"^python3 -I [.\w/-]+\.py$", command)
 
@@ -1192,6 +1214,63 @@ class TestFrontendOnlyWorkflow(unittest.TestCase):
             _mapping_lines(self.text, "concurrency", 0),
             ["group: wealth-production-azure-deploy", "cancel-in-progress: false"],
         )
+
+    def test_the_served_build_jobs_are_exactly_these(self):
+        # Whole-job literals, like the Azure-token jobs: these two are the only jobs that
+        # reach outside the runner to the public site, so anything else appearing in them
+        # (a login, a container, an env, another `with:`) must be visible here.
+        before = [
+            "  served-build-before:",
+            "    runs-on: ubuntu-latest",
+            "    permissions:",
+            "      contents: read",
+            "    outputs:",
+            "      served_build_id: ${{ steps.pre_deploy.outputs.served_build_id }}",
+            "    steps:",
+            *self.CHECKOUT,
+            "      - name: Read the build id the origin serves now",
+            "        id: pre_deploy",
+            "        run: python3 -I .github/workflows/scripts/frontend_build_id.py --capture-served --url https://vibhanshu-ai-portfolio.dev/login --repo-root .",
+        ]
+        self.assertEqual(_normalized(self.jobs["served-build-before"]), before)
+
+        verify = _normalized(self.jobs["verify-served-build"])
+        # Runs last: every other job must have succeeded for this one to run at all, which
+        # is what makes the evidence it writes mean "the whole frontend-only run passed".
+        self.assertEqual(
+            verify[:8],
+            [
+                "  verify-served-build:",
+                "    runs-on: ubuntu-latest",
+                "    needs: [served-build-before, deploy-frontend, assert-backends-unchanged]",
+                "    permissions:",
+                "      contents: read",
+                "    steps:",
+                *self.CHECKOUT,
+            ],
+        )
+
+    def test_the_served_verify_step_is_bounded_and_uses_both_observed_ids(self):
+        step = _named_block(
+            self.jobs["verify-served-build"], "Assert the origin serves the build this run uploaded"
+        )
+        self.assertIn("--emitted-id \"${{ needs.deploy-frontend.outputs.build_id }}\"", step)
+        self.assertIn(
+            "--pre-deploy-id \"${{ needs.served-build-before.outputs.served_build_id }}\"", step
+        )
+        # The request bound is explicit in the workflow, not left to a script default.
+        self.assertIn("--attempts 5", step)
+        self.assertIn("--delay-seconds 10", step)
+
+    def test_the_build_id_evidence_is_bound_to_the_run_attempt_and_sha(self):
+        step = _named_block(self.jobs["verify-served-build"], "Upload the build-id evidence")
+        self.assertIn("name: frontend-build-id-${{ github.run_id }}-${{ github.run_attempt }}", step)
+        self.assertIn("if-no-files-found: error", step)
+        # github.sha is recorded inside the JSON record by the script; the env must reach it.
+        verify = _named_block(
+            self.jobs["verify-served-build"], "Assert the origin serves the build this run uploaded"
+        )
+        self.assertIn("GITHUB_SHA", verify)
 
     def test_the_azure_token_holding_jobs_are_exactly_these(self):
         # Whole-job literals: anything else in these jobs (another checkout ref or repository,
@@ -1256,7 +1335,7 @@ class TestFrontendOnlyWorkflow(unittest.TestCase):
             [
                 "  deploy-frontend:",
                 "    runs-on: ubuntu-latest",
-                "    needs: snapshot-before",
+                "    needs: [served-build-before, snapshot-before]",
                 "    permissions:",
                 "      contents: read",
                 "    outputs:",
@@ -1316,7 +1395,12 @@ class TestFrontendOnlyWorkflow(unittest.TestCase):
     # -- ordering and the always() assertion --------------------------------------------
 
     def test_frontend_job_cannot_start_without_the_before_snapshot(self):
-        self.assertRegex(self.jobs["deploy-frontend"], r"(?m)^    needs: snapshot-before\s*$")
+        # Both predecessors are required: the backend snapshot, and the pre-deploy read
+        # of the served build id, which cannot be taken once the upload has happened.
+        self.assertRegex(
+            self.jobs["deploy-frontend"],
+            r"(?m)^    needs: \[served-build-before, snapshot-before\]\s*$",
+        )
 
     def test_before_snapshot_must_be_complete(self):
         job = self.jobs["snapshot-before"]

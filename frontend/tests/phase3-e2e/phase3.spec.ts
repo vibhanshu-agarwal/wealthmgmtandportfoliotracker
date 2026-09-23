@@ -277,10 +277,14 @@ test("S00 preflight: served build, identities, declared baselines", async () => 
   const html = await (await fetch(`${run.frontend}/login`)).text();
   const buildId = /\\"b\\":\\"([A-Za-z0-9_-]{10,})\\"/.exec(html)?.[1] ?? null;
   evidence.verify("S00", "served frontend build ID is readable", buildId !== null, { buildId });
-  if (process.env.P3_EXPECTED_BUILD_ID) {
-    evidence.verify("S00", "served build ID equals the expected candidate", buildId === process.env.P3_EXPECTED_BUILD_ID, {
+  // From the validated run config, not the raw environment: a Production run cannot reach
+  // this point without a well-formed expected build id, because resolveRunConfig refuses to
+  // produce a config without one. The expected value comes from the deploy run that
+  // uploaded the build; reading it off this same page would compare the page with itself.
+  if (run.expectedBuildId) {
+    evidence.verify("S00", "served build ID equals the expected candidate", buildId === run.expectedBuildId, {
       buildId,
-      expected: process.env.P3_EXPECTED_BUILD_ID,
+      expected: run.expectedBuildId,
     });
   }
 

@@ -43,6 +43,11 @@ export default defineConfig({
   fullyParallel: false,
   workers: 1,
   retries: 0,
+  // Production stops at the first failure. The scenarios are NOT serial-mode, so without
+  // this a failed S00 — including a served build id that is not the one the deploy run
+  // uploaded — would be followed by S02, which creates a PERMANENT Production account.
+  // Local runs keep going: they are meant to report every scenario in one pass.
+  maxFailures: run.mode === "production" ? 1 : undefined,
   forbidOnly: true,
   timeout: 240_000,
   expect: { timeout: 20_000 },
