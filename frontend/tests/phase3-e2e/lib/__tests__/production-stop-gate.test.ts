@@ -44,6 +44,25 @@ describe("Production stop gate", () => {
     expect(config).toMatch(/retries:\s*0/);
   });
 
+  it("runs the stop-gate control in CI, so the gate's effect is tested not assumed", () => {
+    const workflow = fs.readFileSync(
+      path.join(FRONTEND_ROOT, "..", ".github", "workflows", "frontend-ci.yml"),
+      "utf-8",
+    );
+    expect(workflow).toContain("node tests/phase3-e2e/stop-gate-control/run-control.mjs");
+  });
+
+  it("keeps the control hermetic: no origin but loopback", () => {
+    const dir = path.join(FRONTEND_ROOT, "tests", "phase3-e2e", "stop-gate-control");
+    const sources = fs.readdirSync(dir).map((f) => fs.readFileSync(path.join(dir, f), "utf-8"));
+    for (const source of sources) {
+      expect(source).not.toContain("vibhanshu-ai-portfolio.dev");
+      for (const url of source.match(/https?:\/\/[^\s"'`)]+/g) ?? []) {
+        expect(url).toMatch(/^https?:\/\/127\.0\.0\.1/);
+      }
+    }
+  });
+
   it("compares the served build against the validated config value", () => {
     expect(spec).toMatch(/buildId === run\.expectedBuildId/);
   });
