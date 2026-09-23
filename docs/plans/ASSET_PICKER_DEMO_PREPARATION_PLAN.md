@@ -8,16 +8,25 @@
 
 **Filed and reconciled:** 2026-09-20
 
-**Latest reconciliation:** 2026-09-22
+**Latest reconciliation:** 2026-09-23
 
-**Goal:** Deliver the Asset Picker to Production quickly, then stabilize the UI, certify the broader
-application through multi-user browser E2E, repair discovered defects, reconcile documentation, and
-prepare demo material.
+**Owner approval callout — next blocked action:** B3's two `deploy.yml` dispatches and their
+individual GitHub `production` gate approvals, plus the bounded unauthenticated frontend GETs, are
+not yet authorized by this document. **If approved**, the already-merged candidate can be deployed
+and its serving identity checked; **if not**, Phase 3 cannot acquire Production exit evidence. A4's
+owner-operated run, certification-user creation, and optional A5 Azure capture each remain separate
+decisions. No push, PR, merge, dispatch, live read, cloud access or Production mutation is authorized
+by editing this plan.
 
-**Architecture:** Use six ordered phases with explicit exit gates. Phase 1 contains only the
-dependencies, deployment, and focused live browser proof needed to call the Asset Picker delivered.
-The known UI issue and broad application certification deliberately follow after Asset Picker
-delivery.
+**Goal:** Make this portfolio project ready for a credible live desktop demo quickly. Deliver the
+Asset Picker, deploy the already-merged application fixes, run the existing multi-user browser suite
+against the served candidate, fix only demo-blocking findings, and prepare a short repeatable demo
+script. Broader hardening, exhaustive documentation and polished media are follow-on work.
+
+**Architecture:** Keep the six phases for traceability, but use the fast-track demo exit below rather
+than making every Phase 4-6 backlog item a prerequisite. Phase 1 contains only the dependencies,
+deployment, and focused live browser proof needed to call the Asset Picker delivered. The known UI
+issue and broad application check follow after that delivery.
 
 **Tech stack:** Java/Spring microservices, Next.js/React frontend, Playwright browser E2E, Azure
 Container Apps, Azure frontend deployment, and GitHub Actions.
@@ -33,6 +42,43 @@ bounded production path. The earlier
 is retained as superseded decision history and is not an active task.
 
 ## Current status
+
+### Fast-track dashboard — 2026-09-23
+
+**This is the status page for this plan.** `main@e8d2f51cdb98dcb4de462040caf962df2b2bd153`
+contains PRs #310-#314 and post-merge CI is green. The latest `Deploy` workflow run is still
+[35489160653](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/35489160653)
+from 2026-09-20, before those merges. Merged proof code is not evidence that the new candidate is
+serving. No B3 deploy has run, and no A4 Production-run or A5 capture evidence is recorded here.
+
+| Phase | Status now | Next exit action |
+|---|---|---|
+| 1 — Asset Picker delivery | **COMPLETE**, deployed and accepted in Production on 2026-09-20 | None; do not reopen for later-phase work |
+| 2 — UI and demo-critical fixes | **COMPLETE at the local/browser gate**; source merged, accepted desktop-only scope, not yet Production-verified | Deploy and observe the merged candidate during B3/Phase 3 |
+| 3 — Broad desktop Production E2E | **SOURCE/PROOF PREP COMPLETE; LIVE EXIT OPEN.** Suite and fixes are merged; every Production-run checkbox below remains open | B3 backend then frontend serving proof; one owner-operated A4 run with retained users and an uncontended full suite |
+| 4 — Defect disposition | **NOT STARTED**; depends on the Phase 3 run | Fix demo blockers; explicitly accept/defer non-blockers |
+| 5 — Documentation | **PARTIAL status filing only**; comprehensive pass not started | Record exact demo status, known limitations and operator steps; defer the larger rewrite |
+| 6 — Demo material | **NOT STARTED** | Prepare and rehearse a short live desktop script; slides/video are optional |
+
+**Fast-track demo-ready exit (not a general-production or `1.0.0` claim):** Phases 1 and 2 are
+accepted; B3 proves that the D11 portfolio-service revision and the uploaded frontend build serve
+traffic; the owner-operated Phase 3 desktop suite completes once uncontended with no skipped or
+uncollected scenario counted as a pass; Production state is restored or its retained state recorded;
+and no unresolved finding blocks the agreed live demo. A verdict with expected defects must name
+them and be accepted explicitly, not be relabeled PASS. Record accepted non-blocking findings and a
+short operator script. Full Phase 5 documentation, polished slides/video and an independent A5
+before/after Azure attestation are **not** fast-track demo blockers. The B3 run-bound revision/digest
+proof supplies the serving identity needed for this narrower exit. A5 remains available as optional
+corroboration under its own approval; it is not silently marked complete.
+
+**Portfolio-project scope:** desktop demo only; do not add mobile-browser certification, broad
+release hardening, unrelated services, or a `1.0.0` launch to the critical path. This scope change
+removes process not truth: a merge or CI pass is not a live observation, and any actual workflow
+dispatch, Production/Cloud access, live GET, account creation or secret handling still requires the
+owner's bounded approval and the repository's existing GitHub `production` gate. This plan grants
+none of those actions.
+
+### Completed Phase 1 and Phase 2 record
 
 **Phase 1 is complete. Asset Picker is deployed and demo-ready under the owner's stated acceptance
 criterion: live exposure plus successful Production E2E.**
@@ -111,10 +157,55 @@ merge commit `b27fcd077925e1afc5040dd2ff85aaeb787977e1`; its tree is identical t
 that merge SHA, and no deploy workflow ran. These fixes are merged but not deployed or
 Production-accepted, so they remain Phase 3 serving blockers.
 
+After that reconciliation, [PR #312](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/312)
+merged the D11/Phase 3 status packet at `a297e6c5`. [PR #313](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/313)
+merged the scoped backend proof at `4adcf981`: a scoped deploy must bind this run's digest to the
+ready revision holding 100% of ingress traffic. [PR #314](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/314)
+merged the frontend proof and A4 stop gate at `e8d2f51c`: the frontend-only deploy must observe a
+served build ID that changed from before the upload and equals the emitted ID of the uploaded export;
+Production S00 must have a declared expected build ID and stops the run before S02's permanent signup
+if it fails. PR #314 also removed the packet's circular instruction to read the expected ID from the
+served page. Post-merge CI passed. **These are merged capabilities, not B3/A4 executions.**
+
 The accepted 320px/375px overflows remain open backlog. F10 and F14 remain separate presentation
-issues, and F2/F3/F5/F9 still require remediation or explicit owner acceptance before the Production
-run. Task 7 is complete; Phase 3 remains closed pending separate B3 deployment, A4 run, A5 capture
-and identity/evidence decisions.
+issues; F2/F3/F5/F9 need an explicit demo impact disposition, not an automatic repair batch. Task 7
+is complete. Phase 3's Production exit remains open pending B3, the owner-run A4 suite and its
+identity/evidence decisions. A5 is optional independent attestation for the fast-track demo exit.
+
+### Immediate fast-track sequence
+
+1. **B3 — deploy the already-merged candidate, with no new feature bundle.** Recheck `main` and
+   `CLOUD_PROVIDER=azure` immediately before dispatch; `e8d2f51c` is the currently recorded tip, not
+   a standing authorization if it moves. Use `deploy.yml` on `refs/heads/main` with its full current
+   SHA as `expected_main_sha`: first `deployment_mode=scoped`, `services=portfolio-service`, empty
+   `prebuilt_digest`; after its run-bound revision/digest/100%-traffic proof succeeds, use
+   `deployment_mode=frontend-only` with empty `services` and `prebuilt_digest`. The second run's
+   served-build evidence must say `verdict=PASS`, `usable_for_a4=true`, and bind the emitted and
+   observed IDs to that run; artifact existence alone is insufficient. Its one pre-upload and at
+   most five post-upload unauthenticated `/login` GETs need their own bounded approval. Each dispatch
+   has a separate GitHub `production` environment gate; recheck the tip and exact inputs before
+   approving each. Stop on a moved tip, failed proof, or input mismatch rather than broadening scope.
+2. **A4 — one owner-operated, uncontended desktop Production run.** Once both B3 proofs pass, create
+   retained `CERT_A` and `CERT_B` once (or use already-approved isolated accounts) and run the
+   existing full Phase 3 suite from the owner's machine. Its S02 signup creates one permanent
+   `FRESH` account per run; record that lifecycle, keep secrets/private `pw-output/` local, and use
+   the deploy run's emitted build ID for S00. Make the D1/D2/D4-D10 choices in the Phase 3
+   [execution packet](../superpowers/plans/2026-09-22-phase3-preparation-execution-packet.md) as
+   one bounded run decision, not a new source-work program. Pre-disposition the known F2/F3/F5/F9
+   behavior as blocking or accepted with an honest expectation before the run. One real chat request
+   keeps that scenario complete; skipping it makes the verdict incomplete. Run outside the FX and
+   market-refresh windows. No automatic Production rerun or account creation is implied.
+3. **Disposition only demo-relevant findings.** Record all findings. Repair any finding that breaks
+   the agreed desktop demonstration, regardless of its severity label, with a focused regression and
+   independent review; rerun its scenario and the full suite once after material code changes. An
+   observed non-blocking issue may be explicitly accepted/deferred with a truthful demo limitation;
+   call out any Critical/Important non-demo issue rather than hiding it. Do not
+   hold the portfolio demo for the known 320px/375px overflows or a general backlog sweep.
+4. **Prepare the minimum demo handoff in parallel.** Keep this dashboard current; make a short
+   desktop walkthrough script with the approved accounts, evidence location, known limitations and
+   fallback if chat/market data is unavailable. Rehearse against the final served build. Slides,
+   a polished video, a full architecture-documentation rewrite and a `1.0.0` release can follow
+   after the demo if useful.
 
 ## Owner approval callouts
 
@@ -125,22 +216,25 @@ rehearsal recorded above. Those consumed authorizations do not authorize Phase 3
 Production mutations, creation of additional users, cleanup, ruleset changes, or future publication.
 This reconciliation records status only and grants none of those authorities.
 
-The owner subsequently consumed the separate publication and merge approvals for PRs #310 and #311.
-Those actions do not authorize B3, A4 or A5. Before A4, B3 must deploy the D11 portfolio-service
-before or together with the frontend; a frontend-only deployment is no longer a valid Phase 3
-candidate because the card fails closed without the D11 backend fields. Workflow dispatch,
-Production access, cloud access and certification-account creation remain closed until separately
-approved.
+The owner subsequently consumed separate publication and merge approvals for PRs #310-#314. Those
+actions do not authorize B3, A4 or A5. Before A4, B3 must deploy the D11 portfolio-service before
+the frontend. A frontend-only deployment **by itself** is not a valid Phase 3 candidate because the
+card fails closed without the D11 backend fields; it is the second step of the approved-order pair,
+not an alternative to the backend step. Workflow dispatch, live GETs, Production/cloud access and
+certification-account creation remain closed until separately approved. A5's independent Azure
+before/after capture is optional for the narrower portfolio-demo exit, but must still be approved
+if performed.
 
 ## Global constraints
 
-- Phase order is fixed: Asset Picker delivery, UI stabilization, broad E2E, bug fixing,
-  documentation, demo media.
+- Phase 1 and 2 are accepted; B3 must precede A4. Findings are triaged after A4. Minimum demo
+  instructions can be drafted in parallel; comprehensive documentation and media do not gate the
+  fast-track exit.
 - Portfolio Settings is deferred and does not gate demo readiness.
 - Phase 1 must not absorb the scrollbar fix, general backlog work, the multi-user suite, or the
   documentation overhaul.
-- A concurrent test pass is supplementary. Every phase exit requiring tests needs a final
-  uncontended pass.
+- A concurrent test pass is supplementary. The Phase 3 exit needs one uncontended full suite run;
+  after any material demo-blocking fix, rerun the affected scenario and then that full suite.
 - Browser evidence must assert observable behavior and persisted values, not only element visibility
   or HTTP success.
 - Production mutations must either restore the exact starting state or record the explicitly
@@ -241,6 +335,17 @@ source has been deployed or Production-verified.
 **Exit outcome:** A reviewed browser suite has exercised the application across multiple Production
 users and materially different portfolios.
 
+**Status:** Preparatory source and proof wiring are complete on `main@e8d2f51c`; the Production
+exit is **OPEN**. None of the unchecked live-run items below has been credited from CI or local
+browser tests. Fast-track the existing suite; do not build another one.
+
+- [x] Merge the multi-user suite and the #418/F1 frontend corrections (PR #310).
+- [x] Merge D11/F13 position-level 24-hour value and coverage (PR #311).
+- [x] Merge the backend revision/traffic binding, frontend served-build proof and S00 Production
+  stop gate (PRs #313-#314); these have not yet run against Production.
+- [ ] B3: deploy portfolio-service, then the frontend, and accept both run-bound serving proofs.
+- [ ] A4: complete one owner-operated, uncontended Production run and disposition its findings.
+
 **Browser matrix:** desktop only, at the agreed demo viewport(s). The owner narrowed the
 demonstration contract to desktop, so the deferred narrow-width overflows are backlog debt rather
 than Phase 3 scope. That narrows the viewports and nothing else: every multi-user, isolation,
@@ -250,11 +355,10 @@ persistence, conflict, freshness, evidence, and uncontended-run requirement belo
 blocked until Phase 3 and the remediation or explicit acceptance of its findings are complete; the
 full gate is the `1.0.0` boundary in the [versioning policy](../release/SEMANTIC_VERSIONING_POLICY.md).
 
-**Open serving blocker:** the signed-in React hydration error #418 is fixed in merged source but must
-be deployed and reverified in Production before Phase 3 can pass. The merged D11/F13 24-hour fix
-likewise requires the D11 portfolio-service to serve before or with the frontend. Cross-page
-24-hour/freshness presentation must be checked against real data rather than inferred from the Phase
-2 mock-only discrepancy.
+**Open serving blocker:** the signed-in React hydration error #418 and D11/F13 24-hour fix are merged
+but not deployed or Production-verified. B3 must prove the compatible backend and frontend are
+serving before A4. Cross-page 24-hour/freshness presentation must be checked against real data rather
+than inferred from the Phase 2 mock-only discrepancy.
 
 - [ ] Before Production mutation, declare the identity lifecycle: retained named certification
   accounts or an explicitly approved cleanup mechanism.
@@ -274,27 +378,41 @@ likewise requires the D11 portfolio-service to serve before or with the frontend
 
 ---
 
-## Phase 4: Fix every defect found by Phase 3
+## Phase 4: Disposition Phase 3 findings and fix demo blockers
 
-**Exit outcome:** All Phase 3 findings are repaired and the complete Production suite passes again.
+**Status:** Not started; Phase 3 has not run in Production. **Fast-track exit outcome:** no unresolved
+finding breaks the agreed live desktop demonstration. Repair demo blockers, and explicitly accept or
+defer non-blockers with an honest demo limitation. This is not a claim that every product defect has
+been fixed or that the product is generally Production-certified.
 
 - [ ] Convert each finding into a bounded defect with reproduction evidence, severity, owner, and
-  expected behavior.
-- [ ] Fix one coherent defect bundle at a time with a failing regression test first.
-- [ ] Require independent review for every implementation bundle.
-- [ ] After each fix, rerun the exact failing scenario.
-- [ ] After all targeted scenarios pass, rerun the complete Production suite uncontended.
+  expected behavior or an explicit non-blocking acceptance.
+- [ ] Fix each demo-blocking bundle with a failing regression first; leave unrelated backlog out.
+- [ ] Independently review any implementation bundle.
+- [ ] After each fix, rerun the exact failing scenario and, after material code changes, the full
+  Production suite uncontended. If no code change is needed, the accepted A4 full run is the exit run.
 - [ ] Restore or record all Production state and verify the currently served artifact.
 
-No known Phase 3 defect may be deferred while still calling Phase 4 complete. A product decision
-that accepts behavior as intended must be explicit and reflected in the test expectation.
+If the accepted A4 run finds no demo blocker, record the fix/review/rerun items as **N/A with the A4
+evidence**, not as invented completed implementation work.
+
+No **demo-blocking** defect of any severity may be deferred while calling the fast-track demo ready.
+A non-blocking finding may be deferred only with an explicit owner product decision, recorded
+limitation and, where relevant, a test expectation that does not claim the defect is fixed.
 
 ---
 
 ## Phase 5: Reconcile documentation
 
-**Exit outcome:** Repository documentation describes the system actually demonstrated and provides
-reproducible E2E flows.
+**Status:** Partial status filing only. **Fast-track exit outcome:** this plan states the actual
+serving/run status, known limitations and a reproducible short operator flow. The full repository
+documentation overhaul below is follow-on work, not a portfolio-demo gate.
+
+- [ ] Record B3/A4 run URLs, exact SHAs, served revision/build ID, verdict and accepted limitations
+  in this plan after they occur.
+- [ ] Keep a short operator script and evidence pointer for the final desktop demo.
+
+**Full documentation backlog (not required for fast-track demo-ready):**
 
 - [ ] Update README and ROADMAP with delivered capabilities and honest remaining limitations.
 - [ ] Reconcile Asset Picker requirements, design, task ledger, and master plan with exact Production
@@ -314,8 +432,15 @@ belongs here and must not delay Phase 1.
 
 ## Phase 6: Prepare demo material
 
-**Exit outcome:** Slides and video are derived from the accepted Phase 5 documentation and final
-Production build.
+**Status:** Not started. **Fast-track exit outcome:** rehearse a short live desktop walkthrough
+against the final served build using non-sensitive data, with a fallback for chat/market-data
+unavailability. A slide deck and polished video are optional assets, not prerequisites to say the
+portfolio demo is ready.
+
+- [ ] Agree a short audience-specific narrative and rehearse it against the final served build.
+- [ ] Keep a small non-sensitive screenshot/evidence set and a fallback path.
+
+**Optional media backlog:**
 
 - [ ] Agree the audience, duration, narrative, and live-demo versus recorded-demo balance.
 - [ ] Build the slide deck from the accepted architecture and E2E evidence.
@@ -330,5 +455,9 @@ Production build.
 ## Final definitions
 
 - **Asset Picker delivered:** Phase 1 complete — achieved 2026-09-20.
-- **Demo application technically ready:** Phases 1-4 complete.
-- **Demo package ready:** Phases 1-6 complete.
+- **Fast-track portfolio demo ready:** the dashboard's fast-track demo-ready exit is evidenced:
+  Phases 1-2 accepted, B3 served candidate proven, A4 full desktop Production run accepted,
+  demo-blocking findings resolved, Production state accounted for, and a short operator script
+  rehearsed. This does not imply A5, exhaustive backlog closure, polished media or `1.0.0`.
+- **Full original package:** complete the deferred Phase 5 documentation and optional Phase 6
+  media if the portfolio needs them; do not mislabel those unchecked follow-ons as completed.
