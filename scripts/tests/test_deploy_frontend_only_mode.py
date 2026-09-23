@@ -1113,6 +1113,7 @@ class TestFrontendOnlyWorkflow(unittest.TestCase):
                 "Set up Node.js",
                 "Install frontend dependencies",
                 "Build Next.js static export",
+                "Publish the built frontend build id",
                 "Deploy to Azure Static Web Apps",
                 "Deploy to Azure Static Web Apps (retry)",
             ],
@@ -1135,7 +1136,8 @@ class TestFrontendOnlyWorkflow(unittest.TestCase):
         # the standard library: the pins on the script's own text cannot see that. `-I` keeps
         # the script directory and PYTHON* variables (PYTHONPATH) out of sys.path.
         commands = re.findall(r"python3[ \t]+(?:-\S+[ \t]+)*\S+", self.code)
-        self.assertEqual(len(commands), 3, commands)
+        # snapshot, exposure flags, build id, assert-unchanged.
+        self.assertEqual(len(commands), 4, commands)
         for command in commands:
             self.assertRegex(command, r"^python3 -I [.\w/-]+\.py$", command)
 
@@ -1257,6 +1259,8 @@ class TestFrontendOnlyWorkflow(unittest.TestCase):
                 "    needs: snapshot-before",
                 "    permissions:",
                 "      contents: read",
+                "    outputs:",
+                "      build_id: ${{ steps.build_id.outputs.build_id }}",
                 "    steps:",
                 "      - name: Checkout code",
             ],
@@ -1365,6 +1369,33 @@ class TestFrontendOnlyWorkflow(unittest.TestCase):
 
     # -- the frontend job is the same build as full mode's -------------------------------
 
+    def test_the_built_build_id_leaves_the_job_as_an_output(self):
+        # Emission only: the value escapes the job so a separately approved consumer can
+        # compare it with the served id. No live fetch is wired here.
+        self.assertRegex(
+            self.jobs["deploy-frontend"],
+            r"(?m)^      build_id: \$\{\{ steps\.build_id\.outputs\.build_id \}\}\s*$",
+        )
+
+    def test_the_build_id_step_reads_the_export_that_is_uploaded(self):
+        # The id must come from the directory the SWA steps upload (frontend/out), so the
+        # value is independent of anything the deployed origin later reports.
+        block = _normalized(
+            _named_block(self.jobs["deploy-frontend"], "Publish the built frontend build id")
+        )
+        self.assertEqual(
+            block,
+            [
+                "      - name: Publish the built frontend build id",
+                "        id: build_id",
+                "        run: python3 -I .github/workflows/scripts/frontend_build_id.py --export-dir frontend/out",
+            ],
+        )
+        upload = _normalized(
+            _named_block(self.jobs["deploy-frontend"], "Deploy to Azure Static Web Apps")
+        )
+        self.assertIn('          app_location: "frontend/out"', upload)
+
     def test_frontend_steps_match_deploy_azure_full_mode_exactly(self):
         full_mode = self.azure_jobs["deploy-frontend"]
         frontend_only = self.jobs["deploy-frontend"]
@@ -1373,6 +1404,7 @@ class TestFrontendOnlyWorkflow(unittest.TestCase):
             "Set up Node.js",
             "Install frontend dependencies",
             "Build Next.js static export",
+            "Publish the built frontend build id",
             "Deploy to Azure Static Web Apps",
             "Deploy to Azure Static Web Apps (retry)",
         ):
@@ -1733,8 +1765,11 @@ class TestAssertUnchanged(unittest.TestCase):
                 visit(child, function)
 
         visit(tree, "<module>")
-        # Every read goes through `run_az`, from exactly the two identity helpers, with a
-        # literal argv whose verb is `containerapp show` / `containerapp job show`.
+        # Every read goes through `run_az`, from exactly the three identity helpers, with a
+        # literal argv whose verb is `containerapp show` / `containerapp job show` /
+        # `containerapp revision show`. The revision helper needs two reads because
+        # latestReadyRevisionName is a containerApp property while the image, active flag,
+        # provisioning state and traffic weight belong to the revision resource.
         sites: list[tuple[str, tuple[str, ...]]] = []
         for function in ast.walk(tree):
             if not isinstance(function, (ast.FunctionDef, ast.AsyncFunctionDef)):
@@ -1761,6 +1796,8 @@ class TestAssertUnchanged(unittest.TestCase):
             [
                 ("_app_identity", ("containerapp", "show")),
                 ("_job_identity", ("containerapp", "job", "show")),
+                ("_ready_revision_binding", ("containerapp", "revision", "show")),
+                ("_ready_revision_binding", ("containerapp", "show")),
             ],
         )
         # Dynamic dispatch reaches a callable by a name this pin cannot see; the script has

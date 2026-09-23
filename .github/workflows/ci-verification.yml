@@ -168,6 +168,7 @@ jobs:
           python scripts/tests/test_resolve_deploy_selection.py
           python scripts/tests/test_deploy_azure_service_allowlist.py
           python scripts/tests/test_snapshot_container_apps.py
+          python scripts/tests/test_frontend_build_id.py
           python scripts/tests/test_resolve_digest_deploy.py
           python scripts/tests/test_deploy_azure_prebuilt_digest.py
 
