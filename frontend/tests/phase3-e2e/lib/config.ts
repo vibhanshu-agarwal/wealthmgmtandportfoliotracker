@@ -47,6 +47,8 @@ export interface RunConfig {
   readonly allowProvision: boolean;
   readonly negativeControl: NegativeControl | null;
   readonly skipChat: boolean;
+  /** Build id the deploy run uploaded; S00 requires the origin to serve exactly this. */
+  readonly expectedBuildId: string | null;
 }
 
 export type ConfigProblem =
@@ -62,7 +64,8 @@ export type ConfigProblem =
   | "NEGATIVE_CONTROL_UNKNOWN"
   | "AUTH_INTERVAL_TOO_LOW"
   | "AUTH_INTERVAL_INVALID"
-  | "RUN_ID_INVALID";
+  | "RUN_ID_INVALID"
+  | "EXPECTED_BUILD_ID_MISSING";
 
 export type ConfigResult =
   | { readonly ok: true; readonly config: RunConfig }
@@ -78,6 +81,9 @@ interface ResolveOptions {
 
 const DOMAIN_PATTERN = /^[a-z0-9-]+(\.[a-z0-9-]+)+$/i;
 const RUN_ID_PATTERN = /^p3-\d{8}T\d{6}Z-[0-9a-f]{4}$/;
+// Matches frontend_build_id.py BUILD_ID_RE: the same Next build id, checked the same way
+// on both sides of the hand-off from the deploy run to this suite.
+const BUILD_ID_PATTERN = /^[A-Za-z0-9_-]{6,64}$/;
 
 function present(value: string | undefined): value is string {
   return typeof value === "string" && value.length > 0;
@@ -144,6 +150,17 @@ export function resolveRunConfig(env: Env, options: ResolveOptions): ConfigResul
   let certA: Credentials;
   let certB: Credentials;
 
+  // S00 checks the served build id against this value, which must come from the deploy run
+  // that uploaded the build — never read off the page being measured, which would compare
+  // the served page with itself. A Production run without it is refused here, before any
+  // test is collected: the suite is not serial, so a mismatch discovered later would still
+  // be preceded by S02's permanent Production signup.
+  let expectedBuildId: string | null = null;
+  if (present(env.P3_EXPECTED_BUILD_ID) && BUILD_ID_PATTERN.test(env.P3_EXPECTED_BUILD_ID)) {
+    expectedBuildId = env.P3_EXPECTED_BUILD_ID;
+  }
+  if (production && expectedBuildId === null) problems.push("EXPECTED_BUILD_ID_MISSING");
+
   if (production) {
     if (env.P3_PRODUCTION_APPROVAL !== PRODUCTION_APPROVAL_PHRASE) problems.push("APPROVAL_MISSING");
     if (env.P3_IDENTITY_LIFECYCLE !== "retained") problems.push("LIFECYCLE_NOT_DECLARED");
@@ -192,6 +209,7 @@ export function resolveRunConfig(env: Env, options: ResolveOptions): ConfigResul
       allowProvision: !production,
       negativeControl,
       skipChat: env.P3_SKIP_CHAT === "1",
+      expectedBuildId,
     },
   };
 }

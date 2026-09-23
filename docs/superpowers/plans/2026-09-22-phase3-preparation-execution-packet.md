@@ -139,7 +139,10 @@ defect. The [D11 execution packet](2026-09-22-d11-24h-position-value-packet.md) 
 
 **Final uncontended run `p3-20260922T083117Z-4877`** (`f1-fix-776516b8/final-run-776516b8/`).
 - Suite SHA `776516b8` (the final code head), clean tree; served build `vWPoXAj5HkPqr86nWtuE7` (built from
-  `776516b8`), matched with `P3_EXPECTED_BUILD_ID`.
+  `776516b8`), matched with `P3_EXPECTED_BUILD_ID`. From B3 onwards that variable is required
+  for a Production run and must carry the deploy run's emitted `build_id`: `resolveRunConfig`
+  refuses to start a Production run without a well-formed value, and the run stops at the
+  first failure, so a mismatch cannot be followed by S02's permanent signup.
 - **15/15 scenarios passed, 451 ledger checks, 0 failed.**
 - Verdict **PASS_WITH_EXPECTED_DEFECTS**, with three expected defects:
   - `partial-valuation-not-presented` (F2);
@@ -364,8 +367,19 @@ design §16; this is the summary.
 
 1. **Deploy** the approved candidate with portfolio-service first or together with the frontend;
    never use the former frontend-only A3 option. Apply the serving proof defined at B3 before A4,
-   record the portfolio-service revision/digest, and note the frontend build ID from `/login` as
-   `"b":"<id>"`.
+   and record the portfolio-service revision/digest.
+
+   **Take the frontend build ID from the deploy run, never from the served page.** The
+   frontend-only run publishes it as the `build_id` output of its `deploy-frontend` job and in the
+   `frontend-build-id-<run id>-<attempt>` artifact, derived from the export that was uploaded.
+   Reading it off `/login` instead would make S00 compare the served page with itself, so the
+   check would pass no matter what is deployed.
+
+   That artifact is uploaded even when verification fails, so **its existence is not a pass**.
+   Before using the ID for A4, require all of: the record's `"verdict": "PASS"` and
+   `"usable_for_a4": true`; the frontend-only workflow run's own conclusion to be success; and the
+   separate backend deployment proof for the D11 portfolio-service. Check the record's `run_id`,
+   `run_attempt` and `commit_sha` match the deploy you intend to certify.
 2. **Create** `CERT_A` and `CERT_B` through the Production signup page, using names and addresses
    per D2. The suite never creates them in Production (D1).
 3. **Capture** the backend revisions and digests (read-only `az containerapp revision list/show`).
@@ -379,7 +393,7 @@ design §16; this is the summary.
    $env:P3_IDENTITY_LIFECYCLE = "retained"
    $env:P3_EMAIL_DOMAIN = "<domain per D2>"
    $env:P3_WORK_DIR = "C:\p3-evidence"
-   $env:P3_EXPECTED_BUILD_ID = "<served build id>"
+   $env:P3_EXPECTED_BUILD_ID = "<build_id from the frontend-only deploy run; NOT read from /login>"
    $env:P3_CERT_A_EMAIL = Read-Host "CERT_A email"
    $env:P3_CERT_A_PASSWORD = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR((Read-Host "CERT_A password" -AsSecureString)))
    $env:P3_CERT_B_EMAIL = Read-Host "CERT_B email"

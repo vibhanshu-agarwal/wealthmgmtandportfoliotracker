@@ -20,6 +20,8 @@ const PRODUCTION_ENV = {
   P3_CERT_A_PASSWORD: "cert-a-password-long",
   P3_CERT_B_EMAIL: "cert-b@certs.example.org",
   P3_CERT_B_PASSWORD: "cert-b-password-long",
+  // Supplied by the frontend-only deploy run that uploaded the build (B3).
+  P3_EXPECTED_BUILD_ID: "xHLycg2EB2LnlAniJ-SbA",
 };
 
 function problemsOf(result: ReturnType<typeof resolve>) {
@@ -161,5 +163,42 @@ describe("resolveRunConfig — local defaults", () => {
 
   it("still requires an absolute work dir outside the repository", () => {
     expect(problemsOf(resolve({ P3_TARGET: "local", P3_WORK_DIR: REPO_ROOT }))).toContain("WORK_DIR_INVALID");
+  });
+});
+
+describe("resolveRunConfig — expected served build id (B3)", () => {
+  // S00 compares the served build id against this value. It must come from the deploy run
+  // that uploaded the build, never from the page being measured, and a Production run that
+  // does not declare it must not start at all: the suite is not serial, so a later failure
+  // would still be preceded by S02's permanent signup.
+  const VALID = "xHLycg2EB2LnlAniJ-SbA";
+
+  it("refuses a Production run that declares no expected build id", () => {
+    const { P3_EXPECTED_BUILD_ID: _omitted, ...withoutExpectedId } = PRODUCTION_ENV;
+    expect(problemsOf(resolve(withoutExpectedId))).toContain("EXPECTED_BUILD_ID_MISSING");
+  });
+
+  it("refuses a Production run whose expected build id is malformed", () => {
+    for (const bad of ["", "   ", "short", "not a build id", "x".repeat(65)]) {
+      expect(
+        problemsOf(resolve({ ...PRODUCTION_ENV, P3_EXPECTED_BUILD_ID: bad })),
+      ).toContain("EXPECTED_BUILD_ID_MISSING");
+    }
+  });
+
+  it("accepts a Production run that declares a well-formed expected build id", () => {
+    const result = resolve({ ...PRODUCTION_ENV, P3_EXPECTED_BUILD_ID: VALID });
+    expect(result).toMatchObject({ ok: true, config: { expectedBuildId: VALID } });
+  });
+
+  it("does not require one for a local run, and reports none", () => {
+    const result = resolve({ P3_TARGET: "local", P3_WORK_DIR: OUTSIDE });
+    expect(problemsOf(result)).not.toContain("EXPECTED_BUILD_ID_MISSING");
+    expect(result).toMatchObject({ ok: true, config: { expectedBuildId: null } });
+  });
+
+  it("still honours a declared expected build id in a local run", () => {
+    const result = resolve({ P3_TARGET: "local", P3_WORK_DIR: OUTSIDE, P3_EXPECTED_BUILD_ID: VALID });
+    expect(result).toMatchObject({ ok: true, config: { expectedBuildId: VALID } });
   });
 });
