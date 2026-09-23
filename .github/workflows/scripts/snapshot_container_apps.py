@@ -114,6 +114,41 @@ def capture(resource_group: str, run_az: RunAz = _run_az) -> dict[str, Any]:
     return snapshot
 
 
+def expected_images(
+    before: dict[str, Any],
+    selected: list[str],
+    git_sha: str | None = None,
+    requested_digest: str | None = None,
+    digest_manifest: dict[str, str] | None = None,
+) -> dict[str, str]:
+    """{service: image reference this run is expected to have deployed}.
+
+    Empty when the caller supplied neither a digest nor a git SHA — there is then nothing
+    to check the deployed image against, which ``compare`` reports as an error and the
+    revision-binding proof treats as "not applicable" rather than inventing an expectation.
+    """
+    digest = (requested_digest or "").strip() or None
+    sha = (git_sha or "").strip() or None
+    mode = (
+        "manifest" if digest_manifest is not None
+        else "digest" if digest
+        else "git-sha" if sha
+        else None
+    )
+    if not mode:
+        return {}
+    images: dict[str, str] = {}
+    for name in selected:
+        repository = _repository(str(before.get(name, {}).get("image", "")))
+        if mode == "manifest":
+            images[name] = repository + "@" + digest_manifest[name]
+        elif mode == "digest":
+            images[name] = repository + "@" + digest
+        else:
+            images[name] = repository + ":" + sha
+    return images
+
+
 def compare(
     before: dict[str, Any],
     after: dict[str, Any],
@@ -125,19 +160,8 @@ def compare(
     _validate_selected(selected)
     errors: list[str] = []
     selected_set = set(selected)
-    digest = (requested_digest or "").strip() or None
-    sha = (git_sha or "").strip() or None
-    mode = "manifest" if digest_manifest is not None else "digest" if digest else "git-sha" if sha else None
-    expected_images = {}
-    if mode:
-        for name in selected:
-            repository = _repository(str(before.get(name, {}).get("image", "")))
-            if mode == "manifest":
-                expected_images[name] = repository + "@" + digest_manifest[name]
-            elif mode == "digest":
-                expected_images[name] = repository + "@" + digest
-            else:
-                expected_images[name] = repository + ":" + sha
+    expected = expected_images(before, selected, git_sha, requested_digest, digest_manifest)
+    mode = bool(expected)
     for name in KNOWN_SERVICES:
         if name in selected_set:
             image = str(after.get(name, {}).get("image", ""))
@@ -146,9 +170,9 @@ def compare(
                     f"selected {name} image {image!r} cannot be checked: "
                     "neither digest nor git sha was provided"
                 )
-            elif image != expected_images[name]:
+            elif image != expected[name]:
                 errors.append(
-                    f"selected {name} image {image!r} does not equal expected digest/image {expected_images[name]!r}"
+                    f"selected {name} image {image!r} does not equal expected digest/image {expected[name]!r}"
                 )
         elif before.get(name) != after.get(name):
             errors.append(
@@ -161,8 +185,8 @@ def compare(
             errors.append(f"selected {REFRESH_JOB} is missing")
         elif not mode:
             errors.append(f"selected {REFRESH_JOB} cannot be verified without an expected image")
-        elif str(after_job.get("image", "")) != expected_images["market-data-service"]:
-            errors.append(f"selected {REFRESH_JOB} image does not equal expected {expected_images['market-data-service']!r}")
+        elif str(after_job.get("image", "")) != expected["market-data-service"]:
+            errors.append(f"selected {REFRESH_JOB} image does not equal expected {expected['market-data-service']!r}")
     elif before.get(REFRESH_JOB) != after.get(REFRESH_JOB):
         errors.append(
             f"unselected {REFRESH_JOB} changed: {json.dumps(before.get(REFRESH_JOB))} -> {json.dumps(after.get(REFRESH_JOB))}"
@@ -251,6 +275,197 @@ def compare_unchanged(before: dict[str, Any], after: dict[str, Any]) -> list[str
                 f"{name} changed during a frontend-only deploy: "
                 f"{json.dumps(before[name])} -> {json.dumps(after[name])}"
             )
+    return errors
+
+
+def _ready_revision_binding(name: str, resource_group: str, run_az: RunAz) -> dict[str, Any]:
+    """Read the app's newest *ready* revision, then that revision's own detail.
+
+    Two reads, because they live on different resources: ``latestReadyRevisionName`` is a
+    containerApp property, while the image, active flag, provisioning state and traffic
+    weight are properties of the revision. Both are ``show`` reads and mutate nothing.
+    """
+    app = run_az(
+        [
+            "containerapp",
+            "show",
+            "--name",
+            name,
+            "--resource-group",
+            resource_group,
+            "--query",
+            "{readyRevision:properties.latestReadyRevisionName}",
+            "-o",
+            "json",
+        ]
+    )
+    if app.returncode != 0:
+        return {"missing": True, "error": (app.stderr or app.stdout).strip()}
+    ready = json.loads(app.stdout).get("readyRevision")
+    ready = ready.strip() if isinstance(ready, str) else ""
+    if not ready:
+        # No revision has become ready. Left for revision_binding_errors to report, so the
+        # failure reads the same whether the field was absent, null or blank.
+        return {"readyRevision": ""}
+    revision = run_az(
+        [
+            "containerapp",
+            "revision",
+            "show",
+            "--name",
+            name,
+            "--resource-group",
+            resource_group,
+            "--revision",
+            ready,
+            "--query",
+            "{revisionImage:properties.template.containers[0].image,"
+            "active:properties.active,"
+            "provisioningState:properties.provisioningState,"
+            "trafficWeight:properties.trafficWeight}",
+            "-o",
+            "json",
+        ]
+    )
+    if revision.returncode != 0:
+        return {"missing": True, "error": (revision.stderr or revision.stdout).strip()}
+    return _canonical({"readyRevision": ready, **json.loads(revision.stdout)})
+
+
+def capture_bindings(
+    resource_group: str, selected: list[str], run_az: RunAz = _run_az
+) -> dict[str, Any]:
+    """Revision bindings for the selected apps only. Unselected apps are never read."""
+    _validate_selected(selected)
+    return {
+        name: _ready_revision_binding(name, resource_group, run_az) for name in selected
+    }
+
+
+def _traffic_targets_revision(traffic: Any, ready_revision: str, latest_revision: str) -> bool:
+    """Whether the ingress traffic map sends all 100% to ``ready_revision``.
+
+    Stricter than :func:`_traffic_problem`, which only asks whether the map is well formed.
+    Entries carrying zero weight route nothing and are ignored. An entry either names a
+    revision outright, or sets ``latestRevision``, which resolves to the app's
+    ``latestRevisionName`` — the newest revision, which is not necessarily the newest
+    *ready* one. When those differ, ``latestRevision`` traffic is not proven to reach the
+    revision this run made ready, so it fails closed.
+    """
+    if not isinstance(traffic, list) or not traffic:
+        return False
+    total = 0
+    for entry in traffic:
+        if not isinstance(entry, dict):
+            return False
+        weight = entry.get("weight")
+        if isinstance(weight, bool) or not isinstance(weight, int) or not 0 <= weight <= 100:
+            return False
+        if weight == 0:
+            continue
+        revision = entry.get("revisionName")
+        names_revision = isinstance(revision, str) and bool(revision.strip())
+        latest = entry.get("latestRevision") is True
+        if names_revision and latest:
+            # `revisionName` and `latestRevision` are distinct routing forms. An entry
+            # setting both states two things at once, and the one that happens to be read
+            # first must not decide the outcome: reject the contradiction itself, whether
+            # or not the two readings currently agree.
+            return False
+        if names_revision:
+            if revision.strip() != ready_revision:
+                return False
+        elif latest:
+            if latest_revision != ready_revision:
+                return False
+        else:
+            return False
+        total += weight
+    return total == 100
+
+
+def revision_binding_errors(
+    before: dict[str, Any],
+    after: dict[str, Any],
+    bindings: dict[str, Any],
+    selected: list[str],
+    expected_images: dict[str, str],
+) -> list[str]:
+    """Bind this run's digest to the revision that actually holds traffic.
+
+    ``compare`` checks the app's *template* image, and ``--require-complete`` checks that
+    the traffic map is well formed. Neither shows that the revision serving requests is the
+    one this run made ready. Azure keeps traffic on the previous revision until the new one
+    is ready, and with ``min_replicas = 0`` a healthy app sits idle with no replicas, so
+    ``replicas`` and ``runningState`` are deliberately *not* asserted: requiring either
+    would fail a correct scale-to-zero deploy.
+
+    The revision under test is identified from this run's own evidence — the
+    ``latestReadyRevisionName`` read after the deploy, checked against the
+    ``latestRevisionName`` read before it — never from a caller-supplied name.
+    """
+    _validate_selected(selected)
+    errors: list[str] = []
+    for name in selected:
+        binding = bindings.get(name)
+        if not isinstance(binding, dict) or not binding:
+            errors.append(f"{name} has no revision binding")
+            continue
+        if binding.get("missing"):
+            errors.append(
+                f"{name} revision binding could not be read: "
+                f"{binding.get('error') or 'unknown error'}"
+            )
+            continue
+        ready = binding.get("readyRevision")
+        ready = ready.strip() if isinstance(ready, str) else ""
+        if not ready:
+            errors.append(f"{name} has no latestReadyRevisionName")
+            continue
+
+        expected = str(expected_images.get(name, "")).strip()
+        before_entry = after_entry = None
+        before_entry = before.get(name) if isinstance(before.get(name), dict) else {}
+        after_entry = after.get(name) if isinstance(after.get(name), dict) else {}
+        before_revision = str(before_entry.get("revision", "") or "").strip()
+        before_image = str(before_entry.get("image", "") or "").strip()
+        if not before_revision:
+            errors.append(
+                f"{name} before snapshot does not name a prior revision, so this run's "
+                "before/after evidence cannot show that a new revision became ready"
+            )
+            continue
+        if ready == before_revision and before_image != expected:
+            errors.append(
+                f"{name} did not produce a new ready revision: {ready!r} was already the "
+                f"latest revision before the deploy, and its image {before_image!r} is not "
+                f"the expected {expected!r}"
+            )
+            continue
+
+        latest_revision = str(after_entry.get("revision", "") or "").strip()
+        if not _traffic_targets_revision(after_entry.get("traffic"), ready, latest_revision):
+            errors.append(
+                f"{name} does not route 100% of traffic to ready revision {ready!r}: "
+                f"{json.dumps(after_entry.get('traffic'))}"
+            )
+            continue
+
+        image = str(binding.get("revisionImage", "") or "").strip()
+        if image != expected:
+            errors.append(
+                f"{name} ready revision image {image!r} does not equal expected {expected!r}"
+            )
+        if binding.get("active") is not True:
+            errors.append(f"{name} ready revision is not active: {binding.get('active')!r}")
+        state = binding.get("provisioningState")
+        if state != "Provisioned":
+            errors.append(
+                f"{name} ready revision provisioning state is {state!r}, not 'Provisioned'"
+            )
+        weight = binding.get("trafficWeight")
+        if isinstance(weight, bool) or not isinstance(weight, int) or weight != 100:
+            errors.append(f"{name} ready revision traffic weight is {weight!r}, not 100")
     return errors
 
 
@@ -432,7 +647,23 @@ def main() -> int:
         requested_digest=args.requested_digest or None,
         digest_manifest=manifest,
     )
-    print(json.dumps({"after": after, "errors": errors}, indent=2))
+    # Bind this run's digest to the revision actually serving requests. `compare` above
+    # only reads the app's template, which names an image without showing that the
+    # revision carrying it holds the traffic.
+    expected = expected_images(
+        before,
+        selected,
+        args.git_sha or None,
+        args.requested_digest or None,
+        manifest,
+    )
+    bindings: dict[str, Any] = {}
+    if expected:
+        bindings = capture_bindings(resource_group, selected)
+        errors = errors + revision_binding_errors(
+            before, after, bindings, selected, expected
+        )
+    print(json.dumps({"after": after, "bindings": bindings, "errors": errors}, indent=2))
     if errors:
         for error in errors:
             print(f"::error::{error}", file=sys.stderr)

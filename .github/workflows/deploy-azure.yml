@@ -384,6 +384,11 @@ jobs:
       needs.preflight.result == 'success' &&
       needs.preflight.outputs.infra_ready == 'true' &&
       needs.deploy.result == 'success'
+    outputs:
+      # Emission only: the id of the export uploaded below, published so a
+      # separately approved consumer can compare it with the served id. Nothing
+      # in this workflow fetches the deployed origin.
+      build_id: ${{ steps.build_id.outputs.build_id }}
 
     steps:
       - name: Checkout code
@@ -435,6 +440,15 @@ jobs:
 
       # staticwebapp.config.json lives in frontend/public/ so Next.js copies it to
       # frontend/out/ automatically during `npm run build` above. No separate copy step needed.
+
+      # The served frontend can only be proven to be THIS build if the expected build id
+      # comes from somewhere other than the deployed page. Read it out of the export that
+      # the upload steps below send, and fail closed if it is absent or ambiguous. Next
+      # generates the id at build time (no generateBuildId in next.config.ts), so it
+      # cannot be derived from the commit.
+      - name: Publish the built frontend build id
+        id: build_id
+        run: python3 -I .github/workflows/scripts/frontend_build_id.py --export-dir frontend/out
 
       - name: Deploy to Azure Static Web Apps
         id: swa_deploy
