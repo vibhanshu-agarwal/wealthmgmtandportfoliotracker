@@ -10,13 +10,12 @@
 
 **Latest reconciliation:** 2026-09-23
 
-**Owner approval callout — next blocked action:** B3's two `deploy.yml` dispatches and their
-individual GitHub `production` gate approvals, plus the bounded unauthenticated frontend GETs, are
-not yet authorized by this document. **If approved**, the already-merged candidate can be deployed
-and its serving identity checked; **if not**, Phase 3 cannot acquire Production exit evidence. A4's
-owner-operated run, certification-user creation, and optional A5 Azure capture each remain separate
-decisions. No push, PR, merge, dispatch, live read, cloud access or Production mutation is authorized
-by editing this plan.
+**Owner approval callout — next blocked action:** B3 is complete and accepted. A4's owner-operated
+Production run, the creation or use of retained `CERT_A` and `CERT_B`, and decisions D1/D2/D4-D10
+remain unapproved. **If approved**, run the existing Phase 3 desktop suite once against the B3-served
+candidate; **if not**, Phase 3 remains open. Optional A5 Azure capture is a separate decision. No
+push, PR, merge, dispatch, live read, account creation, secret handling or Production mutation is
+authorized by editing this plan.
 
 **Goal:** Make this portfolio project ready for a credible live desktop demo quickly. Deliver the
 Asset Picker, deploy the already-merged application fixes, run the existing multi-user browser suite
@@ -45,17 +44,21 @@ is retained as superseded decision history and is not an active task.
 
 ### Fast-track dashboard — 2026-09-23
 
-**This is the status page for this plan.** `main@e8d2f51cdb98dcb4de462040caf962df2b2bd153`
-contains PRs #310-#314 and post-merge CI is green. The latest `Deploy` workflow run is still
-[35489160653](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/35489160653)
-from 2026-09-20, before those merges. Merged proof code is not evidence that the new candidate is
-serving. No B3 deploy has run, and no A4 Production-run or A5 capture evidence is recorded here.
+**This is the status page for this plan.** `main@cdc51df6643b51fb92dc747a20ac3ca9be4ac2b1`
+contains PRs #310-#316 and its post-merge CI is green. B3 completed on 2026-09-23 at that exact SHA:
+[run 35860682429](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/35860682429)
+proved `portfolio-service--0000097` at digest
+`sha256:19a64b25c6c46b0eb7a42774e972dadadbd278d91b726f31d9f12572840d086b` was active,
+`Provisioned` and receiving 100% of ingress traffic; then
+[run 35862375385](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/35862375385)
+proved the origin served uploaded frontend build `R5P3Iw1SRc9jlIX2Wwee8`, with the backend set
+unchanged. Both runs were attempt 1 and passed. No A4 Production-suite run or A5 capture is recorded.
 
 | Phase | Status now | Next exit action |
 |---|---|---|
 | 1 — Asset Picker delivery | **COMPLETE**, deployed and accepted in Production on 2026-09-20 | None; do not reopen for later-phase work |
-| 2 — UI and demo-critical fixes | **COMPLETE at the local/browser gate**; source merged, accepted desktop-only scope, not yet Production-verified | Deploy and observe the merged candidate during B3/Phase 3 |
-| 3 — Broad desktop Production E2E | **SOURCE/PROOF PREP COMPLETE; LIVE EXIT OPEN.** Suite and fixes are merged; every Production-run checkbox below remains open | B3 backend then frontend serving proof; one owner-operated A4 run with retained users and an uncontended full suite |
+| 2 — UI and demo-critical fixes | **COMPLETE and serving as the B3 candidate**; functional Production verification remains in Phase 3 | Exercise the served candidate during A4 |
+| 3 — Broad desktop Production E2E | **B3 SERVING PROOF COMPLETE; A4 OPEN.** Compatible backend and frontend identities are proven; authenticated behavior and D11 response content are not | One owner-operated A4 run with retained users and an uncontended full suite |
 | 4 — Defect disposition | **NOT STARTED**; depends on the Phase 3 run | Fix demo blockers; explicitly accept/defer non-blockers |
 | 5 — Documentation | **PARTIAL status filing only**; comprehensive pass not started | Record exact demo status, known limitations and operator steps; defer the larger rewrite |
 | 6 — Demo material | **NOT STARTED** | Prepare and rehearse a short live desktop script; slides/video are optional |
@@ -154,8 +157,8 @@ React #418 and F1 were corrected and merged through
 through [PR #311](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/311) at
 merge commit `b27fcd077925e1afc5040dd2ff85aaeb787977e1`; its tree is identical to accepted head
 `3743bd28fd58b2f4aa9048d3e807e449afea10bb`. All four push-triggered post-merge workflows passed on
-that merge SHA, and no deploy workflow ran. These fixes are merged but not deployed or
-Production-accepted, so they remain Phase 3 serving blockers.
+that merge SHA. They were later deployed as part of the B3 candidate described below; their
+functional Production acceptance remains part of A4.
 
 After that reconciliation, [PR #312](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/312)
 merged the D11/Phase 3 status packet at `a297e6c5`. [PR #313](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/313)
@@ -165,26 +168,31 @@ merged the frontend proof and A4 stop gate at `e8d2f51c`: the frontend-only depl
 served build ID that changed from before the upload and equals the emitted ID of the uploaded export;
 Production S00 must have a declared expected build ID and stops the run before S02's permanent signup
 if it fails. PR #314 also removed the packet's circular instruction to read the expected ID from the
-served page. Post-merge CI passed. **These are merged capabilities, not B3/A4 executions.**
+served page. [PR #315](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/315)
+then merged the four-arm stop-gate control, and PR #316 made this plan the status dashboard.
+
+**B3 execution, accepted 2026-09-23:** scoped run 35860682429 deployed only portfolio-service and
+bound its run-produced digest to ready revision `portfolio-service--0000097`, active and
+`Provisioned` with 100% traffic; its non-interference proof passed. Frontend-only run 35862375385
+then emitted and uploaded build `R5P3Iw1SRc9jlIX2Wwee8`; the unauthenticated origin check observed
+that same ID after deployment and a different pre-deploy ID, producing `verdict: PASS`,
+`usable_for_a4: true`, matching run/SHA identity and no errors. It used one pre-upload and one
+post-upload `/login` GET. The run also proved every backend unchanged and still observed the run-1
+portfolio revision/digest. This is point-in-time serving identity evidence, not authenticated page
+or D11 response-content evidence; those remain A4 work.
 
 The accepted 320px/375px overflows remain open backlog. F10 and F14 remain separate presentation
 issues; F2/F3/F5/F9 need an explicit demo impact disposition, not an automatic repair batch. Task 7
-is complete. Phase 3's Production exit remains open pending B3, the owner-run A4 suite and its
+is complete. Phase 3's Production exit remains open pending the owner-run A4 suite and its
 identity/evidence decisions. A5 is optional independent attestation for the fast-track demo exit.
 
 ### Immediate fast-track sequence
 
-1. **B3 — deploy the already-merged candidate, with no new feature bundle.** Recheck `main` and
-   `CLOUD_PROVIDER=azure` immediately before dispatch; `e8d2f51c` is the currently recorded tip, not
-   a standing authorization if it moves. Use `deploy.yml` on `refs/heads/main` with its full current
-   SHA as `expected_main_sha`: first `deployment_mode=scoped`, `services=portfolio-service`, empty
-   `prebuilt_digest`; after its run-bound revision/digest/100%-traffic proof succeeds, use
-   `deployment_mode=frontend-only` with empty `services` and `prebuilt_digest`. The second run's
-   served-build evidence must say `verdict=PASS`, `usable_for_a4=true`, and bind the emitted and
-   observed IDs to that run; artifact existence alone is insufficient. Its one pre-upload and at
-   most five post-upload unauthenticated `/login` GETs need their own bounded approval. Each dispatch
-   has a separate GitHub `production` environment gate; recheck the tip and exact inputs before
-   approving each. Stop on a moved tip, failed proof, or input mismatch rather than broadening scope.
+1. **B3 — COMPLETE and accepted.** Runs 35860682429 and 35862375385 deployed the backend then
+   frontend at `main@cdc51df6` and passed their run-bound serving and non-interference proofs. The
+   serving candidate for A4 is portfolio-service revision `--0000097` at digest `19a64b25…` and
+   frontend build `R5P3Iw1SRc9jlIX2Wwee8`. A later deploy or configuration change would require a
+   fresh identity check; B3 does not prove signed-in behavior or D11 response content.
 2. **A4 — one owner-operated, uncontended desktop Production run.** Once both B3 proofs pass, create
    retained `CERT_A` and `CERT_B` once (or use already-approved isolated accounts) and run the
    existing full Phase 3 suite from the owner's machine. Its S02 signup creates one permanent
@@ -211,23 +219,23 @@ identity/evidence decisions. A5 is optional independent attestation for the fast
 
 The original plan kept merge, production operations, test-user creation, cleanup, and external
 publication as separate owner decisions. The owner separately authorized the actions that produced
-the Phase 1 outcome, the Phase 2 source merges and exit review, and the completed Task 7 release-only
-rehearsal recorded above. Those consumed authorizations do not authorize Phase 3, future deployments,
-Production mutations, creation of additional users, cleanup, ruleset changes, or future publication.
-This reconciliation records status only and grants none of those authorities.
+the Phase 1 outcome, the Phase 2 source merges and exit review, the completed Task 7 release-only
+rehearsal, and the two B3 deployments and proof reads recorded above. Those consumed authorizations
+do not authorize A4, A5, future deployments, Production mutations, creation of additional users,
+cleanup, ruleset changes, reruns or future publication. This reconciliation records status only and
+grants none of those authorities.
 
-The owner subsequently consumed separate publication and merge approvals for PRs #310-#314. Those
-actions do not authorize B3, A4 or A5. Before A4, B3 must deploy the D11 portfolio-service before
-the frontend. A frontend-only deployment **by itself** is not a valid Phase 3 candidate because the
-card fails closed without the D11 backend fields; it is the second step of the approved-order pair,
-not an alternative to the backend step. Workflow dispatch, live GETs, Production/cloud access and
-certification-account creation remain closed until separately approved. A5's independent Azure
-before/after capture is optional for the narrower portfolio-demo exit, but must still be approved
-if performed.
+The owner subsequently consumed separate publication and merge approvals for PRs #310-#316 and
+separate B3 approvals for backend run 35860682429 and frontend run 35862375385, including each
+`production` gate and the bounded frontend GETs. B3 followed the required order: D11 portfolio-service
+first, then frontend. Those approvals are exhausted; they do not authorize another dispatch, live
+read, Production/cloud access, certification-account creation, A4 or A5. A5's independent Azure
+before/after capture is optional for the narrower portfolio-demo exit, but must still be approved if
+performed.
 
 ## Global constraints
 
-- Phase 1 and 2 are accepted; B3 must precede A4. Findings are triaged after A4. Minimum demo
+- Phase 1 and 2 are accepted and B3 is complete; A4 is next. Findings are triaged after A4. Minimum demo
   instructions can be drafted in parallel; comprehensive documentation and media do not gate the
   fast-track exit.
 - Portfolio Settings is deferred and does not gate demo readiness.
@@ -335,15 +343,16 @@ source has been deployed or Production-verified.
 **Exit outcome:** A reviewed browser suite has exercised the application across multiple Production
 users and materially different portfolios.
 
-**Status:** Preparatory source and proof wiring are complete on `main@e8d2f51c`; the Production
-exit is **OPEN**. None of the unchecked live-run items below has been credited from CI or local
-browser tests. Fast-track the existing suite; do not build another one.
+**Status:** B3 serving proof is complete on `main@cdc51df6`; the A4 Production-suite exit is
+**OPEN**. None of the unchecked browser-run items below has been credited from CI, B3 identity
+checks or local browser tests. Fast-track the existing suite; do not build another one.
 
 - [x] Merge the multi-user suite and the #418/F1 frontend corrections (PR #310).
 - [x] Merge D11/F13 position-level 24-hour value and coverage (PR #311).
-- [x] Merge the backend revision/traffic binding, frontend served-build proof and S00 Production
-  stop gate (PRs #313-#314); these have not yet run against Production.
-- [ ] B3: deploy portfolio-service, then the frontend, and accept both run-bound serving proofs.
+- [x] Merge the backend revision/traffic binding, frontend served-build proof, S00 Production stop
+  gate and its four-arm control (PRs #313-#315).
+- [x] B3: deploy portfolio-service, then the frontend, and accept both run-bound serving proofs
+  (runs 35860682429 and 35862375385 at `cdc51df6`).
 - [ ] A4: complete one owner-operated, uncontended Production run and disposition its findings.
 
 **Browser matrix:** desktop only, at the agreed demo viewport(s). The owner narrowed the
@@ -355,10 +364,10 @@ persistence, conflict, freshness, evidence, and uncontended-run requirement belo
 blocked until Phase 3 and the remediation or explicit acceptance of its findings are complete; the
 full gate is the `1.0.0` boundary in the [versioning policy](../release/SEMANTIC_VERSIONING_POLICY.md).
 
-**Open serving blocker:** the signed-in React hydration error #418 and D11/F13 24-hour fix are merged
-but not deployed or Production-verified. B3 must prove the compatible backend and frontend are
-serving before A4. Cross-page 24-hour/freshness presentation must be checked against real data rather
-than inferred from the Phase 2 mock-only discrepancy.
+**Serving blocker closed; functional verification open:** B3 proved the compatible backend and
+frontend identities serve at the accepted SHA. It did not sign in or inspect D11 API responses.
+A4 must check #418, D11/F13 and cross-page 24-hour/freshness presentation against real user data
+rather than infer correctness from build and revision identity.
 
 - [ ] Before Production mutation, declare the identity lifecycle: retained named certification
   accounts or an explicitly approved cleanup mechanism.
@@ -408,8 +417,8 @@ limitation and, where relevant, a test expectation that does not claim the defec
 serving/run status, known limitations and a reproducible short operator flow. The full repository
 documentation overhaul below is follow-on work, not a portfolio-demo gate.
 
-- [ ] Record B3/A4 run URLs, exact SHAs, served revision/build ID, verdict and accepted limitations
-  in this plan after they occur.
+- [x] Record B3 run URLs, exact SHA, served revision/digest and frontend build ID in this plan.
+- [ ] Record the A4 run, verdict, findings and accepted limitations after it occurs.
 - [ ] Keep a short operator script and evidence pointer for the final desktop demo.
 
 **Full documentation backlog (not required for fast-track demo-ready):**
