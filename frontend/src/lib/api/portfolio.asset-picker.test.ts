@@ -48,6 +48,7 @@ beforeEach(() => {
         tickers.map((ticker) => ({
           ticker,
           currentPrice: 100,
+          quoteCurrency: "USD", // as MarketPriceDto always sends
           observedAt: "2026-08-01T00:00:00Z",
           priceUnavailable: false,
         })),
@@ -276,7 +277,7 @@ describe("enrichWireHoldings", () => {
     server.use(
       http.get("/api/market/prices", () =>
         HttpResponse.json([
-          { ticker: "AAPL", currentPrice: 100, observedAt: "2026-08-01T00:00:00Z", priceUnavailable: false },
+          { ticker: "AAPL", currentPrice: 100, quoteCurrency: "USD", observedAt: "2026-08-01T00:00:00Z", priceUnavailable: false },
         ]),
       ),
     );
@@ -324,6 +325,69 @@ describe("enrichWireHoldings", () => {
     expect(byTicker.get("GONE")?.quoteCurrency).toBeNull(); // no price, so no price currency
   });
 
+  // Rehearsal defect #4, fallback path: there is no FX step here, so only a USD price has a
+  // (USD) value. A rupee price used to be shown, and summed, as dollars.
+  it("gives no value to a price not in USD, leaves it out of the total, and marks the total partial", async () => {
+    server.use(
+      http.get("/api/market/prices", () =>
+        HttpResponse.json([
+          { ticker: "M&M.NS", currentPrice: 3010.1, quoteCurrency: "INR", observedAt: "2026-08-01T00:00:00Z", priceUnavailable: false },
+          { ticker: "AAPL", currentPrice: 100, quoteCurrency: "USD", observedAt: "2026-08-01T00:00:00Z", priceUnavailable: false },
+        ]),
+      ),
+    );
+
+    const { holdings, totalValue, partialValuation } = await enrichWireHoldings(
+      [
+        { id: "h1", assetTicker: "M&M.NS", quantity: "44" },
+        { id: "h2", assetTicker: "AAPL", quantity: "10" },
+      ],
+      TOKEN,
+    );
+
+    const byTicker = new Map(holdings.map((h) => [h.ticker, h]));
+    expect(byTicker.get("M&M.NS")).toMatchObject({ currentPrice: 3010.1, quoteCurrency: "INR", totalValue: null, portfolioWeight: 0 });
+    expect(byTicker.get("AAPL")).toMatchObject({ totalValue: 1000, portfolioWeight: 100 });
+    expect(totalValue).toBe(1000); // not 1000 + 44 × 3010.10
+    expect(partialValuation).toBe(true);
+  });
+
+  it("gives no value when the price's currency is not stated", async () => {
+    server.use(
+      http.get("/api/market/prices", () =>
+        HttpResponse.json([
+          { ticker: "AAPL", currentPrice: 100, observedAt: "2026-08-01T00:00:00Z", priceUnavailable: false },
+        ]),
+      ),
+    );
+
+    const { holdings, totalValue, partialValuation } = await enrichWireHoldings(
+      [{ id: "h1", assetTicker: "AAPL", quantity: "10" }],
+      TOKEN,
+    );
+
+    expect(holdings[0].currentPrice).toBe(100);
+    expect(holdings[0].totalValue).toBeNull();
+    expect(totalValue).toBe(0);
+    expect(partialValuation).toBe(true);
+  });
+
+  it("is not partial when every holding has a USD value", async () => {
+    server.use(
+      http.get("/api/market/prices", () =>
+        HttpResponse.json([
+          { ticker: "AAPL", currentPrice: 100, quoteCurrency: "USD", observedAt: "2026-08-01T00:00:00Z", priceUnavailable: false },
+        ]),
+      ),
+    );
+
+    const { partialValuation } = await enrichWireHoldings(
+      [{ id: "h1", assetTicker: "AAPL", quantity: "10" }],
+      TOKEN,
+    );
+    expect(partialValuation).toBe(false);
+  });
+
   it("flags a numeric wire quantity as fidelity-unverified, same as fetchPortfolio", async () => {
     server.use(http.get("/api/market/prices", () => HttpResponse.json([])));
 
@@ -339,7 +403,7 @@ describe("enrichWireHoldings", () => {
     server.use(
       http.get("/api/market/prices", () =>
         HttpResponse.json([
-          { ticker: "AAPL", currentPrice: 100, observedAt: "2026-08-01T00:00:00Z", priceUnavailable: false },
+          { ticker: "AAPL", currentPrice: 100, quoteCurrency: "USD", observedAt: "2026-08-01T00:00:00Z", priceUnavailable: false },
           { ticker: "ZZZZ", currentPrice: null, priceUnavailable: true },
         ]),
       ),
@@ -379,9 +443,10 @@ describe("enrichWireHoldings", () => {
         return HttpResponse.json([]);
       }),
     );
-    const { holdings, totalValue } = await enrichWireHoldings([], TOKEN);
+    const { holdings, totalValue, partialValuation } = await enrichWireHoldings([], TOKEN);
     expect(holdings).toEqual([]);
     expect(totalValue).toBe(0);
+    expect(partialValuation).toBe(false);
     expect(called).toBe(false);
   });
 });
@@ -391,7 +456,7 @@ describe("buildPortfolioResponseFromWireHoldings (requirements.md 4.2)", () => {
     server.use(
       http.get("/api/market/prices", () =>
         HttpResponse.json([
-          { ticker: "AAPL", currentPrice: 100, observedAt: "2026-08-01T00:00:00Z", priceUnavailable: false },
+          { ticker: "AAPL", currentPrice: 100, quoteCurrency: "USD", observedAt: "2026-08-01T00:00:00Z", priceUnavailable: false },
         ]),
       ),
     );
@@ -407,6 +472,32 @@ describe("buildPortfolioResponseFromWireHoldings (requirements.md 4.2)", () => {
     expect(portfolio.version).toBe(8);
     expect(portfolio.holdings[0]).toMatchObject({ ticker: "AAPL", quantity: "10", totalValue: 1000 });
     expect(portfolio.summary.totalValue).toBe(1000);
+    expect(portfolio.summary.partialValuation).toBe(false);
+    expect(portfolio.currency).toBe("USD");
+  });
+
+  // Rehearsal defect #4, fallback path: the summary says its total leaves holdings out.
+  it("marks the summary partial when a holding has no USD value", async () => {
+    server.use(
+      http.get("/api/market/prices", () =>
+        HttpResponse.json([
+          { ticker: "AAPL", currentPrice: 100, quoteCurrency: "USD", observedAt: "2026-08-01T00:00:00Z", priceUnavailable: false },
+          { ticker: "M&M.NS", currentPrice: 3010.1, quoteCurrency: "INR", observedAt: "2026-08-01T00:00:00Z", priceUnavailable: false },
+        ]),
+      ),
+    );
+
+    const portfolio = await buildPortfolioResponseFromWireHoldings(
+      { portfolioId: "p1", ownerId: "user-001", version: 8 },
+      [
+        { id: "h1", assetTicker: "AAPL", quantity: "10" },
+        { id: "h2", assetTicker: "M&M.NS", quantity: "44" },
+      ],
+      TOKEN,
+    );
+
+    expect(portfolio.summary.totalValue).toBe(1000);
+    expect(portfolio.summary.partialValuation).toBe(true);
   });
 
   it("handles the empty-holdings case (a save that removed everything)", async () => {

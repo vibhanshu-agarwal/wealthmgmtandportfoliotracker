@@ -260,9 +260,18 @@ function buildPerformanceSeries(days: number, totalValue: number): PerformanceDa
   return points;
 }
 
+/**
+ * The base currency of a portfolio assembled here from wire holdings. Values on this path are
+ * never FX-converted, so only prices already in this currency have a value.
+ */
+export const FALLBACK_BASE_CURRENCY = "USD";
+
 export interface EnrichedHoldings {
   holdings: AssetHoldingDTO[];
+  /** Sum of the holdings that have a value (base-currency prices only). */
   totalValue: number;
+  /** True when some holding has no value (no price, or a price not in the base currency). */
+  partialValuation: boolean;
 }
 
 /**
@@ -278,7 +287,7 @@ export async function enrichWireHoldings(
   token: string,
 ): Promise<EnrichedHoldings> {
   if (wireHoldings.length === 0) {
-    return { holdings: [], totalValue: 0 };
+    return { holdings: [], totalValue: 0, partialValuation: false };
   }
 
   const tickers = [...new Set(wireHoldings.map((h) => h.assetTicker))];
@@ -298,7 +307,14 @@ export async function enrichWireHoldings(
     // GC.2: the only arithmetic on a quantity goes through the display boundary, and the
     // converted number never flows back into domain state.
     const quantityValue = quantityToDisplayNumber(quantity) ?? 0;
-    const totalValue = currentPrice == null ? null : Number((quantityValue * currentPrice).toFixed(2));
+    const quoteCurrency = currentPrice == null ? null : (price?.quoteCurrency ?? null);
+    // There is no FX step here, so quantity × price is a base-currency value only when the price
+    // is already in the base currency. Any other (or unknown) currency has no value on this path:
+    // it used to be shown, and summed, as if it were USD (rehearsal defect #4, fallback path).
+    const totalValue =
+      currentPrice != null && quoteCurrency === FALLBACK_BASE_CURRENCY
+        ? Number((quantityValue * currentPrice).toFixed(2))
+        : null;
 
     // Use true observation timestamp; never fabricate now() for missing prices.
     const lastUpdatedAt = price?.observedAt ?? price?.updatedAt ?? null;
@@ -312,7 +328,7 @@ export async function enrichWireHoldings(
       ...(quantityFidelityUnverified ? { quantityFidelityUnverified: true } : {}),
       currentPrice,
       // The price's own currency, from the same market-data record (rehearsal defect #3).
-      quoteCurrency: currentPrice == null ? null : (price?.quoteCurrency ?? null),
+      quoteCurrency,
       totalValue,
       avgCostBasis: null,
       unrealizedPnL: null,
@@ -328,12 +344,13 @@ export async function enrichWireHoldings(
   // Holdings without a value are excluded from the total, as portfolio-service does. Their
   // weight is 0 and the UI does not show it (the value reads as unavailable).
   const totalValue = holdings.reduce((sum, h) => sum + (h.totalValue ?? 0), 0);
+  const partialValuation = holdings.some((h) => h.totalValue == null);
   const holdingsWithWeight = holdings.map((h) => ({
     ...h,
     portfolioWeight: h.totalValue != null && totalValue > 0 ? (h.totalValue / totalValue) * 100 : 0,
   }));
 
-  return { holdings: holdingsWithWeight, totalValue };
+  return { holdings: holdingsWithWeight, totalValue, partialValuation };
 }
 
 /**
@@ -356,10 +373,11 @@ export async function buildPortfolioResponseFromWireHoldings(
   wireHoldings: WireHolding[],
   token: string,
 ): Promise<PortfolioResponseDTO> {
-  const { holdings, totalValue } = await enrichWireHoldings(wireHoldings, token);
+  const { holdings, totalValue, partialValuation } = await enrichWireHoldings(wireHoldings, token);
   const firstHolding = holdings[0];
   const summary = {
     totalValue,
+    partialValuation,
     totalCostBasis: totalValue,
     totalUnrealizedPnL: 0,
     totalUnrealizedPnLPercent: 0,
@@ -377,7 +395,7 @@ export async function buildPortfolioResponseFromWireHoldings(
     portfolioId: identity.portfolioId,
     ownerId: identity.ownerId,
     name: "My Portfolio",
-    currency: "USD",
+    currency: FALLBACK_BASE_CURRENCY,
     summary,
     holdings,
     version: identity.version,

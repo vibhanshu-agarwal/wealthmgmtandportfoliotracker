@@ -77,6 +77,11 @@ export interface AssetHoldingDTO {
 
 export interface PortfolioSummaryDTO {
   totalValue: number;
+  /**
+   * True when totalValue leaves out some holding: no price, or (on the client-assembled path,
+   * which has no FX step) a price not in the base currency. Absent means not known to be partial.
+   */
+  partialValuation?: boolean;
   totalCostBasis: number;
   totalUnrealizedPnL: number;
   totalUnrealizedPnLPercent: number;
