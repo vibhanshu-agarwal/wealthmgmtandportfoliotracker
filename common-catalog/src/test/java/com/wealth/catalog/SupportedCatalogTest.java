@@ -114,6 +114,54 @@ class SupportedCatalogTest {
         assertThat(catalog.isActive("AAPL")).isFalse();
     }
 
+    // ── providerSymbol (rehearsal defect #2: Yahoo moved some crypto assets to new symbols) ──
+
+    /** MINIMAL_ACTIVE with one providerSymbol added (BTC-USD → BTC1-USD). */
+    private static final String WITH_PROVIDER_SYMBOL = """
+            [
+              {"ticker":"AAPL","name":"Apple","aliases":["Apple"],"assetClass":"US_EQUITY","quoteCurrency":"USD","basePrice":1.0,"lifecycleStatus":"ACTIVE"},
+              {"ticker":"BTC-USD","name":"Bitcoin","aliases":["BTC"],"assetClass":"CRYPTO","quoteCurrency":"USD","basePrice":1.0,"lifecycleStatus":"ACTIVE","providerSymbol":"BTC1-USD"},
+              {"ticker":"RELIANCE.NS","name":"Reliance","aliases":["Reliance"],"assetClass":"NSE","quoteCurrency":"INR","basePrice":1.0,"lifecycleStatus":"ACTIVE"},
+              {"ticker":"USDINR=X","name":"USD/INR","aliases":["USDINR"],"assetClass":"FOREX","quoteCurrency":"INR","basePrice":1.0,"lifecycleStatus":"ACTIVE"}
+            ]
+            """;
+
+    @Test
+    void providerSymbolIsReadAndDefaultsToTheTicker() {
+        assertThat(WITH_PROVIDER_SYMBOL).contains("BTC1-USD");
+        SupportedCatalog catalog = load(WITH_PROVIDER_SYMBOL);
+        assertThat(catalog.providerSymbol("BTC-USD")).isEqualTo("BTC1-USD");
+        assertThat(catalog.providerSymbol("AAPL")).isEqualTo("AAPL");
+        assertThat(catalog.providerSymbol("NOT-IN-CATALOG")).isEqualTo("NOT-IN-CATALOG");
+    }
+
+    @Test
+    void providerSymbolIsNotPartOfTheCatalogVersionOrEntries() {
+        SupportedCatalog plain = load(MINIMAL_ACTIVE);
+        SupportedCatalog mapped = load(WITH_PROVIDER_SYMBOL);
+        assertThat(mapped.version()).isEqualTo(plain.version());
+        assertThat(mapped.all()).isEqualTo(plain.all());
+    }
+
+    @Test
+    void rejectsAmbiguousOrRedundantProviderSymbols() {
+        String broken = """
+            [
+              {"ticker":"AAPL","name":"Apple","aliases":[],"assetClass":"US_EQUITY","quoteCurrency":"USD","basePrice":1.0,"lifecycleStatus":"ACTIVE","providerSymbol":"SAME-USD"},
+              {"ticker":"BTC-USD","name":"Bitcoin","aliases":[],"assetClass":"CRYPTO","quoteCurrency":"USD","basePrice":1.0,"lifecycleStatus":"ACTIVE","providerSymbol":"SAME-USD"},
+              {"ticker":"ETH-USD","name":"Ether","aliases":[],"assetClass":"CRYPTO","quoteCurrency":"USD","basePrice":1.0,"lifecycleStatus":"ACTIVE","providerSymbol":"AAPL"},
+              {"ticker":"SOL-USD","name":"Solana","aliases":[],"assetClass":"CRYPTO","quoteCurrency":"USD","basePrice":1.0,"lifecycleStatus":"ACTIVE","providerSymbol":"SOL-USD"},
+              {"ticker":"ADA-USD","name":"Cardano","aliases":[],"assetClass":"CRYPTO","quoteCurrency":"USD","basePrice":1.0,"lifecycleStatus":"ACTIVE","providerSymbol":" "}
+            ]
+            """;
+        assertThatThrownBy(() -> load(broken))
+                .isInstanceOf(CatalogLoadFailedException.class)
+                .hasMessageContaining("Duplicate providerSymbol: SAME-USD")
+                .hasMessageContaining("providerSymbol is another entry's ticker: AAPL")
+                .hasMessageContaining("providerSymbol equals the ticker (omit it) for ticker: SOL-USD")
+                .hasMessageContaining("Blank or padded providerSymbol for ticker: ADA-USD");
+    }
+
     private static SupportedCatalog load(String json) {
         return SupportedCatalog.load(
                 new ByteArrayInputStream(json.getBytes(StandardCharsets.UTF_8)), "test.json");

@@ -16,6 +16,8 @@ import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -62,7 +64,7 @@ public class MarketDataRefreshService {
 
             Map<String, BigDecimal> latestPrices;
             try {
-                latestPrices = externalMarketDataClient.getLatestPrices(tickers);
+                latestPrices = fetchByProviderSymbol(tickers);
             } catch (Exception e) {
                 log.error("MarketDataRefreshJob: Yahoo Finance API failed, falling back to cached database prices. " +
                         "Continuing to serve last-known prices for all tickers. cause={}", e.toString());
@@ -136,6 +138,29 @@ public class MarketDataRefreshService {
                     .register(meterRegistry));
             MDC.remove("marketDataRefreshJobId");
         }
+    }
+
+    /**
+     * Requests each ticker under the catalog's provider symbol (Yahoo moved some crypto assets to
+     * new symbols, e.g. UNI-USD to UNI7083-USD, and now serves other tokens under the old ones)
+     * and returns the prices keyed by catalog ticker, so everything downstream stays keyed by it.
+     */
+    Map<String, BigDecimal> fetchByProviderSymbol(List<String> tickers) {
+        Map<String, String> tickerBySymbol = new LinkedHashMap<>();
+        for (String ticker : tickers) {
+            String symbol = supportedCatalog.providerSymbol(ticker);
+            tickerBySymbol.put(symbol == null ? ticker : symbol, ticker);
+        }
+        Map<String, BigDecimal> bySymbol =
+                externalMarketDataClient.getLatestPrices(List.copyOf(tickerBySymbol.keySet()));
+        Map<String, BigDecimal> byTicker = new HashMap<>();
+        tickerBySymbol.forEach((symbol, ticker) -> {
+            BigDecimal price = bySymbol == null ? null : bySymbol.get(symbol);
+            if (price != null) {
+                byTicker.put(ticker, price);
+            }
+        });
+        return byTicker;
     }
 
     /**

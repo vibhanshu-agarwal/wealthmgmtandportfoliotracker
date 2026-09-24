@@ -166,4 +166,60 @@ class MarketDataRefreshServiceTest {
                 eq(ticker),
                 org.mockito.ArgumentMatchers.any(PriceUpdatedEvent.class));
     }
+
+    /**
+     * Rehearsal defect #2: Yahoo moved Uniswap to UNI7083-USD and now serves another token under
+     * UNI-USD. The job asks for the provider symbol and publishes under the catalog ticker; a
+     * price the provider returns for the old symbol is never used.
+     */
+    @Test
+    void requestsProviderSymbolsAndPublishesUnderTheCatalogTicker() {
+        AssetPriceRepository repo = mock(AssetPriceRepository.class);
+        ExternalMarketDataClient external = mock(ExternalMarketDataClient.class);
+        @SuppressWarnings("unchecked")
+        KafkaTemplate<String, PriceUpdatedEvent> template = mock(KafkaTemplate.class);
+        SupportedCatalog catalog = mock(SupportedCatalog.class);
+        when(catalog.active()).thenReturn(List.of(
+                new CatalogEntry("UNI-USD", "Uniswap", List.of(), "CRYPTO", "USD", LifecycleStatus.ACTIVE),
+                new CatalogEntry("AAPL", "Apple", List.of(), "US_EQUITY", "USD", LifecycleStatus.ACTIVE)));
+        when(catalog.providerSymbol("UNI-USD")).thenReturn("UNI7083-USD");
+        when(catalog.providerSymbol("AAPL")).thenReturn("AAPL");
+        when(repo.findById(anyString())).thenReturn(Optional.empty());
+        when(external.getLatestPrices(List.of("UNI7083-USD", "AAPL"))).thenReturn(Map.of(
+                "UNI7083-USD", new BigDecimal("9.2372"),
+                "UNI-USD", new BigDecimal("0.0002"), // another token under the old symbol
+                "AAPL", BigDecimal.valueOf(150)));
+        when(template.send(eq("market-prices"), anyString(), any(PriceUpdatedEvent.class)))
+                .thenReturn(CompletableFuture.completedFuture(mock(SendResult.class)));
+
+        new MarketDataRefreshService(repo, external, catalog, template, meterRegistry).refresh();
+
+        org.mockito.ArgumentCaptor<PriceUpdatedEvent> events = org.mockito.ArgumentCaptor.forClass(PriceUpdatedEvent.class);
+        verify(template, org.mockito.Mockito.times(2)).send(eq("market-prices"), anyString(), events.capture());
+        Map<String, BigDecimal> published = new java.util.HashMap<>();
+        events.getAllValues().forEach(e -> published.put(e.ticker(), e.newPrice()));
+        assertThat(published).containsOnlyKeys("UNI-USD", "AAPL");
+        assertThat(published.get("UNI-USD")).isEqualByComparingTo("9.2372");
+        assertThat(published.get("AAPL")).isEqualByComparingTo("150");
+    }
+
+    @Test
+    void aTickerWhoseProviderSymbolIsNotQuotedIsSkipped() {
+        AssetPriceRepository repo = mock(AssetPriceRepository.class);
+        ExternalMarketDataClient external = mock(ExternalMarketDataClient.class);
+        @SuppressWarnings("unchecked")
+        KafkaTemplate<String, PriceUpdatedEvent> template = mock(KafkaTemplate.class);
+        SupportedCatalog catalog = mock(SupportedCatalog.class);
+        when(catalog.active()).thenReturn(List.of(
+                new CatalogEntry("UNI-USD", "Uniswap", List.of(), "CRYPTO", "USD", LifecycleStatus.ACTIVE)));
+        when(catalog.providerSymbol("UNI-USD")).thenReturn("UNI7083-USD");
+        // Only the old symbol is quoted: that is another token, so nothing is published.
+        when(external.getLatestPrices(List.of("UNI7083-USD")))
+                .thenReturn(Map.of("UNI-USD", new BigDecimal("0.0002")));
+
+        new MarketDataRefreshService(repo, external, catalog, template, meterRegistry).refresh();
+
+        org.mockito.Mockito.verifyNoInteractions(template);
+        assertThat(meterRegistry.counter("market.data.refresh.tickers", "outcome", "skipped").count()).isEqualTo(1.0);
+    }
 }
