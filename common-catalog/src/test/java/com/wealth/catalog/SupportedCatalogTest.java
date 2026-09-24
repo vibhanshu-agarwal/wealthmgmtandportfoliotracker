@@ -151,7 +151,8 @@ class SupportedCatalogTest {
               {"ticker":"BTC-USD","name":"Bitcoin","aliases":[],"assetClass":"CRYPTO","quoteCurrency":"USD","basePrice":1.0,"lifecycleStatus":"ACTIVE","providerSymbol":"SAME-USD"},
               {"ticker":"ETH-USD","name":"Ether","aliases":[],"assetClass":"CRYPTO","quoteCurrency":"USD","basePrice":1.0,"lifecycleStatus":"ACTIVE","providerSymbol":"AAPL"},
               {"ticker":"SOL-USD","name":"Solana","aliases":[],"assetClass":"CRYPTO","quoteCurrency":"USD","basePrice":1.0,"lifecycleStatus":"ACTIVE","providerSymbol":"SOL-USD"},
-              {"ticker":"ADA-USD","name":"Cardano","aliases":[],"assetClass":"CRYPTO","quoteCurrency":"USD","basePrice":1.0,"lifecycleStatus":"ACTIVE","providerSymbol":" "}
+              {"ticker":"ADA-USD","name":"Cardano","aliases":[],"assetClass":"CRYPTO","quoteCurrency":"USD","basePrice":1.0,"lifecycleStatus":"ACTIVE","providerSymbol":" "},
+              {"ticker":"DOT-USD","name":"Polkadot","aliases":[],"assetClass":"CRYPTO","quoteCurrency":"USD","basePrice":1.0,"lifecycleStatus":"ACTIVE","providerSymbol":"dot6636-usd"}
             ]
             """;
         assertThatThrownBy(() -> load(broken))
@@ -159,7 +160,8 @@ class SupportedCatalogTest {
                 .hasMessageContaining("Duplicate providerSymbol: SAME-USD")
                 .hasMessageContaining("providerSymbol is another entry's ticker: AAPL")
                 .hasMessageContaining("providerSymbol equals the ticker (omit it) for ticker: SOL-USD")
-                .hasMessageContaining("Blank or padded providerSymbol for ticker: ADA-USD");
+                .hasMessageContaining("Blank or padded providerSymbol for ticker: ADA-USD")
+                .hasMessageContaining("providerSymbol must be upper case for ticker: DOT-USD");
     }
 
     private static SupportedCatalog load(String json) {

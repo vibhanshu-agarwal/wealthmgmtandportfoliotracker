@@ -56,6 +56,9 @@ final class CatalogIntegrityValidator {
                 String symbol = entry.providerSymbol();
                 if (symbol.isBlank() || !symbol.equals(symbol.strip())) {
                     violations.add("Blank or padded providerSymbol for ticker: " + safeTicker(ticker));
+                } else if (!symbol.equals(symbol.toUpperCase(java.util.Locale.ROOT))) {
+                    // The provider echoes its own (upper-case) spelling, and results are matched on it.
+                    violations.add("providerSymbol must be upper case for ticker: " + safeTicker(ticker));
                 } else if (symbol.equals(ticker)) {
                     violations.add("providerSymbol equals the ticker (omit it) for ticker: " + safeTicker(ticker));
                 } else {
