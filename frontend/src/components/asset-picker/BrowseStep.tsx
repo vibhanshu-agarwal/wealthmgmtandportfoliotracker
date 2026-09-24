@@ -2,6 +2,9 @@
 
 import { useMemo, useState } from "react";
 import { useDraftPrices } from "@/lib/hooks/useDraftPrices";
+import { useFxRates } from "@/lib/hooks/useFxRates";
+import type { FxRatesResponse } from "@/lib/api/fxRates";
+import { isKnownCurrency } from "@/lib/utils/format";
 import { computeEstimatedValue } from "@/lib/utils/quantityDisplay";
 import type { CatalogAsset, DraftHoldings } from "@/types/assetPicker";
 import { AssetSearchBar } from "./AssetSearchBar";
@@ -26,6 +29,39 @@ function draftUnitPrice(
     return null;
   }
   return price.currentPrice;
+}
+
+type DraftEstimate =
+  | { kind: "value"; value: number; currency: string }
+  | { kind: "unavailable" }
+  | null;
+
+/**
+ * Rehearsal defect #4 — the estimate is shown in the base currency, converted with the
+ * same shared rates the holdings valuation uses (dashboard-data-accuracy Req 5.1–5.3).
+ * No price yet → nothing (as before). Priced but not convertible → "unavailable"; a native
+ * amount is never shown under the base symbol and a missing rate is never taken as 1.
+ */
+function draftEstimate(
+  quantity: string,
+  price: { currentPrice: number | null; priceUnavailable?: boolean; quoteCurrency?: string | null } | undefined,
+  rates: FxRatesResponse | undefined,
+  ratesFailed: boolean,
+): DraftEstimate {
+  const nativeValue = computeEstimatedValue(quantity, draftUnitPrice(price));
+  if (nativeValue == null) return null;
+  const currency = price?.quoteCurrency;
+  if (!isKnownCurrency(currency)) return { kind: "unavailable" };
+  if (!rates) return ratesFailed ? { kind: "unavailable" } : null;
+  const rate = rates.rates[currency];
+  if (rate == null || !Number.isFinite(rate) || rate <= 0) return { kind: "unavailable" };
+  return { kind: "value", value: nativeValue * rate, currency: rates.baseCurrency };
+}
+
+function estimateProps(estimate: DraftEstimate) {
+  if (estimate == null) return { estimatedValue: null };
+  if (estimate.kind === "unavailable") return { estimateUnavailable: true };
+  return { estimatedValue: estimate.value, estimateCurrency: estimate.currency };
 }
 
 export interface BrowseStepProps {
@@ -63,6 +99,14 @@ export function BrowseStep({
   // browse list.
   const draftTickers = useMemo(() => Array.from(draft.keys()), [draft]);
   const pricesQuery = useDraftPrices(draftTickers, token);
+  const quoteCurrencies = useMemo(
+    () =>
+      Array.from(pricesQuery.data?.values() ?? [])
+        .map((p) => p.quoteCurrency)
+        .filter((c): c is string => isKnownCurrency(c)),
+    [pricesQuery.data],
+  );
+  const ratesQuery = useFxRates(quoteCurrencies, token);
 
   function handleToggle(ticker: string) {
     if (draft.has(ticker)) {
@@ -139,14 +183,16 @@ export function BrowseStep({
             onToggle={handleToggle}
             onQuantityChange={handleQuantityChange}
             errorMessage={errorsByTicker[row.ticker]}
-            estimatedValue={
+            {...estimateProps(
               row.checked
-                ? computeEstimatedValue(
+                ? draftEstimate(
                     row.quantity,
-                    draftUnitPrice(pricesQuery.data?.get(row.ticker)),
+                    pricesQuery.data?.get(row.ticker),
+                    ratesQuery.data,
+                    ratesQuery.isError,
                   )
-                : null
-            }
+                : null,
+            )}
           />
         ))}
       </div>
