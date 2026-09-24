@@ -309,10 +309,13 @@ The cleanup facts below come from three distinct sources:
 - **05:18:30Z and 05:18:46Z (console log lines):** the CERT_A and CERT_B logins were both rejected with 401. The second 401 is also bounded by `a4-cleanup.txt` `at=2026-09-24T05:18:46.85Z`, which the script writes straight after the login loop.
   The script then removed the credential file and wrote `a4-cleanup.txt`; it does both only when
   both 401s were proven.
-- **Basis of these counts:** the database figures come from the cleanup script's own queries, run
-  from the owner's session. **Neither Claude nor Codex queried the database independently.**
-  Claude and Codex checked the owner's output and the local record: the record is present, the
-  credential file is absent, and all three run folders remain.
+- **Basis of these counts:** the deletion figures come from the cleanup script's own queries, run
+  from the owner's session. **The cleanup's historical deletion counts were not independently
+  verified.**
+  - Claude and Codex checked the owner's output and the local record: the record is present, the
+    credential file is absent, and all three run folders remain.
+  - Later on 2026-09-24, Codex made a read-only account inventory of the live demo database, which
+    found the A4 accounts absent. That confirms the end state, not the historical per-table counts.
 - **Kept:** all run evidence, the markers, the summaries and the keep-alive logs. `pw-output/`
   stays private and local; deleting it needs separate owner approval.
 

@@ -16,7 +16,8 @@ run 3 as `PASS_WITH_EXPECTED_DEFECTS`, and the A4 test users are deleted. Every 
 has a recorded owner or Codex decision; none is a demo blocker, and none is fixed or closed
 (Phase 4).
 
-The next step is Phases 5-6. A draft operator script has passed Fable and Codex review. It is local
+The next step is Phases 5-6. A draft operator script exists. Its general version passed Fable and
+Codex review; its revision for the E2E test account is still under scoped Codex review. It is local
 and unpublished, not yet in this repository, and has not been rehearsed. The owner authorized one
 Claude-operated rehearsal on the existing E2E test account. The owner signs in; Claude does not
 handle credentials. The rehearsal must capture a baseline and verify exact restoration, with no
@@ -72,8 +73,9 @@ unchanged. Both runs were attempt 1 and passed. No A5 capture is recorded.
 - **Runs 1 and 2 remain separate FAIL history:** `p3-20260923T174742Z-ee73` (S05) and
   `p3-20260923T182221Z-92cc` (S12). Their checks are not combined with run 3.
 - **Cleanup:** the five temporary A4 users (two CERT, three FRESH) were deleted by the owner-run,
-  Codex-cleared cleanup. The counts come from the script's own queries and its local record; no
-  independent database read was made.
+  Codex-cleared cleanup. The deletion counts come from the script's own queries and its local
+  record, and **the cleanup's historical deletion counts were not independently verified**. A later
+  read-only account inventory by Codex found the A4 accounts absent.
 - **Full record:** the Fable- and Codex-accepted verdict record is published here as a sanitized
   copy,
   [`A4_VERDICT_RECORD_runs-1-3.md`](../evidence/phase3-a4/A4_VERDICT_RECORD_runs-1-3.md). It has
@@ -87,7 +89,7 @@ unchanged. Both runs were attempt 1 and passed. No A5 capture is recorded.
 | 3 — Broad desktop Production E2E | **A4 SATISFIED by run 3 (`PASS_WITH_EXPECTED_DEFECTS`, Codex, 2026-09-24).** Runs 1 and 2 are FAIL history | None for the run itself; the findings go to Phase 4 |
 | 4 — Defect disposition | **Every A4 defect finding has a recorded decision; none is a demo blocker** (table below). None is fixed or closed | Record the limitations in the operator script (Phase 5) |
 | 5 — Documentation | **PARTIAL status filing only**; comprehensive pass not started | Record exact demo status, known limitations and operator steps; defer the larger rewrite |
-| 6 — Demo material | **NOT STARTED** | Prepare and rehearse a short live desktop script; slides/video are optional |
+| 6 — Demo material | **DRAFT ONLY:** operator script drafted (local; the E2E-account revision is under review); **not rehearsed** | Finish review, then the one authorized rehearsal; slides/video are optional |
 
 **Fast-track demo-ready exit (not a general-production or `1.0.0` claim):** Phases 1 and 2 are
 accepted; B3 proves that the D11 portfolio-service revision and the uploaded frontend build serve
@@ -517,7 +519,9 @@ belongs here and must not delay Phase 1.
 
 ## Phase 6: Prepare demo material
 
-**Status:** Not started. **Fast-track exit outcome:** rehearse a short live desktop walkthrough
+**Status:** Draft only. An operator script is drafted (local, unpublished); its E2E-account revision
+is under scoped Codex review, and **no rehearsal has run**. **Fast-track exit outcome:** rehearse a
+short live desktop walkthrough
 against the final served build using non-sensitive data, with a fallback for chat/market-data
 unavailability. A slide deck and polished video are optional assets, not prerequisites to say the
 portfolio demo is ready.
