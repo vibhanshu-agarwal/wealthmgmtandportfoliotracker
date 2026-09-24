@@ -12,11 +12,13 @@
 Codex).
 
 **Owner approval callout — next blocked action:** A4 is satisfied (Codex decision, 2026-09-24) by
-run 3 as `PASS_WITH_EXPECTED_DEFECTS`, and the A4 test users are deleted. Every A4 finding has a
-recorded owner or Codex decision; none is a demo blocker, and none is fixed or closed (Phase 4).
+run 3 as `PASS_WITH_EXPECTED_DEFECTS`, and the A4 test users are deleted. Every A4 defect finding
+has a recorded owner or Codex decision; none is a demo blocker, and none is fixed or closed
+(Phase 4).
 
-The next step is Phases 5-6. The short operator script has been accepted, and the owner authorized
-one Claude-operated rehearsal on the existing E2E test account. The owner signs in; Claude does not
+The next step is Phases 5-6. A draft operator script has passed Fable and Codex review. It is local
+and unpublished, not yet in this repository, and has not been rehearsed. The owner authorized one
+Claude-operated rehearsal on the existing E2E test account. The owner signs in; Claude does not
 handle credentials. The rehearsal must capture a baseline and verify exact restoration, with no
 automatic rerun.
 
@@ -83,7 +85,7 @@ unchanged. Both runs were attempt 1 and passed. No A5 capture is recorded.
 | 1 — Asset Picker delivery | **COMPLETE**, deployed and accepted in Production on 2026-09-20 | None; do not reopen for later-phase work |
 | 2 — UI and demo-critical fixes | **COMPLETE and serving as the B3 candidate**; exercised in Production by A4 run 3 | None |
 | 3 — Broad desktop Production E2E | **A4 SATISFIED by run 3 (`PASS_WITH_EXPECTED_DEFECTS`, Codex, 2026-09-24).** Runs 1 and 2 are FAIL history | None for the run itself; the findings go to Phase 4 |
-| 4 — Defect disposition | **Every A4 finding has a recorded decision; none is a demo blocker** (table below). None is fixed or closed | Record the limitations in the operator script (Phase 5) |
+| 4 — Defect disposition | **Every A4 defect finding has a recorded decision; none is a demo blocker** (table below). None is fixed or closed | Record the limitations in the operator script (Phase 5) |
 | 5 — Documentation | **PARTIAL status filing only**; comprehensive pass not started | Record exact demo status, known limitations and operator steps; defer the larger rewrite |
 | 6 — Demo material | **NOT STARTED** | Prepare and rehearse a short live desktop script; slides/video are optional |
 
@@ -267,7 +269,7 @@ performed.
 ## Global constraints
 
 - Phase 1 and 2 are accepted, B3 is complete and A4 is satisfied (run 3). A4 findings are now
-  being triaged in Phase 4. Minimum demo
+  dispositioned in Phase 4 (none blocking, none fixed). Minimum demo
   instructions can be drafted in parallel; comprehensive documentation and media do not gate the
   fast-track exit.
 - Portfolio Settings is deferred and does not gate demo readiness.
@@ -376,9 +378,10 @@ source has been deployed or Production-verified.
 users and materially different portfolios.
 
 **Status:** B3 serving proof is complete on `main@cdc51df6`. The A4 Production-suite exit is **met
-by run 3** (`p3-20260924T032033Z-52f1`, `PASS_WITH_EXPECTED_DEFECTS`, Codex, 2026-09-24). Each item
-ticked below is credited from run 3's own bound evidence, never from runs 1 or 2, CI, B3 identity
-checks or local browser tests. Where run 3 did not exercise part of an item, the item says so.
+by run 3** (`p3-20260924T032033Z-52f1`, `PASS_WITH_EXPECTED_DEFECTS`, Codex, 2026-09-24). Each
+browser-run item ticked below is credited from run 3's own bound evidence, never from runs 1 or 2,
+CI, B3 identity checks or local browser tests. The merge and B3 items are credited from their PRs
+and runs. Where run 3 did not exercise part of an item, the item says so.
 
 - [x] Merge the multi-user suite and the #418/F1 frontend corrections (PR #310).
 - [x] Merge D11/F13 position-level 24-hour value and coverage (PR #311).
@@ -438,7 +441,7 @@ user data rather than infer correctness from build and revision identity. Run 3 
 
 ## Phase 4: Disposition Phase 3 findings and fix demo blockers
 
-**Status:** Every A4 finding below has a recorded decision, and no demo blocker was found, so **no
+**Status:** Every A4 defect finding below has a recorded decision, and no demo blocker was found, so **no
 defect fix or A4 rerun is required for the fast-track demo**. The findings remain open: **none is
 marked fixed or closed**, and "not triggered" is not "fixed".
 
@@ -448,12 +451,16 @@ marked fixed or closed**, and "not triggered" is not "fixed".
 | D7: a pre-logout token is still accepted after sign-out | runs 1-3, S04 | Owner: accepted Phase 4 defect | None; recorded as a limitation |
 | `partial-valuation-not-presented` (D9) | not triggered in runs 2 or 3 | Owner D9: known non-blocking defect | None; unverified in Production |
 | `analytics-cache-stale-after-holdings-write` (D10) | not triggered in runs 2 or 3 | Owner D10: known non-blocking defect | None |
-| Scale-to-zero cold starts: run 1's S05 save dialog stuck on the unbounded post-save price read; a ~79 s S00 stall | run 1 | Owner: accepted cost trade-off; no `min_replicas = 1`, no fix; warm up before the demo | Record the warm-up step in the operator script |
+| Scale-to-zero cold starts: run 1's S05 dialog stayed open past the 20 s bound (best-supported cause: the unbounded post-save price read against a cold `market-data-service`; not directly observed); a ~79 s S00 stall | run 1 | Owner: accepted cost trade-off; no `min_replicas = 1`, no fix; warm up before the demo | Record the warm-up step in the operator script |
 | Chat reply exceeded 20 s | run 2, S12 | Codex-accepted demo limitation (150 s wait, `1c3a132f`); run 3's reply took ≤ 19.2 s | Record in the operator script's fallback |
 | `empty-portfolio-shows-filter-copy`: an empty portfolio says "No holdings match your filter." | runs 1-3, S02 | Owner, 2026-09-24: **non-blocking for the fast-track demo**; kept as an open **UX defect**, not fixed or closed | None for the demo; stays in the backlog |
 | Playwright "1 error was not a part of any test" | runs 1 and 2 (console only); not in run 3 | Owner, 2026-09-24: **non-blocking for the fast-track demo**; kept as an **unexplained console anomaly**, not a proven harmless error, and not fixed or closed | None for the demo; the cause stays unexplained |
 
 Neither 2026-09-24 decision blocks A4 or requires a new run.
+
+**Evidence limitation (not a defect, no decision needed):** in run 3, S12 recorded that the chat
+reply cannot show whether it came from the language model or the service's deterministic fallback.
+The operator script carries this into its chat wording and fallback.
 
 **Fast-track exit outcome:** no unresolved
 finding breaks the agreed live desktop demonstration. Repair demo blockers, and explicitly accept or
@@ -486,7 +493,7 @@ documentation overhaul below is follow-on work, not a portfolio-demo gate.
 - [x] Record B3 run URLs, exact SHA, served revision/digest and frontend build ID in this plan.
 - [x] Record the A4 run, verdict, findings and accepted limitations after it occurs. This is
   recorded in this plan (dashboard, Phase 3 and the Phase 4 table) and in the sanitized
-  [A4 verdict record](../evidence/phase3-a4/A4_VERDICT_RECORD_runs-1-3.md). Every finding has a
+  [A4 verdict record](../evidence/phase3-a4/A4_VERDICT_RECORD_runs-1-3.md). Every defect finding has a
   recorded decision (Phase 4); none is fixed or closed.
 - [ ] Keep a short operator script and evidence pointer for the final desktop demo.
 

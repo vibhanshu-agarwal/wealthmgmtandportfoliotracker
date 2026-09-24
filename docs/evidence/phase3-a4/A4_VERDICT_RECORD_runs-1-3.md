@@ -297,8 +297,8 @@ The cleanup facts below come from three distinct sources:
 - **05:15:02Z, preview, rolled back (console):** exactly the five evidence-derived targets, with
   5 users, 5 credentials, 5 portfolios, 14 holdings and 0 repair-audit rows to remove, and an
   orphan-portfolio baseline of 0.
-  - The user IDs match the runs' `holdings-writes.jsonl` files: CERT_A's in run 1's file
-    (the S00 normalisation write); CERT_B's in all three; and each FRESH user's in its own run's file.
+  - The user IDs match the runs' `holdings-writes.jsonl` files: CERT_A's ID appears in run 1's file
+    (the S00 normalisation write); CERT_B's in all three; and each FRESH user's in its own run's file (IDs omitted here).
   - 14 holdings = 4 (CERT_A) + 4 (CERT_B) + 2 per FRESH user.
 - **05:17:10Z (console):** the owner typed `DELETE`; the script reported `COMMITTED`.
 - **05:17:12Z, read-only verify (console):** 0 users, 0 credentials, 0 orphaned holdings, and 0 in
