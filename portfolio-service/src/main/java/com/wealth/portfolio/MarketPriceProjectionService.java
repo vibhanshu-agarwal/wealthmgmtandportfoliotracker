@@ -11,8 +11,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.sql.Timestamp;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
@@ -33,7 +33,7 @@ class MarketPriceProjectionService {
     private static final String UPSERT_SQL =
             """
             INSERT INTO market_prices (ticker, current_price, quote_currency, observed_at, updated_at)
-            VALUES (?, ?, ?, ?, now())
+            VALUES (?, ?, ?, ?, now() AT TIME ZONE 'UTC')
             ON CONFLICT (ticker) DO UPDATE
                SET current_price  = EXCLUDED.current_price,
                    quote_currency = EXCLUDED.quote_currency,
@@ -79,21 +79,22 @@ class MarketPriceProjectionService {
             signals.undatedEvent(event.ticker());
         }
 
-        Timestamp observedAtTs = observedAt == null ? null : Timestamp.from(observedAt);
+        // UTC wall-clock, independent of the JVM zone (see UtcTimestamps).
+        LocalDateTime observedAtUtc = UtcTimestamps.toUtc(observedAt);
         int rows =
                 jdbcTemplate.update(
                         UPSERT_SQL,
                         event.ticker(),
                         event.newPrice(),
                         currency,
-                        observedAtTs);
+                        observedAtUtc);
 
         if (rows == 0 && observedAt != null) {
             disambiguateZeroRowResult(event.ticker(), event.newPrice(), currency, observedAt);
         }
 
         if (observedAt != null) {
-            appendHistory(event.ticker(), currency, event.newPrice(), observedAtTs);
+            appendHistory(event.ticker(), currency, event.newPrice(), observedAt);
         }
 
         if (rows > 0) {
@@ -148,24 +149,27 @@ class MarketPriceProjectionService {
 
     private void disambiguateZeroRowResult(
             String ticker, BigDecimal incomingPrice, String incomingCurrency, Instant incomingObservedAt) {
-        List<Map<String, Object>> rows =
-                jdbcTemplate.queryForList(
+        List<StoredLatest> rows =
+                jdbcTemplate.query(
                         """
                         SELECT current_price, quote_currency, observed_at
                           FROM market_prices
                          WHERE ticker = ?
                         """,
+                        (rs, i) -> new StoredLatest(
+                                rs.getBigDecimal("current_price"),
+                                rs.getString("quote_currency"),
+                                UtcTimestamps.readUtc(rs, "observed_at")),
                         ticker);
         if (rows.isEmpty()) {
             return;
         }
-        Map<String, Object> stored = rows.get(0);
-        Timestamp storedTs = (Timestamp) stored.get("observed_at");
-        if (storedTs == null || !storedTs.toInstant().equals(incomingObservedAt)) {
+        StoredLatest stored = rows.get(0);
+        if (stored.observedAt() == null || !stored.observedAt().equals(incomingObservedAt)) {
             return;
         }
-        BigDecimal storedPrice = (BigDecimal) stored.get("current_price");
-        String storedCurrency = (String) stored.get("quote_currency");
+        BigDecimal storedPrice = stored.price();
+        String storedCurrency = stored.currency();
         boolean identical =
                 storedPrice.compareTo(incomingPrice) == 0 && incomingCurrency.equals(storedCurrency);
         if (identical) {
@@ -177,11 +181,14 @@ class MarketPriceProjectionService {
                 "equal observed_at " + incomingObservedAt + " with conflicting payload");
     }
 
+    private record StoredLatest(BigDecimal price, String currency, Instant observedAt) {}
+
     private void appendHistory(
-            String ticker, String currency, BigDecimal price, Timestamp observedAtTs) {
-        int historyRows = jdbcTemplate.update(HISTORY_INSERT_SQL, ticker, currency, price, observedAtTs);
+            String ticker, String currency, BigDecimal price, Instant observedAt) {
+        LocalDateTime observedAtUtc = UtcTimestamps.toUtc(observedAt);
+        int historyRows = jdbcTemplate.update(HISTORY_INSERT_SQL, ticker, currency, price, observedAtUtc);
         if (historyRows > 0) {
-            log.debug("History row appended for ticker {} at {}", ticker, observedAtTs.toInstant());
+            log.debug("History row appended for ticker {} at {}", ticker, observedAt);
             return;
         }
         Map<String, Object> stored =
@@ -192,15 +199,15 @@ class MarketPriceProjectionService {
                          WHERE ticker = ? AND observed_at = ?
                         """,
                         ticker,
-                        observedAtTs);
+                        observedAtUtc);
         BigDecimal storedPrice = (BigDecimal) stored.get("price");
         String storedCurrency = (String) stored.get("quote_currency");
         boolean identical = storedPrice.compareTo(price) == 0 && currency.equals(storedCurrency);
         if (identical) {
-            log.debug("Idempotent history skip for ticker {} at {}", ticker, observedAtTs.toInstant());
+            log.debug("Idempotent history skip for ticker {} at {}", ticker, observedAt);
             return;
         }
         throw new ObservationConflictException(
-                ticker, "history key conflict at " + observedAtTs.toInstant());
+                ticker, "history key conflict at " + observedAt);
     }
 }

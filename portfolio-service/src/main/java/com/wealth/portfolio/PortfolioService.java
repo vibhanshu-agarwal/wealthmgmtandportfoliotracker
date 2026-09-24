@@ -2,7 +2,6 @@ package com.wealth.portfolio;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -79,14 +78,15 @@ public class PortfolioService {
                 WHERE p.user_id = ?
                 """,
             (rs, i) -> {
-              Timestamp observed = rs.getTimestamp("observed_at");
+              // UTC wall-clock column; read zone-independently (UtcTimestamps).
+              Instant observed = UtcTimestamps.readUtc(rs, "observed_at");
               return new HoldingValuationRow(
                   rs.getString("asset_ticker"),
                   rs.getBigDecimal("quantity"),
                   rs.getBigDecimal("current_price"),
                   rs.getString("quote_currency"),
                   rs.getBoolean("price_row_present"),
-                  observed == null ? null : observed.toInstant());
+                  observed);
             },
             userId);
 

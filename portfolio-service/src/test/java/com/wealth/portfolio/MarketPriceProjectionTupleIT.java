@@ -15,8 +15,9 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
 import java.math.BigDecimal;
-import java.sql.Timestamp;
 import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.Map;
 
@@ -182,9 +183,9 @@ class MarketPriceProjectionTupleIT {
         Instant historyObservedAt =
                 jdbcTemplate.queryForObject(
                         "SELECT observed_at FROM market_price_history WHERE ticker = ?",
-                        Timestamp.class,
+                        LocalDateTime.class,
                         TICKER)
-                        .toInstant();
+                        .toInstant(ZoneOffset.UTC);
         assertThat(historyObservedAt).isEqualTo(T1.truncatedTo(ChronoUnit.MILLIS));
     }
 
@@ -218,7 +219,7 @@ class MarketPriceProjectionTupleIT {
                 TICKER,
                 price,
                 currency,
-                observedAt == null ? null : Timestamp.from(observedAt));
+                utc(observedAt));
     }
 
     private void seedHistory(BigDecimal price, String currency, Instant observedAt) {
@@ -230,7 +231,12 @@ class MarketPriceProjectionTupleIT {
                 TICKER,
                 currency,
                 price,
-                Timestamp.from(observedAt));
+                utc(observedAt));
+    }
+
+    /** observed_at holds UTC wall-clock time; bind it explicitly, never in the JVM zone. */
+    private static LocalDateTime utc(Instant instant) {
+        return instant == null ? null : LocalDateTime.ofInstant(instant, ZoneOffset.UTC);
     }
 
     private void assertLatest(BigDecimal price, String currency, Instant observedAt) {
@@ -240,11 +246,13 @@ class MarketPriceProjectionTupleIT {
                         TICKER);
         assertThat((BigDecimal) row.get("current_price")).isEqualByComparingTo(price);
         assertThat(row.get("quote_currency")).isEqualTo(currency);
-        Timestamp stored = (Timestamp) row.get("observed_at");
+        LocalDateTime stored =
+                jdbcTemplate.queryForObject(
+                        "SELECT observed_at FROM market_prices WHERE ticker = ?", LocalDateTime.class, TICKER);
         if (observedAt == null) {
             assertThat(stored).isNull();
         } else {
-            assertThat(stored.toInstant()).isEqualTo(observedAt);
+            assertThat(stored.toInstant(ZoneOffset.UTC)).isEqualTo(observedAt);
         }
     }
 

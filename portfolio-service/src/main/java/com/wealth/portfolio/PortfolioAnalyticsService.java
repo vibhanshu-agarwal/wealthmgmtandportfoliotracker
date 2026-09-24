@@ -18,9 +18,9 @@ import org.slf4j.Logger;
 import java.math.BigDecimal;
 import java.math.MathContext;
 import java.math.RoundingMode;
-import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -100,8 +100,8 @@ public class PortfolioAnalyticsService {
                        'WITHIN_24H_WINDOW'::VARCHAR AS ref_label
                 FROM market_price_history mph
                 JOIN user_tickers ut ON ut.asset_ticker = mph.ticker
-                WHERE mph.observed_at BETWEEN now() - INTERVAL '36 hours'
-                                          AND now() - INTERVAL '18 hours'
+                WHERE mph.observed_at BETWEEN (now() AT TIME ZONE 'UTC') - INTERVAL '36 hours'
+                                          AND (now() AT TIME ZONE 'UTC') - INTERVAL '18 hours'
                 ORDER BY mph.ticker, mph.observed_at DESC
             ),
             price_snapshot AS (
@@ -112,7 +112,7 @@ public class PortfolioAnalyticsService {
                        'SINCE_PREVIOUS_SNAPSHOT'::VARCHAR AS ref_label
                 FROM market_price_history mph
                 JOIN user_tickers ut ON ut.asset_ticker = mph.ticker
-                WHERE mph.observed_at < now() - INTERVAL '36 hours'
+                WHERE mph.observed_at < (now() AT TIME ZONE 'UTC') - INTERVAL '36 hours'
                 ORDER BY mph.ticker, mph.observed_at DESC
             ),
             best_ref AS (
@@ -151,9 +151,19 @@ public class PortfolioAnalyticsService {
                    NULL::VARCHAR               AS cost_basis_currency,
                    mph.observed_at::DATE        AS history_date,
                    mph.price                   AS history_price
-            FROM market_price_history mph
+            FROM (
+                -- One row per ticker per UTC day: the latest observation that day. Summing every
+                -- row would count a day with N observations N times (rehearsal defect #6).
+                -- observed_at holds UTC wall-clock (UtcTimestamps), so ::DATE is the UTC day and
+                -- the window is anchored to UTC, not the session zone.
+                SELECT DISTINCT ON (h.ticker, h.observed_at::DATE)
+                       h.ticker, h.observed_at, h.price
+                FROM market_price_history h
+                WHERE h.ticker IN (SELECT asset_ticker FROM user_tickers)
+                  AND h.observed_at >= (now() AT TIME ZONE 'UTC') - (? * INTERVAL '1 day')
+                ORDER BY h.ticker, h.observed_at::DATE, h.observed_at DESC, h.id DESC
+            ) mph
             JOIN user_tickers ut ON ut.asset_ticker = mph.ticker
-            WHERE mph.observed_at >= now() - (? * INTERVAL '1 day')
             ORDER BY row_type, asset_ticker, history_date
             """;
 
@@ -196,8 +206,7 @@ public class PortfolioAnalyticsService {
         List<AnalyticsQueryRow> rows = jdbcTemplate.query(
                 ANALYTICS_SQL,
                 (rs, i) -> {
-                    Timestamp refAtTs = rs.getTimestamp("price_24h_ref_at");
-                    Instant refAt = refAtTs != null ? refAtTs.toInstant() : null;
+                    Instant refAt = UtcTimestamps.readUtc(rs, "price_24h_ref_at");
                     return new AnalyticsQueryRow(
                             rs.getString("row_type"),
                             rs.getString("asset_ticker"),
@@ -623,7 +632,7 @@ public class PortfolioAnalyticsService {
      */
     List<PerformancePointDto> generateSyntheticSeries(BigDecimal anchorValue, int days) {
         List<PerformancePointDto> points = new ArrayList<>(days);
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(ZoneOffset.UTC);
 
         BigDecimal value = anchorValue.compareTo(BigDecimal.ZERO) > 0
                 ? anchorValue.multiply(new BigDecimal("0.92")).setScale(4, RoundingMode.HALF_UP)
