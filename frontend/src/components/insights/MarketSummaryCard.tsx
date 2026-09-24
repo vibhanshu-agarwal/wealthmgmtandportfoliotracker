@@ -15,7 +15,8 @@ import {
   classifyChangePercent,
   formatPercent,
 } from "@/lib/utils/format";
-import type { TickerSummary } from "@/types/insights";
+import type { SentimentSource, TickerSummary } from "@/types/insights";
+import { sentimentSourceLabel } from "@/lib/utils/sentimentSource";
 import { DemoDataBadge } from "@/components/ui/DemoDataBadge";
 import { QuotePrice } from "@/components/ui/QuotePrice";
 
@@ -31,6 +32,9 @@ interface MarketSummaryCardProps {
 export function MarketSummaryCard({ summary }: MarketSummaryCardProps) {
   const { ticker, latestPrice, priceHistory, trendPercent, aiSummary } =
     summary;
+  // trendPercent is first-to-last over the stored price window, not a 24-hour change
+  // (rehearsal defect #5); the card says which window.
+  const windowSize = (priceHistory || []).length;
 
   // Trend direction
   const safeTrendPercent = trendPercent ?? null;
@@ -53,7 +57,14 @@ export function MarketSummaryCard({ summary }: MarketSummaryCardProps) {
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-sm font-mono font-bold">{ticker}</CardTitle>
         <div className="inline-flex items-center gap-1.5">
-          <DemoDataBadge />
+          <DemoDataBadge
+            description={
+              <>
+                Showing seeded demo data. The change shown is first-to-last over the
+                last {windowSize} stored prices, not a 24-hour change.
+              </>
+            }
+          />
           <TrendIndicator trendPercent={safeTrendPercent} trendSign={trendSign} />
         </div>
       </CardHeader>
@@ -87,7 +98,12 @@ export function MarketSummaryCard({ summary }: MarketSummaryCardProps) {
         )}
 
         {/* Sentiment badge or unavailable tooltip */}
-        <SentimentSection aiSummary={aiSummary} />
+        {trendSign !== "unavailable" && (
+          <p className="text-xs text-muted-foreground" data-testid="trend-window">
+            Change over last {windowSize} prices
+          </p>
+        )}
+        <SentimentSection aiSummary={aiSummary} source={summary.aiSummarySource} />
       </CardContent>
     </Card>
   );
@@ -143,20 +159,34 @@ function TrendIndicator({
   );
 }
 
-function SentimentSection({ aiSummary }: { aiSummary: string | null }) {
+function SentimentSection({
+  aiSummary,
+  source,
+}: {
+  aiSummary: string | null;
+  source?: SentimentSource | null;
+}) {
   if (aiSummary) {
+    const sourceLabel = sentimentSourceLabel(source);
     return (
-      <Badge
-        variant="secondary"
-        className="text-xs font-normal max-w-full"
-        title={aiSummary}
-        data-testid="sentiment-badge"
-      >
-        {/* text-overflow has no effect on the inline-flex badge; truncate a shrinkable child. */}
-        <span className="min-w-0 truncate" data-testid="sentiment-text">
-          {aiSummary}
-        </span>
-      </Badge>
+      <div className="space-y-1">
+        <Badge
+          variant="secondary"
+          className="text-xs font-normal max-w-full"
+          title={aiSummary}
+          data-testid="sentiment-badge"
+        >
+          {/* text-overflow has no effect on the inline-flex badge; truncate a shrinkable child. */}
+          <span className="min-w-0 truncate" data-testid="sentiment-text">
+            {aiSummary}
+          </span>
+        </Badge>
+        {sourceLabel && (
+          <p className="text-[10px] text-muted-foreground" data-testid="sentiment-source">
+            {sourceLabel}
+          </p>
+        )}
+      </div>
     );
   }
 

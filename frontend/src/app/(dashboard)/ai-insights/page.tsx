@@ -12,7 +12,7 @@ export default function AIInsightsPage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">AI Insights</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Market summaries and AI-powered chat for your tracked tickers.
+          Market summaries for all tickers with recent prices, and chat.
         </p>
       </div>
 

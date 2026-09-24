@@ -139,6 +139,58 @@ class InsightControllerTest {
                 .andExpect(jsonPath("$.ZZZZ.quoteCurrency").doesNotExist());
     }
 
+    // --- Rehearsal defect #5: the sentiment's declared source travels with it ---
+
+    @Test
+    void getTickerSummary_copiesTheDeclaredSentimentSource() throws Exception {
+        when(marketDataService.getTickerSummary("AAPL")).thenReturn(new TickerSummary(
+                "AAPL", new BigDecimal("178.50"), List.of(new BigDecimal("178.50")), null, null));
+        when(aiInsightService.getSentiment("AAPL")).thenReturn("Neutral.");
+        when(aiInsightService.sentimentSource()).thenReturn(SentimentSource.RULE_BASED);
+
+        mockMvc.perform(get("/api/insights/market-summary/AAPL"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.aiSummary").value("Neutral."))
+                .andExpect(jsonPath("$.aiSummarySource").value("RULE_BASED"));
+    }
+
+    @Test
+    void getTickerSummary_claimsNoSource_whenTheAdvisorIsUnavailable() throws Exception {
+        when(marketDataService.getTickerSummary("AAPL")).thenReturn(new TickerSummary(
+                "AAPL", new BigDecimal("178.50"), List.of(new BigDecimal("178.50")), null, null));
+        when(aiInsightService.getSentiment("AAPL")).thenThrow(new AdvisorUnavailableException("down"));
+
+        mockMvc.perform(get("/api/insights/market-summary/AAPL"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.aiSummary").doesNotExist())
+                .andExpect(jsonPath("$.aiSummarySource").doesNotExist());
+    }
+
+    @Test
+    void getTickerSummary_claimsNoSource_whenTheAdapterReturnsNoText() throws Exception {
+        when(marketDataService.getTickerSummary("AAPL")).thenReturn(new TickerSummary(
+                "AAPL", new BigDecimal("178.50"), List.of(new BigDecimal("178.50")), null, null));
+        when(aiInsightService.getSentiment("AAPL")).thenReturn(null);
+        // Stubbed so a source wrongly attached to missing text would show up in the response.
+        org.mockito.Mockito.lenient().when(aiInsightService.sentimentSource()).thenReturn(SentimentSource.BEDROCK);
+
+        mockMvc.perform(get("/api/insights/market-summary/AAPL"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.aiSummary").doesNotExist())
+                .andExpect(jsonPath("$.aiSummarySource").doesNotExist());
+    }
+
+    @Test
+    void getMarketSummary_neverClaimsASentimentSource() throws Exception {
+        Map<String, TickerSummary> raw = new LinkedHashMap<>();
+        raw.put("AAPL", new TickerSummary("AAPL", new BigDecimal("178.50"), List.of(), null, null));
+        when(marketDataService.getMarketSummary()).thenReturn(raw);
+
+        mockMvc.perform(get("/api/insights/market-summary"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.AAPL.aiSummarySource").doesNotExist());
+    }
+
     @Test
     void getTickerSummary_carriesCatalogQuoteCurrency() throws Exception {
         when(marketDataService.getTickerSummary("HDFCBANK.NS")).thenReturn(new TickerSummary(

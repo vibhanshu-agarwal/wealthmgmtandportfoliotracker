@@ -1,6 +1,7 @@
 package com.wealth.insight.infrastructure.ai;
 
 import com.wealth.insight.AiInsightService;
+import com.wealth.insight.SentimentSource;
 import com.wealth.insight.MarketDataService;
 import com.wealth.insight.advisor.AdvisorUnavailableException;
 import com.wealth.insight.dto.TickerSummary;
@@ -43,6 +44,8 @@ public class BedrockAiInsightService implements AiInsightService {
             You are a market analyst. Given a ticker symbol, its recent price history, \
             and trend percentage, provide exactly 2 sentences: first categorize the sentiment \
             as Bullish, Bearish, or Neutral, then briefly explain why based on the data. \
+            Base the assessment only on the prices and change given; do not describe \
+            investor behaviour, confidence, or anything the data does not show. \
             Respond in plain text only.""";
 
     private final ChatClient chatClient;
@@ -59,7 +62,9 @@ public class BedrockAiInsightService implements AiInsightService {
      * Result is cached in Redis for 60 minutes (see {@code CacheConfig}).
      */
     @Override
-    @Cacheable(value = SENTIMENT_CACHE, key = "#ticker")
+    // The source is part of the key, so a cached text is only ever read back under the
+    // implementation that produced it (rehearsal defect #5).
+    @Cacheable(value = SENTIMENT_CACHE, key = "'BEDROCK:' + #ticker")
     public String getSentiment(String ticker) {
         TickerSummary summary = marketDataService.getTickerSummary(ticker);
         String userPrompt = buildPrompt(ticker, summary);
@@ -81,6 +86,11 @@ public class BedrockAiInsightService implements AiInsightService {
             log.warn("Bedrock sentiment analysis failed for {}: {}", ticker, e.getMessage(), e);
             throw new AdvisorUnavailableException("Bedrock unavailable for " + ticker, e);
         }
+    }
+
+    @Override
+    public SentimentSource sentimentSource() {
+        return SentimentSource.BEDROCK;
     }
 
     String buildPrompt(String ticker, TickerSummary summary) {

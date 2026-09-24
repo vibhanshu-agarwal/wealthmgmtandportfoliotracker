@@ -96,8 +96,12 @@ public class InsightController {
                         .body(Map.of("error", "Ticker not found"));
             }
             String aiSummary = null;
+            SentimentSource aiSummarySource = null;
             try {
                 aiSummary = aiInsightService.getSentiment(summary.ticker());
+                if (aiSummary != null) {
+                    aiSummarySource = aiInsightService.sentimentSource();
+                }
             } catch (AdvisorUnavailableException e) {
                 log.warn("AI sentiment unavailable for {}: {}", ticker, e.getMessage());
             }
@@ -107,7 +111,8 @@ public class InsightController {
                     summary.priceHistory(),
                     summary.trendPercent(),
                     aiSummary,
-                    quoteCurrencyOf(summary.ticker())
+                    quoteCurrencyOf(summary.ticker()),
+                    aiSummarySource
             ));
         } catch (Exception e) {
             log.error("per-ticker summary failed for {}", ticker, e);

@@ -12,7 +12,7 @@ import { ChatBubble } from "./ChatBubble";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import type { ChatMessage } from "@/types/insights";
+import type { ChatMessage, SentimentSource } from "@/types/insights";
 import { useAuthenticatedUserId } from "@/lib/hooks/useAuthenticatedUserId";
 import { useRetryAfterCountdown } from "@/lib/hooks/useRetryAfterCountdown";
 import { postChatMessage } from "@/lib/api/insights";
@@ -38,17 +38,21 @@ export function ChatInterface() {
     scrollRef.current?.scrollIntoView?.({ behavior: "smooth" });
   }, [messages, isPending]);
 
-  const appendAssistantMessage = useCallback((content: string) => {
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: crypto.randomUUID(),
-        role: "assistant",
-        content,
-        timestamp: new Date(),
-      },
-    ]);
-  }, []);
+  const appendAssistantMessage = useCallback(
+    (content: string, sentimentSource: SentimentSource | null = null) => {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          content,
+          timestamp: new Date(),
+          sentimentSource,
+        },
+      ]);
+    },
+    [],
+  );
 
   // Handle optimistic UI update and call insight-service chat.
   const handleSubmit = useCallback(async (event: FormEvent<HTMLFormElement>) => {
@@ -77,7 +81,7 @@ export function ChatInterface() {
     setIsPending(true);
     try {
       const result = await postChatMessage({ message }, token);
-      appendAssistantMessage(result.response);
+      appendAssistantMessage(result.response, result.sentimentSource ?? null);
     } catch (err) {
       // 429 is distinguished from every other failure (Req 6.2, 6.3): it is a
       // rate-limit pacing signal, not a service outage, so it gets its own

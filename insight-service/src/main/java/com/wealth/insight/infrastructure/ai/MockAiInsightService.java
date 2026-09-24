@@ -4,6 +4,7 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 
 import com.wealth.insight.AiInsightService;
+import com.wealth.insight.SentimentSource;
 
 /**
  * Default mock adapter — active whenever neither the {@code bedrock} nor the
@@ -19,5 +20,10 @@ public class MockAiInsightService implements AiInsightService {
     @Override
     public String getSentiment(String ticker) {
         return "%s is showing Neutral sentiment. No significant price movement detected.".formatted(ticker);
+    }
+
+    @Override
+    public SentimentSource sentimentSource() {
+        return SentimentSource.RULE_BASED;
     }
 }

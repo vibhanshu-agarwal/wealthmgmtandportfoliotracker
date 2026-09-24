@@ -2,6 +2,7 @@ package com.wealth.insight.chat;
 
 import com.wealth.insight.AiInsightService;
 import com.wealth.insight.MarketDataService;
+import com.wealth.insight.SentimentSource;
 import com.wealth.insight.advisor.AdvisorUnavailableException;
 import com.wealth.insight.catalog.CatalogEntry;
 import com.wealth.insight.catalog.TickerCatalogService;
@@ -99,24 +100,31 @@ public class ChatResponseBuilder {
         sb.append("the latest price is ").append(formatPrice(summary.latestPrice(), currency, assetClass));
 
         if (summary.trendPercent() != null) {
+            // trendPercent is first-to-last over the stored price window, not a 24-hour change
+            // (MarketDataService.calculateTrend); say so (rehearsal defect #5).
             String sign = summary.trendPercent().signum() >= 0 ? "+" : "";
-            sb.append(" with a trend of ").append(sign)
-              .append(summary.trendPercent().toPlainString()).append("%");
+            int window = summary.priceHistory() == null ? 0 : summary.priceHistory().size();
+            sb.append(" with a change of ").append(sign)
+              .append(summary.trendPercent().toPlainString()).append("%")
+              .append(" over the last ").append(window).append(" stored prices (not a 24-hour change)");
         }
         sb.append(".");
 
-        // Sentiment — Req 3.4, 6.2
+        // Sentiment — Req 3.4, 6.2. Its source is the implementation's own declaration, never a
+        // guess from the text; null when no sentiment text is included.
+        SentimentSource sentimentSource = null;
         try {
             String sentiment = aiInsight.getSentiment(ticker);
             if (sentiment != null && !sentiment.isBlank()) {
                 sb.append(" ").append(sentiment);
+                sentimentSource = aiInsight.sentimentSource();
             }
         } catch (AdvisorUnavailableException e) {
             log.warn("Sentiment unavailable for {}: {}", ticker, e.getMessage());
             sb.append(" (AI analysis is temporarily unavailable.)");
         }
 
-        return new ChatResponse(sb.toString());
+        return new ChatResponse(sb.toString(), sentimentSource);
     }
 
     // ── NO_DATA ───────────────────────────────────────────────────────────────

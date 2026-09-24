@@ -308,4 +308,63 @@ class ChatResponseBuilderTest {
         assertThat(resp.response().toLowerCase())
                 .containsAnyOf("ask", "stock", "crypto", "track", "help", "can");
     }
+
+    // ── Rehearsal defect #5: the change window, and the sentiment's declared source ──
+
+    private TickerSummary tenPriceAaplSummary() {
+        List<BigDecimal> history = java.util.stream.IntStream.range(0, 10)
+                .mapToObj(i -> new BigDecimal("337.02"))
+                .toList();
+        return new TickerSummary("AAPL", new BigDecimal("337.02"), history, new BigDecimal("1.18"), null);
+    }
+
+    @Test
+    void build_resolved_statesTheChangeWindow_notA24HourChange() {
+        when(catalog.find("AAPL")).thenReturn(Optional.of(AAPL));
+        when(marketData.getTickerSummary("AAPL")).thenReturn(tenPriceAaplSummary());
+        when(aiInsight.getSentiment("AAPL")).thenReturn("Sentiment: Neutral.");
+
+        ChatResponse resp = builder.build(ResolutionOutcome.resolved("AAPL", "preflight"));
+
+        assertThat(resp.response())
+                .contains("with a change of +1.18% over the last 10 stored prices (not a 24-hour change)")
+                .doesNotContain("trend of");
+    }
+
+    @Test
+    void build_resolved_copiesTheImplementationsDeclaredSource() {
+        when(catalog.find("AAPL")).thenReturn(Optional.of(AAPL));
+        when(marketData.getTickerSummary("AAPL")).thenReturn(tenPriceAaplSummary());
+        when(aiInsight.getSentiment("AAPL")).thenReturn("Sentiment: Neutral.");
+        when(aiInsight.sentimentSource()).thenReturn(com.wealth.insight.SentimentSource.AZURE_OPENAI);
+
+        ChatResponse resp = builder.build(ResolutionOutcome.resolved("AAPL", "preflight"));
+
+        assertThat(resp.sentimentSource()).isEqualTo(com.wealth.insight.SentimentSource.AZURE_OPENAI);
+    }
+
+    @Test
+    void build_resolved_claimsNoSource_whenTheAdvisorIsUnavailable() {
+        when(catalog.find("AAPL")).thenReturn(Optional.of(AAPL));
+        when(marketData.getTickerSummary("AAPL")).thenReturn(tenPriceAaplSummary());
+        when(aiInsight.getSentiment("AAPL")).thenThrow(new AdvisorUnavailableException("down"));
+
+        ChatResponse resp = builder.build(ResolutionOutcome.resolved("AAPL", "preflight"));
+
+        assertThat(resp.sentimentSource()).isNull();
+        assertThat(resp.response()).contains("AI analysis is temporarily unavailable");
+    }
+
+    @Test
+    void build_resolved_claimsNoSource_whenNoSentimentTextIsIncluded() {
+        when(catalog.find("AAPL")).thenReturn(Optional.of(AAPL));
+        when(marketData.getTickerSummary("AAPL")).thenReturn(tenPriceAaplSummary());
+        when(aiInsight.getSentiment("AAPL")).thenReturn("   ");
+        org.mockito.Mockito.lenient().when(aiInsight.sentimentSource())
+                .thenReturn(com.wealth.insight.SentimentSource.BEDROCK);
+
+        ChatResponse resp = builder.build(ResolutionOutcome.resolved("AAPL", "preflight"));
+
+        assertThat(resp.sentimentSource()).isNull();
+    }
 }

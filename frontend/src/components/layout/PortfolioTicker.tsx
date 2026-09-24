@@ -17,6 +17,11 @@ interface TickerItem {
   /** ISO code `value` is quoted in; null when the source did not say (no "$" is assumed). */
   currency: string | null;
   change: number | null; // null = unavailable
+  /**
+   * Set when `change` is not a 24h change: the insights fallback's change is first-to-last over
+   * the stored price window (rehearsal defect #5), so the strip says so.
+   */
+  changeWindow?: string;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -55,6 +60,11 @@ function TickerCell({ item }: { item: TickerItem }) {
           )}
           {changeSign === "positive" ? "+" : ""}
           {item.change!.toFixed(2)}%
+        </span>
+      )}
+      {item.changeWindow && changeSign !== "unavailable" && (
+        <span className="text-[10px] text-white/40" data-testid="ticker-change-window">
+          over {item.changeWindow}
         </span>
       )}
     </span>
@@ -105,6 +115,7 @@ function buildTickerItemsFromInsights(
       value: s.latestPrice as number,
       currency: s.quoteCurrency ?? null,
       change: s.trendPercent ?? null,
+      changeWindow: `${(s.priceHistory ?? []).length} prices`,
     }));
 }
 

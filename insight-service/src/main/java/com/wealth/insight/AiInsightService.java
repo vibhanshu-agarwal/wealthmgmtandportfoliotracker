@@ -22,4 +22,11 @@ public interface AiInsightService {
      * @throws AdvisorUnavailableException if the LLM is unreachable or returns an empty response
      */
     String getSentiment(String ticker);
+
+    /**
+     * The implementation that produces {@link #getSentiment} text. Fixed per implementation, and
+     * part of every sentiment cache key, so a cached text is never attributed to a different
+     * implementation than the one that wrote it.
+     */
+    SentimentSource sentimentSource();
 }

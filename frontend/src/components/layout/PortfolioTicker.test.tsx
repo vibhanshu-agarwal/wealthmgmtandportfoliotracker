@@ -158,6 +158,21 @@ describe("PortfolioTicker — Task 9.7: no mock data", () => {
     expect(screen.queryByText("$175.00")).not.toBeInTheDocument();
   });
 
+  // Rehearsal defect #5: the fallback's change is over the stored price window, not 24h.
+  it("labels the insights fallback's change with its window", () => {
+    mockUsePortfolioAnalytics.mockReturnValue(noData);
+    mockUseMarketSummary.mockReturnValue(marketSummaryData);
+    render(<PortfolioTicker />);
+    expect(screen.getAllByText("over 3 prices").length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("adds no window label to analytics 24h changes", () => {
+    mockUsePortfolioAnalytics.mockReturnValue(analyticsWithHoldings);
+    mockUseMarketSummary.mockReturnValue(noData);
+    render(<PortfolioTicker />);
+    expect(screen.queryAllByTestId("ticker-change-window")).toHaveLength(0);
+  });
+
   it('renders "—" for unavailable 24h change (null) rather than 0.00%', () => {
     mockUsePortfolioAnalytics.mockReturnValue(analyticsWithHoldings);
     mockUseMarketSummary.mockReturnValue(noData);
