@@ -110,9 +110,11 @@ const pricesBody = [
   },
 ];
 
+// insight-service's market-summary carries each price's quoteCurrency (rehearsal defect #3); without
+// it the card shows the bare number rather than assume "$".
 const marketSummaryBody = {
-  AAPL: { ticker: "AAPL", latestPrice: 212.5, priceHistory: [210.0, 212.5], trendPercent: 1.19, aiSummary: null },
-  NVDA: { ticker: "NVDA", latestPrice: null, priceHistory: [], trendPercent: null, aiSummary: null },
+  AAPL: { ticker: "AAPL", latestPrice: 212.5, priceHistory: [210.0, 212.5], trendPercent: 1.19, aiSummary: null, quoteCurrency: "USD" },
+  NVDA: { ticker: "NVDA", latestPrice: null, priceHistory: [], trendPercent: null, aiSummary: null, quoteCurrency: "USD" },
 };
 
 const json = (body: unknown) => ({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
