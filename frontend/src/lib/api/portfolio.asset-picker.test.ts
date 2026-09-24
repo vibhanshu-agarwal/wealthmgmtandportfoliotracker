@@ -297,6 +297,33 @@ describe("enrichWireHoldings", () => {
     });
   });
 
+  // Rehearsal defect #3: the price keeps the currency it is quoted in.
+  it("carries each price's quote currency, and none for an unavailable price", async () => {
+    server.use(
+      http.get("/api/market/prices", () =>
+        HttpResponse.json([
+          { ticker: "M&M.NS", currentPrice: 3010.1, quoteCurrency: "INR", observedAt: "2026-08-01T00:00:00Z", priceUnavailable: false },
+          { ticker: "AAPL", currentPrice: 100, observedAt: "2026-08-01T00:00:00Z", priceUnavailable: false },
+          { ticker: "GONE", currentPrice: null, quoteCurrency: "USD", observedAt: null, priceUnavailable: true },
+        ]),
+      ),
+    );
+
+    const { holdings } = await enrichWireHoldings(
+      [
+        { id: "h1", assetTicker: "M&M.NS", quantity: "44" },
+        { id: "h2", assetTicker: "AAPL", quantity: "1" },
+        { id: "h3", assetTicker: "GONE", quantity: "1" },
+      ],
+      TOKEN,
+    );
+
+    const byTicker = new Map(holdings.map((h) => [h.ticker, h]));
+    expect(byTicker.get("M&M.NS")?.quoteCurrency).toBe("INR");
+    expect(byTicker.get("AAPL")?.quoteCurrency).toBeNull(); // the source did not say; never assume USD
+    expect(byTicker.get("GONE")?.quoteCurrency).toBeNull(); // no price, so no price currency
+  });
+
   it("flags a numeric wire quantity as fidelity-unverified, same as fetchPortfolio", async () => {
     server.use(http.get("/api/market/prices", () => HttpResponse.json([])));
 

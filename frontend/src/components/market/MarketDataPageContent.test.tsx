@@ -47,6 +47,7 @@ const sampleHoldings: AssetHoldingDTO[] = [
     assetClass: "STOCK",
     quantity: "10",
     currentPrice: 178.5,
+    quoteCurrency: "USD",
     totalValue: 1785,
     avgCostBasis: null,
     unrealizedPnL: null,
@@ -63,6 +64,7 @@ const sampleHoldings: AssetHoldingDTO[] = [
     assetClass: "CRYPTO",
     quantity: "0.5",
     currentPrice: 65000,
+    quoteCurrency: "USD",
     totalValue: 32500,
     avgCostBasis: null,
     unrealizedPnL: null,
@@ -338,5 +340,75 @@ describe("MarketDataPageContent — F1: unpriced holding", () => {
     render(<MarketDataPageContent />);
     expect(screen.getByText("$178.50")).toBeInTheDocument();
     expect(screen.getByText("$65,000.00")).toBeInTheDocument();
+  });
+});
+
+// ── Rehearsal defect #3: prices and per-unit changes in their own quote currency ──
+
+describe("MarketDataPageContent — quote currency", () => {
+  const indianHolding: AssetHoldingDTO = {
+    ...sampleHoldings[0],
+    id: "h4",
+    ticker: "ADANIPORTS.NS",
+    name: "Adani Ports",
+    currentPrice: 1789.2,
+    quoteCurrency: "INR",
+  };
+  const noCurrencyHolding: AssetHoldingDTO = {
+    ...sampleHoldings[0],
+    id: "h5",
+    ticker: "ODD",
+    name: "No currency",
+    currentPrice: 12.9,
+    quoteCurrency: null,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockUseAuthSession.mockReturnValue(authenticatedSession);
+    mockUsePortfolio.mockReturnValue({
+      ...portfolioWithData,
+      data: { ...portfolioWithData.data, holdings: [indianHolding, noCurrencyHolding] },
+    });
+  });
+
+  it("shows an INR price and its per-unit 24h change in rupees, not dollars", () => {
+    mockUsePortfolioAnalytics.mockReturnValue(
+      analyticsResult([
+        { ...holdingAnalytics("ADANIPORTS.NS", -0.96, -17.3), quoteCurrency: "INR" },
+        holdingAnalytics("ODD", null, null),
+      ]),
+    );
+    render(<MarketDataPageContent />);
+    const row = screen.getByText("ADANIPORTS.NS").closest("tr")!;
+    const cells = row.querySelectorAll("td");
+    expect(cells[1].textContent).toBe("₹1,789.20");
+    expect(cells[2].textContent).toContain("-₹17.30");
+    expect(row.textContent).not.toContain("$");
+  });
+
+  it("uses the market-data currency for the change when analytics is unavailable", () => {
+    mockUsePortfolioAnalytics.mockReturnValue(analyticsError);
+    mockUsePortfolio.mockReturnValue({
+      ...portfolioWithData,
+      data: {
+        ...portfolioWithData.data,
+        holdings: [{ ...indianHolding, change24hPercent: -0.96, change24hAbsolute: -17.3 }],
+      },
+    });
+    render(<MarketDataPageContent />);
+    const row = screen.getByText("ADANIPORTS.NS").closest("tr")!;
+    expect(row.querySelectorAll("td")[2].textContent).toContain("-₹17.30");
+  });
+
+  it("shows the bare number, never $, when the price has no currency", () => {
+    mockUsePortfolioAnalytics.mockReturnValue(
+      analyticsResult([holdingAnalytics("ODD", null, null)]),
+    );
+    render(<MarketDataPageContent />);
+    const row = screen.getByText("ODD").closest("tr")!;
+    const price = row.querySelectorAll("td")[1] as HTMLTableCellElement;
+    expect(price.textContent).toBe("12.90");
+    expect(within(price).getByText("12.90")).toHaveAttribute("title", "Currency unavailable");
   });
 });

@@ -8,8 +8,8 @@ import type {
   HoldingAnalyticsDTO,
 } from "@/types/portfolio";
 import {
-  formatCurrency,
   formatPercent,
+  formatQuotePrice,
   formatSignedCurrency,
 } from "@/lib/utils/format";
 
@@ -63,6 +63,9 @@ const arbBaseHolding = fc.record({
     .map((value: number) => String(value)),
   // null = no market price (finding F1): the cell must read "—", never $0.00.
   currentPrice: fc.option(fc.double({ min: 0.01, max: 999999, noNaN: true }), { nil: null }),
+  // Rehearsal defect #3: the price is shown in its own quote currency; a missing or
+  // unrecognised currency shows the bare number, never "$".
+  quoteCurrency: fc.constantFrom<string | null>("USD", "INR", "JPY", "EUR", null, "XYZ"),
   totalValue: fc.option(fc.double({ min: 0, max: 999999999, noNaN: true }), { nil: null }),
   avgCostBasis: fc.constant(null),
   unrealizedPnL: fc.constant(null),
@@ -199,7 +202,9 @@ describe("MarketDataPageContent — Property-Based Tests", () => {
             expect(row.textContent).toContain(c.holding.ticker);
             const priceCell = row.querySelectorAll("td")[1] as HTMLTableCellElement;
             expect(priceCell.textContent).toBe(
-              c.holding.currentPrice == null ? "—" : formatCurrency(c.holding.currentPrice),
+              c.holding.currentPrice == null
+                ? "—"
+                : formatQuotePrice(c.holding.currentPrice, c.holding.quoteCurrency),
             );
             expectJoinedChange(row.querySelectorAll("td")[2] as HTMLTableCellElement, c);
           });

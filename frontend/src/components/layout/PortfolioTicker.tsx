@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { TrendingUp, TrendingDown } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
-import { classifyChangePercent } from "@/lib/utils/format";
+import { classifyChangePercent, formatQuotePrice, isKnownCurrency } from "@/lib/utils/format";
 import { usePortfolioAnalytics } from "@/lib/hooks/usePortfolio";
 import { useMarketSummary } from "@/lib/hooks/useInsights";
 import type { HoldingAnalyticsDTO } from "@/types/portfolio";
@@ -14,20 +14,12 @@ import type { TickerSummary } from "@/types/insights";
 interface TickerItem {
   label: string;
   value: number;
+  /** ISO code `value` is quoted in; null when the source did not say (no "$" is assumed). */
+  currency: string | null;
   change: number | null; // null = unavailable
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-
-function formatValue(value: number): string {
-  if (value >= 1_000) {
-    return value.toLocaleString("en-US", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    });
-  }
-  return value.toFixed(2);
-}
 
 function TickerCell({ item }: { item: TickerItem }) {
   const changeSign = classifyChangePercent(item.change);
@@ -37,8 +29,11 @@ function TickerCell({ item }: { item: TickerItem }) {
       <span className="text-xs font-semibold text-white/60 uppercase tracking-wider">
         {item.label}
       </span>
-      <span className="text-xs font-mono font-semibold text-white tabular-nums">
-        ${formatValue(item.value)}
+      <span
+        className="text-xs font-mono font-semibold text-white tabular-nums"
+        title={isKnownCurrency(item.currency) ? undefined : "Currency unavailable"}
+      >
+        {formatQuotePrice(item.value, item.currency)}
       </span>
       {changeSign === "unavailable" ? (
         <span className="text-xs text-white/30 tabular-nums">—</span>
@@ -90,6 +85,7 @@ function buildTickerItemsFromAnalytics(
     .map((h) => ({
       label: h.ticker,
       value: h.currentPrice as number,
+      currency: h.quoteCurrency ?? null,
       change: h.change24hPercent ?? null,
     }));
 }
@@ -107,6 +103,7 @@ function buildTickerItemsFromInsights(
     .map((s) => ({
       label: s.ticker,
       value: s.latestPrice as number,
+      currency: s.quoteCurrency ?? null,
       change: s.trendPercent ?? null,
     }));
 }

@@ -15,10 +15,13 @@
  * @field priceHistory last N price points, newest first (List<BigDecimal> → number[])
  * @field trendPercent percentage change oldest→newest, null when < 2 data points
  * @field aiSummary    2-sentence AI sentiment, null when AI unavailable
+ * @field quoteCurrency ISO 4217 code latestPrice/priceHistory are quoted in, from the insight
+ *                      catalog; null when the ticker is not in the catalog (never assume USD)
  */
 export interface TickerSummary {
   ticker: string;
   latestPrice: number | null;
+  quoteCurrency?: string | null;
   priceHistory: number[];
   trendPercent: number | null;
   aiSummary: string | null;

@@ -311,6 +311,8 @@ export async function enrichWireHoldings(
       quantity,
       ...(quantityFidelityUnverified ? { quantityFidelityUnverified: true } : {}),
       currentPrice,
+      // The price's own currency, from the same market-data record (rehearsal defect #3).
+      quoteCurrency: currentPrice == null ? null : (price?.quoteCurrency ?? null),
       totalValue,
       avgCostBasis: null,
       unrealizedPnL: null,

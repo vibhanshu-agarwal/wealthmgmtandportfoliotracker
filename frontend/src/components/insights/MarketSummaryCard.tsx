@@ -13,11 +13,11 @@ import {
 import { cn } from "@/lib/utils/cn";
 import {
   classifyChangePercent,
-  formatCurrency,
   formatPercent,
 } from "@/lib/utils/format";
 import type { TickerSummary } from "@/types/insights";
 import { DemoDataBadge } from "@/components/ui/DemoDataBadge";
+import { QuotePrice } from "@/components/ui/QuotePrice";
 
 interface MarketSummaryCardProps {
   summary: TickerSummary;
@@ -64,7 +64,7 @@ export function MarketSummaryCard({ summary }: MarketSummaryCardProps) {
           {latestPrice == null ? (
             <span className="text-muted-foreground">—</span>
           ) : (
-            formatCurrency(latestPrice)
+            <QuotePrice value={latestPrice} currency={summary.quoteCurrency} />
           )}
         </p>
 

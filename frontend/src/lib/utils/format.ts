@@ -34,6 +34,61 @@ export function formatCurrency(value: number): string {
   return USD.format(value);
 }
 
+// ── Quote-currency prices ─────────────────────────────────────────────────────
+// `formatCurrency` above is for base-currency (USD) amounts the backend has already
+// FX-converted. A per-unit market price is in its own quote currency (₹ for .NS, ¥ for
+// USDJPY=X), so it goes through these instead. They take the currency explicitly and have
+// no default: a missing or unrecognised currency renders the bare number, never "$".
+
+const SUPPORTED_CURRENCIES: ReadonlySet<string> | null = (() => {
+  try {
+    return new Set(Intl.supportedValuesOf("currency"));
+  } catch {
+    return null;
+  }
+})();
+
+const QUOTE_FORMATTERS = new Map<string, Intl.NumberFormat>();
+
+const PLAIN_PRICE = new Intl.NumberFormat("en-US", {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
+/**
+ * True for an ISO 4217 code this runtime can format. A well-formed but unassigned code
+ * ("XYZ") is not known: Intl would print it as a prefix rather than reject it.
+ */
+export function isKnownCurrency(code: string | null | undefined): code is string {
+  if (typeof code !== "string" || !/^[A-Z]{3}$/.test(code)) return false;
+  return SUPPORTED_CURRENCIES ? SUPPORTED_CURRENCIES.has(code) : true;
+}
+
+function quoteFormatter(code: string): Intl.NumberFormat {
+  let formatter = QUOTE_FORMATTERS.get(code);
+  if (!formatter) {
+    formatter = new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: code,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+    QUOTE_FORMATTERS.set(code, formatter);
+  }
+  return formatter;
+}
+
+/** "₹22,470.00" for INR, "$337.02" only when the code is explicitly "USD", "22,470.00" when unknown. */
+export function formatQuotePrice(value: number, currency: string | null | undefined): string {
+  return isKnownCurrency(currency) ? quoteFormatter(currency).format(value) : PLAIN_PRICE.format(value);
+}
+
+/** "+₹15.20" / "-₹17.30"; the bare signed number when the currency is unknown. */
+export function formatSignedQuotePrice(value: number, currency: string | null | undefined): string {
+  const formatted = formatQuotePrice(Math.abs(value), currency);
+  return value >= 0 ? `+${formatted}` : `-${formatted}`;
+}
+
 /** "$1.23K" / "$4.56M" — for compact summary cards */
 export function formatCurrencyCompact(value: number): string {
   return USD_COMPACT.format(value);

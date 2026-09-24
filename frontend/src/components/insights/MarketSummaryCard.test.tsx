@@ -17,6 +17,7 @@ beforeAll(() => {
 const baseSummary: TickerSummary = {
   ticker: "AAPL",
   latestPrice: 178.5,
+  quoteCurrency: "USD",
   priceHistory: [175.0, 176.2, 177.8, 178.5],
   trendPercent: 2.0,
   aiSummary: "AAPL is Bullish. Prices are rising.",
@@ -151,6 +152,23 @@ describe("MarketSummaryCard — Basic rendering", () => {
 
     expect(screen.getByText("AAPL")).toBeInTheDocument();
     expect(screen.getByText("$178.50")).toBeInTheDocument();
+  });
+
+  // Rehearsal defect #3: the card price is in the ticker's own quote currency.
+  it("shows an INR price with the rupee sign", () => {
+    render(
+      <MarketSummaryCard
+        summary={{ ...baseSummary, ticker: "M&M.NS", latestPrice: 3010.1, quoteCurrency: "INR" }}
+      />,
+    );
+    expect(screen.getByText("₹3,010.10")).toBeInTheDocument();
+  });
+
+  it("shows the bare number, never $, when the currency is unknown", () => {
+    render(<MarketSummaryCard summary={{ ...baseSummary, quoteCurrency: null }} />);
+    const price = screen.getByText("178.50");
+    expect(price).toHaveAttribute("title", "Currency unavailable");
+    expect(screen.queryByText("$178.50")).not.toBeInTheDocument();
   });
 });
 

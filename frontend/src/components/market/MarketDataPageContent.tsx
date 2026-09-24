@@ -22,10 +22,9 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils/cn";
+import { QuotePrice } from "@/components/ui/QuotePrice";
 import {
-  formatCurrency,
   formatPercent,
-  formatSignedCurrency,
   formatDateOrDash,
   formatRelativeAge,
 } from "@/lib/utils/format";
@@ -177,6 +176,10 @@ function MarketDataTable() {
               const change24hAbsolute = holdingAnalytics
                 ? holdingAnalytics.change24hAbsolute
                 : holding.change24hAbsolute;
+              // The per-unit change is quoted in the currency of whichever source supplied it.
+              const change24hCurrency = holdingAnalytics
+                ? holdingAnalytics.quoteCurrency
+                : holding.quoteCurrency;
 
               return (
                 <TableRow key={holding.id}>
@@ -189,7 +192,7 @@ function MarketDataTable() {
                     {holding.currentPrice == null ? (
                       <span className="text-muted-foreground">—</span>
                     ) : (
-                      formatCurrency(holding.currentPrice)
+                      <QuotePrice value={holding.currentPrice} currency={holding.quoteCurrency} />
                     )}
                   </TableCell>
                   <TableCell
@@ -203,7 +206,7 @@ function MarketDataTable() {
                     {change24hPercent != null
                       ? <>{formatPercent(change24hPercent)}
                           {change24hAbsolute != null && (
-                            <>{" "}<span className="text-xs">({formatSignedCurrency(change24hAbsolute)})</span></>
+                            <>{" "}<span className="text-xs">(<QuotePrice value={change24hAbsolute} currency={change24hCurrency} signed />)</span></>
                           )}
                         </>
                       : isAnalyticsPending

@@ -35,8 +35,17 @@ export interface AssetHoldingDTO {
    * string and is byte-faithful.
    */
   quantityFidelityUnverified?: boolean;
-  /** Current market price per unit (USD); null when no price is available — never $0.00 */
+  /**
+   * Current market price per unit, in `quoteCurrency` (not necessarily USD); null when no
+   * price is available — never $0.00.
+   */
   currentPrice: number | null;
+  /**
+   * ISO 4217 code `currentPrice` (and `change24hAbsolute`) are quoted in, taken from the same
+   * source as the price. Null/absent when that source did not say — render with `QuotePrice`,
+   * which then shows no currency symbol rather than assuming "$".
+   */
+  quoteCurrency?: string | null;
   /** quantity × currentPrice; null when currentPrice is null */
   totalValue: number | null;
   /** Average cost per unit at time of purchase; null when basis unavailable */

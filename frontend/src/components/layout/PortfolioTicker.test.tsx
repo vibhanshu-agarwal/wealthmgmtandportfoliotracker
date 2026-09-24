@@ -139,6 +139,25 @@ describe("PortfolioTicker — Task 9.7: no mock data", () => {
     expect(screen.getAllByText("GOOG").length).toBeGreaterThanOrEqual(1);
   });
 
+  // Rehearsal defect #3: the strip no longer prints a literal "$" before every price.
+  it("prices the insights fallback in its own currency, and never assumes $", () => {
+    mockUsePortfolioAnalytics.mockReturnValue(noData);
+    mockUseMarketSummary.mockReturnValue({
+      data: {
+        MSFT: { ...marketSummaryData.data.MSFT, quoteCurrency: "USD" },
+        "M&M.NS": { ticker: "M&M.NS", latestPrice: 3010.1, priceHistory: [3010.1], trendPercent: null, quoteCurrency: "INR" },
+        GOOG: { ...marketSummaryData.data.GOOG, quoteCurrency: null },
+      },
+    });
+    render(<PortfolioTicker />);
+    expect(screen.getAllByText("$420.00").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("₹3,010.10").length).toBeGreaterThanOrEqual(1);
+    const bare = screen.getAllByText("175.00");
+    expect(bare.length).toBeGreaterThanOrEqual(1);
+    bare.forEach((el) => expect(el).toHaveAttribute("title", "Currency unavailable"));
+    expect(screen.queryByText("$175.00")).not.toBeInTheDocument();
+  });
+
   it('renders "—" for unavailable 24h change (null) rather than 0.00%', () => {
     mockUsePortfolioAnalytics.mockReturnValue(analyticsWithHoldings);
     mockUseMarketSummary.mockReturnValue(noData);
@@ -219,7 +238,8 @@ describe("PortfolioTicker — F1: holdings without a current price", () => {
     render(<PortfolioTicker />);
     const labels = screen.getAllByText(/^(AAPL|BTC-USD|RELIANCE\.NS)$/).map((el) => el.textContent);
     expect(labels.slice(0, 3)).toEqual(["BTC-USD", "AAPL", "RELIANCE.NS"]);
-    expect(screen.getAllByText("$2,950.50").length).toBeGreaterThanOrEqual(1);
+    // An INR quote shows the rupee sign (rehearsal defect #3); it used to read "$2,950.50".
+    expect(screen.getAllByText("₹2,950.50").length).toBeGreaterThanOrEqual(1);
   });
 
   it("falls back to the market summary when every holding is unpriced", () => {

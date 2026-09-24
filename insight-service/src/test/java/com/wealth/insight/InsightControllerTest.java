@@ -2,6 +2,8 @@ package com.wealth.insight;
 
 import com.wealth.insight.advisor.AdvisorUnavailableException;
 import com.wealth.insight.advisor.AnalysisResult;
+import com.wealth.catalog.SupportedCatalog;
+import com.wealth.insight.catalog.TickerCatalogService;
 import com.wealth.insight.dto.TickerSummary;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -36,7 +38,8 @@ class InsightControllerTest {
     @BeforeEach
     void setUp() {
         InsightController controller = new InsightController(
-                insightService, marketDataService, aiInsightService);
+                insightService, marketDataService, aiInsightService,
+                new TickerCatalogService(SupportedCatalog.load()));
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
@@ -117,6 +120,34 @@ class InsightControllerTest {
                 .andExpect(jsonPath("$.MSFT.aiSummary").doesNotExist())
                 .andExpect(jsonPath("$.AAPL.ticker").value("AAPL"))
                 .andExpect(jsonPath("$.AAPL.aiSummary").doesNotExist());
+    }
+
+    // --- Rehearsal defect #3: each summary carries its catalog quote currency ---
+
+    @Test
+    void getMarketSummary_carriesCatalogQuoteCurrency_andNullOutsideCatalog() throws Exception {
+        Map<String, TickerSummary> raw = new LinkedHashMap<>();
+        raw.put("AAPL", new TickerSummary("AAPL", new BigDecimal("178.50"), List.of(), null, null));
+        raw.put("HDFCBANK.NS", new TickerSummary("HDFCBANK.NS", new BigDecimal("730.05"), List.of(), null, null));
+        raw.put("ZZZZ", new TickerSummary("ZZZZ", new BigDecimal("1.00"), List.of(), null, null));
+        when(marketDataService.getMarketSummary()).thenReturn(raw);
+
+        mockMvc.perform(get("/api/insights/market-summary"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.AAPL.quoteCurrency").value("USD"))
+                .andExpect(jsonPath("$['HDFCBANK.NS'].quoteCurrency").value("INR"))
+                .andExpect(jsonPath("$.ZZZZ.quoteCurrency").doesNotExist());
+    }
+
+    @Test
+    void getTickerSummary_carriesCatalogQuoteCurrency() throws Exception {
+        when(marketDataService.getTickerSummary("HDFCBANK.NS")).thenReturn(new TickerSummary(
+                "HDFCBANK.NS", new BigDecimal("730.05"), List.of(new BigDecimal("730.05")), null, null));
+        when(aiInsightService.getSentiment("HDFCBANK.NS")).thenReturn("Neutral.");
+
+        mockMvc.perform(get("/api/insights/market-summary/HDFCBANK.NS"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.quoteCurrency").value("INR"));
     }
 
     @Test
