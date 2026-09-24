@@ -1419,7 +1419,8 @@
     "assetClass": "CRYPTO",
     "quoteCurrency": "USD",
     "basePrice": 6.9,
-    "lifecycleStatus": "ACTIVE"
+    "lifecycleStatus": "ACTIVE",
+    "providerSymbol": "TON11419-USD"
   },
   {
     "ticker": "LTC-USD",

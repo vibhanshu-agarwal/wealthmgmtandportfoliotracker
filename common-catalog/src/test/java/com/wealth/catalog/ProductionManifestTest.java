@@ -35,8 +35,8 @@ class ProductionManifestTest {
     /**
      * Rehearsal defect #2: Yahoo quotes these assets under new symbols and serves other tokens
      * under the old ones. Each mapping was verified against Yahoo's own name and a recent price on
-     * 2026-09-24 (handoff SYMBOL_VERIFICATION_2026-09-24.md); FTM-USD and TON-USD had no single
-     * verified replacement and are deliberately not mapped.
+     * 2026-09-24 (handoff SYMBOL_VERIFICATION_2026-09-24.md, with the TON addendum); FTM-USD had no
+     * verified replacement and is deliberately not mapped.
      */
     @Test
     void repoManifestMapsExactlyTheVerifiedProviderSymbols() throws Exception {
@@ -57,8 +57,8 @@ class ProductionManifestTest {
                 "APT-USD", "APT21794-USD",
                 "IMX-USD", "IMX10603-USD",
                 "GRT-USD", "GRT6719-USD",
-                "ARB-USD", "ARB11841-USD"));
+                "ARB-USD", "ARB11841-USD",
+                "TON-USD", "TON11419-USD"));
         assertThat(catalog.providerSymbol("FTM-USD")).isEqualTo("FTM-USD");
-        assertThat(catalog.providerSymbol("TON-USD")).isEqualTo("TON-USD");
     }
 }
