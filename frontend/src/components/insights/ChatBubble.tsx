@@ -1,5 +1,6 @@
 import { cn } from "@/lib/utils/cn";
 import type { ChatMessage } from "@/types/insights";
+import { chatSentimentSourceLabel } from "@/lib/utils/sentimentSource";
 
 /**
  * Formats a Date as a relative timestamp (e.g. "just now", "2 minutes ago").
@@ -25,6 +26,7 @@ interface ChatBubbleProps {
  */
 export function ChatBubble({ message }: ChatBubbleProps) {
   const isUser = message.role === "user";
+  const sourceLabel = chatSentimentSourceLabel(message.sentimentSource);
 
   return (
     <div
@@ -39,6 +41,11 @@ export function ChatBubble({ message }: ChatBubbleProps) {
         )}
       >
         <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+        {!isUser && sourceLabel && (
+          <p className="mt-1 text-[10px] text-muted-foreground" data-testid="chat-sentiment-source">
+            {sourceLabel}
+          </p>
+        )}
         <p
           className={cn(
             "mt-1 text-[10px]",

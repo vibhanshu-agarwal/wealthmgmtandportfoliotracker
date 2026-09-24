@@ -1,5 +1,6 @@
 package com.wealth.insight;
 
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 import org.slf4j.Logger;
@@ -13,6 +14,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.wealth.insight.advisor.AdvisorUnavailableException;
 import com.wealth.insight.advisor.AnalysisResult;
+import com.wealth.insight.catalog.CatalogEntry;
+import com.wealth.insight.catalog.TickerCatalogService;
 import com.wealth.insight.dto.TickerSummary;
 
 /**
@@ -27,13 +30,21 @@ public class InsightController {
     private final InsightService insightService;
     private final MarketDataService marketDataService;
     private final AiInsightService aiInsightService;
+    private final TickerCatalogService catalog;
 
     public InsightController(InsightService insightService,
                              MarketDataService marketDataService,
-                             AiInsightService aiInsightService) {
+                             AiInsightService aiInsightService,
+                             TickerCatalogService catalog) {
         this.insightService = insightService;
         this.marketDataService = marketDataService;
         this.aiInsightService = aiInsightService;
+        this.catalog = catalog;
+    }
+
+    /** The ticker's catalog quote currency, or null when it is not in the catalog. */
+    private String quoteCurrencyOf(String ticker) {
+        return catalog.find(ticker).map(CatalogEntry::quoteCurrency).orElse(null);
     }
 
     @GetMapping("/health")
@@ -60,7 +71,10 @@ public class InsightController {
     @GetMapping("/market-summary")
     public ResponseEntity<Map<String, TickerSummary>> getMarketSummary() {
         try {
-            return ResponseEntity.ok(marketDataService.getMarketSummary());
+            Map<String, TickerSummary> summaries = new LinkedHashMap<>();
+            marketDataService.getMarketSummary().forEach((ticker, summary) ->
+                    summaries.put(ticker, summary.withQuoteCurrency(quoteCurrencyOf(summary.ticker()))));
+            return ResponseEntity.ok(summaries);
         } catch (Exception e) {
             log.error("market-summary endpoint failed", e);
             return ResponseEntity.internalServerError().build();
@@ -82,8 +96,12 @@ public class InsightController {
                         .body(Map.of("error", "Ticker not found"));
             }
             String aiSummary = null;
+            SentimentSource aiSummarySource = null;
             try {
                 aiSummary = aiInsightService.getSentiment(summary.ticker());
+                if (aiSummary != null) {
+                    aiSummarySource = aiInsightService.sentimentSource();
+                }
             } catch (AdvisorUnavailableException e) {
                 log.warn("AI sentiment unavailable for {}: {}", ticker, e.getMessage());
             }
@@ -92,7 +110,9 @@ public class InsightController {
                     summary.latestPrice(),
                     summary.priceHistory(),
                     summary.trendPercent(),
-                    aiSummary
+                    aiSummary,
+                    quoteCurrencyOf(summary.ticker()),
+                    aiSummarySource
             ));
         } catch (Exception e) {
             log.error("per-ticker summary failed for {}", ticker, e);

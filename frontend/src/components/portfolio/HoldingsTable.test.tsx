@@ -181,7 +181,8 @@ describe("HoldingsTable — analytics null value with an enriched price", () => 
       holding("SOL-USD", 1242.3, 24846, 92.5),
     );
     const [, , price, value] = cellsOf("SOL-USD");
-    expect(price.textContent).toBe("$1,242.30");
+    // The per-unit price is in its quote currency (rehearsal defect #3); it used to read "$1,242.30".
+    expect(price.textContent).toBe("₹1,242.30");
     expect(value.textContent).toBe("—");
     expect(within(value.closest("tr")!).queryByText(/%$/)).not.toBeInTheDocument();
     expect(cellsOf("AAPL")[3].textContent).toBe("$2,000.00100.0%");
@@ -189,11 +190,32 @@ describe("HoldingsTable — analytics null value with an enriched price", () => 
   });
 
   it("price missing from portfolio-service only: keeps the market-data price, but no value", () => {
-    setup(analyticsHolding("SOL-USD", null, null), holding("SOL-USD", 12.9, 64.5, 3.1));
+    setup(
+      analyticsHolding("SOL-USD", null, null),
+      { ...holding("SOL-USD", 12.9, 64.5, 3.1), quoteCurrency: "USD" },
+    );
     const [, , price, value] = cellsOf("SOL-USD");
     expect(price.textContent).toBe("$12.90");
     expect(value.textContent).toBe("—");
     expect(screen.getByText("Total (2 assets)").parentElement!.textContent).toContain("$2,000.00");
+  });
+
+  it("market-data price with no currency: shows the bare number, never $", () => {
+    setup(
+      analyticsHolding("SOL-USD", null, null),
+      { ...holding("SOL-USD", 12.9, 64.5, 3.1), quoteCurrency: null },
+    );
+    const [, , price] = cellsOf("SOL-USD");
+    expect(price.textContent).toBe("12.90");
+    expect(within(price).getByText("12.90")).toHaveAttribute("title", "Currency unavailable");
+  });
+
+  it("uses the market-data currency when the price comes from market data", () => {
+    setup(
+      { ...analyticsHolding("SOL-USD", null, null), quoteCurrency: "USD" },
+      { ...holding("SOL-USD", 3010.1, 132444.4, 3.1), quoteCurrency: "INR" },
+    );
+    expect(cellsOf("SOL-USD")[2].textContent).toBe("₹3,010.10");
   });
 });
 
@@ -255,6 +277,27 @@ describe("HoldingsTable — D11: position-level 24h values", () => {
   function search(text: string) {
     fireEvent.change(screen.getByPlaceholderText("Search ticker or name…"), { target: { value: text } });
   }
+
+  // Rehearsal defect #2: a price too old to have a 24h change shows "—" and says why; a fresh
+  // price with a genuine zero move keeps 0.00%.
+  it("marks a stale price's missing 24h change with when the price was last updated", () => {
+    const staleSol: HoldingAnalyticsDTO = {
+      ...sol,
+      change24hPercent: null,
+      change24hAbsolute: null,
+      change24hValueBase: null,
+      changeBasis: "STALE_PRICE",
+      priceObservedAt: "2026-09-18T08:00:00Z",
+      priceFreshness: "STALE",
+    };
+    const flatBtc: HoldingAnalyticsDTO = { ...btc, change24hPercent: 0, change24hAbsolute: 0, change24hValueBase: 0 };
+    setup([aapl, flatBtc, staleSol]);
+    const stale = within(cell24h("SOL-USD")).getByTestId("change-stale");
+    expect(stale).toHaveTextContent("—");
+    expect(stale.getAttribute("title")).toMatch(/^Price last updated Sep 18, 2026$/);
+    expect(cell24h("BTC-USD").textContent).toContain("0.00%");
+    expect(within(cell24h("AAPL")).queryByTestId("change-stale")).not.toBeInTheDocument();
+  });
 
   it("shows each row's position-level change under its percent", () => {
     setup([aapl, btc, sol]);

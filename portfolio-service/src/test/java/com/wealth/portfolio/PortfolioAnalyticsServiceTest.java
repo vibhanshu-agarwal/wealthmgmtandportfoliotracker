@@ -69,7 +69,8 @@ class PortfolioAnalyticsServiceTest {
 
         service = new PortfolioAnalyticsService(
                 jdbcTemplate, userRepository, portfolioRepository,
-                fxRateProvider, fxProperties, seedTickerRegistry);
+                fxRateProvider, fxProperties, seedTickerRegistry,
+                com.wealth.portfolio.freshness.AssetPriceFreshnessProperties.defaults());
     }
 
     // ── Core behaviour tests ─────────────────────────────────────────────────

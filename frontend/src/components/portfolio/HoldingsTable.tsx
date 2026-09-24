@@ -35,14 +35,16 @@ import {
   formatSignedCurrency,
   formatSignedCurrencyOrDash,
   formatPercentOrDash,
+  formatDateOrDash,
 } from "@/lib/utils/format";
 import {
   compareQuantityStrings,
   formatQuantityForDisplay,
 } from "@/lib/utils/quantityDisplay";
 import { cn } from "@/lib/utils/cn";
-import type { AssetClass, AssetHoldingDTO } from "@/types/portfolio";
+import { STALE_PRICE_BASIS, type AssetClass, type AssetHoldingDTO } from "@/types/portfolio";
 import { DemoDataBadge } from "@/components/ui/DemoDataBadge";
+import { QuotePrice } from "@/components/ui/QuotePrice";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -106,15 +108,24 @@ const ALL_ASSET_CLASSES = Object.keys(ASSET_CLASS_CONFIG) as AssetClass[];
 function ChangeCell({
   percent,
   positionChange,
+  staleSince,
 }: {
   percent: number | null;
   /** D11: the position's 24h change in base currency; the sub-line is omitted when unavailable. */
   positionChange: number | null;
+  /** Set when the price is too old to have a 24h change (changeBasis STALE_PRICE). */
+  staleSince?: string | null;
 }) {
   // null means "no reference data" — render "—" not "+0.00%"
   if (percent == null) {
     return (
-      <span className="text-sm text-muted-foreground tabular-nums">—</span>
+      <span
+        className="text-sm text-muted-foreground tabular-nums"
+        title={staleSince ? `Price last updated ${formatDateOrDash(staleSince)}` : undefined}
+        data-testid={staleSince ? "change-stale" : undefined}
+      >
+        —
+      </span>
     );
   }
   const isPositive = percent > 0;
@@ -300,8 +311,13 @@ export function HoldingsTable() {
       return {
         ...h,
         assetClass: compatClass,
-        // A market-data price is still a real price when portfolio-service has none.
+        // A market-data price is still a real price when portfolio-service has none. The
+        // currency travels with whichever source supplied the price.
         currentPrice: analyticsHolding.currentPrice ?? h.currentPrice,
+        quoteCurrency:
+          analyticsHolding.currentPrice != null
+            ? (analyticsHolding.quoteCurrency ?? null)
+            : (h.quoteCurrency ?? null),
         // FX-converted base-currency value from analytics — not qty × quote-currency price.
         totalValue: valueBase,
         portfolioWeight,
@@ -312,6 +328,8 @@ export function HoldingsTable() {
         unrealizedPnLPercent: analyticsHolding.unrealizedPnLPercent,
         change24hPercent: analyticsHolding.change24hPercent,
         change24hAbsolute: analyticsHolding.change24hAbsolute,
+        changeBasis: analyticsHolding.changeBasis,
+        priceObservedAt: analyticsHolding.priceObservedAt ?? null,
         // D11: the position's base-currency 24h change; absent from an older backend.
         change24hValueBase: analyticsHolding.change24hValueBase ?? null,
       };
@@ -563,7 +581,7 @@ export function HoldingsTable() {
                         {holding.currentPrice == null ? (
                           <span className="text-muted-foreground">—</span>
                         ) : (
-                          formatCurrency(holding.currentPrice)
+                          <QuotePrice value={holding.currentPrice} currency={holding.quoteCurrency} />
                         )}
                       </TableCell>
 
@@ -621,6 +639,11 @@ export function HoldingsTable() {
                         <ChangeCell
                           percent={holding.change24hPercent}
                           positionChange={holding.change24hValueBase ?? null}
+                          staleSince={
+                            holding.changeBasis === STALE_PRICE_BASIS
+                              ? (holding.priceObservedAt ?? null)
+                              : null
+                          }
                         />
                       </TableCell>
                     </TableRow>

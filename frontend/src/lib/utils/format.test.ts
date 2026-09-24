@@ -19,7 +19,45 @@ import {
   formatRelativeAge,
   formatDateOrDash,
   formatDate,
+  formatQuotePrice,
+  formatSignedQuotePrice,
+  isKnownCurrency,
 } from "./format";
+
+// ── formatQuotePrice (rehearsal defect #3) ────────────────────────────────────
+
+describe("formatQuotePrice", () => {
+  it("formats a price in its own quote currency", () => {
+    expect(formatQuotePrice(22470, "INR")).toBe("₹22,470.00");
+    expect(formatQuotePrice(158.21, "JPY")).toBe("¥158.21");
+    expect(formatQuotePrice(1.14, "EUR")).toBe("€1.14");
+  });
+
+  it('prints "$" only for an explicit USD code', () => {
+    expect(formatQuotePrice(337.02, "USD")).toBe("$337.02");
+  });
+
+  it.each([[null], [undefined], [""], ["XYZ"], ["usd"], ["US"]])(
+    "renders the bare number, never a symbol, for currency %p",
+    (currency) => {
+      const out = formatQuotePrice(22470, currency as string | null | undefined);
+      expect(out).toBe("22,470.00");
+      expect(out).not.toMatch(/[$₹¥€£]/);
+    },
+  );
+
+  it("signs a per-unit change in its quote currency", () => {
+    expect(formatSignedQuotePrice(15.2, "INR")).toBe("+₹15.20");
+    expect(formatSignedQuotePrice(-17.3, "INR")).toBe("-₹17.30");
+    expect(formatSignedQuotePrice(-2.73, null)).toBe("-2.73");
+  });
+
+  it("recognises only assigned ISO codes", () => {
+    expect(isKnownCurrency("INR")).toBe(true);
+    expect(isKnownCurrency("XYZ")).toBe(false);
+    expect(isKnownCurrency(null)).toBe(false);
+  });
+});
 
 // ── formatSignedCurrencyOrDash ────────────────────────────────────────────────
 

@@ -22,12 +22,14 @@ public final class SupportedCatalog {
     private final List<CatalogEntry> active;
     private final Map<String, CatalogEntry> byTicker;
     private final Map<String, BigDecimal> basePrices;
+    private final Map<String, String> providerSymbols;
 
     private SupportedCatalog(
             String resourcePath,
             String version,
             List<CatalogEntry> all,
-            Map<String, BigDecimal> basePrices) {
+            Map<String, BigDecimal> basePrices,
+            Map<String, String> providerSymbols) {
         this.resourcePath = resourcePath;
         this.version = version;
         this.all = List.copyOf(all);
@@ -39,6 +41,7 @@ public final class SupportedCatalog {
                 all.stream()
                         .collect(Collectors.toUnmodifiableMap(CatalogEntry::ticker, e -> e));
         this.basePrices = Map.copyOf(basePrices);
+        this.providerSymbols = Map.copyOf(providerSymbols);
         if (this.active.isEmpty()) {
             throw new CatalogLoadFailedException(
                     resourcePath, List.of("Catalog must contain at least one ACTIVE entry"));
@@ -106,7 +109,13 @@ public final class SupportedCatalog {
                         .collect(
                                 Collectors.toUnmodifiableMap(
                                         ManifestEntry::ticker, ManifestEntry::basePrice));
-        return new SupportedCatalog(resourcePath, version, entries, basePrices);
+        Map<String, String> providerSymbols =
+                manifest.stream()
+                        .filter(m -> m.providerSymbol() != null)
+                        .collect(
+                                Collectors.toUnmodifiableMap(
+                                        ManifestEntry::ticker, ManifestEntry::providerSymbol));
+        return new SupportedCatalog(resourcePath, version, entries, basePrices, providerSymbols);
     }
 
     public String resourcePath() {
@@ -141,6 +150,14 @@ public final class SupportedCatalog {
 
     public String version() {
         return version;
+    }
+
+    /**
+     * The symbol to request {@code ticker}'s price under from the market-data provider: the
+     * catalog's {@code providerSymbol} when set, otherwise the ticker itself.
+     */
+    public String providerSymbol(String ticker) {
+        return providerSymbols.getOrDefault(ticker, ticker);
     }
 
     public SeedCatalogView seedView() {

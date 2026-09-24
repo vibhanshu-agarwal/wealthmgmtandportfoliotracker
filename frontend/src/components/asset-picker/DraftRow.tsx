@@ -2,7 +2,7 @@
 
 import { useId } from "react";
 import { cn } from "@/lib/utils/cn";
-import { formatCurrency } from "@/lib/utils/format";
+import { formatCurrency, formatQuotePrice } from "@/lib/utils/format";
 import type { AssetLifecycleStatus } from "@/types/assetPicker";
 
 export interface DraftRowProps {
@@ -20,6 +20,17 @@ export interface DraftRowProps {
    * boundary. `null` or omitted renders nothing rather than a fabricated `$0.00`.
    */
   estimatedValue?: number | null;
+  /**
+   * The currency `estimatedValue` is in — the base currency after FX conversion
+   * (rehearsal defect #4). Omitted means base-currency USD, the legacy contract.
+   */
+  estimateCurrency?: string;
+  /**
+   * The row is priced, but its value cannot be converted into the base currency (no
+   * rate, or an unknown quote currency). Shown as "Value unavailable" — never a native
+   * amount under the base currency's symbol, and never a 1:1 conversion.
+   */
+  estimateUnavailable?: boolean;
 }
 
 /**
@@ -49,6 +60,8 @@ export function DraftRow({
   onQuantityChange,
   errorMessage,
   estimatedValue,
+  estimateCurrency,
+  estimateUnavailable = false,
 }: DraftRowProps) {
   const errorId = useId();
   const deprecatedHintId = useId();
@@ -103,10 +116,21 @@ export function DraftRow({
         <p className="truncate text-xs text-muted-foreground">{name}</p>
       </div>
 
-      {estimatedValue != null && (
-        <span className="w-24 shrink-0 text-right text-sm tabular-nums text-muted-foreground">
-          {formatCurrency(estimatedValue)}
+      {estimateUnavailable ? (
+        <span
+          className="w-24 shrink-0 text-right text-xs text-muted-foreground"
+          data-testid="estimate-unavailable"
+        >
+          Value unavailable
         </span>
+      ) : (
+        estimatedValue != null && (
+          <span className="w-24 shrink-0 text-right text-sm tabular-nums text-muted-foreground">
+            {estimateCurrency
+              ? formatQuotePrice(estimatedValue, estimateCurrency)
+              : formatCurrency(estimatedValue)}
+          </span>
+        )
       )}
 
       <input

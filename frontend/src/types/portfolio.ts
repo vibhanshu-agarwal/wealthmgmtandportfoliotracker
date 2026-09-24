@@ -35,8 +35,17 @@ export interface AssetHoldingDTO {
    * string and is byte-faithful.
    */
   quantityFidelityUnverified?: boolean;
-  /** Current market price per unit (USD); null when no price is available — never $0.00 */
+  /**
+   * Current market price per unit, in `quoteCurrency` (not necessarily USD); null when no
+   * price is available — never $0.00.
+   */
   currentPrice: number | null;
+  /**
+   * ISO 4217 code `currentPrice` (and `change24hAbsolute`) are quoted in, taken from the same
+   * source as the price. Null/absent when that source did not say — render with `QuotePrice`,
+   * which then shows no currency symbol rather than assuming "$".
+   */
+  quoteCurrency?: string | null;
   /** quantity × currentPrice; null when currentPrice is null */
   totalValue: number | null;
   /** Average cost per unit at time of purchase; null when basis unavailable */
@@ -58,12 +67,21 @@ export interface AssetHoldingDTO {
   portfolioWeight: number;
   /** ISO-8601 timestamp of last price update */
   lastUpdatedAt: string;
+  /** From analytics when merged: why the 24h change is what it is (see HoldingAnalyticsDTO). */
+  changeBasis?: string | null;
+  /** From analytics when merged: when the current price was observed (ISO-8601, UTC). */
+  priceObservedAt?: string | null;
 }
 
 // ── Portfolio summary ─────────────────────────────────────────────────────────
 
 export interface PortfolioSummaryDTO {
   totalValue: number;
+  /**
+   * True when totalValue leaves out some holding: no price, or (on the client-assembled path,
+   * which has no FX step) a price not in the base currency. Absent means not known to be partial.
+   */
+  partialValuation?: boolean;
   totalCostBasis: number;
   totalUnrealizedPnL: number;
   totalUnrealizedPnLPercent: number;
@@ -168,13 +186,23 @@ export interface HoldingAnalyticsDTO {
   change24hValueBase?: number | null;
   /** ISO-8601 timestamp of the reference price; null when no reference */
   change24hReferenceAt: string | null;
-  /** "WITHIN_24H_WINDOW" | "SINCE_PREVIOUS_SNAPSHOT" | null */
+  /**
+   * "WITHIN_24H_WINDOW" | "SINCE_PREVIOUS_SNAPSHOT" | "STALE_PRICE" | null. "STALE_PRICE" means
+   * the price is older than the freshness threshold, so every 24h change field is null.
+   */
   changeBasis: string | null;
   /** ISO 4217 currency code in which currentPrice is denominated; null when there is no price */
   quoteCurrency: string | null;
   /** Canonical display asset class: "STOCK" | "CRYPTO" | "BOND" | "CASH" | "COMMODITY" | "OTHER" */
   displayAssetClass: DisplayAssetClass;
+  /** When the current price was observed (ISO-8601, UTC); absent from an older backend. */
+  priceObservedAt?: string | null;
+  /** The summary banner's freshness rule applied to this holding; absent from an older backend. */
+  priceFreshness?: "FRESH" | "STALE" | "UNKNOWN" | "MISSING" | null;
 }
+
+/** changeBasis for a holding whose price is too old to have a 24h change (rehearsal defect #2). */
+export const STALE_PRICE_BASIS = "STALE_PRICE";
 
 /** D11: coverage of the analytics 24h totals. */
 export interface Change24hCoverage {

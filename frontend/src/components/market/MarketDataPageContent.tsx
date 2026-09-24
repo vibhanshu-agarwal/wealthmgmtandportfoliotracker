@@ -22,10 +22,10 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils/cn";
+import { QuotePrice } from "@/components/ui/QuotePrice";
+import { STALE_PRICE_BASIS } from "@/types/portfolio";
 import {
-  formatCurrency,
   formatPercent,
-  formatSignedCurrency,
   formatDateOrDash,
   formatRelativeAge,
 } from "@/lib/utils/format";
@@ -177,6 +177,15 @@ function MarketDataTable() {
               const change24hAbsolute = holdingAnalytics
                 ? holdingAnalytics.change24hAbsolute
                 : holding.change24hAbsolute;
+              // Rehearsal defect #2: a price too old to have a 24h change says so.
+              const staleSince =
+                holdingAnalytics?.changeBasis === STALE_PRICE_BASIS
+                  ? (holdingAnalytics.priceObservedAt ?? null)
+                  : null;
+              // The per-unit change is quoted in the currency of whichever source supplied it.
+              const change24hCurrency = holdingAnalytics
+                ? holdingAnalytics.quoteCurrency
+                : holding.quoteCurrency;
 
               return (
                 <TableRow key={holding.id}>
@@ -189,7 +198,7 @@ function MarketDataTable() {
                     {holding.currentPrice == null ? (
                       <span className="text-muted-foreground">—</span>
                     ) : (
-                      formatCurrency(holding.currentPrice)
+                      <QuotePrice value={holding.currentPrice} currency={holding.quoteCurrency} />
                     )}
                   </TableCell>
                   <TableCell
@@ -203,12 +212,20 @@ function MarketDataTable() {
                     {change24hPercent != null
                       ? <>{formatPercent(change24hPercent)}
                           {change24hAbsolute != null && (
-                            <>{" "}<span className="text-xs">({formatSignedCurrency(change24hAbsolute)})</span></>
+                            <>{" "}<span className="text-xs">(<QuotePrice value={change24hAbsolute} currency={change24hCurrency} signed />)</span></>
                           )}
                         </>
                       : isAnalyticsPending
                         ? <Skeleton className="ml-auto h-4 w-16" data-testid="change24h-loading" />
-                        : <span className="text-muted-foreground">—</span>
+                        : (
+                          <span
+                            className="text-muted-foreground"
+                            title={staleSince ? `Price last updated ${formatDateOrDash(staleSince)}` : undefined}
+                            data-testid={staleSince ? "change-stale" : undefined}
+                          >
+                            —
+                          </span>
+                        )
                     }
                   </TableCell>
                   <TableCell className="text-right text-muted-foreground">

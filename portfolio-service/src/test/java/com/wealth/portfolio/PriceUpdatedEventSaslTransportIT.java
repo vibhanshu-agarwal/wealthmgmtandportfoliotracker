@@ -6,7 +6,6 @@ import com.wealth.market.events.PriceUpdatedEvent;
 import com.wealth.portfolio.kafka.SaslPlainKafkaSupport;
 import com.wealth.portfolio.trace.KafkaTracePropagationProbe;
 import java.math.BigDecimal;
-import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -190,7 +189,7 @@ class PriceUpdatedEventSaslTransportIT {
                                             """,
                                             Integer.class,
                                             ticker,
-                                            Timestamp.from(observedAtMs));
+                                            java.time.LocalDateTime.ofInstant(observedAtMs, java.time.ZoneOffset.UTC));
                             assertThat(historyCount).isEqualTo(1);
                         });
     }
@@ -244,7 +243,8 @@ class PriceUpdatedEventSaslTransportIT {
                                             ticker);
                             assertThat(historyCount).isEqualTo(2);
 
-                            Timestamp storedRefTs =
+                            // observed_at holds UTC wall-clock time; read it as such.
+                            java.time.LocalDateTime storedRefUtc =
                                     jdbcTemplate.queryForObject(
                                             """
                                             SELECT observed_at
@@ -253,9 +253,9 @@ class PriceUpdatedEventSaslTransportIT {
                                             ORDER BY observed_at ASC
                                             LIMIT 1
                                             """,
-                                            Timestamp.class,
+                                            java.time.LocalDateTime.class,
                                             ticker);
-                            Instant storedRef = storedRefTs.toInstant();
+                            Instant storedRef = storedRefUtc.toInstant(java.time.ZoneOffset.UTC);
                             long hoursBetween =
                                     ChronoUnit.HOURS.between(storedRef, observedAt);
                             assertThat(hoursBetween).isBetween(18L, 36L);

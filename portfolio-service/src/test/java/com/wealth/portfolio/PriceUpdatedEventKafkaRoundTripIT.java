@@ -11,7 +11,6 @@ import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator;
 import io.opentelemetry.context.propagation.TextMapPropagator;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
-import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -250,7 +249,7 @@ class PriceUpdatedEventKafkaRoundTripIT {
                                             """,
                                             Integer.class,
                                             ticker,
-                                            Timestamp.from(observedAtMs));
+                                            java.time.LocalDateTime.ofInstant(observedAtMs, java.time.ZoneOffset.UTC));
                             assertThat(historyCount).isEqualTo(1);
 
                             BigDecimal historyPrice =
@@ -263,7 +262,7 @@ class PriceUpdatedEventKafkaRoundTripIT {
                                             """,
                                             BigDecimal.class,
                                             ticker,
-                                            Timestamp.from(observedAtMs));
+                                            java.time.LocalDateTime.ofInstant(observedAtMs, java.time.ZoneOffset.UTC));
                             assertThat(historyPrice).isEqualByComparingTo("64000.50");
                         });
     }

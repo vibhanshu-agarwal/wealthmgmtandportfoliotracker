@@ -4,8 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.wealth.market.events.PriceUpdatedEvent;
 import java.math.BigDecimal;
-import java.sql.Timestamp;
 import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
@@ -94,7 +95,8 @@ class PriceUpdatedEventPreservationPropertyIT {
                             """,
                             Integer.class,
                             ticker,
-                            Timestamp.from(expectedKey));
+                            // observed_at holds UTC wall-clock time.
+                            LocalDateTime.ofInstant(expectedKey, ZoneOffset.UTC));
 
             assertThat(historyCount)
                     .as("Duplicate delivery for %s at offset %d ns", ticker, subMillisOffsetNanos)

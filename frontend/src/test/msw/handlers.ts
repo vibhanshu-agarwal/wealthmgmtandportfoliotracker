@@ -220,6 +220,19 @@ export const handlers = [
     return HttpResponse.json(prices);
   }),
 
+  // Rehearsal defect #4: rates into the base currency for display-only picker estimates.
+  // USD is the base (rate exactly 1); INR has a fixed test rate; anything else is unavailable.
+  http.get("/api/portfolio/fx-rates", ({ request }) => {
+    const url = new URL(request.url);
+    const requested = (url.searchParams.get("currencies") ?? "")
+      .split(",")
+      .map((c) => c.trim())
+      .filter(Boolean);
+    const known: Record<string, number> = { USD: 1, INR: 0.0104 };
+    const rates = Object.fromEntries(requested.map((c) => [c, known[c] ?? null]));
+    return HttpResponse.json({ baseCurrency: "USD", rates });
+  }),
+
   // ── Insight-service handlers ──────────────────────────────────────────────
 
   http.get("/api/insights/market-summary", ({ request }) => {

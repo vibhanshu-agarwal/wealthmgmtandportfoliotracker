@@ -213,3 +213,28 @@ describe("DraftRow — estimated value (Task 1.10)", () => {
     expect(screen.queryByText(/^\$/)).not.toBeInTheDocument();
   });
 });
+
+// ── Rehearsal defect #4: the estimate's currency, and "Value unavailable" ────────
+
+describe("DraftRow — base-currency estimate", () => {
+  const props = {
+    ticker: "M&M.NS",
+    name: "Mahindra & Mahindra",
+    quantity: "44",
+    checked: true,
+    lifecycleStatus: "ACTIVE" as const,
+    onToggle: vi.fn(),
+    onQuantityChange: vi.fn(),
+  };
+
+  it("formats the estimate in the currency it was converted into", () => {
+    render(<DraftRow {...props} estimatedValue={1377.42} estimateCurrency="EUR" />);
+    expect(screen.getByText("€1,377.42")).toBeInTheDocument();
+  });
+
+  it("says Value unavailable instead of showing an unconverted amount", () => {
+    render(<DraftRow {...props} estimatedValue={132444.4} estimateUnavailable />);
+    expect(screen.getByTestId("estimate-unavailable")).toHaveTextContent("Value unavailable");
+    expect(screen.queryByText("$132,444.40")).not.toBeInTheDocument();
+  });
+});

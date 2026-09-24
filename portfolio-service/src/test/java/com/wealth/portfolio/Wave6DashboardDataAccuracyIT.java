@@ -115,7 +115,9 @@ class Wave6DashboardDataAccuracyIT {
                 INSERT INTO market_price_history (ticker, quote_currency, price, observed_at)
                 VALUES (?, 'USD', ?, ?)
                 """,
-                TEST_TICKER, new BigDecimal("100.0000"), java.sql.Timestamp.from(referenceAt));
+                TEST_TICKER, new BigDecimal("100.0000"),
+                // observed_at holds UTC wall-clock time; bind it explicitly, not in the JVM zone.
+                java.time.LocalDateTime.ofInstant(referenceAt, java.time.ZoneOffset.UTC));
 
         // Holding with real cost basis (Task 5.1)
         jdbcTemplate.update(

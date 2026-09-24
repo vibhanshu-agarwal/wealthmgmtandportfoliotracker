@@ -1382,7 +1382,8 @@
     "assetClass": "CRYPTO",
     "quoteCurrency": "USD",
     "basePrice": 0.715,
-    "lifecycleStatus": "ACTIVE"
+    "lifecycleStatus": "ACTIVE",
+    "providerSymbol": "POL28321-USD"
   },
   {
     "ticker": "LINK-USD",
@@ -1418,7 +1419,8 @@
     "assetClass": "CRYPTO",
     "quoteCurrency": "USD",
     "basePrice": 6.9,
-    "lifecycleStatus": "ACTIVE"
+    "lifecycleStatus": "ACTIVE",
+    "providerSymbol": "TON11419-USD"
   },
   {
     "ticker": "LTC-USD",
@@ -1454,7 +1456,8 @@
     "assetClass": "CRYPTO",
     "quoteCurrency": "USD",
     "basePrice": 8.25,
-    "lifecycleStatus": "ACTIVE"
+    "lifecycleStatus": "ACTIVE",
+    "providerSymbol": "UNI7083-USD"
   },
   {
     "ticker": "ATOM-USD",
@@ -1528,7 +1531,8 @@
     "assetClass": "CRYPTO",
     "quoteCurrency": "USD",
     "basePrice": 11.2,
-    "lifecycleStatus": "ACTIVE"
+    "lifecycleStatus": "ACTIVE",
+    "providerSymbol": "APT21794-USD"
   },
   {
     "ticker": "FIL-USD",
@@ -1565,7 +1569,8 @@
     "assetClass": "CRYPTO",
     "quoteCurrency": "USD",
     "basePrice": 2.1,
-    "lifecycleStatus": "ACTIVE"
+    "lifecycleStatus": "ACTIVE",
+    "providerSymbol": "IMX10603-USD"
   },
   {
     "ticker": "ARB-USD",
@@ -1577,7 +1582,8 @@
     "assetClass": "CRYPTO",
     "quoteCurrency": "USD",
     "basePrice": 1.15,
-    "lifecycleStatus": "ACTIVE"
+    "lifecycleStatus": "ACTIVE",
+    "providerSymbol": "ARB11841-USD"
   },
   {
     "ticker": "NEAR-USD",
@@ -1649,7 +1655,8 @@
     "assetClass": "CRYPTO",
     "quoteCurrency": "USD",
     "basePrice": 0.285,
-    "lifecycleStatus": "ACTIVE"
+    "lifecycleStatus": "ACTIVE",
+    "providerSymbol": "GRT6719-USD"
   },
   {
     "ticker": "ALGO-USD",

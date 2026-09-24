@@ -1,5 +1,7 @@
 package com.wealth.insight;
 
+import com.wealth.catalog.SupportedCatalog;
+import com.wealth.insight.catalog.TickerCatalogService;
 import com.wealth.insight.dto.TickerSummary;
 import org.junit.jupiter.api.RepeatedTest;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -54,7 +56,8 @@ class GracefulDegradationPropertyTest {
         // on the per-ticker endpoint. Verify the response still contains price data
         // with aiSummary absent (null).
 
-        InsightController controller = new InsightController(insightService, marketDataService, aiInsightService);
+        InsightController controller = new InsightController(insightService, marketDataService, aiInsightService,
+                new TickerCatalogService(SupportedCatalog.load()));
         MockMvc mockMvc = MockMvcBuilders.standaloneSetup(controller).build();
 
         MvcResult result = mockMvc.perform(get("/api/insights/market-summary"))

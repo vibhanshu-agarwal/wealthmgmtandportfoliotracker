@@ -153,11 +153,15 @@ export function SummaryCards() {
 
   // Prefer backend aggregate from /api/portfolio/summary (accurate SQL join) over
   // the frontend-computed value which depends on the market-data-service being up.
-  const portfolioTotal =
+  const hasBackendTotal =
     portfolioSummary?.totalValue != null &&
-    Number(portfolioSummary.totalValue) > 0
-      ? Number(portfolioSummary.totalValue)
-      : (portfolio?.summary.totalValue ?? 0);
+    Number(portfolioSummary.totalValue) > 0;
+  const portfolioTotal = hasBackendTotal
+    ? Number(portfolioSummary.totalValue)
+    : (portfolio?.summary.totalValue ?? 0);
+  // The client-assembled total has no FX step, so it leaves out holdings not priced in USD
+  // (rehearsal defect #4, fallback path); say so rather than present it as the whole portfolio.
+  const fallbackTotalPartial = !hasBackendTotal && portfolio?.summary.partialValuation === true;
 
   // ── Task 9.4: bind analytics values for 24h P&L and all-time return ─────────
   // Use backend-computed values; fall back to null (renders "—").
@@ -196,6 +200,16 @@ export function SummaryCards() {
           >
             {formatCurrency(portfolioTotal)}
           </p>
+          {fallbackTotalPartial && (
+            <span
+              className="inline-flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400"
+              data-testid="total-value-partial"
+              title="Without portfolio analytics there is no exchange rate, so holdings priced in other currencies (or with no price) are left out"
+            >
+              <AlertCircle className="h-3 w-3 shrink-0" aria-hidden />
+              Partial: USD-priced holdings only
+            </span>
+          )}
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             {unrealizedPnLPercent != null ? (
               <>

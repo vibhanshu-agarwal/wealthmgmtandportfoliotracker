@@ -15,10 +15,15 @@
  * @field priceHistory last N price points, newest first (List<BigDecimal> → number[])
  * @field trendPercent percentage change oldest→newest, null when < 2 data points
  * @field aiSummary    2-sentence AI sentiment, null when AI unavailable
+ * @field quoteCurrency ISO 4217 code latestPrice/priceHistory are quoted in, from the insight
+ *                      catalog; null when the ticker is not in the catalog (never assume USD)
  */
 export interface TickerSummary {
   ticker: string;
   latestPrice: number | null;
+  quoteCurrency?: string | null;
+  /** Which implementation wrote aiSummary; null/absent → make no provenance claim. */
+  aiSummarySource?: SentimentSource | null;
   priceHistory: number[];
   trendPercent: number | null;
   aiSummary: string | null;
@@ -51,7 +56,12 @@ export interface ChatRequest {
  */
 export interface ChatResponse {
   response: string;
+  /** Which implementation wrote the sentiment part of `response`; null when it has none. */
+  sentimentSource?: SentimentSource | null;
 }
+
+/** Mirrors {@code com.wealth.insight.SentimentSource}: declared by the implementation, never inferred. */
+export type SentimentSource = "AZURE_OPENAI" | "BEDROCK" | "RULE_BASED";
 
 // ── Client-side chat message (not a backend DTO) ─────────────────────────────
 
@@ -64,4 +74,6 @@ export interface ChatMessage {
   role: "user" | "assistant";
   content: string;
   timestamp: Date;
+  /** Assistant messages only: provenance of the sentiment text, when the backend declared it. */
+  sentimentSource?: SentimentSource | null;
 }

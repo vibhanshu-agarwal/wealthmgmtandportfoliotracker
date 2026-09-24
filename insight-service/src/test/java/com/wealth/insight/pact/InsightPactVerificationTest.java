@@ -5,6 +5,8 @@ import au.com.dius.pact.provider.junitsupport.Provider;
 import au.com.dius.pact.provider.junitsupport.State;
 import au.com.dius.pact.provider.junitsupport.loader.PactFolder;
 import au.com.dius.pact.provider.spring.spring7.Spring7MockMvcTestTarget;
+import com.wealth.catalog.SupportedCatalog;
+import com.wealth.insight.catalog.TickerCatalogService;
 import com.wealth.insight.AiInsightService;
 import com.wealth.insight.GlobalExceptionHandler;
 import com.wealth.insight.InsightController;
@@ -16,6 +18,7 @@ import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
@@ -45,6 +48,10 @@ class InsightPactVerificationTest {
 
     @Mock
     private AiInsightService aiInsightService;
+
+    /** The real catalog: the controller reads each summary's quote currency from it. */
+    @Spy
+    private TickerCatalogService catalog = new TickerCatalogService(SupportedCatalog.load());
 
     @InjectMocks
     private InsightController insightController;

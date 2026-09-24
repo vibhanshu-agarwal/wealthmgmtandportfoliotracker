@@ -130,8 +130,34 @@ public record PortfolioAnalyticsDto(
              * Canonical UI display asset class: {@code STOCK}, {@code CRYPTO}, {@code BOND},
              * {@code CASH}, {@code COMMODITY}, or {@code OTHER}.
              */
-            String displayAssetClass
-    ) {}
+            String displayAssetClass,
+            /**
+             * Rehearsal defect #2 (F5): when this holding's current price was observed
+             * (ISO-8601, UTC); null when there is no price or no observation timestamp.
+             */
+            String priceObservedAt,
+            /**
+             * The same freshness rule the portfolio summary banner uses ({@code FRESH},
+             * {@code STALE}, {@code UNKNOWN}, {@code MISSING}). When {@code STALE}, every 24h
+             * change field is null and {@code changeBasis} is {@code "STALE_PRICE"}: the price
+             * has not moved because it has not been observed, not because the market was flat.
+             */
+            String priceFreshness
+    ) {
+        /** Without the freshness fields (callers that predate rehearsal defect #2). */
+        public HoldingAnalyticsDto(String ticker, BigDecimal quantity, BigDecimal currentPrice,
+                                   BigDecimal currentValueBase, BigDecimal avgCostBasis,
+                                   String costBasisCurrency, BigDecimal unrealizedPnL,
+                                   BigDecimal unrealizedPnLPercent, BigDecimal change24hAbsolute,
+                                   BigDecimal change24hPercent, BigDecimal change24hValueBase,
+                                   String change24hReferenceAt, String changeBasis,
+                                   String quoteCurrency, String displayAssetClass) {
+            this(ticker, quantity, currentPrice, currentValueBase, avgCostBasis, costBasisCurrency,
+                    unrealizedPnL, unrealizedPnLPercent, change24hAbsolute, change24hPercent,
+                    change24hValueBase, change24hReferenceAt, changeBasis, quoteCurrency,
+                    displayAssetClass, null, null);
+        }
+    }
 
     /**
      * A single data point in the historical performance series.

@@ -36,6 +36,7 @@ function holding(overrides: Partial<AssetHoldingDTO> = {}): AssetHoldingDTO {
 const catalog: CatalogAsset[] = [
   { ticker: "AAPL", name: "Apple Inc.", aliases: [], assetClass: "STOCK", quoteCurrency: "USD", lifecycleStatus: "ACTIVE" },
   { ticker: "GOOGL", name: "Alphabet", aliases: [], assetClass: "STOCK", quoteCurrency: "USD", lifecycleStatus: "ACTIVE" },
+  { ticker: "M&M.NS", name: "Mahindra & Mahindra", aliases: [], assetClass: "STOCK", quoteCurrency: "INR", lifecycleStatus: "ACTIVE" },
 ];
 
 function renderBrowseStep(draft: DraftHoldings, onDraftChange = vi.fn()) {
@@ -153,7 +154,7 @@ describe("BrowseStep — selected-asset pricing (Task 1.10 / Task 9.3)", () => {
     server.use(
       http.get("/api/market/prices", () =>
         HttpResponse.json([
-          { ticker: "AAPL", currentPrice: 100, observedAt: "2026-01-01T00:00:00Z", priceUnavailable: false },
+          { ticker: "AAPL", currentPrice: 100, quoteCurrency: "USD", observedAt: "2026-01-01T00:00:00Z", priceUnavailable: false },
         ]),
       ),
     );
@@ -279,7 +280,7 @@ describe("BrowseStep — selected-asset pricing (Task 1.10 / Task 9.3)", () => {
     server.use(
       http.get("/api/market/prices", () =>
         HttpResponse.json([
-          { ticker: "AAPL", currentPrice: 100, observedAt: "2026-01-01T00:00:00Z", priceUnavailable: false },
+          { ticker: "AAPL", currentPrice: 100, quoteCurrency: "USD", observedAt: "2026-01-01T00:00:00Z", priceUnavailable: false },
         ]),
       ),
     );
@@ -340,5 +341,73 @@ describe("BrowseStep — selected-asset pricing (Task 1.10 / Task 9.3)", () => {
     fireEvent.change(input, { target: { value: "11" } });
     expect(onDraftChange).toHaveBeenCalled();
     expect(screen.queryByText(/^\$/)).not.toBeInTheDocument();
+  });
+});
+
+
+// ── Rehearsal defect #4: estimates in the base currency, or "Value unavailable" ──
+
+describe("BrowseStep — base-currency estimates", () => {
+  function renderWithPrice(price: Record<string, unknown>, quantity: string) {
+    server.use(http.get("/api/market/prices", () => HttpResponse.json([price])));
+    const ticker = price.ticker as string;
+    const draft = seedDraftFromHoldings([holding({ ticker, quantity })], catalog);
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <BrowseStep
+          catalog={catalog}
+          draft={draft}
+          onDraftChange={vi.fn()}
+          initialQuantities={new Map([[ticker, quantity]])}
+          token="test-token"
+        />
+      </QueryClientProvider>,
+    );
+  }
+
+  const mmPrice = {
+    ticker: "M&M.NS",
+    currentPrice: 3010.1,
+    quoteCurrency: "INR",
+    observedAt: "2026-01-01T00:00:00Z",
+    priceUnavailable: false,
+  };
+
+  it("converts an INR position into the base currency with the shared rate", async () => {
+    renderWithPrice(mmPrice, "44");
+    // 44 × ₹3,010.10 × 0.0104 (the handler's INR→USD rate) = $1,377.42
+    await waitFor(() => expect(screen.getByText("$1,377.42")).toBeInTheDocument());
+    expect(screen.queryByText("$132,444.40")).not.toBeInTheDocument();
+  });
+
+  it("shows Value unavailable when there is no rate, never a 1:1 conversion", async () => {
+    server.use(
+      http.get("/api/portfolio/fx-rates", () =>
+        HttpResponse.json({ baseCurrency: "USD", rates: { INR: null } }),
+      ),
+    );
+    renderWithPrice(mmPrice, "44");
+    await waitFor(() => expect(screen.getByTestId("estimate-unavailable")).toHaveTextContent("Value unavailable"));
+    expect(screen.queryByText("$132,444.40")).not.toBeInTheDocument();
+  });
+
+  it("shows Value unavailable when the rates request fails", async () => {
+    server.use(http.get("/api/portfolio/fx-rates", () => HttpResponse.json({}, { status: 500 })));
+    renderWithPrice(mmPrice, "44");
+    await waitFor(() => expect(screen.getByTestId("estimate-unavailable")).toBeInTheDocument());
+  });
+
+  it("shows Value unavailable when the price has no currency", async () => {
+    renderWithPrice({ ...mmPrice, quoteCurrency: null }, "44");
+    await waitFor(() => expect(screen.getByTestId("estimate-unavailable")).toBeInTheDocument());
+  });
+
+  it("keeps a USD position unchanged", async () => {
+    renderWithPrice(
+      { ticker: "AAPL", currentPrice: 100, quoteCurrency: "USD", observedAt: "2026-01-01T00:00:00Z", priceUnavailable: false },
+      "10",
+    );
+    await waitFor(() => expect(screen.getByText("$1,000.00")).toBeInTheDocument());
   });
 });

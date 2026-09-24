@@ -21,6 +21,7 @@ final class CatalogIntegrityValidator {
 
         Map<String, Integer> tickerCounts = new HashMap<>();
         Map<String, Boolean> activeByClass = new HashMap<>();
+        Map<String, Integer> providerSymbolCounts = new HashMap<>();
 
         for (ManifestEntry entry : entries) {
             String ticker = entry.ticker();
@@ -51,6 +52,20 @@ final class CatalogIntegrityValidator {
                 violations.add("Non-positive basePrice for ticker: " + safeTicker(ticker));
             }
 
+            if (entry.providerSymbol() != null) {
+                String symbol = entry.providerSymbol();
+                if (symbol.isBlank() || !symbol.equals(symbol.strip())) {
+                    violations.add("Blank or padded providerSymbol for ticker: " + safeTicker(ticker));
+                } else if (!symbol.equals(symbol.toUpperCase(java.util.Locale.ROOT))) {
+                    // The provider echoes its own (upper-case) spelling, and results are matched on it.
+                    violations.add("providerSymbol must be upper case for ticker: " + safeTicker(ticker));
+                } else if (symbol.equals(ticker)) {
+                    violations.add("providerSymbol equals the ticker (omit it) for ticker: " + safeTicker(ticker));
+                } else {
+                    providerSymbolCounts.merge(symbol, 1, Integer::sum);
+                }
+            }
+
             if (entry.assetClass() != null
                     && !entry.assetClass().isBlank()
                     && entry.lifecycleStatus() == LifecycleStatus.ACTIVE) {
@@ -61,6 +76,17 @@ final class CatalogIntegrityValidator {
         tickerCounts.forEach((ticker, count) -> {
             if (count > 1) {
                 violations.add("Duplicate ticker: " + ticker + " (appears " + count + " times)");
+            }
+        });
+
+        // Each provider symbol must map back to exactly one ticker, and must not be another
+        // entry's ticker: either would make a provider quote ambiguous.
+        providerSymbolCounts.forEach((symbol, count) -> {
+            if (count > 1) {
+                violations.add("Duplicate providerSymbol: " + symbol + " (appears " + count + " times)");
+            }
+            if (tickerCounts.containsKey(symbol)) {
+                violations.add("providerSymbol is another entry's ticker: " + symbol);
             }
         });
 
