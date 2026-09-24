@@ -40,11 +40,21 @@ export function formatCurrency(value: number): string {
 // USDJPY=X), so it goes through these instead. They take the currency explicitly and have
 // no default: a missing or unrecognised currency renders the bare number, never "$".
 
-const SUPPORTED_CURRENCIES: ReadonlySet<string> | null = (() => {
+/**
+ * Every quote currency in `config/seed-tickers.json` (format.catalogCurrencies.test.ts keeps the
+ * two in step). Used only when the runtime cannot list the currencies it supports.
+ */
+export const CATALOG_QUOTE_CURRENCIES: ReadonlySet<string> = new Set([
+  "USD", "INR", "JPY", "CAD", "CHF", "SGD", "HKD",
+]);
+
+// Fails closed: without Intl.supportedValuesOf (older runtimes) an unlisted code is unknown, not
+// assumed valid — Intl would otherwise print any well-formed code ("XYZ 1.00") as a currency.
+const SUPPORTED_CURRENCIES: ReadonlySet<string> = (() => {
   try {
     return new Set(Intl.supportedValuesOf("currency"));
   } catch {
-    return null;
+    return CATALOG_QUOTE_CURRENCIES;
   }
 })();
 
@@ -61,7 +71,7 @@ const PLAIN_PRICE = new Intl.NumberFormat("en-US", {
  */
 export function isKnownCurrency(code: string | null | undefined): code is string {
   if (typeof code !== "string" || !/^[A-Z]{3}$/.test(code)) return false;
-  return SUPPORTED_CURRENCIES ? SUPPORTED_CURRENCIES.has(code) : true;
+  return SUPPORTED_CURRENCIES.has(code);
 }
 
 function quoteFormatter(code: string): Intl.NumberFormat {
