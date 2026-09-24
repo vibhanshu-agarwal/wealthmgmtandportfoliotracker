@@ -412,3 +412,35 @@ describe("MarketDataPageContent — quote currency", () => {
     expect(within(price).getByText("12.90")).toHaveAttribute("title", "Currency unavailable");
   });
 });
+
+
+// ── Rehearsal defect #2: a stale price has no 24h change, and the row says why ──
+
+describe("MarketDataPageContent — stale price", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockUseAuthSession.mockReturnValue(authenticatedSession);
+    mockUsePortfolio.mockReturnValue(portfolioWithData);
+  });
+
+  it("shows — with the last update time for a STALE_PRICE holding, and keeps a fresh zero", () => {
+    mockUsePortfolioAnalytics.mockReturnValue(
+      analyticsResult([
+        { ...holdingAnalytics("AAPL", 0, 0) },
+        {
+          ...holdingAnalytics("BTC", null, null),
+          changeBasis: "STALE_PRICE",
+          priceObservedAt: "2026-09-18T08:00:00Z",
+          priceFreshness: "STALE",
+        },
+      ]),
+    );
+    render(<MarketDataPageContent />);
+    const btcChange = screen.getByText("BTC").closest("tr")!.querySelectorAll("td")[2] as HTMLTableCellElement;
+    const stale = within(btcChange).getByTestId("change-stale");
+    expect(stale.getAttribute("title")).toBe("Price last updated Sep 18, 2026");
+    const aaplChange = screen.getByText("AAPL").closest("tr")!.querySelectorAll("td")[2] as HTMLTableCellElement;
+    expect(aaplChange.textContent).toContain("0.00%");
+    expect(within(aaplChange).queryByTestId("change-stale")).not.toBeInTheDocument();
+  });
+});

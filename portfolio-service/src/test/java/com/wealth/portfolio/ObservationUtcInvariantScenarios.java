@@ -157,6 +157,10 @@ abstract class ObservationUtcInvariantScenarios {
         // 24 h ago in UTC is inside the 18–36 h window; read in the session zone it would not be.
         assertThat(holding.changeBasis()).isEqualTo("WITHIN_24H_WINDOW");
         assertThat(Instant.parse(holding.change24hReferenceAt())).isEqualTo(refUtc.toInstant(ZoneOffset.UTC));
+        // Rehearsal defect #2 (F5): the price's own observation time and freshness come through
+        // the real SQL, read as UTC.
+        assertThat(Instant.parse(holding.priceObservedAt())).isEqualTo(nowUtc.toInstant(ZoneOffset.UTC));
+        assertThat(holding.priceFreshness()).isEqualTo("FRESH");
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────

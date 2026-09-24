@@ -164,6 +164,7 @@ class PriceUpdatedEventPreservationPropertyTest {
                 portfolioRepository,
                 mock(FxRateProvider.class),
                 fxProperties,
-                seedTickerRegistry);
+                seedTickerRegistry,
+                com.wealth.portfolio.freshness.AssetPriceFreshnessProperties.defaults());
     }
 }

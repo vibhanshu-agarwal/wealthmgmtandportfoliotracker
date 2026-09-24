@@ -278,6 +278,27 @@ describe("HoldingsTable — D11: position-level 24h values", () => {
     fireEvent.change(screen.getByPlaceholderText("Search ticker or name…"), { target: { value: text } });
   }
 
+  // Rehearsal defect #2: a price too old to have a 24h change shows "—" and says why; a fresh
+  // price with a genuine zero move keeps 0.00%.
+  it("marks a stale price's missing 24h change with when the price was last updated", () => {
+    const staleSol: HoldingAnalyticsDTO = {
+      ...sol,
+      change24hPercent: null,
+      change24hAbsolute: null,
+      change24hValueBase: null,
+      changeBasis: "STALE_PRICE",
+      priceObservedAt: "2026-09-18T08:00:00Z",
+      priceFreshness: "STALE",
+    };
+    const flatBtc: HoldingAnalyticsDTO = { ...btc, change24hPercent: 0, change24hAbsolute: 0, change24hValueBase: 0 };
+    setup([aapl, flatBtc, staleSol]);
+    const stale = within(cell24h("SOL-USD")).getByTestId("change-stale");
+    expect(stale).toHaveTextContent("—");
+    expect(stale.getAttribute("title")).toMatch(/^Price last updated Sep 18, 2026$/);
+    expect(cell24h("BTC-USD").textContent).toContain("0.00%");
+    expect(within(cell24h("AAPL")).queryByTestId("change-stale")).not.toBeInTheDocument();
+  });
+
   it("shows each row's position-level change under its percent", () => {
     setup([aapl, btc, sol]);
     expect(cell24h("AAPL").textContent).toBe("+12.65%+$1,517.76");

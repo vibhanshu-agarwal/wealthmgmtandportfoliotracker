@@ -37,5 +37,16 @@ record AnalyticsQueryRow(
         BigDecimal avgCostBasis,         // HOLDING rows only; null = cost basis unavailable
         String costBasisCurrency,        // HOLDING rows only; ISO currency of avgCostBasis; null when basis absent
         String historyDate,              // HISTORY rows only; "YYYY-MM-DD"
-        BigDecimal historyPrice          // HISTORY rows only
-) {}
+        BigDecimal historyPrice,         // HISTORY rows only
+        Instant priceObservedAt          // HOLDING rows only; market_prices.observed_at (UTC); null if none
+) {
+    /** A row without a current-price observation timestamp (HISTORY rows, and older callers). */
+    AnalyticsQueryRow(String rowType, String assetTicker, BigDecimal quantity, BigDecimal currentPrice,
+                      String quoteCurrency, BigDecimal price24hAgo, Instant price24hReferenceAt,
+                      String refLabel, BigDecimal avgCostBasis, String costBasisCurrency,
+                      String historyDate, BigDecimal historyPrice) {
+        this(rowType, assetTicker, quantity, currentPrice, quoteCurrency, price24hAgo,
+                price24hReferenceAt, refLabel, avgCostBasis, costBasisCurrency, historyDate,
+                historyPrice, null);
+    }
+}

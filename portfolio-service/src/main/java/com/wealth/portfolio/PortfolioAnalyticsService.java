@@ -18,6 +18,11 @@ import org.slf4j.Logger;
 import java.math.BigDecimal;
 import java.math.MathContext;
 import java.math.RoundingMode;
+import com.wealth.portfolio.freshness.AssetPriceFreshness;
+import com.wealth.portfolio.freshness.AssetPriceFreshnessProperties;
+import com.wealth.portfolio.freshness.FreshnessState;
+
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
@@ -86,7 +91,8 @@ public class PortfolioAnalyticsService {
                        h.avg_cost_basis,
                        h.cost_basis_currency,
                        mp.current_price,                               -- null when no market_prices row
-                       mp.quote_currency                               -- null when no market_prices row
+                       mp.quote_currency,                              -- null when no market_prices row
+                       mp.observed_at AS price_observed_at             -- UTC wall-clock; null when none
                 FROM asset_holdings h
                 JOIN portfolios p ON p.id = h.portfolio_id
                 LEFT JOIN market_prices mp ON mp.ticker = h.asset_ticker
@@ -135,7 +141,8 @@ public class PortfolioAnalyticsService {
                    ut.avg_cost_basis,
                    ut.cost_basis_currency,
                    NULL::DATE                  AS history_date,
-                   NULL::NUMERIC               AS history_price
+                   NULL::NUMERIC               AS history_price,
+                   ut.price_observed_at        AS price_observed_at
             FROM user_tickers ut
             LEFT JOIN best_ref br ON br.ticker = ut.asset_ticker
             UNION ALL
@@ -150,7 +157,8 @@ public class PortfolioAnalyticsService {
                    NULL::NUMERIC               AS avg_cost_basis,
                    NULL::VARCHAR               AS cost_basis_currency,
                    mph.observed_at::DATE        AS history_date,
-                   mph.price                   AS history_price
+                   mph.price                   AS history_price,
+                   NULL::TIMESTAMP             AS price_observed_at
             FROM (
                 -- One row per ticker per UTC day: the latest observation that day. Summing every
                 -- row would count a day with N observations N times (rehearsal defect #6).
@@ -167,7 +175,11 @@ public class PortfolioAnalyticsService {
             ORDER BY row_type, asset_ticker, history_date
             """;
 
+    /** {@code changeBasis} for a holding whose price is older than the freshness threshold. */
+    static final String STALE_PRICE_BASIS = "STALE_PRICE";
+
     private final JdbcTemplate jdbcTemplate;
+    private final AssetPriceFreshnessProperties freshnessProperties;
     private final UserRepository userRepository;
     private final PortfolioRepository portfolioRepository;
     private final FxRateProvider fxRateProvider;
@@ -179,7 +191,9 @@ public class PortfolioAnalyticsService {
                                      PortfolioRepository portfolioRepository,
                                      FxRateProvider fxRateProvider,
                                      FxProperties fxProperties,
-                                     SeedTickerRegistry seedTickerRegistry) {
+                                     SeedTickerRegistry seedTickerRegistry,
+                                     AssetPriceFreshnessProperties freshnessProperties) {
+        this.freshnessProperties = freshnessProperties;
         this.jdbcTemplate = jdbcTemplate;
         this.userRepository = userRepository;
         this.portfolioRepository = portfolioRepository;
@@ -219,7 +233,8 @@ public class PortfolioAnalyticsService {
                             rs.getBigDecimal("avg_cost_basis"),
                             rs.getString("cost_basis_currency"),
                             rs.getString("history_date"),
-                            rs.getBigDecimal("history_price")
+                            rs.getBigDecimal("history_price"),
+                            UtcTimestamps.readUtc(rs, "price_observed_at")
                     );
                 },
                 userId,
@@ -236,6 +251,9 @@ public class PortfolioAnalyticsService {
         if (holdingRows.isEmpty()) {
             return emptyAnalytics(baseCurrency);
         }
+
+        Duration staleAfter = freshnessProperties.threshold();
+        Instant now = Instant.now();
 
         // FX rate cache — at most one call per distinct quoteCurrency per request
         Map<String, BigDecimal> fxRateCache = new HashMap<>();
@@ -303,11 +321,25 @@ public class PortfolioAnalyticsService {
                     : null;
             String changeBasis = row.refLabel();
 
+            // Rehearsal defect #2 (F5): the same freshness rule as the summary banner. A STALE
+            // price has not been observed for longer than the threshold, so the "change" from
+            // its reference is not a 24h change: every change field is null, which also drops
+            // it from the 24h totals (marked partial) and from best/worst performer.
+            FreshnessState priceFreshness =
+                    AssetPriceFreshness.evaluate(priceAvailable, row.priceObservedAt(), staleAfter, now);
+            if (priceFreshness == FreshnessState.STALE) {
+                change24hAbs = null;
+                change24hPct = null;
+                referenceAt = null;
+                changeBasis = STALE_PRICE_BASIS;
+            }
+
             // D11 (finding F13): the position's 24h change in base currency. Computed from the
             // unrounded prices and rounded once, like currentValueBase; the current FX rate converts
             // both endpoints. Null when the change or the FX rate is unavailable (currentValueBase
             // is non-null only when the price and the rate both are).
-            BigDecimal change24hValueBase = (currentValueBase != null && row.price24hAgo() != null)
+            BigDecimal change24hValueBase = (currentValueBase != null && row.price24hAgo() != null
+                    && priceFreshness != FreshnessState.STALE)
                     ? row.quantity().multiply(row.currentPrice().subtract(row.price24hAgo()))
                             .multiply(quoteRate)
                             .setScale(4, RoundingMode.HALF_UP)
@@ -331,7 +363,9 @@ public class PortfolioAnalyticsService {
                     referenceAt,
                     changeBasis,
                     row.quoteCurrency(),
-                    displayAssetClass
+                    displayAssetClass,
+                    row.priceObservedAt() != null ? row.priceObservedAt().toString() : null,
+                    priceFreshness.name()
             ));
         }
 
