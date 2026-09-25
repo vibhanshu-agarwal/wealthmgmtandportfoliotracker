@@ -60,7 +60,8 @@ is retained as superseded decision history and is not an active task.
 
 ### Fast-track dashboard — 2026-09-25
 
-**This is the status page for this plan.** Production now serves `main@db51cf5b` (PR #320; see
+**This is the status page for this plan.** Production now serves the PR #320 changes from
+`main@db51cf5b`: three backends and the frontend, with api-gateway unchanged at `--0000081` (see
 "Rehearsal defects #2–#6" below). **B3 history:** `main@cdc51df6643b51fb92dc747a20ac3ca9be4ac2b1`
 contains PRs #310-#316 and its post-merge CI is green. B3 completed on 2026-09-23 at that exact SHA:
 [run 35860682429](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/35860682429)
@@ -92,6 +93,9 @@ unchanged. Both runs were attempt 1 and passed. No A5 capture is recorded.
 - **Found:** in the first Claude-operated rehearsal on the E2E test account, on 2026-09-24 against
   the pre-fix build `R5P3Iw1SRc9jlIX2Wwee8`. That rehearsal itself completed and restored the
   account exactly.
+- **Its other two findings needed no application change:**
+  - **#1, the 20–38 s save time,** is recorded in the operator script.
+  - **#7, browser-pane tooling,** was fixed in the operator script's procedure.
 - **The defects:**
   - **#2, stale and wrong crypto prices.** Yahoo stopped quoting six symbols; ARB-USD and TON-USD
     returned other tokens.
@@ -110,16 +114,23 @@ unchanged. Both runs were attempt 1 and passed. No A5 capture is recorded.
     which also updated the refresh job's image. It asserted that no other service changed.
   - [Run 36092953727](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/36092953727),
     frontend-only: the site now serves build `brJCAsidY8FAIgtIzNtSo`.
+- **What binds the post-fix build:** A4 run 3 and B3 bind to the pre-fix build (`cdc51df6`,
+  `--0000097`, `R5P3Iw1SRc9jlIX2Wwee8`). The post-fix build's serving identity rests on:
+  - the deploy runs' own checks: `assert-scoped-non-interference`, `assert-backends-unchanged` and
+    `verify-served-build`;
+  - a read-only revision and digest read at 2026-09-25T04:11Z.
+
+  No A4 rerun has been made, and none is authorized.
 - **Production data repair** (hash-pinned preview/apply scripts, each with a backup table and a
   local copy; Fable-reviewed):
   - **Seed rows removed:** 474 synthetic history rows written by the pre-`9e3737cc` seeder at
-    11 and 13 Aug for the demo account's tickers. Three M&M.NS rows were kept deliberately: they are
+    11 and 13 Aug for the E2E test account's held tickers. Three M&M.NS rows were kept deliberately: they are
     its only rows on those days, and the chart has no carry-forward.
   - **Old-symbol history cleared:** the seven remapped tickers' history (810 rows) and their
     insight-service observations. This ran behind an enforced Kafka-quiescence check.
 - **Verified live:** a refresh then updated 158 of 159 tickers; the skip was FTM-USD. The seven
-  show correct prices (for example UNI about $9.14, TON about $1.41, ARB about $0.22), with 24h
-  change "—" until a 24-hour reference exists. The chart has no spikes on 11, 13 or 15 Aug. The
+  are priced from the verified provider symbols (for example UNI about $9.14, TON about $1.41, ARB
+  about $0.22), with 24h change "—" until a 24-hour reference exists. The chart has no spikes on 11, 13 or 15 Aug. The
   AI Insights wording and chat label, and the USD Edit Holdings estimate, were checked signed in.
 - **Still open:**
   - FTM-USD is stale.
@@ -131,7 +142,7 @@ unchanged. Both runs were attempt 1 and passed. No A5 capture is recorded.
 **Rehearsal on the post-fix build, 2026-09-25 07:25–07:36Z (owner-approved; Claude operated, the
 owner signed in):** it completed with no stop rule triggered.
 - **Warm-up:** the default warm-up reached `GO` in about 3 minutes, and pages then loaded promptly.
-  Edit Holdings appeared 2.7–3.6 s after navigation.
+  Edit Holdings appeared 3.6 s after navigation (2.7 s in a separate controlled load at 05:11Z).
 - **The edit:** one quantity change and one removal saved in 20.5 s. The Overview then showed exactly
   the expected total.
 - **Chat:** one question was answered in 11.5 s.
@@ -139,15 +150,18 @@ owner signed in):** it completed with no stop rule triggered.
   baseline; only the portfolio version changed.
 - **What the chat check proves:** the label names only the sentiment's source. It does not prove
   that the reply text came from the language model.
-- **Cold starts:** a page load about 12 minutes after a short keep-alive waited about 60 s. The
-  operator script therefore keeps the default 45-minute keep-alive running throughout the demo.
+
+**Earlier that morning, about 05:00Z:** a page load after a 2-minute diagnostic keep-alive had ended
+waited about 60 s (cold start). The operator script therefore keeps the default 45-minute keep-alive
+running throughout the demo.
+
 
 | Phase | Status now | Next exit action |
 |---|---|---|
 | 1 — Asset Picker delivery | **COMPLETE**, deployed and accepted in Production on 2026-09-20 | None; do not reopen for later-phase work |
 | 2 — UI and demo-critical fixes | **COMPLETE and serving as the B3 candidate**; exercised in Production by A4 run 3 | None |
-| 3 — Broad desktop Production E2E | **A4 SATISFIED by run 3 (`PASS_WITH_EXPECTED_DEFECTS`, Codex, 2026-09-24).** Runs 1 and 2 are FAIL history | None for the run itself; the findings go to Phase 4 |
-| 4 — Defect disposition | **Every A4 defect finding has a recorded decision; none is a demo blocker** (table below). None is fixed or closed. **Rehearsal defects #2–#6 are fixed, deployed and verified live** (above), except FTM-USD | Record the limitations in the operator script (done, local) |
+| 3 — Broad desktop Production E2E | **A4 SATISFIED by run 3 (`PASS_WITH_EXPECTED_DEFECTS`, Codex, 2026-09-24)**, bound to the pre-fix build; the post-fix build was not A4-run (dashboard). Runs 1 and 2 are FAIL history | None for the run itself; the findings go to Phase 4 |
+| 4 — Defect disposition | **Every A4 defect finding has a recorded decision; none is a demo blocker** (table below). None is fixed or closed. **Rehearsal defects #2–#6 are fixed, deployed and verified live** (above), except three open items: FTM-USD, SHIB-USD's 0.0000 and three unheld TATAMOTORS.NS seed rows | Record the limitations in the operator script (done, local) |
 | 5 — Documentation | **PARTIAL:** this status filing; the operator script records the limitations and steps locally | Publishing the operator script is a separate decision; defer the larger rewrite |
 | 6 — Demo material | **Operator script REHEARSED on the post-fix build** (2026-09-25, restored `IDENTICAL`; local, unpublished) | Run the demo with the script's warm-up; slides/video are optional |
 
