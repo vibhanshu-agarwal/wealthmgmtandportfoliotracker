@@ -8,14 +8,22 @@
 
 **Filed and reconciled:** 2026-09-20
 
-**Latest reconciliation:** 2026-09-23
+**Latest reconciliation:** 2026-09-25 (post-#320 repair evidence and remaining demo gates; local
+Codex status draft, not yet published).
 
-**Owner approval callout — next blocked action:** B3 is complete and accepted. A4's owner-operated
-Production run, the creation or use of retained `CERT_A` and `CERT_B`, and decisions D1/D2/D4-D10
-remain unapproved. **If approved**, run the existing Phase 3 desktop suite once against the B3-served
-candidate; **if not**, Phase 3 remains open. Optional A5 Azure capture is a separate decision. No
-push, PR, merge, dispatch, live read, account creation, secret handling or Production mutation is
-authorized by editing this plan.
+**Owner approval callout — next blocked actions:** A4 run 3 satisfied the pre-#320 Phase 3 gate on
+2026-09-24 as `PASS_WITH_EXPECTED_DEFECTS`; it does **not** certify the materially changed #320
+build. The plan's post-fix rule still calls for an uncontended full Production suite run, and the
+final operator-script revision still needs a rehearsal against that build. Each new live run needs a
+bounded owner authorization; saying **yes** allows only that named run, while saying **no** leaves
+the fast-track demo exit open. Merging [PR #319](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/319)
+is a separate owner decision; this local status update does not publish or merge it.
+
+The A4 test users have been deleted. The existing E2E account was restored after the 2026-09-24
+rehearsal. The private A4 `pw-output/` remains local pending the previously agreed after-demo
+cleanup. Optional A5 Azure capture remains separate and does not gate the fast-track demo. This
+plan grants no new push, PR, merge, dispatch, live read, account creation, secret handling or
+Production mutation.
 
 **Goal:** Make this portfolio project ready for a credible live desktop demo quickly. Deliver the
 Asset Picker, deploy the already-merged application fixes, run the existing multi-user browser suite
@@ -42,26 +50,63 @@ is retained as superseded decision history and is not an active task.
 
 ## Current status
 
-### Fast-track dashboard — 2026-09-23
+### Fast-track dashboard — 2026-09-25
 
-**This is the status page for this plan.** `main@cdc51df6643b51fb92dc747a20ac3ca9be4ac2b1`
-contains PRs #310-#316 and its post-merge CI is green. B3 completed on 2026-09-23 at that exact SHA:
+**This is the status page for this plan.** The locally verified `main` is
+`db51cf5bbc62675826d403e87636a0a1613f09c0` after #320. B3 completed on 2026-09-23
+at its earlier candidate SHA `cdc51df6643b51fb92dc747a20ac3ca9be4ac2b1`:
 [run 35860682429](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/35860682429)
 proved `portfolio-service--0000097` at digest
 `sha256:19a64b25c6c46b0eb7a42774e972dadadbd278d91b726f31d9f12572840d086b` was active,
 `Provisioned` and receiving 100% of ingress traffic; then
 [run 35862375385](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/35862375385)
 proved the origin served uploaded frontend build `R5P3Iw1SRc9jlIX2Wwee8`, with the backend set
-unchanged. Both runs were attempt 1 and passed. No A4 Production-suite run or A5 capture is recorded.
+unchanged. Both runs were attempt 1 and passed. No A5 capture is recorded.
+
+**A4, accepted 2026-09-24 (Codex decision):** A4 is satisfied by **run 3**,
+`p3-20260924T032033Z-52f1`, as **`PASS_WITH_EXPECTED_DEFECTS`**, not `PASS`.
+- **Run 3:** all 15 scenarios passed and none were unrun. The ledger holds 535 checks, 0 failed.
+  The binding is `BOUND` to candidate `cdc51df6`, suite `1c3a132f` and served build
+  `R5P3Iw1SRc9jlIX2Wwee8`. The one expected defect observed was `non-demo-reset-control-visible`.
+- **Runs 1 and 2 remain separate FAIL history:** `p3-20260923T174742Z-ee73` (S05) and
+  `p3-20260923T182221Z-92cc` (S12). Their checks are not combined with run 3.
+- **Cleanup:** the five temporary A4 users (two CERT, three FRESH) were deleted by the owner-run,
+  Codex-cleared cleanup. The deletion counts come from the script's own queries and its local
+  record, and **the cleanup's historical deletion counts were not independently verified**. A later
+  read-only account inventory by Codex found the A4 accounts absent.
+- **Full record:** the Fable- and Codex-accepted verdict record is included in the unpublished
+  #319 documentation draft as a sanitized copy,
+  [`A4_VERDICT_RECORD_runs-1-3.md`](../evidence/phase3-a4/A4_VERDICT_RECORD_runs-1-3.md). It has
+  roles in place of account addresses, no per-user IDs and no local paths. The private original
+  stays with the local run evidence.
 
 | Phase | Status now | Next exit action |
 |---|---|---|
 | 1 — Asset Picker delivery | **COMPLETE**, deployed and accepted in Production on 2026-09-20 | None; do not reopen for later-phase work |
-| 2 — UI and demo-critical fixes | **COMPLETE and serving as the B3 candidate**; functional Production verification remains in Phase 3 | Exercise the served candidate during A4 |
-| 3 — Broad desktop Production E2E | **B3 SERVING PROOF COMPLETE; A4 OPEN.** Compatible backend and frontend identities are proven; authenticated behavior and D11 response content are not | One owner-operated A4 run with retained users and an uncontended full suite |
-| 4 — Defect disposition | **NOT STARTED**; depends on the Phase 3 run | Fix demo blockers; explicitly accept/defer non-blockers |
-| 5 — Documentation | **PARTIAL status filing only**; comprehensive pass not started | Record exact demo status, known limitations and operator steps; defer the larger rewrite |
-| 6 — Demo material | **NOT STARTED** | Prepare and rehearse a short live desktop script; slides/video are optional |
+| 2 — UI and demo-critical fixes | **COMPLETE at its accepted exit**; #320 later changed the serving build | Verify changed behavior in the post-fix gate below |
+| 3 — Broad desktop Production E2E | **A4 run 3 accepted on the old build** (`PASS_WITH_EXPECTED_DEFECTS`); runs 1-2 remain FAIL history. **Post-#320 full suite: OPEN** | Authorize and run one uncontended full suite on the final served build, per the plan's post-fix rule |
+| 4 — Defect disposition | **IN PROGRESS:** A4 decisions recorded; #320 repairs deployed and targeted checks performed. Some observations remain partial or unverified (below) | Close only proven repair outcomes; retain limitations and complete post-fix suite |
+| 5 — Documentation | **IN PROGRESS:** #319 contains the A4 record/plan draft; this post-repair status update is local only. Full documentation pass deferred | Review and publish the current status, update the operator script for #320; merge needs separate approval |
+| 6 — Demo material | **PARTIAL:** one pre-#320 rehearsal completed with exact account restoration; the revised script and new build are not rehearsed together | Rehearse the revised walkthrough against the final build, verify restoration and fallback |
+
+**Not end-to-end complete:** targeted repair validation and a controlled warm page load are not a
+post-#320 full multi-user suite or a final integrated demo rehearsal. The fast-track exit remains
+**OPEN**. The broader original package (full documentation, optional media and A5) is separately
+incomplete and does not silently become a fast-track blocker.
+
+**Post-#320 evidence snapshot (2026-09-25):** #320 merged at `db51cf5b`; scoped backend deploy
+[36092375156](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/36092375156)
+and frontend deploy
+[36092953727](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/36092953727)
+reported success. The refresh job succeeded with 158 updated, one skipped (`FTM-USD`) and zero
+failed. The local repair records report verified removal of 474 seed-history rows and 810 obsolete
+symbol-history rows; these are repair records, not a new full-suite result. Signed-in spot checks
+showed the corrected AI copy, INR-to-USD edit estimates and absence of the 11/13/15 August chart
+spikes. `FTM-USD` remains stale; 24-hour portfolio coverage was partial (151/159). A controlled
+warm page load showed Edit Holdings after 2.7 s, but the warm-up has ended and must be rerun before
+a demo. The signed-in spot checks did not save a holding or prove the chat's model-versus-fallback
+path. The detailed deploy/repair evidence remains in the private local evidence folder and has
+not been added to #319.
 
 **Fast-track demo-ready exit (not a general-production or `1.0.0` claim):** Phases 1 and 2 are
 accepted; B3 proves that the D11 portfolio-service revision and the uploaded frontend build serve
@@ -158,7 +203,7 @@ through [PR #311](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotra
 merge commit `b27fcd077925e1afc5040dd2ff85aaeb787977e1`; its tree is identical to accepted head
 `3743bd28fd58b2f4aa9048d3e807e449afea10bb`. All four push-triggered post-merge workflows passed on
 that merge SHA. They were later deployed as part of the B3 candidate described below; their
-functional Production acceptance remains part of A4.
+functional Production acceptance was part of A4, which run 3 satisfied on 2026-09-24.
 
 After that reconciliation, [PR #312](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/312)
 merged the D11/Phase 3 status packet at `a297e6c5`. [PR #313](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/313)
@@ -178,22 +223,26 @@ then emitted and uploaded build `R5P3Iw1SRc9jlIX2Wwee8`; the unauthenticated ori
 that same ID after deployment and a different pre-deploy ID, producing `verdict: PASS`,
 `usable_for_a4: true`, matching run/SHA identity and no errors. It used one pre-upload and one
 post-upload `/login` GET. The run also proved every backend unchanged and still observed the run-1
-portfolio revision/digest. This is point-in-time serving identity evidence, not authenticated page
-or D11 response-content evidence; those remain A4 work.
+portfolio revision/digest. This was point-in-time serving identity evidence, not authenticated page
+or D11 response-content evidence; A4 run 3 subsequently exercised those behaviors on that build.
 
-The accepted 320px/375px overflows remain open backlog. F10 and F14 remain separate presentation
-issues; F2/F3/F5/F9 need an explicit demo impact disposition, not an automatic repair batch. Task 7
-is complete. Phase 3's Production exit remains open pending the owner-run A4 suite and its
-identity/evidence decisions. A5 is optional independent attestation for the fast-track demo exit.
+The accepted 320px/375px overflows remain open backlog. Task 7 is complete. A4 run 3 met the
+pre-#320 Phase 3 exit; #320 and the subsequent data repairs changed the candidate, so the
+post-fix suite and final rehearsal remain open. A5 is optional independent attestation.
 
 ### Immediate fast-track sequence
 
-1. **B3 — COMPLETE and accepted.** Runs 35860682429 and 35862375385 deployed the backend then
-   frontend at `main@cdc51df6` and passed their run-bound serving and non-interference proofs. The
-   serving candidate for A4 is portfolio-service revision `--0000097` at digest `19a64b25…` and
-   frontend build `R5P3Iw1SRc9jlIX2Wwee8`. A later deploy or configuration change would require a
-   fresh identity check; B3 does not prove signed-in behavior or D11 response content.
-2. **A4 — one owner-operated, uncontended desktop Production run.** Once both B3 proofs pass, create
+1. **B3 — COMPLETE and accepted for A4's historical candidate.** Runs 35860682429 and
+   35862375385 proved serving identity at `main@cdc51df6`. #320 was deployed later; its scoped
+   deploy evidence is recorded in the 2026-09-25 dashboard and is not a new B3 acceptance.
+2. **A4 — SATISFIED by run 3 (2026-09-24, Codex decision); runs 1 and 2 are FAIL history.** The
+   original instruction is kept below for traceability. Two things changed by owner decision:
+   - scale-to-zero cold-start slowness is an accepted cost trade-off, worked around by a gateway
+     wake, a backend warm-up and a keep-alive;
+   - the refresh-window and clock-time restrictions were agent-chosen and were removed for run 3,
+     which then ran outside the refresh job's 08:00Z schedule.
+
+   Original instruction: once both B3 proofs pass, create
    retained `CERT_A` and `CERT_B` once (or use already-approved isolated accounts) and run the
    existing full Phase 3 suite from the owner's machine. Its S02 signup creates one permanent
    `FRESH` account per run; record that lifecycle, keep secrets/private `pw-output/` local, and use
@@ -203,41 +252,29 @@ identity/evidence decisions. A5 is optional independent attestation for the fast
    behavior as blocking or accepted with an honest expectation before the run. One real chat request
    keeps that scenario complete; skipping it makes the verdict incomplete. Run outside the FX and
    market-refresh windows. No automatic Production rerun or account creation is implied.
-3. **Disposition only demo-relevant findings.** Record all findings. Repair any finding that breaks
-   the agreed desktop demonstration, regardless of its severity label, with a focused regression and
-   independent review; rerun its scenario and the full suite once after material code changes. An
-   observed non-blocking issue may be explicitly accepted/deferred with a truthful demo limitation;
-   call out any Critical/Important non-demo issue rather than hiding it. Do not
-   hold the portfolio demo for the known 320px/375px overflows or a general backlog sweep.
-4. **Prepare the minimum demo handoff in parallel.** Keep this dashboard current; make a short
-   desktop walkthrough script with the approved accounts, evidence location, known limitations and
-   fallback if chat/market data is unavailable. Rehearse against the final served build. Slides,
-   a polished video, a full architecture-documentation rewrite and a `1.0.0` release can follow
-   after the demo if useful.
+3. **#320 repair batch — DEPLOYED, target checks PARTIAL.** The seven symbol remaps, historical
+   price repair and targeted signed-in checks are recorded below. Do not promote those spot checks
+   into full multi-user certification; unresolved and untested findings retain their labels.
+4. **Post-fix gate — OPEN.** Review the final operator script against the #320 build, then (under
+   separately bounded live approvals) run one uncontended full suite and rehearse the short desktop
+   walkthrough against that final build. Verify the demo account's exact restoration. Keep a chat
+   fallback, known limitations and warm-up/keep-alive in the script. Slides, video, a full
+   architecture rewrite and `1.0.0` can follow after the demo.
 
 ## Owner approval callouts
 
-The original plan kept merge, production operations, test-user creation, cleanup, and external
-publication as separate owner decisions. The owner separately authorized the actions that produced
-the Phase 1 outcome, the Phase 2 source merges and exit review, the completed Task 7 release-only
-rehearsal, and the two B3 deployments and proof reads recorded above. Those consumed authorizations
-do not authorize A4, A5, future deployments, Production mutations, creation of additional users,
-cleanup, ruleset changes, reruns or future publication. This reconciliation records status only and
-grants none of those authorities.
-
-The owner subsequently consumed separate publication and merge approvals for PRs #310-#316 and
-separate B3 approvals for backend run 35860682429 and frontend run 35862375385, including each
-`production` gate and the bounded frontend GETs. B3 followed the required order: D11 portfolio-service
-first, then frontend. Those approvals are exhausted; they do not authorize another dispatch, live
-read, Production/cloud access, certification-account creation, A4 or A5. A5's independent Azure
-before/after capture is optional for the narrower portfolio-demo exit, but must still be approved if
-performed.
+The owner separately authorized the completed Phase 1/2 work, B3, A4 and its cleanup, the
+2026-09-24 rehearsal, and the #320 deployment and bounded repair/validation actions recorded above.
+Those authorizations are consumed. They do not automatically authorize a new suite, rehearsal,
+account creation, production/cloud access, future deployment, ruleset change, publication or merge.
+The next live suite and rehearsal require fresh, named bounds. #319 publication occurred, but its
+merge requires a separate owner decision. A5 remains optional and requires approval if performed.
 
 ## Global constraints
 
-- Phase 1 and 2 are accepted and B3 is complete; A4 is next. Findings are triaged after A4. Minimum demo
-  instructions can be drafted in parallel; comprehensive documentation and media do not gate the
-  fast-track exit.
+- Phase 1 and 2 are accepted; B3 and A4 run 3 apply to the earlier candidate. A4 findings have
+  decisions, while #320 repair closure and the final post-fix gate remain open. Comprehensive
+  documentation and media do not gate the fast-track exit.
 - Portfolio Settings is deferred and does not gate demo readiness.
 - Phase 1 must not absorb the scrollbar fix, general backlog work, the multi-user suite, or the
   documentation overhaul.
@@ -343,9 +380,13 @@ source has been deployed or Production-verified.
 **Exit outcome:** A reviewed browser suite has exercised the application across multiple Production
 users and materially different portfolios.
 
-**Status:** B3 serving proof is complete on `main@cdc51df6`; the A4 Production-suite exit is
-**OPEN**. None of the unchecked browser-run items below has been credited from CI, B3 identity
-checks or local browser tests. Fast-track the existing suite; do not build another one.
+**Status:** B3 serving proof is complete on `main@cdc51df6`. The original A4 Production-suite exit
+was **met on that candidate by run 3** (`p3-20260924T032033Z-52f1`,
+`PASS_WITH_EXPECTED_DEFECTS`, Codex, 2026-09-24). A materially changed #320 build is now serving;
+the post-fix full-suite requirement in this plan is **OPEN**. Each
+browser-run item ticked below is credited from run 3's own bound evidence, never from runs 1 or 2,
+CI, B3 identity checks or local browser tests. The merge and B3 items are credited from their PRs
+and runs. Where run 3 did not exercise part of an item, the item says so.
 
 - [x] Merge the multi-user suite and the #418/F1 frontend corrections (PR #310).
 - [x] Merge D11/F13 position-level 24-hour value and coverage (PR #311).
@@ -353,7 +394,12 @@ checks or local browser tests. Fast-track the existing suite; do not build anoth
   gate and its four-arm control (PRs #313-#315).
 - [x] B3: deploy portfolio-service, then the frontend, and accept both run-bound serving proofs
   (runs 35860682429 and 35862375385 at `cdc51df6`).
-- [ ] A4: complete one owner-operated, uncontended Production run and disposition its findings.
+- [x] A4: complete one owner-operated, uncontended Production run. **Run 3,
+  `PASS_WITH_EXPECTED_DEFECTS`**; runs 1 (S05) and 2 (S12) are FAIL history. Disposition of its
+  findings continues in Phase 4.
+- [ ] After the #320 material code change, run the affected scenarios and a full uncontended
+  Production suite against the final served build. The 2026-09-25 signed-in spot checks do not
+  satisfy this item. Preserve run 3's accepted historical verdict; do not relabel it.
 
 **Browser matrix:** desktop only, at the agreed demo viewport(s). The owner narrowed the
 demonstration contract to desktop, so the deferred narrow-width overflows are backlog debt rather
@@ -364,46 +410,102 @@ persistence, conflict, freshness, evidence, and uncontended-run requirement belo
 blocked until Phase 3 and the remediation or explicit acceptance of its findings are complete; the
 full gate is the `1.0.0` boundary in the [versioning policy](../release/SEMANTIC_VERSIONING_POLICY.md).
 
-**Serving blocker closed; functional verification open:** B3 proved the compatible backend and
-frontend identities serve at the accepted SHA. It did not sign in or inspect D11 API responses.
-A4 must check #418, D11/F13 and cross-page 24-hour/freshness presentation against real user data
-rather than infer correctness from build and revision identity.
+**Serving blocker closed; functional verification met by A4 run 3:** B3 proved the compatible
+backend and frontend identities serve at the accepted SHA. It did not sign in or inspect D11 API
+responses. A4 had to check #418, D11/F13 and cross-page 24-hour/freshness presentation against real
+user data rather than infer correctness from build and revision identity. Run 3 did so:
+- **#418:** zero page errors in every scenario's common checks.
+- **D11/F13 and 24-hour presentation:** S11 checked the 24-hour totals, coverage and cross-page
+  agreement at three viewports.
+- **Partial valuation:** not exercised (Phase 3 item above).
 
-- [ ] Before Production mutation, declare the identity lifecycle: retained named certification
-  accounts or an explicitly approved cleanup mechanism.
-- [ ] Create or use 2-3 isolated users with distinct holdings and quantities.
-- [ ] Cover signup validation, successful signup, login, logout, and re-login.
-- [ ] Cover empty portfolio, add, quantity update, removal, review, save, cancellation, validation
-  failure, and persisted readback.
-- [ ] Induce and prove optimistic-concurrency conflict behavior without automatic retry, silent
-  discard, or cross-user interference.
-- [ ] Verify Overview, Portfolio, holdings/asset cards, totals, partial valuation,
-  price/freshness presentation, Market Data, navigation, and AI Insights/chatbot.
-- [ ] Prove user and session isolation.
-- [ ] Record per-scenario assertions, traces, screenshots, video on failure, network evidence,
-  served revision, and final persisted state.
-- [ ] Run the full suite once uncontended. Do not count skipped, filtered, or uncollected scenarios
-  as passes.
+- [x] Before Production mutation, declare the identity lifecycle: retained named certification
+  accounts or an explicitly approved cleanup mechanism. The lifecycle was retained `CERT_A` and
+  `CERT_B` plus one permanent `FRESH` user per run, with owner-approved deletion afterwards. All five
+  users were deleted on 2026-09-24.
+- [x] Create or use 2-3 isolated users with distinct holdings and quantities: CERT_A, CERT_B and
+  the FRESH user, in run 3.
+- [x] Cover signup validation, successful signup, login, logout, and re-login (run 3, S01-S04).
+- [x] Cover empty portfolio, add, quantity update, removal, review, save, cancellation, validation
+  failure, and persisted readback (run 3, S02 and S05-S08).
+- [x] Induce and prove optimistic-concurrency conflict behavior without automatic retry, silent
+  discard, or cross-user interference (run 3, S09: 409, no retry).
+- [x] Verify Overview, Portfolio, holdings/asset cards, totals, price/freshness presentation,
+  Market Data, navigation, and AI Insights/chatbot (run 3, S11 at three viewports and S12).
+- [ ] Verify partial-valuation presentation. **Unverified in Production:** in run 3 no holding was
+  partially valued, so the check that records D9 (`partial-valuation-not-presented`) was never
+  reached. D9 remains a known non-blocking defect (Phase 4). This does not block A4 or call for
+  another run.
+- [x] Prove user and session isolation (run 3, S10).
+- [x] Record per-scenario assertions, traces, screenshots, video on failure, network evidence,
+  served revision, and final persisted state (run 3: ledger, `network.jsonl`, 53 screenshots,
+  `final-state.json`, and private local traces in `pw-output/`). **Identity note:** A4 observed the
+  served frontend build ID. The portfolio-service revision and digest come from B3's accepted
+  run-bound proof, not from A4.
+- [x] Run the full suite once uncontended. Do not count skipped, filtered, or uncollected scenarios
+  as passes (run 3: 15 of 15 passed, none unrun, `filtered: false`).
 
 ---
 
 ## Phase 4: Disposition Phase 3 findings and fix demo blockers
 
-**Status:** Not started; Phase 3 has not run in Production. **Fast-track exit outcome:** no unresolved
+**Status:** A4 run 3's findings have recorded decisions. The 2026-09-24 rehearsal then exposed
+additional demo defects; #320 and bounded data repairs addressed several of them. The resulting
+2026-09-25 checks are targeted observations, **not a final post-fix exit or a full suite**. Do not
+mark a finding closed solely because its code was deployed, and do not turn "not triggered" into
+"fixed".
+
+| A4 finding (historical) | Seen in | Recorded decision | Disposition needed |
+|---|---|---|---|
+| `non-demo-reset-control-visible` (D5/F3): the reset control is shown to a non-demo user | run 3, S13 | Owner D5: known non-blocking defect | None; recorded as a limitation |
+| D7: a pre-logout token is still accepted after sign-out | runs 1-3, S04 | Owner: accepted Phase 4 defect | None; recorded as a limitation |
+| `partial-valuation-not-presented` (D9) | not triggered in runs 2 or 3 | Owner D9: known non-blocking defect | None; unverified in Production |
+| `analytics-cache-stale-after-holdings-write` (D10) | not triggered in runs 2 or 3 | Owner D10: known non-blocking defect | None |
+| Scale-to-zero cold starts: run 1's S05 dialog stayed open past the 20 s bound (best-supported cause: the unbounded post-save price read against a cold `market-data-service`; not directly observed); a ~79 s S00 stall | run 1 | Owner: accepted cost trade-off; no `min_replicas = 1`, no fix; warm up before the demo | Record the warm-up step in the operator script |
+| Chat reply exceeded 20 s | run 2, S12 | Codex-accepted demo limitation (150 s wait, `1c3a132f`); run 3's reply took ≤ 19.2 s | Record in the operator script's fallback |
+| `empty-portfolio-shows-filter-copy`: an empty portfolio says "No holdings match your filter." | runs 1-3, S02 | Owner, 2026-09-24: **non-blocking for the fast-track demo**; kept as an open **UX defect**, not fixed or closed | None for the demo; stays in the backlog |
+| Playwright "1 error was not a part of any test" | runs 1 and 2 (console only); not in run 3 | Owner, 2026-09-24: **non-blocking for the fast-track demo**; kept as an **unexplained console anomaly**, not a proven harmless error, and not fixed or closed | None for the demo; the cause stays unexplained |
+
+Neither 2026-09-24 decision blocks A4 or requires a new run.
+
+**2026-09-24 rehearsal and #320 repair status (as of the 2026-09-25 targeted checks):**
+
+| Finding | Status | Still needed for closure/demo |
+|---|---|---|
+| #1 Slow saves (21.8 s and 20–38 s) | Not repaired; presenter pacing/"Saving…" is a known limitation | Carry the wait and no-double-submit instruction in the final script; observe it in the final rehearsal |
+| #2 Stale/incorrect crypto quotes | Seven symbol transitions deployed; old-series repair verified; refresh updated 158/159 holdings. `FTM-USD` still stale | Treat FTM and partial 24-hour coverage as explicit limitations; do not call all prices fresh |
+| #3 INR stock prices labeled as USD / edit estimate | INR-to-USD edit estimates spot-checked for M&M.NS and ADANIPORTS.NS after #320 | Recheck representative table labels and values in the final walkthrough; spot checks are not a complete currency matrix |
+| #4 Currency-pair estimate/table mismatch | #320 code deployed; no direct post-deploy USD/JPY dialog-versus-table comparison recorded in the 2026-09-25 spot-check log | Targeted comparison and full-suite coverage remain open |
+| #5 AI cards/chat disagree | New "last 10 prices" card wording and chat source label observed; one chat response was received | The response path (model vs fallback) and complete semantic agreement were not proven; preserve the fallback/limitation |
+| #6 August chart spikes | Historical seed-row repair verified; signed-in chart no longer showed the 11/13/15 August spikes | Keep 3 M&M.NS and 3 unheld TATAMOTORS.NS seed rows recorded as intentional exceptions; verify the final walkthrough's chart |
+| #7 Browser pane narrowed during restore | Tooling/pane issue in the first rehearsal, not a demonstrated application defect | Use a stable desktop viewport and prove exact restore in the final rehearsal |
+
+The 20–21 August chart rises were attributed in read-only data checks largely to stored BTC-USD
+price changes, with one refresh row per ticker per day; this explains the chart arithmetic, not
+the market-price provenance. The 2026-09-25 page-load comparison showed cold-start latency with
+the short keep-alive expired and a 2.7 s Edit Holdings appearance immediately after default
+warm-up `GO`; the demo still needs warm-up plus keep-alive throughout.
+
+**Evidence limitation (not a defect, no decision needed):** in run 3, S12 recorded that the chat
+reply cannot show whether it came from the language model or the service's deterministic fallback.
+The operator script carries this into its chat wording and fallback.
+
+**Fast-track exit outcome:** no unresolved
 finding breaks the agreed live desktop demonstration. Repair demo blockers, and explicitly accept or
 defer non-blockers with an honest demo limitation. This is not a claim that every product defect has
 been fixed or that the product is generally Production-certified.
 
-- [ ] Convert each finding into a bounded defect with reproduction evidence, severity, owner, and
-  expected behavior or an explicit non-blocking acceptance.
-- [ ] Fix each demo-blocking bundle with a failing regression first; leave unrelated backlog out.
-- [ ] Independently review any implementation bundle.
-- [ ] After each fix, rerun the exact failing scenario and, after material code changes, the full
-  Production suite uncontended. If no code change is needed, the accepted A4 full run is the exit run.
-- [ ] Restore or record all Production state and verify the currently served artifact.
+- [x] Record and disposition the A4 run-3 findings without pretending untriggered defects were fixed.
+- [x] Deploy the bounded #320 repair batch and record the targeted repair/spot-check evidence.
+- [ ] Complete the remaining targeted proof for #4 and semantic limits for #5; retain #1, FTM and
+  other accepted limitations honestly rather than marking them fixed.
+- [ ] Rerun affected scenarios and the full Production suite uncontended after the material #320
+  code changes. The old-build A4 run and post-deploy spot checks do not satisfy this rule.
+- [ ] Rehearse on the final served build with exact account restoration and record the final
+  artifact identity and outcome.
 
-If the accepted A4 run finds no demo blocker, record the fix/review/rerun items as **N/A with the A4
-evidence**, not as invented completed implementation work.
+The earlier "no code change needed" exception no longer applies: #320 made material changes after
+the accepted A4 run. A4's historical verdict remains accepted for its own candidate.
 
 No **demo-blocking** defect of any severity may be deferred while calling the fast-track demo ready.
 A non-blocking finding may be deferred only with an explicit owner product decision, recorded
@@ -413,13 +515,21 @@ limitation and, where relevant, a test expectation that does not claim the defec
 
 ## Phase 5: Reconcile documentation
 
-**Status:** Partial status filing only. **Fast-track exit outcome:** this plan states the actual
-serving/run status, known limitations and a reproducible short operator flow. The full repository
+**Status:** In progress. #319 opened with the A4 verdict and an earlier plan draft; this local
+2026-09-25 reconciliation is not in that PR or on `main`. The operator script is still a private
+draft and still describes the pre-#320 candidate. **Fast-track exit outcome:** publish truthful
+current status/limitations and a reviewed, reproducible short operator flow. The full repository
 documentation overhaul below is follow-on work, not a portfolio-demo gate.
 
 - [x] Record B3 run URLs, exact SHA, served revision/digest and frontend build ID in this plan.
-- [ ] Record the A4 run, verdict, findings and accepted limitations after it occurs.
-- [ ] Keep a short operator script and evidence pointer for the final desktop demo.
+- [x] Record the A4 run, verdict, findings and accepted limitations after it occurs. This is
+  recorded in the #319 draft of this plan and the sanitized
+  [A4 verdict record](../evidence/phase3-a4/A4_VERDICT_RECORD_runs-1-3.md). Every A4 defect finding
+  has a recorded decision; this does not close later rehearsal findings.
+- [ ] Integrate this 2026-09-25 status update into the publication path after review. #319's
+  existing text predates #320 and must not be merged unchanged as the final status dashboard.
+- [ ] Revise and review the short operator script for the current build, evidence location,
+  remaining limitations and exact-restore flow; keep it available to the demo operator.
 
 **Full documentation backlog (not required for fast-track demo-ready):**
 
@@ -441,13 +551,21 @@ belongs here and must not delay Phase 1.
 
 ## Phase 6: Prepare demo material
 
-**Status:** Not started. **Fast-track exit outcome:** rehearse a short live desktop walkthrough
-against the final served build using non-sensitive data, with a fallback for chat/market-data
-unavailability. A slide deck and polished video are optional assets, not prerequisites to say the
-portfolio demo is ready.
+**Status:** Partially rehearsed, not closed. One Claude-operated rehearsal ran on 2026-09-24 against
+the pre-#320 build: the owner signed in, the edit/save/readback/chat/restore journey completed,
+all 159 tickers and quantities matched the baseline digest after restore, and the session signed
+out. That rehearsal found #1–#7 above. The revised script's full baseline snapshot and pane-size
+instructions were not rehearsed; #320 was deployed later. The 2026-09-25 signed-in spot checks and
+warm-load comparison were **not** a second end-to-end rehearsal. **Fast-track exit outcome:** a
+short walkthrough against the final served build, with exact restoration and a fallback for
+chat/market-data unavailability. Slides and polished video are optional.
 
-- [ ] Agree a short audience-specific narrative and rehearse it against the final served build.
-- [ ] Keep a small non-sensitive screenshot/evidence set and a fallback path.
+- [x] Draft the short desktop narrative and rehearse the older build once, restoring the E2E
+  account exactly (2026-09-24; historical evidence, not final-build credit).
+- [ ] Update the operator script to the #320 build, including warm-up/keep-alive, slow-save
+  presenter pacing, FTM/partial coverage, chat fallback and stable desktop viewport.
+- [ ] Rehearse the revised script against the final served build and verify the full baseline is
+  restored after the reversible edit. Record the outcome and non-sensitive evidence pointers.
 
 **Optional media backlog:**
 
@@ -464,9 +582,10 @@ portfolio demo is ready.
 ## Final definitions
 
 - **Asset Picker delivered:** Phase 1 complete — achieved 2026-09-20.
-- **Fast-track portfolio demo ready:** the dashboard's fast-track demo-ready exit is evidenced:
-  Phases 1-2 accepted, B3 served candidate proven, A4 full desktop Production run accepted,
-  demo-blocking findings resolved, Production state accounted for, and a short operator script
-  rehearsed. This does not imply A5, exhaustive backlog closure, polished media or `1.0.0`.
+- **Fast-track portfolio demo ready:** **not yet evidenced on the final #320 build**. Phases 1-2
+  are accepted, B3 and A4 certify the older candidate, and targeted post-#320 checks have passed
+  or exposed the explicit gaps above. The post-fix full suite, final operator-script reconciliation
+  and final-build rehearsal/restoration are still open. This narrower exit does not imply A5,
+  exhaustive backlog closure, polished media or `1.0.0`.
 - **Full original package:** complete the deferred Phase 5 documentation and optional Phase 6
   media if the portfolio needs them; do not mislabel those unchecked follow-ons as completed.
