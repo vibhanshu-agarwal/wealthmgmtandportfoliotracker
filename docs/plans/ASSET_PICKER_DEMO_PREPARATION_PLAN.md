@@ -17,9 +17,10 @@ build. The plan's post-fix rule still calls for an uncontended full Production s
 new, bounded owner approval. The operator script was rehearsed against the #320 build on
 2026-09-25, then amended in wording and Codex-reviewed. The amendment changes no click, save or
 restore step, but was not re-rehearsed. That walkthrough is not the suite. The targeted #3–#6
-session and owner dispositions below do not authorize a suite rerun. Publishing this later status
-reconciliation through a new docs-only push/PR, and merging it, each needs separate owner approval;
-this local draft grants neither. [PR #321](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/321)
+session and owner dispositions below do not authorize a suite rerun. On 2026-09-25, the owner
+authorized a docs-only PR for this reconciliation and its merge only if CI is green and the final
+diff is judged ready. That approval does not cover a suite run or any live operation. This status
+becomes published on `main` only when the PR merges. [PR #321](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/321)
 merged at `c4e58f1c`; [PR #319](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/319)
 was closed unmerged.
 
@@ -100,7 +101,7 @@ unchanged. Both runs were attempt 1 and passed. No A5 capture is recorded.
 | 2 — UI and demo-critical fixes | **COMPLETE at its accepted exit**; #320 later changed the serving build | Verify changed behavior in the post-fix gate below |
 | 3 — Broad desktop Production E2E | **A4 run 3 accepted on the old build** (`PASS_WITH_EXPECTED_DEFECTS`); runs 1-2 remain FAIL history. **Post-#320 full suite: OPEN** | Authorize and run one uncontended full suite on the final served build, per the plan's post-fix rule |
 | 4 — Defect disposition | **Demo disposition recorded:** #320 repairs were deployed, the targeted #3–#6 session ran, and the owner accepted its named inconclusive/unverified cases as non-blocking for this demo. Those cases are not PASS, fixed, tested or closed | Retain the evidence limits below; post-fix full suite remains open |
-| 5 — Documentation | **IN PROGRESS:** #321 merged the A4 record and earlier status; the operator script's rehearsed copy was later amended in wording and Codex-reviewed, without re-rehearsal. This later #3–#6 reconciliation is local only. Before project freeze, the roadmap, runbooks and backlog still need reconciling and auditing | Seek separate approval to publish this status; reconcile the roadmap, runbooks and backlog before freeze, without waiting for media brainstorming |
+| 5 — Documentation | **IN PROGRESS:** #321 merged the A4 record and earlier status; the operator script's rehearsed copy was later amended in wording and Codex-reviewed, without re-rehearsal. This #3–#6 reconciliation is published only when its docs-only PR merges. Before project freeze, the roadmap, runbooks and backlog still need reconciling and auditing | Confirm publication via the PR's merge state; reconcile the roadmap, runbooks and backlog before freeze, without waiting for media brainstorming |
 | 6 — Demo material | **Post-fix rehearsal COMPLETE (2026-09-25):** the rehearsed script on the #320 build; the E2E account was restored identical to its verified baseline. The later wording-amended draft was not re-rehearsed. The LinkedIn, resume, PPT and video package is required before project freeze and not yet drafted | Run the demo with the script's warm-up; media content waits for the brainstorming session |
 
 **Not end-to-end complete:** the targeted checks, controlled warm page load and post-fix rehearsal
@@ -109,9 +110,9 @@ are not a post-#320 full multi-user suite.
 **Remaining fast-track gates.** The fast-track exit remains **OPEN** until:
 1. **Post-#320 full suite:** one uncontended full Production suite on the served build, under a
    separately bounded owner approval. A4 run 3 is historical old-build evidence.
-2. **Status publication:** this newer, evidence-qualified reconciliation is reviewed and published
-   through a separately approved docs-only PR and merge. #321 is already merged; it predates the
-   targeted #3–#6 session.
+2. **Status publication:** this newer, evidence-qualified reconciliation is published on `main`
+   when its docs-only PR merges. #321 predates the targeted #3–#6 session and does not satisfy this
+   publication gate.
 
 The operator-script review, final-build rehearsal and targeted #3–#6 demo dispositions are done;
 none substitutes for the full suite. The seven non-USD #3 value checks and listed edge cases remain
@@ -348,8 +349,9 @@ bounded repair/validation actions recorded above.
 Those authorizations are consumed. They do not automatically authorize a new suite, rehearsal,
 account creation, production/cloud access, future deployment, ruleset change, publication or merge.
 The next live suite, and any further rehearsal, require fresh, named bounds.
-- **#319** closed unmerged; **#321** merged at `c4e58f1c`. A new push/PR and its later merge
-  each need separate approval. A5 remains optional and requires approval if performed.
+- **#319** closed unmerged; **#321** merged at `c4e58f1c`. The owner approved this docs-only PR
+  and a conditional merge on 2026-09-25; neither approval covers another PR, a live suite or A5.
+  A5 remains optional and requires approval if performed.
 
 ## Global constraints
 
@@ -602,9 +604,9 @@ limitation and, where relevant, a test expectation that does not claim the defec
 **Status:** In progress. #321 merged the A4 verdict and the earlier 2026-09-25 status at
 `c4e58f1c`; #319 closed unmerged. The operator script was rehearsed on the #320 build, then
 amended in wording and Codex-reviewed. The amendment changes no click, save or restore step, but
-was not re-rehearsed; it remains a private local draft. This later targeted-check reconciliation is
-local until separately reviewed and published. **Fast-track exit outcome:** keep the published
-status truthful and the short operator flow reproducible. The full repository documentation
+was not re-rehearsed; it remains a private local draft. This targeted-check reconciliation is
+published on `main` only when its docs-only PR merges. **Fast-track exit outcome:** keep the
+published status truthful and the short operator flow reproducible. The full repository documentation
 overhaul below is follow-on work, not a portfolio-demo gate.
 
 - [x] Record B3 run URLs, exact SHA, served revision/digest and frontend build ID in this plan.
@@ -614,8 +616,9 @@ overhaul below is follow-on work, not a portfolio-demo gate.
   #321 (first published in #319, which closed unmerged). Every A4 defect finding
   has a recorded decision; this does not close later rehearsal findings.
 - [x] Publish the earlier 2026-09-25 status through #321, merged at `c4e58f1c`.
-- [ ] Review and publish this later targeted-check reconciliation through a separately approved
-  docs-only PR and merge. It must preserve the addendum's evidence distinctions.
+- **Publication gate:** this later targeted-check reconciliation is public on `main` only after its
+  docs-only PR merges. Its merge state, rather than a pre-merge checkbox, determines this gate.
+  The addendum's evidence distinctions must remain intact.
 - [x] Revise and review the short operator script for the current build, evidence location,
   remaining limitations and exact-restore flow; keep it available to the demo operator. The
   rehearsed copy was amended in wording and Codex-reviewed on 2026-09-25 without a second
@@ -700,9 +703,9 @@ content awaits the agreed brainstorming session and is not yet drafted.
 - **Fast-track portfolio demo ready:** **not yet evidenced on the final #320 build**. Phases 1-2
   are accepted, B3 and A4 certify the older candidate, and the final-build operator-script review,
   rehearsal and targeted #3–#6 demo dispositions are recorded with their limitations. The
-  dashboard's remaining fast-track gates are the post-fix full suite and publication of this later
-  status. The seven non-USD #3 value checks remain INCONCLUSIVE, not PASS. This narrower exit does
-  not imply A5, exhaustive backlog closure, polished media or `1.0.0`.
+  dashboard's remaining fast-track conditions are the post-fix full suite and this reconciliation's
+  publication on `main`. The seven non-USD #3 value checks remain INCONCLUSIVE, not PASS. This
+  narrower exit does not imply A5, exhaustive backlog closure, polished media or `1.0.0`.
 - **Project freeze:** requires first (owner direction, 2026-09-25) reconciling and auditing the
   existing roadmap, runbooks and backlog, which need not wait, and the LinkedIn, resume, PPT and
   video package, whose content awaits the brainstorming session. Do not mislabel those unchecked
