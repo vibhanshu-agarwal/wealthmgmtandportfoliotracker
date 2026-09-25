@@ -14,9 +14,10 @@ the owner's evidence addendum; #321 merged at `c4e58f1c`).
 **Owner approval callout — next blocked actions:** A4 run 3 satisfied the pre-#320 Phase 3 gate on
 2026-09-24 as `PASS_WITH_EXPECTED_DEFECTS`; it does **not** certify the materially changed #320
 build. The plan's post-fix rule still calls for an uncontended full Production suite run, under a
-new, bounded owner approval. The revised operator script was reviewed and rehearsed against the
-#320 build on 2026-09-25, but that walkthrough is not the suite. The targeted #3–#6 session and
-owner dispositions below do not authorize a suite rerun. Publishing this later status
+new, bounded owner approval. The operator script was rehearsed against the #320 build on
+2026-09-25, then amended in wording and Codex-reviewed. The amendment changes no click, save or
+restore step, but was not re-rehearsed. That walkthrough is not the suite. The targeted #3–#6
+session and owner dispositions below do not authorize a suite rerun. Publishing this later status
 reconciliation through a new docs-only push/PR, and merging it, each needs separate owner approval;
 this local draft grants neither. [PR #321](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/321)
 merged at `c4e58f1c`; [PR #319](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/319)
@@ -99,8 +100,8 @@ unchanged. Both runs were attempt 1 and passed. No A5 capture is recorded.
 | 2 — UI and demo-critical fixes | **COMPLETE at its accepted exit**; #320 later changed the serving build | Verify changed behavior in the post-fix gate below |
 | 3 — Broad desktop Production E2E | **A4 run 3 accepted on the old build** (`PASS_WITH_EXPECTED_DEFECTS`); runs 1-2 remain FAIL history. **Post-#320 full suite: OPEN** | Authorize and run one uncontended full suite on the final served build, per the plan's post-fix rule |
 | 4 — Defect disposition | **Demo disposition recorded:** #320 repairs were deployed, the targeted #3–#6 session ran, and the owner accepted its named inconclusive/unverified cases as non-blocking for this demo. Those cases are not PASS, fixed, tested or closed | Retain the evidence limits below; post-fix full suite remains open |
-| 5 — Documentation | **IN PROGRESS:** #321 merged the A4 record and earlier status; the local operator script was reviewed and rehearsed. This later #3–#6 reconciliation is local only. Before project freeze, the roadmap, runbooks and backlog still need reconciling and auditing | Seek separate approval to publish this status; reconcile the roadmap, runbooks and backlog before freeze, without waiting for media brainstorming |
-| 6 — Demo material | **Post-fix rehearsal COMPLETE (2026-09-25):** the revised script on the #320 build; the E2E account was restored identical to its verified baseline. The LinkedIn, resume, PPT and video package is required before project freeze and not yet drafted | Run the demo with the script's warm-up; media content waits for the brainstorming session |
+| 5 — Documentation | **IN PROGRESS:** #321 merged the A4 record and earlier status; the operator script's rehearsed copy was later amended in wording and Codex-reviewed, without re-rehearsal. This later #3–#6 reconciliation is local only. Before project freeze, the roadmap, runbooks and backlog still need reconciling and auditing | Seek separate approval to publish this status; reconcile the roadmap, runbooks and backlog before freeze, without waiting for media brainstorming |
+| 6 — Demo material | **Post-fix rehearsal COMPLETE (2026-09-25):** the rehearsed script on the #320 build; the E2E account was restored identical to its verified baseline. The later wording-amended draft was not re-rehearsed. The LinkedIn, resume, PPT and video package is required before project freeze and not yet drafted | Run the demo with the script's warm-up; media content waits for the brainstorming session |
 
 **Not end-to-end complete:** the targeted checks, controlled warm page load and post-fix rehearsal
 are not a post-#320 full multi-user suite.
@@ -150,7 +151,8 @@ in):** it ran on served build `brJCAsidY8FAIgtIzNtSo` with the revised operator 
 - **Not covered:** the rehearsal did not compare a currency-pair dialog with the table (#4).
 
 **Targeted #3–#6 session (2026-09-25, 11:08–11:19Z; separate from the rehearsal and the full
-suite):** the owner-approved checks ran on served frontend build `brJCAsidY8FAIgtIzNtSo`. The
+suite):** the owner-approved checks ran on served frontend build `brJCAsidY8FAIgtIzNtSo`.
+Backend revision identity was inferred from GitHub Deploy runs, not read from Azure. The
 private run is `targeted-3-6-20260925T110544Z`; its 18 manifest entries were re-verified, and the
 governing owner-review addendum has SHA-256
 `d652a4b4cb3934b77526993498a942e3a84b5c250dfc91ddd93f7fb581b247ea`. Where it differs
@@ -171,8 +173,9 @@ from the original record, use the addendum.
 
 The owner also accepted the unverified unknown-currency display, non-USD header rendering,
 analytics-unavailable fallback, natural-language chat resolution and broader model-text reliability
-as **non-blocking demo limitations**, not tested/fixed/closed. FX-pair holding semantics remains an
-open product question. No targeted re-check was requested; a post-#320 full suite still needs its
+as **non-blocking demo limitations**, not tested/fixed/closed. FX-pair holding semantics is also
+unverified and owner-accepted as non-blocking for this demo; it remains an open product question.
+No targeted re-check was requested; a post-#320 full suite still needs its
 own approval.
 
 **Fast-track demo-ready exit (not a general-production or `1.0.0` claim):** Phases 1 and 2 are
@@ -326,8 +329,9 @@ rehearsal ran on 2026-09-25. A5 is optional independent attestation.
    symbol remaps, historical price repair and #3–#6 session are recorded above and in Phase 4. Do
    not promote them into full multi-user certification or relabel inconclusive cases as PASS.
 4. **Post-fix gate — OPEN; the rehearsal is done.**
-   - **Rehearsal, COMPLETE:** the revised operator script was rehearsed against the #320 build
-     on 2026-09-25 and restored the E2E account exactly (dashboard).
+   - **Rehearsal, COMPLETE:** the operator script's rehearsed copy ran against the #320 build
+     on 2026-09-25 and restored the E2E account exactly (dashboard). Its later wording amendment
+     was not re-rehearsed.
    - **Still open:** the dashboard's remaining fast-track gates: the full suite (under a separately
      bounded live approval) and publication of this later status reconciliation.
    - **Keep in the script:** the chat fallback, the known limitations and the warm-up/keep-alive.
@@ -552,7 +556,7 @@ Neither 2026-09-24 decision blocks A4 or requires a new run.
 | #1 Slow saves (21.8 s and 20–38 s) | Not repaired; presenter pacing/"Saving…" is a known limitation. Observed in the post-fix rehearsal: 20.5 s (edit) and 19.9 s (restore) | Keep the wait and no-double-submit instruction in the script |
 | #2 Stale/incorrect crypto quotes | Seven symbol transitions deployed; old-series repair verified; refresh updated 158/159 holdings. `FTM-USD` still stale | Treat FTM and partial 24-hour coverage as explicit limitations; do not call all prices fresh |
 | #3 INR stock prices labeled as USD / edit estimate | Targeted session: representative labels PASS across seven quote currencies; two USD table values PASS. Seven non-USD table-value comparisons **INCONCLUSIVE** without captured FX rates | Owner accepted the seven inconclusive checks, unknown-currency display and non-USD header rendering as non-blocking **for this demo**. They are not PASS, fixed, tested or closed; no targeted re-check requested |
-| #4 Currency-pair estimate/table mismatch | Targeted session: dialog estimates matched table values for all nine sampled holdings, including USDJPY=X | Sampled dialog check PASS. Analytics-unavailable fallback remains unverified but owner-accepted as non-blocking; FX-pair holding semantics remains an open product question |
+| #4 Currency-pair estimate/table mismatch | Targeted session: dialog estimates matched table values for all nine sampled holdings, including USDJPY=X | Sampled dialog check PASS. Analytics-unavailable fallback remains unverified but owner-accepted as non-blocking. FX-pair holding semantics is unverified and owner-accepted as non-blocking for this demo; it remains an open product question |
 | #5 AI cards/chat disagree | Targeted session: card/chat price, trend and 10-price window matched. UI label indicates Azure OpenAI sentiment, possibly cached; raw response not captured | Do not claim a live model call. Natural-language chat resolution and broader model-text reliability remain unverified, owner-accepted non-blocking demo limits; preserve fallback |
 | #6 August chart spikes | Historical seed-row repair verified; the targeted session's 9–17 Aug tooltips and 45-point chart showed no spikes | **Visible symptom passes by UI/code inference**, not by a captured analytics response or screenshot. Keep 3 M&M.NS and 3 unheld TATAMOTORS.NS seed rows recorded as intentional exceptions |
 | #7 Browser pane narrowed during restore | Tooling/pane issue in the first rehearsal, not a demonstrated application defect. In the post-fix rehearsal, clicks used element references and the restore was `IDENTICAL` | None beyond the script's pane-size note |
@@ -596,8 +600,9 @@ limitation and, where relevant, a test expectation that does not claim the defec
 ## Phase 5: Reconcile documentation
 
 **Status:** In progress. #321 merged the A4 verdict and the earlier 2026-09-25 status at
-`c4e58f1c`; #319 closed unmerged. The operator script was revised, Codex-reviewed and rehearsed
-on the #320 build, but remains a private local draft. This later targeted-check reconciliation is
+`c4e58f1c`; #319 closed unmerged. The operator script was rehearsed on the #320 build, then
+amended in wording and Codex-reviewed. The amendment changes no click, save or restore step, but
+was not re-rehearsed; it remains a private local draft. This later targeted-check reconciliation is
 local until separately reviewed and published. **Fast-track exit outcome:** keep the published
 status truthful and the short operator flow reproducible. The full repository documentation
 overhaul below is follow-on work, not a portfolio-demo gate.
@@ -612,8 +617,9 @@ overhaul below is follow-on work, not a portfolio-demo gate.
 - [ ] Review and publish this later targeted-check reconciliation through a separately approved
   docs-only PR and merge. It must preserve the addendum's evidence distinctions.
 - [x] Revise and review the short operator script for the current build, evidence location,
-  remaining limitations and exact-restore flow; keep it available to the demo operator. It was
-  reviewed and rehearsed on 2026-09-25; publication of the private script is not implied.
+  remaining limitations and exact-restore flow; keep it available to the demo operator. The
+  rehearsed copy was amended in wording and Codex-reviewed on 2026-09-25 without a second
+  rehearsal; publication of the private script is not implied.
 
 **Required before project freeze (owner direction, 2026-09-25).** These documents already exist; the
 work is to reconcile and audit them against the delivered state. It is factual cleanup and need not
@@ -652,8 +658,9 @@ out. That rehearsal found #1–#7 above. The revised script's full baseline snap
 instructions were not rehearsed; #320 was deployed later. The 2026-09-25 signed-in spot checks and
 warm-load comparison were not a rehearsal.
 
-**The second rehearsal, on the #320 build (2026-09-25), was end-to-end:** it used the revised script
-and ended with an `IDENTICAL` restore (dashboard). **Fast-track exit outcome:** a
+**The second rehearsal, on the #320 build (2026-09-25), was end-to-end:** it used the rehearsed
+script copy and ended with an `IDENTICAL` restore (dashboard). The later wording-amended draft was
+not re-rehearsed. **Fast-track exit outcome:** a
 short walkthrough against the final served build, with exact restoration and a fallback for
 chat/market-data unavailability. The LinkedIn, resume, PPT and video package is required before
 project freeze, not before the demo.
@@ -663,8 +670,8 @@ project freeze, not before the demo.
 - [x] Update the operator script to the #320 build, including warm-up/keep-alive, slow-save
   presenter pacing, FTM/partial coverage, chat fallback and stable desktop viewport (2026-09-25;
   local and Codex-reviewed).
-- [x] Rehearse the revised script against the final served build and verify the full baseline is
-  restored after the reversible edit. Record the outcome and non-sensitive evidence pointers
+- [x] Rehearse the pre-amendment script copy against the final served build and verify the full
+  baseline is restored after the reversible edit. Record the outcome and non-sensitive evidence pointers
   (2026-09-25; restore `IDENTICAL`; the evidence is local).
 
 **Media and career package: required before project freeze (owner direction, 2026-09-25).** Its
