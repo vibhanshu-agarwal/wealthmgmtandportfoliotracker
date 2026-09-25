@@ -8,16 +8,18 @@
 
 **Filed and reconciled:** 2026-09-20
 
-**Latest reconciliation:** 2026-09-26 (accepted post-#320 suite and cleanup from 2026-09-25 UTC;
+**Latest reconciliation:** 2026-09-25 UTC (accepted post-#320 suite and cleanup;
 targeted #3–#6 reconciliation published through #322 at `b4e989b3`).
 
-**Owner approval callout — next blocked action:** the post-#320 full Production suite and its
-three-user cleanup are complete under separate owner approvals R and C. Codex accepted the suite
-as `PASS_WITH_EXPECTED_DEFECTS`, not a clean PASS. This new status reconciliation is a **local
-draft** until the owner separately authorizes its push, PR and merge; the earlier authorization
-for [PR #322](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/322)
-does not carry over. No new suite, cleanup, deployment, cloud read or Production action is
-authorized here. #322 merged the targeted-check status at `b4e989b3`; [PR #321](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/321)
+**Owner approval needed — push/PR, then merge separately:** this status reconciliation is a
+**local draft**. Pushing it and opening a docs-only PR need owner approval; merging that PR needs
+a further, separate approval. If approval is withheld, it stays local and the published dashboard
+does not yet record the final suite and cleanup. The earlier authorization for
+[PR #322](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/322) does not
+carry over. The post-#320 suite and three-user cleanup are already complete under separate owner
+approvals R and C; Codex accepted the suite as `PASS_WITH_EXPECTED_DEFECTS`, not a clean PASS. No
+new suite, cleanup, deployment, cloud read or Production action is authorized here. #322 merged
+the targeted-check status at `b4e989b3`; [PR #321](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/321)
 merged at `c4e58f1c`, and [PR #319](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/319)
 closed unmerged.
 
@@ -32,8 +34,9 @@ fast-track demo blocker.
 
 The A4 test users and the post-#320 suite's three temporary users have been deleted, subject to the
 evidence limits below. The existing E2E account was restored after both the 2026-09-24 and the
-2026-09-25 rehearsals. Private `pw-output/` traces remain local pending a separate after-demo
-cleanup decision. Optional A5 Azure capture remains separate and does not gate the fast-track demo. This
+2026-09-25 rehearsals. The private A4 `pw-output/` remains local pending the previously agreed
+after-demo cleanup. The post-#320 run's `pw-output/` is also private and has no deletion decision
+yet. Optional A5 Azure capture remains separate and does not gate the fast-track demo. This
 plan grants no new push, PR, merge, dispatch, live read, account creation, secret handling or
 Production mutation.
 
@@ -62,7 +65,7 @@ is retained as superseded decision history and is not an active task.
 
 ## Current status
 
-### Fast-track dashboard — 2026-09-26
+### Fast-track dashboard — 2026-09-25 UTC
 
 **This is the status page for this plan.** The locally verified `main` is
 `b4e989b3b466012f38de775c6a56a1eaebe73633` after the docs-only #322 merge; the serving
@@ -97,6 +100,10 @@ unchanged. Both runs were attempt 1 and passed. No A5 capture is recorded.
 `p3-20260925T174212Z-aff7` against served build `brJCAsidY8FAIgtIzNtSo`, suite commit
 `3a1092f29cc4520d7fc58538bee3a2987cafb0a0` and kit manifest
 `d60f802467a87a8b1a9a228d63f05fd11cd79d7c742d0ac63e108c5b0fa8eb0c`.
+- **Serving identity basis:** the frontend build was observed live before signup and again in S00.
+  Backend identity rests on the hash-pinned #320 deploy artifacts and the run-time GitHub check
+  for later deployments/workflow runs, **not** a fresh Azure revision read. A change made outside
+  GitHub Actions could escape that check; artifact hashes bind bytes, not provenance.
 - All 15 scenarios S00–S13 and S99 passed; 535 ledger checks passed, none failed, with no skipped,
   filtered, unrun or unexpected scenario. The verdict is **`PASS_WITH_EXPECTED_DEFECTS`**, not PASS:
   `non-demo-reset-control-visible` was the sole expected defect.
@@ -357,7 +364,8 @@ independent attestation.
      was not re-rehearsed.
    - **Suite and cleanup, COMPLETE:** the owner-operated run `p3-20260925T174212Z-aff7` passed
      with one expected defect; Codex accepted its bound evidence. A separately approved cleanup
-     removed this run's three temporary users within the script's verified scope.
+     removed this run's three temporary users as reported by the script's own preview, commit
+     and verify queries; the database result was not independently checked.
    - **Still open:** the dashboard's publication gate for this latest status reconciliation.
    - **Keep in the script:** the chat fallback, the known limitations and the warm-up/keep-alive.
    - **Before project freeze:** reconcile and audit the existing roadmap, runbooks and backlog; this
@@ -546,10 +554,10 @@ user data rather than infer correctness from build and revision identity. Run 3 
   discard, or cross-user interference (run 3, S09: 409, no retry).
 - [x] Verify Overview, Portfolio, holdings/asset cards, totals, price/freshness presentation,
   Market Data, navigation, and AI Insights/chatbot (run 3, S11 at three viewports and S12).
-- [ ] Verify partial-valuation presentation. **Unverified in Production:** in run 3 no holding was
-  partially valued, so the check that records D9 (`partial-valuation-not-presented`) was never
-  reached. D9 remains a known non-blocking defect (Phase 4). This does not block A4 or call for
-  another run.
+- [ ] Verify partial-valuation presentation. **Unverified in Production:** in A4 run 3 no holding
+  was partially valued, so the check that records D9 (`partial-valuation-not-presented`) was never
+  reached. The post-#320 run also had full coverage for its three users and did not reach D9.
+  D9 remains a known non-blocking defect (Phase 4); neither run is evidence that it was fixed.
 - [x] Prove user and session isolation (run 3, S10).
 - [x] Record per-scenario assertions, traces, screenshots, video on failure, network evidence,
   served revision, and final persisted state (run 3: ledger, `network.jsonl`, 53 screenshots,
