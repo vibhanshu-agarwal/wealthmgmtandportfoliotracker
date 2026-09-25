@@ -16,19 +16,20 @@ remaining gates; Codex status draft published as #321, with the rehearsal facts 
 build. The plan's post-fix rule still calls for an uncontended full Production suite run.
 **The revised operator script was rehearsed against the #320 build on 2026-09-25**, owner-approved.
 It restored the E2E account identical to its verified baseline, but it is a walkthrough, not the
-suite. Each new live run needs a bounded owner authorization; saying **yes** allows only that named run, while saying **no** leaves
-the fast-track demo exit open. This PR (#321) supersedes
-[PR #319](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/319); do not
-merge both. Merging #321 is a separate owner decision.
+suite. The complete set of remaining fast-track gates is listed once, in the dashboard ("Remaining
+fast-track gates"). Each new live run needs a bounded owner authorization; saying **yes** allows
+only that named run, while saying **no** leaves the fast-track demo exit open. This PR (#321)
+supersedes [PR #319](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/319);
+do not merge both. Merging #321 is a separate owner decision.
 
-**Required before the eventual project freeze (owner direction, 2026-09-25):**
-- the product roadmap;
-- operational runbooks;
-- a backlog audit;
-- the LinkedIn, resume, PPT and video package.
-
-Their content awaits the agreed brainstorming session and is **not yet drafted**. They are not
-fast-track demo blockers.
+**Required before the eventual project freeze (owner direction, 2026-09-25):** neither item is a
+fast-track demo blocker.
+- **Reconcile and audit the existing documents.** The [roadmap](../../ROADMAP.md), the
+  [operational runbooks](../runbooks/) and the [backlog](../todos/backlog/) already exist; they need
+  reconciling with the delivered state. This factual cleanup does not wait for the brainstorming
+  session.
+- **Create the LinkedIn, resume, PPT and video package.** Its content awaits the agreed
+  brainstorming session and is **not yet drafted**.
 
 The A4 test users have been deleted. The existing E2E account was restored after both the
 2026-09-24 and the 2026-09-25 rehearsals. The private A4 `pw-output/` remains local pending the previously agreed after-demo
@@ -85,9 +86,9 @@ unchanged. Both runs were attempt 1 and passed. No A5 capture is recorded.
   Codex-cleared cleanup. The deletion counts come from the script's own queries and its local
   record, and **the cleanup's historical deletion counts were not independently verified**. A later
   read-only account inventory by Codex found the A4 accounts absent.
-- **Full record:** the Fable- and Codex-accepted verdict record is included in the unpublished
-  #319 documentation draft as a sanitized copy,
-  [`A4_VERDICT_RECORD_runs-1-3.md`](../evidence/phase3-a4/A4_VERDICT_RECORD_runs-1-3.md). It has
+- **Full record:** the Fable- and Codex-accepted verdict record is carried by #321 as a sanitized
+  copy, [`A4_VERDICT_RECORD_runs-1-3.md`](../evidence/phase3-a4/A4_VERDICT_RECORD_runs-1-3.md). It
+  was first published in #319, which #321 supersedes. It has
   roles in place of account addresses, no per-user IDs and no local paths. The private original
   stays with the local run evidence.
 
@@ -96,16 +97,30 @@ unchanged. Both runs were attempt 1 and passed. No A5 capture is recorded.
 | 1 — Asset Picker delivery | **COMPLETE**, deployed and accepted in Production on 2026-09-20 | None; do not reopen for later-phase work |
 | 2 — UI and demo-critical fixes | **COMPLETE at its accepted exit**; #320 later changed the serving build | Verify changed behavior in the post-fix gate below |
 | 3 — Broad desktop Production E2E | **A4 run 3 accepted on the old build** (`PASS_WITH_EXPECTED_DEFECTS`); runs 1-2 remain FAIL history. **Post-#320 full suite: OPEN** | Authorize and run one uncontended full suite on the final served build, per the plan's post-fix rule |
-| 4 — Defect disposition | **IN PROGRESS:** A4 decisions recorded; #320 repairs deployed and targeted checks performed. Some observations remain partial or unverified (below) | Close only proven repair outcomes; retain limitations and complete post-fix suite |
-| 5 — Documentation | **IN PROGRESS:** #321 carries the A4 record and this status (it supersedes #319). The operator script was revised for #320 and rehearsed; it is local, and its Codex review is pending. The roadmap, runbooks and backlog audit are required before project freeze and not yet drafted | Review and merge #321 (separate approval); the freeze documents wait for the brainstorming session |
+| 4 — Defect disposition | **IN PROGRESS:** A4 decisions recorded; #320 repairs deployed and targeted checks performed. Some observations remain partial or unverified (below) | Targeted evidence or an explicit owner disposition for #3–#6, and the post-fix suite (Remaining fast-track gates); retain limitations |
+| 5 — Documentation | **IN PROGRESS:** #321 carries the A4 record and this status (it supersedes #319). The operator script was revised for #320 and rehearsed; it is local, and its Codex review is pending. Before project freeze, the existing roadmap, runbooks and backlog need reconciling and auditing | Codex review of the operator script; review and merge #321 (separate approval); reconcile the roadmap, runbooks and backlog before freeze, without waiting for the media brainstorming |
 | 6 — Demo material | **Post-fix rehearsal COMPLETE (2026-09-25):** the revised script on the #320 build; the E2E account was restored identical to its verified baseline. The LinkedIn, resume, PPT and video package is required before project freeze and not yet drafted | Run the demo with the script's warm-up; media content waits for the brainstorming session |
 
 **Not end-to-end complete:** targeted repair validation, a controlled warm page load and the
-post-fix rehearsal are not a post-#320 full multi-user suite. The fast-track exit remains **OPEN**
-until that suite runs.
+post-fix rehearsal are not a post-#320 full multi-user suite.
 
-**Freeze package, separately incomplete:** the product roadmap, operational runbooks, a backlog audit, and the LinkedIn, resume, PPT and video package are required before project freeze (owner
-direction). They are not fast-track demo blockers. A5 remains optional.
+**Remaining fast-track gates.** The fast-track exit remains **OPEN** until all of these are met:
+1. **Post-#320 full suite:** one uncontended full Production suite on the served build, under a
+   separately bounded owner approval.
+2. **Operator-script review:** Codex review of the revised script, which was rehearsed on
+   2026-09-25.
+3. **#4:** a targeted currency-pair dialog-versus-table comparison, or an explicit owner
+   disposition.
+4. **#5:** evidence of the chat's response path (model or fallback) and of semantic agreement, or
+   an explicit owner disposition as a demo limitation.
+5. **#3 and #6:** the future targeted checks in the Phase 4 table (representative currency labels
+   and values; the chart on the served build), or an explicit owner disposition. Neither check was
+   part of the 2026-09-25 rehearsal.
+6. **Publication:** this reviewed status, by merging #321 (a separate owner decision).
+
+**Freeze package, separately incomplete (owner direction):** reconciling and auditing the existing
+roadmap, runbooks and backlog, and creating the LinkedIn, resume, PPT and video package. Neither is
+a fast-track demo blocker. A5 remains optional.
 
 **Post-#320 evidence snapshot (2026-09-25):** #320 merged at `db51cf5b`; scoped backend deploy
 [36092375156](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/36092375156)
@@ -142,7 +157,8 @@ traffic; the owner-operated Phase 3 desktop suite completes once uncontended wit
 uncollected scenario counted as a pass; Production state is restored or its retained state recorded;
 and no unresolved finding blocks the agreed live demo. A verdict with expected defects must name
 them and be accepted explicitly, not be relabeled PASS. Record accepted non-blocking findings and a
-short operator script. Full Phase 5 documentation, the freeze package (the product roadmap, operational runbooks, a backlog audit, and the LinkedIn, resume, PPT and video package) and an
+short operator script. Full Phase 5 documentation, the freeze package (reconciling the existing
+roadmap, runbooks and backlog; creating the LinkedIn, resume, PPT and video package) and an
 independent A5 before/after Azure attestation are **not** fast-track demo blockers. The freeze
 package is still required before project freeze. The B3 run-bound revision/digest
 proof supplies the serving identity needed for this narrower exit. A5 remains available as optional
@@ -257,7 +273,8 @@ or D11 response-content evidence; A4 run 3 subsequently exercised those behavior
 
 The accepted 320px/375px overflows remain open backlog. Task 7 is complete. A4 run 3 met the
 pre-#320 Phase 3 exit; #320 and the subsequent data repairs changed the candidate, so the
-post-fix suite remains open; the final-build rehearsal ran on 2026-09-25. A5 is optional independent attestation.
+post-fix suite and the other remaining fast-track gates (dashboard) remain open; the final-build
+rehearsal ran on 2026-09-25. A5 is optional independent attestation.
 
 ### Immediate fast-track sequence
 
@@ -284,13 +301,17 @@ post-fix suite remains open; the final-build rehearsal ran on 2026-09-25. A5 is 
 3. **#320 repair batch — DEPLOYED, target checks PARTIAL.** The seven symbol remaps, historical
    price repair and targeted signed-in checks are recorded below. Do not promote those spot checks
    into full multi-user certification; unresolved and untested findings retain their labels.
-4. **Post-fix gate — OPEN for the suite; the rehearsal is done.**
+4. **Post-fix gate — OPEN; the rehearsal is done.**
    - **Rehearsal, COMPLETE:** the revised operator script was rehearsed against the #320 build
      on 2026-09-25 and restored the E2E account exactly (dashboard).
-   - **Still open:** one uncontended full suite, under a separately bounded live approval.
+   - **Still open:** the dashboard's remaining fast-track gates: the full suite (under a separately
+     bounded live approval), the operator script's review, targeted evidence or an explicit owner
+     disposition for #3–#6, and publication of this status.
    - **Keep in the script:** the chat fallback, the known limitations and the warm-up/keep-alive.
-   - **After the demo:** the product roadmap, operational runbooks, a backlog audit, and the LinkedIn, resume, PPT and video package are required before project freeze. Their content waits for
-     the brainstorming session. A full architecture rewrite and `1.0.0` can follow after the demo.
+   - **Before project freeze:** reconcile and audit the existing roadmap, runbooks and backlog; this
+     factual cleanup need not wait. Create the LinkedIn, resume, PPT and video package once the
+     brainstorming session has set its content. A full architecture rewrite and `1.0.0` can follow
+     after the demo.
 
 ## Owner approval callouts
 
@@ -506,10 +527,10 @@ Neither 2026-09-24 decision blocks A4 or requires a new run.
 |---|---|---|
 | #1 Slow saves (21.8 s and 20–38 s) | Not repaired; presenter pacing/"Saving…" is a known limitation. Observed in the post-fix rehearsal: 20.5 s (edit) and 19.9 s (restore) | Keep the wait and no-double-submit instruction in the script |
 | #2 Stale/incorrect crypto quotes | Seven symbol transitions deployed; old-series repair verified; refresh updated 158/159 holdings. `FTM-USD` still stale | Treat FTM and partial 24-hour coverage as explicit limitations; do not call all prices fresh |
-| #3 INR stock prices labeled as USD / edit estimate | INR-to-USD edit estimates spot-checked for M&M.NS and ADANIPORTS.NS after #320 | Recheck representative table labels and values in the final walkthrough; spot checks are not a complete currency matrix |
-| #4 Currency-pair estimate/table mismatch | #320 code deployed; no direct post-deploy USD/JPY dialog-versus-table comparison recorded in the 2026-09-25 spot-check log | Targeted comparison and full-suite coverage remain open |
-| #5 AI cards/chat disagree | New "last 10 prices" card wording and chat source label observed; one chat response was received | The response path (model vs fallback) and complete semantic agreement were not proven; preserve the fallback/limitation |
-| #6 August chart spikes | Historical seed-row repair verified; signed-in chart no longer showed the 11/13/15 August spikes | Keep 3 M&M.NS and 3 unheld TATAMOTORS.NS seed rows recorded as intentional exceptions; verify the final walkthrough's chart |
+| #3 INR stock prices labeled as USD / edit estimate | INR-to-USD edit estimates spot-checked for M&M.NS and ADANIPORTS.NS after #320 | A future targeted check of representative table labels and values, or an explicit owner disposition. It was not part of the 2026-09-25 rehearsal, and spot checks are not a complete currency matrix |
+| #4 Currency-pair estimate/table mismatch | #320 code deployed; no direct post-deploy USD/JPY dialog-versus-table comparison recorded in the 2026-09-25 spot-check log | A targeted comparison, or an explicit owner disposition; full-suite coverage also remains open |
+| #5 AI cards/chat disagree | New "last 10 prices" card wording and chat source label observed; one chat response was received | The response path (model vs fallback) and complete semantic agreement were not proven: evidence, or an explicit owner disposition as a demo limitation; preserve the fallback |
+| #6 August chart spikes | Historical seed-row repair verified; signed-in chart no longer showed the 11/13/15 August spikes | Keep 3 M&M.NS and 3 unheld TATAMOTORS.NS seed rows recorded as intentional exceptions. A future targeted check of the chart on the served build, or an explicit owner disposition; the 2026-09-25 rehearsal did not record one |
 | #7 Browser pane narrowed during restore | Tooling/pane issue in the first rehearsal, not a demonstrated application defect. In the post-fix rehearsal, clicks used element references and the restore was `IDENTICAL` | None beyond the script's pane-size note |
 
 The 20–21 August chart rises were attributed in read-only data checks largely to stored BTC-USD
@@ -529,8 +550,9 @@ been fixed or that the product is generally Production-certified.
 
 - [x] Record and disposition the A4 run-3 findings without pretending untriggered defects were fixed.
 - [x] Deploy the bounded #320 repair batch and record the targeted repair/spot-check evidence.
-- [ ] Complete the remaining targeted proof for #4 and semantic limits for #5; retain #1, FTM and
-  other accepted limitations honestly rather than marking them fixed.
+- [ ] Complete the targeted evidence, or record an explicit owner disposition, for #3–#6 (the
+  table above); retain #1, FTM and other accepted limitations honestly rather than marking them
+  fixed.
 - [ ] Rerun affected scenarios and the full Production suite uncontended after the material #320
   code changes. The old-build A4 run and post-deploy spot checks do not satisfy this rule.
 - [x] Rehearse on the final served build with exact account restoration and record the final
@@ -556,8 +578,9 @@ documentation overhaul below is follow-on work, not a portfolio-demo gate.
 
 - [x] Record B3 run URLs, exact SHA, served revision/digest and frontend build ID in this plan.
 - [x] Record the A4 run, verdict, findings and accepted limitations after it occurs. This is
-  recorded in the #319 draft of this plan and the sanitized
-  [A4 verdict record](../evidence/phase3-a4/A4_VERDICT_RECORD_runs-1-3.md). Every A4 defect finding
+  recorded in this plan and the sanitized
+  [A4 verdict record](../evidence/phase3-a4/A4_VERDICT_RECORD_runs-1-3.md), both carried by #321
+  (first published in #319, which #321 supersedes). Every A4 defect finding
   has a recorded decision; this does not close later rehearsal findings.
 - [ ] Integrate this 2026-09-25 status update into the publication path after review. It is in
   #321, and #321's merge is a separate owner decision. #319 is superseded; do not merge both.
@@ -565,12 +588,13 @@ documentation overhaul below is follow-on work, not a portfolio-demo gate.
   remaining limitations and exact-restore flow; keep it available to the demo operator. **Revised
   and rehearsed 2026-09-25; the review is pending.**
 
-**Required before project freeze (owner direction, 2026-09-25); content awaits the agreed
-brainstorming session, not yet drafted:**
+**Required before project freeze (owner direction, 2026-09-25).** These documents already exist; the
+work is to reconcile and audit them against the delivered state. It is factual cleanup and need not
+wait for the brainstorming session, which applies only to the media package (Phase 6).
 
-- [ ] Product roadmap.
-- [ ] Operational runbooks.
-- [ ] Backlog audit.
+- [ ] Reconcile the [roadmap](../../ROADMAP.md).
+- [ ] Audit and reconcile the [operational runbooks](../runbooks/).
+- [ ] Audit the [backlog](../todos/backlog/).
 
 **Full documentation backlog (not required for fast-track demo-ready):**
 
@@ -592,7 +616,8 @@ belongs here and must not delay Phase 1.
 
 ## Phase 6: Prepare demo material
 
-**Status:** The walkthrough was rehearsed on the final build; the freeze package is not started.
+**Status:** The walkthrough was rehearsed on the final build; the LinkedIn, resume, PPT and video
+package is not started.
 
 The first Claude-operated rehearsal ran on 2026-09-24 against the pre-#320 build: the owner signed in, the edit/save/readback/chat/restore journey completed,
 all 159 tickers and quantities matched the baseline digest after restore, and the session signed
@@ -640,8 +665,12 @@ content awaits the agreed brainstorming session and is not yet drafted.
 - **Asset Picker delivered:** Phase 1 complete — achieved 2026-09-20.
 - **Fast-track portfolio demo ready:** **not yet evidenced on the final #320 build**. Phases 1-2
   are accepted, B3 and A4 certify the older candidate, and targeted post-#320 checks have passed
-  or exposed the explicit gaps above. The final-build rehearsal and restoration are done (2026-09-25).
-  The post-fix full suite and the operator script's review are still open. This narrower exit does not imply A5,
-  exhaustive backlog closure, polished media or `1.0.0`.
-- **Project freeze:** the product roadmap, operational runbooks, a backlog audit, and the LinkedIn, resume, PPT and video package are required first (owner direction, 2026-09-25). Their content
-  awaits the brainstorming session. Do not mislabel those unchecked items as completed.
+  or exposed the explicit gaps above. The final-build rehearsal and restoration are done
+  (2026-09-25). The dashboard's remaining fast-track gates are still open: the post-fix full suite,
+  the operator script's review, targeted evidence or an explicit owner disposition for #3–#6, and
+  publication of this status. This narrower exit does not imply A5, exhaustive backlog closure,
+  polished media or `1.0.0`.
+- **Project freeze:** requires first (owner direction, 2026-09-25) reconciling and auditing the
+  existing roadmap, runbooks and backlog, which need not wait, and the LinkedIn, resume, PPT and
+  video package, whose content awaits the brainstorming session. Do not mislabel those unchecked
+  items as completed.
