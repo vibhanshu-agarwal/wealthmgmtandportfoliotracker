@@ -8,20 +8,25 @@
 
 **Filed and reconciled:** 2026-09-20
 
-**Latest reconciliation:** 2026-09-24 (A4 status, drafted by Claude and reviewed by Fable and
-Codex).
+**Latest reconciliation:** 2026-09-25 (demo rehearsals, the rehearsal-defect fixes and their
+deployment; drafted by Claude for Codex review). The 2026-09-24 A4 status was drafted by Claude and
+reviewed by Fable and Codex.
 
 **Owner approval callout — next blocked action:** A4 is satisfied (Codex decision, 2026-09-24) by
 run 3 as `PASS_WITH_EXPECTED_DEFECTS`, and the A4 test users are deleted. Every A4 defect finding
 has a recorded owner or Codex decision; none is a demo blocker, and none is fixed or closed
 (Phase 4).
 
-The next step is Phases 5-6. A draft operator script exists. Its general version passed Fable and
-Codex review; its revision for the E2E test account is still under scoped Codex review. It is local
-and unpublished, not yet in this repository, and has not been rehearsed. The owner authorized one
-Claude-operated rehearsal on the existing E2E test account. The owner signs in; Claude does not
-handle credentials. The rehearsal must capture a baseline and verify exact restoration, with no
-automatic rerun.
+**The demo rehearsals:**
+- **2026-09-24, pre-fix build:** it found demo-visible defects #2–#6.
+- **The fixes:** they were merged as PR #320, deployed on 2026-09-25, and followed by owner-run
+  Production data repairs. See the "Rehearsal defects #2–#6" section below.
+- **2026-09-25, post-fix build:** the revised operator script was rehearsed and completed with no
+  stop rule. The E2E test account was restored identical to its verified baseline.
+
+**Nothing further is authorized by this plan.** The operator script and the rehearsal records stay
+local and unpublished. Publishing them is a separate decision. The actual demo needs no further
+deploy.
 
 The A4 run directories' private `pw-output/` stays local until after the actual demo; agents may
 delete it then (owner decision, 2026-09-24). Optional A5 Azure capture remains a separate decision.
@@ -53,9 +58,10 @@ is retained as superseded decision history and is not an active task.
 
 ## Current status
 
-### Fast-track dashboard — 2026-09-23
+### Fast-track dashboard — 2026-09-25
 
-**This is the status page for this plan.** `main@cdc51df6643b51fb92dc747a20ac3ca9be4ac2b1`
+**This is the status page for this plan.** Production now serves `main@db51cf5b` (PR #320; see
+"Rehearsal defects #2–#6" below). **B3 history:** `main@cdc51df6643b51fb92dc747a20ac3ca9be4ac2b1`
 contains PRs #310-#316 and its post-merge CI is green. B3 completed on 2026-09-23 at that exact SHA:
 [run 35860682429](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/35860682429)
 proved `portfolio-service--0000097` at digest
@@ -82,14 +88,68 @@ unchanged. Both runs were attempt 1 and passed. No A5 capture is recorded.
   roles in place of account addresses, no per-user IDs and no local paths. The private original
   stays with the local run evidence.
 
+**Rehearsal defects #2–#6, fixed and deployed 2026-09-25:**
+- **Found:** in the first Claude-operated rehearsal on the E2E test account, on 2026-09-24 against
+  the pre-fix build `R5P3Iw1SRc9jlIX2Wwee8`. That rehearsal itself completed and restored the
+  account exactly.
+- **The defects:**
+  - **#2, stale and wrong crypto prices.** Yahoo stopped quoting six symbols; ARB-USD and TON-USD
+    returned other tokens.
+  - **#3, prices shown with the wrong currency.**
+  - **#4, the Edit Holdings estimate and the analytics-unavailable fallback values.**
+  - **#5, AI Insights "24h" wording and the chat provenance label.**
+  - **#6, performance-chart spikes on 11, 13 and 15 Aug.**
+- **Code:** [PR #320](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/320),
+  Fable-reviewed, merged by owner approval as merge commit
+  `db51cf5bbc62675826d403e87636a0a1613f09c0`. Its tree is identical to reviewed head `77b5ec06`.
+  - Seven tickers are now priced from provider symbols verified against Yahoo.
+  - FTM-USD has no verified replacement and stays stale.
+- **Deploy:** both runs were owner-approved and passed.
+  - [Run 36092375156](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/36092375156),
+    scoped: portfolio-service `--0000098`; market-data-service and insight-service `--0000081`,
+    which also updated the refresh job's image. It asserted that no other service changed.
+  - [Run 36092953727](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/36092953727),
+    frontend-only: the site now serves build `brJCAsidY8FAIgtIzNtSo`.
+- **Production data repair** (hash-pinned preview/apply scripts, each with a backup table and a
+  local copy; Fable-reviewed):
+  - **Seed rows removed:** 474 synthetic history rows written by the pre-`9e3737cc` seeder at
+    11 and 13 Aug for the demo account's tickers. Three M&M.NS rows were kept deliberately: they are
+    its only rows on those days, and the chart has no carry-forward.
+  - **Old-symbol history cleared:** the seven remapped tickers' history (810 rows) and their
+    insight-service observations. This ran behind an enforced Kafka-quiescence check.
+- **Verified live:** a refresh then updated 158 of 159 tickers; the skip was FTM-USD. The seven
+  show correct prices (for example UNI about $9.14, TON about $1.41, ARB about $0.22), with 24h
+  change "—" until a 24-hour reference exists. The chart has no spikes on 11, 13 or 15 Aug. The
+  AI Insights wording and chat label, and the USD Edit Holdings estimate, were checked signed in.
+- **Still open:**
+  - FTM-USD is stale.
+  - SHIB-USD shows 0.0000, because the price column is scale 4.
+  - Three unheld TATAMOTORS.NS seed rows remain.
+  - Historical provider quotes are not independently verified. For example, the chart's 20–21 Aug
+    rise is Bitcoin's stored price.
+
+**Rehearsal on the post-fix build, 2026-09-25 07:25–07:36Z (owner-approved; Claude operated, the
+owner signed in):** it completed with no stop rule triggered.
+- **Warm-up:** the default warm-up reached `GO` in about 3 minutes, and pages then loaded promptly.
+  Edit Holdings appeared 2.7–3.6 s after navigation.
+- **The edit:** one quantity change and one removal saved in 20.5 s. The Overview then showed exactly
+  the expected total.
+- **Chat:** one question was answered in 11.5 s.
+- **The restore:** it saved in 19.9 s. The account's 159 holdings were `IDENTICAL` to the verified
+  baseline; only the portfolio version changed.
+- **What the chat check proves:** the label names only the sentiment's source. It does not prove
+  that the reply text came from the language model.
+- **Cold starts:** a page load about 12 minutes after a short keep-alive waited about 60 s. The
+  operator script therefore keeps the default 45-minute keep-alive running throughout the demo.
+
 | Phase | Status now | Next exit action |
 |---|---|---|
 | 1 — Asset Picker delivery | **COMPLETE**, deployed and accepted in Production on 2026-09-20 | None; do not reopen for later-phase work |
 | 2 — UI and demo-critical fixes | **COMPLETE and serving as the B3 candidate**; exercised in Production by A4 run 3 | None |
 | 3 — Broad desktop Production E2E | **A4 SATISFIED by run 3 (`PASS_WITH_EXPECTED_DEFECTS`, Codex, 2026-09-24).** Runs 1 and 2 are FAIL history | None for the run itself; the findings go to Phase 4 |
-| 4 — Defect disposition | **Every A4 defect finding has a recorded decision; none is a demo blocker** (table below). None is fixed or closed | Record the limitations in the operator script (Phase 5) |
-| 5 — Documentation | **PARTIAL status filing only**; comprehensive pass not started | Record exact demo status, known limitations and operator steps; defer the larger rewrite |
-| 6 — Demo material | **DRAFT ONLY:** operator script drafted (local; the E2E-account revision is under review); **not rehearsed** | Finish review, then the one authorized rehearsal; slides/video are optional |
+| 4 — Defect disposition | **Every A4 defect finding has a recorded decision; none is a demo blocker** (table below). None is fixed or closed. **Rehearsal defects #2–#6 are fixed, deployed and verified live** (above), except FTM-USD | Record the limitations in the operator script (done, local) |
+| 5 — Documentation | **PARTIAL:** this status filing; the operator script records the limitations and steps locally | Publishing the operator script is a separate decision; defer the larger rewrite |
+| 6 — Demo material | **Operator script REHEARSED on the post-fix build** (2026-09-25, restored `IDENTICAL`; local, unpublished) | Run the demo with the script's warm-up; slides/video are optional |
 
 **Fast-track demo-ready exit (not a general-production or `1.0.0` claim):** Phases 1 and 2 are
 accepted; B3 proves that the D11 portfolio-service revision and the uploaded frontend build serve
@@ -464,6 +524,15 @@ Neither 2026-09-24 decision blocks A4 or requires a new run.
 reply cannot show whether it came from the language model or the service's deterministic fallback.
 The operator script carries this into its chat wording and fallback.
 
+**Rehearsal defects (separate from the A4 findings above):** the 2026-09-24 rehearsal's
+demo-visible defects #2–#6 were treated as demo blockers and fixed. See the dashboard's "Rehearsal
+defects #2–#6" section: PR #320, deployed 2026-09-25, Production data repaired and verified live.
+- **FTM-USD stays open:** it has no verified provider symbol, so it shows as stale.
+- **SHIB-USD's 0.0000 stays open.**
+- **Three unheld TATAMOTORS.NS seed rows remain.**
+
+These three are demo limitations in the operator script, not blockers.
+
 **Fast-track exit outcome:** no unresolved
 finding breaks the agreed live desktop demonstration. Repair demo blockers, and explicitly accept or
 defer non-blockers with an honest demo limitation. This is not a claim that every product defect has
@@ -497,7 +566,9 @@ documentation overhaul below is follow-on work, not a portfolio-demo gate.
   recorded in this plan (dashboard, Phase 3 and the Phase 4 table) and in the sanitized
   [A4 verdict record](../evidence/phase3-a4/A4_VERDICT_RECORD_runs-1-3.md). Every defect finding has a
   recorded decision (Phase 4); none is fixed or closed.
-- [ ] Keep a short operator script and evidence pointer for the final desktop demo.
+- [ ] Keep a short operator script and evidence pointer for the final desktop demo. **The script
+  exists and was rehearsed on the post-fix build (2026-09-25), but it and its evidence are local and
+  unpublished**; publishing them in this repository is a separate decision.
 
 **Full documentation backlog (not required for fast-track demo-ready):**
 
@@ -519,14 +590,21 @@ belongs here and must not delay Phase 1.
 
 ## Phase 6: Prepare demo material
 
-**Status:** Draft only. An operator script is drafted (local, unpublished); its E2E-account revision
-is under scoped Codex review, and **no rehearsal has run**. **Fast-track exit outcome:** rehearse a
+**Status:** The operator script (local, unpublished) was rehearsed twice on the E2E test account.
+- **2026-09-24, pre-fix build:** it completed, restored the account exactly, and surfaced defects
+  #2–#6.
+- **2026-09-25, post-fix build `brJCAsidY8FAIgtIzNtSo`:** it completed with no stop rule and
+  restored the account `IDENTICAL`.
+
+Slides and video are not started. **Fast-track exit outcome:** rehearse a
 short live desktop walkthrough
 against the final served build using non-sensitive data, with a fallback for chat/market-data
 unavailability. A slide deck and polished video are optional assets, not prerequisites to say the
 portfolio demo is ready.
 
 - [ ] Agree a short audience-specific narrative and rehearse it against the final served build.
+  **Rehearsed:** the operator script's walkthrough on build `brJCAsidY8FAIgtIzNtSo` (2026-09-25).
+  **Not done:** agreeing an audience-specific narrative.
 - [ ] Keep a small non-sensitive screenshot/evidence set and a fallback path.
 
 **Optional media backlog:**
