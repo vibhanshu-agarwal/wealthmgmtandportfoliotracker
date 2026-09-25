@@ -8,19 +8,30 @@
 
 **Filed and reconciled:** 2026-09-20
 
-**Latest reconciliation:** 2026-09-25 (post-#320 repair evidence and remaining demo gates; local
-Codex status draft, not yet published).
+**Latest reconciliation:** 2026-09-25 (post-#320 repair evidence, the post-fix rehearsal and the
+remaining gates; Codex status draft published as #321, with the rehearsal facts added by Claude).
 
 **Owner approval callout — next blocked actions:** A4 run 3 satisfied the pre-#320 Phase 3 gate on
 2026-09-24 as `PASS_WITH_EXPECTED_DEFECTS`; it does **not** certify the materially changed #320
-build. The plan's post-fix rule still calls for an uncontended full Production suite run, and the
-final operator-script revision still needs a rehearsal against that build. Each new live run needs a
-bounded owner authorization; saying **yes** allows only that named run, while saying **no** leaves
-the fast-track demo exit open. Merging [PR #319](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/319)
-is a separate owner decision; this local status update does not publish or merge it.
+build. The plan's post-fix rule still calls for an uncontended full Production suite run.
+**The revised operator script was rehearsed against the #320 build on 2026-09-25**, owner-approved.
+It restored the E2E account identical to its verified baseline, but it is a walkthrough, not the
+suite. Each new live run needs a bounded owner authorization; saying **yes** allows only that named run, while saying **no** leaves
+the fast-track demo exit open. This PR (#321) supersedes
+[PR #319](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/319); do not
+merge both. Merging #321 is a separate owner decision.
 
-The A4 test users have been deleted. The existing E2E account was restored after the 2026-09-24
-rehearsal. The private A4 `pw-output/` remains local pending the previously agreed after-demo
+**Required before the eventual project freeze (owner direction, 2026-09-25):**
+- the product roadmap;
+- operational runbooks;
+- a backlog audit;
+- the LinkedIn, resume, PPT and video package.
+
+Their content awaits the agreed brainstorming session and is **not yet drafted**. They are not
+fast-track demo blockers.
+
+The A4 test users have been deleted. The existing E2E account was restored after both the
+2026-09-24 and the 2026-09-25 rehearsals. The private A4 `pw-output/` remains local pending the previously agreed after-demo
 cleanup. Optional A5 Azure capture remains separate and does not gate the fast-track demo. This
 plan grants no new push, PR, merge, dispatch, live read, account creation, secret handling or
 Production mutation.
@@ -86,13 +97,15 @@ unchanged. Both runs were attempt 1 and passed. No A5 capture is recorded.
 | 2 — UI and demo-critical fixes | **COMPLETE at its accepted exit**; #320 later changed the serving build | Verify changed behavior in the post-fix gate below |
 | 3 — Broad desktop Production E2E | **A4 run 3 accepted on the old build** (`PASS_WITH_EXPECTED_DEFECTS`); runs 1-2 remain FAIL history. **Post-#320 full suite: OPEN** | Authorize and run one uncontended full suite on the final served build, per the plan's post-fix rule |
 | 4 — Defect disposition | **IN PROGRESS:** A4 decisions recorded; #320 repairs deployed and targeted checks performed. Some observations remain partial or unverified (below) | Close only proven repair outcomes; retain limitations and complete post-fix suite |
-| 5 — Documentation | **IN PROGRESS:** #319 contains the A4 record/plan draft; this post-repair status update is local only. Full documentation pass deferred | Review and publish the current status, update the operator script for #320; merge needs separate approval |
-| 6 — Demo material | **PARTIAL:** one pre-#320 rehearsal completed with exact account restoration; the revised script and new build are not rehearsed together | Rehearse the revised walkthrough against the final build, verify restoration and fallback |
+| 5 — Documentation | **IN PROGRESS:** #321 carries the A4 record and this status (it supersedes #319). The operator script was revised for #320 and rehearsed; it is local, and its Codex review is pending. The roadmap, runbooks and backlog audit are required before project freeze and not yet drafted | Review and merge #321 (separate approval); the freeze documents wait for the brainstorming session |
+| 6 — Demo material | **Post-fix rehearsal COMPLETE (2026-09-25):** the revised script on the #320 build; the E2E account was restored identical to its verified baseline. The LinkedIn, resume, PPT and video package is required before project freeze and not yet drafted | Run the demo with the script's warm-up; media content waits for the brainstorming session |
 
-**Not end-to-end complete:** targeted repair validation and a controlled warm page load are not a
-post-#320 full multi-user suite or a final integrated demo rehearsal. The fast-track exit remains
-**OPEN**. The broader original package (full documentation, optional media and A5) is separately
-incomplete and does not silently become a fast-track blocker.
+**Not end-to-end complete:** targeted repair validation, a controlled warm page load and the
+post-fix rehearsal are not a post-#320 full multi-user suite. The fast-track exit remains **OPEN**
+until that suite runs.
+
+**Freeze package, separately incomplete:** the product roadmap, operational runbooks, a backlog audit, and the LinkedIn, resume, PPT and video package are required before project freeze (owner
+direction). They are not fast-track demo blockers. A5 remains optional.
 
 **Post-#320 evidence snapshot (2026-09-25):** #320 merged at `db51cf5b`; scoped backend deploy
 [36092375156](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/36092375156)
@@ -105,8 +118,23 @@ showed the corrected AI copy, INR-to-USD edit estimates and absence of the 11/13
 spikes. `FTM-USD` remains stale; 24-hour portfolio coverage was partial (151/159). A controlled
 warm page load showed Edit Holdings after 2.7 s, but the warm-up has ended and must be rerun before
 a demo. The signed-in spot checks did not save a holding or prove the chat's model-versus-fallback
-path. The detailed deploy/repair evidence remains in the private local evidence folder and has
-not been added to #319.
+path. The detailed deploy/repair evidence remains in the private local evidence folder.
+
+**Post-fix rehearsal (2026-09-25, 07:25–07:36Z; owner-approved; Claude operated, the owner signed
+in):** it ran on served build `brJCAsidY8FAIgtIzNtSo` with the revised operator script.
+- **Warm-up:** the default warm-up reached `GO` in about 3 minutes, and a 45-minute keep-alive
+  followed.
+- **Baseline:** 1 portfolio, 159 holdings with 159 distinct tickers, exact quantities, version 4.
+  The saved snapshot verified against the API digest.
+- **The edit:** one quantity change and one removal, saved with "Holdings saved." in 20.5 s. The
+  Overview then showed exactly the arithmetically expected total.
+- **AI Insights:** the cards read "Change over last 10 prices". One chat question was answered in
+  11.5 s with the scoped source label; that does not prove whether the model or the fallback wrote it.
+- **The restore:** re-add and revert, saved in 19.9 s. The after-snapshot was **`IDENTICAL`** to the
+  baseline; only the version changed, 4 → 6. Codex independently confirmed that the two local
+  holdings files are byte-identical, 159 lines each.
+- **Stop rules and sign-out:** no stop rule was triggered, and the session signed out.
+- **Not covered:** the rehearsal did not compare a currency-pair dialog with the table (#4).
 
 **Fast-track demo-ready exit (not a general-production or `1.0.0` claim):** Phases 1 and 2 are
 accepted; B3 proves that the D11 portfolio-service revision and the uploaded frontend build serve
@@ -114,8 +142,9 @@ traffic; the owner-operated Phase 3 desktop suite completes once uncontended wit
 uncollected scenario counted as a pass; Production state is restored or its retained state recorded;
 and no unresolved finding blocks the agreed live demo. A verdict with expected defects must name
 them and be accepted explicitly, not be relabeled PASS. Record accepted non-blocking findings and a
-short operator script. Full Phase 5 documentation, polished slides/video and an independent A5
-before/after Azure attestation are **not** fast-track demo blockers. The B3 run-bound revision/digest
+short operator script. Full Phase 5 documentation, the freeze package (the product roadmap, operational runbooks, a backlog audit, and the LinkedIn, resume, PPT and video package) and an
+independent A5 before/after Azure attestation are **not** fast-track demo blockers. The freeze
+package is still required before project freeze. The B3 run-bound revision/digest
 proof supplies the serving identity needed for this narrower exit. A5 remains available as optional
 corroboration under its own approval; it is not silently marked complete.
 
@@ -228,7 +257,7 @@ or D11 response-content evidence; A4 run 3 subsequently exercised those behavior
 
 The accepted 320px/375px overflows remain open backlog. Task 7 is complete. A4 run 3 met the
 pre-#320 Phase 3 exit; #320 and the subsequent data repairs changed the candidate, so the
-post-fix suite and final rehearsal remain open. A5 is optional independent attestation.
+post-fix suite remains open; the final-build rehearsal ran on 2026-09-25. A5 is optional independent attestation.
 
 ### Immediate fast-track sequence
 
@@ -255,20 +284,23 @@ post-fix suite and final rehearsal remain open. A5 is optional independent attes
 3. **#320 repair batch — DEPLOYED, target checks PARTIAL.** The seven symbol remaps, historical
    price repair and targeted signed-in checks are recorded below. Do not promote those spot checks
    into full multi-user certification; unresolved and untested findings retain their labels.
-4. **Post-fix gate — OPEN.** Review the final operator script against the #320 build, then (under
-   separately bounded live approvals) run one uncontended full suite and rehearse the short desktop
-   walkthrough against that final build. Verify the demo account's exact restoration. Keep a chat
-   fallback, known limitations and warm-up/keep-alive in the script. Slides, video, a full
-   architecture rewrite and `1.0.0` can follow after the demo.
+4. **Post-fix gate — OPEN for the suite; the rehearsal is done.**
+   - **Rehearsal, COMPLETE:** the revised operator script was rehearsed against the #320 build
+     on 2026-09-25 and restored the E2E account exactly (dashboard).
+   - **Still open:** one uncontended full suite, under a separately bounded live approval.
+   - **Keep in the script:** the chat fallback, the known limitations and the warm-up/keep-alive.
+   - **After the demo:** the product roadmap, operational runbooks, a backlog audit, and the LinkedIn, resume, PPT and video package are required before project freeze. Their content waits for
+     the brainstorming session. A full architecture rewrite and `1.0.0` can follow after the demo.
 
 ## Owner approval callouts
 
 The owner separately authorized the completed Phase 1/2 work, B3, A4 and its cleanup, the
-2026-09-24 rehearsal, and the #320 deployment and bounded repair/validation actions recorded above.
+2026-09-24 and 2026-09-25 rehearsals, and the #320 deployment and bounded repair/validation actions recorded above.
 Those authorizations are consumed. They do not automatically authorize a new suite, rehearsal,
 account creation, production/cloud access, future deployment, ruleset change, publication or merge.
-The next live suite and rehearsal require fresh, named bounds. #319 publication occurred, but its
-merge requires a separate owner decision. A5 remains optional and requires approval if performed.
+The next live suite, and any further rehearsal, require fresh, named bounds.
+- **#319** is published but superseded by #321. Do not merge both.
+- **#321's merge** requires a separate owner decision. A5 remains optional and requires approval if performed.
 
 ## Global constraints
 
@@ -472,13 +504,13 @@ Neither 2026-09-24 decision blocks A4 or requires a new run.
 
 | Finding | Status | Still needed for closure/demo |
 |---|---|---|
-| #1 Slow saves (21.8 s and 20–38 s) | Not repaired; presenter pacing/"Saving…" is a known limitation | Carry the wait and no-double-submit instruction in the final script; observe it in the final rehearsal |
+| #1 Slow saves (21.8 s and 20–38 s) | Not repaired; presenter pacing/"Saving…" is a known limitation. Observed in the post-fix rehearsal: 20.5 s (edit) and 19.9 s (restore) | Keep the wait and no-double-submit instruction in the script |
 | #2 Stale/incorrect crypto quotes | Seven symbol transitions deployed; old-series repair verified; refresh updated 158/159 holdings. `FTM-USD` still stale | Treat FTM and partial 24-hour coverage as explicit limitations; do not call all prices fresh |
 | #3 INR stock prices labeled as USD / edit estimate | INR-to-USD edit estimates spot-checked for M&M.NS and ADANIPORTS.NS after #320 | Recheck representative table labels and values in the final walkthrough; spot checks are not a complete currency matrix |
 | #4 Currency-pair estimate/table mismatch | #320 code deployed; no direct post-deploy USD/JPY dialog-versus-table comparison recorded in the 2026-09-25 spot-check log | Targeted comparison and full-suite coverage remain open |
 | #5 AI cards/chat disagree | New "last 10 prices" card wording and chat source label observed; one chat response was received | The response path (model vs fallback) and complete semantic agreement were not proven; preserve the fallback/limitation |
 | #6 August chart spikes | Historical seed-row repair verified; signed-in chart no longer showed the 11/13/15 August spikes | Keep 3 M&M.NS and 3 unheld TATAMOTORS.NS seed rows recorded as intentional exceptions; verify the final walkthrough's chart |
-| #7 Browser pane narrowed during restore | Tooling/pane issue in the first rehearsal, not a demonstrated application defect | Use a stable desktop viewport and prove exact restore in the final rehearsal |
+| #7 Browser pane narrowed during restore | Tooling/pane issue in the first rehearsal, not a demonstrated application defect. In the post-fix rehearsal, clicks used element references and the restore was `IDENTICAL` | None beyond the script's pane-size note |
 
 The 20–21 August chart rises were attributed in read-only data checks largely to stored BTC-USD
 price changes, with one refresh row per ticker per day; this explains the chart arithmetic, not
@@ -501,8 +533,9 @@ been fixed or that the product is generally Production-certified.
   other accepted limitations honestly rather than marking them fixed.
 - [ ] Rerun affected scenarios and the full Production suite uncontended after the material #320
   code changes. The old-build A4 run and post-deploy spot checks do not satisfy this rule.
-- [ ] Rehearse on the final served build with exact account restoration and record the final
-  artifact identity and outcome.
+- [x] Rehearse on the final served build with exact account restoration and record the final
+  artifact identity and outcome: 2026-09-25, served build `brJCAsidY8FAIgtIzNtSo`, restore
+  `IDENTICAL` (dashboard).
 
 The earlier "no code change needed" exception no longer applies: #320 made material changes after
 the accepted A4 run. A4's historical verdict remains accepted for its own candidate.
@@ -515,9 +548,9 @@ limitation and, where relevant, a test expectation that does not claim the defec
 
 ## Phase 5: Reconcile documentation
 
-**Status:** In progress. #319 opened with the A4 verdict and an earlier plan draft; this local
-2026-09-25 reconciliation is not in that PR or on `main`. The operator script is still a private
-draft and still describes the pre-#320 candidate. **Fast-track exit outcome:** publish truthful
+**Status:** In progress. #321 carries the A4 verdict and this 2026-09-25 reconciliation; it
+supersedes #319. The operator script was revised for the #320 build and rehearsed on 2026-09-25.
+It is still a private local draft, and its Codex review is pending. **Fast-track exit outcome:** publish truthful
 current status/limitations and a reviewed, reproducible short operator flow. The full repository
 documentation overhaul below is follow-on work, not a portfolio-demo gate.
 
@@ -526,10 +559,18 @@ documentation overhaul below is follow-on work, not a portfolio-demo gate.
   recorded in the #319 draft of this plan and the sanitized
   [A4 verdict record](../evidence/phase3-a4/A4_VERDICT_RECORD_runs-1-3.md). Every A4 defect finding
   has a recorded decision; this does not close later rehearsal findings.
-- [ ] Integrate this 2026-09-25 status update into the publication path after review. #319's
-  existing text predates #320 and must not be merged unchanged as the final status dashboard.
+- [ ] Integrate this 2026-09-25 status update into the publication path after review. It is in
+  #321, and #321's merge is a separate owner decision. #319 is superseded; do not merge both.
 - [ ] Revise and review the short operator script for the current build, evidence location,
-  remaining limitations and exact-restore flow; keep it available to the demo operator.
+  remaining limitations and exact-restore flow; keep it available to the demo operator. **Revised
+  and rehearsed 2026-09-25; the review is pending.**
+
+**Required before project freeze (owner direction, 2026-09-25); content awaits the agreed
+brainstorming session, not yet drafted:**
+
+- [ ] Product roadmap.
+- [ ] Operational runbooks.
+- [ ] Backlog audit.
 
 **Full documentation backlog (not required for fast-track demo-ready):**
 
@@ -551,23 +592,38 @@ belongs here and must not delay Phase 1.
 
 ## Phase 6: Prepare demo material
 
-**Status:** Partially rehearsed, not closed. One Claude-operated rehearsal ran on 2026-09-24 against
-the pre-#320 build: the owner signed in, the edit/save/readback/chat/restore journey completed,
+**Status:** The walkthrough was rehearsed on the final build; the freeze package is not started.
+
+The first Claude-operated rehearsal ran on 2026-09-24 against the pre-#320 build: the owner signed in, the edit/save/readback/chat/restore journey completed,
 all 159 tickers and quantities matched the baseline digest after restore, and the session signed
 out. That rehearsal found #1–#7 above. The revised script's full baseline snapshot and pane-size
 instructions were not rehearsed; #320 was deployed later. The 2026-09-25 signed-in spot checks and
-warm-load comparison were **not** a second end-to-end rehearsal. **Fast-track exit outcome:** a
+warm-load comparison were not a rehearsal.
+
+**The second rehearsal, on the #320 build (2026-09-25), was end-to-end:** it used the revised script
+and ended with an `IDENTICAL` restore (dashboard). **Fast-track exit outcome:** a
 short walkthrough against the final served build, with exact restoration and a fallback for
-chat/market-data unavailability. Slides and polished video are optional.
+chat/market-data unavailability. The LinkedIn, resume, PPT and video package is required before
+project freeze, not before the demo.
 
 - [x] Draft the short desktop narrative and rehearse the older build once, restoring the E2E
   account exactly (2026-09-24; historical evidence, not final-build credit).
-- [ ] Update the operator script to the #320 build, including warm-up/keep-alive, slow-save
-  presenter pacing, FTM/partial coverage, chat fallback and stable desktop viewport.
-- [ ] Rehearse the revised script against the final served build and verify the full baseline is
-  restored after the reversible edit. Record the outcome and non-sensitive evidence pointers.
+- [x] Update the operator script to the #320 build, including warm-up/keep-alive, slow-save
+  presenter pacing, FTM/partial coverage, chat fallback and stable desktop viewport (2026-09-25;
+  local, review pending).
+- [x] Rehearse the revised script against the final served build and verify the full baseline is
+  restored after the reversible edit. Record the outcome and non-sensitive evidence pointers
+  (2026-09-25; restore `IDENTICAL`; the evidence is local).
 
-**Optional media backlog:**
+**Media and career package: required before project freeze (owner direction, 2026-09-25).** Its
+content awaits the agreed brainstorming session and is not yet drafted.
+
+- [ ] LinkedIn material.
+- [ ] Resume material.
+- [ ] PPT deck.
+- [ ] Video.
+
+**Media production steps:**
 
 - [ ] Agree the audience, duration, narrative, and live-demo versus recorded-demo balance.
 - [ ] Build the slide deck from the accepted architecture and E2E evidence.
@@ -584,8 +640,8 @@ chat/market-data unavailability. Slides and polished video are optional.
 - **Asset Picker delivered:** Phase 1 complete — achieved 2026-09-20.
 - **Fast-track portfolio demo ready:** **not yet evidenced on the final #320 build**. Phases 1-2
   are accepted, B3 and A4 certify the older candidate, and targeted post-#320 checks have passed
-  or exposed the explicit gaps above. The post-fix full suite, final operator-script reconciliation
-  and final-build rehearsal/restoration are still open. This narrower exit does not imply A5,
+  or exposed the explicit gaps above. The final-build rehearsal and restoration are done (2026-09-25).
+  The post-fix full suite and the operator script's review are still open. This narrower exit does not imply A5,
   exhaustive backlog closure, polished media or `1.0.0`.
-- **Full original package:** complete the deferred Phase 5 documentation and optional Phase 6
-  media if the portfolio needs them; do not mislabel those unchecked follow-ons as completed.
+- **Project freeze:** the product roadmap, operational runbooks, a backlog audit, and the LinkedIn, resume, PPT and video package are required first (owner direction, 2026-09-25). Their content
+  awaits the brainstorming session. Do not mislabel those unchecked items as completed.
