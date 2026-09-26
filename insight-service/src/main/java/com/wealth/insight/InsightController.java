@@ -13,13 +13,18 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.wealth.insight.advisor.AdvisorUnavailableException;
-import com.wealth.insight.advisor.AnalysisResult;
 import com.wealth.insight.catalog.CatalogEntry;
 import com.wealth.insight.catalog.TickerCatalogService;
 import com.wealth.insight.dto.TickerSummary;
 
 /**
- * REST controller for AI-powered portfolio analysis and market summaries.
+ * REST controller for market summaries and per-ticker AI sentiment.
+ *
+ * <p>It deliberately has no portfolio-analysis route. The removed
+ * {@code GET /api/insights/{userId}/analyze} took its target user from the path and forwarded it to
+ * portfolio-service, so any signed-in caller could read another user's analysis.
+ * {@code AdvisorAnalyzeRemovalIT} pins that no insights route takes a user from the path or holds
+ * {@link InsightService}.
  */
 @RestController
 @RequestMapping("/api/insights")
@@ -27,16 +32,13 @@ public class InsightController {
 
     private static final Logger log = LoggerFactory.getLogger(InsightController.class);
 
-    private final InsightService insightService;
     private final MarketDataService marketDataService;
     private final AiInsightService aiInsightService;
     private final TickerCatalogService catalog;
 
-    public InsightController(InsightService insightService,
-                             MarketDataService marketDataService,
+    public InsightController(MarketDataService marketDataService,
                              AiInsightService aiInsightService,
                              TickerCatalogService catalog) {
-        this.insightService = insightService;
         this.marketDataService = marketDataService;
         this.aiInsightService = aiInsightService;
         this.catalog = catalog;
@@ -50,11 +52,6 @@ public class InsightController {
     @GetMapping("/health")
     public ResponseEntity<Map<String, String>> health() {
         return ResponseEntity.ok(Map.of("status", "UP", "service", "insight-service"));
-    }
-
-    @GetMapping("/{userId}/analyze")
-    public ResponseEntity<AnalysisResult> analyzePortfolio(@PathVariable String userId) {
-        return ResponseEntity.ok(insightService.analyzePortfolio(userId));
     }
 
     /**
