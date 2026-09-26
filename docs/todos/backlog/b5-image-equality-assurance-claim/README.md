@@ -11,6 +11,12 @@
 
 ## What is wrong
 
+**Audit (2026-09-26 UTC):** retain OPEN. The Container App module still ignores image changes,
+while `infrastructure/terraform/azure/scripts/assert_spec_a_9_14_plan.py` still describes
+plan-image equality as byte-for-byte unchanged. Its synthetic-plan mutation test does not prove
+that Terraform can detect deployed-image drift. Reframing/annotation and the sibling assurance
+audit below remain outstanding; the accepted historical checkpoint outcome is not reopened.
+
 The Spec A 9.14 acceptance contract states:
 
 > **B5** — Gateway image is byte-for-byte unchanged

@@ -8,6 +8,11 @@
 
 ## Background
 
+**Backlog audit (2026-09-26 UTC):** `mocked-chaos.spec.ts` still quarantines this case
+with `test.skip`. The size-25 `Promise.allSettled` batching and no-retry-on-429 policy remain;
+the controlled-fixture UI/error-boundary replacement below has not been delivered. Unit
+coverage and the successful demo suite do not close the missing concurrent-429 E2E coverage.
+
 `frontend/tests/e2e/mocked-chaos.spec.ts`'s "429 Too Many Requests handles
 exponential backoff and limits retries" test was quarantined (`test.skip`) in
 the `mocked-chaos-assertion-and-sanitizer-font-gap` bugfix (Track B). Its

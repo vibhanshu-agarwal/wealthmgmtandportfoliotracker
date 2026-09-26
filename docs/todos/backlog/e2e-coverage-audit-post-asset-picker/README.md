@@ -1,12 +1,25 @@
 # Backlog: Full E2E Coverage Audit After Asset Picker and Profile Changes
 
-**Status:** Open — 2026-08-19. Deliberately gated; not to be started yet.
+**Status:** Open — comprehensive cross-suite coverage audit not completed; audited 2026-09-26 UTC.
 **Owner:** unassigned
 **Tracked in:** [Changelog — Spec A supported-asset-integrity](../../../changes/CHANGES_SUPPORTED_ASSET_INTEGRITY_2026-08-19.md)
 
 ---
 
-## Status & Decision
+## Current disposition — 2026-09-26 UTC
+
+Asset Picker delivery and the accepted post-#320 multi-user suite are recorded in the
+[demo preparation plan](../../../plans/ASSET_PICKER_DEMO_PREPARATION_PLAN.md). They are inputs
+to this follow-on audit, not its completion. Before implementing the full cross-suite audit,
+reconcile any separate Profile-change scope. This documentation status review does not authorize
+live testing or code changes.
+
+The current Azure smoke still names a scale-from-zero check after setup prewarming;
+`synthetic-monitoring.yml` still sets Azure `SKIP_BACKEND_HEALTH_CHECK=true`, and the mocked
+429 E2E test remains skipped. Collection/exclusion review, assertion-vacuity analysis and the
+full acceptance matrix below remain open. This audit did not execute live or frontend tests.
+
+## Historical status & decision
 
 **Open and intentionally deferred.** The trigger is completion of the **Asset Picker**
 (Spec B1 `portfolio-composition-contract` + Spec B2 `asset-picker-composition`) and the
@@ -139,10 +152,11 @@ that cannot pass vacuously is worth more than a larger one that can.
 - [`demo-portfolio-and-ticker-integrity`](../demo-portfolio-and-ticker-integrity/README.md) — the
   data-integrity backlog that became Spec A.
 - [`total-value-e2e-hydration`](../total-value-e2e-hydration/README.md) and
-  [`total-value-skeleton-e2e`](../total-value-skeleton-e2e/README.md) — existing E2E gaps that
-  this audit should absorb rather than duplicate.
-- Spec A Requirement 8.9 remains unsatisfied: catalog version has no HTTP surface
-  (`/actuator/info` returns `200` with body `{}`), so cross-service catalog identity is verified
-  only at cutover checkpoint 9.9 by startup log. If the audit wants that assertable from a live
-  test, an `InfoContributor` on each catalog consumer plus gateway routes to per-service
-  actuators is the prerequisite.
+  [`total-value-skeleton-e2e`](../total-value-skeleton-e2e/README.md) — historical E2E incidents that
+  this audit should use as historical context rather than reopen or duplicate. Those two
+  missing-bundle incidents are closed, not current E2E gaps.
+- **Historical 2026-08-19 note, not reverified here:** Spec A Requirement 8.9 was recorded as
+  unsatisfied when `/actuator/info` returned `{}` and cutover identity used startup logs.
+  Current portfolio `AssetCatalogController` exposes a catalog version through the assets API;
+  that alone does not prove cross-service catalog identity. Reassess each consumer's present
+  contract/HTTP surface before proposing an `InfoContributor` or any new management route.

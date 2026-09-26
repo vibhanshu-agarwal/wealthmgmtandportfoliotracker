@@ -9,6 +9,12 @@ foundation at local candidate `19fb82d5`.
 
 ## Problem
 
+**Audit (2026-09-26 UTC):** still OPEN. `_UNIVERSAL_ROOTS` and all four policy-envelope
+root/membership sets still omit `VERSION`, although root Gradle and service Dockerfiles consume it.
+A read-only in-memory check confirmed that changing only `VERSION` leaves the derived envelope
+digests unchanged. This is not repaired by the historical GC.5 queue closure. The sequencing
+and independently reviewed re-attestation below remain mandatory.
+
 The SemVer foundation makes root `VERSION` an input to the root Gradle build. That value becomes the
 Gradle project version and is written into packaged JAR metadata. Every Gradle-building Docker
 context also copies the file.

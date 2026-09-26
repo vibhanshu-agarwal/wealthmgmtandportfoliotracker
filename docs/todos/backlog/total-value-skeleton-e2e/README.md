@@ -1,6 +1,6 @@
 # Backlog: `total-value` E2E Test Stuck in Skeleton State
 
-**Status:** ✅ Closed (2026-04-11)  
+**Status:** Closed — fixed (2026-04-11); revalidated 2026-09-26 UTC.
 **Priority:** Medium  
 **Area:** Frontend — Auth / TanStack Query / NextAuth  
 **Spec:** `.kiro/specs/backend-remediation-e2e/`  
@@ -9,7 +9,16 @@
 
 ---
 
-## Summary
+## Audit evidence — 2026-09-26 UTC
+
+Fixing commit `c6fd840892f4072cf0d7e64446d2ebd36ff3f475` records the asset-copy
+repair and closure of both total-value items. The later static-export frontend retired the
+standalone serving path; do not implement the obsolete NextAuth/skeleton proposals below.
+Current valuation/failure-mode coverage is part of the
+[open E2E coverage audit](../e2e-coverage-audit-post-asset-picker/README.md), not this fixed
+missing-bundle incident. No current browser or frontend suite was rerun for this audit.
+
+## Historical summary
 
 The Playwright E2E test for `[data-testid="total-value"]` times out with "element(s) not found"
 because the `SummaryCards` component stays in skeleton state indefinitely. The backend is

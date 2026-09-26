@@ -1,6 +1,6 @@
 # Backlog: Playwright artifact sanitizer — temp-dir cleanup races the recursive nested-zip scan
 
-**Status:** Fixed — 2026-08-23, commit `7f421e8`
+**Status:** Closed — fixed (2026-08-23, commit `7f421e8`); revalidated 2026-09-26 UTC.
 **Owner:** unassigned
 **Tracked in:** Found investigating `sanitizer-canary`'s `FAILURE` on
 [PR #136](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/136) (checkpoint
@@ -71,9 +71,11 @@ timing basis unrelated to the actual content being scanned.
 Line 457: `return await structuredScan(tmpFile, { sentinels, depth: depth + 1, budget });` — await
 the recursive call so `finally`'s cleanup only runs after it has fully read `tmpFile`, not during.
 Committed directly to the checkpoint-9.7 PR branch to unblock its required `sanitizer-canary`
-check, since the underlying repair-Job payload never touched this file. Not yet merged to `main`
-independently of that PR — worth confirming after PR #136 lands that this fix is actually on
-`main`, not just carried along on a branch that could still be reworked.
+check, since the underlying repair-Job payload never touched this file. The 2026-09-26 audit
+confirmed `7f421e88a8179620ad78691a5e3263fe1d5e604c` is an ancestor of `main@d515aa5b`.
+The recursive `return await structuredScan(...)` and nested-zip fail-closed regression remain
+present. The old "not yet merged" warning is obsolete. No sanitizer runtime suite was rerun
+in this audit; closure uses the merged correction, present regression and recorded validation.
 
 ## Notes
 

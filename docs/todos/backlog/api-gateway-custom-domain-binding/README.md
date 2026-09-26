@@ -1,6 +1,6 @@
 # Backlog: API Gateway custom-domain binding recovery
 
-**Status:** Open for separate backlog disposition — hostname restored 2026-08-31; evidence reviewed/merged via PR #194 (`main@98371587`); three-caller run [33411410271](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33411410271) succeeded and its evidence merged via PR #197; B1 Task 5.7 / G5 closed by owner decision on 2026-09-02. No unresolved G5 blocker is claimed here.
+**Status:** Closed — fixed; backlog disposition recorded under the owner's audit instruction on 2026-09-26 UTC. Hostname recovery was reviewed/merged via PR #194 (`main@98371587`); three-caller run [33411410271](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/33411410271) succeeded and its evidence merged via PR #197; B1 Task 5.7 / G5 closed separately on 2026-09-02.
 **Owner:** unassigned
 **Blocks:** None for B1 Task 5.7 / G5; that gate is closed
 **Tracked in:** Surfaced by the Spec A 9.14 live read-back
@@ -14,8 +14,8 @@ Pre-existing; not caused by 9.14.
 
 > **Historical incident; resolved in live state.** This section records the condition found before
 > the guarded restore. The owner closed B1 Task 5.7 / G5 on 2026-09-02 using the reviewed
-> three-caller evidence. This backlog's separately reserved closure has not been recorded;
-> its open status no longer represents a G5 blocker.
+> three-caller evidence. The 2026-09-26 backlog audit now records the reserved closure using
+> those accepted records; it makes no new live reachability assertion.
 
 At discovery, checkpoint 9.14 had reopened external ingress on `api-gateway`, and the **default
 ACA endpoint** `api-gateway.lemonmoss-ecef29d7.centralindia.azurecontainerapps.io` served healthy
@@ -63,8 +63,11 @@ the bind, but an independent read-back immediately afterward confirmed both defa
 health endpoints at HTTP `200`, unchanged gateway revision/ingress, the exact `SniEnabled` hostname,
 and the expected managed certificate. The execution record and scope are retained in the runbook.
 
-**G5 is now closed** by the owner's 2026-09-02 decision. This item retains its existing separate
-backlog-closure decision; its open status does not invalidate G5 or claim a current binding fault.
+**G5 is closed** by the owner's 2026-09-02 decision. This backlog is now also closed under the
+owner's 2026-09-26 audit instruction: "Check which ones are fixed and mark them complete/closed."
+This supplies the previously reserved backlog-closure authority; it is separate from the earlier
+G5 decision and makes no new live-state claim. Both closures preserve the failed immediate
+health observation and later successful independent read-back; neither authorizes new cloud work.
 
 ## Authorized three-caller synthetic (executed live; docs source-only)
 
@@ -86,23 +89,23 @@ distinct from the later successful holdings-only seed and Playwright suite. Full
 
 **Executed live evidence** is the workflow run above. Documentation PRs that record it are
 **source-only**. PR #197 did not itself check Task 5.7; the owner's later G5 close-out did.
-That decision satisfies Wave 6's G5 prerequisite and does not close this backlog, authorize an
-R-B3 deployment, or activate public `PUT`.
+That historical decision satisfied Wave 6's G5 prerequisite; the backlog disposition was recorded
+later on 2026-09-26. Neither decision authorizes a new deployment or activates public `PUT`.
 
 ## Why it matters
 
 `api.vibhanshu-ai-portfolio.dev` is the configured endpoint for the frontend and the synthetic
 workflows (`NEXT_PUBLIC_API_BASE_URL` in `.github/workflows/synthetic-monitoring.yml`). The restored
 endpoint served the authorized three-caller synthetic. Its evidence was reviewed and merged,
-and Task 5.7 / G5 closed under the owner's 2026-09-02 decision. This backlog remains separately
-open for disposition; no new live reachability observation is made here.
+and Task 5.7 / G5 closed under the owner's 2026-09-02 decision. The backlog disposition is now
+closed; no new live reachability observation is made here.
 
 Unattended synthetics remain suspended in `synthetic-monitoring.yml`.
 
-## What remains
+## Closure and retained operating caution
 
-1. Record the separately reserved disposition of this backlog using the recovery and G5 evidence.
-   The G5 prerequisite itself is complete; no additional synthetic is required by this item.
+1. The separately reserved disposition is now recorded using the recovery and G5 evidence.
+   No additional synthetic is required by this item.
 2. Preserve the historical failed apply-time health observation and later independent `200`
    read-back. G5 closure does not authorize R-B3 deployment, public `PUT`, or further cloud work.
 
@@ -111,8 +114,8 @@ Before any future ingress close (`spec-a-9.14-close-ingress`), run
 
 ## Non-claims
 
-- This cross-reference update does **not** close the backlog or authorize Wave 6 implementation,
-  R-B3 deployment, public `PUT`, ingress closure, hostname removal, or another Terraform operation.
+- This audit closes the fixed backlog using accepted historical evidence; it does **not** authorize
+  implementation, deployment, public `PUT`, ingress closure, hostname removal or another Terraform operation.
 - B1 Task 5.7 is checked under its own owner decision; Writer_Convergence is not achieved.
 - Does **not** assert the binding was ever present before checkpoint 9.5; the Resource Graph record
   documents the binding loss at that checkpoint.

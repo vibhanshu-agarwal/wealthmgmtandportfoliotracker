@@ -1,7 +1,6 @@
 # Backlog: Complete B1 GC.5 Governance Review After Asset Picker Production E2E
 
-**Status:** Completed locally on 2026-09-08 at Task 6 / Checkpoint D; publication and Task 7 remain
-separately gated.
+**Status:** Closed — completed historical GC.5 review queue; audited 2026-09-26 UTC.
 **Trigger:** Asset Picker functional E2E and Production E2E evidence are complete and accepted.
 **Priority:** Resume after that trigger, alongside the other selected backlog items.
 **Decision owners:** B1 governance/release owner, affected service owners, database/security
@@ -9,7 +8,22 @@ owner, and build/release architect.
 **Source baseline:** B1 base `95fcb68dc7a47f99465354ec6d7b84137851389d`; source cut
 `f17c90294fe181956bfc8b31d91dec3d04dd122a`.
 
-## Status and sequencing decision
+## Closure evidence — 2026-09-26 UTC
+
+Commit `07b2864a3624c1efcc6df125029b951c14d9f53c` closed the Task 6 review queue.
+The published [candidate checkpoint](../../../evidence/b1-r-c/candidate-evidence-checkpoint-20260908.json)
+records `sourceGovernanceStatus=PASS`, zero findings and zero unverified coverage for the bound
+release cut `8f1e8a36`. The B1 task ledger records publication through PRs #235/#236; the
+[E2E master plan](../../../plans/ASSET_PICKER_E2E_MASTER_PLAN.md) records later Task 7
+serving/GO milestones. "Publication and Task 7 remain gated" below is historical sequencing,
+not a current instruction to redo Task 6 or an assertion that Task 7 never ran.
+
+Closure is specific to that reviewed source cut. It is **not** a fresh source-governance PASS
+for `main@d515aa5b` or a waiver for future source/envelope changes. The
+[VERSION-root omission](../b1-candidate-envelope-product-version-root/README.md) remains open
+before any new version change or candidate-envelope attestation.
+
+## Historical status and sequencing decision
 
 The immediate product priority is to complete the Asset Picker user journey and establish its
 functional and Production E2E evidence. The GC.5 source-governance queue is deliberately parked

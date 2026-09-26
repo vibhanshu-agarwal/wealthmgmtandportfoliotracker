@@ -10,6 +10,12 @@ not caused by 9.14, which changed ingress only.
 
 ## What is wrong
 
+**Audit (2026-09-26 UTC):** retain OPEN. Terraform still sets `SERVICE_VERSION` from declared
+tags; the image is lifecycle-ignored and `deploy-azure.yml` updates it independently without
+reconciling that label. Product SemVer and exact-digest serving proofs do not repair this ownership
+split. The concrete tag pairs below are historical, not a current cloud inventory. Define the
+label invariant, then separately authorize any live reconciliation/read-back and guard change.
+
 Two of four services advertise a `SERVICE_VERSION` that is not the image they are running:
 
 | Service | `SERVICE_VERSION` env | Running image tag | |

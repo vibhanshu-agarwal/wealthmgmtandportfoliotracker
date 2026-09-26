@@ -1,7 +1,7 @@
 # E2E Remediation Round 2 — Better Auth Login Hydration + Redis
 
 **Date:** 2026-04-11
-**Status:** Superseded — no longer applicable (2026-08-13). Better Auth was retired in PR #85; see the "Superseded" section in this directory's `README.md`. Retained as a historical record.
+**Status:** Closed — superseded/no longer applicable (2026-08-13); revalidated 2026-09-26 UTC. Better Auth was retired in PR #85; see the "Superseded" section in this directory's `README.md`. Retained as a historical record, not a second open task.
 **Progress (historical):** 6/9 passing (up from 3/9)
 
 ---

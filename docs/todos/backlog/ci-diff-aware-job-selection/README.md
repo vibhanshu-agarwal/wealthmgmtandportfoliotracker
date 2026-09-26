@@ -1,6 +1,6 @@
 # Backlog: Extend diff-aware CI selection beyond docs-only changes
 
-**Status:** Deferred pending the DAG de-serialization decision
+**Status:** Open — deferred broader selection; DAG mechanism merged but acceptance evidence incomplete. Audited 2026-09-26 UTC.
 
 **Priority:** 3 of 3 CI optimization items
 
@@ -18,6 +18,13 @@ and runner consumption, but the current workflow DAG and cross-module dependenci
 categories unsafe.
 
 ## Dependency on item 1
+
+The DAG mechanism is now merged through PR #306, while its complete experiment close-out remains
+[open](../ci-dag-critical-path-deserialization/README.md). The current classifier still selects
+only docs-only versus full-suite execution; it has no frontend/backend selection. The conditional
+analysis below is historical design reasoning, not a claim that the DAG implementation is absent.
+The transitive-dependency audit, measured opportunity, reviewed design and owner authorization
+remain required before widening selection. No such implementation is authorized by this status audit.
 
 The frontend-only value of this item depends on the critical-path de-serialization result:
 

@@ -1,6 +1,6 @@
 # E2E Test Remediation Plan — Better Auth Migration
 
-**Status:** Superseded — no longer applicable (2026-08-13)
+**Status:** Closed — superseded/no longer applicable (2026-08-13); revalidated 2026-09-26 UTC.
 **Priority:** ~~Medium~~
 **Date:** 2026-04-11
 **Latest results (historical):** 8/9 tests passing. See resolution notes below.

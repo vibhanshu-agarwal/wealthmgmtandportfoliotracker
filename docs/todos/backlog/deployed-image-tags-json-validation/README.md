@@ -9,6 +9,12 @@
 
 ## What is wrong
 
+**Audit (2026-09-26 UTC):** still OPEN. The common validation in `terraform-azure.yml`
+resolves declarations through ACR; it does not compare all four services with deployed identity.
+The later live revision check is limited to the gateway-timeout rollout profile. All 81 offline
+workflow-hardening tests passed, but those tests pin registry existence, not live equality.
+The tag pairs below are historical observations; this audit made no cloud/registry read.
+
 The `deployed_image_tags_json` dispatch input for `.github/workflows/terraform-azure.yml` is
 documented as:
 

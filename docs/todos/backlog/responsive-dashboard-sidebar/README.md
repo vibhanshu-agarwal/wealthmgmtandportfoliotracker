@@ -1,6 +1,6 @@
 # Responsive dashboard sidebar on narrow screens
 
-**Status:** Resolved on `main` — PR [#297](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/297)
+**Status:** Closed — fixed on `main`; revalidated 2026-09-26 UTC. PR [#297](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/297)
 merged on 2026-09-20 at `4f288c4a0e8393e78efd7f7449c114e25db78818`.
 **Priority:** Medium
 **Implementation owner:** Claude (UI/layout); accepted head
@@ -8,6 +8,11 @@ merged on 2026-09-20 at `4f288c4a0e8393e78efd7f7449c114e25db78818`.
 **Origin:** B2 Wave 6 review of [PR #214](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/214), source `ded1a0e1`.
 
 ## Resolution
+
+**Backlog audit (2026-09-26 UTC):** the responsive `w-16` / `md:w-60` rail,
+accessible labels and active tooltip remain in `Sidebar.tsx`, with focused tests in
+`Sidebar.test.tsx`. Closure preserves the accepted proof below; it is not a new browser test
+or a claim about the separately open page-level overflows.
 
 Phase 2.1 implemented the self-contained icon-rail option identified below. Below `md`, the sidebar
 is 64px wide, all five navigation links remain present with accessible names, link targets retain a

@@ -1,12 +1,16 @@
 # CI Fix: Better Auth Requires PostgreSQL in E2E Smoke Job
 
-**Status:** Superseded — no longer applicable (2026-08-12)
+**Status:** Closed — superseded/no longer applicable (2026-08-12); revalidated 2026-09-26 UTC.
 **Priority:** ~~High~~
 **Date:** 2026-04-11
 
 ---
 
 ## Superseded
+
+**Audit evidence:** V16 still drops the Better Auth tables; the named schema/seed/auth files
+are absent, and `frontend-ci.yml` runs the database-free `static-smoke` project. Do not add
+PostgreSQL to that job to implement this retired plan. No new live or frontend test was run.
 
 The premise of this fix plan no longer exists. `new-user-signup-profile`
 ([#85](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/85))

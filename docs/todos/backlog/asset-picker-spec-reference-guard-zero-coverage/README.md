@@ -13,6 +13,11 @@ pair.
 
 ## What is wrong
 
+**Audit (2026-09-26 UTC):** still OPEN; reproduced offline at `main@d515aa5b`.
+The guard recognizes `### Requirement N:` while this specification uses `## Requirement N:`.
+The Asset Picker coverage command still exits `0` with `0/0`; it is not passing coverage evidence.
+The nonzero-denominator/parser regressions and baseline-aware inventory criteria below remain unmet.
+
 Running `scripts/check-spec-references.py` against the Asset Picker `tasks.md` and
 `requirements.md` with `--coverage` exits `0` while reporting:
 

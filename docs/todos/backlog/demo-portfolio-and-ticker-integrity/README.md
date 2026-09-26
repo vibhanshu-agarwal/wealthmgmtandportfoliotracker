@@ -1,6 +1,6 @@
 # Backlog: Demo Portfolio Regression and Untracked-Ticker Price Staleness
 
-**Status:** Open — 2026-08-15
+**Status:** Open — partially resolved; corporate-action migration remains open. Audited 2026-09-26 UTC.
 **Owner:** unassigned
 **Tracked in:** Found during a live production check of the Market Data page; no changelog entry
 (the regression shipped silently inside `new-user-signup-profile`, PR
@@ -8,7 +8,32 @@
 
 ---
 
-## Status & Decision
+## Current disposition — 2026-09-26 UTC
+
+The original blanket "nothing fixed yet" statement is obsolete. Keep this mixed item OPEN
+for the remaining `TATAMOTORS.NS` corporate-action decision; do not repeat completed repairs.
+Evidence is the current source and previously accepted records, not a new database/cloud read.
+
+| Original work | Current disposition and evidence |
+|---|---|
+| Independent showcase portfolio | **Complete for the accepted active catalog (159, not the old 160 target).** Spec A Task 9.12 records the authorized demo seed, direct read-only verification of demo 1/159, and E2E non-interference. `DemoPortfolioInitializer` targets the distinct demo identity, not the E2E account. |
+| Legacy `BTC` holding/price/history | **Fixed.** V18 migrates holdings to `BTC-USD`, archives/deletes legacy synthetic history and removes the legacy price. Spec A Tasks 6.4 and 9 record implementation and cutover evidence. |
+| Unsupported-ticker invariant | **Delivered.** `SupportedAssetValidator` and active-catalog seeding replace the old baseline-plus-Mongo assumption for supported holdings. This does not promise Yahoo availability for every supported symbol. |
+| `MM.NS` symbol | **Fixed.** V19 and the active catalog use `M&M.NS`; Spec A Tasks 2.2 and 6.5 record encoding and migration verification. |
+| `TATAMOTORS.NS` successor/allocation | **OPEN product/data decision.** The catalog deliberately deprecates it; Spec A global constraints 4.4/4.5 prohibit silent successor substitution. Deprecation is not a corporate-action migration. |
+| Tracked duplicate seed manifests | **Fixed by Spec A, not a copy-equality CI check.** Service `processResources` packages root `config/seed-tickers.json` into `catalog/`; the three tracked resource copies are gone. |
+| Silent stale-price valuation | **Freshness reporting delivered.** `AssetPriceFreshness`, `PortfolioService` and their focused tests report stale/unknown/missing prices separately while retaining known stale values as required. This is not a claim that all prices are fresh or that stale rows must be excluded from totals. |
+
+Governing completion/constraint details: the
+[supported-asset-integrity task ledger](../../../../.kiro/specs/supported-asset-integrity/tasks.md).
+The later crypto transitions, still-stale `FTM-USD`, and accepted non-USD verification gaps remain
+qualified in the [demo preparation plan](../../../plans/ASSET_PICKER_DEMO_PREPARATION_PLAN.md).
+They are not closed by this original repair entry. No additional data repair is authorized here.
+
+The investigation and proposed work below are retained as historical context. Their old counts,
+prices and "Open, nothing fixed yet" wording describe August discovery, not the current state.
+
+## Historical status & decision
 
 **Open, nothing fixed yet.** Two symptoms were reported — BTC showing `$0.00` on Market Data, and
 the demo account showing 3 holdings where it used to show ~160. Both were investigated against

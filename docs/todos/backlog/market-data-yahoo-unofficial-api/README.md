@@ -1,12 +1,19 @@
 # Backlog: Replace the unofficial Yahoo Finance price feed
 
-**Status:** Mitigated (Option A shipped) — known fragility — 2026-06-21
+**Status:** Open — mitigated (Option A shipped); durable provider replacement incomplete. Audited 2026-09-26 UTC.
 **Owner:** unassigned
 **Priority:** Medium (single point of failure for the entire market-data feed)
 
 ---
 
 ## Status & Decision
+
+**Audit evidence:** current `application.yml` still selects Yahoo, and the cookie/crumb client
+and WireMock regressions remain. No supported-provider replacement was found. The #320 symbol
+repairs and successful demo refresh do not remove unofficial-provider fragility. Retain the
+replacement/coverage/rate-limit and alerting work below; no external quote or current feed-health
+check was made by this audit. Provider recommendations and pricing below are historical, not a
+fresh purchasing recommendation.
 
 The production market-data feed depends on Yahoo Finance's **unofficial** quote
 endpoint (`https://query1.finance.yahoo.com/v7/finance/quote`). On 2026-06-21 this

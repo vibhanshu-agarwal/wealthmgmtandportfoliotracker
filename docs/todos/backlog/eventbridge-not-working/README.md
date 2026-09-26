@@ -1,12 +1,28 @@
 # Backlog: Restore EventBridge Cache Warming
 
-**Status:** Parked — 2026-04-26  
+**Status:** Open — parked by the accepted AWS cost decision; audited 2026-09-26 UTC.
 **Owner:** unassigned  
 **Tracked in:** [RCA](../../../analysis/RCA_2026-04-26_warming-ui-cicd-failures.md)
 
 ---
 
-## Status & Decision
+## Current disposition — 2026-09-26 UTC
+
+AWS remains a standby target, not a removed architecture. Warming remains deliberately disabled
+under the [2026-04-30 cost decision](../../../changes/CHANGES_CACHE_WARMING_2026-04-30.md)
+(`c3eb1f14`); `terraform.yml` intentionally omits `TF_VAR_enable_warming`. This is parked
+future work, not a confirmed active EventBridge malfunction and not obsolete work to delete.
+
+Several old source prerequisites are already fixed: null architecture validation, direct gateway
+Function URL, EventBridge description, plan warming assertions, `pipefail`, and resource smoke
+checks. Do not implement those repairs again. Reactivation still needs an owner decision,
+healthy-init/CI evidence, current region/config and module-naming review, and bounded operational
+validation. No AWS resources or initialization state were queried in this audit.
+
+The April inventory and unchecked checklist below are retained as historical evidence, not a
+current assertion that every listed source defect remains. Use this disposition when restarting.
+
+## Historical status & decision
 
 **Parked.** Warming infra is currently destroyed in AWS. We are accepting natural cold-start latency on the first request until application init bugs are resolved. Re-enabling warming while apps fail to init would flood logs and exhaust the 10-unit ap-south-1 concurrency pool with failing pings.
 

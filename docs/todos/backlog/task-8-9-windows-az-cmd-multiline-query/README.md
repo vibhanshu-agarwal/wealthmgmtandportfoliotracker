@@ -1,6 +1,13 @@
 # Task 8.9 Windows `az.cmd` multiline-query transport defect
 
+**Status:** Open — source transport/type/outcome hardening remains; audited 2026-09-26 UTC.
+
 ## Status
+
+The current verifier still constructs multiline KQL, passes it to the resolved CLI shim,
+uses UTF-8 text decoding, and calls `json.loads(result.stdout)` without a string-type guard.
+The Windows transport regression and terminal-outcome validation below remain required.
+Accepted Task 8.9 live GO does not repair this source defect. No Azure query was made by this audit.
 
 Open implementation backlog. This record does not authorize code changes or any Production query.
 
