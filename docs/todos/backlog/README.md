@@ -17,9 +17,11 @@ adds three OPEN findings: [advisor authorization](portfolio-advisor-cross-user-a
 [public price-write authorization](public-market-price-write-authorization/README.md) and
 [header-spoofing regression proof](gateway-user-header-spoofing-regression-proof/README.md).
 The original 30-item audit is filed through #324 (`6f1e5700`); its independent acceptance does not
-cover this later addition. Claude accepted the documentation corrections through `c88f076c`;
-Claude also accepted local-remediation status at `0632dd07`; the later merge/deploy/probe-status
-follow-up requires its own review/publication under the rule above.
+cover this later addition. Claude accepted the documentation corrections now at `77559542`
+and local-remediation status now at `7ea17252`; both reviews preceded the content-preserving
+rebase onto #327. Claude accepted the later merge/deploy/probe-status range
+`7ea17252..2af62b29` subject to citation/wording corrections, addressed by this follow-up.
+Publication remains governed by the rule above.
 Price-write removal at `83607f5d`, merged through #327 (`9c733f6d`), is CLOSED after scoped deploy
 36259687567 and the owner-run Gate D result `REMOVED`, exit 0. Its gateway test partially covers
 the separate header-proof item, which stays OPEN. Historical-data audit Gate E remains optional

@@ -28,7 +28,7 @@ CI green before dispatch. Scoped deploy
 [36259687567](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/36259687567)
 succeeded: market-data revision `--0000082`, image `sha256:48a649c0…9881`, 100% traffic; refresh Job
 on the same digest, other apps unchanged within the snapshot comparison's fields. The base image
-tag resolved a newer digest, as recorded. At approximately 18:13–18:15 UTC, one owner-run Gate D
+tag resolved a different digest, as recorded. At approximately 18:13–18:15 UTC, one owner-run Gate D
 probe returned `REMOVED`, exit 0: one non-numeric POST returned 404 with market-data's error body,
 and the AAPL read returned 200 with one finite, positive price. The
 [public price-write defect](../todos/backlog/public-market-price-write-authorization/README.md)
@@ -192,7 +192,7 @@ unchanged. Both runs were attempt 1 and passed. No A5 capture is recorded.
 | 2 — UI and demo-critical fixes | **COMPLETE at its accepted exit**; #320's later build was rehearsed, targeted-checked and suite-tested within the stated coverage | Keep the accepted limitations visible; do not infer every edge case was tested |
 | 3 — Broad desktop Production E2E | **Post-#320 suite accepted** as `PASS_WITH_EXPECTED_DEFECTS`; all 15 scenarios passed and this run's three users were cleaned up. A4 run 3 remains old-build history, with runs 1-2 still FAIL history | No further full-suite run is planned; any material new fix would require reassessment |
 | 4 — Defect disposition | **Prior demo disposition recorded:** #320 repairs, targeted #3–#6 checks and the suite's expected defect retain their accepted limits. Price-write removal is CLOSED after #327 (`9c733f6d`), scoped deploy 36259687567 and one owner-run Gate D `REMOVED`, exit 0. Historical-price audit Gate E remains optional/open, not performed. Advisor IDOR remains OPEN with owner disposition pending. Header proof is OPEN with partial merged coverage | Decide advisor treatment; independently review/file this closure. Any Gate E audit needs separate design/approval. Do not inherit earlier non-blocking decisions |
-| 5 — Documentation | **IN PROGRESS:** suite/cleanup status filed through #323 (`d515aa5b`), original backlog through #324 (`6f1e5700`), runbooks through #325 (`5d559478`), and roadmap/root README/v5 through #326 (`8aa4035b`). Claude accepted flow/architecture corrections and local-remediation status through `0632dd07`; this later merge/deploy/probe-status follow-up awaits review, and the docs bundle is not filed. The operator script remains a private reviewed draft | Review the narrow status follow-up and file under owner approval. Continue the wider maintenance handoff; no media-brainstorming dependency for factual reconciliation |
+| 5 — Documentation | **IN PROGRESS:** suite/cleanup status filed through #323 (`d515aa5b`), original backlog through #324 (`6f1e5700`), runbooks through #325 (`5d559478`), and roadmap/root README/v5 through #326 (`8aa4035b`). Claude accepted flow/architecture corrections and local-remediation status now at `7ea17252`, reviewed before the content-preserving rebase onto #327; the later `7ea17252..2af62b29` merge/deploy/probe-status review required citation/wording corrections, addressed by this follow-up. Filing follows the publication rule above. The operator script remains a private reviewed draft | Check the narrow citation/wording follow-up, then file under owner approval. Continue the wider maintenance handoff; no media-brainstorming dependency for factual reconciliation |
 | 6 — Demo material | **Post-fix rehearsal COMPLETE (2026-09-25):** the rehearsed script on the #320 build; the E2E account was restored identical to its verified baseline. The later wording-amended draft was not re-rehearsed. The LinkedIn, resume, PPT and video package is required before project freeze and not yet drafted | Run the demo with the script's warm-up; media content waits for the brainstorming session |
 
 **Technical demo evidence is complete within its stated scope:** the post-#320 suite, targeted
@@ -722,9 +722,10 @@ The [runbook reconciliation](../runbooks/README.md) is filed through #325 (`5d55
 retained-record scope, not fresh operational verification. The [roadmap](../../ROADMAP.md),
 [root README](../../README.md) and [enhancements v5](../../roadmap_enhancements_v5.md) are filed
 through #326 (`8aa4035b`). The later flow/architecture corrections, showcase-save wording and
-three new security/coverage entries and local-remediation status were accepted through `0632dd07`;
-the later #327 merge/deploy/probe-status follow-up still requires review and the docs bundle requires
-owner-authorized filing. The broader
+three new security/coverage entries and local-remediation status now at `7ea17252` were reviewed
+and accepted before the content-preserving rebase onto #327. The later merge/deploy/probe-status
+review of `7ea17252..2af62b29` accepted the closure subject to citation/wording corrections,
+addressed by this follow-up. The publication rule above governs filing; the broader
 documentation pass is not complete.
 **Fast-track exit outcome:** keep the published status truthful and the short operator flow
 reproducible. The full repository documentation overhaul below is follow-on work, not a

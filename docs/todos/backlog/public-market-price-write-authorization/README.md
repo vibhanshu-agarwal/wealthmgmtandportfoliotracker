@@ -88,7 +88,7 @@ as historical design context, not a request to add another route.
   `sha256:48a649c0b506431e33bf9532cfe1c610f9ff40a00fe648a33a27974a8e239881`.
   Frontend/seed/verify were intentionally skipped; scoped non-interference passed. Before/after
   snapshots compare selected image/revision/traffic fields, not all configuration or intervening changes.
-  The Java base image tag resolved a newer digest; the deploy is not an exact old-base rebuild.
+  The Java base image tag resolved a different digest; the deploy is not an exact old-base rebuild.
 - **Gate D:** one owner-run probe at approximately 18:13–18:15 UTC, no rerun. Two health GETs,
   one E2E login, one non-numeric POST and one price GET were recorded. The POST returned 404
   with the market-data error body for `/api/market/prices/AAPL`; the read returned 200 with one
@@ -104,7 +104,8 @@ These distinct merge/deploy/probe records meet the packet's closure condition. T
 public write route defect, not a full new multi-user suite or all market-data security properties.
 
 Codex accepted the bounded packet and probe after 19 offline tests, then reran all 36 launcher/probe
-tests and verified the 20-entry pre-run manifest. Their hashes are recorded in the dashboard.
+tests and verified the 20-entry pre-run manifest. Their hashes are recorded in the
+[demo preparation dashboard](../../../plans/ASSET_PICKER_DEMO_PREPARATION_PLAN.md).
 The old/fixed 400/404 pair was established offline with the exact non-numeric body. The probe requires a valid ordinary writable account:
 anonymous/showcase 401/403 can
 occur on either version and do not distinguish the fix. Never use a numeric body, including a
