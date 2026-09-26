@@ -10,6 +10,7 @@ live operation occurred.
 dispositions and evidence subject to one publication-wording fix, with two minor notes.
 The follow-up addresses that wording, clarifies existing closure authority and simplifies
 the E2E-audit scope note; Claude's review of `196c9d0d` does not itself review the follow-up commit.
+Claude subsequently reviewed `196c9d0d..fe84a444` and confirmed that `fe84a444` clears the conditional acceptance.
 
 This is a restart inventory, not a new implementation plan. All 30 item directories were checked
 against current source, tests, Git history and accepted repository evidence. Their READMEs retain
