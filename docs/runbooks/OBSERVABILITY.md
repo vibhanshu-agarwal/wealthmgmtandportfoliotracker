@@ -1,5 +1,14 @@
 # Observability — Operator Runbook
 
+**Owner approval required before live execution:** Azure queries, secret access, Job starts,
+endpoint wakes and Terraform changes need the applicable bounded approval. Health wakes can
+start Kafka consumers and advance offsets; a smoke check is not a read-only session.
+
+**Source reconciliation:** 2026-09-26 UTC against `main@d515aa5b`. Resource names and settings
+below are source/retained-record references, not a fresh Azure configuration or billing audit.
+The [runbook inventory](README.md) distinguishes these reusable procedures from historical
+execution packets; [current operations](CURRENT_OPERATIONS.md) governs dispatch and restart.
+
 Manual procedures for the Azure observability stack: daily volume, cap-proximity,
 trace↔log correlation, exporter drop counts, the Allowance_Audit, the
 Sink_Smoke_Check, and the Sampling_Review_Trigger.
@@ -32,8 +41,9 @@ polling service, and not a scheduled job.
 | Producer_Job (Azure resource name) | `market-data-refresh-job` |
 | Apps | `api-gateway`, `portfolio-service`, `market-data-service`, `insight-service` |
 
-Caps (both workspaces): **0.023 GB/day**. Budget: **₹1100/month** on
-`wealth-azure-prod-rg`. Sampling_Ratio starts at **1.0** via
+Terraform desired settings (verify live under approval before relying on them): caps on both
+workspaces **0.023 GB/day**, budget **₹1100/month** on `wealth-azure-prod-rg`.
+Sampling_Ratio starts at **1.0** via
 `MANAGEMENT_TRACING_SAMPLING_PROBABILITY`.
 
 The Producer_Job's Terraform label is `azurerm_container_app_job.market_data_refresh`.
@@ -73,7 +83,10 @@ Read these once; they apply to every section below.
 **Portal (preferred for copy-paste):** Azure Portal → the workspace named in
 the procedure → **Logs** → paste the query → Run.
 
-**CLI:** resolve the workspace customer ID, then query.
+**CLI:** resolve the workspace customer ID, then query. On Windows, the `az.cmd` multiline-KQL
+transport has an [open backlog item](../todos/backlog/task-8-9-windows-az-cmd-multiline-query/README.md).
+Prefer the Portal for multiline copy-paste; a command exit code without complete expected rows
+is not query success. Do not change a sealed historical result to compensate for transport errors.
 
 ```bash
 # Platform_Workspace
@@ -401,10 +414,26 @@ set `MANAGEMENT_TRACING_EXPORT_ENABLED = "false"` (and the Job's matching
 manual apply:
 
 ```bash
+# Only after the source change is reviewed/merged, the live-state plan is reviewed,
+# and the owner has approved this exact apply. Resolve these inputs in that packet.
 gh workflow run terraform-azure.yml \
-  --ref <branch-with-the-toggle-change> \
-  --field action=apply
+  --ref main \
+  --field action=apply \
+  --field expected_main_sha="$EXPECTED_MAIN_SHA" \
+  --field deployed_image_tags_json="$DEPLOYED_IMAGE_TAGS_JSON" \
+  --field change_profile=standard \
+  --field use_seed_image=false \
+  --field recreate_market_data_job=false
 ```
+
+`EXPECTED_MAIN_SHA` is the reviewed full current-main SHA; `DEPLOYED_IMAGE_TAGS_JSON` is the
+authorized preflight's exact four-service, lowercase 40-hex tag map, not that SHA copied to
+every service. First preview with `action=remote-plan` and the same reviewed inputs. The apply
+regenerates its plan; compare its guarded scope rather than assuming it applies the preview file.
+Stop on identity drift, unexpected resources or an image/label mismatch; `standard` is not an
+exact kill-switch-only scope guarantee. For the five normal traced workloads, this is an env/config
+rollout, not a request to rebuild application images or run the producer Job. The dormant repair
+Job is not one of those five; inspect its export settings separately before any new repair execution.
 
 Leave the toggle `false` until Allowance_Independence **PASS**es again (or
 until the cap-cycling review decides export may resume).
@@ -485,11 +514,14 @@ curl -sS -o /dev/null -w "insight %{http_code}\n" --max-time 60 \
   "https://${GATEWAY}/api/insights/health"
 ```
 
-A 5xx/timeout on first hit is a cold start, not a smoke-check pass. Retry the
-same two URLs until each returns a non-timeout response or `T0+15m` is reached.
-The wake is successful when the request **reached** the service (it scaled from
-zero). Do not treat HTTP 401/403 on a health path as a smoke-check failure if
-the replica is up.
+A 5xx/timeout on first hit can be a cold start, but is not a smoke-check pass. Within the
+approved retry budget and `T0+15m`, require HTTP `200` on both public routed health paths.
+Gateway source permits these paths without authentication; a `401`/`403` does not establish
+that the downstream service woke and must not count as ready. Record it and stop for diagnosis.
+Check the remaining deadline before every call; cap its timeout to that remaining time, and
+stop when the bound expires. The illustrative `--max-time 60` is an upper bound, not permission
+for a call to overrun `T0+15m`. Kafka-attributable joined rows below, not the health response,
+are the smoke-check PASS evidence.
 
 ### Step 3 — Query (Telemetry_Workspace / App Insights)
 
