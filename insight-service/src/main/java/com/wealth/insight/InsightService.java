@@ -19,6 +19,10 @@ import java.util.List;
 /**
  * Orchestrates portfolio analysis by fetching portfolio data from portfolio-service
  * via REST and delegating to the active {@link InsightAdvisor} implementation.
+ *
+ * <p>No HTTP route reaches this service. It forwards the {@code userId} it is given as
+ * {@code X-User-Id}, which portfolio-service trusts, so exposing it must derive that ID from the
+ * gateway-authenticated caller, never from the request path or body.
  */
 @Service
 public class InsightService {
