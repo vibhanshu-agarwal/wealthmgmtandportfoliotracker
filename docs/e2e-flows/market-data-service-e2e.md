@@ -32,7 +32,7 @@ reads MongoDB through `AssetPriceRepository`.
 |---|---|
 | `GET /api/market/prices?tickers=...` | Up to 200 distinct, trimmed tickers; more returns 400. Each requested ticker gets a row, including explicit unavailable rows for missing data. |
 | `GET /api/market/prices` (no filter) | Returns at most 100 stored documents; it is not a complete-catalog listing. |
-| `POST /api/market/prices/{ticker}` | Manual price update from a JSON decimal body; persists and publishes an event. This is a write, not part of normal page reads. |
+| `POST /api/market/prices/{ticker}` | Manual price update from a JSON decimal body; persists and submits an asynchronous Kafka send. A 200 does not prove broker acknowledgment. This is a write, not part of normal page reads. |
 | `GET /api/market/health` | Public service-UP handler; not a Yahoo-price or Kafka-delivery acceptance test. |
 
 [MarketPriceDto](../../market-data-service/src/main/java/com/wealth/market/MarketPriceDto.java)
@@ -57,6 +57,8 @@ The scheduled refresh has its own write loop in `MarketDataRefreshService`, not 
 `MarketPriceService`. Both paths persist before publishing. MongoDB and Kafka are **not one
 atomic transaction**; this is not an outbox or an exactly-once end-to-end delivery guarantee.
 A new observation can have the same price as the previous one and is still published.
+The manual HTTP path does not await its Kafka send future; a later send failure is not reflected
+in an already returned 200. The scheduled refresh has different completion semantics below.
 
 Consumers maintain separate views:
 
@@ -75,12 +77,25 @@ The current catalog has 159 ACTIVE entries and one DEPRECATED entry. Catalog/pro
 may differ: the Yahoo lookup uses the configured `providerSymbol`, then maps results back to
 the application's canonical ticker. Renaming a provider symbol does not rename a holding.
 
-The [ExternalMarketDataClient](../../market-data-service/src/main/java/com/wealth/market/ExternalMarketDataClient.java)
-owns provider calls and retry behavior. A provider-wide error retains last-known data. A missing
-ticker price is skipped, preserving its prior value/time; therefore a successful job can still
-leave incomplete or stale prices. The refresh waits for its collected Kafka sends and flushes
-before normal completion; per-ticker persistence failures are logged/counted, not proof of full
-catalog success. Always distinguish job completion from price coverage.
+The [Yahoo client](../../market-data-service/src/main/java/com/wealth/market/YahooFinanceExternalMarketDataClient.java)
+fetches sequential batches (default 50) and accumulates results before returning. If **any batch
+ultimately fails after the configured retries**, the complete fetch throws: even successful
+batches from that fetch are discarded, and the refresh writes/publishes none of their prices.
+The refresh catches this provider failure and returns normally with last-known data unchanged;
+therefore a successful Job exit does not prove prices updated. A missing ticker in a successful
+fetch is skipped, preserving its prior value/time. Per-ticker persistence failures are logged/
+counted and can also leave incomplete coverage.
+
+After Mongo writes, the refresh flushes and waits for all collected Kafka send futures. A send
+failure (or flush failure) propagates to the Job runner, which exits 1; the completed Mongo writes
+are **not rolled back**. Azure's Job sets `replica_retry_limit=0` (no Job-level retry), distinct from
+provider/producer internal retries. Always distinguish Job completion from price coverage and
+downstream convergence.
+
+For a previously absent ticker the refresh constructs `AssetPrice(ticker, null)` and does not
+assign a quote currency. Its new Mongo document/event therefore has null `quoteCurrency`;
+existing documents retain their currency. Catalog-derived currency in downstream views is not
+evidence that the refresh populated this Mongo field.
 
 ### Azure: separate Container Apps Job
 

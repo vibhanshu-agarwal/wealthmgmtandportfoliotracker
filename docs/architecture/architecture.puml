@@ -40,7 +40,7 @@ Kafka --> Insight : insight-group cache updates
 Portfolio --> Kafka : rejected/exhausted records to market-prices.DLT
 Insight --> Redis : prices / observation window / caches
 Insight --> AI : optional resolution / sentiment / advisor
-Insight --> Portfolio : separate path-ID advisor fetch
+Insight ..> Portfolio : path-ID advisor fetch if target URL configured
 Gateway ..> Telemetry : observations
 Portfolio ..> Telemetry : observations
 Market ..> Telemetry : observations
@@ -54,7 +54,9 @@ end note
 note bottom of Insight
   Bulk summaries use stored facts without model calls.
   Source labels can describe cached sentiment.
-  Path-ID advisor ownership needs separate review.
+  Path-ID advisor has an OPEN source-confirmed IDOR.
+  Azure source omits the portfolio URL (default localhost:8081).
+  Live reachability is unverified; missing wiring is not authorization.
 end note
 note bottom of Frontend
   Logical source topology, not a live cloud inventory.

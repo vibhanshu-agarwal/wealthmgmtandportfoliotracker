@@ -87,11 +87,18 @@ has conversation memory, portfolio context or a multi-turn reasoning session.
 
 ## 4. Adapter attribution, caching and failures
 
-`AiInsightService`, `AssetResolutionClient` and `InsightAdvisor` have separate profile adapters:
+The sentiment/advisor adapters and asset resolver do **not** have identical profile coverage:
 
-- No `bedrock`/`azure-ai`: deterministic local/CI adapters, without a cloud LLM.
-- `azure-ai`: Azure OpenAI adapters, with Managed Identity/Entra configuration in the demo stack.
-- `bedrock`: retained AWS Bedrock adapters; enabling them is not part of this audit.
+| Profile selection | Sentiment / portfolio advisor | Asset-resolution client |
+|---|---|---|
+| Neither `bedrock` nor `azure-ai` | Deterministic local/CI adapters, no cloud LLM | Mock resolver returning `UNKNOWN` |
+| `azure-ai` | Azure OpenAI adapters, Managed Identity/Entra configured in the demo stack | Azure OpenAI resolver |
+| `bedrock`, without `azure-ai` | Retained AWS Bedrock adapters | Mock resolver returning `UNKNOWN`, not a Bedrock resolver |
+
+[MockAssetResolutionClient](../../insight-service/src/main/java/com/wealth/insight/infrastructure/ai/MockAssetResolutionClient.java)
+is selected by `!azure-ai`. Deterministic ticker/catalog preflight still works in local/Bedrock
+profiles; name questions needing the model resolver end in clarification rather than guessed
+tickers. Enabling or changing provider profiles is not part of this audit.
 
 [AzureOpenAiInsightService](../../insight-service/src/main/java/com/wealth/insight/infrastructure/ai/AzureOpenAiInsightService.java)
 caches sentiment under a provider-qualified key such as `AZURE_OPENAI:{ticker}`.
@@ -118,9 +125,20 @@ profile. Rule-based source denotes the deterministic adapter.
 `/{userId}/analyze` path argument, and delegates the first returned portfolio to `InsightAdvisor`.
 It does not feed that result into `POST /api/chat`.
 
-This source path does not itself compare the path user ID with the authenticated gateway subject.
-Do not describe it as proven caller-owned portfolio isolation: that requires its own security
-review and acceptance evidence. This audit does not run or expand the demo to that path.
+This is a source-confirmed **cross-user authorization flaw (IDOR)**: the gateway requires a valid
+login, including the restricted showcase login, but this path never compares its target ID with
+the gateway-authenticated subject. A caller knowing another user's ID can request that user's
+derived risk score, concentration warnings and rebalancing suggestions when dependencies work;
+the response/error path can also disclose portfolio existence. Random UUIDs are not authorization.
+It is tracked as [OPEN security work](../todos/backlog/portfolio-advisor-cross-user-authorization/README.md),
+not closed or accepted as harmless by the earlier portfolio-isolation suite.
+
+Reachability is environment-dependent. The checked-in Azure insight-service environment does not
+set `PORTFOLIO_SERVICE_URL`; its application default is `http://localhost:8081`, so the fetch is
+expected to fail absent another override. This is **not live-verified** and not a security control.
+Compose and retained AWS configuration supply the portfolio URL. Correct authorization before
+making this advisor reachable or adding the missing Azure setting. No live exploit, code fix or
+configuration change was performed here.
 
 Formal per-user Sharpe/Sortino metrics, richer FA/TA conversation and exploratory analysis are
 [deferred v5 requests](../../roadmap_enhancements_v5.md). Source availability of an advisor or a

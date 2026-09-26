@@ -25,6 +25,10 @@ The six reusable references above were corrected in this audit. Detailed source 
 the four [service E2E guides](../e2e-flows/); their companion reconciliation is also a local
 candidate until reviewed and merged. Operator instructions are in
 [Current operations](../runbooks/CURRENT_OPERATIONS.md).
+The E2E review follow-up also records the OPEN, source-confirmed
+[advisor IDOR](../todos/backlog/portfolio-advisor-cross-user-authorization/README.md), its
+unverified Azure reachability and the corrected profile/failure semantics. This addition awaits
+independent follow-up review; it is not covered by the earlier runtime acceptance.
 
 ## Historical records — do not execute as current plans
 
@@ -51,5 +55,6 @@ It is explicitly marked as an empty historical placeholder, not reconstructed as
 [ROADMAP](../../ROADMAP.md), [enhancements v5](../../roadmap_enhancements_v5.md) and the
 [backlog index](../todos/backlog/README.md) govern deferred work. Sharpe/Sortino, richer FA/TA
 chat and additional charts remain unscheduled. This audit neither implements them nor changes
-backlog dispositions. Before later reactivation, refresh source/serving identity and private
+existing backlog dispositions; the new advisor-security item is an explicit OPEN addition.
+Before later reactivation, refresh source/serving identity and private
 prerequisites under the applicable approval; historical documents are context, not new tasks.

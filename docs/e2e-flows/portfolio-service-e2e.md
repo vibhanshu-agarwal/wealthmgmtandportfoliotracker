@@ -27,6 +27,10 @@ from the PostgreSQL projection.
 The gateway validates the JWT and overwrites `X-User-Id`. Ordinary portfolio endpoints use that
 header, not a caller-selected portfolio/user ID. Downstream service access must remain behind
 the trusted gateway/network boundary; the header alone is not cryptographic authentication.
+**Exception:** insight-service's advisor takes a caller-selected path user ID and forwards it as
+this trusted header, without checking the gateway subject. That source-confirmed
+[IDOR](../todos/backlog/portfolio-advisor-cross-user-authorization/README.md) is not covered by
+the normal portfolio endpoint's subject-binding claim.
 Base JVM target is localhost:8081, Compose uses `portfolio-service:8081`, and Azure uses the
 internal ACA name at ingress port 80, forwarded to service port 8080.
 
@@ -49,6 +53,20 @@ Sources: [controllers](../../portfolio-service/src/main/java/com/wealth/portfoli
 [composition](../../portfolio-service/src/main/java/com/wealth/portfolio/composition/CompositionController.java),
 [catalog](../../portfolio-service/src/main/java/com/wealth/portfolio/AssetCatalogController.java),
 [FX rates](../../portfolio-service/src/main/java/com/wealth/portfolio/FxRatesController.java).
+
+The [exception mapper](../../portfolio-service/src/main/java/com/wealth/portfolio/GlobalExceptionHandler.java)
+distinguishes these common outcomes (not an exhaustive HTTP/error map):
+
+| Status | Meaning |
+|---|---|
+| 400 | Missing required user header, malformed/missing version, invalid quantity or duplicate ticker |
+| 404 | Unknown portfolio user |
+| 409 | Optimistic version conflict; response includes `currentVersion` |
+| 422 | Unsupported asset or disallowed catalog lifecycle |
+| 503 | Required FX conversion unavailable |
+
+Gateway authentication/authorization failures are separate 401/403 outcomes; guarded internal
+operations can also return 503 when their API key is not configured.
 
 ## 3. Edit Holdings: exact desired state, version and persistence
 
@@ -175,5 +193,7 @@ flowchart LR
 Azure profiles are `prod,azure`; Flyway migrations run on startup and the service has internal
 ingress and scale-to-zero. Source defines Neon PostgreSQL and Aiven Kafka integration. The
 retained AWS Lambda configuration is restart context, not a newly verified standby deployment.
-The advisor callback from insight-service is a separate source path, not proof that the browser
-chat offers full portfolio analysis.
+The advisor **fetch** from insight-service selects the user from its public analyze-path argument,
+not a callback or the browser chat's portfolio-context pipeline. Its authorization flaw and the
+unverified Azure URL/reachability limitation are recorded in the
+[insight guide](insight-service-e2e.md#5-separate-portfolio-advisor-path-and-limits).

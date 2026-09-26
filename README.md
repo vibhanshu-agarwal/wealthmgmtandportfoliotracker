@@ -82,7 +82,7 @@ The system is divided into distinct business domains, each owning its top-level 
 2. **`com.wealth.market` (Anti-Corruption Layer):** Ingests, normalizes, and broadcasts pricing data from external market APIs. Backed by MongoDB for flexible tick/snapshot storage.
 3. **`com.wealth.insight` (Compute Domain):** Ticker-oriented chat, market summaries and AI insight adapters, fed by Kafka and Redis. Source includes catalog-grounded natural-language resolution and an advisor path; broader portfolio-aware FA/TA conversation is future work, not established by the demo evidence.
 
-Identity is handled at the edge: the `api-gateway` owns login and self-service signup, verifies bcrypt-hashed credentials against PostgreSQL, mints the HS256 JWT, and validates it on every subsequent request before routing — there is no separate user-management service. A read-only demo account is enforced at the gateway (`ReadOnlyEnforcementFilter`) via a `ro` claim on the token.
+Identity is handled at the edge: the `api-gateway` owns login and self-service signup, verifies bcrypt-hashed credentials against PostgreSQL, mints the HS256 JWT, and validates it on protected subsequent requests before routing — there is no separate user-management service. The showcase's `ro` claim restricts writes through `ReadOnlyEnforcementFilter`, with explicit exceptions for holdings replacement and its own portfolio reset; it is not a blanket ban on saving.
 
 ### 🛡️ Enforcing Boundaries
 
@@ -242,13 +242,15 @@ simulate a cloud dependency failure. The mocked-chaos 429 assertion redesign rem
 ## 🎬 Demo / Evaluation Guide
 
 Open [the live demo](https://vibhanshu-ai-portfolio.dev/) and sign in using demo access provided
-by the project owner. The read-only showcase lets you explore without changing holdings.
+by the project owner. The shared showcase has restricted write access, but holdings edits and
+its own portfolio reset are enabled; arrange any changes with the owner.
 Backend services scale to zero between visits, so the first load may take longer while they wake.
 
 1. **Overview:** explore portfolio totals, allocations and the available summary metrics.
 2. **Portfolio:** inspect holdings, valuation, currency labels, freshness/coverage indicators and
-   the performance chart. On a write-enabled account, Edit Holdings provides catalog-backed
-   selection and quantity editing; the read-only showcase does not allow saves.
+   the performance chart. Edit Holdings provides catalog-backed selection, quantity editing and
+   saving, including on the shared showcase account; coordinate changes and restoration with
+   the owner.
 3. **Market Data:** browse supported tickers and their stored prices. Try US equities, Indian
    equities, crypto and currency pairs from the examples below.
 4. **AI Insights:** try a ticker question such as “How is AAPL doing?” and compare the answer with

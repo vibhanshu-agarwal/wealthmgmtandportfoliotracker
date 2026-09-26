@@ -9,6 +9,10 @@ correction, not new operational proof or Spec A/B1/B2 completion. An unmerged br
 a candidate; filing requires independent review and owner-authorized publication, and occurs
 only when the carrying PR merges into main. Runtime/demo acceptance remains governed by the
 [demo dashboard](ASSET_PICKER_DEMO_PREPARATION_PLAN.md) and is unchanged by this audit.
+The review follow-up records the source-confirmed
+[advisor cross-user authorization defect](../todos/backlog/portfolio-advisor-cross-user-authorization/README.md).
+Its deployed Azure reachability is unverified; prior portfolio/session isolation evidence does
+not cover it. Owner disposition is pending, with no code/live operation authorized here.
 
 **Roadmap/root README process reconciliation — 2026-09-26 UTC:**
 [ROADMAP](../../ROADMAP.md), [README](../../README.md) and
@@ -36,6 +40,8 @@ historical proof is changed. Current runtime/demo status is governed by the
 post-#320 suite/cleanup result. Older baseline paragraphs below retain their historical dates;
 they are not fresh serving-state assertions. The backlog index records the independent review;
 the audit is filed through #324 (`6f1e5700`).
+The later E2E source-review follow-up adds one OPEN advisor-security entry against `main@8aa4035b`,
+bringing the index to 31 directories / 21 OPEN without changing the original 30 dispositions.
 
 **Last verified:** 2026-09-21 at local candidate
 `19fb82d552c57fe8b619a34fe7fb8b1f526797ea`, based on `main@07faf2c6`, for independently accepted

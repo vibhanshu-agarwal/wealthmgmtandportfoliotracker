@@ -65,8 +65,10 @@ no established MongoDB-to-Kafka transactional outbox or cross-store exactly-once
 
 Bulk insights do not invoke AI per ticker. Chat combines stored market facts with optional
 model sentiment; its source label can describe cached output and is not proof of a new model
-call. A separate path-ID portfolio advisor is not the ticker-chat pipeline and needs an
-ownership-authorization review.
+call. The separate path-ID portfolio advisor is not the ticker-chat pipeline and has a
+source-confirmed [cross-user authorization flaw](../todos/backlog/portfolio-advisor-cross-user-authorization/README.md).
+Azure source omits its portfolio URL, so reachability is expected to fail absent another override;
+that is unverified live and is not an authorization control. The defect remains OPEN.
 
 ## Read next
 

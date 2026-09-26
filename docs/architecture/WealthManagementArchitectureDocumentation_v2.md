@@ -68,8 +68,11 @@ See the [gateway flow](../e2e-flows/api-gateway-service-e2e.md) and its source l
 
 The separate `GET /api/insights/{userId}/analyze` advisor forwards the **path** user ID to
 portfolio. Its controller/service do not compare that ID with the authenticated gateway subject.
-Do not describe it as proven caller-owned access. This is a source security concern for separate
-review, not a tested exploit or a new live validation performed here.
+This is a source-confirmed [IDOR](../todos/backlog/portfolio-advisor-cross-user-authorization/README.md),
+not proven caller-owned access. Azure's checked-in insight environment omits the portfolio URL
+and the default points to localhost:8081; absent another override it is expected to fail. This
+is not live-verified or a security control. Compose/AWS source supplies the URL. No exploit was
+tested here; the new OPEN finding has no owner non-blocking disposition or fix/deploy approval.
 
 ## 4. Holdings, valuation and analytics
 
@@ -77,7 +80,8 @@ review, not a tested exploit or a new live validation performed here.
 
 `PUT /api/portfolio/holdings` replaces the complete desired holdings set with decimal-string
 quantities and an expected portfolio version. Atomic validation/write rejects conflicts with
-409 and invalid compositions with 400. Identical tuples are no-ops; actual changes advance the
+409, malformed/quantity/duplicate intent with 400 and unsupported/lifecycle intent with 422.
+Identical tuples are no-ops; actual changes advance the
 version. Client retry must not overwrite another session's changes.
 
 Holdings views enrich portfolio rows using market batches. Summary/analytics use the PostgreSQL
@@ -105,6 +109,10 @@ Browser requests read stored Mongo prices. The Azure refresh Job invokes the Yah
 active catalog entries at 08:00 UTC; the API's scheduled task is disabled on Azure.
 Provider-symbol mapping is separate from canonical catalog identity. There are 159 ACTIVE
 entries and one DEPRECATED entry at this source cut; that is not guaranteed feed coverage.
+An unrecovered failure in any Yahoo batch discards that fetch's accumulated prices before writes;
+the refresh catches it and can exit normally without an update. A Kafka send failure instead
+fails the Job (exit 1, no ACA Job retry) after Mongo writes, which are not rolled back. New refresh
+documents have null quote currency; manual HTTP writes do not wait for a Kafka acknowledgment.
 
 The shared [event](../../common-dto/src/main/java/com/wealth/market/events/PriceUpdatedEvent.java)
 carries observation metadata. Publications are keyed by ticker, which orders records within
@@ -134,8 +142,10 @@ chat is not a delivered multi-turn portfolio-context/FA/TA assistant.
 Azure uses Azure OpenAI adapters with managed identity as the default source configuration.
 The Terraform deployment alias remains `gpt-4o-mini`, while its configured model is
 `gpt-4.1-mini` version `2025-04-14`; an alias is not the model identity or live attestation.
-Bedrock is a real retained provider adapter, not the old randomized mock described in the
-previous risk document. Other profiles can use rule-based adapters.
+Bedrock sentiment/advisor adapters are real retained provider adapters, not the old randomized
+mock described in the previous risk document. Bedrock has no asset-resolution adapter:
+`!azure-ai` selects the mock resolver returning UNKNOWN, while deterministic preflight still
+works. Other profiles can use rule-based sentiment/advisor adapters.
 
 `sentimentSource` identifies the sentiment adapter/output, possibly cached; it does not prove
 a new model invocation, the asset resolver's provenance or that all natural-language text is

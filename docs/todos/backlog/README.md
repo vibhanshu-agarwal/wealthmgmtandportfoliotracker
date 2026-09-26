@@ -12,7 +12,13 @@ The follow-up addresses that wording, clarifies existing closure authority and s
 the E2E-audit scope note; Claude's review of `196c9d0d` does not itself review the follow-up commit.
 Claude subsequently reviewed `196c9d0d..fe84a444` and confirmed that `fe84a444` clears the conditional acceptance.
 
-This is a restart inventory, not a new implementation plan. All 30 item directories were checked
+**Source-review follow-up — 2026-09-26 UTC:** the E2E guide review against `main@8aa4035b`
+adds one OPEN [advisor authorization defect](portfolio-advisor-cross-user-authorization/README.md).
+The original 30-item audit is filed through #324 (`6f1e5700`); its independent acceptance does not
+cover this later addition, which awaits follow-up review/publication under the rule above.
+No existing disposition changes. Current totals are 31 directories: 8 fixed, 2 superseded, 21 open.
+
+This is a restart inventory, not a new implementation plan. The original 30 item directories were checked
 against current source, tests, Git history and accepted repository evidence. Their READMEs retain
 the findings and historical investigation; no backlog item or evidence file was deleted.
 The [dated TODO list](../TODOS_2026-04-07.md) is a separate inventory of inline follow-ups;
@@ -25,8 +31,8 @@ additional implementations to perform.
 |---|---:|---|
 | CLOSED — fixed/completed | 8 | The original work has delivered source or accepted historical completion evidence; closure is limited to that item's scope/cut. |
 | CLOSED — superseded | 2 | The architecture/premise was retired. Do not implement the old fix plan. |
-| OPEN | 20 | Real residual work or an unresolved acceptance/evidence gap remains. Includes deferred, parked, mitigated and partially delivered items. |
-| **Total directories** | **30** | ROUND2/ROUND3 are historical documents inside one retired item, not additional items. |
+| OPEN | 21 | The original 20 residual items plus the later source-confirmed advisor authorization defect. Includes deferred, parked, mitigated and partially delivered items. |
+| **Total directories** | **31** | Original audit of 30 plus one source-review addition. ROUND2/ROUND3 are historical documents inside one retired item, not additional items. |
 
 Non-blocking, accepted-for-demo, not observed, and unverified are **not** synonyms for fixed.
 Missing acceptance evidence leaves an item open with that precise residual; it does not mean
@@ -69,6 +75,7 @@ the delivered mechanism should be implemented again. Current cloud state was not
 | [Supported market-data provider](market-data-yahoo-unofficial-api/README.md) | **Mitigated.** Yahoo cookie/crumb still used; durable provider/coverage/rate-limit and alerting work remains. Symbol repair does not remove provider risk. |
 | [Mocked-chaos 429 E2E](mocked-chaos-429-batch-assertion-redesign/README.md) | Still skipped; deliver controlled-fixture exact batching/no-extra-request and graceful-degradation coverage. |
 | [Narrow-width overflow](responsive-dashboard-narrow-width-overflow/README.md) | **Accepted demo debt, not fixed.** Portfolio 320/375px and Overview 320px need future measured repair; desktop scope does not close them. |
+| [Portfolio advisor cross-user authorization](portfolio-advisor-cross-user-authorization/README.md) | **Source-confirmed IDOR; owner disposition pending.** Path-selected user ID is forwarded without subject comparison. Azure URL/reachability is unverified; missing source wiring is not an authorization control. |
 | [Required deploy-workflow contract](required-deploy-workflow-contract/README.md) | Job remains advisory/unbounded fetch. Reviewed promotion, synchronized inventories and unskipped aggregate proof remain required. |
 | [SERVICE_VERSION / image drift](service-version-image-drift/README.md) | Owners still differ. Define label invariant, reconcile and guard; old concrete tag pairs are historical, not current inventory. |
 | [Wake-preflight hardening](task-8-9-wake-preflight-hardening/README.md) | Five retained source/comment findings plus unproven stub edge. Task 8.9 itself is accepted GO; do not reopen its serving gate. |

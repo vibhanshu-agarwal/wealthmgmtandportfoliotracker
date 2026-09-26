@@ -53,7 +53,8 @@ and signup. JDBC/password work is delegated off the reactive event loop.
 - Successful showcase login may invoke the bounded
   [DemoLoginResetOrchestrator](../../api-gateway/src/main/java/com/wealth/gateway/DemoLoginResetOrchestrator.java):
   eligibility observation precedes a versioned reset; optional reset failure does not fail login.
-  Do not assume every login resets the portfolio.
+  The login response waits for that optional flow to finish or time out: the default overall
+  bound is 60 seconds, including observation/reset. Do not assume every login resets the portfolio.
 - Client logout clears the local session; it does **not** revoke an already issued JWT.
   Post-logout token acceptance remains a recorded, accepted demo limitation.
 
@@ -84,12 +85,16 @@ Spring Security WebFilter chain.
    AI routes remain usable. The claim is not a blanket prohibition on all writes.
 4. [DemoResetAuthorizationFilter](../../api-gateway/src/main/java/com/wealth/gateway/DemoResetAuthorizationFilter.java),
    order `+4`: manual reset additionally requires the showcase subject and the selected
-   `demo-reset-manual` route. It swaps headers for the downstream internal key/replica token;
-   it does not expose those credentials to the browser. Other subjects receive 403.
+   `demo-reset-manual` route. It removes browser Authorization/user-ID headers and injects the
+   downstream internal API key; that key is not returned to the browser. The **response** carries
+   an opaque `X-Gateway-Replica-Token`, including refusal responses; this is not the internal key.
+   Other subjects receive 403; a missing configured internal key returns 503.
 5. Per-route rate limiting and path rewriting precede downstream forwarding.
 
-Direct internal endpoints use downstream `InternalApiKeyFilter`, not JWT identity injection.
-They are operational write surfaces, not anonymous visitor APIs. Listing a route here grants no
+Direct internal seed/reset endpoints are reachable through the public gateway's internal routes,
+which permit requests without a JWT. Their downstream `InternalApiKeyFilter` requires the internal
+API key; an "internal" route name is not a private-network guarantee. They are operational write
+surfaces, not ungated visitor APIs. Listing a route here grants no
 permission to seed, reset or repair live data.
 
 ## 4. Throttling and failure behavior

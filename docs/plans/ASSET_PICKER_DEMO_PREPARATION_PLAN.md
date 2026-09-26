@@ -24,6 +24,12 @@ The [architecture index](../architecture/README.md) identifies 6 corrected curre
 8 historical records with new classification banners, and 1 formerly empty historical
 placeholder. Azure/Java 21, data/AI boundaries and the logical diagram are corrected; no live
 inventory, new application proof or accepted defect closure is claimed.
+The follow-up corrects the showcase-save wording and service failure/profile/security descriptions.
+It adds an OPEN [portfolio advisor IDOR](../todos/backlog/portfolio-advisor-cross-user-authorization/README.md):
+source confirms missing subject binding; Azure reachability is unverified because the source
+insight-service environment omits its portfolio URL. The prior suite did not test this endpoint.
+This new finding has no owner non-blocking disposition; security treatment is a separate decision,
+not a code fix or deployment authorized by this documentation bundle.
 The [roadmap](../../ROADMAP.md), [root README](../../README.md) and
 [enhancements v5](../../roadmap_enhancements_v5.md) are filed through #326 (`8aa4035b`),
 with the owner's three requests still deferred. There is no feature implementation approval.
@@ -145,8 +151,8 @@ unchanged. Both runs were attempt 1 and passed. No A5 capture is recorded.
 | 1 — Asset Picker delivery | **COMPLETE**, deployed and accepted in Production on 2026-09-20 | None; do not reopen for later-phase work |
 | 2 — UI and demo-critical fixes | **COMPLETE at its accepted exit**; #320's later build was rehearsed, targeted-checked and suite-tested within the stated coverage | Keep the accepted limitations visible; do not infer every edge case was tested |
 | 3 — Broad desktop Production E2E | **Post-#320 suite accepted** as `PASS_WITH_EXPECTED_DEFECTS`; all 15 scenarios passed and this run's three users were cleaned up. A4 run 3 remains old-build history, with runs 1-2 still FAIL history | No further full-suite run is planned; any material new fix would require reassessment |
-| 4 — Defect disposition | **Demo disposition recorded:** #320 repairs were deployed, targeted #3–#6 checks ran, and the suite's one expected defect is accepted. Named inconclusive/unverified cases remain non-blocking for this demo, not PASS/fixed/closed | Retain the evidence limits below |
-| 5 — Documentation | **IN PROGRESS:** suite/cleanup status filed through #323 (`d515aa5b`), backlog through #324 (`6f1e5700`), and runbooks through #325 (`5d559478`). Roadmap/root README/v5 reconciliation is prepared, including three unscheduled owner requests; it is not filed until its reviewed carrying PR merges. The operator script remains a private reviewed draft | Independently review and file the roadmap/README/v5 bundle under owner approval. Continue the wider documentation/maintenance handoff; no media-brainstorming dependency for factual reconciliation |
+| 4 — Defect disposition | **Prior demo disposition recorded:** #320 repairs, targeted #3–#6 checks and the suite's expected defect retain their accepted limits. The newly recorded advisor IDOR is OPEN, outside those checks, with owner disposition pending | Decide the new security finding separately; do not inherit the earlier non-blocking decisions |
+| 5 — Documentation | **IN PROGRESS:** suite/cleanup status filed through #323 (`d515aa5b`), original backlog through #324 (`6f1e5700`), runbooks through #325 (`5d559478`), and roadmap/root README/v5 through #326 (`8aa4035b`). Flow/architecture corrections, README save correction and the new security entry await independent review/filing. The operator script remains a private reviewed draft | Review and file this documentation bundle under owner approval. Continue the wider maintenance handoff; no media-brainstorming dependency for factual reconciliation |
 | 6 — Demo material | **Post-fix rehearsal COMPLETE (2026-09-25):** the rehearsed script on the #320 build; the E2E account was restored identical to its verified baseline. The later wording-amended draft was not re-rehearsed. The LinkedIn, resume, PPT and video package is required before project freeze and not yet drafted | Run the demo with the script's warm-up; media content waits for the brainstorming session |
 
 **Technical demo evidence is complete within its stated scope:** the post-#320 suite, targeted
@@ -157,6 +163,10 @@ inconclusive or unverified observations into passes or fixes.
 at `d515aa5b` on 2026-09-25. No technical or status-publication fast-track gate remains open under
 the accepted desktop-demo contract. This does not complete the separately required freeze
 documentation or media package, or close accepted/unverified defects.
+That conclusion concerns the accepted evidence scope: the newly source-confirmed advisor IDOR
+was not exercised by those checks and has **no owner disposition yet**. Do not extend the prior
+non-blocking decisions or technical acceptance to that endpoint. Its live Azure reachability
+remains unverified; decide its security treatment separately before expanding the readiness claim.
 
 The operator-script review, final-build rehearsal, targeted #3–#6 demo dispositions, full suite
 and cleanup are done. The seven non-USD #3 value checks and listed edge cases remain inconclusive
@@ -667,9 +677,10 @@ The later [backlog audit](../todos/backlog/README.md) records its independent re
 for the project freeze through #324, merged at `6f1e5700`.
 The [runbook reconciliation](../runbooks/README.md) is filed through #325 (`5d559478`) at source/
 retained-record scope, not fresh operational verification. The [roadmap](../../ROADMAP.md),
-[root README](../../README.md) and [enhancements v5](../../roadmap_enhancements_v5.md) are prepared
-against that baseline. Their filing requires independent review and owner-authorized merge;
-an unmerged copy remains a candidate. The broader documentation pass is not complete.
+[root README](../../README.md) and [enhancements v5](../../roadmap_enhancements_v5.md) are filed
+through #326 (`8aa4035b`). The later flow/architecture corrections, showcase-save wording and
+advisor-security entry still require independent review and owner-authorized filing. The broader
+documentation pass is not complete.
 **Fast-track exit outcome:** keep the published status truthful and the short operator flow
 reproducible. The full repository documentation overhaul below is follow-on work, not a
 portfolio-demo gate.
