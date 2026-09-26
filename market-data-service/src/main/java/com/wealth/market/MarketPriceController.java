@@ -17,7 +17,12 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * REST adapter for market price queries and updates.
+ * Read-only REST adapter for stored market prices.
+ *
+ * <p>There is deliberately no public write here. The former {@code POST /prices/{ticker}} let any
+ * ordinary signed-in account overwrite shared prices and publish events. Prices are written by
+ * the refresh Job, local seeding and the internal seed, which requires the internal API key.
+ * {@code MarketPriceWriteRemovalIT} pins the absence of a write under {@code /api/market}.
  *
  * <h2>Wave 2 changes</h2>
  * <ul>
@@ -56,22 +61,14 @@ public class MarketPriceController {
     private static final long WINDOW_MAX_HOURS = 36;
 
     private final AssetPriceRepository assetPriceRepository;
-    private final MarketPriceService marketPriceService;
 
-    public MarketPriceController(AssetPriceRepository assetPriceRepository, MarketPriceService marketPriceService) {
+    public MarketPriceController(AssetPriceRepository assetPriceRepository) {
         this.assetPriceRepository = assetPriceRepository;
-        this.marketPriceService = marketPriceService;
     }
 
     @GetMapping("/health")
     public ResponseEntity<Map<String, String>> health() {
         return ResponseEntity.ok(Map.of("status", "UP", "service", "market-data-service"));
-    }
-
-    @PostMapping("/prices/{ticker}")
-    public ResponseEntity<Void> updatePrice(@PathVariable String ticker, @RequestBody BigDecimal newPrice) {
-        marketPriceService.updatePrice(ticker, newPrice);
-        return ResponseEntity.ok().build();
     }
 
     @GetMapping("/prices")
