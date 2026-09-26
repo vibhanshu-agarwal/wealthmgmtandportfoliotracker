@@ -1,12 +1,24 @@
 # Azure Secrets Setup — One-Time Runbook
 
-This runbook covers the one-time steps needed before `deploy-azure.yml` and
-`terraform-azure.yml` can run successfully in GitHub Actions.
+**Owner approval required before execution:** identity/RBAC changes, cloud or secret access,
+secret publication and workflow dispatch each need the applicable approval. Reconciliation of
+this document grants none; do not rerun bootstrap against the existing demo environment.
 
-Both workflows use **OIDC (Workload Identity Federation)** — no long-lived
-client secrets are stored. The three secrets `AZURE_CLIENT_ID`,
-`AZURE_TENANT_ID`, and `AZURE_SUBSCRIPTION_ID` are already present in
-`.env.secrets` and will be synced to GitHub by `sync-secrets.sh`.
+**Source reconciliation:** 2026-09-26 UTC, deployment/workflow source at `main@d515aa5b`.
+This is a setup/recovery reference, not evidence that credentials, grants or cloud resources
+are currently present. Start with the [runbook inventory](README.md) and
+[current operating guidance](CURRENT_OPERATIONS.md).
+
+This runbook covers one-time prerequisites for `deploy.yml` (the dispatch entry point), its
+reusable Azure deployment workflows, and `terraform-azure.yml`. The existing demo environment
+already has recorded successful deployments; create identities/resources only for an explicitly
+approved new setup or a diagnosed missing prerequisite.
+
+Azure workflow login uses **OIDC (Workload Identity Federation)**, not an Azure client-secret
+password. This does not mean the application has no database/API credentials. The three OIDC
+identifier keys are `AZURE_CLIENT_ID`, `AZURE_TENANT_ID` and `AZURE_SUBSCRIPTION_ID`.
+An authorized operator may resolve them from the private `.env.secrets` or existing GitHub
+configuration; this audit did not read either. Do not print or commit private configuration.
 
 ---
 
@@ -41,7 +53,9 @@ echo "TENANT_ID=$TENANT_ID"
 
 ## Step 2 — Assign Roles
 
-The service principal needs two roles:
+The historical bootstrap used the two subscription-level roles below. They are **not** an
+instruction to grant broad rights again. Before creating assignments, approve the exact identity
+and scopes and reconcile existing assignments with the resources the selected workflow manages.
 
 ```bash
 # Contributor on the subscription (for provisioning all Azure resources)
@@ -62,19 +76,13 @@ az role assignment create \
 
 ## Step 3 — Add Federated Credentials (OIDC)
 
-Add one credential per branch/environment that needs to trigger the workflows.
+Match the subject to the job that actually requests an OIDC token. A PR job uses the
+`pull_request` subject; main-ref login jobs use `ref:refs/heads/main`; Terraform's apply job
+declares `environment: production` and uses the environment subject. The deployment dispatcher's
+separate production approval job does not make every downstream login environment-scoped.
+Do not add federated credentials for arbitrary feature branches to bypass the main-only gates.
 
 ```bash
-# For the feature branch (PR validation)
-az ad app federated-credential create \
-  --id "$APP_ID" \
-  --parameters '{
-    "name": "github-feat-phase4",
-    "issuer": "https://token.actions.githubusercontent.com",
-    "subject": "repo:vibhanshu-agarwal/wealthmgmtandportfoliotracker:ref:refs/heads/feat/phase4-azure-migration",
-    "audiences": ["api://AzureADTokenExchange"]
-  }'
-
 # For pull requests (terraform-azure.yml plan path)
 az ad app federated-credential create \
   --id "$APP_ID" \
@@ -85,7 +93,7 @@ az ad app federated-credential create \
     "audiences": ["api://AzureADTokenExchange"]
   }'
 
-# For main branch (deploy-azure.yml + terraform-azure.yml remote-plan/validate-dispatch)
+# For main-ref Azure login jobs (including reusable deploy workflows and remote-plan)
 az ad app federated-credential create \
   --id "$APP_ID" \
   --parameters '{
@@ -114,8 +122,9 @@ az ad app federated-credential create \
 
 ## Step 4 — Provision the Terraform State Backend
 
-> **Already done for this repo.** The resources below were created on 2026-05-09
-> via Azure CLI. Skip to Step 5 unless you are setting up a fresh environment.
+> **Historical setup recorded on 2026-05-09.** Skip resource creation for the existing
+> environment. If a prerequisite is missing, diagnose it under approved reads before proposing
+> recovery; the list below is not a fresh cloud inventory.
 >
 > - Resource group: `wealth-tf-state-rg` (centralindia)
 > - Storage account: `wealthtfstate` (Standard LRS)
@@ -157,9 +166,10 @@ az role assignment create \
 ## Step 5 — Pre-register Azure Resource Providers
 
 > **Required before `terraform apply`.** The Terraform provider is configured with
-> `resource_provider_registrations = "none"` because the CI service principal lacks
-> subscription-scope rights to auto-register RPs. All five required RPs must be
-> registered manually in the target subscription before the first apply.
+> `resource_provider_registrations = "none"`. The historical setup used manual
+> registration rather than granting CI subscription-scope auto-registration rights;
+> this source audit did not re-check the principal's current RBAC. Confirm all five
+> required RPs are registered before apply; register a missing RP only under approved scope.
 >
 > If any RP is missing, `terraform apply` fails with a cryptic API-version error.
 
@@ -194,7 +204,8 @@ Re-run the query until all five show `Registered`. Do not proceed to Step 7 unti
 
 > **Required before `terraform apply`.** The Terraform config provisions a
 > `gpt-4o-mini` deployment with `capacity = 10` (10K tokens/min) in `eastus`.
-> If the subscription's quota for `gpt-4o-mini` in `eastus` is below 10 TPM,
+> Capacity is in **thousands** of tokens/minute: a value of 10 means 10K TPM, not 10 TPM.
+> If available quota in the matching Azure usage units is below the required capacity,
 > `terraform apply` fails with a quota error.
 
 ```bash
@@ -235,9 +246,13 @@ If `limit - currentValue < 10`, either:
    ```
 
    > `AZURE_BACKEND_HCL` cannot be set via `sync-secrets.sh` because it is a
-   > multi-line value. Set it directly from the file instead (Step 5c below).
+   > multi-line value. Set it directly from the file instead (Step 7.4 below).
 
 3. Sync the three OIDC secrets to GitHub:
+
+   **Scope warning:** `sync-secrets.sh` calls `gh secret set -f` on the **whole input file**;
+   it does not filter to these three keys. Approve that complete set before using the script,
+   or set only the approved individual secrets. Never publish a private file as evidence.
 
    ```bash
    ./scripts/sync-secrets.sh .env.secrets
@@ -270,20 +285,29 @@ If `limit - currentValue < 10`, either:
 
 ## Step 8 — Verify
 
-After syncing, trigger a manual plan run to confirm everything works:
+After authorized setup, a separately approved **structural** plan can validate workflow wiring:
 
 ```bash
 gh workflow run terraform-azure.yml \
-  --ref feat/phase4-azure-migration \
+  --ref main \
   --field action=plan
 ```
 
-The workflow should:
+The current `pr-plan` path should:
 1. Log in via OIDC (no password prompt)
-2. Run `terraform init -backend=false`
+2. Replace the Azure backend with a temporary local-backend override and run `terraform init`
 3. Run `terraform validate`
 4. Run `terraform plan`
-5. Run both Python assertion scripts (P1 + P5)
+5. Run the mandatory structural plan assertions (including P1/P5, observability, runner-env,
+   ingress and repair-Job contracts).
+
+This path still authenticates to Azure and may perform provider reads. It is not an offline
+test and **cannot preview the existing environment's delta**. For live-state preview, use
+`action=remote-plan` on `main` with the reviewed `expected_main_sha`, exact four-service
+`deployed_image_tags_json`, selected `change_profile`, and any profile-required portfolio digest.
+`action=apply` needs its own authorization and the production Environment gate; it regenerates
+its plan rather than applying a saved remote-plan artifact. See [current operations](CURRENT_OPERATIONS.md).
+Do not dispatch `deploy-azure.yml` directly: it is reusable-workflow-only; dispatch `deploy.yml`.
 
 ---
 
@@ -291,11 +315,13 @@ The workflow should:
 
 | Secret | Source | Used by |
 |--------|--------|---------|
-| `AZURE_CLIENT_ID` | App Registration `appId` | `deploy-azure.yml`, `terraform-azure.yml` |
-| `AZURE_TENANT_ID` | `az account show --query tenantId` | `deploy-azure.yml`, `terraform-azure.yml` |
-| `AZURE_SUBSCRIPTION_ID` | `az account show --query id` | `deploy-azure.yml`, `terraform-azure.yml` |
-| `AZURE_BACKEND_HCL` | Content of `backend-azure.hcl` | `terraform-azure.yml` (apply path only) |
-| `SWA_DEPLOYMENT_TOKEN` | `az staticwebapp secrets list --query properties.apiKey` | `deploy-azure.yml` (frontend deploy job) |
+| `AZURE_CLIENT_ID` | Approved App Registration `appId` | Azure login jobs in the deploy workflows and `terraform-azure.yml` |
+| `AZURE_TENANT_ID` | Approved tenant identifier | Same Azure login jobs |
+| `AZURE_SUBSCRIPTION_ID` | Approved subscription identifier | Same Azure login jobs |
+| `AZURE_BACKEND_HCL` | Content of private `backend-azure.hcl` | `terraform-azure.yml` remote-plan **and** apply; not the structural plan |
+| `SWA_DEPLOYMENT_TOKEN` | Authorized SWA token retrieval | Frontend upload in `deploy-azure.yml` or `deploy-azure-frontend.yml` |
 
-All other secrets (`AUTH_JWT_SECRET`, `POSTGRES_CONNECTION_STRING`, etc.) are
-shared with the AWS path and already present in `.env.secrets`.
+Application keys such as `AUTH_JWT_SECRET` and `POSTGRES_CONNECTION_STRING` are separate from
+OIDC identifiers. Use the checked-in example and the selected workflow's declared inputs to
+resolve approved keys; do not assume a private file is present in every worktree or that AWS
+standby credentials are current. No secret presence, value or validity was checked in this audit.

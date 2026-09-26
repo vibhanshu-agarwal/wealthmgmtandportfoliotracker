@@ -1,5 +1,14 @@
 # Asset Picker — E2E Master Plan to Production
 
+**Runbook process reconciliation — 2026-09-26 UTC:** the
+[runbook index](../runbooks/README.md) classifies all 24 existing runbooks; the 2 reusable
+procedures are corrected against source, while the 3 legacy helpers and 19 historical records
+remain unchanged. [Current operations](../runbooks/CURRENT_OPERATIONS.md) records dispatch,
+demo startup and restart boundaries. No new operational proof or Spec A/B1/B2 completion is
+claimed. This reconciliation is filed only after independent review and an owner-authorized
+merge of its carrying PR. The [demo dashboard](ASSET_PICKER_DEMO_PREPARATION_PLAN.md) retains
+current acceptance and the remaining freeze work; the roadmap is not reconciled by this bundle.
+
 **Backlog process reconciliation — 2026-09-26 UTC:** the
 [backlog index](../todos/backlog/README.md) records 8 fixed/completed closures, 2 superseded
 closures and 20 open items against `main@d515aa5b`. No Spec A/B1/B2 task completion box or
