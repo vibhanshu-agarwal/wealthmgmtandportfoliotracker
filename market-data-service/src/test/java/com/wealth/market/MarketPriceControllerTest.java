@@ -13,9 +13,7 @@ class MarketPriceControllerTest {
 
     @Test
     void health_returnsServiceStatus() {
-        var controller = new MarketPriceController(
-                mock(AssetPriceRepository.class),
-                mock(MarketPriceService.class));
+        var controller = new MarketPriceController(mock(AssetPriceRepository.class));
 
         var response = controller.health();
 
@@ -39,7 +37,7 @@ class MarketPriceControllerTest {
     @SuppressWarnings("unchecked")
     void overLimitRequest_returns400() {
         AssetPriceRepository repo = mock(AssetPriceRepository.class);
-        var controller = new MarketPriceController(repo, mock(MarketPriceService.class));
+        var controller = new MarketPriceController(repo);
 
         // Build a comma-separated list of MAX+1 distinct tickers.
         StringBuilder sb = new StringBuilder();
@@ -63,7 +61,7 @@ class MarketPriceControllerTest {
         // MSFT is "requested" but not in the data store.
         when(repo.findByTickerIn(List.of("AAPL", "MSFT"))).thenReturn(List.of(aapl));
 
-        var controller = new MarketPriceController(repo, mock(MarketPriceService.class));
+        var controller = new MarketPriceController(repo);
 
         ResponseEntity<?> response = controller.getPrices("AAPL,MSFT");
 
@@ -94,7 +92,7 @@ class MarketPriceControllerTest {
 
         when(repo.findByTickerIn(List.of("AAPL"))).thenReturn(List.of(aapl));
 
-        var controller = new MarketPriceController(repo, mock(MarketPriceService.class));
+        var controller = new MarketPriceController(repo);
         ResponseEntity<?> response = controller.getPrices("AAPL");
 
         @SuppressWarnings("unchecked")
@@ -117,7 +115,7 @@ class MarketPriceControllerTest {
         // No prior reference (freshly inserted).
         when(repo.findByTickerIn(List.of("BTC-USD"))).thenReturn(List.of(btc));
 
-        var controller = new MarketPriceController(repo, mock(MarketPriceService.class));
+        var controller = new MarketPriceController(repo);
         ResponseEntity<?> response = controller.getPrices("BTC-USD");
 
         @SuppressWarnings("unchecked")
